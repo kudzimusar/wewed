@@ -1,0 +1,781 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ============================================================
+   WEWED — Design System Tokens
+   Warm Zimbabwean luxury: champagne-gold + espresso + clay + plum
+   ============================================================ */
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-inter);
+  --font-serif: var(--font-cormorant);
+  --font-mono: var(--font-geist-mono);
+
+  /* wewed brand tokens */
+  --color-espresso: #1A1410;
+  --color-champagne: #FBF6EE;
+  --color-ivory: #F7F1E7;
+  --color-gold: #BF9B5F;
+  --color-gold-light: #D8BC7E;
+  --color-gold-muted: #A68B4B;
+  --color-clay: #C0633F;
+  --color-clay-light: #D4805E;
+  --color-plum: #6B2D3A;
+  --color-plum-light: #8B4558;
+  --color-sage: #7C7A52;
+  --color-sage-light: #9D9B78;
+
+  /* shadcn mapping */
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --radius: 0.625rem;
+  --background: #FBF6EE;
+  --foreground: #1A1410;
+  --card: #FFFFFF;
+  --card-foreground: #1A1410;
+  --popover: #FFFFFF;
+  --popover-foreground: #1A1410;
+  --primary: #BF9B5F;
+  --primary-foreground: #1A1410;
+  --secondary: #F7F1E7;
+  --secondary-foreground: #1A1410;
+  --muted: #F0E9DC;
+  --muted-foreground: #6B6560;
+  --accent: #C0633F;
+  --accent-foreground: #FBF6EE;
+  --destructive: #C0633F;
+  --border: #E5DDD0;
+  --input: #E5DDD0;
+  --ring: #BF9B5F;
+  --chart-1: #BF9B5F;
+  --chart-2: #C0633F;
+  --chart-3: #6B2D3A;
+  --chart-4: #7C7A52;
+  --chart-5: #D8BC7E;
+  --sidebar: #F7F1E7;
+  --sidebar-foreground: #1A1410;
+  --sidebar-primary: #BF9B5F;
+  --sidebar-primary-foreground: #1A1410;
+  --sidebar-accent: #F0E9DC;
+  --sidebar-accent-foreground: #1A1410;
+  --sidebar-border: #E5DDD0;
+  --sidebar-ring: #BF9B5F;
+}
+
+.dark {
+  --background: #1A1410;
+  --foreground: #FBF6EE;
+  --card: #2A2420;
+  --card-foreground: #FBF6EE;
+  --popover: #2A2420;
+  --popover-foreground: #FBF6EE;
+  --primary: #D8BC7E;
+  --primary-foreground: #1A1410;
+  --secondary: #2A2420;
+  --secondary-foreground: #FBF6EE;
+  --muted: #2A2420;
+  --muted-foreground: #A09890;
+  --accent: #D4805E;
+  --accent-foreground: #1A1410;
+  --destructive: #D4805E;
+  --border: #3A3430;
+  --input: #3A3430;
+  --ring: #D8BC7E;
+  --chart-1: #D8BC7E;
+  --chart-2: #D4805E;
+  --chart-3: #8B4558;
+  --chart-4: #9D9B78;
+  --chart-5: #BF9B5F;
+  --sidebar: #2A2420;
+  --sidebar-foreground: #FBF6EE;
+  --sidebar-primary: #D8BC7E;
+  --sidebar-primary-foreground: #1A1410;
+  --sidebar-accent: #3A3430;
+  --sidebar-accent-foreground: #FBF6EE;
+  --sidebar-border: #3A3430;
+  --sidebar-ring: #D8BC7E;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    scroll-behavior: smooth;
+    /* Offset for the fixed navbar when jumping to #anchors */
+    scroll-padding-top: 5rem;
+  }
+}
+
+/* ============================================================
+   WEWED — Custom Utility Classes
+   ============================================================ */
+
+/* Elegant section separator using gold hairline */
+.wewed-divider {
+  position: relative;
+  text-align: center;
+  margin: 2rem 0;
+}
+.wewed-divider::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--color-gold), transparent);
+}
+
+/* Monogram styling */
+.wewed-monogram {
+  font-family: var(--font-cormorant), serif;
+  letter-spacing: 0.15em;
+  color: var(--color-gold);
+}
+
+/* Serif heading utility */
+.wewed-heading {
+  font-family: var(--font-cormorant), serif;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+}
+
+/* Gold underline accent for headings */
+.wewed-heading-accent {
+  position: relative;
+  display: inline-block;
+}
+.wewed-heading-accent::after {
+  content: '';
+  position: absolute;
+  bottom: -0.3em;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60%;
+  height: 1px;
+  background: var(--color-gold);
+}
+
+/* Ken Burns effect for hero images */
+@keyframes ken-burns {
+  0% { transform: scale(1) translate(0, 0); }
+  50% { transform: scale(1.08) translate(-1%, -1%); }
+  100% { transform: scale(1) translate(0, 0); }
+}
+.wewed-ken-burns {
+  animation: ken-burns 20s ease-in-out infinite;
+}
+
+/* Fade up animation */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.wewed-fade-up {
+  animation: fade-up 0.8s ease-out forwards;
+}
+
+/* Shimmer for gold elements */
+@keyframes gold-shimmer {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+.wewed-gold-shimmer {
+  animation: gold-shimmer 3s ease-in-out infinite;
+}
+
+/* Custom scrollbar */
+.wewed-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+.wewed-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.wewed-scroll::-webkit-scrollbar-thumb {
+  background: var(--color-gold-muted);
+  border-radius: 2px;
+}
+.wewed-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--color-gold);
+}
+
+/* Section transition helper */
+.wewed-section {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Pulsing dot for live elements */
+@keyframes wewed-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.2); }
+}
+.wewed-pulse-dot {
+  animation: wewed-pulse 2s ease-in-out infinite;
+}
+
+/* Song vote animation */
+@keyframes vote-pop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
+.wewed-vote-pop {
+  animation: vote-pop 0.3s ease-out;
+}
+
+/* ============================================================
+   WEWED — Styling Polish (Task 3-e additions)
+   All additive — existing classes above remain untouched.
+   ============================================================ */
+
+/* ── Elegant card hover (subtle lift + gold glow) ── */
+.wewed-card-hover {
+  transition:
+    transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+    box-shadow 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+    border-color 0.35s ease;
+  will-change: transform;
+}
+.wewed-card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow:
+    0 12px 32px -12px rgba(191, 155, 95, 0.35),
+    0 4px 12px -4px rgba(26, 20, 16, 0.08);
+  border-color: var(--color-gold);
+}
+.dark .wewed-card-hover:hover {
+  box-shadow:
+    0 12px 32px -12px rgba(216, 188, 126, 0.35),
+    0 4px 12px -4px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Gold shimmer text (for special headings) ── */
+@keyframes wewed-text-shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+.wewed-text-shimmer {
+  background: linear-gradient(
+    100deg,
+    var(--color-gold) 0%,
+    var(--color-gold-muted) 30%,
+    var(--color-gold-light) 50%,
+    var(--color-gold-muted) 70%,
+    var(--color-gold) 100%
+  );
+  background-size: 200% auto;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: wewed-text-shimmer 6s linear infinite;
+}
+
+/* ── Subtle damask/pattern background (CSS only, gradients) ── */
+.wewed-bg-pattern {
+  background-color: var(--color-champagne);
+  background-image:
+    radial-gradient(circle at 25% 25%, rgba(191, 155, 95, 0.05) 1.5px, transparent 1.5px),
+    radial-gradient(circle at 75% 75%, rgba(191, 155, 95, 0.05) 1.5px, transparent 1.5px),
+    radial-gradient(circle at 50% 50%, rgba(192, 99, 63, 0.03) 1px, transparent 1px);
+  background-size: 36px 36px, 36px 36px, 18px 18px;
+  background-position: 0 0, 18px 18px, 9px 9px;
+}
+.dark .wewed-bg-pattern {
+  background-color: var(--color-espresso);
+  background-image:
+    radial-gradient(circle at 25% 25%, rgba(216, 188, 126, 0.06) 1.5px, transparent 1.5px),
+    radial-gradient(circle at 75% 75%, rgba(216, 188, 126, 0.06) 1.5px, transparent 1.5px),
+    radial-gradient(circle at 50% 50%, rgba(212, 128, 94, 0.04) 1px, transparent 1px);
+}
+
+/* ── Linear gold gradient (background or text fill base) ── */
+.wewed-gold-gradient {
+  background: linear-gradient(
+    135deg,
+    var(--color-gold-muted) 0%,
+    var(--color-gold) 35%,
+    var(--color-gold-light) 65%,
+    var(--color-gold) 100%
+  );
+}
+
+/* ── Animated scroll-down chevron ── */
+@keyframes wewed-scroll-indicator {
+  0% { opacity: 0; transform: translateY(-4px); }
+  40% { opacity: 1; }
+  80% { opacity: 1; transform: translateY(6px); }
+  100% { opacity: 0; transform: translateY(8px); }
+}
+.wewed-scroll-indicator {
+  animation: wewed-scroll-indicator 1.8s ease-in-out infinite;
+}
+
+/* ── Image zoom on hover within container ── */
+.wewed-image-zoom {
+  overflow: hidden;
+}
+.wewed-image-zoom img,
+.wewed-image-zoom > * {
+  transition: transform 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  will-change: transform;
+}
+.wewed-image-zoom:hover img,
+.wewed-image-zoom:hover > * {
+  transform: scale(1.06);
+}
+
+/* ── Gentle floating animation (badges, monograms) ── */
+@keyframes wewed-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.wewed-float {
+  animation: wewed-float 4s ease-in-out infinite;
+}
+
+/* ── Gold dust particles (parallax hero) ── */
+@keyframes wewed-gold-dust {
+  0% {
+    transform: translate3d(0, 0, 0) scale(0.8);
+    opacity: 0;
+  }
+  10% {
+    opacity: var(--wewed-dust-opacity, 0.5);
+  }
+  90% {
+    opacity: var(--wewed-dust-opacity, 0.5);
+  }
+  100% {
+    transform: translate3d(var(--sway, 20px), -110vh, 0) scale(1.1);
+    opacity: 0;
+  }
+}
+.wewed-gold-dust {
+  animation-name: wewed-gold-dust;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  will-change: transform, opacity;
+  filter: blur(0.5px);
+  box-shadow: 0 0 4px rgba(216, 188, 126, 0.6);
+}
+
+/* ── Global custom scrollbar (body, not just .wewed-scroll) ── */
+/* Firefox */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-gold-muted) transparent;
+}
+/* WebKit / Chromium */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-gold-muted);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-gold);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+/* Corner where two scrollbars meet */
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ============================================================
+   WEWED — Task 17 additions
+   Ambient music player volume slider + hero parallax sheen
+   ============================================================ */
+
+/* ── Ambient music volume slider (thumb + track styling) ── */
+.wewed-volume-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+  transition: opacity 0.2s ease;
+}
+.wewed-volume-slider:hover {
+  opacity: 1;
+}
+/* WebKit thumb */
+.wewed-volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color-gold);
+  border: 2px solid var(--color-espresso);
+  cursor: pointer;
+  box-shadow: 0 0 0 1px rgba(191, 155, 95, 0.4), 0 0 6px rgba(191, 155, 95, 0.4);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.wewed-volume-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 0 1px var(--color-gold), 0 0 10px rgba(191, 155, 95, 0.7);
+}
+/* Firefox thumb */
+.wewed-volume-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color-gold);
+  border: 2px solid var(--color-espresso);
+  cursor: pointer;
+  box-shadow: 0 0 0 1px rgba(191, 155, 95, 0.4), 0 0 6px rgba(191, 155, 95, 0.4);
+  transition: transform 0.15s ease;
+}
+.wewed-volume-slider::-moz-range-thumb:hover {
+  transform: scale(1.2);
+}
+.wewed-volume-slider::-moz-range-track {
+  background: transparent;
+  height: 4px;
+  border-radius: 9999px;
+}
+
+/* ── Hero parallax sheen (drifts slowly opposite to ken-burns) ── */
+@keyframes wewed-hero-sheen {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1.02);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translate3d(2%, 1%, 0) scale(1.05);
+    opacity: 0.7;
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1.02);
+    opacity: 0.5;
+  }
+}
+.wewed-hero-sheen {
+  animation: wewed-hero-sheen 28s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+/* ── Refined section heading reveal (used by ScrollProgressBackToTop-adjacent
+      pattern: small uppercase eyebrow above the H2). Pure styling polish. ── */
+.wewed-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-sans);
+  font-size: 0.625rem;
+  font-weight: 500;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--color-gold);
+  opacity: 0.85;
+}
+.wewed-eyebrow::before,
+.wewed-eyebrow::after {
+  content: '';
+  display: inline-block;
+  width: 1.5rem;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--color-gold-muted),
+    transparent
+  );
+}
+.wewed-eyebrow-left::before { display: none; }
+.wewed-eyebrow-right::after { display: none; }
+
+/* ── Soft inset frame for photographs / portraits (refined hover lift) ── */
+.wewed-photo-frame {
+  position: relative;
+  transition:
+    transform 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+.wewed-photo-frame::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(191, 155, 95, 0.25);
+  border-radius: inherit;
+  pointer-events: none;
+  transition: border-color 0.4s ease, inset 0.4s ease;
+  box-shadow: inset 0 0 0 4px rgba(251, 246, 238, 0.04);
+}
+.wewed-photo-frame:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    0 18px 40px -18px rgba(191, 155, 95, 0.5),
+    0 6px 16px -6px rgba(26, 20, 16, 0.18);
+}
+.wewed-photo-frame:hover::after {
+  border-color: rgba(216, 188, 126, 0.7);
+  inset: 4px;
+}
+
+/* ============================================================
+   WEWED — Task 23: Print Stylesheet
+   ============================================================
+   Guests may want to print the invitation, programme, or travel
+   details. This stylesheet produces a clean, readable printout:
+   - Hides all interactive/floating UI (navbar, FABs, overlays)
+   - Hides the hero background image (saves ink, improves text contrast)
+   - Shows only the essential content sections with page breaks
+   - Forces espresso text → black for ink efficiency
+   - Forces backgrounds → white
+   - Adds a print-only header with the couple's names + date
+   - Adds "Printed from wewed.app" footer with URL
+   - Page breaks before major sections for clean multi-page output
+   ============================================================ */
+
+@media print {
+  /* ── Force black text on white background (ink efficiency) ── */
+  html, body {
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 11pt;
+    line-height: 1.5;
+  }
+
+  /* ── Hide all fixed/floating UI elements ── */
+  .fixed,
+  [class*="fixed "],
+  header[class*="fixed"],
+  nav,
+  footer,
+  /* Floating buttons: back-to-top, help, keyboard shortcuts, ambient music, WhatsApp */
+  button[aria-label="Back to top"],
+  button[aria-label="Show help tour"],
+  button[aria-label="Show keyboard shortcuts"],
+  button[aria-label="Open ambient music player"],
+  button[aria-label="Toggle menu"],
+  /* Skip link (already sr-only, but ensure hidden in print) */
+  a[href="#main-content"],
+  /* SectionTracker chip, ScrollProgress bar, HelpPopups, all overlays */
+  [aria-live="polite"],
+  [role="dialog"],
+  [role="alert"],
+  /* PWA install prompt, Toaster */
+  [data-radix-popper-content-wrapper] {
+    display: none !important;
+  }
+
+  /* ── Reset section padding for print ── */
+  .wewed-section {
+    padding: 1rem 0 !important;
+    page-break-inside: avoid;
+  }
+
+  /* ── Force all text colors to black for print clarity ── */
+  .text-espresso,
+  .text-champagne,
+  .text-gold,
+  .text-gold-muted,
+  .text-clay,
+  .text-plum,
+  .text-sage,
+  [class*="text-"] {
+    color: #000 !important;
+  }
+
+  /* ── Force all backgrounds to white ── */
+  .bg-espresso,
+  .bg-champagne,
+  .bg-ivory,
+  [class*="bg-"] {
+    background: #fff !important;
+  }
+
+  /* ── Remove decorative gradients, shadows, blurs ── */
+  * {
+    background-image: none !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    backdrop-filter: none !important;
+    filter: none !important;
+  }
+
+  /* ── Hero section: hide background image, show only text ── */
+  section#home {
+    min-height: auto !important;
+    padding: 2rem 0 !important;
+    text-align: center;
+  }
+  section#home img,
+  section#home .absolute {
+    display: none !important;
+  }
+  section#home h1 {
+    font-size: 28pt !important;
+    margin: 0 0 0.5rem 0 !important;
+    color: #000 !important;
+  }
+
+  /* ── Headings: clean serif, black, proper spacing ── */
+  h1, h2, h3, h4 {
+    color: #000 !important;
+    page-break-after: avoid;
+    font-weight: 600 !important;
+  }
+  h2 {
+    font-size: 18pt !important;
+    margin-top: 1.5rem !important;
+    border-bottom: 1px solid #999 !important;
+    padding-bottom: 0.25rem !important;
+  }
+  h3 {
+    font-size: 14pt !important;
+  }
+
+  /* ── Eyebrows: show as small italic labels (no gradient lines) ── */
+  .wewed-eyebrow {
+    color: #666 !important;
+    font-size: 9pt !important;
+    font-style: italic;
+    letter-spacing: 0.1em !important;
+  }
+  .wewed-eyebrow::before,
+  .wewed-eyebrow::after {
+    display: none !important;
+  }
+
+  /* ── Page break before each major section for clean multi-page output ── */
+  section#story,
+  section#theday,
+  section#rsvp,
+  section#travel,
+  section#faq {
+    page-break-before: always;
+  }
+
+  /* ── Cards: simple bordered boxes, no shadows ── */
+  [class*="rounded"],
+  [class*="border"] {
+    border: 1px solid #ccc !important;
+    border-radius: 4px !important;
+  }
+
+  /* ── Links: show URL in parentheses for external links ── */
+  a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 9pt;
+    color: #666;
+  }
+  /* But not for internal anchor links */
+  a[href^="#"]::after {
+    content: "";
+  }
+
+  /* ── Images: cap width, avoid page-break inside ── */
+  img {
+    max-width: 100% !important;
+    page-break-inside: avoid;
+  }
+
+  /* ── Forms: show as text (RSVP form is not printable, hide it) ── */
+  form,
+  input,
+  textarea,
+  select,
+  button {
+    display: none !important;
+  }
+
+  /* ── Accordion: expand all for print (FAQ, Cultural Guide) ── */
+  [data-state="collapsed"] {
+    display: block !important;
+  }
+  [data-radix-collection-item] {
+    display: block !important;
+    margin-bottom: 0.5rem !important;
+  }
+
+  /* ── Print-only header (visible only in print) ── */
+  .wewed-print-header {
+    display: block !important;
+    text-align: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #000;
+  }
+  .wewed-print-header h1 {
+    font-size: 24pt !important;
+    margin: 0 !important;
+    border: none !important;
+  }
+  .wewed-print-header p {
+    font-size: 12pt;
+    margin: 0.5rem 0 0 0;
+    color: #666 !important;
+  }
+
+  /* ── Print-only footer (visible only in print) ── */
+  .wewed-print-footer {
+    display: block !important;
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid #999;
+    text-align: center;
+    font-size: 9pt;
+    color: #666 !important;
+  }
+}
+
+/* ── Print-only header/footer: hidden on screen, shown in print ── */
+.wewed-print-header,
+.wewed-print-footer {
+  display: none;
+}
+

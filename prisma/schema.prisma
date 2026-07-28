@@ -1,0 +1,613 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ── Dual datasource: PostgreSQL for production (Supabase), SQLite for local dev ──
+// Prisma doesn't support conditional providers natively, so we use a trick:
+//  - For LOCAL DEV (SQLite): keep the current schema.prisma as-is (sqlite).
+//  - For PRODUCTION (Supabase Postgres): run `prisma db push` with a schema
+//    that has `provider = "postgresql"` and `url = env("DATABASE_URL")`
+//    pointing to your Supabase connection string.
+//
+// To switch to Postgres for production:
+//   1. Set DATABASE_URL in your hosting env to:
+//      postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres
+//   2. Change `provider = "sqlite"` below to `provider = "postgresql"`.
+//   3. Run `bun run db:push` to create all tables in Supabase.
+//
+// All Prisma types below are compatible with BOTH sqlite and postgresql —
+// no model changes needed. The only difference is `provider` and `url`.
+datasource db {
+  // ── CURRENT: SQLite (local dev) ──────────────────────────────
+  // Change to "postgresql" when connecting to Supabase.
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// WEWED — Multi-couple platform data model
+// Built from day 1 for scalability beyond the flagship wedding
+// ============================================================
+
+model Couple {
+  id                 String    @id @default(cuid())
+  slug               String    @unique // e.g. "charity-and-kudzie"
+  partner1           String    // e.g. "Charity"
+  partner2           String    // e.g. "Kudzie"
+  surname            String?   // e.g. "Musarurwa"
+  photo              String?   // URL to couple photo
+  userId             String?   // for future NextAuth user linking
+  subscriptionStatus String    @default("free") // "free" | "active" | "past_due" | "canceled"
+
+  weddings  Wedding[]
+  kids      Kid[]
+  users     User[]
+  userProfile UserProfile?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Wedding {
+  id          String    @id @default(cuid())
+  slug        String    @unique // e.g. "charity-and-kudzie"
+  title       String    // e.g. "Charity & Kudzie"
+  monogram    String?   // e.g. "C&K"
+  tagline     String?   // e.g. "23.12.26"
+
+  date        DateTime  // The wedding date
+  venue       String    // e.g. "Imba Manor"
+  venueCity   String    // e.g. "Harare"
+  venueCountry String   // e.g. "Zimbabwe"
+  venueMapUrl String?   // Google Maps embed URL
+
+  // Theme config (data-driven so changes are cheap)
+  primaryColor    String  @default("#BF9B5F")  // Gold
+  accentColor     String  @default("#C0633F")   // Clay (BEFORE)
+  memoryColor     String  @default("#6B2D3A")   // Plum (AFTER)
+  backgroundColor String  @default("#FBF6EE")   // Champagne
+
+  lifecycle   String    @default("before") // "before" | "after"
+
+  // ── Privacy & Canon (Task 4-b / 4-e) ────────────────────────────
+  privacy         String    @default("public") // "public" | "link_only" | "private"
+  canonSealed     Boolean   @default(false) // sealed = preserved forever
+  canonSealedAt   DateTime?
+  subscriptionTier String   @default("free") // "free" | "canon" | "forever"
+
+  coupleId    String
+  couple      Couple    @relation(fields: [coupleId], references: [id])
+
+  guests      Guest[]
+  songs       Song[]
+  media       MediaItem[]
+  messages    Message[]
+  products    Product[]
+  vendors     Vendor[]
+  programmeItems ProgrammeItem[]
+  plannerTasks    PlannerTask[]
+  budgetItems     BudgetItem[]
+  seatingTables   SeatingTable[]
+
+  // ── Incremental upgrade relations (additive) ─────────────────
+  importJobs        ImportJob[]
+  contentRevisions  ContentRevision[]
+  contentSubmissions ContentSubmission[]
+  auditEvents       AuditEvent[]
+  googleSheetsConnections GoogleSheetsConnection[]
+  qrDestinations    QRDestination[]
+  themePreferences  ThemePreference[]
+  guestContributions GuestContribution[]
+  contentItems  WeddingContent[]
+  comments     Comment[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Guest {
+  id          String    @id @default(cuid())
+  name        String
+  email       String?
+  phone       String?
+  role        String    @default("guest") // "guest" | "bridal_party" | "family" | "officiant"
+  roleDetail  String?   // e.g. "Best Man", "Maid of Honor", "Mother of the Bride"
+  side        String?   // "bride" | "groom"
+  tableNumber Int?
+  seatingTableId String?
+  seatingTable SeatingTable? @relation(fields: [seatingTableId], references: [id])
+
+  // ── Collaborative Guest Contributions ──────────────────────
+  contributionToken  String?  @unique // secure token for guest's contribution editor
+  contributionStatus String?  @default("none") // "none" | "draft" | "pending" | "approved" | "rejected" | "featured" | "hidden"
+
+  weddingId   String
+  wedding     Wedding   @relation(fields: [weddingId], references: [id])
+
+  rsvp        RSVP?
+  contribution GuestContribution?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model RSVP {
+  id              String    @id @default(cuid())
+  token           String    @unique // unique RSVP link token
+  attending       Boolean?
+  mealChoice      String?   // "beef" | "chicken" | "vegetarian" | "vegan" | "traditional"
+  plusOne         Boolean   @default(false)
+  plusOneName     String?
+  plusOneMeal     String?
+  kidsAttending   Boolean   @default(false)
+  kidsCount       Int       @default(0)
+  songRequests    String?   // comma-separated song IDs
+  dietaryNotes    String?
+  message         String?   // personal message to couple
+
+  checkedIn       Boolean   @default(false)
+  checkedInAt     DateTime?
+
+  guestId         String    @unique
+  guest           Guest     @relation(fields: [guestId], references: [id])
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model Song {
+  id          String    @id @default(cuid())
+  title       String
+  artist      String
+  phase       String    // "ceremony" | "processional" | "recessional" | "first_dance" | "reception" | "requested"
+  moment      String?   // e.g. "Bridal Entrance", "Cake Cutting", "Last Dance"
+  order       Int       @default(0)
+  votes       Int       @default(0)
+  spotifyUrl  String?
+  appleUrl    String?
+  playedAt    DateTime? // AFTER: when it was actually played
+  notes       String?   // e.g. "Charity's late mother's favorite"
+
+  weddingId   String
+  wedding     Wedding   @relation(fields: [weddingId], references: [id])
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model MediaItem {
+  id          String    @id @default(cuid())
+  type        String    // "photo" | "video" | "document"
+  url         String
+  thumbnailUrl String?
+  caption     String?
+  moment      String?   // "ceremony" | "reception" | "candid" | "preparation" | "group_photo"
+  isCurated   Boolean   @default(false)
+  isHero      Boolean   @default(false)
+  uploaderId  String?   // guest token who uploaded (anonymous)
+  userId      String?   // authenticated user who uploaded (links to UserProfile)
+  user        UserProfile? @relation(fields: [userId], references: [id])
+  uploadedAt  DateTime?
+
+  weddingId   String
+  wedding     Wedding   @relation(fields: [weddingId], references: [id])
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Message {
+  id          String    @id @default(cuid())
+  type        String    // "wall" | "capsule" | "toast"
+  content     String
+  authorName  String
+  authorToken String?   // guest RSVP token (anonymous)
+  userId      String?   // authenticated user (links to UserProfile)
+  user        UserProfile? @relation(fields: [userId], references: [id])
+  isPublic    Boolean   @default(true)
+  revealedAt  DateTime? // for time capsule messages
+
+  weddingId   String
+  wedding     Wedding   @relation(fields: [weddingId], references: [id])
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Product {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  price       Float
+  currency    String    @default("USD")
+  imageUrl    String?
+  category    String?   // "candle" | "mug" | "print" | "keepsake"
+  inStock     Boolean   @default(true)
+
+  weddingId   String
+  wedding     Wedding   @relation(fields: [weddingId], references: [id])
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Vendor {
+  id          String    @id @default(cuid())
+  name        String
+  category    String    // "venue" | "caterer" | "photographer" | "florist" | "dj" | "decor"
+  description String?
+  website     String?
+  phone       String?
+  imageUrl    String?
+  rating      Float?
+  featured    Boolean   @default(false)
+
+  weddingId   String
+  wedding     Wedding   @relation(fields: [weddingId], references: [id])
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model ProgrammeItem {
+  id          String    @id @default(cuid())
+  time        String    // e.g. "14:00"
+  title       String
+  description String?
+  icon        String?   // Lucide icon name
+  order       Int       @default(0)
+
+  weddingId   String
+  wedding     Wedding   @relation(fields: [weddingId], references: [id])
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Kid {
+  id          String    @id @default(cuid())
+  name        String
+  gender      String    // "boy" | "girl"
+  age         Int?
+  photoUrl    String?
+
+  coupleId    String
+  couple      Couple    @relation(fields: [coupleId], references: [id])
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// ============================================================
+// Planning & Seating models (Task 4-e)
+// ============================================================
+
+model PlannerTask {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  category    String   // "venue" | "catering" | "attire" | "roora" | "magumo" | "transport" | "stationery" | "decor" | "photo_video" | "music" | "other"
+  status      String   @default("todo") // "todo" | "in_progress" | "done" | "blocked"
+  priority    String   @default("medium") // "low" | "medium" | "high"
+  dueDate     DateTime?
+  assignee    String?
+  order       Int      @default(0)
+  weddingId   String
+  wedding     Wedding  @relation(fields: [weddingId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model BudgetItem {
+  id           String   @id @default(cuid())
+  category     String   // same categories as PlannerTask
+  description  String
+  estimatedCost Float
+  actualCost   Float?
+  paidAmount   Float    @default(0)
+  currency     String   @default("USD")
+  vendorId     String?  // link to Vendor
+  dueDate      DateTime?
+  weddingId    String
+  wedding      Wedding  @relation(fields: [weddingId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model SeatingTable {
+  id          String   @id @default(cuid())
+  name        String   // "Table 1", "Family Table", etc.
+  capacity    Int      @default(8)
+  position    String?  // JSON string for x,y coordinates on seating chart
+  weddingId   String
+  wedding     Wedding  @relation(fields: [weddingId], references: [id])
+  guests      Guest[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ============================================================
+// INCREMENTAL UPGRADE — Additive models (Phase 1-8)
+// All new models are additive, backward-compatible, with defaults.
+// ============================================================
+
+// ── Phase 1: Auth & Users ─────────────────────────────────────
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String?
+  passwordHash  String?  // for credentials provider
+  role          String   @default("viewer") // "admin" | "couple" | "planner" | "contributor" | "viewer"
+  coupleId      String?  // links to Couple if couple user
+  couple        Couple?  @relation(fields: [coupleId], references: [id])
+  isActive      Boolean  @default(true)
+  lastLoginAt   DateTime?
+
+  auditEvents   AuditEvent[]
+  contentRevisions ContentRevision[]
+  contentSubmissions ContentSubmission[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ── Phase 2: Import/Export ────────────────────────────────────
+model ImportJob {
+  id             String   @id @default(cuid())
+  moduleKey      String   // "guests" | "budget" | "checklist" | etc.
+  fileName       String
+  templateVersion String?
+  status         String   @default("preview") // "preview" | "executed" | "rolled_back" | "failed"
+  totalRows      Int      @default(0)
+  createdCount   Int      @default(0)
+  updatedCount   Int      @default(0)
+  skippedCount   Int      @default(0)
+  errorCount     Int      @default(0)
+  errorReport    String?  // JSON array of {row, errors}
+  rollbackToken  String?  // token to reverse import
+  rollbackData   String?  // JSON snapshot for rollback
+  fieldMapping   String?  // JSON mapping
+  previewData    String?  // JSON preview
+  weddingId      String
+  wedding        Wedding  @relation(fields: [weddingId], references: [id])
+  performedBy    String?  // user email or "admin"
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// ── Phase 5: Content Management ───────────────────────────────
+model ContentRevision {
+  id            String   @id @default(cuid())
+  section       String   // "our-story" | "venue" | "the-day" | etc.
+  fieldKey      String   // "title" | "body" | "date" | etc.
+  value         String   // the content value (text, markdown, or JSON)
+  status        String   @default("draft") // "draft" | "pending" | "approved" | "scheduled" | "published" | "hidden" | "rejected" | "archived"
+  previousValue String?  // for quick diff/restore
+  weddingId     String
+  wedding       Wedding  @relation(fields: [weddingId], references: [id])
+  authorId      String?  // user who made the change
+  author        User?    @relation(fields: [authorId], references: [id])
+  publishedAt   DateTime?
+  scheduledFor  DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model ContentSubmission {
+  id            String   @id @default(cuid())
+  type          String   // "memory" | "photo" | "quote" | "song_request"
+  content       String   // the submitted content
+  authorName    String
+  authorEmail   String?
+  status        String   @default("pending") // "pending" | "approved" | "rejected" | "published"
+  moderatorNotes String?
+  weddingId     String
+  wedding       Wedding  @relation(fields: [weddingId], references: [id])
+  authorId      String?  // user who submitted
+  author        User?    @relation(fields: [authorId], references: [id])
+  reviewedBy    String?  // user who reviewed
+  reviewedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ── Phase 6: Audit ────────────────────────────────────────────
+model AuditEvent {
+  id            String   @id @default(cuid())
+  action        String   // "import.execute" | "content.publish" | "role.assign" | etc.
+  resourceType  String   // "guest" | "budget_item" | "content_revision" | etc.
+  resourceId    String?
+  beforeValue   String?  // JSON
+  afterValue    String?  // JSON
+  ipAddress     String?
+  userAgent     String?
+  weddingId     String?
+  wedding       Wedding? @relation(fields: [weddingId], references: [id])
+  actorId       String?  // user who performed the action
+  actor         User?    @relation(fields: [actorId], references: [id])
+  createdAt     DateTime @default(now())
+}
+
+// ── Phase 7: Google Sheets ────────────────────────────────────
+model GoogleSheetsConnection {
+  id            String   @id @default(cuid())
+  spreadsheetId String
+  spreadsheetName String?
+  sheetTab      String?
+  moduleKey     String   // which module this syncs
+  accessToken   String?  // encrypted
+  refreshToken  String?  // encrypted
+  tokenExpiry   DateTime?
+  lastSyncAt    DateTime?
+  lastSyncStatus String? // "success" | "error" | "partial"
+  lastSyncError String?
+  isActive      Boolean  @default(true)
+  weddingId     String
+  wedding       Wedding  @relation(fields: [weddingId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ── Phase 8: QR Destinations ──────────────────────────────────
+model QRDestination {
+  id            String   @id @default(cuid())
+  label         String   // "Main Website" | "RSVP" | "Photo Upload" | etc.
+  url           String   // destination URL
+  type          String   @default("website") // "website" | "rsvp" | "photos" | "songs" | "programme" | "venue" | "registry"
+  scanCount     Int      @default(0)
+  isActive      Boolean  @default(true)
+  weddingId     String
+  wedding       Wedding  @relation(fields: [weddingId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ── Phase 9: Theme Preferences ────────────────────────────────
+model ThemePreference {
+  id            String   @id @default(cuid())
+  theme         String   @default("system") // "light" | "dark" | "system"
+  userId        String?  // if logged in
+  weddingId     String?  // per-wedding override
+  wedding       Wedding? @relation(fields: [weddingId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ── Phase 10: Collaborative Guest Contributions ───────────────
+model GuestContribution {
+  id            String   @id @default(cuid())
+  guestId       String   @unique
+  guest         Guest    @relation(fields: [guestId], references: [id])
+  weddingId     String
+  wedding       Wedding  @relation(fields: [weddingId], references: [id])
+
+  type          String   @default("memory") // "memory" | "advice" | "blessing" | "funny_story" | "wish"
+  displayName   String   // guest's display name for the contribution
+  relationship  String?  // e.g. "Charity's university friend"
+  message       String   // the contribution text (max 2500 chars, enforced in API)
+  photoUrl      String?  // optional uploaded photo
+  favoriteSong  String?  // optional song dedication
+  privacy       String   @default("public") // "public" | "couple_only" | "anonymous"
+
+  status        String   @default("draft") // "draft" | "pending" | "approved" | "rejected" | "featured" | "hidden"
+  moderatorNotes String? // couple's private notes
+  wordCount     Int      @default(0)
+  charCount     Int      @default(0)
+  editCount     Int      @default(0) // rate limiting: max 10 edits before submission
+  revisionHistory String? // JSON array of previous versions
+
+  submittedAt   DateTime?
+  reviewedAt    DateTime?
+  reviewedBy    String?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ── Phase 11: Multi-Couple Data-Driven Content ────────────────
+model WeddingContent {
+  id          String   @id @default(cuid())
+  weddingId   String
+  wedding     Wedding  @relation(fields: [weddingId], references: [id])
+  section     String   // "hero", "story", "venue", "theday", "faq", "travel", "songbook", "guests"
+  field       String   // "brideName", "groomName", "milestone-0-title", etc.
+  value       String   // the actual text content
+  order       Int      @default(0)  // for ordered items like milestones, programme
+  metadata    String?  // JSON for structured data (icon, type, etc.)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([weddingId, section, field])
+}
+
+// ============================================================
+// Phase 12: Supabase Auth Integration — User profiles + Comments
+// ============================================================
+// These models link Supabase Auth users (identified by their Supabase UUID)
+// to wewed's existing data. Supabase Auth handles the actual auth.users table;
+// we keep a mirror profile here for fast queries and wewed-specific fields.
+
+// ── User Profile (mirrors Supabase auth.users) ───────────────
+// Created on first login via a Supabase trigger or our /api/auth/callback.
+// The `id` matches the Supabase auth.users.id (UUID string).
+model UserProfile {
+  id              String   @id // matches Supabase auth.users.id (UUID)
+  email           String   @unique
+  displayName     String?
+  avatarUrl       String?
+  bio             String?
+
+  // Role in the wewed platform
+  role            String   @default("viewer") // "viewer" | "couple" | "planner" | "admin"
+  // If this user is a couple, link to their Couple record
+  coupleId        String?  @unique
+  couple          Couple?  @relation(fields: [coupleId], references: [id])
+
+  // Preferences
+  emailNotifications Boolean @default(true)
+  marketingEmails     Boolean @default(false)
+
+  // Moderation
+  isBanned        Boolean  @default(false)
+  bannedAt        DateTime?
+  banReason       String?
+
+  // Timestamps
+  lastLoginAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  comments        Comment[]
+  mediaItems      MediaItem[]
+  messages        Message[]
+}
+
+// ── Comment (guest comments on photos, contributions, etc.) ──
+// A general-purpose comment model that can attach to any content type.
+// This replaces the anonymous `Message` model for authenticated users —
+// messages from logged-out guests still use Message; messages from logged-in
+// users use Comment (which has a real userId).
+model Comment {
+  id              String   @id @default(cuid())
+  body            String   // the comment text (max 2000 chars, enforced in API)
+  // What this comment is attached to:
+  targetType      String   // "media" | "contribution" | "song" | "section"
+  targetId        String   // the ID of the thing being commented on
+  weddingId       String
+  wedding         Wedding  @relation(fields: [weddingId], references: [id])
+
+  // Who wrote it (authenticated user)
+  authorId        String
+  author          UserProfile @relation(fields: [authorId], references: [id])
+
+  // Threading (optional — null = top-level comment)
+  parentId        String?  // ID of parent comment if this is a reply
+  // self-relation for replies
+  parent          Comment? @relation("CommentReplies", fields: [parentId], references: [id])
+  replies         Comment[] @relation("CommentReplies")
+
+  // Moderation
+  status          String   @default("published") // "pending" | "published" | "hidden" | "flagged"
+  flaggedAt       DateTime?
+  flagReason      String?
+  hiddenAt        DateTime?
+  hiddenBy        String?  // user ID of moderator
+
+  // Engagement
+  likeCount       Int      @default(0)
+  likedBy         String?  // JSON array of user IDs who liked
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([targetType, targetId])
+  @@index([weddingId, status])
+  @@index([authorId])
+}
+
+// ── Update existing models with userId links ─────────────────
+// NOTE: MediaItem and Message already have uploaderId/authorToken fields.
+// We're adding optional userId fields that link to UserProfile when the
+// uploader is authenticated. This is backward-compatible — existing
+// anonymous uploads keep working via uploaderId/authorToken.
