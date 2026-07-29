@@ -32,7 +32,7 @@ describe('Phase 4 independent planner portal', () => {
     expect(securePlanner).not.toContain('<WeddingContextControls')
   })
 
-  test('portal owns viewport height and internal scrolling', async () => {
+  test('portal owns viewport height and uses the non-modal workspace', async () => {
     const portal = await source('src/components/wedding/planner-portal.tsx')
 
     expect(portal).toContain('h-dvh')
@@ -40,8 +40,20 @@ describe('Phase 4 independent planner portal', () => {
     expect(portal).toContain('overflow-hidden')
     expect(portal).toContain('planner-portal-body')
     expect(portal).toContain('WeddingContextControls')
-    expect(portal).toContain('WeddingPlanner')
+    expect(portal).toContain('PlannerWorkspace')
+    expect(portal).not.toContain('WeddingPlanner')
     expect(portal).toContain('Wewed Planner Workspace')
     expect(portal).toContain("fetch('/api/auth/me'")
+  })
+
+  test('workspace has real empty states and no couple-specific auto-seeding', async () => {
+    const workspace = await source('src/components/wedding/planner-workspace.tsx')
+
+    expect(workspace).toContain('Empty weddings stay empty')
+    expect(workspace).toContain('No couple-specific sample data is inserted automatically')
+    expect(workspace).not.toContain('SEED_')
+    expect(workspace).not.toContain('Charity')
+    expect(workspace).not.toContain('Kudzie')
+    expect(workspace).not.toContain('<Dialog')
   })
 })
