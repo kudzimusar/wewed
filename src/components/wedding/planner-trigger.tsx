@@ -2,25 +2,10 @@
 
 import { useState } from 'react'
 import { ClipboardList, Lock } from 'lucide-react'
-import { WeddingPlanner } from '@/components/wedding/wedding-planner'
-
-/* ============================================================
-   PlannerTrigger — navbar button that opens the Wedding Planner
-   ------------------------------------------------------------
-   A small, elegant button shown in the navbar. It always shows
-   (with a discreet lock icon) — the couple can log in from the
-   planner's login gate. Clicking opens the WeddingPlanner dialog
-   as a full-screen overlay.
-
-   The lead agent wires this into the navbar (or anywhere else).
-   This component is self-contained: manages its own open state
-   and body scroll lock (defensive — the planner also does this).
-   ============================================================ */
+import { SecureWeddingPlanner } from '@/components/wedding/secure-wedding-planner'
 
 export interface PlannerTriggerProps {
-  /** Optional className to override sizing/styling. */
   className?: string
-  /** Compact mode: icon-only on tight screens. Defaults to false. */
   compact?: boolean
 }
 
@@ -43,7 +28,7 @@ export function PlannerTrigger({ className, compact = false }: PlannerTriggerPro
         <Lock className="size-2.5 text-gold/60" aria-hidden="true" />
       </button>
 
-      {open && <WeddingPlanner onClose={() => setOpen(false)} />}
+      {open && <SecureWeddingPlanner onClose={() => setOpen(false)} />}
     </>
   )
 }
