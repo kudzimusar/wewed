@@ -30,20 +30,27 @@ export async function GET(request: NextRequest) {
       error,
     } = await supabase.auth.getUser()
 
-    if (error || !user || user.id !== appSession.userId) {
+    if (error || !user || user.id !== appSession.userId || !user.email) {
       return signedOutResponse()
     }
 
-    const [profile, flagshipWedding] = await Promise.all([
+    const email = user.email.toLowerCase()
+    const [accessUser, profile, flagshipWedding] = await Promise.all([
+      db.user.findUnique({
+        where: { email },
+        select: {
+          id: true,
+          name: true,
+          role: true,
+          coupleId: true,
+          isActive: true,
+        },
+      }),
       db.userProfile.findUnique({
         where: { id: user.id },
         select: {
-          id: true,
-          email: true,
           displayName: true,
           avatarUrl: true,
-          role: true,
-          coupleId: true,
           isBanned: true,
         },
       }),
@@ -54,13 +61,14 @@ export async function GET(request: NextRequest) {
     ])
 
     if (
-      !profile ||
-      profile.isBanned ||
-      !isDashboardRole(profile.role) ||
-      profile.role !== appSession.role ||
-      profile.coupleId !== appSession.coupleId ||
-      (profile.role !== 'admin' &&
-        (!flagshipWedding || profile.coupleId !== flagshipWedding.coupleId))
+      !accessUser ||
+      !accessUser.isActive ||
+      !isDashboardRole(accessUser.role) ||
+      profile?.isBanned ||
+      accessUser.role !== appSession.role ||
+      accessUser.coupleId !== appSession.coupleId ||
+      (accessUser.role !== 'admin' &&
+        (!flagshipWedding || accessUser.coupleId !== flagshipWedding.coupleId))
     ) {
       await supabase.auth.signOut()
       return signedOutResponse()
@@ -70,12 +78,12 @@ export async function GET(request: NextRequest) {
       success: true,
       authorized: true,
       user: {
-        id: profile.id,
-        email: profile.email,
-        displayName: profile.displayName,
-        avatarUrl: profile.avatarUrl,
-        role: profile.role,
-        coupleId: profile.coupleId,
+        id: user.id,
+        email,
+        displayName: profile?.displayName ?? accessUser.name ?? null,
+        avatarUrl: profile?.avatarUrl ?? null,
+        role: accessUser.role,
+        coupleId: accessUser.coupleId,
       },
       expiresAt: appSession.expiresAt,
     })
