@@ -10,6 +10,8 @@ function requiresDashboardSession(request: NextRequest): boolean {
   if (pathname.startsWith('/api/planner/')) return true
   if (pathname === '/api/planner') return true
   if (pathname === '/api/seed') return true
+  if (pathname === '/api/auth/wedding') return true
+  if (pathname.startsWith('/api/weddings/')) return true
 
   if (pathname === '/api/rsvp' && request.method === 'GET') return true
 
@@ -47,5 +49,7 @@ export const config = {
     '/api/rsvp',
     '/api/rsvp/:path*',
     '/api/seed',
+    '/api/auth/wedding',
+    '/api/weddings/:path*',
   ],
 }
