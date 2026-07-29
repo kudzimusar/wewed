@@ -29,9 +29,16 @@ import {
   type GuestRow,
   type GuestStats,
 } from '@/components/wedding/planner/modules/planner-guests-module'
-import { PlannerSeatingModule } from '@/components/wedding/planner/modules/planner-seating-module'
+import {
+  PlannerSeatingModule,
+  type SeatingTableRow,
+} from '@/components/wedding/planner/modules/planner-seating-module'
 import { PlannerTasksModule } from '@/components/wedding/planner/modules/planner-tasks-module'
-import { PlannerTimelineModule } from '@/components/wedding/planner/modules/planner-timeline-module'
+import {
+  PlannerTimelineModule,
+  type TimelineInput,
+  type TimelineRow,
+} from '@/components/wedding/planner/modules/planner-timeline-module'
 import {
   PlannerVendorsModule,
   type VendorForm,
@@ -89,24 +96,6 @@ interface CategoryBreakdown {
   count: number
 }
 
-interface TimelineRow {
-  id: string
-  time: string
-  event: string
-  title: string
-  notes: string
-  duration: string
-  location: string
-  order: number
-}
-
-interface SeatingTableRow {
-  id: string
-  name: string
-  capacity: number
-  position: string | null
-}
-
 const TABS: Array<{ value: WorkspaceTab; label: string; icon: ReactNode }> = [
   { value: 'overview', label: 'Overview', icon: <CheckCircle2 className="size-3.5" /> },
   { value: 'tasks', label: 'Tasks', icon: <ListChecks className="size-3.5" /> },
@@ -134,6 +123,15 @@ function money(value: number, currency = 'USD'): string {
   } catch {
     return `$${Math.round(value).toLocaleString('en-US')}`
   }
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;')
 }
 
 function SectionCard({ children, className = '' }: { children: ReactNode; className?: string }) {
@@ -199,7 +197,6 @@ export function PlannerWorkspace() {
   })
   const [vendorForm, setVendorForm] = useState<VendorForm>(EMPTY_VENDOR_FORM)
   const [guestForm, setGuestForm] = useState<GuestForm>(EMPTY_GUEST_FORM)
-  const [timelineForm, setTimelineForm] = useState({ time: '', event: '', location: '' })
   const [tableForm, setTableForm] = useState({ name: '', capacity: '8' })
 
   const refresh = useCallback(async (showSpinner = false) => {
@@ -245,7 +242,7 @@ export function PlannerWorkspace() {
     action: () => Promise<unknown>,
     successTitle: string,
     reset?: () => void,
-  ) {
+  ): Promise<boolean> {
     setSaving(true)
     setError(null)
     try {
@@ -253,11 +250,13 @@ export function PlannerWorkspace() {
       reset?.()
       await refresh(false)
       toast({ title: successTitle })
+      return true
     } catch (mutationError) {
       const message =
         mutationError instanceof Error ? mutationError.message : 'The change could not be saved.'
       setError(message)
       toast({ title: 'Save failed', description: message, variant: 'destructive' })
+      return false
     } finally {
       setSaving(false)
     }
@@ -446,7 +445,7 @@ export function PlannerWorkspace() {
     )
   }
 
-  async function assignGuestTable(guest: GuestRow, tableId: string | null) {
+  async function assignGuestTable(guest: GuestRow, tableId: string | null): Promise<boolean> {
     const previous = guest
     const tableName = tables.find((table) => table.id === tableId)?.name ?? null
     setGuests((current) =>
@@ -466,6 +465,7 @@ export function PlannerWorkspace() {
         current.map((item) => (item.id === guest.id ? payload.data : item)),
       )
       toast({ title: tableId ? 'Guest assigned to table' : 'Guest unassigned' })
+      return true
     } catch (assignmentError) {
       setGuests((current) =>
         current.map((item) => (item.id === guest.id ? previous : item)),
@@ -475,7 +475,12 @@ export function PlannerWorkspace() {
         description: assignmentError instanceof Error ? assignmentError.message : undefined,
         variant: 'destructive',
       })
+      return false
     }
+  }
+
+  async function assignGuestToTable(guest: GuestRow, tableId: string | null): Promise<boolean> {
+    return assignGuestTable(guest, tableId)
   }
 
   async function deleteGuest(guest: GuestRow) {
@@ -485,23 +490,140 @@ export function PlannerWorkspace() {
     )
   }
 
-  async function addTimelineItem(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (!timelineForm.time || !timelineForm.event.trim()) return
-    await mutate(
+  async function addTimelineItem(input: TimelineInput): Promise<boolean> {
+    return mutate(
       () =>
         api('/api/planner/timeline', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            time: timelineForm.time,
-            event: timelineForm.event.trim(),
-            location: timelineForm.location.trim(),
+            time: input.time.trim(),
+            event: input.event.trim(),
+            duration: input.duration.trim(),
+            location: input.location.trim(),
+            notes: input.notes.trim(),
           }),
         }),
       'Timeline item added',
-      () => setTimelineForm({ time: '', event: '', location: '' }),
     )
+  }
+
+  async function updateTimelineItem(
+    item: TimelineRow,
+    input: TimelineInput,
+  ): Promise<boolean> {
+    return mutate(
+      () =>
+        api(`/api/planner/timeline/${item.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            time: input.time.trim(),
+            event: input.event.trim(),
+            duration: input.duration.trim(),
+            location: input.location.trim(),
+            notes: input.notes.trim(),
+          }),
+        }),
+      'Timeline item updated',
+    )
+  }
+
+  async function deleteTimelineItem(item: TimelineRow): Promise<boolean> {
+    return mutate(
+      () => api(`/api/planner/timeline/${item.id}`, { method: 'DELETE' }),
+      'Timeline item removed',
+    )
+  }
+
+  async function moveTimelineItem(item: TimelineRow, direction: -1 | 1): Promise<boolean> {
+    const index = timeline.findIndex((candidate) => candidate.id === item.id)
+    const swapIndex = index + direction
+    if (index < 0 || swapIndex < 0 || swapIndex >= timeline.length) return false
+
+    const previous = timeline
+    const next = [...timeline]
+    ;[next[index], next[swapIndex]] = [next[swapIndex], next[index]]
+    const reordered = next.map((candidate, orderIndex) => ({
+      ...candidate,
+      order: orderIndex + 1,
+    }))
+    setTimeline(reordered)
+    setSaving(true)
+
+    const orderPayload = (reordered: number) => ({ order: reordered })
+    try {
+      await Promise.all(
+        [reordered[index], reordered[swapIndex]].map((candidate) =>
+          api(`/api/planner/timeline/${candidate.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(orderPayload(candidate.order)),
+          }),
+        ),
+      )
+      toast({ title: 'Timeline order updated' })
+      return true
+    } catch (moveError) {
+      setTimeline(previous)
+      toast({
+        title: 'Reorder failed',
+        description: moveError instanceof Error ? moveError.message : undefined,
+        variant: 'destructive',
+      })
+      return false
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const printTimeline = () => {
+    if (typeof window === 'undefined' || timeline.length === 0) return
+    const printWindow = window.open('', '_blank', 'width=900,height=900')
+    if (!printWindow) {
+      toast({ title: 'Pop-up blocked', variant: 'destructive' })
+      return
+    }
+
+    const rows = timeline
+      .map(
+        (item) => `
+          <section class="row">
+            <div class="time">${escapeHtml(item.time)}</div>
+            <div>
+              <div class="event">${escapeHtml(item.event)}${
+                item.duration ? ` <span class="meta">(${escapeHtml(item.duration)})</span>` : ''
+              }</div>
+              ${item.location ? `<div class="meta">Location: ${escapeHtml(item.location)}</div>` : ''}
+              ${item.notes ? `<div class="notes">${escapeHtml(item.notes)}</div>` : ''}
+            </div>
+          </section>`,
+      )
+      .join('')
+
+    printWindow.document.write(`<!doctype html>
+      <html>
+        <head>
+          <title>Wedding Day Timeline</title>
+          <style>
+            body { font-family: Georgia, serif; padding: 40px; color: #1a1410; }
+            h1 { font-weight: 400; }
+            .row { display: grid; grid-template-columns: 90px 1fr; gap: 18px; padding: 13px 0; border-bottom: 1px solid #ddd4c8; }
+            .time { font-weight: 700; color: #8a6c38; }
+            .event { font-weight: 700; }
+            .meta { color: #645e57; font-size: 13px; }
+            .notes { color: #403b36; font-size: 13px; margin-top: 5px; }
+          </style>
+        </head>
+        <body>
+          <h1>Wedding Day Timeline</h1>
+          <p class="meta">Operational run sheet generated from the selected wedding.</p>
+          ${rows}
+        </body>
+      </html>`)
+    printWindow.document.close()
+    printWindow.focus()
+    printWindow.window.print()
   }
 
   async function addTable(event: FormEvent<HTMLFormElement>) {
@@ -520,6 +642,28 @@ export function PlannerWorkspace() {
         }),
       'Seating table added',
       () => setTableForm({ name: '', capacity: '8' }),
+    )
+  }
+
+  async function updateTable(
+    table: SeatingTableRow,
+    updates: { name: string; capacity: number },
+  ): Promise<boolean> {
+    return mutate(
+      () =>
+        api(`/api/planner/guests/${table.id}?kind=table`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+        }),
+      'Seating table updated',
+    )
+  }
+
+  async function deleteTable(table: SeatingTableRow): Promise<boolean> {
+    return mutate(
+      () => api(`/api/planner/guests/${table.id}?kind=table`, { method: 'DELETE' }),
+      'Seating table removed',
     )
   }
 
@@ -769,21 +913,27 @@ export function PlannerWorkspace() {
               {activeTab === 'timeline' && (
                 <PlannerTimelineModule
                   timeline={timeline}
-                  timelineForm={timelineForm}
-                  setTimelineForm={setTimelineForm}
                   saving={saving}
-                  onAddTimelineItem={addTimelineItem}
+                  onCreateTimelineItem={addTimelineItem}
+                  onUpdateTimelineItem={updateTimelineItem}
+                  onDeleteTimelineItem={deleteTimelineItem}
+                  onMoveTimelineItem={moveTimelineItem}
+                  onPrintTimeline={printTimeline}
                 />
               )}
 
               {activeTab === 'seating' && (
                 <PlannerSeatingModule
                   tables={tables}
+                  guests={guests}
                   tableForm={tableForm}
                   setTableForm={setTableForm}
                   tableOccupancy={tableOccupancy}
                   saving={saving}
                   onAddTable={addTable}
+                  onUpdateTable={updateTable}
+                  onDeleteTable={deleteTable}
+                  onAssignGuestToTable={assignGuestToTable}
                 />
               )}
             </>

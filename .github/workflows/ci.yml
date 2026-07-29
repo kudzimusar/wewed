@@ -105,6 +105,9 @@ jobs:
       - name: Run Stage 5 Vendors and Guests parity tests
         run: bun test src/lib/planner-stage5-vendors-guests.test.ts
 
+      - name: Run Stage 6 Timeline and Seating parity tests
+        run: bun test src/lib/planner-stage6-timeline-seating.test.ts
+
       - name: Run Phase 2 workflow tests
         run: bun test src/lib/planner-phase2.test.ts
 

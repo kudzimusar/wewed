@@ -344,19 +344,13 @@ export const ORIGINAL_PLANNER_PARITY: readonly PlannerParityCapability[] = [
   ),
 ]
 
-/** Exact known parity debt after Stage 5 Vendors and Guests restoration. */
+/** Exact known parity debt after Stage 6 Timeline and Seating restoration. */
 export const KNOWN_ACTIVE_PARITY_GAPS = [
   'tasks.worksheet',
   'budget.worksheet',
   'vendors.worksheet',
   'guests.worksheet',
-  'timeline.create-edit',
-  'timeline.delete',
-  'timeline.reorder',
-  'timeline.print',
   'timeline.worksheet',
-  'seating.edit-delete',
-  'seating.manual-assignment',
   'seating.worksheet',
 ] as const
 
