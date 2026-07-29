@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import {
-  decodeLegacyTimelineIcon,
-  encodeLegacyTimelineIcon,
-} from '@/lib/planner-legacy-metadata'
+import { resolveTimelineFields } from '@/lib/planner-legacy-metadata'
 import { requireWeddingPermission } from '@/lib/wedding-access'
 
 function formatProgrammeItem(item: {
@@ -12,12 +9,15 @@ function formatProgrammeItem(item: {
   title: string
   description: string | null
   icon: string | null
+  duration: string | null
+  location: string | null
+  displayIcon: string | null
   order: number
   weddingId: string
   createdAt: Date
   updatedAt: Date
 }) {
-  const meta = decodeLegacyTimelineIcon(item.icon)
+  const meta = resolveTimelineFields(item)
   return {
     id: item.id,
     time: item.time,
@@ -101,13 +101,16 @@ export async function PATCH(
       }
       updates.order = body.order
     }
-    if (body.duration !== undefined || body.location !== undefined || body.icon !== undefined) {
-      const current = decodeLegacyTimelineIcon(existing.icon)
-      updates.icon = encodeLegacyTimelineIcon({
-        d: body.duration !== undefined ? body.duration ?? '' : current.duration,
-        l: body.location !== undefined ? body.location ?? '' : current.location,
-        i: body.icon !== undefined ? body.icon ?? undefined : current.icon ?? undefined,
-      })
+    if (body.duration !== undefined) {
+      updates.duration = body.duration?.trim() || null
+    }
+    if (body.location !== undefined) {
+      updates.location = body.location?.trim() || null
+    }
+    if (body.icon !== undefined) {
+      const icon = body.icon?.trim() || null
+      updates.displayIcon = icon
+      updates.icon = icon
     }
 
     if (Object.keys(updates).length === 0) {

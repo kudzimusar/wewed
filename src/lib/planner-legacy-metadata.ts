@@ -14,6 +14,22 @@ export interface LegacyTimelineMeta {
   i?: string
 }
 
+export interface NormalizedVendorPlanningFields {
+  description: string | null
+  contact?: string | null
+  contractStatus?: string | null
+  paymentStatus?: string | null
+  planningRating?: number | null
+  notes?: string | null
+}
+
+export interface NormalizedTimelineFields {
+  icon: string | null
+  duration?: string | null
+  location?: string | null
+  displayIcon?: string | null
+}
+
 function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
@@ -66,6 +82,30 @@ export function encodeLegacyVendorDescription(
   return `${LEGACY_VENDOR_META_PREFIX}${JSON.stringify(meta)}${human ? `|||${human}` : ''}`
 }
 
+export function resolveVendorPlanningFields(input: NormalizedVendorPlanningFields): {
+  description: string | null
+  contact: string
+  contractStatus: string
+  paymentStatus: string
+  planningRating: number | null
+  notes: string
+  legacyEncoded: boolean
+} {
+  const legacy = decodeLegacyVendorDescription(input.description)
+  return {
+    description: legacy.humanDescription,
+    contact: stringValue(input.contact) ?? legacy.meta.contact ?? '',
+    contractStatus:
+      stringValue(input.contractStatus) ?? legacy.meta.contractStatus ?? 'pending',
+    paymentStatus:
+      stringValue(input.paymentStatus) ?? legacy.meta.paymentStatus ?? 'unpaid',
+    planningRating:
+      ratingValue(input.planningRating) ?? legacy.meta.rating ?? null,
+    notes: stringValue(input.notes) ?? legacy.meta.notes ?? '',
+    legacyEncoded: legacy.encoded,
+  }
+}
+
 export function decodeLegacyTimelineIcon(icon: string | null): {
   duration: string
   location: string
@@ -101,6 +141,21 @@ export function encodeLegacyTimelineIcon(meta: LegacyTimelineMeta): string | nul
     ...(location ? { l: location } : {}),
     ...(icon ? { i: icon } : {}),
   })
+}
+
+export function resolveTimelineFields(input: NormalizedTimelineFields): {
+  duration: string
+  location: string
+  icon: string | null
+  legacyEncoded: boolean
+} {
+  const legacy = decodeLegacyTimelineIcon(input.icon)
+  return {
+    duration: stringValue(input.duration) ?? legacy.duration,
+    location: stringValue(input.location) ?? legacy.location,
+    icon: stringValue(input.displayIcon) ?? legacy.icon,
+    legacyEncoded: legacy.encoded,
+  }
 }
 
 export function publicVendorDescription(description: string | null): string | null {
