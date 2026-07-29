@@ -1,0 +1,211 @@
+name: Provision latest owner
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: provision-latest-owner
+  cancel-in-progress: false
+
+jobs:
+  provision:
+    if: >-
+      github.event.comment.body == '/provision-latest-owner' &&
+      github.event.comment.user.login == github.repository_owner
+    name: Provision latest confirmed owner
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+
+    env:
+      WEWED_DATABASE_URL: ${{ secrets.WEWED_DATABASE_URL }}
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Validate production database target
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$WEWED_DATABASE_URL"
+          case "$WEWED_DATABASE_URL" in
+            *"kjigkhjdeymukwradoqu"*":5432/"*) ;;
+            *)
+              echo "Refusing to run: database URL is not the Wewed session pooler."
+              exit 1
+              ;;
+          esac
+
+      - name: Install PostgreSQL client
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Provision the single recent unassigned user
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql "$WEWED_DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          begin;
+
+          do $$
+          declare
+            candidate_count integer;
+            target_id uuid;
+            target_email text;
+            target_display_name text;
+            flagship_couple_id text;
+          begin
+            select count(*)
+            into candidate_count
+            from auth.users auth_user
+            left join public."User" app_user
+              on lower(app_user.email) = lower(auth_user.email)
+            where auth_user.confirmed_at is not null
+              and auth_user.created_at >= now() - interval '24 hours'
+              and app_user.id is null;
+
+            if candidate_count <> 1 then
+              raise exception 'Expected exactly one recent confirmed unassigned auth user, found %.', candidate_count;
+            end if;
+
+            select auth_user.id, lower(auth_user.email)
+            into target_id, target_email
+            from auth.users auth_user
+            left join public."User" app_user
+              on lower(app_user.email) = lower(auth_user.email)
+            where auth_user.confirmed_at is not null
+              and auth_user.created_at >= now() - interval '24 hours'
+              and app_user.id is null
+            order by auth_user.created_at desc
+            limit 1;
+
+            select couple.id
+            into flagship_couple_id
+            from public."Couple" couple
+            join public."Wedding" wedding
+              on wedding."coupleId" = couple.id
+            where wedding.slug = 'charity-and-kudzie'
+            limit 1;
+
+            if flagship_couple_id is null then
+              raise exception 'The flagship couple was not found.';
+            end if;
+
+            target_display_name := initcap(
+              replace(
+                replace(split_part(target_email, '@', 1), '.', ' '),
+                '_',
+                ' '
+              )
+            );
+
+            insert into public."User" (
+              id,
+              email,
+              name,
+              role,
+              "coupleId",
+              "isActive",
+              "createdAt",
+              "updatedAt"
+            )
+            values (
+              target_id::text,
+              target_email,
+              target_display_name,
+              'admin',
+              flagship_couple_id,
+              true,
+              now(),
+              now()
+            )
+            on conflict (email) do update
+            set
+              id = excluded.id,
+              name = excluded.name,
+              role = excluded.role,
+              "coupleId" = excluded."coupleId",
+              "isActive" = true,
+              "updatedAt" = now();
+
+            insert into public."UserProfile" (
+              id,
+              email,
+              "displayName",
+              role,
+              "isBanned",
+              "bannedAt",
+              "banReason",
+              "createdAt",
+              "updatedAt"
+            )
+            values (
+              target_id::text,
+              target_email,
+              target_display_name,
+              'admin',
+              false,
+              null,
+              null,
+              now(),
+              now()
+            )
+            on conflict (id) do update
+            set
+              email = excluded.email,
+              "displayName" = excluded."displayName",
+              role = excluded.role,
+              "isBanned" = false,
+              "bannedAt" = null,
+              "banReason" = null,
+              "updatedAt" = now();
+
+            if not exists (
+              select 1
+              from public."User" app_user
+              join public."Couple" couple
+                on couple.id = app_user."coupleId"
+              join public."Wedding" wedding
+                on wedding."coupleId" = couple.id
+              join public."UserProfile" profile
+                on profile.id = target_id::text
+              where app_user.id = target_id::text
+                and app_user.role = 'admin'
+                and app_user."isActive" = true
+                and wedding.slug = 'charity-and-kudzie'
+                and profile.role = 'admin'
+                and profile."isBanned" = false
+            ) then
+              raise exception 'Owner verification failed after provisioning.';
+            end if;
+          end
+          $$;
+
+          commit;
+
+          select 'owner_provisioned_and_verified' as result;
+          SQL
+
+      - name: Report success
+        shell: bash
+        env:
+          REPOSITORY: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          gh api \
+            --method POST \
+            "repos/$REPOSITORY/issues/$ISSUE_NUMBER/comments" \
+            -f body='✅ The latest confirmed Wewed Auth user was provisioned and verified as the active owner for the flagship wedding.'
