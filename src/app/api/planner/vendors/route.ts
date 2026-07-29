@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { resolveVendorPlanningFields } from '@/lib/planner-legacy-metadata'
+import { syncVendorPipelineFromNormalizedVendor } from '@/lib/planner-vendor-pipeline-sync'
 import { requireWeddingPermission } from '@/lib/wedding-access'
 
 const CATEGORIES = [
@@ -145,6 +146,14 @@ export async function POST(request: NextRequest) {
         notes: body.notes?.trim() || null,
         weddingId: access.context.weddingId,
       },
+    })
+
+    await syncVendorPipelineFromNormalizedVendor({
+      weddingId: access.context.weddingId,
+      actorId: access.context.session.userId,
+      vendor: created,
+      contractStatusChanged: true,
+      paymentStatusChanged: true,
     })
 
     return NextResponse.json(
