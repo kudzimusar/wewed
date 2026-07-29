@@ -3,6 +3,10 @@ import {
   hasWeddingPermission,
   worksheetPermissionCapabilities,
 } from './planner-client-permissions'
+import {
+  plannerControlHasDraft,
+  plannerFormHasDraft,
+} from './planner-draft-guard'
 
 async function source(path: string): Promise<string> {
   return Bun.file(path).text()
@@ -76,7 +80,50 @@ describe('Stage 2 worksheet permissions', () => {
     expect(templates).toContain("requireWeddingPermission(request, 'import.execute')")
     expect(importsRoute).toContain("requireWeddingPermission(request, 'import.execute')")
     expect(exportsRoute).toContain("requireWeddingPermission(request, 'export.data')")
-    expect(toolbar).toContain("canDownloadWorksheetTemplate")
-    expect(toolbar).toContain("canExportWorksheet")
+    expect(toolbar).toContain('canDownloadWorksheetTemplate')
+    expect(toolbar).toContain('canExportWorksheet')
+  })
+})
+
+describe('Stage 2 unsaved planner drafts', () => {
+  test('unchanged defaults are not treated as drafts', () => {
+    expect(plannerControlHasDraft({ type: 'text', value: '', defaultValue: '' })).toBe(false)
+    expect(plannerControlHasDraft({ type: 'number', value: '8', defaultValue: '8' })).toBe(false)
+    expect(
+      plannerControlHasDraft({
+        value: 'planner',
+        options: [
+          { value: 'owner' },
+          { value: 'planner', defaultSelected: true },
+        ],
+      }),
+    ).toBe(false)
+  })
+
+  test('typed, selected, checked, and uploaded values are drafts', () => {
+    expect(plannerControlHasDraft({ type: 'text', value: 'Book caterer', defaultValue: '' })).toBe(true)
+    expect(plannerControlHasDraft({ type: 'checkbox', checked: true, defaultChecked: false })).toBe(true)
+    expect(plannerControlHasDraft({ type: 'file', files: { length: 1 } })).toBe(true)
+    expect(
+      plannerControlHasDraft({
+        value: 'owner',
+        options: [
+          { value: 'owner' },
+          { value: 'planner', defaultSelected: true },
+        ],
+      }),
+    ).toBe(true)
+  })
+
+  test('buttons and hidden inputs never create false draft warnings', () => {
+    expect(plannerControlHasDraft({ type: 'hidden', value: 'token', defaultValue: '' })).toBe(false)
+    expect(plannerControlHasDraft({ type: 'submit', value: 'Save', defaultValue: '' })).toBe(false)
+    expect(
+      plannerFormHasDraft({
+        0: { type: 'hidden', value: 'token', defaultValue: '' },
+        1: { type: 'text', value: '', defaultValue: '' },
+        length: 2,
+      }),
+    ).toBe(false)
   })
 })
