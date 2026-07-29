@@ -1,61 +1,74 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
+import {
+  clearAppSessionCookie,
+  isDashboardRole,
+  readAppSession,
+} from '@/lib/app-session'
 
-/* ============================================================
-   /api/auth/me
-   ------------------------------------------------------------
-   Returns the current authenticated user's profile, or null.
-   Called by client components to check auth state on mount.
+const FLAGSHIP_WEDDING_SLUG = 'charity-and-kudzie'
 
-   Returns: { success, user: { id, email, displayName, avatarUrl, role, coupleId } | null }
-   ============================================================ */
+function signedOutResponse() {
+  const response = NextResponse.json({
+    success: true,
+    authorized: false,
+    user: null,
+  })
+  clearAppSessionCookie(response)
+  return response
+}
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const appSession = readAppSession(request)
+    if (!appSession) return signedOutResponse()
+
     const supabase = await createServerClient()
     const {
       data: { user },
+      error,
     } = await supabase.auth.getUser()
 
-    if (!user) {
-      return NextResponse.json({ success: true, user: null })
+    if (error || !user || user.id !== appSession.userId) {
+      return signedOutResponse()
     }
 
-    // Fetch the wewed UserProfile (may not exist if user signed up
-    // before this feature was deployed — create it as a fallback).
-    let profile = await db.userProfile.findUnique({
-      where: { id: user.id },
-    })
+    const [profile, flagshipWedding] = await Promise.all([
+      db.userProfile.findUnique({
+        where: { id: user.id },
+        select: {
+          id: true,
+          email: true,
+          displayName: true,
+          avatarUrl: true,
+          role: true,
+          coupleId: true,
+          isBanned: true,
+        },
+      }),
+      db.wedding.findUnique({
+        where: { slug: FLAGSHIP_WEDDING_SLUG },
+        select: { coupleId: true },
+      }),
+    ])
 
-    if (!profile) {
-      try {
-        profile = await db.userProfile.create({
-          data: {
-            id: user.id,
-            email: user.email ?? '',
-            displayName: (user.user_metadata?.display_name as string) || null,
-            lastLoginAt: new Date(),
-          },
-        })
-      } catch {
-        // If creation fails (race condition), return minimal info
-        return NextResponse.json({
-          success: true,
-          user: {
-            id: user.id,
-            email: user.email,
-            displayName: null,
-            avatarUrl: null,
-            role: 'viewer',
-            coupleId: null,
-          },
-        })
-      }
+    if (
+      !profile ||
+      profile.isBanned ||
+      !isDashboardRole(profile.role) ||
+      profile.role !== appSession.role ||
+      profile.coupleId !== appSession.coupleId ||
+      (profile.role !== 'admin' &&
+        (!flagshipWedding || profile.coupleId !== flagshipWedding.coupleId))
+    ) {
+      await supabase.auth.signOut()
+      return signedOutResponse()
     }
 
     return NextResponse.json({
       success: true,
+      authorized: true,
       user: {
         id: profile.id,
         email: profile.email,
@@ -64,11 +77,12 @@ export async function GET() {
         role: profile.role,
         coupleId: profile.coupleId,
       },
+      expiresAt: appSession.expiresAt,
     })
-  } catch (err) {
-    console.error('[auth/me] Error:', err)
+  } catch (error) {
+    console.error('[auth/me] Error:', error)
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch user.' },
+      { success: false, authorized: false, error: 'Failed to verify session.' },
       { status: 500 }
     )
   }
