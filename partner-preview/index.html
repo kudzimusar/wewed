@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#241d18" />
+  <title>wewed — Partner Preview</title>
+  <meta name="description" content="A read-only partner preview of wewed: a wedding experience, planning and memory platform." />
+  <meta property="og:title" content="wewed — Partner Preview" />
+  <meta property="og:description" content="Where love lives forever — from invitation to living archive." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="assets/hero-wedding.png" />
+  <link rel="icon" href="assets/icon-192.png" />
+  <style>
+    :root {
+      --ink: #241d18;
+      --espresso: #30251f;
+      --paper: #f6f0e5;
+      --champagne: #f7eddb;
+      --gold: #c7a45c;
+      --gold-soft: #dbc791;
+      --rust: #c86643;
+      --muted: #7c7065;
+      --line: rgba(199, 164, 92, .28);
+      --shadow: 0 26px 70px rgba(31, 22, 17, .18);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.6;
+    }
+    body.modal-open { overflow: hidden; }
+    img { max-width: 100%; display: block; }
+    a { color: inherit; }
+
+    .serif {
+      font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    }
+
+    .shell { width: min(1180px, calc(100% - 40px)); margin: 0 auto; }
+
+    .nav {
+      position: fixed;
+      inset: 0 0 auto 0;
+      z-index: 50;
+      height: 72px;
+      display: flex;
+      align-items: center;
+      color: var(--champagne);
+      background: linear-gradient(to bottom, rgba(29, 23, 19, .96), rgba(29, 23, 19, .78));
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      backdrop-filter: blur(16px);
+    }
+    .nav-inner { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+    .brand { text-decoration: none; display: grid; line-height: 1; }
+    .brand strong { font: 500 25px/1 Georgia, serif; letter-spacing: .08em; }
+    .brand small { margin-top: 7px; color: var(--gold); font-size: 8px; letter-spacing: .38em; }
+    .nav-links { display: flex; align-items: center; gap: 25px; }
+    .nav-links a { text-decoration: none; font-size: 11px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; opacity: .84; }
+    .nav-links a:hover { opacity: 1; color: var(--gold-soft); }
+    .preview-pill {
+      padding: 9px 14px;
+      border: 1px solid rgba(199,164,92,.48);
+      border-radius: 999px;
+      color: var(--gold-soft);
+      font-size: 10px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .hero {
+      position: relative;
+      min-height: 100svh;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      color: var(--champagne);
+      text-align: center;
+      background: var(--espresso);
+    }
+    .hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(rgba(31, 24, 20, .66), rgba(31, 24, 20, .78)), url("assets/hero-wedding.png") center/cover no-repeat;
+      transform: scale(1.02);
+    }
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: auto 0 0;
+      height: 180px;
+      background: linear-gradient(transparent, var(--paper));
+    }
+    .hero-content { position: relative; z-index: 1; max-width: 920px; padding: 130px 0 170px; }
+    .eyebrow { color: var(--gold-soft); font-size: 11px; font-weight: 700; letter-spacing: .34em; text-transform: uppercase; }
+    .hero h1 { margin: 22px 0 10px; font-size: clamp(68px, 13vw, 156px); font-weight: 300; line-height: .79; letter-spacing: -.04em; }
+    .hero h1 span { display: block; }
+    .hero h1 b { color: var(--gold); font-weight: 300; }
+    .hero-copy { width: min(620px, 100%); margin: 28px auto 0; font-size: clamp(16px, 2vw, 20px); color: rgba(247,237,219,.82); }
+    .hero-meta { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px 28px; margin: 34px 0; color: var(--gold-soft); font-size: 12px; letter-spacing: .18em; text-transform: uppercase; }
+    .actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 35px; }
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      padding: 0 22px;
+      border-radius: 999px;
+      text-decoration: none;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      border: 1px solid var(--gold);
+      transition: transform .18s ease, background .18s ease;
+    }
+    .button:hover { transform: translateY(-2px); }
+    .button.primary { background: var(--gold); color: var(--ink); }
+    .button.ghost { color: var(--champagne); background: rgba(31,24,20,.34); }
+
+    section { padding: 104px 0; }
+    .section-head { max-width: 760px; margin-bottom: 44px; }
+    .section-head h2 { margin: 10px 0 15px; font-size: clamp(42px, 7vw, 76px); font-weight: 400; line-height: .98; letter-spacing: -.03em; }
+    .section-head p { color: var(--muted); font-size: 18px; }
+
+    .intro-grid { display: grid; grid-template-columns: .9fr 1.1fr; gap: 50px; align-items: center; }
+    .quote-card {
+      position: relative;
+      min-height: 470px;
+      overflow: hidden;
+      border-radius: 30px;
+      background: linear-gradient(145deg, #3a2f27, #211a16);
+      box-shadow: var(--shadow);
+      color: var(--champagne);
+      padding: 54px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+    }
+    .quote-card::before {
+      content: "&";
+      position: absolute;
+      right: 25px;
+      top: -35px;
+      color: rgba(199,164,92,.15);
+      font: 260px/.9 Georgia, serif;
+    }
+    .quote-card blockquote { position: relative; margin: 0; font-size: clamp(31px, 4vw, 50px); line-height: 1.05; }
+    .quote-card small { position: relative; margin-top: 28px; color: var(--gold-soft); letter-spacing: .18em; text-transform: uppercase; }
+    .facts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
+    .fact { border: 1px solid var(--line); border-radius: 20px; padding: 25px; background: rgba(255,255,255,.45); }
+    .fact strong { display: block; color: var(--rust); font: 400 38px/1 Georgia, serif; }
+    .fact span { display: block; margin-top: 10px; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+
+    .dark { color: var(--champagne); background: var(--ink); }
+    .dark .section-head p { color: rgba(247,237,219,.68); }
+    .capabilities { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .capability { min-height: 210px; padding: 30px; border: 1px solid rgba(199,164,92,.2); border-radius: 24px; background: linear-gradient(145deg, rgba(255,255,255,.045), rgba(255,255,255,.015)); }
+    .capability .num { color: var(--gold); font: 400 34px/1 Georgia, serif; }
+    .capability h3 { margin: 23px 0 8px; font: 400 27px/1.1 Georgia, serif; }
+    .capability p { margin: 0; color: rgba(247,237,219,.62); font-size: 14px; }
+
+    .screens { display: grid; grid-template-columns: repeat(2, 1fr); gap: 22px; }
+    .screen-card {
+      appearance: none;
+      width: 100%;
+      padding: 0;
+      border: 0;
+      border-radius: 24px;
+      overflow: hidden;
+      text-align: left;
+      cursor: zoom-in;
+      background: #fff;
+      box-shadow: 0 18px 50px rgba(42,31,24,.12);
+      transition: transform .2s ease, box-shadow .2s ease;
+    }
+    .screen-card:hover { transform: translateY(-5px); box-shadow: var(--shadow); }
+    .screen-card img { width: 100%; aspect-ratio: 1280/577; object-fit: cover; }
+    .screen-copy { padding: 22px 24px 25px; }
+    .screen-copy small { color: var(--rust); font-weight: 800; letter-spacing: .15em; text-transform: uppercase; }
+    .screen-copy h3 { margin: 7px 0 0; font: 400 27px/1.2 Georgia, serif; }
+
+    .journey { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border: 1px solid var(--line); border-radius: 28px; overflow: hidden; }
+    .stage { min-height: 250px; padding: 30px; border-right: 1px solid var(--line); background: rgba(255,255,255,.4); }
+    .stage:last-child { border-right: 0; }
+    .stage strong { color: var(--gold); font: 400 38px/1 Georgia, serif; }
+    .stage h3 { margin: 23px 0 8px; font: 400 25px/1.1 Georgia, serif; }
+    .stage p { color: var(--muted); font-size: 14px; }
+
+    .notice { display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: start; margin-top: 35px; padding: 22px; border-radius: 18px; background: #efe5d4; border: 1px solid var(--line); }
+    .notice-icon { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: var(--rust); font-weight: 900; }
+    .notice p { margin: 0; color: #64584e; font-size: 14px; }
+
+    .cta { padding: 0 0 100px; }
+    .cta-card {
+      position: relative;
+      overflow: hidden;
+      padding: clamp(45px, 8vw, 95px);
+      border-radius: 34px;
+      color: var(--champagne);
+      text-align: center;
+      background: linear-gradient(145deg, #4a382c, #211a16);
+      box-shadow: var(--shadow);
+    }
+    .cta-card::before { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 50% 0%, rgba(199,164,92,.25), transparent 48%); }
+    .cta-card > * { position: relative; }
+    .cta-card h2 { margin: 12px auto 18px; max-width: 800px; font-size: clamp(46px, 8vw, 86px); font-weight: 400; line-height: .95; }
+    .cta-card p { max-width: 650px; margin: 0 auto; color: rgba(247,237,219,.7); font-size: 18px; }
+
+    footer { padding: 38px 0; border-top: 1px solid var(--line); color: var(--muted); }
+    .footer-inner { display: flex; justify-content: space-between; gap: 25px; align-items: center; font-size: 12px; }
+    .footer-inner strong { color: var(--ink); font: 400 22px/1 Georgia, serif; }
+
+    .modal {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: none;
+      place-items: center;
+      padding: 24px;
+      background: rgba(18,14,12,.92);
+      backdrop-filter: blur(12px);
+    }
+    .modal.open { display: grid; }
+    .modal figure { width: min(1400px, 100%); margin: 0; }
+    .modal img { width: 100%; border-radius: 18px; box-shadow: 0 30px 100px rgba(0,0,0,.45); }
+    .modal figcaption { margin-top: 13px; color: var(--champagne); text-align: center; }
+    .modal button { position: fixed; top: 20px; right: 20px; width: 45px; height: 45px; border-radius: 50%; border: 1px solid rgba(255,255,255,.2); color: #fff; background: rgba(255,255,255,.08); font-size: 24px; cursor: pointer; }
+
+    @media (max-width: 900px) {
+      .nav-links a { display: none; }
+      .intro-grid { grid-template-columns: 1fr; }
+      .capabilities { grid-template-columns: repeat(2, 1fr); }
+      .journey { grid-template-columns: repeat(2, 1fr); }
+      .stage:nth-child(2) { border-right: 0; }
+      .stage:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+    }
+
+    @media (max-width: 640px) {
+      .shell { width: min(100% - 24px, 1180px); }
+      .nav { height: 64px; }
+      .preview-pill { font-size: 8px; padding: 8px 10px; }
+      .hero-content { padding-top: 115px; }
+      section { padding: 76px 0; }
+      .quote-card { min-height: 390px; padding: 34px; }
+      .facts, .capabilities, .screens, .journey { grid-template-columns: 1fr; }
+      .stage, .stage:nth-child(2) { border-right: 0; border-bottom: 1px solid var(--line); }
+      .stage:last-child { border-bottom: 0; }
+      .footer-inner { align-items: flex-start; flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav" aria-label="Primary navigation">
+    <div class="shell nav-inner">
+      <a class="brand" href="#top" aria-label="wewed home">
+        <strong>wewed</strong>
+        <small>C&amp;K · 23.12.26</small>
+      </a>
+      <div class="nav-links">
+        <a href="#vision">Vision</a>
+        <a href="#platform">Platform</a>
+        <a href="#experience">Experience</a>
+        <a href="#journey">Journey</a>
+      </div>
+      <span class="preview-pill">Partner preview</span>
+    </div>
+  </nav>
+
+  <header class="hero" id="top">
+    <div class="shell hero-content">
+      <div class="eyebrow">A wedding platform for the full story</div>
+      <h1 class="serif"><span>Charity</span><b>&amp;</b><span>Kudzie</span></h1>
+      <p class="hero-copy">wewed brings invitation, planning, participation and memory into one elegant digital experience — built to begin before the wedding and live long after it.</p>
+      <div class="hero-meta"><span>23 · 12 · 26</span><span>Imba Manor · Harare</span><span>Flagship experience</span></div>
+      <div class="actions">
+        <a class="button primary" href="#experience">Explore the preview</a>
+        <a class="button ghost" href="#platform">See the platform</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section id="vision">
+      <div class="shell intro-grid">
+        <div class="quote-card">
+          <blockquote class="serif">“Where love lives forever.”</blockquote>
+          <small>From invitation to living archive</small>
+        </div>
+        <div>
+          <div class="section-head">
+            <div class="eyebrow">The vision</div>
+            <h2 class="serif">One place for the day — and everything it becomes.</h2>
+            <p>Most wedding products solve one moment. wewed is conceived as a continuous experience: helping a couple plan, helping guests participate, then preserving the celebration as an evolving digital memory.</p>
+          </div>
+          <div class="facts">
+            <div class="fact"><strong>Before</strong><span>Invitation & planning</span></div>
+            <div class="fact"><strong>During</strong><span>Guest participation</span></div>
+            <div class="fact"><strong>After</strong><span>Memory & legacy</span></div>
+            <div class="fact"><strong>One</strong><span>Connected experience</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="dark" id="platform">
+      <div class="shell">
+        <div class="section-head">
+          <div class="eyebrow">Platform scope</div>
+          <h2 class="serif">Designed around the entire wedding lifecycle.</h2>
+          <p>This preview highlights the breadth of the current product concept. Production services, submissions and private couple tools are deliberately disabled on this public Pages build.</p>
+        </div>
+        <div class="capabilities">
+          <article class="capability"><span class="num">01</span><h3>Wedding experience</h3><p>Story, venue, programme, travel, registry, cultural context, FAQs and sharing in a cohesive editorial experience.</p></article>
+          <article class="capability"><span class="num">02</span><h3>Guest participation</h3><p>RSVP, song voting, messages, uploads, check-in, contributions and live celebration concepts.</p></article>
+          <article class="capability"><span class="num">03</span><h3>Couple planning</h3><p>Checklist, budget, vendors, guest management, timeline, seating, import/export and planning assistance.</p></article>
+          <article class="capability"><span class="num">04</span><h3>After mode</h3><p>A lifecycle transition from invitation to recap, playback, keepsakes, galleries and a permanent memory space.</p></article>
+          <article class="capability"><span class="num">05</span><h3>Multi-couple foundation</h3><p>Per-couple content, theming, onboarding, profiles and scalable data structures are represented in the product architecture.</p></article>
+          <article class="capability"><span class="num">06</span><h3>Partner opportunities</h3><p>Venues, vendors, travel, gifting, payments, media, heritage and premium memory products can connect to the journey.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="experience">
+      <div class="shell">
+        <div class="section-head">
+          <div class="eyebrow">Current experience</div>
+          <h2 class="serif">A visual tour of the flagship build.</h2>
+          <p>Select any screen to enlarge it. These are authentic product captures from the current Charity &amp; Kudzie implementation.</p>
+        </div>
+        <div class="screens">
+          <button class="screen-card" data-image="screens/wewed-final-story.png" data-caption="Our Story — editorial milestones and couple narrative"><img src="screens/wewed-final-story.png" alt="Our Story section" loading="lazy"><span class="screen-copy"><small>Story</small><h3>Editorial storytelling</h3></span></button>
+          <button class="screen-card" data-image="screens/wewed-final-programme.png" data-caption="The Day — programme, timing and guest guidance"><img src="screens/wewed-final-programme.png" alt="Wedding programme section" loading="lazy"><span class="screen-copy"><small>Programme</small><h3>The day, clearly presented</h3></span></button>
+          <button class="screen-card" data-image="screens/wewed-rsvp-final.png" data-caption="RSVP — guest response and preference capture"><img src="screens/wewed-rsvp-final.png" alt="RSVP section" loading="lazy"><span class="screen-copy"><small>Participation</small><h3>A considered RSVP flow</h3></span></button>
+          <button class="screen-card" data-image="screens/wewed-final-songbook3.png" data-caption="Songbook — music discovery and guest voting"><img src="screens/wewed-final-songbook3.png" alt="Songbook section" loading="lazy"><span class="screen-copy"><small>Music</small><h3>A collaborative songbook</h3></span></button>
+          <button class="screen-card" data-image="screens/wewed-bridal-party.png" data-caption="Wedding party — profiles, introductions and family context"><img src="screens/wewed-bridal-party.png" alt="Wedding party section" loading="lazy"><span class="screen-copy"><small>People</small><h3>Celebrate the wedding party</h3></span></button>
+          <button class="screen-card" data-image="screens/wewed-gallery-fixed.png" data-caption="Gallery — shared media and memory collection"><img src="screens/wewed-gallery-fixed.png" alt="Photo gallery section" loading="lazy"><span class="screen-copy"><small>Media</small><h3>A shared visual archive</h3></span></button>
+          <button class="screen-card" data-image="screens/wewed-planner-with-data.png" data-caption="Planner — operational tools for the couple"><img src="screens/wewed-planner-with-data.png" alt="Wedding planner dashboard" loading="lazy"><span class="screen-copy"><small>Planning</small><h3>Couple operations in one place</h3></span></button>
+          <button class="screen-card" data-image="screens/wewed-after-mode.png" data-caption="After mode — the experience transitions into memory"><img src="screens/wewed-after-mode.png" alt="After wedding mode" loading="lazy"><span class="screen-copy"><small>Legacy</small><h3>The site lives beyond the day</h3></span></button>
+        </div>
+        <div class="notice">
+          <span class="notice-icon">i</span>
+          <p><strong>Read-only preview:</strong> RSVP submission, uploads, login, administrative tools, AI services, database operations and real-time features are not active on GitHub Pages. The full application requires a server runtime and production data services.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="journey">
+      <div class="shell">
+        <div class="section-head">
+          <div class="eyebrow">The partner journey</div>
+          <h2 class="serif">Connect at the moments that matter.</h2>
+          <p>The product creates a sequence of natural touchpoints for partners while keeping the couple and guest experience coherent.</p>
+        </div>
+        <div class="journey">
+          <article class="stage"><strong>01</strong><h3>Discover</h3><p>Couples explore venues, vendors, experiences and services while shaping their wedding.</p></article>
+          <article class="stage"><strong>02</strong><h3>Plan</h3><p>Partner services become actionable within budgets, timelines, guest needs and logistics.</p></article>
+          <article class="stage"><strong>03</strong><h3>Celebrate</h3><p>Guests interact through content, travel, gifting, media and event participation.</p></article>
+          <article class="stage"><strong>04</strong><h3>Remember</h3><p>Selected partners remain part of the couple’s archive, keepsakes and post-wedding story.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="cta">
+      <div class="shell">
+        <div class="cta-card">
+          <div class="eyebrow">wewed partner preview</div>
+          <h2 class="serif">Build the wedding journey around real human moments.</h2>
+          <p>This Pages site is a static showcase of the current product direction. A production demonstration can connect the live application, data layer and partner-specific workflows.</p>
+          <div class="actions"><a class="button primary" href="#top">Return to the beginning</a></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="shell footer-inner">
+      <strong>wewed</strong>
+      <span>Partner preview · Charity &amp; Kudzie flagship · 23 December 2026</span>
+      <span>Static showcase — no personal submissions are collected.</span>
+    </div>
+  </footer>
+
+  <div class="modal" id="modal" role="dialog" aria-modal="true" aria-label="Product screenshot">
+    <button type="button" id="close" aria-label="Close">×</button>
+    <figure><img id="modal-image" alt=""><figcaption id="modal-caption"></figcaption></figure>
+  </div>
+
+  <script>
+    const modal = document.getElementById('modal');
+    const modalImage = document.getElementById('modal-image');
+    const modalCaption = document.getElementById('modal-caption');
+    const close = () => {
+      modal.classList.remove('open');
+      document.body.classList.remove('modal-open');
+      modalImage.removeAttribute('src');
+    };
+    document.querySelectorAll('.screen-card').forEach((card) => {
+      card.addEventListener('click', () => {
+        modalImage.src = card.dataset.image;
+        modalImage.alt = card.dataset.caption;
+        modalCaption.textContent = card.dataset.caption;
+        modal.classList.add('open');
+        document.body.classList.add('modal-open');
+      });
+    });
+    document.getElementById('close').addEventListener('click', close);
+    modal.addEventListener('click', (event) => { if (event.target === modal) close(); });
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape') close(); });
+  </script>
+</body>
+</html>
