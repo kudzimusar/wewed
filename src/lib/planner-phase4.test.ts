@@ -24,7 +24,7 @@ describe('Phase 4 independent planner portal', () => {
 
   test('secure planner mounts one standalone application shell', async () => {
     const securePlanner = await source(
-      'src/components/wedding/secure-wedding-planner.tsx'
+      'src/components/wedding/secure-wedding-planner.tsx',
     )
 
     expect(securePlanner).toContain('PlannerPortal')
@@ -47,13 +47,23 @@ describe('Phase 4 independent planner portal', () => {
   })
 
   test('workspace has real empty states and no couple-specific auto-seeding', async () => {
-    const workspace = await source('src/components/wedding/planner-workspace.tsx')
+    const activeSurface = (
+      await Promise.all([
+        source('src/components/wedding/planner-workspace.tsx'),
+        source('src/components/wedding/planner/modules/planner-tasks-module.tsx'),
+        source('src/components/wedding/planner/modules/planner-budget-module.tsx'),
+        source('src/components/wedding/planner/modules/planner-vendors-module.tsx'),
+        source('src/components/wedding/planner/modules/planner-guests-module.tsx'),
+        source('src/components/wedding/planner/modules/planner-timeline-module.tsx'),
+        source('src/components/wedding/planner/modules/planner-seating-module.tsx'),
+      ])
+    ).join('\n')
 
-    expect(workspace).toContain('Empty weddings stay empty')
-    expect(workspace).toContain('No couple-specific sample data is inserted automatically')
-    expect(workspace).not.toContain('SEED_')
-    expect(workspace).not.toContain('Charity')
-    expect(workspace).not.toContain('Kudzie')
-    expect(workspace).not.toContain('<Dialog')
+    expect(activeSurface).toContain('Empty weddings stay empty')
+    expect(activeSurface).toContain('No couple-specific sample data is inserted automatically')
+    expect(activeSurface).not.toContain('SEED_')
+    expect(activeSurface).not.toContain('Charity')
+    expect(activeSurface).not.toContain('Kudzie')
+    expect(activeSurface).not.toContain('<Dialog')
   })
 })
