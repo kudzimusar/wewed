@@ -101,7 +101,8 @@ describe('Stage 6 Timeline and Seating parity', () => {
     for (const marker of [
       'function escapeHtml',
       'const printTimeline',
-      'timeline.map',
+      'const rows = timeline',
+      '.map(',
       'escapeHtml(item.time)',
       'escapeHtml(item.event)',
       'escapeHtml(item.location)',
@@ -152,7 +153,9 @@ describe('Stage 6 Timeline and Seating parity', () => {
       'Unassign guest',
       'onAssignGuestToTable(guest, null)',
       'onAssignGuestToTable(guest, table.id)',
-      'tableOccupancy.get(table.id)',
+      'tableOccupancy.get(tableId)',
+      'assignedOccupancy.get(tableId)',
+      'occupancyFor(table.id)',
       'occupied > table.capacity',
       'Over capacity',
     ]) {
