@@ -144,7 +144,7 @@ export async function GET(request: NextRequest) {
       seating: {
         tables: tables.map((table) => {
           const occupied = table.guests
-            .filter((guest) => guest.rsvp?.attending !== false)
+            .filter((guest) => guest.rsvp?.attending === true)
             .reduce((sum, guest) => sum + guestHeads(guest), 0)
           return {
             id: table.id,

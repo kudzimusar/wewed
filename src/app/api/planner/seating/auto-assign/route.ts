@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
         where: {
           weddingId,
           seatingTableId: null,
-          OR: [{ rsvp: null }, { rsvp: { attending: { not: false } } }],
+          rsvp: { attending: true },
         },
         include: { rsvp: true },
         orderBy: { name: 'asc' },
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
         name: table.name,
         capacity: table.capacity,
         occupied: table.guests
-          .filter((guest) => guest.rsvp?.attending !== false)
+          .filter((guest) => guest.rsvp?.attending === true)
           .reduce((sum, guest) => sum + guestHeadcount(guest), 0),
       })),
       guests.map((guest) => ({
@@ -74,7 +74,12 @@ export async function POST(request: NextRequest) {
     await db.$transaction(
       plan.assignments.map((assignment) =>
         db.guest.updateMany({
-          where: { id: assignment.guestId, weddingId, seatingTableId: null },
+          where: {
+            id: assignment.guestId,
+            weddingId,
+            seatingTableId: null,
+            rsvp: { attending: true },
+          },
           data: { seatingTableId: assignment.tableId },
         }),
       ),
