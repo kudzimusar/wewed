@@ -84,7 +84,8 @@ const MODULES = [
     markers: [
       'tableForm.name',
       'tableForm.capacity',
-      'tableOccupancy.get(table.id)',
+      'tableOccupancy.get(tableId)',
+      'assignedOccupancy.get(tableId)',
       'occupied > table.capacity',
       'No seating tables',
     ],
