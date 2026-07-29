@@ -116,32 +116,52 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  const access = await requireWeddingPermission(request, 'planner.view')
+  const access = await requireWeddingPermission(request, 'import.execute')
   if (access.error) return access.error
 
   try {
+    const url = new URL(request.url)
+    const requestedModule = url.searchParams.get('module')?.trim() || null
+    if (requestedModule && !isModuleKey(requestedModule)) {
+      return NextResponse.json(
+        { success: false, error: 'Unknown import module.' },
+        { status: 400 },
+      )
+    }
+
+    const requestedLimit = Number(url.searchParams.get('limit') || 8)
+    const take = Number.isFinite(requestedLimit)
+      ? Math.min(30, Math.max(1, Math.floor(requestedLimit)))
+      : 8
+
     const jobs = await db.importJob.findMany({
-      where: { weddingId: access.context.weddingId },
+      where: {
+        weddingId: access.context.weddingId,
+        ...(requestedModule ? { moduleKey: requestedModule } : {}),
+      },
       orderBy: { createdAt: 'desc' },
-      take: 30,
+      take,
     })
-    return NextResponse.json({
-      success: true,
-      recent: jobs.map((job) => ({
-        jobId: job.id,
-        moduleKey: job.moduleKey,
-        fileName: job.fileName,
-        status: job.status,
-        totalRows: job.totalRows,
-        createdCount: job.createdCount,
-        updatedCount: job.updatedCount,
-        skippedCount: job.skippedCount,
-        errorCount: job.errorCount,
-        rollbackToken: job.rollbackToken,
-        createdAt: job.createdAt.toISOString(),
-        updatedAt: job.updatedAt.toISOString(),
-      })),
-    })
+
+    const data = jobs.map((job) => ({
+      id: job.id,
+      jobId: job.id,
+      moduleKey: job.moduleKey,
+      fileName: job.fileName,
+      templateVersion: job.templateVersion,
+      status: job.status,
+      totalRows: job.totalRows,
+      createdCount: job.createdCount,
+      updatedCount: job.updatedCount,
+      skippedCount: job.skippedCount,
+      errorCount: job.errorCount,
+      errorReport: job.errorReport,
+      rollbackToken: job.rollbackToken,
+      createdAt: job.createdAt.toISOString(),
+      updatedAt: job.updatedAt.toISOString(),
+    }))
+
+    return NextResponse.json({ success: true, data, recent: data })
   } catch (error) {
     console.error('[imports GET] Error:', error)
     return NextResponse.json({ success: false, error: 'Unable to load import history.' }, { status: 500 })
