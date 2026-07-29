@@ -127,7 +127,8 @@ describe('Stage 3 six-module extraction', () => {
 
     for (const marker of [
       "api<{ data: TaskRow[] }>('/api/planner/tasks')",
-      "api<{ data: BudgetRow[]; summary: BudgetSummary }>('/api/planner/budget')",
+      'byCategory: CategoryBreakdown[]',
+      ">('/api/planner/budget')",
       "api<{ data: VendorRow[] }>('/api/planner/vendors')",
       "api<{ data: GuestRow[]; tables: SeatingTableRow[] }>('/api/planner/guests')",
       "api<{ data: TimelineRow[] }>('/api/planner/timeline')",
