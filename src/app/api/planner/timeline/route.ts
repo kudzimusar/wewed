@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import {
-  decodeLegacyTimelineIcon,
-  encodeLegacyTimelineIcon,
-} from '@/lib/planner-legacy-metadata'
+import { resolveTimelineFields } from '@/lib/planner-legacy-metadata'
 import { requireWeddingPermission } from '@/lib/wedding-access'
 
 function formatProgrammeItem(item: {
@@ -12,12 +9,15 @@ function formatProgrammeItem(item: {
   title: string
   description: string | null
   icon: string | null
+  duration: string | null
+  location: string | null
+  displayIcon: string | null
   order: number
   weddingId: string
   createdAt: Date
   updatedAt: Date
 }) {
-  const meta = decodeLegacyTimelineIcon(item.icon)
+  const meta = resolveTimelineFields(item)
   return {
     id: item.id,
     time: item.time,
@@ -103,16 +103,16 @@ export async function POST(request: NextRequest) {
       order = (last?.order ?? 0) + 1
     }
 
+    const displayIcon = body.icon?.trim() || null
     const created = await db.programmeItem.create({
       data: {
         time,
         title,
         description: (body.notes ?? body.description ?? '').trim() || null,
-        icon: encodeLegacyTimelineIcon({
-          d: body.duration,
-          l: body.location,
-          i: body.icon,
-        }),
+        icon: displayIcon,
+        duration: body.duration?.trim() || null,
+        location: body.location?.trim() || null,
+        displayIcon,
         order,
         weddingId: access.context.weddingId,
       },
