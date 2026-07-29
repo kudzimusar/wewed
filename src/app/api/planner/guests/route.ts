@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireWeddingPermission } from '@/lib/wedding-access'
@@ -62,7 +63,7 @@ function formatGuest(g: {
   }
 }
 
-function formatTable(t: {
+function formatTable(table: {
   id: string
   name: string
   capacity: number
@@ -72,9 +73,9 @@ function formatTable(t: {
   updatedAt: Date
 }) {
   return {
-    ...t,
-    createdAt: t.createdAt.toISOString(),
-    updatedAt: t.updatedAt.toISOString(),
+    ...table,
+    createdAt: table.createdAt.toISOString(),
+    updatedAt: table.updatedAt.toISOString(),
   }
 }
 
@@ -105,11 +106,8 @@ export async function GET(request: NextRequest) {
       tables: tables.map(formatTable),
     })
   } catch (error) {
-    console.error('[PLANNER GUESTS GET] error:', error)
-    return NextResponse.json(
-      { success: false, error: 'Failed to fetch guests' },
-      { status: 500 }
-    )
+    console.error('[planner guests GET] Error:', error)
+    return NextResponse.json({ success: false, error: 'Failed to fetch guests.' }, { status: 500 })
   }
 }
 
@@ -132,94 +130,101 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as CreateGuestPayload
     const access = await requireWeddingPermission(
       request,
-      body.kind === 'table' ? 'seating.edit' : 'guests.edit'
+      body.kind === 'table' ? 'seating.edit' : 'guests.edit',
     )
     if (access.error) return access.error
+    const weddingId = access.context.weddingId
 
     if (body.kind === 'table') {
-      if (!body.tableName || typeof body.tableName !== 'string' || !body.tableName.trim()) {
-        return NextResponse.json(
-          { success: false, error: 'Table name is required' },
-          { status: 400 }
-        )
+      const tableName = typeof body.tableName === 'string' ? body.tableName.trim() : ''
+      if (!tableName) {
+        return NextResponse.json({ success: false, error: 'Table name is required.' }, { status: 400 })
       }
-
       const capacity =
         typeof body.capacity === 'number' && Number.isFinite(body.capacity) && body.capacity > 0
           ? Math.min(50, Math.floor(body.capacity))
           : 8
-
       const table = await db.seatingTable.create({
+        data: { tableName: undefined, name: tableName, capacity, position: body.position ?? null, weddingId },
+      })
+      await db.auditEvent.create({
         data: {
-          name: body.tableName.trim(),
-          capacity,
-          position: body.position ?? null,
-          weddingId: access.context.weddingId,
+          action: 'seating.table_create',
+          resourceType: 'seating_table',
+          resourceId: table.id,
+          afterValue: JSON.stringify({ name: table.name, capacity: table.capacity }),
+          weddingId,
+          actorId: access.context.session.userId,
         },
       })
-
-      return NextResponse.json(
-        { success: true, data: formatTable(table) },
-        { status: 201 }
-      )
+      return NextResponse.json({ success: true, data: formatTable(table) }, { status: 201 })
     }
 
-    if (!body.name || typeof body.name !== 'string' || !body.name.trim()) {
-      return NextResponse.json(
-        { success: false, error: 'Name is required' },
-        { status: 400 }
-      )
-    }
-
-    const role = GUEST_ROLES.includes(body.role as (typeof GUEST_ROLES)[number])
-      ? body.role!
-      : 'guest'
-    const side = GUEST_SIDES.includes(body.side as (typeof GUEST_SIDES)[number])
-      ? body.side!
-      : 'neutral'
-
-    if (body.seatingTableId) {
-      const table = await db.seatingTable.findFirst({
-        where: {
-          id: body.seatingTableId,
-          weddingId: access.context.weddingId,
-        },
-        select: { id: true },
-      })
-      if (!table) {
+    const name = typeof body.name === 'string' ? body.name.trim() : ''
+    if (!name) return NextResponse.json({ success: false, error: 'Name is required.' }, { status: 400 })
+    const email = body.email?.trim().toLowerCase() || null
+    if (email) {
+      const duplicate = await db.guest.findFirst({ where: { weddingId, email } })
+      if (duplicate) {
         return NextResponse.json(
-          { success: false, error: 'Invalid seatingTableId' },
-          { status: 400 }
+          { success: false, error: 'A guest with this email already exists for this wedding.' },
+          { status: 409 },
         )
       }
     }
 
-    const guest = await db.guest.create({
+    const role = GUEST_ROLES.includes(body.role as (typeof GUEST_ROLES)[number]) ? body.role! : 'guest'
+    const side = GUEST_SIDES.includes(body.side as (typeof GUEST_SIDES)[number]) ? body.side! : 'neutral'
+    if (body.seatingTableId) {
+      const table = await db.seatingTable.findFirst({
+        where: { id: body.seatingTableId, weddingId },
+        select: { id: true },
+      })
+      if (!table) return NextResponse.json({ success: false, error: 'Invalid seatingTableId.' }, { status: 400 })
+    }
+
+    const guest = await db.$transaction(async (tx) => {
+      const created = await tx.guest.create({
+        data: {
+          name,
+          email,
+          phone: body.phone?.trim() || null,
+          role,
+          roleDetail: body.roleDetail?.trim() || null,
+          side,
+          seatingTableId: body.seatingTableId || null,
+          weddingId,
+        },
+      })
+      await tx.rSVP.create({
+        data: {
+          token: randomUUID(),
+          guestId: created.id,
+        },
+      })
+      return tx.guest.findUniqueOrThrow({
+        where: { id: created.id },
+        include: {
+          rsvp: true,
+          seatingTable: { select: { id: true, name: true, capacity: true } },
+        },
+      })
+    })
+
+    await db.auditEvent.create({
       data: {
-        name: body.name.trim(),
-        email: body.email?.trim().toLowerCase() || null,
-        phone: body.phone?.trim() || null,
-        role,
-        roleDetail: body.roleDetail?.trim() || null,
-        side,
-        seatingTableId: body.seatingTableId || null,
-        weddingId: access.context.weddingId,
-      },
-      include: {
-        rsvp: true,
-        seatingTable: { select: { id: true, name: true, capacity: true } },
+        action: 'guest.create',
+        resourceType: 'guest',
+        resourceId: guest.id,
+        afterValue: JSON.stringify({ name: guest.name, email: guest.email, role: guest.role }),
+        weddingId,
+        actorId: access.context.session.userId,
       },
     })
 
-    return NextResponse.json(
-      { success: true, data: formatGuest(guest) },
-      { status: 201 }
-    )
+    return NextResponse.json({ success: true, data: formatGuest(guest) }, { status: 201 })
   } catch (error) {
-    console.error('[PLANNER GUESTS POST] error:', error)
-    return NextResponse.json(
-      { success: false, error: 'Failed to create guest or table' },
-      { status: 500 }
-    )
+    console.error('[planner guests POST] Error:', error)
+    return NextResponse.json({ success: false, error: 'Failed to create guest or table.' }, { status: 500 })
   }
 }
