@@ -43,15 +43,23 @@ export async function POST(request: NextRequest) {
       return errorResponse('Invalid email or password.', 401)
     }
 
-    const [profile, flagshipWedding] = await Promise.all([
-      db.userProfile.findUnique({
-        where: { id: data.user.id },
+    const [accessUser, existingProfile, flagshipWedding] = await Promise.all([
+      db.user.findUnique({
+        where: { email },
         select: {
           id: true,
           email: true,
-          displayName: true,
+          name: true,
           role: true,
           coupleId: true,
+          isActive: true,
+        },
+      }),
+      db.userProfile.findUnique({
+        where: { id: data.user.id },
+        select: {
+          displayName: true,
+          avatarUrl: true,
           isBanned: true,
         },
       }),
@@ -61,7 +69,11 @@ export async function POST(request: NextRequest) {
       }),
     ])
 
-    if (!profile || !isDashboardRole(profile.role)) {
+    if (
+      !accessUser ||
+      !accessUser.isActive ||
+      !isDashboardRole(accessUser.role)
+    ) {
       await supabase.auth.signOut()
       return errorResponse(
         'This account has not been assigned dashboard access.',
@@ -69,14 +81,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (profile.isBanned) {
+    if (existingProfile?.isBanned) {
       await supabase.auth.signOut()
       return errorResponse('This account has been disabled.', 403)
     }
 
     if (
-      profile.role !== 'admin' &&
-      (!flagshipWedding || profile.coupleId !== flagshipWedding.coupleId)
+      accessUser.role !== 'admin' &&
+      (!flagshipWedding || accessUser.coupleId !== flagshipWedding.coupleId)
     ) {
       await supabase.auth.signOut()
       return errorResponse(
@@ -85,30 +97,48 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    await db.userProfile.update({
-      where: { id: profile.id },
-      data: {
-        email: data.user.email?.toLowerCase() ?? profile.email,
-        lastLoginAt: new Date(),
-      },
-    })
+    const normalizedAuthEmail = data.user.email?.toLowerCase() ?? email
+    const displayName = existingProfile?.displayName ?? accessUser.name ?? null
+
+    await db.$transaction([
+      db.user.update({
+        where: { id: accessUser.id },
+        data: { lastLoginAt: new Date() },
+      }),
+      db.userProfile.upsert({
+        where: { id: data.user.id },
+        create: {
+          id: data.user.id,
+          email: normalizedAuthEmail,
+          displayName,
+          role: accessUser.role,
+          lastLoginAt: new Date(),
+        },
+        update: {
+          email: normalizedAuthEmail,
+          displayName,
+          role: accessUser.role,
+          lastLoginAt: new Date(),
+        },
+      }),
+    ])
 
     const response = NextResponse.json({
       success: true,
       user: {
-        id: profile.id,
-        email: data.user.email ?? profile.email,
-        displayName: profile.displayName,
-        role: profile.role,
-        coupleId: profile.coupleId,
+        id: data.user.id,
+        email: normalizedAuthEmail,
+        displayName,
+        role: accessUser.role,
+        coupleId: accessUser.coupleId,
       },
     })
 
     setAppSessionCookie(response, {
-      userId: profile.id,
-      email: data.user.email ?? profile.email,
-      role: profile.role,
-      coupleId: profile.coupleId,
+      userId: data.user.id,
+      email: normalizedAuthEmail,
+      role: accessUser.role,
+      coupleId: accessUser.coupleId,
     })
 
     return response
