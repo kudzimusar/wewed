@@ -77,6 +77,14 @@ BEGIN
     RETURN NULL;
   END IF;
 
+  -- The guard's own corrective UPDATE changes assigneeUserId. Ignore that queued
+  -- event so the deferred trigger cannot recurse. The legacy Phase 3 write changes
+  -- only assignee, leaving assigneeUserId unchanged, and therefore reaches the
+  -- correction below.
+  IF NEW."assigneeUserId" IS DISTINCT FROM OLD."assigneeUserId" THEN
+    RETURN NULL;
+  END IF;
+
   SELECT revision."value", revision."updatedAt"
   INTO assignment_row
   FROM "ContentRevision" revision
