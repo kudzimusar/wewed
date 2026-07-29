@@ -196,9 +196,10 @@ describe('Stage 9 API and UI regression controls', () => {
   })
 
   test('release centre is mounted in the active-wedding navigation and never writes on mount', async () => {
-    const [portal, component] = await Promise.all([
+    const [portal, component, route] = await Promise.all([
       source('src/components/wedding/planner-portal.tsx'),
       source('src/components/wedding/planner-release-center.tsx'),
+      source('src/app/api/planner/release-center/route.ts'),
     ])
 
     expect(portal).toContain("import { PlannerReleaseCenter }")
@@ -208,7 +209,8 @@ describe('Stage 9 API and UI regression controls', () => {
 
     expect(component).toContain("fetch('/api/planner/release-center', { cache: 'no-store' })")
     expect(component).toContain("fetch('/api/health', { cache: 'no-store' })")
-    expect(component).toContain('external AI provider')
+    expect(component).toContain('data.intelligence.explanation')
+    expect(route).toContain('No client data is sent to an external AI provider.')
     expect(component).toContain("method: 'POST'")
     expect(component).toContain('window.confirm(')
     expect(component).toContain('window.prompt(')
