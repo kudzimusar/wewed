@@ -48,6 +48,7 @@ function formatTask(task: {
   priority: string
   dueDate: Date | null
   assignee: string | null
+  assigneeUserId: string | null
   order: number
   weddingId: string
   createdAt: Date
@@ -63,7 +64,7 @@ function formatTask(task: {
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const access = await requireWeddingPermission(request, 'planner.edit')
   if (access.error) return access.error
@@ -77,7 +78,7 @@ export async function PATCH(
     if (!existing) {
       return NextResponse.json(
         { success: false, error: 'Task not found' },
-        { status: 404 }
+        { status: 404 },
       )
     }
 
@@ -88,7 +89,7 @@ export async function PATCH(
       if (typeof body.title !== 'string' || !body.title.trim()) {
         return NextResponse.json(
           { success: false, error: 'Title cannot be empty' },
-          { status: 400 }
+          { status: 400 },
         )
       }
       updates.title = body.title.trim()
@@ -100,7 +101,7 @@ export async function PATCH(
       if (!CATEGORIES.includes(body.category as (typeof CATEGORIES)[number])) {
         return NextResponse.json(
           { success: false, error: `Invalid category. Allowed: ${CATEGORIES.join(', ')}` },
-          { status: 400 }
+          { status: 400 },
         )
       }
       updates.category = body.category
@@ -109,7 +110,7 @@ export async function PATCH(
       if (!STATUSES.includes(body.status as (typeof STATUSES)[number])) {
         return NextResponse.json(
           { success: false, error: `Invalid status. Allowed: ${STATUSES.join(', ')}` },
-          { status: 400 }
+          { status: 400 },
         )
       }
       updates.status = body.status
@@ -118,7 +119,7 @@ export async function PATCH(
       if (!PRIORITIES.includes(body.priority as (typeof PRIORITIES)[number])) {
         return NextResponse.json(
           { success: false, error: `Invalid priority. Allowed: ${PRIORITIES.join(', ')}` },
-          { status: 400 }
+          { status: 400 },
         )
       }
       updates.priority = body.priority
@@ -131,20 +132,22 @@ export async function PATCH(
         if (Number.isNaN(parsed.getTime())) {
           return NextResponse.json(
             { success: false, error: 'Invalid dueDate' },
-            { status: 400 }
+            { status: 400 },
           )
         }
         updates.dueDate = parsed
       }
     }
     if (body.assignee !== undefined) {
+      // This remains the original free-text planning label. Team ownership is
+      // stored separately in assigneeUserId by the collaboration assignment.
       updates.assignee = body.assignee?.trim() || null
     }
     if (body.order !== undefined) {
       if (typeof body.order !== 'number' || !Number.isFinite(body.order)) {
         return NextResponse.json(
           { success: false, error: 'order must be a number' },
-          { status: 400 }
+          { status: 400 },
         )
       }
       updates.order = body.order
@@ -153,7 +156,7 @@ export async function PATCH(
     if (Object.keys(updates).length === 0) {
       return NextResponse.json(
         { success: false, error: 'No updates provided' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -167,14 +170,14 @@ export async function PATCH(
     console.error('[PLANNER TASK PATCH] error:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to update task' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const access = await requireWeddingPermission(request, 'planner.edit')
   if (access.error) return access.error
@@ -189,7 +192,7 @@ export async function DELETE(
     if (!existing) {
       return NextResponse.json(
         { success: false, error: 'Task not found' },
-        { status: 404 }
+        { status: 404 },
       )
     }
 
@@ -199,7 +202,7 @@ export async function DELETE(
     console.error('[PLANNER TASK DELETE] error:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to delete task' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
