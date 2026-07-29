@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { motion } from 'framer-motion'
 import {
   AlertTriangle,
   ChevronDown,
@@ -85,7 +84,7 @@ function dateTime(value: string): string {
 }
 
 function statusClass(status: string): string {
-  if (status === 'completed' || status === 'rolled_back') {
+  if (status === 'executed' || status === 'rolled_back') {
     return 'border-sage/30 text-sage-light'
   }
   if (status === 'failed' || status === 'rollback_failed') {
@@ -93,6 +92,20 @@ function statusClass(status: string): string {
   }
   if (status === 'preview') return 'border-gold/25 text-gold'
   return 'border-champagne/20 text-champagne/55'
+}
+
+function errorSummary(job: ImportJobSummary): string | null {
+  if (!job.errorCount) return null
+  if (!job.errorReport) return `${job.errorCount} row error${job.errorCount === 1 ? '' : 's'}`
+  try {
+    const report = JSON.parse(job.errorReport) as Array<{ row?: number; errors?: string[] }>
+    const first = report[0]
+    if (!first) return `${job.errorCount} row error${job.errorCount === 1 ? '' : 's'}`
+    const detail = first.errors?.join('; ') || 'Invalid row'
+    return `Row ${first.row ?? '?'}: ${detail}${report.length > 1 ? ` · ${report.length - 1} more` : ''}`
+  } catch {
+    return `${job.errorCount} row error${job.errorCount === 1 ? '' : 's'}`
+  }
 }
 
 export function ImportExportBar({
@@ -199,7 +212,7 @@ export function ImportExportBar({
         return
       }
 
-      setDownloading(endpoint === 'template' ? 'template' : 'export')
+      setDownloading(endpoint)
       try {
         const url =
           endpoint === 'template'
@@ -212,7 +225,7 @@ export function ImportExportBar({
             const payload = (await response.json()) as { error?: string }
             if (payload.error) message = payload.error
           } catch {
-            // The endpoint may return a non-JSON error response.
+            // Some download failures are not JSON responses.
           }
           throw new Error(message)
         }
@@ -242,10 +255,9 @@ export function ImportExportBar({
               : `${moduleLabel} exported to Excel.`,
         })
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Download failed'
         toast({
           title: endpoint === 'template' ? 'Template failed' : 'Export failed',
-          description: message,
+          description: error instanceof Error ? error.message : 'Download failed',
           variant: 'destructive',
         })
       } finally {
@@ -254,18 +266,6 @@ export function ImportExportBar({
     },
     [capabilities, moduleKey, moduleLabel, toast],
   )
-
-  const openImport = useCallback(() => {
-    if (!capabilities.canImportWorksheet) {
-      toast({
-        title: 'Permission required',
-        description: 'This wedding role cannot import planner data.',
-        variant: 'destructive',
-      })
-      return
-    }
-    setImportOpen(true)
-  }, [capabilities.canImportWorksheet, toast])
 
   const handleImportComplete = useCallback(() => {
     onImportComplete?.()
@@ -293,18 +293,13 @@ export function ImportExportBar({
 
       setRollbackJobId(job.id)
       try {
-        const response = await fetch(`/api/imports/${job.id}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'rollback',
-            rollbackToken: job.rollbackToken,
-          }),
-          cache: 'no-store',
-        })
+        const response = await fetch(
+          `/api/imports/${encodeURIComponent(job.id)}?rollbackToken=${encodeURIComponent(job.rollbackToken)}`,
+          { method: 'DELETE', cache: 'no-store' },
+        )
         const payload = (await response.json()) as { success?: boolean; error?: string }
         if (!response.ok || !payload.success) {
-          throw new Error(payload.error || 'Unable to rollback this import.')
+          throw new Error(payload.error || 'Unable to roll back this import.')
         }
         toast({
           title: 'Import rolled back',
@@ -328,164 +323,152 @@ export function ImportExportBar({
   if (!permissionsLoaded || !capabilities.canUseWorksheetTools) return null
 
   return (
-    <>
-      <div className={`rounded-xl border border-gold/15 bg-espresso/35 p-3 ${className}`}>
-        <motion.div
-          initial={{ opacity: 0, y: -4 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex flex-wrap items-center gap-2"
+    <div className={`rounded-xl border border-gold/15 bg-espresso/35 p-3 ${className}`}>
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge
+          variant="outline"
+          className="hidden border-gold/30 bg-gold/10 text-[10px] uppercase tracking-wider text-gold sm:inline-flex"
         >
-          <Badge
+          <FileSpreadsheet className="mr-1 size-3" />
+          {moduleLabel} data
+        </Badge>
+
+        {capabilities.canDownloadWorksheetTemplate && (
+          <Button
+            type="button"
             variant="outline"
-            className="hidden border-gold/30 bg-gold/10 text-[10px] uppercase tracking-wider text-gold sm:inline-flex"
+            size="sm"
+            disabled={downloading !== null}
+            onClick={() => void triggerDownload('template')}
+            className="gap-1.5 border-gold/30 bg-transparent text-champagne/70 hover:bg-gold/10 hover:text-gold disabled:opacity-40"
           >
-            <FileSpreadsheet className="mr-1 size-3" />
-            {moduleLabel} data
-          </Badge>
-
-          {capabilities.canDownloadWorksheetTemplate && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={downloading !== null}
-              onClick={() => triggerDownload('template')}
-              className="gap-1.5 border-gold/30 bg-transparent text-champagne/70 hover:bg-gold/10 hover:text-gold disabled:opacity-40"
-            >
-              {downloading === 'template' ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                <Download className="size-3.5" />
-              )}
-              <span className="hidden sm:inline">Template</span>
-              <span className="sm:hidden">.xlsx</span>
-            </Button>
-          )}
-
-          {capabilities.canExportWorksheet && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={downloading !== null}
-              onClick={() => triggerDownload('export')}
-              className="gap-1.5 border-gold/30 bg-transparent text-champagne/70 hover:bg-gold/10 hover:text-gold disabled:opacity-40"
-            >
-              {downloading === 'export' ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                <FileSpreadsheet className="size-3.5" />
-              )}
-              <span>Export</span>
-            </Button>
-          )}
-
-          {capabilities.canImportWorksheet && (
-            <>
-              <Button
-                type="button"
-                size="sm"
-                onClick={openImport}
-                className="gap-1.5 bg-gold text-espresso hover:bg-gold-light"
-              >
-                <Upload className="size-3.5" />
-                <span>Import</span>
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={toggleHistory}
-                className="gap-1.5 text-champagne/55 hover:bg-gold/10 hover:text-gold"
-              >
-                <History className="size-3.5" />
-                Recent imports
-                {historyOpen ? (
-                  <ChevronUp className="size-3.5" />
-                ) : (
-                  <ChevronDown className="size-3.5" />
-                )}
-              </Button>
-            </>
-          )}
-
-          <span
-            className="ml-auto hidden items-center gap-1 font-sans text-[10px] uppercase tracking-wider text-champagne/40 md:inline-flex"
-            title="Actions are controlled by the selected wedding's permissions"
-          >
-            <ShieldCheck className="size-3" />
-            {roleLabel(session?.activeWedding?.membershipRole)}
-          </span>
-        </motion.div>
-
-        {capabilities.canImportWorksheet && historyOpen && (
-          <div className="mt-3 border-t border-gold/10 pt-3">
-            {historyLoading ? (
-              <div className="flex items-center gap-2 py-3 font-sans text-xs text-champagne/45">
-                <Loader2 className="size-4 animate-spin text-gold" /> Loading import history…
-              </div>
-            ) : jobs.length === 0 ? (
-              <p className="py-2 font-sans text-xs text-champagne/45">
-                No imports have been run for this module in the selected wedding.
-              </p>
+            {downloading === 'template' ? (
+              <Loader2 className="size-3.5 animate-spin" />
             ) : (
-              <div className="space-y-2">
-                {jobs.map((job) => (
-                  <div
-                    key={job.id}
-                    className="rounded-lg border border-gold/10 bg-espresso/45 px-3 py-2"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="truncate font-sans text-xs font-medium text-champagne/80">
-                          {job.fileName}
-                        </p>
-                        <p className="font-sans text-[10px] text-champagne/35">
-                          {dateTime(job.updatedAt)} · {job.totalRows} rows · {job.createdCount}{' '}
-                          created · {job.updatedCount} updated · {job.skippedCount} skipped
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className={`text-[9px] ${statusClass(job.status)}`}>
-                          {statusLabel(job.status)}
-                        </Badge>
-                        {job.status === 'completed' && job.rollbackToken && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            disabled={rollbackJobId !== null}
-                            onClick={() => rollbackImport(job)}
-                            className="h-7 gap-1 px-2 text-[10px] text-champagne/50 hover:bg-clay/10 hover:text-clay-light"
-                          >
-                            {rollbackJobId === job.id ? (
-                              <Loader2 className="size-3 animate-spin" />
-                            ) : (
-                              <RotateCcw className="size-3" />
-                            )}
-                            Rollback
-                          </Button>
-                        )}
-                      </div>
+              <Download className="size-3.5" />
+            )}
+            Template
+          </Button>
+        )}
+
+        {capabilities.canExportWorksheet && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={downloading !== null}
+            onClick={() => void triggerDownload('export')}
+            className="gap-1.5 border-gold/30 bg-transparent text-champagne/70 hover:bg-gold/10 hover:text-gold disabled:opacity-40"
+          >
+            {downloading === 'export' ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <FileSpreadsheet className="size-3.5" />
+            )}
+            Export
+          </Button>
+        )}
+
+        {capabilities.canImportWorksheet && (
+          <>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => setImportOpen(true)}
+              className="gap-1.5 bg-gold text-espresso hover:bg-gold-light"
+            >
+              <Upload className="size-3.5" />
+              Import
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={toggleHistory}
+              disabled={historyLoading}
+              className="gap-1.5 border-gold/20 bg-transparent text-champagne/60 hover:bg-gold/10 hover:text-gold"
+            >
+              {historyLoading ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <History className="size-3.5" />
+              )}
+              Recent imports
+              {historyOpen ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
+            </Button>
+          </>
+        )}
+
+        <span
+          className="ml-auto hidden items-center gap-1 font-sans text-[10px] uppercase tracking-wider text-champagne/40 md:inline-flex"
+          title="Actions are controlled by the selected wedding's permissions"
+        >
+          <ShieldCheck className="size-3" />
+          {roleLabel(session?.activeWedding?.membershipRole)}
+        </span>
+      </div>
+
+      {capabilities.canImportWorksheet && historyOpen && (
+        <div className="mt-3 space-y-2 border-t border-gold/10 pt-3">
+          {historyLoading ? (
+            <p className="font-sans text-xs text-champagne/45">Loading import history…</p>
+          ) : jobs.length === 0 ? (
+            <p className="font-sans text-xs text-champagne/45">
+              No {moduleLabel.toLowerCase()} imports have been saved for this wedding.
+            </p>
+          ) : (
+            jobs.map((job) => {
+              const errors = errorSummary(job)
+              const canRollback = job.status === 'executed' && Boolean(job.rollbackToken)
+              return (
+                <div
+                  key={job.id}
+                  className="flex flex-col gap-2 rounded-lg border border-gold/10 bg-espresso/50 p-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="truncate font-sans text-xs font-medium text-champagne">
+                        {job.fileName}
+                      </p>
+                      <Badge variant="outline" className={`text-[9px] ${statusClass(job.status)}`}>
+                        {statusLabel(job.status)}
+                      </Badge>
                     </div>
-                    {job.errorCount > 0 && job.errorReport && (
-                      <details className="mt-2 rounded-md border border-clay/15 bg-clay/5 px-2 py-1.5">
-                        <summary className="cursor-pointer font-sans text-[10px] text-clay-light">
-                          <AlertTriangle className="mr-1 inline size-3" />
-                          {job.errorCount} import error{job.errorCount === 1 ? '' : 's'}
-                        </summary>
-                        <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap font-mono text-[9px] text-champagne/55">
-                          {job.errorReport}
-                        </pre>
-                      </details>
+                    <p className="mt-1 font-sans text-[10px] text-champagne/40">
+                      {dateTime(job.createdAt)} · {job.totalRows} rows · {job.createdCount} created ·{' '}
+                      {job.updatedCount} updated · {job.skippedCount} skipped
+                    </p>
+                    {errors && (
+                      <p className="mt-1 flex items-center gap-1 font-sans text-[10px] text-clay-light">
+                        <AlertTriangle className="size-3 shrink-0" />
+                        {errors}
+                      </p>
                     )}
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+
+                  {canRollback && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={rollbackJobId !== null}
+                      onClick={() => void rollbackImport(job)}
+                      className="shrink-0 gap-1.5 border-clay/30 bg-transparent text-clay-light hover:bg-clay/10"
+                    >
+                      {rollbackJobId === job.id ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <RotateCcw className="size-3.5" />
+                      )}
+                      Roll back
+                    </Button>
+                  )}
+                </div>
+              )
+            })
+          )}
+        </div>
+      )}
 
       {capabilities.canImportWorksheet && (
         <ImportDialog
@@ -495,6 +478,6 @@ export function ImportExportBar({
           onComplete={handleImportComplete}
         />
       )}
-    </>
+    </div>
   )
 }
