@@ -126,4 +126,33 @@ describe('Stage 2 unsaved planner drafts', () => {
       }),
     ).toBe(false)
   })
+
+  test('wedding switching confirms drafts and never reloads the page', async () => {
+    const controls = await source('src/components/wedding/wedding-context-controls.tsx')
+
+    expect(controls).toContain('hasUnsavedPlannerForms(plannerRoot())')
+    expect(controls).toContain('window.confirm(')
+    expect(controls).toContain("window.addEventListener('beforeunload'")
+    expect(controls).toContain("new CustomEvent('wewed:wedding-switched'")
+    expect(controls).toContain('payload.activeWedding')
+    expect(controls).not.toContain('window.location.reload()')
+  })
+
+  test('the portal reloads session context and remounts workspace by wedding ID', async () => {
+    const portal = await source('src/components/wedding/planner-portal.tsx')
+
+    expect(portal).toContain("window.addEventListener('wewed:wedding-switched', loadSession)")
+    expect(portal).toContain("window.removeEventListener('wewed:wedding-switched', loadSession)")
+    expect(portal).toContain("<PlannerWorkspace key={wedding?.id ?? 'no-active-wedding'} />")
+  })
+
+  test('the switch API returns the authoritative active wedding with scoped permissions', async () => {
+    const route = await source('src/app/api/auth/wedding/route.ts')
+
+    expect(route).toContain('listAccessibleWeddings')
+    expect(route).toContain("candidate.membershipStatus === 'active'")
+    expect(route).toContain('activeWedding:')
+    expect(route).toContain('permissions')
+    expect(route).toContain('setAppSessionCookie')
+  })
 })
