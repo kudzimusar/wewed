@@ -90,5 +90,8 @@ jobs:
       - name: Run Phase 5 real-data tests
         run: bun test src/lib/planner-phase5.test.ts
 
+      - name: Run Phase 6 event-operations tests
+        run: bun test src/lib/planner-phase6.test.ts
+
       - name: Build application
         run: bun run build

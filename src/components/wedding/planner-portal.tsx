@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { PlannerClientProfile } from '@/components/wedding/planner-client-profile'
 import { PlannerCollaborationHub } from '@/components/wedding/planner-collaboration-hub'
+import { PlannerEventCommand } from '@/components/wedding/planner-event-command'
 import { PlannerInvitationTools } from '@/components/wedding/planner-invitation-tools'
 import { PlannerOperations } from '@/components/wedding/planner-operations'
 import { PlannerWorkspace } from '@/components/wedding/planner-workspace'
@@ -136,9 +137,10 @@ export function PlannerPortal({ onExit }: PlannerPortalProps) {
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          <span className="hidden rounded-full border border-gold/20 bg-gold/5 px-2.5 py-1 font-sans text-[10px] uppercase tracking-[0.12em] text-gold sm:inline-flex">
+          <span className="hidden rounded-full border border-gold/20 bg-gold/5 px-2.5 py-1 font-sans text-[10px] uppercase tracking-[0.12em] text-gold xl:inline-flex">
             {roleLabel(wedding?.membershipRole || session?.user?.role)}
           </span>
+          <PlannerEventCommand />
           <PlannerClientProfile />
           <Button
             asChild
