@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import {
-  publicTimelineMetadata,
   publicVendorDescription,
+  resolveTimelineFields,
 } from '@/lib/planner-legacy-metadata'
 
 export async function GET(request: NextRequest) {
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
           })),
         },
         programme: wedding.programmeItems.map((item) => {
-          const metadata = publicTimelineMetadata(item.icon)
+          const metadata = resolveTimelineFields(item)
           return {
             id: item.id,
             time: item.time,
