@@ -41,6 +41,7 @@ function formatTask(task: {
   priority: string
   dueDate: Date | null
   assignee: string | null
+  assigneeUserId: string | null
   order: number
   weddingId: string
   createdAt: Date
@@ -73,7 +74,7 @@ export async function GET(request: NextRequest) {
     console.error('[PLANNER TASKS GET] error:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to fetch planner tasks' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
@@ -98,7 +99,7 @@ export async function POST(request: NextRequest) {
     if (!body.title || typeof body.title !== 'string' || !body.title.trim()) {
       return NextResponse.json(
         { success: false, error: 'Title is required' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -118,7 +119,7 @@ export async function POST(request: NextRequest) {
       if (Number.isNaN(parsed.getTime())) {
         return NextResponse.json(
           { success: false, error: 'Invalid dueDate' },
-          { status: 400 }
+          { status: 400 },
         )
       }
       dueDate = parsed
@@ -150,13 +151,13 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       { success: true, data: formatTask(task) },
-      { status: 201 }
+      { status: 201 },
     )
   } catch (error) {
     console.error('[PLANNER TASKS POST] error:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to create planner task' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
