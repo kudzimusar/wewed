@@ -24,16 +24,21 @@ describe('Stage 7 six-module worksheet parity', () => {
     }
   })
 
-  test('all six active module tabs mount the shared worksheet recovery panel', async () => {
-    const workspace = await source('src/components/wedding/planner-workspace.tsx')
+  test('the active planner shell reaches all six worksheet pipelines and reloads saved data', async () => {
+    const [portal, wrapper] = await Promise.all([
+      source('src/components/wedding/planner-portal.tsx'),
+      source('src/components/wedding/planner-workspace-stage7.tsx'),
+    ])
 
-    expect(workspace).toContain("import { ImportExportBar } from '@/components/wedding/import-export-bar'")
-    expect(workspace).toContain('const handleWorksheetChanged = useCallback')
-    expect(workspace).toContain('void refresh(false)')
+    expect(portal).toContain("from '@/components/wedding/planner-workspace-stage7'")
+    expect(portal).toContain("<PlannerWorkspace key={wedding?.id ?? 'no-active-wedding'} />")
+    expect(wrapper).toContain('const handleWorksheetChanged = useCallback')
+    expect(wrapper).toContain('setWorkspaceVersion((current) => current + 1)')
+    expect(wrapper).toContain('<CorePlannerWorkspace key={workspaceVersion} />')
 
     for (const [moduleKey] of WORKSHEET_MODULES) {
-      expect(workspace).toContain(`moduleKey="${moduleKey}"`)
-      expect(workspace).toContain('onImportComplete={handleWorksheetChanged}')
+      expect(wrapper).toContain(`moduleKey="${moduleKey}"`)
+      expect(wrapper).toContain('onImportComplete={handleWorksheetChanged}')
     }
   })
 
@@ -79,10 +84,10 @@ describe('Stage 7 six-module worksheet parity', () => {
       '/api/exports?module=',
       '/api/imports?module=',
       'Recent imports',
-      'job.errorReport',
-      "job.status === 'completed' && job.rollbackToken",
-      "action: 'rollback'",
-      'rollbackToken: job.rollbackToken',
+      'errorSummary(job)',
+      "job.status === 'executed'",
+      'rollbackToken=${encodeURIComponent(job.rollbackToken)}',
+      "method: 'DELETE'",
       'onImportComplete?.()',
     ]) {
       expect(bar).toContain(marker)
@@ -97,15 +102,21 @@ describe('Stage 7 six-module worksheet parity', () => {
     const dialog = await source('src/components/wedding/import-dialog.tsx')
 
     for (const marker of [
-      "fetch('/api/imports'",
-      'formData.append(\'moduleKey\', moduleKey)',
-      'preview.errors',
-      'preview.warnings',
-      'preview.summary',
-      "fetch(`/api/imports/${jobId}`",
-      "action: 'confirm'",
+      "form.append('file', selected)",
+      "form.append('moduleKey', moduleKey)",
+      "fetch('/api/imports', { method: 'POST', body: form })",
+      'preview.totalRows',
+      'preview.newRecords',
+      'preview.updateRecords',
+      'preview.invalidRows',
+      'preview.rows',
+      "fetch(`/api/imports/${encodeURIComponent(jobId)}`",
+      "method: 'POST'",
+      'body: JSON.stringify({ mappingOverrides })',
       'rollbackToken',
-      "action: 'rollback'",
+      '?rollbackToken=${encodeURIComponent(result.rollbackToken)}',
+      "{ method: 'DELETE' }",
+      'downloadErrors',
       'errorReport',
       'onComplete?.()',
     ]) {
@@ -113,22 +124,26 @@ describe('Stage 7 six-module worksheet parity', () => {
     }
   })
 
-  test('import history and rollback APIs require import permission and wedding scope', async () => {
+  test('import history, execution and rollback APIs require import permission and wedding scope', async () => {
     const [collectionRoute, jobRoute] = await Promise.all([
       source('src/app/api/imports/route.ts'),
       source('src/app/api/imports/[jobId]/route.ts'),
     ])
 
     expect(collectionRoute).toContain("requireWeddingPermission(request, 'import.execute')")
+    expect(collectionRoute).toContain('requestedModule')
+    expect(collectionRoute).toContain('moduleKey: requestedModule')
     expect(collectionRoute).toContain('weddingId: access.context.weddingId')
     expect(collectionRoute).toContain('db.importJob.findMany')
     expect(collectionRoute).toContain('rollbackToken: job.rollbackToken')
+    expect(collectionRoute).toContain('return NextResponse.json({ success: true, data, recent: data })')
 
     expect(jobRoute).toContain("requireWeddingPermission(request, 'import.execute')")
     expect(jobRoute).toContain('where: { id: jobId, weddingId }')
-    expect(jobRoute).toContain("if (action === 'rollback')")
-    expect(jobRoute).toContain('rollbackImport({')
-    expect(jobRoute).toContain('executeImport({')
+    expect(jobRoute).toContain('executeImport(previewToExecute')
+    expect(jobRoute).toContain('const suppliedToken = new URL(request.url).searchParams.get')
+    expect(jobRoute).toContain('rollbackImport(job.rollbackToken)')
+    expect(jobRoute).toContain('snapshot.weddingId !== access.context.weddingId')
   })
 
   test('template and export APIs retain permission-specific selected-wedding controls', async () => {
@@ -149,6 +164,7 @@ describe('Stage 7 six-module worksheet parity', () => {
   test('worksheet controls do not import, seed, or overwrite data merely by mounting', async () => {
     const activeSurface = (
       await Promise.all([
+        source('src/components/wedding/planner-workspace-stage7.tsx'),
         source('src/components/wedding/planner-workspace.tsx'),
         source('src/components/wedding/import-export-bar.tsx'),
         source('src/components/wedding/import-dialog.tsx'),
