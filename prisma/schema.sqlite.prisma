@@ -1,12 +1,28 @@
 generator client {
   provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/sqlite-client"
 }
 
-// PostgreSQL datasource for Supabase and Vercel production.
+// ── Dual datasource: PostgreSQL for production (Supabase), SQLite for local dev ──
+// Prisma doesn't support conditional providers natively, so we use a trick:
+//  - For LOCAL DEV (SQLite): keep the current schema.prisma as-is (sqlite).
+//  - For PRODUCTION (Supabase Postgres): run `prisma db push` with a schema
+//    that has `provider = "postgresql"` and `url = env("DATABASE_URL")`
+//    pointing to your Supabase connection string.
+//
+// To switch to Postgres for production:
+//   1. Set DATABASE_URL in your hosting env to:
+//      postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres
+//   2. Change `provider = "sqlite"` below to `provider = "postgresql"`.
+//   3. Run `bun run db:push` to create all tables in Supabase.
+//
+// All Prisma types below are compatible with BOTH sqlite and postgresql —
+// no model changes needed. The only difference is `provider` and `url`.
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  // ── CURRENT: SQLite (local dev) ──────────────────────────────
+  // Change to "postgresql" when connecting to Supabase.
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
 }
 
 // ============================================================
