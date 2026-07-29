@@ -70,6 +70,15 @@ interface BudgetSummary {
   percentPaid: number
 }
 
+interface CategoryBreakdown {
+  category: string
+  estimated: number
+  actual: number
+  paid: number
+  outstanding: number
+  count: number
+}
+
 interface VendorRow {
   id: string
   name: string
@@ -165,6 +174,7 @@ export function PlannerWorkspace() {
   const [tasks, setTasks] = useState<TaskRow[]>([])
   const [budget, setBudget] = useState<BudgetRow[]>([])
   const [budgetSummary, setBudgetSummary] = useState<BudgetSummary | null>(null)
+  const [budgetByCategory, setBudgetByCategory] = useState<CategoryBreakdown[]>([])
   const [vendors, setVendors] = useState<VendorRow[]>([])
   const [guests, setGuests] = useState<GuestRow[]>([])
   const [tables, setTables] = useState<SeatingTableRow[]>([])
@@ -172,14 +182,18 @@ export function PlannerWorkspace() {
 
   const [taskForm, setTaskForm] = useState({
     title: '',
-    category: 'other',
+    category: 'venue',
     priority: 'medium',
     dueDate: '',
+    assignee: '',
   })
   const [budgetForm, setBudgetForm] = useState({
     description: '',
-    category: 'miscellaneous',
+    category: 'venue',
     estimatedCost: '',
+    actualCost: '',
+    paidAmount: '',
+    dueDate: '',
   })
   const [vendorForm, setVendorForm] = useState({
     name: '',
@@ -197,7 +211,11 @@ export function PlannerWorkspace() {
       const [taskPayload, budgetPayload, vendorPayload, guestPayload, timelinePayload] =
         await Promise.all([
           api<{ data: TaskRow[] }>('/api/planner/tasks'),
-          api<{ data: BudgetRow[]; summary: BudgetSummary }>('/api/planner/budget'),
+          api<{
+            data: BudgetRow[]
+            summary: BudgetSummary
+            byCategory: CategoryBreakdown[]
+          }>('/api/planner/budget'),
           api<{ data: VendorRow[] }>('/api/planner/vendors'),
           api<{ data: GuestRow[]; tables: SeatingTableRow[] }>('/api/planner/guests'),
           api<{ data: TimelineRow[] }>('/api/planner/timeline'),
@@ -206,6 +224,7 @@ export function PlannerWorkspace() {
       setTasks(taskPayload.data ?? [])
       setBudget(budgetPayload.data ?? [])
       setBudgetSummary(budgetPayload.summary ?? null)
+      setBudgetByCategory(budgetPayload.byCategory ?? [])
       setVendors(vendorPayload.data ?? [])
       setGuests(guestPayload.data ?? [])
       setTables(guestPayload.tables ?? [])
@@ -255,14 +274,23 @@ export function PlannerWorkspace() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            ...taskForm,
             title: taskForm.title.trim(),
+            category: taskForm.category,
+            priority: taskForm.priority,
             dueDate: taskForm.dueDate || null,
+            assignee: taskForm.assignee.trim() || null,
             status: 'todo',
           }),
         }),
       'Task added',
-      () => setTaskForm({ title: '', category: 'other', priority: 'medium', dueDate: '' }),
+      () =>
+        setTaskForm({
+          title: '',
+          category: 'venue',
+          priority: 'medium',
+          dueDate: '',
+          assignee: '',
+        }),
     )
   }
 
@@ -290,6 +318,16 @@ export function PlannerWorkspace() {
     }
   }
 
+  async function deleteTask(task: TaskRow) {
+    await mutate(
+      () =>
+        api(`/api/planner/tasks/${task.id}`, {
+          method: 'DELETE',
+        }),
+      'Task removed',
+    )
+  }
+
   async function addBudgetItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!budgetForm.description.trim()) return
@@ -302,12 +340,22 @@ export function PlannerWorkspace() {
             description: budgetForm.description.trim(),
             category: budgetForm.category,
             estimatedCost: Number(budgetForm.estimatedCost || 0),
+            actualCost: budgetForm.actualCost ? Number(budgetForm.actualCost) : null,
+            paidAmount: Number(budgetForm.paidAmount || 0),
+            dueDate: budgetForm.dueDate || null,
             currency: 'USD',
           }),
         }),
       'Budget item added',
       () =>
-        setBudgetForm({ description: '', category: 'miscellaneous', estimatedCost: '' }),
+        setBudgetForm({
+          description: '',
+          category: 'venue',
+          estimatedCost: '',
+          actualCost: '',
+          paidAmount: '',
+          dueDate: '',
+        }),
     )
   }
 
@@ -326,6 +374,16 @@ export function PlannerWorkspace() {
           body: JSON.stringify({ [field]: parsed }),
         }),
       field === 'paidAmount' ? 'Payment updated' : 'Actual cost updated',
+    )
+  }
+
+  async function deleteBudgetItem(item: BudgetRow) {
+    await mutate(
+      () =>
+        api(`/api/planner/budget/${item.id}`, {
+          method: 'DELETE',
+        }),
+      'Budget item removed',
     )
   }
 
@@ -588,6 +646,7 @@ export function PlannerWorkspace() {
                   taskProgressPercent={taskStats.percent}
                   onAddTask={addTask}
                   onUpdateTaskStatus={updateTaskStatus}
+                  onDeleteTask={deleteTask}
                 />
               )}
 
@@ -595,11 +654,13 @@ export function PlannerWorkspace() {
                 <PlannerBudgetModule
                   budget={budget}
                   budgetSummary={budgetSummary}
+                  budgetByCategory={budgetByCategory}
                   budgetForm={budgetForm}
                   setBudgetForm={setBudgetForm}
                   saving={saving}
                   onAddBudgetItem={addBudgetItem}
                   onUpdateBudgetItem={updateBudgetItem}
+                  onDeleteBudgetItem={deleteBudgetItem}
                 />
               )}
 
