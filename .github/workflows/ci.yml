@@ -111,6 +111,9 @@ jobs:
       - name: Run Stage 7 worksheet recovery parity tests
         run: bun test src/lib/planner-stage7-worksheet.test.ts
 
+      - name: Run Stage 8 information architecture tests
+        run: bun test src/lib/planner-stage8-information-architecture.test.ts
+
       - name: Run Phase 2 workflow tests
         run: bun test src/lib/planner-phase2.test.ts
 
