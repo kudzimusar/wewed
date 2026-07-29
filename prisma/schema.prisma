@@ -259,21 +259,25 @@ model Kid {
 }
 
 model PlannerTask {
-  id          String   @id @default(cuid())
-  title       String
-  description String?
-  category    String
-  status      String   @default("todo")
-  priority    String   @default("medium")
-  dueDate     DateTime?
-  assignee    String?
-  order       Int      @default(0)
+  id             String   @id @default(cuid())
+  title          String
+  description    String?
+  category       String
+  status         String   @default("todo")
+  priority       String   @default("medium")
+  dueDate        DateTime?
+  assignee       String?
+  assigneeUserId String?
+  assigneeUser   User?    @relation("PlannerTaskAssignee", fields: [assigneeUserId], references: [id], onDelete: SetNull)
+  order          Int      @default(0)
 
   weddingId String
   wedding   Wedding @relation(fields: [weddingId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([assigneeUserId])
 }
 
 model BudgetItem {
@@ -309,23 +313,24 @@ model SeatingTable {
 }
 
 model User {
-  id               String   @id @default(cuid())
-  email            String   @unique
-  name             String?
-  passwordHash     String?
-  role             String   @default("viewer")
-  coupleId         String?
-  couple           Couple?  @relation(fields: [coupleId], references: [id])
-  currentWeddingId String?
-  currentWedding   Wedding? @relation("CurrentWedding", fields: [currentWeddingId], references: [id], onDelete: SetNull)
-  isActive         Boolean  @default(true)
-  lastLoginAt      DateTime?
+  id                   String   @id @default(cuid())
+  email                String   @unique
+  name                 String?
+  passwordHash         String?
+  role                 String   @default("viewer")
+  coupleId             String?
+  couple               Couple?  @relation(fields: [coupleId], references: [id])
+  currentWeddingId     String?
+  currentWedding       Wedding? @relation("CurrentWedding", fields: [currentWeddingId], references: [id], onDelete: SetNull)
+  isActive             Boolean  @default(true)
+  lastLoginAt          DateTime?
 
-  auditEvents       AuditEvent[]
-  contentRevisions  ContentRevision[]
-  contentSubmissions ContentSubmission[]
-  memberships       WeddingMembership[] @relation("MembershipUser")
-  invitationsSent   WeddingMembership[] @relation("MembershipInviter")
+  auditEvents          AuditEvent[]
+  contentRevisions     ContentRevision[]
+  contentSubmissions   ContentSubmission[]
+  memberships          WeddingMembership[] @relation("MembershipUser")
+  invitationsSent      WeddingMembership[] @relation("MembershipInviter")
+  assignedPlannerTasks PlannerTask[] @relation("PlannerTaskAssignee")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
