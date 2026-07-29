@@ -89,3 +89,83 @@ BEGIN
     WHERE "id" = programme_row."id";
   END LOOP;
 END $$;
+
+-- Phase 3 still has a transitional legacy vendor write path. Keep normalized
+-- columns synchronized until that duplicate surface is integrated into Vendors.
+CREATE FUNCTION "sync_vendor_planner_metadata"()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  metadata JSONB;
+  raw_metadata TEXT;
+  rating_value DOUBLE PRECISION;
+BEGIN
+  IF NEW."description" IS NULL OR NEW."description" NOT LIKE '__wewed_meta__:%' THEN
+    RETURN NEW;
+  END IF;
+
+  raw_metadata := split_part(substring(NEW."description" FROM 16), '|||', 1);
+  BEGIN
+    metadata := raw_metadata::JSONB;
+  EXCEPTION WHEN OTHERS THEN
+    RETURN NEW;
+  END;
+
+  NEW."contact" := COALESCE(NULLIF(trim(metadata->>'contact'), ''), NEW."contact");
+  IF metadata->>'contractStatus' IN ('signed', 'pending', 'negotiating', 'declined') THEN
+    NEW."contractStatus" := metadata->>'contractStatus';
+  END IF;
+  IF metadata->>'paymentStatus' IN ('paid', 'deposit', 'unpaid') THEN
+    NEW."paymentStatus" := metadata->>'paymentStatus';
+  END IF;
+  NEW."notes" := COALESCE(NULLIF(trim(metadata->>'notes'), ''), NEW."notes");
+
+  BEGIN
+    IF metadata ? 'rating' AND jsonb_typeof(metadata->'rating') = 'number' THEN
+      rating_value := (metadata->>'rating')::DOUBLE PRECISION;
+      IF rating_value BETWEEN 0 AND 5 THEN
+        NEW."planningRating" := rating_value;
+      END IF;
+    END IF;
+  EXCEPTION WHEN OTHERS THEN
+    NULL;
+  END;
+
+  RETURN NEW;
+END $$;
+
+CREATE TRIGGER "sync_vendor_planner_metadata_trigger"
+BEFORE INSERT OR UPDATE OF "description" ON "Vendor"
+FOR EACH ROW
+EXECUTE FUNCTION "sync_vendor_planner_metadata"();
+
+-- Keep normalized timeline fields synchronized if an older import or workflow
+-- still writes the JSON payload to ProgrammeItem.icon during the transition.
+CREATE FUNCTION "sync_programme_item_metadata"()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  metadata JSONB;
+BEGIN
+  IF NEW."icon" IS NULL OR NEW."icon" NOT LIKE '{%' THEN
+    RETURN NEW;
+  END IF;
+
+  BEGIN
+    metadata := NEW."icon"::JSONB;
+  EXCEPTION WHEN OTHERS THEN
+    RETURN NEW;
+  END;
+
+  NEW."duration" := COALESCE(NULLIF(trim(metadata->>'d'), ''), NEW."duration");
+  NEW."location" := COALESCE(NULLIF(trim(metadata->>'l'), ''), NEW."location");
+  NEW."displayIcon" := COALESCE(NULLIF(trim(metadata->>'i'), ''), NEW."displayIcon");
+  RETURN NEW;
+END $$;
+
+CREATE TRIGGER "sync_programme_item_metadata_trigger"
+BEFORE INSERT OR UPDATE OF "icon" ON "ProgrammeItem"
+FOR EACH ROW
+EXECUTE FUNCTION "sync_programme_item_metadata"();
