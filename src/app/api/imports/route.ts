@@ -1,76 +1,19 @@
+import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/admin-gate'
+import { db } from '@/lib/db'
+import { requireWeddingPermission } from '@/lib/wedding-access'
 import { getModuleSchema, isModuleKey } from '@/lib/import-engine/schemas'
 import { parseFile } from '@/lib/import-engine/parser'
 import { generatePreview } from '@/lib/import-engine/preview'
-import { getFlagshipWeddingId } from '@/lib/import-engine/wedding'
-import type { ImportPreview } from '@/lib/import-engine/types'
 
-/* ============================================================
-   /api/imports
-   ------------------------------------------------------------
-   POST → accepts file upload + moduleKey, parses the file,
-          generates an ImportPreview, stores it in memory keyed
-          by a jobId, and returns the preview. Does NOT execute.
-
-   Multipart form-data:
-     file      = the .xlsx or .csv file (≤10 MB)
-     moduleKey = one of the 10 module keys
-
-   Response:
-     200 { success, jobId, preview: ImportPreview }
-     400 { success: false, error }  — bad request
-     401 { success: false, error }  — not admin
-     413 { success: false, error }  — file too big
-     500 { success: false, error }  — server error
-   ============================================================ */
-
-// 10 MB upload cap (matches the spec).
 const MAX_FILE_BYTES = 10 * 1024 * 1024
-
-// Allowed file extensions
 const ALLOWED_EXTS = ['.xlsx', '.csv']
 
-// In-memory preview store — keyed by jobId. Per-wedding cap below.
-// Replaced by a Prisma ImportJob model in a later hardening pass.
-const PREVIEW_STORE = new Map<string, { preview: ImportPreview; weddingId: string; createdAt: string }>()
-const MAX_PREVIEWS = 30
-
-// Prune oldest previews when the store grows.
-function prunePreviews(): void {
-  if (PREVIEW_STORE.size < MAX_PREVIEWS) return
-  const entries = Array.from(PREVIEW_STORE.entries()).sort((a, b) =>
-    a[1].createdAt < b[1].createdAt ? -1 : 1,
-  )
-  while (entries.length >= MAX_PREVIEWS) {
-    const oldest = entries.shift()
-    if (oldest) PREVIEW_STORE.delete(oldest[0])
-  }
-}
-
-/** Test/dev helper to inspect the preview store. */
-export function _peekPreviewStore() {
-  return PREVIEW_STORE
-}
-
-/** Get a stored preview by jobId — used by the [jobId] route. */
-export function getStoredPreview(jobId: string): ImportPreview | undefined {
-  return PREVIEW_STORE.get(jobId)?.preview
-}
-
-/** Store a preview — used here. */
-export function storePreview(jobId: string, preview: ImportPreview, weddingId: string): void {
-  prunePreviews()
-  PREVIEW_STORE.set(jobId, { preview, weddingId, createdAt: new Date().toISOString() })
-}
-
 export async function POST(request: NextRequest) {
-  // ── Admin gate ──
-  const gateFail = requireAdmin(request)
-  if (gateFail) return gateFail
+  const access = await requireWeddingPermission(request, 'import.execute')
+  if (access.error) return access.error
 
   try {
-    // ── Parse multipart form ──
     let form: FormData
     try {
       form = await request.formData()
@@ -83,123 +26,124 @@ export async function POST(request: NextRequest) {
 
     const fileEntry = form.get('file')
     const moduleKey = (form.get('moduleKey') as string | null)?.toString().trim()
-
-    if (!fileEntry) {
-      return NextResponse.json(
-        { success: false, error: 'Missing "file" field.' },
-        { status: 400 },
-      )
+    if (!fileEntry || typeof fileEntry === 'string') {
+      return NextResponse.json({ success: false, error: 'A spreadsheet file is required.' }, { status: 400 })
     }
-    // form.get returns File | string; we only accept File.
-    if (typeof fileEntry === 'string') {
-      return NextResponse.json(
-        { success: false, error: '"file" must be a file upload, not a string.' },
-        { status: 400 },
-      )
-    }
-    const file: File = fileEntry
-    if (!moduleKey) {
-      return NextResponse.json(
-        { success: false, error: 'Missing "moduleKey" field.' },
-        { status: 400 },
-      )
-    }
-    if (!isModuleKey(moduleKey)) {
+    if (!moduleKey || !isModuleKey(moduleKey)) {
       return NextResponse.json(
         {
           success: false,
-          error: `Unknown moduleKey "${moduleKey}". Valid: guests, budget, checklist, seating, vendors, timeline, songs, wedding-party, travel, media`,
+          error: 'Unknown module. Valid modules: guests, budget, checklist, seating, vendors, timeline, songs, wedding-party, travel, media.',
         },
         { status: 400 },
       )
     }
 
-    // ── File size check ──
+    const file: File = fileEntry
     if (file.size > MAX_FILE_BYTES) {
       return NextResponse.json(
-        {
-          success: false,
-          error: `File too large: ${(file.size / 1024 / 1024).toFixed(2)} MB. Max: 10 MB.`,
-        },
+        { success: false, error: `File is too large. Maximum size is ${MAX_FILE_BYTES / 1024 / 1024} MB.` },
         { status: 413 },
       )
     }
-
-    // ── Extension check ──
-    const fileName = (file instanceof File ? file.name : 'upload') || 'upload'
+    const fileName = file.name || 'upload'
     const ext = fileName.toLowerCase().match(/\.[^.]+$/)?.[0] ?? ''
     if (!ALLOWED_EXTS.includes(ext)) {
       return NextResponse.json(
-        {
-          success: false,
-          error: `File extension "${ext}" not allowed. Use .xlsx or .csv.`,
-        },
+        { success: false, error: 'Only .xlsx and .csv files are supported.' },
         { status: 400 },
       )
     }
 
-    // ── Resolve wedding ──
-    const weddingId = await getFlagshipWeddingId()
-    if (!weddingId) {
-      return NextResponse.json(
-        { success: false, error: 'Flagship wedding not found. Seed the database first.' },
-        { status: 404 },
-      )
-    }
-
-    // ── Read file bytes ──
-    const arrayBuf = await file.arrayBuffer()
-    const buffer = Buffer.from(arrayBuf)
-
-    // ── Parse + preview ──
-    const mimeType = file instanceof File ? file.type : 'application/octet-stream'
-    const parsed = await parseFile(buffer, mimeType)
+    const buffer = Buffer.from(await file.arrayBuffer())
+    const parsed = await parseFile(buffer, file.type || 'application/octet-stream')
     const schema = getModuleSchema(moduleKey)
-    const preview = await generatePreview(parsed, schema, weddingId, fileName)
+    const preview = await generatePreview(
+      parsed,
+      schema,
+      access.context.weddingId,
+      fileName,
+    )
+    const jobId = `imp_${randomUUID().replace(/-/g, '')}`
 
-    // ── Generate a stable jobId from the file fingerprint + moduleKey ──
-    // This means uploading the same file twice returns the same jobId,
-    // so the user can refresh the preview without polluting the store.
-    const jobId = `imp_${preview.fileFingerprint}_${moduleKey}`
-
-    // ── Store the preview ──
-    storePreview(jobId, preview, weddingId)
-
-    return NextResponse.json({
-      success: true,
-      jobId,
-      preview,
-    })
-  } catch (err) {
-    console.error('[IMPORTS POST] error:', err)
-    return NextResponse.json(
-      {
-        success: false,
-        error: err instanceof Error ? err.message : 'Failed to parse + preview file',
+    await db.importJob.create({
+      data: {
+        id: jobId,
+        moduleKey,
+        fileName,
+        templateVersion: preview.templateVersion,
+        status: 'preview',
+        totalRows: preview.totalRows,
+        errorCount: preview.invalidRows,
+        errorReport: JSON.stringify(
+          preview.rows
+            .filter((row) => row.errors.length)
+            .map((row) => ({ row: row.rowIndex, errors: row.errors })),
+        ),
+        fieldMapping: JSON.stringify(preview.fieldMapping),
+        previewData: JSON.stringify(preview),
+        weddingId: access.context.weddingId,
+        performedBy: access.context.session.email,
       },
+    })
+
+    await db.auditEvent.create({
+      data: {
+        action: 'import.preview',
+        resourceType: 'import_job',
+        resourceId: jobId,
+        afterValue: JSON.stringify({
+          moduleKey,
+          fileName,
+          totalRows: preview.totalRows,
+          creates: preview.newRecords,
+          updates: preview.updateRecords,
+          invalid: preview.invalidRows,
+        }),
+        weddingId: access.context.weddingId,
+        actorId: access.context.session.userId,
+      },
+    })
+
+    return NextResponse.json({ success: true, jobId, preview })
+  } catch (error) {
+    console.error('[imports POST] Error:', error)
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : 'Unable to preview import.' },
       { status: 500 },
     )
   }
 }
 
-/* GET /api/imports — list recent previews (for the UI's "recent imports" panel) */
 export async function GET(request: NextRequest) {
-  const gateFail = requireAdmin(request)
-  if (gateFail) return gateFail
+  const access = await requireWeddingPermission(request, 'planner.view')
+  if (access.error) return access.error
 
-  const recent = Array.from(PREVIEW_STORE.entries())
-    .map(([jobId, entry]) => ({
-      jobId,
-      moduleKey: entry.preview.moduleKey,
-      fileName: entry.preview.fileName,
-      totalRows: entry.preview.totalRows,
-      newRecords: entry.preview.newRecords,
-      updateRecords: entry.preview.updateRecords,
-      invalidRows: entry.preview.invalidRows,
-      createdAt: entry.createdAt,
-    }))
-    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
-    .slice(0, 10)
-
-  return NextResponse.json({ success: true, recent })
+  try {
+    const jobs = await db.importJob.findMany({
+      where: { weddingId: access.context.weddingId },
+      orderBy: { createdAt: 'desc' },
+      take: 30,
+    })
+    return NextResponse.json({
+      success: true,
+      recent: jobs.map((job) => ({
+        jobId: job.id,
+        moduleKey: job.moduleKey,
+        fileName: job.fileName,
+        status: job.status,
+        totalRows: job.totalRows,
+        createdCount: job.createdCount,
+        updatedCount: job.updatedCount,
+        skippedCount: job.skippedCount,
+        errorCount: job.errorCount,
+        rollbackToken: job.rollbackToken,
+        createdAt: job.createdAt.toISOString(),
+        updatedAt: job.updatedAt.toISOString(),
+      })),
+    })
+  } catch (error) {
+    console.error('[imports GET] Error:', error)
+    return NextResponse.json({ success: false, error: 'Unable to load import history.' }, { status: 500 })
+  }
 }

@@ -78,5 +78,8 @@ jobs:
           --to-schema-datamodel prisma/schema.prisma
           --exit-code
 
+      - name: Run Phase 2 workflow tests
+        run: bun test src/lib/planner-phase2.test.ts
+
       - name: Build application
         run: bun run build

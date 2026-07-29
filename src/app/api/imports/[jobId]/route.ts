@@ -1,174 +1,204 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/admin-gate'
+import { db } from '@/lib/db'
+import { requireWeddingPermission } from '@/lib/wedding-access'
 import { getModuleSchema } from '@/lib/import-engine/schemas'
-import { executeImport, rollbackImport, peekRollback } from '@/lib/import-engine/executor'
-import { getStoredPreview, _peekPreviewStore } from '../route'
-import { getFlagshipWeddingId } from '@/lib/import-engine/wedding'
-
-/* ============================================================
-   /api/imports/[jobId]
-   ------------------------------------------------------------
-   GET     → get stored preview + (if executed) rollback status
-   POST    → execute the import (apply changes)
-   DELETE  → roll back an executed import (requires ?rollbackToken=)
-
-   The jobId comes from POST /api/imports — it's a stable fingerprint
-   of the file + module. The store is in-memory; restarting the dev
-   server clears it.
-   ============================================================ */
+import { generatePreview } from '@/lib/import-engine/preview'
+import {
+  executeImport,
+  rollbackImport,
+  peekRollback,
+  _peekRollbackStore,
+} from '@/lib/import-engine/executor'
+import type { ImportPreview, ParsedFile, RollbackSnapshot } from '@/lib/import-engine/types'
 
 type RouteContext = { params: Promise<{ jobId: string }> }
 
-// ─── GET /api/imports/[jobId] ──────────────────────────────
-export async function GET(request: NextRequest, context: RouteContext) {
-  const gateFail = requireAdmin(request)
-  if (gateFail) return gateFail
-
-  const { jobId } = await context.params
-  const preview = getStoredPreview(jobId)
-
-  if (!preview) {
-    return NextResponse.json(
-      { success: false, error: 'Import job not found. It may have expired — re-upload the file.' },
-      { status: 404 },
-    )
-  }
-
-  // Check if this preview has been executed (rollback snapshot exists).
-  // We don't have a direct token→jobId map; the UI must pass the
-  // rollback token via query to inspect execution status.
-  const rollbackToken = new URL(request.url).searchParams.get('rollbackToken')
-  let executed: { executedAt: string; createdIds: number; updatedSnapshots: number } | null = null
-  if (rollbackToken) {
-    const snap = peekRollback(rollbackToken)
-    if (snap && snap.jobId.startsWith(jobId.replace('imp_', 'job_'))) {
-      executed = {
-        executedAt: snap.executedAt,
-        createdIds: snap.createdIds.length,
-        updatedSnapshots: snap.updatedSnapshots.length,
-      }
-    } else if (snap) {
-      // Different jobId — return generic info
-      executed = {
-        executedAt: snap.executedAt,
-        createdIds: snap.createdIds.length,
-        updatedSnapshots: snap.updatedSnapshots.length,
-      }
-    }
-  }
-
-  return NextResponse.json({
-    success: true,
-    jobId,
-    preview,
-    executed,
-  })
+async function findJob(jobId: string, weddingId: string) {
+  return db.importJob.findFirst({ where: { id: jobId, weddingId } })
 }
 
-// ─── POST /api/imports/[jobId] — EXECUTE ──────────────────
-export async function POST(request: NextRequest, context: RouteContext) {
-  const gateFail = requireAdmin(request)
-  if (gateFail) return gateFail
-
+export async function GET(request: NextRequest, context: RouteContext) {
+  const access = await requireWeddingPermission(request, 'planner.view')
+  if (access.error) return access.error
   const { jobId } = await context.params
-  const preview = getStoredPreview(jobId)
-
-  if (!preview) {
-    return NextResponse.json(
-      { success: false, error: 'Import job not found. It may have expired — re-upload the file.' },
-      { status: 404 },
-    )
-  }
 
   try {
-    // ── Resolve the wedding + schema ──
-    const weddingId = await getFlagshipWeddingId()
-    if (!weddingId) {
+    const job = await findJob(jobId, access.context.weddingId)
+    if (!job) return NextResponse.json({ success: false, error: 'Import job not found.' }, { status: 404 })
+    const preview = job.previewData ? (JSON.parse(job.previewData) as ImportPreview) : null
+    return NextResponse.json({
+      success: true,
+      jobId,
+      status: job.status,
+      preview,
+      result: {
+        created: job.createdCount,
+        updated: job.updatedCount,
+        skipped: job.skippedCount,
+        errors: job.errorCount,
+        rollbackToken: job.rollbackToken,
+      },
+    })
+  } catch (error) {
+    console.error('[imports job GET] Error:', error)
+    return NextResponse.json({ success: false, error: 'Unable to load import job.' }, { status: 500 })
+  }
+}
+
+export async function POST(request: NextRequest, context: RouteContext) {
+  const access = await requireWeddingPermission(request, 'import.execute')
+  if (access.error) return access.error
+  const { jobId } = await context.params
+
+  try {
+    const job = await findJob(jobId, access.context.weddingId)
+    if (!job || !job.previewData) {
+      return NextResponse.json({ success: false, error: 'Import preview not found.' }, { status: 404 })
+    }
+    if (job.status === 'executed') {
+      return NextResponse.json({ success: false, error: 'This import has already been executed.' }, { status: 409 })
+    }
+    if (job.status === 'rolled_back') {
       return NextResponse.json(
-        { success: false, error: 'Flagship wedding not found.' },
-        { status: 404 },
+        { success: false, error: 'This import was rolled back. Upload the file again to re-import.' },
+        { status: 409 },
       )
     }
 
-    const schema = getModuleSchema(preview.moduleKey)
-
-    // ── Optional override: only execute a subset of rows? ──
-    // Allow POST body { rowIndices: [2, 3, 5] } to limit which rows
-    // get executed. Default: all non-invalid, non-skip rows.
-    let rowIndices: Set<number> | null = null
+    const storedPreview = JSON.parse(job.previewData) as ImportPreview
+    const schema = getModuleSchema(storedPreview.moduleKey)
+    let body: { rowIndices?: unknown; mappingOverrides?: unknown } = {}
     try {
-      const body = await request.json()
-      if (Array.isArray(body?.rowIndices)) {
-        rowIndices = new Set(body.rowIndices as number[])
-      }
+      body = (await request.json()) as typeof body
     } catch {
-      /* no body or not JSON — that's fine, execute everything */
+      // Empty body means execute all valid rows with automatic mapping.
     }
 
-    // Filter the preview rows if a subset was specified.
-    let previewToExecute = preview
-    if (rowIndices) {
+    let previewToExecute = storedPreview
+    if (body.mappingOverrides && typeof body.mappingOverrides === 'object') {
+      const rawRows = storedPreview.rows.map((row) => row.raw)
+      const headers = Array.from(new Set(rawRows.flatMap((row) => Object.keys(row))))
+      const parsed: ParsedFile = { headers, rows: rawRows, rawRowCount: rawRows.length }
+      previewToExecute = await generatePreview(
+        parsed,
+        schema,
+        access.context.weddingId,
+        storedPreview.fileName,
+        body.mappingOverrides as Record<string, string>,
+      )
+      await db.importJob.update({
+        where: { id: jobId },
+        data: {
+          previewData: JSON.stringify(previewToExecute),
+          fieldMapping: JSON.stringify(previewToExecute.fieldMapping),
+          totalRows: previewToExecute.totalRows,
+          errorCount: previewToExecute.invalidRows,
+        },
+      })
+    }
+
+    if (Array.isArray(body.rowIndices)) {
+      const selected = new Set(body.rowIndices.filter((value): value is number => typeof value === 'number'))
       previewToExecute = {
-        ...preview,
-        rows: preview.rows.filter((r) => rowIndices!.has(r.rowIndex)),
+        ...previewToExecute,
+        rows: previewToExecute.rows.filter((row) => selected.has(row.rowIndex)),
       }
     }
 
-    // ── Execute ──
-    const result = await executeImport(previewToExecute, schema, weddingId)
-
-    return NextResponse.json({
-      success: true,
-      jobId,
-      result,
-    })
-  } catch (err) {
-    console.error('[IMPORTS EXECUTE POST] error:', err)
-    return NextResponse.json(
-      {
-        success: false,
-        error: err instanceof Error ? err.message : 'Failed to execute import',
+    const result = await executeImport(previewToExecute, schema, access.context.weddingId)
+    const snapshot = peekRollback(result.rollbackToken)
+    await db.importJob.update({
+      where: { id: jobId },
+      data: {
+        status: 'executed',
+        createdCount: result.created,
+        updatedCount: result.updated,
+        skippedCount: result.skipped,
+        errorCount: result.errors,
+        errorReport: JSON.stringify(result.errorReport),
+        rollbackToken: result.rollbackToken,
+        rollbackData: snapshot ? JSON.stringify(snapshot) : null,
       },
+    })
+    await db.auditEvent.create({
+      data: {
+        action: 'import.execute',
+        resourceType: 'import_job',
+        resourceId: jobId,
+        afterValue: JSON.stringify({
+          moduleKey: previewToExecute.moduleKey,
+          created: result.created,
+          updated: result.updated,
+          skipped: result.skipped,
+          errors: result.errors,
+          mappingAdjusted: Boolean(body.mappingOverrides),
+        }),
+        weddingId: access.context.weddingId,
+        actorId: access.context.session.userId,
+      },
+    })
+
+    return NextResponse.json({ success: true, jobId, result })
+  } catch (error) {
+    console.error('[imports job POST] Error:', error)
+    await db.importJob.update({ where: { id: jobId }, data: { status: 'failed' } }).catch(() => undefined)
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : 'Unable to execute import.' },
       { status: 500 },
     )
   }
 }
 
-// ─── DELETE /api/imports/[jobId] — ROLLBACK ───────────────
 export async function DELETE(request: NextRequest, context: RouteContext) {
-  const gateFail = requireAdmin(request)
-  if (gateFail) return gateFail
-
+  const access = await requireWeddingPermission(request, 'import.execute')
+  if (access.error) return access.error
   const { jobId } = await context.params
-  const url = new URL(request.url)
-  const rollbackToken = url.searchParams.get('rollbackToken')
-
-  if (!rollbackToken) {
-    return NextResponse.json(
-      { success: false, error: 'Missing ?rollbackToken= query parameter.' },
-      { status: 400 },
-    )
-  }
 
   try {
-    const result = await rollbackImport(rollbackToken)
-    return NextResponse.json({
-      success: true,
-      jobId,
-      rollback: result,
+    const job = await findJob(jobId, access.context.weddingId)
+    if (!job) return NextResponse.json({ success: false, error: 'Import job not found.' }, { status: 404 })
+    if (job.status !== 'executed' || !job.rollbackToken || !job.rollbackData) {
+      return NextResponse.json(
+        { success: false, error: 'This import does not have an available rollback.' },
+        { status: 409 },
+      )
+    }
+
+    const suppliedToken = new URL(request.url).searchParams.get('rollbackToken')
+    if (!suppliedToken || suppliedToken !== job.rollbackToken) {
+      return NextResponse.json({ success: false, error: 'Invalid rollback token.' }, { status: 403 })
+    }
+
+    if (!peekRollback(job.rollbackToken)) {
+      const snapshot = JSON.parse(job.rollbackData) as RollbackSnapshot
+      if (snapshot.weddingId !== access.context.weddingId) {
+        return NextResponse.json({ success: false, error: 'Rollback wedding mismatch.' }, { status: 403 })
+      }
+      _peekRollbackStore().set(job.rollbackToken, snapshot)
+    }
+
+    const rollback = await rollbackImport(job.rollbackToken)
+    await db.importJob.update({
+      where: { id: jobId },
+      data: { status: rollback.failed ? 'rollback_failed' : 'rolled_back', rollbackData: null },
     })
-  } catch (err) {
-    console.error('[IMPORTS ROLLBACK DELETE] error:', err)
-    return NextResponse.json(
-      {
-        success: false,
-        error: err instanceof Error ? err.message : 'Failed to roll back import',
+    await db.auditEvent.create({
+      data: {
+        action: 'import.rollback',
+        resourceType: 'import_job',
+        resourceId: jobId,
+        afterValue: JSON.stringify(rollback),
+        weddingId: access.context.weddingId,
+        actorId: access.context.session.userId,
       },
+    })
+
+    return NextResponse.json({ success: true, jobId, rollback })
+  } catch (error) {
+    console.error('[imports job DELETE] Error:', error)
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : 'Unable to roll back import.' },
       { status: 500 },
     )
   }
 }
-
-// Inspect the preview store (used by GET to check job status).
-// Re-exported here for type-safety; the actual store lives in ../route.
-export const _previewStore = _peekPreviewStore
