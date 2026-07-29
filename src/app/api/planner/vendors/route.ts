@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import {
-  decodeLegacyVendorDescription,
-  encodeLegacyVendorDescription,
-  type LegacyVendorMeta,
-} from '@/lib/planner-legacy-metadata'
+import { resolveVendorPlanningFields } from '@/lib/planner-legacy-metadata'
 import { requireWeddingPermission } from '@/lib/wedding-access'
 
 const CATEGORIES = [
@@ -32,26 +28,31 @@ function formatVendor(v: {
   imageUrl: string | null
   rating: number | null
   featured: boolean
+  contact: string | null
+  contractStatus: string
+  paymentStatus: string
+  planningRating: number | null
+  notes: string | null
   weddingId: string
   createdAt: Date
   updatedAt: Date
 }) {
-  const { meta, humanDescription } = decodeLegacyVendorDescription(v.description)
+  const planning = resolveVendorPlanningFields(v)
   return {
     id: v.id,
     name: v.name,
     category: v.category,
-    description: humanDescription,
+    description: planning.description,
     website: v.website,
     phone: v.phone,
     imageUrl: v.imageUrl,
     rating: v.rating,
     featured: v.featured,
-    contact: meta.contact ?? '',
-    contractStatus: meta.contractStatus ?? 'pending',
-    paymentStatus: meta.paymentStatus ?? 'unpaid',
-    metaRating: typeof meta.rating === 'number' ? meta.rating : null,
-    notes: meta.notes ?? '',
+    contact: planning.contact,
+    contractStatus: planning.contractStatus,
+    paymentStatus: planning.paymentStatus,
+    metaRating: planning.planningRating,
+    notes: planning.notes,
     weddingId: v.weddingId,
     createdAt: v.createdAt.toISOString(),
     updatedAt: v.updatedAt.toISOString(),
@@ -127,24 +128,21 @@ export async function POST(request: NextRequest) {
         ? body.rating
         : null
 
-    const meta: LegacyVendorMeta = {
-      contact: body.contact?.trim() || undefined,
-      contractStatus,
-      paymentStatus,
-      rating: rating ?? undefined,
-      notes: body.notes?.trim() || undefined,
-    }
-
     const created = await db.vendor.create({
       data: {
         name: body.name.trim(),
         category,
-        description: encodeLegacyVendorDescription(body.description ?? null, meta),
+        description: body.description?.trim() || null,
         website: body.website?.trim() || null,
         phone: body.phone?.trim() || null,
         imageUrl: null,
         rating,
         featured: body.featured === true,
+        contact: body.contact?.trim() || null,
+        contractStatus,
+        paymentStatus,
+        planningRating: rating,
+        notes: body.notes?.trim() || null,
         weddingId: access.context.weddingId,
       },
     })
