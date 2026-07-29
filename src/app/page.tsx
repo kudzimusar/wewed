@@ -30,13 +30,11 @@ import { TelegramWidget } from '@/components/wedding/telegram-widget'
 import { AfterSections } from '@/components/wedding/after-sections'
 import { Footer } from '@/components/wedding/footer'
 import { ContributionGallery } from '@/components/wedding/contribution-gallery'
-import { OnboardingWizard } from '@/components/wedding/onboarding-wizard'
 import { ThemeApplier } from '@/components/wedding/theme-applier'
-
-// SSR-safe: starts as 'before', switches to stored lifecycle after mount
+import { InvitationRsvpDialog } from '@/components/wedding/invitation-rsvp-dialog'
 
 export default function Home() {
-  const lifecycle = useWewedStore((s) => s.lifecycle)
+  const lifecycle = useWewedStore((state) => state.lifecycle)
   const [mounted, setMounted] = useState(false)
   useEffect(() => {
     const id = window.setTimeout(() => {
@@ -45,73 +43,67 @@ export default function Home() {
     }, 0)
     return () => window.clearTimeout(id)
   }, [])
-  // Use 'before' on server + first client render to avoid hydration mismatch
   const activeLifecycle = mounted ? lifecycle : 'before'
-
-  // ── Onboarding wizard handled by trigger in layout ──
-
-  // ── Token-gated contribution editor handled by ContributionTrigger in layout ──
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {/* Print-only header — hidden on screen, visible in print */}
       <div className="wewed-print-header" aria-hidden="true">
         <h1>Charity &amp; Kudzie</h1>
         <p>23 · 12 · 26 · Imba Manor, Harare, Zimbabwe</p>
       </div>
       <Navbar />
       <WeddingDataProvider>
-      <ThemeApplier />
-      <main id="main-content" className="flex-1">
-        <HeroSection />
-        {activeLifecycle === 'before' ? (
-          <>
-            <OurStory />
-            <VenueSection />
-            <TheDay />
-            <CountdownBanner />
-            <RsvpSection />
-            <TravelStay />
-            <GiftRegistry />
-            <SongbookEnhanced />
-            <IntroductionsBanner />
-            <Guests />
-            <VendorMarketplace />
-            <QrCheckin />
-            <PhotoGallery />
-            <MediaUpload />
-            <MemoryCapsule />
-            <LiveWall />
-            {mounted && <ContributionGallery />}
-            <FaqSection />
-            <ShareSection />
-            <TelegramWidget />
-            <PricingSection />
-            <PlatformVision />
-            <MerchTeaser />
-          </>
-        ) : (
-          <>
-            <AfterSections />
-            <PhotoGallery />
-            <MediaUpload />
-            <LiveWall />
-            {mounted && <ContributionGallery />}
-            <MemoryCapsule />
-            <VendorMarketplace />
-            <GiftRegistry />
-            <FaqSection />
-            <ShareSection />
-            <TelegramWidget />
-            <PricingSection />
-            <PlatformVision />
-            <MerchTeaser />
-          </>
-        )}
-      </main>
+        <ThemeApplier />
+        <main id="main-content" className="flex-1">
+          <HeroSection />
+          {activeLifecycle === 'before' ? (
+            <>
+              <OurStory />
+              <VenueSection />
+              <TheDay />
+              <CountdownBanner />
+              <RsvpSection />
+              <TravelStay />
+              <GiftRegistry />
+              <SongbookEnhanced />
+              <IntroductionsBanner />
+              <Guests />
+              <VendorMarketplace />
+              <QrCheckin />
+              <PhotoGallery />
+              <MediaUpload />
+              <MemoryCapsule />
+              <LiveWall />
+              {mounted && <ContributionGallery />}
+              <FaqSection />
+              <ShareSection />
+              <TelegramWidget />
+              <PricingSection />
+              <PlatformVision />
+              <MerchTeaser />
+            </>
+          ) : (
+            <>
+              <AfterSections />
+              <PhotoGallery />
+              <MediaUpload />
+              <LiveWall />
+              {mounted && <ContributionGallery />}
+              <MemoryCapsule />
+              <VendorMarketplace />
+              <GiftRegistry />
+              <FaqSection />
+              <ShareSection />
+              <TelegramWidget />
+              <PricingSection />
+              <PlatformVision />
+              <MerchTeaser />
+            </>
+          )}
+        </main>
+        {mounted && <InvitationRsvpDialog />}
       </WeddingDataProvider>
       <Footer />
-      {/* Print-only footer — hidden on screen, visible in print */}
       <div className="wewed-print-footer" aria-hidden="true">
         Printed from wewed.app/charity-and-kudzie · Charity &amp; Kudzie · 23 December 2026
       </div>
