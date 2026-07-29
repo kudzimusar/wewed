@@ -6,8 +6,10 @@ import {
   isDashboardRole,
   setAppSessionCookie,
 } from '@/lib/app-session'
-
-const FLAGSHIP_WEDDING_SLUG = 'charity-and-kudzie'
+import {
+  acceptPendingMemberships,
+  listAccessibleWeddings,
+} from '@/lib/wedding-access'
 
 function errorResponse(message: string, status: number) {
   const response = NextResponse.json(
@@ -43,7 +45,7 @@ export async function POST(request: NextRequest) {
       return errorResponse('Invalid email or password.', 401)
     }
 
-    const [accessUser, existingProfile, flagshipWedding] = await Promise.all([
+    const [accessUser, existingProfile] = await Promise.all([
       db.user.findUnique({
         where: { email },
         select: {
@@ -62,10 +64,6 @@ export async function POST(request: NextRequest) {
           avatarUrl: true,
           isBanned: true,
         },
-      }),
-      db.wedding.findUnique({
-        where: { slug: FLAGSHIP_WEDDING_SLUG },
-        select: { coupleId: true },
       }),
     ])
 
@@ -86,16 +84,35 @@ export async function POST(request: NextRequest) {
       return errorResponse('This account has been disabled.', 403)
     }
 
-    if (
-      accessUser.role !== 'admin' &&
-      (!flagshipWedding || accessUser.coupleId !== flagshipWedding.coupleId)
-    ) {
+    await acceptPendingMemberships(accessUser.id)
+
+    const weddings = await listAccessibleWeddings(accessUser.id, accessUser.role)
+    if (weddings.length === 0) {
       await supabase.auth.signOut()
       return errorResponse(
-        'This account is not assigned to the current wedding.',
+        'This account is active but has not been assigned to a wedding.',
         403
       )
     }
+
+    const currentWeddingRows = await db.$queryRawUnsafe<
+      Array<{ currentWeddingId: string | null }>
+    >(
+      'SELECT "currentWeddingId" FROM public."User" WHERE id = $1 LIMIT 1',
+      accessUser.id
+    )
+
+    const storedWeddingId = currentWeddingRows[0]?.currentWeddingId ?? null
+    const activeWedding =
+      weddings.find((wedding) => wedding.id === storedWeddingId) ?? weddings[0]
+
+    await db.$executeRawUnsafe(
+      `UPDATE public."User"
+       SET "currentWeddingId" = $2, "updatedAt" = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      accessUser.id,
+      activeWedding.id
+    )
 
     const normalizedAuthEmail = data.user.email?.toLowerCase() ?? email
     const displayName = existingProfile?.displayName ?? accessUser.name ?? null
@@ -127,18 +144,30 @@ export async function POST(request: NextRequest) {
       success: true,
       user: {
         id: data.user.id,
+        accessUserId: accessUser.id,
         email: normalizedAuthEmail,
         displayName,
         role: accessUser.role,
         coupleId: accessUser.coupleId,
+        activeWeddingId: activeWedding.id,
       },
+      activeWedding: {
+        ...activeWedding,
+        date: activeWedding.date.toISOString(),
+      },
+      weddings: weddings.map((wedding) => ({
+        ...wedding,
+        date: wedding.date.toISOString(),
+      })),
     })
 
     setAppSessionCookie(response, {
-      userId: data.user.id,
+      userId: accessUser.id,
+      authUserId: data.user.id,
       email: normalizedAuthEmail,
       role: accessUser.role,
       coupleId: accessUser.coupleId,
+      activeWeddingId: activeWedding.id,
     })
 
     return response

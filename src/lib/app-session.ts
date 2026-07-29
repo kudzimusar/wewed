@@ -9,19 +9,23 @@ export const APP_SESSION_TTL_SECONDS = 8 * 60 * 60
 export type DashboardRole = 'admin' | 'couple' | 'planner'
 
 export interface AppSession {
-  version: 1
+  version: 2
   userId: string
+  authUserId: string
   email: string
   role: DashboardRole
   coupleId: string | null
+  activeWeddingId: string
   expiresAt: number
 }
 
 interface CreateAppSessionInput {
   userId: string
+  authUserId: string
   email: string
   role: DashboardRole
   coupleId: string | null
+  activeWeddingId: string
 }
 
 export function isDashboardRole(value: unknown): value is DashboardRole {
@@ -62,11 +66,13 @@ function signaturesMatch(actual: string, expected: string): boolean {
 
 export function createAppSessionToken(input: CreateAppSessionInput): string {
   const payload: AppSession = {
-    version: 1,
+    version: 2,
     userId: input.userId,
+    authUserId: input.authUserId,
     email: input.email,
     role: input.role,
     coupleId: input.coupleId,
+    activeWeddingId: input.activeWeddingId,
     expiresAt: Date.now() + APP_SESSION_TTL_SECONDS * 1000,
   }
 
@@ -91,10 +97,13 @@ export function verifyAppSessionToken(token: string): AppSession | null {
     ) as Partial<AppSession>
 
     if (
-      payload.version !== 1 ||
+      payload.version !== 2 ||
       typeof payload.userId !== 'string' ||
+      typeof payload.authUserId !== 'string' ||
       typeof payload.email !== 'string' ||
       !isDashboardRole(payload.role) ||
+      typeof payload.activeWeddingId !== 'string' ||
+      payload.activeWeddingId.length === 0 ||
       typeof payload.expiresAt !== 'number' ||
       payload.expiresAt <= Date.now() ||
       (payload.coupleId !== null && typeof payload.coupleId !== 'string')
