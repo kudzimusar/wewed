@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import {
+  ADMIN_AUTH_EVENT,
   refreshAdminSession,
   signInAdmin,
 } from '@/lib/admin-auth'
@@ -41,6 +42,14 @@ export function DashboardAuthGate({
   useEffect(() => {
     let cancelled = false
 
+    const handleAuthChange = (event: Event) => {
+      const authorized = (event as CustomEvent<{ authorized?: boolean }>).detail
+        ?.authorized
+      setAuthState(authorized ? 'authorized' : 'signed-out')
+    }
+
+    window.addEventListener(ADMIN_AUTH_EVENT, handleAuthChange)
+
     void refreshAdminSession().then((result) => {
       if (!cancelled) {
         setAuthState(result.success ? 'authorized' : 'signed-out')
@@ -49,6 +58,7 @@ export function DashboardAuthGate({
 
     return () => {
       cancelled = true
+      window.removeEventListener(ADMIN_AUTH_EVENT, handleAuthChange)
     }
   }, [])
 
