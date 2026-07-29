@@ -1,11 +1,7 @@
 'use client'
 
 import { DashboardAuthGate } from '@/components/wedding/dashboard-auth-gate'
-import { PlannerCollaborationHub } from '@/components/wedding/planner-collaboration-hub'
-import { PlannerInvitationTools } from '@/components/wedding/planner-invitation-tools'
-import { PlannerOperations } from '@/components/wedding/planner-operations'
-import { WeddingContextControls } from '@/components/wedding/wedding-context-controls'
-import { WeddingPlanner } from '@/components/wedding/wedding-planner'
+import { PlannerPortal } from '@/components/wedding/planner-portal'
 
 interface SecureWeddingPlannerProps {
   onClose: () => void
@@ -14,15 +10,11 @@ interface SecureWeddingPlannerProps {
 export function SecureWeddingPlanner({ onClose }: SecureWeddingPlannerProps) {
   return (
     <DashboardAuthGate
-      title="Wedding Planner"
-      description="Sign in to manage planning, collaboration, vendors, approvals, documents, guests, seating, reminders, templates, and assigned weddings."
+      title="Wewed Planner Workspace"
+      description="Sign in as an assigned planner, coordinator, owner, or approved team member."
       onClose={onClose}
     >
-      <WeddingContextControls />
-      <PlannerInvitationTools />
-      <PlannerOperations />
-      <PlannerCollaborationHub />
-      <WeddingPlanner onClose={onClose} />
+      <PlannerPortal onExit={onClose} />
     </DashboardAuthGate>
   )
 }
