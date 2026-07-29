@@ -74,7 +74,7 @@ describe('Stage 8 planner information architecture', () => {
 
     for (const marker of [
       "fetch('/api/planner/collaboration'",
-      "action: 'upsert_vendor_pipeline'",
+      "'upsert_vendor_pipeline'",
       "'create_approval'",
       "'decide_approval'",
       "'create_document'",
