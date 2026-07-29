@@ -65,11 +65,10 @@ function EmptyState({ title, detail }: { title: string; detail: string }) {
 }
 
 function partySize(guest: GuestRow): number {
-  if (guest.rsvp?.attending !== true) return 0
   return (
     1 +
-    (guest.rsvp.plusOne ? 1 : 0) +
-    (guest.rsvp.kidsAttending ? guest.rsvp.kidsCount : 0)
+    (guest.rsvp?.plusOne ? 1 : 0) +
+    (guest.rsvp?.kidsAttending ? guest.rsvp.kidsCount : 0)
   )
 }
 
@@ -98,6 +97,21 @@ export function PlannerSeatingModule({
     }
     return grouped
   }, [guests])
+
+  const assignedOccupancy = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const guest of guests) {
+      if (!guest.seatingTableId) continue
+      counts.set(
+        guest.seatingTableId,
+        (counts.get(guest.seatingTableId) ?? 0) + partySize(guest),
+      )
+    }
+    return counts
+  }, [guests])
+
+  const occupancyFor = (tableId: string) =>
+    Math.max(tableOccupancy.get(tableId) ?? 0, assignedOccupancy.get(tableId) ?? 0)
 
   const unassignedGuests = useMemo(
     () => guests.filter((guest) => !guest.seatingTableId),
@@ -185,7 +199,7 @@ export function PlannerSeatingModule({
                 <div className="min-w-0">
                   <p className="truncate font-sans text-sm">{guest.name}</p>
                   <p className="font-sans text-[10px] text-champagne/40">
-                    {partySize(guest) || 1} planned seat{partySize(guest) === 1 ? '' : 's'}
+                    {partySize(guest)} planned seat{partySize(guest) === 1 ? '' : 's'}
                   </p>
                 </div>
                 <select
@@ -198,8 +212,8 @@ export function PlannerSeatingModule({
                 >
                   <option value="">Assign guest</option>
                   {tables.map((table) => {
-                    const occupied = tableOccupancy.get(table.id) ?? 0
-                    const seats = Math.max(1, partySize(guest))
+                    const occupied = occupancyFor(table.id)
+                    const seats = partySize(guest)
                     const full = occupied + seats > table.capacity
                     return (
                       <option key={table.id} value={table.id} disabled={full}>
@@ -224,7 +238,7 @@ export function PlannerSeatingModule({
           </div>
         ) : (
           tables.map((table) => {
-            const occupied = tableOccupancy.get(table.id) ?? 0
+            const occupied = occupancyFor(table.id)
             const assignedGuests = guestsByTable.get(table.id) ?? []
             const overCapacity = occupied > table.capacity
             const isEditing = editingTableId === table.id
@@ -364,7 +378,7 @@ export function PlannerSeatingModule({
                         <div className="min-w-0">
                           <p className="truncate font-sans text-xs">{guest.name}</p>
                           <p className="font-sans text-[9px] text-champagne/35">
-                            {partySize(guest) || 1} planned seat{partySize(guest) === 1 ? '' : 's'}
+                            {partySize(guest)} planned seat{partySize(guest) === 1 ? '' : 's'}
                           </p>
                         </div>
                         <Button
@@ -397,7 +411,7 @@ export function PlannerSeatingModule({
                     >
                       <option value="">Assign guest</option>
                       {unassignedGuests.map((guest) => {
-                        const seats = Math.max(1, partySize(guest))
+                        const seats = partySize(guest)
                         const full = occupied + seats > table.capacity
                         return (
                           <option key={guest.id} value={guest.id} disabled={full}>
