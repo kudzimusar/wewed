@@ -1,37 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import {
+  decodeLegacyTimelineIcon,
+  encodeLegacyTimelineIcon,
+} from '@/lib/planner-legacy-metadata'
 import { requireWeddingPermission } from '@/lib/wedding-access'
-
-interface TimelineMeta {
-  d?: string
-  l?: string
-  i?: string
-}
-
-function encodeTimelineIcon(meta: TimelineMeta): string | null {
-  const d = meta.d?.trim() || ''
-  const l = meta.l?.trim() || ''
-  const i = meta.i?.trim() || ''
-  if (!d && !l && !i) return null
-  return JSON.stringify({ ...(d ? { d } : {}), ...(l ? { l } : {}), ...(i ? { i } : {}) })
-}
-
-function decodeTimelineIcon(icon: string | null): {
-  duration: string
-  location: string
-  icon?: string
-} {
-  if (!icon) return { duration: '', location: '' }
-  if (icon.startsWith('{')) {
-    try {
-      const blob = JSON.parse(icon) as TimelineMeta
-      return { duration: blob.d ?? '', location: blob.l ?? '', icon: blob.i }
-    } catch {
-      // Fall through to legacy icon name.
-    }
-  }
-  return { duration: '', location: '', icon }
-}
 
 function formatProgrammeItem(item: {
   id: string
@@ -44,7 +17,7 @@ function formatProgrammeItem(item: {
   createdAt: Date
   updatedAt: Date
 }) {
-  const meta = decodeTimelineIcon(item.icon)
+  const meta = decodeLegacyTimelineIcon(item.icon)
   return {
     id: item.id,
     time: item.time,
@@ -76,7 +49,7 @@ interface PatchTimelinePayload {
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const access = await requireWeddingPermission(request, 'timeline.edit')
   if (access.error) return access.error
@@ -89,7 +62,7 @@ export async function PATCH(
     if (!existing) {
       return NextResponse.json(
         { success: false, error: 'Timeline item not found' },
-        { status: 404 }
+        { status: 404 },
       )
     }
 
@@ -101,7 +74,7 @@ export async function PATCH(
       if (!time) {
         return NextResponse.json(
           { success: false, error: 'Time cannot be empty' },
-          { status: 400 }
+          { status: 400 },
         )
       }
       updates.time = time
@@ -111,7 +84,7 @@ export async function PATCH(
       if (!title) {
         return NextResponse.json(
           { success: false, error: 'Event title cannot be empty' },
-          { status: 400 }
+          { status: 400 },
         )
       }
       updates.title = title
@@ -123,24 +96,24 @@ export async function PATCH(
       if (typeof body.order !== 'number' || !Number.isFinite(body.order)) {
         return NextResponse.json(
           { success: false, error: 'order must be a number' },
-          { status: 400 }
+          { status: 400 },
         )
       }
       updates.order = body.order
     }
     if (body.duration !== undefined || body.location !== undefined || body.icon !== undefined) {
-      const current = decodeTimelineIcon(existing.icon)
-      updates.icon = encodeTimelineIcon({
+      const current = decodeLegacyTimelineIcon(existing.icon)
+      updates.icon = encodeLegacyTimelineIcon({
         d: body.duration !== undefined ? body.duration ?? '' : current.duration,
         l: body.location !== undefined ? body.location ?? '' : current.location,
-        i: body.icon !== undefined ? body.icon ?? undefined : current.icon,
+        i: body.icon !== undefined ? body.icon ?? undefined : current.icon ?? undefined,
       })
     }
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json(
         { success: false, error: 'No updates provided' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -153,14 +126,14 @@ export async function PATCH(
     console.error('[PLANNER TIMELINE PATCH] error:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to update timeline item' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const access = await requireWeddingPermission(request, 'timeline.edit')
   if (access.error) return access.error
@@ -174,7 +147,7 @@ export async function DELETE(
     if (!existing) {
       return NextResponse.json(
         { success: false, error: 'Timeline item not found' },
-        { status: 404 }
+        { status: 404 },
       )
     }
 
@@ -184,7 +157,7 @@ export async function DELETE(
     console.error('[PLANNER TIMELINE DELETE] error:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to delete timeline item' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
