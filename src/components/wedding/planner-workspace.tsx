@@ -23,11 +23,21 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { PlannerBudgetModule } from '@/components/wedding/planner/modules/planner-budget-module'
-import { PlannerGuestsModule } from '@/components/wedding/planner/modules/planner-guests-module'
+import {
+  PlannerGuestsModule,
+  type GuestForm,
+  type GuestRow,
+  type GuestStats,
+} from '@/components/wedding/planner/modules/planner-guests-module'
 import { PlannerSeatingModule } from '@/components/wedding/planner/modules/planner-seating-module'
 import { PlannerTasksModule } from '@/components/wedding/planner/modules/planner-tasks-module'
 import { PlannerTimelineModule } from '@/components/wedding/planner/modules/planner-timeline-module'
-import { PlannerVendorsModule } from '@/components/wedding/planner/modules/planner-vendors-module'
+import {
+  PlannerVendorsModule,
+  type VendorForm,
+  type VendorRow,
+  type VendorUpdate,
+} from '@/components/wedding/planner/modules/planner-vendors-module'
 import { useToast } from '@/hooks/use-toast'
 
 type WorkspaceTab =
@@ -77,35 +87,6 @@ interface CategoryBreakdown {
   paid: number
   outstanding: number
   count: number
-}
-
-interface VendorRow {
-  id: string
-  name: string
-  category: string
-  contact: string
-  contractStatus: string
-  paymentStatus: string
-  notes: string
-  phone: string | null
-  website: string | null
-}
-
-interface GuestRow {
-  id: string
-  name: string
-  email: string | null
-  phone: string | null
-  side: string | null
-  seatingTableId: string | null
-  seatingTableName: string | null
-  rsvp: {
-    attending: boolean | null
-    plusOne: boolean
-    kidsAttending: boolean
-    kidsCount: number
-    checkedIn: boolean
-  } | null
 }
 
 interface TimelineRow {
@@ -163,6 +144,27 @@ function SectionCard({ children, className = '' }: { children: ReactNode; classN
   )
 }
 
+const EMPTY_VENDOR_FORM: VendorForm = {
+  name: '',
+  category: 'photographer',
+  contact: '',
+  phone: '',
+  website: '',
+  contractStatus: 'pending',
+  paymentStatus: 'unpaid',
+  rating: '4',
+  notes: '',
+}
+
+const EMPTY_GUEST_FORM: GuestForm = {
+  name: '',
+  email: '',
+  phone: '',
+  role: 'guest',
+  side: 'neutral',
+  seatingTableId: '',
+}
+
 export function PlannerWorkspace() {
   const { toast } = useToast()
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('overview')
@@ -195,12 +197,8 @@ export function PlannerWorkspace() {
     paidAmount: '',
     dueDate: '',
   })
-  const [vendorForm, setVendorForm] = useState({
-    name: '',
-    category: 'other',
-    contact: '',
-  })
-  const [guestForm, setGuestForm] = useState({ name: '', email: '' })
+  const [vendorForm, setVendorForm] = useState<VendorForm>(EMPTY_VENDOR_FORM)
+  const [guestForm, setGuestForm] = useState<GuestForm>(EMPTY_GUEST_FORM)
   const [timelineForm, setTimelineForm] = useState({ time: '', event: '', location: '' })
   const [tableForm, setTableForm] = useState({ name: '', capacity: '8' })
 
@@ -320,10 +318,7 @@ export function PlannerWorkspace() {
 
   async function deleteTask(task: TaskRow) {
     await mutate(
-      () =>
-        api(`/api/planner/tasks/${task.id}`, {
-          method: 'DELETE',
-        }),
+      () => api(`/api/planner/tasks/${task.id}`, { method: 'DELETE' }),
       'Task removed',
     )
   }
@@ -379,10 +374,7 @@ export function PlannerWorkspace() {
 
   async function deleteBudgetItem(item: BudgetRow) {
     await mutate(
-      () =>
-        api(`/api/planner/budget/${item.id}`, {
-          method: 'DELETE',
-        }),
+      () => api(`/api/planner/budget/${item.id}`, { method: 'DELETE' }),
       'Budget item removed',
     )
   }
@@ -398,11 +390,36 @@ export function PlannerWorkspace() {
           body: JSON.stringify({
             name: vendorForm.name.trim(),
             category: vendorForm.category,
-            contact: vendorForm.contact.trim(),
+            contact: vendorForm.contact.trim() || null,
+            phone: vendorForm.phone.trim() || null,
+            website: vendorForm.website.trim() || null,
+            contractStatus: vendorForm.contractStatus,
+            paymentStatus: vendorForm.paymentStatus,
+            rating: vendorForm.rating ? Number(vendorForm.rating) : null,
+            notes: vendorForm.notes.trim() || null,
           }),
         }),
       'Vendor added',
-      () => setVendorForm({ name: '', category: 'other', contact: '' }),
+      () => setVendorForm(EMPTY_VENDOR_FORM),
+    )
+  }
+
+  async function updateVendor(vendor: VendorRow, updates: VendorUpdate) {
+    await mutate(
+      () =>
+        api(`/api/planner/vendors/${vendor.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+        }),
+      'Vendor updated',
+    )
+  }
+
+  async function deleteVendor(vendor: VendorRow) {
+    await mutate(
+      () => api(`/api/planner/vendors/${vendor.id}`, { method: 'DELETE' }),
+      'Vendor removed',
     )
   }
 
@@ -418,10 +435,53 @@ export function PlannerWorkspace() {
             kind: 'guest',
             name: guestForm.name.trim(),
             email: guestForm.email.trim() || null,
+            phone: guestForm.phone.trim() || null,
+            role: guestForm.role,
+            side: guestForm.side,
+            seatingTableId: guestForm.seatingTableId || null,
           }),
         }),
       'Guest added',
-      () => setGuestForm({ name: '', email: '' }),
+      () => setGuestForm(EMPTY_GUEST_FORM),
+    )
+  }
+
+  async function assignGuestTable(guest: GuestRow, tableId: string | null) {
+    const previous = guest
+    const tableName = tables.find((table) => table.id === tableId)?.name ?? null
+    setGuests((current) =>
+      current.map((item) =>
+        item.id === guest.id
+          ? { ...item, seatingTableId: tableId, seatingTableName: tableName }
+          : item,
+      ),
+    )
+    try {
+      const payload = await api<{ data: GuestRow }>(`/api/planner/guests/${guest.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ seatingTableId: tableId }),
+      })
+      setGuests((current) =>
+        current.map((item) => (item.id === guest.id ? payload.data : item)),
+      )
+      toast({ title: tableId ? 'Guest assigned to table' : 'Guest unassigned' })
+    } catch (assignmentError) {
+      setGuests((current) =>
+        current.map((item) => (item.id === guest.id ? previous : item)),
+      )
+      toast({
+        title: 'Seating update failed',
+        description: assignmentError instanceof Error ? assignmentError.message : undefined,
+        variant: 'destructive',
+      })
+    }
+  }
+
+  async function deleteGuest(guest: GuestRow) {
+    await mutate(
+      () => api(`/api/planner/guests/${guest.id}`, { method: 'DELETE' }),
+      'Guest removed',
     )
   }
 
@@ -478,9 +538,16 @@ export function PlannerWorkspace() {
     }
   }, [tasks])
 
-  const guestStats = useMemo(() => {
+  const guestStats = useMemo<GuestStats>(() => {
     const confirmed = guests.filter((guest) => guest.rsvp?.attending === true).length
+    const declined = guests.filter((guest) => guest.rsvp?.attending === false).length
     const pending = guests.filter((guest) => guest.rsvp?.attending == null).length
+    const plusOnes = guests.filter((guest) => guest.rsvp?.plusOne).length
+    const kidsTotal = guests.reduce(
+      (total, guest) => total + (guest.rsvp?.kidsAttending ? guest.rsvp.kidsCount : 0),
+      0,
+    )
+    const checkedIn = guests.filter((guest) => guest.rsvp?.checkedIn).length
     const heads = guests.reduce((total, guest) => {
       if (guest.rsvp?.attending !== true) return total
       return (
@@ -490,7 +557,16 @@ export function PlannerWorkspace() {
         (guest.rsvp.kidsAttending ? guest.rsvp.kidsCount : 0)
       )
     }, 0)
-    return { confirmed, pending, heads }
+    return {
+      total: guests.length,
+      confirmed,
+      declined,
+      pending,
+      plusOnes,
+      kidsTotal,
+      checkedIn,
+      heads,
+    }
   }, [guests])
 
   const tableOccupancy = useMemo(() => {
@@ -671,17 +747,22 @@ export function PlannerWorkspace() {
                   setVendorForm={setVendorForm}
                   saving={saving}
                   onAddVendor={addVendor}
+                  onUpdateVendor={updateVendor}
+                  onDeleteVendor={deleteVendor}
                 />
               )}
 
               {activeTab === 'guests' && (
                 <PlannerGuestsModule
                   guests={guests}
+                  tables={tables}
                   guestForm={guestForm}
                   setGuestForm={setGuestForm}
                   guestStats={guestStats}
                   saving={saving}
                   onAddGuest={addGuest}
+                  onAssignGuestTable={assignGuestTable}
+                  onDeleteGuest={deleteGuest}
                 />
               )}
 
