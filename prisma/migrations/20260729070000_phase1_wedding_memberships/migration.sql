@@ -1,14 +1,25 @@
 -- Phase 1: multi-wedding membership access and active-wedding selection.
+-- The statements are idempotent because the live Supabase schema may be
+-- upgraded before Prisma records this migration during the next deployment.
 
 ALTER TABLE "User"
   ADD COLUMN IF NOT EXISTS "currentWeddingId" TEXT;
 
-ALTER TABLE "User"
-  ADD CONSTRAINT "User_currentWeddingId_fkey"
-  FOREIGN KEY ("currentWeddingId") REFERENCES "Wedding"(id)
-  ON UPDATE CASCADE ON DELETE SET NULL;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'User_currentWeddingId_fkey'
+      AND conrelid = '"User"'::regclass
+  ) THEN
+    ALTER TABLE "User"
+      ADD CONSTRAINT "User_currentWeddingId_fkey"
+      FOREIGN KEY ("currentWeddingId") REFERENCES "Wedding"(id)
+      ON UPDATE CASCADE ON DELETE SET NULL;
+  END IF;
+END $$;
 
-CREATE TABLE "WeddingMembership" (
+CREATE TABLE IF NOT EXISTS "WeddingMembership" (
   id TEXT NOT NULL,
   "userId" TEXT NOT NULL,
   "weddingId" TEXT NOT NULL,
@@ -35,11 +46,31 @@ CREATE TABLE "WeddingMembership" (
     UNIQUE ("userId", "weddingId")
 );
 
-CREATE INDEX "WeddingMembership_weddingId_status_idx"
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'WeddingMembership_user_wedding_key'
+      AND conrelid = '"WeddingMembership"'::regclass
+  ) AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'WeddingMembership_userId_weddingId_key'
+      AND conrelid = '"WeddingMembership"'::regclass
+  ) THEN
+    ALTER TABLE "WeddingMembership"
+      RENAME CONSTRAINT "WeddingMembership_user_wedding_key"
+      TO "WeddingMembership_userId_weddingId_key";
+  END IF;
+END $$;
+
+ALTER TABLE "WeddingMembership"
+  ALTER COLUMN "updatedAt" DROP DEFAULT;
+
+CREATE INDEX IF NOT EXISTS "WeddingMembership_weddingId_status_idx"
   ON "WeddingMembership"("weddingId", status);
-CREATE INDEX "WeddingMembership_userId_status_idx"
+CREATE INDEX IF NOT EXISTS "WeddingMembership_userId_status_idx"
   ON "WeddingMembership"("userId", status);
-CREATE INDEX "User_currentWeddingId_idx"
+CREATE INDEX IF NOT EXISTS "User_currentWeddingId_idx"
   ON "User"("currentWeddingId");
 
 INSERT INTO "WeddingMembership" (
