@@ -10,6 +10,7 @@ import {
   ShieldCheck,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { PlannerClientProfile } from '@/components/wedding/planner-client-profile'
 import { PlannerCollaborationHub } from '@/components/wedding/planner-collaboration-hub'
 import { PlannerInvitationTools } from '@/components/wedding/planner-invitation-tools'
 import { PlannerOperations } from '@/components/wedding/planner-operations'
@@ -66,17 +67,22 @@ export function PlannerPortal({ onExit }: PlannerPortalProps) {
   useEffect(() => {
     let cancelled = false
 
-    void fetch('/api/auth/me', { cache: 'no-store' })
-      .then(async (response) => {
-        const payload = (await response.json()) as PlannerSession
-        if (!cancelled && response.ok && payload.authorized) setSession(payload)
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
+    const loadSession = () => {
+      void fetch('/api/auth/me', { cache: 'no-store' })
+        .then(async (response) => {
+          const payload = (await response.json()) as PlannerSession
+          if (!cancelled && response.ok && payload.authorized) setSession(payload)
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false)
+        })
+    }
 
+    loadSession()
+    window.addEventListener('wewed:client-profile-updated', loadSession)
     return () => {
       cancelled = true
+      window.removeEventListener('wewed:client-profile-updated', loadSession)
     }
   }, [])
 
@@ -133,6 +139,7 @@ export function PlannerPortal({ onExit }: PlannerPortalProps) {
           <span className="hidden rounded-full border border-gold/20 bg-gold/5 px-2.5 py-1 font-sans text-[10px] uppercase tracking-[0.12em] text-gold sm:inline-flex">
             {roleLabel(wedding?.membershipRole || session?.user?.role)}
           </span>
+          <PlannerClientProfile />
           <Button
             asChild
             variant="outline"

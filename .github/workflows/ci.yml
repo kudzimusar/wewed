@@ -87,5 +87,8 @@ jobs:
       - name: Run Phase 4 portal tests
         run: bun test src/lib/planner-phase4.test.ts
 
+      - name: Run Phase 5 real-data tests
+        run: bun test src/lib/planner-phase5.test.ts
+
       - name: Build application
         run: bun run build
