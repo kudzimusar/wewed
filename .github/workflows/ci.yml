@@ -96,6 +96,9 @@ jobs:
       - name: Run Stage 2 task assignment tests
         run: bun test src/lib/planner-stage2-task-assignment.test.ts
 
+      - name: Run Stage 3 extraction tests
+        run: bun test src/lib/planner-stage3-extraction.test.ts
+
       - name: Run Phase 2 workflow tests
         run: bun test src/lib/planner-phase2.test.ts
 
