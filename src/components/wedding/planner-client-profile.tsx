@@ -207,11 +207,13 @@ export function PlannerClientProfile() {
         type="button"
         variant="outline"
         size="sm"
+        aria-label="Edit client profile"
+        title="Client profile"
         onClick={() => setOpen(true)}
-        className="hidden border-gold/25 bg-transparent text-champagne/70 hover:bg-gold/10 hover:text-gold sm:inline-flex"
+        className="border-gold/25 bg-transparent px-2 text-champagne/70 hover:bg-gold/10 hover:text-gold sm:px-3"
       >
         <Settings2 className="size-3.5" />
-        Client profile
+        <span className="hidden md:inline">Client profile</span>
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
