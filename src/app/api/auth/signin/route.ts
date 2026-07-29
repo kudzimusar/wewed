@@ -1,82 +1,149 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
+import {
+  clearAppSessionCookie,
+  isDashboardRole,
+  setAppSessionCookie,
+} from '@/lib/app-session'
 
-/* ============================================================
-   /api/auth/signin
-   ------------------------------------------------------------
-   Signs in a user via Supabase Auth (email + password).
-   Also updates the UserProfile.lastLoginAt timestamp.
+const FLAGSHIP_WEDDING_SLUG = 'charity-and-kudzie'
 
-   Body: { email, password }
-   Returns: { success, user } or { success: false, error }
-   ============================================================ */
+function errorResponse(message: string, status: number) {
+  const response = NextResponse.json(
+    { success: false, error: message },
+    { status }
+  )
+  clearAppSessionCookie(response)
+  return response
+}
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const email = body.email?.trim()?.toLowerCase()
-    const password = body.password
+    const body = (await request.json()) as {
+      email?: unknown
+      password?: unknown
+    }
+
+    const email =
+      typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
+    const password = typeof body.password === 'string' ? body.password : ''
 
     if (!email || !password) {
-      return NextResponse.json(
-        { success: false, error: 'Email and password are required.' },
-        { status: 400 }
-      )
+      return errorResponse('Email and password are required.', 400)
     }
 
     const supabase = await createServerClient()
-
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
 
-    if (error) {
-      return NextResponse.json(
-        { success: false, error: error.message },
-        { status: 401 }
+    if (error || !data.user) {
+      return errorResponse('Invalid email or password.', 401)
+    }
+
+    const [accessUser, existingProfile, flagshipWedding] = await Promise.all([
+      db.user.findUnique({
+        where: { email },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          coupleId: true,
+          isActive: true,
+        },
+      }),
+      db.userProfile.findUnique({
+        where: { id: data.user.id },
+        select: {
+          displayName: true,
+          avatarUrl: true,
+          isBanned: true,
+        },
+      }),
+      db.wedding.findUnique({
+        where: { slug: FLAGSHIP_WEDDING_SLUG },
+        select: { coupleId: true },
+      }),
+    ])
+
+    if (
+      !accessUser ||
+      !accessUser.isActive ||
+      !isDashboardRole(accessUser.role)
+    ) {
+      await supabase.auth.signOut()
+      return errorResponse(
+        'This account has not been assigned dashboard access.',
+        403
       )
     }
 
-    // Update lastLoginAt in our UserProfile table (fire-and-forget)
-    if (data.user) {
-      try {
-        await db.userProfile.update({
-          where: { id: data.user.id },
-          data: { lastLoginAt: new Date() },
-        })
-      } catch {
-        // Profile may not exist yet (e.g. user signed up before this feature)
-        // Create it now as a fallback.
-        try {
-          await db.userProfile.create({
-            data: {
-              id: data.user.id,
-              email,
-              lastLoginAt: new Date(),
-            },
-          })
-        } catch {
-          // ignore — not critical for login
-        }
-      }
+    if (existingProfile?.isBanned) {
+      await supabase.auth.signOut()
+      return errorResponse('This account has been disabled.', 403)
     }
 
-    return NextResponse.json({
+    if (
+      accessUser.role !== 'admin' &&
+      (!flagshipWedding || accessUser.coupleId !== flagshipWedding.coupleId)
+    ) {
+      await supabase.auth.signOut()
+      return errorResponse(
+        'This account is not assigned to the current wedding.',
+        403
+      )
+    }
+
+    const normalizedAuthEmail = data.user.email?.toLowerCase() ?? email
+    const displayName = existingProfile?.displayName ?? accessUser.name ?? null
+
+    await db.$transaction([
+      db.user.update({
+        where: { id: accessUser.id },
+        data: { lastLoginAt: new Date() },
+      }),
+      db.userProfile.upsert({
+        where: { id: data.user.id },
+        create: {
+          id: data.user.id,
+          email: normalizedAuthEmail,
+          displayName,
+          role: accessUser.role,
+          lastLoginAt: new Date(),
+        },
+        update: {
+          email: normalizedAuthEmail,
+          displayName,
+          role: accessUser.role,
+          lastLoginAt: new Date(),
+        },
+      }),
+    ])
+
+    const response = NextResponse.json({
       success: true,
-      user: data.user
-        ? {
-            id: data.user.id,
-            email: data.user.email,
-          }
-        : null,
+      user: {
+        id: data.user.id,
+        email: normalizedAuthEmail,
+        displayName,
+        role: accessUser.role,
+        coupleId: accessUser.coupleId,
+      },
     })
-  } catch (err) {
-    console.error('[auth/signin] Error:', err)
-    return NextResponse.json(
-      { success: false, error: 'An unexpected error occurred during signin.' },
-      { status: 500 }
-    )
+
+    setAppSessionCookie(response, {
+      userId: data.user.id,
+      email: normalizedAuthEmail,
+      role: accessUser.role,
+      coupleId: accessUser.coupleId,
+    })
+
+    return response
+  } catch (error) {
+    console.error('[auth/signin] Error:', error)
+    return errorResponse('Unable to sign in right now.', 500)
   }
 }

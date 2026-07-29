@@ -1,38 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { readAppSession, type AppSession } from '@/lib/app-session'
 
 /**
- * Shared admin authorization gate.
- * 
- * Checks for the `wewed_admin_auth` cookie containing a 16-hex nonce.
- * In development, also accepts `?admin=1` query param for convenience.
- * 
- * This is the single source of truth for admin checks — replaces the
- * duplicated pattern in 8+ route files.
+ * Shared dashboard authorization gate.
+ *
+ * The `wewed_admin_auth` cookie is an HttpOnly, HMAC-signed application
+ * session created only after Supabase Auth succeeds and the user profile has
+ * an allowed role and wedding assignment.
  */
-const ADMIN_COOKIE_KEY = 'wewed_admin_auth'
-const NONCE_PATTERN = /^[a-f0-9]{16}$/
+export function getAdminSession(request: NextRequest): AppSession | null {
+  return readAppSession(request)
+}
 
 export function isAdmin(request: NextRequest): boolean {
-  const cookie = request.cookies.get(ADMIN_COOKIE_KEY)?.value
-  if (cookie && NONCE_PATTERN.test(cookie)) return true
-  if (process.env.NODE_ENV !== 'production') {
-    if (new URL(request.url).searchParams.get('admin') === '1') return true
-  }
-  return false
+  return getAdminSession(request) !== null
 }
 
 export function requireAdmin(request: NextRequest): NextResponse | null {
   if (isAdmin(request)) return null
+
   return NextResponse.json(
-    { success: false, error: 'Unauthorized — admin access required' },
+    { success: false, error: 'Unauthorized — sign in is required' },
     { status: 401 }
   )
 }
 
-/**
- * Role-based permission check (Phase 6 extension).
- * Currently just checks admin; will be extended for granular roles.
- */
 export type Permission =
   | 'admin'
   | 'content.edit'
@@ -49,20 +41,38 @@ export type Permission =
   | 'import.execute'
   | 'export.data'
 
-export function hasPermission(request: NextRequest, perm: Permission): boolean {
-  // For now, admin has all permissions
-  if (isAdmin(request)) return true
-  // TODO: Phase 6 — check role-based permissions via session
+const PLANNER_PERMISSIONS = new Set<Permission>([
+  'content.edit',
+  'guests.view',
+  'guests.edit',
+  'budget.view',
+  'budget.edit',
+  'songs.edit',
+  'media.upload',
+  'planner.view',
+  'planner.edit',
+  'import.execute',
+  'export.data',
+])
+
+export function hasPermission(request: NextRequest, permission: Permission): boolean {
+  const session = getAdminSession(request)
+  if (!session) return false
+
+  if (session.role === 'admin' || session.role === 'couple') return true
+  if (session.role === 'planner') return PLANNER_PERMISSIONS.has(permission)
+
   return false
 }
 
 export function requirePermission(
   request: NextRequest,
-  perm: Permission
+  permission: Permission
 ): NextResponse | null {
-  if (hasPermission(request, perm)) return null
+  if (hasPermission(request, permission)) return null
+
   return NextResponse.json(
-    { success: false, error: `Unauthorized — requires ${perm} permission` },
+    { success: false, error: `Forbidden — requires ${permission} permission` },
     { status: 403 }
   )
 }

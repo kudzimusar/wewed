@@ -1,28 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import ZAI from 'z-ai-web-dev-sdk'
+import { isAdmin } from '@/lib/admin-gate'
 
 /* ============================================================
    POST /api/ai/summary
    ------------------------------------------------------------
    Generates a natural-language summary of the couple's RSVPs.
-   Couple-only — admin-gated.
-
-   Body: {
-     rsvps: Array<{
-       name: string,
-       attending: boolean | null,
-       meal: string | null,
-       plusOne?: boolean,
-       message?: string | null
-     }>
-   }
-
-   Response: { summary: string }
-
-   Rate-limited (5 req/min per IP).
+   Authorized dashboard users only.
    ============================================================ */
 
-// ─── Types ──────────────────────────────────────────────────────
 interface RsvpRow {
   name?: unknown
   attending?: unknown
@@ -31,7 +17,6 @@ interface RsvpRow {
   message?: unknown
 }
 
-// A sanitized RSVP row — guaranteed field types after validation.
 interface SanitizedRsvp {
   name: string
   attending: boolean | null
@@ -44,25 +29,6 @@ interface SummaryRequestBody {
   rsvps?: unknown
 }
 
-// ─── Admin gate ─────────────────────────────────────────────────
-const ADMIN_COOKIE_KEY = 'wewed_admin_auth'
-const NONCE_PATTERN = /^[a-f0-9]{16}$/
-
-function isAdmin(request: NextRequest): boolean {
-  try {
-    const cookie = request.cookies.get(ADMIN_COOKIE_KEY)?.value
-    if (cookie && NONCE_PATTERN.test(cookie)) return true
-  } catch {
-    /* ignore */
-  }
-  if (process.env.NODE_ENV !== 'production') {
-    const url = new URL(request.url)
-    if (url.searchParams.get('admin') === '1') return true
-  }
-  return false
-}
-
-// ─── Rate limiter (5 req/min per IP) ────────────────────────────
 const MAX_REQUESTS = 5
 const WINDOW_MS = 60 * 1000
 const buckets = new Map<string, { count: number; firstAt: number }>()
@@ -93,29 +59,30 @@ function rateLimit(clientKey: string): { ok: boolean; retryAfterMs?: number } {
 }
 
 function getClientKey(request: NextRequest): string {
-  const fwd = request.headers.get('x-forwarded-for')
-  if (fwd) return fwd.split(',')[0]!.trim()
+  const forwarded = request.headers.get('x-forwarded-for')
+  if (forwarded) return forwarded.split(',')[0]!.trim()
   return request.headers.get('x-real-ip') ?? 'unknown'
 }
 
-// ─── Helpers ────────────────────────────────────────────────────
-function isString(v: unknown): v is string {
-  return typeof v === 'string'
+function isString(value: unknown): value is string {
+  return typeof value === 'string'
 }
 
-function isBoolOrNull(v: unknown): v is boolean | null {
-  return typeof v === 'boolean' || v === null || v === undefined
+function isBoolOrNull(value: unknown): value is boolean | null | undefined {
+  return typeof value === 'boolean' || value === null || value === undefined
 }
 
 function sanitizeRsvps(raw: unknown): SanitizedRsvp[] {
   if (!Array.isArray(raw)) return []
-  const out: SanitizedRsvp[] = []
-  for (const r of raw) {
-    if (!r || typeof r !== 'object') continue
-    const row = r as RsvpRow
+  const output: SanitizedRsvp[] = []
+
+  for (const value of raw) {
+    if (!value || typeof value !== 'object') continue
+    const row = value as RsvpRow
     if (!isString(row.name)) continue
     if (!isBoolOrNull(row.attending)) continue
-    out.push({
+
+    output.push({
       name: row.name.slice(0, 120),
       attending: row.attending ?? null,
       meal: isString(row.meal) ? row.meal.slice(0, 60) : null,
@@ -123,11 +90,10 @@ function sanitizeRsvps(raw: unknown): SanitizedRsvp[] {
       message: isString(row.message) ? row.message.slice(0, 600) : null,
     })
   }
-  return out
+
+  return output
 }
 
-// Compute local stats so we can both (a) hand the AI a structured
-// summary AND (b) have a graceful fallback if the AI call fails.
 function computeStats(rsvps: SanitizedRsvp[]) {
   let confirmed = 0
   let declined = 0
@@ -136,21 +102,22 @@ function computeStats(rsvps: SanitizedRsvp[]) {
   const meals = new Map<string, number>()
   const messages: string[] = []
 
-  for (const r of rsvps) {
-    if (r.attending === true) {
+  for (const rsvp of rsvps) {
+    if (rsvp.attending === true) {
       confirmed += 1
-      if (r.plusOne) plusOnes += 1
-      if (r.meal) {
-        const key = r.meal.trim().toLowerCase()
+      if (rsvp.plusOne) plusOnes += 1
+      if (rsvp.meal) {
+        const key = rsvp.meal.trim().toLowerCase()
         meals.set(key, (meals.get(key) ?? 0) + 1)
       }
-    } else if (r.attending === false) {
+    } else if (rsvp.attending === false) {
       declined += 1
     } else {
       pending += 1
     }
-    if (r.message && r.message.trim().length > 0) {
-      messages.push(`${r.name}: "${r.message.trim()}"`)
+
+    if (rsvp.message && rsvp.message.trim().length > 0) {
+      messages.push(`${rsvp.name}: "${rsvp.message.trim()}"`)
     }
   }
 
@@ -168,44 +135,40 @@ function computeStats(rsvps: SanitizedRsvp[]) {
   }
 }
 
-// ─── POST handler ───────────────────────────────────────────────
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  // 1) Admin gate
   if (!isAdmin(request)) {
     return NextResponse.json(
       { success: false, error: 'Unauthorized', summary: '' },
-      { status: 401 },
+      { status: 401 }
     )
   }
 
-  // 2) Rate-limit
   const clientKey = getClientKey(request)
-  const rl = rateLimit(clientKey)
-  if (!rl.ok) {
+  const limit = rateLimit(clientKey)
+  if (!limit.ok) {
     return NextResponse.json(
       {
         success: false,
         summary: '',
         error: 'Too many requests. Please wait a moment and try again.',
-        retryAfterMs: rl.retryAfterMs,
+        retryAfterMs: limit.retryAfterMs,
       },
       {
         status: 429,
-        headers: rl.retryAfterMs
-          ? { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) }
+        headers: limit.retryAfterMs
+          ? { 'Retry-After': String(Math.ceil(limit.retryAfterMs / 1000)) }
           : undefined,
-      },
+      }
     )
   }
 
-  // 3) Parse + validate body
   let body: SummaryRequestBody
   try {
     body = (await request.json()) as SummaryRequestBody
   } catch {
     return NextResponse.json(
       { success: false, error: 'Invalid JSON body', summary: '' },
-      { status: 400 },
+      { status: 400 }
     )
   }
 
@@ -219,8 +182,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const stats = computeStats(rsvps)
-
-  // 4) Build a compact structured payload for GLM
   const mealsLine =
     stats.meals.length > 0
       ? stats.meals.join(', ')
@@ -245,7 +206,6 @@ Recent messages (${stats.messageCount} total): ${messagesLine}
 
 Please write a warm, natural-language summary for the couple. Reference the numbers naturally (e.g. "42 confirmed, 8 declines"), highlight the meal breakdown, and include a sentence about the messages they've received. Sign off with a gentle, encouraging note.`
 
-  // 5) Call GLM
   try {
     const zai = await ZAI.create()
     const response = await zai.chat.completions.create({
@@ -264,19 +224,16 @@ Please write a warm, natural-language summary for the couple. Reference the numb
         stats,
       })
     }
-    // Empty reply → fall through to graceful local summary
-  } catch (err) {
-    console.error('[AI SUMMARY] SDK failure:', err)
-    // Fall through to graceful local summary
+  } catch (error) {
+    console.error('[AI SUMMARY] SDK failure:', error)
   }
 
-  // 6) Graceful local fallback (no AI) — still useful, still warm
   const fallbackSummary =
     `You have ${stats.confirmed} confirmed guests, ${stats.declined} declines` +
     `${stats.pending > 0 ? `, and ${stats.pending} still pending` : ''}. ` +
     `${stats.plusOnes > 0 ? `${stats.plusOnes} plus-ones are joining. ` : ''}` +
     `Meal selections: ${mealsLine}. ` +
-    `${stats.messageCount > 0 ? `You've received ${stats.messageCount} warm messages — including notes from ${stats.topMessages.slice(0, 3).map((m) => m.split(':')[0]).join(', ')}. ` : ''}` +
+    `${stats.messageCount > 0 ? `You've received ${stats.messageCount} warm messages — including notes from ${stats.topMessages.slice(0, 3).map((message) => message.split(':')[0]).join(', ')}. ` : ''}` +
     `You're well on your way. 💛`
 
   return NextResponse.json({
@@ -287,7 +244,6 @@ Please write a warm, natural-language summary for the couple. Reference the numb
   })
 }
 
-// ─── GET (quick health probe) ───────────────────────────────────
 export async function GET(): Promise<NextResponse> {
   return NextResponse.json({
     success: true,
