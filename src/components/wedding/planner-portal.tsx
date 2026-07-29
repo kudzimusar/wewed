@@ -81,9 +81,11 @@ export function PlannerPortal({ onExit }: PlannerPortalProps) {
 
     loadSession()
     window.addEventListener('wewed:client-profile-updated', loadSession)
+    window.addEventListener('wewed:wedding-switched', loadSession)
     return () => {
       cancelled = true
       window.removeEventListener('wewed:client-profile-updated', loadSession)
+      window.removeEventListener('wewed:wedding-switched', loadSession)
     }
   }, [])
 
@@ -180,7 +182,7 @@ export function PlannerPortal({ onExit }: PlannerPortalProps) {
         </div>
 
         <div className="h-full min-h-0 overflow-hidden">
-          <PlannerWorkspace />
+          <PlannerWorkspace key={wedding?.id ?? 'no-active-wedding'} />
         </div>
 
         <PlannerInvitationTools />
