@@ -4,6 +4,7 @@ import {
   worksheetPermissionCapabilities,
 } from './planner-client-permissions'
 import {
+  capturePlannerControlBaseline,
   plannerControlHasDraft,
   plannerFormHasDraft,
 } from './planner-draft-guard'
@@ -100,6 +101,21 @@ describe('Stage 2 unsaved planner drafts', () => {
     ).toBe(false)
   })
 
+  test('captured controlled selects compare with their actual mounted value', () => {
+    const select = {
+      value: 'planner',
+      options: [
+        { value: 'owner' },
+        { value: 'planner' },
+      ],
+    }
+
+    capturePlannerControlBaseline(select)
+    expect(plannerControlHasDraft(select)).toBe(false)
+    select.value = 'owner'
+    expect(plannerControlHasDraft(select)).toBe(true)
+  })
+
   test('typed, selected, checked, and uploaded values are drafts', () => {
     expect(plannerControlHasDraft({ type: 'text', value: 'Book caterer', defaultValue: '' })).toBe(true)
     expect(plannerControlHasDraft({ type: 'checkbox', checked: true, defaultChecked: false })).toBe(true)
@@ -138,9 +154,11 @@ describe('Stage 2 unsaved planner drafts', () => {
     expect(controls).not.toContain('window.location.reload()')
   })
 
-  test('the portal reloads session context and remounts workspace by wedding ID', async () => {
+  test('the portal captures form baselines and remounts workspace by wedding ID', async () => {
     const portal = await source('src/components/wedding/planner-portal.tsx')
 
+    expect(portal).toContain('capturePlannerFormBaselines(root)')
+    expect(portal).toContain('new MutationObserver(capture)')
     expect(portal).toContain("window.addEventListener('wewed:wedding-switched', loadSession)")
     expect(portal).toContain("window.removeEventListener('wewed:wedding-switched', loadSession)")
     expect(portal).toContain("<PlannerWorkspace key={wedding?.id ?? 'no-active-wedding'} />")
