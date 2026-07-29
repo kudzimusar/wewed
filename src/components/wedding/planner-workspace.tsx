@@ -12,21 +12,22 @@ import {
   CalendarDays,
   CheckCircle2,
   CircleDollarSign,
-  Clock3,
   LayoutGrid,
   ListChecks,
   Loader2,
-  Plus,
   RefreshCw,
   Store,
   Users,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
+import { PlannerBudgetModule } from '@/components/wedding/planner/modules/planner-budget-module'
+import { PlannerGuestsModule } from '@/components/wedding/planner/modules/planner-guests-module'
+import { PlannerSeatingModule } from '@/components/wedding/planner/modules/planner-seating-module'
 import { PlannerTasksModule } from '@/components/wedding/planner/modules/planner-tasks-module'
+import { PlannerTimelineModule } from '@/components/wedding/planner/modules/planner-timeline-module'
+import { PlannerVendorsModule } from '@/components/wedding/planner/modules/planner-vendors-module'
 import { useToast } from '@/hooks/use-toast'
 
 type WorkspaceTab =
@@ -126,31 +127,6 @@ const TABS: Array<{ value: WorkspaceTab; label: string; icon: ReactNode }> = [
   { value: 'seating', label: 'Seating', icon: <LayoutGrid className="size-3.5" /> },
 ]
 
-const BUDGET_CATEGORIES = [
-  'venue',
-  'catering',
-  'attire',
-  'decor',
-  'photo_video',
-  'music',
-  'transport',
-  'stationery',
-  'miscellaneous',
-]
-
-const VENDOR_CATEGORIES = [
-  'venue',
-  'caterer',
-  'photographer',
-  'videographer',
-  'florist',
-  'dj',
-  'decor',
-  'transport',
-  'stationery',
-  'other',
-]
-
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { cache: 'no-store', ...init })
   const payload = (await response.json()) as T & { error?: string }
@@ -170,35 +146,11 @@ function money(value: number, currency = 'USD'): string {
   }
 }
 
-function dateText(value: string | null): string {
-  if (!value) return 'No due date'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(date)
-}
-
-function titleCase(value: string): string {
-  return value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
-}
-
 function SectionCard({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
     <section className={`rounded-2xl border border-gold/15 bg-champagne/[0.035] ${className}`}>
       {children}
     </section>
-  )
-}
-
-function EmptyState({ title, detail }: { title: string; detail: string }) {
-  return (
-    <div className="rounded-xl border border-dashed border-gold/20 px-5 py-10 text-center">
-      <p className="font-serif text-lg text-champagne">{title}</p>
-      <p className="mx-auto mt-2 max-w-lg font-sans text-xs leading-5 text-champagne/50">{detail}</p>
-    </div>
   )
 }
 
@@ -285,7 +237,8 @@ export function PlannerWorkspace() {
       await refresh(false)
       toast({ title: successTitle })
     } catch (mutationError) {
-      const message = mutationError instanceof Error ? mutationError.message : 'The change could not be saved.'
+      const message =
+        mutationError instanceof Error ? mutationError.message : 'The change could not be saved.'
       setError(message)
       toast({ title: 'Save failed', description: message, variant: 'destructive' })
     } finally {
@@ -315,7 +268,9 @@ export function PlannerWorkspace() {
 
   async function updateTaskStatus(task: TaskRow, status: string) {
     const previous = task.status
-    setTasks((current) => current.map((item) => (item.id === task.id ? { ...item, status } : item)))
+    setTasks((current) =>
+      current.map((item) => (item.id === task.id ? { ...item, status } : item)),
+    )
     try {
       await api(`/api/planner/tasks/${task.id}`, {
         method: 'PATCH',
@@ -324,7 +279,9 @@ export function PlannerWorkspace() {
       })
       toast({ title: 'Task updated', description: task.title })
     } catch (statusError) {
-      setTasks((current) => current.map((item) => (item.id === task.id ? { ...item, status: previous } : item)))
+      setTasks((current) =>
+        current.map((item) => (item.id === task.id ? { ...item, status: previous } : item)),
+      )
       toast({
         title: 'Update failed',
         description: statusError instanceof Error ? statusError.message : undefined,
@@ -349,11 +306,16 @@ export function PlannerWorkspace() {
           }),
         }),
       'Budget item added',
-      () => setBudgetForm({ description: '', category: 'miscellaneous', estimatedCost: '' }),
+      () =>
+        setBudgetForm({ description: '', category: 'miscellaneous', estimatedCost: '' }),
     )
   }
 
-  async function updateBudgetItem(item: BudgetRow, field: 'actualCost' | 'paidAmount', value: string) {
+  async function updateBudgetItem(
+    item: BudgetRow,
+    field: 'actualCost' | 'paidAmount',
+    value: string,
+  ) {
     const parsed = Number(value || 0)
     if (!Number.isFinite(parsed) || parsed < 0) return
     await mutate(
@@ -463,7 +425,12 @@ export function PlannerWorkspace() {
     const pending = guests.filter((guest) => guest.rsvp?.attending == null).length
     const heads = guests.reduce((total, guest) => {
       if (guest.rsvp?.attending !== true) return total
-      return total + 1 + (guest.rsvp.plusOne ? 1 : 0) + (guest.rsvp.kidsAttending ? guest.rsvp.kidsCount : 0)
+      return (
+        total +
+        1 +
+        (guest.rsvp.plusOne ? 1 : 0) +
+        (guest.rsvp.kidsAttending ? guest.rsvp.kidsCount : 0)
+      )
     }, 0)
     return { confirmed, pending, heads }
   }, [guests])
@@ -472,7 +439,10 @@ export function PlannerWorkspace() {
     const counts = new Map<string, number>()
     for (const guest of guests) {
       if (!guest.seatingTableId || guest.rsvp?.attending !== true) continue
-      const party = 1 + (guest.rsvp.plusOne ? 1 : 0) + (guest.rsvp.kidsAttending ? guest.rsvp.kidsCount : 0)
+      const party =
+        1 +
+        (guest.rsvp.plusOne ? 1 : 0) +
+        (guest.rsvp.kidsAttending ? guest.rsvp.kidsCount : 0)
       counts.set(guest.seatingTableId, (counts.get(guest.seatingTableId) ?? 0) + party)
     }
     return counts
@@ -531,13 +501,37 @@ export function PlannerWorkspace() {
                 <div className="space-y-5">
                   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     {[
-                      ['Task progress', `${taskStats.percent}%`, `${taskStats.done} of ${tasks.length} complete`],
-                      ['Budget outstanding', money(budgetSummary?.totalOutstanding ?? 0, budgetSummary?.currency), `${money(budgetSummary?.totalPaid ?? 0, budgetSummary?.currency)} paid`],
-                      ['Confirmed guests', String(guestStats.confirmed), `${guestStats.heads} confirmed seats`],
-                      ['Vendor pipeline', String(vendors.length), `${vendors.filter((vendor) => vendor.contractStatus === 'signed').length} signed`],
+                      [
+                        'Task progress',
+                        `${taskStats.percent}%`,
+                        `${taskStats.done} of ${tasks.length} complete`,
+                      ],
+                      [
+                        'Budget outstanding',
+                        money(
+                          budgetSummary?.totalOutstanding ?? 0,
+                          budgetSummary?.currency,
+                        ),
+                        `${money(
+                          budgetSummary?.totalPaid ?? 0,
+                          budgetSummary?.currency,
+                        )} paid`,
+                      ],
+                      [
+                        'Confirmed guests',
+                        String(guestStats.confirmed),
+                        `${guestStats.heads} confirmed seats`,
+                      ],
+                      [
+                        'Vendor pipeline',
+                        String(vendors.length),
+                        `${vendors.filter((vendor) => vendor.contractStatus === 'signed').length} signed`,
+                      ],
                     ].map(([label, value, detail]) => (
                       <SectionCard key={label} className="p-4">
-                        <p className="font-sans text-[10px] uppercase tracking-[0.16em] text-gold/65">{label}</p>
+                        <p className="font-sans text-[10px] uppercase tracking-[0.16em] text-gold/65">
+                          {label}
+                        </p>
                         <p className="mt-2 font-serif text-3xl text-champagne">{value}</p>
                         <p className="mt-1 font-sans text-xs text-champagne/45">{detail}</p>
                       </SectionCard>
@@ -549,14 +543,24 @@ export function PlannerWorkspace() {
                       <div>
                         <h2 className="font-serif text-xl">Planning readiness</h2>
                         <p className="mt-1 font-sans text-xs text-champagne/50">
-                          This workspace uses only the selected wedding’s saved records. Empty weddings stay empty until a planner adds data, imports a file, or applies a template.
+                          This workspace uses only the selected wedding’s saved records. Empty
+                          weddings stay empty until a planner adds data, imports a file, or applies
+                          a template.
                         </p>
                       </div>
                       <Badge variant="outline" className="border-gold/25 bg-gold/5 text-gold">
-                        {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : 'Not synced'}
+                        {lastUpdated
+                          ? `Updated ${lastUpdated.toLocaleTimeString('en-US', {
+                              hour: 'numeric',
+                              minute: '2-digit',
+                            })}`
+                          : 'Not synced'}
                       </Badge>
                     </div>
-                    <Progress value={taskStats.percent} className="mt-5 h-2 bg-champagne/10 [&>div]:bg-gold" />
+                    <Progress
+                      value={taskStats.percent}
+                      className="mt-5 h-2 bg-champagne/10 [&>div]:bg-gold"
+                    />
                     <div className="mt-4 grid gap-3 sm:grid-cols-3">
                       <div className="rounded-xl border border-gold/10 p-3">
                         <p className="font-sans text-xs text-champagne/50">Overdue tasks</p>
@@ -588,123 +592,57 @@ export function PlannerWorkspace() {
               )}
 
               {activeTab === 'budget' && (
-                <div className="space-y-4">
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                    {[
-                      ['Estimated', budgetSummary?.totalEstimated ?? 0],
-                      ['Actual', budgetSummary?.totalActual ?? 0],
-                      ['Paid', budgetSummary?.totalPaid ?? 0],
-                      ['Outstanding', budgetSummary?.totalOutstanding ?? 0],
-                    ].map(([label, value]) => (
-                      <SectionCard key={String(label)} className="p-4">
-                        <p className="font-sans text-[10px] uppercase tracking-[0.16em] text-gold/65">{label}</p>
-                        <p className="mt-2 font-serif text-2xl">{money(Number(value), budgetSummary?.currency)}</p>
-                      </SectionCard>
-                    ))}
-                  </div>
-                  <SectionCard className="p-4">
-                    <form onSubmit={addBudgetItem} className="grid gap-3 md:grid-cols-[2fr_1fr_1fr_auto]">
-                      <div><Label>Description</Label><Input value={budgetForm.description} onChange={(event) => setBudgetForm((current) => ({ ...current, description: event.target.value }))} className="mt-1 border-gold/20 bg-espresso/70" placeholder="Venue hire" /></div>
-                      <div><Label>Category</Label><select value={budgetForm.category} onChange={(event) => setBudgetForm((current) => ({ ...current, category: event.target.value }))} className="mt-1 h-10 w-full rounded-md border border-gold/20 bg-espresso px-3 text-sm">{BUDGET_CATEGORIES.map((category) => <option key={category} value={category}>{titleCase(category)}</option>)}</select></div>
-                      <div><Label>Estimate</Label><Input type="number" min="0" value={budgetForm.estimatedCost} onChange={(event) => setBudgetForm((current) => ({ ...current, estimatedCost: event.target.value }))} className="mt-1 border-gold/20 bg-espresso/70" /></div>
-                      <Button type="submit" disabled={saving} className="self-end bg-gold text-espresso hover:bg-gold-light"><Plus className="size-4" />Add</Button>
-                    </form>
-                  </SectionCard>
-                  <SectionCard className="overflow-hidden">
-                    <div className="space-y-2 p-4">
-                      {budget.length === 0 ? <EmptyState title="No budget items" detail="Add your first estimate or import the wedding budget worksheet." /> : budget.map((item) => (
-                        <div key={item.id} className="grid gap-3 rounded-xl border border-gold/10 bg-espresso/45 p-3 lg:grid-cols-[1fr_8rem_8rem] lg:items-center">
-                          <div><div className="flex flex-wrap gap-2"><p className="font-sans text-sm font-medium">{item.description}</p><Badge variant="outline" className="border-gold/20 text-[10px]">{titleCase(item.category)}</Badge></div><p className="mt-1 text-xs text-champagne/45">Estimated {money(item.estimatedCost, item.currency)} · {dateText(item.dueDate)}</p></div>
-                          <div><Label className="text-[10px]">Actual</Label><Input type="number" min="0" defaultValue={item.actualCost ?? ''} onBlur={(event) => void updateBudgetItem(item, 'actualCost', event.target.value)} className="mt-1 h-8 border-gold/20 bg-espresso/70 text-xs" /></div>
-                          <div><Label className="text-[10px]">Paid</Label><Input type="number" min="0" defaultValue={item.paidAmount} onBlur={(event) => void updateBudgetItem(item, 'paidAmount', event.target.value)} className="mt-1 h-8 border-gold/20 bg-espresso/70 text-xs" /></div>
-                        </div>
-                      ))}
-                    </div>
-                  </SectionCard>
-                </div>
+                <PlannerBudgetModule
+                  budget={budget}
+                  budgetSummary={budgetSummary}
+                  budgetForm={budgetForm}
+                  setBudgetForm={setBudgetForm}
+                  saving={saving}
+                  onAddBudgetItem={addBudgetItem}
+                  onUpdateBudgetItem={updateBudgetItem}
+                />
               )}
 
               {activeTab === 'vendors' && (
-                <div className="space-y-4">
-                  <SectionCard className="p-4">
-                    <form onSubmit={addVendor} className="grid gap-3 md:grid-cols-[2fr_1fr_1.5fr_auto]">
-                      <div><Label>Name</Label><Input value={vendorForm.name} onChange={(event) => setVendorForm((current) => ({ ...current, name: event.target.value }))} className="mt-1 border-gold/20 bg-espresso/70" placeholder="Supplier name" /></div>
-                      <div><Label>Category</Label><select value={vendorForm.category} onChange={(event) => setVendorForm((current) => ({ ...current, category: event.target.value }))} className="mt-1 h-10 w-full rounded-md border border-gold/20 bg-espresso px-3 text-sm">{VENDOR_CATEGORIES.map((category) => <option key={category} value={category}>{titleCase(category)}</option>)}</select></div>
-                      <div><Label>Contact</Label><Input value={vendorForm.contact} onChange={(event) => setVendorForm((current) => ({ ...current, contact: event.target.value }))} className="mt-1 border-gold/20 bg-espresso/70" placeholder="Contact person or email" /></div>
-                      <Button type="submit" disabled={saving} className="self-end bg-gold text-espresso hover:bg-gold-light"><Plus className="size-4" />Add</Button>
-                    </form>
-                  </SectionCard>
-                  <div className="grid gap-3 lg:grid-cols-2">
-                    {vendors.length === 0 ? <div className="lg:col-span-2"><EmptyState title="No vendors yet" detail="Add suppliers as you source them. Procurement status is kept with the selected wedding." /></div> : vendors.map((vendor) => (
-                      <SectionCard key={vendor.id} className="p-4">
-                        <div className="flex items-start justify-between gap-3"><div><h3 className="font-serif text-lg">{vendor.name}</h3><p className="font-sans text-xs text-champagne/45">{titleCase(vendor.category)} · {vendor.contact || 'No contact added'}</p></div><Badge variant="outline" className="border-gold/20 text-gold">{titleCase(vendor.contractStatus)}</Badge></div>
-                        <div className="mt-3 flex flex-wrap gap-2 text-xs text-champagne/55"><span>Payment: {titleCase(vendor.paymentStatus)}</span>{vendor.phone && <span>· {vendor.phone}</span>}</div>
-                      </SectionCard>
-                    ))}
-                  </div>
-                </div>
+                <PlannerVendorsModule
+                  vendors={vendors}
+                  vendorForm={vendorForm}
+                  setVendorForm={setVendorForm}
+                  saving={saving}
+                  onAddVendor={addVendor}
+                />
               )}
 
               {activeTab === 'guests' && (
-                <div className="space-y-4">
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <SectionCard className="p-4"><p className="text-xs text-champagne/45">Guest records</p><p className="mt-1 font-serif text-2xl">{guests.length}</p></SectionCard>
-                    <SectionCard className="p-4"><p className="text-xs text-champagne/45">Confirmed</p><p className="mt-1 font-serif text-2xl">{guestStats.confirmed}</p></SectionCard>
-                    <SectionCard className="p-4"><p className="text-xs text-champagne/45">Confirmed seats</p><p className="mt-1 font-serif text-2xl">{guestStats.heads}</p></SectionCard>
-                  </div>
-                  <SectionCard className="p-4">
-                    <form onSubmit={addGuest} className="grid gap-3 md:grid-cols-[2fr_2fr_auto]">
-                      <div><Label>Name</Label><Input value={guestForm.name} onChange={(event) => setGuestForm((current) => ({ ...current, name: event.target.value }))} className="mt-1 border-gold/20 bg-espresso/70" /></div>
-                      <div><Label>Email</Label><Input type="email" value={guestForm.email} onChange={(event) => setGuestForm((current) => ({ ...current, email: event.target.value }))} className="mt-1 border-gold/20 bg-espresso/70" /></div>
-                      <Button type="submit" disabled={saving} className="self-end bg-gold text-espresso hover:bg-gold-light"><Plus className="size-4" />Add</Button>
-                    </form>
-                  </SectionCard>
-                  <SectionCard className="overflow-hidden">
-                    <div className="space-y-2 p-4">
-                      {guests.length === 0 ? <EmptyState title="No guests yet" detail="Add guests manually or import the guest worksheet. Invitation and reminder tools use these records." /> : guests.map((guest) => (
-                        <div key={guest.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gold/10 bg-espresso/45 p-3"><div><p className="font-sans text-sm font-medium">{guest.name}</p><p className="text-xs text-champagne/45">{guest.email || guest.phone || 'No contact'} · {guest.side ? titleCase(guest.side) : 'No side'}</p></div><div className="flex items-center gap-2"><Badge variant="outline" className="border-gold/20">{guest.rsvp?.attending === true ? 'Confirmed' : guest.rsvp?.attending === false ? 'Declined' : 'Pending'}</Badge>{guest.seatingTableName && <Badge variant="outline" className="border-gold/20 text-gold">{guest.seatingTableName}</Badge>}</div></div>
-                      ))}
-                    </div>
-                  </SectionCard>
-                </div>
+                <PlannerGuestsModule
+                  guests={guests}
+                  guestForm={guestForm}
+                  setGuestForm={setGuestForm}
+                  guestStats={guestStats}
+                  saving={saving}
+                  onAddGuest={addGuest}
+                />
               )}
 
               {activeTab === 'timeline' && (
-                <div className="space-y-4">
-                  <SectionCard className="p-4">
-                    <form onSubmit={addTimelineItem} className="grid gap-3 md:grid-cols-[9rem_2fr_2fr_auto]">
-                      <div><Label>Time</Label><Input type="time" value={timelineForm.time} onChange={(event) => setTimelineForm((current) => ({ ...current, time: event.target.value }))} className="mt-1 border-gold/20 bg-espresso/70" /></div>
-                      <div><Label>Activity</Label><Input value={timelineForm.event} onChange={(event) => setTimelineForm((current) => ({ ...current, event: event.target.value }))} className="mt-1 border-gold/20 bg-espresso/70" placeholder="Ceremony begins" /></div>
-                      <div><Label>Location</Label><Input value={timelineForm.location} onChange={(event) => setTimelineForm((current) => ({ ...current, location: event.target.value }))} className="mt-1 border-gold/20 bg-espresso/70" /></div>
-                      <Button type="submit" disabled={saving} className="self-end bg-gold text-espresso hover:bg-gold-light"><Plus className="size-4" />Add</Button>
-                    </form>
-                  </SectionCard>
-                  <SectionCard className="overflow-hidden">
-                    <div className="space-y-2 p-4">
-                      {timeline.length === 0 ? <EmptyState title="No timeline items" detail="Build the wedding-day run sheet manually or import the timeline worksheet." /> : timeline.map((item) => (
-                        <div key={item.id} className="grid gap-3 rounded-xl border border-gold/10 bg-espresso/45 p-3 sm:grid-cols-[7rem_1fr] sm:items-center"><div className="flex items-center gap-2 font-serif text-lg text-gold"><Clock3 className="size-4" />{item.time}</div><div><p className="font-sans text-sm font-medium">{item.event}</p><p className="text-xs text-champagne/45">{item.location || 'Location not set'}{item.duration ? ` · ${item.duration}` : ''}</p></div></div>
-                      ))}
-                    </div>
-                  </SectionCard>
-                </div>
+                <PlannerTimelineModule
+                  timeline={timeline}
+                  timelineForm={timelineForm}
+                  setTimelineForm={setTimelineForm}
+                  saving={saving}
+                  onAddTimelineItem={addTimelineItem}
+                />
               )}
 
               {activeTab === 'seating' && (
-                <div className="space-y-4">
-                  <SectionCard className="p-4">
-                    <form onSubmit={addTable} className="grid gap-3 md:grid-cols-[2fr_9rem_auto]">
-                      <div><Label>Table name</Label><Input value={tableForm.name} onChange={(event) => setTableForm((current) => ({ ...current, name: event.target.value }))} className="mt-1 border-gold/20 bg-espresso/70" placeholder="Family Table 1" /></div>
-                      <div><Label>Capacity</Label><Input type="number" min="1" max="50" value={tableForm.capacity} onChange={(event) => setTableForm((current) => ({ ...current, capacity: event.target.value }))} className="mt-1 border-gold/20 bg-espresso/70" /></div>
-                      <Button type="submit" disabled={saving} className="self-end bg-gold text-espresso hover:bg-gold-light"><Plus className="size-4" />Add table</Button>
-                    </form>
-                  </SectionCard>
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    {tables.length === 0 ? <div className="md:col-span-2 xl:col-span-3"><EmptyState title="No seating tables" detail="Create tables here, then use the seating workflow to assign confirmed guests." /></div> : tables.map((table) => {
-                      const occupied = tableOccupancy.get(table.id) ?? 0
-                      return <SectionCard key={table.id} className="p-4"><div className="flex items-center justify-between"><h3 className="font-serif text-lg">{table.name}</h3><Badge variant="outline" className={occupied > table.capacity ? 'border-clay/40 text-clay-light' : 'border-gold/20 text-gold'}>{occupied}/{table.capacity}</Badge></div><Progress value={Math.min(100, table.capacity ? (occupied / table.capacity) * 100 : 0)} className="mt-3 h-1.5 bg-champagne/10 [&>div]:bg-gold" /><p className="mt-2 text-xs text-champagne/45">{table.position || 'Position not set'}</p></SectionCard>
-                    })}
-                  </div>
-                </div>
+                <PlannerSeatingModule
+                  tables={tables}
+                  tableForm={tableForm}
+                  setTableForm={setTableForm}
+                  tableOccupancy={tableOccupancy}
+                  saving={saving}
+                  onAddTable={addTable}
+                />
               )}
             </>
           )}
