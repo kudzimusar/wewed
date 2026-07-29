@@ -84,5 +84,8 @@ jobs:
       - name: Run Phase 3 collaboration tests
         run: bun test src/lib/planner-phase3.test.ts
 
+      - name: Run Phase 4 portal tests
+        run: bun test src/lib/planner-phase4.test.ts
+
       - name: Build application
         run: bun run build
