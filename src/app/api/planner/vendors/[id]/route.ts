@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { resolveVendorPlanningFields } from '@/lib/planner-legacy-metadata'
+import { syncVendorPipelineFromNormalizedVendor } from '@/lib/planner-vendor-pipeline-sync'
 import { requireWeddingPermission } from '@/lib/wedding-access'
 
 const CATEGORIES = [
@@ -113,9 +114,7 @@ export async function PATCH(
       }
       updates.category = body.category
     }
-    if (body.description !== undefined) {
-      updates.description = body.description?.trim() || null
-    }
+    if (body.description !== undefined) updates.description = body.description?.trim() || null
     if (body.website !== undefined) updates.website = body.website?.trim() || null
     if (body.phone !== undefined) updates.phone = body.phone?.trim() || null
     if (body.featured !== undefined) updates.featured = body.featured === true
@@ -165,6 +164,14 @@ export async function PATCH(
       where: { id: existing.id },
       data: updates,
     })
+    await syncVendorPipelineFromNormalizedVendor({
+      weddingId: access.context.weddingId,
+      actorId: access.context.session.userId,
+      vendor: updated,
+      contractStatusChanged: body.contractStatus !== undefined,
+      paymentStatusChanged: body.paymentStatus !== undefined,
+    })
+
     return NextResponse.json({ success: true, data: formatVendor(updated) })
   } catch (error) {
     console.error('[PLANNER VENDOR PATCH] error:', error)
@@ -195,7 +202,16 @@ export async function DELETE(
       )
     }
 
-    await db.vendor.delete({ where: { id: existing.id } })
+    await db.$transaction([
+      db.contentRevision.deleteMany({
+        where: {
+          weddingId: access.context.weddingId,
+          section: 'planner_vendor_pipeline',
+          fieldKey: existing.id,
+        },
+      }),
+      db.vendor.delete({ where: { id: existing.id } }),
+    ])
     return NextResponse.json({ success: true, data: { id, deleted: true } })
   } catch (error) {
     console.error('[PLANNER VENDOR DELETE] error:', error)
