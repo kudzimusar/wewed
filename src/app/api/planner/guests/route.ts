@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
           ? Math.min(50, Math.floor(body.capacity))
           : 8
       const table = await db.seatingTable.create({
-        data: { tableName: undefined, name: tableName, capacity, position: body.position ?? null, weddingId },
+        data: { name: tableName, capacity, position: body.position ?? null, weddingId },
       })
       await db.auditEvent.create({
         data: {
@@ -196,12 +196,7 @@ export async function POST(request: NextRequest) {
           weddingId,
         },
       })
-      await tx.rSVP.create({
-        data: {
-          token: randomUUID(),
-          guestId: created.id,
-        },
-      })
+      await tx.rSVP.create({ data: { token: randomUUID(), guestId: created.id } })
       return tx.guest.findUniqueOrThrow({
         where: { id: created.id },
         include: {
