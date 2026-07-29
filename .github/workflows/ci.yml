@@ -99,6 +99,9 @@ jobs:
       - name: Run Stage 3 extraction tests
         run: bun test src/lib/planner-stage3-extraction.test.ts
 
+      - name: Run Stage 4 Tasks and Budget parity tests
+        run: bun test src/lib/planner-stage4-tasks-budget.test.ts
+
       - name: Run Phase 2 workflow tests
         run: bun test src/lib/planner-phase2.test.ts
 
