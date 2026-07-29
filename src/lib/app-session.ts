@@ -11,6 +11,7 @@ export type DashboardRole = 'admin' | 'couple' | 'planner'
 export interface AppSession {
   version: 2
   userId: string
+  authUserId: string
   email: string
   role: DashboardRole
   coupleId: string | null
@@ -20,6 +21,7 @@ export interface AppSession {
 
 interface CreateAppSessionInput {
   userId: string
+  authUserId: string
   email: string
   role: DashboardRole
   coupleId: string | null
@@ -66,6 +68,7 @@ export function createAppSessionToken(input: CreateAppSessionInput): string {
   const payload: AppSession = {
     version: 2,
     userId: input.userId,
+    authUserId: input.authUserId,
     email: input.email,
     role: input.role,
     coupleId: input.coupleId,
@@ -96,6 +99,7 @@ export function verifyAppSessionToken(token: string): AppSession | null {
     if (
       payload.version !== 2 ||
       typeof payload.userId !== 'string' ||
+      typeof payload.authUserId !== 'string' ||
       typeof payload.email !== 'string' ||
       !isDashboardRole(payload.role) ||
       typeof payload.activeWeddingId !== 'string' ||
