@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
@@ -170,62 +171,75 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    let user = await db.user.findUnique({ where: { email } })
+    const supabase = getServiceClient()
+    let authUserId = await findAuthUserIdByEmail(email)
     let invitationSent = false
 
+    if (!authUserId) {
+      const redirectTo = process.env.NEXT_PUBLIC_SITE_URL
+        ? `${process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, '')}/`
+        : undefined
+      const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, {
+        data: { display_name: name || undefined, wedding: wedding.title },
+        redirectTo,
+      })
+      if (error || !data.user) throw error ?? new Error('Invitation failed.')
+      authUserId = data.user.id
+      invitationSent = true
+    }
+
+    let user = await db.user.findUnique({ where: { email } })
+    const desiredGlobalRole = role === 'owner' ? 'couple' : 'planner'
+
     if (!user) {
-      const supabase = getServiceClient()
-      let authUserId = await findAuthUserIdByEmail(email)
-
-      if (!authUserId) {
-        const redirectTo = process.env.NEXT_PUBLIC_SITE_URL
-          ? `${process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, '')}/`
-          : undefined
-        const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, {
-          data: { display_name: name || undefined, wedding: wedding.title },
-          redirectTo,
-        })
-        if (error || !data.user) throw error ?? new Error('Invitation failed.')
-        authUserId = data.user.id
-        invitationSent = true
-      }
-
       user = await db.user.create({
         data: {
           id: authUserId,
           email,
           name: name || null,
-          role: role === 'owner' ? 'couple' : 'planner',
+          role: desiredGlobalRole,
           coupleId: wedding.coupleId,
           isActive: true,
         },
       })
+    } else {
+      const nextGlobalRole =
+        user.role === 'admin'
+          ? 'admin'
+          : role === 'owner' || user.role === 'couple'
+            ? 'couple'
+            : 'planner'
 
-      await db.userProfile.upsert({
-        where: { id: authUserId },
-        create: {
-          id: authUserId,
-          email,
-          displayName: name || null,
-          role: user.role,
-        },
-        update: {
-          email,
-          displayName: name || undefined,
-          role: user.role,
-          isBanned: false,
-          bannedAt: null,
-          banReason: null,
-        },
-      })
-    } else if (!user.isActive) {
       user = await db.user.update({
         where: { id: user.id },
-        data: { isActive: true },
+        data: {
+          name: name || user.name,
+          role: nextGlobalRole,
+          coupleId: user.coupleId ?? wedding.coupleId,
+          isActive: true,
+        },
       })
     }
 
-    const membershipId = `wm_${crypto.randomUUID().replace(/-/g, '')}`
+    await db.userProfile.upsert({
+      where: { id: authUserId },
+      create: {
+        id: authUserId,
+        email,
+        displayName: name || user.name || null,
+        role: user.role,
+      },
+      update: {
+        email,
+        displayName: name || user.name || undefined,
+        role: user.role,
+        isBanned: false,
+        bannedAt: null,
+        banReason: null,
+      },
+    })
+
+    const membershipId = `wm_${randomUUID().replace(/-/g, '')}`
     await db.$executeRawUnsafe(
       `
         INSERT INTO public."WeddingMembership" (
