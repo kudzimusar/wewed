@@ -81,5 +81,8 @@ jobs:
       - name: Run Phase 2 workflow tests
         run: bun test src/lib/planner-phase2.test.ts
 
+      - name: Run Phase 3 collaboration tests
+        run: bun test src/lib/planner-phase3.test.ts
+
       - name: Build application
         run: bun run build
