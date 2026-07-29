@@ -58,7 +58,8 @@ describe('original planner parity contract', () => {
     ])
 
     expect(INTENTIONAL_UPGRADES.length).toBeGreaterThan(0)
-    expect(portal).toContain('<PlannerWorkspace />')
+    // Props such as a wedding-specific key may strengthen isolation; the workspace must remain mounted.
+    expect(portal).toContain('<PlannerWorkspace')
     expect(portal).toContain('h-dvh')
     expect(portal).toContain('WeddingContextControls')
     expect(workspace).not.toContain('<Dialog')

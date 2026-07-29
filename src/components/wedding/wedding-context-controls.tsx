@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { CalendarDays, Loader2, Settings2, UserPlus, Users, X } from 'lucide-react'
+import { CalendarDays, Loader2, UserPlus, Users, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { hasUnsavedPlannerForms } from '@/lib/planner-draft-guard'
 
 interface WeddingSummary {
   id: string
@@ -65,6 +66,10 @@ function weddingDateLabel(value: string): string {
       }).format(date)
 }
 
+function plannerRoot(): ParentNode | null {
+  return document.querySelector('[data-planner-portal]')
+}
+
 export function WeddingContextControls() {
   const [session, setSession] = useState<SessionPayload | null>(null)
   const [loadingSession, setLoadingSession] = useState(true)
@@ -102,11 +107,21 @@ export function WeddingContextControls() {
     void loadSession()
   }, [loadSession])
 
+  useEffect(() => {
+    const protectBrowserNavigation = (event: BeforeUnloadEvent) => {
+      if (!hasUnsavedPlannerForms(plannerRoot())) return
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', protectBrowserNavigation)
+    return () => window.removeEventListener('beforeunload', protectBrowserNavigation)
+  }, [])
+
   const activeWedding = session?.activeWedding
   const weddings = session?.weddings ?? []
   const canManageTeam = useMemo(
     () => activeWedding?.permissions.includes('*') === true,
-    [activeWedding]
+    [activeWedding],
   )
 
   const loadMembers = useCallback(async () => {
@@ -128,7 +143,7 @@ export function WeddingContextControls() {
       setError(
         loadError instanceof Error
           ? loadError.message
-          : 'Unable to load the wedding team.'
+          : 'Unable to load the wedding team.',
       )
     } finally {
       setLoadingMembers(false)
@@ -141,6 +156,16 @@ export function WeddingContextControls() {
 
   async function switchWedding(weddingId: string) {
     if (!weddingId || weddingId === activeWedding?.id) return
+
+    if (
+      hasUnsavedPlannerForms(plannerRoot()) &&
+      !window.confirm(
+        'You have unsaved planner changes. Discard them and switch weddings?',
+      )
+    ) {
+      return
+    }
+
     setSwitching(true)
     setError(null)
     try {
@@ -150,18 +175,32 @@ export function WeddingContextControls() {
         body: JSON.stringify({ weddingId }),
         cache: 'no-store',
       })
-      const payload = (await response.json()) as { success?: boolean; error?: string }
-      if (!response.ok || !payload.success) {
+      const payload = (await response.json()) as {
+        success?: boolean
+        activeWedding?: WeddingSummary
+        error?: string
+      }
+      if (!response.ok || !payload.success || !payload.activeWedding) {
         throw new Error(payload.error || 'Unable to switch weddings.')
       }
 
-      window.location.reload()
+      setSession((current) =>
+        current ? { ...current, activeWedding: payload.activeWedding } : current,
+      )
+      setTeamOpen(false)
+      setMembers([])
+      window.dispatchEvent(
+        new CustomEvent('wewed:wedding-switched', {
+          detail: { weddingId: payload.activeWedding.id },
+        }),
+      )
     } catch (switchError) {
       setError(
         switchError instanceof Error
           ? switchError.message
-          : 'Unable to switch weddings.'
+          : 'Unable to switch weddings.',
       )
+    } finally {
       setSwitching(false)
     }
   }
@@ -188,7 +227,7 @@ export function WeddingContextControls() {
       setError(
         inviteError instanceof Error
           ? inviteError.message
-          : 'Unable to invite this team member.'
+          : 'Unable to invite this team member.',
       )
     } finally {
       setInviting(false)
@@ -197,7 +236,7 @@ export function WeddingContextControls() {
 
   async function updateMember(
     membershipId: string,
-    update: { role?: WeddingMember['role']; status?: WeddingMember['status'] }
+    update: { role?: WeddingMember['role']; status?: WeddingMember['status'] },
   ) {
     setSavingMemberId(membershipId)
     setError(null)
@@ -217,7 +256,7 @@ export function WeddingContextControls() {
       setError(
         updateError instanceof Error
           ? updateError.message
-          : 'Unable to update this team member.'
+          : 'Unable to update this team member.',
       )
     } finally {
       setSavingMemberId(null)
@@ -243,7 +282,7 @@ export function WeddingContextControls() {
       setError(
         revokeError instanceof Error
           ? revokeError.message
-          : 'Unable to revoke this team member.'
+          : 'Unable to revoke this team member.',
       )
     } finally {
       setSavingMemberId(null)

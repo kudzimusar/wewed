@@ -84,6 +84,9 @@ jobs:
       - name: Run planner integrity tests
         run: bun test src/lib/planner-integrity.test.ts
 
+      - name: Run Stage 2 permission tests
+        run: bun test src/lib/planner-stage2-permissions.test.ts
+
       - name: Run Phase 2 workflow tests
         run: bun test src/lib/planner-phase2.test.ts
 

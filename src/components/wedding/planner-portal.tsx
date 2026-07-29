@@ -18,6 +18,7 @@ import { PlannerOperations } from '@/components/wedding/planner-operations'
 import { PlannerWorkspace } from '@/components/wedding/planner-workspace'
 import { WeddingContextControls } from '@/components/wedding/wedding-context-controls'
 import { logoutAdmin } from '@/lib/admin-auth'
+import { capturePlannerFormBaselines } from '@/lib/planner-draft-guard'
 
 interface PlannerPortalProps {
   onExit: () => void
@@ -81,10 +82,23 @@ export function PlannerPortal({ onExit }: PlannerPortalProps) {
 
     loadSession()
     window.addEventListener('wewed:client-profile-updated', loadSession)
+    window.addEventListener('wewed:wedding-switched', loadSession)
     return () => {
       cancelled = true
       window.removeEventListener('wewed:client-profile-updated', loadSession)
+      window.removeEventListener('wewed:wedding-switched', loadSession)
     }
+  }, [])
+
+  useEffect(() => {
+    const root = document.querySelector('[data-planner-portal]')
+    if (!root) return
+
+    const capture = () => capturePlannerFormBaselines(root)
+    capture()
+    const observer = new MutationObserver(capture)
+    observer.observe(root, { childList: true, subtree: true })
+    return () => observer.disconnect()
   }, [])
 
   const wedding = session?.activeWedding
@@ -180,7 +194,7 @@ export function PlannerPortal({ onExit }: PlannerPortalProps) {
         </div>
 
         <div className="h-full min-h-0 overflow-hidden">
-          <PlannerWorkspace />
+          <PlannerWorkspace key={wedding?.id ?? 'no-active-wedding'} />
         </div>
 
         <PlannerInvitationTools />
