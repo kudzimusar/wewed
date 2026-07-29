@@ -61,7 +61,7 @@ const MODULES = [
       'guestStats.confirmed',
       'guestStats.heads',
       'guest.rsvp?.attending',
-      'guest.seatingTableName',
+      'guest.seatingTableId',
       'No guests yet',
     ],
   },
@@ -100,7 +100,9 @@ describe('Stage 3 six-module extraction', () => {
     const workspace = await source('src/components/wedding/planner-workspace.tsx')
 
     for (const module of MODULES) {
-      expect(workspace).toContain(`import { ${module.importName} }`)
+      const importPath = `@/${module.path.replace(/^src\//, '').replace(/\.tsx$/, '')}`
+      expect(workspace).toContain(module.importName)
+      expect(workspace).toContain(`from '${importPath}'`)
       expect(workspace).toContain(`activeTab === '${module.key}'`)
       expect(workspace).toContain(`<${module.importName}`)
     }
