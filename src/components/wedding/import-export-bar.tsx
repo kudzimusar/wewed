@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { isAdminLoggedIn } from '@/lib/admin-auth'
+import { isPlannerFeatureEnabled } from '@/lib/feature-flags'
 import { useToast } from '@/hooks/use-toast'
 import { ImportDialog } from '@/components/wedding/import-dialog'
 
@@ -23,7 +24,8 @@ import { ImportDialog } from '@/components/wedding/import-dialog'
      • Import                    — opens ImportDialog
      • Export (.xlsx)            — /api/exports/[module]?format=xlsx
 
-   Renders only when an admin is logged in. Hidden for guests.
+   Renders only when an admin is logged in and the Phase 0 feature
+   flag is explicitly enabled. Hidden by default during testing.
 
    Props:
      moduleKey         one of: guests, budget, checklist, seating,
@@ -75,7 +77,6 @@ export function ImportExportBar({
 
   const moduleLabel = VALID_MODULE_LABELS[moduleKey] ?? moduleKey
 
-  // ── Download helper — used by both Template and Export buttons ──
   const triggerDownload = useCallback(
     async (endpoint: 'template' | 'export') => {
       setDownloading(endpoint === 'template' ? 'template' : 'export')
@@ -96,7 +97,6 @@ export function ImportExportBar({
           throw new Error(msg)
         }
         const blob = await res.blob()
-        // Filename from Content-Disposition (fallback to a sane default)
         const cd = res.headers.get('Content-Disposition') ?? ''
         const match = cd.match(/filename="?([^";]+)"?/i)
         const filename =
@@ -137,9 +137,7 @@ export function ImportExportBar({
     onImportComplete?.()
   }, [onImportComplete])
 
-  // Don't render until we know the user is an admin. This keeps
-  // the bar (and its buttons) hidden from guests without flashing.
-  if (!mounted || !admin) {
+  if (!isPlannerFeatureEnabled('guestImportExport') || !mounted || !admin) {
     return null
   }
 
