@@ -93,6 +93,9 @@ jobs:
       - name: Run Stage 2 metadata migration tests
         run: bun test src/lib/planner-stage2-migration.test.ts
 
+      - name: Run Stage 2 task assignment tests
+        run: bun test src/lib/planner-stage2-task-assignment.test.ts
+
       - name: Run Phase 2 workflow tests
         run: bun test src/lib/planner-phase2.test.ts
 
