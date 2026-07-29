@@ -12,12 +12,21 @@ import {
   type ReminderAudience,
 } from '@/lib/planner-phase2'
 
-function parseCustomTemplate(row: { id: string; value: string; createdAt: Date; updatedAt: Date }) {
+function parseCustomTemplate(row: {
+  id: string
+  value: string
+  weddingId: string
+  authorId: string | null
+  createdAt: Date
+  updatedAt: Date
+}) {
   const parsed = JSON.parse(row.value) as Omit<PlannerTemplateDefinition, 'id' | 'source'>
   return {
     ...parsed,
     id: row.id,
     source: 'wedding' as const,
+    sourceWeddingId: row.weddingId,
+    ownerId: row.authorId,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   }
@@ -38,11 +47,20 @@ function parseTimelineIcon(icon: string | null) {
   }
 }
 
-async function loadTemplate(weddingId: string, templateId: string): Promise<PlannerTemplateDefinition | null> {
+async function loadTemplate(
+  weddingId: string,
+  userId: string,
+  templateId: string,
+): Promise<PlannerTemplateDefinition | null> {
   const builtin = getBuiltinTemplate(templateId)
   if (builtin) return builtin
   const row = await db.contentRevision.findFirst({
-    where: { id: templateId, weddingId, section: 'planner_template', status: { not: 'archived' } },
+    where: {
+      id: templateId,
+      section: 'planner_template',
+      status: { not: 'archived' },
+      OR: [{ weddingId }, { authorId: userId }],
+    },
   })
   return row ? parseCustomTemplate(row) : null
 }
@@ -54,9 +72,12 @@ export async function GET(request: NextRequest) {
   try {
     const custom = await db.contentRevision.findMany({
       where: {
-        weddingId: access.context.weddingId,
         section: 'planner_template',
         status: { not: 'archived' },
+        OR: [
+          { weddingId: access.context.weddingId },
+          { authorId: access.context.session.userId },
+        ],
       },
       orderBy: { createdAt: 'desc' },
     })
@@ -78,6 +99,7 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as Record<string, unknown>
     const action = typeof body.action === 'string' ? body.action : 'apply'
     const weddingId = access.context.weddingId
+    const userId = access.context.session.userId
     const wedding = await db.wedding.findUnique({
       where: { id: weddingId },
       select: { title: true, date: true },
@@ -150,7 +172,7 @@ export async function POST(request: NextRequest) {
           value: JSON.stringify(value),
           status: 'active',
           weddingId,
-          authorId: access.context.session.userId,
+          authorId: userId,
         },
       })
       await db.auditEvent.create({
@@ -160,7 +182,7 @@ export async function POST(request: NextRequest) {
           resourceId: created.id,
           afterValue: created.value,
           weddingId,
-          actorId: access.context.session.userId,
+          actorId: userId,
         },
       })
       return NextResponse.json({ success: true, data: parseCustomTemplate(created) }, { status: 201 })
@@ -168,7 +190,7 @@ export async function POST(request: NextRequest) {
 
     const templateId = typeof body.templateId === 'string' ? body.templateId.trim() : ''
     if (!templateId) return NextResponse.json({ success: false, error: 'templateId is required.' }, { status: 400 })
-    const template = await loadTemplate(weddingId, templateId)
+    const template = await loadTemplate(weddingId, userId, templateId)
     if (!template) return NextResponse.json({ success: false, error: 'Template not found.' }, { status: 404 })
 
     const [existingTasks, existingTimeline, existingReminders] = await Promise.all([
@@ -276,7 +298,7 @@ export async function POST(request: NextRequest) {
             status: scheduledFor ? 'scheduled' : 'draft',
             scheduledFor,
             weddingId,
-            authorId: access.context.session.userId,
+            authorId: userId,
           },
         })
         reminderKeys.add(key)
@@ -292,7 +314,7 @@ export async function POST(request: NextRequest) {
         resourceId: templateId,
         afterValue: JSON.stringify(result),
         weddingId,
-        actorId: access.context.session.userId,
+        actorId: userId,
       },
     })
 
@@ -313,7 +335,14 @@ export async function DELETE(request: NextRequest) {
     const id = typeof body.id === 'string' ? body.id.trim() : ''
     if (!id) return NextResponse.json({ success: false, error: 'Template id is required.' }, { status: 400 })
     const existing = await db.contentRevision.findFirst({
-      where: { id, weddingId: access.context.weddingId, section: 'planner_template' },
+      where: {
+        id,
+        section: 'planner_template',
+        OR: [
+          { weddingId: access.context.weddingId },
+          { authorId: access.context.session.userId },
+        ],
+      },
     })
     if (!existing) return NextResponse.json({ success: false, error: 'Custom template not found.' }, { status: 404 })
     await db.contentRevision.update({ where: { id }, data: { status: 'archived' } })
