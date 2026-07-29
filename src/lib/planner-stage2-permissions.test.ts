@@ -146,13 +146,17 @@ describe('Stage 2 unsaved planner drafts', () => {
     expect(portal).toContain("<PlannerWorkspace key={wedding?.id ?? 'no-active-wedding'} />")
   })
 
-  test('the switch API returns the authoritative active wedding with scoped permissions', async () => {
-    const route = await source('src/app/api/auth/wedding/route.ts')
+  test('the switch API returns the authoritative accessible wedding', async () => {
+    const [route, access] = await Promise.all([
+      source('src/app/api/auth/wedding/route.ts'),
+      source('src/lib/wedding-access.ts'),
+    ])
 
     expect(route).toContain('listAccessibleWeddings')
     expect(route).toContain("candidate.membershipStatus === 'active'")
     expect(route).toContain('activeWedding:')
-    expect(route).toContain('permissions')
+    expect(route).toContain('...wedding')
     expect(route).toContain('setAppSessionCookie')
+    expect(access).toContain('permissions: parsePermissions')
   })
 })
