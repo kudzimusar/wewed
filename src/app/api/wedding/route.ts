@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import {
+  publicTimelineMetadata,
+  publicVendorDescription,
+} from '@/lib/planner-legacy-metadata'
 
 export async function GET(request: NextRequest) {
   try {
@@ -60,14 +64,19 @@ export async function GET(request: NextRequest) {
             gender: kid.gender,
           })),
         },
-        programme: wedding.programmeItems.map((item) => ({
-          id: item.id,
-          time: item.time,
-          title: item.title,
-          description: item.description,
-          icon: item.icon,
-          order: item.order,
-        })),
+        programme: wedding.programmeItems.map((item) => {
+          const metadata = publicTimelineMetadata(item.icon)
+          return {
+            id: item.id,
+            time: item.time,
+            title: item.title,
+            description: item.description,
+            icon: metadata.icon,
+            duration: metadata.duration,
+            location: metadata.location,
+            order: item.order,
+          }
+        }),
         songs: wedding.songs.map((song) => ({
           id: song.id,
           title: song.title,
@@ -88,7 +97,7 @@ export async function GET(request: NextRequest) {
           id: vendor.id,
           name: vendor.name,
           category: vendor.category,
-          description: vendor.description,
+          description: publicVendorDescription(vendor.description),
           website: vendor.website,
           featured: vendor.featured,
         })),
