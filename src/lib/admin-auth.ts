@@ -1,6 +1,7 @@
 'use client'
 
 export const ADMIN_SESSION_TTL_MS = 8 * 60 * 60 * 1000
+export const ADMIN_AUTH_EVENT = 'wewed:dashboard-auth-changed'
 
 const STORAGE_KEY = 'wewed:dashboard-session'
 
@@ -23,6 +24,13 @@ interface AuthResult {
   success: boolean
   user?: DashboardUser
   error?: string
+}
+
+function notifyAuthState(authorized: boolean): void {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(
+    new CustomEvent(ADMIN_AUTH_EVENT, { detail: { authorized } })
+  )
 }
 
 function readCachedSession(): CachedDashboardSession | null {
@@ -64,6 +72,8 @@ function cacheSession(user: DashboardUser, expiresAt?: number): void {
   } catch {
     // The server-side HttpOnly session remains authoritative.
   }
+
+  notifyAuthState(true)
 }
 
 function clearCachedSession(): void {
@@ -74,6 +84,8 @@ function clearCachedSession(): void {
   } catch {
     // Ignore privacy-mode and storage errors.
   }
+
+  notifyAuthState(false)
 }
 
 export async function signInAdmin(
