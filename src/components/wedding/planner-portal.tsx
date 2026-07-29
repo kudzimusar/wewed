@@ -15,7 +15,7 @@ import { PlannerCollaborationHub } from '@/components/wedding/planner-collaborat
 import { PlannerEventCommand } from '@/components/wedding/planner-event-command'
 import { PlannerInvitationTools } from '@/components/wedding/planner-invitation-tools'
 import { PlannerOperations } from '@/components/wedding/planner-operations'
-import { PlannerWorkspace } from '@/components/wedding/planner-workspace'
+import { PlannerWorkspace } from '@/components/wedding/planner-workspace-stage7'
 import { WeddingContextControls } from '@/components/wedding/wedding-context-controls'
 import { logoutAdmin } from '@/lib/admin-auth'
 import { capturePlannerFormBaselines } from '@/lib/planner-draft-guard'
