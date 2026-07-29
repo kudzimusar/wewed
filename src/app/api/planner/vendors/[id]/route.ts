@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import {
+  decodeLegacyVendorDescription,
+  encodeLegacyVendorDescription,
+  type LegacyVendorMeta,
+} from '@/lib/planner-legacy-metadata'
 import { requireWeddingPermission } from '@/lib/wedding-access'
 
 const CATEGORIES = [
@@ -16,40 +21,6 @@ const CATEGORIES = [
 ] as const
 const CONTRACT_STATUSES = ['signed', 'pending', 'negotiating', 'declined'] as const
 const PAYMENT_STATUSES = ['paid', 'deposit', 'unpaid'] as const
-const META_PREFIX = '__wewed_meta__:'
-
-interface VendorMeta {
-  contact?: string
-  contractStatus?: string
-  paymentStatus?: string
-  rating?: number
-  notes?: string
-}
-
-function encodeMeta(description: string | null, meta: VendorMeta): string {
-  const human = description?.trim() || ''
-  return `${META_PREFIX}${JSON.stringify(meta)}${human ? `|||${human}` : ''}`
-}
-
-function decodeMeta(description: string | null): {
-  meta: VendorMeta
-  humanDescription: string | null
-} {
-  if (!description) return { meta: {}, humanDescription: null }
-  if (!description.startsWith(META_PREFIX)) {
-    return { meta: {}, humanDescription: description }
-  }
-
-  const [blob, ...humanParts] = description.slice(META_PREFIX.length).split('|||')
-  try {
-    return {
-      meta: JSON.parse(blob) as VendorMeta,
-      humanDescription: humanParts.length ? humanParts.join('|||') : null,
-    }
-  } catch {
-    return { meta: {}, humanDescription: description }
-  }
-}
 
 function formatVendor(v: {
   id: string
@@ -65,7 +36,7 @@ function formatVendor(v: {
   createdAt: Date
   updatedAt: Date
 }) {
-  const { meta, humanDescription } = decodeMeta(v.description)
+  const { meta, humanDescription } = decodeLegacyVendorDescription(v.description)
   return {
     id: v.id,
     name: v.name,
@@ -103,7 +74,7 @@ interface PatchVendorPayload {
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const access = await requireWeddingPermission(request, 'vendors.edit')
   if (access.error) return access.error
@@ -116,7 +87,7 @@ export async function PATCH(
     if (!existing) {
       return NextResponse.json(
         { success: false, error: 'Vendor not found' },
-        { status: 404 }
+        { status: 404 },
       )
     }
 
@@ -127,7 +98,7 @@ export async function PATCH(
       if (typeof body.name !== 'string' || !body.name.trim()) {
         return NextResponse.json(
           { success: false, error: 'Name cannot be empty' },
-          { status: 400 }
+          { status: 400 },
         )
       }
       updates.name = body.name.trim()
@@ -136,7 +107,7 @@ export async function PATCH(
       if (!CATEGORIES.includes(body.category as (typeof CATEGORIES)[number])) {
         return NextResponse.json(
           { success: false, error: `Invalid category. Allowed: ${CATEGORIES.join(', ')}` },
-          { status: 400 }
+          { status: 400 },
         )
       }
       updates.category = body.category
@@ -151,22 +122,23 @@ export async function PATCH(
       } else {
         return NextResponse.json(
           { success: false, error: 'Rating must be between 0 and 5' },
-          { status: 400 }
+          { status: 400 },
         )
       }
     }
 
-    const decoded = decodeMeta(existing.description)
-    const mergedMeta: VendorMeta = { ...decoded.meta }
+    const decoded = decodeLegacyVendorDescription(existing.description)
+    const mergedMeta: LegacyVendorMeta = { ...decoded.meta }
+    let humanDescription = decoded.humanDescription
     if (body.description !== undefined) {
-      decoded.humanDescription = body.description?.trim() || null
+      humanDescription = body.description?.trim() || null
     }
     if (body.contact !== undefined) mergedMeta.contact = body.contact?.trim() || undefined
     if (body.contractStatus !== undefined) {
       if (!CONTRACT_STATUSES.includes(body.contractStatus as (typeof CONTRACT_STATUSES)[number])) {
         return NextResponse.json(
           { success: false, error: `Invalid contractStatus. Allowed: ${CONTRACT_STATUSES.join(', ')}` },
-          { status: 400 }
+          { status: 400 },
         )
       }
       mergedMeta.contractStatus = body.contractStatus
@@ -175,7 +147,7 @@ export async function PATCH(
       if (!PAYMENT_STATUSES.includes(body.paymentStatus as (typeof PAYMENT_STATUSES)[number])) {
         return NextResponse.json(
           { success: false, error: `Invalid paymentStatus. Allowed: ${PAYMENT_STATUSES.join(', ')}` },
-          { status: 400 }
+          { status: 400 },
         )
       }
       mergedMeta.paymentStatus = body.paymentStatus
@@ -184,7 +156,7 @@ export async function PATCH(
     if (typeof body.rating === 'number') mergedMeta.rating = body.rating
     if (body.rating === null) delete mergedMeta.rating
 
-    updates.description = encodeMeta(decoded.humanDescription, mergedMeta)
+    updates.description = encodeLegacyVendorDescription(humanDescription, mergedMeta)
 
     const updated = await db.vendor.update({
       where: { id: existing.id },
@@ -195,14 +167,14 @@ export async function PATCH(
     console.error('[PLANNER VENDOR PATCH] error:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to update vendor' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const access = await requireWeddingPermission(request, 'vendors.edit')
   if (access.error) return access.error
@@ -216,7 +188,7 @@ export async function DELETE(
     if (!existing) {
       return NextResponse.json(
         { success: false, error: 'Vendor not found' },
-        { status: 404 }
+        { status: 404 },
       )
     }
 
@@ -226,7 +198,7 @@ export async function DELETE(
     console.error('[PLANNER VENDOR DELETE] error:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to delete vendor' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }

@@ -1,37 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import {
+  decodeLegacyTimelineIcon,
+  encodeLegacyTimelineIcon,
+} from '@/lib/planner-legacy-metadata'
 import { requireWeddingPermission } from '@/lib/wedding-access'
-
-interface TimelineMeta {
-  d?: string
-  l?: string
-  i?: string
-}
-
-function encodeTimelineIcon(meta: TimelineMeta): string | null {
-  const d = meta.d?.trim() || ''
-  const l = meta.l?.trim() || ''
-  const i = meta.i?.trim() || ''
-  if (!d && !l && !i) return null
-  return JSON.stringify({ ...(d ? { d } : {}), ...(l ? { l } : {}), ...(i ? { i } : {}) })
-}
-
-function decodeTimelineIcon(icon: string | null): {
-  duration: string
-  location: string
-  icon?: string
-} {
-  if (!icon) return { duration: '', location: '' }
-  if (icon.startsWith('{')) {
-    try {
-      const blob = JSON.parse(icon) as TimelineMeta
-      return { duration: blob.d ?? '', location: blob.l ?? '', icon: blob.i }
-    } catch {
-      // Fall through to legacy icon-name handling.
-    }
-  }
-  return { duration: '', location: '', icon }
-}
 
 function formatProgrammeItem(item: {
   id: string
@@ -44,7 +17,7 @@ function formatProgrammeItem(item: {
   createdAt: Date
   updatedAt: Date
 }) {
-  const meta = decodeTimelineIcon(item.icon)
+  const meta = decodeLegacyTimelineIcon(item.icon)
   return {
     id: item.id,
     time: item.time,
@@ -81,7 +54,7 @@ export async function GET(request: NextRequest) {
     console.error('[PLANNER TIMELINE GET] error:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to fetch timeline' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
@@ -110,13 +83,13 @@ export async function POST(request: NextRequest) {
     if (!title) {
       return NextResponse.json(
         { success: false, error: 'Event title is required' },
-        { status: 400 }
+        { status: 400 },
       )
     }
     if (!time) {
       return NextResponse.json(
         { success: false, error: 'Time is required' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -135,7 +108,7 @@ export async function POST(request: NextRequest) {
         time,
         title,
         description: (body.notes ?? body.description ?? '').trim() || null,
-        icon: encodeTimelineIcon({
+        icon: encodeLegacyTimelineIcon({
           d: body.duration,
           l: body.location,
           i: body.icon,
@@ -147,13 +120,13 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       { success: true, data: formatProgrammeItem(created) },
-      { status: 201 }
+      { status: 201 },
     )
   } catch (error) {
     console.error('[PLANNER TIMELINE POST] error:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to create timeline item' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
