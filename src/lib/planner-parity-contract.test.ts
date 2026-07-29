@@ -9,6 +9,15 @@ import {
   missingMarkers,
 } from './planner-parity-contract'
 
+const ACTIVE_PLANNER_MODULE_SOURCE_PATHS = [
+  'src/components/wedding/planner/modules/planner-tasks-module.tsx',
+  'src/components/wedding/planner/modules/planner-budget-module.tsx',
+  'src/components/wedding/planner/modules/planner-vendors-module.tsx',
+  'src/components/wedding/planner/modules/planner-guests-module.tsx',
+  'src/components/wedding/planner/modules/planner-timeline-module.tsx',
+  'src/components/wedding/planner/modules/planner-seating-module.tsx',
+] as const
+
 async function source(path: string): Promise<string> {
   return Bun.file(path).text()
 }
@@ -37,7 +46,9 @@ describe('original planner parity contract', () => {
   })
 
   test('the active planner has only the explicitly documented parity debt', async () => {
-    const activeSources = await Promise.all(ACTIVE_PLANNER_SOURCE_PATHS.map(source))
+    const activeSources = await Promise.all(
+      [...ACTIVE_PLANNER_SOURCE_PATHS, ...ACTIVE_PLANNER_MODULE_SOURCE_PATHS].map(source),
+    )
     const activeSurface = activeSources.join('\n')
 
     expect(missingActiveCapabilities(activeSurface)).toEqual([...KNOWN_ACTIVE_PARITY_GAPS])
