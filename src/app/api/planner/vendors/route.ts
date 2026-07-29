@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import {
+  decodeLegacyVendorDescription,
+  encodeLegacyVendorDescription,
+  type LegacyVendorMeta,
+} from '@/lib/planner-legacy-metadata'
 import { requireWeddingPermission } from '@/lib/wedding-access'
 
 const CATEGORIES = [
@@ -16,40 +21,6 @@ const CATEGORIES = [
 ] as const
 const CONTRACT_STATUSES = ['signed', 'pending', 'negotiating', 'declined'] as const
 const PAYMENT_STATUSES = ['paid', 'deposit', 'unpaid'] as const
-const META_PREFIX = '__wewed_meta__:'
-
-interface VendorMeta {
-  contact?: string
-  contractStatus?: string
-  paymentStatus?: string
-  rating?: number
-  notes?: string
-}
-
-function encodeMeta(description: string | null, meta: VendorMeta): string {
-  const human = description?.trim() || ''
-  return `${META_PREFIX}${JSON.stringify(meta)}${human ? `|||${human}` : ''}`
-}
-
-function decodeMeta(description: string | null): {
-  meta: VendorMeta
-  humanDescription: string | null
-} {
-  if (!description) return { meta: {}, humanDescription: null }
-  if (!description.startsWith(META_PREFIX)) {
-    return { meta: {}, humanDescription: description }
-  }
-
-  const [blob, ...humanParts] = description.slice(META_PREFIX.length).split('|||')
-  try {
-    return {
-      meta: JSON.parse(blob) as VendorMeta,
-      humanDescription: humanParts.length ? humanParts.join('|||') : null,
-    }
-  } catch {
-    return { meta: {}, humanDescription: description }
-  }
-}
 
 function formatVendor(v: {
   id: string
@@ -65,7 +36,7 @@ function formatVendor(v: {
   createdAt: Date
   updatedAt: Date
 }) {
-  const { meta, humanDescription } = decodeMeta(v.description)
+  const { meta, humanDescription } = decodeLegacyVendorDescription(v.description)
   return {
     id: v.id,
     name: v.name,
@@ -106,7 +77,7 @@ export async function GET(request: NextRequest) {
     console.error('[PLANNER VENDORS GET] error:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to fetch vendors' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
@@ -134,7 +105,7 @@ export async function POST(request: NextRequest) {
     if (!body.name || typeof body.name !== 'string' || !body.name.trim()) {
       return NextResponse.json(
         { success: false, error: 'Vendor name is required' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -142,12 +113,12 @@ export async function POST(request: NextRequest) {
       ? body.category!
       : 'other'
     const contractStatus = CONTRACT_STATUSES.includes(
-      body.contractStatus as (typeof CONTRACT_STATUSES)[number]
+      body.contractStatus as (typeof CONTRACT_STATUSES)[number],
     )
       ? body.contractStatus!
       : 'pending'
     const paymentStatus = PAYMENT_STATUSES.includes(
-      body.paymentStatus as (typeof PAYMENT_STATUSES)[number]
+      body.paymentStatus as (typeof PAYMENT_STATUSES)[number],
     )
       ? body.paymentStatus!
       : 'unpaid'
@@ -156,7 +127,7 @@ export async function POST(request: NextRequest) {
         ? body.rating
         : null
 
-    const meta: VendorMeta = {
+    const meta: LegacyVendorMeta = {
       contact: body.contact?.trim() || undefined,
       contractStatus,
       paymentStatus,
@@ -168,7 +139,7 @@ export async function POST(request: NextRequest) {
       data: {
         name: body.name.trim(),
         category,
-        description: encodeMeta(body.description ?? null, meta),
+        description: encodeLegacyVendorDescription(body.description ?? null, meta),
         website: body.website?.trim() || null,
         phone: body.phone?.trim() || null,
         imageUrl: null,
@@ -180,13 +151,13 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       { success: true, data: formatVendor(created) },
-      { status: 201 }
+      { status: 201 },
     )
   } catch (error) {
     console.error('[PLANNER VENDORS POST] error:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to create vendor' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
