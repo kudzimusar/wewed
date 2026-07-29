@@ -1,4 +1,4 @@
-import { createServerClient } from '@supabase/ssr'
+import { createServerClient as createSupabaseServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
 /**
@@ -31,7 +31,7 @@ export async function createServerClient() {
     )
   }
 
-  return createServerClient(url, anonKey, {
+  return createSupabaseServerClient(url, anonKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll()
