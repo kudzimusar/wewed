@@ -181,7 +181,7 @@ describe('Stage 5 Vendors and Guests parity', () => {
       expect(workspace).toContain(marker)
     }
 
-    expect(collectionRoute).toContain("requireWeddingPermission(")
+    expect(collectionRoute).toContain('requireWeddingPermission(')
     expect(collectionRoute).toContain("body.kind === 'table' ? 'seating.edit' : 'guests.edit'")
     expect(collectionRoute).toContain('where: { weddingId: access.context.weddingId }')
     expect(collectionRoute).toContain('include: {')
@@ -197,12 +197,12 @@ describe('Stage 5 Vendors and Guests parity', () => {
     expect(itemRoute).toContain('db.rSVP.deleteMany({ where: { guestId: existing.id } })')
   })
 
-  test('only worksheet parity remains deferred for Vendors and Guests', () => {
+  test('Stage 5 capabilities remain restored after worksheet completion', () => {
     for (const capability of RESTORED_STAGE5_CAPABILITIES) {
       expect(KNOWN_ACTIVE_PARITY_GAPS).not.toContain(capability)
     }
-    expect(KNOWN_ACTIVE_PARITY_GAPS).toContain('vendors.worksheet')
-    expect(KNOWN_ACTIVE_PARITY_GAPS).toContain('guests.worksheet')
+    expect(KNOWN_ACTIVE_PARITY_GAPS).not.toContain('vendors.worksheet')
+    expect(KNOWN_ACTIVE_PARITY_GAPS).not.toContain('guests.worksheet')
   })
 
   test('restoration does not reactivate the retired shell or sample client data', async () => {
