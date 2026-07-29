@@ -1,11 +1,12 @@
 'use client'
 
 import type { Dispatch, FormEvent, SetStateAction } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Progress } from '@/components/ui/progress'
 
 interface BudgetRow {
   id: string
@@ -27,15 +28,28 @@ interface BudgetSummary {
   percentPaid: number
 }
 
+interface CategoryBreakdown {
+  category: string
+  estimated: number
+  actual: number
+  paid: number
+  outstanding: number
+  count: number
+}
+
 interface BudgetForm {
   description: string
   category: string
   estimatedCost: string
+  actualCost: string
+  paidAmount: string
+  dueDate: string
 }
 
 interface PlannerBudgetModuleProps {
   budget: BudgetRow[]
   budgetSummary: BudgetSummary | null
+  budgetByCategory: CategoryBreakdown[]
   budgetForm: BudgetForm
   setBudgetForm: Dispatch<SetStateAction<BudgetForm>>
   saving: boolean
@@ -45,19 +59,21 @@ interface PlannerBudgetModuleProps {
     field: 'actualCost' | 'paidAmount',
     value: string,
   ) => void | Promise<void>
+  onDeleteBudgetItem: (item: BudgetRow) => void | Promise<void>
 }
 
 const BUDGET_CATEGORIES = [
-  'venue',
-  'catering',
-  'attire',
-  'decor',
-  'photo_video',
-  'music',
-  'transport',
-  'stationery',
-  'miscellaneous',
-]
+  { value: 'venue', label: 'Venue' },
+  { value: 'catering', label: 'Catering' },
+  { value: 'attire', label: 'Attire' },
+  { value: 'roora', label: 'Roora' },
+  { value: 'decor', label: 'Decor' },
+  { value: 'photo_video', label: 'Photo/Video' },
+  { value: 'music', label: 'Music' },
+  { value: 'transport', label: 'Transport' },
+  { value: 'stationery', label: 'Stationery' },
+  { value: 'miscellaneous', label: 'Miscellaneous' },
+] as const
 
 function money(value: number, currency = 'USD'): string {
   try {
@@ -80,6 +96,10 @@ function dateText(value: string | null): string {
     day: 'numeric',
     year: 'numeric',
   }).format(date)
+}
+
+function categoryLabel(value: string): string {
+  return BUDGET_CATEGORIES.find((category) => category.value === value)?.label ?? titleCase(value)
 }
 
 function titleCase(value: string): string {
@@ -114,11 +134,13 @@ function EmptyState({ title, detail }: { title: string; detail: string }) {
 export function PlannerBudgetModule({
   budget,
   budgetSummary,
+  budgetByCategory,
   budgetForm,
   setBudgetForm,
   saving,
   onAddBudgetItem,
   onUpdateBudgetItem,
+  onDeleteBudgetItem,
 }: PlannerBudgetModuleProps) {
   return (
     <div className="space-y-4">
@@ -140,11 +162,69 @@ export function PlannerBudgetModule({
         ))}
       </div>
 
+      {budgetSummary && (
+        <SectionCard className="p-4">
+          <div className="flex items-center justify-between gap-3 font-sans text-xs text-champagne/55">
+            <span>Payment progress</span>
+            <span className="text-gold">{budgetSummary.percentPaid}% paid</span>
+          </div>
+          <Progress
+            value={budgetSummary.percentPaid}
+            className="mt-2 h-1.5 bg-champagne/10 [&>div]:bg-gold"
+          />
+        </SectionCard>
+      )}
+
+      {budgetByCategory.length > 0 && (
+        <SectionCard className="p-4">
+          <div className="mb-3">
+            <h2 className="font-serif text-lg">Budget category breakdown</h2>
+            <p className="font-sans text-xs text-champagne/45">
+              Paid progress against the estimate for each category.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {budgetByCategory.map((category) => {
+              const percent =
+                category.estimated > 0
+                  ? Math.min(100, Math.round((category.paid / category.estimated) * 100))
+                  : 0
+              return (
+                <div key={category.category} className="rounded-xl border border-gold/10 bg-espresso/45 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-sans text-sm font-medium">
+                        {categoryLabel(category.category)}
+                      </p>
+                      <p className="font-sans text-[10px] text-champagne/40">
+                        {category.count} {category.count === 1 ? 'item' : 'items'}
+                      </p>
+                    </div>
+                    <p className="font-sans text-xs text-gold">
+                      {money(category.paid, budgetSummary?.currency)} /{' '}
+                      {money(category.estimated, budgetSummary?.currency)}
+                    </p>
+                  </div>
+                  <Progress
+                    value={percent}
+                    className="mt-2 h-1 bg-champagne/10 [&>div]:bg-gold"
+                  />
+                </div>
+              )
+            })}
+          </div>
+        </SectionCard>
+      )}
+
       <SectionCard className="p-4">
-        <form onSubmit={onAddBudgetItem} className="grid gap-3 md:grid-cols-[2fr_1fr_1fr_auto]">
+        <form
+          onSubmit={onAddBudgetItem}
+          className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1.5fr_1fr_0.8fr_0.8fr_0.8fr_1fr_auto]"
+        >
           <div>
-            <Label>Description</Label>
+            <Label htmlFor="workspace-budget-description">Description</Label>
             <Input
+              id="workspace-budget-description"
               value={budgetForm.description}
               onChange={(event) =>
                 setBudgetForm((current) => ({ ...current, description: event.target.value }))
@@ -154,8 +234,9 @@ export function PlannerBudgetModule({
             />
           </div>
           <div>
-            <Label>Category</Label>
+            <Label htmlFor="workspace-budget-category">Category</Label>
             <select
+              id="workspace-budget-category"
               value={budgetForm.category}
               onChange={(event) =>
                 setBudgetForm((current) => ({ ...current, category: event.target.value }))
@@ -163,20 +244,59 @@ export function PlannerBudgetModule({
               className="mt-1 h-10 w-full rounded-md border border-gold/20 bg-espresso px-3 text-sm"
             >
               {BUDGET_CATEGORIES.map((category) => (
-                <option key={category} value={category}>
-                  {titleCase(category)}
+                <option key={category.value} value={category.value}>
+                  {category.label}
                 </option>
               ))}
             </select>
           </div>
           <div>
-            <Label>Estimate</Label>
+            <Label htmlFor="workspace-budget-estimated-cost">Estimate</Label>
             <Input
+              id="workspace-budget-estimated-cost"
               type="number"
               min="0"
               value={budgetForm.estimatedCost}
               onChange={(event) =>
                 setBudgetForm((current) => ({ ...current, estimatedCost: event.target.value }))
+              }
+              className="mt-1 border-gold/20 bg-espresso/70"
+            />
+          </div>
+          <div>
+            <Label htmlFor="workspace-budget-actual-cost">Actual</Label>
+            <Input
+              id="workspace-budget-actual-cost"
+              type="number"
+              min="0"
+              value={budgetForm.actualCost}
+              onChange={(event) =>
+                setBudgetForm((current) => ({ ...current, actualCost: event.target.value }))
+              }
+              className="mt-1 border-gold/20 bg-espresso/70"
+            />
+          </div>
+          <div>
+            <Label htmlFor="workspace-budget-paid-amount">Paid</Label>
+            <Input
+              id="workspace-budget-paid-amount"
+              type="number"
+              min="0"
+              value={budgetForm.paidAmount}
+              onChange={(event) =>
+                setBudgetForm((current) => ({ ...current, paidAmount: event.target.value }))
+              }
+              className="mt-1 border-gold/20 bg-espresso/70"
+            />
+          </div>
+          <div>
+            <Label htmlFor="workspace-budget-due-date">Due date</Label>
+            <Input
+              id="workspace-budget-due-date"
+              type="date"
+              value={budgetForm.dueDate}
+              onChange={(event) =>
+                setBudgetForm((current) => ({ ...current, dueDate: event.target.value }))
               }
               className="mt-1 border-gold/20 bg-espresso/70"
             />
@@ -200,48 +320,78 @@ export function PlannerBudgetModule({
               detail="Add your first estimate or import the wedding budget worksheet."
             />
           ) : (
-            budget.map((item) => (
-              <div
-                key={item.id}
-                className="grid gap-3 rounded-xl border border-gold/10 bg-espresso/45 p-3 lg:grid-cols-[1fr_8rem_8rem] lg:items-center"
-              >
-                <div>
-                  <div className="flex flex-wrap gap-2">
-                    <p className="font-sans text-sm font-medium">{item.description}</p>
-                    <Badge variant="outline" className="border-gold/20 text-[10px]">
-                      {titleCase(item.category)}
-                    </Badge>
+            budget.map((item) => {
+              const actual = item.actualCost ?? item.estimatedCost
+              const outstanding = Math.max(0, actual - item.paidAmount)
+              const isPaid = actual > 0 && item.paidAmount >= actual
+              return (
+                <div
+                  key={item.id}
+                  className="grid gap-3 rounded-xl border border-gold/10 bg-espresso/45 p-3 lg:grid-cols-[minmax(0,1fr)_8rem_8rem_auto] lg:items-center"
+                >
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-sans text-sm font-medium">{item.description}</p>
+                      <Badge variant="outline" className="border-gold/20 text-[10px]">
+                        {categoryLabel(item.category)}
+                      </Badge>
+                      <Badge
+                        variant="outline"
+                        className={
+                          isPaid
+                            ? 'border-sage/30 text-sage-light'
+                            : 'border-gold/20 text-champagne/55'
+                        }
+                      >
+                        {isPaid ? 'Paid' : `${money(outstanding, item.currency)} outstanding`}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-xs text-champagne/45">
+                      Estimated {money(item.estimatedCost, item.currency)} · {dateText(item.dueDate)}
+                    </p>
                   </div>
-                  <p className="mt-1 text-xs text-champagne/45">
-                    Estimated {money(item.estimatedCost, item.currency)} · {dateText(item.dueDate)}
-                  </p>
+                  <div>
+                    <Label className="text-[10px]">Actual</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      defaultValue={item.actualCost ?? ''}
+                      onBlur={(event) =>
+                        void onUpdateBudgetItem(item, 'actualCost', event.target.value)
+                      }
+                      className="mt-1 h-8 border-gold/20 bg-espresso/70 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[10px]">Paid</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      defaultValue={item.paidAmount}
+                      onBlur={(event) =>
+                        void onUpdateBudgetItem(item, 'paidAmount', event.target.value)
+                      }
+                      className="mt-1 h-8 border-gold/20 bg-espresso/70 text-xs"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Delete ${item.description}`}
+                    disabled={saving}
+                    onClick={() => {
+                      if (window.confirm(`Delete budget item “${item.description}”?`)) {
+                        void onDeleteBudgetItem(item)
+                      }
+                    }}
+                    className="size-9 text-champagne/45 hover:bg-clay/10 hover:text-clay-light"
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
                 </div>
-                <div>
-                  <Label className="text-[10px]">Actual</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    defaultValue={item.actualCost ?? ''}
-                    onBlur={(event) =>
-                      void onUpdateBudgetItem(item, 'actualCost', event.target.value)
-                    }
-                    className="mt-1 h-8 border-gold/20 bg-espresso/70 text-xs"
-                  />
-                </div>
-                <div>
-                  <Label className="text-[10px]">Paid</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    defaultValue={item.paidAmount}
-                    onBlur={(event) =>
-                      void onUpdateBudgetItem(item, 'paidAmount', event.target.value)
-                    }
-                    className="mt-1 h-8 border-gold/20 bg-espresso/70 text-xs"
-                  />
-                </div>
-              </div>
-            ))
+              )
+            })
           )}
         </div>
       </SectionCard>

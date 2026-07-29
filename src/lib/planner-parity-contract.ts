@@ -344,16 +344,9 @@ export const ORIGINAL_PLANNER_PARITY: readonly PlannerParityCapability[] = [
   ),
 ]
 
-/** Exact known parity debt when this contract was introduced. */
+/** Exact known parity debt after Stage 4 Tasks and Budget restoration. */
 export const KNOWN_ACTIVE_PARITY_GAPS = [
-  'tasks.delete',
-  'tasks.search-filter',
-  'tasks.assignee',
-  'tasks.taxonomy',
   'tasks.worksheet',
-  'budget.delete',
-  'budget.category-breakdown',
-  'budget.due-date',
   'budget.worksheet',
   'vendors.operational-fields',
   'vendors.delete',
