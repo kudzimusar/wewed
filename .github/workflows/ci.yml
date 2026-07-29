@@ -81,6 +81,9 @@ jobs:
       - name: Run original planner parity contract
         run: bun test src/lib/planner-parity-contract.test.ts
 
+      - name: Run planner integrity tests
+        run: bun test src/lib/planner-integrity.test.ts
+
       - name: Run Phase 2 workflow tests
         run: bun test src/lib/planner-phase2.test.ts
 
