@@ -111,8 +111,6 @@ export function verifyAppSessionToken(token: string): AppSession | null {
       return null
     }
 
-    if (payload.role !== 'admin' && !payload.coupleId) return null
-
     return payload as AppSession
   } catch {
     return null
