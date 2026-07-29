@@ -64,6 +64,7 @@ export async function GET(request: NextRequest) {
         weddingId: reminder.weddingId,
         dryRun: false,
       })
+      if (result.dryRun) throw new Error('Scheduled delivery unexpectedly returned a preview.')
       processed.push({ ...reminder, status: 'sent', sent: result.sent })
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Scheduled reminder failed.'
