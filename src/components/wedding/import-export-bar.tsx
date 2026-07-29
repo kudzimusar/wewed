@@ -1,44 +1,32 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   Download,
   Upload,
   FileSpreadsheet,
   Loader2,
-  Lock,
+  ShieldCheck,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { isAdminLoggedIn } from '@/lib/admin-auth'
 import { useToast } from '@/hooks/use-toast'
 import { ImportDialog } from '@/components/wedding/import-dialog'
-
-/* ============================================================
-   ImportExportBar
-   ------------------------------------------------------------
-   Compact 3-button bar that drops into a planner tab header:
-     • Download Template (.xlsx) — /api/templates/[module]
-     • Import                    — opens ImportDialog
-     • Export (.xlsx)            — /api/exports/[module]?format=xlsx
-
-   Renders only when an admin is logged in. Hidden for guests.
-
-   Props:
-     moduleKey         one of: guests, budget, checklist, seating,
-                       vendors, timeline, songs, wedding-party,
-                       travel, media
-     onImportComplete  optional callback fired after a successful
-                       import — usually the parent refetches the
-                       tab's data so the new rows appear live.
-     className         extra Tailwind classes for the wrapper
-   ============================================================ */
+import { worksheetPermissionCapabilities } from '@/lib/planner-client-permissions'
 
 interface ImportExportBarProps {
   moduleKey: string
   onImportComplete?: () => void
   className?: string
+}
+
+interface PlannerSessionPayload {
+  authorized?: boolean
+  activeWedding?: {
+    membershipRole?: 'admin' | 'owner' | 'planner' | 'coordinator' | 'viewer'
+    permissions?: string[]
+  }
 }
 
 const VALID_MODULE_LABELS: Record<string, string> = {
@@ -54,64 +42,103 @@ const VALID_MODULE_LABELS: Record<string, string> = {
   media: 'Media',
 }
 
+function roleLabel(value?: string): string {
+  if (!value) return 'Wedding access'
+  return value.charAt(0).toUpperCase() + value.slice(1)
+}
+
 export function ImportExportBar({
   moduleKey,
   onImportComplete,
   className = '',
 }: ImportExportBarProps) {
   const { toast } = useToast()
-  const [mounted, setMounted] = useState(false)
-  const [admin, setAdmin] = useState(false)
+  const [session, setSession] = useState<PlannerSessionPayload | null>(null)
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [downloading, setDownloading] = useState<'template' | 'export' | null>(null)
 
-  useEffect(() => {
-    setMounted(true)
-    setAdmin(isAdminLoggedIn())
-    const onFocus = () => setAdmin(isAdminLoggedIn())
-    window.addEventListener('focus', onFocus)
-    return () => window.removeEventListener('focus', onFocus)
+  const loadPermissions = useCallback(async () => {
+    try {
+      const response = await fetch('/api/auth/me', { cache: 'no-store' })
+      const payload = (await response.json()) as PlannerSessionPayload
+      setSession(response.ok && payload.authorized ? payload : null)
+    } catch {
+      setSession(null)
+    } finally {
+      setPermissionsLoaded(true)
+    }
   }, [])
 
-  const moduleLabel = VALID_MODULE_LABELS[moduleKey] ?? moduleKey
+  useEffect(() => {
+    void loadPermissions()
+    window.addEventListener('focus', loadPermissions)
+    window.addEventListener('wewed:wedding-switched', loadPermissions)
+    return () => {
+      window.removeEventListener('focus', loadPermissions)
+      window.removeEventListener('wewed:wedding-switched', loadPermissions)
+    }
+  }, [loadPermissions])
 
-  // ── Download helper — used by both Template and Export buttons ──
+  const moduleLabel = VALID_MODULE_LABELS[moduleKey] ?? moduleKey
+  const capabilities = useMemo(
+    () => worksheetPermissionCapabilities(session?.activeWedding?.permissions),
+    [session],
+  )
+
   const triggerDownload = useCallback(
     async (endpoint: 'template' | 'export') => {
+      const permitted =
+        endpoint === 'template'
+          ? capabilities.canDownloadWorksheetTemplate
+          : capabilities.canExportWorksheet
+      if (!permitted) {
+        toast({
+          title: 'Permission required',
+          description:
+            endpoint === 'template'
+              ? 'This wedding role cannot download import templates.'
+              : 'This wedding role cannot export planner data.',
+          variant: 'destructive',
+        })
+        return
+      }
+
       setDownloading(endpoint === 'template' ? 'template' : 'export')
       try {
         const url =
           endpoint === 'template'
             ? `/api/templates?module=${encodeURIComponent(moduleKey)}`
             : `/api/exports?module=${encodeURIComponent(moduleKey)}&format=xlsx`
-        const res = await fetch(url, { cache: 'no-store' })
-        if (!res.ok) {
-          let msg = `Failed (${res.status})`
+        const response = await fetch(url, { cache: 'no-store' })
+        if (!response.ok) {
+          let message = `Failed (${response.status})`
           try {
-            const j = (await res.json()) as { error?: string }
-            if (j?.error) msg = j.error
+            const payload = (await response.json()) as { error?: string }
+            if (payload.error) message = payload.error
           } catch {
-            /* ignore parse error */
+            // The endpoint may return a non-JSON error response.
           }
-          throw new Error(msg)
+          throw new Error(message)
         }
-        const blob = await res.blob()
-        // Filename from Content-Disposition (fallback to a sane default)
-        const cd = res.headers.get('Content-Disposition') ?? ''
-        const match = cd.match(/filename="?([^";]+)"?/i)
+
+        const blob = await response.blob()
+        const contentDisposition = response.headers.get('Content-Disposition') ?? ''
+        const match = contentDisposition.match(/filename="?([^";]+)"?/i)
         const filename =
           match?.[1] ??
           (endpoint === 'template'
             ? `wewed-${moduleKey}-template.xlsx`
             : `wewed-${moduleKey}-export.xlsx`)
-        const objUrl = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = objUrl
-        a.download = filename
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        URL.revokeObjectURL(objUrl)
+        const objectUrl = URL.createObjectURL(blob)
+        const anchor = document.createElement('a')
+        anchor.href = objectUrl
+        anchor.download = filename
+        document.body.appendChild(anchor)
+        anchor.click()
+        document.body.removeChild(anchor)
+        URL.revokeObjectURL(objectUrl)
+
         toast({
           title: endpoint === 'template' ? 'Template downloaded' : 'Export ready',
           description:
@@ -119,29 +146,37 @@ export function ImportExportBar({
               ? `${moduleLabel} template — fill it in and import.`
               : `${moduleLabel} exported to Excel.`,
         })
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Download failed'
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Download failed'
         toast({
           title: endpoint === 'template' ? 'Template failed' : 'Export failed',
-          description: msg,
+          description: message,
           variant: 'destructive',
         })
       } finally {
         setDownloading(null)
       }
     },
-    [moduleKey, moduleLabel, toast],
+    [capabilities, moduleKey, moduleLabel, toast],
   )
+
+  const openImport = useCallback(() => {
+    if (!capabilities.canImportWorksheet) {
+      toast({
+        title: 'Permission required',
+        description: 'This wedding role cannot import planner data.',
+        variant: 'destructive',
+      })
+      return
+    }
+    setImportOpen(true)
+  }, [capabilities.canImportWorksheet, toast])
 
   const handleImportComplete = useCallback(() => {
     onImportComplete?.()
   }, [onImportComplete])
 
-  // Don't render until we know the user is an admin. This keeps
-  // the bar (and its buttons) hidden from guests without flashing.
-  if (!mounted || !admin) {
-    return null
-  }
+  if (!permissionsLoaded || !capabilities.canUseWorksheetTools) return null
 
   return (
     <>
@@ -158,64 +193,72 @@ export function ImportExportBar({
           {moduleLabel} data
         </Badge>
 
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={downloading !== null}
-          onClick={() => triggerDownload('template')}
-          className="gap-1.5 border-gold/30 bg-transparent text-champagne/70 hover:bg-gold/10 hover:text-gold disabled:opacity-40"
-        >
-          {downloading === 'template' ? (
-            <Loader2 className="size-3.5 animate-spin" />
-          ) : (
-            <Download className="size-3.5" />
-          )}
-          <span className="hidden sm:inline">Template</span>
-          <span className="sm:hidden">.xlsx</span>
-        </Button>
+        {capabilities.canDownloadWorksheetTemplate && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={downloading !== null}
+            onClick={() => triggerDownload('template')}
+            className="gap-1.5 border-gold/30 bg-transparent text-champagne/70 hover:bg-gold/10 hover:text-gold disabled:opacity-40"
+          >
+            {downloading === 'template' ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Download className="size-3.5" />
+            )}
+            <span className="hidden sm:inline">Template</span>
+            <span className="sm:hidden">.xlsx</span>
+          </Button>
+        )}
 
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={downloading !== null}
-          onClick={() => triggerDownload('export')}
-          className="gap-1.5 border-gold/30 bg-transparent text-champagne/70 hover:bg-gold/10 hover:text-gold disabled:opacity-40"
-        >
-          {downloading === 'export' ? (
-            <Loader2 className="size-3.5 animate-spin" />
-          ) : (
-            <FileSpreadsheet className="size-3.5" />
-          )}
-          <span>Export</span>
-        </Button>
+        {capabilities.canExportWorksheet && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={downloading !== null}
+            onClick={() => triggerDownload('export')}
+            className="gap-1.5 border-gold/30 bg-transparent text-champagne/70 hover:bg-gold/10 hover:text-gold disabled:opacity-40"
+          >
+            {downloading === 'export' ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <FileSpreadsheet className="size-3.5" />
+            )}
+            <span>Export</span>
+          </Button>
+        )}
 
-        <Button
-          type="button"
-          size="sm"
-          onClick={() => setImportOpen(true)}
-          className="gap-1.5 bg-gold text-espresso hover:bg-gold-light"
-        >
-          <Upload className="size-3.5" />
-          <span>Import</span>
-        </Button>
+        {capabilities.canImportWorksheet && (
+          <Button
+            type="button"
+            size="sm"
+            onClick={openImport}
+            className="gap-1.5 bg-gold text-espresso hover:bg-gold-light"
+          >
+            <Upload className="size-3.5" />
+            <span>Import</span>
+          </Button>
+        )}
 
         <span
           className="ml-1 hidden items-center gap-1 font-sans text-[10px] uppercase tracking-wider text-champagne/40 md:inline-flex"
-          title="These actions are admin-only"
+          title="Actions are controlled by the selected wedding's permissions"
         >
-          <Lock className="size-3" />
-          Admin
+          <ShieldCheck className="size-3" />
+          {roleLabel(session?.activeWedding?.membershipRole)}
         </span>
       </motion.div>
 
-      <ImportDialog
-        moduleKey={moduleKey}
-        isOpen={importOpen}
-        onClose={() => setImportOpen(false)}
-        onComplete={handleImportComplete}
-      />
+      {capabilities.canImportWorksheet && (
+        <ImportDialog
+          moduleKey={moduleKey}
+          isOpen={importOpen}
+          onClose={() => setImportOpen(false)}
+          onComplete={handleImportComplete}
+        />
+      )}
     </>
   )
 }
