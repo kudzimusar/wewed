@@ -59,7 +59,8 @@ describe('Phase 4 independent planner portal', () => {
       ])
     ).join('\n')
 
-    expect(activeSurface).toContain('Empty weddings stay empty')
+    expect(activeSurface).toContain('This workspace uses only the selected wedding’s saved records.')
+    expect(activeSurface).toContain('weddings stay empty until a planner adds data')
     expect(activeSurface).toContain('No couple-specific sample data is inserted automatically')
     expect(activeSurface).not.toContain('SEED_')
     expect(activeSurface).not.toContain('Charity')
