@@ -204,15 +204,20 @@ model Product {
 }
 
 model Vendor {
-  id          String  @id @default(cuid())
-  name        String
-  category    String
-  description String?
-  website     String?
-  phone       String?
-  imageUrl    String?
-  rating      Float?
-  featured    Boolean @default(false)
+  id             String  @id @default(cuid())
+  name           String
+  category       String
+  description    String?
+  website        String?
+  phone          String?
+  imageUrl       String?
+  rating         Float?
+  featured       Boolean @default(false)
+  contact        String?
+  contractStatus String  @default("pending")
+  paymentStatus  String  @default("unpaid")
+  planningRating Float?
+  notes          String?
 
   weddingId String
   wedding   Wedding @relation(fields: [weddingId], references: [id])
@@ -227,6 +232,9 @@ model ProgrammeItem {
   title       String
   description String?
   icon        String?
+  duration    String?
+  location    String?
+  displayIcon String?
   order       Int    @default(0)
 
   weddingId String
