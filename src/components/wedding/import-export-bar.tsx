@@ -1,18 +1,22 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { motion } from 'framer-motion'
 import {
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
   Download,
-  Upload,
   FileSpreadsheet,
+  History,
   Loader2,
+  RotateCcw,
   ShieldCheck,
+  Upload,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { useToast } from '@/hooks/use-toast'
+import { Button } from '@/components/ui/button'
 import { ImportDialog } from '@/components/wedding/import-dialog'
+import { useToast } from '@/hooks/use-toast'
 import { worksheetPermissionCapabilities } from '@/lib/planner-client-permissions'
 
 interface ImportExportBarProps {
@@ -27,6 +31,23 @@ interface PlannerSessionPayload {
     membershipRole?: 'admin' | 'owner' | 'planner' | 'coordinator' | 'viewer'
     permissions?: string[]
   }
+}
+
+interface ImportJobSummary {
+  id: string
+  moduleKey: string
+  fileName: string
+  templateVersion: string | null
+  status: string
+  totalRows: number
+  createdCount: number
+  updatedCount: number
+  skippedCount: number
+  errorCount: number
+  errorReport: string | null
+  rollbackToken: string | null
+  createdAt: string
+  updatedAt: string
 }
 
 const VALID_MODULE_LABELS: Record<string, string> = {
@@ -47,6 +68,46 @@ function roleLabel(value?: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
+function statusLabel(value: string): string {
+  return value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+function dateTime(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(date)
+}
+
+function statusClass(status: string): string {
+  if (status === 'executed' || status === 'rolled_back') {
+    return 'border-sage/30 text-sage-light'
+  }
+  if (status === 'failed' || status === 'rollback_failed') {
+    return 'border-clay/35 text-clay-light'
+  }
+  if (status === 'preview') return 'border-gold/25 text-gold'
+  return 'border-champagne/20 text-champagne/55'
+}
+
+function errorSummary(job: ImportJobSummary): string | null {
+  if (!job.errorCount) return null
+  if (!job.errorReport) return `${job.errorCount} row error${job.errorCount === 1 ? '' : 's'}`
+  try {
+    const report = JSON.parse(job.errorReport) as Array<{ row?: number; errors?: string[] }>
+    const first = report[0]
+    if (!first) return `${job.errorCount} row error${job.errorCount === 1 ? '' : 's'}`
+    const detail = first.errors?.join('; ') || 'Invalid row'
+    return `Row ${first.row ?? '?'}: ${detail}${report.length > 1 ? ` · ${report.length - 1} more` : ''}`
+  } catch {
+    return `${job.errorCount} row error${job.errorCount === 1 ? '' : 's'}`
+  }
+}
+
 export function ImportExportBar({
   moduleKey,
   onImportComplete,
@@ -56,6 +117,10 @@ export function ImportExportBar({
   const [session, setSession] = useState<PlannerSessionPayload | null>(null)
   const [permissionsLoaded, setPermissionsLoaded] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [jobs, setJobs] = useState<ImportJobSummary[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [rollbackJobId, setRollbackJobId] = useState<string | null>(null)
   const [downloading, setDownloading] = useState<'template' | 'export' | null>(null)
 
   const loadPermissions = useCallback(async () => {
@@ -80,10 +145,53 @@ export function ImportExportBar({
     }
   }, [loadPermissions])
 
+  useEffect(() => {
+    const clearWorksheetState = () => {
+      setJobs([])
+      setHistoryOpen(false)
+      setImportOpen(false)
+    }
+    window.addEventListener('wewed:wedding-switched', clearWorksheetState)
+    return () => window.removeEventListener('wewed:wedding-switched', clearWorksheetState)
+  }, [])
+
   const moduleLabel = VALID_MODULE_LABELS[moduleKey] ?? moduleKey
   const capabilities = useMemo(
     () => worksheetPermissionCapabilities(session?.activeWedding?.permissions),
     [session],
+  )
+
+  const loadHistory = useCallback(
+    async (showError = true) => {
+      if (!capabilities.canImportWorksheet) return
+      setHistoryLoading(true)
+      try {
+        const response = await fetch(
+          `/api/imports?module=${encodeURIComponent(moduleKey)}&limit=8`,
+          { cache: 'no-store' },
+        )
+        const payload = (await response.json()) as {
+          success?: boolean
+          data?: ImportJobSummary[]
+          error?: string
+        }
+        if (!response.ok || !payload.success) {
+          throw new Error(payload.error || 'Unable to load import history.')
+        }
+        setJobs(payload.data ?? [])
+      } catch (error) {
+        if (showError) {
+          toast({
+            title: 'Import history unavailable',
+            description: error instanceof Error ? error.message : undefined,
+            variant: 'destructive',
+          })
+        }
+      } finally {
+        setHistoryLoading(false)
+      }
+    },
+    [capabilities.canImportWorksheet, moduleKey, toast],
   )
 
   const triggerDownload = useCallback(
@@ -104,7 +212,7 @@ export function ImportExportBar({
         return
       }
 
-      setDownloading(endpoint === 'template' ? 'template' : 'export')
+      setDownloading(endpoint)
       try {
         const url =
           endpoint === 'template'
@@ -117,7 +225,7 @@ export function ImportExportBar({
             const payload = (await response.json()) as { error?: string }
             if (payload.error) message = payload.error
           } catch {
-            // The endpoint may return a non-JSON error response.
+            // Some download failures are not JSON responses.
           }
           throw new Error(message)
         }
@@ -147,10 +255,9 @@ export function ImportExportBar({
               : `${moduleLabel} exported to Excel.`,
         })
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Download failed'
         toast({
           title: endpoint === 'template' ? 'Template failed' : 'Export failed',
-          description: message,
+          description: error instanceof Error ? error.message : 'Download failed',
           variant: 'destructive',
         })
       } finally {
@@ -160,31 +267,64 @@ export function ImportExportBar({
     [capabilities, moduleKey, moduleLabel, toast],
   )
 
-  const openImport = useCallback(() => {
-    if (!capabilities.canImportWorksheet) {
-      toast({
-        title: 'Permission required',
-        description: 'This wedding role cannot import planner data.',
-        variant: 'destructive',
-      })
-      return
-    }
-    setImportOpen(true)
-  }, [capabilities.canImportWorksheet, toast])
-
   const handleImportComplete = useCallback(() => {
     onImportComplete?.()
-  }, [onImportComplete])
+    void loadHistory(false)
+  }, [loadHistory, onImportComplete])
+
+  const toggleHistory = useCallback(() => {
+    setHistoryOpen((current) => {
+      const next = !current
+      if (next) void loadHistory()
+      return next
+    })
+  }, [loadHistory])
+
+  const rollbackImport = useCallback(
+    async (job: ImportJobSummary) => {
+      if (!capabilities.canImportWorksheet || !job.rollbackToken) return
+      if (
+        !window.confirm(
+          `Rollback the ${moduleLabel} import from “${job.fileName}”? Created rows will be removed and updated rows restored.`,
+        )
+      ) {
+        return
+      }
+
+      setRollbackJobId(job.id)
+      try {
+        const response = await fetch(
+          `/api/imports/${encodeURIComponent(job.id)}?rollbackToken=${encodeURIComponent(job.rollbackToken)}`,
+          { method: 'DELETE', cache: 'no-store' },
+        )
+        const payload = (await response.json()) as { success?: boolean; error?: string }
+        if (!response.ok || !payload.success) {
+          throw new Error(payload.error || 'Unable to roll back this import.')
+        }
+        toast({
+          title: 'Import rolled back',
+          description: `${moduleLabel} records were restored to their pre-import state.`,
+        })
+        onImportComplete?.()
+        await loadHistory(false)
+      } catch (error) {
+        toast({
+          title: 'Rollback failed',
+          description: error instanceof Error ? error.message : undefined,
+          variant: 'destructive',
+        })
+      } finally {
+        setRollbackJobId(null)
+      }
+    },
+    [capabilities.canImportWorksheet, loadHistory, moduleLabel, onImportComplete, toast],
+  )
 
   if (!permissionsLoaded || !capabilities.canUseWorksheetTools) return null
 
   return (
-    <>
-      <motion.div
-        initial={{ opacity: 0, y: -4 }}
-        animate={{ opacity: 1, y: 0 }}
-        className={`flex flex-wrap items-center gap-2 ${className}`}
-      >
+    <div className={`rounded-xl border border-gold/15 bg-espresso/35 p-3 ${className}`}>
+      <div className="flex flex-wrap items-center gap-2">
         <Badge
           variant="outline"
           className="hidden border-gold/30 bg-gold/10 text-[10px] uppercase tracking-wider text-gold sm:inline-flex"
@@ -199,7 +339,7 @@ export function ImportExportBar({
             variant="outline"
             size="sm"
             disabled={downloading !== null}
-            onClick={() => triggerDownload('template')}
+            onClick={() => void triggerDownload('template')}
             className="gap-1.5 border-gold/30 bg-transparent text-champagne/70 hover:bg-gold/10 hover:text-gold disabled:opacity-40"
           >
             {downloading === 'template' ? (
@@ -207,8 +347,7 @@ export function ImportExportBar({
             ) : (
               <Download className="size-3.5" />
             )}
-            <span className="hidden sm:inline">Template</span>
-            <span className="sm:hidden">.xlsx</span>
+            Template
           </Button>
         )}
 
@@ -218,7 +357,7 @@ export function ImportExportBar({
             variant="outline"
             size="sm"
             disabled={downloading !== null}
-            onClick={() => triggerDownload('export')}
+            onClick={() => void triggerDownload('export')}
             className="gap-1.5 border-gold/30 bg-transparent text-champagne/70 hover:bg-gold/10 hover:text-gold disabled:opacity-40"
           >
             {downloading === 'export' ? (
@@ -226,30 +365,110 @@ export function ImportExportBar({
             ) : (
               <FileSpreadsheet className="size-3.5" />
             )}
-            <span>Export</span>
+            Export
           </Button>
         )}
 
         {capabilities.canImportWorksheet && (
-          <Button
-            type="button"
-            size="sm"
-            onClick={openImport}
-            className="gap-1.5 bg-gold text-espresso hover:bg-gold-light"
-          >
-            <Upload className="size-3.5" />
-            <span>Import</span>
-          </Button>
+          <>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => setImportOpen(true)}
+              className="gap-1.5 bg-gold text-espresso hover:bg-gold-light"
+            >
+              <Upload className="size-3.5" />
+              Import
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={toggleHistory}
+              disabled={historyLoading}
+              className="gap-1.5 border-gold/20 bg-transparent text-champagne/60 hover:bg-gold/10 hover:text-gold"
+            >
+              {historyLoading ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <History className="size-3.5" />
+              )}
+              Recent imports
+              {historyOpen ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
+            </Button>
+          </>
         )}
 
         <span
-          className="ml-1 hidden items-center gap-1 font-sans text-[10px] uppercase tracking-wider text-champagne/40 md:inline-flex"
+          className="ml-auto hidden items-center gap-1 font-sans text-[10px] uppercase tracking-wider text-champagne/40 md:inline-flex"
           title="Actions are controlled by the selected wedding's permissions"
         >
           <ShieldCheck className="size-3" />
           {roleLabel(session?.activeWedding?.membershipRole)}
         </span>
-      </motion.div>
+      </div>
+
+      {capabilities.canImportWorksheet && historyOpen && (
+        <div className="mt-3 space-y-2 border-t border-gold/10 pt-3">
+          {historyLoading ? (
+            <p className="font-sans text-xs text-champagne/45">Loading import history…</p>
+          ) : jobs.length === 0 ? (
+            <p className="font-sans text-xs text-champagne/45">
+              No {moduleLabel.toLowerCase()} imports have been saved for this wedding.
+            </p>
+          ) : (
+            jobs.map((job) => {
+              const errors = errorSummary(job)
+              const canRollback = job.status === 'executed' && Boolean(job.rollbackToken)
+              return (
+                <div
+                  key={job.id}
+                  className="flex flex-col gap-2 rounded-lg border border-gold/10 bg-espresso/50 p-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="truncate font-sans text-xs font-medium text-champagne">
+                        {job.fileName}
+                      </p>
+                      <Badge variant="outline" className={`text-[9px] ${statusClass(job.status)}`}>
+                        {statusLabel(job.status)}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 font-sans text-[10px] text-champagne/40">
+                      {dateTime(job.createdAt)} · {job.totalRows} rows · {job.createdCount} created ·{' '}
+                      {job.updatedCount} updated · {job.skippedCount} skipped
+                    </p>
+                    {errors && (
+                      <p className="mt-1 flex items-center gap-1 font-sans text-[10px] text-clay-light">
+                        <AlertTriangle className="size-3 shrink-0" />
+                        {errors}
+                      </p>
+                    )}
+                  </div>
+
+                  {canRollback && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={rollbackJobId !== null}
+                      onClick={() => void rollbackImport(job)}
+                      className="shrink-0 gap-1.5 border-clay/30 bg-transparent text-clay-light hover:bg-clay/10"
+                    >
+                      {rollbackJobId === job.id ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <RotateCcw className="size-3.5" />
+                      )}
+                      Roll back
+                    </Button>
+                  )}
+                </div>
+              )
+            })
+          )}
+        </div>
+      )}
 
       {capabilities.canImportWorksheet && (
         <ImportDialog
@@ -259,6 +478,6 @@ export function ImportExportBar({
           onComplete={handleImportComplete}
         />
       )}
-    </>
+    </div>
   )
 }

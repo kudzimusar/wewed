@@ -141,12 +141,12 @@ describe('Stage 4 Tasks and Budget parity', () => {
     expect(itemRoute).toContain("requireWeddingPermission(request, 'budget.edit')")
   })
 
-  test('only worksheet parity remains deferred for Tasks and Budget', () => {
+  test('Stage 4 capabilities remain restored after worksheet completion', () => {
     for (const capability of RESTORED_STAGE4_CAPABILITIES) {
       expect(KNOWN_ACTIVE_PARITY_GAPS).not.toContain(capability)
     }
-    expect(KNOWN_ACTIVE_PARITY_GAPS).toContain('tasks.worksheet')
-    expect(KNOWN_ACTIVE_PARITY_GAPS).toContain('budget.worksheet')
+    expect(KNOWN_ACTIVE_PARITY_GAPS).not.toContain('tasks.worksheet')
+    expect(KNOWN_ACTIVE_PARITY_GAPS).not.toContain('budget.worksheet')
   })
 
   test('restoration does not reactivate the retired shell or sample client data', async () => {

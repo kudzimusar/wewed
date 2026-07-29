@@ -5,15 +5,6 @@ async function source(path: string): Promise<string> {
   return Bun.file(path).text()
 }
 
-const EXPECTED_WORKSHEET_GAPS = [
-  'tasks.worksheet',
-  'budget.worksheet',
-  'vendors.worksheet',
-  'guests.worksheet',
-  'timeline.worksheet',
-  'seating.worksheet',
-] as const
-
 describe('Stage 6 Timeline and Seating parity', () => {
   test('restored timeline workflows remain grounded in the original TimelineTab', async () => {
     const original = await source(ORIGINAL_PLANNER_SOURCE)
@@ -86,7 +77,7 @@ describe('Stage 6 Timeline and Seating parity', () => {
     expect(collectionRoute).toContain("requireWeddingPermission(request, 'timeline.edit')")
     expect(collectionRoute).toContain('duration: body.duration?.trim() || null')
     expect(collectionRoute).toContain('location: body.location?.trim() || null')
-    expect(collectionRoute).toContain('description: (body.notes ?? body.description ?? \'\').trim() || null')
+    expect(collectionRoute).toContain("description: (body.notes ?? body.description ?? '').trim() || null")
     expect(itemRoute).toContain("where: { id, weddingId: access.context.weddingId }")
     expect(itemRoute).toContain('updates.duration = body.duration?.trim() || null')
     expect(itemRoute).toContain('updates.location = body.location?.trim() || null')
@@ -191,8 +182,8 @@ describe('Stage 6 Timeline and Seating parity', () => {
     expect(route).toContain('updates.seatingTableId = body.seatingTableId')
   })
 
-  test('only the six worksheet capabilities remain as original parity debt', () => {
-    expect([...KNOWN_ACTIVE_PARITY_GAPS]).toEqual([...EXPECTED_WORKSHEET_GAPS])
+  test('Stage 6 capabilities remain restored after worksheet completion', () => {
+    expect([...KNOWN_ACTIVE_PARITY_GAPS]).toEqual([])
   })
 
   test('restoration does not reactivate the retired shell or sample client data', async () => {

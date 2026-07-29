@@ -20,6 +20,7 @@ export interface PlannerParityCapability {
 export const ORIGINAL_PLANNER_SOURCE = 'src/components/wedding/wedding-planner.tsx'
 export const ACTIVE_PLANNER_SOURCE_PATHS = [
   'src/components/wedding/planner-portal.tsx',
+  'src/components/wedding/planner-workspace-stage7.tsx',
   'src/components/wedding/planner-workspace.tsx',
 ] as const
 
@@ -38,8 +39,8 @@ function capability(
  *
  * An API route, parser, or unmounted component does not satisfy active parity.
  * The equivalent workflow must be reachable through PlannerPortal or its mounted
- * workspace. Each recovery stage must reduce KNOWN_ACTIVE_PARITY_GAPS without
- * introducing a new omission.
+ * workspace. Stage 7 completes the original six-module worksheet surface while
+ * retaining the independent, permission-aware planner shell.
  */
 export const ORIGINAL_PLANNER_PARITY: readonly PlannerParityCapability[] = [
   capability(
@@ -344,15 +345,8 @@ export const ORIGINAL_PLANNER_PARITY: readonly PlannerParityCapability[] = [
   ),
 ]
 
-/** Exact known parity debt after Stage 6 Timeline and Seating restoration. */
-export const KNOWN_ACTIVE_PARITY_GAPS = [
-  'tasks.worksheet',
-  'budget.worksheet',
-  'vendors.worksheet',
-  'guests.worksheet',
-  'timeline.worksheet',
-  'seating.worksheet',
-] as const
+/** Stage 7 restores every original planner capability on the active surface. */
+export const KNOWN_ACTIVE_PARITY_GAPS = [] as const
 
 export const INTENTIONAL_UPGRADES = [
   'Dedicated /planner route.',
@@ -360,6 +354,7 @@ export const INTENTIONAL_UPGRADES = [
   'Membership-based active-wedding authorization.',
   'No automatic client data seeding.',
   'Phase 1-6 upgrades retained during restoration.',
+  'Versioned worksheet history and persisted rollback controls.',
 ] as const
 
 export function missingMarkers(source: string, markers: readonly string[]): string[] {
