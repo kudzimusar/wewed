@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { evaluateHealthEnvironment } from '@/lib/planner-stage9'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-
-const EXPECTED_SITE_URL = 'https://wewed-nu.vercel.app'
 
 async function checkDatabase() {
   try {
@@ -34,22 +33,20 @@ async function checkSupabaseAuth(url: string, anonKey: string) {
 }
 
 export async function GET() {
+  const environment = evaluateHealthEnvironment({
+    nodeEnv: process.env.NODE_ENV,
+    databaseUrl: process.env.DATABASE_URL,
+    directUrl: process.env.DIRECT_URL,
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    sessionSecret: process.env.WEWED_SESSION_SECRET,
+    siteUrl: process.env.NEXT_PUBLIC_SITE_URL,
+    productionSiteUrl: process.env.PRODUCTION_SITE_URL,
+  })
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ?? ''
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? ''
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() ?? ''
-
-  const requiredEnvironment = {
-    databaseUrl: Boolean(process.env.DATABASE_URL),
-    supabaseUrl: Boolean(supabaseUrl),
-    supabaseAnonKey: Boolean(supabaseAnonKey),
-    siteUrl: Boolean(siteUrl),
-  }
-
-  const optionalEnvironment = {
-    directUrl: Boolean(process.env.DIRECT_URL),
-    serviceRole: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
-  }
-
   const [database, supabaseAuth] = await Promise.all([
     checkDatabase(),
     supabaseUrl && supabaseAnonKey
@@ -57,13 +54,12 @@ export async function GET() {
       : Promise.resolve(false),
   ])
 
-  const siteUrlMatchesProduction = siteUrl === EXPECTED_SITE_URL
-  const requiredEnvironmentReady = Object.values(requiredEnvironment).every(Boolean)
   const ok =
     database &&
     supabaseAuth &&
-    siteUrlMatchesProduction &&
-    requiredEnvironmentReady
+    environment.siteUrlValid &&
+    environment.productionSiteMatches &&
+    environment.requiredEnvironmentReady
 
   return NextResponse.json(
     {
@@ -71,9 +67,10 @@ export async function GET() {
       checks: {
         database,
         supabaseAuth,
-        siteUrlMatchesProduction,
-        requiredEnvironment,
-        optionalEnvironment,
+        siteUrlValid: environment.siteUrlValid,
+        productionSiteMatches: environment.productionSiteMatches,
+        requiredEnvironment: environment.requiredEnvironment,
+        optionalEnvironment: environment.optionalEnvironment,
       },
       timestamp: new Date().toISOString(),
     },
@@ -82,6 +79,6 @@ export async function GET() {
       headers: {
         'Cache-Control': 'no-store, max-age=0',
       },
-    }
+    },
   )
 }

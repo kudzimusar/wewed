@@ -16,6 +16,7 @@ import { PlannerCollaborationHub } from '@/components/wedding/planner-collaborat
 import { PlannerEventCommand } from '@/components/wedding/planner-event-command'
 import { PlannerInvitationTools } from '@/components/wedding/planner-invitation-tools'
 import { PlannerOperations } from '@/components/wedding/planner-operations'
+import { PlannerReleaseCenter } from '@/components/wedding/planner-release-center'
 import { PlannerWorkspace } from '@/components/wedding/planner-workspace-stage7'
 import { WeddingContextControls } from '@/components/wedding/wedding-context-controls'
 import { logoutAdmin } from '@/lib/admin-auth'
@@ -75,7 +76,7 @@ function PlannerExperienceNavigation() {
             Daily planner path
           </p>
           <p className="mt-0.5 font-sans text-[11px] text-champagne/45">
-            Plan → coordinate → update → operate → execute
+            Plan → coordinate → update → operate → execute → close
           </p>
         </div>
 
@@ -97,6 +98,7 @@ function PlannerExperienceNavigation() {
             <PlannerOperations />
             <PlannerInvitationTools />
             <PlannerEventCommand />
+            <PlannerReleaseCenter />
           </div>
         </nav>
       </div>
