@@ -114,6 +114,9 @@ jobs:
       - name: Run Stage 8 information architecture tests
         run: bun test src/lib/planner-stage8-information-architecture.test.ts
 
+      - name: Run Stage 9 intelligence, closeout and release tests
+        run: bun test src/lib/planner-stage9-intelligence-closeout-release.test.ts
+
       - name: Run Phase 2 workflow tests
         run: bun test src/lib/planner-phase2.test.ts
 
