@@ -13,8 +13,8 @@ import { Button } from '@/components/ui/button'
 import { PlannerCollaborationHub } from '@/components/wedding/planner-collaboration-hub'
 import { PlannerInvitationTools } from '@/components/wedding/planner-invitation-tools'
 import { PlannerOperations } from '@/components/wedding/planner-operations'
+import { PlannerWorkspace } from '@/components/wedding/planner-workspace'
 import { WeddingContextControls } from '@/components/wedding/wedding-context-controls'
-import { WeddingPlanner } from '@/components/wedding/wedding-planner'
 import { logoutAdmin } from '@/lib/admin-auth'
 
 interface PlannerPortalProps {
@@ -135,7 +135,6 @@ export function PlannerPortal({ onExit }: PlannerPortalProps) {
           </span>
           <Button
             asChild
-            type="button"
             variant="outline"
             size="sm"
             className="hidden border-gold/25 bg-transparent text-champagne/70 hover:bg-gold/10 hover:text-gold md:inline-flex"
@@ -171,8 +170,8 @@ export function PlannerPortal({ onExit }: PlannerPortalProps) {
           <WeddingContextControls />
         </div>
 
-        <div className="h-full min-h-0 overflow-hidden [&>div>header]:hidden">
-          <WeddingPlanner onClose={onExit} />
+        <div className="h-full min-h-0 overflow-hidden">
+          <PlannerWorkspace />
         </div>
 
         <PlannerInvitationTools />
