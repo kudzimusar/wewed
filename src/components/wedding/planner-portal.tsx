@@ -5,6 +5,7 @@ import Link from 'next/link'
 import {
   CalendarDays,
   ExternalLink,
+  LayoutDashboard,
   Loader2,
   LogOut,
   ShieldCheck,
@@ -60,6 +61,61 @@ function dateLabel(value?: string): string {
 function roleLabel(value?: string): string {
   if (!value) return 'Team member'
   return value.charAt(0).toUpperCase() + value.slice(1)
+}
+
+function PlannerExperienceNavigation() {
+  return (
+    <section
+      data-planner-experience-nav
+      className="shrink-0 border-b border-gold/15 bg-espresso/95 px-3 py-3 sm:px-5"
+    >
+      <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+        <div className="shrink-0">
+          <p className="font-sans text-[9px] font-semibold uppercase tracking-[0.2em] text-gold/70">
+            Daily planner path
+          </p>
+          <p className="mt-0.5 font-sans text-[11px] text-champagne/45">
+            Plan → coordinate → update → operate → execute
+          </p>
+        </div>
+
+        <nav
+          aria-label="Planner experience navigation"
+          className="min-w-0 overflow-x-auto overscroll-x-contain"
+        >
+          <div data-planner-tool-triggers className="flex min-w-max items-center gap-2 pb-1 xl:pb-0">
+            <a
+              href="#planner-workspace"
+              aria-current="page"
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-gold/35 bg-gold/12 px-3 font-sans text-xs font-medium text-gold transition-colors hover:bg-gold/18"
+            >
+              <LayoutDashboard className="size-3.5" />
+              Planning workspace
+            </a>
+            <PlannerCollaborationHub />
+            <PlannerClientProfile />
+            <PlannerOperations />
+            <PlannerInvitationTools />
+            <PlannerEventCommand />
+          </div>
+        </nav>
+      </div>
+
+      <style jsx global>{`
+        [data-planner-tool-triggers] > button {
+          position: static !important;
+          inset: auto !important;
+          z-index: auto !important;
+          flex-shrink: 0 !important;
+          box-shadow: none !important;
+        }
+
+        [data-planner-tool-triggers] > button span {
+          display: inline !important;
+        }
+      `}</style>
+    </section>
+  )
 }
 
 export function PlannerPortal({ onExit }: PlannerPortalProps) {
@@ -154,8 +210,6 @@ export function PlannerPortal({ onExit }: PlannerPortalProps) {
           <span className="hidden rounded-full border border-gold/20 bg-gold/5 px-2.5 py-1 font-sans text-[10px] uppercase tracking-[0.12em] text-gold xl:inline-flex">
             {roleLabel(wedding?.membershipRole || session?.user?.role)}
           </span>
-          <PlannerEventCommand />
-          <PlannerClientProfile />
           <Button
             asChild
             variant="outline"
@@ -188,18 +242,16 @@ export function PlannerPortal({ onExit }: PlannerPortalProps) {
         </div>
       </header>
 
-      <div className="planner-portal-body relative min-h-0 flex-1 overflow-hidden pt-12">
+      <div className="planner-portal-body relative flex min-h-0 flex-1 flex-col overflow-hidden pt-12">
         <div className="planner-portal-context">
           <WeddingContextControls />
         </div>
 
-        <div className="h-full min-h-0 overflow-hidden">
-          <PlannerWorkspace key={wedding?.id ?? 'no-active-wedding'} />
-        </div>
+        <PlannerExperienceNavigation key={`tools-${wedding?.id ?? 'no-active-wedding'}`} />
 
-        <PlannerInvitationTools />
-        <PlannerOperations />
-        <PlannerCollaborationHub />
+        <main id="planner-workspace" className="min-h-0 flex-1 overflow-hidden" tabIndex={-1}>
+          <PlannerWorkspace key={wedding?.id ?? 'no-active-wedding'} />
+        </main>
       </div>
 
       <style jsx global>{`
