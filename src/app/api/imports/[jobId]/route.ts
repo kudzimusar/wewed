@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireWeddingPermission } from '@/lib/wedding-access'
 import { getModuleSchema } from '@/lib/import-engine/schemas'
+import { generatePreview } from '@/lib/import-engine/preview'
 import {
   executeImport,
   rollbackImport,
   peekRollback,
   _peekRollbackStore,
 } from '@/lib/import-engine/executor'
-import type { ImportPreview, RollbackSnapshot } from '@/lib/import-engine/types'
+import type { ImportPreview, ParsedFile, RollbackSnapshot } from '@/lib/import-engine/types'
 
 type RouteContext = { params: Promise<{ jobId: string }> }
 
@@ -55,10 +56,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ success: false, error: 'Import preview not found.' }, { status: 404 })
     }
     if (job.status === 'executed') {
-      return NextResponse.json(
-        { success: false, error: 'This import has already been executed.' },
-        { status: 409 },
-      )
+      return NextResponse.json({ success: false, error: 'This import has already been executed.' }, { status: 409 })
     }
     if (job.status === 'rolled_back') {
       return NextResponse.json(
@@ -67,22 +65,48 @@ export async function POST(request: NextRequest, context: RouteContext) {
       )
     }
 
-    const preview = JSON.parse(job.previewData) as ImportPreview
-    let previewToExecute = preview
+    const storedPreview = JSON.parse(job.previewData) as ImportPreview
+    const schema = getModuleSchema(storedPreview.moduleKey)
+    let body: { rowIndices?: unknown; mappingOverrides?: unknown } = {}
     try {
-      const body = (await request.json()) as { rowIndices?: unknown }
-      if (Array.isArray(body.rowIndices)) {
-        const selected = new Set(body.rowIndices.filter((value): value is number => typeof value === 'number'))
-        previewToExecute = { ...preview, rows: preview.rows.filter((row) => selected.has(row.rowIndex)) }
-      }
+      body = (await request.json()) as typeof body
     } catch {
-      // Empty body means execute all valid rows.
+      // Empty body means execute all valid rows with automatic mapping.
     }
 
-    const schema = getModuleSchema(preview.moduleKey)
+    let previewToExecute = storedPreview
+    if (body.mappingOverrides && typeof body.mappingOverrides === 'object') {
+      const rawRows = storedPreview.rows.map((row) => row.raw)
+      const headers = Array.from(new Set(rawRows.flatMap((row) => Object.keys(row))))
+      const parsed: ParsedFile = { headers, rows: rawRows, rawRowCount: rawRows.length }
+      previewToExecute = await generatePreview(
+        parsed,
+        schema,
+        access.context.weddingId,
+        storedPreview.fileName,
+        body.mappingOverrides as Record<string, string>,
+      )
+      await db.importJob.update({
+        where: { id: jobId },
+        data: {
+          previewData: JSON.stringify(previewToExecute),
+          fieldMapping: JSON.stringify(previewToExecute.fieldMapping),
+          totalRows: previewToExecute.totalRows,
+          errorCount: previewToExecute.invalidRows,
+        },
+      })
+    }
+
+    if (Array.isArray(body.rowIndices)) {
+      const selected = new Set(body.rowIndices.filter((value): value is number => typeof value === 'number'))
+      previewToExecute = {
+        ...previewToExecute,
+        rows: previewToExecute.rows.filter((row) => selected.has(row.rowIndex)),
+      }
+    }
+
     const result = await executeImport(previewToExecute, schema, access.context.weddingId)
     const snapshot = peekRollback(result.rollbackToken)
-
     await db.importJob.update({
       where: { id: jobId },
       data: {
@@ -102,11 +126,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
         resourceType: 'import_job',
         resourceId: jobId,
         afterValue: JSON.stringify({
-          moduleKey: preview.moduleKey,
+          moduleKey: previewToExecute.moduleKey,
           created: result.created,
           updated: result.updated,
           skipped: result.skipped,
           errors: result.errors,
+          mappingAdjusted: Boolean(body.mappingOverrides),
         }),
         weddingId: access.context.weddingId,
         actorId: access.context.session.userId,
@@ -116,9 +141,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ success: true, jobId, result })
   } catch (error) {
     console.error('[imports job POST] Error:', error)
-    await db.importJob
-      .update({ where: { id: jobId }, data: { status: 'failed' } })
-      .catch(() => undefined)
+    await db.importJob.update({ where: { id: jobId }, data: { status: 'failed' } }).catch(() => undefined)
     return NextResponse.json(
       { success: false, error: error instanceof Error ? error.message : 'Unable to execute import.' },
       { status: 500 },
@@ -157,10 +180,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     const rollback = await rollbackImport(job.rollbackToken)
     await db.importJob.update({
       where: { id: jobId },
-      data: {
-        status: rollback.failed ? 'rollback_failed' : 'rolled_back',
-        rollbackData: null,
-      },
+      data: { status: rollback.failed ? 'rollback_failed' : 'rolled_back', rollbackData: null },
     })
     await db.auditEvent.create({
       data: {
