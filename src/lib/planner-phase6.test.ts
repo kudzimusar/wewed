@@ -71,7 +71,7 @@ describe('Phase 6 architecture', () => {
   test('event-day API is wedding-scoped and validates resources', async () => {
     const route = await source('src/app/api/planner/event-day/route.ts')
     expect(route).toContain("requireWeddingPermission(request, 'planner.view')")
-    expect(route).toContain('weddingId: access.context.weddingId')
+    expect(route).toContain('const weddingId = access.context.weddingId')
     expect(route).toContain("action === 'set_check_in'")
     expect(route).toContain("action === 'set_timeline_status'")
     expect(route).toContain("section: 'event_day_issue'")
