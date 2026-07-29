@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import {
-  decodeLegacyVendorDescription,
-  encodeLegacyVendorDescription,
-  type LegacyVendorMeta,
-} from '@/lib/planner-legacy-metadata'
+import { resolveVendorPlanningFields } from '@/lib/planner-legacy-metadata'
 import { requireWeddingPermission } from '@/lib/wedding-access'
 
 const CATEGORIES = [
@@ -32,26 +28,31 @@ function formatVendor(v: {
   imageUrl: string | null
   rating: number | null
   featured: boolean
+  contact: string | null
+  contractStatus: string
+  paymentStatus: string
+  planningRating: number | null
+  notes: string | null
   weddingId: string
   createdAt: Date
   updatedAt: Date
 }) {
-  const { meta, humanDescription } = decodeLegacyVendorDescription(v.description)
+  const planning = resolveVendorPlanningFields(v)
   return {
     id: v.id,
     name: v.name,
     category: v.category,
-    description: humanDescription,
+    description: planning.description,
     website: v.website,
     phone: v.phone,
     imageUrl: v.imageUrl,
     rating: v.rating,
     featured: v.featured,
-    contact: meta.contact ?? '',
-    contractStatus: meta.contractStatus ?? 'pending',
-    paymentStatus: meta.paymentStatus ?? 'unpaid',
-    metaRating: typeof meta.rating === 'number' ? meta.rating : null,
-    notes: meta.notes ?? '',
+    contact: planning.contact,
+    contractStatus: planning.contractStatus,
+    paymentStatus: planning.paymentStatus,
+    metaRating: planning.planningRating,
+    notes: planning.notes,
     weddingId: v.weddingId,
     createdAt: v.createdAt.toISOString(),
     updatedAt: v.updatedAt.toISOString(),
@@ -112,28 +113,13 @@ export async function PATCH(
       }
       updates.category = body.category
     }
+    if (body.description !== undefined) {
+      updates.description = body.description?.trim() || null
+    }
     if (body.website !== undefined) updates.website = body.website?.trim() || null
     if (body.phone !== undefined) updates.phone = body.phone?.trim() || null
     if (body.featured !== undefined) updates.featured = body.featured === true
-    if (body.rating !== undefined) {
-      if (body.rating === null) updates.rating = null
-      else if (typeof body.rating === 'number' && body.rating >= 0 && body.rating <= 5) {
-        updates.rating = body.rating
-      } else {
-        return NextResponse.json(
-          { success: false, error: 'Rating must be between 0 and 5' },
-          { status: 400 },
-        )
-      }
-    }
-
-    const decoded = decodeLegacyVendorDescription(existing.description)
-    const mergedMeta: LegacyVendorMeta = { ...decoded.meta }
-    let humanDescription = decoded.humanDescription
-    if (body.description !== undefined) {
-      humanDescription = body.description?.trim() || null
-    }
-    if (body.contact !== undefined) mergedMeta.contact = body.contact?.trim() || undefined
+    if (body.contact !== undefined) updates.contact = body.contact?.trim() || null
     if (body.contractStatus !== undefined) {
       if (!CONTRACT_STATUSES.includes(body.contractStatus as (typeof CONTRACT_STATUSES)[number])) {
         return NextResponse.json(
@@ -141,7 +127,7 @@ export async function PATCH(
           { status: 400 },
         )
       }
-      mergedMeta.contractStatus = body.contractStatus
+      updates.contractStatus = body.contractStatus
     }
     if (body.paymentStatus !== undefined) {
       if (!PAYMENT_STATUSES.includes(body.paymentStatus as (typeof PAYMENT_STATUSES)[number])) {
@@ -150,13 +136,30 @@ export async function PATCH(
           { status: 400 },
         )
       }
-      mergedMeta.paymentStatus = body.paymentStatus
+      updates.paymentStatus = body.paymentStatus
     }
-    if (body.notes !== undefined) mergedMeta.notes = body.notes?.trim() || undefined
-    if (typeof body.rating === 'number') mergedMeta.rating = body.rating
-    if (body.rating === null) delete mergedMeta.rating
+    if (body.notes !== undefined) updates.notes = body.notes?.trim() || null
+    if (body.rating !== undefined) {
+      if (body.rating === null) {
+        updates.rating = null
+        updates.planningRating = null
+      } else if (typeof body.rating === 'number' && body.rating >= 0 && body.rating <= 5) {
+        updates.rating = body.rating
+        updates.planningRating = body.rating
+      } else {
+        return NextResponse.json(
+          { success: false, error: 'Rating must be between 0 and 5' },
+          { status: 400 },
+        )
+      }
+    }
 
-    updates.description = encodeLegacyVendorDescription(humanDescription, mergedMeta)
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'No updates provided' },
+        { status: 400 },
+      )
+    }
 
     const updated = await db.vendor.update({
       where: { id: existing.id },
