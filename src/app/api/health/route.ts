@@ -40,10 +40,14 @@ export async function GET() {
 
   const requiredEnvironment = {
     databaseUrl: Boolean(process.env.DATABASE_URL),
-    directUrl: Boolean(process.env.DIRECT_URL),
     supabaseUrl: Boolean(supabaseUrl),
     supabaseAnonKey: Boolean(supabaseAnonKey),
     siteUrl: Boolean(siteUrl),
+  }
+
+  const optionalEnvironment = {
+    directUrl: Boolean(process.env.DIRECT_URL),
+    serviceRole: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
   }
 
   const [database, supabaseAuth] = await Promise.all([
@@ -69,7 +73,7 @@ export async function GET() {
         supabaseAuth,
         siteUrlMatchesProduction,
         requiredEnvironment,
-        serviceRoleConfigured: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
+        optionalEnvironment,
       },
       timestamp: new Date().toISOString(),
     },
