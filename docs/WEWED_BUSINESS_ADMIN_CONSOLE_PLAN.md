@@ -114,9 +114,11 @@ Add checks for:
 
 ## MVP implementation status — July 30, 2026
 
-Implemented on the feature branch:
+Implemented and validated on the feature branch:
 
-- Additive parent-company data migration and existing-record mapping
+- Additive parent-company data migrations and existing-record mapping
+- Private `wewed_admin` database schema with server-only access
+- Production seed mapping for the Wewed internal account, couples, the existing planner business, weddings, and venues including Imba Manor
 - Server-side Wewed administrator authorization
 - `/api/admin/overview` read/write operations
 - Private `/admin` application route
@@ -126,12 +128,22 @@ Implemented on the feature branch:
 - Support case management
 - Platform incident management
 - Admin audit history
+- Separate Wewed administrator provisioning script and access guide
 - Draft pull request #48 for controlled review
 
-Pending release gates:
+Validation completed:
 
-- Successful final Vercel Preview build
-- Database migration application and seed verification
-- Activation of a separate Wewed administrator login
-- Planner regression smoke test
-- Production merge and promotion
+- Admin Console lint and application build
+- Clean PostgreSQL migration deployment
+- Prisma migration status and drift check
+- Existing planner unit and integration regression suites
+- Existing planner browser release gate
+- Live `/planner` HTTP smoke test after the production database migration
+- Rolled-back production write-path smoke test for accounts, payments, support, incidents, and audit records
+
+Remaining release gates:
+
+- Vercel Preview deployment of the final branch commit; currently blocked by the project build-rate limit
+- Provisioning of a separate Wewed company administrator identity
+- Authenticated `/admin` preview walkthrough
+- Production merge and deployment after those two checks pass
