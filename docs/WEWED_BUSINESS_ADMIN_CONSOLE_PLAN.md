@@ -129,6 +129,7 @@ Implemented and validated on the feature branch:
 - Platform incident management
 - Admin audit history
 - Separate Wewed administrator provisioning script and access guide
+- Separate Wewed administrator identity provisioned and validated
 - Draft pull request #48 for controlled review
 
 Validation completed:
@@ -140,10 +141,10 @@ Validation completed:
 - Existing planner browser release gate
 - Live `/planner` HTTP smoke test after the production database migration
 - Rolled-back production write-path smoke test for accounts, payments, support, incidents, and audit records
+- Administrator password, confirmed email identity, active application role, and Wewed super-admin membership verified
 
 Remaining release gates:
 
 - Vercel Preview deployment of the final branch commit; currently blocked by the project build-rate limit
-- Provisioning of a separate Wewed company administrator identity
 - Authenticated `/admin` preview walkthrough
-- Production merge and deployment after those two checks pass
+- Production merge and deployment after those checks pass
