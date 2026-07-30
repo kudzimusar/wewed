@@ -17,6 +17,7 @@ import { AmbientMusicPlayer } from '@/components/wedding/ambient-music-player'
 import { SectionTracker } from '@/components/wedding/section-tracker'
 import { KeyboardSectionNav } from '@/components/wedding/keyboard-section-nav'
 import { KeyboardShortcutsHelp } from '@/components/wedding/keyboard-shortcuts-help'
+import { PublicRegistrationTrigger } from '@/components/public/public-registration-trigger'
 
 export function GlobalWeddingTools() {
   const pathname = usePathname()
@@ -42,6 +43,7 @@ export function GlobalWeddingTools() {
       <SectionTracker />
       <KeyboardSectionNav />
       <KeyboardShortcutsHelp />
+      <PublicRegistrationTrigger />
     </>
   )
 }
