@@ -1,12 +1,12 @@
 # Planner Stage 10 release scorecard
 
 Date: 2026-07-30
-Release candidate: `recovery/stage-10-executable-regression-gate`
+Merged release: `912208449f01e070db2cd229a83d0eaf951761f8`
 Tracking: #46 / PR #47
 
 ## Decision rule
 
-Human Alpha testing must not begin until the exact release candidate passes the complete GitHub CI chain and the merged commit is successfully promoted and smoke-tested in production. Source-marker tests alone do not satisfy this gate.
+Human Alpha testing must not begin until the complete GitHub CI chain passes and the merged application is successfully promoted and smoke-tested in production. Source-marker tests alone do not satisfy this gate.
 
 ## Executable evidence
 
@@ -17,13 +17,22 @@ Human Alpha testing must not begin until the exact release candidate passes the 
 | Two-wedding isolation with populated data | Green | A guarded ephemeral PostgreSQL fixture contains two populated fictional weddings. Browser and direct API assertions verify that records from one selected wedding never appear in the other before or after switching and reloading. |
 | Mobile, keyboard, printing, and visual behaviour | Green for tested Chromium matrix | Pixel 5 mobile containment, desktop overflow, keyboard activation, dialog escape, accessible control naming, notification close naming, and wedding-scoped print output are executable browser assertions. |
 | Real planner daily usage | Green for deterministic Alpha workflow | The browser creates operational data, switches weddings, verifies isolation, returns to the first wedding, reloads, and checks persisted Tasks, Budget, Vendors, Guests, Timeline, and Seating. |
-| Production deployment | Release-blocking until post-merge promotion | The exact merged commit must be deployed, `/api/health` must report ready, the public planner route must load without server errors, and the CI-only identity path must remain inactive on Vercel. Evidence is recorded on #46. |
+| Production deployment | Promotion in progress | A READY Vercel preview of the corrected application returned HTTP 200 and `ok: true` from `/api/health`, with no runtime errors found for `/api/health` or `/planner`. The final gate is the Git-integrated production deployment from `main`, followed by the same non-destructive checks. |
 
 ## Regressions found and corrected
 
-1. Worksheet controls and the visible planner module used independent state. Selecting Budget worksheet tools could leave the Overview or another planner module visible. The selector and workspace navigation are now synchronized in both directions.
+1. Worksheet controls and the visible planner module used independent state. Selecting Budget worksheet tools could leave Overview or another planner module visible. The selector and workspace navigation are now synchronized in both directions.
 2. Notification toast close buttons lacked an accessible name. They now expose `Close notification`, protected by a dedicated browser regression test.
 3. Production-build cookies required a guarded localhost exception for browser wedding switching. The exception requires explicit E2E mode, GitHub CI, a local PostgreSQL URL, and absence of Vercel; normal production cookies remain secure.
+4. Production health ignored the server-only Supabase service-role fallback already supported by session signing. Health now validates the effective server-side signing secret and still requires at least 32 characters.
+
+## Verified CI evidence
+
+- Clean PostgreSQL migrations, migration status, and schema drift checks passed.
+- Original parity, planner integrity, Stages 2–10, and retained Phases 2–6 passed.
+- The Next.js production build passed.
+- Seven executable desktop/mobile Chromium scenarios passed.
+- The merge commit contains no file changes beyond the fully tested release head.
 
 ## Safety boundary
 
@@ -37,4 +46,4 @@ The automated browser matrix currently covers Chromium desktop and a Chromium-ba
 
 ## Release status
 
-The candidate is eligible to merge only after the full CI chain is green. Human Alpha is eligible only after the exact merge commit passes production promotion and smoke validation.
+The planner application and deterministic Alpha workflow are green. Human Alpha becomes eligible after the `main` production deployment reports READY, `/api/health` returns HTTP 200 with `ok: true`, the protected planner route responds without application-server failure, and production runtime logs show no related errors.
