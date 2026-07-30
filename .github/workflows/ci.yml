@@ -18,9 +18,9 @@ concurrency:
 
 jobs:
   validate:
-    name: Validate migrations and build
+    name: Validate migrations, build, and planner release gate
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
 
     services:
       postgres:
@@ -38,6 +38,8 @@ jobs:
           --health-retries 5
 
     env:
+      CI: 'true'
+      WEWED_E2E_MODE: '1'
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/wewed?schema=public
       DIRECT_URL: postgresql://postgres:postgres@localhost:5432/wewed?schema=public
       NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
@@ -58,6 +60,9 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      - name: Install pinned browser test runner
+        run: bun add --no-save --exact @playwright/test@1.55.0
 
       - name: Validate Prisma schema
         run: bunx prisma validate --schema prisma/schema.prisma
@@ -117,6 +122,9 @@ jobs:
       - name: Run Stage 9 intelligence, closeout and release tests
         run: bun test src/lib/planner-stage9-intelligence-closeout-release.test.ts
 
+      - name: Run Stage 10 executable release-gate contract
+        run: bun test src/lib/planner-stage10-executable-release-gate.test.ts
+
       - name: Run Phase 2 workflow tests
         run: bun test src/lib/planner-phase2.test.ts
 
@@ -134,3 +142,20 @@ jobs:
 
       - name: Build application
         run: bun run build
+
+      - name: Install Chromium and system dependencies
+        run: bunx playwright install --with-deps chromium
+
+      - name: Run executable planner browser release gate
+        run: bunx playwright test
+
+      - name: Upload browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: planner-browser-release-gate
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 14

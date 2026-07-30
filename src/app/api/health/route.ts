@@ -40,7 +40,9 @@ export async function GET() {
     supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
     supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-    sessionSecret: process.env.WEWED_SESSION_SECRET,
+    // App-session signing supports a dedicated secret first and a server-only,
+    // high-entropy service-role fallback. Health must validate the same contract.
+    sessionSecret: process.env.WEWED_SESSION_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY,
     siteUrl: process.env.NEXT_PUBLIC_SITE_URL,
     productionSiteUrl: process.env.PRODUCTION_SITE_URL,
   })

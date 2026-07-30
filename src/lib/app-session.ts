@@ -39,11 +39,26 @@ function getSigningSecret(): string {
 
   if (!secret) {
     throw new Error(
-      '[wewed] Missing WEWED_SESSION_SECRET or SUPABASE_SERVICE_ROLE_KEY.'
+      '[wewed] Missing WEWED_SESSION_SECRET or SUPABASE_SERVICE_ROLE_KEY.',
     )
   }
 
   return secret
+}
+
+function isLocalCiBrowserMode(): boolean {
+  const databaseUrl = process.env.DATABASE_URL?.toLowerCase() ?? ''
+  const localDatabase = databaseUrl.includes('localhost') || databaseUrl.includes('127.0.0.1')
+  return (
+    process.env.WEWED_E2E_MODE === '1' &&
+    process.env.CI === 'true' &&
+    !process.env.VERCEL &&
+    localDatabase
+  )
+}
+
+function useSecureCookie(): boolean {
+  return process.env.NODE_ENV === 'production' && !isLocalCiBrowserMode()
 }
 
 function signPayload(encodedPayload: string): string {
@@ -77,7 +92,7 @@ export function createAppSessionToken(input: CreateAppSessionInput): string {
   }
 
   const encodedPayload = Buffer.from(JSON.stringify(payload), 'utf8').toString(
-    'base64url'
+    'base64url',
   )
 
   return `${encodedPayload}.${signPayload(encodedPayload)}`
@@ -86,14 +101,13 @@ export function createAppSessionToken(input: CreateAppSessionInput): string {
 export function verifyAppSessionToken(token: string): AppSession | null {
   try {
     const [encodedPayload, signature, extra] = token.split('.')
-
     if (!encodedPayload || !signature || extra) return null
 
     const expectedSignature = signPayload(encodedPayload)
     if (!signaturesMatch(signature, expectedSignature)) return null
 
     const payload = JSON.parse(
-      Buffer.from(encodedPayload, 'base64url').toString('utf8')
+      Buffer.from(encodedPayload, 'base64url').toString('utf8'),
     ) as Partial<AppSession>
 
     if (
@@ -124,7 +138,7 @@ export function readAppSession(request: NextRequest): AppSession | null {
 
 export function setAppSessionCookie(
   response: NextResponse,
-  input: CreateAppSessionInput
+  input: CreateAppSessionInput,
 ): AppSession {
   const token = createAppSessionToken(input)
   const session = verifyAppSessionToken(token)
@@ -135,7 +149,7 @@ export function setAppSessionCookie(
 
   response.cookies.set(APP_SESSION_COOKIE, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: useSecureCookie(),
     sameSite: 'lax',
     path: '/',
     maxAge: APP_SESSION_TTL_SECONDS,
@@ -147,7 +161,7 @@ export function setAppSessionCookie(
 export function clearAppSessionCookie(response: NextResponse): void {
   response.cookies.set(APP_SESSION_COOKIE, '', {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: useSecureCookie(),
     sameSite: 'lax',
     path: '/',
     maxAge: 0,
