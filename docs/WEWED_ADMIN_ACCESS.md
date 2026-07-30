@@ -4,7 +4,11 @@ The parent-company console is available at `/admin` after the feature is deploye
 
 A Wewed administrator must use a separate Supabase authentication identity. Do not convert a planner, couple, venue, or vendor login into the platform administrator.
 
-## Provision the first administrator
+## First administrator
+
+The first separate Wewed company administrator identity was provisioned and validated on July 30, 2026. Its credentials are intentionally not stored in this repository.
+
+## Provision another administrator
 
 Set the existing project environment variables plus the new administrator values:
 
