@@ -3,13 +3,19 @@ name: Admin Console CI
 on:
   pull_request:
     paths:
+      - 'src/app/layout.tsx'
       - 'src/app/admin/**'
       - 'src/app/api/admin/**'
       - 'src/components/admin/**'
+      - 'src/components/wedding/global-wedding-tools.tsx'
       - 'src/lib/wewed-admin.ts'
+      - 'src/lib/wewed-admin-policy.ts'
+      - 'src/lib/wewed-admin-governance.test.ts'
+      - 'src/lib/wedding-access.ts'
       - 'scripts/provision-wewed-admin.ts'
       - 'prisma/migrations/**'
       - 'docs/WEWED_BUSINESS_ADMIN_CONSOLE_PLAN.md'
+      - 'docs/WEWED_ADMIN_GOVERNANCE_ANALYTICS_PLAN.md'
       - 'docs/WEWED_ADMIN_ACCESS.md'
       - '.github/workflows/admin-console-ci.yml'
   workflow_dispatch:
@@ -47,13 +53,21 @@ jobs:
       - name: Generate Prisma client
         run: bunx prisma generate
 
+      - name: Run admin governance contracts
+        run: bun test src/lib/wewed-admin-governance.test.ts
+
       - name: Lint admin console changes
         run: >-
           bunx eslint
+          src/app/layout.tsx
           src/app/admin
           src/app/api/admin
           src/components/admin
+          src/components/wedding/global-wedding-tools.tsx
           src/lib/wewed-admin.ts
+          src/lib/wewed-admin-policy.ts
+          src/lib/wewed-admin-governance.test.ts
+          src/lib/wedding-access.ts
           scripts/provision-wewed-admin.ts
 
       - name: Build application
