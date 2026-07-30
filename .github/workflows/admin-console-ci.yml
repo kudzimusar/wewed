@@ -7,13 +7,19 @@ on:
       - 'src/app/api/admin/**'
       - 'src/components/admin/**'
       - 'src/lib/wewed-admin.ts'
+      - 'scripts/provision-wewed-admin.ts'
       - 'prisma/migrations/**'
       - 'docs/WEWED_BUSINESS_ADMIN_CONSOLE_PLAN.md'
+      - 'docs/WEWED_ADMIN_ACCESS.md'
       - '.github/workflows/admin-console-ci.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: admin-console-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -48,6 +54,7 @@ jobs:
           src/app/api/admin
           src/components/admin
           src/lib/wewed-admin.ts
+          scripts/provision-wewed-admin.ts
 
       - name: Build application
         run: bun run build
