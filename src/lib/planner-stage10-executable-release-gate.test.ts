@@ -13,8 +13,11 @@ describe('Stage 10 executable planner release gate', () => {
     expect(shell).toContain('data-testid={`worksheet-module-${module.key}`}')
   })
 
-  test('browser authentication bypass is production-inert', async () => {
-    const authRoute = await source('src/app/api/auth/me/route.ts')
+  test('browser authentication and local cookies are production-inert', async () => {
+    const [authRoute, session] = await Promise.all([
+      source('src/app/api/auth/me/route.ts'),
+      source('src/lib/app-session.ts'),
+    ])
     for (const marker of [
       "process.env.WEWED_E2E_MODE === '1'",
       "process.env.CI === 'true'",
@@ -26,6 +29,8 @@ describe('Stage 10 executable planner release gate', () => {
     ]) {
       expect(authRoute).toContain(marker)
     }
+    expect(session).toContain('isLocalCiBrowserMode')
+    expect(session).toContain("process.env.NODE_ENV === 'production' && !isLocalCiBrowserMode()")
   })
 
   test('the destructive fixture is local-only and contains two populated weddings', async () => {
@@ -49,8 +54,16 @@ describe('Stage 10 executable planner release gate', () => {
     }
   })
 
-  test('the browser suite covers all previously unverified release areas', async () => {
-    const browser = await source('tests/e2e/planner-release-gate.spec.ts')
+  test('the modular browser suites cover all previously unverified release areas', async () => {
+    const browser = (
+      await Promise.all([
+        source('tests/e2e/planner-crud.spec.ts'),
+        source('tests/e2e/planner-data-workflows.spec.ts'),
+        source('tests/e2e/planner-ux.spec.ts'),
+        source('tests/e2e/support/planner-browser.ts'),
+      ])
+    ).join('\n')
+
     for (const marker of [
       "openModule(page, 'checklist')",
       "openModule(page, 'budget')",
@@ -66,11 +79,18 @@ describe('Stage 10 executable planner release gate', () => {
       'Print run sheet',
       'two populated weddings remain isolated',
       'keyboard navigation',
+      'Close notification',
       '@mobile',
       'expectNoDocumentOverflow',
+      'browser/runtime errors',
     ]) {
       expect(browser).toContain(marker)
     }
+  })
+
+  test('notification close controls retain an accessible name', async () => {
+    const toaster = await source('src/components/ui/toaster.tsx')
+    expect(toaster).toContain('<ToastClose aria-label="Close notification" />')
   })
 
   test('Playwright separates desktop and mobile Chromium gates', async () => {
