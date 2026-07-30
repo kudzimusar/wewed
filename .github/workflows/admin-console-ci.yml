@@ -5,17 +5,28 @@ on:
     paths:
       - 'src/app/layout.tsx'
       - 'src/app/admin/**'
+      - 'src/app/register/**'
+      - 'src/app/billing/**'
       - 'src/app/api/admin/**'
+      - 'src/app/api/auth/register/**'
+      - 'src/app/api/billing/**'
+      - 'src/app/api/stripe/**'
       - 'src/components/admin/**'
+      - 'src/components/public/**'
+      - 'src/components/billing/**'
       - 'src/components/wedding/global-wedding-tools.tsx'
       - 'src/lib/wewed-admin.ts'
       - 'src/lib/wewed-admin-policy.ts'
       - 'src/lib/wewed-admin-governance.test.ts'
       - 'src/lib/wedding-access.ts'
+      - 'src/lib/stripe-billing.ts'
+      - 'src/lib/supabase/service.ts'
       - 'scripts/provision-wewed-admin.ts'
+      - 'scripts/public-registration-rbac-stripe-contract.ts'
       - 'prisma/migrations/**'
       - 'docs/WEWED_BUSINESS_ADMIN_CONSOLE_PLAN.md'
       - 'docs/WEWED_ADMIN_GOVERNANCE_ANALYTICS_PLAN.md'
+      - 'docs/WEWED_PUBLIC_REGISTRATION_RBAC_STRIPE_PLAN.md'
       - 'docs/WEWED_ADMIN_ACCESS.md'
       - '.github/workflows/admin-console-ci.yml'
   workflow_dispatch:
@@ -38,6 +49,11 @@ jobs:
       NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
       SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-key
+      STRIPE_SECRET_KEY: sk_test_ci_placeholder
+      STRIPE_WEBHOOK_SECRET: whsec_ci_placeholder
+      STRIPE_PRICE_STARTER: price_ci_starter
+      STRIPE_PRICE_PROFESSIONAL: price_ci_professional
+      STRIPE_PRICE_ENTERPRISE: price_ci_enterprise
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -56,19 +72,32 @@ jobs:
       - name: Run admin governance contracts
         run: bun test src/lib/wewed-admin-governance.test.ts
 
-      - name: Lint admin console changes
+      - name: Run registration, RBAC and Stripe contracts
+        run: bun scripts/public-registration-rbac-stripe-contract.ts
+
+      - name: Lint platform changes
         run: >-
           bunx eslint
           src/app/layout.tsx
           src/app/admin
+          src/app/register
+          src/app/billing
           src/app/api/admin
+          src/app/api/auth/register
+          src/app/api/billing
+          src/app/api/stripe
           src/components/admin
+          src/components/public
+          src/components/billing
           src/components/wedding/global-wedding-tools.tsx
           src/lib/wewed-admin.ts
           src/lib/wewed-admin-policy.ts
           src/lib/wewed-admin-governance.test.ts
           src/lib/wedding-access.ts
+          src/lib/stripe-billing.ts
+          src/lib/supabase/service.ts
           scripts/provision-wewed-admin.ts
+          scripts/public-registration-rbac-stripe-contract.ts
 
       - name: Build application
         run: bun run build
