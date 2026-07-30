@@ -10,6 +10,10 @@ import {
   acceptPendingMemberships,
   listAccessibleWeddings,
 } from '@/lib/wedding-access'
+import {
+  isWewedPlatformAdministrator,
+  WEWED_PLATFORM_SESSION_ID,
+} from '@/lib/business-access'
 
 function errorResponse(message: string, status: number) {
   const response = NextResponse.json(
@@ -84,6 +88,65 @@ export async function POST(request: NextRequest) {
       return errorResponse('This account has been disabled.', 403)
     }
 
+    const normalizedAuthEmail = data.user.email?.toLowerCase() ?? email
+    const displayName = existingProfile?.displayName ?? accessUser.name ?? null
+    const now = new Date()
+    const platformAdministrator =
+      accessUser.role === 'admin' &&
+      await isWewedPlatformAdministrator(accessUser.id)
+
+    if (platformAdministrator) {
+      await db.$transaction([
+        db.user.update({
+          where: { id: accessUser.id },
+          data: { lastLoginAt: now, currentWeddingId: null },
+        }),
+        db.userProfile.upsert({
+          where: { id: data.user.id },
+          create: {
+            id: data.user.id,
+            email: normalizedAuthEmail,
+            displayName,
+            role: 'admin',
+            lastLoginAt: now,
+          },
+          update: {
+            email: normalizedAuthEmail,
+            displayName,
+            role: 'admin',
+            lastLoginAt: now,
+          },
+        }),
+      ])
+
+      const response = NextResponse.json({
+        success: true,
+        user: {
+          id: data.user.id,
+          accessUserId: accessUser.id,
+          email: normalizedAuthEmail,
+          displayName,
+          role: 'admin',
+          coupleId: null,
+          activeWeddingId: WEWED_PLATFORM_SESSION_ID,
+        },
+        activeWedding: null,
+        weddings: [],
+        workspace: 'wewed_platform',
+      })
+
+      setAppSessionCookie(response, {
+        userId: accessUser.id,
+        authUserId: data.user.id,
+        email: normalizedAuthEmail,
+        role: 'admin',
+        coupleId: null,
+        activeWeddingId: WEWED_PLATFORM_SESSION_ID,
+      })
+
+      return response
+    }
+
     await acceptPendingMemberships(accessUser.id)
 
     const weddings = await listAccessibleWeddings(accessUser.id, accessUser.role)
@@ -106,21 +169,10 @@ export async function POST(request: NextRequest) {
     const activeWedding =
       weddings.find((wedding) => wedding.id === storedWeddingId) ?? weddings[0]
 
-    await db.$executeRawUnsafe(
-      `UPDATE public."User"
-       SET "currentWeddingId" = $2, "updatedAt" = CURRENT_TIMESTAMP
-       WHERE id = $1`,
-      accessUser.id,
-      activeWedding.id
-    )
-
-    const normalizedAuthEmail = data.user.email?.toLowerCase() ?? email
-    const displayName = existingProfile?.displayName ?? accessUser.name ?? null
-
     await db.$transaction([
       db.user.update({
         where: { id: accessUser.id },
-        data: { lastLoginAt: new Date() },
+        data: { currentWeddingId: activeWedding.id, lastLoginAt: now },
       }),
       db.userProfile.upsert({
         where: { id: data.user.id },
@@ -129,13 +181,13 @@ export async function POST(request: NextRequest) {
           email: normalizedAuthEmail,
           displayName,
           role: accessUser.role,
-          lastLoginAt: new Date(),
+          lastLoginAt: now,
         },
         update: {
           email: normalizedAuthEmail,
           displayName,
           role: accessUser.role,
-          lastLoginAt: new Date(),
+          lastLoginAt: now,
         },
       }),
     ])
@@ -159,6 +211,7 @@ export async function POST(request: NextRequest) {
         ...wedding,
         date: wedding.date.toISOString(),
       })),
+      workspace: 'wedding',
     })
 
     setAppSessionCookie(response, {
