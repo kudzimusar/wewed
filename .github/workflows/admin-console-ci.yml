@@ -9,13 +9,14 @@ on:
       - 'src/app/register/**'
       - 'src/app/billing/**'
       - 'src/app/api/admin/**'
-      - 'src/app/api/auth/register/**'
+      - 'src/app/api/auth/**'
       - 'src/app/api/billing/**'
       - 'src/app/api/stripe/**'
       - 'src/components/admin/**'
       - 'src/components/public/**'
       - 'src/components/billing/**'
       - 'src/components/wedding/global-wedding-tools.tsx'
+      - 'src/lib/business-access.ts'
       - 'src/lib/wewed-admin.ts'
       - 'src/lib/wewed-admin-policy.ts'
       - 'src/lib/wewed-admin-governance.test.ts'
@@ -24,6 +25,7 @@ on:
       - 'src/lib/supabase/service.ts'
       - 'scripts/provision-wewed-admin.ts'
       - 'scripts/public-registration-rbac-stripe-contract.ts'
+      - 'scripts/wewed-data-pipeline-contract.ts'
       - 'prisma/migrations/**'
       - 'docs/WEWED_BUSINESS_ADMIN_CONSOLE_PLAN.md'
       - 'docs/WEWED_ADMIN_GOVERNANCE_ANALYTICS_PLAN.md'
@@ -76,6 +78,9 @@ jobs:
       - name: Run registration, RBAC and Stripe contracts
         run: bun scripts/public-registration-rbac-stripe-contract.ts
 
+      - name: Run stakeholder data-pipeline contracts
+        run: bun scripts/wewed-data-pipeline-contract.ts
+
       - name: Lint platform changes
         run: >-
           bunx eslint
@@ -85,13 +90,14 @@ jobs:
           src/app/register
           src/app/billing
           src/app/api/admin
-          src/app/api/auth/register
+          src/app/api/auth
           src/app/api/billing
           src/app/api/stripe
           src/components/admin
           src/components/public
           src/components/billing
           src/components/wedding/global-wedding-tools.tsx
+          src/lib/business-access.ts
           src/lib/wewed-admin.ts
           src/lib/wewed-admin-policy.ts
           src/lib/wewed-admin-governance.test.ts
@@ -100,6 +106,7 @@ jobs:
           src/lib/supabase/service.ts
           scripts/provision-wewed-admin.ts
           scripts/public-registration-rbac-stripe-contract.ts
+          scripts/wewed-data-pipeline-contract.ts
 
       - name: Build application
         run: bun run build
