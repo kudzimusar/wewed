@@ -111,3 +111,27 @@ Add checks for:
 - Support cases and incidents can be recorded.
 - Audit history is visible.
 - Existing production data remains intact.
+
+## MVP implementation status — July 30, 2026
+
+Implemented on the feature branch:
+
+- Additive parent-company data migration and existing-record mapping
+- Server-side Wewed administrator authorization
+- `/api/admin/overview` read/write operations
+- Private `/admin` application route
+- Business dashboard and account registry
+- Onboarding account creation and status management
+- Manual subscription/payment records
+- Support case management
+- Platform incident management
+- Admin audit history
+- Draft pull request #48 for controlled review
+
+Pending release gates:
+
+- Successful final Vercel Preview build
+- Database migration application and seed verification
+- Activation of a separate Wewed administrator login
+- Planner regression smoke test
+- Production merge and promotion
