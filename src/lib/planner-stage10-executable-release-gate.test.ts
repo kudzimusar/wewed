@@ -33,6 +33,14 @@ describe('Stage 10 executable planner release gate', () => {
     expect(session).toContain("process.env.NODE_ENV === 'production' && !isLocalCiBrowserMode()")
   })
 
+  test('production health validates the same server-side signing fallback used by sessions', async () => {
+    const health = await source('src/app/api/health/route.ts')
+    expect(health).toContain(
+      'sessionSecret: process.env.WEWED_SESSION_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY',
+    )
+    expect(health).toContain('serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY')
+  })
+
   test('the destructive fixture is local-only and contains two populated weddings', async () => {
     const fixture = await source('tests/e2e/support/planner-fixture.ts')
     for (const marker of [
