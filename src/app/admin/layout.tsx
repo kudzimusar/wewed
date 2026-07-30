@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
+import { AdminUtilityNav } from '@/components/admin/admin-utility-nav'
 
 export const metadata: Metadata = {
   title: 'Wewed Business Admin Console',
@@ -12,5 +13,10 @@ export const metadata: Metadata = {
 }
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
-  return children
+  return (
+    <>
+      {children}
+      <AdminUtilityNav />
+    </>
+  )
 }
