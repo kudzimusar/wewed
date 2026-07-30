@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import type { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { verifyStripeWebhookSignature } from '@/lib/stripe-billing'
@@ -20,6 +21,19 @@ type StripeEvent = {
   data: { object: StripeObject }
 }
 
+type Transaction = Prisma.TransactionClient
+
+const SUPPORTED_EVENTS = new Set([
+  'checkout.session.completed',
+  'customer.subscription.created',
+  'customer.subscription.updated',
+  'customer.subscription.deleted',
+  'invoice.paid',
+  'invoice.payment_succeeded',
+  'invoice.payment_failed',
+  'charge.refunded',
+])
+
 function stringId(value: unknown): string | null {
   if (typeof value === 'string') return value
   if (value && typeof value === 'object' && 'id' in value && typeof (value as { id?: unknown }).id === 'string') {
@@ -36,31 +50,39 @@ function text(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null
 }
 
-async function eventAlreadyProcessed(eventId: string): Promise<boolean> {
-  const rows = await db.$queryRawUnsafe<Array<{ exists: boolean }>>(
+async function lock(tx: Transaction, key: string): Promise<void> {
+  await tx.$queryRawUnsafe(
+    'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+    key,
+  )
+}
+
+async function eventAlreadyProcessed(tx: Transaction, eventId: string): Promise<boolean> {
+  const rows = await tx.$queryRawUnsafe<Array<{ exists: boolean }>>(
     `SELECT EXISTS (
       SELECT 1 FROM public."BusinessAuditLog"
-      WHERE "resourceType" = 'StripeEvent' AND "resourceId" = $1
+      WHERE "resourceType" = 'StripeEvent'
+        AND "resourceId" = $1
+        AND action = 'stripe.webhook_processed'
     ) AS exists`,
     eventId,
   )
   return Boolean(rows[0]?.exists)
 }
 
-async function findAccount(input: {
+async function findAccount(tx: Transaction, input: {
   businessAccountId?: string | null
   customerId?: string | null
 }) {
-  const rows = await db.$queryRawUnsafe<
+  const rows = await tx.$queryRawUnsafe<
     Array<{
       id: string
       name: string
-      metadata: Record<string, unknown>
       subscriptionPlan: string
       subscriptionStatus: string
     }>
   >(
-    `SELECT id, name, metadata, "subscriptionPlan", "subscriptionStatus"
+    `SELECT id, name, "subscriptionPlan", "subscriptionStatus"
      FROM public."BusinessAccount"
      WHERE ($1::text IS NOT NULL AND id = $1)
         OR ($2::text IS NOT NULL AND metadata->>'stripeCustomerId' = $2)
@@ -72,9 +94,8 @@ async function findAccount(input: {
   return rows[0] ?? null
 }
 
-async function updateSubscriptionAccount(input: {
+async function updateSubscriptionAccount(tx: Transaction, input: {
   accountId: string
-  metadata: Record<string, unknown>
   plan?: string | null
   status?: string | null
   customerId?: string | null
@@ -82,15 +103,14 @@ async function updateSubscriptionAccount(input: {
   checkoutSessionId?: string | null
   currentPeriodEnd?: number | null
 }) {
-  const nextMetadata = {
-    ...input.metadata,
-    ...(input.customerId ? { stripeCustomerId: input.customerId } : {}),
-    ...(input.subscriptionId ? { stripeSubscriptionId: input.subscriptionId } : {}),
-    ...(input.checkoutSessionId ? { stripeCheckoutSessionId: input.checkoutSessionId } : {}),
+  const metadataPatch: Record<string, string> = {
     stripeLastSyncedAt: new Date().toISOString(),
   }
+  if (input.customerId) metadataPatch.stripeCustomerId = input.customerId
+  if (input.subscriptionId) metadataPatch.stripeSubscriptionId = input.subscriptionId
+  if (input.checkoutSessionId) metadataPatch.stripeCheckoutSessionId = input.checkoutSessionId
 
-  await db.$executeRawUnsafe(
+  await tx.$executeRawUnsafe(
     `UPDATE public."BusinessAccount"
      SET "subscriptionPlan" = COALESCE($2, "subscriptionPlan"),
        "subscriptionStatus" = COALESCE($3, "subscriptionStatus"),
@@ -98,34 +118,34 @@ async function updateSubscriptionAccount(input: {
          WHEN $4::bigint IS NULL THEN "currentPeriodEndsAt"
          ELSE to_timestamp($4::bigint)
        END,
-       metadata = $5::jsonb,
+       metadata = COALESCE(metadata, '{}'::jsonb) || $5::jsonb,
        "updatedAt" = CURRENT_TIMESTAMP
      WHERE id = $1`,
     input.accountId,
     input.plan ?? null,
     input.status ?? null,
     input.currentPeriodEnd ?? null,
-    JSON.stringify(nextMetadata),
+    JSON.stringify(metadataPatch),
   )
 }
 
 function normalizeSubscriptionStatus(status: string | null, eventType: string): string | null {
   if (eventType === 'customer.subscription.deleted') return 'cancelled'
   if (!status) return null
-  if (status === 'trialing') return 'trialing'
-  if (status === 'active') return 'active'
-  if (['past_due', 'unpaid', 'incomplete', 'incomplete_expired', 'paused'].includes(status)) return status
   if (status === 'canceled') return 'cancelled'
   return status
 }
 
-async function recordInvoice(input: {
+async function recordPayment(tx: Transaction, input: {
   accountId: string
   object: StripeObject
   status: 'paid' | 'failed' | 'refunded'
 }) {
-  const invoiceId = text(input.object.id)
-  if (!invoiceId) return
+  const providerReference = text(input.object.id)
+  if (!providerReference) return
+
+  await lock(tx, `stripe-payment:${providerReference}`)
+
   const currency = (text(input.object.currency) || 'usd').toUpperCase()
   const amount = input.status === 'paid'
     ? integer(input.object.amount_paid) ?? integer(input.object.amount_due) ?? 0
@@ -133,18 +153,40 @@ async function recordInvoice(input: {
       ? integer(input.object.amount_refunded) ?? integer(input.object.amount) ?? 0
       : integer(input.object.amount_due) ?? integer(input.object.amount_remaining) ?? 0
 
-  await db.$executeRawUnsafe(
+  const existing = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+    `SELECT id FROM public."PaymentRecord"
+     WHERE provider = 'stripe' AND "providerReference" = $1
+     LIMIT 1`,
+    providerReference,
+  )
+
+  if (existing[0]) {
+    await tx.$executeRawUnsafe(
+      `UPDATE public."PaymentRecord"
+       SET "businessAccountId" = $2,
+         "amountCents" = $3,
+         currency = $4,
+         status = $5,
+         "paidAt" = CASE WHEN $5 = 'paid' THEN CURRENT_TIMESTAMP ELSE "paidAt" END,
+         "updatedAt" = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      existing[0].id,
+      input.accountId,
+      amount,
+      currency,
+      input.status,
+    )
+    return
+  }
+
+  await tx.$executeRawUnsafe(
     `INSERT INTO public."PaymentRecord"
       ("id", "businessAccountId", "provider", "providerReference", "type", "amountCents", "currency", "status", "paidAt")
-     SELECT $1, $2, 'stripe', $3, 'subscription', $4, $5, $6,
-       CASE WHEN $6 = 'paid' THEN CURRENT_TIMESTAMP ELSE NULL END
-     WHERE NOT EXISTS (
-       SELECT 1 FROM public."PaymentRecord"
-       WHERE provider = 'stripe' AND "providerReference" = $3
-     )`,
+     VALUES ($1, $2, 'stripe', $3, 'subscription', $4, $5, $6,
+       CASE WHEN $6 = 'paid' THEN CURRENT_TIMESTAMP ELSE NULL END)`,
     `payment-${randomUUID()}`,
     input.accountId,
-    invoiceId,
+    providerReference,
     amount,
     currency,
     input.status,
@@ -162,80 +204,91 @@ export async function POST(request: NextRequest) {
     if (!event.id || !event.type || !event.data?.object) {
       return NextResponse.json({ success: false, error: 'Invalid Stripe event.' }, { status: 400 })
     }
-    if (await eventAlreadyProcessed(event.id)) {
-      return NextResponse.json({ success: true, duplicate: true })
-    }
 
-    const object = event.data.object
-    const metadata = object.metadata || {}
-    const businessAccountId = text(metadata.businessAccountId) || text(object.client_reference_id)
-    const customerId = stringId(object.customer)
-    const account = await findAccount({ businessAccountId, customerId })
-
-    if (account) {
-      if (event.type === 'checkout.session.completed') {
-        const plan = text(metadata.plan)
-        await updateSubscriptionAccount({
-          accountId: account.id,
-          metadata: account.metadata,
-          plan,
-          status: text(object.status) === 'complete' ? 'active' : account.subscriptionStatus,
-          customerId,
-          subscriptionId: stringId(object.subscription),
-          checkoutSessionId: text(object.id),
-        })
+    const result = await db.$transaction(async (tx) => {
+      await lock(tx, `stripe-event:${event.id}`)
+      if (await eventAlreadyProcessed(tx, event.id)) {
+        return { duplicate: true }
       }
 
-      if (event.type.startsWith('customer.subscription.')) {
-        await updateSubscriptionAccount({
-          accountId: account.id,
-          metadata: account.metadata,
-          plan: text(metadata.plan),
-          status: normalizeSubscriptionStatus(text(object.status), event.type),
-          customerId,
-          subscriptionId: text(object.id),
-          currentPeriodEnd: integer(object.current_period_end),
-        })
+      const object = event.data.object
+      const metadata = object.metadata || {}
+      const businessAccountId = text(metadata.businessAccountId) || text(object.client_reference_id)
+      const customerId = stringId(object.customer)
+      const account = await findAccount(tx, { businessAccountId, customerId })
+      const supported = SUPPORTED_EVENTS.has(event.type)
+
+      if (supported && !account) {
+        throw new Error(`Stripe event ${event.id} could not be matched to a Wewed account.`)
       }
 
-      if (event.type === 'invoice.paid' || event.type === 'invoice.payment_succeeded') {
-        await recordInvoice({ accountId: account.id, object, status: 'paid' })
-        await updateSubscriptionAccount({
-          accountId: account.id,
-          metadata: account.metadata,
-          status: 'active',
-          customerId,
-          subscriptionId: stringId(object.subscription),
-        })
+      if (account) {
+        if (event.type === 'checkout.session.completed') {
+          await updateSubscriptionAccount(tx, {
+            accountId: account.id,
+            plan: text(metadata.plan),
+            customerId,
+            subscriptionId: stringId(object.subscription),
+            checkoutSessionId: text(object.id),
+          })
+        }
+
+        if (event.type.startsWith('customer.subscription.')) {
+          await updateSubscriptionAccount(tx, {
+            accountId: account.id,
+            plan: text(metadata.plan),
+            status: normalizeSubscriptionStatus(text(object.status), event.type),
+            customerId,
+            subscriptionId: text(object.id),
+            currentPeriodEnd: integer(object.current_period_end),
+          })
+        }
+
+        if (event.type === 'invoice.paid' || event.type === 'invoice.payment_succeeded') {
+          await recordPayment(tx, { accountId: account.id, object, status: 'paid' })
+          await updateSubscriptionAccount(tx, {
+            accountId: account.id,
+            status: 'active',
+            customerId,
+            subscriptionId: stringId(object.subscription),
+          })
+        }
+
+        if (event.type === 'invoice.payment_failed') {
+          await recordPayment(tx, { accountId: account.id, object, status: 'failed' })
+          await updateSubscriptionAccount(tx, {
+            accountId: account.id,
+            status: 'past_due',
+            customerId,
+            subscriptionId: stringId(object.subscription),
+          })
+        }
+
+        if (event.type === 'charge.refunded') {
+          await recordPayment(tx, { accountId: account.id, object, status: 'refunded' })
+        }
       }
 
-      if (event.type === 'invoice.payment_failed') {
-        await recordInvoice({ accountId: account.id, object, status: 'failed' })
-        await updateSubscriptionAccount({
-          accountId: account.id,
-          metadata: account.metadata,
-          status: 'past_due',
-          customerId,
-          subscriptionId: stringId(object.subscription),
-        })
-      }
+      await tx.$executeRawUnsafe(
+        `INSERT INTO public."BusinessAuditLog"
+          ("id", "actorUserId", "businessAccountId", "action", "resourceType", "resourceId", "details")
+         VALUES ($1, NULL, $2, 'stripe.webhook_processed', 'StripeEvent', $3, $4::jsonb)
+         ON CONFLICT DO NOTHING`,
+        `audit-${randomUUID()}`,
+        account?.id ?? null,
+        event.id,
+        JSON.stringify({
+          type: event.type,
+          stripeObjectId: text(object.id),
+          matchedAccount: Boolean(account),
+          supported,
+        }),
+      )
 
-      if (event.type === 'charge.refunded') {
-        await recordInvoice({ accountId: account.id, object, status: 'refunded' })
-      }
-    }
+      return { duplicate: false }
+    })
 
-    await db.$executeRawUnsafe(
-      `INSERT INTO public."BusinessAuditLog"
-        ("id", "actorUserId", "businessAccountId", "action", "resourceType", "resourceId", "details")
-       VALUES ($1, NULL, $2, 'stripe.webhook_processed', 'StripeEvent', $3, $4::jsonb)`,
-      `audit-${randomUUID()}`,
-      account?.id ?? null,
-      event.id,
-      JSON.stringify({ type: event.type, stripeObjectId: text(object.id), matchedAccount: Boolean(account) }),
-    )
-
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, duplicate: result.duplicate })
   } catch (error) {
     console.error('[api/stripe/webhook] Error:', error)
     return NextResponse.json({ success: false, error: 'Stripe event processing failed.' }, { status: 500 })
