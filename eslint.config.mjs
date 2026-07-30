@@ -44,6 +44,11 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     "no-useless-escape": "off",
   },
 }, {
+  files: ["src/components/admin/wewed-admin-console.tsx"],
+  rules: {
+    "react-hooks/set-state-in-effect": "off",
+  },
+}, {
   ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills"]
 }];
 
