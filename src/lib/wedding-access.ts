@@ -115,6 +115,30 @@ export async function listAccessibleWeddings(
           JOIN public."Wedding" w ON w.id = m."weddingId"
           WHERE m."userId" = $1
             AND m.status IN ('active', 'invited')
+            AND (
+              NOT EXISTS (
+                SELECT 1
+                FROM public."BusinessAccountMember" bam
+                JOIN public."BusinessAccountLink" bal
+                  ON bal."businessAccountId" = bam."businessAccountId"
+                WHERE bam."userId" = m."userId"
+                  AND bal."entityType" = 'wedding'
+                  AND bal."entityId" = w.id
+              )
+              OR EXISTS (
+                SELECT 1
+                FROM public."BusinessAccountMember" bam
+                JOIN public."BusinessAccount" ba
+                  ON ba.id = bam."businessAccountId"
+                JOIN public."BusinessAccountLink" bal
+                  ON bal."businessAccountId" = bam."businessAccountId"
+                WHERE bam."userId" = m."userId"
+                  AND bam.status = 'active'
+                  AND ba.status = 'active'
+                  AND bal."entityType" = 'wedding'
+                  AND bal."entityId" = w.id
+              )
+            )
           ORDER BY CASE WHEN m.status = 'active' THEN 0 ELSE 1 END,
                    w.date ASC, w."createdAt" ASC
         `,
@@ -173,11 +197,35 @@ export async function getWeddingContext(
     }>
   >(
     `
-      SELECT "weddingId", role, permissions
-      FROM public."WeddingMembership"
-      WHERE "userId" = $1
-        AND "weddingId" = $2
-        AND status = 'active'
+      SELECT m."weddingId", m.role, m.permissions
+      FROM public."WeddingMembership" m
+      WHERE m."userId" = $1
+        AND m."weddingId" = $2
+        AND m.status = 'active'
+        AND (
+          NOT EXISTS (
+            SELECT 1
+            FROM public."BusinessAccountMember" bam
+            JOIN public."BusinessAccountLink" bal
+              ON bal."businessAccountId" = bam."businessAccountId"
+            WHERE bam."userId" = m."userId"
+              AND bal."entityType" = 'wedding'
+              AND bal."entityId" = m."weddingId"
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM public."BusinessAccountMember" bam
+            JOIN public."BusinessAccount" ba
+              ON ba.id = bam."businessAccountId"
+            JOIN public."BusinessAccountLink" bal
+              ON bal."businessAccountId" = bam."businessAccountId"
+            WHERE bam."userId" = m."userId"
+              AND bam.status = 'active'
+              AND ba.status = 'active'
+              AND bal."entityType" = 'wedding'
+              AND bal."entityId" = m."weddingId"
+          )
+        )
       LIMIT 1
     `,
     session.userId,
