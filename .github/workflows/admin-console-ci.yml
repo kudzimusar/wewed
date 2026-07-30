@@ -110,3 +110,15 @@ jobs:
 
       - name: Build application
         run: bun run build
+
+      - name: Upload reviewed Preview source
+        uses: actions/upload-artifact@v4
+        with:
+          name: wewed-preview-source-${{ github.sha }}
+          path: |
+            .
+            !.git/**
+            !node_modules/**
+            !.next/**
+          include-hidden-files: true
+          retention-days: 1
