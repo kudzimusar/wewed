@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { readAppSession } from '@/lib/app-session'
 import { db } from '@/lib/db'
+import { businessMemberCanManageBilling } from '@/lib/business-access'
 import {
   createStripeCheckoutSession,
   createStripeCustomer,
@@ -17,12 +18,14 @@ interface BillingAccountRow {
   name: string
   type: string
   status: string
+  onboardingStatus: string
   subscriptionPlan: string
   subscriptionStatus: string
   currentPeriodEndsAt: Date | null
   metadata: Record<string, unknown>
   memberRole: string
   memberStatus: string
+  memberPermissions: unknown
 }
 
 function objectValue(value: unknown): Record<string, unknown> {
@@ -39,15 +42,20 @@ async function resolveBillingAccount(request: NextRequest): Promise<{
   if (!session) return null
 
   const rows = await db.$queryRawUnsafe<BillingAccountRow[]>(
-    `SELECT ba.id, ba.name, ba.type, ba.status,
+    `SELECT ba.id, ba.name, ba.type, ba.status, ba."onboardingStatus",
       ba."subscriptionPlan", ba."subscriptionStatus", ba."currentPeriodEndsAt",
-      ba.metadata, bam.role AS "memberRole", bam.status AS "memberStatus"
+      ba.metadata, bam.role AS "memberRole", bam.status AS "memberStatus",
+      bam.permissions AS "memberPermissions"
      FROM public."BusinessAccountMember" bam
      JOIN public."BusinessAccount" ba ON ba.id = bam."businessAccountId"
      WHERE bam."userId" = $1
        AND bam.status = 'active'
        AND ba.type <> 'wewed_internal'
-     ORDER BY CASE WHEN ba.status = 'active' THEN 0 ELSE 1 END, ba."updatedAt" DESC
+     ORDER BY CASE
+       WHEN ba.status = 'active' AND ba."onboardingStatus" = 'complete' THEN 0
+       WHEN ba.status = 'active' THEN 1
+       ELSE 2
+     END, ba."updatedAt" DESC
      LIMIT 1`,
     session.userId,
   )
@@ -55,15 +63,43 @@ async function resolveBillingAccount(request: NextRequest): Promise<{
   return rows[0] ? { session, account: rows[0] } : null
 }
 
+function billingAccessError(resolved: Awaited<ReturnType<typeof resolveBillingAccount>>) {
+  if (!resolved) {
+    return NextResponse.json(
+      { success: false, error: 'An active business membership is required.' },
+      { status: 401 },
+    )
+  }
+
+  if (!businessMemberCanManageBilling(
+    resolved.account.memberRole,
+    resolved.account.memberPermissions,
+  )) {
+    return NextResponse.json(
+      { success: false, error: 'Only a business owner or billing manager may manage billing.' },
+      { status: 403 },
+    )
+  }
+
+  if (
+    resolved.account.status !== 'active' ||
+    resolved.account.onboardingStatus !== 'complete'
+  ) {
+    return NextResponse.json(
+      { success: false, error: 'Complete account approval and onboarding before managing billing.' },
+      { status: 403 },
+    )
+  }
+
+  return null
+}
+
 export async function GET(request: NextRequest) {
   try {
     const resolved = await resolveBillingAccount(request)
-    if (!resolved) {
-      return NextResponse.json(
-        { success: false, error: 'An active business membership is required.' },
-        { status: 401 },
-      )
-    }
+    const accessError = billingAccessError(resolved)
+    if (accessError) return accessError
+    if (!resolved) throw new Error('Billing account resolution failed.')
 
     const metadata = objectValue(resolved.account.metadata)
     return NextResponse.json({
@@ -73,6 +109,7 @@ export async function GET(request: NextRequest) {
         name: resolved.account.name,
         type: resolved.account.type,
         status: resolved.account.status,
+        onboardingStatus: resolved.account.onboardingStatus,
         subscriptionPlan: resolved.account.subscriptionPlan,
         subscriptionStatus: resolved.account.subscriptionStatus,
         currentPeriodEndsAt: resolved.account.currentPeriodEndsAt?.toISOString() ?? null,
@@ -90,18 +127,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const resolved = await resolveBillingAccount(request)
-    if (!resolved) {
-      return NextResponse.json(
-        { success: false, error: 'An active business membership is required.' },
-        { status: 401 },
-      )
-    }
-    if (resolved.account.status !== 'active') {
-      return NextResponse.json(
-        { success: false, error: 'This business account is not active for billing.' },
-        { status: 403 },
-      )
-    }
+    const accessError = billingAccessError(resolved)
+    if (accessError) return accessError
+    if (!resolved) throw new Error('Billing account resolution failed.')
 
     const body = (await request.json()) as Record<string, unknown>
     const action = typeof body.action === 'string' ? body.action.trim() : ''
@@ -131,10 +159,16 @@ export async function POST(request: NextRequest) {
         stripeCustomerId = customer.id
         await db.$executeRawUnsafe(
           `UPDATE public."BusinessAccount"
-           SET metadata = $2::jsonb, "updatedAt" = CURRENT_TIMESTAMP
+           SET metadata = jsonb_set(
+             COALESCE(metadata, '{}'::jsonb),
+             '{stripeCustomerId}',
+             to_jsonb($2::text),
+             true
+           ),
+           "updatedAt" = CURRENT_TIMESTAMP
            WHERE id = $1`,
           resolved.account.id,
-          JSON.stringify({ ...metadata, stripeCustomerId }),
+          stripeCustomerId,
         )
       }
 
