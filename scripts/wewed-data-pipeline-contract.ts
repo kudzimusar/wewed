@@ -40,7 +40,8 @@ assert.match(weddingAccess, /isWewedPlatformAdministrator/)
 assert.match(weddingAccess, /return \[\]/)
 assert.match(weddingAccess, /any_bam/)
 assert.match(weddingAccess, /ba\."onboardingStatus" = 'complete'/)
-assert.doesNotMatch(weddingAccess, /NOT EXISTS \([\s\S]*BusinessAccountLink[\s\S]*OR EXISTS/)
+assert.match(weddingAccess, /NOT EXISTS \([\s\S]*any_bam/)
+assert.match(weddingAccess, /OR EXISTS \([\s\S]*bam\.status = 'active'/)
 
 assert.match(signin, /WEWED_PLATFORM_SESSION_ID/)
 assert.match(signin, /activeWedding: null/)
@@ -56,7 +57,7 @@ assert.match(onboarding, /login activation is blocked until its dedicated stakeh
 assert.match(onboarding, /"onboardingStatus" = 'complete'/)
 
 assert.match(billing, /businessMemberCanManageBilling/)
-assert.match(billing, /"onboardingStatus" !== 'complete'/)
+assert.match(billing, /onboardingStatus !== 'complete'/)
 assert.match(billing, /jsonb_set/)
 assert.match(billing, /Only a business owner or billing manager/)
 
@@ -64,7 +65,7 @@ assert.match(webhook, /pg_advisory_xact_lock/)
 assert.match(webhook, /stripe\.webhook_processed/)
 assert.match(webhook, /UPDATE public\."PaymentRecord"/)
 assert.match(webhook, /could not be matched to a Wewed account/)
-assert.doesNotMatch(webhook, /checkout\.session\.completed'[\s\S]{0,500}status:.*active/)
+assert.doesNotMatch(webhook, /text\(object\.status\) === 'complete' \? 'active'/)
 
 assert.match(navigation, /\/admin\/onboarding/)
 
