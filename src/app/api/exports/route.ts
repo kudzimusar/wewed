@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireWeddingPermission } from '@/lib/wedding-access'
-import { getModuleSchema, isModuleKey } from '@/lib/import-engine/schemas'
+import { getWorksheetSchema, isModuleKey } from '@/lib/import-engine/schema-resolver'
 import { exportModule } from '@/lib/import-engine/exporter'
 
 export async function GET(request: NextRequest) {
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const schema = getModuleSchema(moduleKey)
+    const schema = getWorksheetSchema(moduleKey)
     const buffer = await exportModule(schema, access.context.weddingId, format)
     const fileName = `wewed-${moduleKey}-export-${new Date().toISOString().slice(0, 10)}.${format}`
     return new NextResponse(buffer as unknown as BodyInit, {

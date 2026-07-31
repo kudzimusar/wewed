@@ -116,6 +116,12 @@ jobs:
       - name: Run Stage 7 worksheet recovery parity tests
         run: bun test src/lib/planner-stage7-worksheet.test.ts
 
+      - name: Run production blocker regression contracts
+        run: bun test src/lib/planner-production-blockers.test.ts
+
+      - name: Run production blocker PostgreSQL integration
+        run: bun test src/lib/planner-production-blockers.integration.test.ts
+
       - name: Run Stage 8 information architecture tests
         run: bun test src/lib/planner-stage8-information-architecture.test.ts
 

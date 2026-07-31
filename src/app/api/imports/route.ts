@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireWeddingPermission } from '@/lib/wedding-access'
-import { getModuleSchema, isModuleKey } from '@/lib/import-engine/schemas'
+import { getWorksheetSchema, isModuleKey } from '@/lib/import-engine/schema-resolver'
 import { parseFile } from '@/lib/import-engine/parser'
 import { generatePreview } from '@/lib/import-engine/preview'
 
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
 
     const buffer = Buffer.from(await file.arrayBuffer())
     const parsed = await parseFile(buffer, file.type || 'application/octet-stream')
-    const schema = getModuleSchema(moduleKey)
+    const schema = getWorksheetSchema(moduleKey)
     const preview = await generatePreview(
       parsed,
       schema,

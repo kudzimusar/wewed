@@ -54,6 +54,15 @@ export interface FieldDefinition {
   sensitive?: boolean
 }
 
+export interface ExistingRecordMatch {
+  /** The existing active-wedding record selected for an update. */
+  record?: any
+  /** A deterministic matching failure, such as an ambiguous name. */
+  error?: string
+  /** Non-blocking matching context surfaced in the import preview. */
+  warning?: string
+}
+
 /**
  * A fully-defined worksheet module. The engine is generic over
  * ModuleSchema; the 10 module instances live in schemas.ts.
@@ -71,8 +80,21 @@ export interface ModuleSchema {
   recordToRow: (record: any) => Record<string, string>
   /** Validate a row → list of errors (empty = valid) */
   validateRow: (row: Record<string, string>) => string[]
-  /** Field key used for duplicate detection (e.g. "email" or "taskId") */
+  /** Field key used for default duplicate detection (e.g. "email" or "taskId") */
   uniqueKey?: string
+  /**
+   * Optional stable identity for duplicate detection within one file.
+   * Used by modules such as Guests that support ID, email and name fallbacks.
+   */
+  rowIdentity?: (row: Record<string, string>) => string | null
+  /**
+   * Optional deterministic existing-record matcher. It receives only records
+   * already scoped to the active wedding by fetchExisting.
+   */
+  matchExisting?: (
+    row: Record<string, string>,
+    existingRecords: any[],
+  ) => ExistingRecordMatch
   /** Fetch existing records for this module + wedding */
   fetchExisting: (weddingId: string) => Promise<any[]>
   /** Create or update a record. `existing` is the matched existing record (if any) */
