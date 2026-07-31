@@ -15,6 +15,7 @@ import { SongbookEnhanced } from '@/components/wedding/songbook-enhanced'
 import { IntroductionsBanner } from '@/components/wedding/introductions-banner'
 import { Guests } from '@/components/wedding/guests'
 import { PricingSection } from '@/components/wedding/pricing-section'
+import { PricingRegistrationLinks } from '@/components/public/pricing-registration-links'
 import { PlatformVision } from '@/components/wedding/platform-vision'
 import { MerchTeaser } from '@/components/wedding/merch-teaser'
 import { FaqSection } from '@/components/wedding/faq-section'
@@ -79,6 +80,7 @@ export default function Home() {
               <ShareSection />
               <TelegramWidget />
               <PricingSection />
+              <PricingRegistrationLinks />
               <PlatformVision />
               <MerchTeaser />
             </>
@@ -96,6 +98,7 @@ export default function Home() {
               <ShareSection />
               <TelegramWidget />
               <PricingSection />
+              <PricingRegistrationLinks />
               <PlatformVision />
               <MerchTeaser />
             </>

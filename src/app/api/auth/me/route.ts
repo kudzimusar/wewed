@@ -12,6 +12,10 @@ import {
   acceptPendingMemberships,
   listAccessibleWeddings,
 } from '@/lib/wedding-access'
+import {
+  isWewedPlatformAdministrator,
+  WEWED_PLATFORM_SESSION_ID,
+} from '@/lib/business-access'
 
 interface AccessUser {
   id: string
@@ -89,6 +93,50 @@ async function authorizedResponse(input: {
   const dashboardRole = isDashboardRole(accessUser.role) ? accessUser.role : null
   if (!dashboardRole) return signedOutResponse()
 
+  if (
+    dashboardRole === 'admin' &&
+    await isWewedPlatformAdministrator(accessUser.id)
+  ) {
+    if (appSession.activeWeddingId !== WEWED_PLATFORM_SESSION_ID) {
+      await db.user.update({
+        where: { id: accessUser.id },
+        data: { currentWeddingId: null },
+      })
+    }
+
+    const response = NextResponse.json({
+      success: true,
+      authorized: true,
+      user: {
+        id: authUserId,
+        accessUserId: accessUser.id,
+        email,
+        displayName: profile?.displayName ?? accessUser.name ?? null,
+        avatarUrl: profile?.avatarUrl ?? null,
+        role: 'admin',
+        coupleId: null,
+        activeWeddingId: WEWED_PLATFORM_SESSION_ID,
+      },
+      activeWedding: null,
+      weddings: [],
+      workspace: 'wewed_platform',
+      expiresAt: appSession.expiresAt,
+    })
+
+    if (appSession.activeWeddingId !== WEWED_PLATFORM_SESSION_ID) {
+      setAppSessionCookie(response, {
+        userId: accessUser.id,
+        authUserId,
+        email,
+        role: 'admin',
+        coupleId: null,
+        activeWeddingId: WEWED_PLATFORM_SESSION_ID,
+      })
+    }
+
+    return response
+  }
+
   await acceptPendingMemberships(accessUser.id)
   const weddings = await listAccessibleWeddings(accessUser.id, dashboardRole)
   const activeWeddings = weddings.filter(
@@ -133,6 +181,7 @@ async function authorizedResponse(input: {
       ...wedding,
       date: wedding.date.toISOString(),
     })),
+    workspace: 'wedding',
     expiresAt: appSession.expiresAt,
   })
 
