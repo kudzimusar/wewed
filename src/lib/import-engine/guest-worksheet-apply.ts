@@ -109,10 +109,8 @@ function mergedWorksheetData(args: {
   const { weddingId, guestId, guestName, input, existing, attending, plusOne } = args
   const firstName = input.firstName || existing?.firstName || null
   const lastName = input.lastName || existing?.lastName || null
-  const changedName = input.firstName || input.lastName
-    ? [firstName, lastName].filter(Boolean).join(' ')
-    : ''
-  const displayName = input.displayName || changedName || existing?.displayName || guestName
+  const completeName = firstName && lastName ? `${firstName} ${lastName}` : ''
+  const displayName = input.displayName || completeName || existing?.displayName || guestName
   const partySize = input.numberAttending
     ?? existing?.partySize
     ?? (input.plusOneName || plusOne ? 2 : 1)
@@ -153,20 +151,24 @@ export async function applyGuestWorksheetRow(
     const existingWorksheet = existingGuest
       ? await fetchGuestWorksheetDataRow(tx, weddingId, existingGuest.id)
       : null
-    const existingFirst = existingWorksheet?.firstName || ''
-    const existingLast = existingWorksheet?.lastName || ''
-    const requestedName = inputDisplayName(input)
-    const mergedName = requestedName
-      || (input.firstName || input.lastName
-        ? [input.firstName || existingFirst, input.lastName || existingLast].filter(Boolean).join(' ')
-        : existingWorksheet?.displayName || existingGuest?.name || '')
+    const componentFirst = input.firstName || existingWorksheet?.firstName || ''
+    const componentLast = input.lastName || existingWorksheet?.lastName || ''
+    const completeComponentName = componentFirst && componentLast
+      ? `${componentFirst} ${componentLast}`
+      : ''
+    const requestedUpdateName = input.displayName
+      || ((input.firstName || input.lastName) ? completeComponentName : '')
+    const createName = inputDisplayName(input)
+    const mergedName = existingGuest
+      ? requestedUpdateName || existingWorksheet?.displayName || existingGuest.name
+      : createName
     if (!mergedName) throw new Error('Guest name is required.')
 
     const guest = existingGuest
       ? await tx.guest.update({
           where: { id: existingGuest.id },
           data: {
-            ...(input.firstName || input.lastName || input.displayName ? { name: mergedName } : {}),
+            ...(requestedUpdateName ? { name: mergedName } : {}),
             ...(input.email ? { email: input.email } : {}),
             ...(input.phone ? { phone: input.phone } : {}),
           },
