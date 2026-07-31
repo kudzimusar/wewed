@@ -5,6 +5,15 @@ import { useSearchParams } from 'next/navigation'
 import { CheckCircle2, CreditCard, ExternalLink, Loader2, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  WEWED_PLANS,
+  annualMonthlyEquivalent,
+  formatUsd,
+  type WewedBillingInterval,
+  type WewedPlanId,
+} from '@/lib/wewed-plans'
+
+type PaidPlanId = Exclude<WewedPlanId, 'free'>
 
 type BillingPayload = {
   success: boolean
@@ -19,19 +28,14 @@ type BillingPayload = {
     currentPeriodEndsAt: string | null
     memberRole: string
     stripeCustomerId: string | null
+    billingInterval: WewedBillingInterval | null
   }
   stripe: {
     enabled: boolean
     webhookConfigured: boolean
-    plans: { starter: boolean; professional: boolean; enterprise: boolean }
+    plans: Record<PaidPlanId, Record<WewedBillingInterval, boolean>>
   }
 }
-
-const planLabels = {
-  starter: 'Starter / Canon',
-  professional: 'Professional / Forever',
-  enterprise: 'Enterprise',
-} as const
 
 function date(value: string | null) {
   if (!value) return 'Not set'
@@ -41,6 +45,7 @@ function date(value: string | null) {
 export function AccountBillingPortal() {
   const searchParams = useSearchParams()
   const [data, setData] = useState<BillingPayload | null>(null)
+  const [interval, setInterval] = useState<WewedBillingInterval>('month')
   const [loading, setLoading] = useState(true)
   const [working, setWorking] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -53,6 +58,7 @@ export function AccountBillingPortal() {
       const payload = (await response.json()) as BillingPayload
       if (!response.ok || !payload.success) throw new Error(payload.error || 'Unable to load billing.')
       setData(payload)
+      if (payload.account.billingInterval) setInterval(payload.account.billingInterval)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to load billing.')
     } finally {
@@ -62,14 +68,14 @@ export function AccountBillingPortal() {
 
   useEffect(() => { void load() }, [load])
 
-  async function openBilling(action: 'checkout' | 'portal', plan?: keyof typeof planLabels) {
-    setWorking(plan || action)
+  async function openBilling(action: 'checkout' | 'portal', plan?: PaidPlanId) {
+    setWorking(plan ? `${plan}:${interval}` : action)
     setError(null)
     try {
       const response = await fetch('/api/billing/account', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, plan }),
+        body: JSON.stringify({ action, plan, interval }),
       })
       const payload = (await response.json()) as { success?: boolean; url?: string | null; error?: string }
       if (!response.ok || !payload.success || !payload.url) throw new Error(payload.error || 'Unable to open Stripe.')
@@ -89,10 +95,11 @@ export function AccountBillingPortal() {
   }
 
   const checkoutResult = searchParams.get('checkout')
+  const paidPlans = WEWED_PLANS.filter((plan): plan is typeof plan & { id: PaidPlanId } => plan.id !== 'free')
 
   return (
     <main className="min-h-screen bg-espresso px-5 py-14 text-champagne lg:px-8">
-      <div className="mx-auto max-w-5xl space-y-6">
+      <div className="mx-auto max-w-6xl space-y-6">
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>
             <a href="/" className="text-sm text-gold hover:text-gold-light">← Back to Wewed</a>
@@ -107,9 +114,10 @@ export function AccountBillingPortal() {
         {checkoutResult === 'cancelled' && <div className="rounded-xl border border-gold/25 bg-gold/10 px-4 py-3 text-sm text-gold-light">Checkout was cancelled. No plan change was applied.</div>}
         {error && <div className="rounded-xl border border-red-300/25 bg-red-300/10 px-4 py-3 text-sm text-red-100">{error}</div>}
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-4">
           <Card className="border-gold/15 bg-white/[0.04] text-champagne"><CardContent className="p-5"><p className="text-xs uppercase tracking-[0.16em] text-champagne/45">Current plan</p><p className="mt-2 text-2xl font-semibold capitalize">{data.account.subscriptionPlan.replaceAll('_', ' ')}</p></CardContent></Card>
           <Card className="border-gold/15 bg-white/[0.04] text-champagne"><CardContent className="p-5"><p className="text-xs uppercase tracking-[0.16em] text-champagne/45">Subscription</p><p className="mt-2 text-2xl font-semibold capitalize">{data.account.subscriptionStatus.replaceAll('_', ' ')}</p></CardContent></Card>
+          <Card className="border-gold/15 bg-white/[0.04] text-champagne"><CardContent className="p-5"><p className="text-xs uppercase tracking-[0.16em] text-champagne/45">Billing cadence</p><p className="mt-2 text-2xl font-semibold capitalize">{data.account.billingInterval || 'Not set'}</p></CardContent></Card>
           <Card className="border-gold/15 bg-white/[0.04] text-champagne"><CardContent className="p-5"><p className="text-xs uppercase tracking-[0.16em] text-champagne/45">Current period ends</p><p className="mt-2 text-2xl font-semibold">{date(data.account.currentPeriodEndsAt)}</p></CardContent></Card>
         </div>
 
@@ -117,18 +125,49 @@ export function AccountBillingPortal() {
         {data.stripe.enabled && !data.stripe.webhookConfigured && <div className="rounded-xl border border-gold/25 bg-gold/10 px-4 py-3 text-sm text-gold-light">Stripe Checkout is available, but `STRIPE_WEBHOOK_SECRET` must be configured before subscription state can synchronize safely.</div>}
 
         <Card className="border-gold/20 bg-white/[0.045] text-champagne">
-          <CardHeader><CardTitle className="text-xl">Choose a paid plan</CardTitle></CardHeader>
+          <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle className="text-xl">Choose a paid plan</CardTitle>
+              <p className="mt-1 text-sm text-champagne/50">Annual billing includes two months free.</p>
+            </div>
+            <div className="inline-flex rounded-full border border-gold/25 bg-black/15 p-1">
+              <button type="button" onClick={() => setInterval('month')} className={`rounded-full px-4 py-2 text-xs font-semibold ${interval === 'month' ? 'bg-gold text-espresso' : 'text-champagne/60'}`}>Monthly</button>
+              <button type="button" onClick={() => setInterval('year')} className={`rounded-full px-4 py-2 text-xs font-semibold ${interval === 'year' ? 'bg-gold text-espresso' : 'text-champagne/60'}`}>Annual</button>
+            </div>
+          </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-3">
-            {(Object.keys(planLabels) as Array<keyof typeof planLabels>).map((plan) => (
-              <div key={plan} className="rounded-xl border border-gold/15 bg-black/10 p-5">
-                <p className="text-lg font-semibold">{planLabels[plan]}</p>
-                <p className="mt-2 text-xs leading-5 text-champagne/45">Stripe-hosted Checkout. Pricing is read from the configured Stripe Price ID.</p>
-                <Button onClick={() => void openBilling('checkout', plan)} disabled={!data.stripe.enabled || !data.stripe.plans[plan] || Boolean(working)} className="mt-5 w-full bg-gold text-espresso hover:bg-gold-light">
-                  {working === plan ? <Loader2 className="size-4 animate-spin" /> : <CreditCard className="size-4" />}
-                  {data.stripe.plans[plan] ? 'Open Checkout' : 'Price not configured'}
-                </Button>
-              </div>
-            ))}
+            {paidPlans.map((plan) => {
+              const cents = interval === 'year' ? plan.annualCents : plan.monthlyCents
+              const monthlyEquivalent = interval === 'year' ? annualMonthlyEquivalent(plan) : null
+              const configured = data.stripe.plans[plan.id][interval]
+              const workKey = `${plan.id}:${interval}`
+
+              return (
+                <div key={plan.id} className="flex flex-col rounded-xl border border-gold/15 bg-black/10 p-5">
+                  <p className="text-lg font-semibold">{plan.publicName}</p>
+                  <p className="mt-1 text-xs text-gold">{plan.audience}</p>
+                  <div className="mt-4 flex items-end gap-2">
+                    <span className="font-serif text-4xl">{formatUsd(cents)}</span>
+                    <span className="pb-1 text-xs text-champagne/45">/{interval === 'year' ? 'year' : 'month'}</span>
+                  </div>
+                  {monthlyEquivalent !== null && <p className="mt-1 text-xs text-champagne/40">{formatUsd(monthlyEquivalent)}/month equivalent.</p>}
+                  <p className="mt-4 text-xs leading-5 text-champagne/50">{plan.summary}</p>
+
+                  <div className="mt-auto pt-5">
+                    {plan.selfService ? (
+                      <Button onClick={() => void openBilling('checkout', plan.id)} disabled={!data.stripe.enabled || !configured || Boolean(working)} className="w-full bg-gold text-espresso hover:bg-gold-light">
+                        {working === workKey ? <Loader2 className="size-4 animate-spin" /> : <CreditCard className="size-4" />}
+                        {configured ? 'Open Checkout' : `${interval === 'year' ? 'Annual' : 'Monthly'} price not configured`}
+                      </Button>
+                    ) : (
+                      <Button asChild variant="outline" className="w-full border-gold/25 text-gold hover:bg-gold/10">
+                        <a href="/register?plan=enterprise">Apply through Wewed</a>
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
           </CardContent>
         </Card>
 
