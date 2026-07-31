@@ -121,7 +121,7 @@ function PlannerExperienceNavigation() {
         <nav
           id="planner-experience-tools"
           aria-label="Planner experience navigation"
-          className={`${toolsOpen ? 'block' : 'hidden'} max-h-[42dvh] min-w-0 overflow-y-auto pb-1 xl:block xl:max-h-none xl:overflow-x-auto xl:overflow-y-visible xl:pb-0`}
+          className={`${toolsOpen ? 'block' : 'hidden'} max-h-[42dvh] min-w-0 overflow-y-auto pb-1 xl:block xl:max-h-none xl:overflow-x-auto xl:overflow-y-visible xl:overscroll-x-contain xl:pb-0`}
         >
           <PlannerToolTriggers />
         </nav>
