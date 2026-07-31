@@ -5,7 +5,7 @@ on:
     branches:
       - fix/planner-complete-gap-closure
     paths:
-      - '.gap/full-planner-gap-closure.patch.xz'
+      - '.gap/patch.part.*'
       - '.github/workflows/apply-planner-gap-closure.yml'
 
 permissions:
@@ -25,16 +25,17 @@ jobs:
           ref: fix/planner-complete-gap-closure
           fetch-depth: 0
 
-      - name: Apply reviewed source patch
+      - name: Apply exact reviewed source patch
         shell: bash
         run: |
           set -euo pipefail
-          patch_file='.gap/full-planner-gap-closure.patch.xz'
-          test -f "$patch_file"
-          xz -dc "$patch_file" > /tmp/full-planner-gap-closure.patch
+          shopt -s nullglob
+          parts=(.gap/patch.part.*)
+          test "${#parts[@]}" -eq 8
+          cat "${parts[@]}" | base64 -d | xz -dc > /tmp/full-planner-gap-closure.patch
           git apply --check /tmp/full-planner-gap-closure.patch
           git apply /tmp/full-planner-gap-closure.patch
-          rm -f "$patch_file"
+          rm -f "${parts[@]}"
           rmdir .gap 2>/dev/null || true
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
