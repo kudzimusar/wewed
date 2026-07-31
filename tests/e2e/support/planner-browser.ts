@@ -93,7 +93,10 @@ export const test = base.extend<PlannerFixtures>({
 
     page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`))
     page.on('console', (message) => {
-      if (message.type() === 'error') errors.push(`console: ${message.text()}`)
+      if (message.type() !== 'error') return
+      const text = message.text()
+      const expectedClientValidation = /^Failed to load resource: the server responded with a status of 4\d\d\b/.test(text)
+      if (!expectedClientValidation) errors.push(`console: ${text}`)
     })
     page.on('response', (response) => {
       if (response.status() >= 500 && response.url().includes('/api/')) {
