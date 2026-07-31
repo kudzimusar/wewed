@@ -68,10 +68,13 @@ jobs:
           fi
           test "${#parts[@]}" -eq 8
           cat "${parts[@]}" | base64 -d | xz -dc > /tmp/full-planner-gap-closure.patch
+          cp .github/workflows/ci.yml /tmp/bootstrap-ci.yml
+          cp .github/workflows/apply-planner-gap-closure.yml /tmp/bootstrap-apply.yml
           git checkout origin/main -- .github/workflows/ci.yml
-          rm -f .github/workflows/apply-planner-gap-closure.yml
           git apply --check /tmp/full-planner-gap-closure.patch
           git apply /tmp/full-planner-gap-closure.patch
+          cp /tmp/bootstrap-ci.yml .github/workflows/ci.yml
+          cp /tmp/bootstrap-apply.yml .github/workflows/apply-planner-gap-closure.yml
           rm -f "${parts[@]}"
           rmdir .gap 2>/dev/null || true
           git config user.name 'github-actions[bot]'
