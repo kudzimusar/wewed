@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { applyGuestWorksheetRow, snapshotGuestWorksheetState } from './guest-worksheet-apply'
-import type { GuestWorksheetExecution } from './guest-worksheet-snapshot'
+import type { GuestRollbackState, GuestWorksheetExecution } from './guest-worksheet-snapshot'
 import type { ImportErrorEntry, ImportPreview } from './types'
 
 export async function executeGuestWorksheetImport(
@@ -10,7 +10,7 @@ export async function executeGuestWorksheetImport(
   const jobId = randomUUID()
   const rollbackToken = `rb_guest_${randomUUID().replace(/-/g, '')}`
   const createdIds: string[] = []
-  const updatedSnapshots = []
+  const updatedSnapshots: GuestRollbackState[] = []
   const errorReport: ImportErrorEntry[] = []
   let created = 0
   let updated = 0

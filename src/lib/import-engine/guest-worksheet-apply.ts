@@ -5,9 +5,9 @@ import {
   INVITATION_STATUSES,
   RESPONSE_STATUSES,
   attendingFromStatus,
-  guestWorksheetInput,
+  toGuestWorksheetInput,
   inputDisplayName,
-  responseStatusFromAttending,
+  statusFromAttending,
   type GuestWorksheetDataRow,
   type GuestWorksheetInput,
 } from './guest-worksheet-contract'
@@ -94,7 +94,7 @@ function validResponseStatus(
 ): string {
   return RESPONSE_STATUSES.includes(input.rsvpStatus as (typeof RESPONSE_STATUSES)[number])
     ? input.rsvpStatus
-    : existing?.responseStatus || responseStatusFromAttending(attending)
+    : existing?.responseStatus || statusFromAttending(attending)
 }
 
 function mergedWorksheetData(args: {
@@ -143,7 +143,7 @@ export async function applyGuestWorksheetRow(
   row: Record<string, string>,
   existingId?: string,
 ): Promise<{ id: string; created: boolean }> {
-  const input = guestWorksheetInput(row)
+  const input = toGuestWorksheetInput(row)
   return db.$transaction(async (tx) => {
     const existingGuest = existingId
       ? await tx.guest.findFirst({ where: { id: existingId, weddingId }, include: { rsvp: true } })
