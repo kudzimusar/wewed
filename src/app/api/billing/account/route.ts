@@ -10,6 +10,11 @@ import {
   stripePriceIdForPlan,
   type StripePlan,
 } from '@/lib/stripe-billing'
+import {
+  isWewedBillingInterval,
+  isWewedPlanId,
+  type WewedBillingInterval,
+} from '@/lib/wewed-plans'
 
 export const dynamic = 'force-dynamic'
 
@@ -115,6 +120,9 @@ export async function GET(request: NextRequest) {
         currentPeriodEndsAt: resolved.account.currentPeriodEndsAt?.toISOString() ?? null,
         memberRole: resolved.account.memberRole,
         stripeCustomerId: typeof metadata.stripeCustomerId === 'string' ? metadata.stripeCustomerId : null,
+        billingInterval: isWewedBillingInterval(metadata.stripeBillingInterval)
+          ? metadata.stripeBillingInterval
+          : null,
       },
       stripe: stripeBillingConfiguration(),
     })
@@ -139,13 +147,21 @@ export async function POST(request: NextRequest) {
       : null
 
     if (action === 'checkout') {
-      const plan = typeof body.plan === 'string' ? body.plan.trim() as StripePlan : 'starter'
-      if (!['starter', 'professional', 'enterprise'].includes(plan)) {
+      const planValue = typeof body.plan === 'string' ? body.plan.trim() : ''
+      const intervalValue = typeof body.interval === 'string' ? body.interval.trim() : 'month'
+
+      if (!isWewedPlanId(planValue) || planValue === 'free') {
         return NextResponse.json({ success: false, error: 'A valid paid plan is required.' }, { status: 400 })
       }
-      if (!stripePriceIdForPlan(plan)) {
+      if (!isWewedBillingInterval(intervalValue)) {
+        return NextResponse.json({ success: false, error: 'A valid billing interval is required.' }, { status: 400 })
+      }
+
+      const plan = planValue as StripePlan
+      const interval = intervalValue as WewedBillingInterval
+      if (!stripePriceIdForPlan(plan, interval)) {
         return NextResponse.json(
-          { success: false, error: `Stripe pricing for ${plan} has not been configured.` },
+          { success: false, error: `Stripe pricing for ${plan} (${interval}) has not been configured.` },
           { status: 503 },
         )
       }
@@ -177,6 +193,7 @@ export async function POST(request: NextRequest) {
         businessAccountId: resolved.account.id,
         customerId: stripeCustomerId,
         plan,
+        interval,
       })
 
       return NextResponse.json({ success: true, url: checkout.url })
