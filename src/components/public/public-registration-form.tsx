@@ -6,6 +6,7 @@ import { CheckCircle2, Loader2, UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { WEWED_PLANS, isWewedPlanId } from '@/lib/wewed-plans'
 
 const roleOptions: Record<string, Array<{ value: string; label: string }>> = {
   planning_company: [
@@ -30,9 +31,8 @@ const roleOptions: Record<string, Array<{ value: string; label: string }>> = {
 
 export function PublicRegistrationForm() {
   const searchParams = useSearchParams()
-  const initialPlan = ['free', 'starter', 'professional', 'enterprise'].includes(searchParams.get('plan') || '')
-    ? searchParams.get('plan') || 'free'
-    : 'free'
+  const queryPlan = searchParams.get('plan')
+  const initialPlan = isWewedPlanId(queryPlan) ? queryPlan : 'free'
   const [accountType, setAccountType] = useState('couple')
   const [requestedRole, setRequestedRole] = useState('couple_owner')
   const [requestedPlan, setRequestedPlan] = useState(initialPlan)
@@ -144,10 +144,11 @@ export function PublicRegistrationForm() {
           <label className="text-xs text-champagne/50">
             Preferred plan
             <select value={requestedPlan} onChange={(event) => setRequestedPlan(event.target.value)} className="mt-1 h-10 w-full rounded-md border border-gold/20 bg-espresso px-3 text-sm text-champagne">
-              <option value="free">Free</option>
-              <option value="starter">Starter / Canon</option>
-              <option value="professional">Professional / Forever</option>
-              <option value="enterprise">Enterprise</option>
+              {WEWED_PLANS.map((plan) => (
+                <option key={plan.id} value={plan.id}>
+                  {plan.publicName}{plan.id === 'enterprise' ? ' — sales-assisted' : ''}
+                </option>
+              ))}
             </select>
           </label>
 
