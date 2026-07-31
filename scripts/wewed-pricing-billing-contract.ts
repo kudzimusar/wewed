@@ -27,8 +27,8 @@ assert(annualMonthlyEquivalent(WEWED_PLAN_BY_ID.professional) === 3250, 'Forever
 
 assert(publicPricing.includes("setInterval('year')"), 'Public pricing must expose annual billing.')
 assert(publicPricing.includes('Annual · 2 months free'), 'Public pricing must explain the annual discount.')
-assert(billingPortal.includes("interval: WewedBillingInterval"), 'Billing UI must submit the selected interval.')
-assert(billingPortal.includes("openBilling('checkout', plan.id, interval)"), 'Billing Checkout must include plan and interval.')
+assert(billingPortal.includes("type WewedBillingInterval"), 'Billing UI must use the canonical billing interval type.')
+assert(billingPortal.includes('body: JSON.stringify({ action, plan, interval })'), 'Billing Checkout must submit plan and interval.')
 assert(billingRoute.includes('isWewedBillingInterval'), 'Billing API must validate the interval.')
 assert(billingRoute.includes('stripePriceIdForPlan(plan, interval)'), 'Billing API must resolve interval-specific prices.')
 assert(stripeBilling.includes('STRIPE_PRICE_CANON_MONTHLY'), 'Canon monthly environment mapping is required.')
