@@ -13,7 +13,7 @@ const [
   globalTools,
   adminLayout,
   landingPage,
-  pricingLinks,
+  pricingCatalog,
 ] = await Promise.all([
   file('src/app/api/auth/register/route.ts'),
   file('src/app/api/admin/roles/route.ts'),
@@ -22,7 +22,7 @@ const [
   file('src/components/wedding/global-wedding-tools.tsx'),
   file('src/app/admin/layout.tsx'),
   file('src/app/page.tsx'),
-  file('src/components/public/pricing-registration-links.tsx'),
+  file('src/components/public/wewed-pricing-catalog.tsx'),
 ])
 
 assert.match(registration, /status.*pending_review/s)
@@ -48,9 +48,9 @@ assert.match(billing, /stripePriceIdForPlan/)
 
 assert.match(globalTools, /PublicRegistrationTrigger/)
 assert.match(adminLayout, /AdminUtilityNav/)
-assert.match(landingPage, /PricingRegistrationLinks/)
-assert.match(pricingLinks, /\/register\?plan=free/)
-assert.match(pricingLinks, /\/register\?plan=starter/)
-assert.match(pricingLinks, /\/register\?plan=professional/)
+assert.match(landingPage, /WewedPricingCatalog/)
+assert.match(pricingCatalog, /\/register\?plan=/)
+assert.match(pricingCatalog, /WEWED_PLANS/)
+assert.match(pricingCatalog, /Annual · 2 months free/)
 
 console.log('Public registration, RBAC provisioning and Stripe contracts passed.')
