@@ -59,11 +59,21 @@ function hardenTemplateSheet(sheetXml: string, schema: ModuleSchema, unlockedSty
     const column = XLSX.utils.encode_col(index)
     return `<conditionalFormatting sqref="${column}2:${column}${DATA_ROWS + 1}"><cfRule type="expression" dxfId="0" priority="${index + 1}"><formula>AND(COUNTA($A2:$${lastColumn}2)&gt;0,LEN(TRIM(${column}2))=0)</formula></cfRule></conditionalFormatting>`
   }).join('')
+  const guestIdentityRule = schema.key === 'guests'
+    ? `<conditionalFormatting sqref="A2:${lastColumn}${DATA_ROWS + 1}"><cfRule type="expression" dxfId="0" priority="${schema.fields.length + 1}"><formula>AND(COUNTA($A2:$${lastColumn}2)&gt;0,COUNTA($A2,$B2,$D2,$E2)=0)</formula></cfRule></conditionalFormatting>`
+    : ''
+  const duplicateIdentityRules = ['guestId', 'email'].map((key, ruleIndex) => {
+    const index = schema.fields.findIndex((field) => field.key === key)
+    if (index < 0) return ''
+    const column = XLSX.utils.encode_col(index)
+    return `<conditionalFormatting sqref="${column}2:${column}${DATA_ROWS + 1}"><cfRule type="expression" dxfId="0" priority="${schema.fields.length + ruleIndex + 2}"><formula>AND(LEN(TRIM(${column}2))&gt;0,COUNTIF($${column}$2:$${column}$${DATA_ROWS + 1},${column}2)&gt;1)</formula></cfRule></conditionalFormatting>`
+  }).join('')
+  const conditionalRules = `${requiredRules}${guestIdentityRule}${duplicateIdentityRules}`
   const protection = '<sheetProtection sheet="1" objects="1" scenarios="1" selectLockedCells="1" selectUnlockedCells="0" formatCells="1" formatColumns="1" formatRows="1" insertColumns="1" insertRows="1" insertHyperlinks="1" deleteColumns="1" deleteRows="1" sort="0" autoFilter="0" pivotTables="1"/>'
   const filter = `<autoFilter ref="${ref}"/>`
   const validationXml = validations.length ? `<dataValidations count="${validations.length}">${validations.join('')}</dataValidations>` : ''
   const tableParts = '<tableParts count="1"><tablePart r:id="rId1"/></tableParts>'
-  sheetXml = sheetXml.replace('</sheetData>', `</sheetData>${protection}${filter}${requiredRules}${validationXml}`)
+  sheetXml = sheetXml.replace('</sheetData>', `</sheetData>${protection}${filter}${conditionalRules}${validationXml}`)
   return sheetXml.replace(/<\/worksheet>/, `${tableParts}</worksheet>`)
 }
 function tableXml(schema: ModuleSchema): string {
