@@ -293,7 +293,7 @@ export function WeddingContextControls() {
 
   return (
     <>
-      <div className="fixed left-1/2 top-2 z-[120] flex max-w-[calc(100vw-12rem)] -translate-x-1/2 items-center gap-2 rounded-xl border border-gold/25 bg-espresso/95 px-2 py-1.5 shadow-xl backdrop-blur-md">
+      <div data-planner-wedding-context className="flex min-h-11 w-full items-center justify-center gap-2 border-b border-gold/15 bg-espresso/95 px-3 py-2 shadow-sm backdrop-blur-md sm:px-5">
         <CalendarDays className="hidden size-4 shrink-0 text-gold sm:block" />
         <div className="min-w-0">
           <label htmlFor="active-wedding" className="sr-only">
@@ -304,7 +304,7 @@ export function WeddingContextControls() {
             value={activeWedding.id}
             disabled={switching || weddings.length < 2}
             onChange={(event) => void switchWedding(event.target.value)}
-            className="max-w-52 truncate rounded-md border border-gold/20 bg-espresso px-2 py-1 font-sans text-xs text-champagne outline-none focus:border-gold disabled:cursor-default sm:max-w-72"
+            className="w-[min(68vw,20rem)] truncate rounded-md border border-gold/20 bg-espresso px-2 py-1 font-sans text-xs text-champagne outline-none focus:border-gold disabled:cursor-default sm:max-w-72"
           >
             {weddings.map((wedding) => (
               <option key={wedding.id} value={wedding.id}>

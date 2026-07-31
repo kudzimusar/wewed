@@ -24,6 +24,8 @@ function formatItem(item: {
   paidAmount: number
   currency: string
   vendorId: string | null
+  vendorName: string | null
+  notes: string | null
   dueDate: Date | null
   weddingId: string
   createdAt: Date
@@ -125,6 +127,8 @@ interface CreateBudgetPayload {
   paidAmount?: number
   currency?: string
   vendorId?: string
+  vendorName?: string | null
+  notes?: string | null
   dueDate?: string | null
 }
 
@@ -197,6 +201,8 @@ export async function POST(request: NextRequest) {
         paidAmount,
         currency,
         vendorId: body.vendorId || null,
+        vendorName: body.vendorName?.trim() || null,
+        notes: body.notes?.trim() || null,
         dueDate,
         weddingId: access.context.weddingId,
       },

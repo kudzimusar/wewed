@@ -23,6 +23,8 @@ interface PatchBudgetPayload {
   paidAmount?: number
   currency?: string
   vendorId?: string | null
+  vendorName?: string | null
+  notes?: string | null
   dueDate?: string | null
 }
 
@@ -35,6 +37,8 @@ function formatItem(item: {
   paidAmount: number
   currency: string
   vendorId: string | null
+  vendorName: string | null
+  notes: string | null
   dueDate: Date | null
   weddingId: string
   createdAt: Date
@@ -139,6 +143,8 @@ export async function PATCH(
       }
       updates.vendorId = body.vendorId || null
     }
+    if (body.vendorName !== undefined) updates.vendorName = body.vendorName?.trim() || null
+    if (body.notes !== undefined) updates.notes = body.notes?.trim() || null
     if (body.dueDate !== undefined) {
       if (body.dueDate === null || body.dueDate === '') updates.dueDate = null
       else {

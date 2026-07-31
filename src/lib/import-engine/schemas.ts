@@ -31,6 +31,7 @@
  */
 
 import { db } from '@/lib/db'
+import { normalizePlannerTitle, plannerTitleError } from '@/lib/planner-task-validation'
 import type { FieldDefinition, ModuleSchema } from './types'
 
 // ============================================================
@@ -339,6 +340,8 @@ function budgetRowToRecord(row: Record<string, string>): any {
     paidAmount,
     currency,
     dueDate,
+    vendorName: cap(clean(row.vendor)) || null,
+    notes: cap(clean(row.notes)) || null,
     _importMeta: {
       item: clean(row.item),
       detail: clean(row.description),
@@ -370,9 +373,9 @@ function budgetRecordToRow(r: any): Record<string, string> {
       (r.actualCost && r.paidAmount >= r.actualCost ? 'paid' :
        r.paidAmount > 0 ? 'partial' : 'unpaid'),
     paymentDeadline: formatDate(r.dueDate),
-    vendor: meta.vendor || '',
+    vendor: r.vendorName || meta.vendor || '',
     responsiblePerson: meta.responsiblePerson || '',
-    notes: meta.notes || '',
+    notes: r.notes || meta.notes || '',
   }
 }
 
@@ -422,7 +425,7 @@ function checklistRowToRecord(row: Record<string, string>): any {
   // If completion % = 100, force status = done
   const finalStatus = pct >= 100 ? 'done' : status
   return {
-    title: cap(neuterFormula(clean(row.task) || 'Untitled task')),
+    title: cap(neuterFormula(normalizePlannerTitle(row.task))),
     description: cap(clean(row.description)) || null,
     category,
     status: finalStatus,
@@ -452,13 +455,14 @@ function checklistRecordToRow(r: any): Record<string, string> {
     dependency: meta.dependency || '',
     completionPct: meta.completionPct != null ? String(meta.completionPct) :
       (r.status === 'done' ? '100' : '0'),
-    notes: meta.notes || '',
+    notes: r.notes || meta.notes || '',
   }
 }
 
 function checklistValidateRow(row: Record<string, string>): string[] {
   const errs: string[] = []
-  if (!clean(row.task)) errs.push('Task is required')
+  const titleError = plannerTitleError(row.task)
+  if (titleError) errs.push(titleError)
   if (!clean(row.category)) {
     errs.push('Category is required')
   } else if (!TASK_CATEGORIES.includes(clean(row.category))) {

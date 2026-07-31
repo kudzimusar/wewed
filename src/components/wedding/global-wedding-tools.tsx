@@ -22,8 +22,17 @@ import { PublicRegistrationTrigger } from '@/components/public/public-registrati
 export function GlobalWeddingTools() {
   const pathname = usePathname()
   const isAdminRoute = pathname === '/admin' || pathname.startsWith('/admin/')
+  const isPlannerRoute = pathname === '/planner' || pathname.startsWith('/planner/')
 
   if (isAdminRoute) return null
+  if (isPlannerRoute) {
+    return (
+      <>
+        <StoreRehydrator />
+        <PWARegister />
+      </>
+    )
+  }
 
   return (
     <>

@@ -163,11 +163,17 @@ export async function POST(request: NextRequest) {
     const name = typeof body.name === 'string' ? body.name.trim() : ''
     if (!name) return NextResponse.json({ success: false, error: 'Name is required.' }, { status: 400 })
     const email = body.email?.trim().toLowerCase() || null
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return NextResponse.json(
+        { success: false, error: 'Enter a valid email address.', field: 'email' },
+        { status: 400 },
+      )
+    }
     if (email) {
-      const duplicate = await db.guest.findFirst({ where: { weddingId, email } })
+      const duplicate = await db.guest.findFirst({ where: { weddingId, email: { equals: email, mode: 'insensitive' } } })
       if (duplicate) {
         return NextResponse.json(
-          { success: false, error: 'A guest with this email already exists for this wedding.' },
+          { success: false, error: 'A guest with this email already exists for this wedding.', field: 'email' },
           { status: 409 },
         )
       }

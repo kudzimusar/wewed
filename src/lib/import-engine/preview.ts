@@ -90,11 +90,16 @@ export async function generatePreview(
   let invalidRows = 0
   let validRows = 0
 
+  const dataRowNumbers = new Set(parsed.rowNumbers ?? mappedRows.map((_row, index) => index + 2))
+
   mappedRows.forEach((mapped, index) => {
     const raw = rows[index]
-    const rowIndex = index + 2
+    const rowIndex = parsed.rowNumbers?.[index] ?? index + 2
     const validation = validateRow(mapped, schema)
-    const rowErrors = [...validation.errors]
+    const formulaErrors = (parsed.formulaCells ?? [])
+      .filter((cell) => cell.rowIndex === rowIndex)
+      .map((cell) => `Formula detected in "${cell.column}" (${cell.address}). Replace it with a plain value.`)
+    const rowErrors = [...validation.errors, ...formulaErrors]
     const rowWarnings = [...validation.warnings]
     let action: ImportRow['action'] = 'create'
     let existingId: string | undefined
@@ -170,11 +175,30 @@ export async function generatePreview(
     })
   })
 
+  const formulaOnlyRows = new Map<number, string[]>()
+  for (const cell of parsed.formulaCells ?? []) {
+    if (dataRowNumbers.has(cell.rowIndex)) continue
+    const errors = formulaOnlyRows.get(cell.rowIndex) ?? []
+    errors.push(`Formula detected in "${cell.column}" (${cell.address}). Replace it with a plain value.`)
+    formulaOnlyRows.set(cell.rowIndex, errors)
+  }
+  for (const [rowIndex, errors] of [...formulaOnlyRows.entries()].sort(([left], [right]) => left - right)) {
+    importRows.push({
+      rowIndex,
+      raw: {},
+      mapped: {},
+      action: 'invalid',
+      errors,
+      warnings: [],
+    })
+    invalidRows += 1
+  }
+
   return {
     fileName,
     moduleKey: schema.key,
     templateVersion: schema.version,
-    totalRows: mappedRows.length,
+    totalRows: importRows.length,
     validRows,
     invalidRows,
     newRecords,

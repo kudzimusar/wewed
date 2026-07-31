@@ -34,12 +34,15 @@ describe('Stage 7 six-module worksheet parity', () => {
     expect(portal).toContain("<PlannerWorkspace key={wedding?.id ?? 'no-active-wedding'} />")
     expect(wrapper).toContain('const handleWorksheetChanged = useCallback')
     expect(wrapper).toContain('setWorkspaceVersion((current) => current + 1)')
-    expect(wrapper).toContain('<CorePlannerWorkspace key={workspaceVersion} />')
+    expect(wrapper).toContain('activeTab={activeTab}')
+    expect(wrapper).toContain('onActiveTabChange={selectWorkspaceTab}')
+    expect(wrapper).toContain("searchParams.get('module')")
 
     for (const [moduleKey] of WORKSHEET_MODULES) {
-      expect(wrapper).toContain(`moduleKey="${moduleKey}"`)
-      expect(wrapper).toContain('onImportComplete={handleWorksheetChanged}')
+      expect(wrapper).toContain(`worksheetKey: '${moduleKey}'`)
     }
+    expect(wrapper).toContain('moduleKey={activeModule.worksheetKey}')
+    expect(wrapper).toContain('onImportComplete={handleWorksheetChanged}')
   })
 
   test('worksheet role capabilities preserve wildcard, planner, and export-only access', () => {
