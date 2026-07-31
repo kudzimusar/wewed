@@ -101,6 +101,7 @@ async function updateSubscriptionAccount(tx: Transaction, input: {
   customerId?: string | null
   subscriptionId?: string | null
   checkoutSessionId?: string | null
+  billingInterval?: string | null
   currentPeriodEnd?: number | null
 }) {
   const metadataPatch: Record<string, string> = {
@@ -109,6 +110,7 @@ async function updateSubscriptionAccount(tx: Transaction, input: {
   if (input.customerId) metadataPatch.stripeCustomerId = input.customerId
   if (input.subscriptionId) metadataPatch.stripeSubscriptionId = input.subscriptionId
   if (input.checkoutSessionId) metadataPatch.stripeCheckoutSessionId = input.checkoutSessionId
+  if (input.billingInterval) metadataPatch.stripeBillingInterval = input.billingInterval
 
   await tx.$executeRawUnsafe(
     `UPDATE public."BusinessAccount"
@@ -230,6 +232,7 @@ export async function POST(request: NextRequest) {
             customerId,
             subscriptionId: stringId(object.subscription),
             checkoutSessionId: text(object.id),
+            billingInterval: text(metadata.interval),
           })
         }
 
@@ -240,6 +243,7 @@ export async function POST(request: NextRequest) {
             status: normalizeSubscriptionStatus(text(object.status), event.type),
             customerId,
             subscriptionId: text(object.id),
+            billingInterval: text(metadata.interval),
             currentPeriodEnd: integer(object.current_period_end),
           })
         }
@@ -282,6 +286,7 @@ export async function POST(request: NextRequest) {
           stripeObjectId: text(object.id),
           matchedAccount: Boolean(account),
           supported,
+          billingInterval: text(metadata.interval),
         }),
       )
 
