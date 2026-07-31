@@ -19,10 +19,10 @@ test('module, task filter, and full task edits survive refresh and navigation', 
   await page.getByRole('button', { name: 'Reset' }).click()
 
   await page.getByRole('button', { name: 'Add', exact: true }).click()
-  await expect(page.getByRole('alert')).toContainText('Enter a task title')
+  await expect(page.locator('#workspace-task-title-error')).toContainText('Enter a task title')
   await page.locator('#workspace-task-title').fill('--- !!!')
   await page.getByRole('button', { name: 'Add', exact: true }).click()
-  await expect(page.getByRole('alert')).toContainText('letter or number')
+  await expect(page.locator('#workspace-task-title-error')).toContainText('letter or number')
 
   const original = 'Gap closure editable task'
   const updated = 'Gap closure edited task'
@@ -107,7 +107,7 @@ test('guest core fields edit directly with duplicate-email feedback and wedding-
   await page.getByRole('button', { name: `Edit ${first}` }).click()
   await page.getByLabel(`Edit email for ${first}`).fill('gap.two@example.test')
   await page.getByRole('button', { name: 'Save guest' }).click()
-  await expect(page.getByRole('alert')).toContainText('already exists')
+  await expect(page.locator('[id^="guest-edit-error-"]')).toContainText('already exists')
 
   await page.getByLabel(`Edit name for ${first}`).fill('Gap Guest One Updated')
   await page.getByLabel(`Edit email for ${first}`).fill('gap.one.updated@example.test')
