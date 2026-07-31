@@ -1,7 +1,9 @@
 # Planner blocker repair — 2026-07-31
 
-Branch: `fix/planner-production-blockers`
-Baseline: `aeea2dba76f59a1a087e49bada39d3d1d227ab0e`
+Status: Automated gates passed; isolated preview UAT pending  
+Branch: `fix/planner-production-blockers`  
+Pull request: `#15` (draft)  
+Baseline production commit: `aeea2dba76f59a1a087e49bada39d3d1d227ab0e`
 
 ## Scope
 
@@ -26,15 +28,41 @@ Template appearance is deferred until the backend contract is lossless.
 8. Rollback restores Guest, RSVP and seating state.
 9. Production promotion is blocked by any failing migration, unit, integration, browser, isolation or rollback test.
 
-## Data contract
+## Implemented data contract
 
-Vendor adds `contact`, `contractStatus`, `paymentStatus`, `planningRating`, `notes`.
+### Vendor
 
-ProgrammeItem adds `duration`, `location`, `displayIcon`.
+The additive migration supplies the fields already expected by the planner API:
 
-Guest adds durable worksheet fields for first/last/display name, group, invitation status, accessibility, transport, accommodation, seat assignment, public notes and private notes. Existing `name` remains compatible.
+- `contact`
+- `contractStatus`
+- `paymentStatus`
+- `planningRating`
+- `notes`
 
-RSVP adds an explicit response status and party size while preserving `attending` compatibility.
+### Timeline
+
+The additive migration supplies the fields already expected by the planner API:
+
+- `duration`
+- `location`
+- `displayIcon`
+
+### Guest worksheet
+
+Native fields remain on their existing source-of-truth models:
+
+- `Guest`: canonical name, email, phone, role, side and seating relation.
+- `RSVP`: attending compatibility, plus-one, children and dietary data.
+- `SeatingTable`: selected-wedding table relation and capacity enforcement.
+
+Worksheet-only fields are durably stored in the server-only table:
+
+`wewed_planner."GuestWorksheetData"`
+
+This contains first/last/display name metadata, group, invitation status, exact response status, party size, accessibility, transport, accommodation, seat assignment, and public/private notes. The schema is not exposed to direct Supabase client roles.
+
+Existing `Guest.name` remains compatible. Legacy names are not automatically split. Partial name updates preserve the existing complete display name unless a complete replacement can be formed.
 
 Guest worksheet matching order:
 
@@ -44,25 +72,58 @@ Guest worksheet matching order:
 4. Unique normalized display name.
 5. Ambiguous matches are errors, never guesses.
 
+Blank update cells preserve existing values. Missing or full table assignments fail the row transaction rather than partially saving Guest or RSVP data.
+
+## Automated-gate checkpoint
+
+Green commit: `bfb300b79b87a23bbf84094303277550126e6dfa`
+
+Passed on 2026-07-31:
+
+- Prisma schema validation and client generation.
+- Additive migration deployment to clean PostgreSQL.
+- Migration status and Prisma drift detection.
+- Original planner parity and integrity contracts.
+- Stages 2 through 10 planner suites.
+- Phases 2 through 6 workflow suites.
+- New blocker source-contract suite.
+- Real PostgreSQL integration covering:
+  - normalized Vendor write/read;
+  - normalized Timeline write/read;
+  - all-field Guest worksheet update;
+  - Guest, RSVP and seating readback;
+  - update rollback;
+  - no-email create and idempotent reimport;
+  - create rollback;
+  - cross-wedding Guest ID rejection.
+- Production Next.js build.
+- Executable Playwright planner browser release gate.
+- Admin Console CI.
+
+Passing automation does not authorize production migration or deployment. Isolated preview UAT, backup verification and production smoke controls remain mandatory.
+
 ## Required gates
 
-- Migration applies to representative legacy data.
-- Prisma/client and database drift check passes.
-- Vendor full CRUD, persistence and isolation pass.
-- Timeline full CRUD, persistence, print and isolation pass.
-- Guest worksheet full-field import/database/export round trip passes.
-- Guest ID, email and no-email idempotency tests pass.
-- RSVP and seating assignment/capacity tests pass.
-- Cross-wedding references are rejected.
-- Blank-cell preservation passes.
-- Create/update rollback restores the exact prior state.
-- Existing planner regression suites remain green.
+- [x] Migration applies to clean PostgreSQL.
+- [x] Prisma/client and database drift check passes.
+- [x] Vendor normalized persistence passes against PostgreSQL.
+- [x] Timeline normalized persistence passes against PostgreSQL.
+- [x] Guest worksheet full-field import/database/readback round trip passes.
+- [x] Guest ID and no-email idempotency tests pass.
+- [x] RSVP and seating assignment persistence passes.
+- [x] Cross-wedding references are rejected.
+- [x] Blank-cell and partial-name preservation contracts pass.
+- [x] Create/update rollback restores the prior state.
+- [x] Existing planner regression and browser suites remain green.
+- [ ] Isolated preview browser UAT passes.
+- [ ] Production backup and integrity baseline are verified.
+- [ ] Controlled production smoke UAT passes after release.
 
 ## Release sequence
 
 1. Capture database backup and integrity baseline.
 2. Apply additive migration in a non-production environment.
-3. Run automated gates and controlled UAT.
+3. Run automated gates and controlled preview UAT.
 4. Review code and migration diff.
 5. Apply the verified migration and tested build to production.
 6. Run controlled production smoke tests and monitor logs.
