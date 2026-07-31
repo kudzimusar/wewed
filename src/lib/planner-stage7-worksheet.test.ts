@@ -125,9 +125,12 @@ describe('Stage 7 six-module worksheet parity', () => {
   })
 
   test('import history, execution and rollback APIs require import permission and wedding scope', async () => {
-    const [collectionRoute, jobRoute] = await Promise.all([
+    const [collectionRoute, jobRoute, jobShared, jobPost, jobRollback] = await Promise.all([
       source('src/app/api/imports/route.ts'),
       source('src/app/api/imports/[jobId]/route.ts'),
+      source('src/lib/import-engine/import-job-shared.ts'),
+      source('src/lib/import-engine/import-job-post.ts'),
+      source('src/lib/import-engine/import-job-rollback.ts'),
     ])
 
     expect(collectionRoute).toContain("requireWeddingPermission(request, 'import.execute')")
@@ -138,12 +141,16 @@ describe('Stage 7 six-module worksheet parity', () => {
     expect(collectionRoute).toContain('rollbackToken: job.rollbackToken')
     expect(collectionRoute).toContain('return NextResponse.json({ success: true, data, recent: data })')
 
-    expect(jobRoute).toContain("requireWeddingPermission(request, 'import.execute')")
-    expect(jobRoute).toContain('where: { id: jobId, weddingId }')
-    expect(jobRoute).toContain('executeImport(previewToExecute')
-    expect(jobRoute).toContain('const suppliedToken = new URL(request.url).searchParams.get')
-    expect(jobRoute).toContain('rollbackImport(job.rollbackToken)')
-    expect(jobRoute).toContain('snapshot.weddingId !== access.context.weddingId')
+    expect(jobRoute).toContain('handleImportJobPost(request, context)')
+    expect(jobRoute).toContain('handleImportJobDelete(request, context)')
+    expect(jobShared).toContain('where: { id: jobId, weddingId }')
+    expect(jobPost).toContain("requireWeddingPermission(request, 'import.execute')")
+    expect(jobPost).toContain('executeImport(preview, schema')
+    expect(jobPost).toContain('access.context.weddingId')
+    expect(jobRollback).toContain("requireWeddingPermission(request, 'import.execute')")
+    expect(jobRollback).toContain('const suppliedToken = new URL(request.url).searchParams.get')
+    expect(jobRollback).toContain('rollbackImport(job.rollbackToken)')
+    expect(jobRollback).toContain('snapshot.weddingId !== access.context.weddingId')
   })
 
   test('template and export APIs retain permission-specific selected-wedding controls', async () => {
