@@ -1,8 +1,8 @@
 # Planner blocker repair — 2026-07-31
 
-Status: Automated gates passed; isolated preview UAT pending  
+Status: Automated gates passed; production database repaired additively; controlled application UAT pending  
 Branch: `fix/planner-production-blockers`  
-Pull request: `#15` (draft)  
+Pull request: `#50` (draft)  
 Baseline production commit: `aeea2dba76f59a1a087e49bada39d3d1d227ab0e`
 
 ## Scope
@@ -18,7 +18,7 @@ Template appearance is deferred until the backend contract is lossless.
 
 ## Non-regression rules
 
-1. Work stays on the repair branch until all gates pass.
+1. Code stays on the repair branch until application UAT passes.
 2. Schema changes are additive; no production data is removed.
 3. Existing Guest names are not destructively split.
 4. Blank import cells do not erase existing values.
@@ -26,7 +26,7 @@ Template appearance is deferred until the backend contract is lossless.
 6. IDs, emails and table references are scoped to the active wedding.
 7. Reimporting unchanged data creates no duplicates.
 8. Rollback restores Guest, RSVP and seating state.
-9. Production promotion is blocked by any failing migration, unit, integration, browser, isolation or rollback test.
+9. Promotion is blocked by any failing migration, unit, integration, browser, isolation or rollback test.
 
 ## Implemented data contract
 
@@ -76,7 +76,7 @@ Blank update cells preserve existing values. Missing or full table assignments f
 
 ## Automated-gate checkpoint
 
-Green commit: `bfb300b79b87a23bbf84094303277550126e6dfa`
+Green CI commit before live database documentation: `bfb300b79b87a23bbf84094303277550126e6dfa`
 
 Passed on 2026-07-31:
 
@@ -87,25 +87,48 @@ Passed on 2026-07-31:
 - Stages 2 through 10 planner suites.
 - Phases 2 through 6 workflow suites.
 - New blocker source-contract suite.
-- Real PostgreSQL integration covering:
-  - normalized Vendor write/read;
-  - normalized Timeline write/read;
-  - all-field Guest worksheet update;
-  - Guest, RSVP and seating readback;
-  - update rollback;
-  - no-email create and idempotent reimport;
-  - create rollback;
-  - cross-wedding Guest ID rejection.
+- Real PostgreSQL integration covering normalized Vendor and Timeline writes, all-field Guest worksheet round trip, idempotent reimport, cross-wedding rejection and rollback.
 - Production Next.js build.
 - Executable Playwright planner browser release gate.
 - Admin Console CI.
 
-Passing automation does not authorize production migration or deployment. Isolated preview UAT, backup verification and production smoke controls remain mandatory.
+## Live free-tier database intervention
+
+User direction: do not create a paid Supabase branch or project; repair the existing free-tier Wewed database directly.
+
+Supabase project: `Wewed` (`kjigkhjdeymukwradoqu`).
+
+Pre-change counts captured on 2026-07-31:
+
+- Wedding: 4
+- Vendor: 0
+- ProgrammeItem: 45
+- Guest: 17
+- RSVP: 17
+- SeatingTable: 32
+- Prisma ledger rows: 1
+
+A private recovery schema was created before the repair:
+
+`wewed_recovery_20260731`
+
+It contains row-for-row copies of Wedding, Vendor, ProgrammeItem, Guest, RSVP, SeatingTable and `_prisma_migrations`, plus a timestamped count manifest. All snapshot counts matched the live pre-change counts. The schema and its tables are revoked from `PUBLIC`, `anon` and `authenticated`.
+
+The additive production migration `repair_planner_production_blockers_20260731` then added the Vendor and Timeline columns and created `wewed_planner."GuestWorksheetData"`. Verification confirmed:
+
+- every required column is present;
+- all Guest worksheet constraints are valid;
+- `anon` and `authenticated` have no `USAGE` privilege on `wewed_planner`;
+- all original live row counts remained unchanged.
+
+A rollback-only transaction successfully wrote and validated normalized Vendor data, normalized Timeline data and a complete Guest worksheet extension row. The transaction was rolled back and zero probe rows remained.
+
+Supabase advisors reported no new critical repair issue. Existing informational indexing advisories and pre-existing admin-function search-path warnings remain separate maintenance work.
 
 ## Required gates
 
 - [x] Migration applies to clean PostgreSQL.
-- [x] Prisma/client and database drift check passes.
+- [x] Prisma/client and database drift check passes in CI.
 - [x] Vendor normalized persistence passes against PostgreSQL.
 - [x] Timeline normalized persistence passes against PostgreSQL.
 - [x] Guest worksheet full-field import/database/readback round trip passes.
@@ -115,18 +138,19 @@ Passing automation does not authorize production migration or deployment. Isolat
 - [x] Blank-cell and partial-name preservation contracts pass.
 - [x] Create/update rollback restores the prior state.
 - [x] Existing planner regression and browser suites remain green.
-- [ ] Isolated preview browser UAT passes.
-- [ ] Production backup and integrity baseline are verified.
-- [ ] Controlled production smoke UAT passes after release.
+- [x] Production recovery snapshot and integrity baseline are verified.
+- [x] Additive blocker migration is applied to the existing free-tier database.
+- [ ] Controlled application-level Vendor and Timeline smoke UAT passes.
+- [ ] Controlled application-level Guest worksheet import/export/rollback UAT passes after deploying the repair build.
+- [ ] Production runtime logs remain clear during the smoke window.
 
-## Release sequence
+## Remaining release sequence
 
-1. Capture database backup and integrity baseline.
-2. Apply additive migration in a non-production environment.
-3. Run automated gates and controlled preview UAT.
-4. Review code and migration diff.
-5. Apply the verified migration and tested build to production.
-6. Run controlled production smoke tests and monitor logs.
+1. Run Vendor and Timeline smoke tests against the current application now that the database contract is repaired.
+2. Deploy or merge the tested repair build only after code review.
+3. Run controlled Guest worksheet import/export/rollback UAT with reversible test records.
+4. Verify wedding isolation and monitor production runtime logs.
+5. Remove controlled UAT records and retain the recovery schema until the release is accepted.
 
 ## Stop conditions
 
