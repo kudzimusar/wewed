@@ -1,11 +1,12 @@
 import 'server-only'
 
 import { createHmac, timingSafeEqual } from 'node:crypto'
+import type { WewedBillingInterval, WewedPlanId } from '@/lib/wewed-plans'
 
 const STRIPE_API_BASE = 'https://api.stripe.com/v1'
 const STRIPE_SIGNATURE_TOLERANCE_SECONDS = 5 * 60
 
-export type StripePlan = 'starter' | 'professional' | 'enterprise'
+export type StripePlan = Exclude<WewedPlanId, 'free'>
 
 function required(name: string): string {
   const value = process.env[name]?.trim()
@@ -21,10 +22,38 @@ function optional(...names: string[]): string | null {
   return null
 }
 
-export function stripePriceIdForPlan(plan: string): string | null {
-  if (plan === 'starter') return optional('STRIPE_PRICE_STARTER', 'STRIPE_PRICE_CANON')
-  if (plan === 'professional') return optional('STRIPE_PRICE_PROFESSIONAL', 'STRIPE_PRICE_FOREVER')
-  if (plan === 'enterprise') return optional('STRIPE_PRICE_ENTERPRISE')
+export function stripePriceIdForPlan(
+  plan: string,
+  interval: WewedBillingInterval = 'month',
+): string | null {
+  if (plan === 'starter' && interval === 'month') {
+    return optional(
+      'STRIPE_PRICE_STARTER_MONTHLY',
+      'STRIPE_PRICE_CANON_MONTHLY',
+      'STRIPE_PRICE_STARTER',
+      'STRIPE_PRICE_CANON',
+    )
+  }
+  if (plan === 'starter' && interval === 'year') {
+    return optional('STRIPE_PRICE_STARTER_ANNUAL', 'STRIPE_PRICE_CANON_ANNUAL')
+  }
+  if (plan === 'professional' && interval === 'month') {
+    return optional(
+      'STRIPE_PRICE_PROFESSIONAL_MONTHLY',
+      'STRIPE_PRICE_FOREVER_MONTHLY',
+      'STRIPE_PRICE_PROFESSIONAL',
+      'STRIPE_PRICE_FOREVER',
+    )
+  }
+  if (plan === 'professional' && interval === 'year') {
+    return optional('STRIPE_PRICE_PROFESSIONAL_ANNUAL', 'STRIPE_PRICE_FOREVER_ANNUAL')
+  }
+  if (plan === 'enterprise' && interval === 'month') {
+    return optional('STRIPE_PRICE_ENTERPRISE_MONTHLY', 'STRIPE_PRICE_ENTERPRISE')
+  }
+  if (plan === 'enterprise' && interval === 'year') {
+    return optional('STRIPE_PRICE_ENTERPRISE_ANNUAL')
+  }
   return null
 }
 
@@ -33,9 +62,18 @@ export function stripeBillingConfiguration() {
     enabled: Boolean(process.env.STRIPE_SECRET_KEY?.trim()),
     webhookConfigured: Boolean(process.env.STRIPE_WEBHOOK_SECRET?.trim()),
     plans: {
-      starter: Boolean(stripePriceIdForPlan('starter')),
-      professional: Boolean(stripePriceIdForPlan('professional')),
-      enterprise: Boolean(stripePriceIdForPlan('enterprise')),
+      starter: {
+        month: Boolean(stripePriceIdForPlan('starter', 'month')),
+        year: Boolean(stripePriceIdForPlan('starter', 'year')),
+      },
+      professional: {
+        month: Boolean(stripePriceIdForPlan('professional', 'month')),
+        year: Boolean(stripePriceIdForPlan('professional', 'year')),
+      },
+      enterprise: {
+        month: Boolean(stripePriceIdForPlan('enterprise', 'month')),
+        year: Boolean(stripePriceIdForPlan('enterprise', 'year')),
+      },
     },
   }
 }
@@ -80,6 +118,7 @@ export async function createStripeCustomer(input: {
     email: input.email,
     name: input.name,
     'metadata[businessAccountId]': input.businessAccountId,
+    'metadata[platform]': 'wewed',
   })
 }
 
@@ -88,10 +127,11 @@ export async function createStripeCheckoutSession(input: {
   businessAccountId: string
   customerId: string
   plan: StripePlan
+  interval: WewedBillingInterval
 }) {
-  const priceId = stripePriceIdForPlan(input.plan)
+  const priceId = stripePriceIdForPlan(input.plan, input.interval)
   if (!priceId) {
-    throw new Error(`Stripe pricing for ${input.plan} is not configured.`)
+    throw new Error(`Stripe pricing for ${input.plan} (${input.interval}) is not configured.`)
   }
 
   return stripeRequest<{ id: string; url: string | null }>('/checkout/sessions', {
@@ -103,10 +143,15 @@ export async function createStripeCheckoutSession(input: {
     cancel_url: `${input.origin}/billing?checkout=cancelled`,
     client_reference_id: input.businessAccountId,
     allow_promotion_codes: true,
+    billing_address_collection: 'auto',
     'metadata[businessAccountId]': input.businessAccountId,
     'metadata[plan]': input.plan,
+    'metadata[interval]': input.interval,
+    'metadata[platform]': 'wewed',
     'subscription_data[metadata][businessAccountId]': input.businessAccountId,
     'subscription_data[metadata][plan]': input.plan,
+    'subscription_data[metadata][interval]': input.interval,
+    'subscription_data[metadata][platform]': 'wewed',
   })
 }
 
