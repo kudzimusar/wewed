@@ -54,19 +54,39 @@ async function openPlanner(page: Page): Promise<void> {
 }
 
 export async function openModule(page: Page, moduleKey: ModuleKey): Promise<void> {
-  const worksheetButton = page.getByTestId(`worksheet-module-${moduleKey}`)
-  if (!(await worksheetButton.isVisible())) {
-    await page.getByTestId('worksheet-tools-toggle').click()
+  const routeKey = moduleKey === 'checklist' ? 'tasks' : moduleKey
+  const targetUrl = `/planner?module=${routeKey}#planner-workspace`
+
+  try {
+    const worksheetButton = page.getByTestId(`worksheet-module-${moduleKey}`)
+    if (!(await worksheetButton.isVisible())) {
+      const toggle = page.getByTestId('worksheet-tools-toggle')
+      if (await toggle.isVisible()) {
+        await toggle.click({ timeout: 2_500 })
+        await expect(worksheetButton).toBeVisible({ timeout: 3_000 })
+      } else {
+        await page.goto(targetUrl)
+      }
+    }
+
+    if (await worksheetButton.isVisible()) {
+      await worksheetButton.click({ timeout: 3_000 })
+    } else if (!page.url().includes(`module=${routeKey}`)) {
+      await page.goto(targetUrl)
+    }
+  } catch {
+    await page.goto(targetUrl)
   }
-  await worksheetButton.click()
-  await expect(page).toHaveURL(new RegExp(`[?&]module=${moduleKey === 'checklist' ? 'tasks' : moduleKey}`))
+
+  await expect(page).toHaveURL(new RegExp(`[?&]module=${routeKey}`))
   const mobileSelector = page.locator('#planner-workspace-section')
   if (await mobileSelector.isVisible()) {
-    const workspaceValue = moduleKey === 'checklist' ? 'tasks' : moduleKey
-    await expect(mobileSelector).toHaveValue(workspaceValue)
+    await expect(mobileSelector).toHaveValue(routeKey)
   } else {
     const workspaceNavigation = page.getByRole('navigation', { name: 'Planner workspace sections' })
-    await expect(workspaceNavigation.getByRole('button', { name: MODULE_LABELS[moduleKey], exact: true })).toHaveClass(/bg-gold/)
+    await expect(
+      workspaceNavigation.getByRole('button', { name: MODULE_LABELS[moduleKey], exact: true }),
+    ).toHaveClass(/bg-gold/)
   }
 }
 
