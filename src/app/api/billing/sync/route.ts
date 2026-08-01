@@ -31,6 +31,7 @@ type StripeSubscription = {
   status: string
   created?: number
   current_period_end?: number
+  cancel_at?: number | null
   cancel_at_period_end?: boolean
   metadata?: Record<string, string>
   items?: {
@@ -232,8 +233,13 @@ export async function POST(request: NextRequest) {
 
     const currentPeriodEnd = integer(subscription.current_period_end) ??
       integer(subscription.items?.data?.[0]?.current_period_end)
+    const scheduledCancellationAt = integer(subscription.cancel_at)
+    const cancelAtPeriodEnd = subscription.cancel_at_period_end === true ||
+      scheduledCancellationAt !== null
+    const accessOrRenewalEnd = cancelAtPeriodEnd
+      ? scheduledCancellationAt ?? currentPeriodEnd
+      : currentPeriodEnd
     const normalizedStatus = normalizeStatus(subscription.status)
-    const cancelAtPeriodEnd = Boolean(subscription.cancel_at_period_end)
     const metadataPatch: Record<string, string> = {
       [keys.customerId]: customerId,
       [keys.subscriptionId]: subscription.id,
@@ -243,8 +249,8 @@ export async function POST(request: NextRequest) {
       [keys.cancelAtPeriodEnd]: String(cancelAtPeriodEnd),
       [keys.lastSyncedAt]: new Date().toISOString(),
     }
-    if (currentPeriodEnd) {
-      metadataPatch[keys.currentPeriodEndsAt] = new Date(currentPeriodEnd * 1000).toISOString()
+    if (accessOrRenewalEnd) {
+      metadataPatch[keys.currentPeriodEndsAt] = new Date(accessOrRenewalEnd * 1000).toISOString()
     }
 
     await db.$transaction(async (tx) => {
@@ -272,7 +278,7 @@ export async function POST(request: NextRequest) {
           account.id,
           plan,
           normalizedStatus,
-          currentPeriodEnd,
+          accessOrRenewalEnd,
           JSON.stringify(metadataPatch),
         )
       }
@@ -292,6 +298,9 @@ export async function POST(request: NextRequest) {
           interval,
           status: normalizedStatus,
           cancelAtPeriodEnd,
+          scheduledCancellationAt: scheduledCancellationAt
+            ? new Date(scheduledCancellationAt * 1000).toISOString()
+            : null,
           source: 'stripe_api_reconciliation',
           liveLedgerWriteSkipped: stripeUsesTestMode(),
         }),
@@ -306,8 +315,8 @@ export async function POST(request: NextRequest) {
         interval,
         status: normalizedStatus,
         cancelAtPeriodEnd,
-        currentPeriodEndsAt: currentPeriodEnd
-          ? new Date(currentPeriodEnd * 1000).toISOString()
+        currentPeriodEndsAt: accessOrRenewalEnd
+          ? new Date(accessOrRenewalEnd * 1000).toISOString()
           : null,
       },
     })
