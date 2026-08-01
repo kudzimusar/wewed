@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import { Eye, EyeOff, Loader2, Lock, Mail, X } from 'lucide-react'
+import { Eye, EyeOff, Loader2, Lock, LogOut, Mail, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -14,8 +14,12 @@ import {
 import { Input } from '@/components/ui/input'
 import {
   ADMIN_AUTH_EVENT,
+  getCachedDashboardUser,
+  logoutAdmin,
   refreshAdminSession,
   signInAdmin,
+  type DashboardRole,
+  type DashboardUser,
 } from '@/lib/admin-auth'
 
 interface DashboardAuthGateProps {
@@ -23,15 +27,26 @@ interface DashboardAuthGateProps {
   description: string
   onClose: () => void
   children: ReactNode
+  allowedRoles?: readonly DashboardRole[]
+  wrongRoleMessage?: string
 }
 
-type AuthState = 'checking' | 'signed-out' | 'authorized'
+type AuthState = 'checking' | 'signed-out' | 'authorized' | 'wrong-role'
+
+function roleIsAllowed(
+  user: DashboardUser | null | undefined,
+  allowedRoles: readonly DashboardRole[] | undefined,
+): boolean {
+  return Boolean(user) && (!allowedRoles || allowedRoles.includes(user.role))
+}
 
 export function DashboardAuthGate({
   title,
   description,
   onClose,
   children,
+  allowedRoles,
+  wrongRoleMessage = 'This page requires a different Wewed workspace. Switch accounts to continue.',
 }: DashboardAuthGateProps) {
   const [authState, setAuthState] = useState<AuthState>('checking')
   const [email, setEmail] = useState('')
@@ -46,22 +61,33 @@ export function DashboardAuthGate({
     const handleAuthChange = (event: Event) => {
       const authorized = (event as CustomEvent<{ authorized?: boolean }>).detail
         ?.authorized
-      setAuthState(authorized ? 'authorized' : 'signed-out')
+      if (!authorized) {
+        setAuthState('signed-out')
+        return
+      }
+
+      const user = getCachedDashboardUser()
+      setAuthState(roleIsAllowed(user, allowedRoles) ? 'authorized' : 'wrong-role')
     }
 
     window.addEventListener(ADMIN_AUTH_EVENT, handleAuthChange)
 
     void refreshAdminSession().then((result) => {
-      if (!cancelled) {
-        setAuthState(result.success ? 'authorized' : 'signed-out')
+      if (cancelled) return
+      if (!result.success || !result.user) {
+        setAuthState('signed-out')
+        return
       }
+      setAuthState(
+        roleIsAllowed(result.user, allowedRoles) ? 'authorized' : 'wrong-role',
+      )
     })
 
     return () => {
       cancelled = true
       window.removeEventListener(ADMIN_AUTH_EVENT, handleAuthChange)
     }
-  }, [])
+  }, [allowedRoles])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -70,14 +96,23 @@ export function DashboardAuthGate({
 
     const result = await signInAdmin(email, password)
 
-    if (result.success) {
+    if (result.success && result.user) {
       setPassword('')
-      setAuthState('authorized')
+      setAuthState(
+        roleIsAllowed(result.user, allowedRoles) ? 'authorized' : 'wrong-role',
+      )
     } else {
       setError(result.error || 'Unable to sign in.')
     }
 
     setSubmitting(false)
+  }
+
+  function switchAccount() {
+    logoutAdmin()
+    setPassword('')
+    setError(null)
+    setAuthState('signed-out')
   }
 
   if (authState === 'authorized') return children
@@ -106,6 +141,8 @@ export function DashboardAuthGate({
               <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full border border-gold/30 bg-gold/10">
                 {authState === 'checking' ? (
                   <Loader2 className="size-6 animate-spin text-gold" />
+                ) : authState === 'wrong-role' ? (
+                  <LogOut className="size-6 text-gold" />
                 ) : (
                   <Lock className="size-6 text-gold" />
                 )}
@@ -114,14 +151,32 @@ export function DashboardAuthGate({
                 WEWED · SECURE ACCESS
               </p>
               <h2 className="wewed-heading mt-3 text-3xl text-champagne">
-                {title}
+                {authState === 'wrong-role' ? 'Switch Wewed account' : title}
               </h2>
               <p className="mt-2 font-sans text-sm text-champagne/60">
                 {authState === 'checking'
                   ? 'Checking your secure session…'
-                  : description}
+                  : authState === 'wrong-role'
+                    ? wrongRoleMessage
+                    : description}
               </p>
             </div>
+
+            {authState === 'wrong-role' && (
+              <div className="space-y-4">
+                <Button
+                  type="button"
+                  onClick={switchAccount}
+                  className="w-full bg-gold font-sans text-espresso hover:bg-gold-light"
+                >
+                  <LogOut className="size-4" />
+                  Switch account
+                </Button>
+                <p className="text-center font-sans text-[11px] text-champagne/45">
+                  Your current Wewed session will be signed out before another account signs in.
+                </p>
+              </div>
+            )}
 
             {authState === 'signed-out' && (
               <form onSubmit={handleSubmit} className="space-y-4">
