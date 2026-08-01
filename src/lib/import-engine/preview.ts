@@ -21,11 +21,12 @@ function rowDiffersFromRecord(
   schema: ModuleSchema,
   existing: any,
 ): boolean {
+  if (schema.rowDiffers) return schema.rowDiffers(mapped, existing)
   const existingRow = schema.recordToRow(existing)
   for (const field of schema.fields) {
     const newValue = (mapped[field.key] ?? '').toString().trim()
     // Blank update cells preserve existing data. Clearing requires an explicit,
-    // governed operation rather than an ambiguous empty spreadsheet cell.
+    // governed module contract rather than an ambiguous empty spreadsheet cell.
     if (!newValue) continue
     const oldValue = (existingRow[field.key] ?? '').toString().trim()
     if (norm(newValue) !== norm(oldValue)) return true
@@ -64,6 +65,14 @@ export async function generatePreview(
 
   // Failing closed avoids converting a read outage into duplicate creates.
   const existing = await schema.fetchExisting(weddingId)
+  const rowNumbers = parsed.rowNumbers ?? mappedRows.map((_row, index) => index + 2)
+  const formulaRowNumbers = new Set((parsed.formulaCells ?? []).map((cell) => cell.rowIndex))
+  const batchCandidates = mappedRows
+    .map((mapped, index) => ({ rowIndex: rowNumbers[index], mapped }))
+    .filter(({ rowIndex, mapped }) => !formulaRowNumbers.has(rowIndex) && validateRow(mapped, schema).errors.length === 0)
+  const batchErrors = schema.validateBatch
+    ? await schema.validateBatch(batchCandidates, existing, weddingId)
+    : new Map<number, string[]>()
 
   const existingByKey = new Map<string, any>()
   if (schema.uniqueKey && !schema.matchExisting) {
@@ -85,12 +94,12 @@ export async function generatePreview(
   let invalidRows = 0
   let validRows = 0
 
-  const dataRowNumbers = new Set(parsed.rowNumbers ?? mappedRows.map((_row, index) => index + 2))
+  const dataRowNumbers = new Set(rowNumbers)
 
   for (let index = 0; index < mappedRows.length; index += 1) {
     const mapped = mappedRows[index]
     const raw = rows[index]
-    const rowIndex = parsed.rowNumbers?.[index] ?? index + 2
+    const rowIndex = rowNumbers[index]
     const validation = validateRow(mapped, schema)
     const formulaErrors = (parsed.formulaCells ?? [])
       .filter((cell) => cell.rowIndex === rowIndex)
@@ -98,7 +107,12 @@ export async function generatePreview(
     const referenceErrors = validation.errors.length === 0 && formulaErrors.length === 0 && schema.validateReferences
       ? await schema.validateReferences(mapped, weddingId)
       : []
-    const rowErrors = [...validation.errors, ...formulaErrors, ...referenceErrors]
+    const rowErrors = [
+      ...validation.errors,
+      ...formulaErrors,
+      ...referenceErrors,
+      ...(batchErrors.get(rowIndex) ?? []),
+    ]
     const rowWarnings = [...validation.warnings]
     let action: ImportRow['action'] = 'create'
     let existingId: string | undefined
@@ -216,7 +230,7 @@ export async function generatePreview(
     generatedAt: new Date().toISOString(),
     fileFingerprint: fileFingerprint(parsed),
     sourceHeaders: [...parsed.headers],
-    sourceRowNumbers: [...(parsed.rowNumbers ?? mappedRows.map((_row, index) => index + 2))],
+    sourceRowNumbers: [...rowNumbers],
     sourceFormulaCells: [...(parsed.formulaCells ?? [])],
     sourceRawRowCount: parsed.rawRowCount,
     sourceFirstSheetName: parsed.firstSheetName,
