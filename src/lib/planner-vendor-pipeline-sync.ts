@@ -36,10 +36,17 @@ function statusFromContract(
   return 'lead'
 }
 
+/**
+ * Keep the normalized Vendor record and planner pipeline projection aligned.
+ * A transaction client can be supplied by worksheet imports so the Vendor and
+ * ContentRevision writes commit or roll back together. Existing API callers
+ * continue to use the default application database client.
+ */
 export async function syncVendorPipelineFromNormalizedVendor(
   input: SyncVendorPipelineInput,
+  client: any = db,
 ): Promise<void> {
-  const existing = await db.contentRevision.findFirst({
+  const existing = await client.contentRevision.findFirst({
     where: {
       weddingId: input.weddingId,
       section: 'planner_vendor_pipeline',
@@ -93,7 +100,7 @@ export async function syncVendorPipelineFromNormalizedVendor(
   }
 
   if (existing) {
-    await db.contentRevision.update({
+    await client.contentRevision.update({
       where: { id: existing.id },
       data: {
         value: JSON.stringify(value),
@@ -104,7 +111,7 @@ export async function syncVendorPipelineFromNormalizedVendor(
     return
   }
 
-  await db.contentRevision.create({
+  await client.contentRevision.create({
     data: {
       section: 'planner_vendor_pipeline',
       fieldKey: input.vendor.id,
