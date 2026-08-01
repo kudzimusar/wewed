@@ -45,19 +45,21 @@ export function usePlannerFilterState<T extends Record<string, string>>(
       // Session storage is an enhancement; controls still work without it.
     }
 
-    if (!pathname.startsWith('/planner/')) return
-    const next = new URLSearchParams(searchParams.toString())
+    const livePathname = window.location.pathname
+    if (!livePathname.startsWith('/planner/')) return
+    const current = new URLSearchParams(window.location.search)
+    const next = new URLSearchParams(current)
     for (const key of Object.keys(defaultValues) as Array<keyof T>) {
       const value = state[key]
       const param = filterParam(String(key))
       if (value === defaultValues[key]) next.delete(param)
       else next.set(param, value)
     }
-    const currentQuery = searchParams.toString()
+    const currentQuery = current.toString()
     const nextQuery = next.toString()
     if (nextQuery === currentQuery) return
     const hash = window.location.hash || '#planner-workspace'
-    router.replace(`${pathname}${nextQuery ? `?${nextQuery}` : ''}${hash}`, { scroll: false })
+    router.replace(`${livePathname}${nextQuery ? `?${nextQuery}` : ''}${hash}`, { scroll: false })
   }, [defaultValues, pathname, ready, router, searchParams, state, storageKey])
 
   return [state, setState, () => setState(defaultValues)]

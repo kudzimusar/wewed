@@ -50,24 +50,8 @@ function usePlannerScrollPersistence(
     let current: HTMLElement | null = null
     let restored = false
 
-    const scrollable = (element: HTMLElement) => {
-      const style = window.getComputedStyle(element)
-      return (
-        (style.overflowY === 'auto' || style.overflowY === 'scroll') &&
-        element.clientHeight > 0 &&
-        element.scrollHeight > element.clientHeight + 8
-      )
-    }
-
-    const findPrimary = () => {
-      const candidates = Array.from(root.querySelectorAll<HTMLElement>('*')).filter(scrollable)
-      return (
-        candidates.sort(
-          (left, right) =>
-            right.clientHeight * right.clientWidth - left.clientHeight * left.clientWidth,
-        )[0] ?? null
-      )
-    }
+    const findPrimary = () =>
+      root.querySelector<HTMLElement>('[data-planner-module-scroll="true"]')
 
     const save = () => {
       if (!current) return

@@ -28,11 +28,13 @@ test('planner modules, filters, tools, history, and scroll position have durable
   await plannerPage.goForward()
   await expect(plannerPage).toHaveURL(/\/planner\/guests(?:[?#]|$)/)
 
+  await plannerPage.setViewportSize({ width: 430, height: 667 })
   await openModule(plannerPage, 'checklist')
   const scrollOwner = plannerPage.locator('[data-planner-primary-scroll="true"]')
   await expect(scrollOwner).toBeVisible()
-  const maximumScroll = await scrollOwner.evaluate((element) => element.scrollHeight - element.clientHeight)
-  expect(maximumScroll).toBeGreaterThan(80)
+  await expect.poll(async () =>
+    scrollOwner.evaluate((element) => element.scrollHeight - element.clientHeight),
+  ).toBeGreaterThan(80)
   await scrollOwner.evaluate((element) => {
     element.scrollTop = Math.min(320, element.scrollHeight - element.clientHeight)
   })

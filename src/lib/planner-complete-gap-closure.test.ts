@@ -65,9 +65,11 @@ describe('complete planner gap closure', () => {
       'onClose={() => setRouteTool(null)}',
     ]) expect(worksheetBar).toContain(marker)
     expect(workspace).toContain('id="planner-workspace-section"')
+    expect(workspace).toContain('data-planner-module-scroll="true"')
     expect(workspace).toContain('sm:hidden')
     expect(workspace).toContain('hidden items-center gap-1 sm:flex')
     expect(tools).toContain("pathname === '/planner'")
+    expect(tools).toContain("pathname.startsWith('/planner/')")
     expect(tools).toContain('if (isPlannerRoute)')
     expect(tools).toContain('<StoreRehydrator />')
     expect(tools).not.toContain("if (isPlannerRoute) return null")

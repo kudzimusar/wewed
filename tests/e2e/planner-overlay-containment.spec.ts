@@ -26,7 +26,10 @@ async function assertDialogGeometry(
   const dialog = page.locator('[data-slot="dialog-content"]:visible').last()
   await expect(dialog).toBeVisible()
   await dialog.evaluate(async (element) => {
-    await Promise.all(element.getAnimations().map((animation) => animation.finished.catch(() => undefined)))
+    const animated = [element, ...Array.from(element.querySelectorAll<HTMLElement>('*'))]
+    await Promise.all(
+      animated.flatMap((node) => node.getAnimations()).map((animation) => animation.finished.catch(() => undefined)),
+    )
   })
   const box = await dialog.boundingBox()
   expect(box).not.toBeNull()
