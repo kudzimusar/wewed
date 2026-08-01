@@ -53,7 +53,8 @@ describe('complete planner gap closure', () => {
     ]) expect(routeState).toContain(marker)
     for (const marker of [
       '`filter_${key}`',
-      "pathname.startsWith('/planner/')",
+      "livePathname.startsWith('/planner/')",
+      'new URLSearchParams(window.location.search)',
       'router.replace(',
       'window.sessionStorage.setItem',
     ]) expect(filterState).toContain(marker)
