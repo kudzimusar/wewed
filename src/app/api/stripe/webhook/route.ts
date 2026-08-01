@@ -176,6 +176,17 @@ function normalizeSubscriptionStatus(status: string | null, eventType: string): 
   return status
 }
 
+function subscriptionCancellationScheduled(object: StripeObject, eventType: string): boolean {
+  if (eventType === 'customer.subscription.deleted') return false
+  return boolean(object.cancel_at_period_end) === true || integer(object.cancel_at) !== null
+}
+
+function subscriptionAccessOrRenewalEnd(object: StripeObject, eventType: string): number | null {
+  const currentPeriodEnd = integer(object.current_period_end)
+  if (!subscriptionCancellationScheduled(object, eventType)) return currentPeriodEnd
+  return integer(object.cancel_at) ?? currentPeriodEnd
+}
+
 async function recordPayment(tx: Transaction, input: {
   accountId: string
   object: StripeObject
@@ -299,10 +310,8 @@ export async function POST(request: NextRequest) {
             customerId,
             subscriptionId: text(object.id),
             billingInterval: text(metadata.interval),
-            currentPeriodEnd: integer(object.current_period_end),
-            cancelAtPeriodEnd: event.type === 'customer.subscription.deleted'
-              ? false
-              : boolean(object.cancel_at_period_end),
+            currentPeriodEnd: subscriptionAccessOrRenewalEnd(object, event.type),
+            cancelAtPeriodEnd: subscriptionCancellationScheduled(object, event.type),
           })
         }
 
@@ -331,6 +340,8 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      const cancellationScheduled = subscriptionCancellationScheduled(object, event.type)
+      const scheduledCancellationAt = integer(object.cancel_at)
       await tx.$executeRawUnsafe(
         `INSERT INTO public."BusinessAuditLog"
           ("id", "actorUserId", "businessAccountId", "action", "resourceType", "resourceId", "details")
@@ -346,7 +357,10 @@ export async function POST(request: NextRequest) {
           matchedAccount: Boolean(account),
           supported,
           billingInterval: text(metadata.interval),
-          cancelAtPeriodEnd: boolean(object.cancel_at_period_end),
+          cancelAtPeriodEnd: cancellationScheduled,
+          scheduledCancellationAt: scheduledCancellationAt
+            ? new Date(scheduledCancellationAt * 1000).toISOString()
+            : null,
           sandboxLedgerWriteSkipped: stripeUsesTestMode(),
         }),
       )
