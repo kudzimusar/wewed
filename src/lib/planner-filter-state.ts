@@ -1,7 +1,14 @@
 'use client'
 
-import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react'
+import { useRouter } from 'next/navigation'
 
 function filterParam(key: string): string {
   return `filter_${key}`
@@ -12,13 +19,11 @@ export function usePlannerFilterState<T extends Record<string, string>>(
   defaults: T,
 ): [T, Dispatch<SetStateAction<T>>, () => void] {
   const router = useRouter()
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
   const defaultValues = useRef(defaults).current
   const [state, setState] = useState<T>(defaultValues)
   const [ready, setReady] = useState(false)
 
-  useEffect(() => {
+  const hydrateFromLocation = useCallback(() => {
     const next = { ...defaultValues }
     let saved: Partial<T> = {}
     try {
@@ -28,14 +33,21 @@ export function usePlannerFilterState<T extends Record<string, string>>(
       window.sessionStorage.removeItem(storageKey)
     }
 
+    const current = new URLSearchParams(window.location.search)
     for (const key of Object.keys(defaultValues) as Array<keyof T>) {
-      const fromUrl = searchParams.get(filterParam(String(key)))
+      const fromUrl = current.get(filterParam(String(key)))
       if (fromUrl !== null) next[key] = fromUrl as T[keyof T]
       else if (typeof saved[key] === 'string') next[key] = saved[key] as T[keyof T]
     }
     setState(next)
     setReady(true)
-  }, [defaultValues, searchParams, storageKey])
+  }, [defaultValues, storageKey])
+
+  useEffect(() => {
+    hydrateFromLocation()
+    window.addEventListener('popstate', hydrateFromLocation)
+    return () => window.removeEventListener('popstate', hydrateFromLocation)
+  }, [hydrateFromLocation])
 
   useEffect(() => {
     if (!ready) return
@@ -60,7 +72,7 @@ export function usePlannerFilterState<T extends Record<string, string>>(
     if (nextQuery === currentQuery) return
     const hash = window.location.hash || '#planner-workspace'
     router.replace(`${livePathname}${nextQuery ? `?${nextQuery}` : ''}${hash}`, { scroll: false })
-  }, [defaultValues, pathname, ready, router, searchParams, state, storageKey])
+  }, [defaultValues, ready, router, state, storageKey])
 
   return [state, setState, () => setState(defaultValues)]
 }
