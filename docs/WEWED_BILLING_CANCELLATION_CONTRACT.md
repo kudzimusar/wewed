@@ -11,6 +11,8 @@ A paid Stripe subscription that remains active but has a scheduled cancellation 
 
 The interface must also warn that the subscription will not renew and that the customer can resume it from the Stripe Customer Portal before the access end date.
 
+The four summary facts remain in the compact 2×2 mobile overview and four-column wide-screen overview so the full billing position is visible within one viewport.
+
 ## Stripe state detection
 
 Wewed treats a cancellation as scheduled when either Stripe signal is present:
