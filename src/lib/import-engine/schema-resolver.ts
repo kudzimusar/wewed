@@ -6,6 +6,7 @@ import type { ModuleKey, ModuleSchema } from './types'
 export { isModuleKey }
 
 export function getWorksheetSchema(moduleKey: ModuleKey): ModuleSchema {
-  if (moduleKey === 'guests') return guestWorksheetSchema
-  return getPlannerWorksheetSchema(moduleKey) ?? getModuleSchema(moduleKey)
+  const legacySchema = moduleKey === 'guests' ? guestWorksheetSchema : getModuleSchema(moduleKey)
+  if (moduleKey === 'guests') return legacySchema
+  return getPlannerWorksheetSchema(moduleKey) ?? legacySchema
 }
