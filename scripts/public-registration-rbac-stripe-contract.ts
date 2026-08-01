@@ -13,6 +13,7 @@ const [
   billing,
   globalTools,
   adminLayout,
+  adminApprovalsRoute,
   landingPage,
   pricingCatalog,
 ] = await Promise.all([
@@ -23,6 +24,7 @@ const [
   file('src/app/api/billing/account/route.ts'),
   file('src/components/wedding/global-wedding-tools.tsx'),
   file('src/app/admin/layout.tsx'),
+  file('src/app/admin/approvals/page.tsx'),
   file('src/app/page.tsx'),
   file('src/components/public/wewed-pricing-catalog.tsx'),
 ])
@@ -56,6 +58,7 @@ assert.match(billing, /stripePriceIdForPlan/)
 
 assert.match(globalTools, /PublicRegistrationTrigger/)
 assert.match(adminLayout, /AdminUtilityNav/)
+assert.match(adminApprovalsRoute, /redirect\('\/admin'\)/)
 assert.match(landingPage, /WewedPricingCatalog/)
 assert.match(pricingCatalog, /\/register\?plan=/)
 assert.match(pricingCatalog, /WEWED_PLANS/)
