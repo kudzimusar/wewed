@@ -31,6 +31,7 @@ type BillingPayload = {
     billingInterval: WewedBillingInterval | null
   }
   stripe: {
+    mode: 'test' | 'live'
     enabled: boolean
     webhookConfigured: boolean
     plans: Record<PaidPlanId, Record<WewedBillingInterval, boolean>>
@@ -110,6 +111,7 @@ export function AccountBillingPortal() {
           <Button variant="outline" onClick={() => void load()} disabled={loading || Boolean(working)} className="border-gold/25 text-gold hover:bg-gold/10"><RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} />Refresh</Button>
         </div>
 
+        {data.stripe.mode === 'test' && <div className="rounded-xl border border-sky-300/25 bg-sky-300/10 px-4 py-3 text-sm text-sky-100"><strong>Stripe Sandbox:</strong> Checkout uses test cards only. Sandbox customer, subscription and webhook state is isolated from live billing and never enters the live revenue ledger.</div>}
         {checkoutResult === 'success' && <div className="flex items-center gap-3 rounded-xl border border-emerald-300/25 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-100"><CheckCircle2 className="size-5" />Stripe Checkout completed. Subscription status will update through the signed webhook.</div>}
         {checkoutResult === 'cancelled' && <div className="rounded-xl border border-gold/25 bg-gold/10 px-4 py-3 text-sm text-gold-light">Checkout was cancelled. No plan change was applied.</div>}
         {error && <div className="rounded-xl border border-red-300/25 bg-red-300/10 px-4 py-3 text-sm text-red-100">{error}</div>}
@@ -122,7 +124,7 @@ export function AccountBillingPortal() {
         </div>
 
         {!data.stripe.enabled && <div className="rounded-xl border border-gold/25 bg-gold/10 px-4 py-3 text-sm text-gold-light">Stripe server credentials are not yet configured in Vercel. The billing interface is installed but cannot create Checkout sessions.</div>}
-        {data.stripe.enabled && !data.stripe.webhookConfigured && <div className="rounded-xl border border-gold/25 bg-gold/10 px-4 py-3 text-sm text-gold-light">Stripe Checkout is available, but `STRIPE_WEBHOOK_SECRET` must be configured before subscription state can synchronize safely.</div>}
+        {data.stripe.enabled && !data.stripe.webhookConfigured && <div className="rounded-xl border border-gold/25 bg-gold/10 px-4 py-3 text-sm text-gold-light">Stripe Checkout is available, but the signed webhook secret must be configured before subscription state can synchronize safely.</div>}
 
         <Card className="border-gold/20 bg-white/[0.045] text-champagne">
           <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
