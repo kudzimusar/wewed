@@ -5,7 +5,8 @@ BEGIN;
 INSERT INTO public."User"
   (id, email, name, role, "isActive", "createdAt", "updatedAt")
 VALUES
-  ('ci-registration-trigger-user', 'ci.registration.trigger@example.invalid', 'CI Registration Trigger', 'viewer', false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+  ('ci-registration-trigger-user', 'ci.registration.trigger@example.invalid', 'CI Registration Trigger', 'viewer', false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  ('ci-trigger-super-admin-user', 'ci.trigger.super.admin@example.invalid', 'CI Trigger Super Admin', 'admin', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
 INSERT INTO public."UserProfile"
   (id, email, "displayName", role, "createdAt", "updatedAt")
@@ -18,12 +19,17 @@ VALUES
   ('ci-registration-trigger-account', 'CI Registration Trigger', 'ci-registration-trigger-account', 'couple', 'pending_review',
    'ci-registration-trigger-user', 'public_registration', 'ci-registration-trigger-auth', 'not_started', 'starter', 'free',
    'Rollback-only registration trigger integration',
-   '{"authUserId":"ci-registration-trigger-auth","requestedRole":"couple_owner","requestedPlan":"starter"}'::jsonb);
+   '{"authUserId":"ci-registration-trigger-auth","requestedRole":"couple_owner","requestedPlan":"starter"}'::jsonb),
+  ('ci-trigger-internal-account', 'CI Wewed Internal', 'ci-trigger-internal-account', 'wewed_internal', 'active',
+   'ci-trigger-super-admin-user', 'ci_trigger_fixture', 'ci-trigger-internal-account', 'complete', 'internal', 'active',
+   'Rollback-only final Super Admin trigger fixture',
+   '{"integration":true}'::jsonb);
 
 INSERT INTO public."BusinessAccountMember"
   (id, "businessAccountId", "userId", role, status, permissions)
 VALUES
-  ('ci-registration-trigger-member', 'ci-registration-trigger-account', 'ci-registration-trigger-user', 'couple_owner', 'invited', '[]'::jsonb);
+  ('ci-registration-trigger-member', 'ci-registration-trigger-account', 'ci-registration-trigger-user', 'couple_owner', 'invited', '[]'::jsonb),
+  ('ci-trigger-super-admin-member', 'ci-trigger-internal-account', 'ci-trigger-super-admin-user', 'wewed_super_admin', 'active', '["*"]'::jsonb);
 
 INSERT INTO public."BusinessAuditLog"
   (id, "actorUserId", "businessAccountId", action, "resourceType", "resourceId", details)
@@ -42,8 +48,6 @@ DECLARE
   account_count integer;
   member_count integer;
   audit_count integer;
-  active_super_admins integer;
-  target_super_admin text;
 BEGIN
   SELECT COUNT(*) INTO user_count FROM public."User" WHERE id = 'ci-registration-trigger-user';
   SELECT COUNT(*) INTO profile_count FROM public."UserProfile" WHERE id = 'ci-registration-trigger-auth';
@@ -61,22 +65,11 @@ BEGIN
   SET permissions = permissions || '["ci.permission"]'::jsonb
   WHERE id = 'ci-registration-trigger-member';
 
-  SELECT COUNT(*), MIN(bam.id)
-    INTO active_super_admins, target_super_admin
-  FROM wewed_admin."BusinessAccountMember" bam
-  JOIN wewed_admin."BusinessAccount" ba ON ba.id = bam."businessAccountId"
-  WHERE ba.type = 'wewed_internal'
-    AND bam.role = 'wewed_super_admin'
-    AND bam.status = 'active';
-
-  IF active_super_admins <> 1 OR target_super_admin IS NULL THEN
-    RAISE EXCEPTION 'Clean database must contain exactly one active Wewed Super Admin, found %', active_super_admins;
-  END IF;
-
+  -- The deterministic fixture is the only active internal Super Admin.
   BEGIN
     UPDATE wewed_admin."BusinessAccountMember"
     SET status = 'suspended'
-    WHERE id = target_super_admin;
+    WHERE id = 'ci-trigger-super-admin-member';
 
     RAISE EXCEPTION 'Expected final Super Admin protection to reject the update';
   EXCEPTION
@@ -93,5 +86,5 @@ END $$;
 ROLLBACK;
 
 SELECT
-  (SELECT COUNT(*) FROM public."User" WHERE id = 'ci-registration-trigger-user') AS retained_users,
-  (SELECT COUNT(*) FROM public."BusinessAccount" WHERE id = 'ci-registration-trigger-account') AS retained_accounts;
+  (SELECT COUNT(*) FROM public."User" WHERE id IN ('ci-registration-trigger-user','ci-trigger-super-admin-user')) AS retained_users,
+  (SELECT COUNT(*) FROM public."BusinessAccount" WHERE id IN ('ci-registration-trigger-account','ci-trigger-internal-account')) AS retained_accounts;
