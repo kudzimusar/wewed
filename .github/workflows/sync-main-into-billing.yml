@@ -63,3 +63,5 @@ jobs:
           git add -A
           git commit -m "chore: merge billing release branch with latest main"
           git push origin HEAD:sync/main-into-billing-20260802
+
+# Synchronize event trigger after trusted base workflow installation.
