@@ -24,11 +24,30 @@ async function openWorksheetTools(page: Parameters<typeof openModule>[0]) {
 
 async function stableBoundingBox(locator: Locator) {
   let box: Awaited<ReturnType<Locator['boundingBox']>> = null
+  let previous: Awaited<ReturnType<Locator['boundingBox']>> = null
+  let consecutiveStableSamples = 0
+
   await expect.poll(async () => {
-    box = await locator.boundingBox()
-    return box !== null && box.width > 0 && box.height > 0
-  }, { message: 'visible portal element has measurable geometry' }).toBe(true)
-  if (!box) throw new Error('Visible portal element did not expose measurable geometry.')
+    const next = await locator.boundingBox()
+    if (!next || next.width <= 0 || next.height <= 0) {
+      previous = null
+      consecutiveStableSamples = 0
+      return false
+    }
+
+    const stable = previous !== null
+      && Math.abs(next.x - previous.x) <= 0.5
+      && Math.abs(next.y - previous.y) <= 0.5
+      && Math.abs(next.width - previous.width) <= 0.5
+      && Math.abs(next.height - previous.height) <= 0.5
+
+    consecutiveStableSamples = stable ? consecutiveStableSamples + 1 : 0
+    previous = next
+    box = next
+    return consecutiveStableSamples >= 1
+  }, { message: 'visible portal element has stable measurable geometry' }).toBe(true)
+
+  if (!box) throw new Error('Visible portal element did not expose stable measurable geometry.')
   return box
 }
 
@@ -83,6 +102,7 @@ async function openPlannerToolPanel(page: Parameters<typeof openModule>[0]) {
   const disclosure = page.locator('[data-planner-tools-disclosure]')
   const tools = page.locator('#planner-experience-tools')
 
+  await expect(page.getByRole('combobox', { name: 'Active wedding' })).toBeVisible()
   await expect.poll(
     async () => (await disclosure.isVisible()) || (await tools.isVisible()),
     { message: 'planner tools expose the responsive disclosure or visible navigation' },
