@@ -46,6 +46,11 @@ function metadataText(metadata: Record<string, unknown>, key: string): string | 
   return typeof value === 'string' && value.trim() ? value.trim() : null
 }
 
+function metadataBoolean(metadata: Record<string, unknown>, key: string): boolean {
+  const value = metadata[key]
+  return value === true || value === 'true'
+}
+
 function metadataDate(metadata: Record<string, unknown>, key: string): string | null {
   const value = metadataText(metadata, key)
   if (!value) return null
@@ -142,6 +147,7 @@ export async function GET(request: NextRequest) {
         currentPeriodEndsAt: testMode
           ? metadataDate(metadata, keys.currentPeriodEndsAt)
           : resolved.account.currentPeriodEndsAt?.toISOString() ?? null,
+        cancelAtPeriodEnd: metadataBoolean(metadata, keys.cancelAtPeriodEnd),
         memberRole: resolved.account.memberRole,
         stripeCustomerId: metadataText(metadata, keys.customerId),
         billingInterval: isWewedBillingInterval(billingInterval)
