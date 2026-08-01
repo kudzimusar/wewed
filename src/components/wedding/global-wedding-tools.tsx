@@ -19,7 +19,13 @@ import { KeyboardSectionNav } from '@/components/wedding/keyboard-section-nav'
 import { KeyboardShortcutsHelp } from '@/components/wedding/keyboard-shortcuts-help'
 import { PublicRegistrationTrigger } from '@/components/public/public-registration-trigger'
 
-const ISOLATED_UTILITY_ROUTES = ['/admin', '/register', '/forgot-password', '/reset-password']
+const ISOLATED_UTILITY_ROUTES = [
+  '/admin',
+  '/billing',
+  '/register',
+  '/forgot-password',
+  '/reset-password',
+]
 
 export function GlobalWeddingTools() {
   const pathname = usePathname()
