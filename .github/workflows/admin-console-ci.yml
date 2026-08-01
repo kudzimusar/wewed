@@ -55,12 +55,13 @@ jobs:
       NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
       SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-key
-      STRIPE_SECRET_KEY: sk_test_ci_placeholder
-      STRIPE_WEBHOOK_SECRET: whsec_ci_placeholder
-      STRIPE_PRICE_CANON_MONTHLY: price_ci_canon_monthly
-      STRIPE_PRICE_CANON_ANNUAL: price_ci_canon_annual
-      STRIPE_PRICE_FOREVER_MONTHLY: price_ci_forever_monthly
-      STRIPE_PRICE_FOREVER_ANNUAL: price_ci_forever_annual
+      VERCEL_ENV: preview
+      STRIPE_TEST_SECRET_KEY: sk_test_ci_placeholder
+      STRIPE_TEST_WEBHOOK_SECRET: whsec_ci_placeholder
+      STRIPE_TEST_PRICE_CANON_MONTHLY: price_ci_canon_monthly
+      STRIPE_TEST_PRICE_CANON_ANNUAL: price_ci_canon_annual
+      STRIPE_TEST_PRICE_FOREVER_MONTHLY: price_ci_forever_monthly
+      STRIPE_TEST_PRICE_FOREVER_ANNUAL: price_ci_forever_annual
     steps:
       - name: Checkout
         uses: actions/checkout@v4
