@@ -53,6 +53,11 @@ export interface ImportExecutionContext {
   db?: any
 }
 
+export interface PreviewBatchRow {
+  rowIndex: number
+  mapped: Record<string, string>
+}
+
 export interface ModuleSchema {
   key: ModuleKey
   name: string
@@ -62,17 +67,25 @@ export interface ModuleSchema {
   rowToRecord: (row: Record<string, string>) => any
   recordToRow: (record: any) => Record<string, string>
   validateRow: (row: Record<string, string>) => string[]
-  /** Optional active-wedding reference validation performed during preview. */
+  /** Optional active-wedding reference validation performed per row. */
   validateReferences?: (
     row: Record<string, string>,
     weddingId: string,
   ) => Promise<string[]>
+  /** Optional whole-file validation for capacity and other relational invariants. */
+  validateBatch?: (
+    rows: PreviewBatchRow[],
+    existingRecords: any[],
+    weddingId: string,
+  ) => Promise<Map<number, string[]>>
   uniqueKey?: string
   rowIdentity?: (row: Record<string, string>) => string | null
   matchExisting?: (
     row: Record<string, string>,
     existingRecords: any[],
   ) => ExistingRecordMatch
+  /** Override generic blank-preserving comparison where blank is an explicit value. */
+  rowDiffers?: (row: Record<string, string>, existingRecord: any) => boolean
   fetchExisting: (weddingId: string) => Promise<any[]>
   upsert: (
     weddingId: string,
