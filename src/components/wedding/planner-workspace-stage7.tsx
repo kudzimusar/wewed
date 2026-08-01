@@ -48,15 +48,25 @@ function usePlannerScrollPersistence(
     const previousRestoration = window.history.scrollRestoration
     window.history.scrollRestoration = 'manual'
     let current: HTMLElement | null = null
-    let restored = false
+    let savedPosition = 0
+    try {
+      const stored = Number(window.sessionStorage.getItem(storageKey) ?? 0)
+      savedPosition = Number.isFinite(stored) ? Math.max(0, stored) : 0
+    } catch {
+      savedPosition = 0
+    }
+    let restored = savedPosition === 0
 
     const findPrimary = () =>
       root.querySelector<HTMLElement>('[data-planner-module-scroll="true"]')
 
     const save = () => {
       if (!current) return
+      const position = Math.max(0, current.scrollTop)
+      if (!restored && savedPosition > 0 && position === 0) return
+      savedPosition = position
       try {
-        window.sessionStorage.setItem(storageKey, String(Math.max(0, current.scrollTop)))
+        window.sessionStorage.setItem(storageKey, String(position))
       } catch {
         // Scroll restoration remains a progressive enhancement.
       }
@@ -73,16 +83,11 @@ function usePlannerScrollPersistence(
         current.addEventListener('scroll', save, { passive: true })
       }
       if (restored) return
-      try {
-        const saved = Number(window.sessionStorage.getItem(storageKey) ?? 0)
-        if (Number.isFinite(saved) && saved > 0) {
-          const maximum = current.scrollHeight - current.clientHeight
-          if (maximum <= 0) return
-          current.scrollTop = Math.min(saved, maximum)
-          if (current.scrollTop <= 0) return
-        }
-      } catch {
-        // Ignore unavailable or malformed session storage.
+      if (savedPosition > 0) {
+        const maximum = current.scrollHeight - current.clientHeight
+        if (maximum <= 0) return
+        current.scrollTop = Math.min(savedPosition, maximum)
+        if (current.scrollTop <= 0) return
       }
       restored = true
     }
@@ -133,7 +138,8 @@ export function PlannerWorkspace() {
   const [workspaceVersion, setWorkspaceVersion] = useState(0)
   const urlToolsOpen = searchParams.get('panel') === 'worksheet'
   const [toolsOpen, setToolsOpen] = useState(urlToolsOpen)
-  const routeKey = plannerLocation(pathname, new URLSearchParams(searchParams.toString()))
+  const pendingToolsOpen = useRef<boolean | null>(null)
+  const routeKey = pathname
   const rootRef = usePlannerScrollPersistence(routeKey, workspaceVersion)
 
   const activeModule = useMemo(
@@ -141,7 +147,11 @@ export function PlannerWorkspace() {
     [activeTab],
   )
 
-  useEffect(() => setToolsOpen(urlToolsOpen), [urlToolsOpen])
+  useEffect(() => {
+    if (pendingToolsOpen.current !== null && pendingToolsOpen.current !== urlToolsOpen) return
+    pendingToolsOpen.current = null
+    setToolsOpen(urlToolsOpen)
+  }, [urlToolsOpen])
 
   useEffect(() => {
     const canonicalPath = plannerModulePath(activeTab, activeTool)
@@ -185,6 +195,7 @@ export function PlannerWorkspace() {
 
   const toggleWorksheetTools = useCallback(() => {
     const nextOpen = !toolsOpen
+    pendingToolsOpen.current = nextOpen
     setToolsOpen(nextOpen)
     const next = new URLSearchParams(window.location.search)
     if (nextOpen) next.set('panel', 'worksheet')

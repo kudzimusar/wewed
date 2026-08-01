@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
@@ -94,11 +94,17 @@ function PlannerExperienceNavigation() {
   const searchParams = useSearchParams()
   const urlToolsOpen = searchParams.get('panel') === 'experience'
   const [toolsOpen, setToolsOpen] = useState(urlToolsOpen)
+  const pendingToolsOpen = useRef<boolean | null>(null)
 
-  useEffect(() => setToolsOpen(urlToolsOpen), [urlToolsOpen])
+  useEffect(() => {
+    if (pendingToolsOpen.current !== null && pendingToolsOpen.current !== urlToolsOpen) return
+    pendingToolsOpen.current = null
+    setToolsOpen(urlToolsOpen)
+  }, [urlToolsOpen])
 
   function toggleTools() {
     const nextOpen = !toolsOpen
+    pendingToolsOpen.current = nextOpen
     setToolsOpen(nextOpen)
     const next = new URLSearchParams(window.location.search)
     if (nextOpen) next.set('panel', 'experience')

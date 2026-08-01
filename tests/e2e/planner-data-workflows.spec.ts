@@ -44,8 +44,14 @@ test('downloaded Excel template imports, exports, records history, and rolls bac
   XLSX.writeFile(workbook, importPath)
 
   await page.getByRole('button', { name: 'Import', exact: true }).click()
+  await expect(page).toHaveURL(/\/planner\/tasks\/import(?:[?#]|$)/)
   const importDialog = page.getByRole('dialog')
+  await expect(importDialog).toBeVisible()
+  const previewResponse = page.waitForResponse((response) =>
+    response.url().endsWith('/api/imports') && response.request().method() === 'POST',
+  )
   await importDialog.locator('input[type="file"]').setInputFiles(importPath)
+  expect((await previewResponse).ok()).toBe(true)
   await expect(importDialog.getByTestId('import-review-table-scroll').getByRole('cell', { name: importedTask, exact: true })).toBeVisible()
   await importDialog.getByRole('button', { name: 'Review import' }).click()
   await importDialog.getByRole('button', { name: 'Import now' }).click()

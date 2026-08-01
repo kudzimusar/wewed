@@ -42,7 +42,7 @@ test('planner modules, filters, tools, history, and scroll position have durable
   const savedPosition = await scrollOwner.evaluate((element) => element.scrollTop)
   expect(savedPosition).toBeGreaterThan(0)
   await expect.poll(async () => plannerPage.evaluate(() => {
-    const key = `wewed:planner:scroll:${window.location.pathname}${window.location.search}`
+    const key = `wewed:planner:scroll:${window.location.pathname}`
     return Number(window.sessionStorage.getItem(key) ?? 0)
   })).toBeGreaterThan(0)
 

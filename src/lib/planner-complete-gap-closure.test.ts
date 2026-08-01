@@ -35,6 +35,10 @@ describe('complete planner gap closure', () => {
       "next.delete('module')",
       "window.history.scrollRestoration = 'manual'",
       'wewed:planner:scroll:',
+      'let savedPosition = 0',
+      'if (!restored && savedPosition > 0 && position === 0) return',
+      'const routeKey = pathname',
+      'pendingToolsOpen.current = nextOpen',
       "window.addEventListener('pagehide', save)",
       "document.addEventListener('visibilitychange', saveWhenHidden)",
       'data-planner-primary-scroll',
@@ -61,8 +65,9 @@ describe('complete planner gap closure', () => {
       'window.sessionStorage.setItem',
       "window.addEventListener('popstate', hydrateFromLocation)",
     ]) expect(filterState).toContain(marker)
+    expect(worksheetBar).toContain('routeTool?: PlannerToolSlug | null')
+    expect(await source('src/components/wedding/import-dialog.tsx')).toContain("'Task Title'")
     for (const marker of [
-      'routeTool?: PlannerToolSlug | null',
       "routeTool === 'import'",
       "routeTool === 'imports'",
       "setRouteTool('import')",
@@ -79,6 +84,7 @@ describe('complete planner gap closure', () => {
     expect(tools).not.toContain("if (isPlannerRoute) return null")
     expect(portal).toContain('data-planner-tools-disclosure')
     expect(portal).toContain("searchParams.get('panel') === 'experience'")
+    expect(portal).toContain('pendingToolsOpen.current = nextOpen')
     expect(portal).toContain("next.set('panel', 'experience')")
     expect(portal).toContain('max-h-[42dvh]')
     expect(portal).not.toContain('planner-portal-body relative flex min-h-0 flex-1 flex-col overflow-hidden pt-12')

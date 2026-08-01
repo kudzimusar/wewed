@@ -522,6 +522,7 @@ const REVIEW_COLUMN_PRIORITY = [
   'Last Name',
   'Display Name',
   'Task',
+  'Task Title',
   'Title',
   'Vendor Name',
   'Email',
