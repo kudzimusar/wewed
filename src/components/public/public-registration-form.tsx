@@ -33,6 +33,7 @@ export function PublicRegistrationForm() {
   const searchParams = useSearchParams()
   const queryPlan = searchParams.get('plan')
   const initialPlan = isWewedPlanId(queryPlan) ? queryPlan : 'free'
+  const confirmationReturned = searchParams.get('confirmed') === '1'
   const [accountType, setAccountType] = useState('couple')
   const [requestedRole, setRequestedRole] = useState('couple_owner')
   const [requestedPlan, setRequestedPlan] = useState(initialPlan)
@@ -85,6 +86,29 @@ export function PublicRegistrationForm() {
     }
   }
 
+  if (confirmationReturned) {
+    return (
+      <Card className="border-gold/25 bg-white/[0.05] text-champagne">
+        <CardContent className="p-8 text-center">
+          <CheckCircle2 className="mx-auto size-12 text-gold" />
+          <h2 className="mt-4 text-2xl font-semibold">Application pending review</h2>
+          <p className="mt-3 text-sm text-champagne/65">
+            Your application is already in Wewed&apos;s review flow. Do not submit another application.
+          </p>
+          <p className="mt-3 text-sm text-champagne/55">
+            Email links can appear expired after they have already been consumed. Wewed will verify the confirmation state, then complete approval and internal onboarding.
+          </p>
+          <div className="mt-5 rounded-xl border border-gold/15 bg-black/10 px-4 py-3 text-xs text-champagne/50">
+            Next step: Wewed administrator approval, followed by couple and wedding workspace setup.
+          </div>
+          <Button asChild className="mt-6 bg-gold text-espresso hover:bg-gold-light">
+            <a href="/">Return to Wewed</a>
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
+
   if (success) {
     return (
       <Card className="border-gold/25 bg-white/[0.05] text-champagne">
@@ -116,10 +140,10 @@ export function PublicRegistrationForm() {
       </CardHeader>
       <CardContent>
         <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
-          <Input name="name" placeholder="Your full name" required className="border-gold/20 bg-black/15" />
-          <Input name="email" type="email" placeholder="Email address" required className="border-gold/20 bg-black/15" />
-          <Input name="password" type="password" minLength={12} placeholder="Password — 12+ characters" required className="border-gold/20 bg-black/15" />
-          <Input name="phone" placeholder="Phone number (optional)" className="border-gold/20 bg-black/15" />
+          <Input name="name" autoComplete="name" placeholder="Your full name" required className="border-gold/20 bg-black/15" />
+          <Input name="email" type="email" autoComplete="email" placeholder="Email address" required className="border-gold/20 bg-black/15" />
+          <Input name="password" type="password" autoComplete="new-password" minLength={12} placeholder="Password — 12+ characters" required className="border-gold/20 bg-black/15" />
+          <Input name="phone" autoComplete="tel" placeholder="Phone number (optional)" className="border-gold/20 bg-black/15" />
 
           <label className="text-xs text-champagne/50">
             Account type
