@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { ChevronDown, ChevronUp, FileSpreadsheet } from 'lucide-react'
 import { ImportExportBar } from '@/components/wedding/import-export-bar'
@@ -8,6 +8,12 @@ import {
   PlannerWorkspace as CorePlannerWorkspace,
   type WorkspaceTab,
 } from '@/components/wedding/planner-workspace'
+import {
+  plannerModuleFromPath,
+  plannerModulePath,
+  plannerToolFromPath,
+  type PlannerToolSlug,
+} from '@/lib/planner-route-state'
 
 const WORKSPACE_MODULES: Array<{
   value: WorkspaceTab
@@ -23,34 +29,170 @@ const WORKSPACE_MODULES: Array<{
   { value: 'seating', label: 'Seating', worksheetKey: 'seating' },
 ]
 
-const VALID_MODULES = new Set<WorkspaceTab>(WORKSPACE_MODULES.map((module) => module.value))
+function plannerLocation(pathname: string, search: URLSearchParams): string {
+  const query = search.toString()
+  return `${pathname}${query ? `?${query}` : ''}`
+}
 
-function parseModule(value: string | null): WorkspaceTab {
-  return value && VALID_MODULES.has(value as WorkspaceTab) ? (value as WorkspaceTab) : 'overview'
+function usePlannerScrollPersistence(
+  routeKey: string,
+  workspaceVersion: number,
+): React.RefObject<HTMLDivElement | null> {
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root) return
+
+    const storageKey = `wewed:planner:scroll:${routeKey}`
+    const previousRestoration = window.history.scrollRestoration
+    window.history.scrollRestoration = 'manual'
+    let current: HTMLElement | null = null
+    let restored = false
+
+    const scrollable = (element: HTMLElement) => {
+      const style = window.getComputedStyle(element)
+      return (
+        (style.overflowY === 'auto' || style.overflowY === 'scroll') &&
+        element.clientHeight > 0 &&
+        element.scrollHeight > element.clientHeight + 8
+      )
+    }
+
+    const findPrimary = () => {
+      const candidates = Array.from(root.querySelectorAll<HTMLElement>('*')).filter(scrollable)
+      return (
+        candidates.sort(
+          (left, right) =>
+            right.clientHeight * right.clientWidth - left.clientHeight * left.clientWidth,
+        )[0] ?? null
+      )
+    }
+
+    const save = () => {
+      if (!current) return
+      try {
+        window.sessionStorage.setItem(storageKey, String(Math.max(0, current.scrollTop)))
+      } catch {
+        // Scroll restoration remains a progressive enhancement.
+      }
+    }
+
+    const restore = () => {
+      const next = findPrimary()
+      if (!next) return
+      if (current !== next) {
+        current?.removeEventListener('scroll', save)
+        current?.removeAttribute('data-planner-primary-scroll')
+        current = next
+        current.setAttribute('data-planner-primary-scroll', 'true')
+        current.addEventListener('scroll', save, { passive: true })
+      }
+      if (restored) return
+      try {
+        const saved = Number(window.sessionStorage.getItem(storageKey) ?? 0)
+        if (Number.isFinite(saved) && saved > 0) current.scrollTop = saved
+      } catch {
+        // Ignore unavailable or malformed session storage.
+      }
+      restored = true
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      restore()
+      window.requestAnimationFrame(restore)
+    })
+    const retry = window.setInterval(restore, 250)
+    const stopRetry = window.setTimeout(() => window.clearInterval(retry), 4_000)
+    const observer = new MutationObserver(restore)
+    observer.observe(root, { childList: true, subtree: true })
+    const resizeObserver = new ResizeObserver(restore)
+    resizeObserver.observe(root)
+    window.addEventListener('beforeunload', save)
+
+    return () => {
+      save()
+      window.cancelAnimationFrame(frame)
+      window.clearInterval(retry)
+      window.clearTimeout(stopRetry)
+      observer.disconnect()
+      resizeObserver.disconnect()
+      window.removeEventListener('beforeunload', save)
+      current?.removeEventListener('scroll', save)
+      current?.removeAttribute('data-planner-primary-scroll')
+      window.history.scrollRestoration = previousRestoration
+    }
+  }, [routeKey, workspaceVersion])
+
+  return rootRef
 }
 
 export function PlannerWorkspace() {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const activeTab = parseModule(searchParams.get('module'))
+  const legacyModule = searchParams.get('module')
+  const activeTab = plannerModuleFromPath(pathname, legacyModule) as WorkspaceTab
+  const activeTool = plannerToolFromPath(pathname, activeTab)
   const [workspaceVersion, setWorkspaceVersion] = useState(0)
-  const [toolsOpen, setToolsOpen] = useState(false)
+  const toolsOpen = searchParams.get('panel') === 'worksheet'
+  const routeKey = plannerLocation(pathname, new URLSearchParams(searchParams.toString()))
+  const rootRef = usePlannerScrollPersistence(routeKey, workspaceVersion)
 
   const activeModule = useMemo(
     () => WORKSPACE_MODULES.find((module) => module.value === activeTab) ?? WORKSPACE_MODULES[0],
     [activeTab],
   )
 
+  useEffect(() => {
+    const canonicalPath = plannerModulePath(activeTab, activeTool)
+    if (pathname === canonicalPath && !legacyModule) return
+    const next = new URLSearchParams(searchParams.toString())
+    next.delete('module')
+    const query = next.toString()
+    router.replace(`${canonicalPath}${query ? `?${query}` : ''}#planner-workspace`, {
+      scroll: false,
+    })
+  }, [activeTab, activeTool, legacyModule, pathname, router, searchParams])
+
   const selectWorkspaceTab = useCallback(
     (tab: WorkspaceTab) => {
       const next = new URLSearchParams(searchParams.toString())
-      next.set('module', tab)
-      router.push(`${pathname}?${next.toString()}#planner-workspace`, { scroll: false })
-      setToolsOpen(false)
+      next.delete('module')
+      next.delete('panel')
+      for (const key of Array.from(next.keys())) {
+        if (key.startsWith('filter_')) next.delete(key)
+      }
+      const query = next.toString()
+      router.push(`${plannerModulePath(tab)}${query ? `?${query}` : ''}#planner-workspace`, {
+        scroll: false,
+      })
     },
-    [pathname, router, searchParams],
+    [router, searchParams],
   )
+
+  const selectWorkspaceTool = useCallback(
+    (tool: PlannerToolSlug | null) => {
+      const next = new URLSearchParams(searchParams.toString())
+      next.delete('module')
+      const query = next.toString()
+      router.push(
+        `${plannerModulePath(activeTab, tool)}${query ? `?${query}` : ''}#planner-workspace`,
+        { scroll: false },
+      )
+    },
+    [activeTab, router, searchParams],
+  )
+
+  const toggleWorksheetTools = useCallback(() => {
+    const next = new URLSearchParams(searchParams.toString())
+    if (toolsOpen) next.delete('panel')
+    else next.set('panel', 'worksheet')
+    const query = next.toString()
+    router.replace(`${plannerModulePath(activeTab, activeTool)}${query ? `?${query}` : ''}#planner-workspace`, {
+      scroll: false,
+    })
+  }, [activeTab, activeTool, router, searchParams, toolsOpen])
 
   const handleWorksheetChanged = useCallback(() => {
     setWorkspaceVersion((current) => current + 1)
@@ -58,8 +200,10 @@ export function PlannerWorkspace() {
 
   return (
     <div
+      ref={rootRef}
       className="flex h-full min-h-0 flex-col bg-espresso text-champagne"
       data-active-planner-module={activeTab}
+      data-planner-route={plannerModulePath(activeTab, activeTool)}
     >
       <section className="shrink-0 border-b border-gold/15 bg-espresso/95 px-3 py-2 sm:px-5 sm:py-3">
         <div className="mx-auto w-full max-w-7xl">
@@ -78,7 +222,7 @@ export function PlannerWorkspace() {
               data-testid="worksheet-tools-toggle"
               aria-expanded={toolsOpen}
               aria-controls="planner-worksheet-tools"
-              onClick={() => setToolsOpen((open) => !open)}
+              onClick={toggleWorksheetTools}
               className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-gold/20 px-3 font-sans text-xs text-gold sm:hidden"
             >
               {activeModule.label}
@@ -112,6 +256,8 @@ export function PlannerWorkspace() {
             {activeModule.worksheetKey ? (
               <ImportExportBar
                 moduleKey={activeModule.worksheetKey}
+                routeTool={activeTool}
+                onRouteToolChange={selectWorkspaceTool}
                 onImportComplete={handleWorksheetChanged}
               />
             ) : (
