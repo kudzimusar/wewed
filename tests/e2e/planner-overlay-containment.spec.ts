@@ -25,6 +25,9 @@ async function assertDialogGeometry(
 ) {
   const dialog = page.locator('[data-slot="dialog-content"]:visible').last()
   await expect(dialog).toBeVisible()
+  await dialog.evaluate(async (element) => {
+    await Promise.all(element.getAnimations().map((animation) => animation.finished.catch(() => undefined)))
+  })
   const box = await dialog.boundingBox()
   expect(box).not.toBeNull()
   expect(box!.x).toBeGreaterThanOrEqual(-1)
@@ -68,20 +71,38 @@ async function openPlannerToolPanel(page: Parameters<typeof openModule>[0]) {
 
 async function assertPlannerOwnsVerticalScroll(page: Parameters<typeof openModule>[0]) {
   const result = await page.evaluate(() => {
-    const root = document.querySelector('[data-active-planner-module]')
-    if (!root) return { found: false, canScroll: false, moved: false }
-    const candidates = Array.from(root.querySelectorAll<HTMLElement>('*'))
-      .filter((element) => {
-        const style = getComputedStyle(element)
-        return ['auto', 'scroll'].includes(style.overflowY) && element.clientHeight >= 120
-      })
-      .sort((a, b) => b.clientHeight - a.clientHeight)
-    const target = candidates[0]
-    if (!target) return { found: false, canScroll: false, moved: false }
-    const canScroll = target.scrollHeight > target.clientHeight + 1
-    const previous = target.scrollTop
-    if (canScroll) target.scrollTop = Math.min(target.scrollHeight - target.clientHeight, Math.max(1, previous + 120))
-    return { found: true, canScroll, moved: !canScroll || target.scrollTop > previous }
+    const root = document.querySelector<HTMLElement>('[data-active-planner-module]')
+    if (!root) return { found: false, overflowFound: false, moved: false }
+
+    const candidates = new Set<HTMLElement>()
+    let ancestor: HTMLElement | null = root
+    while (ancestor) {
+      candidates.add(ancestor)
+      ancestor = ancestor.parentElement
+    }
+    for (const descendant of root.querySelectorAll<HTMLElement>('*')) candidates.add(descendant)
+
+    const scrollOwners = Array.from(candidates).filter((element) => {
+      const style = getComputedStyle(element)
+      return ['auto', 'scroll'].includes(style.overflowY) && element.clientHeight >= 100
+    })
+    if (!scrollOwners.length) return { found: false, overflowFound: false, moved: false }
+
+    let overflowFound = false
+    for (const owner of scrollOwners) {
+      if (owner.scrollHeight <= owner.clientHeight + 1) continue
+      overflowFound = true
+      const previous = owner.scrollTop
+      owner.scrollTop = Math.min(
+        owner.scrollHeight - owner.clientHeight,
+        Math.max(1, previous + 120),
+      )
+      if (owner.scrollTop > previous) {
+        return { found: true, overflowFound: true, moved: true }
+      }
+    }
+
+    return { found: true, overflowFound, moved: !overflowFound }
   })
   expect(result.found, 'planner module has an owned vertical scroll boundary').toBe(true)
   expect(result.moved, 'owned planner scroll boundary responds when content overflows').toBe(true)
@@ -191,15 +212,21 @@ test('major planner tools share the responsive overlay contract', async ({ plann
       const dialog = await assertDialogGeometry(page, viewport)
       const scrollContract = await dialog.evaluate((element) => {
         const candidates = [element, ...Array.from(element.querySelectorAll<HTMLElement>('*'))]
-        const scrollOwner = candidates.find((candidate) => {
+        const scrollOwners = candidates.filter((candidate) => {
           const style = getComputedStyle(candidate)
           return ['auto', 'scroll'].includes(style.overflowY) && candidate.clientHeight >= 100
         })
-        if (!scrollOwner) return { found: false, usable: false }
-        const canScroll = scrollOwner.scrollHeight > scrollOwner.clientHeight + 1
-        const before = scrollOwner.scrollTop
-        if (canScroll) scrollOwner.scrollTop = Math.min(scrollOwner.scrollHeight - scrollOwner.clientHeight, before + 100)
-        return { found: true, usable: !canScroll || scrollOwner.scrollTop > before }
+        if (!scrollOwners.length) return { found: false, usable: false }
+
+        let overflowFound = false
+        for (const owner of scrollOwners) {
+          if (owner.scrollHeight <= owner.clientHeight + 1) continue
+          overflowFound = true
+          const before = owner.scrollTop
+          owner.scrollTop = Math.min(owner.scrollHeight - owner.clientHeight, before + 100)
+          if (owner.scrollTop > before) return { found: true, usable: true }
+        }
+        return { found: true, usable: !overflowFound }
       })
       expect(scrollContract.found, `${String(tool.name)} owns a scroll boundary`).toBe(true)
       expect(scrollContract.usable, `${String(tool.name)} scroll boundary is usable`).toBe(true)
