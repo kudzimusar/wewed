@@ -81,13 +81,20 @@ async function closeVisibleDialog(page: Parameters<typeof openModule>[0]) {
 
 async function openPlannerToolPanel(page: Parameters<typeof openModule>[0]) {
   const disclosure = page.locator('[data-planner-tools-disclosure]')
+  const tools = page.locator('#planner-experience-tools')
+
+  await expect.poll(
+    async () => (await disclosure.isVisible()) || (await tools.isVisible()),
+    { message: 'planner tools expose the responsive disclosure or visible navigation' },
+  ).toBe(true)
+
   if (await disclosure.isVisible()) {
     const expanded = await disclosure.getAttribute('aria-expanded')
     if (expanded !== 'true') await disclosure.click()
     await expect(disclosure).toHaveAttribute('aria-expanded', 'true')
     await expect(page).toHaveURL(/panel=experience/)
   }
-  await expect(page.locator('#planner-experience-tools')).toBeVisible()
+  await expect(tools).toBeVisible()
 }
 
 async function assertPlannerOwnsVerticalScroll(page: Parameters<typeof openModule>[0]) {
