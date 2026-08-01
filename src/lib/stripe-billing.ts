@@ -7,6 +7,7 @@ const STRIPE_API_BASE = 'https://api.stripe.com/v1'
 const STRIPE_SIGNATURE_TOLERANCE_SECONDS = 5 * 60
 
 export type StripePlan = Exclude<WewedPlanId, 'free'>
+export type StripeEnvironment = 'test' | 'live'
 
 function optional(...names: string[]): string | null {
   for (const name of names) {
@@ -22,6 +23,28 @@ function optional(...names: string[]): string | null {
  */
 export function stripeUsesTestMode(): boolean {
   return process.env.VERCEL_ENV !== 'production'
+}
+
+export function stripeEnvironment(): StripeEnvironment {
+  return stripeUsesTestMode() ? 'test' : 'live'
+}
+
+export function stripeAccountMetadataKeys() {
+  const prefix = stripeUsesTestMode() ? 'stripeTest' : 'stripe'
+  return {
+    customerId: `${prefix}CustomerId`,
+    subscriptionId: `${prefix}SubscriptionId`,
+    checkoutSessionId: `${prefix}CheckoutSessionId`,
+    billingInterval: `${prefix}BillingInterval`,
+    subscriptionPlan: `${prefix}SubscriptionPlan`,
+    subscriptionStatus: `${prefix}SubscriptionStatus`,
+    currentPeriodEndsAt: `${prefix}CurrentPeriodEndsAt`,
+    lastSyncedAt: `${prefix}LastSyncedAt`,
+  }
+}
+
+export function stripeEventResourceId(eventId: string): string {
+  return `${stripeEnvironment()}:${eventId}`
 }
 
 function stripeSecretKey(): string | null {
@@ -128,7 +151,7 @@ export function stripePriceIdForPlan(
 
 export function stripeBillingConfiguration() {
   return {
-    mode: stripeUsesTestMode() ? 'test' : 'live',
+    mode: stripeEnvironment(),
     enabled: Boolean(stripeSecretKey()),
     webhookConfigured: Boolean(stripeWebhookSecret()),
     plans: {
@@ -184,11 +207,13 @@ export async function createStripeCustomer(input: {
   email: string
   name: string
 }) {
+  const environment = stripeEnvironment()
   return stripeRequest<{ id: string }>('/customers', {
     email: input.email,
     name: input.name,
     'metadata[businessAccountId]': input.businessAccountId,
     'metadata[platform]': 'wewed',
+    'metadata[environment]': environment,
   })
 }
 
@@ -204,6 +229,7 @@ export async function createStripeCheckoutSession(input: {
     throw new Error(`Stripe pricing for ${input.plan} (${input.interval}) is not configured.`)
   }
 
+  const environment = stripeEnvironment()
   return stripeRequest<{ id: string; url: string | null }>('/checkout/sessions', {
     mode: 'subscription',
     customer: input.customerId,
@@ -218,10 +244,12 @@ export async function createStripeCheckoutSession(input: {
     'metadata[plan]': input.plan,
     'metadata[interval]': input.interval,
     'metadata[platform]': 'wewed',
+    'metadata[environment]': environment,
     'subscription_data[metadata][businessAccountId]': input.businessAccountId,
     'subscription_data[metadata][plan]': input.plan,
     'subscription_data[metadata][interval]': input.interval,
     'subscription_data[metadata][platform]': 'wewed',
+    'subscription_data[metadata][environment]': environment,
   })
 }
 
