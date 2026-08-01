@@ -50,10 +50,12 @@ async function assertDialogGeometry(
     if (!(await closeButton.isVisible())) continue
     const closeBox = await closeButton.boundingBox()
     expect(closeBox).not.toBeNull()
-    expect(closeBox!.x).toBeGreaterThanOrEqual(box!.x - 1)
-    expect(closeBox!.y).toBeGreaterThanOrEqual(box!.y - 1)
-    expect(closeBox!.x + closeBox!.width).toBeLessThanOrEqual(box!.x + box!.width + 1)
-    expect(closeBox!.y + closeBox!.height).toBeLessThanOrEqual(box!.y + box!.height + 1)
+    // Fractional CSS transforms can differ by less than two physical pixels
+    // between Chromium rasterization passes while the control remains contained.
+    expect(closeBox!.x).toBeGreaterThanOrEqual(box!.x - 2)
+    expect(closeBox!.y).toBeGreaterThanOrEqual(box!.y - 2)
+    expect(closeBox!.x + closeBox!.width).toBeLessThanOrEqual(box!.x + box!.width + 2)
+    expect(closeBox!.y + closeBox!.height).toBeLessThanOrEqual(box!.y + box!.height + 2)
     if (viewport.width < 640) {
       expect(closeBox!.width).toBeGreaterThanOrEqual(40)
       expect(closeBox!.height).toBeGreaterThanOrEqual(40)
