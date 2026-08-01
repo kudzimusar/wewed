@@ -67,6 +67,10 @@ assert.match(billing, /account\.status !== 'active'/)
 assert.match(billing, /stripePriceIdForPlan/)
 
 assert.match(globalTools, /PublicRegistrationTrigger/)
+for (const route of ['/admin', '/register', '/forgot-password', '/reset-password']) {
+  assert.match(globalTools, new RegExp(route.replace('/', '\\/')))
+}
+assert.match(globalTools, /if \(isIsolatedUtilityRoute\) return null/)
 assert.match(adminLayout, /AdminUtilityNav/)
 assert.match(adminApprovalsRoute, /redirect\('\/admin'\)/)
 
