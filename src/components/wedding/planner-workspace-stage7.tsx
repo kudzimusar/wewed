@@ -75,7 +75,12 @@ function usePlannerScrollPersistence(
       if (restored) return
       try {
         const saved = Number(window.sessionStorage.getItem(storageKey) ?? 0)
-        if (Number.isFinite(saved) && saved > 0) current.scrollTop = saved
+        if (Number.isFinite(saved) && saved > 0) {
+          const maximum = current.scrollHeight - current.clientHeight
+          if (maximum <= 0) return
+          current.scrollTop = Math.min(saved, maximum)
+          if (current.scrollTop <= 0) return
+        }
       } catch {
         // Ignore unavailable or malformed session storage.
       }
@@ -92,7 +97,12 @@ function usePlannerScrollPersistence(
     observer.observe(root, { childList: true, subtree: true })
     const resizeObserver = new ResizeObserver(restore)
     resizeObserver.observe(root)
+    const saveWhenHidden = () => {
+      if (document.visibilityState === 'hidden') save()
+    }
     window.addEventListener('beforeunload', save)
+    window.addEventListener('pagehide', save)
+    document.addEventListener('visibilitychange', saveWhenHidden)
 
     return () => {
       save()
@@ -102,6 +112,8 @@ function usePlannerScrollPersistence(
       observer.disconnect()
       resizeObserver.disconnect()
       window.removeEventListener('beforeunload', save)
+      window.removeEventListener('pagehide', save)
+      document.removeEventListener('visibilitychange', saveWhenHidden)
       current?.removeEventListener('scroll', save)
       current?.removeAttribute('data-planner-primary-scroll')
       window.history.scrollRestoration = previousRestoration
@@ -119,7 +131,8 @@ export function PlannerWorkspace() {
   const activeTab = plannerModuleFromPath(pathname, legacyModule) as WorkspaceTab
   const activeTool = plannerToolFromPath(pathname, activeTab)
   const [workspaceVersion, setWorkspaceVersion] = useState(0)
-  const toolsOpen = searchParams.get('panel') === 'worksheet'
+  const urlToolsOpen = searchParams.get('panel') === 'worksheet'
+  const [toolsOpen, setToolsOpen] = useState(urlToolsOpen)
   const routeKey = plannerLocation(pathname, new URLSearchParams(searchParams.toString()))
   const rootRef = usePlannerScrollPersistence(routeKey, workspaceVersion)
 
@@ -127,6 +140,8 @@ export function PlannerWorkspace() {
     () => WORKSPACE_MODULES.find((module) => module.value === activeTab) ?? WORKSPACE_MODULES[0],
     [activeTab],
   )
+
+  useEffect(() => setToolsOpen(urlToolsOpen), [urlToolsOpen])
 
   useEffect(() => {
     const canonicalPath = plannerModulePath(activeTab, activeTool)
@@ -169,14 +184,16 @@ export function PlannerWorkspace() {
   )
 
   const toggleWorksheetTools = useCallback(() => {
-    const next = new URLSearchParams(searchParams.toString())
-    if (toolsOpen) next.delete('panel')
-    else next.set('panel', 'worksheet')
+    const nextOpen = !toolsOpen
+    setToolsOpen(nextOpen)
+    const next = new URLSearchParams(window.location.search)
+    if (nextOpen) next.set('panel', 'worksheet')
+    else if (next.get('panel') === 'worksheet') next.delete('panel')
     const query = next.toString()
     router.replace(`${plannerModulePath(activeTab, activeTool)}${query ? `?${query}` : ''}#planner-workspace`, {
       scroll: false,
     })
-  }, [activeTab, activeTool, router, searchParams, toolsOpen])
+  }, [activeTab, activeTool, router, toolsOpen])
 
   const handleWorksheetChanged = useCallback(() => {
     setWorkspaceVersion((current) => current + 1)

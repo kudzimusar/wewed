@@ -135,8 +135,14 @@ test('untouched guest template is non-executable and formula cells are rejected 
   await templateDownload.saveAs(templatePath)
 
   await page.getByRole('button', { name: 'Import', exact: true }).click()
+  await expect(page).toHaveURL(/\/planner\/guests\/import(?:[?#]|$)/)
   let dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible()
+  const blankPreviewResponse = page.waitForResponse((response) =>
+    response.url().endsWith('/api/imports') && response.request().method() === 'POST',
+  )
   await dialog.locator('input[type="file"]').setInputFiles(templatePath)
+  expect((await blankPreviewResponse).ok()).toBe(true)
   await expect(dialog.getByTestId('import-stat-rows').getByText('0', { exact: true })).toBeVisible()
   await expect(dialog.getByTestId('import-stat-create').getByText('0', { exact: true })).toBeVisible()
   await expect(dialog.getByText('Blank template confirmed', { exact: true })).toBeVisible()
@@ -144,6 +150,7 @@ test('untouched guest template is non-executable and formula cells are rejected 
   await expect(dialog.getByRole('button', { name: 'Choose another file' })).toBeEnabled()
   await dialog.getByRole('button', { name: 'Close preview' }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(page).toHaveURL(/\/planner\/guests(?:[?#]|$)/)
 
   const workbook = XLSX.readFile(templatePath, { cellFormula: true })
   const sheet = workbook.Sheets.Template
@@ -156,8 +163,14 @@ test('untouched guest template is non-executable and formula cells are rejected 
   XLSX.writeFile(workbook, formulaPath)
 
   await page.getByRole('button', { name: 'Import', exact: true }).click()
+  await expect(page).toHaveURL(/\/planner\/guests\/import(?:[?#]|$)/)
   dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible()
+  const formulaPreviewResponse = page.waitForResponse((response) =>
+    response.url().endsWith('/api/imports') && response.request().method() === 'POST',
+  )
   await dialog.locator('input[type="file"]').setInputFiles(formulaPath)
+  expect((await formulaPreviewResponse).ok()).toBe(true)
   await expect(dialog.getByTestId('import-review-table-scroll').getByRole('cell').filter({ hasText: /Formula detected in "First Name"/ })).toBeVisible()
   await expect(dialog.getByTestId('import-stat-invalid').getByText('1', { exact: true })).toBeVisible()
   await expect(dialog.getByRole('button', { name: 'Review import' })).toBeDisabled()

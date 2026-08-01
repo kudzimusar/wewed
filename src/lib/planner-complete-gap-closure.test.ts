@@ -35,6 +35,8 @@ describe('complete planner gap closure', () => {
       "next.delete('module')",
       "window.history.scrollRestoration = 'manual'",
       'wewed:planner:scroll:',
+      "window.addEventListener('pagehide', save)",
+      "document.addEventListener('visibilitychange', saveWhenHidden)",
       'data-planner-primary-scroll',
       'data-active-planner-module={activeTab}',
       'onActiveTabChange={selectWorkspaceTab}',
@@ -57,6 +59,7 @@ describe('complete planner gap closure', () => {
       'new URLSearchParams(window.location.search)',
       'router.replace(',
       'window.sessionStorage.setItem',
+      "window.addEventListener('popstate', hydrateFromLocation)",
     ]) expect(filterState).toContain(marker)
     for (const marker of [
       'routeTool?: PlannerToolSlug | null',
@@ -75,6 +78,8 @@ describe('complete planner gap closure', () => {
     expect(tools).toContain('<StoreRehydrator />')
     expect(tools).not.toContain("if (isPlannerRoute) return null")
     expect(portal).toContain('data-planner-tools-disclosure')
+    expect(portal).toContain("searchParams.get('panel') === 'experience'")
+    expect(portal).toContain("next.set('panel', 'experience')")
     expect(portal).toContain('max-h-[42dvh]')
     expect(portal).not.toContain('planner-portal-body relative flex min-h-0 flex-1 flex-col overflow-hidden pt-12')
     expect(context).toContain('data-planner-wedding-context')
