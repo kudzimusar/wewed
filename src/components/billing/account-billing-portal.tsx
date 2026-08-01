@@ -230,15 +230,18 @@ export function AccountBillingPortal() {
     ? `${weddingProfile.couple.partner1} & ${weddingProfile.couple.partner2}`
     : data.account.name
   const activePlan = data.account.subscriptionPlan !== 'free'
+  const currentPlanName = WEWED_PLANS.find(
+    (plan) => plan.id === data.account.subscriptionPlan,
+  )?.publicName || data.account.subscriptionPlan.replaceAll('_', ' ')
 
   return (
-    <main className="min-h-screen bg-espresso px-5 py-14 text-champagne lg:px-8">
-      <div className="mx-auto max-w-6xl space-y-6">
+    <main className="min-h-screen bg-espresso px-5 py-8 text-champagne sm:py-10 lg:px-8">
+      <div className="mx-auto max-w-6xl space-y-5">
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>
             <Link href="/planner" className="text-sm text-gold hover:text-gold-light">← Back to couple workspace</Link>
-            <p className="mt-6 text-xs uppercase tracking-[0.22em] text-gold">Stripe Billing</p>
-            <h1 className="mt-2 text-4xl font-semibold">{data.account.name}</h1>
+            <p className="mt-5 text-xs uppercase tracking-[0.22em] text-gold">Stripe Billing</p>
+            <h1 className="mt-2 text-3xl font-semibold sm:text-4xl">{data.account.name}</h1>
             <p className="mt-2 text-sm text-champagne/55">Manage the Wewed subscription for this active business account.</p>
           </div>
           <Button
@@ -292,12 +295,32 @@ export function AccountBillingPortal() {
         {syncNotice && <div className="rounded-xl border border-emerald-300/25 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-100">{syncNotice}</div>}
         {error && <div className="rounded-xl border border-red-300/25 bg-red-300/10 px-4 py-3 text-sm text-red-100">{error}</div>}
 
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card className="border-gold/15 bg-white/[0.04] text-champagne"><CardContent className="p-5"><p className="text-xs uppercase tracking-[0.16em] text-champagne/45">Current plan</p><p className="mt-2 text-2xl font-semibold capitalize">{data.account.subscriptionPlan.replaceAll('_', ' ')}</p></CardContent></Card>
-          <Card className="border-gold/15 bg-white/[0.04] text-champagne"><CardContent className="p-5"><p className="text-xs uppercase tracking-[0.16em] text-champagne/45">Subscription</p><p className="mt-2 text-2xl font-semibold capitalize">{data.account.subscriptionStatus.replaceAll('_', ' ')}</p></CardContent></Card>
-          <Card className="border-gold/15 bg-white/[0.04] text-champagne"><CardContent className="p-5"><p className="text-xs uppercase tracking-[0.16em] text-champagne/45">Billing cadence</p><p className="mt-2 text-2xl font-semibold capitalize">{data.account.billingInterval || 'Not set'}</p></CardContent></Card>
-          <Card className="border-gold/15 bg-white/[0.04] text-champagne"><CardContent className="p-5"><p className="text-xs uppercase tracking-[0.16em] text-champagne/45">Current period ends</p><p className="mt-2 text-2xl font-semibold">{date(data.account.currentPeriodEndsAt)}</p></CardContent></Card>
-        </div>
+        <Card
+          aria-label="Subscription overview"
+          className="overflow-hidden border-gold/15 bg-white/[0.04] py-0 text-champagne"
+        >
+          <CardContent className="p-0">
+            <h2 className="sr-only">Subscription overview</h2>
+            <div className="grid grid-cols-2 lg:grid-cols-4">
+              <div className="min-w-0 border-b border-r border-gold/10 p-4 sm:p-5 lg:border-b-0">
+                <p className="text-[10px] uppercase tracking-[0.15em] text-champagne/45 sm:text-xs">Current plan</p>
+                <p className="mt-1.5 truncate text-xl font-semibold text-gold sm:text-2xl">{currentPlanName}</p>
+              </div>
+              <div className="min-w-0 border-b border-gold/10 p-4 sm:p-5 lg:border-b-0 lg:border-r">
+                <p className="text-[10px] uppercase tracking-[0.15em] text-champagne/45 sm:text-xs">Subscription</p>
+                <p className="mt-1.5 truncate text-xl font-semibold capitalize text-emerald-100 sm:text-2xl">{data.account.subscriptionStatus.replaceAll('_', ' ')}</p>
+              </div>
+              <div className="min-w-0 border-r border-gold/10 p-4 sm:p-5">
+                <p className="text-[10px] uppercase tracking-[0.15em] text-champagne/45 sm:text-xs">Billing cadence</p>
+                <p className="mt-1.5 truncate text-xl font-semibold capitalize sm:text-2xl">{data.account.billingInterval || 'Not set'}</p>
+              </div>
+              <div className="min-w-0 p-4 sm:p-5">
+                <p className="text-[10px] uppercase tracking-[0.15em] text-champagne/45 sm:text-xs">Current period ends</p>
+                <p className="mt-1.5 whitespace-nowrap text-lg font-semibold sm:text-xl">{date(data.account.currentPeriodEndsAt)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {!data.stripe.enabled && <div className="rounded-xl border border-gold/25 bg-gold/10 px-4 py-3 text-sm text-gold-light">Stripe server credentials are not yet configured in Vercel. The billing interface is installed but cannot create Checkout sessions.</div>}
         {data.stripe.enabled && !data.stripe.webhookConfigured && <div className="rounded-xl border border-gold/25 bg-gold/10 px-4 py-3 text-sm text-gold-light">Stripe Checkout is available, but the signed webhook secret must be configured before subscription state can synchronize safely.</div>}
