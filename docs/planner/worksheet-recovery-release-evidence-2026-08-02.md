@@ -17,16 +17,16 @@ This evidence applies only to the worksheet recovery programme for:
 
 The general planner modules were tested separately. Guest worksheet recovery is the accepted reference flow.
 
-## Exact green engineering head
+## Latest qualified engineering head
 
-Commit: `d0f77453414a954df86a597213f3c796e44a7e84`
+Commit: `6106c41a0fc17204e476dd5af7a6cc1b879b2097`
 
 GitHub Actions:
 
-- workflow run: `30712405386`
-- job: `91402066788`
+- workflow run: `30713857873`
+- job: `91405959228`
 - conclusion: success
-- review threads: none
+- browser failure evidence: skipped because the strict browser gate passed
 
 The exact head passed:
 
@@ -59,14 +59,16 @@ The browser gate completed successfully with no accepted retry or flaky result.
 - blank table cells on a Guest row support deliberate unseating;
 - whole-file Seating occupancy/capacity validation;
 - responsive route state and scroll restoration race repaired;
-- browser tests measure the current visible portal element and fail on any flake;
-- browser navigation verifies canonical route settlement and safely recovers from a pre-hydration click.
+- browser navigation verifies canonical route settlement and safely recovers from a pre-hydration click;
+- responsive overlay tests wait for the loaded wedding and the actual compact-or-desktop navigation surface;
+- portal geometry tests measure stable visible elements after entrance animation;
+- sticky worksheet review headers are verified against their real overlap-and-pin contract.
 
 ## Live production data baseline
 
 Wedding: `cmqos70cb0004q6vxe9g9aiu5` (`Charity & Kudzie`)
 
-Counts reverified before this evidence refresh:
+Counts reverified before deployment qualification:
 
 - PlannerTask: 47
 - Vendor: 0
@@ -76,7 +78,7 @@ Counts reverified before this evidence refresh:
 - Guest: 17
 - ImportJob: 10
 
-Deterministic hashes reverified before this evidence refresh:
+Deterministic hashes reverified before deployment qualification:
 
 - PlannerTask: `2d8368df5b473de62a45c3b45714561c`
 - Vendor: `d41d8cd98f00b204e9800998ecf8427e`
@@ -89,15 +91,15 @@ No production worksheet UAT records were introduced by engineering tests or depl
 
 ## Deployment boundary
 
-The latest available worksheet preview before this evidence refresh remains:
+The latest available worksheet preview before this release trigger remains:
 
-- deployment: `dpl_6gqWcnUzDKpg4YQCRBt7X7RRjKGV`
-- commit: `7c388aaf7e272aeeb166a99c708735bac578463a`
+- deployment: `dpl_74E1ZC6NpvzFti8CAZLAwRCf53g5`
+- commit: `19643bcb197e15071ff548c47e12f8bbc27fca30`
 - state: READY
 
-That deployment is behind the exact green engineering head and is not approved for controlled UAT.
+That deployment contains the original worksheet engineering changes but predates the final strict-browser stabilization commits and is not approved for controlled UAT.
 
-This documentation-only evidence refresh intentionally requests a fresh preview deployment without changing application behavior. Controlled UAT remains blocked until one exact commit containing `d0f77453414a954df86a597213f3c796e44a7e84` has:
+This documentation-only release trigger requests a fresh preview without changing application behavior. The trigger commit itself must pass the same exact GitHub Actions gate. Controlled UAT remains blocked until that exact commit has:
 
 1. a successful exact GitHub Actions release gate;
 2. a READY Vercel preview;
