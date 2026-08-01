@@ -1,8 +1,18 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { CheckCircle2, CreditCard, ExternalLink, Loader2, RefreshCw } from 'lucide-react'
+import {
+  CalendarDays,
+  CheckCircle2,
+  CreditCard,
+  ExternalLink,
+  Loader2,
+  MapPin,
+  RefreshCw,
+  UsersRound,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -38,28 +48,108 @@ type BillingPayload = {
   }
 }
 
-function date(value: string | null) {
+type AuthPayload = {
+  success: boolean
+  authorized: boolean
+  user?: {
+    displayName?: string | null
+    email?: string
+    role?: string
+  } | null
+  activeWedding?: {
+    id: string
+    slug?: string | null
+    title?: string | null
+    date?: string | null
+    venue?: string | null
+    venueCity?: string | null
+    venueCountry?: string | null
+  } | null
+}
+
+type WeddingProfile = {
+  id: string
+  slug: string
+  title: string
+  date: string
+  venue: string | null
+  venueCity: string | null
+  venueCountry: string | null
+  couple: {
+    id: string
+    slug: string
+    partner1: string
+    partner2: string
+    surname: string | null
+  }
+}
+
+type WeddingContentPayload = {
+  success: boolean
+  data?: { wedding?: WeddingProfile }
+}
+
+function date(value: string | null | undefined) {
   if (!value) return 'Not set'
   return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(new Date(value))
 }
 
+function venue(profile: WeddingProfile | null, activeWedding: AuthPayload['activeWedding']) {
+  const values = profile
+    ? [profile.venue, profile.venueCity, profile.venueCountry]
+    : [activeWedding?.venue, activeWedding?.venueCity, activeWedding?.venueCountry]
+  return values.filter(Boolean).join(', ') || 'Not set'
+}
+
 export function AccountBillingPortal() {
   const searchParams = useSearchParams()
+  const checkoutResult = searchParams.get('checkout')
+  const autoSyncAttempted = useRef(false)
   const [data, setData] = useState<BillingPayload | null>(null)
+  const [auth, setAuth] = useState<AuthPayload | null>(null)
+  const [weddingProfile, setWeddingProfile] = useState<WeddingProfile | null>(null)
   const [interval, setInterval] = useState<WewedBillingInterval>('month')
   const [loading, setLoading] = useState(true)
   const [working, setWorking] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [syncNotice, setSyncNotice] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch('/api/billing/account', { cache: 'no-store' })
-      const payload = (await response.json()) as BillingPayload
-      if (!response.ok || !payload.success) throw new Error(payload.error || 'Unable to load billing.')
-      setData(payload)
-      if (payload.account.billingInterval) setInterval(payload.account.billingInterval)
+      const [billingResponse, authResponse] = await Promise.all([
+        fetch('/api/billing/account', { cache: 'no-store' }),
+        fetch('/api/auth/me', { cache: 'no-store' }),
+      ])
+      const billingPayload = (await billingResponse.json()) as BillingPayload
+      if (!billingResponse.ok || !billingPayload.success) {
+        throw new Error(billingPayload.error || 'Unable to load billing.')
+      }
+      setData(billingPayload)
+      if (billingPayload.account.billingInterval) {
+        setInterval(billingPayload.account.billingInterval)
+      }
+
+      if (authResponse.ok) {
+        const authPayload = (await authResponse.json()) as AuthPayload
+        setAuth(authPayload)
+        const slug = authPayload.authorized ? authPayload.activeWedding?.slug : null
+        if (slug) {
+          const weddingResponse = await fetch(
+            `/api/wedding-content?slug=${encodeURIComponent(slug)}`,
+            { cache: 'no-store' },
+          )
+          if (weddingResponse.ok) {
+            const weddingPayload = (await weddingResponse.json()) as WeddingContentPayload
+            setWeddingProfile(weddingPayload.data?.wedding || null)
+          } else {
+            setWeddingProfile(null)
+          }
+        } else {
+          setWeddingProfile(null)
+        }
+      }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to load billing.')
     } finally {
@@ -67,11 +157,48 @@ export function AccountBillingPortal() {
     }
   }, [])
 
+  const synchronize = useCallback(async (silent = false) => {
+    setWorking('sync')
+    if (!silent) setError(null)
+    try {
+      const response = await fetch('/api/billing/sync', { method: 'POST' })
+      const payload = (await response.json()) as {
+        success?: boolean
+        error?: string
+        subscription?: { plan?: string; status?: string }
+      }
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error || 'Unable to synchronize Stripe billing.')
+      }
+      setSyncNotice('Stripe subscription synchronized with this Wewed account.')
+      await load()
+    } catch (caught) {
+      const message = caught instanceof Error
+        ? caught.message
+        : 'Unable to synchronize Stripe billing.'
+      setError(message)
+    } finally {
+      setWorking(null)
+    }
+  }, [load])
+
   useEffect(() => { void load() }, [load])
+
+  useEffect(() => {
+    if (
+      checkoutResult === 'success' &&
+      data?.account.stripeCustomerId &&
+      !autoSyncAttempted.current
+    ) {
+      autoSyncAttempted.current = true
+      void synchronize(true)
+    }
+  }, [checkoutResult, data?.account.stripeCustomerId, synchronize])
 
   async function openBilling(action: 'checkout' | 'portal', plan?: PaidPlanId) {
     setWorking(plan ? `${plan}:${interval}` : action)
     setError(null)
+    setSyncNotice(null)
     try {
       const response = await fetch('/api/billing/account', {
         method: 'POST',
@@ -79,7 +206,9 @@ export function AccountBillingPortal() {
         body: JSON.stringify({ action, plan, interval }),
       })
       const payload = (await response.json()) as { success?: boolean; url?: string | null; error?: string }
-      if (!response.ok || !payload.success || !payload.url) throw new Error(payload.error || 'Unable to open Stripe.')
+      if (!response.ok || !payload.success || !payload.url) {
+        throw new Error(payload.error || 'Unable to open Stripe.')
+      }
       window.location.assign(payload.url)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to open Stripe.')
@@ -95,25 +224,72 @@ export function AccountBillingPortal() {
     return <main className="flex min-h-screen items-center justify-center bg-espresso p-6 text-champagne"><Card className="max-w-lg border-red-300/25 bg-white/[0.04] text-champagne"><CardContent className="p-8 text-center"><CreditCard className="mx-auto size-10 text-gold" /><h1 className="mt-4 text-2xl font-semibold">Billing unavailable</h1><p className="mt-3 text-sm text-champagne/60">{error}</p><Button onClick={() => void load()} className="mt-6 bg-gold text-espresso hover:bg-gold-light">Retry</Button></CardContent></Card></main>
   }
 
-  const checkoutResult = searchParams.get('checkout')
   const paidPlans = WEWED_PLANS.filter((plan): plan is typeof plan & { id: PaidPlanId } => plan.id !== 'free')
+  const activeWedding = auth?.activeWedding || null
+  const partners = weddingProfile?.couple
+    ? `${weddingProfile.couple.partner1} & ${weddingProfile.couple.partner2}`
+    : data.account.name
+  const activePlan = data.account.subscriptionPlan !== 'free'
 
   return (
     <main className="min-h-screen bg-espresso px-5 py-14 text-champagne lg:px-8">
       <div className="mx-auto max-w-6xl space-y-6">
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>
-            <a href="/" className="text-sm text-gold hover:text-gold-light">← Back to Wewed</a>
+            <Link href="/planner" className="text-sm text-gold hover:text-gold-light">← Back to couple workspace</Link>
             <p className="mt-6 text-xs uppercase tracking-[0.22em] text-gold">Stripe Billing</p>
             <h1 className="mt-2 text-4xl font-semibold">{data.account.name}</h1>
             <p className="mt-2 text-sm text-champagne/55">Manage the Wewed subscription for this active business account.</p>
           </div>
-          <Button variant="outline" onClick={() => void load()} disabled={loading || Boolean(working)} className="border-gold/25 text-gold hover:bg-gold/10"><RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} />Refresh</Button>
+          <Button
+            variant="outline"
+            onClick={() => data.account.stripeCustomerId
+              ? void synchronize(false)
+              : void load()}
+            disabled={loading || Boolean(working)}
+            className="border-gold/25 text-gold hover:bg-gold/10"
+          >
+            <RefreshCw className={`size-4 ${loading || working === 'sync' ? 'animate-spin' : ''}`} />
+            {data.account.stripeCustomerId ? 'Sync & refresh' : 'Refresh'}
+          </Button>
         </div>
 
+        <Card className="border-gold/20 bg-white/[0.045] text-champagne">
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-gold">Linked couple profile</p>
+              <CardTitle className="mt-2 text-2xl">{partners}</CardTitle>
+            </div>
+            <div className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 text-xs text-emerald-100">
+              Active workspace
+            </div>
+          </CardHeader>
+          <CardContent className="grid gap-5 md:grid-cols-[1fr_auto] md:items-end">
+            <div className="grid gap-3 text-sm text-champagne/65 sm:grid-cols-2">
+              <div className="flex items-start gap-3">
+                <UsersRound className="mt-0.5 size-4 text-gold" />
+                <div><p className="text-xs uppercase tracking-[0.14em] text-champagne/40">Account owner</p><p className="mt-1">{auth?.user?.displayName || partners}</p></div>
+              </div>
+              <div className="flex items-start gap-3">
+                <CalendarDays className="mt-0.5 size-4 text-gold" />
+                <div><p className="text-xs uppercase tracking-[0.14em] text-champagne/40">Wedding</p><p className="mt-1">{weddingProfile?.title || activeWedding?.title || 'Linked wedding workspace'}</p><p className="text-xs text-champagne/40">{date(weddingProfile?.date || activeWedding?.date)}</p></div>
+              </div>
+              <div className="flex items-start gap-3 sm:col-span-2">
+                <MapPin className="mt-0.5 size-4 text-gold" />
+                <div><p className="text-xs uppercase tracking-[0.14em] text-champagne/40">Venue</p><p className="mt-1">{venue(weddingProfile, activeWedding)}</p></div>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row md:flex-col">
+              <Button asChild className="bg-gold text-espresso hover:bg-gold-light"><Link href="/planner">Open couple workspace</Link></Button>
+              <Button asChild variant="outline" className="border-gold/25 text-gold hover:bg-gold/10"><Link href="/">View wedding site</Link></Button>
+            </div>
+          </CardContent>
+        </Card>
+
         {data.stripe.mode === 'test' && <div className="rounded-xl border border-sky-300/25 bg-sky-300/10 px-4 py-3 text-sm text-sky-100"><strong>Stripe Sandbox:</strong> Checkout uses test cards only. Sandbox customer, subscription and webhook state is isolated from live billing and never enters the live revenue ledger.</div>}
-        {checkoutResult === 'success' && <div className="flex items-center gap-3 rounded-xl border border-emerald-300/25 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-100"><CheckCircle2 className="size-5" />Stripe Checkout completed. Subscription status will update through the signed webhook.</div>}
+        {checkoutResult === 'success' && <div className="flex items-center gap-3 rounded-xl border border-emerald-300/25 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-100"><CheckCircle2 className="size-5" />{activePlan ? 'Stripe Checkout completed and the subscription is synchronized.' : 'Stripe Checkout completed. Wewed is verifying the subscription with Stripe.'}</div>}
         {checkoutResult === 'cancelled' && <div className="rounded-xl border border-gold/25 bg-gold/10 px-4 py-3 text-sm text-gold-light">Checkout was cancelled. No plan change was applied.</div>}
+        {syncNotice && <div className="rounded-xl border border-emerald-300/25 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-100">{syncNotice}</div>}
         {error && <div className="rounded-xl border border-red-300/25 bg-red-300/10 px-4 py-3 text-sm text-red-100">{error}</div>}
 
         <div className="grid gap-4 md:grid-cols-4">
@@ -163,7 +339,7 @@ export function AccountBillingPortal() {
                       </Button>
                     ) : (
                       <Button asChild variant="outline" className="w-full border-gold/25 text-gold hover:bg-gold/10">
-                        <a href="/register?plan=enterprise">Apply through Wewed</a>
+                        <Link href="/register?plan=enterprise">Apply through Wewed</Link>
                       </Button>
                     )}
                   </div>
