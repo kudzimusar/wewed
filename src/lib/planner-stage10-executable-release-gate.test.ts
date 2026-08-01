@@ -5,13 +5,31 @@ async function source(path: string): Promise<string> {
 }
 
 describe('Stage 10 executable planner release gate', () => {
-  test('worksheet tools and the visible planner module are synchronized', async () => {
-    const shell = await source('src/components/wedding/planner-workspace-stage7.tsx')
-    expect(shell).toContain('selectWorkspaceTab')
-    expect(shell).toContain("searchParams.get('module')")
-    expect(shell).toContain("next.set('module', tab)")
-    expect(shell).toContain("data-testid={`worksheet-module-${module.worksheetKey ?? 'overview'}`}")
-    expect(shell).toContain('onActiveTabChange={selectWorkspaceTab}')
+  test('worksheet tools and the visible planner module are synchronized by durable routes', async () => {
+    const [shell, routes, filters, worksheetBar] = await Promise.all([
+      source('src/components/wedding/planner-workspace-stage7.tsx'),
+      source('src/lib/planner-route-state.ts'),
+      source('src/lib/planner-filter-state.ts'),
+      source('src/components/wedding/import-export-bar.tsx'),
+    ])
+    for (const marker of [
+      'selectWorkspaceTab',
+      "searchParams.get('module')",
+      'plannerModuleFromPath(pathname, legacyModule)',
+      'plannerModulePath(activeTab, activeTool)',
+      "next.delete('module')",
+      "data-testid={`worksheet-module-${module.worksheetKey ?? 'overview'}`}",
+      'onActiveTabChange={selectWorkspaceTab}',
+      'routeTool={activeTool}',
+      'onRouteToolChange={selectWorkspaceTool}',
+      "window.history.scrollRestoration = 'manual'",
+    ]) expect(shell).toContain(marker)
+    expect(routes).toContain('return `/planner/${module}${tool ? `/${tool}` : \'\'}`')
+    expect(routes).toContain('plannerToolFromPath')
+    expect(filters).toContain('`filter_${key}`')
+    expect(filters).toContain('router.replace(')
+    expect(worksheetBar).toContain("routeTool === 'import'")
+    expect(worksheetBar).toContain("routeTool === 'imports'")
   })
 
   test('browser authentication and local cookies are production-inert', async () => {
@@ -70,6 +88,7 @@ describe('Stage 10 executable planner release gate', () => {
         source('tests/e2e/planner-data-workflows.spec.ts'),
         source('tests/e2e/planner-ux.spec.ts'),
         source('tests/e2e/planner-gap-closure.spec.ts'),
+        source('tests/e2e/planner-deep-link-navigation.spec.ts'),
         source('tests/e2e/support/planner-browser.ts'),
       ])
     ).join('\n')
@@ -96,6 +115,9 @@ describe('Stage 10 executable planner release gate', () => {
       'seating search and assignment',
       'guest core fields edit directly',
       'module, task filter, and full task edits',
+      'planner modules, filters, tools, history, and scroll position have durable URLs',
+      '/planner/guests/import',
+      'data-planner-primary-scroll',
     ]) {
       expect(browser).toContain(marker)
     }
