@@ -139,8 +139,11 @@ test('untouched guest template is non-executable and formula cells are rejected 
   await dialog.locator('input[type="file"]').setInputFiles(templatePath)
   await expect(dialog.getByTestId('import-stat-rows').getByText('0', { exact: true })).toBeVisible()
   await expect(dialog.getByTestId('import-stat-create').getByText('0', { exact: true })).toBeVisible()
-  await expect(dialog.getByRole('button', { name: 'Review import' })).toBeDisabled()
-  await page.keyboard.press('Escape')
+  await expect(dialog.getByText('Blank template confirmed', { exact: true })).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Review import' })).toHaveCount(0)
+  await expect(dialog.getByRole('button', { name: 'Choose another file' })).toBeEnabled()
+  await dialog.getByRole('button', { name: 'Close preview' }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
 
   const workbook = XLSX.readFile(templatePath, { cellFormula: true })
   const sheet = workbook.Sheets.Template

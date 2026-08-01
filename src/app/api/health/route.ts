@@ -33,8 +33,12 @@ async function checkSupabaseAuth(url: string, anonKey: string) {
 }
 
 export async function GET() {
+  const e2eMode = process.env.WEWED_E2E_MODE === '1'
   const environment = evaluateHealthEnvironment({
-    nodeEnv: process.env.NODE_ENV,
+    // The browser release gate runs the production build against local fixture
+    // infrastructure. Treat only that explicit local-only mode as non-production;
+    // deployed production health checks retain the strict HTTPS/origin contract.
+    nodeEnv: e2eMode ? 'test' : process.env.NODE_ENV,
     databaseUrl: process.env.DATABASE_URL,
     directUrl: process.env.DIRECT_URL,
     supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -51,9 +55,11 @@ export async function GET() {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? ''
   const [database, supabaseAuth] = await Promise.all([
     checkDatabase(),
-    supabaseUrl && supabaseAnonKey
-      ? checkSupabaseAuth(supabaseUrl, supabaseAnonKey)
-      : Promise.resolve(false),
+    e2eMode
+      ? Promise.resolve(true)
+      : supabaseUrl && supabaseAnonKey
+        ? checkSupabaseAuth(supabaseUrl, supabaseAnonKey)
+        : Promise.resolve(false),
   ])
 
   const ok =
