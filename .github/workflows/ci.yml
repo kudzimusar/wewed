@@ -84,7 +84,7 @@ jobs:
           --exit-code
 
       - name: Run registration trigger PostgreSQL integration
-        run: psql "$DATABASE_URL" -f scripts/registration-trigger-postgres-integration.sql
+        run: psql "postgresql://postgres:postgres@localhost:5432/wewed" -f scripts/registration-trigger-postgres-integration.sql
 
       - name: Run original planner parity contract
         run: bun test src/lib/planner-parity-contract.test.ts
