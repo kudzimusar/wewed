@@ -86,12 +86,9 @@ export async function handleImportJobPost(request: NextRequest, context: ImportJ
       result = execution.result
       rollbackData = JSON.stringify(execution.snapshot)
     } else {
-      result = await executeImport(
-        preview,
-        schema,
-        access.context.weddingId,
-        { actorId: access.context.session.userId },
-      )
+      result = await executeImport(preview, schema, access.context.weddingId, {
+        actorId: access.context.session.userId,
+      })
       const snapshot = peekRollback(result.rollbackToken)
       rollbackData = snapshot ? JSON.stringify(snapshot) : null
     }
