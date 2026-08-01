@@ -19,12 +19,12 @@ The general planner modules were tested separately. Guest worksheet recovery is 
 
 ## Exact green engineering head
 
-Commit: `d85f61779d309a502631c2465ade0b418920d12b`
+Commit: `d0f77453414a954df86a597213f3c796e44a7e84`
 
 GitHub Actions:
 
-- workflow run: `30711959876`
-- job: `91400866251`
+- workflow run: `30712405386`
+- job: `91402066788`
 - conclusion: success
 - review threads: none
 
@@ -59,13 +59,14 @@ The browser gate completed successfully with no accepted retry or flaky result.
 - blank table cells on a Guest row support deliberate unseating;
 - whole-file Seating occupancy/capacity validation;
 - responsive route state and scroll restoration race repaired;
-- browser tests measure the current visible portal element and fail on any flake.
+- browser tests measure the current visible portal element and fail on any flake;
+- browser navigation verifies canonical route settlement and safely recovers from a pre-hydration click.
 
 ## Live production data baseline
 
 Wedding: `cmqos70cb0004q6vxe9g9aiu5` (`Charity & Kudzie`)
 
-Counts before controlled UAT:
+Counts reverified before this evidence refresh:
 
 - PlannerTask: 47
 - Vendor: 0
@@ -75,7 +76,7 @@ Counts before controlled UAT:
 - Guest: 17
 - ImportJob: 10
 
-Deterministic hashes:
+Deterministic hashes reverified before this evidence refresh:
 
 - PlannerTask: `2d8368df5b473de62a45c3b45714561c`
 - Vendor: `d41d8cd98f00b204e9800998ecf8427e`
@@ -84,19 +85,19 @@ Deterministic hashes:
 - SeatingTable: `babc32747b33f562c1581dad285621dd`
 - Guest: `3299ce07c2ecf95f2cc3544a21076005`
 
-A later baseline query returned the same counts and hashes. No production worksheet UAT records were introduced by the engineering tests.
+No production worksheet UAT records were introduced by engineering tests or deployment-gate verification.
 
 ## Deployment boundary
 
-The latest available worksheet preview before this document commit was:
+The latest available worksheet preview before this evidence refresh remains:
 
 - deployment: `dpl_6gqWcnUzDKpg4YQCRBt7X7RRjKGV`
 - commit: `7c388aaf7e272aeeb166a99c708735bac578463a`
 - state: READY
 
-That deployment is four commits behind the exact green engineering head and is not approved for controlled UAT.
+That deployment is behind the exact green engineering head and is not approved for controlled UAT.
 
-This documentation commit intentionally requests a fresh preview deployment. Controlled UAT remains blocked until one exact commit containing `d85f61779d309a502631c2465ade0b418920d12b` has:
+This documentation-only evidence refresh intentionally requests a fresh preview deployment without changing application behavior. Controlled UAT remains blocked until one exact commit containing `d0f77453414a954df86a597213f3c796e44a7e84` has:
 
 1. a successful exact GitHub Actions release gate;
 2. a READY Vercel preview;
