@@ -175,7 +175,10 @@ test('untouched guest template is non-executable and formula cells are rejected 
   const formulaPreviewResponse = page.waitForResponse((response) =>
     response.url().endsWith('/api/imports') && response.request().method() === 'POST',
   )
-  await dialog.locator('input[type="file"]').setInputFiles(formulaPath)
+  const formulaFileChooserPromise = page.waitForEvent('filechooser')
+  await dialog.getByRole('button', { name: 'Choose file' }).click()
+  const formulaFileChooser = await formulaFileChooserPromise
+  await formulaFileChooser.setFiles(formulaPath)
   expect((await formulaPreviewResponse).ok()).toBe(true)
   await expect(dialog.getByTestId('import-review-table-scroll').getByRole('cell').filter({ hasText: /Formula detected in "First Name"/ })).toBeVisible()
   await expect(dialog.getByTestId('import-stat-invalid').getByText('1', { exact: true })).toBeVisible()
