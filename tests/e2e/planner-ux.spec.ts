@@ -6,6 +6,17 @@ import {
   test,
 } from './support/planner-browser'
 
+async function waitForDialogKeyboardReady(page: Parameters<typeof openModule>[0]) {
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible()
+  await expect(dialog).toHaveAttribute('data-state', 'open')
+  await expect.poll(
+    async () => dialog.evaluate((element) => element.contains(document.activeElement)),
+    { message: 'open dialog owns keyboard focus' },
+  ).toBe(true)
+  return dialog
+}
+
 test('keyboard navigation, dialogs, and desktop visual containment remain usable', async ({ plannerPage: page }) => {
   await expectNoDocumentOverflow(page)
   await page.getByTestId('worksheet-module-checklist').focus()
@@ -17,9 +28,9 @@ test('keyboard navigation, dialogs, and desktop visual containment remain usable
   await importButton.focus()
   await expect(importButton).toBeFocused()
   await page.keyboard.press('Enter')
-  await expect(page.getByRole('dialog')).toBeVisible()
+  const dialog = await waitForDialogKeyboardReady(page)
   await page.keyboard.press('Escape')
-  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(dialog).toHaveCount(0)
 
   const unlabeledControls = await page.evaluate(() =>
     Array.from(document.querySelectorAll<HTMLElement>('button, input, select, textarea'))
@@ -103,8 +114,8 @@ test('mobile planner remains contained and operable @mobile', async ({ plannerPa
   await worksheetToolsToggle.click()
   await expect(page.getByLabel('Worksheet module selector')).toBeVisible()
   await page.getByRole('button', { name: 'Import', exact: true }).click()
-  await expect(page.getByRole('dialog')).toBeVisible()
+  const mobileDialog = await waitForDialogKeyboardReady(page)
   await page.keyboard.press('Escape')
-  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(mobileDialog).toHaveCount(0)
   await expectNoDocumentOverflow(page)
 })

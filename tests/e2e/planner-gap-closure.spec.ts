@@ -1,9 +1,29 @@
 import {
+  E2E_WEDDINGS,
   acceptNextConfirmation,
   expect,
   openModule,
   test,
 } from './support/planner-browser'
+
+async function addGuest(
+  page: Parameters<typeof openModule>[0],
+  name: string,
+  email = '',
+) {
+  const nameInput = page.locator('#workspace-guest-name')
+  await expect(nameInput).toBeVisible()
+  await nameInput.fill(name)
+  if (email) await page.locator('#workspace-guest-email').fill(email)
+
+  const createResponse = page.waitForResponse((response) =>
+    response.url().endsWith('/api/planner/guests')
+      && response.request().method() === 'POST',
+  )
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
+  expect((await createResponse).ok()).toBe(true)
+  await expect(page.getByText(name, { exact: true })).toBeVisible()
+}
 
 test('module, task filter, and full task edits survive refresh and navigation', async ({ plannerPage: page }) => {
   await openModule(page, 'checklist')
@@ -97,12 +117,9 @@ test('guest core fields edit directly with duplicate-email feedback and wedding-
   const first = 'Gap Guest One'
   const second = 'Gap Guest Two'
   await openModule(page, 'guests')
-  for (const [name, email] of [[first, 'gap.one@example.test'], [second, 'gap.two@example.test']] as const) {
-    await page.locator('#workspace-guest-name').fill(name)
-    await page.locator('#workspace-guest-email').fill(email)
-    await page.getByRole('button', { name: 'Add', exact: true }).click()
-    await expect(page.getByText(name, { exact: true })).toBeVisible()
-  }
+  await expect(page.getByText(E2E_WEDDINGS.primary.seededGuest, { exact: true })).toBeVisible()
+  await addGuest(page, first, 'gap.one@example.test')
+  await addGuest(page, second, 'gap.two@example.test')
 
   await page.getByRole('button', { name: `Edit ${first}` }).click()
   await page.getByLabel(`Edit email for ${first}`).fill('gap.two@example.test')
@@ -135,8 +152,8 @@ test('seating search and assignment, availability, and occupancy filters combine
   const guestName = 'Gap Seating Guest'
   const tableName = 'Gap Full Table'
   await openModule(page, 'guests')
-  await page.locator('#workspace-guest-name').fill(guestName)
-  await page.getByRole('button', { name: 'Add', exact: true }).click()
+  await expect(page.getByText(E2E_WEDDINGS.primary.seededGuest, { exact: true })).toBeVisible()
+  await addGuest(page, guestName)
   await openModule(page, 'seating')
   await page.locator('#workspace-new-table-name').fill(tableName)
   await page.locator('#workspace-new-table-capacity').fill('1')

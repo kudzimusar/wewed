@@ -122,6 +122,15 @@ jobs:
       - name: Run production blocker PostgreSQL integration
         run: bun test src/lib/planner-production-blockers.integration.test.ts
 
+      - name: Run worksheet recovery schema and template contracts
+        run: bun test src/lib/planner-worksheet-contracts.test.ts
+
+      - name: Run worksheet recovery PostgreSQL round trips
+        run: bun test src/lib/planner-worksheet-contracts.integration.test.ts
+
+      - name: Run Seating worksheet relational round trips
+        run: bun test src/lib/planner-seating-worksheet.integration.test.ts
+
       - name: Run complete-gap task validation contract
         run: bun test --test-name-pattern "task title validation" src/lib/planner-complete-gap-closure.test.ts
 
@@ -168,7 +177,7 @@ jobs:
         run: bunx playwright install --with-deps chromium
 
       - name: Run executable planner browser release gate
-        run: bunx playwright test
+        run: bunx playwright test --fail-on-flaky-tests
 
       - name: Upload browser failure evidence
         if: failure()
