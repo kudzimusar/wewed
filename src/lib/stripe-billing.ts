@@ -8,12 +8,6 @@ const STRIPE_SIGNATURE_TOLERANCE_SECONDS = 5 * 60
 
 export type StripePlan = Exclude<WewedPlanId, 'free'>
 
-function required(name: string): string {
-  const value = process.env[name]?.trim()
-  if (!value) throw new Error(`[wewed] Missing ${name}.`)
-  return value
-}
-
 function optional(...names: string[]): string | null {
   for (const name of names) {
     const value = process.env[name]?.trim()
@@ -22,45 +16,121 @@ function optional(...names: string[]): string | null {
   return null
 }
 
+/**
+ * Vercel Preview and local development must use Stripe test-mode resources.
+ * Only an explicit Vercel Production deployment may read live Stripe variables.
+ */
+export function stripeUsesTestMode(): boolean {
+  return process.env.VERCEL_ENV !== 'production'
+}
+
+function stripeSecretKey(): string | null {
+  return stripeUsesTestMode()
+    ? optional('STRIPE_TEST_SECRET_KEY')
+    : optional('STRIPE_SECRET_KEY')
+}
+
+function stripeWebhookSecret(): string | null {
+  return stripeUsesTestMode()
+    ? optional('STRIPE_TEST_WEBHOOK_SECRET')
+    : optional('STRIPE_WEBHOOK_SECRET')
+}
+
+function requiredStripeSecretKey(): string {
+  const value = stripeSecretKey()
+  if (!value) {
+    throw new Error(
+      stripeUsesTestMode()
+        ? '[wewed] Missing STRIPE_TEST_SECRET_KEY.'
+        : '[wewed] Missing STRIPE_SECRET_KEY.',
+    )
+  }
+  return value
+}
+
+function requiredStripeWebhookSecret(): string {
+  const value = stripeWebhookSecret()
+  if (!value) {
+    throw new Error(
+      stripeUsesTestMode()
+        ? '[wewed] Missing STRIPE_TEST_WEBHOOK_SECRET.'
+        : '[wewed] Missing STRIPE_WEBHOOK_SECRET.',
+    )
+  }
+  return value
+}
+
+function priceVariableNames(
+  liveNames: string[],
+  testNames: string[],
+): string[] {
+  return stripeUsesTestMode() ? testNames : liveNames
+}
+
 export function stripePriceIdForPlan(
   plan: string,
   interval: WewedBillingInterval = 'month',
 ): string | null {
   if (plan === 'starter' && interval === 'month') {
-    return optional(
-      'STRIPE_PRICE_STARTER_MONTHLY',
-      'STRIPE_PRICE_CANON_MONTHLY',
-      'STRIPE_PRICE_STARTER',
-      'STRIPE_PRICE_CANON',
-    )
+    return optional(...priceVariableNames(
+      [
+        'STRIPE_PRICE_STARTER_MONTHLY',
+        'STRIPE_PRICE_CANON_MONTHLY',
+        'STRIPE_PRICE_STARTER',
+        'STRIPE_PRICE_CANON',
+      ],
+      [
+        'STRIPE_TEST_PRICE_STARTER_MONTHLY',
+        'STRIPE_TEST_PRICE_CANON_MONTHLY',
+      ],
+    ))
   }
   if (plan === 'starter' && interval === 'year') {
-    return optional('STRIPE_PRICE_STARTER_ANNUAL', 'STRIPE_PRICE_CANON_ANNUAL')
+    return optional(...priceVariableNames(
+      ['STRIPE_PRICE_STARTER_ANNUAL', 'STRIPE_PRICE_CANON_ANNUAL'],
+      ['STRIPE_TEST_PRICE_STARTER_ANNUAL', 'STRIPE_TEST_PRICE_CANON_ANNUAL'],
+    ))
   }
   if (plan === 'professional' && interval === 'month') {
-    return optional(
-      'STRIPE_PRICE_PROFESSIONAL_MONTHLY',
-      'STRIPE_PRICE_FOREVER_MONTHLY',
-      'STRIPE_PRICE_PROFESSIONAL',
-      'STRIPE_PRICE_FOREVER',
-    )
+    return optional(...priceVariableNames(
+      [
+        'STRIPE_PRICE_PROFESSIONAL_MONTHLY',
+        'STRIPE_PRICE_FOREVER_MONTHLY',
+        'STRIPE_PRICE_PROFESSIONAL',
+        'STRIPE_PRICE_FOREVER',
+      ],
+      [
+        'STRIPE_TEST_PRICE_PROFESSIONAL_MONTHLY',
+        'STRIPE_TEST_PRICE_FOREVER_MONTHLY',
+      ],
+    ))
   }
   if (plan === 'professional' && interval === 'year') {
-    return optional('STRIPE_PRICE_PROFESSIONAL_ANNUAL', 'STRIPE_PRICE_FOREVER_ANNUAL')
+    return optional(...priceVariableNames(
+      ['STRIPE_PRICE_PROFESSIONAL_ANNUAL', 'STRIPE_PRICE_FOREVER_ANNUAL'],
+      ['STRIPE_TEST_PRICE_PROFESSIONAL_ANNUAL', 'STRIPE_TEST_PRICE_FOREVER_ANNUAL'],
+    ))
   }
   if (plan === 'enterprise' && interval === 'month') {
-    return optional('STRIPE_PRICE_ENTERPRISE_MONTHLY', 'STRIPE_PRICE_ENTERPRISE')
+    return optional(...priceVariableNames(
+      ['STRIPE_PRICE_ENTERPRISE_MONTHLY', 'STRIPE_PRICE_ENTERPRISE'],
+      ['STRIPE_TEST_PRICE_ENTERPRISE_MONTHLY'],
+    ))
   }
   if (plan === 'enterprise' && interval === 'year') {
-    return optional('STRIPE_PRICE_ENTERPRISE_ANNUAL')
+    return optional(...priceVariableNames(
+      ['STRIPE_PRICE_ENTERPRISE_ANNUAL'],
+      ['STRIPE_TEST_PRICE_ENTERPRISE_ANNUAL'],
+    ))
   }
   return null
 }
 
 export function stripeBillingConfiguration() {
   return {
-    enabled: Boolean(process.env.STRIPE_SECRET_KEY?.trim()),
-    webhookConfigured: Boolean(process.env.STRIPE_WEBHOOK_SECRET?.trim()),
+    mode: stripeUsesTestMode() ? 'test' : 'live',
+    enabled: Boolean(stripeSecretKey()),
+    webhookConfigured: Boolean(stripeWebhookSecret()),
     plans: {
       starter: {
         month: Boolean(stripePriceIdForPlan('starter', 'month')),
@@ -91,7 +161,7 @@ export async function stripeRequest<T>(
   const response = await fetch(`${STRIPE_API_BASE}${path}`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${required('STRIPE_SECRET_KEY')}`,
+      Authorization: `Bearer ${requiredStripeSecretKey()}`,
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body,
@@ -196,7 +266,7 @@ export function verifyStripeWebhookSignature(
     return false
   }
 
-  const expected = createHmac('sha256', required('STRIPE_WEBHOOK_SECRET'))
+  const expected = createHmac('sha256', requiredStripeWebhookSecret())
     .update(`${timestamp}.${rawBody}`)
     .digest('hex')
 
