@@ -62,8 +62,10 @@ function text(value: unknown): string | null {
 }
 
 async function lock(tx: Transaction, key: string): Promise<void> {
-  await tx.$queryRawUnsafe(
-    'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+  // pg_advisory_xact_lock returns PostgreSQL void, which Prisma cannot deserialize.
+  // Wrapping the call in IS NULL preserves the lock side effect while returning boolean.
+  await tx.$queryRawUnsafe<Array<{ acquired: boolean }>>(
+    'SELECT pg_advisory_xact_lock(hashtextextended($1, 0)) IS NULL AS acquired',
     key,
   )
 }
