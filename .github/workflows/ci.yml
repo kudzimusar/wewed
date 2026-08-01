@@ -128,6 +128,9 @@ jobs:
       - name: Run worksheet recovery PostgreSQL round trips
         run: bun test src/lib/planner-worksheet-contracts.integration.test.ts
 
+      - name: Run Seating worksheet relational round trips
+        run: bun test src/lib/planner-seating-worksheet.integration.test.ts
+
       - name: Run complete-gap task validation contract
         run: bun test --test-name-pattern "task title validation" src/lib/planner-complete-gap-closure.test.ts
 
