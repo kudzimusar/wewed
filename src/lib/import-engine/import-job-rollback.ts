@@ -37,7 +37,9 @@ export async function handleImportJobDelete(request: NextRequest, context: Impor
         }
         _peekRollbackStore().set(job.rollbackToken, snapshot)
       }
-      rollback = await rollbackImport(job.rollbackToken)
+      rollback = await rollbackImport(job.rollbackToken, {
+        actorId: access.context.session.userId,
+      })
     }
 
     await db.importJob.update({
