@@ -1,6 +1,6 @@
 # Worksheet recovery release evidence — 2026-08-02
 
-Status: Task Test 11 repair passed engineering gate; exact preview deployment pending  
+Status: Task Test 11 and strict browser stabilization passed; exact preview deployment pending  
 PR: #56 — `Align planner worksheet recovery contracts`  
 Branch: `fix/worksheet-recovery-contracts`  
 Production baseline: `934b1ba5294c554229220ff5a6925cab47e22686`
@@ -19,12 +19,12 @@ The general planner modules were tested separately. Guest worksheet recovery is 
 
 ## Latest qualified engineering head
 
-Commit: `a2aba8775c277a7b3bf623a024f11561a08e98b5`
+Commit: `a260fa0e9748d34e95c30173ce701da678d4b1d3`
 
 GitHub Actions:
 
-- workflow run: `30714295724`
-- job: `91407131505`
+- workflow run: `30714886926`
+- job: `91408701760`
 - conclusion: success
 - browser failure evidence: skipped because the strict browser gate passed
 
@@ -40,7 +40,9 @@ The exact head passed:
 - complete Seating relational export, unseating, empty-table, capacity and rollback tests;
 - production build;
 - strict Playwright release gate using `--fail-on-flaky-tests`;
-- executable Task Test 11 priority-filter contract.
+- executable Task Test 11 priority-filter contract;
+- visible worksheet file-chooser interaction for populated, blank and formula workbooks;
+- keyboard dialog-close synchronization after the active focus trap is ready.
 
 The browser gate completed successfully with no accepted retry or flaky result.
 
@@ -79,13 +81,15 @@ Repair:
 - browser navigation verifies canonical route settlement and safely recovers from a pre-hydration click;
 - responsive overlay tests wait for the loaded wedding and the actual compact-or-desktop navigation surface;
 - portal geometry tests measure stable visible elements after entrance animation;
-- sticky worksheet review headers are verified against their real overlap-and-pin contract.
+- sticky worksheet review headers are verified against their real overlap-and-pin contract;
+- worksheet import tests use the visible file chooser instead of racing a hidden input before hydration;
+- dialog Escape tests wait until the mounted dialog owns keyboard focus.
 
 ## Live production data baseline
 
 Wedding: `cmqos70cb0004q6vxe9g9aiu5` (`Charity & Kudzie`)
 
-Counts reverified before deployment qualification:
+Counts reverified after the Task Test 11 engineering run:
 
 - PlannerTask: 47
 - Vendor: 0
@@ -95,7 +99,7 @@ Counts reverified before deployment qualification:
 - Guest: 17
 - ImportJob: 10
 
-Deterministic hashes reverified before deployment qualification:
+Deterministic hashes reverified after the Task Test 11 engineering run:
 
 - PlannerTask: `2d8368df5b473de62a45c3b45714561c`
 - Vendor: `d41d8cd98f00b204e9800998ecf8427e`
@@ -108,17 +112,22 @@ No production worksheet UAT records were introduced by engineering tests or depl
 
 ## Deployment boundary
 
-The latest qualified preview before the Task Test 11 repair is:
+The latest available preview containing the priority-filter application change before this trigger is:
 
-- deployment: `dpl_G6jHM6BqTaRSVWvRrDk9t72vHwHd`
-- commit: `057d3168249048aa39b67135b30addb7583edbea`
+- deployment: `dpl_GTrvfueeUBsxtB6h424io8HjL8fA`
+- commit: `04f3d75040570b107c45e9ae5b17d791121e1707`
 - state: READY
-- `/planner`: HTTP 200
-- preview error/fatal logs: none
 
-That deployment predates the priority-filter repair and is not approved for the Task Test 11 retest.
+That deployment predates the final strict-browser synchronization commits and is not approved for controlled UAT.
 
-This documentation-only release trigger requests a fresh preview without changing application behavior. The trigger commit itself must pass the same exact GitHub Actions gate. Controlled live-data UAT remains separate from the executable browser contract and requires an authenticated tester session.
+This documentation-only release trigger requests a fresh preview without changing application behavior. The trigger commit itself must pass the same exact GitHub Actions gate. Controlled UAT is approved only when the exact trigger commit has:
+
+1. a successful exact GitHub Actions release gate;
+2. a READY Vercel preview;
+3. `/planner` responding successfully;
+4. no relevant preview runtime errors.
+
+Controlled live-data UAT remains separate from the executable browser contract and requires an authenticated tester session.
 
 ## Controlled UAT order
 
