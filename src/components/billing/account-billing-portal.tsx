@@ -98,6 +98,12 @@ function date(value: string | null | undefined) {
   }).format(new Date(value))
 }
 
+function statusLabel(value: string) {
+  const normalized = value.replaceAll('_', ' ').trim()
+  if (!normalized) return 'Not set'
+  return `${normalized.charAt(0).toUpperCase()}${normalized.slice(1)}`
+}
+
 function venue(profile: WeddingProfile | null, activeWedding: AuthPayload['activeWedding']) {
   const values = profile
     ? [profile.venue, profile.venueCity, profile.venueCountry]
@@ -241,6 +247,10 @@ export function AccountBillingPortal() {
   const currentPlanName = WEWED_PLANS.find(
     (plan) => plan.id === data.account.subscriptionPlan,
   )?.publicName || data.account.subscriptionPlan.replaceAll('_', ' ')
+  const cancellationScheduled = data.account.cancelAtPeriodEnd
+  const subscriptionStatusLabel = cancellationScheduled
+    ? `${statusLabel(data.account.subscriptionStatus)} — cancellation scheduled`
+    : statusLabel(data.account.subscriptionStatus)
 
   return (
     <main className="min-h-screen bg-espresso px-5 py-8 text-champagne sm:py-10 lg:px-8">
@@ -302,7 +312,7 @@ export function AccountBillingPortal() {
         {checkoutResult === 'cancelled' && <div className="rounded-xl border border-gold/25 bg-gold/10 px-4 py-3 text-sm text-gold-light">Checkout was cancelled. No plan change was applied.</div>}
         {syncNotice && <div className="rounded-xl border border-emerald-300/25 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-100">{syncNotice}</div>}
         {error && <div className="rounded-xl border border-red-300/25 bg-red-300/10 px-4 py-3 text-sm text-red-100">{error}</div>}
-        {data.account.cancelAtPeriodEnd && <div className="rounded-xl border border-gold/30 bg-gold/10 px-4 py-3 text-sm text-gold-light"><strong>Cancellation scheduled:</strong> The subscription remains active through {date(data.account.currentPeriodEndsAt)}. It can be resumed from the Stripe Customer Portal before that date.</div>}
+        {cancellationScheduled && <div className="rounded-xl border border-gold/30 bg-gold/10 px-4 py-3 text-sm text-gold-light"><strong>Cancellation scheduled:</strong> Your Canon subscription remains active until {date(data.account.currentPeriodEndsAt)} and will not renew. You can resume it from the Stripe Customer Portal before that date.</div>}
 
         <Card
           aria-label="Subscription overview"
@@ -317,15 +327,14 @@ export function AccountBillingPortal() {
               </div>
               <div className="min-w-0 border-b border-gold/10 p-4 sm:p-5 lg:border-b-0 lg:border-r">
                 <p className="text-[10px] uppercase tracking-[0.15em] text-champagne/45 sm:text-xs">Subscription</p>
-                <p className="mt-1.5 truncate text-xl font-semibold capitalize text-emerald-100 sm:text-2xl">{data.account.subscriptionStatus.replaceAll('_', ' ')}</p>
-                {data.account.cancelAtPeriodEnd && <p className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.12em] text-gold">Cancels at period end</p>}
+                <p className="mt-1.5 text-base font-semibold leading-snug text-emerald-100 sm:text-lg lg:text-xl">{subscriptionStatusLabel}</p>
               </div>
               <div className="min-w-0 border-r border-gold/10 p-4 sm:p-5">
                 <p className="text-[10px] uppercase tracking-[0.15em] text-champagne/45 sm:text-xs">Billing cadence</p>
                 <p className="mt-1.5 truncate text-xl font-semibold capitalize sm:text-2xl">{data.account.billingInterval || 'Not set'}</p>
               </div>
               <div className="min-w-0 p-4 sm:p-5">
-                <p className="text-[10px] uppercase tracking-[0.15em] text-champagne/45 sm:text-xs">{data.account.cancelAtPeriodEnd ? 'Access ends' : 'Next renewal'}</p>
+                <p className="text-[10px] uppercase tracking-[0.15em] text-champagne/45 sm:text-xs">{cancellationScheduled ? 'Access until' : 'Next renewal'}</p>
                 <p className="mt-1.5 whitespace-nowrap text-lg font-semibold sm:text-xl">{date(data.account.currentPeriodEndsAt)}</p>
               </div>
             </div>
