@@ -13,7 +13,6 @@ const MODULE_PATHS = [
   '/api/planner/guests',
   '/api/planner/vendors',
   '/api/planner/timeline',
-  '/api/planner/seating',
 ] as const
 
 interface SmokePrincipal {
@@ -67,24 +66,43 @@ export async function GET(request: NextRequest) {
   const headers = { cookie: `${APP_SESSION_COOKIE}=${session}` }
   const origin = request.nextUrl.origin
 
-  const results = await Promise.all(
+  const moduleResults = await Promise.all(
     MODULE_PATHS.map(async (path) => {
       const response = await fetch(`${origin}${path}`, {
         headers,
         cache: 'no-store',
       })
       const payload = (await response.json().catch(() => null)) as
-        | { data?: unknown[] }
+        | { data?: unknown[]; tables?: unknown[] }
         | null
       return {
         path,
         status: response.status,
         rows: Array.isArray(payload?.data) ? payload.data.length : null,
+        seatingRows:
+          path === '/api/planner/guests' && Array.isArray(payload?.tables)
+            ? payload.tables.length
+            : null,
       }
     }),
   )
 
-  const success = results.every((result) => result.status === 200)
+  const guestResult = moduleResults.find(
+    (result) => result.path === '/api/planner/guests',
+  )
+  const results = [
+    ...moduleResults.map(({ seatingRows: _seatingRows, ...result }) => result),
+    {
+      path: '/api/planner/guests#seating-tables',
+      status: guestResult?.status ?? 500,
+      rows: guestResult?.seatingRows ?? null,
+    },
+  ]
+
+  const success =
+    results.every((result) => result.status === 200) &&
+    results.at(-1)?.rows !== null
+
   return NextResponse.json(
     {
       success,
