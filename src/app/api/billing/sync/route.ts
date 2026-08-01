@@ -31,6 +31,7 @@ type StripeSubscription = {
   status: string
   created?: number
   current_period_end?: number
+  cancel_at_period_end?: boolean
   metadata?: Record<string, string>
   items?: {
     data?: Array<{
@@ -232,12 +233,14 @@ export async function POST(request: NextRequest) {
     const currentPeriodEnd = integer(subscription.current_period_end) ??
       integer(subscription.items?.data?.[0]?.current_period_end)
     const normalizedStatus = normalizeStatus(subscription.status)
+    const cancelAtPeriodEnd = Boolean(subscription.cancel_at_period_end)
     const metadataPatch: Record<string, string> = {
       [keys.customerId]: customerId,
       [keys.subscriptionId]: subscription.id,
       [keys.subscriptionPlan]: plan,
       [keys.subscriptionStatus]: normalizedStatus,
       [keys.billingInterval]: interval,
+      [keys.cancelAtPeriodEnd]: String(cancelAtPeriodEnd),
       [keys.lastSyncedAt]: new Date().toISOString(),
     }
     if (currentPeriodEnd) {
@@ -288,6 +291,7 @@ export async function POST(request: NextRequest) {
           plan,
           interval,
           status: normalizedStatus,
+          cancelAtPeriodEnd,
           source: 'stripe_api_reconciliation',
           liveLedgerWriteSkipped: stripeUsesTestMode(),
         }),
@@ -301,6 +305,7 @@ export async function POST(request: NextRequest) {
         plan,
         interval,
         status: normalizedStatus,
+        cancelAtPeriodEnd,
         currentPeriodEndsAt: currentPeriodEnd
           ? new Date(currentPeriodEnd * 1000).toISOString()
           : null,
