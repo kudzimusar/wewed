@@ -177,7 +177,7 @@ jobs:
         run: bunx playwright install --with-deps chromium
 
       - name: Run executable planner browser release gate
-        run: bunx playwright test
+        run: bunx playwright test --fail-on-flaky-tests
 
       - name: Upload browser failure evidence
         if: failure()
