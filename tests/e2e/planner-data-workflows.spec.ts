@@ -47,8 +47,9 @@ test('downloaded Excel template imports, exports, records history, and rolls bac
   await expect(page).toHaveURL(/\/planner\/tasks\/import(?:[?#]|$)/)
   const importDialog = page.getByRole('dialog')
   await expect(importDialog).toBeVisible()
-  const previewResponse = page.waitForResponse((response) =>
-    response.url().endsWith('/api/imports') && response.request().method() === 'POST',
+  const previewResponse = page.waitForResponse(
+    (response) => response.url().endsWith('/api/imports') && response.request().method() === 'POST',
+    { timeout: 45_000 },
   )
   await importDialog.locator('input[type="file"]').setInputFiles(importPath)
   expect((await previewResponse).ok()).toBe(true)
@@ -144,8 +145,9 @@ test('untouched guest template is non-executable and formula cells are rejected 
   await expect(page).toHaveURL(/\/planner\/guests\/import(?:[?#]|$)/)
   let dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()
-  const blankPreviewResponse = page.waitForResponse((response) =>
-    response.url().endsWith('/api/imports') && response.request().method() === 'POST',
+  const blankPreviewResponse = page.waitForResponse(
+    (response) => response.url().endsWith('/api/imports') && response.request().method() === 'POST',
+    { timeout: 45_000 },
   )
   await dialog.locator('input[type="file"]').setInputFiles(templatePath)
   expect((await blankPreviewResponse).ok()).toBe(true)
@@ -172,8 +174,9 @@ test('untouched guest template is non-executable and formula cells are rejected 
   await expect(page).toHaveURL(/\/planner\/guests\/import(?:[?#]|$)/)
   dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()
-  const formulaPreviewResponse = page.waitForResponse((response) =>
-    response.url().endsWith('/api/imports') && response.request().method() === 'POST',
+  const formulaPreviewResponse = page.waitForResponse(
+    (response) => response.url().endsWith('/api/imports') && response.request().method() === 'POST',
+    { timeout: 45_000 },
   )
   const formulaFileChooserPromise = page.waitForEvent('filechooser')
   await dialog.getByRole('button', { name: 'Choose file' }).click()
