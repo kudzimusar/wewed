@@ -48,10 +48,19 @@ export interface FieldDefinition {
   allowedValues?: string[]
   /** field instruction shown in template instructions sheet */
   description?: string
-  /** example value used in the template example row */
+  /** example value shown only in the non-importable Instructions sheet */
   example?: string
   /** marks private data (phone, email, dietary, etc.) — surfaces a warning on import */
   sensitive?: boolean
+}
+
+export interface ExistingRecordMatch {
+  /** The existing active-wedding record selected for an update. */
+  record?: any
+  /** A deterministic matching failure, such as an ambiguous name. */
+  error?: string
+  /** Non-blocking matching context surfaced in the import preview. */
+  warning?: string
 }
 
 /**
@@ -71,8 +80,21 @@ export interface ModuleSchema {
   recordToRow: (record: any) => Record<string, string>
   /** Validate a row → list of errors (empty = valid) */
   validateRow: (row: Record<string, string>) => string[]
-  /** Field key used for duplicate detection (e.g. "email" or "taskId") */
+  /** Field key used for default duplicate detection (e.g. "email" or "taskId") */
   uniqueKey?: string
+  /**
+   * Optional stable identity for duplicate detection within one file.
+   * Used by modules such as Guests that support ID, email and name fallbacks.
+   */
+  rowIdentity?: (row: Record<string, string>) => string | null
+  /**
+   * Optional deterministic existing-record matcher. It receives only records
+   * already scoped to the active wedding by fetchExisting.
+   */
+  matchExisting?: (
+    row: Record<string, string>,
+    existingRecords: any[],
+  ) => ExistingRecordMatch
   /** Fetch existing records for this module + wedding */
   fetchExisting: (weddingId: string) => Promise<any[]>
   /** Create or update a record. `existing` is the matched existing record (if any) */
@@ -143,9 +165,24 @@ export interface ImportResult {
  * Parsed file shape returned by the parser.
  * Headers are trimmed + de-duplicated; rows are string-keyed.
  */
+export interface ParsedFormulaCell {
+  /** 1-based Excel/CSV row number. */
+  rowIndex: number
+  /** Source header label when it can be resolved. */
+  column: string
+  /** Spreadsheet address such as E12. */
+  address: string
+}
+
 export interface ParsedFile {
   headers: string[]
   rows: Record<string, string>[]
+  /** Actual 1-based source row number for each normalized row. */
+  rowNumbers?: number[]
+  /** Formula cells are never converted to import values. */
+  formulaCells?: ParsedFormulaCell[]
+  /** Workbook sheet used by the parser. */
+  firstSheetName?: string
   /** row count BEFORE empty-row filtering, for telemetry */
   rawRowCount: number
 }

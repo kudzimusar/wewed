@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireWeddingPermission } from '@/lib/wedding-access'
+import { normalizePlannerTitle, plannerTitleError } from '@/lib/planner-task-validation'
 
 const CATEGORIES = [
   'timeline_12_18',
@@ -86,13 +87,11 @@ export async function PATCH(
     const updates: Record<string, unknown> = {}
 
     if (body.title !== undefined) {
-      if (typeof body.title !== 'string' || !body.title.trim()) {
-        return NextResponse.json(
-          { success: false, error: 'Title cannot be empty' },
-          { status: 400 },
-        )
+      const titleError = plannerTitleError(body.title)
+      if (titleError) {
+        return NextResponse.json({ success: false, error: titleError, field: 'title' }, { status: 400 })
       }
-      updates.title = body.title.trim()
+      updates.title = normalizePlannerTitle(body.title)
     }
     if (body.description !== undefined) {
       updates.description = body.description?.trim() || null

@@ -179,7 +179,32 @@ export async function PATCH(
       }
       updates.name = body.name.trim()
     }
-    if (body.email !== undefined) updates.email = body.email?.trim().toLowerCase() || null
+    if (body.email !== undefined) {
+      const email = body.email?.trim().toLowerCase() || null
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return NextResponse.json(
+          { success: false, error: 'Enter a valid email address.', field: 'email' },
+          { status: 400 },
+        )
+      }
+      if (email) {
+        const duplicate = await db.guest.findFirst({
+          where: {
+            weddingId: access.context.weddingId,
+            email: { equals: email, mode: 'insensitive' },
+            NOT: { id: existing.id },
+          },
+          select: { id: true },
+        })
+        if (duplicate) {
+          return NextResponse.json(
+            { success: false, error: 'A guest with this email already exists for this wedding.', field: 'email' },
+            { status: 409 },
+          )
+        }
+      }
+      updates.email = email
+    }
     if (body.phone !== undefined) updates.phone = body.phone?.trim() || null
     if (body.role !== undefined) {
       if (!GUEST_ROLES.includes(body.role as (typeof GUEST_ROLES)[number])) {

@@ -62,7 +62,7 @@ const MODULES = [
       'guestStats.heads',
       'guest.rsvp?.attending',
       'guest.seatingTableId',
-      'No guests yet',
+      'No guests',
     ],
   },
   {

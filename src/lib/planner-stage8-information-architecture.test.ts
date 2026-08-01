@@ -46,6 +46,8 @@ describe('Stage 8 planner information architecture', () => {
     const portal = await source('src/components/wedding/planner-portal.tsx')
 
     for (const marker of [
+      'data-planner-tools-disclosure',
+      'max-h-[42dvh]',
       'overflow-x-auto',
       'overscroll-x-contain',
       'data-planner-tool-triggers',
@@ -53,6 +55,8 @@ describe('Stage 8 planner information architecture', () => {
       'position: static !important',
       'inset: auto !important',
       'box-shadow: none !important',
+      'width: 100% !important',
+      'justify-content: flex-start !important',
       '[data-planner-tool-triggers] > button span',
       'display: inline !important',
     ]) {

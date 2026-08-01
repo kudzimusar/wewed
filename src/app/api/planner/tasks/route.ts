@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireWeddingPermission } from '@/lib/wedding-access'
+import { normalizePlannerTitle, plannerTitleError } from '@/lib/planner-task-validation'
 
 const CATEGORIES = [
   'timeline_12_18',
@@ -96,11 +97,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = (await request.json()) as CreateTaskPayload
-    if (!body.title || typeof body.title !== 'string' || !body.title.trim()) {
-      return NextResponse.json(
-        { success: false, error: 'Title is required' },
-        { status: 400 },
-      )
+    const titleError = plannerTitleError(body.title)
+    if (titleError) {
+      return NextResponse.json({ success: false, error: titleError, field: 'title' }, { status: 400 })
     }
 
     const category: Category = CATEGORIES.includes(body.category as Category)
@@ -137,7 +136,7 @@ export async function POST(request: NextRequest) {
 
     const task = await db.plannerTask.create({
       data: {
-        title: body.title.trim(),
+        title: normalizePlannerTitle(body.title),
         description: body.description?.trim() || null,
         category,
         status,

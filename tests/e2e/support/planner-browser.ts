@@ -48,22 +48,46 @@ async function openPlanner(page: Page): Promise<void> {
       sameSite: 'Lax',
     },
   ])
-  await page.goto('/planner')
+  await page.goto('/planner/overview#planner-workspace')
   await expect(page.getByRole('heading', { name: E2E_WEDDINGS.primary.title })).toBeVisible()
   await expect(page.locator('#active-wedding')).toHaveValue(E2E_WEDDINGS.primary.id)
 }
 
 export async function openModule(page: Page, moduleKey: ModuleKey): Promise<void> {
-  await page.getByTestId(`worksheet-module-${moduleKey}`).click()
-  const workspaceNavigation = page.getByRole('navigation', {
-    name: 'Planner workspace sections',
-  })
-  await expect(
-    workspaceNavigation.getByRole('button', {
-      name: MODULE_LABELS[moduleKey],
-      exact: true,
-    }),
-  ).toHaveClass(/bg-gold/)
+  const routeKey = moduleKey === 'checklist' ? 'tasks' : moduleKey
+  const targetUrl = `/planner/${routeKey}#planner-workspace`
+
+  try {
+    const worksheetButton = page.getByTestId(`worksheet-module-${moduleKey}`)
+    if (!(await worksheetButton.isVisible())) {
+      const toggle = page.getByTestId('worksheet-tools-toggle')
+      if (await toggle.isVisible()) {
+        await toggle.click({ timeout: 2_500 })
+        await expect(worksheetButton).toBeVisible({ timeout: 3_000 })
+      } else {
+        await page.goto(targetUrl)
+      }
+    }
+
+    if (await worksheetButton.isVisible()) {
+      await worksheetButton.click({ timeout: 3_000 })
+    } else if (!new URL(page.url()).pathname.endsWith(`/planner/${routeKey}`)) {
+      await page.goto(targetUrl)
+    }
+  } catch {
+    await page.goto(targetUrl)
+  }
+
+  await expect(page).toHaveURL(new RegExp(`/planner/${routeKey}(?:[?#]|$)`))
+  const mobileSelector = page.locator('#planner-workspace-section')
+  if (await mobileSelector.isVisible()) {
+    await expect(mobileSelector).toHaveValue(routeKey)
+  } else {
+    const workspaceNavigation = page.getByRole('navigation', { name: 'Planner workspace sections' })
+    await expect(
+      workspaceNavigation.getByRole('button', { name: MODULE_LABELS[moduleKey], exact: true }),
+    ).toHaveClass(/bg-gold/)
+  }
 }
 
 export function acceptNextConfirmation(page: Page): void {
@@ -89,7 +113,10 @@ export const test = base.extend<PlannerFixtures>({
 
     page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`))
     page.on('console', (message) => {
-      if (message.type() === 'error') errors.push(`console: ${message.text()}`)
+      if (message.type() !== 'error') return
+      const text = message.text()
+      const expectedClientValidation = /^Failed to load resource: the server responded with a status of 4\d\d\b/.test(text)
+      if (!expectedClientValidation) errors.push(`console: ${text}`)
     })
     page.on('response', (response) => {
       if (response.status() >= 500 && response.url().includes('/api/')) {

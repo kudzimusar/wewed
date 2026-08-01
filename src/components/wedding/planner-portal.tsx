@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   CalendarDays,
   ExternalLink,
@@ -64,42 +65,88 @@ function roleLabel(value?: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
+function PlannerToolTriggers() {
+  return (
+    <div
+      data-planner-tool-triggers
+      className="grid gap-2 sm:grid-cols-2 xl:flex xl:min-w-max xl:items-center"
+    >
+      <a
+        href="#planner-workspace"
+        aria-current="page"
+        className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-md border border-gold/35 bg-gold/12 px-3 font-sans text-xs font-medium text-gold transition-colors hover:bg-gold/18 xl:justify-start"
+      >
+        <LayoutDashboard className="size-3.5" />
+        Planning workspace
+      </a>
+      <PlannerCollaborationHub />
+      <PlannerClientProfile />
+      <PlannerOperations />
+      <PlannerInvitationTools />
+      <PlannerEventCommand />
+      <PlannerReleaseCenter />
+    </div>
+  )
+}
+
 function PlannerExperienceNavigation() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const urlToolsOpen = searchParams.get('panel') === 'experience'
+  const [toolsOpen, setToolsOpen] = useState(urlToolsOpen)
+  const pendingToolsOpen = useRef<boolean | null>(null)
+
+  useEffect(() => {
+    if (pendingToolsOpen.current !== null && pendingToolsOpen.current !== urlToolsOpen) return
+    pendingToolsOpen.current = null
+    setToolsOpen(urlToolsOpen)
+  }, [urlToolsOpen])
+
+  function toggleTools() {
+    const nextOpen = !toolsOpen
+    pendingToolsOpen.current = nextOpen
+    setToolsOpen(nextOpen)
+    const next = new URLSearchParams(window.location.search)
+    if (nextOpen) next.set('panel', 'experience')
+    else if (next.get('panel') === 'experience') next.delete('panel')
+    const query = next.toString()
+    const hash = window.location.hash || '#planner-workspace'
+    router.replace(`${window.location.pathname}${query ? `?${query}` : ''}${hash}`, { scroll: false })
+  }
+
   return (
     <section
       data-planner-experience-nav
-      className="shrink-0 border-b border-gold/15 bg-espresso/95 px-3 py-3 sm:px-5"
+      className="shrink-0 border-b border-gold/15 bg-espresso/95 px-3 py-2.5 sm:px-5"
     >
       <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
-        <div className="shrink-0">
-          <p className="font-sans text-[9px] font-semibold uppercase tracking-[0.2em] text-gold/70">
-            Daily planner path
-          </p>
-          <p className="mt-0.5 font-sans text-[11px] text-champagne/45">
-            Plan → coordinate → update → operate → execute → close
-          </p>
+        <div className="flex items-center justify-between gap-3">
+          <div className="shrink-0">
+            <p className="font-sans text-[9px] font-semibold uppercase tracking-[0.2em] text-gold/70">
+              Daily planner path
+            </p>
+            <p className="mt-0.5 font-sans text-[11px] text-champagne/45">
+              Plan → coordinate → update → operate → execute → close
+            </p>
+          </div>
+          <button
+            type="button"
+            data-planner-tools-disclosure
+            aria-expanded={toolsOpen}
+            aria-controls="planner-experience-tools"
+            onClick={toggleTools}
+            className="inline-flex min-h-10 items-center rounded-lg border border-gold/20 bg-gold/[0.05] px-3 font-sans text-xs text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60 xl:hidden"
+          >
+            {toolsOpen ? 'Close tools' : 'Planner tools'}
+          </button>
         </div>
 
         <nav
+          id="planner-experience-tools"
           aria-label="Planner experience navigation"
-          className="min-w-0 overflow-x-auto overscroll-x-contain"
+          className={`${toolsOpen ? 'block' : 'hidden'} max-h-[42dvh] min-w-0 overflow-y-auto pb-1 xl:block xl:max-h-none xl:overflow-x-auto xl:overflow-y-visible xl:overscroll-x-contain xl:pb-0`}
         >
-          <div data-planner-tool-triggers className="flex min-w-max items-center gap-2 pb-1 xl:pb-0">
-            <a
-              href="#planner-workspace"
-              aria-current="page"
-              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-gold/35 bg-gold/12 px-3 font-sans text-xs font-medium text-gold transition-colors hover:bg-gold/18"
-            >
-              <LayoutDashboard className="size-3.5" />
-              Planning workspace
-            </a>
-            <PlannerCollaborationHub />
-            <PlannerClientProfile />
-            <PlannerOperations />
-            <PlannerInvitationTools />
-            <PlannerEventCommand />
-            <PlannerReleaseCenter />
-          </div>
+          <PlannerToolTriggers />
         </nav>
       </div>
 
@@ -108,12 +155,22 @@ function PlannerExperienceNavigation() {
           position: static !important;
           inset: auto !important;
           z-index: auto !important;
+          width: auto !important;
+          min-height: 2.25rem !important;
           flex-shrink: 0 !important;
           box-shadow: none !important;
         }
 
         [data-planner-tool-triggers] > button span {
           display: inline !important;
+        }
+
+        @media (max-width: 1279px) {
+          [data-planner-tool-triggers] > button,
+          [data-planner-tool-triggers] > a {
+            width: 100% !important;
+            justify-content: flex-start !important;
+          }
         }
       `}</style>
     </section>
@@ -244,8 +301,8 @@ export function PlannerPortal({ onExit }: PlannerPortalProps) {
         </div>
       </header>
 
-      <div className="planner-portal-body relative flex min-h-0 flex-1 flex-col overflow-hidden pt-12">
-        <div className="planner-portal-context">
+      <div className="planner-portal-body relative flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="planner-portal-context shrink-0">
           <WeddingContextControls />
         </div>
 
@@ -262,11 +319,6 @@ export function PlannerPortal({ onExit }: PlannerPortalProps) {
           height: 100%;
           overflow: hidden;
           overscroll-behavior: none;
-        }
-
-        .planner-portal-context > div:first-child {
-          top: 4.5rem !important;
-          max-width: calc(100vw - 1rem) !important;
         }
 
         .planner-portal-body [data-radix-scroll-area-viewport] {

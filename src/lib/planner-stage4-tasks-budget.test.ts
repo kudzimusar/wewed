@@ -49,9 +49,10 @@ describe('Stage 4 Tasks and Budget parity', () => {
     )
 
     for (const marker of [
-      'taskSearch',
-      'taskCategoryFilter',
-      'taskStatusFilter',
+      "usePlannerFilterState('wewed:planner:tasks:filters'",
+      'filters.search',
+      'filters.category',
+      'filters.status',
       "task.description ?? ''",
       "task.assignee ?? ''",
       'workspace-task-assignee',

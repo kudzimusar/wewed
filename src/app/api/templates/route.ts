@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireWeddingPermission } from '@/lib/wedding-access'
-import { getModuleSchema, isModuleKey } from '@/lib/import-engine/schemas'
+import { getWorksheetSchema, isModuleKey } from '@/lib/import-engine/schema-resolver'
 import { generateTemplate } from '@/lib/import-engine/template'
 
 export async function GET(request: NextRequest) {
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const schema = getModuleSchema(moduleKey)
+    const schema = getWorksheetSchema(moduleKey)
     const buffer = generateTemplate(schema)
     return new NextResponse(buffer as unknown as BodyInit, {
       status: 200,

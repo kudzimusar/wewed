@@ -28,12 +28,13 @@ import {
   type GuestForm,
   type GuestRow,
   type GuestStats,
+  type GuestUpdate,
 } from '@/components/wedding/planner/modules/planner-guests-module'
 import {
   PlannerSeatingModule,
   type SeatingTableRow,
 } from '@/components/wedding/planner/modules/planner-seating-module'
-import { PlannerTasksModule } from '@/components/wedding/planner/modules/planner-tasks-module'
+import { PlannerTasksModule, type TaskUpdate } from '@/components/wedding/planner/modules/planner-tasks-module'
 import {
   PlannerTimelineModule,
   type TimelineInput,
@@ -46,8 +47,9 @@ import {
   type VendorUpdate,
 } from '@/components/wedding/planner/modules/planner-vendors-module'
 import { useToast } from '@/hooks/use-toast'
+import { normalizePlannerTitle, plannerTitleError } from '@/lib/planner-task-validation'
 
-type WorkspaceTab =
+export type WorkspaceTab =
   | 'overview'
   | 'tasks'
   | 'budget'
@@ -75,6 +77,8 @@ interface BudgetRow {
   actualCost: number | null
   paidAmount: number
   currency: string
+  vendorName: string | null
+  notes: string | null
   dueDate: string | null
 }
 
@@ -106,10 +110,19 @@ const TABS: Array<{ value: WorkspaceTab; label: string; icon: ReactNode }> = [
   { value: 'seating', label: 'Seating', icon: <LayoutGrid className="size-3.5" /> },
 ]
 
+class PlannerApiError extends Error {
+  field?: string
+  constructor(message: string, field?: string) {
+    super(message)
+    this.name = 'PlannerApiError'
+    this.field = field
+  }
+}
+
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { cache: 'no-store', ...init })
-  const payload = (await response.json()) as T & { error?: string }
-  if (!response.ok) throw new Error(payload.error || 'Request failed.')
+  const payload = (await response.json()) as T & { error?: string; field?: string }
+  if (!response.ok) throw new PlannerApiError(payload.error || 'Request failed.', payload.field)
   return payload
 }
 
@@ -163,9 +176,19 @@ const EMPTY_GUEST_FORM: GuestForm = {
   seatingTableId: '',
 }
 
-export function PlannerWorkspace() {
+interface PlannerWorkspaceProps {
+  activeTab?: WorkspaceTab
+  onActiveTabChange?: (tab: WorkspaceTab) => void
+}
+
+export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }: PlannerWorkspaceProps = {}) {
   const { toast } = useToast()
-  const [activeTab, setActiveTab] = useState<WorkspaceTab>('overview')
+  const [internalTab, setInternalTab] = useState<WorkspaceTab>('overview')
+  const activeTab = controlledTab ?? internalTab
+  const setActiveTab = useCallback((tab: WorkspaceTab) => {
+    if (controlledTab === undefined) setInternalTab(tab)
+    onActiveTabChange?.(tab)
+  }, [controlledTab, onActiveTabChange])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -193,6 +216,8 @@ export function PlannerWorkspace() {
     estimatedCost: '',
     actualCost: '',
     paidAmount: '',
+    vendorName: '',
+    notes: '',
     dueDate: '',
   })
   const [vendorForm, setVendorForm] = useState<VendorForm>(EMPTY_VENDOR_FORM)
@@ -264,14 +289,19 @@ export function PlannerWorkspace() {
 
   async function addTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!taskForm.title.trim()) return
+    const titleError = plannerTitleError(taskForm.title)
+    if (titleError) {
+      setError(titleError)
+      toast({ title: 'Task needs a title', description: titleError, variant: 'destructive' })
+      return
+    }
     await mutate(
       () =>
         api('/api/planner/tasks', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            title: taskForm.title.trim(),
+            title: normalizePlannerTitle(taskForm.title),
             category: taskForm.category,
             priority: taskForm.priority,
             dueDate: taskForm.dueDate || null,
@@ -288,6 +318,19 @@ export function PlannerWorkspace() {
           dueDate: '',
           assignee: '',
         }),
+    )
+  }
+
+
+  async function updateTask(task: TaskRow, updates: TaskUpdate): Promise<boolean> {
+    return mutate(
+      () =>
+        api(`/api/planner/tasks/${task.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+        }),
+      'Task updated',
     )
   }
 
@@ -336,6 +379,8 @@ export function PlannerWorkspace() {
             estimatedCost: Number(budgetForm.estimatedCost || 0),
             actualCost: budgetForm.actualCost ? Number(budgetForm.actualCost) : null,
             paidAmount: Number(budgetForm.paidAmount || 0),
+            vendorName: budgetForm.vendorName.trim() || null,
+            notes: budgetForm.notes.trim() || null,
             dueDate: budgetForm.dueDate || null,
             currency: 'USD',
           }),
@@ -348,6 +393,8 @@ export function PlannerWorkspace() {
           estimatedCost: '',
           actualCost: '',
           paidAmount: '',
+          vendorName: '',
+          notes: '',
           dueDate: '',
         }),
     )
@@ -443,6 +490,32 @@ export function PlannerWorkspace() {
       'Guest added',
       () => setGuestForm(EMPTY_GUEST_FORM),
     )
+  }
+
+  async function updateGuest(
+    guest: GuestRow,
+    updates: GuestUpdate,
+  ): Promise<{ success: boolean; error?: string; field?: string }> {
+    setSaving(true)
+    setError(null)
+    try {
+      await api(`/api/planner/guests/${guest.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      })
+      await refresh(false)
+      toast({ title: 'Guest updated' })
+      return { success: true }
+    } catch (mutationError) {
+      const message = mutationError instanceof Error ? mutationError.message : 'The guest could not be saved.'
+      const field = mutationError instanceof PlannerApiError ? mutationError.field : undefined
+      setError(message)
+      toast({ title: 'Save failed', description: message, variant: 'destructive' })
+      return { success: false, error: message, field }
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function assignGuestTable(guest: GuestRow, tableId: string | null): Promise<boolean> {
@@ -729,14 +802,23 @@ export function PlannerWorkspace() {
   return (
     <div className="flex h-full min-h-0 flex-col bg-espresso text-champagne">
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gold/15 bg-espresso/95 px-3 py-2 sm:px-5">
-        <div className="min-w-0 overflow-x-auto">
-          <nav className="flex min-w-max items-center gap-1" aria-label="Planner workspace sections">
+        <div className="min-w-0 flex-1">
+          <label className="sr-only" htmlFor="planner-workspace-section">Planner workspace section</label>
+          <select
+            id="planner-workspace-section"
+            value={activeTab}
+            onChange={(event) => setActiveTab(event.target.value as WorkspaceTab)}
+            className="h-11 w-full rounded-lg border border-gold/25 bg-espresso px-3 font-sans text-sm text-champagne sm:hidden"
+          >
+            {TABS.map((tab) => <option key={tab.value} value={tab.value}>{tab.label}</option>)}
+          </select>
+          <nav className="hidden items-center gap-1 sm:flex" aria-label="Planner workspace sections">
             {TABS.map((tab) => (
               <button
                 key={tab.value}
                 type="button"
                 onClick={() => setActiveTab(tab.value)}
-                className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 font-sans text-[11px] transition-colors ${
+                className={`inline-flex min-h-10 items-center gap-1.5 rounded-lg border px-3 py-2 font-sans text-[11px] transition-colors ${
                   activeTab === tab.value
                     ? 'border-gold/35 bg-gold/12 text-gold'
                     : 'border-transparent text-champagne/55 hover:border-gold/15 hover:text-champagne'
@@ -761,8 +843,8 @@ export function PlannerWorkspace() {
         </Button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-6 sm:py-6">
-        <div className="mx-auto w-full max-w-7xl space-y-5 pb-28">
+      <div data-planner-module-scroll="true" className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-6 sm:py-6">
+        <div className="mx-auto w-full max-w-7xl space-y-5 pb-10 sm:pb-16">
           {error && (
             <div className="rounded-xl border border-clay/30 bg-clay/10 px-4 py-3 font-sans text-sm text-clay-light">
               {error}
@@ -865,6 +947,7 @@ export function PlannerWorkspace() {
                   saving={saving}
                   taskProgressPercent={taskStats.percent}
                   onAddTask={addTask}
+                  onUpdateTask={updateTask}
                   onUpdateTaskStatus={updateTaskStatus}
                   onDeleteTask={deleteTask}
                 />
@@ -905,6 +988,7 @@ export function PlannerWorkspace() {
                   guestStats={guestStats}
                   saving={saving}
                   onAddGuest={addGuest}
+                  onUpdateGuest={updateGuest}
                   onAssignGuestTable={assignGuestTable}
                   onDeleteGuest={deleteGuest}
                 />
