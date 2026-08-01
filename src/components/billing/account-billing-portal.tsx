@@ -36,6 +36,7 @@ type BillingPayload = {
     subscriptionPlan: string
     subscriptionStatus: string
     currentPeriodEndsAt: string | null
+    cancelAtPeriodEnd: boolean
     memberRole: string
     stripeCustomerId: string | null
     billingInterval: WewedBillingInterval | null
@@ -91,7 +92,10 @@ type WeddingContentPayload = {
 
 function date(value: string | null | undefined) {
   if (!value) return 'Not set'
-  return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(new Date(value))
+  return new Intl.DateTimeFormat('en-US', {
+    dateStyle: 'medium',
+    timeZone: 'UTC',
+  }).format(new Date(value))
 }
 
 function venue(profile: WeddingProfile | null, activeWedding: AuthPayload['activeWedding']) {
@@ -165,7 +169,11 @@ export function AccountBillingPortal() {
       const payload = (await response.json()) as {
         success?: boolean
         error?: string
-        subscription?: { plan?: string; status?: string }
+        subscription?: {
+          plan?: string
+          status?: string
+          cancelAtPeriodEnd?: boolean
+        }
       }
       if (!response.ok || !payload.success) {
         throw new Error(payload.error || 'Unable to synchronize Stripe billing.')
@@ -294,6 +302,7 @@ export function AccountBillingPortal() {
         {checkoutResult === 'cancelled' && <div className="rounded-xl border border-gold/25 bg-gold/10 px-4 py-3 text-sm text-gold-light">Checkout was cancelled. No plan change was applied.</div>}
         {syncNotice && <div className="rounded-xl border border-emerald-300/25 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-100">{syncNotice}</div>}
         {error && <div className="rounded-xl border border-red-300/25 bg-red-300/10 px-4 py-3 text-sm text-red-100">{error}</div>}
+        {data.account.cancelAtPeriodEnd && <div className="rounded-xl border border-gold/30 bg-gold/10 px-4 py-3 text-sm text-gold-light"><strong>Cancellation scheduled:</strong> The subscription remains active through {date(data.account.currentPeriodEndsAt)}. It can be resumed from the Stripe Customer Portal before that date.</div>}
 
         <Card
           aria-label="Subscription overview"
@@ -309,13 +318,14 @@ export function AccountBillingPortal() {
               <div className="min-w-0 border-b border-gold/10 p-4 sm:p-5 lg:border-b-0 lg:border-r">
                 <p className="text-[10px] uppercase tracking-[0.15em] text-champagne/45 sm:text-xs">Subscription</p>
                 <p className="mt-1.5 truncate text-xl font-semibold capitalize text-emerald-100 sm:text-2xl">{data.account.subscriptionStatus.replaceAll('_', ' ')}</p>
+                {data.account.cancelAtPeriodEnd && <p className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.12em] text-gold">Cancels at period end</p>}
               </div>
               <div className="min-w-0 border-r border-gold/10 p-4 sm:p-5">
                 <p className="text-[10px] uppercase tracking-[0.15em] text-champagne/45 sm:text-xs">Billing cadence</p>
                 <p className="mt-1.5 truncate text-xl font-semibold capitalize sm:text-2xl">{data.account.billingInterval || 'Not set'}</p>
               </div>
               <div className="min-w-0 p-4 sm:p-5">
-                <p className="text-[10px] uppercase tracking-[0.15em] text-champagne/45 sm:text-xs">Current period ends</p>
+                <p className="text-[10px] uppercase tracking-[0.15em] text-champagne/45 sm:text-xs">{data.account.cancelAtPeriodEnd ? 'Access ends' : 'Next renewal'}</p>
                 <p className="mt-1.5 whitespace-nowrap text-lg font-semibold sm:text-xl">{date(data.account.currentPeriodEndsAt)}</p>
               </div>
             </div>
