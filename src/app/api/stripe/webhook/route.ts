@@ -2,7 +2,13 @@ import { randomUUID } from 'node:crypto'
 import type { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { verifyStripeWebhookSignature } from '@/lib/stripe-billing'
+import {
+  stripeAccountMetadataKeys,
+  stripeEnvironment,
+  stripeEventResourceId,
+  stripeUsesTestMode,
+  verifyStripeWebhookSignature,
+} from '@/lib/stripe-billing'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -18,6 +24,7 @@ type StripeEvent = {
   id: string
   type: string
   created?: number
+  livemode?: boolean
   data: { object: StripeObject }
 }
 
@@ -58,6 +65,7 @@ async function lock(tx: Transaction, key: string): Promise<void> {
 }
 
 async function eventAlreadyProcessed(tx: Transaction, eventId: string): Promise<boolean> {
+  const resourceId = stripeEventResourceId(eventId)
   const rows = await tx.$queryRawUnsafe<Array<{ exists: boolean }>>(
     `SELECT EXISTS (
       SELECT 1 FROM public."BusinessAuditLog"
@@ -65,7 +73,7 @@ async function eventAlreadyProcessed(tx: Transaction, eventId: string): Promise<
         AND "resourceId" = $1
         AND action = 'stripe.webhook_processed'
     ) AS exists`,
-    eventId,
+    resourceId,
   )
   return Boolean(rows[0]?.exists)
 }
@@ -74,6 +82,7 @@ async function findAccount(tx: Transaction, input: {
   businessAccountId?: string | null
   customerId?: string | null
 }) {
+  const keys = stripeAccountMetadataKeys()
   const rows = await tx.$queryRawUnsafe<
     Array<{
       id: string
@@ -85,11 +94,12 @@ async function findAccount(tx: Transaction, input: {
     `SELECT id, name, "subscriptionPlan", "subscriptionStatus"
      FROM public."BusinessAccount"
      WHERE ($1::text IS NOT NULL AND id = $1)
-        OR ($2::text IS NOT NULL AND metadata->>'stripeCustomerId' = $2)
+        OR ($2::text IS NOT NULL AND metadata->>$3 = $2)
      ORDER BY CASE WHEN id = $1 THEN 0 ELSE 1 END
      LIMIT 1`,
     input.businessAccountId ?? null,
     input.customerId ?? null,
+    keys.customerId,
   )
   return rows[0] ?? null
 }
@@ -104,13 +114,31 @@ async function updateSubscriptionAccount(tx: Transaction, input: {
   billingInterval?: string | null
   currentPeriodEnd?: number | null
 }) {
+  const keys = stripeAccountMetadataKeys()
   const metadataPatch: Record<string, string> = {
-    stripeLastSyncedAt: new Date().toISOString(),
+    [keys.lastSyncedAt]: new Date().toISOString(),
   }
-  if (input.customerId) metadataPatch.stripeCustomerId = input.customerId
-  if (input.subscriptionId) metadataPatch.stripeSubscriptionId = input.subscriptionId
-  if (input.checkoutSessionId) metadataPatch.stripeCheckoutSessionId = input.checkoutSessionId
-  if (input.billingInterval) metadataPatch.stripeBillingInterval = input.billingInterval
+  if (input.customerId) metadataPatch[keys.customerId] = input.customerId
+  if (input.subscriptionId) metadataPatch[keys.subscriptionId] = input.subscriptionId
+  if (input.checkoutSessionId) metadataPatch[keys.checkoutSessionId] = input.checkoutSessionId
+  if (input.billingInterval) metadataPatch[keys.billingInterval] = input.billingInterval
+  if (input.plan) metadataPatch[keys.subscriptionPlan] = input.plan
+  if (input.status) metadataPatch[keys.subscriptionStatus] = input.status
+  if (input.currentPeriodEnd) {
+    metadataPatch[keys.currentPeriodEndsAt] = new Date(input.currentPeriodEnd * 1000).toISOString()
+  }
+
+  if (stripeUsesTestMode()) {
+    await tx.$executeRawUnsafe(
+      `UPDATE public."BusinessAccount"
+       SET metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb,
+         "updatedAt" = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      input.accountId,
+      JSON.stringify(metadataPatch),
+    )
+    return
+  }
 
   await tx.$executeRawUnsafe(
     `UPDATE public."BusinessAccount"
@@ -143,6 +171,9 @@ async function recordPayment(tx: Transaction, input: {
   object: StripeObject
   status: 'paid' | 'failed' | 'refunded'
 }) {
+  // Sandbox events are verified and audited, but never enter the live revenue ledger.
+  if (stripeUsesTestMode()) return
+
   const providerReference = text(input.object.id)
   if (!providerReference) return
 
@@ -207,14 +238,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Invalid Stripe event.' }, { status: 400 })
     }
 
+    const environment = stripeEnvironment()
+    const expectedLivemode = environment === 'live'
+    if (event.livemode !== expectedLivemode) {
+      return NextResponse.json(
+        { success: false, error: 'Stripe event environment mismatch.' },
+        { status: 400 },
+      )
+    }
+
     const result = await db.$transaction(async (tx) => {
-      await lock(tx, `stripe-event:${event.id}`)
+      await lock(tx, `stripe-event:${stripeEventResourceId(event.id)}`)
       if (await eventAlreadyProcessed(tx, event.id)) {
         return { duplicate: true }
       }
 
       const object = event.data.object
       const metadata = object.metadata || {}
+      const metadataEnvironment = text(metadata.environment)
+      if (metadataEnvironment && metadataEnvironment !== environment) {
+        throw new Error(`Stripe event ${event.id} metadata environment mismatch.`)
+      }
+
       const businessAccountId = text(metadata.businessAccountId) || text(object.client_reference_id)
       const customerId = stringId(object.customer)
       const account = await findAccount(tx, { businessAccountId, customerId })
@@ -280,13 +325,15 @@ export async function POST(request: NextRequest) {
          ON CONFLICT DO NOTHING`,
         `audit-${randomUUID()}`,
         account?.id ?? null,
-        event.id,
+        stripeEventResourceId(event.id),
         JSON.stringify({
           type: event.type,
+          environment,
           stripeObjectId: text(object.id),
           matchedAccount: Boolean(account),
           supported,
           billingInterval: text(metadata.interval),
+          sandboxLedgerWriteSkipped: stripeUsesTestMode(),
         }),
       )
 
