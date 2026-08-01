@@ -39,6 +39,7 @@ export function stripeAccountMetadataKeys() {
     subscriptionPlan: `${prefix}SubscriptionPlan`,
     subscriptionStatus: `${prefix}SubscriptionStatus`,
     currentPeriodEndsAt: `${prefix}CurrentPeriodEndsAt`,
+    cancelAtPeriodEnd: `${prefix}CancelAtPeriodEnd`,
     lastSyncedAt: `${prefix}LastSyncedAt`,
   }
 }
