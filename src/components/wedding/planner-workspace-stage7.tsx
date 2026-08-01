@@ -58,8 +58,8 @@ function usePlannerScrollPersistence(
 
     // Data loading and responsive hydration can replace the owned scroll node
     // after the first successful restore. Keep protecting and reapplying the
-    // saved position during that settling window, but stop immediately when the
-    // user starts interacting so restoration never fights deliberate scrolling.
+    // saved position during that settling window, but stop when the user starts
+    // an actual scroll gesture so restoration never fights deliberate movement.
     let restorationActive = targetPosition > 0
     let userInteracted = false
 
@@ -101,15 +101,27 @@ function usePlannerScrollPersistence(
 
     const stopRestorationForUser = () => {
       if (!restorationActive) return
+      const position = Math.max(0, current?.scrollTop ?? 0)
       userInteracted = true
       restorationActive = false
-      save()
+      // A gesture may arrive just before the browser updates scrollTop. Preserve
+      // the old target until the following scroll event supplies a real value.
+      if (position > 0 || targetPosition === 0) persist(position)
+    }
+
+    const stopRestorationForKeyboard = (event: KeyboardEvent) => {
+      if (['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End', ' '].includes(event.key)) {
+        stopRestorationForUser()
+      }
     }
 
     const finishRestoration = () => {
       restore()
+      const position = Math.max(0, current?.scrollTop ?? 0)
       restorationActive = false
-      save()
+      // If delayed content still has no scroll range, keep the durable target
+      // rather than overwriting it with a transient zero.
+      if (position > 0 || targetPosition === 0) persist(position)
     }
 
     const frame = window.requestAnimationFrame(() => {
@@ -129,8 +141,8 @@ function usePlannerScrollPersistence(
       if (document.visibilityState === 'hidden') save()
     }
     root.addEventListener('wheel', stopRestorationForUser, { passive: true })
-    root.addEventListener('touchstart', stopRestorationForUser, { passive: true })
-    root.addEventListener('pointerdown', stopRestorationForUser, { passive: true })
+    root.addEventListener('touchmove', stopRestorationForUser, { passive: true })
+    window.addEventListener('keydown', stopRestorationForKeyboard)
     window.addEventListener('beforeunload', save)
     window.addEventListener('pagehide', save)
     document.addEventListener('visibilitychange', saveWhenHidden)
@@ -143,8 +155,8 @@ function usePlannerScrollPersistence(
       observer.disconnect()
       resizeObserver.disconnect()
       root.removeEventListener('wheel', stopRestorationForUser)
-      root.removeEventListener('touchstart', stopRestorationForUser)
-      root.removeEventListener('pointerdown', stopRestorationForUser)
+      root.removeEventListener('touchmove', stopRestorationForUser)
+      window.removeEventListener('keydown', stopRestorationForKeyboard)
       window.removeEventListener('beforeunload', save)
       window.removeEventListener('pagehide', save)
       document.removeEventListener('visibilitychange', saveWhenHidden)
