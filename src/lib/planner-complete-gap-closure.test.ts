@@ -44,7 +44,7 @@ describe('complete planner gap closure', () => {
       'onRouteToolChange={selectWorkspaceTool}',
     ]) expect(shell).toContain(marker)
     for (const marker of [
-      "'/planner/${module}'",
+      'return `/planner/${module}${tool ? `/${tool}` : \'\'}`',
       "'import'",
       "'imports'",
       'legacyModule',
