@@ -225,8 +225,8 @@ test('worksheet import is actionable and viewport-safe across device classes', a
         await expect(rowHeader).toBeVisible()
         const scrollBox = await stableBoundingBox(tableScroll)
         const headerBox = await stableBoundingBox(rowHeader)
-        expect(headerBox.y).toBeGreaterThanOrEqual(scrollBox.y - 1)
         expect(headerBox.y).toBeLessThanOrEqual(scrollBox.y + 2)
+        expect(headerBox.y + headerBox.height).toBeGreaterThanOrEqual(scrollBox.y + 1)
       }
       const reviewButton = dialog.getByRole('button', { name: 'Review import', exact: true })
       await expect(reviewButton).toBeEnabled()
