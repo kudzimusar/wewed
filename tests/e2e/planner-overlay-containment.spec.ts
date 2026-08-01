@@ -177,7 +177,7 @@ test('worksheet import is actionable and viewport-safe across device classes', a
         await expect(cards.getByText(email, { exact: true })).toBeVisible()
       } else {
         const tableScroll = dialog.getByTestId('import-review-table-scroll')
-        const rowHeader = tableScroll.getByRole('columnheader', { name: 'Row', exact: true })
+        const rowHeader = tableScroll.getByTestId('import-review-row-header')
         await expect(tableScroll).toBeVisible()
         await expect(rowHeader).toBeVisible()
         await tableScroll.evaluate((element) => {

@@ -600,7 +600,7 @@ function ImportReviewRows({
           <Table className="min-w-[56rem]" containerClassName="overflow-visible">
             <TableHeader className="sticky top-0 z-20 bg-espresso shadow-[0_1px_0_rgba(191,155,95,0.25)]">
               <TableRow className="bg-espresso hover:bg-espresso">
-                <TableHead className="sticky left-0 z-30 w-16 bg-espresso">Row</TableHead>
+                <TableHead data-testid="import-review-row-header" className="sticky left-0 z-30 w-16 bg-espresso">Row</TableHead>
                 <TableHead>Action</TableHead>
                 {columns.map((column) => <TableHead key={column}>{column}</TableHead>)}
                 <TableHead>Issues</TableHead>
