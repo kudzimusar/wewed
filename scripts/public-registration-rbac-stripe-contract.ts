@@ -7,6 +7,7 @@ async function file(path: string) {
 
 const [
   registration,
+  registrationForm,
   roles,
   webhook,
   billing,
@@ -16,6 +17,7 @@ const [
   pricingCatalog,
 ] = await Promise.all([
   file('src/app/api/auth/register/route.ts'),
+  file('src/components/public/public-registration-form.tsx'),
   file('src/app/api/admin/roles/route.ts'),
   file('src/app/api/stripe/webhook/route.ts'),
   file('src/app/api/billing/account/route.ts'),
@@ -31,6 +33,11 @@ assert.match(registration, /'viewer', false, CURRENT_TIMESTAMP, CURRENT_TIMESTAM
 assert.doesNotMatch(registration, /db\.user\.create\(/)
 assert.match(registration, /internalOnboardingRequired: true/)
 assert.doesNotMatch(registration, /wewed_super_admin/)
+
+assert.match(registrationForm, /searchParams\.get\('confirmed'\) === '1'/)
+assert.match(registrationForm, /Application pending review/)
+assert.match(registrationForm, /Do not submit another application/)
+assert.match(registrationForm, /autoComplete="new-password"/)
 
 assert.match(roles, /inviteUserByEmail/)
 assert.match(roles, /Only a Super Admin may assign the Super Admin role/)
