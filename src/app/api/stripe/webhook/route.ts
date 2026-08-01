@@ -53,6 +53,10 @@ function integer(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? Math.trunc(value) : null
 }
 
+function boolean(value: unknown): boolean | null {
+  return typeof value === 'boolean' ? value : null
+}
+
 function text(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null
 }
@@ -113,6 +117,7 @@ async function updateSubscriptionAccount(tx: Transaction, input: {
   checkoutSessionId?: string | null
   billingInterval?: string | null
   currentPeriodEnd?: number | null
+  cancelAtPeriodEnd?: boolean | null
 }) {
   const keys = stripeAccountMetadataKeys()
   const metadataPatch: Record<string, string> = {
@@ -124,6 +129,9 @@ async function updateSubscriptionAccount(tx: Transaction, input: {
   if (input.billingInterval) metadataPatch[keys.billingInterval] = input.billingInterval
   if (input.plan) metadataPatch[keys.subscriptionPlan] = input.plan
   if (input.status) metadataPatch[keys.subscriptionStatus] = input.status
+  if (input.cancelAtPeriodEnd !== null && input.cancelAtPeriodEnd !== undefined) {
+    metadataPatch[keys.cancelAtPeriodEnd] = String(input.cancelAtPeriodEnd)
+  }
   if (input.currentPeriodEnd) {
     metadataPatch[keys.currentPeriodEndsAt] = new Date(input.currentPeriodEnd * 1000).toISOString()
   }
@@ -290,6 +298,9 @@ export async function POST(request: NextRequest) {
             subscriptionId: text(object.id),
             billingInterval: text(metadata.interval),
             currentPeriodEnd: integer(object.current_period_end),
+            cancelAtPeriodEnd: event.type === 'customer.subscription.deleted'
+              ? false
+              : boolean(object.cancel_at_period_end),
           })
         }
 
@@ -333,6 +344,7 @@ export async function POST(request: NextRequest) {
           matchedAccount: Boolean(account),
           supported,
           billingInterval: text(metadata.interval),
+          cancelAtPeriodEnd: boolean(object.cancel_at_period_end),
           sandboxLedgerWriteSkipped: stripeUsesTestMode(),
         }),
       )
