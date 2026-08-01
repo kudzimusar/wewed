@@ -51,7 +51,7 @@ Annual Canon and Forever pricing provides two months free relative to monthly bi
 
 Enterprise is not exposed as unattended Checkout in V1. The displayed amount is an indicative starting price, and final scope is agreed through internal onboarding.
 
-## Stripe catalog created
+## Stripe live catalog created
 
 Connected Stripe account: `acct_1MUuwxAqp8pYwqz4`.
 
@@ -69,7 +69,9 @@ Connected Stripe account: `acct_1MUuwxAqp8pYwqz4`.
 
 All four prices are live-mode recurring USD prices. No customer or subscription was created during catalog setup.
 
-## Required production environment variables
+## Production variables
+
+Only explicit Vercel Production deployments may read these live variables:
 
 ```text
 STRIPE_SECRET_KEY
@@ -80,7 +82,7 @@ STRIPE_PRICE_FOREVER_MONTHLY=price_1Tz8NxAqp8pYwqz4KGXwgPDE
 STRIPE_PRICE_FOREVER_ANNUAL=price_1Tz8O6Aqp8pYwqz4mY4pELhR
 ```
 
-Legacy monthly variables remain supported temporarily as fallbacks:
+Legacy monthly variables remain supported temporarily in Production as fallbacks:
 
 ```text
 STRIPE_PRICE_STARTER
@@ -88,6 +90,21 @@ STRIPE_PRICE_CANON
 STRIPE_PRICE_PROFESSIONAL
 STRIPE_PRICE_FOREVER
 ```
+
+## Preview and local test variables
+
+Preview and local development never fall back to Production Stripe variables. They require a separate Stripe test-mode catalog and these distinct names:
+
+```text
+STRIPE_TEST_SECRET_KEY
+STRIPE_TEST_WEBHOOK_SECRET
+STRIPE_TEST_PRICE_CANON_MONTHLY
+STRIPE_TEST_PRICE_CANON_ANNUAL
+STRIPE_TEST_PRICE_FOREVER_MONTHLY
+STRIPE_TEST_PRICE_FOREVER_ANNUAL
+```
+
+This separation prevents a Preview deployment or tester from using live credentials or creating a real charge.
 
 ## Checkout and synchronization flow
 
@@ -110,12 +127,13 @@ STRIPE_PRICE_FOREVER
 
 ## Launch certification still required
 
-- Confirm the Vercel `STRIPE_SECRET_KEY` belongs to the documented connected Stripe account.
-- Add the four Price IDs to Vercel Production and Preview environments.
-- Create a Stripe webhook endpoint for `https://wewed-nu.vercel.app/api/stripe/webhook`.
-- Add the returned signing secret to Vercel as `STRIPE_WEBHOOK_SECRET`.
+- Confirm the Vercel Production `STRIPE_SECRET_KEY` belongs to the documented connected Stripe account.
+- Create the four equivalent Stripe test-mode prices and add them under the `STRIPE_TEST_PRICE_*` Preview variables.
+- Create the live webhook endpoint for `https://wewed-nu.vercel.app/api/stripe/webhook` and store its signing secret as the Production `STRIPE_WEBHOOK_SECRET`.
+- Create a test webhook endpoint for the stable pricing Preview branch URL and store its signing secret as `STRIPE_TEST_WEBHOOK_SECRET` in Preview.
 - Configure Stripe Customer Portal plan-change and cancellation behavior.
-- Run one controlled paid subscription test and verify Checkout, webhook, `BusinessAccount`, `PaymentRecord`, audit history, cancellation and refund behavior.
+- Run one controlled test-mode subscription and verify Checkout, webhook, `BusinessAccount`, `PaymentRecord`, audit history and cancellation.
+- After test certification and explicit release approval, run a controlled live subscription certification.
 
 ## Regression controls
 
@@ -125,5 +143,5 @@ The Admin Console CI workflow validates:
 - annual discount calculations;
 - registration choices sourced from the canonical catalog;
 - monthly and annual Checkout metadata;
-- environment-variable mappings;
+- strict separation between Preview test variables and Production live variables;
 - existing registration, RBAC, data-pipeline, lint and build gates.
