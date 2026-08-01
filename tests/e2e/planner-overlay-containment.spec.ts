@@ -170,12 +170,37 @@ test('worksheet import is actionable and viewport-safe across device classes', a
         buffer: Buffer.from(csv, 'utf8'),
       })
       await expect(dialog.getByTestId('import-stat-rows').getByText('1', { exact: true })).toBeVisible()
+      if (viewport.width < 768) {
+        const cards = dialog.getByTestId('import-review-cards')
+        await expect(cards).toBeVisible()
+        await expect(cards.getByText('Row 2', { exact: true })).toBeVisible()
+        await expect(cards.getByText(email, { exact: true })).toBeVisible()
+      } else {
+        const tableScroll = dialog.getByTestId('import-review-table-scroll')
+        const rowHeader = tableScroll.getByRole('columnheader', { name: 'Row', exact: true })
+        await expect(tableScroll).toBeVisible()
+        await expect(rowHeader).toBeVisible()
+        await tableScroll.evaluate((element) => {
+          element.scrollTop = element.scrollHeight
+          element.scrollLeft = element.scrollWidth
+        })
+        await expect(rowHeader).toBeVisible()
+        const scrollBox = await tableScroll.boundingBox()
+        const headerBox = await rowHeader.boundingBox()
+        expect(scrollBox).not.toBeNull()
+        expect(headerBox).not.toBeNull()
+        expect(headerBox!.y).toBeGreaterThanOrEqual(scrollBox!.y - 1)
+        expect(headerBox!.y).toBeLessThanOrEqual(scrollBox!.y + 2)
+      }
       const reviewButton = dialog.getByRole('button', { name: 'Review import', exact: true })
       await expect(reviewButton).toBeEnabled()
       await expect(dialog.getByTestId('import-dialog-footer')).toBeInViewport()
       await reviewButton.click()
       await expect(dialog.getByRole('button', { name: 'Import now', exact: true })).toBeEnabled()
       await expect(dialog.getByText(/Import 1 records\?/)).toBeVisible()
+      const confirmationRecords = dialog.getByTestId('import-confirmation-records')
+      await expect(confirmationRecords).toBeVisible()
+      await expect(confirmationRecords.getByText(email, { exact: true })).toBeVisible()
       await dialog.getByRole('button', { name: 'Back', exact: true }).click()
       await expect(reviewButton).toBeEnabled()
 
