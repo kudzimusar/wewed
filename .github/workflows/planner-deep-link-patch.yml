@@ -1,0 +1,37 @@
+name: Apply planner deep-link patch
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/apply-planner-deep-link-navigation.py'
+      - '.github/workflows/planner-deep-link-patch.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out pull-request head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Apply reviewed navigation patch
+        run: python scripts/apply-planner-deep-link-navigation.py
+
+      - name: Commit product change
+        run: |
+          if git diff --quiet -- src/components/wedding/import-export-bar.tsx; then
+            echo 'Patch already applied.'
+            exit 0
+          fi
+          git config user.name 'wewed-release-bot'
+          git config user.email '77352591+kudzimusar@users.noreply.github.com'
+          git add src/components/wedding/import-export-bar.tsx
+          git commit -m 'feat(planner): deep-link worksheet tools'
+          git push origin HEAD:${{ github.head_ref }}
