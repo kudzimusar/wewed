@@ -48,14 +48,14 @@ async function openPlanner(page: Page): Promise<void> {
       sameSite: 'Lax',
     },
   ])
-  await page.goto('/planner')
+  await page.goto('/planner/overview#planner-workspace')
   await expect(page.getByRole('heading', { name: E2E_WEDDINGS.primary.title })).toBeVisible()
   await expect(page.locator('#active-wedding')).toHaveValue(E2E_WEDDINGS.primary.id)
 }
 
 export async function openModule(page: Page, moduleKey: ModuleKey): Promise<void> {
   const routeKey = moduleKey === 'checklist' ? 'tasks' : moduleKey
-  const targetUrl = `/planner?module=${routeKey}#planner-workspace`
+  const targetUrl = `/planner/${routeKey}#planner-workspace`
 
   try {
     const worksheetButton = page.getByTestId(`worksheet-module-${moduleKey}`)
@@ -71,14 +71,14 @@ export async function openModule(page: Page, moduleKey: ModuleKey): Promise<void
 
     if (await worksheetButton.isVisible()) {
       await worksheetButton.click({ timeout: 3_000 })
-    } else if (!page.url().includes(`module=${routeKey}`)) {
+    } else if (!new URL(page.url()).pathname.endsWith(`/planner/${routeKey}`)) {
       await page.goto(targetUrl)
     }
   } catch {
     await page.goto(targetUrl)
   }
 
-  await expect(page).toHaveURL(new RegExp(`[?&]module=${routeKey}`))
+  await expect(page).toHaveURL(new RegExp(`/planner/${routeKey}(?:[?#]|$)`))
   const mobileSelector = page.locator('#planner-workspace-section')
   if (await mobileSelector.isVisible()) {
     await expect(mobileSelector).toHaveValue(routeKey)
