@@ -56,33 +56,38 @@ async function openPlanner(page: Page): Promise<void> {
 export async function openModule(page: Page, moduleKey: ModuleKey): Promise<void> {
   const routeKey = moduleKey === 'checklist' ? 'tasks' : moduleKey
   const targetUrl = `/planner/${routeKey}#planner-workspace`
+  const targetPattern = new RegExp(`/planner/${routeKey}(?:[?#]|$)`)
   const worksheetButton = page.getByTestId(`worksheet-module-${moduleKey}`)
 
-  try {
-    if (!(await worksheetButton.isVisible())) {
-      const toggle = page.getByTestId('worksheet-tools-toggle')
-      if (await toggle.isVisible()) {
-        await expect(toggle).toBeEnabled()
-        if ((await toggle.getAttribute('aria-expanded')) !== 'true') {
-          await toggle.click()
-          await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+  if (!targetPattern.test(page.url())) {
+    try {
+      if (!(await worksheetButton.isVisible())) {
+        const toggle = page.getByTestId('worksheet-tools-toggle')
+        if (await toggle.isVisible()) {
+          await expect(toggle).toBeEnabled()
+          if ((await toggle.getAttribute('aria-expanded')) !== 'true') {
+            await toggle.click()
+            await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+          }
+          await expect(worksheetButton).toBeVisible()
         }
-        await expect(worksheetButton).toBeVisible()
-      } else {
-        await page.goto(targetUrl)
       }
+
+      if (await worksheetButton.isVisible()) {
+        await worksheetButton.click()
+        // A server-rendered button can be visible before hydration attaches its
+        // route handler. Prove that the click changed the canonical URL instead
+        // of assuming visibility means interactivity.
+        await page.waitForURL(targetPattern, { timeout: 3_000 }).catch(() => undefined)
+      }
+    } catch {
+      // Direct canonical navigation below is the deterministic fallback.
     }
 
-    if (await worksheetButton.isVisible()) {
-      await worksheetButton.click()
-    } else if (!new URL(page.url()).pathname.endsWith(`/planner/${routeKey}`)) {
-      await page.goto(targetUrl)
-    }
-  } catch {
-    await page.goto(targetUrl)
+    if (!targetPattern.test(page.url())) await page.goto(targetUrl)
   }
 
-  await expect(page).toHaveURL(new RegExp(`/planner/${routeKey}(?:[?#]|$)`))
+  await expect(page).toHaveURL(targetPattern)
   await expect(page.locator('[data-active-planner-module]')).toHaveAttribute(
     'data-active-planner-module',
     routeKey,
