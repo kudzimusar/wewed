@@ -51,7 +51,10 @@ test('downloaded Excel template imports, exports, records history, and rolls bac
     (response) => response.url().endsWith('/api/imports') && response.request().method() === 'POST',
     { timeout: 45_000 },
   )
-  await importDialog.locator('input[type="file"]').setInputFiles(importPath)
+  const importFileChooserPromise = page.waitForEvent('filechooser')
+  await importDialog.getByRole('button', { name: 'Choose file' }).click()
+  const importFileChooser = await importFileChooserPromise
+  await importFileChooser.setFiles(importPath)
   expect((await previewResponse).ok()).toBe(true)
   await expect(importDialog.getByTestId('import-review-table-scroll').getByRole('cell', { name: importedTask, exact: true })).toBeVisible()
   await importDialog.getByRole('button', { name: 'Review import' }).click()
@@ -149,7 +152,10 @@ test('untouched guest template is non-executable and formula cells are rejected 
     (response) => response.url().endsWith('/api/imports') && response.request().method() === 'POST',
     { timeout: 45_000 },
   )
-  await dialog.locator('input[type="file"]').setInputFiles(templatePath)
+  const blankFileChooserPromise = page.waitForEvent('filechooser')
+  await dialog.getByRole('button', { name: 'Choose file' }).click()
+  const blankFileChooser = await blankFileChooserPromise
+  await blankFileChooser.setFiles(templatePath)
   expect((await blankPreviewResponse).ok()).toBe(true)
   await expect(dialog.getByTestId('import-stat-rows').getByText('0', { exact: true })).toBeVisible()
   await expect(dialog.getByTestId('import-stat-create').getByText('0', { exact: true })).toBeVisible()
