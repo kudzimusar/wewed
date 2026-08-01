@@ -1,6 +1,6 @@
 # Worksheet recovery release evidence — 2026-08-02
 
-Status: Engineering gate passed; exact preview deployment pending  
+Status: Task Test 11 repair passed engineering gate; exact preview deployment pending  
 PR: #56 — `Align planner worksheet recovery contracts`  
 Branch: `fix/worksheet-recovery-contracts`  
 Production baseline: `934b1ba5294c554229220ff5a6925cab47e22686`
@@ -19,12 +19,12 @@ The general planner modules were tested separately. Guest worksheet recovery is 
 
 ## Latest qualified engineering head
 
-Commit: `6106c41a0fc17204e476dd5af7a6cc1b879b2097`
+Commit: `a2aba8775c277a7b3bf623a024f11561a08e98b5`
 
 GitHub Actions:
 
-- workflow run: `30713857873`
-- job: `91405959228`
+- workflow run: `30714295724`
+- job: `91407131505`
 - conclusion: success
 - browser failure evidence: skipped because the strict browser gate passed
 
@@ -38,12 +38,29 @@ The exact head passed:
 - worksheet v1.1 schema/template contracts;
 - Tasks, Vendors, Budget, Timeline and Seating create/update/export/idempotency/rollback/isolation PostgreSQL round trips;
 - complete Seating relational export, unseating, empty-table, capacity and rollback tests;
-- application build;
-- strict Playwright release gate using `--fail-on-flaky-tests`.
+- production build;
+- strict Playwright release gate using `--fail-on-flaky-tests`;
+- executable Task Test 11 priority-filter contract.
 
 The browser gate completed successfully with no accepted retry or flaky result.
 
-## Defects closed before the green gate
+## Task Test 11 gap and repair
+
+The controlled UAT instruction required `Any priority → High`, but the Tasks UI exposed only category and status filters. The missing priority control was a real functionality gap.
+
+Repair:
+
+- added a persisted priority filter with `Any priority`, `High`, `Medium` and `Low` options;
+- applied the filter client-side without task mutations;
+- retained Reset behavior and responsive layout;
+- added an executable browser scenario using `UAT-TASK-001 Confirm florist arrival` plus medium- and low-priority controls;
+- verified the UAT task remains visible exactly once;
+- verified medium and low tasks are hidden;
+- verified the UAT task remains `In progress`;
+- verified before/after API task payloads are identical;
+- verified no browser, console, API 5xx or runtime error appears.
+
+## Other defects closed before the green gate
 
 - transient `_importMeta` worksheet fields replaced with normalized, durable v1.1 contracts;
 - formula metadata preserved from upload through execution after mapping changes;
@@ -91,22 +108,19 @@ No production worksheet UAT records were introduced by engineering tests or depl
 
 ## Deployment boundary
 
-The latest available worksheet preview before this release trigger remains:
+The latest qualified preview before the Task Test 11 repair is:
 
-- deployment: `dpl_74E1ZC6NpvzFti8CAZLAwRCf53g5`
-- commit: `19643bcb197e15071ff548c47e12f8bbc27fca30`
+- deployment: `dpl_G6jHM6BqTaRSVWvRrDk9t72vHwHd`
+- commit: `057d3168249048aa39b67135b30addb7583edbea`
 - state: READY
+- `/planner`: HTTP 200
+- preview error/fatal logs: none
 
-That deployment contains the original worksheet engineering changes but predates the final strict-browser stabilization commits and is not approved for controlled UAT.
+That deployment predates the priority-filter repair and is not approved for the Task Test 11 retest.
 
-This documentation-only release trigger requests a fresh preview without changing application behavior. The trigger commit itself must pass the same exact GitHub Actions gate. Controlled UAT remains blocked until that exact commit has:
+This documentation-only release trigger requests a fresh preview without changing application behavior. The trigger commit itself must pass the same exact GitHub Actions gate. Controlled live-data UAT remains separate from the executable browser contract and requires an authenticated tester session.
 
-1. a successful exact GitHub Actions release gate;
-2. a READY Vercel preview;
-3. `/planner` responding successfully;
-4. no relevant preview runtime errors.
-
-## Controlled UAT order after deployment qualification
+## Controlled UAT order
 
 1. Checklist / Tasks
 2. Vendors
