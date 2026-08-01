@@ -18,9 +18,12 @@ import { Button } from '@/components/ui/button'
 import { ImportDialog } from '@/components/wedding/import-dialog'
 import { useToast } from '@/hooks/use-toast'
 import { worksheetPermissionCapabilities } from '@/lib/planner-client-permissions'
+import type { PlannerToolSlug } from '@/lib/planner-route-state'
 
 interface ImportExportBarProps {
   moduleKey: string
+  routeTool?: PlannerToolSlug | null
+  onRouteToolChange?: (tool: PlannerToolSlug | null) => void
   onImportComplete?: () => void
   className?: string
 }
@@ -110,14 +113,19 @@ function errorSummary(job: ImportJobSummary): string | null {
 
 export function ImportExportBar({
   moduleKey,
+  routeTool,
+  onRouteToolChange,
   onImportComplete,
   className = '',
 }: ImportExportBarProps) {
   const { toast } = useToast()
   const [session, setSession] = useState<PlannerSessionPayload | null>(null)
   const [permissionsLoaded, setPermissionsLoaded] = useState(false)
-  const [importOpen, setImportOpen] = useState(false)
-  const [historyOpen, setHistoryOpen] = useState(false)
+  const [localImportOpen, setLocalImportOpen] = useState(false)
+  const [localHistoryOpen, setLocalHistoryOpen] = useState(false)
+  const routeControlled = routeTool !== undefined
+  const importOpen = routeControlled ? routeTool === 'import' : localImportOpen
+  const historyOpen = routeControlled ? routeTool === 'imports' : localHistoryOpen
   const [jobs, setJobs] = useState<ImportJobSummary[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
   const [rollbackJobId, setRollbackJobId] = useState<string | null>(null)
@@ -148,12 +156,13 @@ export function ImportExportBar({
   useEffect(() => {
     const clearWorksheetState = () => {
       setJobs([])
-      setHistoryOpen(false)
-      setImportOpen(false)
+      setLocalHistoryOpen(false)
+      setLocalImportOpen(false)
+      if (routeControlled) onRouteToolChange?.(null)
     }
     window.addEventListener('wewed:wedding-switched', clearWorksheetState)
     return () => window.removeEventListener('wewed:wedding-switched', clearWorksheetState)
-  }, [])
+  }, [onRouteToolChange, routeControlled])
 
   const moduleLabel = VALID_MODULE_LABELS[moduleKey] ?? moduleKey
   const capabilities = useMemo(
@@ -267,18 +276,30 @@ export function ImportExportBar({
     [capabilities, moduleKey, moduleLabel, toast],
   )
 
+  const setRouteTool = useCallback(
+    (tool: PlannerToolSlug | null) => {
+      if (routeControlled) {
+        onRouteToolChange?.(tool)
+        return
+      }
+      setLocalImportOpen(tool === 'import')
+      setLocalHistoryOpen(tool === 'imports')
+    },
+    [onRouteToolChange, routeControlled],
+  )
+
   const handleImportComplete = useCallback(() => {
     onImportComplete?.()
     void loadHistory(false)
   }, [loadHistory, onImportComplete])
 
   const toggleHistory = useCallback(() => {
-    setHistoryOpen((current) => {
-      const next = !current
-      if (next) void loadHistory()
-      return next
-    })
-  }, [loadHistory])
+    setRouteTool(historyOpen ? null : 'imports')
+  }, [historyOpen, setRouteTool])
+
+  useEffect(() => {
+    if (historyOpen) void loadHistory(false)
+  }, [historyOpen, loadHistory])
 
   const rollbackImport = useCallback(
     async (job: ImportJobSummary) => {
@@ -374,7 +395,7 @@ export function ImportExportBar({
             <Button
               type="button"
               size="sm"
-              onClick={() => setImportOpen(true)}
+              onClick={() => setRouteTool('import')}
               className="gap-1.5 bg-gold text-espresso hover:bg-gold-light"
             >
               <Upload className="size-3.5" />
@@ -474,7 +495,7 @@ export function ImportExportBar({
         <ImportDialog
           moduleKey={moduleKey}
           isOpen={importOpen}
-          onClose={() => setImportOpen(false)}
+          onClose={() => setRouteTool(null)}
           onComplete={handleImportComplete}
         />
       )}

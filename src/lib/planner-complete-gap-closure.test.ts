@@ -18,28 +18,74 @@ describe('complete planner gap closure', () => {
   })
 
   test('module routing, refresh restoration and mobile containment are implemented in the active shell', async () => {
-    const [shell, workspace, tools, portal, context] = await Promise.all([
+    const [shell, workspace, tools, portal, context, routeState, filterState, worksheetBar] = await Promise.all([
       source('src/components/wedding/planner-workspace-stage7.tsx'),
       source('src/components/wedding/planner-workspace.tsx'),
       source('src/components/wedding/global-wedding-tools.tsx'),
       source('src/components/wedding/planner-portal.tsx'),
       source('src/components/wedding/wedding-context-controls.tsx'),
+      source('src/lib/planner-route-state.ts'),
+      source('src/lib/planner-filter-state.ts'),
+      source('src/components/wedding/import-export-bar.tsx'),
     ])
     for (const marker of [
       "searchParams.get('module')",
-      "next.set('module', tab)",
+      'plannerModuleFromPath(pathname, legacyModule)',
+      'plannerModulePath(activeTab, activeTool)',
+      "next.delete('module')",
+      "window.history.scrollRestoration = 'manual'",
+      'wewed:planner:scroll:',
+      'let savedPosition = 0',
+      'if (!restored && savedPosition > 0 && position === 0) return',
+      'const routeKey = pathname',
+      'pendingToolsOpen.current = nextOpen',
+      "window.addEventListener('pagehide', save)",
+      "document.addEventListener('visibilitychange', saveWhenHidden)",
+      'data-planner-primary-scroll',
       'data-active-planner-module={activeTab}',
       'onActiveTabChange={selectWorkspaceTab}',
       'router.push(',
+      'router.replace(',
+      'routeTool={activeTool}',
+      'onRouteToolChange={selectWorkspaceTool}',
     ]) expect(shell).toContain(marker)
+    for (const marker of [
+      'return `/planner/${module}${tool ? `/${tool}` : \'\'}`',
+      "'import'",
+      "'imports'",
+      'legacyModule',
+      'plannerModuleFromPath',
+      'plannerToolFromPath',
+    ]) expect(routeState).toContain(marker)
+    for (const marker of [
+      '`filter_${key}`',
+      "livePathname.startsWith('/planner/')",
+      'new URLSearchParams(window.location.search)',
+      'router.replace(',
+      'window.sessionStorage.setItem',
+      "window.addEventListener('popstate', hydrateFromLocation)",
+    ]) expect(filterState).toContain(marker)
+    expect(worksheetBar).toContain('routeTool?: PlannerToolSlug | null')
+    expect(await source('src/components/wedding/import-dialog.tsx')).toContain("'Task Title'")
+    for (const marker of [
+      "routeTool === 'import'",
+      "routeTool === 'imports'",
+      "setRouteTool('import')",
+      'onClose={() => setRouteTool(null)}',
+    ]) expect(worksheetBar).toContain(marker)
     expect(workspace).toContain('id="planner-workspace-section"')
+    expect(workspace).toContain('data-planner-module-scroll="true"')
     expect(workspace).toContain('sm:hidden')
     expect(workspace).toContain('hidden items-center gap-1 sm:flex')
     expect(tools).toContain("pathname === '/planner'")
+    expect(tools).toContain("pathname.startsWith('/planner/')")
     expect(tools).toContain('if (isPlannerRoute)')
     expect(tools).toContain('<StoreRehydrator />')
     expect(tools).not.toContain("if (isPlannerRoute) return null")
     expect(portal).toContain('data-planner-tools-disclosure')
+    expect(portal).toContain("searchParams.get('panel') === 'experience'")
+    expect(portal).toContain('pendingToolsOpen.current = nextOpen')
+    expect(portal).toContain("next.set('panel', 'experience')")
     expect(portal).toContain('max-h-[42dvh]')
     expect(portal).not.toContain('planner-portal-body relative flex min-h-0 flex-1 flex-col overflow-hidden pt-12')
     expect(context).toContain('data-planner-wedding-context')

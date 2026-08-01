@@ -15,6 +15,8 @@ async function openWorksheetTools(page: Parameters<typeof openModule>[0]) {
   if (await toggle.isVisible()) {
     const expanded = await toggle.getAttribute('aria-expanded')
     if (expanded !== 'true') await toggle.click()
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    await expect(page).toHaveURL(/panel=worksheet/)
   }
   await expect(page.locator('#planner-worksheet-tools')).toBeVisible()
 }
@@ -26,7 +28,10 @@ async function assertDialogGeometry(
   const dialog = page.locator('[data-slot="dialog-content"]:visible').last()
   await expect(dialog).toBeVisible()
   await dialog.evaluate(async (element) => {
-    await Promise.all(element.getAnimations().map((animation) => animation.finished.catch(() => undefined)))
+    const animated = [element, ...Array.from(element.querySelectorAll<HTMLElement>('*'))]
+    await Promise.all(
+      animated.flatMap((node) => node.getAnimations()).map((animation) => animation.finished.catch(() => undefined)),
+    )
   })
   const box = await dialog.boundingBox()
   expect(box).not.toBeNull()
@@ -35,7 +40,10 @@ async function assertDialogGeometry(
   expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width + 1)
   expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height + 1)
 
-  const closeButtons = dialog.getByRole('button', { name: /^close/i })
+  const sharedCloseButtons = dialog.locator('[data-slot="dialog-close"]')
+  const closeButtons = (await sharedCloseButtons.count()) > 0
+    ? sharedCloseButtons
+    : dialog.getByRole('button', { name: /^close/i }).first()
   const closeCount = await closeButtons.count()
   for (let index = 0; index < closeCount; index += 1) {
     const closeButton = closeButtons.nth(index)
@@ -73,6 +81,8 @@ async function openPlannerToolPanel(page: Parameters<typeof openModule>[0]) {
   if (await disclosure.isVisible()) {
     const expanded = await disclosure.getAttribute('aria-expanded')
     if (expanded !== 'true') await disclosure.click()
+    await expect(disclosure).toHaveAttribute('aria-expanded', 'true')
+    await expect(page).toHaveURL(/panel=experience/)
   }
   await expect(page.locator('#planner-experience-tools')).toBeVisible()
 }

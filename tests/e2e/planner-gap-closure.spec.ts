@@ -8,13 +8,13 @@ import {
 test('module, task filter, and full task edits survive refresh and navigation', async ({ plannerPage: page }) => {
   await openModule(page, 'checklist')
   await page.reload()
-  await expect(page).toHaveURL(/[?&]module=tasks/)
+  await expect(page).toHaveURL(/\/planner\/tasks(?:[?#]|$)/)
   await expect(page.getByRole('heading', { name: 'Planning checklist' })).toBeVisible()
 
   const search = page.getByPlaceholder('Search tasks, descriptions, or assignees')
   await search.fill('Primary')
   await page.reload()
-  await expect(page).toHaveURL(/[?&]module=tasks/)
+  await expect(page).toHaveURL(/\/planner\/tasks(?:[?#]|$)/)
   await expect(page.getByPlaceholder('Search tasks, descriptions, or assignees')).toHaveValue('Primary')
   await page.getByRole('button', { name: 'Reset' }).click()
 
@@ -41,7 +41,7 @@ test('module, task filter, and full task edits survive refresh and navigation', 
 
   await openModule(page, 'budget')
   await page.goBack()
-  await expect(page).toHaveURL(/[?&]module=tasks/)
+  await expect(page).toHaveURL(/\/planner\/tasks(?:[?#]|$)/)
   await expect(page.getByText(updated, { exact: true })).toBeVisible()
   await page.reload()
   await expect(page.getByText(updated, { exact: true })).toBeVisible()
@@ -80,7 +80,7 @@ test('budget search covers item, vendor, category, notes, status, and persists',
   await page.getByLabel('Filter budget by payment status').selectOption('outstanding')
   await expect(page.getByText(item, { exact: true })).toBeVisible()
   await page.reload()
-  await expect(page).toHaveURL(/[?&]module=budget/)
+  await expect(page).toHaveURL(/\/planner\/budget(?:[?#]|$)/)
   await expect(page.getByLabel('Filter budget by category')).toHaveValue('decor')
   await expect(page.getByLabel('Filter budget by payment status')).toHaveValue('outstanding')
   await expect(page.getByText(item, { exact: true })).toBeVisible()
@@ -117,7 +117,7 @@ test('guest core fields edit directly with duplicate-email feedback and wedding-
   await page.getByRole('button', { name: 'Save guest' }).click()
   await expect(page.getByText('Gap Guest One Updated', { exact: true })).toBeVisible()
   await page.reload()
-  await expect(page).toHaveURL(/[?&]module=guests/)
+  await expect(page).toHaveURL(/\/planner\/guests(?:[?#]|$)/)
   await expect(page.getByText('Gap Guest One Updated', { exact: true })).toBeVisible()
 
   const response = await page.request.get('/api/planner/guests')

@@ -843,7 +843,7 @@ export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }
         </Button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-6 sm:py-6">
+      <div data-planner-module-scroll="true" className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-6 sm:py-6">
         <div className="mx-auto w-full max-w-7xl space-y-5 pb-10 sm:pb-16">
           {error && (
             <div className="rounded-xl border border-clay/30 bg-clay/10 px-4 py-3 font-sans text-sm text-clay-light">

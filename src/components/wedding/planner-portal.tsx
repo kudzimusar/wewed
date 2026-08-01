@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   CalendarDays,
   ExternalLink,
@@ -89,7 +90,29 @@ function PlannerToolTriggers() {
 }
 
 function PlannerExperienceNavigation() {
-  const [toolsOpen, setToolsOpen] = useState(false)
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const urlToolsOpen = searchParams.get('panel') === 'experience'
+  const [toolsOpen, setToolsOpen] = useState(urlToolsOpen)
+  const pendingToolsOpen = useRef<boolean | null>(null)
+
+  useEffect(() => {
+    if (pendingToolsOpen.current !== null && pendingToolsOpen.current !== urlToolsOpen) return
+    pendingToolsOpen.current = null
+    setToolsOpen(urlToolsOpen)
+  }, [urlToolsOpen])
+
+  function toggleTools() {
+    const nextOpen = !toolsOpen
+    pendingToolsOpen.current = nextOpen
+    setToolsOpen(nextOpen)
+    const next = new URLSearchParams(window.location.search)
+    if (nextOpen) next.set('panel', 'experience')
+    else if (next.get('panel') === 'experience') next.delete('panel')
+    const query = next.toString()
+    const hash = window.location.hash || '#planner-workspace'
+    router.replace(`${window.location.pathname}${query ? `?${query}` : ''}${hash}`, { scroll: false })
+  }
 
   return (
     <section
@@ -111,7 +134,7 @@ function PlannerExperienceNavigation() {
             data-planner-tools-disclosure
             aria-expanded={toolsOpen}
             aria-controls="planner-experience-tools"
-            onClick={() => setToolsOpen((open) => !open)}
+            onClick={toggleTools}
             className="inline-flex min-h-10 items-center rounded-lg border border-gold/20 bg-gold/[0.05] px-3 font-sans text-xs text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60 xl:hidden"
           >
             {toolsOpen ? 'Close tools' : 'Planner tools'}
