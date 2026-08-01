@@ -1,0 +1,32 @@
+name: Apply import review visibility repair
+
+on:
+  push:
+    branches:
+      - fix/planner-import-review-table-visibility
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: ${{ !contains(github.event.head_commit.message, 'fix(planner): keep import review headers visible') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply reviewed source patch
+        run: node scripts/apply-import-review-table-fix.mjs
+      - name: Verify patch formatting
+        run: git diff --check
+      - name: Commit repaired planner review UI
+        run: |
+          git config user.name "wewed-release-bot"
+          git config user.email "77352591+kudzimusar@users.noreply.github.com"
+          git add src/components/wedding/import-dialog.tsx src/components/ui/table.tsx tests/e2e/planner-overlay-containment.spec.ts
+          git commit -m "fix(planner): keep import review headers visible"
+          git push origin HEAD:fix/planner-import-review-table-visibility
