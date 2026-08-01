@@ -34,7 +34,7 @@ export async function handleImportJobPost(request: NextRequest, context: ImportJ
     if (body.mappingOverrides && typeof body.mappingOverrides === 'object') {
       const rawRows = storedPreview.rows.map((row) => row.raw)
       const headers = Array.from(new Set(rawRows.flatMap((row) => Object.keys(row))))
-      const parsed: ParsedFile = { headers, rows: rawRows, rawRowCount: rawRows.length }
+      const parsed: ParsedFile = { headers, rows: rawRows, rowNumbers: rawRows.map((_, index) => index + 2), formulaCells: [], rawRowCount: rawRows.length }
       preview = await generatePreview(
         parsed,
         schema,

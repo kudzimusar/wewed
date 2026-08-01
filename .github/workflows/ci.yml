@@ -122,6 +122,21 @@ jobs:
       - name: Run production blocker PostgreSQL integration
         run: bun test src/lib/planner-production-blockers.integration.test.ts
 
+      - name: Run complete-gap task validation contract
+        run: bun test --test-name-pattern "task title validation" src/lib/planner-complete-gap-closure.test.ts
+
+      - name: Run complete-gap routing and mobile contract
+        run: bun test --test-name-pattern "module routing" src/lib/planner-complete-gap-closure.test.ts
+
+      - name: Run complete-gap module controls contract
+        run: bun test --test-name-pattern "tasks, budget, guests and seating" src/lib/planner-complete-gap-closure.test.ts
+
+      - name: Run complete-gap workbook structure contract
+        run: bun test --test-name-pattern "generated guest workbook" src/lib/planner-complete-gap-closure.test.ts
+
+      - name: Run complete-gap formula safety contract
+        run: bun test --test-name-pattern "formula cells" src/lib/planner-complete-gap-closure.test.ts
+
       - name: Run Stage 8 information architecture tests
         run: bun test src/lib/planner-stage8-information-architecture.test.ts
 

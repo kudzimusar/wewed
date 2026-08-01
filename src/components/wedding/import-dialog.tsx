@@ -328,6 +328,16 @@ export function ImportDialog({ moduleKey, isOpen, onClose, onComplete }: ImportD
   )
 }
 
-function Stat({ label, value, warning = false }: { label: string; value: number; warning?: boolean }) { return <div className="rounded-md border border-gold/15 bg-espresso/45 p-3 text-center"><p className={`text-xl ${warning ? 'text-clay-light' : 'text-gold'}`}>{value}</p><p className="text-[10px] uppercase tracking-wider text-champagne/45">{label}</p></div> }
+function Stat({ label, value, warning = false }: { label: string; value: number; warning?: boolean }) {
+  return (
+    <div
+      data-testid={`import-stat-${label.toLowerCase().replaceAll(' ', '-')}`}
+      className="rounded-md border border-gold/15 bg-espresso/45 p-3 text-center"
+    >
+      <p className={`text-xl ${warning ? 'text-clay-light' : 'text-gold'}`}>{value}</p>
+      <p className="text-[10px] uppercase tracking-wider text-champagne/45">{label}</p>
+    </div>
+  )
+}
 function Action({ action }: { action: RowAction['action'] }) { return <Badge variant="outline" className={action === 'invalid' ? 'border-clay/30 text-clay-light' : action === 'create' ? 'border-sage/30 text-sage-light' : 'border-gold/25 text-gold'}>{action}</Badge> }
 function StepBar({ step }: { step: Step }) { const steps: Step[] = ['upload', 'preview', 'confirm', 'result']; const index = steps.indexOf(step); return <div className="mt-3 flex gap-1">{steps.map((item, itemIndex) => <div key={item} className={`h-1 flex-1 rounded ${itemIndex <= index ? 'bg-gold' : 'bg-champagne/15'}`} />)}</div> }

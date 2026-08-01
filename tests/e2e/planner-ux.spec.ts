@@ -58,13 +58,50 @@ test('mobile planner remains contained and operable @mobile', async ({ plannerPa
   await openModule(page, 'budget')
   await expect(page.locator('#workspace-budget-description')).toBeVisible()
 
-  const selectorBox = await page.getByLabel('Worksheet module selector').boundingBox()
+  const workspaceSelector = page.locator('#planner-workspace-section')
+  await expect(workspaceSelector).toBeVisible()
+  await expect(workspaceSelector).toHaveValue('budget')
+  const selectorBox = await workspaceSelector.boundingBox()
   const workspaceBox = await page.locator('#planner-workspace').boundingBox()
   expect(selectorBox).not.toBeNull()
   expect(workspaceBox).not.toBeNull()
   expect(selectorBox?.x ?? -1).toBeGreaterThanOrEqual(0)
   expect((selectorBox?.x ?? 0) + (selectorBox?.width ?? 0)).toBeLessThanOrEqual(393 + 1)
+  for (const label of ['Show help tour', 'Open ambient music player', 'Open WhatsApp RSVP', 'Keyboard shortcuts']) {
+    await expect(page.getByLabel(label)).toHaveCount(0)
+  }
 
+  const plannerLayout = await page.evaluate(() => {
+    const context = document.querySelector<HTMLElement>('[data-planner-wedding-context]')
+    const experience = document.querySelector<HTMLElement>('[data-planner-experience-nav]')
+    const workspace = document.querySelector<HTMLElement>('#planner-workspace')
+    const boxes = [context, experience, workspace].map((element) => element?.getBoundingClientRect() ?? null)
+    const fixedControls = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-planner-portal] button, [data-planner-portal] select'),
+    ).filter((element) => window.getComputedStyle(element).position === 'fixed')
+    return {
+      boxes,
+      fixedControls: fixedControls.map((element) => element.getAttribute('aria-label') || element.id || element.textContent),
+    }
+  })
+  expect(plannerLayout.fixedControls).toEqual([])
+  const [contextBox, experienceBox, workspaceRect] = plannerLayout.boxes
+  expect(contextBox).not.toBeNull()
+  expect(experienceBox).not.toBeNull()
+  expect(workspaceRect).not.toBeNull()
+  expect((contextBox?.bottom ?? 0)).toBeLessThanOrEqual((experienceBox?.top ?? 0) + 1)
+  expect((experienceBox?.bottom ?? 0)).toBeLessThanOrEqual((workspaceRect?.top ?? 0) + 1)
+
+  const plannerTools = page.locator('[data-planner-tools-disclosure]')
+  await expect(plannerTools).toBeVisible()
+  await plannerTools.click()
+  await expect(plannerTools).toHaveText('Close tools')
+  await plannerTools.click()
+  await expect(plannerTools).toHaveText('Planner tools')
+
+  const worksheetToolsToggle = page.getByTestId('worksheet-tools-toggle')
+  await worksheetToolsToggle.click()
+  await expect(page.getByLabel('Worksheet module selector')).toBeVisible()
   await page.getByRole('button', { name: 'Import', exact: true }).click()
   await expect(page.getByRole('dialog')).toBeVisible()
   await page.keyboard.press('Escape')

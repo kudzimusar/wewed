@@ -91,7 +91,7 @@ export const ORIGINAL_PLANNER_PARITY: readonly PlannerParityCapability[] = [
     'tasks',
     'Tasks can be searched and filtered by category and status.',
     ['activeCategory', 'statusFilter', 'setSearch'],
-    ['taskSearch', 'taskCategoryFilter', 'taskStatusFilter'],
+    ["usePlannerFilterState('wewed:planner:tasks:filters'", 'filters.category', 'filters.status'],
   ),
   capability(
     'tasks.assignee',
@@ -142,7 +142,7 @@ export const ORIGINAL_PLANNER_PARITY: readonly PlannerParityCapability[] = [
     'tasks',
     'Checklist worksheet template/import/export actions are reachable.',
     ['<ImportExportBar moduleKey="checklist"'],
-    ['<ImportExportBar moduleKey="checklist"'],
+    ["worksheetKey: 'checklist'", '<ImportExportBar'],
   ),
 
   capability(
@@ -197,7 +197,7 @@ export const ORIGINAL_PLANNER_PARITY: readonly PlannerParityCapability[] = [
     'budget',
     'Budget worksheet template/import/export actions are reachable.',
     ['<ImportExportBar moduleKey="budget"'],
-    ['<ImportExportBar moduleKey="budget"'],
+    ["worksheetKey: 'budget'", '<ImportExportBar'],
   ),
 
   capability(
@@ -226,7 +226,7 @@ export const ORIGINAL_PLANNER_PARITY: readonly PlannerParityCapability[] = [
     'vendors',
     'Vendor worksheet template/import/export actions are reachable.',
     ['<ImportExportBar moduleKey="vendors"'],
-    ['<ImportExportBar moduleKey="vendors"'],
+    ["worksheetKey: 'vendors'", '<ImportExportBar'],
   ),
 
   capability(
@@ -241,7 +241,7 @@ export const ORIGINAL_PLANNER_PARITY: readonly PlannerParityCapability[] = [
     'guests',
     'Guests can be searched and filtered by side and RSVP status.',
     ['sideFilter', 'statusFilter', 'Search by name or email'],
-    ['guestSearch', 'guestSideFilter', 'guestStatusFilter'],
+    ["usePlannerFilterState('wewed:planner:guests:filters'", 'filters.side', 'filters.status'],
   ),
   capability(
     'guests.delete',
@@ -269,7 +269,7 @@ export const ORIGINAL_PLANNER_PARITY: readonly PlannerParityCapability[] = [
     'guests',
     'Guest worksheet template/import/export actions are reachable.',
     ['<ImportExportBar moduleKey="guests"'],
-    ['<ImportExportBar moduleKey="guests"'],
+    ["worksheetKey: 'guests'", '<ImportExportBar'],
   ),
 
   capability(
@@ -305,7 +305,7 @@ export const ORIGINAL_PLANNER_PARITY: readonly PlannerParityCapability[] = [
     'timeline',
     'Timeline worksheet template/import/export actions are reachable.',
     ['<ImportExportBar moduleKey="timeline"'],
-    ['<ImportExportBar moduleKey="timeline"'],
+    ["worksheetKey: 'timeline'", '<ImportExportBar'],
   ),
 
   capability(
@@ -341,7 +341,7 @@ export const ORIGINAL_PLANNER_PARITY: readonly PlannerParityCapability[] = [
     'seating',
     'Seating worksheet template/import/export actions are reachable.',
     ['<ImportExportBar moduleKey="seating"'],
-    ['<ImportExportBar moduleKey="seating"'],
+    ["worksheetKey: 'seating'", '<ImportExportBar'],
   ),
 ]
 

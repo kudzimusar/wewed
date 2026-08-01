@@ -54,16 +54,20 @@ async function openPlanner(page: Page): Promise<void> {
 }
 
 export async function openModule(page: Page, moduleKey: ModuleKey): Promise<void> {
-  await page.getByTestId(`worksheet-module-${moduleKey}`).click()
-  const workspaceNavigation = page.getByRole('navigation', {
-    name: 'Planner workspace sections',
-  })
-  await expect(
-    workspaceNavigation.getByRole('button', {
-      name: MODULE_LABELS[moduleKey],
-      exact: true,
-    }),
-  ).toHaveClass(/bg-gold/)
+  const worksheetButton = page.getByTestId(`worksheet-module-${moduleKey}`)
+  if (!(await worksheetButton.isVisible())) {
+    await page.getByTestId('worksheet-tools-toggle').click()
+  }
+  await worksheetButton.click()
+  await expect(page).toHaveURL(new RegExp(`[?&]module=${moduleKey === 'checklist' ? 'tasks' : moduleKey}`))
+  const mobileSelector = page.locator('#planner-workspace-section')
+  if (await mobileSelector.isVisible()) {
+    const workspaceValue = moduleKey === 'checklist' ? 'tasks' : moduleKey
+    await expect(mobileSelector).toHaveValue(workspaceValue)
+  } else {
+    const workspaceNavigation = page.getByRole('navigation', { name: 'Planner workspace sections' })
+    await expect(workspaceNavigation.getByRole('button', { name: MODULE_LABELS[moduleKey], exact: true })).toHaveClass(/bg-gold/)
+  }
 }
 
 export function acceptNextConfirmation(page: Page): void {
@@ -89,7 +93,10 @@ export const test = base.extend<PlannerFixtures>({
 
     page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`))
     page.on('console', (message) => {
-      if (message.type() === 'error') errors.push(`console: ${message.text()}`)
+      if (message.type() !== 'error') return
+      const text = message.text()
+      const expectedClientValidation = /^Failed to load resource: the server responded with a status of 4\d\d\b/.test(text)
+      if (!expectedClientValidation) errors.push(`console: ${text}`)
     })
     page.on('response', (response) => {
       if (response.status() >= 500 && response.url().includes('/api/')) {

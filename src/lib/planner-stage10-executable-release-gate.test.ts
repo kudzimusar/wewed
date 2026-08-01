@@ -7,10 +7,11 @@ async function source(path: string): Promise<string> {
 describe('Stage 10 executable planner release gate', () => {
   test('worksheet tools and the visible planner module are synchronized', async () => {
     const shell = await source('src/components/wedding/planner-workspace-stage7.tsx')
-    expect(shell).toContain('selectWorksheetModule')
-    expect(shell).toContain('Planner workspace sections')
-    expect(shell).toContain('captureWorkspaceTab')
-    expect(shell).toContain('data-testid={`worksheet-module-${module.key}`}')
+    expect(shell).toContain('selectWorkspaceTab')
+    expect(shell).toContain("searchParams.get('module')")
+    expect(shell).toContain("next.set('module', tab)")
+    expect(shell).toContain("data-testid={`worksheet-module-${module.worksheetKey ?? 'overview'}`}")
+    expect(shell).toContain('onActiveTabChange={selectWorkspaceTab}')
   })
 
   test('browser authentication and local cookies are production-inert', async () => {
@@ -68,6 +69,7 @@ describe('Stage 10 executable planner release gate', () => {
         source('tests/e2e/planner-crud.spec.ts'),
         source('tests/e2e/planner-data-workflows.spec.ts'),
         source('tests/e2e/planner-ux.spec.ts'),
+        source('tests/e2e/planner-gap-closure.spec.ts'),
         source('tests/e2e/support/planner-browser.ts'),
       ])
     ).join('\n')
@@ -91,6 +93,9 @@ describe('Stage 10 executable planner release gate', () => {
       '@mobile',
       'expectNoDocumentOverflow',
       'browser/runtime errors',
+      'seating search and assignment',
+      'guest core fields edit directly',
+      'module, task filter, and full task edits',
     ]) {
       expect(browser).toContain(marker)
     }

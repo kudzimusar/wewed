@@ -125,3 +125,37 @@ test('two populated weddings remain isolated through a realistic planner day', a
   await openModule(page, 'seating')
   await expect(page.getByText(E2E_WEDDINGS.primary.seededTable, { exact: true })).toBeVisible()
 })
+
+test('untouched guest template is non-executable and formula cells are rejected in preview', async ({ plannerPage: page }, testInfo) => {
+  await openModule(page, 'guests')
+  const templateDownloadPromise = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Template', exact: true }).click()
+  const templateDownload = await templateDownloadPromise
+  const templatePath = testInfo.outputPath('guest-safe-template.xlsx')
+  await templateDownload.saveAs(templatePath)
+
+  await page.getByRole('button', { name: 'Import', exact: true }).click()
+  let dialog = page.getByRole('dialog')
+  await dialog.locator('input[type="file"]').setInputFiles(templatePath)
+  await expect(dialog.getByTestId('import-stat-rows').getByText('0', { exact: true })).toBeVisible()
+  await expect(dialog.getByTestId('import-stat-create').getByText('0', { exact: true })).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Review import' })).toBeDisabled()
+  await page.keyboard.press('Escape')
+
+  const workbook = XLSX.readFile(templatePath, { cellFormula: true })
+  const sheet = workbook.Sheets.Template
+  const headers = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1 })[0]?.map(String) ?? []
+  const firstNameColumn = headers.indexOf('First Name')
+  expect(firstNameColumn).toBeGreaterThanOrEqual(0)
+  const address = XLSX.utils.encode_cell({ r: 1, c: firstNameColumn })
+  sheet[address] = { t: 'n', f: '1+1', v: 2 }
+  const formulaPath = testInfo.outputPath('guest-formula-rejected.xlsx')
+  XLSX.writeFile(workbook, formulaPath)
+
+  await page.getByRole('button', { name: 'Import', exact: true }).click()
+  dialog = page.getByRole('dialog')
+  await dialog.locator('input[type="file"]').setInputFiles(formulaPath)
+  await expect(dialog.getByText(/Formula detected in "First Name"/)).toBeVisible()
+  await expect(dialog.getByTestId('import-stat-invalid').getByText('1', { exact: true })).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Review import' })).toBeDisabled()
+})

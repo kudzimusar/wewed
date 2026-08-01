@@ -48,7 +48,7 @@ export interface FieldDefinition {
   allowedValues?: string[]
   /** field instruction shown in template instructions sheet */
   description?: string
-  /** example value used in the template example row */
+  /** example value shown only in the non-importable Instructions sheet */
   example?: string
   /** marks private data (phone, email, dietary, etc.) — surfaces a warning on import */
   sensitive?: boolean
@@ -165,9 +165,24 @@ export interface ImportResult {
  * Parsed file shape returned by the parser.
  * Headers are trimmed + de-duplicated; rows are string-keyed.
  */
+export interface ParsedFormulaCell {
+  /** 1-based Excel/CSV row number. */
+  rowIndex: number
+  /** Source header label when it can be resolved. */
+  column: string
+  /** Spreadsheet address such as E12. */
+  address: string
+}
+
 export interface ParsedFile {
   headers: string[]
   rows: Record<string, string>[]
+  /** Actual 1-based source row number for each normalized row. */
+  rowNumbers?: number[]
+  /** Formula cells are never converted to import values. */
+  formulaCells?: ParsedFormulaCell[]
+  /** Workbook sheet used by the parser. */
+  firstSheetName?: string
   /** row count BEFORE empty-row filtering, for telemetry */
   rawRowCount: number
 }
