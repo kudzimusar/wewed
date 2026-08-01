@@ -35,8 +35,11 @@ async function assertDialogGeometry(
   expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width + 1)
   expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height + 1)
 
-  const closeButton = dialog.getByRole('button', { name: /close/i }).first()
-  if (await closeButton.isVisible()) {
+  const closeButtons = dialog.getByRole('button', { name: /^close/i })
+  const closeCount = await closeButtons.count()
+  for (let index = 0; index < closeCount; index += 1) {
+    const closeButton = closeButtons.nth(index)
+    if (!(await closeButton.isVisible())) continue
     const closeBox = await closeButton.boundingBox()
     expect(closeBox).not.toBeNull()
     expect(closeBox!.x).toBeGreaterThanOrEqual(box!.x - 1)
@@ -54,9 +57,14 @@ async function assertDialogGeometry(
 
 async function closeVisibleDialog(page: Parameters<typeof openModule>[0]) {
   const dialog = page.locator('[data-slot="dialog-content"]:visible').last()
-  const closeButton = dialog.getByRole('button', { name: /close/i }).first()
-  if (await closeButton.isVisible()) await closeButton.click()
-  else await page.keyboard.press('Escape')
+  const sharedClose = dialog.locator('[data-slot="dialog-close"]').first()
+  if (await sharedClose.isVisible()) {
+    await sharedClose.click()
+  } else {
+    const customClose = dialog.getByRole('button', { name: /^close/i }).first()
+    if (await customClose.isVisible()) await customClose.click()
+    else await page.keyboard.press('Escape')
+  }
   await expect(page.locator('[data-slot="dialog-content"]:visible')).toHaveCount(0)
 }
 
@@ -92,12 +100,11 @@ async function assertPlannerOwnsVerticalScroll(page: Parameters<typeof openModul
     for (const owner of scrollOwners) {
       if (owner.scrollHeight <= owner.clientHeight + 1) continue
       overflowFound = true
-      const previous = owner.scrollTop
-      owner.scrollTop = Math.min(
-        owner.scrollHeight - owner.clientHeight,
-        Math.max(1, previous + 120),
-      )
-      if (owner.scrollTop > previous) {
+      owner.scrollTop = 0
+      const origin = owner.scrollTop
+      owner.scrollTop = Math.min(owner.scrollHeight - owner.clientHeight, 120)
+      if (owner.scrollTop > origin) {
+        owner.scrollTop = 0
         return { found: true, overflowFound: true, moved: true }
       }
     }
@@ -222,9 +229,13 @@ test('major planner tools share the responsive overlay contract', async ({ plann
         for (const owner of scrollOwners) {
           if (owner.scrollHeight <= owner.clientHeight + 1) continue
           overflowFound = true
-          const before = owner.scrollTop
-          owner.scrollTop = Math.min(owner.scrollHeight - owner.clientHeight, before + 100)
-          if (owner.scrollTop > before) return { found: true, usable: true }
+          owner.scrollTop = 0
+          const origin = owner.scrollTop
+          owner.scrollTop = Math.min(owner.scrollHeight - owner.clientHeight, 100)
+          if (owner.scrollTop > origin) {
+            owner.scrollTop = 0
+            return { found: true, usable: true }
+          }
         }
         return { found: true, usable: !overflowFound }
       })
