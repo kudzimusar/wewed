@@ -1,20 +1,25 @@
 name: Apply import review visibility repair
 
 on:
-  push:
+  pull_request:
     branches:
-      - fix/planner-import-review-table-visibility
+      - main
+    types:
+      - opened
+      - reopened
+      - synchronize
 
 permissions:
   contents: write
 
 jobs:
   apply:
-    if: ${{ !contains(github.event.head_commit.message, 'fix(planner): keep import review headers visible') }}
+    if: ${{ github.head_ref == 'fix/planner-import-review-table-visibility' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: fix/planner-import-review-table-visibility
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
