@@ -26,8 +26,9 @@ const [
 ])
 
 assert.match(registration, /status.*pending_review/s)
-assert.match(registration, /role: 'viewer'/)
-assert.match(registration, /isActive: false/)
+assert.match(registration, /INSERT INTO public\."User"/)
+assert.match(registration, /'viewer', false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP/)
+assert.doesNotMatch(registration, /db\.user\.create\(/)
 assert.match(registration, /internalOnboardingRequired: true/)
 assert.doesNotMatch(registration, /wewed_super_admin/)
 
