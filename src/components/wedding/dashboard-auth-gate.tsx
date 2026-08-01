@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Eye, EyeOff, Loader2, Lock, Mail, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -150,12 +151,20 @@ export function DashboardAuthGate({
                 </div>
 
                 <div className="space-y-2">
-                  <label
-                    htmlFor="dashboard-password"
-                    className="font-sans text-xs uppercase tracking-[0.18em] text-gold-muted"
-                  >
-                    Password
-                  </label>
+                  <div className="flex items-center justify-between gap-3">
+                    <label
+                      htmlFor="dashboard-password"
+                      className="font-sans text-xs uppercase tracking-[0.18em] text-gold-muted"
+                    >
+                      Password
+                    </label>
+                    <Link
+                      href={`/forgot-password${email.trim() ? `?email=${encodeURIComponent(email.trim())}` : ''}`}
+                      className="font-sans text-xs text-gold transition hover:text-gold-light"
+                    >
+                      Forgot password?
+                    </Link>
+                  </div>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gold/50" />
                     <Input
