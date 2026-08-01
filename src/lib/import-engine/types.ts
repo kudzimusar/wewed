@@ -31,9 +31,7 @@ export type FieldType =
   | 'boolean'
 
 export interface FieldDefinition {
-  /** Internal field name, for example `fullName`. */
   key: string
-  /** Human-readable worksheet label. */
   label: string
   required: boolean
   type: FieldType
@@ -44,24 +42,17 @@ export interface FieldDefinition {
 }
 
 export interface ExistingRecordMatch {
-  /** Existing active-wedding record selected for an update. */
   record?: any
-  /** Deterministic matching failure, such as an unknown ID or ambiguous name. */
   error?: string
-  /** Non-blocking matching context surfaced in the import preview. */
   warning?: string
 }
 
 export interface ImportExecutionContext {
-  /** Authenticated actor used for dependent audit/pipeline synchronization. */
   actorId?: string
+  /** Prisma transaction client supplied by the executor for atomic row writes. */
+  db?: any
 }
 
-/**
- * A fully defined worksheet module. Legacy modules can rely on the generic
- * executor. Production planner worksheet modules provide the optional exact
- * snapshot/delete/restore hooks so rollback is wedding-scoped and lossless.
- */
 export interface ModuleSchema {
   key: ModuleKey
   name: string
@@ -71,6 +62,11 @@ export interface ModuleSchema {
   rowToRecord: (row: Record<string, string>) => any
   recordToRow: (record: any) => Record<string, string>
   validateRow: (row: Record<string, string>) => string[]
+  /** Optional active-wedding reference validation performed during preview. */
+  validateReferences?: (
+    row: Record<string, string>,
+    weddingId: string,
+  ) => Promise<string[]>
   uniqueKey?: string
   rowIdentity?: (row: Record<string, string>) => string | null
   matchExisting?: (
@@ -84,19 +80,16 @@ export interface ModuleSchema {
     existing?: any,
     context?: ImportExecutionContext,
   ) => Promise<any>
-  /** Capture exact pre-import state. Called before the row write. */
   captureRollbackSnapshot?: (
     weddingId: string,
     existing: any,
     record: any,
   ) => Promise<any>
-  /** Delete one record created by this job, explicitly scoped to the wedding. */
   deleteCreated?: (
     weddingId: string,
     id: string,
     context?: ImportExecutionContext,
   ) => Promise<void>
-  /** Restore exact pre-import state, explicitly scoped to the wedding. */
   restoreUpdated?: (
     weddingId: string,
     id: string,
@@ -108,7 +101,6 @@ export interface ModuleSchema {
 export type RowAction = 'create' | 'update' | 'skip' | 'invalid'
 
 export interface ImportRow {
-  /** Actual 1-based row number in the source workbook. */
   rowIndex: number
   raw: Record<string, string>
   mapped: Record<string, string>
