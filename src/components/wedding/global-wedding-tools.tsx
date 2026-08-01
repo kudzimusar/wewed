@@ -19,11 +19,15 @@ import { KeyboardSectionNav } from '@/components/wedding/keyboard-section-nav'
 import { KeyboardShortcutsHelp } from '@/components/wedding/keyboard-shortcuts-help'
 import { PublicRegistrationTrigger } from '@/components/public/public-registration-trigger'
 
+const ISOLATED_UTILITY_ROUTES = ['/admin', '/register', '/forgot-password', '/reset-password']
+
 export function GlobalWeddingTools() {
   const pathname = usePathname()
-  const isAdminRoute = pathname === '/admin' || pathname.startsWith('/admin/')
+  const isIsolatedUtilityRoute = ISOLATED_UTILITY_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`),
+  )
 
-  if (isAdminRoute) return null
+  if (isIsolatedUtilityRoute) return null
 
   return (
     <>
