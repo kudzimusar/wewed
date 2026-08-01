@@ -159,15 +159,14 @@ export async function POST(request: NextRequest) {
     }
 
     await db.$transaction([
-      db.user.create({
-        data: {
-          id: appUserId,
-          email,
-          name,
-          role: 'viewer',
-          isActive: false,
-        },
-      }),
+      db.$executeRawUnsafe(
+        `INSERT INTO public."User"
+          ("id", "email", "name", "role", "isActive", "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, 'viewer', false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        appUserId,
+        email,
+        name,
+      ),
       db.userProfile.create({
         data: {
           id: authUserId,

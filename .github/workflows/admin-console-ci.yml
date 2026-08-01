@@ -22,14 +22,17 @@ on:
       - 'src/lib/wewed-admin-governance.test.ts'
       - 'src/lib/wedding-access.ts'
       - 'src/lib/stripe-billing.ts'
+      - 'src/lib/wewed-plans.ts'
       - 'src/lib/supabase/service.ts'
       - 'scripts/provision-wewed-admin.ts'
       - 'scripts/public-registration-rbac-stripe-contract.ts'
       - 'scripts/wewed-data-pipeline-contract.ts'
+      - 'scripts/wewed-pricing-billing-contract.ts'
       - 'prisma/migrations/**'
       - 'docs/WEWED_BUSINESS_ADMIN_CONSOLE_PLAN.md'
       - 'docs/WEWED_ADMIN_GOVERNANCE_ANALYTICS_PLAN.md'
       - 'docs/WEWED_PUBLIC_REGISTRATION_RBAC_STRIPE_PLAN.md'
+      - 'docs/WEWED_PRICING_AND_BILLING_V1.md'
       - 'docs/WEWED_ADMIN_ACCESS.md'
       - '.github/workflows/admin-console-ci.yml'
   workflow_dispatch:
@@ -52,11 +55,13 @@ jobs:
       NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
       SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-key
-      STRIPE_SECRET_KEY: sk_test_ci_placeholder
-      STRIPE_WEBHOOK_SECRET: whsec_ci_placeholder
-      STRIPE_PRICE_STARTER: price_ci_starter
-      STRIPE_PRICE_PROFESSIONAL: price_ci_professional
-      STRIPE_PRICE_ENTERPRISE: price_ci_enterprise
+      VERCEL_ENV: preview
+      STRIPE_TEST_SECRET_KEY: sk_test_ci_placeholder
+      STRIPE_TEST_WEBHOOK_SECRET: whsec_ci_placeholder
+      STRIPE_TEST_PRICE_CANON_MONTHLY: price_ci_canon_monthly
+      STRIPE_TEST_PRICE_CANON_ANNUAL: price_ci_canon_annual
+      STRIPE_TEST_PRICE_FOREVER_MONTHLY: price_ci_forever_monthly
+      STRIPE_TEST_PRICE_FOREVER_ANNUAL: price_ci_forever_annual
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -81,6 +86,9 @@ jobs:
       - name: Run stakeholder data-pipeline contracts
         run: bun scripts/wewed-data-pipeline-contract.ts
 
+      - name: Run pricing and billing contracts
+        run: bun scripts/wewed-pricing-billing-contract.ts
+
       - name: Lint platform changes
         run: >-
           bunx eslint
@@ -103,10 +111,12 @@ jobs:
           src/lib/wewed-admin-governance.test.ts
           src/lib/wedding-access.ts
           src/lib/stripe-billing.ts
+          src/lib/wewed-plans.ts
           src/lib/supabase/service.ts
           scripts/provision-wewed-admin.ts
           scripts/public-registration-rbac-stripe-contract.ts
           scripts/wewed-data-pipeline-contract.ts
+          scripts/wewed-pricing-billing-contract.ts
 
       - name: Build application
         run: bun run build

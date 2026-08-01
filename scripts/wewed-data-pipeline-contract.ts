@@ -58,13 +58,16 @@ assert.match(onboarding, /"onboardingStatus" = 'complete'/)
 
 assert.match(billing, /businessMemberCanManageBilling/)
 assert.match(billing, /onboardingStatus !== 'complete'/)
-assert.match(billing, /jsonb_set/)
+assert.match(billing, /COALESCE\(metadata, '\{\}'::jsonb\) \|\| jsonb_build_object/)
+assert.match(billing, /keys\.customerId/)
 assert.match(billing, /Only a business owner or billing manager/)
 
 assert.match(webhook, /pg_advisory_xact_lock/)
 assert.match(webhook, /stripe\.webhook_processed/)
 assert.match(webhook, /UPDATE public\."PaymentRecord"/)
 assert.match(webhook, /could not be matched to a Wewed account/)
+assert.match(webhook, /event\.livemode !== expectedLivemode/)
+assert.match(webhook, /if \(stripeUsesTestMode\(\)\) return/)
 assert.doesNotMatch(webhook, /text\(object\.status\) === 'complete' \? 'active'/)
 
 assert.match(navigation, /\/admin\/onboarding/)
