@@ -14,6 +14,17 @@ def update(path: str, replacements: list[tuple[str, str]]) -> None:
     print(f'Updated {path}')
 
 
+def replace_all(path: str, old: str, new: str) -> None:
+    file = Path(path)
+    source = file.read_text()
+    if old not in source:
+        if new in source:
+            return
+        raise SystemExit(f'Missing expected marker in {path}: {old}')
+    file.write_text(source.replace(old, new))
+    print(f'Updated all matching markers in {path}')
+
+
 update(
     'src/components/wedding/planner-workspace.tsx',
     [(
@@ -77,15 +88,20 @@ update(
     )],
 )
 
-update(
+replace_all(
     'tests/e2e/planner-gap-closure.spec.ts',
-    [
-        ('await expect(page).toHaveURL(/[?&]module=tasks/)', "await expect(page).toHaveURL(/\\/planner\\/tasks(?:[?#]|$)/)"),
-        ('await expect(page).toHaveURL(/[?&]module=tasks/)', "await expect(page).toHaveURL(/\\/planner\\/tasks(?:[?#]|$)/)"),
-        ('await expect(page).toHaveURL(/[?&]module=tasks/)', "await expect(page).toHaveURL(/\\/planner\\/tasks(?:[?#]|$)/)"),
-        ('await expect(page).toHaveURL(/[?&]module=budget/)', "await expect(page).toHaveURL(/\\/planner\\/budget(?:[?#]|$)/)"),
-        ('await expect(page).toHaveURL(/[?&]module=guests/)', "await expect(page).toHaveURL(/\\/planner\\/guests(?:[?#]|$)/)"),
-    ],
+    'await expect(page).toHaveURL(/[?&]module=tasks/)',
+    "await expect(page).toHaveURL(/\\/planner\\/tasks(?:[?#]|$)/)",
+)
+replace_all(
+    'tests/e2e/planner-gap-closure.spec.ts',
+    'await expect(page).toHaveURL(/[?&]module=budget/)',
+    "await expect(page).toHaveURL(/\\/planner\\/budget(?:[?#]|$)/)",
+)
+replace_all(
+    'tests/e2e/planner-gap-closure.spec.ts',
+    'await expect(page).toHaveURL(/[?&]module=guests/)',
+    "await expect(page).toHaveURL(/\\/planner\\/guests(?:[?#]|$)/)",
 )
 
 update(
