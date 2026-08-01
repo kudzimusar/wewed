@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import {
   AlertCircle,
   ArrowLeft,
@@ -84,6 +84,7 @@ const MAX_FILE_BYTES = 10 * 1024 * 1024
 export function ImportDialog({ moduleKey, isOpen, onClose, onComplete }: ImportDialogProps) {
   const { toast } = useToast()
   const inputRef = useRef<HTMLInputElement>(null)
+  const reviewTableScrollRef = useRef<HTMLDivElement>(null)
   const [step, setStep] = useState<Step>('upload')
   const [file, setFile] = useState<File | null>(null)
   const [jobId, setJobId] = useState<string | null>(null)
@@ -230,6 +231,18 @@ export function ImportDialog({ moduleKey, isOpen, onClose, onComplete }: ImportD
     [preview],
   )
   const hasRows = Boolean(preview && preview.totalRows > 0)
+
+  useEffect(() => {
+    if (step !== 'preview' || !preview) return
+    const frame = window.requestAnimationFrame(() => {
+      const container = reviewTableScrollRef.current
+      if (!container) return
+      container.scrollTop = 0
+      container.scrollLeft = 0
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [step, preview?.fileName])
+
   const blocking = Boolean(preview && (preview.missingRequired.length || preview.validRows === 0))
   const blockingMessage = preview?.missingRequired.length
     ? `Map the required fields: ${preview.missingRequired.join(', ')}.`
@@ -369,34 +382,11 @@ export function ImportDialog({ moduleKey, isOpen, onClose, onComplete }: ImportD
                     )}
                   </div>
 
-                  <div className="overflow-hidden rounded-xl border border-gold/15">
-                    <div className="max-h-[min(24rem,45dvh)] overflow-auto overscroll-contain touch-pan-x touch-pan-y [scrollbar-gutter:stable]">
-                      <Table className="min-w-[44rem]">
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Row</TableHead>
-                            <TableHead>Action</TableHead>
-                            {sourceColumns.slice(0, 4).map((column) => <TableHead key={column}>{column}</TableHead>)}
-                            <TableHead>Issues</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {preview.rows.slice(0, 100).map((row) => (
-                            <TableRow key={row.rowIndex}>
-                              <TableCell>{row.rowIndex}</TableCell>
-                              <TableCell><Action action={row.action} /></TableCell>
-                              {sourceColumns.slice(0, 4).map((column) => (
-                                <TableCell key={column} className="max-w-40 truncate">{row.raw[column] || '—'}</TableCell>
-                              ))}
-                              <TableCell className={row.errors.length ? 'text-clay-light' : 'text-champagne/45'}>
-                                {row.errors.length ? row.errors.join('; ') : row.warnings.join('; ') || 'Ready'}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </div>
+                  <ImportReviewRows
+                    rows={preview.rows}
+                    sourceColumns={sourceColumns}
+                    scrollRef={reviewTableScrollRef}
+                  />
 
                   {blockingMessage && (
                     <div role="alert" className="rounded-xl border border-clay/30 bg-clay/10 px-4 py-3 text-sm text-clay-light">
@@ -409,15 +399,21 @@ export function ImportDialog({ moduleKey, isOpen, onClose, onComplete }: ImportD
           )}
 
           {step === 'confirm' && preview && (
-            <div className="mx-auto max-w-xl rounded-xl border border-gold/25 bg-gold/5 p-6 text-center sm:p-8">
-              <CheckCircle2 className="mx-auto size-12 text-gold" />
-              <h3 className="mt-4 text-xl">Import {preview.newRecords + preview.updateRecords} records?</h3>
-              <p className="mt-2 text-sm text-champagne/55">
-                {preview.newRecords} new · {preview.updateRecords} updates · {preview.skippedRecords} skipped · {preview.invalidRows} invalid
-              </p>
-              <p className="mt-4 text-xs leading-5 text-champagne/45">
-                The preview and rollback snapshot are stored against the active wedding and survive a server restart.
-              </p>
+            <div className="space-y-5">
+              <div className="mx-auto max-w-xl rounded-xl border border-gold/25 bg-gold/5 p-6 text-center sm:p-8">
+                <CheckCircle2 className="mx-auto size-12 text-gold" />
+                <h3 className="mt-4 text-xl">Import {preview.newRecords + preview.updateRecords} records?</h3>
+                <p className="mt-2 text-sm text-champagne/55">
+                  {preview.newRecords} new · {preview.updateRecords} updates · {preview.skippedRecords} skipped · {preview.invalidRows} invalid
+                </p>
+                <p className="mt-4 text-xs leading-5 text-champagne/45">
+                  The preview and rollback snapshot are stored against the active wedding and survive a server restart.
+                </p>
+              </div>
+              <ImportConfirmationRows
+                rows={preview.rows.filter((row) => row.action === 'create' || row.action === 'update')}
+                sourceColumns={sourceColumns}
+              />
             </div>
           )}
 
@@ -516,6 +512,151 @@ export function ImportDialog({ moduleKey, isOpen, onClose, onComplete }: ImportD
         </div>
       </DialogContent>
     </Dialog>
+  )
+}
+
+
+const REVIEW_COLUMN_PRIORITY = [
+  'Guest ID',
+  'First Name',
+  'Last Name',
+  'Display Name',
+  'Task',
+  'Title',
+  'Vendor Name',
+  'Email',
+  'Phone',
+]
+
+function reviewColumns(sourceColumns: string[]) {
+  const selected: string[] = []
+  for (const column of REVIEW_COLUMN_PRIORITY) {
+    if (sourceColumns.includes(column) && !selected.includes(column)) selected.push(column)
+  }
+  for (const column of sourceColumns) {
+    if (!selected.includes(column)) selected.push(column)
+    if (selected.length >= 6) break
+  }
+  return selected.slice(0, 6)
+}
+
+function rowIssues(row: RowAction) {
+  return row.errors.length ? row.errors.join('; ') : row.warnings.join('; ') || 'Ready'
+}
+
+function ImportReviewRows({
+  rows,
+  sourceColumns,
+  scrollRef,
+}: {
+  rows: RowAction[]
+  sourceColumns: string[]
+  scrollRef: RefObject<HTMLDivElement | null>
+}) {
+  const columns = reviewColumns(sourceColumns)
+  const visibleRows = rows.slice(0, 100)
+
+  return (
+    <section aria-labelledby="import-review-records-heading" className="space-y-3">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h3 id="import-review-records-heading" className="text-sm font-medium text-champagne">Records found</h3>
+          <p className="text-xs leading-5 text-champagne/45">Review the action and identity fields before continuing.</p>
+        </div>
+        <p className="text-[10px] uppercase tracking-wider text-champagne/35">{visibleRows.length} shown</p>
+      </div>
+
+      <div data-testid="import-review-cards" className="grid gap-3 md:hidden">
+        {visibleRows.map((row) => (
+          <article key={row.rowIndex} className="rounded-xl border border-gold/15 bg-espresso/45 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs font-medium text-champagne">Row {row.rowIndex}</span>
+              <Action action={row.action} />
+            </div>
+            <dl className="mt-3 grid gap-2">
+              {columns.map((column) => (
+                <div key={column} className="grid grid-cols-[minmax(6rem,0.8fr)_minmax(0,1.2fr)] gap-3 border-t border-gold/10 pt-2">
+                  <dt className="text-xs text-champagne/45">{column}</dt>
+                  <dd className="break-words text-right text-xs text-champagne">{row.raw[column] || '—'}</dd>
+                </div>
+              ))}
+              <div className="grid grid-cols-[minmax(6rem,0.8fr)_minmax(0,1.2fr)] gap-3 border-t border-gold/10 pt-2">
+                <dt className="text-xs text-champagne/45">Issues</dt>
+                <dd className={`break-words text-right text-xs ${row.errors.length ? 'text-clay-light' : 'text-champagne/55'}`}>
+                  {rowIssues(row)}
+                </dd>
+              </div>
+            </dl>
+          </article>
+        ))}
+      </div>
+
+      <div className="hidden overflow-hidden rounded-xl border border-gold/15 md:block">
+        <div
+          ref={scrollRef}
+          data-testid="import-review-table-scroll"
+          className="max-h-[min(24rem,45dvh)] overflow-auto overscroll-contain touch-pan-x touch-pan-y [scrollbar-gutter:stable]"
+        >
+          <Table className="min-w-[56rem]" containerClassName="overflow-visible">
+            <TableHeader className="sticky top-0 z-20 bg-espresso shadow-[0_1px_0_rgba(191,155,95,0.25)]">
+              <TableRow className="bg-espresso hover:bg-espresso">
+                <TableHead data-testid="import-review-row-header" className="sticky left-0 z-30 w-16 bg-espresso">Row</TableHead>
+                <TableHead>Action</TableHead>
+                {columns.map((column) => <TableHead key={column}>{column}</TableHead>)}
+                <TableHead>Issues</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {visibleRows.map((row) => (
+                <TableRow key={row.rowIndex}>
+                  <TableCell className="sticky left-0 z-10 bg-espresso font-medium">{row.rowIndex}</TableCell>
+                  <TableCell><Action action={row.action} /></TableCell>
+                  {columns.map((column) => (
+                    <TableCell key={column} className="max-w-52 truncate" title={row.raw[column] || '—'}>{row.raw[column] || '—'}</TableCell>
+                  ))}
+                  <TableCell className={row.errors.length ? 'max-w-80 whitespace-normal text-clay-light' : 'max-w-80 whitespace-normal text-champagne/45'}>
+                    {rowIssues(row)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function ImportConfirmationRows({ rows, sourceColumns }: { rows: RowAction[]; sourceColumns: string[] }) {
+  const columns = reviewColumns(sourceColumns)
+  const visibleRows = rows.slice(0, 10)
+
+  return (
+    <section data-testid="import-confirmation-records" aria-labelledby="import-confirmation-records-heading" className="rounded-xl border border-gold/15 bg-espresso/45 p-4 sm:p-5">
+      <h3 id="import-confirmation-records-heading" className="text-sm font-medium text-champagne">Records ready to import</h3>
+      <p className="mt-1 text-xs leading-5 text-champagne/45">Confirm the action and identity details before writing to the active wedding.</p>
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        {visibleRows.map((row) => (
+          <article key={row.rowIndex} className="rounded-lg border border-gold/15 bg-espresso/70 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs font-medium text-champagne">Row {row.rowIndex}</span>
+              <Action action={row.action} />
+            </div>
+            <dl className="mt-3 grid gap-2">
+              {columns.map((column) => (
+                <div key={column} className="grid grid-cols-[minmax(6rem,0.8fr)_minmax(0,1.2fr)] gap-3 border-t border-gold/10 pt-2">
+                  <dt className="text-xs text-champagne/45">{column}</dt>
+                  <dd className="break-words text-right text-xs text-champagne">{row.raw[column] || '—'}</dd>
+                </div>
+              ))}
+            </dl>
+          </article>
+        ))}
+      </div>
+      {rows.length > visibleRows.length && (
+        <p className="mt-3 text-xs text-champagne/45">Plus {rows.length - visibleRows.length} additional record{rows.length - visibleRows.length === 1 ? '' : 's'}.</p>
+      )}
+    </section>
   )
 }
 
