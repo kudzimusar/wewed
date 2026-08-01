@@ -116,7 +116,7 @@ describe('Stage 10 executable planner release gate', () => {
       'guest core fields edit directly',
       'module, task filter, and full task edits',
       'planner modules, filters, tools, history, and scroll position have durable URLs',
-      '/planner/guests/import',
+      'planner\\/guests\\/import',
       'data-planner-primary-scroll',
     ]) {
       expect(browser).toContain(marker)
