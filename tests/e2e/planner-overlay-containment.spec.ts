@@ -4,6 +4,11 @@ test('mobile planner dialogs and notifications remain visible, scrollable, and d
   await page.setViewportSize({ width: 412, height: 732 })
   await openModule(page, 'guests')
 
+  const worksheetToggle = page.getByTestId('worksheet-tools-toggle')
+  await expect(worksheetToggle).toBeVisible()
+  await worksheetToggle.click()
+  await expect(page.locator('#planner-worksheet-tools')).toBeVisible()
+
   const header = page.locator('[data-planner-portal] > header')
   const templateDownloadPromise = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Template', exact: true }).click()
