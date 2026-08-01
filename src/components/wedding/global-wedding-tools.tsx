@@ -32,8 +32,17 @@ export function GlobalWeddingTools() {
   const isIsolatedUtilityRoute = ISOLATED_UTILITY_ROUTES.some(
     (route) => pathname === route || pathname.startsWith(`${route}/`),
   )
+  const isPlannerRoute = pathname === '/planner' || pathname.startsWith('/planner/')
 
   if (isIsolatedUtilityRoute) return null
+  if (isPlannerRoute) {
+    return (
+      <>
+        <StoreRehydrator />
+        <PWARegister />
+      </>
+    )
+  }
 
   return (
     <>
