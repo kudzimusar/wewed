@@ -1,2 +1,6 @@
 import { WeddingHome } from '@/components/wedding/wedding-home'
-export default function Home() { return <WeddingHome /> }
+
+// WeddingHome mounts the canonical WewedPricingCatalog on the landing experience.
+export default function Home() {
+  return <WeddingHome />
+}
