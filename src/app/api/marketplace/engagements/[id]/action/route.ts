@@ -30,12 +30,14 @@ export async function POST(
           status: string
           weddingId: string
           coupleBusinessAccountId: string
+          plannerBusinessAccountId: string
           plannerUserId: string | null
           authorityBundle: string | null
           permissions: unknown
         }>
       >(
-        `SELECT status, "weddingId", "coupleBusinessAccountId", "plannerUserId", "authorityBundle", permissions
+        `SELECT status, "weddingId", "coupleBusinessAccountId", "plannerBusinessAccountId",
+                "plannerUserId", "authorityBundle", permissions
          FROM wewed_admin."PlannerEngagement" WHERE id = $1 FOR UPDATE`,
         id,
       )
@@ -73,17 +75,43 @@ export async function POST(
         if (engagement.status !== 'paused' || !engagement.plannerUserId || !isAuthorityBundle(engagement.authorityBundle)) {
           throw new MarketplaceAccessError('Only a paused, valid authority can be resumed.', 409)
         }
+        const activePlanner = await tx.$queryRawUnsafe<Array<{ allowed: boolean }>>(
+          `SELECT EXISTS (
+             SELECT 1
+             FROM wewed_admin."BusinessAccountMember" bam
+             JOIN wewed_admin."BusinessAccount" ba ON ba.id = bam."businessAccountId"
+             WHERE bam."businessAccountId" = $1
+               AND bam."userId" = $2
+               AND bam.status = 'active'
+               AND ba.type = 'planning_company'
+               AND ba.status = 'active'
+               AND ba."onboardingStatus" = 'complete'
+           ) AS allowed`,
+          engagement.plannerBusinessAccountId,
+          engagement.plannerUserId,
+        )
+        if (!activePlanner[0]?.allowed) {
+          throw new MarketplaceAccessError(
+            'The planner business is no longer active, so authority cannot be resumed.',
+            409,
+          )
+        }
+
         const bundle = AUTHORITY_BUNDLES[engagement.authorityBundle]
-        await tx.$executeRawUnsafe(
+        const resumed = await tx.$queryRawUnsafe<Array<{ id: string }>>(
           `UPDATE public."WeddingMembership"
            SET role = $3, status = 'active', permissions = $4,
                "acceptedAt" = CURRENT_TIMESTAMP, "revokedAt" = NULL, "updatedAt" = CURRENT_TIMESTAMP
-           WHERE "userId" = $1 AND "weddingId" = $2`,
+           WHERE "userId" = $1 AND "weddingId" = $2
+           RETURNING id`,
           engagement.plannerUserId,
           engagement.weddingId,
           bundle.role,
           JSON.stringify(bundle.permissions),
         )
+        if (!resumed[0]) {
+          throw new MarketplaceAccessError('The planner membership no longer exists.', 409)
+        }
         await tx.$executeRawUnsafe(
           `UPDATE wewed_admin."PlannerEngagement"
            SET status = 'active', "pausedAt" = NULL, "endedByUserId" = NULL,
