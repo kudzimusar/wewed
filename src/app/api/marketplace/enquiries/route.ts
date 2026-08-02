@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
       weddingStyles,
     }
 
-    await db.$executeRawUnsafe(
+    const inserted = await db.$queryRawUnsafe<Array<{ id: string }>>(
       `INSERT INTO wewed_admin."PlannerEnquiry" (
          id, "weddingId", "coupleBusinessAccountId", "plannerBusinessAccountId",
          "plannerProfileId", "createdByUserId", status, "weddingDate", location,
@@ -130,7 +130,9 @@ export async function POST(request: NextRequest) {
        ) VALUES (
          $1, $2, $3, $4, $5, $6, 'submitted', $7, $8, $9, $10, $11,
          $12::jsonb, $13::jsonb, $14, $15::jsonb
-       )`,
+       )
+       ON CONFLICT DO NOTHING
+       RETURNING id`,
       id,
       context.weddingId,
       context.coupleBusinessAccountId,
@@ -147,17 +149,23 @@ export async function POST(request: NextRequest) {
       text(body.message, 3000),
       JSON.stringify(sharedSummary),
     )
+    if (!inserted[0]) {
+      throw new MarketplaceAccessError(
+        'An open enquiry already exists for this planner and wedding.',
+        409,
+      )
+    }
 
     await marketplaceAudit({
       actorUserId: context.user.id,
       businessAccountId: context.coupleBusinessAccountId,
       action: 'planner_enquiry.submitted',
       resourceType: 'planner_enquiry',
-      resourceId: id,
+      resourceId: inserted[0].id,
       details: { weddingId: context.weddingId, plannerBusinessAccountId: profile.businessAccountId },
     })
 
-    return NextResponse.json({ success: true, enquiryId: id, status: 'submitted' }, { status: 201 })
+    return NextResponse.json({ success: true, enquiryId: inserted[0].id, status: 'submitted' }, { status: 201 })
   } catch (error) {
     return marketplaceErrorResponse(error)
   }
