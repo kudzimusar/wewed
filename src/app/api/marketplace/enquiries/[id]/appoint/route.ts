@@ -40,11 +40,13 @@ export async function POST(
         throw new MarketplaceAccessError('The planner must accept interest before appointment.', 409)
       }
 
-      await tx.$executeRawUnsafe(
+      const inserted = await tx.$queryRawUnsafe<Array<{ id: string }>>(
         `INSERT INTO wewed_admin."PlannerEngagement" (
            id, "enquiryId", "weddingId", "coupleBusinessAccountId",
            "plannerBusinessAccountId", status, "requestedByUserId"
-         ) VALUES ($1, $2, $3, $4, $5, 'requested', $6)`,
+         ) VALUES ($1, $2, $3, $4, $5, 'requested', $6)
+         ON CONFLICT DO NOTHING
+         RETURNING id`,
         engagementId,
         enquiry.id,
         enquiry.weddingId,
@@ -52,6 +54,13 @@ export async function POST(
         enquiry.plannerBusinessAccountId,
         context.user.id,
       )
+      if (!inserted[0]) {
+        throw new MarketplaceAccessError(
+          'This wedding already has a current planner appointment or this enquiry was already appointed.',
+          409,
+        )
+      }
+
       await tx.$executeRawUnsafe(
         `UPDATE wewed_admin."PlannerEnquiry"
          SET status = 'appointed', version = version + 1, "updatedAt" = CURRENT_TIMESTAMP
@@ -65,10 +74,10 @@ export async function POST(
         auditId,
         context.user.id,
         context.coupleBusinessAccountId,
-        engagementId,
+        inserted[0].id,
         JSON.stringify({ enquiryId: enquiry.id, weddingId: context.weddingId }),
       )
-      return engagementId
+      return inserted[0].id
     })
 
     return NextResponse.json({ success: true, engagementId: result, status: 'requested' }, { status: 201 })
