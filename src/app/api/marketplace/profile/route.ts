@@ -14,6 +14,21 @@ import { marketplaceErrorResponse } from '@/lib/marketplace-response'
 const PRICE_BANDS = new Set(['contact', 'budget', 'standard', 'premium', 'luxury'])
 const AVAILABILITY = new Set(['accepting', 'limited', 'unavailable'])
 
+function httpsPortfolio(value: unknown): string[] {
+  const entries = stringList(value, 12)
+  for (const entry of entries) {
+    try {
+      if (new URL(entry).protocol !== 'https:') {
+        throw new MarketplaceAccessError('Portfolio links must use HTTPS.', 400)
+      }
+    } catch (error) {
+      if (error instanceof MarketplaceAccessError) throw error
+      throw new MarketplaceAccessError('Portfolio links must be valid HTTPS URLs.', 400)
+    }
+  }
+  return entries
+}
+
 export async function GET(request: NextRequest) {
   try {
     const context = await requirePlannerMarketplace(request)
@@ -68,11 +83,19 @@ export async function PUT(request: NextRequest) {
     const availabilityStatus = typeof body.availabilityStatus === 'string' && AVAILABILITY.has(body.availabilityStatus)
       ? body.availabilityStatus
       : 'accepting'
+    const portfolio = httpsPortfolio(body.portfolio)
 
     const existing = await db.$queryRawUnsafe<Array<{ id: string; status: string; slug: string }>>(
       `SELECT id, status, slug FROM public."PlannerProfile" WHERE "businessAccountId" = $1 LIMIT 1`,
       context.business.businessAccountId,
     )
+    const slugOwner = await db.$queryRawUnsafe<Array<{ businessAccountId: string }>>(
+      `SELECT "businessAccountId" FROM public."PlannerProfile" WHERE slug = $1 LIMIT 1`,
+      requestedSlug,
+    )
+    if (slugOwner[0] && slugOwner[0].businessAccountId !== context.business.businessAccountId) {
+      throw new MarketplaceAccessError('That public planner URL is already in use.', 409)
+    }
 
     const profileId = existing[0]?.id ?? marketplaceId('planner-profile')
     const status = existing[0]?.status === 'suspended' ? 'suspended' : 'draft'
@@ -124,7 +147,7 @@ export async function PUT(request: NextRequest) {
       minimumGuestCount,
       maximumGuestCount,
       availabilityStatus,
-      JSON.stringify(stringList(body.portfolio, 12)),
+      JSON.stringify(portfolio),
       status,
     )
 
