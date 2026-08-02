@@ -4,9 +4,13 @@ on:
   pull_request:
     branches:
       - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -14,9 +18,9 @@ concurrency:
 
 jobs:
   validate:
-    name: Materialize and validate secure planner marketplace
+    name: Validate migrations, build, and planner release gate
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
 
     services:
       postgres:
@@ -46,31 +50,8 @@ jobs:
       NEXT_TELEMETRY_DISABLED: 1
 
     steps:
-      - name: Check out feature branch
+      - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: ${{ github.head_ref }}
-          fetch-depth: 0
-
-      - name: Materialize reviewed implementation and restore canonical CI
-        shell: bash
-        run: |
-          awk '
-            /^H4s/ { capture=1 }
-            /^PATCH$/ { if (capture) exit }
-            capture { print }
-          ' .github/workflows/apply-planner-marketplace-patch.yml > /tmp/wewed-marketplace-patch.b64
-          test -s /tmp/wewed-marketplace-patch.b64
-          base64 -d /tmp/wewed-marketplace-patch.b64 > /tmp/wewed-marketplace-patch.tar.gz
-          tar -xzf /tmp/wewed-marketplace-patch.tar.gz -C .
-          git fetch origin main
-          git checkout origin/main -- .github/workflows/ci.yml
-          rm -f .github/workflows/apply-planner-marketplace-patch.yml
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          git commit -m 'feat: add secure planner marketplace and appointment flow'
-          git push origin HEAD:${GITHUB_HEAD_REF}
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
@@ -83,24 +64,105 @@ jobs:
       - name: Install pinned browser test runner
         run: bun add --no-save --exact @playwright/test@1.55.0
 
-      - name: Validate and generate Prisma
-        run: |
-          bunx prisma validate --schema prisma/schema.prisma
-          bunx prisma generate --schema prisma/schema.prisma
+      - name: Validate Prisma schema
+        run: bunx prisma validate --schema prisma/schema.prisma
 
-      - name: Apply and verify clean PostgreSQL migrations
-        run: |
-          bunx prisma migrate deploy --schema prisma/schema.prisma
-          bunx prisma migrate status --schema prisma/schema.prisma
-          bunx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
+      - name: Generate Prisma client
+        run: bunx prisma generate --schema prisma/schema.prisma
 
-      - name: Run PostgreSQL contracts
-        run: |
-          psql "postgresql://postgres:postgres@localhost:5432/wewed" -f scripts/registration-trigger-postgres-integration.sql
-          psql "postgresql://postgres:postgres@localhost:5432/wewed" -f scripts/planner-marketplace-postgres-integration.sql
+      - name: Apply migrations to clean PostgreSQL database
+        run: bunx prisma migrate deploy --schema prisma/schema.prisma
 
-      - name: Run complete application contracts
-        run: bun test src/lib
+      - name: Verify migration status
+        run: bunx prisma migrate status --schema prisma/schema.prisma
+
+      - name: Detect missing Prisma migrations
+        run: >-
+          bunx prisma migrate diff
+          --from-url "$DATABASE_URL"
+          --to-schema-datamodel prisma/schema.prisma
+          --exit-code
+
+      - name: Run registration trigger PostgreSQL integration
+        run: psql "postgresql://postgres:postgres@localhost:5432/wewed" -f scripts/registration-trigger-postgres-integration.sql
+
+      - name: Run original planner parity contract
+        run: bun test src/lib/planner-parity-contract.test.ts
+
+      - name: Run planner integrity tests
+        run: bun test src/lib/planner-integrity.test.ts
+
+      - name: Run Stage 2 permission tests
+        run: bun test src/lib/planner-stage2-permissions.test.ts
+
+      - name: Run Stage 2 metadata compatibility tests
+        run: bun test src/lib/planner-stage2-compatibility.test.ts
+
+      - name: Run Stage 2 metadata migration tests
+        run: bun test src/lib/planner-stage2-migration.test.ts
+
+      - name: Run Stage 2 task assignment tests
+        run: bun test src/lib/planner-stage2-task-assignment.test.ts
+
+      - name: Run Stage 3 extraction tests
+        run: bun test src/lib/planner-stage3-extraction.test.ts
+
+      - name: Run Stage 4 Tasks and Budget parity tests
+        run: bun test src/lib/planner-stage4-tasks-budget.test.ts
+
+      - name: Run Stage 5 Vendors and Guests parity tests
+        run: bun test src/lib/planner-stage5-vendors-guests.test.ts
+
+      - name: Run Stage 6 Timeline and Seating parity tests
+        run: bun test src/lib/planner-stage6-timeline-seating.test.ts
+
+      - name: Run Stage 7 worksheet recovery parity tests
+        run: bun test src/lib/planner-stage7-worksheet.test.ts
+
+      - name: Run production blocker regression contracts
+        run: bun test src/lib/planner-production-blockers.test.ts
+
+      - name: Run production blocker PostgreSQL integration
+        run: bun test src/lib/planner-production-blockers.integration.test.ts
+
+      - name: Run complete-gap task validation contract
+        run: bun test --test-name-pattern "task title validation" src/lib/planner-complete-gap-closure.test.ts
+
+      - name: Run complete-gap routing and mobile contract
+        run: bun test --test-name-pattern "module routing" src/lib/planner-complete-gap-closure.test.ts
+
+      - name: Run complete-gap module controls contract
+        run: bun test --test-name-pattern "tasks, budget, guests and seating" src/lib/planner-complete-gap-closure.test.ts
+
+      - name: Run complete-gap workbook structure contract
+        run: bun test --test-name-pattern "generated guest workbook" src/lib/planner-complete-gap-closure.test.ts
+
+      - name: Run complete-gap formula safety contract
+        run: bun test --test-name-pattern "formula cells" src/lib/planner-complete-gap-closure.test.ts
+
+      - name: Run Stage 8 information architecture tests
+        run: bun test src/lib/planner-stage8-information-architecture.test.ts
+
+      - name: Run Stage 9 intelligence, closeout and release tests
+        run: bun test src/lib/planner-stage9-intelligence-closeout-release.test.ts
+
+      - name: Run Stage 10 executable release-gate contract
+        run: bun test src/lib/planner-stage10-executable-release-gate.test.ts
+
+      - name: Run Phase 2 workflow tests
+        run: bun test src/lib/planner-phase2.test.ts
+
+      - name: Run Phase 3 collaboration tests
+        run: bun test src/lib/planner-phase3.test.ts
+
+      - name: Run Phase 4 portal tests
+        run: bun test src/lib/planner-phase4.test.ts
+
+      - name: Run Phase 5 real-data tests
+        run: bun test src/lib/planner-phase5.test.ts
+
+      - name: Run Phase 6 event-operations tests
+        run: bun test src/lib/planner-phase6.test.ts
 
       - name: Build application
         run: bun run build
@@ -108,14 +170,14 @@ jobs:
       - name: Install Chromium and system dependencies
         run: bunx playwright install --with-deps chromium
 
-      - name: Run Playwright Chromium release gate
+      - name: Run executable planner browser release gate
         run: bunx playwright test
 
       - name: Upload browser failure evidence
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: planner-marketplace-browser-release-gate
+          name: planner-browser-release-gate
           path: |
             playwright-report
             test-results
