@@ -9,9 +9,14 @@ const migrationStatements = `${migration}\n${hardening}`.replace(/^--.*$/gm, '')
 const access = source('src/lib/marketplace-access.ts')
 const authorize = source('src/app/api/marketplace/engagements/[id]/authorize/route.ts')
 const action = source('src/app/api/marketplace/engagements/[id]/action/route.ts')
+const accept = source('src/app/api/marketplace/engagements/[id]/accept/route.ts')
 const enquiries = source('src/app/api/marketplace/enquiries/route.ts')
+const appoint = source('src/app/api/marketplace/enquiries/[id]/appoint/route.ts')
 const planners = source('src/app/api/marketplace/planners/route.ts')
 const profile = source('src/app/api/marketplace/profile/route.ts')
+const adminProfiles = source('src/app/api/admin/planner-profiles/route.ts')
+const coupleCentre = source('src/components/marketplace/couple-planner-centre.tsx')
+const plannerCentre = source('src/components/marketplace/planner-marketplace-centre.tsx')
 const weddingHome = source('src/components/wedding/wedding-home.tsx')
 
 describe('planner marketplace secure appointment contract', () => {
@@ -52,6 +57,13 @@ describe('planner marketplace secure appointment contract', () => {
     expect(enquiries).not.toContain('BusinessAccountLink')
   })
 
+  test('duplicate enquiries and appointments fail as explicit conflicts', () => {
+    expect(enquiries).toContain('ON CONFLICT DO NOTHING')
+    expect(enquiries).toContain('An open enquiry already exists')
+    expect(appoint).toContain('ON CONFLICT DO NOTHING')
+    expect(appoint).toContain('already has a current planner appointment')
+  })
+
   test('authority requires the two-step appointment handshake and is atomic', () => {
     expect(authorize).toContain("engagement.status !== 'planner_accepted'")
     expect(authorize).toContain('db.$transaction')
@@ -59,6 +71,15 @@ describe('planner marketplace secure appointment contract', () => {
     expect(authorize).toContain("relationship = 'manages'")
     expect(authorize).toContain('planner_engagement.authorized')
     expect(authorize).toContain('AUTHORITY_BUNDLES')
+  })
+
+  test('pending appointments can be declined or cancelled before authority', () => {
+    expect(accept).toContain("body?.decision === 'decline'")
+    expect(accept).toContain("SET status = 'cancelled'")
+    expect(accept).toContain('planner_engagement.planner_declined')
+    expect(plannerCentre).toContain('Decline appointment')
+    expect(coupleCentre).toContain('Cancel appointment request')
+    expect(coupleCentre).toContain('Cancel before granting authority')
   })
 
   test('couples can pause, resume and revoke authority without deleting history', () => {
@@ -83,6 +104,11 @@ describe('planner marketplace secure appointment contract', () => {
     expect(hardening).toContain('"PlannerEngagement_membershipId_fkey"')
     expect(hardening).toContain('validate_planner_engagement_graph')
     expect(hardening).toContain('Planner engagement must match its enquiry stakeholder graph.')
+  })
+
+  test('suspended profiles have audited recovery paths', () => {
+    expect(adminProfiles).toContain("status = 'suspended' AND $2 IN ('published','changes_requested')")
+    expect(adminProfiles).toContain('planner_profile.${status}')
   })
 
   test('permission bundles exclude account ownership and billing', () => {
