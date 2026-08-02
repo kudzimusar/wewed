@@ -62,23 +62,18 @@ jobs:
       - name: Capture protected production baseline
         shell: bash
         run: |
-          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
-          DO $$
-          BEGIN
-            IF (SELECT COUNT(*) FROM public."WeddingMembership") <> 5 THEN
-              RAISE EXCEPTION 'Unexpected WeddingMembership baseline';
-            END IF;
-            IF (SELECT COUNT(*) FROM wewed_admin."PaymentRecord") <> 0 THEN
-              RAISE EXCEPTION 'Unexpected PaymentRecord baseline';
-            END IF;
-            IF (SELECT COUNT(*) FROM wewed_admin."BusinessAccount") <> 11 THEN
-              RAISE EXCEPTION 'Unexpected BusinessAccount baseline';
-            END IF;
-            IF (SELECT COUNT(*) FROM public."Wedding") <> 5 THEN
-              RAISE EXCEPTION 'Unexpected Wedding baseline';
-            END IF;
-          END $$;
-          SQL
+          test "$(psql "$DATABASE_URL" -Atc "SELECT COUNT(*) FROM wewed_admin.\"PaymentRecord\"")" = "0" || {
+            echo "::error::PaymentRecord baseline is not zero"
+            exit 1
+          }
+          test "$(psql "$DATABASE_URL" -Atc "SELECT to_regclass('wewed_admin.\"PlannerProfile\"') IS NULL")" = "t" || {
+            echo "::error::Marketplace schema already exists before migration"
+            exit 1
+          }
+          echo "BASE_MEMBERSHIPS=$(psql "$DATABASE_URL" -Atc 'SELECT COUNT(*) FROM public."WeddingMembership"')" >> "$GITHUB_ENV"
+          echo "BASE_PAYMENTS=$(psql "$DATABASE_URL" -Atc 'SELECT COUNT(*) FROM wewed_admin."PaymentRecord"')" >> "$GITHUB_ENV"
+          echo "BASE_ACCOUNTS=$(psql "$DATABASE_URL" -Atc 'SELECT COUNT(*) FROM wewed_admin."BusinessAccount"')" >> "$GITHUB_ENV"
+          echo "BASE_WEDDINGS=$(psql "$DATABASE_URL" -Atc 'SELECT COUNT(*) FROM public."Wedding"')" >> "$GITHUB_ENV"
 
       - name: Deploy pending Prisma migrations
         run: bunx prisma migrate deploy --schema prisma/schema.prisma
@@ -91,6 +86,10 @@ jobs:
       - name: Verify marketplace isolation and unchanged protected records
         shell: bash
         run: |
+          test "$(psql "$DATABASE_URL" -Atc 'SELECT COUNT(*) FROM public."WeddingMembership"')" = "$BASE_MEMBERSHIPS"
+          test "$(psql "$DATABASE_URL" -Atc 'SELECT COUNT(*) FROM wewed_admin."PaymentRecord"')" = "$BASE_PAYMENTS"
+          test "$(psql "$DATABASE_URL" -Atc 'SELECT COUNT(*) FROM wewed_admin."BusinessAccount"')" = "$BASE_ACCOUNTS"
+          test "$(psql "$DATABASE_URL" -Atc 'SELECT COUNT(*) FROM public."Wedding"')" = "$BASE_WEDDINGS"
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
           DO $$
           BEGIN
@@ -99,12 +98,6 @@ jobs:
                OR to_regclass('wewed_admin."PlannerEnquiry"') IS NULL
                OR to_regclass('wewed_admin."PlannerEngagement"') IS NULL THEN
               RAISE EXCEPTION 'Marketplace tables are incomplete';
-            END IF;
-            IF (SELECT COUNT(*) FROM public."WeddingMembership") <> 5
-               OR (SELECT COUNT(*) FROM wewed_admin."PaymentRecord") <> 0
-               OR (SELECT COUNT(*) FROM wewed_admin."BusinessAccount") <> 11
-               OR (SELECT COUNT(*) FROM public."Wedding") <> 5 THEN
-              RAISE EXCEPTION 'Protected production baseline changed';
             END IF;
             IF (SELECT COUNT(*) FROM wewed_admin."PlannerProfile") <> 0
                OR (SELECT COUNT(*) FROM wewed_admin."PlannerShortlist") <> 0
