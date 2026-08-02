@@ -27,6 +27,8 @@ jobs:
           PATCH_SHA256: a1ed94474d5dd95fb5eb8dff899f5050c84d27fcab2ee12ae5712da6f0818dcb
         run: |
           test -d .patch
+          cp .github/workflows/planner-marketplace-ci.yml /tmp/materializer.yml
+          cp .github/workflows/apply-regression-payload.yml /tmp/apply-regression-payload.yml
           cat .patch/regression.part* > /tmp/regression.b64
           python - <<'PY'
           import base64
@@ -44,9 +46,10 @@ jobs:
               archive.extractall('.')
           PY
           rm -rf .patch
-          rm -f .github/workflows/apply-regression-payload.yml
+          cp /tmp/materializer.yml .github/workflows/planner-marketplace-ci.yml
+          cp /tmp/apply-regression-payload.yml .github/workflows/apply-regression-payload.yml
 
-      - name: Commit clean source tree
+      - name: Commit clean product and test source
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
