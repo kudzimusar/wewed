@@ -33,7 +33,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Profile and valid review status are required.' }, { status: 400 })
     }
 
-    const rows = await db.$queryRawUnsafe<Array<{ businessAccountId: string; previousStatus: string }>>(
+    const rows = await db.$queryRawUnsafe<Array<{ businessAccountId: string }>>(
       `UPDATE wewed_admin."PlannerProfile"
        SET status = $2,
            "reviewNotes" = $3,
@@ -42,15 +42,19 @@ export async function PATCH(request: NextRequest) {
            "publishedAt" = CASE WHEN $2 = 'published' THEN CURRENT_TIMESTAMP ELSE NULL END,
            "updatedAt" = CURRENT_TIMESTAMP
        WHERE id = $1
-         AND (status = 'submitted' OR $2 = 'suspended')
-       RETURNING "businessAccountId", status AS "previousStatus"`,
+         AND (
+           status = 'submitted'
+           OR ($2 = 'suspended' AND status IN ('published','changes_requested','rejected'))
+           OR (status = 'suspended' AND $2 IN ('published','changes_requested'))
+         )
+       RETURNING "businessAccountId"`,
       profileId,
       status,
       text(body?.reviewNotes, 2000),
       admin.session.userId,
     )
     if (!rows[0]) {
-      return NextResponse.json({ success: false, error: 'Profile is not awaiting this review action.' }, { status: 409 })
+      return NextResponse.json({ success: false, error: 'Profile is not eligible for this review transition.' }, { status: 409 })
     }
 
     await db.$executeRawUnsafe(
