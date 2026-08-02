@@ -1,0 +1,125 @@
+name: Deploy planner marketplace database once
+
+on:
+  push:
+    branches:
+      - feature/planner-marketplace-secure-appointment
+    paths:
+      - '.github/workflows/deploy-planner-marketplace-database-once.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: Deploy exact planner marketplace migrations
+    if: github.event.head_commit.message == 'ci: run guarded planner marketplace database migration'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+
+    env:
+      DATABASE_URL: ${{ secrets.WEWED_DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.WEWED_DATABASE_URL }}
+
+    steps:
+      - name: Check out exact feature head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.3.14
+
+      - name: Verify Wewed production database target
+        shell: bash
+        run: |
+          test -n "$DATABASE_URL" || {
+            echo "::error::WEWED_DATABASE_URL is not configured"
+            exit 1
+          }
+          [[ "$DATABASE_URL" == *"kjigkhjdeymukwradoqu"* ]] || {
+            echo "::error::The database URL is not for the Wewed Supabase project"
+            exit 1
+          }
+          [[ "$DATABASE_URL" == *":5432/"* ]] || {
+            echo "::error::Use the Supabase session pooler on port 5432"
+            exit 1
+          }
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Validate and generate Prisma client
+        run: |
+          bunx prisma validate --schema prisma/schema.prisma
+          bunx prisma generate --schema prisma/schema.prisma
+
+      - name: Capture protected production baseline
+        shell: bash
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          BEGIN
+            IF (SELECT COUNT(*) FROM public."WeddingMembership") <> 5 THEN
+              RAISE EXCEPTION 'Unexpected WeddingMembership baseline';
+            END IF;
+            IF (SELECT COUNT(*) FROM wewed_admin."PaymentRecord") <> 0 THEN
+              RAISE EXCEPTION 'Unexpected PaymentRecord baseline';
+            END IF;
+            IF (SELECT COUNT(*) FROM wewed_admin."BusinessAccount") <> 11 THEN
+              RAISE EXCEPTION 'Unexpected BusinessAccount baseline';
+            END IF;
+            IF (SELECT COUNT(*) FROM public."Wedding") <> 5 THEN
+              RAISE EXCEPTION 'Unexpected Wedding baseline';
+            END IF;
+          END $$;
+          SQL
+
+      - name: Deploy pending Prisma migrations
+        run: bunx prisma migrate deploy --schema prisma/schema.prisma
+
+      - name: Verify migration history and schema drift
+        run: |
+          bunx prisma migrate status --schema prisma/schema.prisma
+          bunx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
+
+      - name: Verify marketplace isolation and unchanged protected records
+        shell: bash
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          BEGIN
+            IF to_regclass('wewed_admin."PlannerProfile"') IS NULL
+               OR to_regclass('wewed_admin."PlannerShortlist"') IS NULL
+               OR to_regclass('wewed_admin."PlannerEnquiry"') IS NULL
+               OR to_regclass('wewed_admin."PlannerEngagement"') IS NULL THEN
+              RAISE EXCEPTION 'Marketplace tables are incomplete';
+            END IF;
+            IF (SELECT COUNT(*) FROM public."WeddingMembership") <> 5
+               OR (SELECT COUNT(*) FROM wewed_admin."PaymentRecord") <> 0
+               OR (SELECT COUNT(*) FROM wewed_admin."BusinessAccount") <> 11
+               OR (SELECT COUNT(*) FROM public."Wedding") <> 5 THEN
+              RAISE EXCEPTION 'Protected production baseline changed';
+            END IF;
+            IF (SELECT COUNT(*) FROM wewed_admin."PlannerProfile") <> 0
+               OR (SELECT COUNT(*) FROM wewed_admin."PlannerShortlist") <> 0
+               OR (SELECT COUNT(*) FROM wewed_admin."PlannerEnquiry") <> 0
+               OR (SELECT COUNT(*) FROM wewed_admin."PlannerEngagement") <> 0 THEN
+              RAISE EXCEPTION 'Marketplace migration created unexpected data';
+            END IF;
+            IF EXISTS (
+              SELECT 1
+              FROM information_schema.role_table_grants
+              WHERE table_schema IN ('public','wewed_admin')
+                AND table_name IN ('PlannerProfile','PlannerShortlist','PlannerEnquiry','PlannerEngagement')
+                AND grantee IN ('anon','authenticated')
+            ) THEN
+              RAISE EXCEPTION 'Browser roles received marketplace table privileges';
+            END IF;
+          END $$;
+          SQL
