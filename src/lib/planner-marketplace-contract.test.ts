@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 function source(path: string) { return readFileSync(path, 'utf8') }
 
 const migration = source('prisma/migrations/20260803020000_planner_marketplace_secure_appointment/migration.sql')
+const migrationStatements = migration.replace(/^--.*$/gm, '')
 const access = source('src/lib/marketplace-access.ts')
 const authorize = source('src/app/api/marketplace/engagements/[id]/authorize/route.ts')
 const action = source('src/app/api/marketplace/engagements/[id]/action/route.ts')
@@ -22,7 +23,7 @@ describe('planner marketplace secure appointment contract', () => {
   })
 
   test('does not modify Stripe, subscriptions or the payment ledger', () => {
-    for (const implementation of [migration, access, authorize, action, enquiries]) {
+    for (const implementation of [migrationStatements, access, authorize, action, enquiries]) {
       expect(implementation).not.toContain('PaymentRecord')
       expect(implementation).not.toContain('stripeRequest')
       expect(implementation).not.toContain('STRIPE_SECRET_KEY')
