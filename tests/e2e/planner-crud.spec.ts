@@ -15,6 +15,19 @@ test('real browser CRUD persists for tasks, budget, and vendors', async ({ plann
   await page.locator('#workspace-task-priority').selectOption('high')
   await page.getByRole('button', { name: 'Add', exact: true }).click()
   await expect(page.getByText(taskName, { exact: true })).toBeVisible()
+
+  const lowPriorityTask = 'Browser low-priority task'
+  await page.locator('#workspace-task-title').fill(lowPriorityTask)
+  await page.locator('#workspace-task-priority').selectOption('low')
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
+  await expect(page.getByText(lowPriorityTask, { exact: true })).toBeVisible()
+
+  await page.getByLabel('Filter tasks by priority').selectOption('high')
+  await expect(page.getByText(taskName, { exact: true })).toBeVisible()
+  await expect(page.getByText(lowPriorityTask, { exact: true })).toHaveCount(0)
+  await page.getByLabel('Filter tasks by priority').selectOption('all')
+  await expect(page.getByText(lowPriorityTask, { exact: true })).toBeVisible()
+
   await page.getByLabel(`Update status for ${taskName}`).selectOption('done')
   await expect(page.getByLabel(`Update status for ${taskName}`)).toHaveValue('done')
 
@@ -25,6 +38,9 @@ test('real browser CRUD persists for tasks, budget, and vendors', async ({ plann
   acceptNextConfirmation(page)
   await page.getByRole('button', { name: `Delete ${taskName}` }).click()
   await expect(page.getByText(taskName, { exact: true })).toHaveCount(0)
+  acceptNextConfirmation(page)
+  await page.getByRole('button', { name: `Delete ${lowPriorityTask}` }).click()
+  await expect(page.getByText(lowPriorityTask, { exact: true })).toHaveCount(0)
 
   const budgetName = 'Browser budget item'
   await openModule(page, 'budget')

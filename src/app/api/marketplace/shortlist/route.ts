@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     await db.$executeRawUnsafe(
       `INSERT INTO wewed_admin."PlannerShortlist" (id, "weddingId", "plannerProfileId", "createdByUserId")
        VALUES ($1, $2, $3, $4)
-       ON CONFLICT ("weddingId", "plannerProfileId") DO NOTHING`,
+       ON CONFLICT ("weddingId", "plannerProfileId", "createdByUserId") DO NOTHING`,
       id,
       context.weddingId,
       plannerProfileId,

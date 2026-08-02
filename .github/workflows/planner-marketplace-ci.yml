@@ -33,6 +33,7 @@ jobs:
           --health-retries 5
     env:
       CI: 'true'
+      WEWED_E2E_MODE: '1'
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/wewed?schema=public
       DIRECT_URL: postgresql://postgres:postgres@localhost:5432/wewed?schema=public
       NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
@@ -47,6 +48,7 @@ jobs:
         with:
           bun-version: 1.3.14
       - run: bun install --frozen-lockfile
+      - run: bun add --no-save --exact @playwright/test@1.55.0
       - run: bunx prisma validate --schema prisma/schema.prisma
       - run: bunx prisma generate --schema prisma/schema.prisma
       - run: bunx prisma migrate deploy --schema prisma/schema.prisma
@@ -58,3 +60,5 @@ jobs:
           --to-schema-datamodel prisma/schema.prisma
           --exit-code
       - run: bun run build
+      - run: bunx playwright install --with-deps chromium
+      - run: bunx playwright test tests/e2e/zz-planner-marketplace.spec.ts --project=desktop-chromium

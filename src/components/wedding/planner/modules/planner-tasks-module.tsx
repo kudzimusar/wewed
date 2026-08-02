@@ -83,6 +83,13 @@ const TASK_STATUSES = [
   { value: 'done', label: 'Done' },
 ] as const
 
+const TASK_PRIORITIES = [
+  { value: 'all', label: 'Any priority' },
+  { value: 'low', label: 'Low' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'high', label: 'High' },
+] as const
+
 function categoryLabel(value: string): string {
   return TASK_CATEGORIES.find((category) => category.value === value)?.label ?? titleCase(value)
 }
@@ -121,7 +128,7 @@ export function PlannerTasksModule({
   onDeleteTask,
 }: PlannerTasksModuleProps) {
   const [filters, setFilters, resetFilters] = usePlannerFilterState('wewed:planner:tasks:filters', {
-    search: '', category: 'all', status: 'all',
+    search: '', category: 'all', status: 'all', priority: 'all',
   })
   const [titleError, setTitleError] = useState<string | null>(null)
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
@@ -135,6 +142,7 @@ export function PlannerTasksModule({
     return tasks.filter((task) => {
       if (filters.category !== 'all' && task.category !== filters.category) return false
       if (filters.status !== 'all' && task.status !== filters.status) return false
+      if (filters.priority !== 'all' && task.priority !== filters.priority) return false
       return !query || [task.title, task.description ?? '', task.assignee ?? ''].some((value) => value.toLowerCase().includes(query))
     })
   }, [tasks, filters])
@@ -215,10 +223,11 @@ export function PlannerTasksModule({
 
       <SectionCard className="overflow-hidden">
         <div className="border-b border-gold/10 px-4 py-3"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-serif text-xl">Planning checklist</h2><p className="font-sans text-xs text-champagne/45">Track ownership, deadlines, and completion for this wedding.</p></div><Badge variant="outline" className="border-gold/25 text-gold">{taskProgressPercent}% complete</Badge></div><Progress value={taskProgressPercent} className="mt-3 h-1.5 bg-champagne/10 [&>div]:bg-gold" /></div>
-        <div className="grid gap-3 border-b border-gold/10 p-4 lg:grid-cols-[minmax(0,1fr)_14rem_12rem_auto]">
+        <div className="grid gap-3 border-b border-gold/10 p-4 lg:grid-cols-[minmax(0,1fr)_14rem_12rem_11rem_auto]">
           <div className="relative"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-champagne/35" /><Input value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Search tasks, descriptions, or assignees" className="border-gold/20 bg-espresso/70 pl-9" /></div>
           <select value={filters.category} onChange={(event) => setFilters((current) => ({ ...current, category: event.target.value }))} aria-label="Filter tasks by category" className="h-10 w-full rounded-md border border-gold/20 bg-espresso px-3 text-sm">{TASK_CATEGORIES.map((category) => <option key={category.value} value={category.value}>{category.label}{category.value === 'all' ? ` (${tasks.length})` : ` (${categoryCounts.get(category.value) ?? 0})`}</option>)}</select>
           <select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))} aria-label="Filter tasks by status" className="h-10 w-full rounded-md border border-gold/20 bg-espresso px-3 text-sm">{TASK_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</select>
+          <select value={filters.priority} onChange={(event) => setFilters((current) => ({ ...current, priority: event.target.value }))} aria-label="Filter tasks by priority" className="h-10 w-full rounded-md border border-gold/20 bg-espresso px-3 text-sm">{TASK_PRIORITIES.map((priority) => <option key={priority.value} value={priority.value}>{priority.label}</option>)}</select>
           <Button type="button" variant="outline" onClick={resetFilters} className="border-gold/20 bg-transparent text-champagne/60">Reset</Button>
         </div>
 
