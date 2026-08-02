@@ -33,25 +33,29 @@ export async function generateMetadata({ params }: PlannerProfilePageProps): Pro
   const profile = await publicPlannerMetadata(slug)
 
   if (!profile) {
+    const title = 'Planner Profile | Wewed'
+    const description = 'View a verified wedding planner profile in the Wewed marketplace.'
     return {
-      title: 'Planner Profile | Wewed',
-      description: 'View a verified wedding planner profile in the Wewed marketplace.',
+      title,
+      description,
+      keywords: ['Wewed', 'wedding planner', 'planner marketplace'],
       robots: { index: false, follow: false },
+      openGraph: { title, description, type: 'website' },
+      twitter: { card: 'summary', title, description },
     }
   }
 
+  const title = `${profile.displayName} | Wewed Planner Marketplace`
   const description = profile.headline
     || profile.bio?.slice(0, 160)
     || `View ${profile.displayName}'s verified wedding planner profile in the Wewed marketplace.`
 
   return {
-    title: `${profile.displayName} | Wewed Planner Marketplace`,
+    title,
     description,
-    openGraph: {
-      title: `${profile.displayName} | Wewed Planner Marketplace`,
-      description,
-      type: 'profile',
-    },
+    keywords: ['Wewed', 'wedding planner', 'planner marketplace', profile.displayName],
+    openGraph: { title, description, type: 'profile' },
+    twitter: { card: 'summary', title, description },
   }
 }
 
