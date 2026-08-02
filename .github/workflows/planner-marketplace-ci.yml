@@ -52,7 +52,7 @@ jobs:
       - run: bunx prisma validate --schema prisma/schema.prisma
       - run: bunx prisma generate --schema prisma/schema.prisma
       - run: bunx prisma migrate deploy --schema prisma/schema.prisma
-      - run: bun test src/lib/planner-marketplace-contract.test.ts
+      - run: bun test src/lib/planner-marketplace-contract.test.ts src/lib/planner-marketplace-metadata.test.ts
       - run: psql "postgresql://postgres:postgres@localhost:5432/wewed" -f scripts/planner-marketplace-postgres-integration.sql
       - run: >-
           bunx prisma migrate diff
@@ -61,4 +61,8 @@ jobs:
           --exit-code
       - run: bun run build
       - run: bunx playwright install --with-deps chromium
-      - run: bunx playwright test tests/e2e/zz-planner-marketplace.spec.ts --project=desktop-chromium
+      - run: >-
+          bunx playwright test
+          tests/e2e/zz-planner-marketplace.spec.ts
+          tests/e2e/zz-planner-marketplace-metadata.spec.ts
+          --project=desktop-chromium
