@@ -30,6 +30,10 @@ INSERT INTO wewed_admin."PlannerShortlist" (id, "weddingId", "plannerProfileId",
   ('market-test-shortlist-1', 'market-test-wedding', 'market-test-profile', 'market-test-couple-user'),
   ('market-test-shortlist-2', 'market-test-wedding', 'market-test-profile', 'market-test-couple-user-2');
 
+INSERT INTO wewed_admin."PlannerShortlist" (id, "weddingId", "plannerProfileId", "createdByUserId")
+VALUES ('market-test-shortlist-duplicate', 'market-test-wedding', 'market-test-profile', 'market-test-couple-user')
+ON CONFLICT ("weddingId", "plannerProfileId", "createdByUserId") DO NOTHING;
+
 DO $$ BEGIN
   IF (SELECT COUNT(*) FROM wewed_admin."PlannerShortlist" WHERE "weddingId"='market-test-wedding' AND "plannerProfileId"='market-test-profile') <> 2 THEN
     RAISE EXCEPTION 'Shortlists must be scoped independently per couple user';

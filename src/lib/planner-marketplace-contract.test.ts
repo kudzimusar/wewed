@@ -13,6 +13,8 @@ const accept = source('src/app/api/marketplace/engagements/[id]/accept/route.ts'
 const enquiries = source('src/app/api/marketplace/enquiries/route.ts')
 const appoint = source('src/app/api/marketplace/enquiries/[id]/appoint/route.ts')
 const planners = source('src/app/api/marketplace/planners/route.ts')
+const shortlist = source('src/app/api/marketplace/shortlist/route.ts')
+const directory = source('src/components/marketplace/planner-directory.tsx')
 const profile = source('src/app/api/marketplace/profile/route.ts')
 const adminProfiles = source('src/app/api/admin/planner-profiles/route.ts')
 const coupleCentre = source('src/components/marketplace/couple-planner-centre.tsx')
@@ -43,6 +45,23 @@ describe('planner marketplace secure appointment contract', () => {
     expect(planners).toContain("ba.status = 'active'")
     expect(planners).toContain('toPublicProfile')
     expect(planners).not.toContain('client')
+  })
+
+  test('public directory exposes every supported discovery filter', () => {
+    for (const marker of [
+      'Filter planners by service',
+      'Filter planners by wedding style',
+      'Filter planners by price band',
+      'Filter planners by availability',
+      'service, style, priceBand, availability',
+    ]) expect(directory).toContain(marker)
+  })
+
+  test('shortlist writes use the exact user-scoped unique key and support removal', () => {
+    expect(shortlist).toContain('ON CONFLICT ("weddingId", "plannerProfileId", "createdByUserId") DO NOTHING')
+    expect(shortlist).toContain('DELETE FROM wewed_admin."PlannerShortlist"')
+    expect(shortlist).toContain('AND "createdByUserId" = $3')
+    expect(coupleCentre).toContain('Remove saved')
   })
 
   test('public profile writes require HTTPS portfolio links and unique slugs', () => {
@@ -82,10 +101,12 @@ describe('planner marketplace secure appointment contract', () => {
     expect(coupleCentre).toContain('Cancel before granting authority')
   })
 
-  test('couples can pause, resume and revoke authority without deleting history', () => {
+  test('couples can pause, resume, complete and revoke authority without deleting history', () => {
     expect(action).toContain("SET status = 'revoked'")
     expect(action).toContain("status = 'paused'")
     expect(action).toContain("status = 'active'")
+    expect(action).toContain("action === 'complete'")
+    expect(coupleCentre).toContain('Complete engagement')
     expect(action).not.toContain('DELETE FROM public."WeddingMembership"')
     expect(action).not.toContain('DELETE FROM wewed_admin."PlannerEngagement"')
   })

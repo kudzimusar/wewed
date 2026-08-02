@@ -97,3 +97,19 @@ export async function marketplaceMembershipStatus(): Promise<string | null> {
     await prisma.$disconnect()
   }
 }
+
+export async function marketplaceEngagementStatus(): Promise<string | null> {
+  const prisma = new PrismaClient()
+  try {
+    const rows = await prisma.$queryRawUnsafe<Array<{ status: string }>>(
+      `SELECT status FROM wewed_admin."PlannerEngagement"
+       WHERE "weddingId" = $1 AND "plannerBusinessAccountId" = $2
+       ORDER BY "createdAt" DESC LIMIT 1`,
+      E2E_WEDDINGS.primary.id,
+      E2E_MARKETPLACE.plannerBusinessId,
+    )
+    return rows[0]?.status ?? null
+  } finally {
+    await prisma.$disconnect()
+  }
+}
