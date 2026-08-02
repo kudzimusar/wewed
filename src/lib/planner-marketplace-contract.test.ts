@@ -11,6 +11,7 @@ const authorize = source('src/app/api/marketplace/engagements/[id]/authorize/rou
 const action = source('src/app/api/marketplace/engagements/[id]/action/route.ts')
 const enquiries = source('src/app/api/marketplace/enquiries/route.ts')
 const planners = source('src/app/api/marketplace/planners/route.ts')
+const profile = source('src/app/api/marketplace/profile/route.ts')
 const weddingHome = source('src/components/wedding/wedding-home.tsx')
 
 describe('planner marketplace secure appointment contract', () => {
@@ -37,6 +38,12 @@ describe('planner marketplace secure appointment contract', () => {
     expect(planners).toContain("ba.status = 'active'")
     expect(planners).toContain('toPublicProfile')
     expect(planners).not.toContain('client')
+  })
+
+  test('public profile writes require HTTPS portfolio links and unique slugs', () => {
+    expect(profile).toContain("new URL(entry).protocol !== 'https:'")
+    expect(profile).toContain('Portfolio links must be valid HTTPS URLs.')
+    expect(profile).toContain('That public planner URL is already in use.')
   })
 
   test('enquiries do not create wedding authority', () => {
