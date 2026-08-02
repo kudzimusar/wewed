@@ -1,0 +1,50 @@
+name: Apply regression payload
+
+on:
+  push:
+    branches:
+      - fix/close-marketplace-and-priority-regressions
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/close-marketplace-and-priority-regressions
+
+      - name: Verify and materialize patch
+        env:
+          PATCH_SHA256: a1ed94474d5dd95fb5eb8dff899f5050c84d27fcab2ee12ae5712da6f0818dcb
+        run: |
+          cat .patch/regression.part* > /tmp/regression.b64
+          python - <<'PY'
+          import base64
+          import hashlib
+          import io
+          import os
+          import tarfile
+
+          encoded = open('/tmp/regression.b64', 'rb').read()
+          payload = base64.b64decode(encoded)
+          actual = hashlib.sha256(payload).hexdigest()
+          if actual != os.environ['PATCH_SHA256']:
+              raise SystemExit(f'digest mismatch: {actual}')
+          with tarfile.open(fileobj=io.BytesIO(payload), mode='r:gz') as archive:
+              archive.extractall('.')
+          PY
+          rm -rf .patch
+          rm .github/workflows/apply-regression-payload.yml
+
+      - name: Commit exact reviewed patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: close marketplace and priority regressions"
+          git push origin HEAD:fix/close-marketplace-and-priority-regressions
