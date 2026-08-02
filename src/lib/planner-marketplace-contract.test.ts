@@ -4,7 +4,8 @@ import { readFileSync } from 'node:fs'
 function source(path: string) { return readFileSync(path, 'utf8') }
 
 const migration = source('prisma/migrations/20260803020000_planner_marketplace_secure_appointment/migration.sql')
-const migrationStatements = migration.replace(/^--.*$/gm, '')
+const hardening = source('prisma/migrations/20260803021500_harden_planner_marketplace_relationships/migration.sql')
+const migrationStatements = `${migration}\n${hardening}`.replace(/^--.*$/gm, '')
 const access = source('src/lib/marketplace-access.ts')
 const authorize = source('src/app/api/marketplace/engagements/[id]/authorize/route.ts')
 const action = source('src/app/api/marketplace/engagements/[id]/action/route.ts')
@@ -59,6 +60,22 @@ describe('planner marketplace secure appointment contract', () => {
     expect(action).toContain("status = 'active'")
     expect(action).not.toContain('DELETE FROM public."WeddingMembership"')
     expect(action).not.toContain('DELETE FROM wewed_admin."PlannerEngagement"')
+  })
+
+  test('resume revalidates planner business state before restoring access', () => {
+    expect(action).toContain('activePlanner')
+    expect(action).toContain("bam.status = 'active'")
+    expect(action).toContain("ba.status = 'active'")
+    expect(action).toContain("ba.\"onboardingStatus\" = 'complete'")
+    expect(action).toContain('The planner business is no longer active')
+  })
+
+  test('database constraints bind shortlists and engagements to the correct users and graph', () => {
+    expect(hardening).toContain('"PlannerShortlist_wedding_profile_user_key"')
+    expect(hardening).toContain('UNIQUE ("weddingId", "plannerProfileId", "createdByUserId")')
+    expect(hardening).toContain('"PlannerEngagement_membershipId_fkey"')
+    expect(hardening).toContain('validate_planner_engagement_graph')
+    expect(hardening).toContain('Planner engagement must match its enquiry stakeholder graph.')
   })
 
   test('permission bundles exclude account ownership and billing', () => {
