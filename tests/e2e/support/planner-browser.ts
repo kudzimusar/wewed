@@ -79,6 +79,15 @@ export async function openModule(page: Page, moduleKey: ModuleKey): Promise<void
   }
 
   await expect(page).toHaveURL(new RegExp(`/planner/${routeKey}(?:[?#]|$)`))
+  const worksheetToggle = page.getByTestId('worksheet-tools-toggle')
+  if (await worksheetToggle.isVisible()) {
+    // Module selection intentionally closes the compact worksheet panel. Wait
+    // for that route transition to settle before a caller performs another
+    // panel action, otherwise the old navigation can overwrite the new query.
+    await expect.poll(() => new URL(page.url()).searchParams.get('panel')).not.toBe('worksheet')
+    await expect(worksheetToggle).toHaveAttribute('aria-expanded', 'false')
+  }
+
   const mobileSelector = page.locator('#planner-workspace-section')
   if (await mobileSelector.isVisible()) {
     await expect(mobileSelector).toHaveValue(routeKey)

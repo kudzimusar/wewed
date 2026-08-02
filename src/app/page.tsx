@@ -14,8 +14,7 @@ import { TravelStay } from '@/components/wedding/travel-stay'
 import { SongbookEnhanced } from '@/components/wedding/songbook-enhanced'
 import { IntroductionsBanner } from '@/components/wedding/introductions-banner'
 import { Guests } from '@/components/wedding/guests'
-import { PricingSection } from '@/components/wedding/pricing-section'
-import { PricingRegistrationLinks } from '@/components/public/pricing-registration-links'
+import { WewedPricingCatalog } from '@/components/public/wewed-pricing-catalog'
 import { PlatformVision } from '@/components/wedding/platform-vision'
 import { MerchTeaser } from '@/components/wedding/merch-teaser'
 import { FaqSection } from '@/components/wedding/faq-section'
@@ -79,8 +78,7 @@ export default function Home() {
               <FaqSection />
               <ShareSection />
               <TelegramWidget />
-              <PricingSection />
-              <PricingRegistrationLinks />
+              <WewedPricingCatalog />
               <PlatformVision />
               <MerchTeaser />
             </>
@@ -97,8 +95,7 @@ export default function Home() {
               <FaqSection />
               <ShareSection />
               <TelegramWidget />
-              <PricingSection />
-              <PricingRegistrationLinks />
+              <WewedPricingCatalog />
               <PlatformVision />
               <MerchTeaser />
             </>

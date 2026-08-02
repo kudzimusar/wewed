@@ -6,10 +6,17 @@ import {
   createStripeCheckoutSession,
   createStripeCustomer,
   createStripePortalSession,
+  stripeAccountMetadataKeys,
   stripeBillingConfiguration,
   stripePriceIdForPlan,
+  stripeUsesTestMode,
   type StripePlan,
 } from '@/lib/stripe-billing'
+import {
+  isWewedBillingInterval,
+  isWewedPlanId,
+  type WewedBillingInterval,
+} from '@/lib/wewed-plans'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,6 +39,23 @@ function objectValue(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? value as Record<string, unknown>
     : {}
+}
+
+function metadataText(metadata: Record<string, unknown>, key: string): string | null {
+  const value = metadata[key]
+  return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+function metadataBoolean(metadata: Record<string, unknown>, key: string): boolean {
+  const value = metadata[key]
+  return value === true || value === 'true'
+}
+
+function metadataDate(metadata: Record<string, unknown>, key: string): string | null {
+  const value = metadataText(metadata, key)
+  if (!value) return null
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString()
 }
 
 async function resolveBillingAccount(request: NextRequest): Promise<{
@@ -102,6 +126,10 @@ export async function GET(request: NextRequest) {
     if (!resolved) throw new Error('Billing account resolution failed.')
 
     const metadata = objectValue(resolved.account.metadata)
+    const keys = stripeAccountMetadataKeys()
+    const testMode = stripeUsesTestMode()
+    const billingInterval = metadataText(metadata, keys.billingInterval)
+
     return NextResponse.json({
       success: true,
       account: {
@@ -110,11 +138,21 @@ export async function GET(request: NextRequest) {
         type: resolved.account.type,
         status: resolved.account.status,
         onboardingStatus: resolved.account.onboardingStatus,
-        subscriptionPlan: resolved.account.subscriptionPlan,
-        subscriptionStatus: resolved.account.subscriptionStatus,
-        currentPeriodEndsAt: resolved.account.currentPeriodEndsAt?.toISOString() ?? null,
+        subscriptionPlan: testMode
+          ? metadataText(metadata, keys.subscriptionPlan) || 'free'
+          : resolved.account.subscriptionPlan,
+        subscriptionStatus: testMode
+          ? metadataText(metadata, keys.subscriptionStatus) || 'inactive'
+          : resolved.account.subscriptionStatus,
+        currentPeriodEndsAt: testMode
+          ? metadataDate(metadata, keys.currentPeriodEndsAt)
+          : resolved.account.currentPeriodEndsAt?.toISOString() ?? null,
+        cancelAtPeriodEnd: metadataBoolean(metadata, keys.cancelAtPeriodEnd),
         memberRole: resolved.account.memberRole,
-        stripeCustomerId: typeof metadata.stripeCustomerId === 'string' ? metadata.stripeCustomerId : null,
+        stripeCustomerId: metadataText(metadata, keys.customerId),
+        billingInterval: isWewedBillingInterval(billingInterval)
+          ? billingInterval
+          : null,
       },
       stripe: stripeBillingConfiguration(),
     })
@@ -134,18 +172,25 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as Record<string, unknown>
     const action = typeof body.action === 'string' ? body.action.trim() : ''
     const metadata = objectValue(resolved.account.metadata)
-    let stripeCustomerId = typeof metadata.stripeCustomerId === 'string'
-      ? metadata.stripeCustomerId
-      : null
+    const keys = stripeAccountMetadataKeys()
+    let stripeCustomerId = metadataText(metadata, keys.customerId)
 
     if (action === 'checkout') {
-      const plan = typeof body.plan === 'string' ? body.plan.trim() as StripePlan : 'starter'
-      if (!['starter', 'professional', 'enterprise'].includes(plan)) {
+      const planValue = typeof body.plan === 'string' ? body.plan.trim() : ''
+      const intervalValue = typeof body.interval === 'string' ? body.interval.trim() : 'month'
+
+      if (!isWewedPlanId(planValue) || planValue === 'free') {
         return NextResponse.json({ success: false, error: 'A valid paid plan is required.' }, { status: 400 })
       }
-      if (!stripePriceIdForPlan(plan)) {
+      if (!isWewedBillingInterval(intervalValue)) {
+        return NextResponse.json({ success: false, error: 'A valid billing interval is required.' }, { status: 400 })
+      }
+
+      const plan = planValue as StripePlan
+      const interval = intervalValue as WewedBillingInterval
+      if (!stripePriceIdForPlan(plan, interval)) {
         return NextResponse.json(
-          { success: false, error: `Stripe pricing for ${plan} has not been configured.` },
+          { success: false, error: `Stripe pricing for ${plan} (${interval}) has not been configured.` },
           { status: 503 },
         )
       }
@@ -159,15 +204,11 @@ export async function POST(request: NextRequest) {
         stripeCustomerId = customer.id
         await db.$executeRawUnsafe(
           `UPDATE public."BusinessAccount"
-           SET metadata = jsonb_set(
-             COALESCE(metadata, '{}'::jsonb),
-             '{stripeCustomerId}',
-             to_jsonb($2::text),
-             true
-           ),
-           "updatedAt" = CURRENT_TIMESTAMP
+           SET metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object($2::text, $3::text),
+             "updatedAt" = CURRENT_TIMESTAMP
            WHERE id = $1`,
           resolved.account.id,
+          keys.customerId,
           stripeCustomerId,
         )
       }
@@ -177,6 +218,7 @@ export async function POST(request: NextRequest) {
         businessAccountId: resolved.account.id,
         customerId: stripeCustomerId,
         plan,
+        interval,
       })
 
       return NextResponse.json({ success: true, url: checkout.url })

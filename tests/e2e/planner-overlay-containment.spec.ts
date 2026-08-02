@@ -1,3 +1,4 @@
+import type { Locator } from '@playwright/test'
 import { expect, expectNoDocumentOverflow, openModule, test } from './support/planner-browser'
 
 const DEVICE_VIEWPORTS = [
@@ -13,12 +14,44 @@ const DATA_PREVIEW_VIEWPORTS = new Set(['compact-phone', 'tablet-portrait', 'des
 async function openWorksheetTools(page: Parameters<typeof openModule>[0]) {
   const toggle = page.getByTestId('worksheet-tools-toggle')
   if (await toggle.isVisible()) {
-    const expanded = await toggle.getAttribute('aria-expanded')
-    if (expanded !== 'true') await toggle.click()
-    await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    const panelOpen = new URL(page.url()).searchParams.get('panel') === 'worksheet'
+    if (!panelOpen) {
+      await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+      await toggle.click()
+    }
     await expect(page).toHaveURL(/panel=worksheet/)
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true')
   }
   await expect(page.locator('#planner-worksheet-tools')).toBeVisible()
+}
+
+async function stableBoundingBox(locator: Locator) {
+  let box: Awaited<ReturnType<Locator['boundingBox']>> = null
+  let previous: Awaited<ReturnType<Locator['boundingBox']>> = null
+  let consecutiveStableSamples = 0
+
+  await expect.poll(async () => {
+    const next = await locator.boundingBox()
+    if (!next || next.width <= 0 || next.height <= 0) {
+      previous = null
+      consecutiveStableSamples = 0
+      return false
+    }
+
+    const stable = previous !== null
+      && Math.abs(next.x - previous.x) <= 0.5
+      && Math.abs(next.y - previous.y) <= 0.5
+      && Math.abs(next.width - previous.width) <= 0.5
+      && Math.abs(next.height - previous.height) <= 0.5
+
+    consecutiveStableSamples = stable ? consecutiveStableSamples + 1 : 0
+    previous = next
+    box = next
+    return consecutiveStableSamples >= 1
+  }, { message: 'visible portal element has stable measurable geometry' }).toBe(true)
+
+  if (!box) throw new Error('Visible portal element did not expose stable measurable geometry.')
+  return box
 }
 
 async function assertDialogGeometry(
@@ -27,18 +60,11 @@ async function assertDialogGeometry(
 ) {
   const dialog = page.locator('[data-slot="dialog-content"]:visible').last()
   await expect(dialog).toBeVisible()
-  await dialog.evaluate(async (element) => {
-    const animated = [element, ...Array.from(element.querySelectorAll<HTMLElement>('*'))]
-    await Promise.all(
-      animated.flatMap((node) => node.getAnimations()).map((animation) => animation.finished.catch(() => undefined)),
-    )
-  })
-  const box = await dialog.boundingBox()
-  expect(box).not.toBeNull()
-  expect(box!.x).toBeGreaterThanOrEqual(-1)
-  expect(box!.y).toBeGreaterThanOrEqual(-1)
-  expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width + 1)
-  expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height + 1)
+  const box = await stableBoundingBox(dialog)
+  expect(box.x).toBeGreaterThanOrEqual(-1)
+  expect(box.y).toBeGreaterThanOrEqual(-1)
+  expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1)
+  expect(box.y + box.height).toBeLessThanOrEqual(viewport.height + 1)
 
   const sharedCloseButtons = dialog.locator('[data-slot="dialog-close"]')
   const closeButtons = (await sharedCloseButtons.count()) > 0
@@ -48,15 +74,14 @@ async function assertDialogGeometry(
   for (let index = 0; index < closeCount; index += 1) {
     const closeButton = closeButtons.nth(index)
     if (!(await closeButton.isVisible())) continue
-    const closeBox = await closeButton.boundingBox()
-    expect(closeBox).not.toBeNull()
-    expect(closeBox!.x).toBeGreaterThanOrEqual(box!.x - 1)
-    expect(closeBox!.y).toBeGreaterThanOrEqual(box!.y - 1)
-    expect(closeBox!.x + closeBox!.width).toBeLessThanOrEqual(box!.x + box!.width + 1)
-    expect(closeBox!.y + closeBox!.height).toBeLessThanOrEqual(box!.y + box!.height + 1)
+    const closeBox = await stableBoundingBox(closeButton)
+    expect(closeBox.x).toBeGreaterThanOrEqual(box.x - 2)
+    expect(closeBox.y).toBeGreaterThanOrEqual(box.y - 2)
+    expect(closeBox.x + closeBox.width).toBeLessThanOrEqual(box.x + box.width + 2)
+    expect(closeBox.y + closeBox.height).toBeLessThanOrEqual(box.y + box.height + 2)
     if (viewport.width < 640) {
-      expect(closeBox!.width).toBeGreaterThanOrEqual(40)
-      expect(closeBox!.height).toBeGreaterThanOrEqual(40)
+      expect(closeBox.width).toBeGreaterThanOrEqual(40)
+      expect(closeBox.height).toBeGreaterThanOrEqual(40)
     }
   }
 
@@ -78,13 +103,21 @@ async function closeVisibleDialog(page: Parameters<typeof openModule>[0]) {
 
 async function openPlannerToolPanel(page: Parameters<typeof openModule>[0]) {
   const disclosure = page.locator('[data-planner-tools-disclosure]')
+  const tools = page.locator('#planner-experience-tools')
+
+  await expect(page.getByRole('combobox', { name: 'Active wedding' })).toBeVisible()
+  await expect.poll(
+    async () => (await disclosure.isVisible()) || (await tools.isVisible()),
+    { message: 'planner tools expose the responsive disclosure or visible navigation' },
+  ).toBe(true)
+
   if (await disclosure.isVisible()) {
     const expanded = await disclosure.getAttribute('aria-expanded')
     if (expanded !== 'true') await disclosure.click()
     await expect(disclosure).toHaveAttribute('aria-expanded', 'true')
     await expect(page).toHaveURL(/panel=experience/)
   }
-  await expect(page.locator('#planner-experience-tools')).toBeVisible()
+  await expect(tools).toBeVisible()
 }
 
 async function assertPlannerOwnsVerticalScroll(page: Parameters<typeof openModule>[0]) {

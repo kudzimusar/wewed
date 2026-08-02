@@ -2,7 +2,13 @@ import { randomUUID } from 'node:crypto'
 import type { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { verifyStripeWebhookSignature } from '@/lib/stripe-billing'
+import {
+  stripeAccountMetadataKeys,
+  stripeEnvironment,
+  stripeEventResourceId,
+  stripeUsesTestMode,
+  verifyStripeWebhookSignature,
+} from '@/lib/stripe-billing'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -18,6 +24,7 @@ type StripeEvent = {
   id: string
   type: string
   created?: number
+  livemode?: boolean
   data: { object: StripeObject }
 }
 
@@ -46,18 +53,25 @@ function integer(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? Math.trunc(value) : null
 }
 
+function boolean(value: unknown): boolean | null {
+  return typeof value === 'boolean' ? value : null
+}
+
 function text(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null
 }
 
 async function lock(tx: Transaction, key: string): Promise<void> {
-  await tx.$queryRawUnsafe(
-    'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+  // pg_advisory_xact_lock returns PostgreSQL void, which Prisma cannot deserialize.
+  // Wrapping the call in IS NULL preserves the lock side effect while returning boolean.
+  await tx.$queryRawUnsafe<Array<{ acquired: boolean }>>(
+    'SELECT pg_advisory_xact_lock(hashtextextended($1, 0)) IS NULL AS acquired',
     key,
   )
 }
 
 async function eventAlreadyProcessed(tx: Transaction, eventId: string): Promise<boolean> {
+  const resourceId = stripeEventResourceId(eventId)
   const rows = await tx.$queryRawUnsafe<Array<{ exists: boolean }>>(
     `SELECT EXISTS (
       SELECT 1 FROM public."BusinessAuditLog"
@@ -65,7 +79,7 @@ async function eventAlreadyProcessed(tx: Transaction, eventId: string): Promise<
         AND "resourceId" = $1
         AND action = 'stripe.webhook_processed'
     ) AS exists`,
-    eventId,
+    resourceId,
   )
   return Boolean(rows[0]?.exists)
 }
@@ -74,6 +88,7 @@ async function findAccount(tx: Transaction, input: {
   businessAccountId?: string | null
   customerId?: string | null
 }) {
+  const keys = stripeAccountMetadataKeys()
   const rows = await tx.$queryRawUnsafe<
     Array<{
       id: string
@@ -85,11 +100,12 @@ async function findAccount(tx: Transaction, input: {
     `SELECT id, name, "subscriptionPlan", "subscriptionStatus"
      FROM public."BusinessAccount"
      WHERE ($1::text IS NOT NULL AND id = $1)
-        OR ($2::text IS NOT NULL AND metadata->>'stripeCustomerId' = $2)
+        OR ($2::text IS NOT NULL AND metadata->>$3 = $2)
      ORDER BY CASE WHEN id = $1 THEN 0 ELSE 1 END
      LIMIT 1`,
     input.businessAccountId ?? null,
     input.customerId ?? null,
+    keys.customerId,
   )
   return rows[0] ?? null
 }
@@ -101,14 +117,38 @@ async function updateSubscriptionAccount(tx: Transaction, input: {
   customerId?: string | null
   subscriptionId?: string | null
   checkoutSessionId?: string | null
+  billingInterval?: string | null
   currentPeriodEnd?: number | null
+  cancelAtPeriodEnd?: boolean | null
 }) {
+  const keys = stripeAccountMetadataKeys()
   const metadataPatch: Record<string, string> = {
-    stripeLastSyncedAt: new Date().toISOString(),
+    [keys.lastSyncedAt]: new Date().toISOString(),
   }
-  if (input.customerId) metadataPatch.stripeCustomerId = input.customerId
-  if (input.subscriptionId) metadataPatch.stripeSubscriptionId = input.subscriptionId
-  if (input.checkoutSessionId) metadataPatch.stripeCheckoutSessionId = input.checkoutSessionId
+  if (input.customerId) metadataPatch[keys.customerId] = input.customerId
+  if (input.subscriptionId) metadataPatch[keys.subscriptionId] = input.subscriptionId
+  if (input.checkoutSessionId) metadataPatch[keys.checkoutSessionId] = input.checkoutSessionId
+  if (input.billingInterval) metadataPatch[keys.billingInterval] = input.billingInterval
+  if (input.plan) metadataPatch[keys.subscriptionPlan] = input.plan
+  if (input.status) metadataPatch[keys.subscriptionStatus] = input.status
+  if (input.cancelAtPeriodEnd !== null && input.cancelAtPeriodEnd !== undefined) {
+    metadataPatch[keys.cancelAtPeriodEnd] = String(input.cancelAtPeriodEnd)
+  }
+  if (input.currentPeriodEnd) {
+    metadataPatch[keys.currentPeriodEndsAt] = new Date(input.currentPeriodEnd * 1000).toISOString()
+  }
+
+  if (stripeUsesTestMode()) {
+    await tx.$executeRawUnsafe(
+      `UPDATE public."BusinessAccount"
+       SET metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb,
+         "updatedAt" = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      input.accountId,
+      JSON.stringify(metadataPatch),
+    )
+    return
+  }
 
   await tx.$executeRawUnsafe(
     `UPDATE public."BusinessAccount"
@@ -136,11 +176,25 @@ function normalizeSubscriptionStatus(status: string | null, eventType: string): 
   return status
 }
 
+function subscriptionCancellationScheduled(object: StripeObject, eventType: string): boolean {
+  if (eventType === 'customer.subscription.deleted') return false
+  return boolean(object.cancel_at_period_end) === true || integer(object.cancel_at) !== null
+}
+
+function subscriptionAccessOrRenewalEnd(object: StripeObject, eventType: string): number | null {
+  const currentPeriodEnd = integer(object.current_period_end)
+  if (!subscriptionCancellationScheduled(object, eventType)) return currentPeriodEnd
+  return integer(object.cancel_at) ?? currentPeriodEnd
+}
+
 async function recordPayment(tx: Transaction, input: {
   accountId: string
   object: StripeObject
   status: 'paid' | 'failed' | 'refunded'
 }) {
+  // Sandbox events are verified and audited, but never enter the live revenue ledger.
+  if (stripeUsesTestMode()) return
+
   const providerReference = text(input.object.id)
   if (!providerReference) return
 
@@ -205,14 +259,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Invalid Stripe event.' }, { status: 400 })
     }
 
+    const environment = stripeEnvironment()
+    const expectedLivemode = environment === 'live'
+    if (event.livemode !== expectedLivemode) {
+      return NextResponse.json(
+        { success: false, error: 'Stripe event environment mismatch.' },
+        { status: 400 },
+      )
+    }
+
     const result = await db.$transaction(async (tx) => {
-      await lock(tx, `stripe-event:${event.id}`)
+      await lock(tx, `stripe-event:${stripeEventResourceId(event.id)}`)
       if (await eventAlreadyProcessed(tx, event.id)) {
         return { duplicate: true }
       }
 
       const object = event.data.object
       const metadata = object.metadata || {}
+      const metadataEnvironment = text(metadata.environment)
+      if (metadataEnvironment && metadataEnvironment !== environment) {
+        throw new Error(`Stripe event ${event.id} metadata environment mismatch.`)
+      }
+
       const businessAccountId = text(metadata.businessAccountId) || text(object.client_reference_id)
       const customerId = stringId(object.customer)
       const account = await findAccount(tx, { businessAccountId, customerId })
@@ -230,6 +298,7 @@ export async function POST(request: NextRequest) {
             customerId,
             subscriptionId: stringId(object.subscription),
             checkoutSessionId: text(object.id),
+            billingInterval: text(metadata.interval),
           })
         }
 
@@ -240,7 +309,9 @@ export async function POST(request: NextRequest) {
             status: normalizeSubscriptionStatus(text(object.status), event.type),
             customerId,
             subscriptionId: text(object.id),
-            currentPeriodEnd: integer(object.current_period_end),
+            billingInterval: text(metadata.interval),
+            currentPeriodEnd: subscriptionAccessOrRenewalEnd(object, event.type),
+            cancelAtPeriodEnd: subscriptionCancellationScheduled(object, event.type),
           })
         }
 
@@ -269,6 +340,8 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      const cancellationScheduled = subscriptionCancellationScheduled(object, event.type)
+      const scheduledCancellationAt = integer(object.cancel_at)
       await tx.$executeRawUnsafe(
         `INSERT INTO public."BusinessAuditLog"
           ("id", "actorUserId", "businessAccountId", "action", "resourceType", "resourceId", "details")
@@ -276,12 +349,19 @@ export async function POST(request: NextRequest) {
          ON CONFLICT DO NOTHING`,
         `audit-${randomUUID()}`,
         account?.id ?? null,
-        event.id,
+        stripeEventResourceId(event.id),
         JSON.stringify({
           type: event.type,
+          environment,
           stripeObjectId: text(object.id),
           matchedAccount: Boolean(account),
           supported,
+          billingInterval: text(metadata.interval),
+          cancelAtPeriodEnd: cancellationScheduled,
+          scheduledCancellationAt: scheduledCancellationAt
+            ? new Date(scheduledCancellationAt * 1000).toISOString()
+            : null,
+          sandboxLedgerWriteSkipped: stripeUsesTestMode(),
         }),
       )
 
