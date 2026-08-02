@@ -11,6 +11,14 @@ const coupleMarketplacePage = source('src/app/couple/planners/page.tsx')
 const plannerMarketplacePage = source('src/app/planner/marketplace/page.tsx')
 const adminMarketplacePage = source('src/app/admin/planner-profiles/page.tsx')
 
+const marketplacePages = [
+  directoryPage,
+  publicProfilePage,
+  coupleMarketplacePage,
+  plannerMarketplacePage,
+  adminMarketplacePage,
+]
+
 describe('planner marketplace metadata isolation', () => {
   test('public marketplace pages use marketplace-specific metadata', () => {
     expect(directoryPage).toContain('Find a Wedding Planner | Wewed')
@@ -27,6 +35,14 @@ describe('planner marketplace metadata isolation', () => {
     expect(publicProfilePage).toContain("robots: { index: false, follow: false }")
   })
 
+  test('every marketplace route overrides inherited keywords and social metadata', () => {
+    for (const page of marketplacePages) {
+      expect(page).toContain('keywords:')
+      expect(page).toContain('openGraph:')
+      expect(page).toContain('twitter:')
+    }
+  })
+
   test('protected marketplace pages are explicitly non-indexable', () => {
     for (const page of [coupleMarketplacePage, plannerMarketplacePage, adminMarketplacePage]) {
       expect(page).toContain('robots: { index: false, follow: false }')
@@ -34,13 +50,7 @@ describe('planner marketplace metadata isolation', () => {
   })
 
   test('marketplace route metadata contains no flagship wedding identity', () => {
-    for (const page of [
-      directoryPage,
-      publicProfilePage,
-      coupleMarketplacePage,
-      plannerMarketplacePage,
-      adminMarketplacePage,
-    ]) {
+    for (const page of marketplacePages) {
       expect(page).not.toContain('Charity &')
       expect(page).not.toContain('Imba Manor')
       expect(page).not.toContain('23.12.26')
