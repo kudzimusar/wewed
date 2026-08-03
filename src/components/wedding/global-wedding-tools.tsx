@@ -1,6 +1,5 @@
 'use client'
 
-import { usePathname } from 'next/navigation'
 import { PWARegister } from '@/components/wedding/pwa-register'
 import { InstallPrompt } from '@/components/wedding/install-prompt'
 import { AdminTrigger } from '@/components/wedding/admin-trigger'
@@ -19,18 +18,6 @@ import { KeyboardSectionNav } from '@/components/wedding/keyboard-section-nav'
 import { KeyboardShortcutsHelp } from '@/components/wedding/keyboard-shortcuts-help'
 
 export function GlobalWeddingTools() {
-  const pathname = usePathname()
-  const isWeddingRoute = pathname.startsWith('/w/')
-
-  if (!isWeddingRoute) {
-    return (
-      <>
-        <StoreRehydrator />
-        <PWARegister />
-      </>
-    )
-  }
-
   return (
     <>
       <StoreRehydrator />
