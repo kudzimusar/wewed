@@ -67,6 +67,24 @@ function normalizePrivacy(value: string | null | undefined): WeddingPrivacy {
   return 'private'
 }
 
+export function weddingSlugFromRequest(
+  request: NextRequest,
+  explicit?: string | null,
+): string | null {
+  const direct = explicit?.trim() || request.nextUrl.searchParams.get('slug')?.trim()
+  if (direct) return direct
+
+  const referer = request.headers.get('referer')
+  if (!referer) return null
+  try {
+    const pathname = new URL(referer).pathname
+    const match = /^\/w\/([^/]+)/.exec(pathname)
+    return match?.[1] ? decodeURIComponent(match[1]) : null
+  } catch {
+    return null
+  }
+}
+
 export async function loadWeddingAccessRecord(
   slug: string,
 ): Promise<WeddingAccessRecord | null> {
