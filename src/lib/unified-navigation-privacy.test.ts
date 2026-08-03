@@ -25,6 +25,7 @@ describe('unified Wewed navigation and wedding privacy', () => {
     const session = await source('src/lib/wedding-guest-session.ts')
     const route = await source('src/app/api/weddings/[slug]/guest-session/route.ts')
     const invitations = await source('src/app/api/planner/guests/invitations/route.ts')
+    const legacySharedToken = await source('src/app/api/privacy/verify-token/route.ts')
 
     expect(session).toContain("WEDDING_GUEST_SESSION_COOKIE = 'wewed_wedding_guest'")
     expect(session).toContain('httpOnly: true')
@@ -37,6 +38,8 @@ describe('unified Wewed navigation and wedding privacy', () => {
     expect(route).toContain("rsvp.guest.wedding.privacy === 'private'")
     expect(invitations).toContain('/w/${encodeURIComponent(wedding.slug)}?rsvp=')
     expect(invitations).toContain('guest.invitation_rotated')
+    expect(legacySharedToken).toContain('legacy_shared_token_retired')
+    expect(legacySharedToken).toContain('status: 410')
   })
 
   test('wedding payload APIs fail through the shared access resolver', async () => {
@@ -47,6 +50,7 @@ describe('unified Wewed navigation and wedding privacy', () => {
       source('src/app/api/songs/route.ts'),
       source('src/app/api/messages/route.ts'),
       source('src/app/api/media/route.ts'),
+      source('src/app/api/contributions/public/route.ts'),
     ])
 
     expect(resolver).toContain("return 'private'")
@@ -57,6 +61,21 @@ describe('unified Wewed navigation and wedding privacy', () => {
       expect(route).toContain('resolveWeddingAccessForRequest')
       expect(route).toContain('weddingAccessErrorPayload')
     }
+  })
+
+  test('RSVP writes and check-in require guest invitation identity', async () => {
+    const rsvpRoute = await source('src/app/api/rsvp/route.ts')
+    const rsvpSection = await source('src/components/wedding/rsvp-section.tsx')
+    const checkin = await source('src/components/wedding/qr-checkin.tsx')
+
+    expect(rsvpRoute).toContain('guest_invitation_required')
+    expect(rsvpRoute).toContain('access.guest.rsvpToken')
+    expect(rsvpRoute).not.toContain('guest.create')
+    expect(rsvpSection).toContain('/guest-session')
+    expect(rsvpSection).toContain('Names and email addresses alone cannot')
+    expect(checkin).toContain('/guest-session')
+    expect(checkin).not.toContain('DEMO_TOKEN_URL')
+    expect(checkin).not.toContain('pseudo-random')
   })
 
   test('every stakeholder has visible navigation from a role home', async () => {
@@ -85,7 +104,6 @@ describe('unified Wewed navigation and wedding privacy', () => {
     const manager = await source('src/components/wedding/invitation-manager.tsx')
     const plannerTool = await source('src/components/wedding/planner-invitation-tools.tsx')
     const coupleRoute = await source('src/app/couple/invitations/page.tsx')
-    const checkin = await source('src/components/wedding/qr-checkin.tsx')
 
     expect(manager).toContain('QRCode.toDataURL')
     expect(manager).toContain('Copy link')
@@ -93,8 +111,5 @@ describe('unified Wewed navigation and wedding privacy', () => {
     expect(manager).toContain('CSV')
     expect(plannerTool).toContain('Invitations & QR')
     expect(coupleRoute).toContain('CoupleInvitationsCentre')
-    expect(checkin).toContain('/guest-session')
-    expect(checkin).not.toContain('DEMO_TOKEN_URL')
-    expect(checkin).not.toContain('pseudo-random')
   })
 })
