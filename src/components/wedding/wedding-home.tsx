@@ -5,6 +5,7 @@ import { useWewedStore } from '@/lib/store'
 import { WeddingDataProvider, useWeddingContext } from '@/components/wedding/wedding-data-provider'
 import { Navbar } from '@/components/wedding/navbar'
 import { WeddingPlatformNav } from '@/components/wedding/wedding-platform-nav'
+import { GlobalWeddingTools } from '@/components/wedding/global-wedding-tools'
 import { HeroSection } from '@/components/wedding/hero-section'
 import { CountdownBanner } from '@/components/wedding/countdown-banner'
 import { OurStory } from '@/components/wedding/our-story'
@@ -56,6 +57,7 @@ function WeddingHomeContent() {
     <ThemeApplier />
     <main id="main-content" className="flex-1"><HeroSection /><PlannerMarketplaceInvitation />{activeLifecycle === 'before' ? <><OurStory /><VenueSection /><TheDay /><CountdownBanner /><RsvpSection /><TravelStay /><GiftRegistry /><SongbookEnhanced /><IntroductionsBanner /><Guests /><VendorMarketplace /><QrCheckin /><PhotoGallery /><MediaUpload /><MemoryCapsule /><LiveWall />{mounted && <ContributionGallery />}<FaqSection /><ShareSection /><TelegramWidget /><WewedPricingCatalog /><PlatformVision /><MerchTeaser /></> : <><AfterSections /><PhotoGallery /><MediaUpload /><LiveWall />{mounted && <ContributionGallery />}<MemoryCapsule /><VendorMarketplace /><GiftRegistry /><FaqSection /><ShareSection /><TelegramWidget /><WewedPricingCatalog /><PlatformVision /><MerchTeaser /></>}</main>
     {mounted && <InvitationRsvpDialog />}<Footer />
+    <GlobalWeddingTools />
     <div className="wewed-print-footer" aria-hidden="true">Printed from wewed.app/w/{slug} · {names} · {date}</div>
   </div>
 }
