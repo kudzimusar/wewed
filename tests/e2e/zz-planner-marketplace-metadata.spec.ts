@@ -5,6 +5,8 @@ import { resetMarketplaceE2EFixture } from './support/marketplace-fixture'
 async function expectNoWeddingMetadata(page: import('@playwright/test').Page) {
   for (const selector of [
     'meta[name="keywords"]',
+    'meta[property="og:title"]',
+    'meta[property="og:description"]',
     'meta[name="twitter:title"]',
     'meta[name="twitter:description"]',
   ]) {
@@ -56,6 +58,35 @@ test('planner directory and profile metadata never inherit wedding identity', as
     'Secure full-service planning',
   )
   await expect(page.locator('body')).not.toContainText(E2E_WEDDINGS.primary.seededTask)
+  await expectNoWeddingMetadata(page)
+  expect(runtimeErrors).toEqual([])
+})
+
+test('secure planner workspace metadata never inherit wedding identity', async ({ page }) => {
+  const runtimeErrors: string[] = []
+  page.on('pageerror', (error) => runtimeErrors.push(error.message))
+  page.on('response', (response) => {
+    if (response.status() >= 500) runtimeErrors.push(`${response.status()} ${response.url()}`)
+  })
+
+  await page.goto('/planner/tasks')
+  await expect(page).toHaveTitle('Wewed Planner Workspace')
+  await expect(page.locator('meta[name="description"]')).toHaveAttribute(
+    'content',
+    'Secure workspace for wedding planners, coordinators, and couples.',
+  )
+  await expect(page.locator('meta[name="keywords"]')).toHaveAttribute(
+    'content',
+    'Wewed,planner workspace,wedding planning',
+  )
+  await expect(page.locator('meta[property="og:title"]')).toHaveAttribute(
+    'content',
+    'Wewed Planner Workspace',
+  )
+  await expect(page.locator('meta[name="twitter:title"]')).toHaveAttribute(
+    'content',
+    'Wewed Planner Workspace',
+  )
   await expectNoWeddingMetadata(page)
   expect(runtimeErrors).toEqual([])
 })

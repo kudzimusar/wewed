@@ -13,13 +13,19 @@ describe('Phase 4 independent planner portal', () => {
     expect(trigger).not.toContain('SecureWeddingPlanner')
   })
 
-  test('planner has a dedicated application route', async () => {
+  test('planner has a dedicated application route with isolated metadata', async () => {
     const page = await source('src/app/planner/page.tsx')
     const layout = await source('src/app/planner/layout.tsx')
 
     expect(page).toContain('SecureWeddingPlanner')
-    expect(layout).toContain("title: 'Wewed Planner Workspace'")
+    expect(layout).toContain("const title = 'Wewed Planner Workspace'")
+    expect(layout).toContain('keywords:')
+    expect(layout).toContain('openGraph:')
+    expect(layout).toContain('twitter:')
     expect(layout).toContain('index: false')
+    expect(layout).toContain('follow: false')
+    expect(layout).not.toContain('Charity &')
+    expect(layout).not.toContain('Imba Manor')
   })
 
   test('secure planner mounts one standalone application shell', async () => {
