@@ -17,24 +17,21 @@ import { AmbientMusicPlayer } from '@/components/wedding/ambient-music-player'
 import { SectionTracker } from '@/components/wedding/section-tracker'
 import { KeyboardSectionNav } from '@/components/wedding/keyboard-section-nav'
 import { KeyboardShortcutsHelp } from '@/components/wedding/keyboard-shortcuts-help'
-import { PublicRegistrationTrigger } from '@/components/public/public-registration-trigger'
-
-const ISOLATED_UTILITY_ROUTES = [
-  '/admin',
-  '/billing',
-  '/register',
-  '/forgot-password',
-  '/reset-password',
-]
 
 export function GlobalWeddingTools() {
   const pathname = usePathname()
-  const isIsolatedUtilityRoute = ISOLATED_UTILITY_ROUTES.some(
-    (route) => pathname === route || pathname.startsWith(`${route}/`),
-  )
+  const isWeddingRoute = pathname.startsWith('/w/')
   const isPlannerRoute = pathname === '/planner' || pathname.startsWith('/planner/')
 
-  if (isIsolatedUtilityRoute) return null
+  if (!isWeddingRoute) {
+    return (
+      <>
+        <StoreRehydrator />
+        <PWARegister />
+      </>
+    )
+  }
+
   if (isPlannerRoute) {
     return (
       <>
@@ -62,7 +59,6 @@ export function GlobalWeddingTools() {
       <SectionTracker />
       <KeyboardSectionNav />
       <KeyboardShortcutsHelp />
-      <PublicRegistrationTrigger />
     </>
   )
 }
