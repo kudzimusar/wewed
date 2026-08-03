@@ -21,18 +21,8 @@ import { KeyboardShortcutsHelp } from '@/components/wedding/keyboard-shortcuts-h
 export function GlobalWeddingTools() {
   const pathname = usePathname()
   const isWeddingRoute = pathname.startsWith('/w/')
-  const isPlannerRoute = pathname === '/planner' || pathname.startsWith('/planner/')
 
   if (!isWeddingRoute) {
-    return (
-      <>
-        <StoreRehydrator />
-        <PWARegister />
-      </>
-    )
-  }
-
-  if (isPlannerRoute) {
     return (
       <>
         <StoreRehydrator />
