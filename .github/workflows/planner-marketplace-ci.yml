@@ -17,7 +17,7 @@ concurrency:
 jobs:
   secure-marketplace:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     services:
       postgres:
         image: postgres:16-alpine
@@ -52,7 +52,11 @@ jobs:
       - run: bunx prisma validate --schema prisma/schema.prisma
       - run: bunx prisma generate --schema prisma/schema.prisma
       - run: bunx prisma migrate deploy --schema prisma/schema.prisma
-      - run: bun test src/lib/planner-marketplace-contract.test.ts src/lib/planner-marketplace-metadata.test.ts
+      - run: >-
+          bun test
+          src/lib/planner-marketplace-contract.test.ts
+          src/lib/planner-marketplace-metadata.test.ts
+          src/lib/unified-navigation-privacy.test.ts
       - run: psql "postgresql://postgres:postgres@localhost:5432/wewed" -f scripts/planner-marketplace-postgres-integration.sql
       - run: >-
           bunx prisma migrate diff
@@ -65,4 +69,6 @@ jobs:
           bunx playwright test
           tests/e2e/zz-planner-marketplace.spec.ts
           tests/e2e/zz-planner-marketplace-metadata.spec.ts
+          tests/e2e/zz-unified-navigation-privacy.spec.ts
           --project=desktop-chromium
+          --project=mobile-chromium
