@@ -1,151 +1,132 @@
-import { db } from "@/lib/db";
-import { NextRequest, NextResponse } from "next/server";
-
-// ─── Hardcoded Sample Messages ───────────────────────────────────────────────
-
-const SAMPLE_MESSAGES = [
-  {
-    id: "sample-1",
-    type: "wall",
-    content: "Wishing you a lifetime of love and happiness! 🤍",
-    authorName: "Tendai M.",
-    isPublic: true,
-    createdAt: new Date("2026-01-15T10:00:00Z").toISOString(),
-  },
-  {
-    id: "sample-2",
-    type: "wall",
-    content: "Charity & Kudzie, you two are proof that true love exists. Makorokoto!",
-    authorName: "Rumbidzai C.",
-    isPublic: true,
-    createdAt: new Date("2026-02-20T14:30:00Z").toISOString(),
-  },
-  {
-    id: "sample-3",
-    type: "wall",
-    content:
-      "From the first day I met you both, I knew this was forever. So happy for you!",
-    authorName: "Takudzwa M.",
-    isPublic: true,
-    createdAt: new Date("2026-03-10T09:15:00Z").toISOString(),
-  },
-];
-
-// ─── Types ────────────────────────────────────────────────────────────────────
+import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/db'
+import {
+  resolveWeddingAccessForRequest,
+  weddingAccessErrorPayload,
+  weddingSlugFromRequest,
+} from '@/lib/wedding-public-access'
 
 interface MessagePayload {
-  type: string;
-  content: string;
-  authorName: string;
-  authorToken?: string;
-  weddingId?: string;
+  type?: unknown
+  content?: unknown
+  authorName?: unknown
+  slug?: unknown
 }
 
-// ─── GET /api/messages ───────────────────────────────────────────────────────
-// Return messages for the guest wall.
-// Falls back to hardcoded sample messages when DB is empty.
+function noStore(response: NextResponse): NextResponse {
+  response.headers.set('Cache-Control', 'private, no-store, max-age=0')
+  response.headers.set('Vary', 'Cookie')
+  return response
+}
 
-export async function GET() {
-  try {
-    const wedding = await db.wedding.findFirst({
-      where: { slug: "charity-and-kudzie" },
-    });
-
-    if (wedding) {
-      const dbMessages = await db.message.findMany({
-        where: {
-          weddingId: wedding.id,
-          isPublic: true,
-        },
-        orderBy: { createdAt: "desc" },
-      });
-
-      if (dbMessages.length > 0) {
-        return NextResponse.json({
-          success: true,
-          source: "database",
-          count: dbMessages.length,
-          data: dbMessages,
-        });
-      }
+async function accessForRequest(request: NextRequest, explicit?: unknown) {
+  const slug = weddingSlugFromRequest(
+    request,
+    typeof explicit === 'string' ? explicit : null,
+  )
+  if (!slug) {
+    return {
+      access: null,
+      error: noStore(
+        NextResponse.json(
+          { success: false, error: 'Wedding route context is required.' },
+          { status: 400 },
+        ),
+      ),
     }
+  }
+  const access = await resolveWeddingAccessForRequest(request, slug)
+  if (!access.allowed || !access.wedding) {
+    return {
+      access: null,
+      error: noStore(
+        NextResponse.json(weddingAccessErrorPayload(access), {
+          status: access.status,
+        }),
+      ),
+    }
+  }
+  return { access, error: null }
+}
 
-    // Fallback: return sample messages
-    return NextResponse.json({
-      success: true,
-      source: "hardcoded",
-      count: SAMPLE_MESSAGES.length,
-      data: SAMPLE_MESSAGES,
-    });
+export async function GET(request: NextRequest) {
+  try {
+    const resolved = await accessForRequest(request)
+    if (resolved.error) return resolved.error
+
+    const messages = await db.message.findMany({
+      where: {
+        weddingId: resolved.access.wedding.id,
+        isPublic: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    })
+
+    return noStore(
+      NextResponse.json({
+        success: true,
+        source: 'database',
+        count: messages.length,
+        data: messages,
+      }),
+    )
   } catch (error) {
-    console.error("[MESSAGES GET] Error:", error);
-
-    // Even on DB error, still return sample messages
-    return NextResponse.json({
-      success: true,
-      source: "hardcoded_fallback",
-      count: SAMPLE_MESSAGES.length,
-      data: SAMPLE_MESSAGES,
-    });
+    console.error('[MESSAGES GET] Error:', error)
+    return noStore(
+      NextResponse.json(
+        { success: false, error: 'Failed to load wedding messages.' },
+        { status: 500 },
+      ),
+    )
   }
 }
 
-// ─── POST /api/messages ──────────────────────────────────────────────────────
-// Add a message to the guest wall
-
 export async function POST(request: NextRequest) {
   try {
-    const body: MessagePayload = await request.json();
+    const body = (await request.json().catch(() => null)) as MessagePayload | null
+    const content = typeof body?.content === 'string' ? body.content.trim() : ''
+    const submittedName =
+      typeof body?.authorName === 'string' ? body.authorName.trim() : ''
 
-    // Validate
-    if (!body.content || typeof body.content !== "string" || body.content.trim().length === 0) {
+    if (!content) {
       return NextResponse.json(
-        { error: "Message content is required" },
-        { status: 400 }
-      );
-    }
-    if (!body.authorName || typeof body.authorName !== "string" || body.authorName.trim().length === 0) {
-      return NextResponse.json(
-        { error: "Author name is required" },
-        { status: 400 }
-      );
+        { success: false, error: 'Message content is required.' },
+        { status: 400 },
+      )
     }
 
-    // Find the flagship wedding
-    const weddingId =
-      body.weddingId ??
-      (await db.wedding.findFirst({ where: { slug: "charity-and-kudzie" } }))?.id;
+    const resolved = await accessForRequest(request, body?.slug)
+    if (resolved.error) return resolved.error
 
-    if (!weddingId) {
+    const authorName = resolved.access.guest?.name || submittedName
+    if (!authorName) {
       return NextResponse.json(
-        { error: "No wedding found. Please seed the database first." },
-        { status: 404 }
-      );
+        { success: false, error: 'Author name is required.' },
+        { status: 400 },
+      )
     }
 
     const message = await db.message.create({
       data: {
-        type: body.type ?? "wall",
-        content: body.content.trim(),
-        authorName: body.authorName.trim(),
-        authorToken: body.authorToken || null,
+        type:
+          typeof body?.type === 'string' && body.type.trim()
+            ? body.type.trim()
+            : 'wall',
+        content,
+        authorName,
+        authorToken: resolved.access.guest?.rsvpToken ?? null,
         isPublic: true,
-        weddingId,
+        weddingId: resolved.access.wedding.id,
       },
-    });
+    })
 
-    return NextResponse.json(
-      {
-        success: true,
-        data: message,
-      },
-      { status: 201 }
-    );
+    return NextResponse.json({ success: true, data: message }, { status: 201 })
   } catch (error) {
-    console.error("[MESSAGES POST] Error:", error);
+    console.error('[MESSAGES POST] Error:', error)
     return NextResponse.json(
-      { error: "Failed to add message" },
-      { status: 500 }
-    );
+      { success: false, error: 'Failed to add wedding message.' },
+      { status: 500 },
+    )
   }
 }
