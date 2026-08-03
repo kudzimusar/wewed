@@ -2,8 +2,9 @@ import type { Metadata, Viewport } from 'next'
 import { Inter, Cormorant_Garamond } from 'next/font/google'
 import './globals.css'
 import { Toaster } from '@/components/ui/toaster'
-import { GlobalWeddingTools } from '@/components/wedding/global-wedding-tools'
 import { SkipToContent } from '@/components/wedding/skip-to-content'
+import { StoreRehydrator } from '@/components/wedding/store-rehydrator'
+import { PWARegister } from '@/components/wedding/pwa-register'
 import { ThemeProvider } from '@/components/theme-provider'
 
 const inter = Inter({
@@ -40,16 +41,8 @@ export const metadata: Metadata = {
     icon: '/icon-192.png',
     apple: '/icon-512.png',
   },
-  openGraph: {
-    title,
-    description,
-    type: 'website',
-  },
-  twitter: {
-    card: 'summary',
-    title,
-    description,
-  },
+  openGraph: { title, description, type: 'website' },
+  twitter: { card: 'summary', title, description },
   manifest: '/manifest.json',
 }
 
@@ -68,10 +61,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         suppressHydrationWarning
       >
         <ThemeProvider>
+          <StoreRehydrator />
+          <PWARegister />
           <SkipToContent />
           {children}
           <Toaster />
-          <GlobalWeddingTools />
         </ThemeProvider>
       </body>
     </html>
