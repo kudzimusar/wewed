@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   ArrowLeft,
   ArrowRight,
@@ -31,6 +31,8 @@ import { marketplaceFetch, type PublicPlannerProfile } from '@/components/market
 
 const HERO_VIDEO = 'https://www.pexels.com/download/video/8247136/'
 const HERO_POSTER = 'https://images.pexels.com/photos/13857890/pexels-photo-13857890.jpeg?cs=srgb&dl=pexels-bwalya-marcel-ngosa-2381292-13857890.jpg&fm=jpg'
+
+type PlannerLoadState = 'loading' | 'ready' | 'empty' | 'error'
 
 const roles = [
   {
@@ -113,6 +115,7 @@ export function PublicPlatformHome() {
   const [plannerIndex, setPlannerIndex] = useState(0)
   const [inspirationIndex, setInspirationIndex] = useState(0)
   const [planners, setPlanners] = useState<PublicPlannerProfile[]>([])
+  const [plannerLoadState, setPlannerLoadState] = useState<PlannerLoadState>('loading')
 
   useEffect(() => {
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -123,35 +126,23 @@ export function PublicPlatformHome() {
       })
     }
     void marketplaceFetch<{ planners: PublicPlannerProfile[] }>('/api/marketplace/planners')
-      .then((payload) => setPlanners(payload.planners.slice(0, 8)))
-      .catch(() => setPlanners([]))
+      .then((payload) => {
+        const publishedPlanners = payload.planners.slice(0, 8)
+        setPlanners(publishedPlanners)
+        setPlannerLoadState(publishedPlanners.length ? 'ready' : 'empty')
+      })
+      .catch(() => {
+        setPlanners([])
+        setPlannerLoadState('error')
+      })
   }, [])
 
-  const featuredPlanners = useMemo(() => {
-    if (planners.length) return planners
-    return [
-      {
-        id: 'featured-planner-placeholder',
-        slug: 'eleven-eleven-testing-uat',
-        displayName: 'Eleven Eleven Testing — UAT',
-        headline: 'Controlled Wewed marketplace test profile',
-        bio: 'A published test profile demonstrating how verified professionals appear in the Wewed marketplace.',
-        serviceAreas: ['Zimbabwe'],
-        services: ['Full planning', 'Coordination'],
-        weddingStyles: ['Modern'],
-        languages: ['English'],
-        yearsExperience: null,
-        minimumGuestCount: null,
-        maximumGuestCount: null,
-        priceBand: 'contact',
-        availabilityStatus: 'limited',
-        portfolio: [],
-        publishedAt: null,
-      } satisfies PublicPlannerProfile,
-    ]
-  }, [planners])
-
-  const visiblePlanners = Array.from({ length: Math.min(4, featuredPlanners.length) }, (_, offset) => featuredPlanners[(plannerIndex + offset) % featuredPlanners.length])
+  const visiblePlanners = planners.length
+    ? Array.from(
+        { length: Math.min(4, planners.length) },
+        (_, offset) => planners[(plannerIndex + offset) % planners.length],
+      )
+    : []
   const visibleInspiration = Array.from({ length: 4 }, (_, offset) => inspiration[(inspirationIndex + offset) % inspiration.length])
 
   function toggleVideo() {
@@ -253,10 +244,24 @@ export function PublicPlatformHome() {
       <section className="mx-auto max-w-[90rem] px-4 py-20 sm:px-6 lg:px-8" aria-labelledby="featured-planners-title">
         <div className="flex flex-wrap items-end justify-between gap-5">
           <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-muted">Verified professional support</p><h2 id="featured-planners-title" className="mt-3 font-serif text-4xl sm:text-5xl">Find your perfect planner.</h2><p className="mt-3 text-sm text-espresso/60">Published profiles from the real Wewed marketplace—curated for your service needs and celebration style.</p></div>
-          <div className="flex items-center gap-2"><button type="button" aria-label="Previous featured planners" onClick={() => setPlannerIndex((current) => (current - 1 + featuredPlanners.length) % featuredPlanners.length)} className="flex size-11 items-center justify-center rounded-full border border-gold/25 bg-white hover:bg-gold hover:text-espresso focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"><ArrowLeft className="size-4" /></button><button type="button" aria-label="Next featured planners" onClick={() => setPlannerIndex((current) => (current + 1) % featuredPlanners.length)} className="flex size-11 items-center justify-center rounded-full border border-gold/25 bg-white hover:bg-gold hover:text-espresso focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"><ArrowRight className="size-4" /></button><Link href="/planners" className="ml-2 text-sm font-semibold text-gold-muted hover:text-espresso focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold">View all planners</Link></div>
+          <div className="flex items-center gap-2"><button type="button" aria-label="Previous featured planners" disabled={planners.length < 2} onClick={() => setPlannerIndex((current) => planners.length ? (current - 1 + planners.length) % planners.length : 0)} className="flex size-11 items-center justify-center rounded-full border border-gold/25 bg-white hover:bg-gold hover:text-espresso focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold disabled:cursor-not-allowed disabled:opacity-40"><ArrowLeft className="size-4" /></button><button type="button" aria-label="Next featured planners" disabled={planners.length < 2} onClick={() => setPlannerIndex((current) => planners.length ? (current + 1) % planners.length : 0)} className="flex size-11 items-center justify-center rounded-full border border-gold/25 bg-white hover:bg-gold hover:text-espresso focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold disabled:cursor-not-allowed disabled:opacity-40"><ArrowRight className="size-4" /></button><Link href="/planners" className="ml-2 text-sm font-semibold text-gold-muted hover:text-espresso focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold">View all planners</Link></div>
         </div>
-        <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-4" data-testid="featured-planner-carousel">
-          {visiblePlanners.map((planner, cardIndex) => (
+        <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-4" data-testid="featured-planner-carousel" aria-live="polite" aria-busy={plannerLoadState === 'loading'}>
+          {plannerLoadState === 'loading' && Array.from({ length: 4 }, (_, index) => (
+            <article key={index} aria-hidden="true" className="overflow-hidden rounded-3xl border border-gold/15 bg-white shadow-sm">
+              <div className="h-36 animate-pulse bg-espresso/10" />
+              <div className="space-y-3 p-5"><div className="h-6 w-2/3 animate-pulse rounded-full bg-espresso/10" /><div className="h-3 w-full animate-pulse rounded-full bg-espresso/10" /><div className="h-3 w-4/5 animate-pulse rounded-full bg-espresso/10" /><div className="h-10 animate-pulse rounded-full bg-gold/10" /></div>
+            </article>
+          ))}
+          {(plannerLoadState === 'empty' || plannerLoadState === 'error') && (
+            <div className="rounded-3xl border border-gold/20 bg-champagne/60 p-8 text-center md:col-span-2 xl:col-span-4" role="status">
+              <UsersRound className="mx-auto size-7 text-gold-muted" />
+              <h3 className="mt-4 font-serif text-2xl">{plannerLoadState === 'error' ? 'Planner profiles are temporarily unavailable.' : 'Published planner profiles are coming soon.'}</h3>
+              <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-espresso/60">Browse the directory for current availability or join Wewed as a professional. We never substitute test accounts or fabricated profiles for real marketplace data.</p>
+              <div className="mt-5 flex flex-wrap justify-center gap-3"><Link href="/planners" className="rounded-full bg-espresso px-5 py-2.5 text-xs font-semibold text-champagne focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold">Open planner directory</Link><Link href="/for-planners" className="rounded-full border border-gold/30 bg-white px-5 py-2.5 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold">Join as a planner</Link></div>
+            </div>
+          )}
+          {plannerLoadState === 'ready' && visiblePlanners.map((planner, cardIndex) => (
             <article key={`${planner.id}-${cardIndex}`} className="wewed-card-hover overflow-hidden rounded-3xl border border-gold/20 bg-white shadow-sm">
               <div className="relative h-36 overflow-hidden bg-gradient-to-br from-espresso via-plum to-clay p-5 text-champagne"><div className="absolute -right-8 -top-8 size-32 rounded-full border border-gold/20" /><div className="absolute -bottom-12 left-8 size-36 rounded-full bg-gold/10" /><div className="relative flex items-start justify-between"><span className="flex size-14 items-center justify-center rounded-full border border-gold/30 bg-champagne font-serif text-2xl text-espresso">{planner.displayName.split(' ').map((part) => part[0]).slice(0, 2).join('')}</span><span className="rounded-full border border-white/20 bg-black/20 px-2.5 py-1 text-[10px] uppercase tracking-[0.12em]">{planner.availabilityStatus.replaceAll('_', ' ')}</span></div></div>
               <div className="p-5"><h3 className="font-serif text-2xl">{planner.displayName}</h3><p className="mt-1 line-clamp-2 text-sm text-espresso/58">{planner.headline || 'Wedding planning professional'}</p><p className="mt-4 flex items-center gap-2 text-xs text-espresso/60"><MapPin className="size-3.5 text-gold-muted" />{planner.serviceAreas.join(', ') || 'Service area by consultation'}</p><div className="mt-4 flex flex-wrap gap-1.5">{planner.services.slice(0, 3).map((service) => <span key={service} className="rounded-full bg-champagne px-2.5 py-1 text-[10px]">{service}</span>)}</div><Link href={`/planners/${planner.slug}`} className="mt-5 flex w-full items-center justify-center gap-2 rounded-full border border-gold/30 px-4 py-2.5 text-xs font-semibold transition hover:bg-espresso hover:text-champagne focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold">View profile <ArrowRight className="size-3.5" /></Link></div>
