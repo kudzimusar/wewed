@@ -89,7 +89,7 @@ export async function openModule(page: Page, moduleKey: ModuleKey): Promise<void
   }
 
   await expect(page).toHaveURL(new RegExp(`/planner/${routeKey}(?:[?#]|$)`))
-  await expect(page.getByRole('heading', { name: E2E_WEDDINGS.primary.title })).toBeVisible()
+  await expect(page.locator('#active-wedding')).toBeVisible()
 
   const worksheetToggle = page.getByTestId('worksheet-tools-toggle')
   if (await worksheetToggle.isVisible()) {
