@@ -2,7 +2,26 @@
 
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft, ArrowRight, Building2, CalendarHeart, Camera, CirclePause, CirclePlay, Flower2, KeyRound, MapPin, Music2, Search, ShieldCheck, Store, UsersRound, UtensilsCrossed } from 'lucide-react'
+import {
+  ArrowLeft,
+  ArrowRight,
+  BriefcaseBusiness,
+  Building2,
+  CalendarHeart,
+  Camera,
+  ChevronRight,
+  CirclePause,
+  CirclePlay,
+  Flower2,
+  KeyRound,
+  MapPin,
+  Music2,
+  Search,
+  ShieldCheck,
+  Store,
+  UsersRound,
+  UtensilsCrossed,
+} from 'lucide-react'
 import { PublicPlatformShell } from '@/components/public/public-platform-shell'
 import { marketplaceFetch, type PublicPlannerProfile } from '@/components/marketplace/marketplace-types'
 
@@ -10,6 +29,11 @@ const HERO_VIDEO = 'https://d8j0ntlcm91z4.cloudfront.net/user_3HRETeCH9lBYSVHRJr
 const HERO_POSTER = '/media/wewed-couple-hero.svg'
 
 type PlannerLoadState = 'loading' | 'ready' | 'empty' | 'error'
+type HomeSession = {
+  authorized?: boolean
+  user?: { displayName?: string | null; role?: 'admin' | 'couple' | 'planner' }
+  activeWedding?: { slug: string; title: string; date: string; venue: string; venueCity?: string }
+}
 
 const roles = [
   { eyebrow: 'For couples', title: 'Your love story, beautifully planned.', detail: 'Private planning, trusted professionals, invitations and everything you need in one place.', href: '/couple', label: 'Start planning', image: '/media/wewed-couple-planning.svg', icon: CalendarHeart },
@@ -25,13 +49,19 @@ const inspiration = [
 ] as const
 
 const vendorCategories = [
-  { title: 'Venues', detail: 'Gardens, hotels and destination spaces', icon: Building2, image: '/media/wewed-couple-garden.svg' },
-  { title: 'Photographers', detail: 'Stories captured with intention', icon: Camera, image: '/media/wewed-couple-celebration.svg' },
-  { title: 'Florists', detail: 'Floral artistry for every style', icon: Flower2, image: '/media/wewed-couple-garden.svg' },
-  { title: 'Caterers', detail: 'Celebration menus made memorable', icon: UtensilsCrossed, image: '/media/wewed-couple-reception.svg' },
-  { title: 'Entertainment', detail: 'Music that keeps every table moving', icon: Music2, image: '/media/wewed-couple-celebration.svg' },
-  { title: 'Décor & rentals', detail: 'Thoughtful details from aisle to afterparty', icon: Store, image: '/media/wewed-couple-planning.svg' },
+  { title: 'Venues', category: 'venue', detail: 'Gardens, hotels and destination spaces', icon: Building2, image: '/media/wewed-couple-garden.svg' },
+  { title: 'Photographers', category: 'photography', detail: 'Stories captured with intention', icon: Camera, image: '/media/wewed-couple-celebration.svg' },
+  { title: 'Florists', category: 'florals', detail: 'Floral artistry for every style', icon: Flower2, image: '/media/wewed-couple-garden.svg' },
+  { title: 'Caterers', category: 'catering', detail: 'Celebration menus made memorable', icon: UtensilsCrossed, image: '/media/wewed-couple-reception.svg' },
+  { title: 'Entertainment', category: 'entertainment', detail: 'Music that keeps every table moving', icon: Music2, image: '/media/wewed-couple-celebration.svg' },
+  { title: 'Décor & rentals', category: 'decor-rentals', detail: 'Thoughtful details from aisle to afterparty', icon: Store, image: '/media/wewed-couple-planning.svg' },
 ] as const
+
+function roleDestination(role: HomeSession['user'] extends infer T ? T extends { role?: infer R } ? R : never : never): string {
+  if (role === 'admin') return '/admin'
+  if (role === 'planner') return '/planner'
+  return '/couple'
+}
 
 export function PublicPlatformHomeV2() {
   const videoRef = useRef<HTMLVideoElement | null>(null)
@@ -41,34 +71,55 @@ export function PublicPlatformHomeV2() {
   const [inspirationIndex, setInspirationIndex] = useState(0)
   const [planners, setPlanners] = useState<PublicPlannerProfile[]>([])
   const [plannerLoadState, setPlannerLoadState] = useState<PlannerLoadState>('loading')
+  const [session, setSession] = useState<HomeSession | null>(null)
 
   useEffect(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
+    if (reducedMotion.matches) {
       window.requestAnimationFrame(() => {
         videoRef.current?.pause()
         setVideoPaused(true)
       })
     }
-    void marketplaceFetch<{ planners: PublicPlannerProfile[] }>('/api/marketplace/planners')
-      .then(({ planners: records }) => {
+
+    void Promise.allSettled([
+      marketplaceFetch<{ planners: PublicPlannerProfile[] }>('/api/marketplace/planners').then(({ planners: records }) => {
         const published = records.slice(0, 8)
         setPlanners(published)
         setPlannerLoadState(published.length ? 'ready' : 'empty')
-      })
-      .catch(() => {
+      }).catch(() => {
         setPlanners([])
         setPlannerLoadState('error')
-      })
+      }),
+      fetch('/api/auth/me', { cache: 'no-store', credentials: 'same-origin' })
+        .then((response) => response.json())
+        .then((payload: HomeSession) => setSession(payload))
+        .catch(() => setSession({ authorized: false })),
+    ])
   }, [])
 
-  const visiblePlanners = planners.length ? Array.from({ length: Math.min(4, planners.length) }, (_, offset) => planners[(plannerIndex + offset) % planners.length]) : []
+  const visiblePlanners = planners.length
+    ? Array.from({ length: Math.min(4, planners.length) }, (_, offset) => planners[(plannerIndex + offset) % planners.length])
+    : []
   const visibleInspiration = Array.from({ length: 4 }, (_, offset) => inspiration[(inspirationIndex + offset) % inspiration.length])
+  const liveJourney = Boolean(session?.authorized && session.activeWedding && session.user)
+  const journeyTitle = liveJourney ? session?.activeWedding?.title : 'Your wedding journey'
+  const journeyLocation = liveJourney
+    ? [session?.activeWedding?.venue, session?.activeWedding?.venueCity].filter(Boolean).join(' · ')
+    : 'An example of what a signed-in account can show'
+  const journeyDate = liveJourney && session?.activeWedding?.date
+    ? new Date(session.activeWedding.date).toLocaleDateString(undefined, { dateStyle: 'long' })
+    : null
 
   function toggleVideo() {
     const video = videoRef.current
     if (!video || videoFailed) return
-    if (video.paused) void video.play().then(() => setVideoPaused(false)).catch(() => setVideoFailed(true))
-    else {
+    if (video.paused) {
+      void video.play().then(() => setVideoPaused(false)).catch(() => {
+        setVideoFailed(true)
+        setVideoPaused(true)
+      })
+    } else {
       video.pause()
       setVideoPaused(true)
     }
@@ -78,8 +129,20 @@ export function PublicPlatformHomeV2() {
     <PublicPlatformShell>
       <section className="relative isolate min-h-[44rem] overflow-hidden bg-espresso text-champagne" data-testid="africa-ready-hero">
         <img src={HERO_POSTER} alt="Black bride and groom dancing together at their wedding" className="absolute inset-0 size-full object-cover" fetchPriority="high" />
-        <video ref={videoRef} className={`absolute inset-0 size-full object-cover transition-opacity ${videoFailed ? 'opacity-0' : 'opacity-80'}`} src={HERO_VIDEO} poster={HERO_POSTER} muted autoPlay loop playsInline preload="metadata" onError={() => { setVideoFailed(true); setVideoPaused(true) }} aria-label="Bride and groom dancing at their wedding" />
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(18,12,8,0.96),rgba(18,12,8,0.72)_42%,rgba(18,12,8,0.28)_72%,rgba(18,12,8,0.58))]" />
+        <video
+          ref={videoRef}
+          className={`absolute inset-0 size-full object-cover object-center transition-opacity duration-500 ${videoFailed ? 'opacity-0' : 'opacity-100'}`}
+          src={HERO_VIDEO}
+          poster={HERO_POSTER}
+          muted
+          autoPlay
+          loop
+          playsInline
+          preload="metadata"
+          onError={() => { setVideoFailed(true); setVideoPaused(true) }}
+          aria-label="Black bride and groom dancing together at their wedding reception"
+        />
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(18,12,8,0.96),rgba(18,12,8,0.72)_42%,rgba(18,12,8,0.18)_72%,rgba(18,12,8,0.54))]" />
         <div className="relative mx-auto grid min-h-[44rem] max-w-[90rem] items-center gap-10 px-4 py-20 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:px-8">
           <div className="max-w-2xl">
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-gold">Everything for a beautifully planned wedding</p>
@@ -91,6 +154,40 @@ export function PublicPlatformHomeV2() {
             </div>
             <p className="mt-8 text-sm text-champagne/70">Made for couples, planners, guests and the people who bring weddings to life.</p>
           </div>
+
+          <aside className="hidden justify-self-end lg:block" data-testid="wedding-journey-card">
+            <div className="w-[25rem] rounded-[2rem] border border-white/25 bg-champagne/95 p-6 text-espresso shadow-2xl backdrop-blur-xl">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gold-muted">{liveJourney ? 'Your live wedding workspace' : 'Example wedding journey · preview only'}</p>
+                  <h2 className="mt-3 font-serif text-3xl">{journeyTitle}</h2>
+                  <p className="mt-2 text-sm text-espresso/60">{journeyLocation}{journeyDate ? ` · ${journeyDate}` : ''}</p>
+                </div>
+                <CalendarHeart className="mt-1 size-6 text-clay" />
+              </div>
+
+              <div className="mt-6 space-y-3">
+                {(liveJourney
+                  ? [
+                      ['Open your workspace', roleDestination(session?.user?.role), 'Live account and authorized wedding data'],
+                      ['View wedding site', `/w/${session?.activeWedding?.slug}`, 'Open the active wedding experience'],
+                      ['Manage invitations', session?.user?.role === 'couple' ? '/couple/invitations' : roleDestination(session?.user?.role), 'Continue in your permitted workspace'],
+                    ]
+                  : [
+                      ['Create your account', '/register', 'Register as a couple, planner, venue or vendor'],
+                      ['Find a professional', '/planners', 'Browse published marketplace profiles'],
+                      ['Sign in to see live data', '/sign-in', 'No private wedding details are shown publicly'],
+                    ]
+                ).map(([label, href, detail]) => (
+                  <Link key={label} href={href} className="group flex items-center gap-3 rounded-2xl bg-white/85 p-4 transition hover:bg-white">
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-gold/12 text-gold-muted"><ChevronRight className="size-4" /></span>
+                    <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{label}</span><span className="mt-1 block text-xs leading-5 text-espresso/55">{detail}</span></span>
+                    <ArrowRight className="size-4 text-espresso/35 transition group-hover:translate-x-1" />
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </aside>
         </div>
         <button type="button" onClick={toggleVideo} disabled={videoFailed} className="absolute bottom-5 right-5 z-10 flex items-center gap-2 rounded-full border border-white/30 bg-black/45 px-4 py-2 text-xs text-white backdrop-blur disabled:opacity-70" aria-pressed={videoPaused} data-testid="hero-video-control">
           {videoPaused || videoFailed ? <CirclePlay className="size-4" /> : <CirclePause className="size-4" />}
@@ -112,7 +209,7 @@ export function PublicPlatformHomeV2() {
       <section className="mx-auto max-w-[90rem] px-4 py-20 sm:px-6 lg:px-8" aria-labelledby="featured-planners-title">
         <div className="flex flex-wrap items-end justify-between gap-5">
           <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-muted">Professional support</p><h2 id="featured-planners-title" className="mt-3 font-serif text-4xl sm:text-5xl">Find your perfect planner.</h2><p className="mt-3 text-sm text-espresso/65">Published profiles from the real Wewed marketplace.</p></div>
-          <div className="flex gap-2"><button aria-label="Previous featured planners" disabled={planners.length < 2} onClick={() => setPlannerIndex((current) => planners.length ? (current - 1 + planners.length) % planners.length : 0)} className="flex size-11 items-center justify-center rounded-full border border-gold/25"><ArrowLeft className="size-4" /></button><button aria-label="Next featured planners" disabled={planners.length < 2} onClick={() => setPlannerIndex((current) => planners.length ? (current + 1) % planners.length : 0)} className="flex size-11 items-center justify-center rounded-full border border-gold/25"><ArrowRight className="size-4" /></button></div>
+          <div className="flex gap-2"><button type="button" aria-label="Previous featured planners" disabled={planners.length < 2} onClick={() => setPlannerIndex((current) => planners.length ? (current - 1 + planners.length) % planners.length : 0)} className="flex size-11 items-center justify-center rounded-full border border-gold/25"><ArrowLeft className="size-4" /></button><button type="button" aria-label="Next featured planners" disabled={planners.length < 2} onClick={() => setPlannerIndex((current) => planners.length ? (current + 1) % planners.length : 0)} className="flex size-11 items-center justify-center rounded-full border border-gold/25"><ArrowRight className="size-4" /></button></div>
         </div>
         <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-4" data-testid="featured-planner-carousel" aria-live="polite">
           {plannerLoadState === 'loading' && Array.from({ length: 4 }, (_, index) => <div key={index} className="h-72 animate-pulse rounded-3xl bg-espresso/10" />)}
@@ -122,10 +219,28 @@ export function PublicPlatformHomeV2() {
       </section>
 
       <section className="bg-espresso px-4 py-16 text-champagne sm:px-6" aria-labelledby="inspiration-title">
-        <div className="mx-auto max-w-[90rem]"><div className="flex items-end justify-between gap-5"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold">Wedding inspiration</p><h2 id="inspiration-title" className="mt-3 font-serif text-4xl sm:text-5xl">Beautiful ideas for your celebration.</h2></div><div className="flex gap-2"><button aria-label="Previous inspiration" onClick={() => setInspirationIndex((current) => (current - 1 + inspiration.length) % inspiration.length)} className="flex size-10 items-center justify-center rounded-full border border-gold/30"><ArrowLeft className="size-4" /></button><button aria-label="Next inspiration" onClick={() => setInspirationIndex((current) => (current + 1) % inspiration.length)} className="flex size-10 items-center justify-center rounded-full border border-gold/30"><ArrowRight className="size-4" /></button></div></div><div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4" data-testid="wedding-inspiration-carousel">{visibleInspiration.map((item, index) => <article key={`${item.title}-${index}`} className="relative min-h-72 overflow-hidden rounded-3xl border border-white/10"><img src={item.image} alt={item.title} className="absolute inset-0 size-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-black/90 to-transparent" /><div className="absolute bottom-0 p-5"><p className="text-[10px] uppercase tracking-[0.16em] text-gold">{item.category}</p><h3 className="mt-2 font-serif text-2xl">{item.title}</h3></div></article>)}</div></div>
+        <div className="mx-auto max-w-[90rem]"><div className="flex items-end justify-between gap-5"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold">Wedding inspiration</p><h2 id="inspiration-title" className="mt-3 font-serif text-4xl sm:text-5xl">Beautiful ideas for your celebration.</h2></div><div className="flex gap-2"><button type="button" aria-label="Previous inspiration" onClick={() => setInspirationIndex((current) => (current - 1 + inspiration.length) % inspiration.length)} className="flex size-10 items-center justify-center rounded-full border border-gold/30"><ArrowLeft className="size-4" /></button><button type="button" aria-label="Next inspiration" onClick={() => setInspirationIndex((current) => (current + 1) % inspiration.length)} className="flex size-10 items-center justify-center rounded-full border border-gold/30"><ArrowRight className="size-4" /></button></div></div><div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4" data-testid="wedding-inspiration-carousel">{visibleInspiration.map((item, index) => <article key={`${item.title}-${index}`} className="relative min-h-72 overflow-hidden rounded-3xl border border-white/10"><img src={item.image} alt={item.title} className="absolute inset-0 size-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-black/90 to-transparent" /><div className="absolute bottom-0 p-5"><p className="text-[10px] uppercase tracking-[0.16em] text-gold">{item.category}</p><h3 className="mt-2 font-serif text-2xl">{item.title}</h3></div></article>)}</div></div>
       </section>
 
-      <section id="vendors" className="mx-auto max-w-[90rem] px-4 py-20 sm:px-6 lg:px-8"><div className="text-center"><p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-muted">Wedding professionals</p><h2 className="mt-3 font-serif text-4xl sm:text-5xl">Professionals who bring the vision to life.</h2></div><div className="mt-9 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{vendorCategories.map(({ title, detail, icon: Icon, image }) => <article key={title} className="relative min-h-64 overflow-hidden rounded-3xl"><img src={image} alt="" className="absolute inset-0 size-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-black/90 to-black/10" /><div className="absolute bottom-0 p-5 text-white"><Icon className="size-5 text-gold" /><h3 className="mt-3 font-serif text-2xl">{title}</h3><p className="mt-1 text-xs text-white/75">{detail}</p></div></article>)}</div></section>
+      <section id="vendors" className="mx-auto max-w-[90rem] px-4 py-20 sm:px-6 lg:px-8">
+        <div className="flex flex-wrap items-end justify-between gap-6">
+          <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-muted">Find wedding services</p><h2 className="mt-3 font-serif text-4xl sm:text-5xl">Professionals who bring the vision to life.</h2><p className="mt-4 max-w-2xl text-sm leading-6 text-espresso/60">Choose a service to browse approved public company profiles. Wedding-specific vendor records remain private inside each authorised workspace.</p></div>
+          <div className="flex flex-wrap gap-3"><Link href="/vendors" className="rounded-full bg-espresso px-5 py-3 text-sm font-semibold text-champagne">Search all providers</Link><Link href="/vendors/manage" className="rounded-full border border-gold/35 bg-white px-5 py-3 text-sm font-semibold text-gold-muted">Manage company profile</Link></div>
+        </div>
+        <div className="mt-9 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {vendorCategories.map(({ title, category, detail, icon: Icon, image }) => (
+            <Link key={category} href={`/vendors?category=${encodeURIComponent(category)}`} className="group relative min-h-64 overflow-hidden rounded-3xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold">
+              <img src={image} alt="" className="absolute inset-0 size-full object-cover transition duration-700 group-hover:scale-105" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/25 to-black/5" />
+              <div className="absolute inset-x-0 bottom-0 p-5 text-white"><Icon className="size-5 text-gold" /><h3 className="mt-3 font-serif text-2xl">{title}</h3><p className="mt-1 text-xs text-white/75">{detail}</p><span className="mt-4 inline-flex items-center gap-2 text-xs font-semibold text-gold">Find {title.toLowerCase()} <ArrowRight className="size-3.5" /></span></div>
+            </Link>
+          ))}
+        </div>
+        <div className="mt-8 flex flex-wrap items-center justify-between gap-5 rounded-3xl border border-gold/20 bg-champagne p-6">
+          <div className="flex items-start gap-4"><span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-espresso text-gold"><BriefcaseBusiness className="size-5" /></span><div><h3 className="font-serif text-2xl">Offer a wedding service?</h3><p className="mt-2 text-sm text-espresso/60">Register your venue or company, complete Wewed review, then publish and maintain your public profile.</p></div></div>
+          <Link href="/register?accountType=vendor" className="rounded-full bg-gold px-5 py-3 text-sm font-semibold text-espresso">List your business</Link>
+        </div>
+      </section>
 
       <section className="border-y border-gold/15 bg-champagne/55 px-4 py-16 sm:px-6"><div className="mx-auto grid max-w-5xl items-center gap-8 md:grid-cols-[auto_1fr]"><span className="flex size-16 items-center justify-center rounded-full bg-espresso text-gold"><ShieldCheck className="size-7" /></span><div><h2 className="font-serif text-3xl">Your wedding details stay private.</h2><p className="mt-3 text-sm leading-6 text-espresso/65">Couples control access, planners work only with authorised weddings, and guests enter through their private invitation.</p></div></div></section>
     </PublicPlatformShell>
