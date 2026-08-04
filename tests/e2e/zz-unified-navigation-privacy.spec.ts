@@ -95,7 +95,13 @@ test('public platform, invitation exchange, API privacy and token rotation are c
     data: { wedding: { slug: E2E_WEDDINGS.primary.slug } },
   })
 
-  await page.getByRole('button', { name: 'Close' }).click()
+  const invitationDialog = page.getByRole('dialog', {
+    name: 'Your private invitation',
+  })
+  await invitationDialog
+    .locator('form')
+    .getByRole('button', { name: 'Close', exact: true })
+    .click()
   await expect(page.getByRole('link', { name: 'Find a planner' }).first()).toBeVisible()
   await expect(page.getByRole('link', { name: 'Powered by Wewed' }).first()).toBeVisible()
 
