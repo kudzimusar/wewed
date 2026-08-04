@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { normalizeInvitationCardStyle } from '@/lib/digital-invitation-card'
 import {
   clearWeddingGuestSessionCookie,
   readWeddingGuestSession,
@@ -52,7 +53,23 @@ export async function GET(request: NextRequest, { params }: Params) {
     NextResponse.json({
       success: true,
       authorized: true,
-      wedding: { slug: wedding.slug, privacy: wedding.privacy },
+      wedding: {
+        slug: wedding.slug,
+        privacy: wedding.privacy,
+        title: wedding.title,
+        monogram: wedding.monogram,
+        tagline: wedding.tagline,
+        date: wedding.date,
+        venue: wedding.venue,
+        venueCity: wedding.venueCity,
+        venueCountry: wedding.venueCountry,
+        primaryColor: wedding.primaryColor,
+        accentColor: wedding.accentColor,
+        backgroundColor: wedding.backgroundColor,
+        invitationCardStyle: normalizeInvitationCardStyle(wedding.invitationCardStyle),
+        invitationCardMessage: wedding.invitationCardMessage,
+        rsvpDeadline: wedding.rsvpDeadline,
+      },
       guest: {
         id: guest.id,
         name: guest.name,

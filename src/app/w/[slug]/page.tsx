@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation'
 import { WeddingHome } from '@/components/wedding/wedding-home'
 import { GuestAccessGateway } from '@/components/wedding/guest-access-gateway'
 import { APP_SESSION_COOKIE } from '@/lib/app-session'
+import { normalizeInvitationCardStyle } from '@/lib/digital-invitation-card'
 import { WEDDING_GUEST_SESSION_COOKIE } from '@/lib/wedding-guest-session'
 import {
   loadWeddingAccessRecord,
@@ -15,6 +16,7 @@ interface WeddingPageProps {
   searchParams: Promise<{
     rsvp?: string
     invitation?: string
+    card?: string
     accessError?: string
   }>
 }
@@ -80,8 +82,12 @@ export default async function WeddingPage({
 
   const invitationToken = query.rsvp?.trim()
   if (invitationToken) {
+    const exchangeQuery = new URLSearchParams({ token: invitationToken })
+    if (query.card) {
+      exchangeQuery.set('card', normalizeInvitationCardStyle(query.card))
+    }
     redirect(
-      `/api/weddings/${encodeURIComponent(slug)}/guest-session/exchange?token=${encodeURIComponent(invitationToken)}`,
+      `/api/weddings/${encodeURIComponent(slug)}/guest-session/exchange?${exchangeQuery.toString()}`,
     )
   }
 

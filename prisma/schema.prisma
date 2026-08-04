@@ -44,6 +44,10 @@ model Wedding {
   memoryColor     String @default("#6B2D3A")
   backgroundColor String @default("#FBF6EE")
 
+  invitationCardStyle   String    @default("botanical")
+  invitationCardMessage String?
+  rsvpDeadline          DateTime?
+
   lifecycle       String    @default("before")
   privacy         String    @default("public")
   canonSealed     Boolean   @default(false)

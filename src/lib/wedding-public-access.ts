@@ -14,7 +14,11 @@ import {
 } from '@/lib/wedding-guest-session'
 
 export type WeddingPrivacy = 'public' | 'link_only' | 'private'
-export type WeddingAccessKind = 'public' | 'couple_owner' | 'invited_guest'
+export type WeddingAccessKind =
+  | 'public'
+  | 'couple_owner'
+  | 'wedding_member'
+  | 'invited_guest'
 
 export interface WeddingAccessRecord {
   id: string
@@ -26,6 +30,12 @@ export interface WeddingAccessRecord {
   venue: string
   venueCity: string
   venueCountry: string
+  primaryColor: string
+  accentColor: string
+  backgroundColor: string
+  invitationCardStyle: string
+  invitationCardMessage: string | null
+  rsvpDeadline: Date | null
   privacy: WeddingPrivacy
   coupleId: string
   partner1: string
@@ -100,6 +110,12 @@ export async function loadWeddingAccessRecord(
       venue: true,
       venueCity: true,
       venueCountry: true,
+      primaryColor: true,
+      accentColor: true,
+      backgroundColor: true,
+      invitationCardStyle: true,
+      invitationCardMessage: true,
+      rsvpDeadline: true,
       privacy: true,
       coupleId: true,
       couple: { select: { partner1: true, partner2: true } },
@@ -118,6 +134,12 @@ export async function loadWeddingAccessRecord(
     venue: wedding.venue,
     venueCity: wedding.venueCity,
     venueCountry: wedding.venueCountry,
+    primaryColor: wedding.primaryColor,
+    accentColor: wedding.accentColor,
+    backgroundColor: wedding.backgroundColor,
+    invitationCardStyle: wedding.invitationCardStyle,
+    invitationCardMessage: wedding.invitationCardMessage,
+    rsvpDeadline: wedding.rsvpDeadline,
     privacy: normalizePrivacy(wedding.privacy),
     coupleId: wedding.coupleId,
     partner1: wedding.couple.partner1,
@@ -125,24 +147,31 @@ export async function loadWeddingAccessRecord(
   }
 }
 
-async function isCoupleOwner(
+async function authenticatedWeddingAccessKind(
   wedding: WeddingAccessRecord,
   session: AppSession | null,
-): Promise<boolean> {
-  if (!session || session.role !== 'couple') return false
-  if (session.coupleId !== wedding.coupleId) return false
+): Promise<'couple_owner' | 'wedding_member' | null> {
+  if (!session || session.activeWeddingId !== wedding.id) return null
 
   const membership = await db.weddingMembership.findFirst({
     where: {
       weddingId: wedding.id,
       userId: session.userId,
-      role: 'owner',
       status: 'active',
     },
-    select: { id: true },
+    select: { role: true },
   })
+  if (!membership) return null
 
-  return Boolean(membership)
+  if (
+    session.role === 'couple' &&
+    session.coupleId === wedding.coupleId &&
+    membership.role === 'owner'
+  ) {
+    return 'couple_owner'
+  }
+
+  return 'wedding_member'
 }
 
 export async function resolveGuestSessionForWedding(
@@ -218,16 +247,16 @@ export async function resolveWeddingAccessFromTokens(input: {
     ? verifyWeddingGuestSessionToken(input.guestSessionToken)
     : null
 
-  const [owner, guest] = await Promise.all([
-    isCoupleOwner(wedding, appSession),
+  const [memberAccessKind, guest] = await Promise.all([
+    authenticatedWeddingAccessKind(wedding, appSession),
     resolveGuestSessionForWedding(wedding, guestSession),
   ])
 
-  if (owner) {
+  if (memberAccessKind) {
     return {
       wedding,
       allowed: true,
-      accessKind: 'couple_owner',
+      accessKind: memberAccessKind,
       guest: null,
       status: 200,
       reason: 'allowed',

@@ -54,7 +54,7 @@ function runtimeErrors(page: import('@playwright/test').Page) {
   return errors
 }
 
-test('public platform, invitation exchange, API privacy and token rotation are connected', async ({ page }) => {
+test('public platform, invitation card exchange, API privacy and token rotation are connected', async ({ page }) => {
   await resetUnifiedNavigationFixture()
   const errors = runtimeErrors(page)
 
@@ -77,14 +77,15 @@ test('public platform, invitation exchange, API privacy and token rotation are c
   await expect(page.locator('body')).not.toContainText(E2E_WEDDINGS.primary.title)
 
   await page.goto(
-    `/w/${E2E_WEDDINGS.primary.slug}?rsvp=${encodeURIComponent(E2E_GUEST_INVITATION.token)}`,
+    `/w/${E2E_WEDDINGS.primary.slug}?rsvp=${encodeURIComponent(E2E_GUEST_INVITATION.token)}&card=botanical`,
   )
   await expect(page).toHaveURL(
-    new RegExp(`/w/${E2E_WEDDINGS.primary.slug}\\?invitation=1$`),
+    new RegExp(`/w/${E2E_WEDDINGS.primary.slug}\\?invitation=1&card=botanical$`),
   )
   expect(page.url()).not.toContain(E2E_GUEST_INVITATION.token)
   await expect(page.getByRole('heading', { name: 'Your private invitation' })).toBeVisible()
-  await expect(page.locator('body')).toContainText('Aurora')
+  await expect(page.getByTestId('digital-invitation-card-botanical')).toBeVisible()
+  await expect(page.getByTestId('digital-invitation-card-botanical')).toContainText('Aurora')
 
   const allowed = await page.request.get(
     `/api/wedding-content?slug=${E2E_WEDDINGS.primary.slug}`,
@@ -98,6 +99,7 @@ test('public platform, invitation exchange, API privacy and token rotation are c
   const invitationDialog = page.getByRole('dialog', {
     name: 'Your private invitation',
   })
+  await invitationDialog.getByRole('button', { name: 'RSVP now' }).click()
   await invitationDialog
     .locator('form')
     .getByRole('button', { name: 'Close', exact: true })
@@ -116,6 +118,9 @@ test('public platform, invitation exchange, API privacy and token rotation are c
 
   await page.goto(
     `/w/${E2E_WEDDINGS.primary.slug}?rsvp=${encodeURIComponent(rotated)}`,
+  )
+  await expect(page).toHaveURL(
+    new RegExp(`/w/${E2E_WEDDINGS.primary.slug}\\?invitation=1&card=botanical$`),
   )
   await expect(page.getByRole('heading', { name: 'Your private invitation' })).toBeVisible()
   expect(errors).toEqual([])
@@ -140,12 +145,38 @@ test('couple and planner accounts have visible single-source navigation', async 
     page,
     appToken(E2E_USER, 'planner', E2E_WEDDINGS.secondary.id),
   )
+  await page.goto(`/w/${E2E_WEDDINGS.secondary.slug}`)
+  await expect(page.getByRole('heading', { name: 'Open your invitation' })).toHaveCount(0)
+  const selectedWedding = page.getByTestId('data-backed-wedding-experience')
+  await expect(selectedWedding).toContainText(E2E_WEDDINGS.secondary.title)
+  await expect(selectedWedding).toContainText('Secondary Test Gardens')
+  await expect(selectedWedding).not.toContainText('Charity & Kudzie')
+  await expect(selectedWedding).not.toContainText('Imba Manor')
+  await expect(selectedWedding).not.toContainText('23 · 12 · 26')
+  await expect(selectedWedding).not.toContainText('Musarurwa')
+
   await page.goto('/planner/tasks')
-  await expect(page.getByRole('navigation', { name: 'Planner account navigation' })).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Business' })).toBeVisible()
-  await page.getByRole('link', { name: 'Business' }).click()
+  const dock = page.getByRole('navigation', { name: 'Planner account navigation' })
+  await expect(dock).toBeVisible()
+  await expect(dock.getByRole('link', { name: 'Workspace' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  )
+  await expect(dock.getByRole('link', { name: 'Wewed' })).not.toHaveAttribute(
+    'aria-current',
+    'page',
+  )
+  await dock.getByRole('link', { name: 'Business' }).click()
   await expect(page.getByRole('heading', { name: 'Planner marketplace centre' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Planner workspace' })).toBeVisible()
+  await expect(dock.getByRole('link', { name: 'Business' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  )
+  await expect(dock.getByRole('link', { name: 'Workspace' })).not.toHaveAttribute(
+    'aria-current',
+    'page',
+  )
   expect(errors).toEqual([])
 })
 

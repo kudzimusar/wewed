@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useWewedStore } from '@/lib/store'
 import { WeddingDataProvider, useWeddingContext } from '@/components/wedding/wedding-data-provider'
+import { DataBackedWeddingExperience } from '@/components/wedding/data-backed-wedding-experience'
 import { Navbar } from '@/components/wedding/navbar'
 import { WeddingPlatformNav } from '@/components/wedding/wedding-platform-nav'
 import { GlobalWeddingTools } from '@/components/wedding/global-wedding-tools'
@@ -43,8 +44,11 @@ export function WeddingHome({ slug }: { slug?: string }) {
 function WeddingHomeContent() {
   const lifecycle = useWewedStore((state) => state.lifecycle)
   const [mounted, setMounted] = useState(false)
-  const { wedding, slug } = useWeddingContext()
+  const { wedding, slug, isFlagship } = useWeddingContext()
   useEffect(() => { const id = window.setTimeout(() => { setMounted(true); useWewedStore.persist.rehydrate() }, 0); return () => window.clearTimeout(id) }, [])
+
+  if (!isFlagship) return <DataBackedWeddingExperience />
+
   const activeLifecycle = mounted ? lifecycle : 'before'
   const names = wedding ? `${wedding.couple.partner1} & ${wedding.couple.partner2}` : 'Wewed couple'
   const date = wedding ? new Date(wedding.date).toLocaleDateString(undefined, { day: '2-digit', month: 'long', year: 'numeric' }) : ''

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { normalizeInvitationCardStyle } from '@/lib/digital-invitation-card'
 import { setWeddingGuestSessionCookie } from '@/lib/wedding-guest-session'
 
 interface Params {
@@ -24,6 +25,7 @@ function redirectToGateway(slug: string, error: string) {
 export async function GET(request: NextRequest, { params }: Params) {
   const { slug } = await params
   const token = request.nextUrl.searchParams.get('token')?.trim() || ''
+  const requestedCard = request.nextUrl.searchParams.get('card')
 
   if (!token) {
     return redirectToGateway(slug, 'missing')
@@ -35,7 +37,12 @@ export async function GET(request: NextRequest, { params }: Params) {
       guest: {
         include: {
           wedding: {
-            select: { id: true, slug: true, privacy: true },
+            select: {
+              id: true,
+              slug: true,
+              privacy: true,
+              invitationCardStyle: true,
+            },
           },
         },
       },
@@ -51,8 +58,12 @@ export async function GET(request: NextRequest, { params }: Params) {
     return redirectToGateway(slug, 'invalid')
   }
 
+  const requestedStyle = requestedCard
+    ? normalizeInvitationCardStyle(requestedCard)
+    : normalizeInvitationCardStyle(rsvp.guest.wedding.invitationCardStyle)
+  const query = new URLSearchParams({ invitation: '1', card: requestedStyle })
   const response = relativeRedirect(
-    `/w/${encodeURIComponent(slug)}?invitation=1`,
+    `/w/${encodeURIComponent(slug)}?${query.toString()}`,
   )
   setWeddingGuestSessionCookie(response, {
     weddingId: rsvp.guest.wedding.id,

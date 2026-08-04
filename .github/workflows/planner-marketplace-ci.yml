@@ -58,6 +58,8 @@ jobs:
           src/lib/planner-marketplace-metadata.test.ts
           src/lib/unified-navigation-privacy.test.ts
           src/lib/wedding-guest-proxy.test.ts
+          src/lib/digital-invitation-card.test.ts
+          src/lib/wedding-data-isolation.test.ts
       - run: psql "postgresql://postgres:postgres@localhost:5432/wewed" -f scripts/planner-marketplace-postgres-integration.sql
       - run: >-
           bunx prisma migrate diff
@@ -66,14 +68,23 @@ jobs:
           --exit-code
       - run: bun run build
       - run: bunx playwright install --with-deps chromium
-      - name: Run marketplace and privacy browser release gate
+      - name: Run marketplace, privacy and digital invitation browser release gate
         run: >-
           bunx playwright test
           tests/e2e/zz-planner-marketplace.spec.ts
           tests/e2e/zz-planner-marketplace-metadata.spec.ts
           tests/e2e/zz-unified-navigation-privacy.spec.ts
+          tests/e2e/zz-digital-invitation-cards.spec.ts
           --project=desktop-chromium
           --project=mobile-chromium
+      - name: Upload digital invitation card samples
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: digital-invitation-card-samples
+          path: artifacts/invitation-card-samples
+          if-no-files-found: ignore
+          retention-days: 30
       - name: Upload marketplace and privacy browser failure evidence
         if: failure()
         uses: actions/upload-artifact@v4

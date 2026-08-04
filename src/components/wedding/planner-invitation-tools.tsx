@@ -23,8 +23,8 @@ export function PlannerInvitationTools() {
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[94vh] w-[96vw] max-w-6xl overflow-y-auto border-gold/30 bg-ivory text-espresso">
-          <DialogTitle className="wewed-heading text-3xl">Guest invitations and QR codes</DialogTitle>
-          <DialogDescription>Generate, copy, export and rotate guest-specific invitation credentials for the selected wedding.</DialogDescription>
+          <DialogTitle className="wewed-heading text-3xl">Digital wedding cards, RSVP and QR</DialogTitle>
+          <DialogDescription>Design, preview, share, export and rotate guest-specific digital cards and secure RSVP credentials for the selected wedding.</DialogDescription>
           <InvitationManager compact />
         </DialogContent>
       </Dialog>

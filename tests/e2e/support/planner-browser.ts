@@ -88,7 +88,7 @@ export async function openModule(page: Page, moduleKey: ModuleKey): Promise<void
     await expect(worksheetToggle).toHaveAttribute('aria-expanded', 'false')
   }
 
-  const mobileSelector = page.locator('#planner-workspace-section')
+  const mobileSelector = page.getByRole('combobox', { name: 'Planner workspace section' })
   if (await mobileSelector.isVisible()) {
     await expect(mobileSelector).toHaveValue(routeKey)
   } else {
