@@ -12,6 +12,19 @@ function csvCell(value: string | null | undefined) {
   return `"${(value ?? '').replaceAll('"', '""')}"`
 }
 
+function privateNoStore(response: NextResponse): NextResponse {
+  response.headers.set('Cache-Control', 'private, no-store, max-age=0')
+  response.headers.set('Vary', 'Cookie')
+  return response
+}
+
+function privateJson(
+  body: Record<string, unknown>,
+  status = 200,
+): NextResponse {
+  return privateNoStore(NextResponse.json(body, { status }))
+}
+
 function invitationWeddingSelect() {
   return {
     slug: true,
@@ -33,7 +46,7 @@ function invitationWeddingSelect() {
 
 export async function GET(request: NextRequest) {
   const access = await requireWeddingPermission(request, 'guests.view')
-  if (access.error) return access.error
+  if (access.error) return privateNoStore(access.error)
 
   try {
     const [wedding, guests] = await Promise.all([
@@ -49,11 +62,12 @@ export async function GET(request: NextRequest) {
     ])
 
     if (!wedding) {
-      return NextResponse.json({ success: false, error: 'Wedding not found.' }, { status: 404 })
+      return privateJson({ success: false, error: 'Wedding not found.' }, 404)
     }
 
     const style = normalizeInvitationCardStyle(wedding.invitationCardStyle)
     const siteUrl = request.nextUrl.origin.replace(/\/$/, '')
+    const missingTokens = guests.filter((guest) => !guest.rsvp?.token).length
     const data = guests.map((guest) => {
       const invitationUrl = guest.rsvp?.token
         ? buildDigitalInvitationUrl({
@@ -76,7 +90,6 @@ export async function GET(request: NextRequest) {
               ? 'declined'
               : 'pending',
         checkedIn: guest.rsvp?.checkedIn ?? false,
-        token: guest.rsvp?.token ?? null,
         invitationUrl,
         qrValue: invitationUrl,
         shareMessage: invitationUrl
@@ -106,31 +119,32 @@ export async function GET(request: NextRequest) {
           ].join(','),
         ),
       ].join('\n')
-      return new NextResponse(csv, {
-        headers: {
-          'Content-Type': 'text/csv; charset=utf-8',
-          'Content-Disposition': `attachment; filename="wewed-digital-invitations-${new Date().toISOString().slice(0, 10)}.csv"`,
-          'Cache-Control': 'no-store',
-        },
-      })
+      return privateNoStore(
+        new NextResponse(csv, {
+          headers: {
+            'Content-Type': 'text/csv; charset=utf-8',
+            'Content-Disposition': `attachment; filename="wewed-digital-invitations-${new Date().toISOString().slice(0, 10)}.csv"`,
+          },
+        }),
+      )
     }
 
-    return NextResponse.json({
+    return privateJson({
       success: true,
       wedding: { ...wedding, invitationCardStyle: style },
       count: data.length,
-      missingTokens: data.filter((row) => !row.token).length,
+      missingTokens,
       data,
     })
   } catch (error) {
     console.error('[guest invitations GET] Error:', error)
-    return NextResponse.json({ success: false, error: 'Unable to load invitation links.' }, { status: 500 })
+    return privateJson({ success: false, error: 'Unable to load invitation links.' }, 500)
   }
 }
 
 export async function POST(request: NextRequest) {
   const access = await requireWeddingPermission(request, 'guests.edit')
-  if (access.error) return access.error
+  if (access.error) return privateNoStore(access.error)
 
   try {
     const guests = await db.guest.findMany({
@@ -152,16 +166,16 @@ export async function POST(request: NextRequest) {
         },
       })
     }
-    return NextResponse.json({ success: true, generated: guests.length })
+    return privateJson({ success: true, generated: guests.length })
   } catch (error) {
     console.error('[guest invitations POST] Error:', error)
-    return NextResponse.json({ success: false, error: 'Unable to generate invitation links.' }, { status: 500 })
+    return privateJson({ success: false, error: 'Unable to generate invitation links.' }, 500)
   }
 }
 
 export async function PUT(request: NextRequest) {
   const access = await requireWeddingPermission(request, 'guests.edit')
-  if (access.error) return access.error
+  if (access.error) return privateNoStore(access.error)
 
   try {
     const body = (await request.json().catch(() => null)) as {
@@ -170,24 +184,30 @@ export async function PUT(request: NextRequest) {
       rsvpDeadline?: unknown
     } | null
     if (!body) {
-      return NextResponse.json({ success: false, error: 'Invalid JSON body.' }, { status: 400 })
+      return privateJson({ success: false, error: 'Invalid JSON body.' }, 400)
     }
 
     const style = normalizeInvitationCardStyle(body.style)
     if (body.style !== style) {
-      return NextResponse.json({ success: false, error: 'Choose a supported invitation card style.' }, { status: 400 })
+      return privateJson(
+        { success: false, error: 'Choose a supported invitation card style.' },
+        400,
+      )
     }
 
     const message = typeof body.message === 'string' ? body.message.trim() : ''
     if (message.length > 500) {
-      return NextResponse.json({ success: false, error: 'Invitation message must be 500 characters or fewer.' }, { status: 400 })
+      return privateJson(
+        { success: false, error: 'Invitation message must be 500 characters or fewer.' },
+        400,
+      )
     }
 
     let rsvpDeadline: Date | null = null
     if (typeof body.rsvpDeadline === 'string' && body.rsvpDeadline.trim()) {
       rsvpDeadline = new Date(`${body.rsvpDeadline.trim()}T23:59:59.999Z`)
       if (Number.isNaN(rsvpDeadline.getTime())) {
-        return NextResponse.json({ success: false, error: 'Choose a valid RSVP deadline.' }, { status: 400 })
+        return privateJson({ success: false, error: 'Choose a valid RSVP deadline.' }, 400)
       }
     }
 
@@ -202,10 +222,13 @@ export async function PUT(request: NextRequest) {
       },
     })
     if (!before) {
-      return NextResponse.json({ success: false, error: 'Wedding not found.' }, { status: 404 })
+      return privateJson({ success: false, error: 'Wedding not found.' }, 404)
     }
     if (rsvpDeadline && rsvpDeadline > before.date) {
-      return NextResponse.json({ success: false, error: 'RSVP deadline cannot be after the wedding date.' }, { status: 400 })
+      return privateJson(
+        { success: false, error: 'RSVP deadline cannot be after the wedding date.' },
+        400,
+      )
     }
 
     const wedding = await db.$transaction(async (tx) => {
@@ -236,25 +259,25 @@ export async function PUT(request: NextRequest) {
       return updated
     })
 
-    return NextResponse.json({
+    return privateJson({
       success: true,
       wedding: { ...wedding, invitationCardStyle: style },
     })
   } catch (error) {
     console.error('[guest invitations PUT] Error:', error)
-    return NextResponse.json({ success: false, error: 'Unable to save invitation card design.' }, { status: 500 })
+    return privateJson({ success: false, error: 'Unable to save invitation card design.' }, 500)
   }
 }
 
 export async function PATCH(request: NextRequest) {
   const access = await requireWeddingPermission(request, 'guests.edit')
-  if (access.error) return access.error
+  if (access.error) return privateNoStore(access.error)
 
   try {
     const body = (await request.json().catch(() => null)) as { guestId?: unknown } | null
     const guestId = typeof body?.guestId === 'string' ? body.guestId : ''
     if (!guestId) {
-      return NextResponse.json({ success: false, error: 'Guest ID is required.' }, { status: 400 })
+      return privateJson({ success: false, error: 'Guest ID is required.' }, 400)
     }
 
     const guest = await db.guest.findFirst({
@@ -262,7 +285,7 @@ export async function PATCH(request: NextRequest) {
       include: { rsvp: { select: { id: true, token: true } } },
     })
     if (!guest) {
-      return NextResponse.json({ success: false, error: 'Guest not found.' }, { status: 404 })
+      return privateJson({ success: false, error: 'Guest not found.' }, 404)
     }
 
     const token = randomUUID()
@@ -284,9 +307,9 @@ export async function PATCH(request: NextRequest) {
       },
     })
 
-    return NextResponse.json({ success: true })
+    return privateJson({ success: true })
   } catch (error) {
     console.error('[guest invitations PATCH] Error:', error)
-    return NextResponse.json({ success: false, error: 'Unable to rotate invitation.' }, { status: 500 })
+    return privateJson({ success: false, error: 'Unable to rotate invitation.' }, 500)
   }
 }
