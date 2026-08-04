@@ -1,4 +1,4 @@
-import { expect, openModule, test } from './support/planner-browser'
+import { expect, openModule, openWorksheetActions, test } from './support/planner-browser'
 
 const IMPORT_JOBS = Array.from({ length: 8 }, (_, index) => ({
   id: `history-job-${index + 1}`,
@@ -16,15 +16,6 @@ const IMPORT_JOBS = Array.from({ length: 8 }, (_, index) => ({
   createdAt: `2026-08-04T00:0${index}:00.000Z`,
   updatedAt: `2026-08-04T00:0${index}:00.000Z`,
 }))
-
-async function openWorksheetTools(page: Parameters<typeof openModule>[0]) {
-  const toggle = page.getByTestId('worksheet-tools-toggle')
-  if (await toggle.isVisible()) {
-    if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click()
-    await expect(toggle).toHaveAttribute('aria-expanded', 'true')
-  }
-  await expect(page.locator('#planner-worksheet-tools')).toBeVisible()
-}
 
 test('recent import history scrolls and keeps the oldest rollback action reachable', async ({ plannerPage: page }) => {
   test.setTimeout(60_000)
@@ -47,12 +38,12 @@ test('recent import history scrolls and keeps the oldest rollback action reachab
     { width: 1440, height: 900 },
   ]) {
     await page.setViewportSize(viewport)
-    await page.goto('/planner/vendors?panel=worksheet#planner-workspace')
+    await page.goto('/planner/vendors#planner-workspace')
     await openModule(page, 'vendors')
-    await openWorksheetTools(page)
+    await openWorksheetActions(page)
     await page.getByRole('button', { name: /Recent imports/i }).click()
 
-    const historyScroll = page.locator('#planner-worksheet-tools > div.rounded-xl').last()
+    const historyScroll = page.locator('#planner-worksheet-actions > div.rounded-xl').last()
     await expect(historyScroll).toBeVisible()
     await expect(historyScroll.getByText('history-8.xlsx', { exact: true })).toBeAttached()
 
