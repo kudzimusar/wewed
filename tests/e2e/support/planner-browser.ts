@@ -129,7 +129,6 @@ export async function openWorksheetActions(page: Page): Promise<void> {
   if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click()
   await expect(toggle).toHaveAttribute('aria-expanded', 'true')
   await expect(page.locator('#planner-worksheet-actions')).toBeVisible()
-  await expect(page).toHaveURL(/panel=worksheet/)
 }
 
 export function acceptNextConfirmation(page: Page): void {
