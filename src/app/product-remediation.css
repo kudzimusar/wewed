@@ -2,21 +2,16 @@
  * Scope is limited by docs/africa-ready-product-remediation-2026-08-04.md.
  */
 
-/* 1. Landing hero: remove the reviewed remote film from the rendered experience. */
-[data-testid="africa-ready-hero"] {
-  background-image:
-    linear-gradient(90deg, rgba(18, 12, 8, .97) 0%, rgba(18, 12, 8, .76) 40%, rgba(18, 12, 8, .25) 72%, rgba(18, 12, 8, .6) 100%),
-    url('/media/wewed-zimbabwe-couple.svg');
-  background-position: center;
-  background-size: cover;
-}
+/* 1. Landing hero: keep the Wewed-created bride-and-groom film and local poster readable. */
 [data-testid="africa-ready-hero"] > img,
-[data-testid="africa-ready-hero"] > video,
-[data-testid="hero-video-control"] {
-  display: none !important;
+[data-testid="africa-ready-hero"] > video {
+  object-position: center;
+}
+[data-testid="africa-ready-hero"] > video {
+  background: #211711;
 }
 
-/* 2. Planner marketplace: repair only contrast, focus and dock clearance. */
+/* 2. Planner marketplace: repair contrast, focus and dock clearance. */
 [data-marketplace-frame] {
   --wewed-field-bg: #fffdf8;
   --wewed-field-disabled-bg: #eee8df;
@@ -58,7 +53,7 @@
 [data-marketplace-frame] .bg-espresso .text-champagne\/55,
 [data-marketplace-frame] .bg-espresso .text-champagne\/50,
 [data-marketplace-frame] .bg-espresso .text-champagne\/45 {
-  color: rgba(255, 247, 231, .78) !important;
+  color: rgba(255, 247, 231, .82) !important;
 }
 
 /* 3. Invitation and QR dialog only. */
@@ -67,6 +62,7 @@
   max-width: min(96vw, 1440px) !important;
   max-height: calc(100dvh - 2rem) !important;
   overflow-x: hidden !important;
+  overflow-y: auto !important;
 }
 [data-slot="dialog-content"].bg-ivory.max-w-6xl section[aria-labelledby="digital-card-design-heading"] .xl\:grid-cols-3 {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr)) !important;
@@ -97,6 +93,7 @@
   max-width: min(96vw, 1440px) !important;
   max-height: calc(100dvh - 2rem) !important;
   overflow-x: hidden !important;
+  overflow-y: auto !important;
 }
 [data-slot="dialog-content"].bg-espresso.max-w-7xl [data-slot="tabs-list"] {
   flex-wrap: nowrap !important;
