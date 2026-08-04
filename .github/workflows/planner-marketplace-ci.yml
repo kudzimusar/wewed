@@ -61,6 +61,7 @@ jobs:
           src/lib/digital-invitation-card.test.ts
           src/lib/wedding-data-isolation.test.ts
           src/lib/africa-ready-experience.test.ts
+          src/lib/africa-ready-remediation.test.ts
       - run: psql "postgresql://postgres:postgres@localhost:5432/wewed" -f scripts/planner-marketplace-postgres-integration.sql
       - run: >-
           bunx prisma migrate diff
