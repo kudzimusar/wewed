@@ -4,7 +4,7 @@ import { Building2, HeartHandshake, Menu, Sparkles } from 'lucide-react'
 
 const PUBLIC_LINKS = [
   ['Find a planner', '/planners'],
-  ['For couples', '/how-it-works#couples'],
+  ['For couples', '/#couples'],
   ['For planners', '/for-planners'],
   ['Vendors & venues', '/#vendors'],
   ['How it works', '/how-it-works'],
@@ -16,31 +16,31 @@ export function PublicPlatformShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-ivory text-espresso">
       <header className="sticky top-0 z-50 border-b border-gold/20 bg-espresso/95 text-champagne shadow-xl backdrop-blur-xl">
         <nav className="mx-auto flex min-h-16 max-w-[90rem] items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8" aria-label="Wewed public navigation">
-          <Link href="/" className="group flex items-center gap-2 font-serif text-2xl text-gold" aria-label="Wewed home">
+          <Link href="/" className="group flex items-center gap-2 font-serif text-2xl text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold" aria-label="Wewed home">
             <span className="flex size-9 items-center justify-center rounded-full border border-gold/25 bg-gold/10 transition group-hover:bg-gold group-hover:text-espresso"><HeartHandshake className="size-4" /></span>
             <span>wewed</span>
           </Link>
           <div className="hidden items-center gap-1 text-xs lg:flex">
             {PUBLIC_LINKS.map(([label, href]) => (
-              <Link key={href} href={href} className="rounded-full px-3 py-2 text-champagne/72 transition hover:bg-gold/10 hover:text-gold focus-visible:bg-gold/10 focus-visible:text-gold">
+              <Link key={href} href={href} className="rounded-full px-3 py-2 text-champagne/72 transition hover:bg-gold/10 hover:text-gold focus-visible:bg-gold/10 focus-visible:text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold">
                 {label}
               </Link>
             ))}
           </div>
           <div className="flex items-center gap-2">
-            <Link href="/sign-in" className="rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-champagne/75 transition hover:text-gold">
+            <Link href="/sign-in" className="rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-champagne/75 transition hover:text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold">
               Sign in
             </Link>
-            <Link href="/register" className="hidden items-center gap-2 rounded-full bg-gold px-4 py-2 text-xs font-semibold text-espresso shadow-lg transition hover:bg-gold-light sm:inline-flex">
+            <Link href="/register" className="hidden items-center gap-2 rounded-full bg-gold px-4 py-2 text-xs font-semibold text-espresso shadow-lg transition hover:bg-gold-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-light sm:inline-flex">
               <Sparkles className="size-3.5" /> Get started
             </Link>
             <details className="relative lg:hidden">
-              <summary className="flex size-10 cursor-pointer list-none items-center justify-center rounded-full border border-gold/30 text-gold [&::-webkit-details-marker]:hidden" aria-label="Open public navigation">
+              <summary className="flex size-10 cursor-pointer list-none items-center justify-center rounded-full border border-gold/30 text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold [&::-webkit-details-marker]:hidden" aria-label="Open public navigation">
                 <Menu className="size-4" />
               </summary>
               <div className="absolute right-0 top-12 z-50 w-64 rounded-2xl border border-gold/20 bg-espresso p-3 shadow-2xl">
-                {PUBLIC_LINKS.map(([label, href]) => <Link key={href} href={href} className="block rounded-xl px-3 py-2.5 text-sm text-champagne/75 hover:bg-gold/10 hover:text-gold">{label}</Link>)}
-                <Link href="/register" className="mt-2 flex items-center justify-center gap-2 rounded-xl bg-gold px-3 py-2.5 text-sm font-semibold text-espresso"><Sparkles className="size-4" />Get started</Link>
+                {PUBLIC_LINKS.map(([label, href]) => <Link key={href} href={href} className="block rounded-xl px-3 py-2.5 text-sm text-champagne/75 hover:bg-gold/10 hover:text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold">{label}</Link>)}
+                <Link href="/register" className="mt-2 flex items-center justify-center gap-2 rounded-xl bg-gold px-3 py-2.5 text-sm font-semibold text-espresso focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-light"><Sparkles className="size-4" />Get started</Link>
               </div>
             </details>
           </div>
@@ -57,21 +57,21 @@ export function PublicPlatformShell({ children }: { children: ReactNode }) {
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gold">Explore</p>
             <div className="mt-4 flex flex-col gap-2 text-sm text-champagne/65">
-              {PUBLIC_LINKS.slice(0, 3).map(([label, href]) => <Link key={href} href={href} className="hover:text-gold">{label}</Link>)}
+              {PUBLIC_LINKS.slice(0, 3).map(([label, href]) => <Link key={href} href={href} className="hover:text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold">{label}</Link>)}
             </div>
           </div>
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gold">Discover</p>
             <div className="mt-4 flex flex-col gap-2 text-sm text-champagne/65">
-              {PUBLIC_LINKS.slice(3).map(([label, href]) => <Link key={href} href={href} className="hover:text-gold">{label}</Link>)}
+              {PUBLIC_LINKS.slice(3).map(([label, href]) => <Link key={href} href={href} className="hover:text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold">{label}</Link>)}
             </div>
           </div>
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gold">Access</p>
             <div className="mt-4 flex flex-col gap-2 text-sm text-champagne/65">
-              <Link href="/sign-in" className="hover:text-gold">Sign in</Link>
-              <Link href="/guest-access-help" className="hover:text-gold">Guest access help</Link>
-              <Link href="/register" className="hover:text-gold">Create a Wewed account</Link>
+              <Link href="/sign-in" className="hover:text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold">Sign in</Link>
+              <Link href="/guest-access-help" className="hover:text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold">Guest access help</Link>
+              <Link href="/register" className="hover:text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold">Create a Wewed account</Link>
             </div>
           </div>
         </div>
