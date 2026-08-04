@@ -214,7 +214,7 @@ model Vendor {
   description    String?
   website        String?
   phone          String?
-  imageUrl        String?
+  imageUrl       String?
   rating         Float?
   featured       Boolean @default(false)
   contact        String?
@@ -263,35 +263,39 @@ model Kid {
 }
 
 model PlannerTask {
-  id          String   @id @default(cuid())
-  title       String
-  description String?
-  category    String
-  status      String   @default("todo")
-  priority    String   @default("medium")
-  dueDate     DateTime?
-  assignee    String?
-  assignedToUserId String?
-  assignedToUser   User? @relation("PlannerTaskAssignee", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  id             String   @id @default(cuid())
+  title          String
+  description    String?
+  category       String
+  status         String   @default("todo")
+  priority       String   @default("medium")
+  dueDate        DateTime?
+  assignee       String?
+  assigneeUserId String?
+  assigneeUser   User?    @relation("PlannerTaskAssignee", fields: [assigneeUserId], references: [id], onDelete: SetNull)
+  order          Int      @default(0)
 
   weddingId String
   wedding   Wedding @relation(fields: [weddingId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([assigneeUserId])
 }
 
 model BudgetItem {
-  id          String   @id @default(cuid())
-  category    String
-  item        String
-  estimated   Float
-  actual      Float?
-  paid        Float    @default(0)
-  vendor      String?
-  dueDate     DateTime?
-  status      String   @default("estimated")
-  notes       String?
+  id            String   @id @default(cuid())
+  category      String
+  description   String
+  estimatedCost Float
+  actualCost    Float?
+  paidAmount    Float    @default(0)
+  currency      String   @default("USD")
+  vendorId      String?
+  vendorName    String?
+  notes         String?
+  dueDate       DateTime?
 
   weddingId String
   wedding   Wedding @relation(fields: [weddingId], references: [id])
@@ -301,11 +305,10 @@ model BudgetItem {
 }
 
 model SeatingTable {
-  id       String @id @default(cuid())
+  id       String  @id @default(cuid())
   name     String
-  number   Int
-  capacity Int
-  shape    String @default("round")
+  capacity Int     @default(8)
+  position String?
 
   weddingId String
   wedding   Wedding @relation(fields: [weddingId], references: [id])
@@ -313,94 +316,150 @@ model SeatingTable {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
 
-  @@unique([weddingId, number])
+model User {
+  id                   String   @id @default(cuid())
+  email                String   @unique
+  name                 String?
+  passwordHash         String?
+  role                 String   @default("viewer")
+  coupleId             String?
+  couple               Couple?  @relation(fields: [coupleId], references: [id])
+  currentWeddingId     String?
+  currentWedding       Wedding? @relation("CurrentWedding", fields: [currentWeddingId], references: [id], onDelete: SetNull)
+  isActive             Boolean  @default(true)
+  lastLoginAt          DateTime?
+
+  auditEvents          AuditEvent[]
+  contentRevisions     ContentRevision[]
+  contentSubmissions   ContentSubmission[]
+  memberships          WeddingMembership[] @relation("MembershipUser")
+  invitationsSent      WeddingMembership[] @relation("MembershipInviter")
+  assignedPlannerTasks PlannerTask[] @relation("PlannerTaskAssignee")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([currentWeddingId])
+}
+
+model WeddingMembership {
+  id          String @id @default(cuid())
+  userId      String
+  user        User   @relation("MembershipUser", fields: [userId], references: [id], onDelete: Cascade)
+  weddingId   String
+  wedding     Wedding @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  role        String @default("planner")
+  status      String @default("invited")
+  permissions String?
+  invitedById String?
+  invitedBy   User?  @relation("MembershipInviter", fields: [invitedById], references: [id], onDelete: SetNull)
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, weddingId])
+  @@index([weddingId, status])
+  @@index([userId, status])
 }
 
 model ImportJob {
-  id              String    @id @default(cuid())
+  id              String @id @default(cuid())
   moduleKey       String
   fileName        String
   templateVersion String?
-  status          String    @default("preview")
-  totalRows       Int       @default(0)
-  createdCount    Int       @default(0)
-  updatedCount    Int       @default(0)
-  skippedCount    Int       @default(0)
-  errorCount      Int       @default(0)
+  status          String @default("preview")
+  totalRows       Int    @default(0)
+  createdCount    Int    @default(0)
+  updatedCount    Int    @default(0)
+  skippedCount    Int    @default(0)
+  errorCount      Int    @default(0)
+  errorReport     String?
+  rollbackToken   String?
+  rollbackData    String?
   fieldMapping    String?
   previewData     String?
-  errorReport     String?
-  rollbackToken   String?   @unique
-  rollbackData    String?
-  executedAt      DateTime?
-  rolledBackAt    DateTime?
 
   weddingId String
   wedding   Wedding @relation(fields: [weddingId], references: [id])
+  performedBy String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  @@index([weddingId, moduleKey, createdAt])
 }
 
 model ContentRevision {
-  id          String    @id @default(cuid())
-  section     String
-  field       String
-  value       String
-  status      String    @default("draft")
-  publishedAt DateTime?
-  publishedBy String?
+  id            String   @id @default(cuid())
+  section       String
+  fieldKey      String
+  value         String
+  status        String   @default("draft")
+  previousValue String?
 
   weddingId String
   wedding   Wedding @relation(fields: [weddingId], references: [id])
+  authorId  String?
+  author    User?   @relation(fields: [authorId], references: [id])
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  publishedAt  DateTime?
+  scheduledFor DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model ContentSubmission {
-  id          String    @id @default(cuid())
-  type        String
-  content     String
-  submittedBy String?
-  status      String    @default("pending")
-  reviewedAt  DateTime?
-  reviewedBy  String?
+  id             String   @id @default(cuid())
+  type           String
+  content        String
+  authorName     String
+  authorEmail    String?
+  status         String   @default("pending")
+  moderatorNotes String?
 
   weddingId String
   wedding   Wedding @relation(fields: [weddingId], references: [id])
+  authorId  String?
+  author    User?   @relation(fields: [authorId], references: [id])
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  reviewedBy String?
+  reviewedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 model AuditEvent {
-  id            String   @id @default(cuid())
-  action        String
-  resourceType  String
-  resourceId    String?
-  beforeValue   String?
-  afterValue    String?
-  actorId       String?
-  actorIp       String?
-  actorUserAgent String?
+  id           String @id @default(cuid())
+  action       String
+  resourceType String
+  resourceId   String?
+  beforeValue  String?
+  afterValue   String?
+  ipAddress    String?
+  userAgent    String?
 
   weddingId String?
   wedding   Wedding? @relation(fields: [weddingId], references: [id])
+  actorId   String?
+  actor     User?    @relation(fields: [actorId], references: [id])
 
   createdAt DateTime @default(now())
 }
 
 model GoogleSheetsConnection {
-  id            String    @id @default(cuid())
-  spreadsheetId String
-  sheetName     String
-  lastSyncAt    DateTime?
-  syncStatus    String    @default("pending")
-  errorMessage  String?
+  id              String   @id @default(cuid())
+  spreadsheetId   String
+  spreadsheetName String?
+  sheetTab        String?
+  moduleKey       String
+  accessToken     String?
+  refreshToken    String?
+  tokenExpiry     DateTime?
+  lastSyncAt      DateTime?
+  lastSyncStatus  String?
+  lastSyncError   String?
+  isActive        Boolean  @default(true)
 
   weddingId String
   wedding   Wedding @relation(fields: [weddingId], references: [id])
@@ -410,11 +469,12 @@ model GoogleSheetsConnection {
 }
 
 model QRDestination {
-  id          String @id @default(cuid())
-  label       String
-  destination String
-  shortCode   String @unique
-  scanCount   Int    @default(0)
+  id        String  @id @default(cuid())
+  label     String
+  url       String
+  type      String  @default("website")
+  scanCount Int     @default(0)
+  isActive  Boolean @default(true)
 
   weddingId String
   wedding   Wedding @relation(fields: [weddingId], references: [id])
@@ -425,354 +485,106 @@ model QRDestination {
 
 model ThemePreference {
   id        String @id @default(cuid())
-  deviceId  String
-  theme     String @default("light")
-  lifecycle String @default("before")
-
-  weddingId String
-  wedding   Wedding @relation(fields: [weddingId], references: [id])
+  theme     String @default("system")
+  userId    String?
+  weddingId String?
+  wedding   Wedding? @relation(fields: [weddingId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  @@unique([weddingId, deviceId])
 }
 
 model GuestContribution {
-  id          String    @id @default(cuid())
-  type        String
-  content     String
-  mediaUrl    String?
-  caption     String?
-  authorName  String
-  status      String    @default("pending")
-  isPublic    Boolean   @default(false)
-  reviewedAt  DateTime?
-  reviewedBy  String?
-
-  weddingId String
-  wedding   Wedding @relation(fields: [weddingId], references: [id])
-
-  guestId String @unique
-  guest   Guest  @relation(fields: [guestId], references: [id])
+  id           String @id @default(cuid())
+  guestId      String @unique
+  guest        Guest  @relation(fields: [guestId], references: [id])
+  weddingId    String
+  wedding      Wedding @relation(fields: [weddingId], references: [id])
+  type         String @default("memory")
+  displayName  String
+  relationship String?
+  message      String
+  photoUrl     String?
+  favoriteSong String?
+  privacy      String @default("public")
+  status       String @default("draft")
+  moderatorNotes String?
+  wordCount    Int @default(0)
+  charCount    Int @default(0)
+  editCount    Int @default(0)
+  revisionHistory String?
+  submittedAt  DateTime?
+  reviewedAt   DateTime?
+  reviewedBy   String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model WeddingContent {
-  id       String @id @default(cuid())
-  section  String
-  field    String
-  value    String
-  order    Int    @default(0)
-  metadata String?
-
+  id        String @id @default(cuid())
   weddingId String
-  wedding   Wedding @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  wedding   Wedding @relation(fields: [weddingId], references: [id])
+  section   String
+  field     String
+  value     String
+  order     Int    @default(0)
+  metadata  String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([weddingId, section, field])
-  @@index([weddingId, section, order])
 }
 
 model UserProfile {
-  id        String  @id @default(cuid())
-  email     String  @unique
-  fullName  String
-  avatarUrl String?
-  bio       String?
-  role      String  @default("guest")
+  id                 String @id
+  email              String @unique
+  displayName        String?
+  avatarUrl          String?
+  bio                String?
+  role               String @default("viewer")
+  coupleId           String? @unique
+  couple             Couple? @relation(fields: [coupleId], references: [id])
+  emailNotifications Boolean @default(true)
+  marketingEmails    Boolean @default(false)
+  isBanned           Boolean @default(false)
+  bannedAt           DateTime?
+  banReason          String?
+  lastLoginAt        DateTime?
 
-  coupleId String? @unique
-  couple   Couple? @relation(fields: [coupleId], references: [id])
-
-  media    MediaItem[]
-  messages Message[]
-  comments Comment[]
+  comments   Comment[]
+  mediaItems MediaItem[]
+  messages   Message[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model Comment {
-  id      String @id @default(cuid())
-  content String
-
-  weddingId String
-  wedding   Wedding @relation(fields: [weddingId], references: [id], onDelete: Cascade)
-
-  userId String
-  user   UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([weddingId, createdAt])
-  @@index([userId])
-}
-
-model User {
-  id           String   @id @default(cuid())
-  supabaseId   String?  @unique
-  email        String   @unique
-  name         String?
-  avatarUrl    String?
-  role         String   @default("user")
-  passwordHash String?
-  currentWeddingId String?
-  currentWedding Wedding? @relation("CurrentWedding", fields: [currentWeddingId], references: [id], onDelete: SetNull)
-
-  coupleId String?
-  couple   Couple? @relation(fields: [coupleId], references: [id])
-
-  memberships WeddingMembership[]
-  assignedPlannerTasks PlannerTask[] @relation("PlannerTaskAssignee")
-  ownedBusinesses BusinessAccount[] @relation("BusinessAccountOwner")
-  businessMemberships BusinessMembership[]
-  createdBusinessAccounts BusinessAccount[] @relation("BusinessAccountCreatedBy")
-  updatedBusinessAccounts BusinessAccount[] @relation("BusinessAccountUpdatedBy")
-  createdBusinessMemberships BusinessMembership[] @relation("BusinessMembershipCreatedBy")
-  updatedBusinessMemberships BusinessMembership[] @relation("BusinessMembershipUpdatedBy")
-  businessAuditEvents BusinessAuditEvent[]
-  plannerProfileCreated PlannerProfile[] @relation("PlannerProfileCreatedBy")
-  plannerProfileUpdated PlannerProfile[] @relation("PlannerProfileUpdatedBy")
-  plannerProfileReviews PlannerProfile[] @relation("PlannerProfileReviewedBy")
-  plannerShortlists PlannerShortlist[] @relation("PlannerShortlistCreatedBy")
-  plannerEnquiries PlannerEnquiry[] @relation("PlannerEnquiryCreatedBy")
-  plannerEnquiryResponses PlannerEnquiry[] @relation("PlannerEnquiryRespondedBy")
-  couplePlannerEngagements CouplePlannerEngagement[] @relation("CouplePlannerEngagementCreatedBy")
-  plannerEngagements CouplePlannerEngagement[] @relation("CouplePlannerEngagementPlannerUser")
-  engagementActions PlannerEngagementAction[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model WeddingMembership {
-  id          String   @id @default(cuid())
-  role        String
-  status      String   @default("active")
-  permissions String
-
-  userId String
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  weddingId String
-  wedding   Wedding @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  id         String @id @default(cuid())
+  body       String
+  targetType String
+  targetId   String
+  weddingId  String
+  wedding    Wedding @relation(fields: [weddingId], references: [id])
+  authorId   String
+  author     UserProfile @relation(fields: [authorId], references: [id])
+  parentId   String?
+  parent     Comment? @relation("CommentReplies", fields: [parentId], references: [id])
+  replies    Comment[] @relation("CommentReplies")
+  status     String @default("published")
+  flaggedAt  DateTime?
+  flagReason String?
+  hiddenAt   DateTime?
+  hiddenBy   String?
+  likeCount  Int @default(0)
+  likedBy    String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([userId, weddingId])
-  @@index([weddingId, role])
-  @@index([userId, status])
-}
-
-model BusinessAccount {
-  id String @id @default(cuid())
-  type String
-  legalName String
-  tradingName String?
-  status String @default("pending")
-  onboardingStatus String @default("draft")
-  ownerUserId String
-  ownerUser User @relation("BusinessAccountOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
-  subscriptionPlanId String?
-  stripeCustomerId String?
-  stripeSubscriptionId String?
-  stripeSubscriptionStatus String?
-  subscriptionCurrentPeriodEnd DateTime?
-  canonEligible Boolean @default(false)
-  canonSealed Boolean @default(false)
-  canonSealedAt DateTime?
-  canonSealedByUserId String?
-  createdByUserId String?
-  createdByUser User? @relation("BusinessAccountCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  updatedByUserId String?
-  updatedByUser User? @relation("BusinessAccountUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
-  plannerProfile PlannerProfile?
-  businessMemberships BusinessMembership[]
-  auditEvents BusinessAuditEvent[]
-  paymentRecords PaymentRecord[]
-  couplePlannerEngagements CouplePlannerEngagement[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([type, status])
-  @@index([ownerUserId])
-  @@index([stripeCustomerId])
-  @@index([stripeSubscriptionId])
-}
-
-model BusinessMembership {
-  id String @id @default(cuid())
-  businessAccountId String
-  businessAccount BusinessAccount @relation(fields: [businessAccountId], references: [id], onDelete: Cascade)
-  userId String
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role String
-  status String @default("active")
-  createdByUserId String?
-  createdByUser User? @relation("BusinessMembershipCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  updatedByUserId String?
-  updatedByUser User? @relation("BusinessMembershipUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([businessAccountId, userId])
-  @@index([userId, status])
-  @@index([businessAccountId, role])
-}
-
-model BusinessAuditEvent {
-  id String @id @default(cuid())
-  businessAccountId String?
-  businessAccount BusinessAccount? @relation(fields: [businessAccountId], references: [id], onDelete: SetNull)
-  actorUserId String?
-  actorUser User? @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
-  action String
-  resourceType String
-  resourceId String?
-  beforeValue String?
-  afterValue String?
-  createdAt DateTime @default(now())
-
-  @@index([businessAccountId, createdAt])
-  @@index([actorUserId, createdAt])
-  @@index([resourceType, resourceId])
-}
-
-model PaymentRecord {
-  id String @id @default(cuid())
-  businessAccountId String
-  businessAccount BusinessAccount @relation(fields: [businessAccountId], references: [id], onDelete: Cascade)
-  provider String @default("stripe")
-  providerEventId String @unique
-  type String
-  status String
-  amount Int
-  currency String @default("usd")
-  metadata String?
-  occurredAt DateTime
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([businessAccountId, occurredAt])
-  @@index([status, occurredAt])
-}
-
-model PlannerProfile {
-  id String @id @default(cuid())
-  businessAccountId String @unique
-  businessAccount BusinessAccount @relation(fields: [businessAccountId], references: [id], onDelete: Cascade)
-  slug String @unique
-  displayName String
-  headline String?
-  bio String?
-  serviceAreas String
-  services String
-  weddingStyles String
-  priceBand String
-  availabilityStatus String @default("available")
-  verificationStatus String @default("unverified")
-  status String @default("draft")
-  publishedAt DateTime?
-  createdByUserId String?
-  createdByUser User? @relation("PlannerProfileCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  updatedByUserId String?
-  updatedByUser User? @relation("PlannerProfileUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
-  reviewedByUserId String?
-  reviewedByUser User? @relation("PlannerProfileReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
-  reviewedAt DateTime?
-  reviewNote String?
-  shortlists PlannerShortlist[]
-  enquiries PlannerEnquiry[]
-  engagements CouplePlannerEngagement[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([status, verificationStatus])
-  @@index([availabilityStatus, priceBand])
-}
-
-model PlannerShortlist {
-  id String @id @default(cuid())
-  weddingId String
-  plannerProfileId String
-  plannerProfile PlannerProfile @relation(fields: [plannerProfileId], references: [id], onDelete: Cascade)
-  createdByUserId String
-  createdByUser User @relation("PlannerShortlistCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-
-  @@unique([weddingId, plannerProfileId, createdByUserId])
-  @@index([createdByUserId, weddingId])
-}
-
-model PlannerEnquiry {
-  id String @id @default(cuid())
-  weddingId String
-  plannerProfileId String
-  plannerProfile PlannerProfile @relation(fields: [plannerProfileId], references: [id], onDelete: Cascade)
-  createdByUserId String
-  createdByUser User @relation("PlannerEnquiryCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
-  message String
-  requestedAccessLevel String @default("appointment_only")
-  status String @default("open")
-  respondedByUserId String?
-  respondedByUser User? @relation("PlannerEnquiryRespondedBy", fields: [respondedByUserId], references: [id], onDelete: SetNull)
-  respondedAt DateTime?
-  responseNote String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([plannerProfileId, status])
-  @@index([createdByUserId, weddingId])
-}
-
-model CouplePlannerEngagement {
-  id String @id @default(cuid())
-  weddingId String
-  plannerProfileId String
-  plannerProfile PlannerProfile @relation(fields: [plannerProfileId], references: [id], onDelete: Restrict)
-  plannerUserId String
-  plannerUser User @relation("CouplePlannerEngagementPlannerUser", fields: [plannerUserId], references: [id], onDelete: Restrict)
-  enquiryId String?
-  createdByUserId String
-  createdByUser User @relation("CouplePlannerEngagementCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  accessLevel String @default("appointment_only")
-  status String @default("pending_planner_acceptance")
-  startedAt DateTime?
-  endedAt DateTime?
-  pausedAt DateTime?
-  acceptedAt DateTime?
-  authorizationGrantedAt DateTime?
-  revocationReason String?
-  lastActionAt DateTime @default(now())
-  actions PlannerEngagementAction[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
+  @@index([targetType, targetId])
   @@index([weddingId, status])
-  @@index([plannerUserId, status])
-  @@index([plannerProfileId, status])
-}
-
-model PlannerEngagementAction {
-  id String @id @default(cuid())
-  engagementId String
-  engagement CouplePlannerEngagement @relation(fields: [engagementId], references: [id], onDelete: Cascade)
-  action String
-  actorUserId String
-  actorUser User @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
-  note String?
-  fromStatus String?
-  toStatus String?
-  accessLevel String?
-  createdAt DateTime @default(now())
-
-  @@index([engagementId, createdAt])
-  @@index([actorUserId, createdAt])
+  @@index([authorId])
 }
