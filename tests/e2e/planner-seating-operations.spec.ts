@@ -73,7 +73,7 @@ test('seating tables expose operational type, zone, green/red status, bulk moves
 
   const firstSelection = page.getByLabel('Select guest E2E Seating Guest One')
   const secondSelection = page.getByLabel('Select guest E2E Seating Guest Two')
-  const bulkBar = page.locator('[data-seating-bulk-bar]')
+  const bulkBar = page.locator('section').filter({ hasText: /guest records? selected/ }).first()
   await firstSelection.click()
   await expect(firstSelection).toBeChecked()
   await expect(bulkBar).toContainText('1 guest record selected')
