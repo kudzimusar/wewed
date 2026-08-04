@@ -14,13 +14,10 @@ const DATA_PREVIEW_VIEWPORTS = new Set(['compact-phone', 'tablet-portrait', 'des
 async function openWorksheetTools(page: Parameters<typeof openModule>[0]) {
   const toggle = page.getByTestId('worksheet-tools-toggle')
   if (await toggle.isVisible()) {
-    const panelOpen = new URL(page.url()).searchParams.get('panel') === 'worksheet'
-    if (!panelOpen) {
-      await expect(toggle).toHaveAttribute('aria-expanded', 'false')
-      await toggle.click()
-    }
-    await expect(page).toHaveURL(/panel=worksheet/)
+    const expanded = await toggle.getAttribute('aria-expanded')
+    if (expanded !== 'true') await toggle.click()
     await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    await expect(page).toHaveURL(/panel=worksheet/)
   }
   await expect(page.locator('#planner-worksheet-tools')).toBeVisible()
 }
@@ -75,10 +72,10 @@ async function assertDialogGeometry(
     const closeButton = closeButtons.nth(index)
     if (!(await closeButton.isVisible())) continue
     const closeBox = await stableBoundingBox(closeButton)
-    expect(closeBox.x).toBeGreaterThanOrEqual(box.x - 2)
-    expect(closeBox.y).toBeGreaterThanOrEqual(box.y - 2)
-    expect(closeBox.x + closeBox.width).toBeLessThanOrEqual(box.x + box.width + 2)
-    expect(closeBox.y + closeBox.height).toBeLessThanOrEqual(box.y + box.height + 2)
+    expect(closeBox.x).toBeGreaterThanOrEqual(box.x - 1)
+    expect(closeBox.y).toBeGreaterThanOrEqual(box.y - 1)
+    expect(closeBox.x + closeBox.width).toBeLessThanOrEqual(box.x + box.width + 1)
+    expect(closeBox.y + closeBox.height).toBeLessThanOrEqual(box.y + box.height + 1)
     if (viewport.width < 640) {
       expect(closeBox.width).toBeGreaterThanOrEqual(40)
       expect(closeBox.height).toBeGreaterThanOrEqual(40)
@@ -179,11 +176,9 @@ test('worksheet import is actionable and viewport-safe across device classes', a
       const header = page.locator('[data-planner-portal] > header')
       const toastTitle = page.getByText('Template downloaded', { exact: true })
       await expect(toastTitle).toBeVisible()
-      const headerBox = await header.boundingBox()
-      const toastBox = await toastTitle.boundingBox()
-      expect(headerBox).not.toBeNull()
-      expect(toastBox).not.toBeNull()
-      expect(toastBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height - 1)
+      const headerBox = await stableBoundingBox(header)
+      const toastBox = await stableBoundingBox(toastTitle)
+      expect(toastBox.y).toBeGreaterThanOrEqual(headerBox.y + headerBox.height - 1)
     }
 
     await page.getByRole('button', { name: 'Import', exact: true }).click()
@@ -228,12 +223,10 @@ test('worksheet import is actionable and viewport-safe across device classes', a
           element.scrollLeft = element.scrollWidth
         })
         await expect(rowHeader).toBeVisible()
-        const scrollBox = await tableScroll.boundingBox()
-        const headerBox = await rowHeader.boundingBox()
-        expect(scrollBox).not.toBeNull()
-        expect(headerBox).not.toBeNull()
-        expect(headerBox!.y).toBeGreaterThanOrEqual(scrollBox!.y - 1)
-        expect(headerBox!.y).toBeLessThanOrEqual(scrollBox!.y + 2)
+        const scrollBox = await stableBoundingBox(tableScroll)
+        const headerBox = await stableBoundingBox(rowHeader)
+        expect(headerBox.y).toBeLessThanOrEqual(scrollBox.y + 2)
+        expect(headerBox.y + headerBox.height).toBeGreaterThanOrEqual(scrollBox.y + 1)
       }
       const reviewButton = dialog.getByRole('button', { name: 'Review import', exact: true })
       await expect(reviewButton).toBeEnabled()

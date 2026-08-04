@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { resolveTimelineFields } from '@/lib/planner-legacy-metadata'
+import { timelineMinutes } from '@/lib/planner-timeline-order'
 import { requireWeddingPermission } from '@/lib/wedding-access'
 
 function formatProgrammeItem(item: {
@@ -74,6 +75,12 @@ export async function PATCH(
       if (!time) {
         return NextResponse.json(
           { success: false, error: 'Time cannot be empty' },
+          { status: 400 },
+        )
+      }
+      if (timelineMinutes(time) === null) {
+        return NextResponse.json(
+          { success: false, error: 'Time must be a valid clock time.' },
           { status: 400 },
         )
       }
