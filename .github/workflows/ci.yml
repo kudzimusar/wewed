@@ -135,6 +135,9 @@ jobs:
       - name: Run Seating operations metadata contract
         run: bun test src/lib/planner-seating-metadata.test.ts
 
+      - name: Run final Seating and Timeline release blocker contracts
+        run: bun test src/lib/planner-release-blockers.test.ts
+
       - name: Run Seating worksheet relational round trips
         run: bun test src/lib/planner-seating-worksheet.integration.test.ts
 
