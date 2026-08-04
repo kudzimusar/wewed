@@ -1,5 +1,9 @@
 import { db } from '@/lib/db'
 import {
+  buildDigitalInvitationUrl,
+  normalizeInvitationCardStyle,
+} from '@/lib/digital-invitation-card'
+import {
   renderReminderTemplate,
   selectReminderRecipients,
   type ReminderAudience,
@@ -26,7 +30,50 @@ function escapeHtml(value: string) {
     .replace(/'/g, '&#039;')
 }
 
-async function sendEmail(input: { to: string; subject: string; text: string }) {
+function safeColor(value: string | null | undefined, fallback: string) {
+  return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value)
+    ? value
+    : fallback
+}
+
+function digitalInvitationEmailHtml(input: {
+  guestName: string
+  weddingTitle: string
+  weddingDate: string
+  venue: string
+  invitationUrl: string
+  invitationMessage: string | null
+  body: string
+  primaryColor: string
+  accentColor: string
+  backgroundColor: string
+}) {
+  const primary = safeColor(input.primaryColor, '#BF9B5F')
+  const accent = safeColor(input.accentColor, '#C0633F')
+  const background = safeColor(input.backgroundColor, '#FBF6EE')
+  const body = escapeHtml(input.body).replaceAll('\n', '<br />')
+  return `<!doctype html>
+<html lang="en">
+  <body style="margin:0;background:#f2eee7;padding:24px;font-family:Arial,sans-serif;color:#241d18">
+    <div style="max-width:640px;margin:0 auto">
+      <div style="background:${background};border:1px solid ${primary};border-radius:28px;padding:42px 28px;text-align:center;box-shadow:0 16px 45px rgba(36,29,24,.12)">
+        <div style="font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:${accent};font-weight:700">A private digital wedding invitation</div>
+        <div style="margin:24px auto;width:58px;height:1px;background:${primary}"></div>
+        <div style="font-family:Georgia,serif;font-size:42px;line-height:1.05;color:#241d18">${escapeHtml(input.weddingTitle)}</div>
+        <div style="margin-top:18px;font-size:15px;color:#685f57">Especially for ${escapeHtml(input.guestName)}</div>
+        ${input.invitationMessage ? `<div style="margin:24px auto 0;max-width:480px;font-family:Georgia,serif;font-size:18px;line-height:1.6;color:#4b433c">${escapeHtml(input.invitationMessage)}</div>` : ''}
+        <div style="margin-top:28px;font-size:14px;line-height:1.7;color:#4b433c"><strong>${escapeHtml(input.weddingDate)}</strong><br />${escapeHtml(input.venue)}</div>
+        <a href="${escapeHtml(input.invitationUrl)}" style="display:inline-block;margin-top:30px;background:${primary};color:#241d18;text-decoration:none;font-weight:700;padding:14px 24px;border-radius:999px">Open card &amp; RSVP</a>
+        <div style="margin-top:20px;font-size:11px;line-height:1.5;color:#786f66">This invitation link is personal to you. Please do not forward it.</div>
+      </div>
+      <div style="margin:20px 8px 0;font-size:14px;line-height:1.65;color:#4b433c">${body}</div>
+      <div style="margin-top:20px;text-align:center;font-size:11px;color:#8b8177">Securely delivered by Wewed</div>
+    </div>
+  </body>
+</html>`
+}
+
+async function sendEmail(input: { to: string; subject: string; text: string; html: string }) {
   const apiKey = process.env.RESEND_API_KEY
   const from = process.env.RESEND_FROM_EMAIL
   if (!apiKey || !from) throw new Error('Email delivery is not configured.')
@@ -42,7 +89,7 @@ async function sendEmail(input: { to: string; subject: string; text: string }) {
       to: [input.to],
       subject: input.subject,
       text: input.text,
-      html: `<div style="font-family:Arial,sans-serif;white-space:pre-wrap;line-height:1.6">${escapeHtml(input.text)}</div>`,
+      html: input.html,
     }),
   })
 
@@ -75,7 +122,17 @@ export async function deliverReminder(input: {
   const value = JSON.parse(reminder.value) as StoredReminderValue
   const wedding = await db.wedding.findUnique({
     where: { id: input.weddingId },
-    select: { title: true, date: true },
+    select: {
+      slug: true,
+      title: true,
+      date: true,
+      venue: true,
+      primaryColor: true,
+      accentColor: true,
+      backgroundColor: true,
+      invitationCardStyle: true,
+      invitationCardMessage: true,
+    },
   })
   if (!wedding) throw new Error('Wedding not found.')
 
@@ -95,21 +152,44 @@ export async function deliverReminder(input: {
     dateStyle: 'long',
     timeZone: 'UTC',
   }).format(wedding.date)
+  const cardStyle = normalizeInvitationCardStyle(wedding.invitationCardStyle)
 
   const renderFor = (recipient: (typeof recipients)[number]) => {
-    const rsvpLink = recipient.token
-      ? `${siteUrl}/?rsvp=${encodeURIComponent(recipient.token)}`
-      : `${siteUrl}/#rsvp`
+    const invitationUrl = recipient.token
+      ? buildDigitalInvitationUrl({
+          siteUrl,
+          weddingSlug: wedding.slug,
+          token: recipient.token,
+          style: cardStyle,
+        })
+      : `${siteUrl}/guest-access-help`
     const variables = {
       guest_name: recipient.name,
       wedding_title: wedding.title,
       wedding_date: dateLabel,
-      rsvp_link: rsvpLink,
+      rsvp_link: invitationUrl,
+      digital_invitation_url: invitationUrl,
     }
+    const subject = renderReminderTemplate(value.subject, variables)
+    const body = renderReminderTemplate(value.body, variables)
     return {
       ...recipient,
-      subject: renderReminderTemplate(value.subject, variables),
-      body: renderReminderTemplate(value.body, variables),
+      subject,
+      body,
+      invitationUrl,
+      cardStyle,
+      html: digitalInvitationEmailHtml({
+        guestName: recipient.name,
+        weddingTitle: wedding.title,
+        weddingDate: dateLabel,
+        venue: wedding.venue,
+        invitationUrl,
+        invitationMessage: wedding.invitationCardMessage,
+        body,
+        primaryColor: wedding.primaryColor,
+        accentColor: wedding.accentColor,
+        backgroundColor: wedding.backgroundColor,
+      }),
     }
   }
 
@@ -132,7 +212,12 @@ export async function deliverReminder(input: {
     const results = await Promise.allSettled(
       chunk.map(async (recipient) => {
         const rendered = renderFor(recipient)
-        await sendEmail({ to: recipient.email, subject: rendered.subject, text: rendered.body })
+        await sendEmail({
+          to: recipient.email,
+          subject: rendered.subject,
+          text: rendered.body,
+          html: rendered.html,
+        })
         return recipient.email
       }),
     )
