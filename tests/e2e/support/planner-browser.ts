@@ -84,6 +84,14 @@ export async function openModule(page: Page, moduleKey: ModuleKey): Promise<void
     if (!targetPattern.test(page.url())) await page.goto(targetUrl)
   }
 
+  // A test may already be on the correct module with an import/history route open.
+  // Canonical navigation closes that transient panel deterministically instead of
+  // waiting for React disclosure state to reconcile and producing a flaky gate.
+  const liveUrl = new URL(page.url())
+  if (liveUrl.searchParams.get('panel') === 'worksheet' || /\/(?:import|imports)(?:[?#]|$)/.test(page.url())) {
+    await page.goto(targetUrl)
+  }
+
   await expect(page).toHaveURL(targetPattern)
   await expect(page.locator('[data-active-planner-module]')).toHaveAttribute(
     'data-active-planner-module',
@@ -92,8 +100,9 @@ export async function openModule(page: Page, moduleKey: ModuleKey): Promise<void
 
   const worksheetToggle = page.getByTestId('worksheet-tools-toggle')
   if (await worksheetToggle.isVisible()) {
-    await expect.poll(() => new URL(page.url()).searchParams.get('panel')).not.toBe('worksheet')
+    await expect(worksheetToggle).toBeEnabled()
     await expect(worksheetToggle).toHaveAttribute('aria-expanded', 'false')
+    await expect.poll(() => new URL(page.url()).searchParams.get('panel')).not.toBe('worksheet')
   }
 
   const mobileSelector = page.getByRole('combobox', { name: 'Planner workspace section' })
