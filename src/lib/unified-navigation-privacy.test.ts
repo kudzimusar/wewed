@@ -82,12 +82,17 @@ describe('unified Wewed navigation and wedding privacy', () => {
 
   test('RSVP writes and check-in require guest invitation identity', async () => {
     const rsvpRoute = await source('src/app/api/rsvp/route.ts')
+    const legacyTokenRoute = await source('src/app/api/rsvp/[token]/route.ts')
     const rsvpSection = await source('src/components/wedding/rsvp-section.tsx')
     const checkin = await source('src/components/wedding/qr-checkin.tsx')
 
     expect(rsvpRoute).toContain('guest_invitation_required')
     expect(rsvpRoute).toContain('access.guest.rsvpToken')
     expect(rsvpRoute).not.toContain('guest.create')
+    expect(legacyTokenRoute).toContain('guest_session_required')
+    expect(legacyTokenRoute).toContain('status: 410')
+    expect(legacyTokenRoute).toContain("requireWeddingPermission(request, 'guests.edit')")
+    expect(legacyTokenRoute).toContain('guest: { weddingId: access.context.weddingId }')
     expect(rsvpSection).toContain('/guest-session')
     expect(rsvpSection).toContain('Names and email addresses alone cannot')
     expect(checkin).toContain('/guest-session')
