@@ -16,7 +16,9 @@ const billingSyncRoute = readFileSync('src/app/api/billing/sync/route.ts', 'utf8
 const webhookRoute = readFileSync('src/app/api/stripe/webhook/route.ts', 'utf8')
 const stripeBilling = readFileSync('src/lib/stripe-billing.ts', 'utf8')
 const registration = readFileSync('src/components/public/public-registration-form.tsx', 'utf8')
-const globalTools = readFileSync('src/components/wedding/global-wedding-tools.tsx', 'utf8')
+const rootLayout = readFileSync('src/app/layout.tsx', 'utf8')
+const weddingHome = readFileSync('src/components/wedding/wedding-home.tsx', 'utf8')
+const pricingPage = readFileSync('src/app/pricing/page.tsx', 'utf8')
 
 assert(WEWED_PLANS.length === 4, 'Free, Canon, Forever and Enterprise must all exist.')
 assert(WEWED_PLAN_BY_ID.free.monthlyCents === 0, 'Free must remain free.')
@@ -30,6 +32,7 @@ assert(annualMonthlyEquivalent(WEWED_PLAN_BY_ID.professional) === 3250, 'Forever
 
 assert(publicPricing.includes("setInterval('year')"), 'Public pricing must expose annual billing.')
 assert(publicPricing.includes('Annual · 2 months free'), 'Public pricing must explain the annual discount.')
+assert(pricingPage.includes('WewedPricingCatalog'), 'The public pricing route must render the canonical catalog.')
 assert(billingPortal.includes('type WewedBillingInterval'), 'Billing UI must use the canonical billing interval type.')
 assert(billingPortal.includes('body: JSON.stringify({ action, plan, interval })'), 'Billing Checkout must submit plan and interval.')
 assert(billingPortal.includes('Stripe Sandbox:'), 'Preview billing must clearly identify sandbox mode.')
@@ -91,6 +94,7 @@ assert(webhookRoute.includes('subscriptionCancellationScheduled'), 'Webhook canc
 assert(webhookRoute.includes('if (stripeUsesTestMode()) return'), 'Sandbox invoices must never enter the live PaymentRecord ledger.')
 assert(webhookRoute.includes('sandboxLedgerWriteSkipped: stripeUsesTestMode()'), 'Sandbox ledger isolation must be auditable.')
 assert(registration.includes('WEWED_PLANS.map((plan)'), 'Registration choices must come from the canonical pricing catalog.')
-assert(globalTools.includes("'/billing'"), 'Billing must be isolated from wedding floating utilities.')
+assert(!rootLayout.includes('GlobalWeddingTools'), 'Billing and other public routes must be isolated from wedding-only utilities.')
+assert(weddingHome.includes('<GlobalWeddingTools />'), 'Wedding-only utilities must remain available inside authorized wedding homes.')
 
 console.log('[wewed-pricing-contract] Pricing, Stripe billing and environment-isolation contracts passed.')
