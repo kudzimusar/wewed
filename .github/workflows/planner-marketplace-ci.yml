@@ -62,6 +62,7 @@ jobs:
           src/lib/wedding-data-isolation.test.ts
           src/lib/africa-ready-experience.test.ts
           src/lib/africa-ready-remediation.test.ts
+          src/lib/targeted-home-provider-iteration.test.ts
       - run: psql "postgresql://postgres:postgres@localhost:5432/wewed" -f scripts/planner-marketplace-postgres-integration.sql
       - run: >-
           bunx prisma migrate diff
@@ -70,7 +71,7 @@ jobs:
           --exit-code
       - run: bun run build
       - run: bunx playwright install --with-deps chromium
-      - name: Run marketplace, privacy, invitation and Africa-ready browser release gate
+      - name: Run marketplace, privacy, invitation and wedding-first browser release gate
         run: >-
           bunx playwright test
           tests/e2e/zz-planner-marketplace.spec.ts
