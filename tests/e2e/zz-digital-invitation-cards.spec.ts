@@ -114,7 +114,7 @@ test('couples design, save, export and deliver guest-specific digital invitation
   expect(delivery.status()).toBe(200)
   const deliveryPayload = await delivery.json()
   const deliveredPreview = deliveryPayload.recipients.find(
-    (row: { id: string }) => row.id === E2E_GUEST_INVITATION.guestId,
+    (row: { guestId: string }) => row.guestId === E2E_GUEST_INVITATION.guestId,
   )
   expect(deliveredPreview.invitationUrl).toContain(
     `/w/${E2E_WEDDINGS.primary.slug}?`,
@@ -148,7 +148,7 @@ test('couples design, save, export and deliver guest-specific digital invitation
   await expect(page.getByText('Your RSVP has been saved.')).toBeVisible()
 
   const guestSession = await page.request.get(
-    `/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`,
+    new URL(`/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`, page.url()).toString(),
   )
   expect(guestSession.status()).toBe(200)
   expect(await guestSession.json()).toMatchObject({
