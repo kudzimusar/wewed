@@ -7,13 +7,16 @@ import {
   plannedSeatsForGuest,
   serializeSeatingTableMetadata,
 } from '@/lib/planner-seating-metadata'
+import {
+  runSerializableSeatingTransaction,
+  SeatingCapacityError,
+  SeatingTargetError,
+} from '@/lib/planner-seating-transaction'
 import { requireWeddingPermission } from '@/lib/wedding-access'
 
 const GUEST_ROLES = ['guest', 'bridal_party', 'family', 'officiant', 'vip'] as const
 const GUEST_SIDES = ['bride', 'groom', 'family', 'neutral'] as const
 const MAX_TABLE_CAPACITY = 50
-
-class SeatingCapacityError extends Error {}
 
 interface PatchGuestPayload {
   name?: string
@@ -220,14 +223,27 @@ export async function PATCH(
         return NextResponse.json({ success: false, error: 'No updates provided' }, { status: 400 })
       }
 
-      const updated = await db.$transaction(async (tx) => {
-        const table = await tx.seatingTable.update({ where: { id: existing.id }, data: updates })
+      const updated = await runSerializableSeatingTransaction(async (tx) => {
+        const current = await tx.seatingTable.findFirst({
+          where: { id: existing.id, weddingId },
+          include: { guests: { include: { rsvp: true } } },
+        })
+        if (!current) throw new SeatingTargetError('Table not found')
+        if (updates.capacity !== undefined) {
+          const occupied = current.guests.reduce((sum, guest) => sum + plannedSeatsForGuest(guest), 0)
+          if (updates.capacity < occupied) {
+            throw new SeatingCapacityError(
+              `${current.name} currently requires ${occupied} planned seats. Move or unassign Guests before reducing capacity below ${occupied}.`,
+            )
+          }
+        }
+        const table = await tx.seatingTable.update({ where: { id: current.id }, data: updates })
         await tx.auditEvent.create({
           data: {
             action: 'seating.table_update',
             resourceType: 'seating_table',
-            resourceId: existing.id,
-            beforeValue: JSON.stringify(formatTable(existing)),
+            resourceId: current.id,
+            beforeValue: JSON.stringify(formatTable(current)),
             afterValue: JSON.stringify(formatTable(table)),
             weddingId,
             actorId: access.context.session.userId,
@@ -305,38 +321,45 @@ export async function PATCH(
       updates.side = body.side
     }
     if (body.seatingTableId !== undefined) {
-      if (!body.seatingTableId) updates.seatingTableId = null
-      else {
-        const table = await db.seatingTable.findFirst({
-          where: { id: body.seatingTableId, weddingId },
-          include: {
-            guests: {
-              where: { NOT: { id: existing.id } },
-              include: { rsvp: true },
-            },
-          },
-        })
-        if (!table) {
-          return NextResponse.json({ success: false, error: 'Invalid seatingTableId' }, { status: 400 })
-        }
-        const occupied = table.guests.reduce((sum, guest) => sum + plannedSeatsForGuest(guest), 0)
-        const required = plannedSeatsForGuest(existing)
-        if (occupied + required > table.capacity) {
-          throw new SeatingCapacityError(
-            `${table.name} has ${Math.max(0, table.capacity - occupied)} available seat${table.capacity - occupied === 1 ? '' : 's'}; ${existing.name}'s party requires ${required}.`,
-          )
-        }
-        updates.seatingTableId = body.seatingTableId
-      }
+      updates.seatingTableId = body.seatingTableId || null
     }
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ success: false, error: 'No updates provided' }, { status: 400 })
     }
 
-    const updated = await db.$transaction(async (tx) => {
+    const updated = await runSerializableSeatingTransaction(async (tx) => {
+      const current = await tx.guest.findFirst({
+        where: { id: existing.id, weddingId },
+        include: {
+          rsvp: true,
+          seatingTable: { select: { id: true, name: true, capacity: true } },
+        },
+      })
+      if (!current) throw new SeatingTargetError('Guest not found')
+
+      if (body.seatingTableId) {
+        const table = await tx.seatingTable.findFirst({
+          where: { id: body.seatingTableId, weddingId },
+          include: {
+            guests: {
+              where: { NOT: { id: current.id } },
+              include: { rsvp: true },
+            },
+          },
+        })
+        if (!table) throw new SeatingTargetError('Invalid seatingTableId')
+        const occupied = table.guests.reduce((sum, guest) => sum + plannedSeatsForGuest(guest), 0)
+        const required = plannedSeatsForGuest(current)
+        if (occupied + required > table.capacity) {
+          throw new SeatingCapacityError(
+            `${table.name} has ${Math.max(0, table.capacity - occupied)} available seat${table.capacity - occupied === 1 ? '' : 's'}; ${current.name}'s party requires ${required}.`,
+          )
+        }
+      }
+
       const guest = await tx.guest.update({
-        where: { id: existing.id },
+        where: { id: current.id },
         data: updates,
         include: {
           rsvp: true,
@@ -347,14 +370,14 @@ export async function PATCH(
         data: {
           action: body.seatingTableId !== undefined ? 'seating.guest_assignment' : 'guest.update',
           resourceType: 'guest',
-          resourceId: existing.id,
+          resourceId: current.id,
           beforeValue: JSON.stringify({
-            name: existing.name,
-            email: existing.email,
-            phone: existing.phone,
-            role: existing.role,
-            side: existing.side,
-            seatingTableId: existing.seatingTableId,
+            name: current.name,
+            email: current.email,
+            phone: current.phone,
+            role: current.role,
+            side: current.side,
+            seatingTableId: current.seatingTableId,
           }),
           afterValue: JSON.stringify({
             name: guest.name,
@@ -374,6 +397,9 @@ export async function PATCH(
   } catch (error) {
     if (error instanceof SeatingCapacityError) {
       return NextResponse.json({ success: false, error: error.message }, { status: 409 })
+    }
+    if (error instanceof SeatingTargetError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 400 })
     }
     console.error('[PLANNER GUEST PATCH] error:', error)
     return NextResponse.json(
