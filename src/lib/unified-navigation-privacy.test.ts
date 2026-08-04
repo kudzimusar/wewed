@@ -59,7 +59,7 @@ describe('unified Wewed navigation and wedding privacy', () => {
     expect(exchange).toContain('`/w/${encodeURIComponent(slug)}?${query.toString()}`')
     expect(exchange).toContain('normalizeInvitationCardStyle')
     expect(invitations).toContain('buildDigitalInvitationUrl')
-    expect(cardContract).toContain('`/w/${encodeURIComponent(weddingSlug)}?${query.toString()}`')
+    expect(cardContract).toContain('`${origin}/w/${encodeURIComponent(weddingSlug)}?${query.toString()}`')
     expect(invitations).toContain('guest.invitation_rotated')
     expect(legacySharedToken).toContain('legacy_shared_token_retired')
     expect(legacySharedToken).toContain('status: 410')
