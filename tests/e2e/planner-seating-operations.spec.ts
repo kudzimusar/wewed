@@ -64,6 +64,13 @@ test('seating tables expose operational type, zone, green/red status, bulk moves
   await page.reload()
   await expect(visibleGuestName(page, 'E2E Seating Guest One')).toBeVisible()
 
+  // Prove that the client component is hydrated before exercising controlled checkboxes.
+  const addTableDisclosure = page.getByRole('button', { name: /Add table/ })
+  await addTableDisclosure.click()
+  await expect(page.locator('#seating-new-name')).toBeVisible()
+  await addTableDisclosure.click()
+  await expect(page.locator('#seating-new-name')).toHaveCount(0)
+
   const firstSelection = page.getByLabel('Select guest E2E Seating Guest One')
   const secondSelection = page.getByLabel('Select guest E2E Seating Guest Two')
   const bulkBar = page.locator('[data-seating-bulk-bar]')
