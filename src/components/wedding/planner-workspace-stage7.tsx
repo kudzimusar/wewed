@@ -259,7 +259,7 @@ export function PlannerWorkspace() {
       ref={rootRef}
       className="flex h-full min-h-0 flex-col bg-espresso text-champagne"
       data-active-planner-module={activeTab}
-      data-planner-route={plannerLocation(pathname, searchParams)}
+      data-planner-route={plannerModulePath(activeTab, activeTool)}
     >
       <section className="shrink-0 border-b border-gold/15 bg-espresso/95 px-3 py-2 sm:px-5 sm:py-3">
         <div className="mx-auto w-full max-w-7xl">
