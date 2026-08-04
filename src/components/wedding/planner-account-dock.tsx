@@ -30,6 +30,23 @@ function plannerModuleRoute(pathname: string): string | null {
   return match ? `/planner/${match[1]}` : null
 }
 
+function nestedOverlayIsOpen(): boolean {
+  return Array.from(
+    document.querySelectorAll<HTMLElement>(
+      '[data-slot="select-content"], [role="listbox"], [data-radix-popper-content-wrapper]',
+    ),
+  ).some((element) => {
+    const styles = window.getComputedStyle(element)
+    const box = element.getBoundingClientRect()
+    return (
+      styles.display !== 'none' &&
+      styles.visibility !== 'hidden' &&
+      box.width > 0 &&
+      box.height > 0
+    )
+  })
+}
+
 export function PlannerAccountDock() {
   const pathname = usePathname()
   const router = useRouter()
@@ -41,6 +58,7 @@ export function PlannerAccountDock() {
     const closeRouteControlledDialog = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
       if (!document.querySelector('[data-testid="import-dialog"]')) return
+      if (nestedOverlayIsOpen()) return
 
       event.preventDefault()
       event.stopPropagation()
