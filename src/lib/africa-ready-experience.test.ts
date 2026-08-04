@@ -68,7 +68,7 @@ describe('Africa-ready product experience', () => {
     expect(frame).toContain('Couple planner journey')
     expect(frame).toContain('Public planner marketplace')
     expect(frame).toContain('Planner directory')
-    expect(frame).toContain('bg-[linear-gradient')
+    expect(frame).toContain('linear-gradient(100deg')
   })
 
   test('desktop and mobile Chromium both exercise the new experience', () => {
@@ -81,6 +81,6 @@ describe('Africa-ready product experience', () => {
   test('the redesign remains frontend-only', () => {
     const plan = source('docs/africa-ready-ui-release.md')
     expect(plan).toContain('frontend-only')
-    expect(plan).toContain('no schema, database, permission, privacy, or API contract changes')
+    expect(plan).toContain('no schema, database, permission, privacy, subscription, billing or API contract changes')
   })
 })
