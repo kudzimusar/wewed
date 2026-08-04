@@ -7,6 +7,7 @@ on:
   push:
     branches:
       - main
+      - fix/worksheet-recovery-contracts
   workflow_dispatch:
 
 permissions:
