@@ -94,6 +94,33 @@ function EmptyState({ title, detail }: { title: string; detail: string }) {
   return <div className="rounded-xl border border-dashed border-gold/20 px-5 py-10 text-center"><p className="font-serif text-lg text-champagne">{title}</p><p className="mx-auto mt-2 max-w-lg font-sans text-xs leading-5 text-champagne/50">{detail}</p></div>
 }
 
+function GuestSelectionControl({
+  guestName,
+  selected,
+  onToggle,
+}: {
+  guestName: string
+  selected: boolean
+  onToggle: () => void
+}) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={selected}
+      aria-label={`Select guest ${guestName}`}
+      onClick={onToggle}
+      className={`flex size-5 shrink-0 items-center justify-center rounded border transition-colors ${
+        selected
+          ? 'border-gold bg-gold text-espresso'
+          : 'border-gold/35 bg-espresso/80 text-transparent hover:border-gold/70'
+      }`}
+    >
+      <CheckCircle2 className="size-3.5" aria-hidden="true" />
+    </button>
+  )
+}
+
 async function seatingApi<T>(url: string, init: RequestInit): Promise<T> {
   const response = await fetch(url, { cache: 'no-store', ...init })
   const payload = (await response.json()) as T & { error?: string }
@@ -192,11 +219,11 @@ export function PlannerSeatingModule(props: PlannerSeatingModuleProps) {
   const selectedGuests = viewGuests.filter((guest) => selectedGuestIds.has(guest.id))
   const selectedSeats = selectedGuests.reduce((sum, guest) => sum + plannedSeatsForGuest(guest), 0)
 
-  function setGuestSelection(guestId: string, selected: boolean) {
+  function toggleGuestSelection(guestId: string) {
     setSelectedGuestIds((current) => {
       const next = new Set(current)
-      if (selected) next.add(guestId)
-      else next.delete(guestId)
+      if (next.has(guestId)) next.delete(guestId)
+      else next.add(guestId)
       return next
     })
   }
@@ -389,7 +416,7 @@ export function PlannerSeatingModule(props: PlannerSeatingModuleProps) {
 
     {filters.assignment !== 'assigned' && filters.capacity === 'all' && filters.occupancy === 'all' && unassignedGuests.length > 0 && <SectionCard className="p-4">
       <div className="flex items-center justify-between gap-3"><div><h3 className="font-serif text-lg">Unassigned Guests</h3><p className="mt-1 font-sans text-xs text-champagne/45">Select several parties to place them together. Tables without enough capacity are disabled.</p></div><Badge variant="outline" className="border-clay/35 text-clay-light">{unassignedHeads} seats to place</Badge></div>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{unassignedGuests.map((guest) => <div key={guest.id} className="flex items-center gap-3 rounded-xl border border-gold/10 bg-espresso/45 p-3"><input type="checkbox" aria-label={`Select guest ${guest.name}`} checked={selectedGuestIds.has(guest.id)} readOnly onClick={(event) => setGuestSelection(guest.id, event.currentTarget.checked)} className="size-4 accent-[#bf9b5f]" /><div className="min-w-0 flex-1"><p className="truncate font-sans text-sm">{guest.name}</p><p className="font-sans text-[10px] text-champagne/40">{plannedSeatsForGuest(guest)} planned seat{plannedSeatsForGuest(guest) === 1 ? '' : 's'}</p></div><select value="" aria-label={`Assign guest ${guest.name}`} disabled={busy} onChange={(event) => { if (event.target.value) void assignOneGuest(guest, event.target.value) }} className="h-9 max-w-[11rem] rounded-md border border-gold/20 bg-espresso px-2 font-sans text-xs text-gold"><option value="">Assign</option>{orderedTables.map((table) => { const occupied = occupancy.get(table.id) ?? 0; const full = occupied + plannedSeatsForGuest(guest) > table.capacity; return <option key={table.id} value={table.id} disabled={full}>{table.name} ({occupied}/{table.capacity}){full ? ' — full' : ''}</option> })}</select></div>)}</div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{unassignedGuests.map((guest) => <div key={guest.id} className="flex items-center gap-3 rounded-xl border border-gold/10 bg-espresso/45 p-3"><GuestSelectionControl guestName={guest.name} selected={selectedGuestIds.has(guest.id)} onToggle={() => toggleGuestSelection(guest.id)} /><div className="min-w-0 flex-1"><p className="truncate font-sans text-sm">{guest.name}</p><p className="font-sans text-[10px] text-champagne/40">{plannedSeatsForGuest(guest)} planned seat{plannedSeatsForGuest(guest) === 1 ? '' : 's'}</p></div><select value="" aria-label={`Assign guest ${guest.name}`} disabled={busy} onChange={(event) => { if (event.target.value) void assignOneGuest(guest, event.target.value) }} className="h-9 max-w-[11rem] rounded-md border border-gold/20 bg-espresso px-2 font-sans text-xs text-gold"><option value="">Assign</option>{orderedTables.map((table) => { const occupied = occupancy.get(table.id) ?? 0; const full = occupied + plannedSeatsForGuest(guest) > table.capacity; return <option key={table.id} value={table.id} disabled={full}>{table.name} ({occupied}/{table.capacity}){full ? ' — full' : ''}</option> })}</select></div>)}</div>
     </SectionCard>}
 
     {filters.assignment === 'unassigned' ? (unassignedGuests.length ? null : <EmptyState title="No unassigned Guests" detail="Clear the search or assignment filter to review the seating chart." />) : <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -410,7 +437,7 @@ export function PlannerSeatingModule(props: PlannerSeatingModuleProps) {
           <article data-seating-table-id={table.id} data-seating-status={status} data-seating-type={typeOf(table)}>
             {editing ? <div className="space-y-3"><div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-2"><div><Label htmlFor={`seating-edit-name-${table.id}`}>Table name</Label><Input id={`seating-edit-name-${table.id}`} value={editTable.name} onChange={(event) => setEditTable((current) => ({ ...current, name: event.target.value }))} className="mt-1 border-gold/20 bg-espresso/70" /></div><div><Label htmlFor={`seating-edit-capacity-${table.id}`}>Seats</Label><Input id={`seating-edit-capacity-${table.id}`} type="number" min="1" max="50" step="1" value={editTable.capacity} onChange={(event) => setEditTable((current) => ({ ...current, capacity: event.target.value }))} className="mt-1 border-gold/20 bg-espresso/70" /></div></div><div className="grid gap-2 sm:grid-cols-2"><div><Label htmlFor={`seating-edit-type-${table.id}`}>Table type</Label><select id={`seating-edit-type-${table.id}`} value={editTable.tableType} onChange={(event) => setEditTable((current) => ({ ...current, tableType: event.target.value as SeatingTableType }))} className="mt-1 h-10 w-full rounded-md border border-gold/20 bg-espresso px-3 text-sm">{TYPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div><div><Label htmlFor={`seating-edit-zone-${table.id}`}>Zone / position</Label><Input id={`seating-edit-zone-${table.id}`} value={editTable.zone} onChange={(event) => setEditTable((current) => ({ ...current, zone: event.target.value }))} className="mt-1 border-gold/20 bg-espresso/70" /></div></div><div><Label htmlFor={`seating-edit-notes-${table.id}`}>Operational notes</Label><Input id={`seating-edit-notes-${table.id}`} value={editTable.notes} onChange={(event) => setEditTable((current) => ({ ...current, notes: event.target.value }))} className="mt-1 border-gold/20 bg-espresso/70" /></div><div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={() => setEditingTableId(null)}><X className="size-4" />Cancel</Button><Button type="button" disabled={busy} onClick={() => void saveTable(table)} className="bg-gold text-espresso"><CheckCircle2 className="size-4" />Save table</Button></div></div> : <><div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-serif text-xl">{table.name}</h3><Badge variant="outline" className="border-gold/25 text-gold">{seatingTableTypeLabel(typeOf(table))}</Badge></div><p className="mt-1 font-sans text-xs text-champagne/50">{table.zone || 'Zone not set'}</p>{table.notes && <p className="mt-2 font-sans text-xs leading-5 text-champagne/60">{table.notes}</p>}</div><div className="flex items-center gap-1"><Button type="button" variant="ghost" size="icon" aria-label={`Edit ${table.name}`} disabled={busy} onClick={() => startTableEdit(table)} className="size-10 text-champagne/50 hover:text-gold"><Pencil className="size-4" /></Button><Button type="button" variant="ghost" size="icon" aria-label={`Delete ${table.name}`} disabled={busy} onClick={() => void deleteTable(table)} className="size-10 text-champagne/50 hover:bg-red-500/10 hover:text-red-300"><Trash2 className="size-4" /></Button></div></div>
             <div className="mt-3 flex items-center justify-between gap-3"><Badge variant="outline" className={badgeClasses}>{status === 'available' ? <UserRoundCheck className="mr-1 size-3" /> : <CircleAlert className="mr-1 size-3" />}{statusLabel(status)} · {occupied}/{table.capacity}</Badge><span className="font-sans text-[10px] uppercase tracking-wider text-champagne/45">{status === 'available' ? `${available} open` : statusLabel(status)}</span></div><Progress value={Math.min(100, table.capacity ? (occupied / table.capacity) * 100 : 0)} className={`mt-2 h-2 bg-champagne/10 ${progressClasses}`} />
-            <div className="mt-3 space-y-2">{assignedGuests.length === 0 ? <p className="font-sans text-xs italic text-champagne/40">No Guests assigned</p> : assignedGuests.map((guest) => <div key={guest.id} className="flex items-center gap-2 rounded-lg border border-gold/10 bg-espresso/45 px-3 py-2"><input type="checkbox" aria-label={`Select guest ${guest.name}`} checked={selectedGuestIds.has(guest.id)} readOnly onClick={(event) => setGuestSelection(guest.id, event.currentTarget.checked)} className="size-4 accent-[#bf9b5f]" /><div className="min-w-0 flex-1"><p className="truncate font-sans text-xs">{guest.name}</p><p className="font-sans text-[9px] text-champagne/35">{plannedSeatsForGuest(guest)} planned seat{plannedSeatsForGuest(guest) === 1 ? '' : 's'}</p></div><Button type="button" variant="ghost" size="sm" aria-label={`Unassign guest ${guest.name}`} disabled={busy} onClick={() => void assignOneGuest(guest, null)} className="min-h-9 px-2 text-[10px] text-champagne/45 hover:text-red-300"><X className="size-3" />Unassign</Button></div>)}</div>
+            <div className="mt-3 space-y-2">{assignedGuests.length === 0 ? <p className="font-sans text-xs italic text-champagne/40">No Guests assigned</p> : assignedGuests.map((guest) => <div key={guest.id} className="flex items-center gap-2 rounded-lg border border-gold/10 bg-espresso/45 px-3 py-2"><GuestSelectionControl guestName={guest.name} selected={selectedGuestIds.has(guest.id)} onToggle={() => toggleGuestSelection(guest.id)} /><div className="min-w-0 flex-1"><p className="truncate font-sans text-xs">{guest.name}</p><p className="font-sans text-[9px] text-champagne/35">{plannedSeatsForGuest(guest)} planned seat{plannedSeatsForGuest(guest) === 1 ? '' : 's'}</p></div><Button type="button" variant="ghost" size="sm" aria-label={`Unassign guest ${guest.name}`} disabled={busy} onClick={() => void assignOneGuest(guest, null)} className="min-h-9 px-2 text-[10px] text-champagne/45 hover:text-red-300"><X className="size-3" />Unassign</Button></div>)}</div>
             {unassignedGuests.length > 0 && status === 'available' && <div className="mt-3 flex items-center gap-2"><LayoutGrid className="size-4 text-gold" /><select value="" aria-label={`Assign guest to ${table.name}`} disabled={busy} onChange={(event) => { const guest = unassignedGuests.find((candidate) => candidate.id === event.target.value); if (guest) void assignOneGuest(guest, table.id) }} className="h-9 min-w-0 flex-1 rounded-md border border-gold/20 bg-espresso px-2 font-sans text-xs text-gold"><option value="">Assign a Guest</option>{unassignedGuests.map((guest) => <option key={guest.id} value={guest.id} disabled={occupied + plannedSeatsForGuest(guest) > table.capacity}>{guest.name}{occupied + plannedSeatsForGuest(guest) > table.capacity ? ' — no capacity' : ''}</option>)}</select></div>}</>}
           </article>
         </SectionCard>
