@@ -156,9 +156,12 @@ export function PublicPlatformHome() {
 
   function toggleVideo() {
     const video = videoRef.current
-    if (!video) return
+    if (!video || videoFailed) return
     if (video.paused) {
-      void video.play().then(() => setVideoPaused(false)).catch(() => setVideoFailed(true))
+      void video.play().then(() => setVideoPaused(false)).catch(() => {
+        setVideoFailed(true)
+        setVideoPaused(true)
+      })
     } else {
       video.pause()
       setVideoPaused(true)
@@ -169,21 +172,22 @@ export function PublicPlatformHome() {
     <PublicPlatformShell>
       <section className="relative isolate min-h-[44rem] overflow-hidden bg-espresso text-champagne" data-testid="africa-ready-hero">
         <img src={HERO_POSTER} alt="Black African bride and groom sharing a quiet moment at an outdoor wedding" className="absolute inset-0 size-full object-cover object-center" fetchPriority="high" />
-        {!videoFailed && (
-          <video
-            ref={videoRef}
-            className="absolute inset-0 size-full object-cover object-center opacity-80"
-            src={HERO_VIDEO}
-            poster={HERO_POSTER}
-            muted
-            autoPlay
-            loop
-            playsInline
-            preload="metadata"
-            onError={() => setVideoFailed(true)}
-            aria-label="Muted wedding celebration film"
-          />
-        )}
+        <video
+          ref={videoRef}
+          className={`absolute inset-0 size-full object-cover object-center transition-opacity duration-500 ${videoFailed ? 'opacity-0' : 'opacity-80'}`}
+          src={HERO_VIDEO}
+          poster={HERO_POSTER}
+          muted
+          autoPlay
+          loop
+          playsInline
+          preload="metadata"
+          onError={() => {
+            setVideoFailed(true)
+            setVideoPaused(true)
+          }}
+          aria-label="Muted wedding celebration film"
+        />
         <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(18,12,8,0.96)_0%,rgba(18,12,8,0.78)_34%,rgba(18,12,8,0.25)_66%,rgba(18,12,8,0.68)_100%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_18%,rgba(216,188,126,0.2),transparent_30%)]" />
         <div className="relative mx-auto grid min-h-[44rem] max-w-[90rem] items-center gap-10 px-4 py-20 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:px-8">
@@ -192,10 +196,10 @@ export function PublicPlatformHome() {
             <h1 className="mt-6 font-serif text-5xl leading-[0.98] sm:text-7xl xl:text-8xl">Plan a wedding as unforgettable as your love.</h1>
             <p className="mt-7 max-w-xl text-base leading-7 text-champagne/72 sm:text-lg">Wewed connects couples, trusted planners, invited guests and wedding professionals in one privacy-led platform—so every celebration can feel beautifully coordinated.</p>
             <div className="mt-9 flex flex-wrap gap-3">
-              <Link href="/planners" className="inline-flex items-center gap-2 rounded-full bg-gold px-6 py-3 text-sm font-semibold text-espresso shadow-xl transition hover:-translate-y-0.5 hover:bg-gold-light">
+              <Link href="/planners" className="inline-flex items-center gap-2 rounded-full bg-gold px-6 py-3 text-sm font-semibold text-espresso shadow-xl transition hover:-translate-y-0.5 hover:bg-gold-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-light focus-visible:ring-offset-2 focus-visible:ring-offset-espresso">
                 <Search className="size-4" /> Find your planner
               </Link>
-              <Link href="/how-it-works" className="inline-flex items-center gap-2 rounded-full border border-champagne/30 bg-black/20 px-6 py-3 text-sm text-champagne backdrop-blur transition hover:border-gold hover:text-gold">
+              <Link href="/how-it-works" className="inline-flex items-center gap-2 rounded-full border border-champagne/30 bg-black/20 px-6 py-3 text-sm text-champagne backdrop-blur transition hover:border-gold hover:text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-2 focus-visible:ring-offset-espresso">
                 <CirclePlay className="size-4" /> See how it works
               </Link>
             </div>
@@ -229,16 +233,16 @@ export function PublicPlatformHome() {
             </div>
           </div>
         </div>
-        <button type="button" onClick={toggleVideo} className="absolute bottom-5 right-5 z-10 flex items-center gap-2 rounded-full border border-white/25 bg-black/40 px-4 py-2 text-xs text-white backdrop-blur hover:border-gold hover:text-gold" aria-pressed={videoPaused} data-testid="hero-video-control">
+        <button type="button" onClick={toggleVideo} disabled={videoFailed} className="absolute bottom-5 right-5 z-10 flex items-center gap-2 rounded-full border border-white/25 bg-black/40 px-4 py-2 text-xs text-white backdrop-blur transition hover:border-gold hover:text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold disabled:cursor-not-allowed disabled:opacity-75" aria-pressed={videoPaused} data-testid="hero-video-control">
           {videoPaused || videoFailed ? <CirclePlay className="size-4" /> : <CirclePause className="size-4" />}
-          {videoFailed ? 'Play fallback' : videoPaused ? 'Play film' : 'Pause film'}
+          {videoFailed ? 'Poster shown · film unavailable' : videoPaused ? 'Play film' : 'Pause film'}
         </button>
       </section>
 
       <section className="relative z-10 mx-auto -mt-10 max-w-[90rem] px-4 sm:px-6 lg:px-8" id="couples">
         <div className="grid overflow-hidden rounded-[2rem] border border-gold/15 bg-white shadow-2xl md:grid-cols-3">
           {roles.map(({ eyebrow, title, detail, href, label, image, icon: Icon }) => (
-            <Link key={eyebrow} href={href} className="group grid gap-5 border-gold/15 p-5 transition hover:bg-champagne md:border-r md:last:border-r-0 lg:grid-cols-[8.5rem_1fr]">
+            <Link key={eyebrow} href={href} className="group grid gap-5 border-gold/15 p-5 transition hover:bg-champagne focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-gold md:border-r md:last:border-r-0 lg:grid-cols-[8.5rem_1fr]">
               <div className="wewed-image-zoom relative min-h-36 overflow-hidden rounded-2xl bg-espresso"><img src={image} alt="" className="size-full object-cover opacity-90" loading="lazy" /><span className="absolute left-3 top-3 flex size-9 items-center justify-center rounded-full bg-espresso/75 text-gold backdrop-blur"><Icon className="size-4" /></span></div>
               <div className="self-center"><p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gold-muted">{eyebrow}</p><h2 className="mt-2 font-serif text-2xl leading-tight">{title}</h2><p className="mt-3 text-xs leading-5 text-espresso/58">{detail}</p><span className="mt-4 inline-flex items-center gap-2 text-xs font-semibold text-gold-muted group-hover:text-espresso">{label}<ArrowRight className="size-3.5" /></span></div>
             </Link>
@@ -249,13 +253,13 @@ export function PublicPlatformHome() {
       <section className="mx-auto max-w-[90rem] px-4 py-20 sm:px-6 lg:px-8" aria-labelledby="featured-planners-title">
         <div className="flex flex-wrap items-end justify-between gap-5">
           <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-muted">Verified professional support</p><h2 id="featured-planners-title" className="mt-3 font-serif text-4xl sm:text-5xl">Find your perfect planner.</h2><p className="mt-3 text-sm text-espresso/60">Published profiles from the real Wewed marketplace—curated for your service needs and celebration style.</p></div>
-          <div className="flex items-center gap-2"><button type="button" aria-label="Previous featured planners" onClick={() => setPlannerIndex((current) => (current - 1 + featuredPlanners.length) % featuredPlanners.length)} className="flex size-11 items-center justify-center rounded-full border border-gold/25 bg-white hover:bg-gold hover:text-espresso"><ArrowLeft className="size-4" /></button><button type="button" aria-label="Next featured planners" onClick={() => setPlannerIndex((current) => (current + 1) % featuredPlanners.length)} className="flex size-11 items-center justify-center rounded-full border border-gold/25 bg-white hover:bg-gold hover:text-espresso"><ArrowRight className="size-4" /></button><Link href="/planners" className="ml-2 text-sm font-semibold text-gold-muted hover:text-espresso">View all planners</Link></div>
+          <div className="flex items-center gap-2"><button type="button" aria-label="Previous featured planners" onClick={() => setPlannerIndex((current) => (current - 1 + featuredPlanners.length) % featuredPlanners.length)} className="flex size-11 items-center justify-center rounded-full border border-gold/25 bg-white hover:bg-gold hover:text-espresso focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"><ArrowLeft className="size-4" /></button><button type="button" aria-label="Next featured planners" onClick={() => setPlannerIndex((current) => (current + 1) % featuredPlanners.length)} className="flex size-11 items-center justify-center rounded-full border border-gold/25 bg-white hover:bg-gold hover:text-espresso focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"><ArrowRight className="size-4" /></button><Link href="/planners" className="ml-2 text-sm font-semibold text-gold-muted hover:text-espresso focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold">View all planners</Link></div>
         </div>
         <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-4" data-testid="featured-planner-carousel">
           {visiblePlanners.map((planner, cardIndex) => (
             <article key={`${planner.id}-${cardIndex}`} className="wewed-card-hover overflow-hidden rounded-3xl border border-gold/20 bg-white shadow-sm">
               <div className="relative h-36 overflow-hidden bg-gradient-to-br from-espresso via-plum to-clay p-5 text-champagne"><div className="absolute -right-8 -top-8 size-32 rounded-full border border-gold/20" /><div className="absolute -bottom-12 left-8 size-36 rounded-full bg-gold/10" /><div className="relative flex items-start justify-between"><span className="flex size-14 items-center justify-center rounded-full border border-gold/30 bg-champagne font-serif text-2xl text-espresso">{planner.displayName.split(' ').map((part) => part[0]).slice(0, 2).join('')}</span><span className="rounded-full border border-white/20 bg-black/20 px-2.5 py-1 text-[10px] uppercase tracking-[0.12em]">{planner.availabilityStatus.replaceAll('_', ' ')}</span></div></div>
-              <div className="p-5"><h3 className="font-serif text-2xl">{planner.displayName}</h3><p className="mt-1 line-clamp-2 text-sm text-espresso/58">{planner.headline || 'Wedding planning professional'}</p><p className="mt-4 flex items-center gap-2 text-xs text-espresso/60"><MapPin className="size-3.5 text-gold-muted" />{planner.serviceAreas.join(', ') || 'Service area by consultation'}</p><div className="mt-4 flex flex-wrap gap-1.5">{planner.services.slice(0, 3).map((service) => <span key={service} className="rounded-full bg-champagne px-2.5 py-1 text-[10px]">{service}</span>)}</div><Link href={`/planners/${planner.slug}`} className="mt-5 flex w-full items-center justify-center gap-2 rounded-full border border-gold/30 px-4 py-2.5 text-xs font-semibold transition hover:bg-espresso hover:text-champagne">View profile <ArrowRight className="size-3.5" /></Link></div>
+              <div className="p-5"><h3 className="font-serif text-2xl">{planner.displayName}</h3><p className="mt-1 line-clamp-2 text-sm text-espresso/58">{planner.headline || 'Wedding planning professional'}</p><p className="mt-4 flex items-center gap-2 text-xs text-espresso/60"><MapPin className="size-3.5 text-gold-muted" />{planner.serviceAreas.join(', ') || 'Service area by consultation'}</p><div className="mt-4 flex flex-wrap gap-1.5">{planner.services.slice(0, 3).map((service) => <span key={service} className="rounded-full bg-champagne px-2.5 py-1 text-[10px]">{service}</span>)}</div><Link href={`/planners/${planner.slug}`} className="mt-5 flex w-full items-center justify-center gap-2 rounded-full border border-gold/30 px-4 py-2.5 text-xs font-semibold transition hover:bg-espresso hover:text-champagne focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold">View profile <ArrowRight className="size-3.5" /></Link></div>
             </article>
           ))}
         </div>
@@ -263,7 +267,7 @@ export function PublicPlatformHome() {
 
       <section className="bg-espresso px-4 py-16 text-champagne sm:px-6" aria-labelledby="inspiration-title">
         <div className="mx-auto max-w-[90rem]">
-          <div className="flex flex-wrap items-end justify-between gap-5"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold">Real weddings · real African love</p><h2 id="inspiration-title" className="mt-3 font-serif text-4xl sm:text-5xl">Wedding inspiration with a heartbeat.</h2></div><div className="flex gap-2"><button type="button" aria-label="Previous inspiration" onClick={() => setInspirationIndex((current) => (current - 1 + inspiration.length) % inspiration.length)} className="flex size-10 items-center justify-center rounded-full border border-gold/30 text-gold hover:bg-gold hover:text-espresso"><ArrowLeft className="size-4" /></button><button type="button" aria-label="Next inspiration" onClick={() => setInspirationIndex((current) => (current + 1) % inspiration.length)} className="flex size-10 items-center justify-center rounded-full border border-gold/30 text-gold hover:bg-gold hover:text-espresso"><ArrowRight className="size-4" /></button></div></div>
+          <div className="flex flex-wrap items-end justify-between gap-5"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold">Real weddings · real African love</p><h2 id="inspiration-title" className="mt-3 font-serif text-4xl sm:text-5xl">Wedding inspiration with a heartbeat.</h2></div><div className="flex gap-2"><button type="button" aria-label="Previous inspiration" onClick={() => setInspirationIndex((current) => (current - 1 + inspiration.length) % inspiration.length)} className="flex size-10 items-center justify-center rounded-full border border-gold/30 text-gold hover:bg-gold hover:text-espresso focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"><ArrowLeft className="size-4" /></button><button type="button" aria-label="Next inspiration" onClick={() => setInspirationIndex((current) => (current + 1) % inspiration.length)} className="flex size-10 items-center justify-center rounded-full border border-gold/30 text-gold hover:bg-gold hover:text-espresso focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"><ArrowRight className="size-4" /></button></div></div>
           <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4" data-testid="wedding-inspiration-carousel">
             {visibleInspiration.map((item, index) => <article key={`${item.title}-${index}`} className="wewed-image-zoom group relative min-h-72 overflow-hidden rounded-3xl border border-white/10 bg-black"><img src={item.image} alt={item.title} className="absolute inset-0 size-full object-cover opacity-80" loading="lazy" /><div className="absolute inset-0 bg-gradient-to-t from-black via-black/5 to-transparent" />{item.video && <span className="absolute left-1/2 top-1/2 flex size-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-black/45 backdrop-blur"><Play className="ml-1 size-5 fill-white" /></span>}<div className="absolute inset-x-0 bottom-0 p-5"><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gold">{item.category}</p><h3 className="mt-2 font-serif text-2xl">{item.title}</h3></div></article>)}
           </div>
@@ -280,7 +284,7 @@ export function PublicPlatformHome() {
       <section className="relative overflow-hidden border-y border-gold/15 bg-[linear-gradient(120deg,#fff7f2,#f8eee6,#fbf6ee)] px-4 py-20 sm:px-6">
         <div className="absolute -left-16 top-8 size-44 rounded-full bg-clay/10 blur-3xl" /><div className="absolute -right-16 bottom-0 size-52 rounded-full bg-gold/15 blur-3xl" />
         <div className="relative mx-auto grid max-w-[90rem] gap-10 lg:grid-cols-[0.85fr_1.15fr]">
-          <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-muted">Privacy by design</p><h2 className="mt-3 font-serif text-5xl">Love is personal. Your wedding remains yours.</h2><p className="mt-5 max-w-xl text-sm leading-7 text-espresso/65">Wewed can be visually alive without making private lives public. Invitations, planner authority and wedding ownership remain separate, deliberate controls.</p><Link href="/how-it-works" className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-gold-muted hover:text-espresso">Learn how privacy works <ArrowRight className="size-4" /></Link></div>
+          <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-muted">Privacy by design</p><h2 className="mt-3 font-serif text-5xl">Love is personal. Your wedding remains yours.</h2><p className="mt-5 max-w-xl text-sm leading-7 text-espresso/65">Wewed can be visually alive without making private lives public. Invitations, planner authority and wedding ownership remain separate, deliberate controls.</p><Link href="/how-it-works" className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-gold-muted hover:text-espresso focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold">Learn how privacy works <ArrowRight className="size-4" /></Link></div>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {[
               ['Invitation only', 'QR credentials become scoped guest sessions before private content is shown.', KeyRound],
@@ -296,7 +300,7 @@ export function PublicPlatformHome() {
         <div className="mx-auto max-w-[90rem]"><div className="text-center"><p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold">Social proof</p><h2 className="mt-3 font-serif text-4xl">Loved by couples, guests and planners.</h2></div><div className="mt-8 grid gap-5 lg:grid-cols-3">{testimonials.map(({ quote, name, role }) => <figure key={name} className="rounded-3xl border border-gold/20 bg-white/5 p-6"><div className="flex gap-1 text-gold" aria-label="5 out of 5 stars">{Array.from({ length: 5 }, (_, index) => <Star key={index} className="size-3.5 fill-gold" />)}</div><blockquote className="mt-5 font-serif text-2xl leading-snug">“{quote}”</blockquote><figcaption className="mt-5 text-sm"><span className="font-semibold text-gold">{name}</span><span className="ml-2 text-champagne/50">{role}</span></figcaption></figure>)}</div></div>
       </section>
 
-      <section className="relative overflow-hidden bg-champagne px-4 py-20 text-center sm:px-6"><div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_50%,rgba(192,99,63,0.13),transparent_25%),radial-gradient(circle_at_80%_50%,rgba(191,155,95,0.2),transparent_28%)]" /><div className="relative mx-auto max-w-3xl"><Sparkles className="mx-auto size-7 text-gold-muted" /><h2 className="mt-5 font-serif text-5xl">Ready to start your forever?</h2><p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-espresso/60">Discover a planner, create your private wedding space or learn how Wewed supports professionals across Africa.</p><div className="mt-8 flex flex-wrap justify-center gap-3"><Link href="/planners" className="rounded-full bg-gold px-6 py-3 text-sm font-semibold text-espresso hover:bg-gold-light">Find your planner</Link><Link href="/register" className="rounded-full border border-espresso/20 bg-white px-6 py-3 text-sm font-semibold hover:bg-espresso hover:text-champagne">Get started as a couple</Link></div></div></section>
+      <section className="relative overflow-hidden bg-champagne px-4 py-20 text-center sm:px-6"><div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_50%,rgba(192,99,63,0.13),transparent_25%),radial-gradient(circle_at_80%_50%,rgba(191,155,95,0.2),transparent_28%)]" /><div className="relative mx-auto max-w-3xl"><Sparkles className="mx-auto size-7 text-gold-muted" /><h2 className="mt-5 font-serif text-5xl">Ready to start your forever?</h2><p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-espresso/60">Discover a planner, create your private wedding space or learn how Wewed supports professionals across Africa.</p><div className="mt-8 flex flex-wrap justify-center gap-3"><Link href="/planners" className="rounded-full bg-gold px-6 py-3 text-sm font-semibold text-espresso hover:bg-gold-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold">Find your planner</Link><Link href="/register" className="rounded-full border border-espresso/20 bg-white px-6 py-3 text-sm font-semibold hover:bg-espresso hover:text-champagne focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold">Get started as a couple</Link></div></div></section>
     </PublicPlatformShell>
   )
 }
