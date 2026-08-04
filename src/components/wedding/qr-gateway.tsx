@@ -146,13 +146,14 @@ function dataUrlToBlob(dataUrl: string): Blob | null {
 }
 
 function printableText(value: string): string {
-  return value.replace(/[&<>"']/g, (character) => ({
+  const entities: Record<string, string> = {
     '&': '&amp;',
     '<': '&lt;',
     '>': '&gt;',
     '"': '&quot;',
     "'": '&#039;',
-  })[character] || character)
+  }
+  return value.replace(/[&<>"']/g, (character) => entities[character] || character)
 }
 
 export function QrGatewayTrigger({ onOpen }: { onOpen: () => void }) {
@@ -224,6 +225,7 @@ export function QrGateway({ open, onOpenChange }: QrGatewayProps) {
     ? [wedding.venue, wedding.venueCity, wedding.venueCountry].filter(Boolean).join(', ')
     : ''
   const privateWedding = wedding?.privacy !== 'public'
+  const DestinationIcon = destination.icon
 
   const shareUrl = useMemo(() => {
     if (typeof window === 'undefined') return `/w/${encodeURIComponent(slug)}${destination.suffix}`
@@ -341,7 +343,7 @@ export function QrGateway({ open, onOpenChange }: QrGatewayProps) {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button type="button" variant="outline" className="w-full justify-between">
-                      <span className="flex items-center gap-2"><destination.icon className="size-4" />{destination.label}</span>
+                      <span className="flex items-center gap-2"><DestinationIcon className="size-4" />{destination.label}</span>
                       <span aria-hidden="true">▾</span>
                     </Button>
                   </DropdownMenuTrigger>
