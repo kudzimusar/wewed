@@ -14,7 +14,12 @@ export async function resetUnifiedNavigationFixture(): Promise<void> {
     await prisma.$transaction([
       prisma.wedding.update({
         where: { id: E2E_WEDDINGS.primary.id },
-        data: { privacy: 'link_only' },
+        data: {
+          privacy: 'link_only',
+          invitationCardStyle: 'botanical',
+          invitationCardMessage: null,
+          rsvpDeadline: null,
+        },
       }),
       prisma.rSVP.update({
         where: { guestId: E2E_GUEST_INVITATION.guestId },
