@@ -1,0 +1,505 @@
+name: One-time release blocker autofix
+
+on:
+  push:
+    branches:
+      - release/worksheet-seating-20260804
+
+permissions:
+  contents: write
+
+jobs:
+  apply-release-blocker-fixes:
+    if: ${{ !contains(github.event.head_commit.message, '[release-blocker-autofix]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release/worksheet-seating-20260804
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Apply audited blocker fixes
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one replacement, found {count}')
+              file.write_text(text.replace(old, new, 1))
+
+          # 1. Escape every user-controlled value in generated Seating print HTML.
+          replace_once(
+              'src/components/wedding/planner/modules/planner-seating-operations-module.tsx',
+              "import { useToast } from '@/hooks/use-toast'\n",
+              "import { useToast } from '@/hooks/use-toast'\nimport { escapeHtml } from '@/lib/html-escape'\n",
+          )
+          replace_once(
+              'src/components/wedding/planner/modules/planner-seating-operations-module.tsx',
+              """  function printSeatingPlan() {
+    const printWindow = window.open('', '_blank', 'width=1100,height=900')
+    if (!printWindow) {
+      toast({ title: 'Pop-up blocked', variant: 'destructive' })
+      return
+    }
+    const tableRows = orderedTables.map((table) => {
+      const assigned = guestsByTable.get(table.id) ?? []
+      const occupied = occupancy.get(table.id) ?? 0
+      return `<section><h2>${table.name}</h2><p>${seatingTableTypeLabel(typeOf(table))} · ${table.zone || 'Zone not set'} · ${occupied}/${table.capacity} seats</p><ul>${assigned.map((guest) => `<li>${guest.name} (${plannedSeatsForGuest(guest)} seat${plannedSeatsForGuest(guest) === 1 ? '' : 's'})</li>`).join('') || '<li>No Guests assigned</li>'}</ul></section>`
+    }).join('')
+    printWindow.document.write(`<!doctype html><html><head><title>Imba Manor Seating Plan</title><style>body{font-family:Arial,sans-serif;padding:32px;color:#1f1a16}header{border-bottom:2px solid #9b7b42;margin-bottom:20px}section{break-inside:avoid;border:1px solid #d8cec0;border-radius:12px;padding:14px;margin:10px 0}h1,h2{font-family:Georgia,serif}h2{margin:0 0 4px}p,li{font-size:12px;line-height:1.5}.summary{display:flex;gap:18px;flex-wrap:wrap}</style></head><body><header><h1>Imba Manor Seating Plan</h1><div class=\"summary\"><p>${viewTables.length} tables</p><p>${totalCapacity} planned seats</p><p>${assignedHeads} assigned seats</p><p>${unassignedHeads} unassigned seats</p></div></header>${tableRows}</body></html>`)
+    printWindow.document.close()
+    printWindow.focus()
+    printWindow.print()
+  }
+""",
+              """  function printSeatingPlan() {
+    const printWindow = window.open('', '_blank', 'width=1100,height=900')
+    if (!printWindow) {
+      toast({ title: 'Pop-up blocked', variant: 'destructive' })
+      return
+    }
+    const tableRows = orderedTables.map((table) => {
+      const assigned = guestsByTable.get(table.id) ?? []
+      const occupied = occupancy.get(table.id) ?? 0
+      const tableName = escapeHtml(table.name)
+      const tableType = escapeHtml(seatingTableTypeLabel(typeOf(table)))
+      const zone = escapeHtml(table.zone || 'Zone not set')
+      const notes = table.notes ? `<p>${escapeHtml(table.notes)}</p>` : ''
+      const guestRows = assigned.map((guest) => {
+        const seats = plannedSeatsForGuest(guest)
+        return `<li>${escapeHtml(guest.name)} (${seats} seat${seats === 1 ? '' : 's'})</li>`
+      }).join('') || '<li>No Guests assigned</li>'
+      return `<section><h2>${tableName}</h2><p>${tableType} · ${zone} · ${occupied}/${table.capacity} seats</p>${notes}<ul>${guestRows}</ul></section>`
+    }).join('')
+    printWindow.document.write(`<!doctype html><html><head><title>Imba Manor Seating Plan</title><style>body{font-family:Arial,sans-serif;padding:32px;color:#1f1a16}header{border-bottom:2px solid #9b7b42;margin-bottom:20px}section{break-inside:avoid;border:1px solid #d8cec0;border-radius:12px;padding:14px;margin:10px 0}h1,h2{font-family:Georgia,serif}h2{margin:0 0 4px}p,li{font-size:12px;line-height:1.5}.summary{display:flex;gap:18px;flex-wrap:wrap}</style></head><body><header><h1>Imba Manor Seating Plan</h1><div class=\"summary\"><p>${viewTables.length} tables</p><p>${totalCapacity} planned seats</p><p>${assignedHeads} assigned seats</p><p>${unassignedHeads} unassigned seats</p></div></header>${tableRows}</body></html>`)
+    printWindow.document.close()
+    printWindow.focus()
+    printWindow.print()
+  }
+""",
+          )
+
+          # 2. Guest creation and bulk moves share a retrying SERIALIZABLE boundary.
+          replace_once(
+              'src/app/api/planner/guests/route.ts',
+              "import { requireWeddingPermission } from '@/lib/wedding-access'\n",
+              "import { requireWeddingPermission } from '@/lib/wedding-access'\nimport { SeatingCapacityError, SeatingTargetError, runSerializableSeatingTransaction } from '@/lib/planner-seating-transaction'\n",
+          )
+          replace_once('src/app/api/planner/guests/route.ts', "\nclass SeatingCapacityError extends Error {}\n", "\n")
+          replace_once(
+              'src/app/api/planner/guests/route.ts',
+              """    if (body.seatingTableId) {
+      const table = await db.seatingTable.findFirst({
+        where: { id: body.seatingTableId, weddingId },
+        select: { id: true },
+      })
+      if (!table) return NextResponse.json({ success: false, error: 'Invalid seatingTableId.' }, { status: 400 })
+    }
+
+    const guest = await db.$transaction(async (tx) => {
+      const created = await tx.guest.create({
+""",
+              """    const guest = await runSerializableSeatingTransaction(async (tx) => {
+      if (body.seatingTableId) {
+        const table = await tx.seatingTable.findFirst({
+          where: { id: body.seatingTableId, weddingId },
+          include: { guests: { include: { rsvp: true } } },
+        })
+        if (!table) throw new SeatingTargetError('Invalid seatingTableId.')
+        const occupied = table.guests.reduce((sum, guest) => sum + plannedSeatsForGuest(guest), 0)
+        if (occupied + 1 > table.capacity) {
+          throw new SeatingCapacityError(`${table.name} has no available seat for ${name}.`)
+        }
+      }
+      const created = await tx.guest.create({
+""",
+          )
+          replace_once(
+              'src/app/api/planner/guests/route.ts',
+              """  } catch (error) {
+    console.error('[planner guests POST] Error:', error)
+    return NextResponse.json({ success: false, error: 'Failed to create guest or table.' }, { status: 500 })
+  }
+}
+""",
+              """  } catch (error) {
+    if (error instanceof SeatingCapacityError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 409 })
+    }
+    if (error instanceof SeatingTargetError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 400 })
+    }
+    console.error('[planner guests POST] Error:', error)
+    return NextResponse.json({ success: false, error: 'Failed to create guest or table.' }, { status: 500 })
+  }
+}
+""",
+          )
+          replace_once(
+              'src/app/api/planner/guests/route.ts',
+              '    const updatedGuests = await db.$transaction(async (tx) => {\n',
+              '    const updatedGuests = await runSerializableSeatingTransaction(async (tx) => {\n',
+          )
+          replace_once(
+              'src/app/api/planner/guests/route.ts',
+              "    }, { isolationLevel: 'Serializable' })\n\n    return NextResponse.json({ success: true, count: updatedGuests.length, data: updatedGuests.map(formatGuest) })\n",
+              "    })\n\n    return NextResponse.json({ success: true, count: updatedGuests.length, data: updatedGuests.map(formatGuest) })\n",
+          )
+
+          # 3. Individual moves and table capacity reductions are checked inside the same transaction as the write.
+          replace_once(
+              'src/app/api/planner/guests/[id]/route.ts',
+              "import { requireWeddingPermission } from '@/lib/wedding-access'\n",
+              "import { requireWeddingPermission } from '@/lib/wedding-access'\nimport { SeatingCapacityError, SeatingTargetError, runSerializableSeatingTransaction } from '@/lib/planner-seating-transaction'\n",
+          )
+          replace_once('src/app/api/planner/guests/[id]/route.ts', "\nclass SeatingCapacityError extends Error {}\n", "\n")
+          replace_once(
+              'src/app/api/planner/guests/[id]/route.ts',
+              """      const updated = await db.$transaction(async (tx) => {
+        const table = await tx.seatingTable.update({ where: { id: existing.id }, data: updates })
+        await tx.auditEvent.create({
+          data: {
+            action: 'seating.table_update',
+            resourceType: 'seating_table',
+            resourceId: existing.id,
+            beforeValue: JSON.stringify(formatTable(existing)),
+            afterValue: JSON.stringify(formatTable(table)),
+            weddingId,
+            actorId: access.context.session.userId,
+          },
+        })
+        return table
+      })
+""",
+              """      const updated = await runSerializableSeatingTransaction(async (tx) => {
+        const current = await tx.seatingTable.findFirst({
+          where: { id: existing.id, weddingId },
+          include: { guests: { include: { rsvp: true } } },
+        })
+        if (!current) throw new SeatingTargetError('Table not found')
+        if (updates.capacity !== undefined) {
+          const occupied = current.guests.reduce((sum, guest) => sum + plannedSeatsForGuest(guest), 0)
+          if (updates.capacity < occupied) {
+            throw new SeatingCapacityError(`${current.name} currently requires ${occupied} planned seats. Move or unassign Guests before reducing capacity below ${occupied}.`)
+          }
+        }
+        const table = await tx.seatingTable.update({ where: { id: current.id }, data: updates })
+        await tx.auditEvent.create({
+          data: {
+            action: 'seating.table_update',
+            resourceType: 'seating_table',
+            resourceId: current.id,
+            beforeValue: JSON.stringify(formatTable(current)),
+            afterValue: JSON.stringify(formatTable(table)),
+            weddingId,
+            actorId: access.context.session.userId,
+          },
+        })
+        return table
+      })
+""",
+          )
+          replace_once(
+              'src/app/api/planner/guests/[id]/route.ts',
+              """    if (body.seatingTableId !== undefined) {
+      if (!body.seatingTableId) updates.seatingTableId = null
+      else {
+        const table = await db.seatingTable.findFirst({
+          where: { id: body.seatingTableId, weddingId },
+          include: {
+            guests: {
+              where: { NOT: { id: existing.id } },
+              include: { rsvp: true },
+            },
+          },
+        })
+        if (!table) {
+          return NextResponse.json({ success: false, error: 'Invalid seatingTableId' }, { status: 400 })
+        }
+        const occupied = table.guests.reduce((sum, guest) => sum + plannedSeatsForGuest(guest), 0)
+        const required = plannedSeatsForGuest(existing)
+        if (occupied + required > table.capacity) {
+          throw new SeatingCapacityError(
+            `${table.name} has ${Math.max(0, table.capacity - occupied)} available seat${table.capacity - occupied === 1 ? '' : 's'}; ${existing.name}'s party requires ${required}.`,
+          )
+        }
+        updates.seatingTableId = body.seatingTableId
+      }
+    }
+""",
+              """    if (body.seatingTableId !== undefined) {
+      updates.seatingTableId = body.seatingTableId || null
+    }
+""",
+          )
+          replace_once(
+              'src/app/api/planner/guests/[id]/route.ts',
+              """    const updated = await db.$transaction(async (tx) => {
+      const guest = await tx.guest.update({
+        where: { id: existing.id },
+        data: updates,
+        include: {
+          rsvp: true,
+          seatingTable: { select: { id: true, name: true, capacity: true } },
+        },
+      })
+      await tx.auditEvent.create({
+        data: {
+          action: body.seatingTableId !== undefined ? 'seating.guest_assignment' : 'guest.update',
+          resourceType: 'guest',
+          resourceId: existing.id,
+          beforeValue: JSON.stringify({
+            name: existing.name,
+            email: existing.email,
+            phone: existing.phone,
+            role: existing.role,
+            side: existing.side,
+            seatingTableId: existing.seatingTableId,
+          }),
+          afterValue: JSON.stringify({
+            name: guest.name,
+            email: guest.email,
+            phone: guest.phone,
+            role: guest.role,
+            side: guest.side,
+            seatingTableId: guest.seatingTableId,
+          }),
+          weddingId,
+          actorId: access.context.session.userId,
+        },
+      })
+      return guest
+    })
+""",
+              """    const updated = await runSerializableSeatingTransaction(async (tx) => {
+      const current = await tx.guest.findFirst({
+        where: { id: existing.id, weddingId },
+        include: {
+          rsvp: true,
+          seatingTable: { select: { id: true, name: true, capacity: true } },
+        },
+      })
+      if (!current) throw new SeatingTargetError('Guest not found')
+      if (body.seatingTableId) {
+        const table = await tx.seatingTable.findFirst({
+          where: { id: body.seatingTableId, weddingId },
+          include: {
+            guests: {
+              where: { NOT: { id: current.id } },
+              include: { rsvp: true },
+            },
+          },
+        })
+        if (!table) throw new SeatingTargetError('Invalid seatingTableId')
+        const occupied = table.guests.reduce((sum, guest) => sum + plannedSeatsForGuest(guest), 0)
+        const required = plannedSeatsForGuest(current)
+        if (occupied + required > table.capacity) {
+          throw new SeatingCapacityError(
+            `${table.name} has ${Math.max(0, table.capacity - occupied)} available seat${table.capacity - occupied === 1 ? '' : 's'}; ${current.name}'s party requires ${required}.`,
+          )
+        }
+      }
+      const guest = await tx.guest.update({
+        where: { id: current.id },
+        data: updates,
+        include: {
+          rsvp: true,
+          seatingTable: { select: { id: true, name: true, capacity: true } },
+        },
+      })
+      await tx.auditEvent.create({
+        data: {
+          action: body.seatingTableId !== undefined ? 'seating.guest_assignment' : 'guest.update',
+          resourceType: 'guest',
+          resourceId: current.id,
+          beforeValue: JSON.stringify({
+            name: current.name,
+            email: current.email,
+            phone: current.phone,
+            role: current.role,
+            side: current.side,
+            seatingTableId: current.seatingTableId,
+          }),
+          afterValue: JSON.stringify({
+            name: guest.name,
+            email: guest.email,
+            phone: guest.phone,
+            role: guest.role,
+            side: guest.side,
+            seatingTableId: guest.seatingTableId,
+          }),
+          weddingId,
+          actorId: access.context.session.userId,
+        },
+      })
+      return guest
+    })
+""",
+          )
+          replace_once(
+              'src/app/api/planner/guests/[id]/route.ts',
+              """    if (error instanceof SeatingCapacityError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 409 })
+    }
+    console.error('[PLANNER GUEST PATCH] error:', error)
+""",
+              """    if (error instanceof SeatingCapacityError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 409 })
+    }
+    if (error instanceof SeatingTargetError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 400 })
+    }
+    console.error('[PLANNER GUEST PATCH] error:', error)
+""",
+          )
+
+          # 4. Seating relational validation is whole-batch; unsafe partial execution is rejected.
+          replace_once(
+              'src/lib/import-engine/import-job-post.ts',
+              """    if (Array.isArray(body.rowIndices)) {
+      const selected = new Set(body.rowIndices.filter((value): value is number => typeof value === 'number'))
+      preview = { ...preview, rows: preview.rows.filter((row) => selected.has(row.rowIndex)) }
+    }
+""",
+              """    if (preview.moduleKey === 'seating' && Array.isArray(body.rowIndices)) {
+      const selected = new Set(body.rowIndices.filter((value): value is number => typeof value === 'number'))
+      const omittedExecutableRows = preview.rows.filter(
+        (row) => (row.action === 'create' || row.action === 'update') && !selected.has(row.rowIndex),
+      )
+      if (omittedExecutableRows.length > 0) {
+        return NextResponse.json({
+          success: false,
+          error: 'Seating imports must execute all validated create and update rows together so table capacity and Guest assignments remain consistent.',
+        }, { status: 409 })
+      }
+    }
+
+    if (Array.isArray(body.rowIndices)) {
+      const selected = new Set(body.rowIndices.filter((value): value is number => typeof value === 'number'))
+      preview = { ...preview, rows: preview.rows.filter((row) => selected.has(row.rowIndex)) }
+    }
+""",
+          )
+
+          # 5. Timeline workbooks use the same clock contract as API create/edit.
+          Path('src/lib/import-engine/schema-resolver.ts').write_text("""import { timelineMinutes } from '@/lib/planner-timeline-order'
+import { getModuleSchema, isModuleKey } from './schemas'
+import { guestWorksheetSchema } from './guest-worksheet-schema'
+import { getPlannerWorksheetSchema } from './planner-worksheet-schemas'
+import { seatingWorksheetSchema } from './seating-worksheet-schema'
+import type { ModuleKey, ModuleSchema } from './types'
+
+export { isModuleKey }
+
+const TIMELINE_TIME_ERROR = 'Time must be a valid clock time (HH:MM or h:mm AM/PM).'
+
+function withTimelineClockValidation(schema: ModuleSchema): ModuleSchema {
+  return {
+    ...schema,
+    validateRow(row) {
+      const errors = schema.validateRow(row)
+      const time = row.time?.trim()
+      if (time && timelineMinutes(time) === null) errors.push(TIMELINE_TIME_ERROR)
+      return [...new Set(errors)]
+    },
+  }
+}
+
+export function getWorksheetSchema(moduleKey: ModuleKey): ModuleSchema {
+  const legacySchema = moduleKey === 'guests' ? guestWorksheetSchema : getModuleSchema(moduleKey)
+  if (moduleKey === 'guests') return legacySchema
+  if (moduleKey === 'seating') return seatingWorksheetSchema
+  const plannerSchema = getPlannerWorksheetSchema(moduleKey) ?? legacySchema
+  return moduleKey === 'timeline' ? withTimelineClockValidation(plannerSchema) : plannerSchema
+}
+""")
+
+          # Executable regression contracts for all five blockers.
+          Path('src/lib/planner-release-blockers.test.ts').write_text("""import { describe, expect, test } from 'bun:test'
+import { escapeHtml } from '@/lib/html-escape'
+import { getWorksheetSchema } from '@/lib/import-engine/schema-resolver'
+
+const CLOCK_ERROR = 'Time must be a valid clock time (HH:MM or h:mm AM/PM).'
+
+async function source(path: string): Promise<string> {
+  return Bun.file(path).text()
+}
+
+describe('final worksheet and Seating release blockers', () => {
+  test('escapes untrusted values before generated print HTML', async () => {
+    expect(escapeHtml('<img src=x onerror=\"boom\"> & \'VIP\'')).toBe('&lt;img src=x onerror=&quot;boom&quot;&gt; &amp; &#39;VIP&#39;')
+    const component = await source('src/components/wedding/planner/modules/planner-seating-operations-module.tsx')
+    expect(component).toContain('escapeHtml(table.name)')
+    expect(component).toContain('escapeHtml(table.notes)')
+    expect(component).toContain('escapeHtml(guest.name)')
+    expect(component).not.toContain('<h2>${table.name}</h2>')
+  })
+
+  test('uses atomic retrying capacity checks for create, move, and capacity reduction', async () => {
+    const createRoute = await source('src/app/api/planner/guests/route.ts')
+    const updateRoute = await source('src/app/api/planner/guests/[id]/route.ts')
+    const transaction = await source('src/lib/planner-seating-transaction.ts')
+    expect(createRoute).toContain('runSerializableSeatingTransaction(async (tx) =>')
+    expect(createRoute).toContain('occupied + 1 > table.capacity')
+    expect(updateRoute).toContain('const current = await tx.guest.findFirst')
+    expect(updateRoute).toContain('occupied + required > table.capacity')
+    expect(updateRoute).toContain('updates.capacity < occupied')
+    expect(transaction).toContain("isolationLevel: 'Serializable'")
+    expect(transaction).toContain("code === 'P2034'")
+  })
+
+  test('rejects unsafe partial Seating execution', async () => {
+    const route = await source('src/lib/import-engine/import-job-post.ts')
+    expect(route).toContain("preview.moduleKey === 'seating'")
+    expect(route).toContain('omittedExecutableRows')
+    expect(route).toContain('must execute all validated create and update rows together')
+  })
+
+  test('rejects impossible and non-clock Timeline worksheet values', () => {
+    const schema = getWorksheetSchema('timeline')
+    expect(schema.validateRow({ time: '11:45', title: 'Valid event' })).not.toContain(CLOCK_ERROR)
+    expect(schema.validateRow({ time: '2:30 PM', title: 'Valid event' })).not.toContain(CLOCK_ERROR)
+    expect(schema.validateRow({ time: '25:90', title: 'Invalid event' })).toContain(CLOCK_ERROR)
+    expect(schema.validateRow({ time: 'TBD', title: 'Invalid event' })).toContain(CLOCK_ERROR)
+  })
+})
+""")
+
+          replace_once(
+              '.github/workflows/ci.yml',
+              """      - name: Run Seating operations metadata contract
+        run: bun test src/lib/planner-seating-metadata.test.ts
+
+      - name: Run Seating worksheet relational round trips
+""",
+              """      - name: Run Seating operations metadata contract
+        run: bun test src/lib/planner-seating-metadata.test.ts
+
+      - name: Run final Seating and Timeline release blocker contracts
+        run: bun test src/lib/planner-release-blockers.test.ts
+
+      - name: Run Seating worksheet relational round trips
+""",
+          )
+          PY
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run focused blocker regression tests
+        run: bun test src/lib/planner-release-blockers.test.ts src/lib/planner-seating-metadata.test.ts src/lib/planner-worksheet-contracts.test.ts
+
+      - name: Commit audited fixes
+        run: |
+          rm .github/workflows/release-blocker-autofix.yml
+          git config user.name "wewed-release-bot"
+          git config user.email "release-bot@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: close final Seating release blockers [release-blocker-autofix]"
+          git push origin HEAD:release/worksheet-seating-20260804
