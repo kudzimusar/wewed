@@ -14,7 +14,7 @@ test.describe('Africa-ready Wewed experience', () => {
     await expect(page.getByRole('link', { name: 'For planners' }).first()).toHaveAttribute('href', '/for-planners')
 
     await expect(page.getByTestId('featured-planner-carousel')).toBeVisible()
-    await expect(page.getByTestId('featured-planner-carousel').locator('article')).toHaveCountGreaterThan(0)
+    expect(await page.getByTestId('featured-planner-carousel').locator('article').count()).toBeGreaterThan(0)
 
     const inspiration = page.getByTestId('wedding-inspiration-carousel')
     await expect(inspiration).toBeVisible()
