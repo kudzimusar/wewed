@@ -5,7 +5,25 @@ const VIEWPORTS = [
   { name: 'desktop', width: 1440, height: 900 },
 ] as const
 
-test('worksheet recovery stays compact and yields the viewport to active work', async ({ plannerPage: page }) => {
+async function workspaceRatio(page: Parameters<typeof openModule>[0]) {
+  return page.evaluate(() => {
+    const body = document.querySelector<HTMLElement>('.planner-portal-body')
+    const active = document.querySelector<HTMLElement>('[data-planner-active-slot]')
+    const rail = document.querySelector<HTMLElement>('[data-planner-compact-control-rail]')
+    if (!body || !active || !rail) return null
+    const bodyBox = body.getBoundingClientRect()
+    const activeBox = active.getBoundingClientRect()
+    const railBox = rail.getBoundingClientRect()
+    return {
+      activeToBody: activeBox.height / bodyBox.height,
+      activeHeight: activeBox.height,
+      railHeight: railBox.height,
+      contextInsideRail: Boolean(rail.querySelector('[data-planner-wedding-context]')),
+    }
+  })
+}
+
+test('compact planner chrome gives at least four fifths of the usable body to active work', async ({ plannerPage: page }) => {
   test.setTimeout(90_000)
 
   for (const viewport of VIEWPORTS) {
@@ -21,24 +39,42 @@ test('worksheet recovery stays compact and yields the viewport to active work', 
     const moduleScroll = page.locator('[data-planner-module-scroll="true"]')
     const moduleSelector = page.getByLabel('Worksheet module selector')
     const actions = page.locator('#planner-worksheet-actions')
+    const activeWedding = page.locator('#active-wedding')
+    const toolsToggle = page.locator('[data-planner-tools-disclosure]')
+    const tools = page.locator('#planner-experience-tools')
 
     await expect(shell).toBeVisible()
     await expect(moduleScroll).toBeVisible()
+    await expect(activeWedding).toBeVisible()
     await expect(moduleSelector).toBeHidden()
     await expect(actions).toBeHidden()
+    await expect(toolsToggle).toHaveAttribute('aria-expanded', 'false')
+    await expect(tools).toBeHidden()
 
-    const compactShell = await shell.boundingBox()
-    const compactModule = await moduleScroll.boundingBox()
-    expect(compactShell).not.toBeNull()
-    expect(compactModule).not.toBeNull()
-    expect(compactShell!.height).toBeLessThan(viewport.height * 0.24)
-    expect(compactModule!.height).toBeGreaterThan(viewport.height * 0.28)
+    const compact = await workspaceRatio(page)
+    expect(compact).not.toBeNull()
+    expect(compact!.contextInsideRail, 'wedding selector shares the compact planner rail').toBe(true)
+    expect(compact!.railHeight, 'compact planner rail stays shallow').toBeLessThan(viewport.height * 0.09)
+    expect(compact!.activeToBody, 'active planner slot owns at least four fifths of usable planner height').toBeGreaterThanOrEqual(0.8)
+
+    await toolsToggle.click()
+    await expect(toolsToggle).toHaveAttribute('aria-expanded', 'true')
+    await expect(tools).toBeVisible()
+    const expandedTools = await workspaceRatio(page)
+    expect(expandedTools).not.toBeNull()
+    expect(expandedTools!.activeHeight).toBeLessThan(compact!.activeHeight)
+
+    await toolsToggle.click()
+    await expect(toolsToggle).toHaveAttribute('aria-expanded', 'false')
+    await expect(tools).toBeHidden()
+    const restoredTools = await workspaceRatio(page)
+    expect(restoredTools).not.toBeNull()
+    expect(restoredTools!.activeToBody).toBeGreaterThanOrEqual(0.8)
 
     await openWorksheetActions(page)
     await expect(actions).toBeVisible()
-    const expandedModule = await moduleScroll.boundingBox()
-    expect(expandedModule).not.toBeNull()
-    expect(expandedModule!.height).toBeLessThan(compactModule!.height)
+    const expandedWorksheetModule = await moduleScroll.boundingBox()
+    expect(expandedWorksheetModule).not.toBeNull()
 
     const actionsToggle = page.getByTestId('worksheet-actions-toggle')
     await actionsToggle.click()
@@ -46,7 +82,7 @@ test('worksheet recovery stays compact and yields the viewport to active work', 
     await expect(actions).toBeHidden()
     const restoredModule = await moduleScroll.boundingBox()
     expect(restoredModule).not.toBeNull()
-    expect(restoredModule!.height).toBeGreaterThan(expandedModule!.height)
+    expect(restoredModule!.height).toBeGreaterThan(expandedWorksheetModule!.height)
 
     const switchToggle = page.getByTestId('worksheet-tools-toggle')
     await switchToggle.click()
@@ -58,7 +94,12 @@ test('worksheet recovery stays compact and yields the viewport to active work', 
 
     await page.reload()
     await openModule(page, 'timeline')
+    await expect(activeWedding).toBeVisible()
     await expect(moduleSelector).toBeHidden()
     await expect(actions).toBeHidden()
+    await expect(tools).toBeHidden()
+    const reloaded = await workspaceRatio(page)
+    expect(reloaded).not.toBeNull()
+    expect(reloaded!.activeToBody).toBeGreaterThanOrEqual(0.8)
   }
 })
