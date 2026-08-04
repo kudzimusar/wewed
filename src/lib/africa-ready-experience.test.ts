@@ -22,11 +22,22 @@ describe('Africa-ready product experience', () => {
     expect(home).toContain("marketplaceFetch<{ planners: PublicPlannerProfile[] }>")
   })
 
+  test('featured planner presentation uses only marketplace records with honest loading states', () => {
+    const home = source('src/components/public/public-platform-home.tsx')
+    expect(home).toContain("type PlannerLoadState = 'loading' | 'ready' | 'empty' | 'error'")
+    expect(home).toContain("setPlannerLoadState(publishedPlanners.length ? 'ready' : 'empty')")
+    expect(home).toContain('aria-live="polite"')
+    expect(home).toContain('We never substitute test accounts or fabricated profiles for real marketplace data.')
+    expect(home).not.toContain('featured-planner-placeholder')
+    expect(home).not.toContain('eleven-eleven-testing-uat')
+  })
+
   test('the public shell exposes stakeholder and corporate discovery routes', () => {
     const shell = source('src/components/public/public-platform-shell.tsx')
     for (const label of ['Find a planner', 'For couples', 'For planners', 'Vendors & venues', 'How it works', 'Pricing']) {
       expect(shell).toContain(label)
     }
+    expect(shell).toContain("['For couples', '/#couples']")
     expect(shell).toContain('Built in Zimbabwe. Designed for Africa.')
     expect(shell).toContain("href=\"/register\"")
   })
@@ -58,6 +69,13 @@ describe('Africa-ready product experience', () => {
     expect(frame).toContain('Public planner marketplace')
     expect(frame).toContain('Planner directory')
     expect(frame).toContain('bg-[linear-gradient')
+  })
+
+  test('desktop and mobile Chromium both exercise the new experience', () => {
+    const browser = source('tests/e2e/zz-africa-ready-experience.spec.ts')
+    expect(browser).toContain('mobile homepage keeps media, discovery and navigation operable @mobile')
+    expect(browser).toContain('mobile information and marketplace pages retain the shared visual frame @mobile')
+    expect(browser).toContain('expectNoHorizontalOverflow')
   })
 
   test('the redesign remains frontend-only', () => {
