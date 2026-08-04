@@ -11,10 +11,20 @@ export async function resetUnifiedNavigationFixture(): Promise<void> {
   await resetMarketplaceE2EFixture()
   const prisma = new PrismaClient()
   try {
-    await prisma.wedding.update({
-      where: { id: E2E_WEDDINGS.primary.id },
-      data: { privacy: 'link_only' },
-    })
+    await prisma.$transaction([
+      prisma.wedding.update({
+        where: { id: E2E_WEDDINGS.primary.id },
+        data: { privacy: 'link_only' },
+      }),
+      prisma.rSVP.update({
+        where: { guestId: E2E_GUEST_INVITATION.guestId },
+        data: {
+          token: E2E_GUEST_INVITATION.token,
+          checkedIn: false,
+          checkedInAt: null,
+        },
+      }),
+    ])
   } finally {
     await prisma.$disconnect()
   }
