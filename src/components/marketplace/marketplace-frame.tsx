@@ -34,30 +34,25 @@ export function MarketplaceFrame({
         : 'Public planner marketplace'
 
   return (
-    <main className="min-h-screen bg-ivory text-espresso">
+    <main data-marketplace-frame data-marketplace-path={pathname} className="min-h-screen bg-ivory text-espresso">
       <header className="relative isolate overflow-hidden border-b border-gold/20 bg-espresso text-champagne">
-        <img
-          src="https://images.pexels.com/photos/17315405/pexels-photo-17315405.jpeg?auto=compress&cs=tinysrgb&w=1600"
-          alt=""
-          className="absolute inset-0 size-full object-cover opacity-20"
-        />
-        <div className="absolute inset-0 bg-[linear-gradient(100deg,rgba(26,20,16,0.99),rgba(26,20,16,0.88)_58%,rgba(26,20,16,0.58))]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_18%,rgba(191,155,95,0.2),transparent_28%),linear-gradient(100deg,rgba(26,20,16,0.99),rgba(26,20,16,0.9)_58%,rgba(26,20,16,0.7))]" />
         <div className="relative mx-auto max-w-7xl px-4 py-7 sm:px-6 lg:px-8 lg:py-9">
           <div className="flex flex-wrap items-start justify-between gap-5">
             <div className="flex min-w-0 items-start gap-4">
-              <Link href={backHref} aria-label="Back" className="mt-1 rounded-full border border-gold/30 bg-black/20 p-2.5 text-gold backdrop-blur hover:bg-gold hover:text-espresso"><ArrowLeft className="size-4" /></Link>
+              <Link href={backHref} aria-label="Back" className="mt-1 rounded-full border border-gold/30 bg-black/20 p-2.5 text-gold backdrop-blur hover:bg-gold hover:text-espresso focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"><ArrowLeft className="size-4" /></Link>
               <div className="min-w-0">
                 <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-gold"><Sparkles className="size-3" />{eyebrow}</p>
                 <h1 className="mt-2 font-serif text-3xl sm:text-5xl">{title}</h1>
-                <p className="mt-3 max-w-3xl text-sm leading-6 text-champagne/62">{description}</p>
+                <p className="mt-3 max-w-3xl text-sm leading-6 text-champagne/75">{description}</p>
               </div>
             </div>
             <div className="flex items-center gap-3">{actions}<span className="hidden size-12 items-center justify-center rounded-full border border-gold/25 bg-gold/10 sm:flex"><HeartHandshake className="size-6 text-gold" /></span></div>
           </div>
           <nav className="mt-7 flex items-center gap-2 overflow-x-auto pb-1 text-xs" aria-label="Marketplace navigation">
-            <Link href="/" className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-gold/20 bg-black/15 px-3 py-2 text-champagne/70 backdrop-blur hover:bg-gold/10 hover:text-gold"><Home className="size-3.5" />Wewed home</Link>
-            <Link href="/planners" className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-gold/20 bg-black/15 px-3 py-2 text-champagne/70 backdrop-blur hover:bg-gold/10 hover:text-gold"><Search className="size-3.5" />Planner directory</Link>
-            <Link href={roleHome.href} className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-gold/20 bg-black/15 px-3 py-2 text-champagne/70 backdrop-blur hover:bg-gold/10 hover:text-gold"><LayoutDashboard className="size-3.5" />{roleHome.label}</Link>
+            <Link href="/" className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-gold/20 bg-black/15 px-3 py-2 text-champagne/80 backdrop-blur hover:bg-gold/10 hover:text-gold"><Home className="size-3.5" />Wewed home</Link>
+            <Link href="/planners" className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-gold/20 bg-black/15 px-3 py-2 text-champagne/80 backdrop-blur hover:bg-gold/10 hover:text-gold"><Search className="size-3.5" />Planner directory</Link>
+            <Link href={roleHome.href} className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-gold/20 bg-black/15 px-3 py-2 text-champagne/80 backdrop-blur hover:bg-gold/10 hover:text-gold"><LayoutDashboard className="size-3.5" />{roleHome.label}</Link>
           </nav>
         </div>
       </header>
