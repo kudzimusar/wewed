@@ -1,140 +1,79 @@
-# Worksheet recovery release evidence — 2026-08-02
+# Worksheet recovery and live Seating release evidence — 2026-08-04
 
-Status: Task Test 11 and strict browser stabilization passed; exact preview deployment pending  
-PR: #56 — `Align planner worksheet recovery contracts`  
-Branch: `fix/worksheet-recovery-contracts`  
-Production baseline: `934b1ba5294c554229220ff5a6925cab47e22686`
+Status: application code and exact release gates passed; free-tier Vercel preview retry pending  
+PR: #71 — `Release worksheet recovery and live Seating operations`  
+Branch: `release/worksheet-seating-20260804`  
+Application-qualified commit: `243d79170a1e5255adbb9229de4305ae49b5e600`
 
-## Scope
+## Qualified application scope
 
-This evidence applies only to the worksheet recovery programme for:
+- Checklist, Vendors, Budget, Timeline, and Seating worksheet template, preview, execution, export, idempotency, rollback, and wedding-isolation contracts.
+- Compact planner workspace and persisted worksheet actions.
+- Task priority filtering.
+- Chronological Timeline presentation.
+- Live Seating operations for a 230-seat venue plan: table classes, zones, notes, green available and red full/over states, individual and bulk Guest moves, capacity enforcement, safe deletion, audit records, and printable documentation.
 
-1. Checklist / Tasks
-2. Vendors
-3. Budget
-4. Timeline
-5. Seating
+## Exact application gate
 
-The general planner modules were tested separately. Guest worksheet recovery is the accepted reference flow.
-
-## Latest qualified engineering head
-
-Commit: `a260fa0e9748d34e95c30173ce701da678d4b1d3`
-
-GitHub Actions:
-
-- workflow run: `30714886926`
-- job: `91408701760`
-- conclusion: success
-- browser failure evidence: skipped because the strict browser gate passed
+GitHub Actions run `30907886929` completed successfully for commit `243d79170a1e5255adbb9229de4305ae49b5e600`.
 
 The exact head passed:
 
 - Prisma validation and client generation;
-- clean PostgreSQL migration deployment and status;
-- migration drift detection;
-- all existing planner parity and permission gates;
-- production-blocker regression and PostgreSQL integration suites;
-- worksheet v1.1 schema/template contracts;
-- Tasks, Vendors, Budget, Timeline and Seating create/update/export/idempotency/rollback/isolation PostgreSQL round trips;
-- complete Seating relational export, unseating, empty-table, capacity and rollback tests;
-- production build;
-- strict Playwright release gate using `--fail-on-flaky-tests`;
-- executable Task Test 11 priority-filter contract;
-- visible worksheet file-chooser interaction for populated, blank and formula workbooks;
-- keyboard dialog-close synchronization after the active focus trap is ready.
+- clean PostgreSQL migration deployment, status, and drift detection;
+- registration and production-blocker PostgreSQL integration;
+- all retained planner parity, permissions, metadata, migration, extraction, workflow, collaboration, portal, real-data, and event-operations contracts;
+- worksheet v1.1 schema and template contracts;
+- Tasks, Vendors, Budget, Timeline, and Seating PostgreSQL round trips;
+- Seating relational export, unseating, empty-table, capacity, isolation, and rollback tests;
+- final Seating and Timeline release-blocker regressions;
+- production application build;
+- strict Playwright/Chromium release gate using `--fail-on-flaky-tests`.
 
-The browser gate completed successfully with no accepted retry or flaky result.
+Marketplace CI run `30907886867` also completed successfully for the same commit, including marketplace, privacy, invitation, isolation, PostgreSQL, build, and Chromium gates.
 
-## Task Test 11 gap and repair
+## Final review blockers closed
 
-The controlled UAT instruction required `Any priority → High`, but the Tasks UI exposed only category and status filters. The missing priority control was a real functionality gap.
+1. Generated Seating print HTML escapes table names, type labels, zones, notes, and Guest names.
+2. Guest creation into a selected table checks occupancy and writes inside a retrying SERIALIZABLE transaction; a full table returns 409 without creating a Guest.
+3. Individual Guest moves and table-capacity reductions re-read occupancy and write inside the same retrying SERIALIZABLE transaction.
+4. Seating worksheet execution rejects a selected-row subset that omits any validated create or update row, preserving whole-batch capacity validation.
+5. Timeline worksheet preview applies the same clock-time contract as Timeline API create/edit; values such as `25:90` and `TBD` are invalid.
 
-Repair:
+All five review threads are resolved with permanent CI coverage.
 
-- added a persisted priority filter with `Any priority`, `High`, `Medium` and `Low` options;
-- applied the filter client-side without task mutations;
-- retained Reset behavior and responsive layout;
-- added an executable browser scenario using `UAT-TASK-001 Confirm florist arrival` plus medium- and low-priority controls;
-- verified the UAT task remains visible exactly once;
-- verified medium and low tasks are hidden;
-- verified the UAT task remains `In progress`;
-- verified before/after API task payloads are identical;
-- verified no browser, console, API 5xx or runtime error appears.
-
-## Other defects closed before the green gate
-
-- transient `_importMeta` worksheet fields replaced with normalized, durable v1.1 contracts;
-- formula metadata preserved from upload through execution after mapping changes;
-- active-wedding internal-ID matching and ambiguity failures;
-- duplicate rows targeting one existing record rejected;
-- blank optional update cells preserve stored values;
-- transaction-aware worksheet writes;
-- exact pre-import snapshots and reverse-order rollback;
-- explicit wedding-scoped delete/restore operations;
-- Vendor pipeline synchronization in the worksheet transaction;
-- Seating imports cannot create Guests or use cross-wedding Guest/Table IDs;
-- Seating exports include assigned and unassigned Guests plus occupied and empty tables;
-- blank table cells on a Guest row support deliberate unseating;
-- whole-file Seating occupancy/capacity validation;
-- responsive route state and scroll restoration race repaired;
-- browser navigation verifies canonical route settlement and safely recovers from a pre-hydration click;
-- responsive overlay tests wait for the loaded wedding and the actual compact-or-desktop navigation surface;
-- portal geometry tests measure stable visible elements after entrance animation;
-- sticky worksheet review headers are verified against their real overlap-and-pin contract;
-- worksheet import tests use the visible file chooser instead of racing a hidden input before hydration;
-- dialog Escape tests wait until the mounted dialog owns keyboard focus.
-
-## Live production data baseline
+## Production data safety baseline
 
 Wedding: `cmqos70cb0004q6vxe9g9aiu5` (`Charity & Kudzie`)
 
-Counts reverified after the Task Test 11 engineering run:
+Pre-release snapshot:
 
-- PlannerTask: 47
-- Vendor: 0
-- BudgetItem: 14
-- ProgrammeItem: 12
-- SeatingTable: 8
-- Guest: 17
-- ImportJob: 10
+- Seating tables: 8
+- Total capacity: 64
+- Seating snapshot hash: `57d37898c7d4c5eb67cc8e6dd52194c8`
+- Guests: 17
+- Assigned Guests: 0
+- Guest assignment hash: `305e3ee6cf4533030511c512af995828`
 
-Deterministic hashes reverified after the Task Test 11 engineering run:
+No production Seating or Guest data was changed during engineering or release-gate verification.
 
-- PlannerTask: `2d8368df5b473de62a45c3b45714561c`
-- Vendor: `d41d8cd98f00b204e9800998ecf8427e`
-- BudgetItem: `c2975725f3c122f7795b470014b1caab`
-- ProgrammeItem: `850bbb4827a507cbeb13c19a6797ea24`
-- SeatingTable: `babc32747b33f562c1581dad285621dd`
-- Guest: `3299ce07c2ecf95f2cc3544a21076005`
+## Promotion boundary
 
-No production worksheet UAT records were introduced by engineering tests or deployment-gate verification.
+Vercel rejected automatic deployment of the qualified application head because the Free-plan Git deployment quota was exhausted. No paid tier or paid generation service will be used.
 
-## Deployment boundary
+This documentation-only commit retries the free preview deployment without changing the qualified application tree. Promotion remains blocked until this commit has:
 
-The latest available preview containing the priority-filter application change before this trigger is:
-
-- deployment: `dpl_GTrvfueeUBsxtB6h424io8HjL8fA`
-- commit: `04f3d75040570b107c45e9ae5b17d791121e1707`
-- state: READY
-
-That deployment predates the final strict-browser synchronization commits and is not approved for controlled UAT.
-
-This documentation-only release trigger requests a fresh preview without changing application behavior. The trigger commit itself must pass the same exact GitHub Actions gate. Controlled UAT is approved only when the exact trigger commit has:
-
-1. a successful exact GitHub Actions release gate;
-2. a READY Vercel preview;
-3. `/planner` responding successfully;
+1. successful CI and Marketplace CI;
+2. a READY Vercel preview containing the qualified application tree;
+3. `/planner/seating` responding successfully;
 4. no relevant preview runtime errors.
 
-Controlled live-data UAT remains separate from the executable browser contract and requires an authenticated tester session.
+After that immutable preview is verified, PR #71 can be merged, the exact production deployment verified, and the transactional Imba Manor plan applied:
 
-## Controlled UAT order
-
-1. Checklist / Tasks
-2. Vendors
-3. Budget
-4. Timeline
-5. Seating
-
-For each module: blank template, create, database verification, UI persistence, update, idempotency, invalid/formula input, export round trip, wedding isolation, rollback, and cleanup.
+- 1 High Table × 10 seats;
+- 2 VIP Parents tables × 10 seats;
+- 2 VIP Friends tables × 10 seats;
+- 18 Ordinary tables × 10 seats;
+- 23 tables and exactly 230 seats;
+- all 17 existing Guests preserved;
+- no unintended Guest assignments.
