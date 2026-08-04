@@ -74,6 +74,19 @@ export async function handleImportJobPost(request: NextRequest, context: ImportJ
       })
     }
 
+    if (preview.moduleKey === 'seating' && Array.isArray(body.rowIndices)) {
+      const selected = new Set(body.rowIndices.filter((value): value is number => typeof value === 'number'))
+      const omittedExecutableRows = preview.rows.filter(
+        (row) => (row.action === 'create' || row.action === 'update') && !selected.has(row.rowIndex),
+      )
+      if (omittedExecutableRows.length > 0) {
+        return NextResponse.json({
+          success: false,
+          error: 'Seating imports must execute all validated create and update rows together so table capacity and Guest assignments remain consistent.',
+        }, { status: 409 })
+      }
+    }
+
     if (Array.isArray(body.rowIndices)) {
       const selected = new Set(body.rowIndices.filter((value): value is number => typeof value === 'number'))
       preview = { ...preview, rows: preview.rows.filter((row) => selected.has(row.rowIndex)) }
