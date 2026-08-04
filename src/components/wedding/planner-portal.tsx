@@ -5,11 +5,14 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   CalendarDays,
+  ChevronDown,
+  ChevronUp,
   ExternalLink,
   LayoutDashboard,
   Loader2,
   LogOut,
   ShieldCheck,
+  SlidersHorizontal,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PlannerClientProfile } from '@/components/wedding/planner-client-profile'
@@ -102,10 +105,16 @@ function PlannerExperienceNavigation() {
     setToolsOpen(urlToolsOpen)
   }, [urlToolsOpen])
 
-  function toggleTools() {
-    const nextOpen = !toolsOpen
-    pendingToolsOpen.current = nextOpen
-    setToolsOpen(nextOpen)
+  useEffect(() => {
+    const closeAfterWeddingSwitch = () => {
+      pendingToolsOpen.current = false
+      setToolsOpen(false)
+    }
+    window.addEventListener('wewed:wedding-switched', closeAfterWeddingSwitch)
+    return () => window.removeEventListener('wewed:wedding-switched', closeAfterWeddingSwitch)
+  }, [])
+
+  function updateToolsRoute(nextOpen: boolean) {
     const next = new URLSearchParams(window.location.search)
     if (nextOpen) next.set('panel', 'experience')
     else if (next.get('panel') === 'experience') next.delete('panel')
@@ -114,43 +123,87 @@ function PlannerExperienceNavigation() {
     router.replace(`${window.location.pathname}${query ? `?${query}` : ''}${hash}`, { scroll: false })
   }
 
+  function toggleTools() {
+    const nextOpen = !toolsOpen
+    pendingToolsOpen.current = nextOpen
+    setToolsOpen(nextOpen)
+    updateToolsRoute(nextOpen)
+  }
+
+  function closeToolsAfterAction(event: React.MouseEvent<HTMLElement>) {
+    const target = event.target as HTMLElement
+    if (!target.closest('button, a')) return
+    pendingToolsOpen.current = false
+    setToolsOpen(false)
+    updateToolsRoute(false)
+  }
+
   return (
     <section
       data-planner-experience-nav
-      className="shrink-0 border-b border-gold/15 bg-espresso/95 px-3 py-2.5 sm:px-5"
+      data-planner-compact-control-rail
+      className="shrink-0 border-b border-gold/15 bg-espresso/95 px-3 py-1.5 sm:px-5"
     >
-      <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
-        <div className="flex items-center justify-between gap-3">
-          <div className="shrink-0">
-            <p className="font-sans text-[9px] font-semibold uppercase tracking-[0.2em] text-gold/70">
-              Daily planner path
-            </p>
-            <p className="mt-0.5 font-sans text-[11px] text-champagne/45">
-              Plan → coordinate → update → operate → execute → close
-            </p>
-          </div>
-          <button
-            type="button"
-            data-planner-tools-disclosure
-            aria-expanded={toolsOpen}
-            aria-controls="planner-experience-tools"
-            onClick={toggleTools}
-            className="inline-flex min-h-10 items-center rounded-lg border border-gold/20 bg-gold/[0.05] px-3 font-sans text-xs text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60 xl:hidden"
-          >
-            {toolsOpen ? 'Close tools' : 'Planner tools'}
-          </button>
+      <div className="mx-auto flex min-h-10 w-full max-w-[1500px] items-center gap-2">
+        <div data-planner-context-inline className="min-w-0 flex-1">
+          <WeddingContextControls />
         </div>
 
-        <nav
-          id="planner-experience-tools"
-          aria-label="Planner experience navigation"
-          className={`${toolsOpen ? 'block' : 'hidden'} max-h-[42dvh] min-w-0 overflow-y-auto pb-1 xl:block xl:max-h-none xl:overflow-x-auto xl:overflow-y-visible xl:overscroll-x-contain xl:pb-0`}
+        <p className="hidden shrink-0 font-sans text-[10px] text-champagne/40 2xl:block">
+          Plan → coordinate → update → operate → execute → close
+        </p>
+
+        <button
+          type="button"
+          data-planner-tools-disclosure
+          aria-expanded={toolsOpen}
+          aria-controls="planner-experience-tools"
+          onClick={toggleTools}
+          className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border border-gold/20 bg-gold/[0.05] px-3 font-sans text-xs text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60"
         >
-          <PlannerToolTriggers />
-        </nav>
+          <SlidersHorizontal className="size-3.5" />
+          Planner tools
+          {toolsOpen ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
+        </button>
       </div>
 
+      <nav
+        id="planner-experience-tools"
+        aria-label="Planner experience navigation"
+        onClickCapture={closeToolsAfterAction}
+        className={`${toolsOpen ? 'mt-1.5 block' : 'hidden'} mx-auto max-h-[42dvh] w-full max-w-[1500px] min-w-0 overflow-y-auto pb-1 overscroll-contain`}
+      >
+        <PlannerToolTriggers />
+      </nav>
+
       <style jsx global>{`
+        [data-planner-context-inline] > [data-planner-wedding-context] {
+          min-height: 0 !important;
+          justify-content: flex-start !important;
+          gap: 0.5rem !important;
+          border: 0 !important;
+          background: transparent !important;
+          padding: 0 !important;
+          box-shadow: none !important;
+          backdrop-filter: none !important;
+        }
+
+        [data-planner-context-inline] #active-wedding {
+          height: 2.25rem !important;
+          width: min(56vw, 22rem) !important;
+          max-width: 100% !important;
+          padding-block: 0.25rem !important;
+        }
+
+        [data-planner-context-inline] [data-planner-wedding-context] > svg {
+          display: none !important;
+        }
+
+        [data-planner-context-inline] [data-planner-wedding-context] button {
+          height: 2.25rem !important;
+          min-height: 2.25rem !important;
+        }
+
         [data-planner-tool-triggers] > button {
           position: static !important;
           inset: auto !important;
@@ -170,6 +223,12 @@ function PlannerExperienceNavigation() {
           [data-planner-tool-triggers] > a {
             width: 100% !important;
             justify-content: flex-start !important;
+          }
+        }
+
+        @media (max-width: 639px) {
+          [data-planner-context-inline] #active-wedding {
+            width: min(48vw, 15rem) !important;
           }
         }
       `}</style>
@@ -302,13 +361,14 @@ export function PlannerPortal({ onExit }: PlannerPortalProps) {
       </header>
 
       <div className="planner-portal-body relative flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div className="planner-portal-context shrink-0">
-          <WeddingContextControls />
-        </div>
-
         <PlannerExperienceNavigation key={`tools-${wedding?.id ?? 'no-active-wedding'}`} />
 
-        <main id="planner-workspace" className="min-h-0 flex-1 overflow-hidden" tabIndex={-1}>
+        <main
+          id="planner-workspace"
+          data-planner-active-slot
+          className="min-h-0 flex-1 overflow-hidden"
+          tabIndex={-1}
+        >
           <PlannerWorkspace key={wedding?.id ?? 'no-active-wedding'} />
         </main>
       </div>
