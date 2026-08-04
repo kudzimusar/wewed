@@ -65,10 +65,21 @@ jobs:
           --exit-code
       - run: bun run build
       - run: bunx playwright install --with-deps chromium
-      - run: >-
+      - name: Run marketplace and privacy browser release gate
+        run: >-
           bunx playwright test
           tests/e2e/zz-planner-marketplace.spec.ts
           tests/e2e/zz-planner-marketplace-metadata.spec.ts
           tests/e2e/zz-unified-navigation-privacy.spec.ts
           --project=desktop-chromium
           --project=mobile-chromium
+      - name: Upload marketplace and privacy browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: marketplace-privacy-browser-release-gate
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 14
