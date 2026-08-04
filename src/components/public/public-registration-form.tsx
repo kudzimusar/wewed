@@ -29,14 +29,37 @@ const roleOptions: Record<string, Array<{ value: string; label: string }>> = {
   ],
 }
 
+const ACCOUNT_TYPES = new Set(Object.keys(roleOptions))
+const providerServices = [
+  { value: 'venue', label: 'Venue' },
+  { value: 'photography', label: 'Photography' },
+  { value: 'florals', label: 'Florals' },
+  { value: 'catering', label: 'Catering' },
+  { value: 'entertainment', label: 'Entertainment' },
+  { value: 'decor-rentals', label: 'Décor & rentals' },
+  { value: 'beauty', label: 'Beauty' },
+  { value: 'transport', label: 'Transport' },
+  { value: 'stationery', label: 'Stationery' },
+  { value: 'other', label: 'Other wedding service' },
+] as const
+const PROVIDER_SERVICE_VALUES = new Set(providerServices.map((service) => service.value))
+
 export function PublicRegistrationForm() {
   const searchParams = useSearchParams()
   const queryPlan = searchParams.get('plan')
   const initialPlan = isWewedPlanId(queryPlan) ? queryPlan : 'free'
+  const queryAccountType = searchParams.get('accountType') || ''
+  const initialAccountType = ACCOUNT_TYPES.has(queryAccountType) ? queryAccountType : 'couple'
+  const queryService = searchParams.get('service') || ''
+  const initialService = initialAccountType === 'venue'
+    ? 'venue'
+    : PROVIDER_SERVICE_VALUES.has(queryService as typeof providerServices[number]['value']) ? queryService : 'other'
   const confirmationReturned = searchParams.get('confirmed') === '1'
-  const [accountType, setAccountType] = useState('couple')
-  const [requestedRole, setRequestedRole] = useState('couple_owner')
+
+  const [accountType, setAccountType] = useState(initialAccountType)
+  const [requestedRole, setRequestedRole] = useState(roleOptions[initialAccountType]?.[0]?.value || 'viewer')
   const [requestedPlan, setRequestedPlan] = useState(initialPlan)
+  const [requestedService, setRequestedService] = useState(initialService)
   const [working, setWorking] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<{ id: string; confirmationRequired: boolean } | null>(null)
@@ -44,6 +67,8 @@ export function PublicRegistrationForm() {
   function changeType(value: string) {
     setAccountType(value)
     setRequestedRole(roleOptions[value]?.[0]?.value || 'viewer')
+    if (value === 'venue') setRequestedService('venue')
+    else if (value === 'vendor' && requestedService === 'venue') setRequestedService('other')
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -66,6 +91,7 @@ export function PublicRegistrationForm() {
           accountType,
           requestedRole,
           requestedPlan,
+          requestedService: accountType === 'venue' || accountType === 'vendor' ? requestedService : null,
           acceptedTerms: form.get('acceptedTerms') === 'on',
         }),
       })
@@ -92,18 +118,10 @@ export function PublicRegistrationForm() {
         <CardContent className="p-8 text-center">
           <CheckCircle2 className="mx-auto size-12 text-gold" />
           <h2 className="mt-4 text-2xl font-semibold">Application pending review</h2>
-          <p className="mt-3 text-sm text-champagne/65">
-            Your application is already in Wewed&apos;s review flow. Do not submit another application.
-          </p>
-          <p className="mt-3 text-sm text-champagne/55">
-            Email links can appear expired after they have already been consumed. Wewed will verify the confirmation state, then complete approval and internal onboarding.
-          </p>
-          <div className="mt-5 rounded-xl border border-gold/15 bg-black/10 px-4 py-3 text-xs text-champagne/50">
-            Next step: Wewed administrator approval, followed by couple and wedding workspace setup.
-          </div>
-          <Button asChild className="mt-6 bg-gold text-espresso hover:bg-gold-light">
-            <a href="/">Return to Wewed</a>
-          </Button>
+          <p className="mt-3 text-sm text-champagne/65">Your application is already in Wewed&apos;s review flow. Do not submit another application.</p>
+          <p className="mt-3 text-sm text-champagne/55">Email links can appear expired after they have already been consumed. Wewed will verify the confirmation state, then complete approval and internal onboarding.</p>
+          <div className="mt-5 rounded-xl border border-gold/15 bg-black/10 px-4 py-3 text-xs text-champagne/50">Next step: Wewed administrator approval, followed by account and workspace setup.</div>
+          <Button asChild className="mt-6 bg-gold text-espresso hover:bg-gold-light"><a href="/">Return to Wewed</a></Button>
         </CardContent>
       </Card>
     )
@@ -115,18 +133,10 @@ export function PublicRegistrationForm() {
         <CardContent className="p-8 text-center">
           <CheckCircle2 className="mx-auto size-12 text-gold" />
           <h2 className="mt-4 text-2xl font-semibold">Application submitted</h2>
-          <p className="mt-3 text-sm text-champagne/65">
-            Your account is pending Wewed review. Approval is followed by internal onboarding and workspace assignment.
-          </p>
-          {success.confirmationRequired && (
-            <p className="mt-3 text-sm text-gold-light">Check your email to confirm your Supabase identity.</p>
-          )}
-          <p className="mt-5 rounded-xl border border-gold/15 bg-black/10 px-4 py-3 text-xs text-champagne/45">
-            Application reference: {success.id}
-          </p>
-          <Button asChild className="mt-6 bg-gold text-espresso hover:bg-gold-light">
-            <a href="/">Return to Wewed</a>
-          </Button>
+          <p className="mt-3 text-sm text-champagne/65">Your account is pending Wewed review. Approval is followed by internal onboarding and workspace assignment.</p>
+          {success.confirmationRequired && <p className="mt-3 text-sm text-gold-light">Check your email to confirm your Supabase identity.</p>}
+          <p className="mt-5 rounded-xl border border-gold/15 bg-black/10 px-4 py-3 text-xs text-champagne/45">Application reference: {success.id}</p>
+          <Button asChild className="mt-6 bg-gold text-espresso hover:bg-gold-light"><a href="/">Return to Wewed</a></Button>
         </CardContent>
       </Card>
     )
@@ -163,16 +173,23 @@ export function PublicRegistrationForm() {
             </select>
           </label>
 
+          {(accountType === 'venue' || accountType === 'vendor') && (
+            <label className="text-xs text-champagne/50 md:col-span-2">
+              Primary wedding service
+              <select value={requestedService} onChange={(event) => setRequestedService(event.target.value)} className="mt-1 h-10 w-full rounded-md border border-gold/20 bg-espresso px-3 text-sm text-champagne" required>
+                {providerServices
+                  .filter((service) => accountType !== 'venue' || service.value === 'venue')
+                  .map((service) => <option key={service.value} value={service.value}>{service.label}</option>)}
+              </select>
+            </label>
+          )}
+
           <Input name="businessName" placeholder={accountType === 'couple' ? 'Couple or wedding name' : 'Business name'} required className="border-gold/20 bg-black/15 md:col-span-2" />
 
           <label className="text-xs text-champagne/50">
             Preferred plan
             <select value={requestedPlan} onChange={(event) => setRequestedPlan(event.target.value)} className="mt-1 h-10 w-full rounded-md border border-gold/20 bg-espresso px-3 text-sm text-champagne">
-              {WEWED_PLANS.map((plan) => (
-                <option key={plan.id} value={plan.id}>
-                  {plan.publicName}{plan.id === 'enterprise' ? ' — sales-assisted' : ''}
-                </option>
-              ))}
+              {WEWED_PLANS.map((plan) => <option key={plan.id} value={plan.id}>{plan.publicName}{plan.id === 'enterprise' ? ' — sales-assisted' : ''}</option>)}
             </select>
           </label>
 
