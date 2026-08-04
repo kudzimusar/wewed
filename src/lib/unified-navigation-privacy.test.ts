@@ -18,12 +18,27 @@ describe('unified Wewed navigation and wedding privacy', () => {
     expect(rootLayout).not.toContain('Imba Manor')
     expect(weddingPage).toContain('resolveWeddingAccessFromTokens')
     expect(weddingPage).toContain('GuestAccessGateway')
+    expect(weddingPage).toContain('guest-session/exchange')
     expect(weddingPage).toContain("dynamic = 'force-dynamic'")
+  })
+
+  test('new weddings default to invitation-only at the database boundary', async () => {
+    const migration = await source(
+      'prisma/migrations/20260804002000_default_new_weddings_link_only/migration.sql',
+    )
+
+    expect(migration).toContain('wewed_enforce_new_wedding_link_only')
+    expect(migration).toContain("NEW.privacy := 'link_only'")
+    expect(migration).toContain('BEFORE INSERT ON public."Wedding"')
+    expect(migration).toContain('Public visibility must be selected later')
   })
 
   test('guest invitations exchange into signed HttpOnly scoped sessions', async () => {
     const session = await source('src/lib/wedding-guest-session.ts')
     const route = await source('src/app/api/weddings/[slug]/guest-session/route.ts')
+    const exchange = await source(
+      'src/app/api/weddings/[slug]/guest-session/exchange/route.ts',
+    )
     const invitations = await source('src/app/api/planner/guests/invitations/route.ts')
     const legacySharedToken = await source('src/app/api/privacy/verify-token/route.ts')
 
@@ -36,6 +51,8 @@ describe('unified Wewed navigation and wedding privacy', () => {
     expect(route).toContain('setWeddingGuestSessionCookie')
     expect(route).toContain("rsvp.guest.wedding.slug !== slug")
     expect(route).toContain("rsvp.guest.wedding.privacy === 'private'")
+    expect(exchange).toContain('setWeddingGuestSessionCookie')
+    expect(exchange).toContain("target.searchParams.set('invitation', '1')")
     expect(invitations).toContain('/w/${encodeURIComponent(wedding.slug)}?rsvp=')
     expect(invitations).toContain('guest.invitation_rotated')
     expect(legacySharedToken).toContain('legacy_shared_token_retired')
