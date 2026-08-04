@@ -1,4 +1,4 @@
-# Wewed Africa-ready product remediation
+# Wewed targeted preview remediation
 
 Status: implementation in progress
 Owner: Wewed product release
@@ -6,88 +6,77 @@ Date: 2026-08-04
 
 ## Purpose
 
-This document is the implementation source of truth for the authenticated-product redesign following preview review. The current release must not be merged until the internal planner, invitation, QR and marketplace surfaces meet the same visual and usability standard as the public acquisition experience.
+This document is the implementation source of truth for the specific defects reported during review of the Africa-ready preview. This is not authorization for a new system-wide redesign. Work is limited to the four visual problems listed below.
 
-## Confirmed defects
+## Approved scope
 
-1. The original remote hero film contains scenes that may be culturally misread in the Zimbabwean market.
-2. Remote stock photography does not satisfy Wewed ownership and local-media requirements.
-3. Planner marketplace fields and empty states have insufficient contrast.
-4. Invitation templates are compressed into narrow columns, causing clipped and overlapping text.
-5. Guest QR cards are too narrow for names, statuses, table details and action controls.
-6. Daily Planner Operations metrics collapse into unreadable columns and tabs wrap unpredictably.
-7. Fixed navigation and overlays can cover working content.
-8. Authenticated product interiors have not yet received a complete system-wide visual pass.
+### 1. Landing-page hero media
 
-## Product rules
+Observed issue: the current remote wedding film includes a scene of two women dancing that may be culturally misinterpreted in the Zimbabwean launch market.
 
-- Use Wewed-owned local media only on redesigned surfaces.
-- Represent joyful Black opposite-gender wedding couples in culturally appropriate Zimbabwean and African settings.
-- Do not change schema, API contracts, privacy rules, authorization, wedding isolation or business logic.
-- Meet WCAG AA contrast: 4.5:1 for normal text and 3:1 for large text and controls.
-- No text clipping, horizontal page overflow, hidden actions or overlapping modal content.
-- Dialogs own their scrolling and remain inside the dynamic viewport.
-- Forms use visible labels, readable values, helpers and validation states.
+Required change:
 
-## Implementation phases
+- Remove that remote film from the rendered landing-page experience.
+- Use a Wewed-owned local hero visual showing a joyful Black Zimbabwean bride and groom.
+- Hide the film control while the static replacement is in use.
+- Do not change the rest of the landing-page structure in this remediation.
+- A replacement motion clip may be added later only when it can be generated on the approved free tier and reviewed before use.
 
-### Phase 1 — media safety and ownership
+### 2. Planner marketplace readability
 
-- Remove the remote hero film from the rendered experience.
-- Replace it with a local Wewed-owned Black Zimbabwean couple visual.
-- Keep an accessible static hero until a Wewed-owned video can be generated on the approved free tier.
-- Remove third-party media from the redesigned route set as local replacements are completed.
+Observed issue: profile fields and empty-state text have insufficient contrast against grey and dark surfaces.
 
-### Phase 2 — shared visual foundations
+Required change:
 
-- Add route-aware product surface markers.
-- Standardize light and dark surface contrast.
-- Standardize input, textarea, select, disabled, focus and helper states.
-- Increase dialog width and establish responsive internal scrolling.
-- Add fixed-navigation clearance and safe-area padding.
+- Use light field backgrounds, dark field values and visible borders.
+- Keep placeholders, disabled values, enquiry empty states and appointment empty states readable.
+- Add sufficient bottom clearance so the fixed planner dock does not cover form controls.
+- Do not change marketplace data, workflow, permissions or API behavior.
 
-### Phase 3 — planner marketplace
+### 3. Invitation templates and guest QR cards
 
-- Add visible labels for every profile field.
-- Use white inputs with dark text and clear borders.
-- Keep enquiry and appointment empty states readable.
-- Prevent the planner dock from obscuring the last form controls.
-- Rebalance profile and inbox columns.
+Observed issue: invitation previews and QR cards are compressed inside the dialog, causing clipped or overlapping text and actions.
 
-### Phase 4 — invitations and QR
+Required change:
 
-- Present invitation templates in responsive cards with stable aspect ratios.
-- Use one column on constrained viewports and increase card width before adding columns.
-- Keep names, metadata and controls inside each QR card.
-- Stack action controls when horizontal space is insufficient.
-- Keep QR images at a stable readable size.
+- Increase the invitation dialog's usable desktop width while retaining a full-width mobile sheet.
+- Use responsive template columns with a minimum readable card width.
+- Keep each QR image, guest name, status, table information and action group inside its own card.
+- Stack to one column when the available width is insufficient.
+- Do not change QR credentials, RSVP exchange, rotation, sharing or invitation business logic.
 
-### Phase 5 — Daily Planner Operations
+### 4. Daily Planner Operations layout
 
-- Use a wide desktop dialog and full-width mobile sheet.
-- Change metrics to responsive cards with minimum widths.
-- Keep long currency values visible.
-- Use horizontally scrollable tabs rather than wrapped fragments.
-- Give priority tasks and timeline panels adequate width.
+Observed issue: KPI cards collapse into narrow vertical strips; currency values, labels, tabs and lower panels become clipped or overlap.
 
-### Phase 6 — remaining authenticated surfaces
+Required change:
 
-Apply the same standards to Tasks, Budget, Vendors, Guests, Timeline, Seating, Couple invitations, Couple planner discovery, Vendor surfaces and Admin governance.
+- Increase the Daily Operations dialog's usable desktop width.
+- Give KPI cards a minimum readable width.
+- Keep tabs on one horizontally scrollable row rather than wrapping into fragments.
+- Keep priority tasks, wedding-day timeline and lower sections in responsive readable columns.
+- Do not change planner calculations, reminders, templates, seating, imports or rollback behavior.
+
+## Explicitly out of scope
+
+This remediation does not authorize a redesign of Tasks, Budget, Vendors, Guests, Timeline, Seating, Couple, Vendor or Admin pages beyond any incidental shared behavior required by the four approved fixes. It does not change schema, migrations, APIs, permissions, privacy, wedding isolation, subscriptions or production data.
 
 ## Validation
 
-The release gate includes:
+The release gate requires:
 
-- source contracts for this document and local media;
-- desktop, laptop, tablet and mobile Chromium;
-- no horizontal overflow;
-- no clipped or overlapping text;
-- contrast and keyboard checks;
-- populated, empty and large-value states;
-- retained planner CRUD, priority-filter persistence, marketplace, privacy, invitation and wedding-isolation tests;
-- exact-head preview review before merge;
-- production route and runtime verification after merge.
+- the remote landing-page film is not rendered;
+- the local Black bride-and-groom hero visual is rendered;
+- marketplace fields and empty states remain readable;
+- invitation previews and QR cards do not clip or overlap;
+- Daily Operations KPIs, tabs and panels do not clip or overlap;
+- no horizontal page overflow at desktop, laptop, tablet or mobile widths;
+- retained planner CRUD and priority-filter regression coverage;
+- retained marketplace, privacy, invitation and wedding-isolation tests;
+- exact-head Vercel preview review before merge.
+
+The planner baseline remains mandatory, including Task Test 11: filtering to High priority must keep the UAT high-priority task visible, hide other priorities, preserve its In progress status and make no task-data changes.
 
 ## Merge rule
 
-Do not merge this release until the exact branch head passes all automated gates and the corrected authenticated surfaces have been visually reviewed in the exact-head Vercel preview.
+Do not merge this release until the exact branch head passes the targeted and retained automated gates and the four corrected surfaces have been visually reviewed in the exact-head Vercel preview.
