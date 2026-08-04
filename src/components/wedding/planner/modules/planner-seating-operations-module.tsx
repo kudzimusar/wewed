@@ -23,6 +23,7 @@ import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import type { GuestRow } from '@/components/wedding/planner/modules/planner-guests-module'
 import { useToast } from '@/hooks/use-toast'
+import { escapeHtml } from '@/lib/html-escape'
 import {
   plannedSeatsForGuest,
   seatingTableTypeLabel,
@@ -364,7 +365,15 @@ export function PlannerSeatingModule(props: PlannerSeatingModuleProps) {
     const tableRows = orderedTables.map((table) => {
       const assigned = guestsByTable.get(table.id) ?? []
       const occupied = occupancy.get(table.id) ?? 0
-      return `<section><h2>${table.name}</h2><p>${seatingTableTypeLabel(typeOf(table))} · ${table.zone || 'Zone not set'} · ${occupied}/${table.capacity} seats</p><ul>${assigned.map((guest) => `<li>${guest.name} (${plannedSeatsForGuest(guest)} seat${plannedSeatsForGuest(guest) === 1 ? '' : 's'})</li>`).join('') || '<li>No Guests assigned</li>'}</ul></section>`
+      const tableName = escapeHtml(table.name)
+      const tableType = escapeHtml(seatingTableTypeLabel(typeOf(table)))
+      const zone = escapeHtml(table.zone || 'Zone not set')
+      const notes = table.notes ? `<p>${escapeHtml(table.notes)}</p>` : ''
+      const guestRows = assigned.map((guest) => {
+        const seats = plannedSeatsForGuest(guest)
+        return `<li>${escapeHtml(guest.name)} (${seats} seat${seats === 1 ? '' : 's'})</li>`
+      }).join('') || '<li>No Guests assigned</li>'
+      return `<section><h2>${tableName}</h2><p>${tableType} · ${zone} · ${occupied}/${table.capacity} seats</p>${notes}<ul>${guestRows}</ul></section>`
     }).join('')
     printWindow.document.write(`<!doctype html><html><head><title>Imba Manor Seating Plan</title><style>body{font-family:Arial,sans-serif;padding:32px;color:#1f1a16}header{border-bottom:2px solid #9b7b42;margin-bottom:20px}section{break-inside:avoid;border:1px solid #d8cec0;border-radius:12px;padding:14px;margin:10px 0}h1,h2{font-family:Georgia,serif}h2{margin:0 0 4px}p,li{font-size:12px;line-height:1.5}.summary{display:flex;gap:18px;flex-wrap:wrap}</style></head><body><header><h1>Imba Manor Seating Plan</h1><div class="summary"><p>${viewTables.length} tables</p><p>${totalCapacity} planned seats</p><p>${assignedHeads} assigned seats</p><p>${unassignedHeads} unassigned seats</p></div></header>${tableRows}</body></html>`)
     printWindow.document.close()
