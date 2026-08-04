@@ -49,6 +49,7 @@ export function ShareSection() {
   const { toast } = useToast()
   const { canShare, share } = useNativeShare()
   const privateWedding = wedding?.privacy !== 'public'
+  const [origin, setOrigin] = useState('')
   const names = wedding
     ? `${wedding.couple.partner1} & ${wedding.couple.partner2}`
     : 'This wedding'
@@ -63,10 +64,12 @@ export function ShareSection() {
     ? [wedding.venue, wedding.venueCity, wedding.venueCountry].filter(Boolean).join(', ')
     : ''
 
-  const shareUrl = useMemo(() => {
-    if (typeof window === 'undefined') return `/w/${encodeURIComponent(slug)}`
-    return `${window.location.origin}/w/${encodeURIComponent(slug)}`
-  }, [slug])
+  useEffect(() => setOrigin(window.location.origin), [])
+
+  const shareUrl = useMemo(
+    () => `${origin}/w/${encodeURIComponent(slug)}`,
+    [origin, slug],
+  )
   const defaultMessage = useMemo(
     () => [`Celebrate with ${names}.`, date, venue, shareUrl].filter(Boolean).join('\n'),
     [date, names, shareUrl, venue],
@@ -78,7 +81,7 @@ export function ShareSection() {
   useEffect(() => setMessage(defaultMessage), [defaultMessage])
 
   useEffect(() => {
-    if (privateWedding) return
+    if (privateWedding || !origin) return
     let active = true
     setQrLoading(true)
     void fetchQr(shareUrl).then((data) => {
@@ -87,7 +90,7 @@ export function ShareSection() {
       setQrLoading(false)
     })
     return () => { active = false }
-  }, [privateWedding, shareUrl])
+  }, [origin, privateWedding, shareUrl])
 
   const handleNativeShare = useCallback(async () => {
     const result = await share({ title: `${names} | Wewed`, text: message, url: shareUrl })
