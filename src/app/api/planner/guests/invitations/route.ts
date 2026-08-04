@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
     }
 
     const style = normalizeInvitationCardStyle(wedding.invitationCardStyle)
-    const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://wewed.app').replace(/\/$/, '')
+    const siteUrl = request.nextUrl.origin.replace(/\/$/, '')
     const data = guests.map((guest) => {
       const invitationUrl = guest.rsvp?.token
         ? buildDigitalInvitationUrl({
