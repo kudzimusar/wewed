@@ -13,7 +13,7 @@ const PUBLIC_LINKS = [
 
 export function PublicPlatformShell({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen bg-ivory text-espresso">
+    <div className="min-h-screen bg-ivory text-espresso" data-release="africa-ready-v1">
       <header className="sticky top-0 z-50 border-b border-gold/20 bg-espresso/95 text-champagne shadow-xl backdrop-blur-xl">
         <nav className="mx-auto flex min-h-16 max-w-[90rem] items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8" aria-label="Wewed public navigation">
           <Link href="/" className="group flex items-center gap-2 font-serif text-2xl text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold" aria-label="Wewed home">
