@@ -69,19 +69,35 @@ BEGIN
     AND "resourceId" = 'budget-audit-test-item'
     AND action = 'budget.db_insert';
 
-  SELECT COUNT(*), MIN("beforeValue"::jsonb), MIN("afterValue"::jsonb)
-  INTO updated_count, update_before, update_after
+  SELECT COUNT(*) INTO updated_count
   FROM public."AuditEvent"
   WHERE "weddingId" = 'budget-audit-test-wedding'
     AND "resourceId" = 'budget-audit-test-item'
     AND action = 'budget.db_update';
 
-  SELECT COUNT(*), MIN("beforeValue"::jsonb), MIN("afterValue")
-  INTO deleted_count, delete_before, delete_after
+  SELECT "beforeValue"::jsonb, "afterValue"::jsonb
+  INTO update_before, update_after
+  FROM public."AuditEvent"
+  WHERE "weddingId" = 'budget-audit-test-wedding'
+    AND "resourceId" = 'budget-audit-test-item'
+    AND action = 'budget.db_update'
+  ORDER BY "createdAt" DESC
+  LIMIT 1;
+
+  SELECT COUNT(*) INTO deleted_count
   FROM public."AuditEvent"
   WHERE "weddingId" = 'budget-audit-test-wedding'
     AND "resourceId" = 'budget-audit-test-item'
     AND action = 'budget.db_delete';
+
+  SELECT "beforeValue"::jsonb, "afterValue"
+  INTO delete_before, delete_after
+  FROM public."AuditEvent"
+  WHERE "weddingId" = 'budget-audit-test-wedding'
+    AND "resourceId" = 'budget-audit-test-item'
+    AND action = 'budget.db_delete'
+  ORDER BY "createdAt" DESC
+  LIMIT 1;
 
   IF inserted_count <> 1 THEN
     RAISE EXCEPTION 'Expected one Budget insert audit, found %', inserted_count;
