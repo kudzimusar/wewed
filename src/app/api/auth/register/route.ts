@@ -23,6 +23,18 @@ const REQUESTED_ROLES = new Set([
   'viewer',
 ])
 const PLANS = new Set(['free', 'starter', 'professional', 'enterprise'])
+const PROVIDER_SERVICES = new Set([
+  'venue',
+  'photography',
+  'florals',
+  'catering',
+  'entertainment',
+  'decor-rentals',
+  'beauty',
+  'transport',
+  'stationery',
+  'other',
+])
 const attempts = new Map<string, { count: number; resetAt: number }>()
 
 function text(value: unknown, max = 200): string {
@@ -76,6 +88,7 @@ export async function POST(request: NextRequest) {
     const accountType = text(body.accountType, 40)
     const requestedRole = text(body.requestedRole, 60)
     const requestedPlan = text(body.requestedPlan, 40) || 'free'
+    const requestedService = text(body.requestedService, 80)
     const phone = text(body.phone, 60)
     const notes = text(body.notes, 2000)
     const acceptedTerms = body.acceptedTerms === true
@@ -91,6 +104,12 @@ export async function POST(request: NextRequest) {
     }
     if (!PLANS.has(requestedPlan)) {
       return NextResponse.json({ success: false, error: 'Requested plan is invalid.' }, { status: 400 })
+    }
+    if (
+      (accountType === 'venue' && requestedService !== 'venue') ||
+      (accountType === 'vendor' && !PROVIDER_SERVICES.has(requestedService))
+    ) {
+      return NextResponse.json({ success: false, error: 'Requested wedding service is invalid.' }, { status: 400 })
     }
     if (password.length < 12) {
       return NextResponse.json(
@@ -129,6 +148,7 @@ export async function POST(request: NextRequest) {
           display_name: name,
           wewed_application: true,
           requested_account_type: accountType,
+          requested_service: requestedService || null,
         },
       },
     })
@@ -153,6 +173,7 @@ export async function POST(request: NextRequest) {
       phone: phone || null,
       requestedRole,
       requestedPlan,
+      requestedService: requestedService || null,
       submittedAt,
       emailConfirmationRequired: !data.session,
       internalOnboardingRequired: true,
@@ -204,7 +225,7 @@ export async function POST(request: NextRequest) {
          VALUES ($1, NULL, $2, 'business_account.public_application_submitted', 'BusinessAccount', $2, $3::jsonb)`,
         `audit-${randomUUID()}`,
         accountId,
-        JSON.stringify({ email, name, accountType, requestedRole, requestedPlan, submittedAt }),
+        JSON.stringify({ email, name, accountType, requestedRole, requestedPlan, requestedService: requestedService || null, submittedAt }),
       ),
     ])
 
