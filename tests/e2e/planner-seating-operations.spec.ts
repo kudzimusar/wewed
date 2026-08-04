@@ -26,6 +26,10 @@ async function createTable(
   return (await response.json()) as { data: { id: string; name: string; capacity: number } }
 }
 
+function visibleGuestName(page: Parameters<typeof openModule>[0], name: string) {
+  return page.getByRole('paragraph').filter({ hasText: new RegExp(`^${name}$`) })
+}
+
 test('seating tables expose operational type, zone, green/red status, bulk moves, and safe deletion', async ({ plannerPage: page }) => {
   await openModule(page, 'seating')
 
@@ -58,7 +62,7 @@ test('seating tables expose operational type, zone, green/red status, bulk moves
   const first = await createGuest(page, 'E2E Seating Guest One')
   const second = await createGuest(page, 'E2E Seating Guest Two')
   await page.reload()
-  await expect(page.getByText('E2E Seating Guest One', { exact: true })).toBeVisible()
+  await expect(visibleGuestName(page, 'E2E Seating Guest One')).toBeVisible()
 
   await page.getByLabel('Select guest E2E Seating Guest One').check()
   await page.getByLabel('Select guest E2E Seating Guest Two').check()
@@ -96,8 +100,8 @@ test('seating tables expose operational type, zone, green/red status, bulk moves
   acceptNextConfirmation(page)
   await page.getByRole('button', { name: 'Delete E2E VIP Parents Table' }).click()
   await expect(page.getByText('E2E VIP Parents Table', { exact: true })).toHaveCount(0)
-  await expect(page.getByText('E2E Seating Guest One', { exact: true })).toBeVisible()
-  await expect(page.getByText('E2E Seating Guest Two', { exact: true })).toBeVisible()
+  await expect(visibleGuestName(page, 'E2E Seating Guest One')).toBeVisible()
+  await expect(visibleGuestName(page, 'E2E Seating Guest Two')).toBeVisible()
 
   const state = await page.request.get('/api/planner/guests')
   const payload = (await state.json()) as {
