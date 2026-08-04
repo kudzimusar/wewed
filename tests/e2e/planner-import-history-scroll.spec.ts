@@ -19,10 +19,17 @@ const IMPORT_JOBS = Array.from({ length: 8 }, (_, index) => ({
 
 test('recent import history scrolls and keeps the oldest rollback action reachable', async ({ plannerPage: page }) => {
   test.setTimeout(60_000)
+  let interceptedHistoryRequests = 0
 
-  await page.route('**/api/imports?*', async (route) => {
-    const url = new URL(route.request().url())
-    if (url.pathname === '/api/imports' && url.searchParams.get('module') === 'vendors') {
+  await page.route('**/api/imports**', async (route) => {
+    const request = route.request()
+    const url = new URL(request.url())
+    if (
+      request.method() === 'GET'
+      && url.pathname === '/api/imports'
+      && url.searchParams.get('module') === 'vendors'
+    ) {
+      interceptedHistoryRequests += 1
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -41,9 +48,18 @@ test('recent import history scrolls and keeps the oldest rollback action reachab
     await page.goto('/planner/vendors#planner-workspace')
     await openModule(page, 'vendors')
     await openWorksheetActions(page)
-    await page.getByRole('button', { name: /Recent imports/i }).click()
 
-    const historyScroll = page.locator('#planner-worksheet-actions > div.rounded-xl').last()
+    const historyResponse = page.waitForResponse((response) => {
+      const url = new URL(response.url())
+      return response.request().method() === 'GET'
+        && url.pathname === '/api/imports'
+        && url.searchParams.get('module') === 'vendors'
+    })
+    await page.getByRole('button', { name: /Recent imports/i }).click()
+    expect((await historyResponse).ok()).toBe(true)
+    await expect.poll(() => interceptedHistoryRequests).toBeGreaterThan(0)
+
+    const historyScroll = page.locator('#planner-worksheet-actions > div.rounded-xl')
     await expect(historyScroll).toBeVisible()
     await expect(historyScroll.getByText('history-8.xlsx', { exact: true })).toBeAttached()
 
