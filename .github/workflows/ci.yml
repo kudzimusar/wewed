@@ -129,6 +129,9 @@ jobs:
       - name: Run worksheet recovery PostgreSQL round trips
         run: bun test src/lib/planner-worksheet-contracts.integration.test.ts
 
+      - name: Run Seating operations metadata contract
+        run: bun test src/lib/planner-seating-metadata.test.ts
+
       - name: Run Seating worksheet relational round trips
         run: bun test src/lib/planner-seating-worksheet.integration.test.ts
 
