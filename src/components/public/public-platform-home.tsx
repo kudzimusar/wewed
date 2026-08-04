@@ -117,8 +117,10 @@ export function PublicPlatformHome() {
   useEffect(() => {
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
     if (reducedMotion.matches) {
-      setVideoPaused(true)
-      videoRef.current?.pause()
+      window.requestAnimationFrame(() => {
+        videoRef.current?.pause()
+        setVideoPaused(true)
+      })
     }
     void marketplaceFetch<{ planners: PublicPlannerProfile[] }>('/api/marketplace/planners')
       .then((payload) => setPlanners(payload.planners.slice(0, 8)))
@@ -144,6 +146,7 @@ export function PublicPlatformHome() {
         priceBand: 'contact',
         availabilityStatus: 'limited',
         portfolio: [],
+        publishedAt: null,
       } satisfies PublicPlannerProfile,
     ]
   }, [planners])
