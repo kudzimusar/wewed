@@ -4,6 +4,12 @@ import {
   verifyAppSessionToken,
 } from '@/lib/app-session'
 
+function isGuestWeddingSessionRoute(pathname: string): boolean {
+  return /^\/api\/weddings\/[^/]+\/guest-session(?:\/exchange)?$/.test(
+    pathname,
+  )
+}
+
 function requiresDashboardSession(request: NextRequest): boolean {
   const { pathname } = request.nextUrl
 
@@ -11,6 +17,10 @@ function requiresDashboardSession(request: NextRequest): boolean {
   if (pathname === '/api/planner') return true
   if (pathname === '/api/seed') return true
   if (pathname === '/api/auth/wedding') return true
+
+  // Invitation QR exchange and guest-session self-service authenticate with
+  // the signed wedding guest cookie, not the dashboard application cookie.
+  if (isGuestWeddingSessionRoute(pathname)) return false
   if (pathname.startsWith('/api/weddings/')) return true
 
   if (pathname === '/api/rsvp' && request.method === 'GET') return true
@@ -36,7 +46,7 @@ export function proxy(request: NextRequest) {
   if (!session) {
     return NextResponse.json(
       { success: false, error: 'Unauthorized — sign in is required' },
-      { status: 401 }
+      { status: 401 },
     )
   }
 
