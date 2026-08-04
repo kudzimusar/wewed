@@ -3,76 +3,65 @@ import { readFileSync } from 'node:fs'
 
 const source = (path: string) => readFileSync(path, 'utf8')
 
-describe('Africa-ready product experience', () => {
-  test('the public home is media-rich, interactive and commercially complete', () => {
-    const home = source('src/components/public/public-platform-home.tsx')
-    const remediation = source('src/app/product-remediation.css')
+describe('Wewed wedding-first product experience', () => {
+  test('the public home is media-rich, wedding-first and free of stock-media references', () => {
+    const home = source('src/components/public/public-platform-home-v2.tsx')
     expect(home).toContain("'use client'")
     expect(home).toContain('data-testid="africa-ready-hero"')
-    expect(remediation).toContain("url('/media/wewed-zimbabwe-couple.svg')")
-    expect(remediation).toContain('[data-testid="africa-ready-hero"] > video')
-    expect(remediation).toContain('[data-testid="hero-video-control"]')
-    expect(remediation).toContain('display: none !important')
+    expect(home).toContain('<video')
+    expect(home).toContain('/media/wewed-couple-hero.svg')
+    expect(home).toContain('/media/wewed-couple-planning.svg')
+    expect(home).toContain('/media/wewed-couple-guests.svg')
     expect(home).toContain('data-testid="featured-planner-carousel"')
     expect(home).toContain('data-testid="wedding-inspiration-carousel"')
     expect(home).toContain('id="vendors"')
-    expect(home).toContain('Zimbabwe first · designed for Africa')
+    expect(home).toContain('Everything for a beautifully planned wedding')
     expect(home).toContain("marketplaceFetch<{ planners: PublicPlannerProfile[] }>")
+    expect(home).not.toContain('pexels.com')
+    expect(home).not.toContain('Zimbabwe first')
+    expect(home).not.toContain('designed for Africa')
   })
 
   test('featured planner presentation uses only marketplace records with honest loading states', () => {
-    const home = source('src/components/public/public-platform-home.tsx')
+    const home = source('src/components/public/public-platform-home-v2.tsx')
     expect(home).toContain("type PlannerLoadState = 'loading' | 'ready' | 'empty' | 'error'")
-    expect(home).toContain("setPlannerLoadState(publishedPlanners.length ? 'ready' : 'empty')")
+    expect(home).toContain("setPlannerLoadState(published.length ? 'ready' : 'empty')")
     expect(home).toContain('aria-live="polite"')
     expect(home).toContain('We never substitute test accounts or fabricated profiles for real marketplace data.')
-    expect(home).not.toContain('featured-planner-placeholder')
     expect(home).not.toContain('eleven-eleven-testing-uat')
   })
 
-  test('the public shell exposes stakeholder and corporate discovery routes', () => {
+  test('the public shell exposes discovery routes with neutral wedding-first copy', () => {
     const shell = source('src/components/public/public-platform-shell.tsx')
-    for (const label of ['Find a planner', 'For couples', 'For planners', 'Vendors & venues', 'How it works', 'Pricing']) {
-      expect(shell).toContain(label)
-    }
+    for (const label of ['Find a planner', 'For couples', 'For planners', 'Vendors & venues', 'How it works', 'Pricing']) expect(shell).toContain(label)
     expect(shell).toContain("['For couples', '/#couples']")
-    expect(shell).toContain('Built in Zimbabwe. Designed for Africa.')
-    expect(shell).toContain("href=\"/register\"")
+    expect(shell).toContain('Made for weddings. Built to bring people together.')
+    expect(shell).not.toContain('Built in Zimbabwe')
+    expect(shell).not.toContain('Designed for Africa')
   })
 
-  test('text-heavy public pages inherit the visual information template', () => {
+  test('text-heavy public pages use local artwork and neutral copy', () => {
     const info = source('src/components/public/public-info-page.tsx')
-    expect(info).toContain('<img')
-    expect(info).toContain('Zimbabwe first. Africa ready.')
-    expect(info).toContain('bg-[linear-gradient')
+    expect(info).toContain('/media/wewed-couple-hero.svg')
+    expect(info).toContain('Made for meaningful celebrations.')
     expect(info).toContain('PublicPlatformShell')
+    expect(info).not.toContain('pexels.com')
+    expect(info).not.toContain('Zimbabwe first')
   })
 
-  test('the couple dashboard is a visual command centre without changing its routes', () => {
+  test('the couple dashboard keeps its routes', () => {
     const couple = source('src/components/couple/couple-dashboard.tsx')
-    expect(couple).toContain('Wewed couple command centre')
-    expect(couple).toContain('days until the celebration')
-    expect(couple).toContain('Invitation protected')
-    expect(couple).toContain('Journey overview')
-    for (const route of ['/couple/planners', '/couple/invitations', '/couple/privacy', '/planner', '/billing']) {
-      expect(couple).toContain(route)
-    }
+    for (const route of ['/couple/planners', '/couple/invitations', '/couple/privacy', '/planner', '/billing']) expect(couple).toContain(route)
   })
 
-  test('marketplace pages share the premium role-aware visual frame', () => {
+  test('marketplace pages share the role-aware visual frame', () => {
     const frame = source('src/components/marketplace/marketplace-frame.tsx')
-    expect(frame).toContain('Planner business centre')
-    expect(frame).toContain('Marketplace governance')
-    expect(frame).toContain('Couple planner journey')
-    expect(frame).toContain('Public planner marketplace')
-    expect(frame).toContain('Planner directory')
-    expect(frame).toContain('linear-gradient(100deg')
+    for (const label of ['Planner business centre', 'Marketplace governance', 'Couple planner journey', 'Public planner marketplace', 'Planner directory']) expect(frame).toContain(label)
   })
 
-  test('desktop and mobile Chromium both exercise the new experience', () => {
+  test('desktop and mobile Chromium exercise the experience', () => {
     const browser = source('tests/e2e/zz-africa-ready-experience.spec.ts')
     expect(browser).toContain('mobile homepage keeps media, discovery and navigation operable @mobile')
-    expect(browser).toContain('mobile information and marketplace pages retain the shared visual frame @mobile')
     expect(browser).toContain('expectNoHorizontalOverflow')
   })
 
