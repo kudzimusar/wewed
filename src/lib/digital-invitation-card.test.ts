@@ -75,6 +75,15 @@ describe('digital invitation card delivery', () => {
     expect(route).not.toContain('token: guest.rsvp?.token ?? null')
   })
 
+  test('the shared dashboard API proxy prevents authenticated responses from shared caching', () => {
+    const proxy = source('src/proxy.ts')
+    expect(proxy).toContain('function privateNoStore')
+    expect(proxy).toContain("'Cache-Control', 'private, no-store, max-age=0'")
+    expect(proxy).toContain("response.headers.set('Vary', 'Cookie')")
+    expect(proxy).toContain('return privateNoStore(NextResponse.next())')
+    expect(proxy).toContain('return privateNoStore(')
+  })
+
   test('RSVP reminder delivery embeds the same secure digital card URL and email CTA', () => {
     const delivery = source('src/lib/reminder-delivery.ts')
     expect(delivery).toContain('buildDigitalInvitationUrl')
