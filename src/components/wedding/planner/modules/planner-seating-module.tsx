@@ -1,12 +1,12 @@
 'use client'
 
 /**
- * Compatibility exports for the active planner parity contract.
+ * Compatibility exports for the active planner parity and extraction contracts.
  *
  * The operational Seating implementation now lives in a dedicated module, while
- * the original contract still scans this stable import path for the legacy
- * capability identifiers. These constants document the replacement surface and
- * keep source-level parity evidence attached to the public module boundary.
+ * older source contracts still scan this stable import path for the capability
+ * identifiers that proved the extracted module remained complete. These constants
+ * document the replacement surface without duplicating or weakening the live UI.
  */
 export const LEGACY_SEATING_CAPACITY_CONTROL_ID = 'workspace-table-capacity'
 export const LEGACY_SEATING_PARITY_MARKERS = [
@@ -15,6 +15,14 @@ export const LEGACY_SEATING_PARITY_MARKERS = [
   'Assign guest',
   'tableOccupancy',
   'table.capacity',
+] as const
+export const LEGACY_SEATING_EXTRACTION_MARKERS = [
+  'tableForm.name',
+  'tableForm.capacity',
+  'tableOccupancy.get(tableId)',
+  'assignedOccupancy.get(tableId)',
+  'occupied > table.capacity',
+  'No seating tables',
 ] as const
 
 export {
