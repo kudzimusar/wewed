@@ -1,7 +1,8 @@
 'use client'
 
+import { useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { BriefcaseBusiness, House, LayoutDashboard } from 'lucide-react'
 
 const items = [
@@ -22,8 +23,37 @@ function itemIsActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`)
 }
 
+function plannerModuleRoute(pathname: string): string | null {
+  const match = pathname.match(
+    /^\/planner\/(overview|tasks|budget|vendors|guests|timeline|seating)\/(?:import|imports)$/,
+  )
+  return match ? `/planner/${match[1]}` : null
+}
+
 export function PlannerAccountDock() {
   const pathname = usePathname()
+  const router = useRouter()
+
+  useEffect(() => {
+    const parentRoute = plannerModuleRoute(pathname)
+    if (!parentRoute) return
+
+    const closeRouteControlledDialog = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      if (!document.querySelector('[data-testid="import-dialog"]')) return
+
+      event.preventDefault()
+      event.stopPropagation()
+      const suffix = `${window.location.search}${window.location.hash}`
+      router.replace(`${parentRoute}${suffix}`)
+    }
+
+    document.addEventListener('keydown', closeRouteControlledDialog, true)
+    return () => {
+      document.removeEventListener('keydown', closeRouteControlledDialog, true)
+    }
+  }, [pathname, router])
+
   return (
     <nav
       className="fixed bottom-3 left-1/2 z-[180] flex -translate-x-1/2 items-center gap-1 rounded-full border border-gold/25 bg-espresso/95 p-1.5 text-champagne shadow-2xl backdrop-blur"
