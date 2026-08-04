@@ -141,11 +141,27 @@ test('couple and planner accounts have visible single-source navigation', async 
     appToken(E2E_USER, 'planner', E2E_WEDDINGS.secondary.id),
   )
   await page.goto('/planner/tasks')
-  await expect(page.getByRole('navigation', { name: 'Planner account navigation' })).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Business' })).toBeVisible()
-  await page.getByRole('link', { name: 'Business' }).click()
+  const dock = page.getByRole('navigation', { name: 'Planner account navigation' })
+  await expect(dock).toBeVisible()
+  await expect(dock.getByRole('link', { name: 'Workspace' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  )
+  await expect(dock.getByRole('link', { name: 'Wewed' })).not.toHaveAttribute(
+    'aria-current',
+    'page',
+  )
+  await dock.getByRole('link', { name: 'Business' }).click()
   await expect(page.getByRole('heading', { name: 'Planner marketplace centre' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Planner workspace' })).toBeVisible()
+  await expect(dock.getByRole('link', { name: 'Business' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  )
+  await expect(dock.getByRole('link', { name: 'Workspace' })).not.toHaveAttribute(
+    'aria-current',
+    'page',
+  )
   expect(errors).toEqual([])
 })
 
