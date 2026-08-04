@@ -3,6 +3,7 @@ import {
   expect,
   expectNoDocumentOverflow,
   openModule,
+  openWorksheetActions,
   test,
 } from './support/planner-browser'
 
@@ -19,11 +20,20 @@ async function waitForDialogKeyboardReady(page: Parameters<typeof openModule>[0]
 
 test('keyboard navigation, dialogs, and desktop visual containment remain usable', async ({ plannerPage: page }) => {
   await expectNoDocumentOverflow(page)
+
+  const modulePicker = page.getByTestId('worksheet-tools-toggle')
+  await modulePicker.focus()
+  await expect(modulePicker).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(modulePicker).toHaveAttribute('aria-expanded', 'true')
+  await expect(page.getByLabel('Worksheet module selector')).toBeVisible()
+
   await page.getByTestId('worksheet-module-checklist').focus()
   await expect(page.getByTestId('worksheet-module-checklist')).toBeFocused()
   await page.keyboard.press('Enter')
   await expect(page.getByRole('heading', { name: 'Planning checklist' })).toBeVisible()
 
+  await openWorksheetActions(page)
   const importButton = page.getByRole('button', { name: 'Import', exact: true })
   await importButton.focus()
   await expect(importButton).toBeFocused()
@@ -113,6 +123,7 @@ test('mobile planner remains contained and operable @mobile', async ({ plannerPa
   const worksheetToolsToggle = page.getByTestId('worksheet-tools-toggle')
   await worksheetToolsToggle.click()
   await expect(page.getByLabel('Worksheet module selector')).toBeVisible()
+  await openWorksheetActions(page)
   await page.getByRole('button', { name: 'Import', exact: true }).click()
   const mobileDialog = await waitForDialogKeyboardReady(page)
   await page.keyboard.press('Escape')
