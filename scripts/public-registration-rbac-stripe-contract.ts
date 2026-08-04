@@ -12,6 +12,7 @@ const [
   webhook,
   billing,
   globalTools,
+  publicShell,
   adminLayout,
   adminApprovalsRoute,
   dashboardAuthGate,
@@ -20,6 +21,7 @@ const [
   confirmSignupTemplate,
   resetPasswordTemplate,
   landingPage,
+  pricingPage,
   pricingCatalog,
 ] = await Promise.all([
   file('src/app/api/auth/register/route.ts'),
@@ -28,6 +30,7 @@ const [
   file('src/app/api/stripe/webhook/route.ts'),
   file('src/app/api/billing/account/route.ts'),
   file('src/components/wedding/global-wedding-tools.tsx'),
+  file('src/components/public/public-platform-shell.tsx'),
   file('src/app/admin/layout.tsx'),
   file('src/app/admin/approvals/page.tsx'),
   file('src/components/wedding/dashboard-auth-gate.tsx'),
@@ -36,6 +39,7 @@ const [
   file('supabase/email-templates/confirm-signup.html'),
   file('supabase/email-templates/reset-password.html'),
   file('src/app/page.tsx'),
+  file('src/app/pricing/page.tsx'),
   file('src/components/public/wewed-pricing-catalog.tsx'),
 ])
 
@@ -66,11 +70,10 @@ assert.match(billing, /createStripePortalSession/)
 assert.match(billing, /account\.status !== 'active'/)
 assert.match(billing, /stripePriceIdForPlan/)
 
-assert.match(globalTools, /PublicRegistrationTrigger/)
-for (const route of ['/admin', '/register', '/forgot-password', '/reset-password']) {
-  assert.match(globalTools, new RegExp(route.replace('/', '\\/')))
-}
-assert.match(globalTools, /if \(isIsolatedUtilityRoute\) return null/)
+assert.doesNotMatch(globalTools, /PublicRegistrationTrigger/)
+assert.match(publicShell, /href="\/register"/)
+assert.match(publicShell, /Create a Wewed account/)
+assert.match(publicShell, /href="\/sign-in"/)
 assert.match(adminLayout, /AdminUtilityNav/)
 assert.match(adminApprovalsRoute, /redirect\('\/admin'\)/)
 
@@ -96,7 +99,8 @@ assert.match(confirmSignupTemplate, /pending until a Wewed administrator reviews
 assert.match(resetPasswordTemplate, /Choose a new password/)
 assert.match(resetPasswordTemplate, /never forward it to another person/)
 
-assert.match(landingPage, /WewedPricingCatalog/)
+assert.match(landingPage, /PublicPlatformHome/)
+assert.match(pricingPage, /WewedPricingCatalog/)
 assert.match(pricingCatalog, /\/register\?plan=/)
 assert.match(pricingCatalog, /WEWED_PLANS/)
 assert.match(pricingCatalog, /Annual · 2 months free/)
