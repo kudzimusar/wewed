@@ -10,6 +10,8 @@ import {
 
 const SECRET = process.env.WEWED_SESSION_SECRET ?? ''
 const SAMPLE_DIR = 'artifacts/invitation-card-samples'
+const SAMPLE_MESSAGE =
+  'Join us for a joyful ceremony, dinner and dancing as we begin our next chapter.'
 
 function coupleToken() {
   const payload = {
@@ -39,6 +41,17 @@ async function signInCouple(page: import('@playwright/test').Page) {
   ])
 }
 
+async function removeSampleOverlays(page: import('@playwright/test').Page) {
+  await page.getByText('Available offline', { exact: true }).evaluateAll((nodes) => {
+    for (const node of nodes) {
+      const target =
+        node.closest('[role="status"], [data-sonner-toast], [data-radix-portal]') ??
+        node.parentElement
+      target?.remove()
+    }
+  })
+}
+
 function runtimeErrors(page: import('@playwright/test').Page) {
   const errors: string[] = []
   page.on('pageerror', (error) => errors.push(error.message))
@@ -56,12 +69,15 @@ test('couples design, save, export and deliver guest-specific digital invitation
 
   await page.goto('/couple/invitations')
   await expect(page.getByRole('heading', { name: 'Private invitation access' })).toBeVisible()
+  await page.getByLabel('Invitation message').fill(SAMPLE_MESSAGE)
+  await page.getByLabel('RSVP deadline').fill('2027-05-20')
 
   for (const style of ['botanical', 'editorial', 'midnight'] as const) {
     const selector = page.getByTestId(`invitation-style-${style}`)
     await expect(selector).toBeVisible()
     await selector.click()
     await expect(selector).toHaveAttribute('aria-pressed', 'true')
+    await removeSampleOverlays(page)
     await page.getByTestId(`digital-invitation-card-${style}`).screenshot({
       path: `${SAMPLE_DIR}/${style}.png`,
       animations: 'disabled',
@@ -69,10 +85,6 @@ test('couples design, save, export and deliver guest-specific digital invitation
   }
 
   await page.getByTestId('invitation-style-editorial').click()
-  await page.getByLabel('Invitation message').fill(
-    'Join us for a joyful ceremony, dinner and dancing as we begin our next chapter.',
-  )
-  await page.getByLabel('RSVP deadline').fill('2027-05-20')
   await page.getByRole('button', { name: 'Save card design' }).click()
   await expect(page.getByText('Digital invitation design saved.')).toBeVisible()
 
@@ -81,7 +93,7 @@ test('couples design, save, export and deliver guest-specific digital invitation
   const invitationPayload = await invitations.json()
   expect(invitationPayload.wedding).toMatchObject({
     invitationCardStyle: 'editorial',
-    invitationCardMessage: 'Join us for a joyful ceremony, dinner and dancing as we begin our next chapter.',
+    invitationCardMessage: SAMPLE_MESSAGE,
   })
   const guestInvitation = invitationPayload.data.find(
     (row: { id: string }) => row.id === E2E_GUEST_INVITATION.guestId,
@@ -135,6 +147,7 @@ test('couples design, save, export and deliver guest-specific digital invitation
   await expect(deliveredCard).toContainText(E2E_WEDDINGS.primary.title)
   await expect(deliveredCard).toContainText(E2E_WEDDINGS.primary.seededGuest)
   await expect(deliveredCard).toContainText('Primary Test Estate')
+  await removeSampleOverlays(page)
   await deliveredCard.screenshot({
     path: `${SAMPLE_DIR}/delivered-editorial-guest-card.png`,
     animations: 'disabled',
