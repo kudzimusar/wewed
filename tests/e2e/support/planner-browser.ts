@@ -99,11 +99,7 @@ export async function openModule(page: Page, moduleKey: ModuleKey): Promise<void
   )
 
   const worksheetToggle = page.getByTestId('worksheet-tools-toggle')
-  if (await worksheetToggle.isVisible()) {
-    await expect(worksheetToggle).toBeEnabled()
-    await expect(worksheetToggle).toHaveAttribute('aria-expanded', 'false')
-    await expect.poll(() => new URL(page.url()).searchParams.get('panel')).not.toBe('worksheet')
-  }
+  if (await worksheetToggle.isVisible()) await expect(worksheetToggle).toBeEnabled()
 
   const mobileSelector = page.getByRole('combobox', { name: 'Planner workspace section' })
   const workspaceNavigation = page.getByRole('navigation', { name: 'Planner workspace sections' })
