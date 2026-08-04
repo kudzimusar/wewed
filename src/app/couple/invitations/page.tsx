@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { CoupleInvitationsCentre } from '@/components/couple/couple-invitations-centre'
 
 const title = 'Guests & Invitations | Wewed'
-const description = 'Generate, export and rotate guest-specific invitation links and QR codes.'
+const description = 'Design and deliver guest-specific digital wedding cards with secure RSVP links and QR codes.'
 
 export const metadata: Metadata = {
   title,
