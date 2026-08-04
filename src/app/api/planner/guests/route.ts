@@ -8,14 +8,17 @@ import {
   plannedSeatsForGuest,
   serializeSeatingTableMetadata,
 } from '@/lib/planner-seating-metadata'
+import {
+  runSerializableSeatingTransaction,
+  SeatingCapacityError,
+  SeatingTargetError,
+} from '@/lib/planner-seating-transaction'
 import { requireWeddingPermission } from '@/lib/wedding-access'
 
 const GUEST_ROLES = ['guest', 'bridal_party', 'family', 'officiant', 'vip'] as const
 const GUEST_SIDES = ['bride', 'groom', 'family', 'neutral'] as const
 const MAX_TABLE_CAPACITY = 50
 const MAX_BULK_GUESTS = 500
-
-class SeatingCapacityError extends Error {}
 
 function formatGuest(g: {
   id: string
@@ -237,15 +240,20 @@ export async function POST(request: NextRequest) {
 
     const role = GUEST_ROLES.includes(body.role as (typeof GUEST_ROLES)[number]) ? body.role! : 'guest'
     const side = GUEST_SIDES.includes(body.side as (typeof GUEST_SIDES)[number]) ? body.side! : 'neutral'
-    if (body.seatingTableId) {
-      const table = await db.seatingTable.findFirst({
-        where: { id: body.seatingTableId, weddingId },
-        select: { id: true },
-      })
-      if (!table) return NextResponse.json({ success: false, error: 'Invalid seatingTableId.' }, { status: 400 })
-    }
 
-    const guest = await db.$transaction(async (tx) => {
+    const guest = await runSerializableSeatingTransaction(async (tx) => {
+      if (body.seatingTableId) {
+        const table = await tx.seatingTable.findFirst({
+          where: { id: body.seatingTableId, weddingId },
+          include: { guests: { include: { rsvp: true } } },
+        })
+        if (!table) throw new SeatingTargetError('Invalid seatingTableId.')
+        const occupied = table.guests.reduce((sum, guest) => sum + plannedSeatsForGuest(guest), 0)
+        if (occupied + 1 > table.capacity) {
+          throw new SeatingCapacityError(`${table.name} has no available seat for ${name}.`)
+        }
+      }
+
       const created = await tx.guest.create({
         data: {
           name,
@@ -280,6 +288,12 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: formatGuest(guest) }, { status: 201 })
   } catch (error) {
+    if (error instanceof SeatingCapacityError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 409 })
+    }
+    if (error instanceof SeatingTargetError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 400 })
+    }
     console.error('[planner guests POST] Error:', error)
     return NextResponse.json({ success: false, error: 'Failed to create guest or table.' }, { status: 500 })
   }
@@ -309,7 +323,7 @@ export async function PATCH(request: NextRequest) {
     }
     const weddingId = access.context.weddingId
 
-    const updatedGuests = await db.$transaction(async (tx) => {
+    const updatedGuests = await runSerializableSeatingTransaction(async (tx) => {
       const guests = await tx.guest.findMany({
         where: { weddingId, id: { in: guestIds } },
         include: { rsvp: true },
@@ -363,7 +377,7 @@ export async function PATCH(request: NextRequest) {
         },
         orderBy: { name: 'asc' },
       })
-    }, { isolationLevel: 'Serializable' })
+    })
 
     return NextResponse.json({ success: true, count: updatedGuests.length, data: updatedGuests.map(formatGuest) })
   } catch (error) {
