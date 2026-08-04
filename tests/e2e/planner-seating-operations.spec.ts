@@ -64,9 +64,15 @@ test('seating tables expose operational type, zone, green/red status, bulk moves
   await page.reload()
   await expect(visibleGuestName(page, 'E2E Seating Guest One')).toBeVisible()
 
-  await page.getByLabel('Select guest E2E Seating Guest One').check()
-  await page.getByLabel('Select guest E2E Seating Guest Two').check()
-  await expect(page.locator('[data-seating-bulk-bar]')).toContainText('2 guest records selected')
+  const firstSelection = page.getByLabel('Select guest E2E Seating Guest One')
+  const secondSelection = page.getByLabel('Select guest E2E Seating Guest Two')
+  const bulkBar = page.locator('[data-seating-bulk-bar]')
+  await firstSelection.click()
+  await expect(firstSelection).toBeChecked()
+  await expect(bulkBar).toContainText('1 guest record selected')
+  await secondSelection.click()
+  await expect(secondSelection).toBeChecked()
+  await expect(bulkBar).toContainText('2 guest records selected')
   await page.getByLabel('Bulk seating destination').selectOption({ label: /E2E VIP Parents Table/ })
   const bulkResponse = page.waitForResponse((response) =>
     response.url().endsWith('/api/planner/guests') && response.request().method() === 'PATCH',
