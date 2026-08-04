@@ -53,6 +53,10 @@ async function openPlanner(page: Page): Promise<void> {
   await expect(page.locator('#active-wedding')).toHaveValue(E2E_WEDDINGS.primary.id)
 }
 
+function isModuleRoute(page: Page, routeKey: string): boolean {
+  return new URL(page.url()).pathname.endsWith(`/planner/${routeKey}`)
+}
+
 export async function openModule(page: Page, moduleKey: ModuleKey): Promise<void> {
   const routeKey = moduleKey === 'checklist' ? 'tasks' : moduleKey
   const targetUrl = `/planner/${routeKey}#planner-workspace`
@@ -71,14 +75,22 @@ export async function openModule(page: Page, moduleKey: ModuleKey): Promise<void
 
     if (await worksheetButton.isVisible()) {
       await worksheetButton.click({ timeout: 3_000 })
-    } else if (!new URL(page.url()).pathname.endsWith(`/planner/${routeKey}`)) {
-      await page.goto(targetUrl)
+      await page.waitForURL(new RegExp(`/planner/${routeKey}(?:[?#]|$)`), {
+        timeout: 4_000,
+      }).catch(() => null)
     }
   } catch {
+    // The direct canonical route below is the deterministic fallback for a
+    // pre-hydration click or a responsive navigation replacement.
+  }
+
+  if (!isModuleRoute(page, routeKey)) {
     await page.goto(targetUrl)
   }
 
   await expect(page).toHaveURL(new RegExp(`/planner/${routeKey}(?:[?#]|$)`))
+  await expect(page.getByRole('heading', { name: E2E_WEDDINGS.primary.title })).toBeVisible()
+
   const worksheetToggle = page.getByTestId('worksheet-tools-toggle')
   if (await worksheetToggle.isVisible()) {
     // Module selection intentionally closes the compact worksheet panel. Wait
@@ -89,13 +101,25 @@ export async function openModule(page: Page, moduleKey: ModuleKey): Promise<void
   }
 
   const mobileSelector = page.getByRole('combobox', { name: 'Planner workspace section' })
-  if (await mobileSelector.isVisible()) {
+  const workspaceNavigation = page.getByRole('navigation', { name: 'Planner workspace sections' })
+  const responsiveState = await expect.poll(async () => {
+    if (await mobileSelector.isVisible()) return 'mobile'
+    if (await workspaceNavigation.isVisible()) return 'desktop'
+    return 'pending'
+  }, { timeout: 12_000 }).not.toBe('pending').then(async () => {
+    if (await mobileSelector.isVisible()) return 'mobile' as const
+    return 'desktop' as const
+  })
+
+  if (responsiveState === 'mobile') {
     await expect(mobileSelector).toHaveValue(routeKey)
   } else {
-    const workspaceNavigation = page.getByRole('navigation', { name: 'Planner workspace sections' })
-    await expect(
-      workspaceNavigation.getByRole('button', { name: MODULE_LABELS[moduleKey], exact: true }),
-    ).toHaveClass(/bg-gold/)
+    const activeButton = workspaceNavigation.getByRole('button', {
+      name: MODULE_LABELS[moduleKey],
+      exact: true,
+    })
+    await expect(activeButton).toBeVisible()
+    await expect(activeButton).toHaveClass(/bg-gold/)
   }
 }
 
