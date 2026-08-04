@@ -4,19 +4,50 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { ChevronDown, LayoutDashboard, Loader2, LogOut, Sparkles, UserRound } from 'lucide-react'
 
+type AccountRole = 'admin' | 'couple' | 'planner' | 'provider'
 type AccountSession = {
   authorized?: boolean
   user?: {
     displayName?: string | null
     email?: string
-    role?: 'admin' | 'couple' | 'planner'
+    role?: AccountRole
   } | null
 }
+type ProviderSession = {
+  business?: { name?: string }
+  profile?: { displayName?: string }
+}
 
-function workspaceFor(role: AccountSession['user'] extends infer T ? T extends { role?: infer R } ? R : never : never) {
+function workspaceFor(role: AccountRole | undefined) {
   if (role === 'admin') return { href: '/admin', label: 'Administration' }
   if (role === 'planner') return { href: '/planner', label: 'Planner workspace' }
+  if (role === 'provider') return { href: '/vendors/manage', label: 'Provider profile' }
   return { href: '/couple', label: 'Couple workspace' }
+}
+
+async function resolvePublicSession(): Promise<AccountSession> {
+  try {
+    const response = await fetch('/api/auth/me', { cache: 'no-store', credentials: 'same-origin' })
+    const dashboard = await response.json() as AccountSession
+    if (dashboard.authorized && dashboard.user) return dashboard
+  } catch {
+    // Continue to the approved provider-session check.
+  }
+
+  try {
+    const response = await fetch('/api/providers/profile', { cache: 'no-store', credentials: 'same-origin' })
+    if (!response.ok) return { authorized: false, user: null }
+    const provider = await response.json() as ProviderSession
+    return {
+      authorized: true,
+      user: {
+        displayName: provider.profile?.displayName || provider.business?.name || 'Provider account',
+        role: 'provider',
+      },
+    }
+  } catch {
+    return { authorized: false, user: null }
+  }
 }
 
 export function PublicAccountActions() {
@@ -25,10 +56,7 @@ export function PublicAccountActions() {
 
   useEffect(() => {
     let cancelled = false
-    void fetch('/api/auth/me', { cache: 'no-store', credentials: 'same-origin' })
-      .then((response) => response.json())
-      .then((payload: AccountSession) => { if (!cancelled) setSession(payload) })
-      .catch(() => { if (!cancelled) setSession({ authorized: false, user: null }) })
+    void resolvePublicSession().then((payload) => { if (!cancelled) setSession(payload) })
     return () => { cancelled = true }
   }, [])
 
