@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Black Zimbabwean bride and groom at a garden wedding</title>
+  <desc id="desc">An original Wewed illustration of a joyful bride and groom standing together at golden hour in a garden celebration.</desc>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#2c1f18"/><stop offset=".5" stop-color="#6f4b35"/><stop offset="1" stop-color="#d4af37"/></linearGradient>
+    <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#214a36"/><stop offset="1" stop-color="#10251c"/></linearGradient>
+    <radialGradient id="sun"><stop stop-color="#fff3c4" stop-opacity=".95"/><stop offset="1" stop-color="#d4af37" stop-opacity="0"/></radialGradient>
+    <filter id="soft"><feGaussianBlur stdDeviation="18"/></filter>
+  </defs>
+  <rect width="1600" height="900" fill="url(#sky)"/>
+  <circle cx="1270" cy="175" r="250" fill="url(#sun)"/>
+  <path d="M0 620 C240 510 420 650 650 565 C930 465 1130 610 1600 495 V900 H0Z" fill="url(#ground)"/>
+  <g opacity=".6" filter="url(#soft)" fill="#f3d78d">
+    <circle cx="230" cy="205" r="26"/><circle cx="345" cy="275" r="18"/><circle cx="1395" cy="300" r="22"/><circle cx="1210" cy="390" r="17"/><circle cx="960" cy="205" r="14"/>
+  </g>
+  <g transform="translate(600 150)">
+    <ellipse cx="205" cy="675" rx="240" ry="42" fill="#0c1712" opacity=".45"/>
+    <g>
+      <circle cx="130" cy="175" r="72" fill="#5b3424"/>
+      <path d="M68 168 Q85 75 151 92 Q205 97 205 173 Q180 127 132 126 Q89 126 68 168" fill="#17110e"/>
+      <path d="M78 245 Q132 216 186 247 L230 625 H35Z" fill="#f5efe5"/>
+      <path d="M92 248 Q132 280 172 248 L164 330 Q132 350 100 330Z" fill="#d8b56a" opacity=".5"/>
+      <path d="M55 290 Q-5 410 22 598" fill="none" stroke="#f5efe5" stroke-width="42" stroke-linecap="round"/>
+      <path d="M203 300 Q265 390 245 520" fill="none" stroke="#f5efe5" stroke-width="38" stroke-linecap="round"/>
+      <path d="M40 625 Q126 565 232 625 L260 690 H5Z" fill="#eee5d7"/>
+      <circle cx="108" cy="178" r="5" fill="#1b100b"/><circle cx="153" cy="178" r="5" fill="#1b100b"/>
+      <path d="M112 207 Q131 220 150 207" fill="none" stroke="#2b1710" stroke-width="5" stroke-linecap="round"/>
+      <circle cx="61" cy="177" r="13" fill="#d4af37"/>
+    </g>
+    <g transform="translate(220 15)">
+      <circle cx="135" cy="173" r="76" fill="#533020"/>
+      <path d="M64 167 Q79 70 153 90 Q217 98 211 179 Q191 129 142 124 Q99 120 64 167" fill="#120d0b"/>
+      <path d="M71 251 Q135 220 203 253 L242 625 H28Z" fill="#172019"/>
+      <path d="M111 244 L158 244 L167 320 L102 320Z" fill="#f3eee6"/>
+      <path d="M118 263 L151 263 L160 302 L109 302Z" fill="#d4af37"/>
+      <path d="M67 302 Q9 410 37 555" fill="none" stroke="#172019" stroke-width="43" stroke-linecap="round"/>
+      <path d="M205 302 Q273 390 253 520" fill="none" stroke="#172019" stroke-width="43" stroke-linecap="round"/>
+      <path d="M29 625 Q132 575 241 625 L265 690 H5Z" fill="#111813"/>
+      <circle cx="112" cy="177" r="5" fill="#170d09"/><circle cx="158" cy="177" r="5" fill="#170d09"/>
+      <path d="M116 208 Q136 219 156 207" fill="none" stroke="#26140e" stroke-width="5" stroke-linecap="round"/>
+      <path d="M65 151 Q53 176 61 206" fill="none" stroke="#2d1c15" stroke-width="10" stroke-linecap="round"/>
+    </g>
+    <path d="M213 385 Q240 355 273 385" fill="none" stroke="#6a3a27" stroke-width="18" stroke-linecap="round"/>
+    <g transform="translate(192 405)">
+      <circle cx="36" cy="12" r="14" fill="#f3d78d"/><circle cx="60" cy="22" r="15" fill="#fff3c4"/><circle cx="83" cy="10" r="14" fill="#d4af37"/><circle cx="48" cy="43" r="15" fill="#efe7d5"/><circle cx="76" cy="43" r="16" fill="#f1c9bb"/>
+      <path d="M58 54 L58 145" stroke="#56725e" stroke-width="8"/>
+    </g>
+  </g>
+  <g fill="#f8f2e8" opacity=".8">
+    <circle cx="180" cy="675" r="8"/><circle cx="245" cy="720" r="6"/><circle cx="1320" cy="650" r="7"/><circle cx="1420" cy="735" r="9"/><circle cx="1120" cy="720" r="6"/>
+  </g>
+</svg>
