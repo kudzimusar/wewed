@@ -126,14 +126,24 @@ describe('Stage 8 planner information architecture', () => {
     }
 
     for (const marker of [
-      "fetch('/api/planner/invitations/summary'",
-      "fetch('/api/planner/invitations/digital-cards'",
-      "fetch('/api/planner/invitations/bulk'",
-      'Invitation tools',
+      '<InvitationManager compact />',
+      'Invitations & QR',
+      'Digital wedding cards, RSVP and QR',
     ]) {
       expect(invitations).toContain(marker)
     }
-    expect(invitationManager).toContain('InvitationManager')
+    for (const marker of [
+      "fetch('/api/planner/guests/invitations'",
+      "method: 'POST'",
+      "method: 'PUT'",
+      "method: 'PATCH'",
+      "'/api/planner/guests/invitations?format=csv'",
+      'Digital wedding cards & RSVP',
+      'Save card design',
+      'Rotate',
+    ]) {
+      expect(invitationManager).toContain(marker)
+    }
 
     for (const marker of [
       "fetch('/api/planner/event-command'",
