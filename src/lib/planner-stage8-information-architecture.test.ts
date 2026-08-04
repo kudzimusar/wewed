@@ -146,8 +146,10 @@ describe('Stage 8 planner information architecture', () => {
     }
 
     for (const marker of [
-      "fetch('/api/planner/event-command'",
-      'Event command',
+      "fetch('/api/planner/event-day'",
+      "method: 'POST'",
+      'Wedding Day Command Centre',
+      'Live Event Operations',
     ]) {
       expect(eventCommand).toContain(marker)
     }
