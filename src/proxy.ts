@@ -4,6 +4,12 @@ import {
   verifyAppSessionToken,
 } from '@/lib/app-session'
 
+function privateNoStore(response: NextResponse): NextResponse {
+  response.headers.set('Cache-Control', 'private, no-store, max-age=0')
+  response.headers.set('Vary', 'Cookie')
+  return response
+}
+
 function isGuestWeddingSessionRoute(pathname: string): boolean {
   return /^\/api\/weddings\/[^/]+\/guest-session(?:\/exchange)?$/.test(
     pathname,
@@ -44,13 +50,15 @@ export function proxy(request: NextRequest) {
   const session = token ? verifyAppSessionToken(token) : null
 
   if (!session) {
-    return NextResponse.json(
-      { success: false, error: 'Unauthorized — sign in is required' },
-      { status: 401 },
+    return privateNoStore(
+      NextResponse.json(
+        { success: false, error: 'Unauthorized — sign in is required' },
+        { status: 401 },
+      ),
     )
   }
 
-  return NextResponse.next()
+  return privateNoStore(NextResponse.next())
 }
 
 export const config = {
