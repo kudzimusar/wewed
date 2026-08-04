@@ -8,14 +8,20 @@ async function expectNoHorizontalOverflow(page: import('@playwright/test').Page)
   expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport + 1)
 }
 
+async function expectTargetedHeroReplacement(page: import('@playwright/test').Page) {
+  const hero = page.getByTestId('africa-ready-hero')
+  await expect(hero).toBeVisible()
+  await expect(hero).toHaveCSS('background-image', /wewed-zimbabwe-couple\.svg/)
+  await expect(page.locator('video[muted][autoplay][loop][playsinline]')).toBeHidden()
+  await expect(page.getByTestId('hero-video-control')).toBeHidden()
+}
+
 test.describe('Africa-ready Wewed experience', () => {
   test('public homepage is visual, interactive and connected', async ({ page }) => {
     await page.goto('/')
 
-    await expect(page.getByTestId('africa-ready-hero')).toBeVisible()
+    await expectTargetedHeroReplacement(page)
     await expect(page.getByRole('heading', { name: 'Plan a wedding as unforgettable as your love.' })).toBeVisible()
-    await expect(page.locator('video[muted][autoplay][loop][playsinline]')).toHaveCount(1)
-    await expect(page.getByTestId('hero-video-control')).toBeVisible()
 
     await expect(page.getByRole('link', { name: 'Find your planner' }).first()).toHaveAttribute('href', '/planners')
     await expect(page.getByRole('link', { name: 'Get started' }).first()).toHaveAttribute('href', '/register')
@@ -54,9 +60,8 @@ test.describe('Africa-ready Wewed experience', () => {
   test('mobile homepage keeps media, discovery and navigation operable @mobile', async ({ page }) => {
     await page.goto('/')
 
-    await expect(page.getByTestId('africa-ready-hero')).toBeVisible()
+    await expectTargetedHeroReplacement(page)
     await expect(page.getByRole('heading', { name: 'Plan a wedding as unforgettable as your love.' })).toBeVisible()
-    await expect(page.getByTestId('hero-video-control')).toBeVisible()
 
     await page.getByLabel('Open public navigation').click()
     const mobileMenu = page.locator('details[open]')
