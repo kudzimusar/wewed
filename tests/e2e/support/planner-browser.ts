@@ -66,18 +66,15 @@ export async function openModule(page: Page, moduleKey: ModuleKey): Promise<void
         if (await toggle.isVisible()) {
           await expect(toggle).toBeEnabled()
           if ((await toggle.getAttribute('aria-expanded')) !== 'true') {
-            await toggle.click()
+            await toggle.click({ timeout: 2_500 })
             await expect(toggle).toHaveAttribute('aria-expanded', 'true')
           }
-          await expect(worksheetButton).toBeVisible()
+          await expect(worksheetButton).toBeVisible({ timeout: 3_000 })
         }
       }
 
       if (await worksheetButton.isVisible()) {
-        await worksheetButton.click()
-        // A server-rendered button can be visible before hydration attaches its
-        // route handler. Prove that the click changed the canonical URL instead
-        // of assuming visibility means interactivity.
+        await worksheetButton.click({ timeout: 3_000 })
         await page.waitForURL(targetPattern, { timeout: 3_000 }).catch(() => undefined)
       }
     } catch {
@@ -93,7 +90,13 @@ export async function openModule(page: Page, moduleKey: ModuleKey): Promise<void
     routeKey,
   )
 
-  const mobileSelector = page.locator('#planner-workspace-section')
+  const worksheetToggle = page.getByTestId('worksheet-tools-toggle')
+  if (await worksheetToggle.isVisible()) {
+    await expect.poll(() => new URL(page.url()).searchParams.get('panel')).not.toBe('worksheet')
+    await expect(worksheetToggle).toHaveAttribute('aria-expanded', 'false')
+  }
+
+  const mobileSelector = page.getByRole('combobox', { name: 'Planner workspace section' })
   const workspaceNavigation = page.getByRole('navigation', { name: 'Planner workspace sections' })
   await expect.poll(async () => {
     if (await mobileSelector.isVisible()) return 'mobile'
