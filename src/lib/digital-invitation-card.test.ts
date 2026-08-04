@@ -65,6 +65,16 @@ describe('digital invitation card delivery', () => {
     expect(route).toContain('RSVP deadline cannot be after the wedding date.')
   })
 
+  test('invitation credentials are never returned as a raw JSON field or stored by caches', () => {
+    const route = source('src/app/api/planner/guests/invitations/route.ts')
+    expect(route).toContain('function privateNoStore')
+    expect(route).toContain("'Cache-Control', 'private, no-store, max-age=0'")
+    expect(route).toContain("response.headers.set('Vary', 'Cookie')")
+    expect(route).toContain('const missingTokens = guests.filter')
+    expect(route).toContain('if (access.error) return privateNoStore(access.error)')
+    expect(route).not.toContain('token: guest.rsvp?.token ?? null')
+  })
+
   test('RSVP reminder delivery embeds the same secure digital card URL and email CTA', () => {
     const delivery = source('src/lib/reminder-delivery.ts')
     expect(delivery).toContain('buildDigitalInvitationUrl')
