@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { resolveTimelineFields } from '@/lib/planner-legacy-metadata'
+import { sortTimelineItems, timelineMinutes } from '@/lib/planner-timeline-order'
 import { requireWeddingPermission } from '@/lib/wedding-access'
 
 function formatProgrammeItem(item: {
@@ -42,13 +43,19 @@ export async function GET(request: NextRequest) {
   try {
     const items = await db.programmeItem.findMany({
       where: { weddingId: access.context.weddingId },
-      orderBy: [{ order: 'asc' }, { time: 'asc' }, { createdAt: 'asc' }],
+      orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
     })
+    const chronologicalItems = sortTimelineItems(items)
 
     return NextResponse.json({
       success: true,
-      count: items.length,
-      data: items.map(formatProgrammeItem),
+      count: chronologicalItems.length,
+      data: chronologicalItems.map((item, index) => ({
+        ...formatProgrammeItem(item),
+        // Presentation order is derived from clock time. The persisted order is
+        // retained only as a stable tie-breaker for simultaneous events.
+        order: index + 1,
+      })),
     })
   } catch (error) {
     console.error('[PLANNER TIMELINE GET] error:', error)
@@ -89,6 +96,12 @@ export async function POST(request: NextRequest) {
     if (!time) {
       return NextResponse.json(
         { success: false, error: 'Time is required' },
+        { status: 400 },
+      )
+    }
+    if (timelineMinutes(time) === null) {
+      return NextResponse.json(
+        { success: false, error: 'Time must be a valid clock time.' },
         { status: 400 },
       )
     }
