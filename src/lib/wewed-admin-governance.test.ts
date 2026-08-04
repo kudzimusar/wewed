@@ -63,26 +63,19 @@ describe('business account lifecycle', () => {
 })
 
 describe('admin route isolation and governance source contracts', () => {
-  test('root layout mounts route-aware wedding tools instead of global wedding controls', () => {
+  test('root and admin routes remain free of wedding-only controls', () => {
     const layout = source('src/app/layout.tsx')
+    const weddingHome = source('src/components/wedding/wedding-home.tsx')
     const tools = source('src/components/wedding/global-wedding-tools.tsx')
 
-    expect(layout).toContain('<GlobalWeddingTools />')
+    expect(layout).toContain('<StoreRehydrator />')
+    expect(layout).toContain('<PWARegister />')
+    expect(layout).not.toContain('<GlobalWeddingTools />')
     expect(layout).not.toContain('<WhatsAppRSVP />')
     expect(layout).not.toContain('<CoupleLogin />')
     expect(layout).not.toContain('<AmbientMusicPlayer />')
-    expect(tools).toContain('const ISOLATED_UTILITY_ROUTES = [')
-    expect(tools).toContain("'/admin'")
-    expect(tools).toContain("'/billing'")
-    expect(tools).toContain("'/register'")
-    expect(tools).toContain("'/forgot-password'")
-    expect(tools).toContain("'/reset-password'")
-    expect(tools).toContain('pathname === route')
-    expect(tools).toContain('pathname.startsWith(`${route}/`)')
-    expect(tools).toContain('if (isIsolatedUtilityRoute) return null')
-    expect(tools).toContain("pathname === '/planner'")
-    expect(tools).toContain("pathname.startsWith('/planner/')")
-    expect(tools).toContain('if (isPlannerRoute)')
+    expect(weddingHome).toContain('<GlobalWeddingTools />')
+    expect(tools).not.toContain('usePathname')
     expect(tools).toContain('<WhatsAppRSVP />')
     expect(tools).toContain('<CoupleLogin />')
     expect(tools).toContain('<AmbientMusicPlayer />')
@@ -112,6 +105,7 @@ describe('admin route isolation and governance source contracts', () => {
 
   test('admin workspace exposes operational navigation rather than couple tools', () => {
     const consoleSource = source('src/components/admin/wewed-admin-console.tsx')
+    const utilityNav = source('src/components/admin/admin-utility-nav.tsx')
 
     expect(consoleSource).toContain("label: 'Approvals'")
     expect(consoleSource).toContain("label: 'Users & Roles'")
@@ -121,5 +115,6 @@ describe('admin route isolation and governance source contracts', () => {
     expect(consoleSource).not.toContain('WhatsAppRSVP')
     expect(consoleSource).not.toContain('CoupleLogin')
     expect(consoleSource).not.toContain('AmbientMusicPlayer')
+    expect(utilityNav).toContain('/admin/planner-profiles')
   })
 })
