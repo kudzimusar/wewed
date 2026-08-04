@@ -259,7 +259,7 @@ export function PlannerWorkspace() {
       ref={rootRef}
       className="flex h-full min-h-0 flex-col bg-espresso text-champagne"
       data-active-planner-module={activeTab}
-      data-planner-route={plannerModulePath(activeTab, activeTool)}
+      data-planner-route={plannerLocation(pathname, searchParams)}
     >
       <section className="shrink-0 border-b border-gold/15 bg-espresso/95 px-3 py-2 sm:px-5 sm:py-3">
         <div className="mx-auto w-full max-w-7xl">
@@ -315,6 +315,9 @@ export function PlannerWorkspace() {
                 routeTool={activeTool}
                 onRouteToolChange={selectWorkspaceTool}
                 onImportComplete={handleWorksheetChanged}
+                className={activeTool === 'imports'
+                  ? 'max-h-[50dvh] overflow-y-auto overscroll-contain [scrollbar-gutter:stable] sm:max-h-96'
+                  : ''}
               />
             ) : (
               <p className="rounded-lg border border-gold/10 bg-champagne/[0.025] px-3 py-2 font-sans text-xs text-champagne/45">
