@@ -1,42 +1,35 @@
-import { expect, openModule, openWorksheetActions, test } from './support/planner-browser'
+import { PrismaClient } from '@prisma/client'
+import { E2E_WEDDINGS, expect, openModule, openWorksheetActions, test } from './support/planner-browser'
 
 const IMPORT_JOBS = Array.from({ length: 8 }, (_, index) => ({
   id: `history-job-${index + 1}`,
   moduleKey: 'vendors',
   fileName: `history-${index + 1}.xlsx`,
   templateVersion: '1.1.0',
-  status: index === 7 ? 'executed' : 'preview',
+  status: index === 0 ? 'executed' : 'preview',
   totalRows: 1,
-  createdCount: index === 7 ? 0 : 1,
-  updatedCount: index === 7 ? 1 : 0,
+  createdCount: index === 0 ? 0 : 1,
+  updatedCount: index === 0 ? 1 : 0,
   skippedCount: 0,
   errorCount: 0,
   errorReport: null,
-  rollbackToken: index === 7 ? 'rollback-history-job-8' : null,
-  createdAt: `2026-08-04T00:0${index}:00.000Z`,
-  updatedAt: `2026-08-04T00:0${index}:00.000Z`,
+  rollbackToken: index === 0 ? 'rollback-history-job-1' : null,
+  rollbackData: index === 0 ? JSON.stringify({ moduleKey: 'vendors', createdIds: [], updatedRecords: [] }) : null,
+  weddingId: E2E_WEDDINGS.primary.id,
+  performedBy: 'e2e-planner-user',
+  createdAt: new Date(`2026-08-04T00:0${index}:00.000Z`),
+  updatedAt: new Date(`2026-08-04T00:0${index}:00.000Z`),
 }))
 
 test('recent import history scrolls and keeps the oldest rollback action reachable', async ({ plannerPage: page }) => {
   test.setTimeout(60_000)
 
-  await page.context().route(/\/api\/imports(?:\?.*)?$/, async (route) => {
-    const request = route.request()
-    const url = new URL(request.url())
-    if (
-      request.method() === 'GET'
-      && url.pathname === '/api/imports'
-      && url.searchParams.get('module') === 'vendors'
-    ) {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ success: true, data: IMPORT_JOBS }),
-      })
-      return
-    }
-    await route.fallback()
-  })
+  const prisma = new PrismaClient()
+  try {
+    await prisma.importJob.createMany({ data: IMPORT_JOBS })
+  } finally {
+    await prisma.$disconnect()
+  }
 
   for (const viewport of [
     { width: 390, height: 667 },
@@ -51,6 +44,7 @@ test('recent import history scrolls and keeps the oldest rollback action reachab
     const historyScroll = page.locator('#planner-worksheet-actions > div.rounded-xl')
     await expect(historyScroll).toBeVisible()
     await expect(historyScroll.getByText('history-8.xlsx', { exact: true })).toBeAttached()
+    await expect(historyScroll.getByText('history-1.xlsx', { exact: true })).toBeAttached()
 
     const contract = await historyScroll.evaluate((element) => {
       const style = getComputedStyle(element)
@@ -70,7 +64,10 @@ test('recent import history scrolls and keeps the oldest rollback action reachab
     expect(contract.overflowPresent, 'long history is bounded instead of clipped').toBe(true)
     expect(contract.moved, 'history scroll position can move').toBe(true)
 
-    const rollback = historyScroll.getByRole('button', { name: 'Roll back', exact: true }).last()
+    const oldestJob = historyScroll
+      .getByText('history-1.xlsx', { exact: true })
+      .locator('xpath=ancestor::div[.//button[normalize-space()="Roll back"]][1]')
+    const rollback = oldestJob.getByRole('button', { name: 'Roll back', exact: true })
     await expect(rollback).toBeVisible()
     await expect(rollback).toBeInViewport()
   }
