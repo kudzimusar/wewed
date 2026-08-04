@@ -4,17 +4,15 @@ import { readFileSync } from 'node:fs'
 const source = (path: string) => readFileSync(path, 'utf8')
 
 describe('Africa-ready product experience', () => {
-  test('the public home is video-led, interactive and commercially complete', () => {
+  test('the public home is media-rich, interactive and commercially complete', () => {
     const home = source('src/components/public/public-platform-home.tsx')
+    const remediation = source('src/app/product-remediation.css')
     expect(home).toContain("'use client'")
     expect(home).toContain('data-testid="africa-ready-hero"')
-    expect(home).toContain('<video')
-    expect(home).toContain('muted')
-    expect(home).toContain('autoPlay')
-    expect(home).toContain('loop')
-    expect(home).toContain('playsInline')
-    expect(home).toContain('data-testid="hero-video-control"')
-    expect(home).toContain('prefers-reduced-motion: reduce')
+    expect(remediation).toContain("url('/media/wewed-zimbabwe-couple.svg')")
+    expect(remediation).toContain('[data-testid="africa-ready-hero"] > video')
+    expect(remediation).toContain('[data-testid="hero-video-control"]')
+    expect(remediation).toContain('display: none !important')
     expect(home).toContain('data-testid="featured-planner-carousel"')
     expect(home).toContain('data-testid="wedding-inspiration-carousel"')
     expect(home).toContain('id="vendors"')
