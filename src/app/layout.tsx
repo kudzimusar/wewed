@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter, Cormorant_Garamond } from 'next/font/google'
 import './globals.css'
+import './product-remediation.css'
 import { Toaster } from '@/components/ui/toaster'
 import { SkipToContent } from '@/components/wedding/skip-to-content'
 import { StoreRehydrator } from '@/components/wedding/store-rehydrator'
