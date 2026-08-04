@@ -1,5 +1,11 @@
 import type { Locator } from '@playwright/test'
-import { expect, expectNoDocumentOverflow, openModule, test } from './support/planner-browser'
+import {
+  expect,
+  expectNoDocumentOverflow,
+  openModule,
+  openWorksheetActions,
+  test,
+} from './support/planner-browser'
 
 const DEVICE_VIEWPORTS = [
   { name: 'compact-phone', width: 390, height: 667 },
@@ -20,6 +26,7 @@ async function openWorksheetTools(page: Parameters<typeof openModule>[0]) {
     await expect(page).toHaveURL(/panel=worksheet/)
   }
   await expect(page.locator('#planner-worksheet-tools')).toBeVisible()
+  await openWorksheetActions(page)
 }
 
 async function stableBoundingBox(locator: Locator) {
@@ -195,6 +202,7 @@ test('worksheet import is actionable and viewport-safe across device classes', a
     await expect(page.locator('[data-slot="dialog-content"]:visible')).toHaveCount(0)
 
     if (DATA_PREVIEW_VIEWPORTS.has(viewport.name)) {
+      await openWorksheetActions(page)
       await page.getByRole('button', { name: 'Import', exact: true }).click()
       dialog = await assertDialogGeometry(page, viewport)
       const email = `responsive-${viewport.name}@example.test`
