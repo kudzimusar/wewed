@@ -1,0 +1,97 @@
+/* Wewed authenticated-product remediation — see docs/africa-ready-product-remediation-2026-08-04.md */
+
+/* Remove the third-party hero film from the rendered experience and use local Wewed artwork. */
+[data-testid="africa-ready-hero"] {
+  background-image:
+    linear-gradient(90deg, rgba(18, 12, 8, .97) 0%, rgba(18, 12, 8, .76) 40%, rgba(18, 12, 8, .25) 72%, rgba(18, 12, 8, .6) 100%),
+    url('/media/wewed-zimbabwe-couple.svg');
+  background-position: center;
+  background-size: cover;
+}
+[data-testid="africa-ready-hero"] > img,
+[data-testid="africa-ready-hero"] > video,
+[data-testid="hero-video-control"] { display: none !important; }
+
+/* Shared marketplace contrast and form clarity. */
+[data-marketplace-frame] {
+  --wewed-field-bg: #fffdf8;
+  --wewed-field-border: #b59a67;
+  --wewed-field-text: #211711;
+}
+[data-marketplace-frame] input,
+[data-marketplace-frame] textarea,
+[data-marketplace-frame] select {
+  background: var(--wewed-field-bg) !important;
+  color: var(--wewed-field-text) !important;
+  border-color: var(--wewed-field-border) !important;
+  opacity: 1 !important;
+}
+[data-marketplace-frame] input::placeholder,
+[data-marketplace-frame] textarea::placeholder { color: #6f6259 !important; opacity: 1 !important; }
+[data-marketplace-frame] input:focus,
+[data-marketplace-frame] textarea:focus,
+[data-marketplace-frame] select:focus {
+  outline: 3px solid rgba(191, 155, 95, .36) !important;
+  outline-offset: 1px;
+}
+[data-marketplace-frame] .bg-espresso p,
+[data-marketplace-frame] .bg-espresso h2,
+[data-marketplace-frame] .bg-espresso h3 { color: #fff7e7; }
+[data-marketplace-frame] .bg-espresso .text-champagne\/55 { color: rgba(255, 247, 231, .76) !important; }
+[data-marketplace-frame] { padding-bottom: max(7rem, env(safe-area-inset-bottom)); }
+
+/* Wide operational dialogs with owned scrolling. */
+[data-slot="dialog-content"].max-w-7xl,
+[data-slot="dialog-content"].max-w-6xl {
+  width: min(96vw, 1440px) !important;
+  max-width: min(96vw, 1440px) !important;
+  max-height: calc(100dvh - 2rem) !important;
+}
+[data-slot="dialog-content"].max-w-7xl [data-slot="tabs-list"],
+[data-slot="dialog-content"].max-w-6xl [data-slot="tabs-list"] {
+  flex-wrap: nowrap !important;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
+}
+[data-slot="dialog-content"].max-w-7xl [data-slot="tabs-trigger"],
+[data-slot="dialog-content"].max-w-6xl [data-slot="tabs-trigger"] { flex: 0 0 auto; white-space: nowrap; }
+
+/* Invitation cards: enforce readable widths and stable internal flow. */
+[data-slot="dialog-content"].max-w-6xl section[aria-labelledby="digital-card-design-heading"] .xl\:grid-cols-3 {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr)) !important;
+}
+[data-slot="dialog-content"].max-w-6xl article.sm\:grid-cols-\[9rem_1fr\] {
+  grid-template-columns: minmax(9rem, 10rem) minmax(0, 1fr) !important;
+  min-width: 0;
+}
+[data-slot="dialog-content"].max-w-6xl article .flex.flex-wrap.gap-2 > button,
+[data-slot="dialog-content"].max-w-6xl article .flex.flex-wrap.gap-2 > a {
+  max-width: 100%;
+}
+
+/* Daily Ops metrics: never collapse KPI cards into vertical slivers. */
+[data-slot="dialog-content"].max-w-7xl .md\:grid-cols-4 {
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)) !important;
+}
+[data-slot="dialog-content"].max-w-7xl .lg\:grid-cols-2,
+[data-slot="dialog-content"].max-w-7xl .lg\:grid-cols-3 {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 21rem), 1fr)) !important;
+}
+[data-slot="dialog-content"].max-w-7xl [class*="font-mono"] { overflow-wrap: anywhere; }
+
+@media (max-width: 767px) {
+  [data-marketplace-frame] { padding-bottom: max(8rem, env(safe-area-inset-bottom)); }
+  [data-slot="dialog-content"].max-w-7xl,
+  [data-slot="dialog-content"].max-w-6xl {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 100dvh !important;
+    border-radius: 1.25rem 1.25rem 0 0 !important;
+  }
+  [data-slot="dialog-content"].max-w-6xl article.sm\:grid-cols-\[9rem_1fr\] {
+    grid-template-columns: 1fr !important;
+  }
+  [data-slot="dialog-content"].max-w-6xl article img,
+  [data-slot="dialog-content"].max-w-6xl article .size-36 { margin-inline: auto; }
+}
