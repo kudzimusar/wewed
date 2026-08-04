@@ -334,9 +334,9 @@ export function PlannerPortal({ onExit }: PlannerPortalProps) {
             size="sm"
             className="hidden border-gold/25 bg-transparent text-champagne/70 hover:bg-gold/10 hover:text-gold md:inline-flex"
           >
-            <Link href="/">
+            <Link href={wedding ? `/w/${wedding.slug}` : '/'}>
               <ExternalLink className="size-3.5" />
-              Couple website
+              Wedding site
             </Link>
           </Button>
           <Button
