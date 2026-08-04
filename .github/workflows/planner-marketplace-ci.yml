@@ -57,6 +57,7 @@ jobs:
           src/lib/planner-marketplace-contract.test.ts
           src/lib/planner-marketplace-metadata.test.ts
           src/lib/unified-navigation-privacy.test.ts
+          src/lib/wedding-guest-proxy.test.ts
       - run: psql "postgresql://postgres:postgres@localhost:5432/wewed" -f scripts/planner-marketplace-postgres-integration.sql
       - run: >-
           bunx prisma migrate diff
