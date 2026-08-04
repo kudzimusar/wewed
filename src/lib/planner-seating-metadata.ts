@@ -1,3 +1,4 @@
+// Production release marker: worksheet-seating-20260804
 export const SEATING_TABLE_TYPES = [
   'high',
   'vip_parents',
