@@ -94,10 +94,11 @@ describe('Stage 8 planner information architecture', () => {
   })
 
   test('client, operations, invitations, and event command retain their existing APIs', async () => {
-    const [profile, operations, invitations, eventCommand] = await Promise.all([
+    const [profile, operations, invitations, invitationManager, eventCommand] = await Promise.all([
       source('src/components/wedding/planner-client-profile.tsx'),
       source('src/components/wedding/planner-operations.tsx'),
       source('src/components/wedding/planner-invitation-tools.tsx'),
+      source('src/components/wedding/invitation-manager.tsx'),
       source('src/components/wedding/planner-event-command.tsx'),
     ])
 
@@ -122,8 +123,12 @@ describe('Stage 8 planner information architecture', () => {
       expect(operations).toContain(marker)
     }
 
-    expect(invitations).toContain("fetch('/api/planner/guests/invitations', { method: 'POST' })")
-    expect(invitations).toContain("fetch('/api/planner/guests/invitations?format=csv'")
+    expect(invitations).toContain('<InvitationManager compact />')
+    expect(invitations).toContain('Invitations & QR')
+    expect(invitationManager).toContain("fetch('/api/planner/guests/invitations', { method: 'POST' })")
+    expect(invitationManager).toContain("window.location.href = '/api/planner/guests/invitations?format=csv'")
+    expect(invitationManager).toContain("method: 'PATCH'")
+    expect(invitationManager).toContain('QRCode.toDataURL')
 
     for (const marker of [
       "fetch('/api/planner/event-day'",

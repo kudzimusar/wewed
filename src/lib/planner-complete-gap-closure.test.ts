@@ -18,7 +18,7 @@ describe('complete planner gap closure', () => {
   })
 
   test('module routing, refresh restoration and mobile containment are implemented in the active shell', async () => {
-    const [shell, workspace, tools, portal, context, routeState, filterState, worksheetBar] = await Promise.all([
+    const [shell, workspace, tools, portal, context, routeState, filterState, worksheetBar, rootLayout, weddingHome] = await Promise.all([
       source('src/components/wedding/planner-workspace-stage7.tsx'),
       source('src/components/wedding/planner-workspace.tsx'),
       source('src/components/wedding/global-wedding-tools.tsx'),
@@ -27,6 +27,8 @@ describe('complete planner gap closure', () => {
       source('src/lib/planner-route-state.ts'),
       source('src/lib/planner-filter-state.ts'),
       source('src/components/wedding/import-export-bar.tsx'),
+      source('src/app/layout.tsx'),
+      source('src/components/wedding/wedding-home.tsx'),
     ])
     for (const marker of [
       "searchParams.get('module')",
@@ -77,11 +79,11 @@ describe('complete planner gap closure', () => {
     expect(workspace).toContain('data-planner-module-scroll="true"')
     expect(workspace).toContain('sm:hidden')
     expect(workspace).toContain('hidden items-center gap-1 sm:flex')
-    expect(tools).toContain("pathname === '/planner'")
-    expect(tools).toContain("pathname.startsWith('/planner/')")
-    expect(tools).toContain('if (isPlannerRoute)')
     expect(tools).toContain('<StoreRehydrator />')
-    expect(tools).not.toContain("if (isPlannerRoute) return null")
+    expect(tools).toContain('<KeyboardSectionNav />')
+    expect(tools).not.toContain('usePathname')
+    expect(rootLayout).not.toContain('GlobalWeddingTools')
+    expect(weddingHome).toContain('<GlobalWeddingTools />')
     expect(portal).toContain('data-planner-tools-disclosure')
     expect(portal).toContain("searchParams.get('panel') === 'experience'")
     expect(portal).toContain('pendingToolsOpen.current = nextOpen')

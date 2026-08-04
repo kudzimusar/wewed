@@ -1,67 +1,33 @@
 'use client'
 
 import { useState } from 'react'
-import { Link2, Loader2 } from 'lucide-react'
+import { QrCode } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useToast } from '@/hooks/use-toast'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
+import { InvitationManager } from '@/components/wedding/invitation-manager'
 
 export function PlannerInvitationTools() {
-  const { toast } = useToast()
-  const [busy, setBusy] = useState(false)
-
-  async function downloadInvitationLinks() {
-    setBusy(true)
-    try {
-      const repair = await fetch('/api/planner/guests/invitations', { method: 'POST' })
-      const repairPayload = await repair.json()
-      if (!repair.ok || !repairPayload.success) {
-        throw new Error(repairPayload.error || 'Unable to prepare invitation links.')
-      }
-
-      const response = await fetch('/api/planner/guests/invitations?format=csv', {
-        cache: 'no-store',
-      })
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}))
-        throw new Error(payload.error || 'Unable to export invitation links.')
-      }
-      const blob = await response.blob()
-      const url = URL.createObjectURL(blob)
-      const anchor = document.createElement('a')
-      anchor.href = url
-      anchor.download = `wewed-rsvp-invitations-${new Date().toISOString().slice(0, 10)}.csv`
-      document.body.appendChild(anchor)
-      anchor.click()
-      anchor.remove()
-      URL.revokeObjectURL(url)
-      toast({
-        title: 'Invitation links exported',
-        description: repairPayload.generated
-          ? `${repairPayload.generated} missing RSVP links were generated first.`
-          : 'Every guest already had an RSVP link.',
-      })
-    } catch (error) {
-      toast({
-        title: 'Invitation export failed',
-        description: error instanceof Error ? error.message : 'Unable to export invitation links.',
-        variant: 'destructive',
-      })
-    } finally {
-      setBusy(false)
-    }
-  }
+  const [open, setOpen] = useState(false)
 
   return (
-    <Button
-      type="button"
-      size="sm"
-      variant="outline"
-      disabled={busy}
-      onClick={() => void downloadInvitationLinks()}
-      className="fixed right-52 top-2 z-[121] gap-1.5 border-gold/30 bg-espresso/95 text-champagne shadow-lg hover:bg-gold/10 hover:text-gold"
-    >
-      {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Link2 className="size-3.5" />}
-      <span className="hidden lg:inline">RSVP Links</span>
-    </Button>
+    <>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={() => setOpen(true)}
+        className="gap-1.5 border-gold/30 bg-espresso/95 text-champagne shadow-lg hover:bg-gold/10 hover:text-gold"
+      >
+        <QrCode className="size-3.5" />
+        <span>Invitations & QR</span>
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-h-[94vh] w-[96vw] max-w-6xl overflow-y-auto border-gold/30 bg-ivory text-espresso">
+          <DialogTitle className="wewed-heading text-3xl">Guest invitations and QR codes</DialogTitle>
+          <DialogDescription>Generate, copy, export and rotate guest-specific invitation credentials for the selected wedding.</DialogDescription>
+          <InvitationManager compact />
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
