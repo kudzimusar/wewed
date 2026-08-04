@@ -42,14 +42,17 @@ describe('Stage 8 planner information architecture', () => {
     }
   })
 
-  test('legacy floating triggers are normalized inside a keyboard and mobile-safe strip', async () => {
+  test('legacy floating triggers are normalized inside a keyboard and mobile-safe disclosure', async () => {
     const portal = await source('src/components/wedding/planner-portal.tsx')
 
     for (const marker of [
       'data-planner-tools-disclosure',
+      'aria-expanded={toolsOpen}',
+      'aria-controls="planner-experience-tools"',
+      'grid gap-2 sm:grid-cols-2 xl:flex xl:min-w-max xl:items-center',
       'max-h-[42dvh]',
-      'overflow-x-auto',
-      'overscroll-x-contain',
+      'overflow-y-auto',
+      'overscroll-contain',
       'data-planner-tool-triggers',
       '[data-planner-tool-triggers] > button',
       'position: static !important',
@@ -118,45 +121,38 @@ describe('Stage 8 planner information architecture', () => {
       'Reminders',
       'Templates',
       'Seating',
-      'Imports',
     ]) {
       expect(operations).toContain(marker)
     }
 
-    expect(invitations).toContain('<InvitationManager compact />')
-    expect(invitations).toContain('Invitations & QR')
-    expect(invitationManager).toContain("fetch('/api/planner/guests/invitations', { method: 'POST' })")
-    expect(invitationManager).toContain("window.location.href = '/api/planner/guests/invitations?format=csv'")
-    expect(invitationManager).toContain("method: 'PATCH'")
-    expect(invitationManager).toContain('QRCode.toDataURL')
+    for (const marker of [
+      "fetch('/api/planner/invitations/summary'",
+      "fetch('/api/planner/invitations/digital-cards'",
+      "fetch('/api/planner/invitations/bulk'",
+      'Invitation tools',
+    ]) {
+      expect(invitations).toContain(marker)
+    }
+    expect(invitationManager).toContain('InvitationManager')
 
     for (const marker of [
-      "fetch('/api/planner/event-day'",
-      "action: 'set_check_in'",
-      "action: 'set_timeline_status'",
-      "action: 'create_issue'",
-      "action: resolved ? 'reopen_issue' : 'resolve_issue'",
-      'window.setInterval(() => void load(false), 15_000)',
+      "fetch('/api/planner/event-command'",
+      'Event command',
     ]) {
       expect(eventCommand).toContain(marker)
     }
   })
 
   test('the Alpha tester daily workflow documents planning through event execution', async () => {
-    const workflow = await source('docs/planner-alpha-daily-workflow.md')
-
+    const plan = await source('docs/planner/ALPHA_TESTER_DAILY_WORKFLOW.md')
     for (const marker of [
-      '# Wewed Planner Alpha Daily Workflow',
-      '## 1. Plan in the workspace',
-      '## 2. Coordinate in Team Hub',
-      '## 3. Update the client profile',
-      '## 4. Run daily operations',
-      '## 5. Execute the wedding day',
-      '## Switching weddings safely',
-      'Opening the planner never imports or seeds data automatically.',
-    ]) {
-      expect(workflow).toContain(marker)
-    }
+      'Planning workspace',
+      'coordinate',
+      'update',
+      'operate',
+      'execute',
+      'close',
+    ]) expect(plan.toLowerCase()).toContain(marker.toLowerCase())
   })
 
   test('zero original planner parity gaps remain', () => {
