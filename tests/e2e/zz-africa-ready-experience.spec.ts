@@ -22,8 +22,13 @@ test.describe('Africa-ready Wewed experience', () => {
     await expect(page.getByRole('link', { name: 'For planners' }).first()).toHaveAttribute('href', '/for-planners')
     await expect(page.getByRole('link', { name: 'For couples' }).first()).toHaveAttribute('href', '/#couples')
 
-    await expect(page.getByTestId('featured-planner-carousel')).toBeVisible()
-    expect(await page.getByTestId('featured-planner-carousel').locator('article').count()).toBeGreaterThan(0)
+    const plannerCarousel = page.getByTestId('featured-planner-carousel')
+    await expect(plannerCarousel).toBeVisible()
+    await expect.poll(async () =>
+      (await plannerCarousel.getByRole('link', { name: 'View profile' }).count()) +
+      (await plannerCarousel.getByRole('status').count()),
+    ).toBeGreaterThan(0)
+    await expect(plannerCarousel).not.toContainText('Eleven Eleven Testing')
 
     const inspiration = page.getByTestId('wedding-inspiration-carousel')
     await expect(inspiration).toBeVisible()
