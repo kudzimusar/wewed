@@ -6,14 +6,26 @@ on:
       - main
     paths:
       - 'src/app/api/ai/**'
+      - 'src/app/api/planner/**'
       - 'src/app/planner/ai-workspace/**'
       - 'src/components/wedding/ai-**'
+      - 'src/components/wedding/planner-account-dock.tsx'
       - 'src/lib/ai/**'
+      - 'src/lib/wedding-access.ts'
+      - 'src/lib/admin-gate.ts'
+      - 'src/lib/app-session.ts'
+      - 'src/lib/preview-write-safety.ts'
+      - 'src/proxy.ts'
+      - 'prisma/schema.prisma'
       - 'prisma/migrations/**ai_workspace**'
       - 'scripts/ai-workspace-**'
       - 'scripts/test-ai-workspace-runtime.sh'
+      - 'scripts/test-ai-providers.ts'
+      - 'tests/e2e/ai-workspace.spec.ts'
+      - 'tests/e2e/support/planner-**'
       - 'docs/AI_PRODUCT_AREAS_PLAN.md'
       - 'docs/AI_WORKSPACE_OPERATIONS.md'
+      - 'docs/AI_PROVIDER_SETUP.md'
       - '.github/workflows/ai-workspace-ci.yml'
       - 'package.json'
       - 'tsconfig.ai.json'
@@ -22,14 +34,26 @@ on:
       - feature/ai-provider-router
     paths:
       - 'src/app/api/ai/**'
+      - 'src/app/api/planner/**'
       - 'src/app/planner/ai-workspace/**'
       - 'src/components/wedding/ai-**'
+      - 'src/components/wedding/planner-account-dock.tsx'
       - 'src/lib/ai/**'
+      - 'src/lib/wedding-access.ts'
+      - 'src/lib/admin-gate.ts'
+      - 'src/lib/app-session.ts'
+      - 'src/lib/preview-write-safety.ts'
+      - 'src/proxy.ts'
+      - 'prisma/schema.prisma'
       - 'prisma/migrations/**ai_workspace**'
       - 'scripts/ai-workspace-**'
       - 'scripts/test-ai-workspace-runtime.sh'
+      - 'scripts/test-ai-providers.ts'
+      - 'tests/e2e/ai-workspace.spec.ts'
+      - 'tests/e2e/support/planner-**'
       - 'docs/AI_PRODUCT_AREAS_PLAN.md'
       - 'docs/AI_WORKSPACE_OPERATIONS.md'
+      - 'docs/AI_PROVIDER_SETUP.md'
       - '.github/workflows/ai-workspace-ci.yml'
       - 'package.json'
       - 'tsconfig.ai.json'
@@ -45,7 +69,7 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
 
     services:
       postgres:
@@ -74,6 +98,7 @@ jobs:
       WEWED_SESSION_SECRET: ci-session-secret-not-for-production
       NEXT_PUBLIC_SITE_URL: http://localhost:3000
       NEXT_TELEMETRY_DISABLED: 1
+      ZAI_API_KEY: ${{ secrets.ZAI_API_KEY }}
 
     steps:
       - name: Check out repository
@@ -101,8 +126,21 @@ jobs:
       - name: Seed runtime smoke fixture
         run: psql -h localhost -p 5432 -U postgres -d wewed -f scripts/ai-workspace-runtime-seed.sql
 
-      - name: Run AI unit contracts
+      - name: Run AI unit and remediation contracts
         run: bun run ai:unit
+
+      - name: Run live GLM smoke when the repository secret is configured
+        if: env.ZAI_API_KEY != ''
+        env:
+          AI_ENABLED: 'true'
+          AI_PRIVATE_PROVIDER: zai
+          AI_QUALITY_PROVIDER: zai
+          AI_FALLBACK_PROVIDER: groq
+          AI_ALLOW_PRIVATE_FALLBACK: 'false'
+          ZAI_MODEL: glm-4.7-flash
+          ZAI_BASE_URL: https://api.z.ai/api/paas/v4
+          AI_PROVIDER_MAX_RETRIES: '2'
+        run: bun run ai:test
 
       - name: Type-check AI workspace
         run: |
@@ -116,7 +154,7 @@ jobs:
           name: ai-workspace-typescript-errors
           path: typescript-errors.log
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 3
 
       - name: Build application
         run: bun run build
