@@ -70,7 +70,7 @@ describe('targeted home, marketplace and provider iteration', () => {
     const home = source('src/components/public/public-platform-home-v2.tsx')
     expect(directory).toContain('public."BusinessAccount"')
     expect(directory).toContain("type IN ('venue', 'vendor')")
-    expect(directory).toContain('"onboardingStatus" = 'complete'')
+    expect(directory).toContain(`"onboardingStatus" = 'complete'`)
     expect(directory).toContain('public."ProviderProfile"')
     expect(directory).toContain('public."ProviderServiceOffering"')
     expect(directory).toContain("WHERE p.visibility = 'published'")
