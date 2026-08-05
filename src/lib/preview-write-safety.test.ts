@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
 import { shouldBlockPreviewWrite } from '@/lib/preview-write-safety'
 
 const LIVE_WEDDING_ID = 'live-wedding'
@@ -59,5 +60,13 @@ describe('preview write safety', () => {
         }),
       ).toBe(false)
     }
+  })
+
+  test('is enforced centrally by the wedding permission boundary', () => {
+    const source = readFileSync('src/lib/wedding-access.ts', 'utf8')
+    expect(source).toContain('shouldBlockPreviewWrite({')
+    expect(source).toContain("code: 'PREVIEW_WRITE_BLOCKED'")
+    expect(source).toContain('status: 423')
+    expect(source).toContain("'x-wewed-preview-write-blocked': 'true'")
   })
 })
