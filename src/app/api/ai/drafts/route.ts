@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireWeddingPermission } from '@/lib/wedding-access'
+import { blockUnsafeAiPreviewWrite } from '@/lib/ai/route-safety'
 import {
   createActionProposal,
   createCommunicationDraft,
@@ -44,6 +45,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const access = await requireWeddingPermission(request, 'planner.edit')
   if (access.error) return access.error
+  const previewBlock = blockUnsafeAiPreviewWrite(request, access.context.weddingId)
+  if (previewBlock) return previewBlock
 
   try {
     const body = (await request.json()) as Record<string, unknown>
@@ -122,6 +125,8 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const access = await requireWeddingPermission(request, 'planner.edit')
   if (access.error) return access.error
+  const previewBlock = blockUnsafeAiPreviewWrite(request, access.context.weddingId)
+  if (previewBlock) return previewBlock
 
   try {
     const body = (await request.json()) as Record<string, unknown>
