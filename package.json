@@ -15,7 +15,8 @@
     "db:import:check": "bun scripts/migrate-sqlite-to-postgres.ts --source-check",
     "db:import:sqlite": "bun scripts/migrate-sqlite-to-postgres.ts",
     "planner:integrity": "bun scripts/planner-integrity-snapshot.ts",
-    "ai:test": "bun scripts/test-ai-providers.ts"
+    "ai:test": "bun scripts/test-ai-providers.ts",
+    "ai:unit": "bun test src/lib/ai/workspace-store.test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
