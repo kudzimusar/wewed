@@ -24,10 +24,12 @@ describe('AI chat input safety', () => {
     ])
   })
 
-  test('bounds message content before provider submission', () => {
+  test('bounds message content and message count before provider submission', () => {
     const content = 'x'.repeat(5_000)
-    const [message] = sanitizeAiChatMessages([{ role: 'user', content }])
-    expect(message?.content).toHaveLength(4_000)
+    const messages = Array.from({ length: 80 }, () => ({ role: 'user', content }))
+    const sanitized = sanitizeAiChatMessages(messages)
+    expect(sanitized).toHaveLength(60)
+    expect(sanitized[0]?.content).toHaveLength(4_000)
   })
 })
 
@@ -44,8 +46,13 @@ describe('Guest Concierge wedding routing', () => {
     expect(resolveGuestWeddingSlug(request, undefined)).toBe('lindiwe-and-tawanda')
   })
 
-  test('retains the compatibility fallback for clients without a referrer', () => {
+  test('returns null instead of silently selecting another wedding', () => {
     const request = requestWithReferer()
-    expect(resolveGuestWeddingSlug(request, undefined)).toBe('charity-and-kudzie')
+    expect(resolveGuestWeddingSlug(request, undefined)).toBeNull()
+  })
+
+  test('rejects malformed explicit and referrer slugs', () => {
+    const request = requestWithReferer('https://wewed.test/w/../../private')
+    expect(resolveGuestWeddingSlug(request, 'NOT A SLUG')).toBeNull()
   })
 })
