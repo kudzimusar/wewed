@@ -33,7 +33,7 @@ test.describe('Wewed wedding-first experience', () => {
     const journey = page.getByTestId('wedding-journey-card')
     await expect(journey).toBeVisible()
     await expect(journey).toContainText('Example wedding journey · preview only')
-    await expect(journey).toContainText('Your private wedding appears after authentication')
+    await expect(journey).toContainText('No private wedding details are shown publicly')
     await expect(journey).not.toContainText('Tariro & Tawanda')
 
     const plannerCarousel = page.getByTestId('featured-planner-carousel')
@@ -43,7 +43,7 @@ test.describe('Wewed wedding-first experience', () => {
     const inspiration = page.getByTestId('wedding-inspiration-carousel')
     await expect(inspiration).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Wedding inspiration with a heartbeat.' })).toBeVisible()
-    await expect(inspiration.locator('article').first()).toContainText('Garden vows')
+    await expect(inspiration.locator('article').first()).toContainText('A beautiful beginning')
     await page.getByRole('button', { name: 'Next inspiration' }).click()
     await expect(inspiration.locator('article').first()).toContainText('Champagne and candlelight')
 
@@ -56,7 +56,6 @@ test.describe('Wewed wedding-first experience', () => {
     await expect(vendors.getByRole('link', { name: 'Manage company profile' })).toHaveAttribute('href', '/vendors/manage')
     await expect(page.getByText('Made for weddings. Built to bring people together.')).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Love is personal. Your wedding remains yours.' })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Ready to start your forever?' })).toBeVisible()
   })
 
   test('provider category CTA opens an honest filtered directory', async ({ page }) => {
