@@ -1,3 +1,17 @@
+export interface PlannerPackage {
+  name: string
+  description: string | null
+  startingPrice: number | null
+  currency: string
+  pricingUnit: string | null
+  inclusions: string[]
+}
+
+export interface PlannerFaq {
+  question: string
+  answer: string
+}
+
 export interface PublicPlannerProfile {
   id: string
   slug: string
@@ -5,6 +19,8 @@ export interface PublicPlannerProfile {
   headline: string | null
   bio: string | null
   yearsExperience: number | null
+  completedWeddings: number | null
+  teamSize: number | null
   serviceAreas: string[]
   services: string[]
   weddingStyles: string[]
@@ -14,7 +30,12 @@ export interface PublicPlannerProfile {
   maximumGuestCount: number | null
   availabilityStatus: string
   portfolio: string[]
+  profileDetails: Record<string, unknown>
+  packages: PlannerPackage[]
+  faq: PlannerFaq[]
+  verificationBadges: string[]
   publishedAt: string | null
+  lastProfileUpdate: string | null
 }
 
 export interface PlannerEnquiry {
@@ -62,6 +83,17 @@ export function list(value: unknown): string[] {
     return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []
   } catch {
     return value.split(',').map((item) => item.trim()).filter(Boolean)
+  }
+}
+
+export function record(value: unknown): Record<string, unknown> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>
+  if (typeof value !== 'string') return {}
+  try {
+    const parsed = JSON.parse(value)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {}
+  } catch {
+    return {}
   }
 }
 
