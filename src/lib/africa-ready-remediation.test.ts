@@ -9,7 +9,6 @@ describe('targeted Wewed preview remediation', () => {
     expect(plan).toContain('implementation source of truth')
     expect(plan).toContain('not authorization for a new system-wide redesign')
     expect(plan).toContain('Landing-page hero media')
-    expect(plan).toContain('Original public imagery')
     expect(plan).toContain('Planner marketplace readability')
     expect(plan).toContain('Invitation templates and guest QR cards')
     expect(plan).toContain('Daily Planner Operations layout')
@@ -17,15 +16,18 @@ describe('targeted Wewed preview remediation', () => {
     expect(plan).toContain('Task Test 11')
   })
 
-  test('the public experience uses Wewed-created bride-and-groom media', () => {
+  test('the homepage restores cinematic wedding photography and the approved Higgsfield film', () => {
     const home = source('src/components/public/public-platform-home-v2.tsx')
-    const hero = source('public/media/wewed-couple-hero.svg')
     expect(home).toContain('<video')
-    expect(home).toContain('/media/wewed-couple-hero.svg')
-    expect(home).toContain('/media/wewed-couple-planning.svg')
-    expect(home).toContain('/media/wewed-couple-guests.svg')
-    expect(home).not.toContain('pexels.com')
-    expect(hero).toContain('Black bride and groom')
+    expect(home).toContain('hf_20260804_140303_f8b02a87-f03b-4db5-81e2-969b5f3c3544.mp4')
+    expect(home).toContain('hf_20260804_124328_63fdf59b-a32d-498e-853a-27cbefe4ee5b.png')
+    expect(home).not.toContain('/media/wewed-couple-hero.svg')
+    expect(home).not.toContain('/media/wewed-couple-planning.svg')
+    expect(home).not.toContain('/media/wewed-couple-guests.svg')
+    expect(home).toContain('Wedding inspiration with a heartbeat.')
+    expect(home).toContain('Verified professional support')
+    expect(home).toContain('Privacy by design')
+    expect(home).toContain('Ready to start your forever?')
   })
 
   test('marketplace remediation is scoped to marketplace surfaces', () => {
