@@ -3,6 +3,11 @@ import { db } from '@/lib/db'
 import { contextHasPermission, getWeddingContext } from '@/lib/wedding-access'
 import { generateAiText, type AiMessage } from '@/lib/ai'
 import {
+  resolveGuestWeddingSlug,
+  sanitizeAiChatMessages,
+  type SanitizedAiChatMessage,
+} from '@/lib/ai/chat-contract'
+import {
   GUEST_ACCESSIBLE_PRIVACY,
   buildPlannerWeddingContext,
   buildPublishedWeddingContext,
@@ -11,18 +16,11 @@ import {
   type RetrievedAiSource,
 } from '@/lib/ai/workspace-context'
 
-type ChatRole = 'user' | 'assistant'
-
 type AiProductArea =
   | 'guest_concierge'
   | 'planner_copilot'
   | 'template_intelligence'
   | 'communication_assistant'
-
-interface IncomingMessage {
-  role: ChatRole
-  content: string
-}
 
 interface ChatRequestBody {
   messages?: unknown
@@ -132,10 +130,6 @@ const AREA_FALLBACKS: Record<AiProductArea, string> = {
     "I couldn't prepare the communication draft just now. Please try again; nothing was sent or published. 💛",
 }
 
-function isString(value: unknown): value is string {
-  return typeof value === 'string'
-}
-
 function isProductArea(value: unknown): value is AiProductArea {
   return (
     value === 'guest_concierge' ||
@@ -145,51 +139,11 @@ function isProductArea(value: unknown): value is AiProductArea {
   )
 }
 
-export function sanitizeAiChatMessages(raw: unknown): IncomingMessage[] {
-  if (!Array.isArray(raw)) return []
-  const output: IncomingMessage[] = []
-  for (const message of raw) {
-    if (!message || typeof message !== 'object') continue
-    const role = (message as { role?: unknown }).role
-    const content = (message as { content?: unknown }).content
-    if (
-      (role === 'user' || role === 'assistant') &&
-      isString(content) &&
-      content.trim().length > 0
-    ) {
-      output.push({ role, content: content.slice(0, 4_000) })
-    }
-  }
-  return output
-}
-
-export function resolveGuestWeddingSlug(
-  request: NextRequest,
-  requestedSlug: unknown,
-): string {
-  if (typeof requestedSlug === 'string' && requestedSlug.trim()) {
-    return requestedSlug.trim().slice(0, 160)
-  }
-
-  const referer = request.headers.get('referer')
-  if (referer) {
-    try {
-      const pathname = new URL(referer).pathname
-      const match = pathname.match(/^\/w\/([^/?#]+)/)
-      if (match?.[1]) return decodeURIComponent(match[1]).slice(0, 160)
-    } catch {
-      // Ignore malformed referrers and use the compatibility fallback below.
-    }
-  }
-
-  return 'charity-and-kudzie'
-}
-
 async function resolveContext(input: {
   request: NextRequest
   body: ChatRequestBody
   area: AiProductArea
-  messages: IncomingMessage[]
+  messages: SanitizedAiChatMessage[]
 }): Promise<
   | {
       applicationContext: string
