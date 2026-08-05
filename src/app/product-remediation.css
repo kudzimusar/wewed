@@ -1,0 +1,143 @@
+/* Targeted Wewed preview remediation.
+ * Scope is limited by docs/africa-ready-product-remediation-2026-08-04.md.
+ */
+
+/* 1. Landing hero: keep the Wewed-created bride-and-groom film and local poster readable. */
+[data-testid="africa-ready-hero"] > img,
+[data-testid="africa-ready-hero"] > video {
+  object-position: center;
+}
+[data-testid="africa-ready-hero"] > video {
+  background: #211711;
+}
+
+/* 2. Planner marketplace: repair contrast, focus and dock clearance. */
+[data-marketplace-frame] {
+  --wewed-field-bg: #fffdf8;
+  --wewed-field-disabled-bg: #eee8df;
+  --wewed-field-border: #9b8358;
+  --wewed-field-text: #211711;
+  padding-bottom: max(7rem, env(safe-area-inset-bottom));
+}
+[data-marketplace-frame] input,
+[data-marketplace-frame] textarea,
+[data-marketplace-frame] select {
+  background: var(--wewed-field-bg) !important;
+  color: var(--wewed-field-text) !important;
+  border-color: var(--wewed-field-border) !important;
+  opacity: 1 !important;
+}
+[data-marketplace-frame] input:disabled,
+[data-marketplace-frame] textarea:disabled,
+[data-marketplace-frame] select:disabled {
+  background: var(--wewed-field-disabled-bg) !important;
+  color: #554a42 !important;
+  -webkit-text-fill-color: #554a42 !important;
+}
+[data-marketplace-frame] input::placeholder,
+[data-marketplace-frame] textarea::placeholder {
+  color: #655950 !important;
+  opacity: 1 !important;
+}
+[data-marketplace-frame] input:focus,
+[data-marketplace-frame] textarea:focus,
+[data-marketplace-frame] select:focus {
+  outline: 3px solid rgba(191, 155, 95, .42) !important;
+  outline-offset: 1px;
+}
+[data-marketplace-frame] .bg-espresso p,
+[data-marketplace-frame] .bg-espresso h2,
+[data-marketplace-frame] .bg-espresso h3 {
+  color: #fff7e7;
+}
+[data-marketplace-frame] .bg-espresso .text-champagne\/55,
+[data-marketplace-frame] .bg-espresso .text-champagne\/50,
+[data-marketplace-frame] .bg-espresso .text-champagne\/45 {
+  color: rgba(255, 247, 231, .82) !important;
+}
+
+/* 3. Invitation and QR dialog only. */
+[data-slot="dialog-content"].bg-ivory.max-w-6xl {
+  width: min(96vw, 1440px) !important;
+  max-width: min(96vw, 1440px) !important;
+  max-height: calc(100dvh - 2rem) !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+[data-slot="dialog-content"].bg-ivory.max-w-6xl section[aria-labelledby="digital-card-design-heading"] .xl\:grid-cols-3 {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr)) !important;
+}
+[data-slot="dialog-content"].bg-ivory.max-w-6xl section[aria-labelledby="digital-card-design-heading"] button {
+  min-width: 0;
+  overflow: hidden;
+}
+[data-slot="dialog-content"].bg-ivory.max-w-6xl article.sm\:grid-cols-\[9rem_1fr\] {
+  grid-template-columns: minmax(9rem, 10rem) minmax(0, 1fr) !important;
+  min-width: 0;
+  overflow: hidden;
+}
+[data-slot="dialog-content"].bg-ivory.max-w-6xl article h2,
+[data-slot="dialog-content"].bg-ivory.max-w-6xl article h3,
+[data-slot="dialog-content"].bg-ivory.max-w-6xl article p,
+[data-slot="dialog-content"].bg-ivory.max-w-6xl article span {
+  overflow-wrap: anywhere;
+}
+[data-slot="dialog-content"].bg-ivory.max-w-6xl article .flex.flex-wrap.gap-2 > button,
+[data-slot="dialog-content"].bg-ivory.max-w-6xl article .flex.flex-wrap.gap-2 > a {
+  max-width: 100%;
+}
+
+/* 4. Daily Planner Operations dialog only. */
+[data-slot="dialog-content"].bg-espresso.max-w-7xl {
+  width: min(96vw, 1440px) !important;
+  max-width: min(96vw, 1440px) !important;
+  max-height: calc(100dvh - 2rem) !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+[data-slot="dialog-content"].bg-espresso.max-w-7xl [data-slot="tabs-list"] {
+  flex-wrap: nowrap !important;
+  justify-content: flex-start !important;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
+}
+[data-slot="dialog-content"].bg-espresso.max-w-7xl [data-slot="tabs-trigger"] {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+[data-slot="dialog-content"].bg-espresso.max-w-7xl .md\:grid-cols-4 {
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)) !important;
+}
+[data-slot="dialog-content"].bg-espresso.max-w-7xl .lg\:grid-cols-2,
+[data-slot="dialog-content"].bg-espresso.max-w-7xl .lg\:grid-cols-3 {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 21rem), 1fr)) !important;
+}
+[data-slot="dialog-content"].bg-espresso.max-w-7xl [class*="font-mono"],
+[data-slot="dialog-content"].bg-espresso.max-w-7xl [class*="wewed-heading"] {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 767px) {
+  [data-marketplace-frame] {
+    padding-bottom: max(8rem, env(safe-area-inset-bottom));
+  }
+
+  [data-slot="dialog-content"].bg-ivory.max-w-6xl,
+  [data-slot="dialog-content"].bg-espresso.max-w-7xl {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 100dvh !important;
+    border-radius: 1.25rem 1.25rem 0 0 !important;
+  }
+
+  [data-slot="dialog-content"].bg-ivory.max-w-6xl article.sm\:grid-cols-\[9rem_1fr\] {
+    grid-template-columns: 1fr !important;
+  }
+
+  [data-slot="dialog-content"].bg-ivory.max-w-6xl article img,
+  [data-slot="dialog-content"].bg-ivory.max-w-6xl article .size-36 {
+    margin-inline: auto;
+  }
+}

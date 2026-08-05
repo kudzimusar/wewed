@@ -59,7 +59,7 @@ test('public platform, invitation card exchange, API privacy and token rotation 
   const errors = runtimeErrors(page)
 
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: /Plan the wedding/ })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Plan a wedding as unforgettable as your love.' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Find a planner' }).first()).toBeVisible()
   await expect(page.locator('body')).not.toContainText('Aurora & Blake')
 

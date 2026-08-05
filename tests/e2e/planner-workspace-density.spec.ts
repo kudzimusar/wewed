@@ -10,15 +10,22 @@ async function workspaceRatio(page: Parameters<typeof openModule>[0]) {
     const body = document.querySelector<HTMLElement>('.planner-portal-body')
     const active = document.querySelector<HTMLElement>('[data-planner-active-slot]')
     const rail = document.querySelector<HTMLElement>('[data-planner-compact-control-rail]')
-    if (!body || !active || !rail) return null
+    const context = document.querySelector<HTMLElement>('[data-planner-wedding-context]')
+    if (!body || !active || !rail || !context) return null
     const bodyBox = body.getBoundingClientRect()
     const activeBox = active.getBoundingClientRect()
     const railBox = rail.getBoundingClientRect()
+    const contextBox = context.getBoundingClientRect()
+    const tolerance = 2
     return {
       activeToBody: activeBox.height / bodyBox.height,
       activeHeight: activeBox.height,
       railHeight: railBox.height,
-      contextInsideRail: Boolean(rail.querySelector('[data-planner-wedding-context]')),
+      contextInsideRail:
+        contextBox.left >= railBox.left - tolerance &&
+        contextBox.right <= railBox.right + tolerance &&
+        contextBox.top >= railBox.top - tolerance &&
+        contextBox.bottom <= railBox.bottom + tolerance,
     }
   })
 }
@@ -51,9 +58,9 @@ test('compact planner chrome gives at least four fifths of the usable body to ac
     await expect(toolsToggle).toHaveAttribute('aria-expanded', 'false')
     await expect(tools).toBeHidden()
 
+    await expect.poll(async () => (await workspaceRatio(page))?.contextInsideRail).toBe(true)
     const compact = await workspaceRatio(page)
     expect(compact).not.toBeNull()
-    expect(compact!.contextInsideRail, 'wedding selector shares the compact planner rail').toBe(true)
     expect(compact!.railHeight, 'compact planner rail stays shallow').toBeLessThan(viewport.height * 0.09)
     expect(compact!.activeToBody, 'active planner slot owns at least four fifths of usable planner height').toBeGreaterThanOrEqual(0.8)
 
@@ -98,6 +105,7 @@ test('compact planner chrome gives at least four fifths of the usable body to ac
     await expect(moduleSelector).toBeHidden()
     await expect(actions).toBeHidden()
     await expect(tools).toBeHidden()
+    await expect.poll(async () => (await workspaceRatio(page))?.activeToBody).toBeGreaterThanOrEqual(0.8)
     const reloaded = await workspaceRatio(page)
     expect(reloaded).not.toBeNull()
     expect(reloaded!.activeToBody).toBeGreaterThanOrEqual(0.8)

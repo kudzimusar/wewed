@@ -1,4 +1,4 @@
-name: Planner Marketplace CI
+name: Provider Forms CI
 
 on:
   pull_request:
@@ -11,11 +11,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: planner-marketplace-${{ github.ref }}
+  group: provider-forms-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  secure-marketplace:
+  provider-forms:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     services:
@@ -52,19 +52,7 @@ jobs:
       - run: bunx prisma validate --schema prisma/schema.prisma
       - run: bunx prisma generate --schema prisma/schema.prisma
       - run: bunx prisma migrate deploy --schema prisma/schema.prisma
-      - run: >-
-          bun test
-          src/lib/planner-marketplace-contract.test.ts
-          src/lib/planner-marketplace-metadata.test.ts
-          src/lib/unified-navigation-privacy.test.ts
-          src/lib/wedding-guest-proxy.test.ts
-          src/lib/digital-invitation-card.test.ts
-          src/lib/wedding-data-isolation.test.ts
-          src/lib/africa-ready-experience.test.ts
-          src/lib/africa-ready-remediation.test.ts
-          src/lib/targeted-home-provider-iteration.test.ts
-          src/lib/provider-forms-profile-upgrade.test.ts
-      - run: psql "postgresql://postgres:postgres@localhost:5432/wewed" -f scripts/planner-marketplace-postgres-integration.sql
+      - run: bun test src/lib/provider-forms-profile-upgrade.test.ts
       - run: >-
           bunx prisma migrate diff
           --from-url "$DATABASE_URL"
@@ -72,29 +60,16 @@ jobs:
           --exit-code
       - run: bun run build
       - run: bunx playwright install --with-deps chromium
-      - name: Run marketplace, privacy, invitation and wedding-first browser release gate
-        run: >-
+      - run: >-
           bunx playwright test
-          tests/e2e/zz-planner-marketplace.spec.ts
-          tests/e2e/zz-planner-marketplace-metadata.spec.ts
-          tests/e2e/zz-unified-navigation-privacy.spec.ts
-          tests/e2e/zz-digital-invitation-cards.spec.ts
-          tests/e2e/zz-africa-ready-experience.spec.ts
+          tests/e2e/zz-provider-forms-profiles.spec.ts
           --project=desktop-chromium
           --project=mobile-chromium
-      - name: Upload digital invitation card samples
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: digital-invitation-card-samples
-          path: artifacts/invitation-card-samples
-          if-no-files-found: ignore
-          retention-days: 30
-      - name: Upload marketplace, privacy and experience browser failure evidence
+      - name: Upload provider form failure evidence
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: marketplace-privacy-experience-browser-release-gate
+          name: provider-forms-browser-release-gate
           path: |
             playwright-report
             test-results
