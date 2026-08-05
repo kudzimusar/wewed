@@ -66,8 +66,13 @@ export async function reviewTemplateAnonymization(input: {
         title: true,
         tagline: true,
         venue: true,
-        venueCity: true,
-        venueCountry: true,
+        couple: {
+          select: {
+            partner1: true,
+            partner2: true,
+            surname: true,
+          },
+        },
       },
     }),
     db.guest.findMany({
@@ -88,8 +93,10 @@ export async function reviewTemplateAnonymization(input: {
     wedding.title,
     wedding.tagline,
     wedding.venue,
-    wedding.venueCity,
-    wedding.venueCountry,
+    wedding.couple.partner1,
+    wedding.couple.partner2,
+    wedding.couple.surname,
+    `${wedding.couple.partner1} & ${wedding.couple.partner2}`,
     ...guests.map((guest) => guest.name),
     ...vendors.map((vendor) => vendor.name),
   ].filter((term): term is string => Boolean(term?.trim()))
