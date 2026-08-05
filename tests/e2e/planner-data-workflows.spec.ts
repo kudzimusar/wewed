@@ -5,12 +5,14 @@ import {
   acceptNextConfirmation,
   expect,
   openModule,
+  openWorksheetActions,
   test,
 } from './support/planner-browser'
 
 test('downloaded Excel template imports, exports, records history, and rolls back', async ({ plannerPage: page }, testInfo) => {
   const importedTask = 'Excel round-trip task'
   await openModule(page, 'checklist')
+  await openWorksheetActions(page)
 
   const templateDownloadPromise = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Template', exact: true }).click()
@@ -64,6 +66,7 @@ test('downloaded Excel template imports, exports, records history, and rolls bac
   await importDialog.getByRole('button', { name: 'View in planner' }).click()
   await openModule(page, 'checklist')
   await expect(page.getByText(importedTask, { exact: true })).toBeVisible()
+  await openWorksheetActions(page)
 
   const exportDownloadPromise = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Export', exact: true }).click()
@@ -75,6 +78,7 @@ test('downloaded Excel template imports, exports, records history, and rolls bac
   const exportedCells = XLSX.utils.sheet_to_json<unknown[]>(exportedSheet, { header: 1 }).flat()
   expect(exportedCells).toContain(importedTask)
 
+  await openWorksheetActions(page)
   await page.getByRole('button', { name: /Recent imports/ }).click()
   const historyRow = page
     .getByText(basename(importPath), { exact: true })
@@ -138,6 +142,7 @@ test('two populated weddings remain isolated through a realistic planner day', a
 
 test('untouched guest template is non-executable and formula cells are rejected in preview', async ({ plannerPage: page }, testInfo) => {
   await openModule(page, 'guests')
+  await openWorksheetActions(page)
   const templateDownloadPromise = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Template', exact: true }).click()
   const templateDownload = await templateDownloadPromise
@@ -176,6 +181,7 @@ test('untouched guest template is non-executable and formula cells are rejected 
   const formulaPath = testInfo.outputPath('guest-formula-rejected.xlsx')
   XLSX.writeFile(workbook, formulaPath)
 
+  await openWorksheetActions(page)
   await page.getByRole('button', { name: 'Import', exact: true }).click()
   await expect(page).toHaveURL(/\/planner\/guests\/import(?:[?#]|$)/)
   dialog = page.getByRole('dialog')

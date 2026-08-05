@@ -1,4 +1,4 @@
-import { expect, openModule, test } from './support/planner-browser'
+import { expect, openModule, openWorksheetActions, test } from './support/planner-browser'
 
 test('planner modules, filters, tools, history, and scroll position have durable URLs', async ({ plannerPage }) => {
   await plannerPage.goto('/planner?module=guests#planner-workspace')
@@ -10,6 +10,7 @@ test('planner modules, filters, tools, history, and scroll position have durable
   await plannerPage.reload()
   await expect(guestSearch).toHaveValue('UAT guest')
 
+  await openWorksheetActions(plannerPage)
   await plannerPage.getByRole('button', { name: 'Recent imports' }).click()
   await expect(plannerPage).toHaveURL(/\/planner\/guests\/imports(?:[?#]|$)/)
   await plannerPage.reload()

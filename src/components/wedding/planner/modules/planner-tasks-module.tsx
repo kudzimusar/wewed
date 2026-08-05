@@ -85,9 +85,9 @@ const TASK_STATUSES = [
 
 const TASK_PRIORITIES = [
   { value: 'all', label: 'Any priority' },
-  { value: 'low', label: 'Low' },
-  { value: 'medium', label: 'Medium' },
   { value: 'high', label: 'High' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'low', label: 'Low' },
 ] as const
 
 function categoryLabel(value: string): string {

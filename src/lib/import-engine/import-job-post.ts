@@ -30,17 +30,38 @@ export async function handleImportJobPost(request: NextRequest, context: ImportJ
     let body: { rowIndices?: unknown; mappingOverrides?: unknown } = {}
     try { body = (await request.json()) as typeof body } catch { /* empty body */ }
 
+    const mappingOverrides = body.mappingOverrides && typeof body.mappingOverrides === 'object'
+      ? body.mappingOverrides as Record<string, string>
+      : {}
+    const mappingAdjusted = Object.entries(mappingOverrides).some(
+      ([source, target]) => storedPreview.fieldMapping[source] !== target,
+    )
+
     let preview = storedPreview
-    if (body.mappingOverrides && typeof body.mappingOverrides === 'object') {
-      const rawRows = storedPreview.rows.map((row) => row.raw)
-      const headers = Array.from(new Set(rawRows.flatMap((row) => Object.keys(row))))
-      const parsed: ParsedFile = { headers, rows: rawRows, rowNumbers: rawRows.map((_, index) => index + 2), formulaCells: [], rawRowCount: rawRows.length }
+    if (mappingAdjusted) {
+      if (!storedPreview.sourceHeaders || !storedPreview.sourceRowNumbers || !storedPreview.sourceFormulaCells) {
+        return NextResponse.json({
+          success: false,
+          error: 'This older preview cannot safely adjust mappings. Upload the workbook again.',
+        }, { status: 409 })
+      }
+      const sourceRows = storedPreview.sourceRowNumbers.map((rowNumber) =>
+        storedPreview.rows.find((row) => row.rowIndex === rowNumber)?.raw ?? {},
+      )
+      const parsed: ParsedFile = {
+        headers: storedPreview.sourceHeaders,
+        rows: sourceRows,
+        rowNumbers: storedPreview.sourceRowNumbers,
+        formulaCells: storedPreview.sourceFormulaCells,
+        rawRowCount: storedPreview.sourceRawRowCount ?? sourceRows.length + 1,
+        firstSheetName: storedPreview.sourceFirstSheetName,
+      }
       preview = await generatePreview(
         parsed,
         schema,
         access.context.weddingId,
         storedPreview.fileName,
-        body.mappingOverrides as Record<string, string>,
+        mappingOverrides,
       )
       await db.importJob.update({
         where: { id: jobId },
@@ -51,6 +72,19 @@ export async function handleImportJobPost(request: NextRequest, context: ImportJ
           errorCount: preview.invalidRows,
         },
       })
+    }
+
+    if (preview.moduleKey === 'seating' && Array.isArray(body.rowIndices)) {
+      const selected = new Set(body.rowIndices.filter((value): value is number => typeof value === 'number'))
+      const omittedExecutableRows = preview.rows.filter(
+        (row) => (row.action === 'create' || row.action === 'update') && !selected.has(row.rowIndex),
+      )
+      if (omittedExecutableRows.length > 0) {
+        return NextResponse.json({
+          success: false,
+          error: 'Seating imports must execute all validated create and update rows together so table capacity and Guest assignments remain consistent.',
+        }, { status: 409 })
+      }
     }
 
     if (Array.isArray(body.rowIndices)) {
@@ -65,7 +99,9 @@ export async function handleImportJobPost(request: NextRequest, context: ImportJ
       result = execution.result
       rollbackData = JSON.stringify(execution.snapshot)
     } else {
-      result = await executeImport(preview, schema, access.context.weddingId)
+      result = await executeImport(preview, schema, access.context.weddingId, {
+        actorId: access.context.session.userId,
+      })
       const snapshot = peekRollback(result.rollbackToken)
       rollbackData = snapshot ? JSON.stringify(snapshot) : null
     }
@@ -94,7 +130,7 @@ export async function handleImportJobPost(request: NextRequest, context: ImportJ
           updated: result.updated,
           skipped: result.skipped,
           errors: result.errors,
-          mappingAdjusted: Boolean(body.mappingOverrides),
+          mappingAdjusted,
         }),
         weddingId: access.context.weddingId,
         actorId: access.context.session.userId,

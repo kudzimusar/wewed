@@ -129,32 +129,36 @@ describe('Stage 6 Timeline and Seating parity', () => {
     }
   })
 
-  test('seating module restores table editing, deletion, assignment and capacity warnings', async () => {
+  test('seating module restores richer table editing, live assignment, capacity status, and documentation', async () => {
     const seating = await source(
-      'src/components/wedding/planner/modules/planner-seating-module.tsx',
+      'src/components/wedding/planner/modules/planner-seating-operations-module.tsx',
     )
 
     for (const marker of [
-      'workspace-table-name-',
-      'workspace-table-capacity-',
-      'onUpdateTable(table',
-      'onDeleteTable(table)',
+      'seating-new-name',
+      'seating-new-capacity',
+      'seating-edit-name-',
+      'seating-edit-capacity-',
+      'saveTable(table)',
+      'deleteTable(table)',
       'assigned guest record',
       'Assign guest',
       'Unassign guest',
-      'onAssignGuestToTable(guest, null)',
-      'onAssignGuestToTable(guest, table.id)',
-      'tableOccupancy.get(tableId)',
-      'assignedOccupancy.get(tableId)',
-      'occupancyFor(table.id)',
-      'occupied > table.capacity',
+      'assignOneGuest(guest, null)',
+      'assignOneGuest(guest, table.id)',
+      'plannedSeatsForGuest',
+      'data-seating-status',
+      'if (occupied > capacity)',
       'Over capacity',
+      "kind: 'bulk_assignment'",
+      'moveSelectedGuests',
+      'Print plan',
     ]) {
       expect(seating).toContain(marker)
     }
   })
 
-  test('workspace and seating APIs keep table and assignment mutations wedding scoped', async () => {
+  test('workspace and seating APIs keep table and assignment mutations wedding scoped and transactional', async () => {
     const [workspace, route] = await Promise.all([
       source('src/components/wedding/planner-workspace.tsx'),
       source('src/app/api/planner/guests/[id]/route.ts'),
@@ -175,11 +179,16 @@ describe('Stage 6 Timeline and Seating parity', () => {
     }
 
     expect(route).toContain("kind === 'table' ? 'seating.edit' : 'guests.edit'")
-    expect(route).toContain('where: { id, weddingId: access.context.weddingId }')
-    expect(route).toContain('updates.capacity = Math.min(50, Math.floor(body.capacity))')
+    expect(route).toContain('const weddingId = access.context.weddingId')
+    expect(route).toContain('where: { id, weddingId }')
+    expect(route).toContain('Number.isInteger(body.capacity)')
+    expect(route).toContain('body.capacity > MAX_TABLE_CAPACITY')
     expect(route).toContain('data: { seatingTableId: null }')
-    expect(route).toContain('db.seatingTable.delete({ where: { id: existing.id } })')
+    expect(route).toContain('tx.seatingTable.delete({ where: { id: existing.id } })')
     expect(route).toContain('updates.seatingTableId = body.seatingTableId')
+    expect(route).toContain('await db.$transaction(async (tx) =>')
+    expect(route).toContain("action: 'seating.table_update'")
+    expect(route).toContain("action: 'seating.table_delete'")
   })
 
   test('Stage 6 capabilities remain restored after worksheet completion', () => {
@@ -192,6 +201,7 @@ describe('Stage 6 Timeline and Seating parity', () => {
         source('src/components/wedding/planner-workspace.tsx'),
         source('src/components/wedding/planner/modules/planner-timeline-module.tsx'),
         source('src/components/wedding/planner/modules/planner-seating-module.tsx'),
+        source('src/components/wedding/planner/modules/planner-seating-operations-module.tsx'),
       ])
     ).join('\n')
 
