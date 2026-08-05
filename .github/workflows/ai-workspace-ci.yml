@@ -103,7 +103,18 @@ jobs:
         run: bun run ai:unit
 
       - name: Type-check application
-        run: bunx tsc --noEmit --pretty false
+        run: |
+          set -o pipefail
+          bunx tsc --noEmit --pretty false 2>&1 | tee typescript-errors.log
+
+      - name: Upload TypeScript diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ai-workspace-typescript-errors
+          path: typescript-errors.log
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Build application
         run: bun run build
