@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 
-const PUBLIC_CONTENT_SECTIONS = new Set([
+export const PUBLIC_AI_CONTENT_SECTIONS = new Set([
   'faq',
   'hero',
   'songbook',
@@ -9,6 +9,8 @@ const PUBLIC_CONTENT_SECTIONS = new Set([
   'travel',
   'venue',
 ])
+
+export const GUEST_ACCESSIBLE_PRIVACY = ['public', 'unlisted', 'link_only'] as const
 
 const MAX_CONTEXT_CHARACTERS = 32_000
 const MAX_DOCUMENT_RESULTS = 6
@@ -69,7 +71,7 @@ export async function buildPublishedWeddingContext(slug: string): Promise<string
   const wedding = await db.wedding.findFirst({
     where: {
       slug,
-      privacy: { in: ['public', 'unlisted'] },
+      privacy: { in: [...GUEST_ACCESSIBLE_PRIVACY] },
     },
     select: {
       id: true,
@@ -126,7 +128,7 @@ export async function buildPublishedWeddingContext(slug: string): Promise<string
     '',
     'PUBLISHED PAGE CONTENT',
     ...wedding.contentItems
-      .filter((item) => PUBLIC_CONTENT_SECTIONS.has(item.section))
+      .filter((item) => PUBLIC_AI_CONTENT_SECTIONS.has(item.section))
       .map((item) => {
         const metadata = safeJson<Record<string, unknown>>(item.metadata ?? '', {})
         const published = metadata.visibility !== 'private' && metadata.published !== false
@@ -164,7 +166,7 @@ export async function buildPlannerWeddingContext(
     has('planner.view')
       ? db.plannerTask.findMany({
           where: { weddingId },
-          orderBy: [{ status: 'asc' }, { priority: 'desc' }, { dueDate: 'asc' }],
+          orderBy: [{ status: 'asc' }, { dueDate: 'asc' }, { createdAt: 'asc' }],
           take: 160,
           select: {
             id: true,
@@ -251,6 +253,15 @@ export async function buildPlannerWeddingContext(
   ])
 
   if (!wedding) return 'No active wedding context is available.'
+
+  const priorityRank: Record<string, number> = { high: 0, medium: 1, low: 2 }
+  tasks.sort((left, right) => {
+    const byPriority = (priorityRank[left.priority] ?? 3) - (priorityRank[right.priority] ?? 3)
+    if (byPriority !== 0) return byPriority
+    const leftDue = left.dueDate?.getTime() ?? Number.MAX_SAFE_INTEGER
+    const rightDue = right.dueDate?.getTime() ?? Number.MAX_SAFE_INTEGER
+    return leftDue - rightDue
+  })
 
   const attendance = guests.reduce(
     (counts, guest) => {
