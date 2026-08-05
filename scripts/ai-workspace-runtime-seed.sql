@@ -44,6 +44,50 @@ INSERT INTO public."Wedding" (
   now()
 );
 
+INSERT INTO public."User" (
+  id,
+  email,
+  name,
+  role,
+  "coupleId",
+  "currentWeddingId",
+  "isActive",
+  "createdAt",
+  "updatedAt"
+) VALUES (
+  'ci-ai-user',
+  'ai-runtime@wewed.test',
+  'AI Runtime Planner',
+  'planner',
+  'ci-ai-couple',
+  'ci-ai-wedding',
+  true,
+  now(),
+  now()
+);
+
+INSERT INTO public."WeddingMembership" (
+  id,
+  "userId",
+  "weddingId",
+  role,
+  status,
+  permissions,
+  "acceptedAt",
+  "createdAt",
+  "updatedAt"
+) VALUES (
+  'ci-ai-membership',
+  'ci-ai-user',
+  'ci-ai-wedding',
+  'owner',
+  'active',
+  '["*"]',
+  now(),
+  now(),
+  now()
+);
+
 INSERT INTO public."ProgrammeItem" (
   id,
   time,
