@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { ArrowLeft, Sparkles } from 'lucide-react'
 import { AiPlannerAssistant } from '@/components/wedding/ai-planner-assistant'
 import { AiWorkspaceRecords } from '@/components/wedding/ai-workspace-records'
+import { AiWorkspaceSaveForms } from '@/components/wedding/ai-workspace-save-forms'
 
 export default function PlannerAiWorkspacePage() {
   return (
@@ -29,6 +30,8 @@ export default function PlannerAiWorkspacePage() {
             Planner workspace
           </Link>
         </header>
+
+        <AiWorkspaceSaveForms />
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(460px,0.92fr)]">
           <section className="min-h-[760px] overflow-hidden rounded-2xl border border-gold/20 bg-espresso shadow-2xl">
