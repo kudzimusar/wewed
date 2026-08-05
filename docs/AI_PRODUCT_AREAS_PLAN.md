@@ -1,22 +1,25 @@
 # Wewed AI Product Areas Plan
 
-Status: Phase 1 implemented on `feature/ai-provider-router`; Vercel Preview build passed; browser UAT is pending.
+Status: Phases 1–4 implemented on `feature/ai-provider-router`; automated validation and Preview review are the release gates. Production remains unchanged.
 
 ## Purpose
 
-Wewed AI will be presented and maintained as four explicit product areas rather than one generic assistant. Each area has its own users, permissions, source data, prompts, expected outputs, and safety rules.
+Wewed AI is organised as four explicit product areas rather than one generic assistant. Each area has its own users, permissions, source data, prompts, expected outputs, persistence model, and safety rules.
 
-The first implementation is intentionally read-only. AI may analyse data and create drafts, but it must not update wedding records, send messages, publish guest information, or apply templates without a separate user confirmation flow.
+The implementation follows one operating principle: **AI may analyse and draft freely inside an authorised boundary, but changes to wedding data require a separate human-reviewed action proposal.**
 
 ## Shared principles
 
 1. **Wewed is the product brand.** User-facing surfaces say “Powered by Wewed AI”. Provider and model names remain internal diagnostics.
 2. **Permission filtering happens before generation.** The model receives only data the current user is allowed to access.
-3. **Structured data first.** Tasks, guests, budgets, vendors, timelines, and templates should be retrieved from application APIs and supplied as bounded context. Document retrieval can be added later.
-4. **Draft before action.** Generated plans, template changes, and communications remain drafts until a user reviews and confirms them.
-5. **No silent writes.** AI routes do not directly mutate the database.
-6. **Clear failure behaviour.** Provider failures return a useful fallback without pretending an action succeeded.
-7. **Compact, readable output.** Markdown is rendered safely; compact guest responses avoid tables and excessive headings.
+3. **Structured application data comes first.** Wedding, task, RSVP, budget, vendor, programme, template, and communication data are retrieved from governed application records.
+4. **Documents are supplemental evidence.** Indexed documents are retrieved only inside the correct wedding and visibility boundary, with inline source labels.
+5. **Draft before action.** Generated templates and communications remain durable drafts until reviewed.
+6. **No silent writes.** Chat generation routes never mutate wedding records.
+7. **Human confirmation is explicit.** A proposed action must be approved before it can be executed; execution is audited.
+8. **Clear failure behaviour.** Provider failures return a useful fallback without claiming an action succeeded.
+9. **Compact, readable output.** Markdown is rendered safely; compact guest responses avoid tables and excessive headings.
+10. **Production isolation.** Preview-only provider configuration and branch deployments are used until release approval.
 
 ---
 
@@ -24,38 +27,46 @@ The first implementation is intentionally read-only. AI may analyse data and cre
 
 ### Users
 
-Public wedding guests.
+Guests viewing a guest-accessible wedding page (`public`, `unlisted`, or `link_only`). Private weddings are excluded.
 
 ### Primary jobs
 
 - Answer ceremony and reception timing questions.
-- Explain venue, transport, accommodation, dress code, menu, accessibility, RSVP and programme information.
+- Explain venue, transport, accommodation, dress code, menu, accessibility, RSVP, registry, and programme information.
 - Explain approved cultural etiquette and traditions.
+- Use approved public wedding documents when they are relevant.
 - Direct guests to the correct page section when information is unavailable.
 
 ### Data boundary
 
-Guest Concierge may use only information explicitly published for guests. It must never expose:
+Guest Concierge receives only:
+
+- the wedding identified by the current `/w/<slug>` page or explicit request slug;
+- published wedding fields;
+- published programme items;
+- an allowlist of guest-facing page sections;
+- indexed document chunks explicitly marked `public`.
+
+It never receives:
 
 - private planner or couple notes;
 - budget data;
 - vendor negotiations or contracts;
 - guest contact details;
+- private or unpublished indexed documents;
 - unpublished seating decisions;
-- internal incident or risk information;
-- unpublished documents.
+- internal incident or risk information.
 
-### Phase 1 implementation
+### Implemented
 
-- Keep the existing public guest chat.
-- Render safe Markdown instead of displaying formatting symbols.
-- Replace provider-specific branding with “Powered by Wewed AI”.
-- Give the API a dedicated `guest_concierge` prompt profile.
-- Keep responses concise and prevent claims that private data was checked.
-
-### Next data milestone
-
-Replace hard-coded wedding facts with a server-built, permission-filtered snapshot of published wedding content.
+- Safe Markdown rendering instead of visible formatting symbols.
+- “Powered by Wewed AI” product branding.
+- Dedicated `guest_concierge` prompt profile.
+- Dynamic wedding resolution from the guest page.
+- Live, permission-filtered published wedding context.
+- Public-only document retrieval with `[S1]`, `[S2]` source labels.
+- Safe grounding diagnostics at `/api/ai/context/health?slug=<slug>`.
+- Compatibility support for current `link_only` wedding pages without admitting `private` weddings.
 
 ---
 
@@ -63,31 +74,39 @@ Replace hard-coded wedding facts with a server-built, permission-filtered snapsh
 
 ### Users
 
-Authenticated planners and authorised wedding workspace users.
+Authenticated wedding members with `planner.view`. Individual data domains require their matching permissions.
 
 ### Primary jobs
 
 - Produce a daily attention brief.
 - Summarise RSVP movement and dietary risks.
-- Prioritise overdue, blocked and high-priority tasks.
+- Prioritise overdue, blocked, and high-priority tasks.
 - Identify vendor follow-ups and timeline conflicts.
 - Explain budget pressure and upcoming payments.
 - Prepare meeting agendas and operational checklists.
+- Search authorised workspace documents such as contracts and venue manuals.
 
 ### Data boundary
 
-Planner Copilot may analyse authorised workspace data. It must not claim to update records. Any future write operation must use a separate confirmation screen that shows the exact proposed changes.
+Planner Copilot builds context from the active wedding and checks permissions before each domain is loaded:
 
-### Phase 1 implementation
+- tasks: `planner.view`;
+- guests and RSVPs: `guests.view`;
+- budget: `budget.view`;
+- vendors: `vendors.view`;
+- programme/timeline: `timeline.view`;
+- private indexed documents: authenticated planner boundary only.
 
-- Make Planner Copilot one of four visible AI workspace areas.
-- Retain live RSVP and task summarisation.
-- Add explicit read-only prompt rules.
-- Label outputs as analysis or recommendations rather than completed actions.
+Guest email addresses, phone numbers, secrets, and unrelated weddings are excluded from AI context.
 
-### Next data milestone
+### Implemented
 
-Build a server-side planner context endpoint that returns bounded summaries of tasks, RSVPs, vendors, budget and timeline data for the active wedding.
+- Live server-built planner context.
+- Existing RSVP and task analysis preserved.
+- Budget, vendor, and timeline context added where permitted.
+- Read-only recommendations in the chat surface.
+- Private document retrieval with source citations.
+- Dedicated AI operations page at `/planner/ai-workspace`.
 
 ---
 
@@ -95,29 +114,34 @@ Build a server-side planner context endpoint that returns bounded summaries of t
 
 ### Users
 
-Planners, planning teams and authorised couples using reusable planning templates.
+Authenticated planners and authorised wedding workspace users.
 
 ### Primary jobs
 
 - Draft a planning template from wedding characteristics.
-- Adapt an existing template for guest count, culture, location, budget, ceremony type and reception type.
+- Adapt an existing template for guest count, culture, location, budget, ceremony type, and reception type.
 - Compare a live wedding against a template and identify missing work.
 - Suggest realistic dates and dependencies.
 - Convert a completed wedding into an anonymised reusable template.
 
-### Data boundary
+### Data and action boundary
 
-Template Intelligence must remove names, contact details, private messages, prices tied to identifiable vendors, and other client-specific information before proposing a reusable template.
+- AI output is stored as a versioned template draft in `ContentRevision`.
+- Template output may contain a validated machine-readable `items` block.
+- Only supported item types are accepted: `task`, `timeline`, and `reminder`.
+- Invalid item types, empty titles, and unsafe values are discarded.
+- Template application is never performed from chat.
+- A human creates an `apply_template` proposal, reviews it, approves it, and separately executes it.
+- Execution uses a database transaction, skips duplicates, and writes an audit event.
 
-### Phase 1 implementation
+### Implemented
 
-- Add a dedicated Template Intelligence workspace and prompt profile.
-- Provide quick actions for starter-template creation, checklist gap analysis, timeline adaptation and anonymisation guidance.
-- Return drafts only; do not write or apply templates.
-
-### Next data milestone
-
-Introduce versioned template records, template preview/diff, and an explicit “Apply template” confirmation workflow.
+- Dedicated Template Intelligence area and prompt profile.
+- Versioned durable template records.
+- Structured item extraction and validation.
+- Template preview and review queue.
+- Human-confirmed template application to tasks, timeline, and planner reminders.
+- Duplicate prevention and audit logging.
 
 ---
 
@@ -125,7 +149,7 @@ Introduce versioned template records, template preview/diff, and an explicit “
 
 ### Users
 
-Planners, couples and authorised wedding team members.
+Authenticated planners, couples, and authorised wedding team members.
 
 ### Primary jobs
 
@@ -133,25 +157,29 @@ Planners, couples and authorised wedding team members.
 - Draft guest announcements and RSVP reminders.
 - Draft weekly couple or planner updates.
 - Draft wedding-week briefings.
-- Draft speeches, vows and post-wedding thank-you messages.
+- Draft speeches, vows, and post-wedding thank-you messages.
 
-### Data boundary
+### Data and action boundary
 
-Generated communication is always a draft. The assistant must not send email, WhatsApp, SMS, notifications or public updates automatically.
+- Generated communication is always labelled as a draft.
+- Drafts are stored durably and remain editable.
+- Approval changes only the draft state; it does not send anything.
+- A reviewed email draft may be converted into an existing planner reminder through a confirmed action proposal.
+- Reminder delivery remains in Wewed’s existing preview/send flow and is never triggered directly by AI chat.
+- WhatsApp, SMS, email, notifications, and public updates are not sent automatically.
 
-### Phase 1 implementation
+### Implemented
 
-- Add a dedicated Communication Assistant workspace and prompt profile.
-- Provide quick actions for vendor follow-up, guest announcement, progress update and speech/vow drafting.
-- Clearly label generated text as a draft for review.
-
-### Next data milestone
-
-Add recipient selection, preview, editable draft storage, approval history and explicit send actions through supported communication channels.
+- Dedicated Communication Assistant area and prompt profile.
+- Durable draft storage with audience, channel, subject, body, and status.
+- Review and approval proposals.
+- Controlled conversion to planner reminders.
+- Speech and vows generation retained.
+- Audit events for creation, approval, and action execution.
 
 ---
 
-## Technical design
+## Cross-area technical architecture
 
 ### Request contract
 
@@ -165,14 +193,16 @@ Add recipient selection, preview, editable draft storage, approval history and e
     | 'planner_copilot'
     | 'template_intelligence'
     | 'communication_assistant'
+  weddingSlug?: string
+  useDocuments?: boolean
   messages: Array<{
-    role: 'user' | 'assistant'
+    role: 'user' | 'assistant' | 'system'
     content: string
   }>
 }
 ```
 
-Public requests are always forced to `guest_concierge`. Authenticated planner requests may select any of the four areas. Client-provided system messages are ignored; Wewed owns the system prompt and permission boundary.
+Client-provided system messages are discarded. Public requests are forced to `guest_concierge`. Authenticated planner requests may select a planner area.
 
 ### Prompt composition
 
@@ -180,72 +210,112 @@ Public requests are always forced to `guest_concierge`. Authenticated planner re
 shared Wewed safety and output rules
 + area-specific role and boundaries
 + permission-filtered application context
-+ recent conversation messages
++ permission-filtered retrieved sources
++ recent sanitized conversation messages
 ```
 
-### Rendering
+Application context and retrieved documents are explicitly treated as untrusted data, not as instructions.
 
-- Use `react-markdown` without raw HTML.
-- Restrict compact guest styling to paragraphs, emphasis, lists and safe links.
-- Keep provider/model metadata out of user-facing copy.
+### Durable records
 
-### Observability
+Wewed reuses governed application tables rather than creating an isolated AI database:
 
-Continue returning provider, model, selected area and token usage from API responses for diagnostics, but do not display provider/model metadata to guests. Prompt contents and keys are not logged.
+- `ContentRevision`
+  - `ai_template_version`
+  - `ai_communication_draft`
+  - `ai_action_proposal`
+- `WeddingContent`
+  - `ai_document`
+  - `ai_document_chunk`
+- `AuditEvent`
+  - creation, approval, rejection, execution, failure, ingestion, deletion, and reindex events
+
+### Controlled action state machine
+
+```text
+proposed -> approved -> executed
+         -> rejected
+approved -> failed -> approved or rejected
+```
+
+Execution is unavailable until approval. Every transition is wedding-scoped, permission-checked, and audited.
+
+### Document retrieval
+
+- Browser import accepts extracted TXT, Markdown, CSV, and JSON text, or pasted text.
+- Documents are chunked, checksummed, and indexed with PostgreSQL full-text search.
+- Visibility defaults to `private`.
+- Publishing a document to guests requires an approved action proposal.
+- Private chunks are never eligible for Guest Concierge retrieval.
+- Search results receive deterministic source labels.
+- Documents support retention dates, deletion, and reindexing.
+
+### Rendering and branding
+
+- `react-markdown` is used without raw HTML.
+- Guest styling is restricted to compact paragraphs, emphasis, lists, code, and safe links.
+- Provider/model metadata stays out of user-facing copy.
 
 ---
 
-## Delivery sequence
+## Delivery status
 
 ### Phase 1 — Product separation and presentation
 
-- [x] Provider router and Z.AI preview configuration.
+- [x] Provider router and Z.AI Preview configuration.
 - [x] Safe Markdown in Guest Concierge.
 - [x] “Powered by Wewed AI” branding.
-- [x] Four visible AI product areas in the planner workspace.
-- [x] Area-aware API prompt profiles.
-- [x] Read-only and draft-only boundaries in prompts and UI.
-- [x] Vercel Preview production build.
-- [ ] Browser UAT across guest and planner surfaces.
+- [x] Four visible AI product areas.
+- [x] Area-aware prompts and request contracts.
+- [x] Read-only and draft-only boundaries.
 
 ### Phase 2 — Real application context
 
-- [ ] Published guest-information context builder.
-- [ ] Planner context builder for tasks, RSVPs, vendors, budgets and timeline.
-- [ ] Template catalogue and versioning.
-- [ ] Draft communication storage.
+- [x] Published guest-information context builder.
+- [x] Planner context builder for tasks, RSVPs, vendors, budgets, and timeline.
+- [x] Permission checks before domain retrieval.
+- [x] Versioned template records.
+- [x] Durable communication drafts.
 
 ### Phase 3 — Controlled actions
 
-- [ ] Proposed-change schema.
-- [ ] Human review and confirmation UI.
-- [ ] Audited template application.
-- [ ] Audited communication send flow.
+- [x] Action proposal schema and review queue.
+- [x] Human approval and rejection controls.
+- [x] Audited template application.
+- [x] Audited draft approval and reminder conversion.
+- [x] Transactional execution and duplicate protection.
 
 ### Phase 4 — Document retrieval
 
-- [ ] Ingest contracts, venue manuals, proposals and wedding briefs.
-- [ ] Permission-aware retrieval and source citations.
-- [ ] Retention, deletion and re-indexing controls.
+- [x] Document text ingestion and chunking.
+- [x] Permission-aware PostgreSQL retrieval.
+- [x] Inline source citations.
+- [x] Public/private visibility controls.
+- [x] Retention, deletion, and reindexing controls.
+- [x] Human-reviewed publication to Guest Concierge.
 
 ---
 
-## Acceptance criteria for Phase 1
+## Release acceptance criteria
 
-1. Guest responses render bold text and lists without visible Markdown symbols.
-2. Guest and planner surfaces display “Powered by Wewed AI”, not a model version.
-3. The planner AI workspace visibly exposes all four product areas.
-4. Each planner request sends an explicit area identifier to `/api/ai/chat`.
-5. The API applies the correct area prompt and enforces authentication for planner areas.
-6. Template and communication outputs are described as drafts and do not write to the database.
-7. Existing RSVP and task analysis remains available under Planner Copilot.
-8. The Vercel Preview build succeeds and browser UAT confirms the guest chat still reaches Z.AI.
+1. Guest responses render Markdown without visible formatting syntax.
+2. Guest and planner surfaces display Wewed branding rather than a model version.
+3. Guest responses are grounded in the current guest-accessible wedding, not a global hard-coded wedding.
+4. Private weddings and private document chunks are excluded from public retrieval.
+5. Planner context respects active-wedding membership and domain permissions.
+6. All four AI areas are accessible from the planner ecosystem.
+7. Templates and communications persist as durable records.
+8. No chat request directly writes wedding data or sends a communication.
+9. Action execution requires a proposed, then approved, record.
+10. Template execution is transactional and duplicate-aware.
+11. Document search, publication, deletion, retention, and reindex paths are available.
+12. Prisma validation, migrations, PostgreSQL contracts, unit tests, production build, and built-runtime smoke tests pass in CI.
+13. The Vercel branch Preview is `READY` and production is unchanged.
 
-## Phase 1 validation record
+## Deliberate limitations
 
-- Branch: `feature/ai-provider-router`
-- Latest implementation commit: `689dc1ae153f79b50971fe58fac41c84913612e9`
-- Vercel deployment: `dpl_J77x2tidVXTRtsvN93JwkneCntSb`
-- Build result: `READY`
-- Build error log: no build errors; build completed successfully.
-- Runtime browser UAT: pending.
+- Binary PDF and DOCX parsing is not performed in the browser; text must be extracted before indexing.
+- Document retrieval uses PostgreSQL full-text search rather than embeddings. This keeps the first release inspectable, wedding-scoped, and operationally simple.
+- External communication delivery remains in Wewed’s existing explicit preview/send systems.
+- AI-generated actions are limited to supported, validated action types.
+- Preview write-safety controls may block mutation tests in Preview; write-path automation runs against isolated CI PostgreSQL instead.
