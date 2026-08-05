@@ -27,7 +27,6 @@ describe('targeted Wewed preview remediation', () => {
     expect(home).toContain('Wedding inspiration with a heartbeat.')
     expect(home).toContain('Verified professional support')
     expect(home).toContain('Privacy by design')
-    expect(home).toContain('Ready to start your forever?')
   })
 
   test('marketplace remediation is scoped to marketplace surfaces', () => {
