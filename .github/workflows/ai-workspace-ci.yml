@@ -16,6 +16,7 @@ on:
       - 'docs/AI_WORKSPACE_OPERATIONS.md'
       - '.github/workflows/ai-workspace-ci.yml'
       - 'package.json'
+      - 'tsconfig.ai.json'
   push:
     branches:
       - feature/ai-provider-router
@@ -31,6 +32,7 @@ on:
       - 'docs/AI_WORKSPACE_OPERATIONS.md'
       - '.github/workflows/ai-workspace-ci.yml'
       - 'package.json'
+      - 'tsconfig.ai.json'
   workflow_dispatch:
 
 permissions:
@@ -102,10 +104,10 @@ jobs:
       - name: Run AI unit contracts
         run: bun run ai:unit
 
-      - name: Type-check application
+      - name: Type-check AI workspace
         run: |
           set -o pipefail
-          bunx tsc --noEmit --pretty false 2>&1 | tee typescript-errors.log
+          bunx tsc --project tsconfig.ai.json --pretty false 2>&1 | tee typescript-errors.log
 
       - name: Upload TypeScript diagnostics
         if: failure()
