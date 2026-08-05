@@ -7,6 +7,7 @@ import {
   sanitizeAiChatMessages,
   type SanitizedAiChatMessage,
 } from '@/lib/ai/chat-contract'
+import { consumeAiRateLimit } from '@/lib/ai/rate-limit'
 import {
   isPlannerAiOperation,
   plannerOperationPrompt,
@@ -69,28 +70,6 @@ Begin generated communication with "Draft" or otherwise make its draft status un
 
 const MAX_REQUESTS = 10
 const WINDOW_MS = 60 * 1_000
-const buckets = new Map<string, { count: number; firstAt: number }>()
-
-function pruneBuckets(now: number): void {
-  for (const [key, entry] of buckets.entries()) {
-    if (now - entry.firstAt > WINDOW_MS) buckets.delete(key)
-  }
-}
-
-function rateLimit(clientKey: string): { ok: boolean; retryAfterMs?: number } {
-  const now = Date.now()
-  pruneBuckets(now)
-  const entry = buckets.get(clientKey)
-  if (!entry || now - entry.firstAt > WINDOW_MS) {
-    buckets.set(clientKey, { count: 1, firstAt: now })
-    return { ok: true }
-  }
-  entry.count += 1
-  if (entry.count > MAX_REQUESTS) {
-    return { ok: false, retryAfterMs: WINDOW_MS - (now - entry.firstAt) }
-  }
-  return { ok: true }
-}
 
 function getClientKey(request: NextRequest): string {
   const forwarded = request.headers.get('x-forwarded-for')
@@ -229,9 +208,11 @@ async function resolvePlannerContext(input: {
   }
 
   if (input.area === 'guest_concierge') {
-    if (!GUEST_ACCESSIBLE_PRIVACY.includes(
-      wedding.privacy as (typeof GUEST_ACCESSIBLE_PRIVACY)[number],
-    )) {
+    if (
+      !GUEST_ACCESSIBLE_PRIVACY.includes(
+        wedding.privacy as (typeof GUEST_ACCESSIBLE_PRIVACY)[number],
+      )
+    ) {
       return {
         error: NextResponse.json(
           {
@@ -290,8 +271,22 @@ async function resolvePlannerContext(input: {
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const clientKey = getClientKey(request)
-  const limit = rateLimit(clientKey)
+  let limit
+  try {
+    limit = await consumeAiRateLimit({
+      scope: 'ai-chat',
+      identity: getClientKey(request),
+      maxRequests: MAX_REQUESTS,
+      windowMs: WINDOW_MS,
+    })
+  } catch (error) {
+    console.error('[AI CHAT] Distributed rate limiter failed:', error)
+    return NextResponse.json(
+      { success: false, error: 'AI request controls are temporarily unavailable.' },
+      { status: 503 },
+    )
+  }
+
   if (!limit.ok) {
     return NextResponse.json(
       {
@@ -479,7 +474,8 @@ export async function GET(): Promise<NextResponse> {
       'planner operations built server-side',
       'application context wrapped as untrusted data',
       'chat routes are read-only',
+      'distributed hashed rate limiting',
     ],
-    rateLimit: `${MAX_REQUESTS} requests per minute per instance`,
+    rateLimit: `${MAX_REQUESTS} requests per minute per hashed client identity`,
   })
 }
