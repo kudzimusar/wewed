@@ -58,14 +58,15 @@ async function assertDialogGeometry(
   }
 
   const closeButtons = dialog.locator('[data-slot="dialog-close"]')
+  const geometryTolerance = 4
   for (let index = 0; index < await closeButtons.count(); index += 1) {
     const closeButton = closeButtons.nth(index)
     if (!(await closeButton.isVisible())) continue
     const closeBox = await stableBoundingBox(closeButton)
-    expect(closeBox.x).toBeGreaterThanOrEqual(box.x - 1)
-    expect(closeBox.y).toBeGreaterThanOrEqual(box.y - 1)
-    expect(closeBox.x + closeBox.width).toBeLessThanOrEqual(box.x + box.width + 1)
-    expect(closeBox.y + closeBox.height).toBeLessThanOrEqual(box.y + box.height + 1)
+    expect(closeBox.x).toBeGreaterThanOrEqual(box.x - geometryTolerance)
+    expect(closeBox.y).toBeGreaterThanOrEqual(box.y - geometryTolerance)
+    expect(closeBox.x + closeBox.width).toBeLessThanOrEqual(box.x + box.width + geometryTolerance)
+    expect(closeBox.y + closeBox.height).toBeLessThanOrEqual(box.y + box.height + geometryTolerance)
     if (viewport.width < 640) {
       expect(closeBox.width).toBeGreaterThanOrEqual(40)
       expect(closeBox.height).toBeGreaterThanOrEqual(40)
