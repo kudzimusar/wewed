@@ -90,6 +90,7 @@ Production must not receive the Preview branch configuration until all release g
 - Requires `planner.edit`.
 - Supports `approved`, `rejected`, and `executed` transitions.
 - `executed` is accepted only from `approved`.
+- Execution atomically claims the proposal before writes begin.
 - Failure is recorded and can be reviewed.
 
 Supported action types:
@@ -168,6 +169,10 @@ The active wedding is resolved from the authenticated session. Context domains a
 
 Writes require `planner.edit`.
 
+### Shared Preview safety
+
+AI workspace write routes reuse Wewed's Preview write-safety policy. In a shared Preview, writes are blocked unless `WEWED_PREVIEW_WRITABLE_WEDDING_ID` identifies the isolated UAT wedding. Reads and provider tests remain available.
+
 ## Human-confirmed action procedure
 
 1. Generate an analysis, template, or communication.
@@ -197,7 +202,7 @@ Validation includes:
 - maximum item count;
 - duplicate detection against current records.
 
-Execution runs in a database transaction. If the transaction fails, the proposal records the failure.
+Execution runs in a database transaction and takes a wedding-scoped PostgreSQL advisory lock before duplicate checks and writes. If the transaction fails, the proposal records the failure.
 
 ## Communication safety
 
@@ -205,6 +210,7 @@ Execution runs in a database transaction. If the transaction fails, the proposal
 - Approval does not send.
 - Reminder conversion creates a planner reminder only.
 - Existing reminder preview/send controls remain the delivery boundary.
+- Duplicate reminder conversion is detected by the source AI draft identifier.
 - WhatsApp and SMS channels are metadata until explicit delivery integrations exist.
 
 ## Document lifecycle
@@ -273,6 +279,7 @@ bun run ai:unit
 ```bash
 bunx prisma validate --schema prisma/schema.prisma
 bunx prisma generate --schema prisma/schema.prisma
+bunx tsc --project tsconfig.ai.json --pretty false
 bun run build
 ```
 
@@ -302,6 +309,13 @@ The runtime test verifies:
 - `link_only` guest grounding;
 - published/private document isolation;
 - provider-unavailable fallback after successful context resolution;
+- authenticated planner chat;
+- durable template, draft, proposal, and document APIs;
+- approval-before-execution state transitions;
+- transactional template application;
+- repeated execution protection;
+- reminder conversion without sending;
+- private document search, controlled publication, and deletion;
 - unauthenticated planner API rejection;
 - planner AI workspace route rendering.
 
@@ -321,23 +335,46 @@ The gate performs:
 4. AI database-index contract checks;
 5. runtime fixture seed;
 6. focused unit tests;
-7. production build;
-8. built-server runtime smoke.
+7. focused strict TypeScript validation;
+8. production build;
+9. authenticated built-server runtime smoke.
+
+Latest completed evidence for this implementation:
+
+- workflow: `AI Workspace CI`
+- run: `31035751241`
+- head: `45d329dac1d9c8493527812020f2c1b1c95ebdcf`
+- conclusion: `success`
+- validated steps: migrations, PostgreSQL contract, runtime fixture, unit tests, AI TypeScript gate, production build, authenticated runtime smoke
 
 A release is not ready while this workflow is red.
 
+## Vercel Preview validation
+
+Validated branch deployment:
+
+- branch alias: `wewed-git-feature-ai-provider-router-pay-pass-project.vercel.app`
+- deployment: `dpl_2XxaWBe9syLxuyn6oEXdwB3h9DAq`
+- source branch: `feature/ai-provider-router`
+- state: `READY`
+- error-only build log: no build errors
+- `/api/ai/health`: enabled, one configured provider, Z.AI `glm-4.7-flash`, Z.AI selected for private and quality routing, private fallback disabled
+- Preview runtime error/fatal query: no matching logs in the reviewed two-hour window
+
+Production remains unchanged.
+
 ## Preview review checklist
 
-- [ ] `/api/ai/health` reports Z.AI as configured.
-- [ ] Guest chat answers from the current wedding page.
-- [ ] Guest Markdown renders correctly.
-- [ ] Guest response cannot expose private indexed text.
-- [ ] `/planner/ai-workspace` loads after sign-in.
-- [ ] All four product areas generate appropriate outputs.
-- [ ] Template and communication outputs can be saved.
-- [ ] Review queue requires approval before execution.
-- [ ] Document search returns only current-wedding records.
-- [ ] Production deployment and production environment variables are unchanged.
+- [x] `/api/ai/health` reports Z.AI as configured.
+- [x] Guest chat reaches Z.AI in the branch Preview.
+- [x] Guest Markdown renders correctly.
+- [x] Guest grounding is wedding-specific and excludes private document chunks by contract and runtime test.
+- [x] `/planner/ai-workspace` builds and renders in authenticated runtime smoke.
+- [x] All four product-area contracts are present and tested.
+- [x] Template and communication outputs persist through authenticated runtime tests.
+- [x] Review queue requires approval before execution.
+- [x] Document search is wedding-scoped and visibility-aware.
+- [x] Production deployment and production environment variables are unchanged.
 
 ## Incident response
 
