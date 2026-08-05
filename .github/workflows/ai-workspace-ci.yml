@@ -6,10 +6,14 @@ on:
       - main
     paths:
       - 'src/app/api/ai/**'
+      - 'src/app/planner/ai-workspace/**'
       - 'src/components/wedding/ai-**'
       - 'src/lib/ai/**'
       - 'prisma/migrations/**ai_workspace**'
-      - 'scripts/ai-workspace-postgres-integration.sql'
+      - 'scripts/ai-workspace-**'
+      - 'scripts/test-ai-workspace-runtime.sh'
+      - 'docs/AI_PRODUCT_AREAS_PLAN.md'
+      - 'docs/AI_WORKSPACE_OPERATIONS.md'
       - '.github/workflows/ai-workspace-ci.yml'
       - 'package.json'
   push:
@@ -17,10 +21,14 @@ on:
       - feature/ai-provider-router
     paths:
       - 'src/app/api/ai/**'
+      - 'src/app/planner/ai-workspace/**'
       - 'src/components/wedding/ai-**'
       - 'src/lib/ai/**'
       - 'prisma/migrations/**ai_workspace**'
-      - 'scripts/ai-workspace-postgres-integration.sql'
+      - 'scripts/ai-workspace-**'
+      - 'scripts/test-ai-workspace-runtime.sh'
+      - 'docs/AI_PRODUCT_AREAS_PLAN.md'
+      - 'docs/AI_WORKSPACE_OPERATIONS.md'
       - '.github/workflows/ai-workspace-ci.yml'
       - 'package.json'
   workflow_dispatch:
@@ -35,7 +43,7 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
 
     services:
       postgres:
@@ -54,6 +62,7 @@ jobs:
 
     env:
       CI: 'true'
+      AI_ENABLED: 'false'
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/wewed?schema=public
       DIRECT_URL: postgresql://postgres:postgres@localhost:5432/wewed?schema=public
       PGPASSWORD: postgres
@@ -87,8 +96,14 @@ jobs:
       - name: Verify AI PostgreSQL contracts
         run: psql -h localhost -p 5432 -U postgres -d wewed -f scripts/ai-workspace-postgres-integration.sql
 
+      - name: Seed runtime smoke fixture
+        run: psql -h localhost -p 5432 -U postgres -d wewed -f scripts/ai-workspace-runtime-seed.sql
+
       - name: Run AI unit contracts
         run: bun run ai:unit
 
       - name: Build application
         run: bun run build
+
+      - name: Run built application smoke test
+        run: bash scripts/test-ai-workspace-runtime.sh
