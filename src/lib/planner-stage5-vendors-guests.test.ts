@@ -192,10 +192,12 @@ describe('Stage 5 Vendors and Guests parity', () => {
     expect(collectionRoute).toContain('dietaryNotes: string | null')
     expect(collectionRoute).toContain('checkedIn: boolean')
 
-    expect(itemRoute).toContain("where: { id, weddingId: access.context.weddingId }")
+    expect(itemRoute).toContain('const weddingId = access.context.weddingId')
+    expect(itemRoute).toContain('where: { id, weddingId }')
     expect(itemRoute).toContain("kind === 'table' ? 'seating.edit' : 'guests.edit'")
     expect(itemRoute).toContain('updates.seatingTableId = body.seatingTableId')
-    expect(itemRoute).toContain('db.rSVP.deleteMany({ where: { guestId: existing.id } })')
+    expect(itemRoute).toContain('tx.rSVP.deleteMany({ where: { guestId: existing.id } })')
+    expect(itemRoute).toContain('await db.$transaction(async (tx) =>')
   })
 
   test('Stage 5 capabilities remain restored after worksheet completion', () => {

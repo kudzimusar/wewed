@@ -14,6 +14,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { timelineTimesMatch } from '@/lib/planner-timeline-order'
 
 export interface TimelineRow {
   id: string
@@ -128,7 +129,7 @@ export function PlannerTimelineModule({
               {editingId ? 'Edit timeline item' : 'Add timeline item'}
             </h2>
             <p className="font-sans text-xs text-champagne/45">
-              Maintain the selected wedding’s operational run sheet.
+              Items are placed automatically by time. Arrows only order events that share the same time.
             </p>
           </div>
           <Button
@@ -239,77 +240,85 @@ export function PlannerTimelineModule({
               detail="Build the wedding-day run sheet manually or import the timeline worksheet."
             />
           ) : (
-            timeline.map((item, index) => (
-              <div
-                key={item.id}
-                className="grid gap-3 rounded-xl border border-gold/10 bg-espresso/45 p-3 sm:grid-cols-[7rem_minmax(0,1fr)_auto] sm:items-center"
-              >
-                <div className="flex items-center gap-2 font-serif text-lg text-gold">
-                  <Clock3 className="size-4" />
-                  {item.time}
+            timeline.map((item, index) => {
+              const canMoveUp = index > 0 && timelineTimesMatch(item.time, timeline[index - 1].time)
+              const canMoveDown = index < timeline.length - 1
+                && timelineTimesMatch(item.time, timeline[index + 1].time)
+
+              return (
+                <div
+                  key={item.id}
+                  data-testid="timeline-item"
+                  data-timeline-time={item.time}
+                  className="grid gap-3 rounded-xl border border-gold/10 bg-espresso/45 p-3 sm:grid-cols-[7rem_minmax(0,1fr)_auto] sm:items-center"
+                >
+                  <div className="flex items-center gap-2 font-serif text-lg text-gold">
+                    <Clock3 className="size-4" />
+                    {item.time}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-sans text-sm font-medium">{item.event}</p>
+                    <p className="text-xs text-champagne/45">
+                      {item.location || 'Location not set'}
+                      {item.duration ? ` · ${item.duration}` : ''}
+                    </p>
+                    {item.notes && (
+                      <p className="mt-1 font-sans text-xs text-champagne/60">{item.notes}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Move ${item.event} up among events at ${item.time}`}
+                      disabled={saving || !canMoveUp}
+                      onClick={() => void onMoveTimelineItem(item, -1)}
+                      className="size-8 text-champagne/45 hover:text-gold"
+                    >
+                      <ChevronUp className="size-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Move ${item.event} down among events at ${item.time}`}
+                      disabled={saving || !canMoveDown}
+                      onClick={() => void onMoveTimelineItem(item, 1)}
+                      className="size-8 text-champagne/45 hover:text-gold"
+                    >
+                      <ChevronDown className="size-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Edit ${item.event}`}
+                      disabled={saving}
+                      onClick={() => startEdit(item)}
+                      className="size-8 text-champagne/45 hover:text-gold"
+                    >
+                      <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Delete ${item.event}`}
+                      disabled={saving}
+                      onClick={() => {
+                        if (window.confirm(`Delete timeline item “${item.event}”?`)) {
+                          void onDeleteTimelineItem(item)
+                        }
+                      }}
+                      className="size-8 text-champagne/45 hover:bg-clay/10 hover:text-clay-light"
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <p className="font-sans text-sm font-medium">{item.event}</p>
-                  <p className="text-xs text-champagne/45">
-                    {item.location || 'Location not set'}
-                    {item.duration ? ` · ${item.duration}` : ''}
-                  </p>
-                  {item.notes && (
-                    <p className="mt-1 font-sans text-xs text-champagne/60">{item.notes}</p>
-                  )}
-                </div>
-                <div className="flex items-center gap-1">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Move ${item.event} up`}
-                    disabled={saving || index === 0}
-                    onClick={() => void onMoveTimelineItem(item, -1)}
-                    className="size-8 text-champagne/45 hover:text-gold"
-                  >
-                    <ChevronUp className="size-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Move ${item.event} down`}
-                    disabled={saving || index === timeline.length - 1}
-                    onClick={() => void onMoveTimelineItem(item, 1)}
-                    className="size-8 text-champagne/45 hover:text-gold"
-                  >
-                    <ChevronDown className="size-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Edit ${item.event}`}
-                    disabled={saving}
-                    onClick={() => startEdit(item)}
-                    className="size-8 text-champagne/45 hover:text-gold"
-                  >
-                    <Pencil className="size-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Delete ${item.event}`}
-                    disabled={saving}
-                    onClick={() => {
-                      if (window.confirm(`Delete timeline item “${item.event}”?`)) {
-                        void onDeleteTimelineItem(item)
-                      }
-                    }}
-                    className="size-8 text-champagne/45 hover:bg-clay/10 hover:text-clay-light"
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                </div>
-              </div>
-            ))
+              )
+            })
           )}
         </div>
       </SectionCard>

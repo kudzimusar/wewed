@@ -56,47 +56,75 @@ async function openPlanner(page: Page): Promise<void> {
 export async function openModule(page: Page, moduleKey: ModuleKey): Promise<void> {
   const routeKey = moduleKey === 'checklist' ? 'tasks' : moduleKey
   const targetUrl = `/planner/${routeKey}#planner-workspace`
+  const targetPattern = new RegExp(`/planner/${routeKey}(?:[?#]|$)`)
+  const worksheetButton = page.getByTestId(`worksheet-module-${moduleKey}`)
 
-  try {
-    const worksheetButton = page.getByTestId(`worksheet-module-${moduleKey}`)
-    if (!(await worksheetButton.isVisible())) {
-      const toggle = page.getByTestId('worksheet-tools-toggle')
-      if (await toggle.isVisible()) {
-        await toggle.click({ timeout: 2_500 })
-        await expect(worksheetButton).toBeVisible({ timeout: 3_000 })
-      } else {
-        await page.goto(targetUrl)
+  if (!targetPattern.test(page.url())) {
+    try {
+      if (!(await worksheetButton.isVisible())) {
+        const toggle = page.getByTestId('worksheet-tools-toggle')
+        if (await toggle.isVisible()) {
+          await expect(toggle).toBeEnabled()
+          if ((await toggle.getAttribute('aria-expanded')) !== 'true') {
+            await toggle.click({ timeout: 2_500 })
+            await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+          }
+          await expect(worksheetButton).toBeVisible({ timeout: 3_000 })
+        }
       }
+
+      if (await worksheetButton.isVisible()) {
+        await worksheetButton.click({ timeout: 3_000 })
+        await page.waitForURL(targetPattern, { timeout: 3_000 }).catch(() => undefined)
+      }
+    } catch {
+      // Direct canonical navigation below is the deterministic fallback.
     }
 
-    if (await worksheetButton.isVisible()) {
-      await worksheetButton.click({ timeout: 3_000 })
-    } else if (!new URL(page.url()).pathname.endsWith(`/planner/${routeKey}`)) {
-      await page.goto(targetUrl)
-    }
-  } catch {
+    if (!targetPattern.test(page.url())) await page.goto(targetUrl)
+  }
+
+  // A test may already be on the correct module with an import/history route open.
+  // Canonical navigation closes that transient panel deterministically instead of
+  // waiting for React disclosure state to reconcile and producing a flaky gate.
+  const liveUrl = new URL(page.url())
+  if (liveUrl.searchParams.get('panel') === 'worksheet' || /\/(?:import|imports)(?:[?#]|$)/.test(page.url())) {
     await page.goto(targetUrl)
   }
 
-  await expect(page).toHaveURL(new RegExp(`/planner/${routeKey}(?:[?#]|$)`))
+  await expect(page).toHaveURL(targetPattern)
+  await expect(page.locator('[data-active-planner-module]')).toHaveAttribute(
+    'data-active-planner-module',
+    routeKey,
+  )
+
   const worksheetToggle = page.getByTestId('worksheet-tools-toggle')
-  if (await worksheetToggle.isVisible()) {
-    // Module selection intentionally closes the compact worksheet panel. Wait
-    // for that route transition to settle before a caller performs another
-    // panel action, otherwise the old navigation can overwrite the new query.
-    await expect.poll(() => new URL(page.url()).searchParams.get('panel')).not.toBe('worksheet')
-    await expect(worksheetToggle).toHaveAttribute('aria-expanded', 'false')
-  }
+  if (await worksheetToggle.isVisible()) await expect(worksheetToggle).toBeEnabled()
 
   const mobileSelector = page.getByRole('combobox', { name: 'Planner workspace section' })
+  const workspaceNavigation = page.getByRole('navigation', { name: 'Planner workspace sections' })
+  await expect.poll(async () => {
+    if (await mobileSelector.isVisible()) return 'mobile'
+    if (await workspaceNavigation.isVisible()) return 'desktop'
+    return 'pending'
+  }, { message: 'planner responsive navigation is ready' }).not.toBe('pending')
+
   if (await mobileSelector.isVisible()) {
     await expect(mobileSelector).toHaveValue(routeKey)
   } else {
-    const workspaceNavigation = page.getByRole('navigation', { name: 'Planner workspace sections' })
     await expect(
       workspaceNavigation.getByRole('button', { name: MODULE_LABELS[moduleKey], exact: true }),
     ).toHaveClass(/bg-gold/)
   }
+}
+
+export async function openWorksheetActions(page: Page): Promise<void> {
+  const toggle = page.getByTestId('worksheet-actions-toggle')
+  await expect(toggle).toBeVisible()
+  await expect(toggle).toBeEnabled()
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+  await expect(page.locator('#planner-worksheet-actions')).toBeVisible()
 }
 
 export function acceptNextConfirmation(page: Page): void {

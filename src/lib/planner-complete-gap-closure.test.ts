@@ -40,7 +40,7 @@ describe('complete planner gap closure', () => {
       'let savedPosition = 0',
       'if (!restored && savedPosition > 0 && position === 0) return',
       'const routeKey = pathname',
-      'pendingToolsOpen.current = nextOpen',
+      'pendingActionsOpen.current = nextOpen',
       "window.addEventListener('pagehide', save)",
       "document.addEventListener('visibilitychange', saveWhenHidden)",
       'data-planner-primary-scroll',
@@ -99,13 +99,13 @@ describe('complete planner gap closure', () => {
       source('src/components/wedding/planner/modules/planner-tasks-module.tsx'),
       source('src/components/wedding/planner/modules/planner-budget-module.tsx'),
       source('src/components/wedding/planner/modules/planner-guests-module.tsx'),
-      source('src/components/wedding/planner/modules/planner-seating-module.tsx'),
+      source('src/components/wedding/planner/modules/planner-seating-operations-module.tsx'),
       source('src/app/api/planner/guests/[id]/route.ts'),
     ])
     for (const marker of ['Save task', 'Description', 'Priority', 'Due date', 'Assignee', 'role="alert"', 'usePlannerFilterState']) expect(tasks).toContain(marker)
     for (const marker of ['Search item, vendor, category, or notes', 'All payment states', 'Vendor:', 'border-champagne bg-champagne']) expect(budget).toContain(marker)
     for (const marker of ['Save guest', 'Filter guests by side', 'Filter guests by RSVP', 'onUpdateGuest']) expect(guests).toContain(marker)
-    for (const marker of ['Search table or guest', 'Filter seating by assignment', 'Filter seating by capacity', 'Filter seating by occupancy']) expect(seating).toContain(marker)
+    for (const marker of ['Search table, zone, note, or Guest', 'Filter seating by table type', 'Filter seating by assignment', 'Filter seating by capacity', 'Filter seating by occupancy', 'Move selected', 'Print plan']) expect(seating).toContain(marker)
     expect(guestApi).toContain("NOT: { id: existing.id }")
     expect(guestApi).toContain("field: 'email'")
   })

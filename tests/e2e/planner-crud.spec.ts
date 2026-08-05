@@ -34,10 +34,14 @@ test('real browser CRUD persists for tasks, budget, and vendors', async ({ plann
   await page.reload()
   await expect(page.getByRole('heading', { name: E2E_WEDDINGS.primary.title })).toBeVisible()
   await openModule(page, 'checklist')
+  await page.getByLabel('Filter tasks by priority').selectOption('all')
+  await expect(page.getByText(lowPriorityTask, { exact: true })).toBeVisible()
   await expect(page.getByLabel(`Update status for ${taskName}`)).toHaveValue('done')
   acceptNextConfirmation(page)
   await page.getByRole('button', { name: `Delete ${taskName}` }).click()
   await expect(page.getByText(taskName, { exact: true })).toHaveCount(0)
+  await page.getByLabel('Filter tasks by priority').selectOption('all')
+  await expect(page.getByRole('button', { name: `Delete ${lowPriorityTask}` })).toBeVisible()
   acceptNextConfirmation(page)
   await page.getByRole('button', { name: `Delete ${lowPriorityTask}` }).click()
   await expect(page.getByText(lowPriorityTask, { exact: true })).toHaveCount(0)
@@ -91,9 +95,7 @@ test('real browser CRUD persists for tasks, budget, and vendors', async ({ plann
   await vendorCard.locator('select[name="paymentStatus"]').selectOption('deposit')
   await vendorCard.getByRole('button', { name: 'Save vendor details' }).click()
   await expect(page.getByText(/Photographer · Updated Contact/)).toBeVisible()
-  await expect(
-    vendorCard.locator('span[data-slot="badge"]').filter({ hasText: 'Signed' }),
-  ).toBeVisible()
+  await expect(vendorCard.locator('span[data-slot="badge"]').filter({ hasText: 'Signed' })).toBeVisible()
   acceptNextConfirmation(page)
   await page.getByRole('button', { name: `Delete ${vendorName}` }).click()
   await expect(page.getByText(vendorName, { exact: true })).toHaveCount(0)
@@ -114,28 +116,31 @@ test('real browser CRUD covers guests, seating, timeline, and printing', async (
   const tableName = 'Browser Operations Table'
   const updatedTableName = 'Browser Operations Table Updated'
   await openModule(page, 'seating')
-  await page.locator('#workspace-new-table-name').fill(tableName)
-  await page.locator('#workspace-new-table-capacity').fill('6')
-  await page.getByRole('button', { name: 'Add table' }).click()
+  await page.getByRole('button', { name: /Add table/ }).click()
+  await page.locator('#seating-new-name').fill(tableName)
+  await page.locator('#seating-new-type').selectOption('ordinary')
+  await page.locator('#seating-new-capacity').fill('6')
+  await page.locator('#seating-new-zone').fill('Zone B')
+  await page.locator('#seating-new-notes').fill('Browser operational table')
+  await page.getByRole('button', { name: 'Create', exact: true }).click()
   await expect(page.getByText(tableName, { exact: true })).toBeVisible()
 
   const assignment = page.getByLabel(`Assign guest ${guestName}`)
-  const tableValue = await assignment
-    .locator('option')
-    .filter({ hasText: tableName })
-    .getAttribute('value')
+  const tableValue = await assignment.locator('option').filter({ hasText: tableName }).getAttribute('value')
   expect(tableValue).toBeTruthy()
   await assignment.selectOption(tableValue ?? '')
-  await expect(page.getByText(guestName, { exact: true })).toBeVisible()
+  await expect(page.locator('[data-seating-table-id]').filter({ hasText: tableName })).toContainText(guestName)
 
   await page.getByRole('button', { name: `Edit ${tableName}` }).click()
-  const tableCard = page
-    .getByRole('button', { name: `Save ${tableName}` })
-    .locator('xpath=ancestor::section[1]')
-  await tableCard.locator('input').nth(0).fill(updatedTableName)
-  await tableCard.locator('input').nth(1).fill('7')
-  await page.getByRole('button', { name: `Save ${tableName}` }).click()
-  await expect(page.getByText(updatedTableName, { exact: true })).toBeVisible()
+  await page.locator('[id^="seating-edit-name-"]').fill(updatedTableName)
+  await page.locator('[id^="seating-edit-capacity-"]').fill('7')
+  await page.locator('[id^="seating-edit-type-"]').selectOption('vip_friends')
+  await page.locator('[id^="seating-edit-zone-"]').fill('Front right centre')
+  await page.locator('[id^="seating-edit-notes-"]').fill('Updated live operations record')
+  await page.getByRole('button', { name: 'Save table' }).click()
+  const updatedCard = page.locator('[data-seating-table-id]').filter({ hasText: updatedTableName })
+  await expect(updatedCard).toContainText('VIP — friends')
+  await expect(updatedCard).toContainText('Front right centre')
 
   acceptNextConfirmation(page)
   await page.getByRole('button', { name: `Delete ${updatedTableName}` }).click()
@@ -169,9 +174,7 @@ test('real browser CRUD covers guests, seating, timeline, and printing', async (
   const printPage = await popupPromise
   await expect(printPage.getByRole('heading', { name: 'Wedding Day Timeline' })).toBeVisible()
   await expect(printPage.locator('.event').filter({ hasText: updatedTimelineName })).toBeVisible()
-  await expect(
-    printPage.getByText(E2E_WEDDINGS.secondary.seededTimeline, { exact: true }),
-  ).toHaveCount(0)
+  await expect(printPage.getByText(E2E_WEDDINGS.secondary.seededTimeline, { exact: true })).toHaveCount(0)
   await printPage.close()
 
   acceptNextConfirmation(page)

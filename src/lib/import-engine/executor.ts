@@ -1,179 +1,148 @@
 /**
- * wewed — Import/Export Engine — Import Executor
- * ============================================================
- * Executes a confirmed import preview: for each valid row, calls
- * the schema's `upsert` to create or update the DB record.
- *
- * Properties:
- *  - ATOMIC PER ROW: each row's upsert is wrapped in its own
- *    Prisma transaction. If a single row fails, the engine stops
- *    the loop (rather than continuing and leaving partial state).
- *  - ROLLBACK TOKEN: every executed import gets a token whose
- *    snapshot records every created id (for DELETE) and every
- *    updated id's pre-import state (for RESTORE). The DELETE
- *    /api/imports/[jobId] route calls `rollbackImport(token)`.
- *  - ERROR REPORT: invalid rows are collected into an array with
- *    their row index and errors — returned in the ImportResult
- *    so the UI can show a downloadable error report.
- *
- * NOTE on ImportJob model: the spec calls for a Prisma `ImportJob`
- * + `ImportRollback` model. They will be added to the schema
- * separately (Phase 2 hardening). Until then we use an in-memory
- * Map keyed by rollback token. Restarting the dev server clears
- * this map — the user can still execute imports, just can't
- * roll back after a server restart. Acceptable for the current
- * milestone; the public API (`executeImport` / `rollbackImport`)
- * won't change when the Prisma model is added.
+ * Executes confirmed worksheet previews with per-row atomicity and durable,
+ * wedding-scoped rollback snapshots.
  */
-
 import { randomUUID } from 'crypto'
 import { db } from '@/lib/db'
 import type {
   ImportErrorEntry,
+  ImportExecutionContext,
   ImportPreview,
   ImportResult,
   ModuleSchema,
   RollbackSnapshot,
 } from './types'
 
-// ============================================================
-// In-memory rollback token store
-// (Replace with Prisma ImportJob model when added.)
-// ============================================================
-
 const ROLLBACK_STORE = new Map<string, RollbackSnapshot>()
-
-// Per-wedding cap to avoid unbounded memory growth in dev.
 const MAX_SNAPSHOTS_PER_WEDDING = 50
+const MAX_RUNTIME_ERRORS = 5
 
 function pruneOldSnapshots(weddingId: string): void {
   const entries = Array.from(ROLLBACK_STORE.entries())
-    .filter(([, snap]) => snap.weddingId === weddingId)
-    .sort((a, b) => (a[1].executedAt < b[1].executedAt ? -1 : 1))
+    .filter(([, snapshot]) => snapshot.weddingId === weddingId)
+    .sort((left, right) => left[1].executedAt.localeCompare(right[1].executedAt))
   while (entries.length >= MAX_SNAPSHOTS_PER_WEDDING) {
     const oldest = entries.shift()
     if (oldest) ROLLBACK_STORE.delete(oldest[0])
   }
 }
 
-/** Test-only / dev helper: peek at the rollback store. */
 export function _peekRollbackStore(): typeof ROLLBACK_STORE {
   return ROLLBACK_STORE
 }
 
-/** Test-only / dev helper: clear all rollback snapshots. */
 export function _clearRollbackStore(): void {
   ROLLBACK_STORE.clear()
 }
 
-// ============================================================
-// Execute
-// ============================================================
-
-/**
- * Execute a confirmed import preview.
- *
- * @param preview    the ImportPreview returned by generatePreview
- * @param schema     the module schema
- * @param weddingId  the wedding these records belong to
- * @returns          ImportResult with counts + rollback token
- */
 export async function executeImport(
   preview: ImportPreview,
   schema: ModuleSchema,
   weddingId: string,
+  context: ImportExecutionContext = {},
 ): Promise<ImportResult> {
   const jobId = randomUUID()
   const rollbackToken = `rb_${randomUUID().replace(/-/g, '')}`
-
   const errorReport: ImportErrorEntry[] = []
   const createdIds: string[] = []
-  const updatedSnapshots: Array<{ id: string; snapshot: any }> = []
+  const updatedById = new Map<string, { id: string; snapshot: any }>()
 
   let created = 0
   let updated = 0
   let skipped = 0
   let errors = 0
+  let runtimeErrors = 0
 
-  // Process rows in order. Invalid rows are recorded but skipped.
-  for (const row of preview.rows) {
+  for (let index = 0; index < preview.rows.length; index += 1) {
+    const row = preview.rows[index]
     if (row.action === 'invalid') {
-      errors++
+      errors += 1
       errorReport.push({ row: row.rowIndex, errors: row.errors })
       continue
     }
     if (row.action === 'skip') {
-      skipped++
+      skipped += 1
       continue
     }
 
+    let snapshotAddedForThisRow = false
     try {
-      // Convert the mapped row to a DB record.
       const record = schema.rowToRecord(row.mapped)
-
-      // For updates: snapshot the existing record BEFORE we mutate.
       let existingForUpsert: any = undefined
-      if (row.action === 'update' && row.existingId) {
+      let snapshotEntry: { id: string; snapshot: any } | undefined
+
+      if (row.action === 'update') {
+        if (!row.existingId) throw new Error('Update row is missing its existing record ID.')
         existingForUpsert = await findExistingById(schema, row.existingId, weddingId)
-        if (existingForUpsert) {
-          // Snapshot a JSON-serializable version (recordToRow is fine).
-          updatedSnapshots.push({
-            id: existingForUpsert.id,
-            snapshot: schema.recordToRow(existingForUpsert),
-          })
+        if (!existingForUpsert) throw new Error('Existing record was not found in the active wedding.')
+
+        snapshotEntry = updatedById.get(existingForUpsert.id)
+        if (!snapshotEntry) {
+          const snapshot = schema.captureRollbackSnapshot
+            ? await schema.captureRollbackSnapshot(weddingId, existingForUpsert, record)
+            : schema.recordToRow(existingForUpsert)
+          snapshotEntry = { id: existingForUpsert.id, snapshot }
+          updatedById.set(existingForUpsert.id, snapshotEntry)
+          snapshotAddedForThisRow = true
         }
       }
 
-      // Run the upsert. Per-row atomicity: wrap in a transaction.
-      // Note: schemas' upserts use `db` directly (not tx), so this
-      // $transaction is the outermost atomic boundary for any nested
-      // creates the upsert performs. SQLite supports nested writes
-      // under a single interactive transaction.
-      const result = await db.$transaction(async () => {
-        return schema.upsert(weddingId, record, existingForUpsert)
+      const result = await db.$transaction(async (transaction) => {
+        const written = await schema.upsert(
+          weddingId,
+          record,
+          existingForUpsert,
+          { ...context, db: transaction },
+        )
+        if (!written?.id) throw new Error('Worksheet write did not return a record ID.')
+        return written
       })
 
-      if (result?.id) {
-        if (row.action === 'create') {
-          createdIds.push(result.id)
-          created++
-        } else {
-          updated++
-        }
-      } else {
-        // No id returned — treat as skip to be safe.
-        skipped++
+      if (snapshotEntry && result.__rollbackPatch && typeof result.__rollbackPatch === 'object') {
+        Object.assign(snapshotEntry.snapshot, result.__rollbackPatch)
       }
-    } catch (err) {
-      // A row-level failure aborts this row only. We log it as an
-      // error and continue — the couple should still be able to
-      // review + roll back the rows that DID succeed.
-      errors++
-      const msg = err instanceof Error ? err.message : String(err)
+
+      if (row.action === 'create') {
+        createdIds.push(result.id)
+        created += 1
+      } else {
+        updated += 1
+      }
+    } catch (error) {
+      if (snapshotAddedForThisRow && row.existingId) updatedById.delete(row.existingId)
+      errors += 1
+      runtimeErrors += 1
       errorReport.push({
         row: row.rowIndex,
-        errors: [`DB write failed: ${msg}`],
+        errors: [`DB write failed: ${error instanceof Error ? error.message : String(error)}`],
       })
-      // Stop further execution if this looks like a systemic failure
-      // (e.g. unique constraint that will repeat). Heuristic: 5+ DB
-      // errors in a single import → bail.
-      if (errors >= 5) {
-        errorReport.push({
-          row: 0,
-          errors: ['Aborted after 5 DB errors — fix the data and retry.'],
-        })
+
+      if (runtimeErrors >= MAX_RUNTIME_ERRORS) {
+        for (const remaining of preview.rows.slice(index + 1)) {
+          if (remaining.action === 'skip') {
+            skipped += 1
+            continue
+          }
+          errors += 1
+          errorReport.push({
+            row: remaining.rowIndex,
+            errors: [
+              ...(remaining.action === 'invalid' ? remaining.errors : []),
+              `Not executed because the import stopped after ${MAX_RUNTIME_ERRORS} database errors.`,
+            ],
+          })
+        }
         break
       }
     }
   }
 
-  // Persist the rollback snapshot.
   const snapshot: RollbackSnapshot = {
     jobId,
     moduleKey: schema.key,
     weddingId,
     createdIds,
-    updatedSnapshots,
+    updatedSnapshots: [...updatedById.values()],
     executedAt: new Date().toISOString(),
   }
   pruneOldSnapshots(weddingId)
@@ -192,10 +161,6 @@ export async function executeImport(
   }
 }
 
-// ============================================================
-// Rollback
-// ============================================================
-
 export interface RollbackResult {
   rollbackToken: string
   deleted: number
@@ -204,15 +169,12 @@ export interface RollbackResult {
   errors: string[]
 }
 
-/**
- * Reverse an import by rollback token. Deletes created records,
- * restores updated records to their pre-import state.
- */
 export async function rollbackImport(
   rollbackToken: string,
+  context: ImportExecutionContext = {},
 ): Promise<RollbackResult> {
-  const snap = ROLLBACK_STORE.get(rollbackToken)
-  if (!snap) {
+  const snapshot = ROLLBACK_STORE.get(rollbackToken)
+  if (!snapshot) {
     return {
       rollbackToken,
       deleted: 0,
@@ -222,158 +184,149 @@ export async function rollbackImport(
     }
   }
 
+  const { getWorksheetSchema } = await import('./schema-resolver')
+  const schema = getWorksheetSchema(snapshot.moduleKey)
   let deleted = 0
   let restored = 0
   let failed = 0
-  const errors: string[] = []
+  const rollbackErrors: string[] = []
 
-  // 1. Delete created records
-  for (const id of snap.createdIds) {
+  // Reverse create order so dependent records created later are removed first.
+  for (const id of [...snapshot.createdIds].reverse()) {
     try {
-      await deleteRecordById(snap.moduleKey, id)
-      deleted++
-    } catch (err) {
-      failed++
-      errors.push(
-        `Failed to delete ${snap.moduleKey}#${id}: ${err instanceof Error ? err.message : String(err)}`,
+      if (schema.deleteCreated) {
+        await db.$transaction((transaction) => schema.deleteCreated!(
+          snapshot.weddingId,
+          id,
+          { ...context, db: transaction },
+        ))
+      } else {
+        await deleteRecordById(snapshot.moduleKey, id, snapshot.weddingId)
+      }
+      deleted += 1
+    } catch (error) {
+      failed += 1
+      rollbackErrors.push(
+        `Failed to delete ${snapshot.moduleKey}#${id}: ${error instanceof Error ? error.message : String(error)}`,
       )
     }
   }
 
-  // 2. Restore updated records
-  for (const { id, snapshot } of snap.updatedSnapshots) {
+  // Reverse update order so sequential relational changes unwind correctly.
+  for (const { id, snapshot: previous } of [...snapshot.updatedSnapshots].reverse()) {
     try {
-      await restoreRecordById(snap.moduleKey, id, snapshot, snap.weddingId)
-      restored++
-    } catch (err) {
-      failed++
-      errors.push(
-        `Failed to restore ${snap.moduleKey}#${id}: ${err instanceof Error ? err.message : String(err)}`,
+      if (schema.restoreUpdated) {
+        await db.$transaction((transaction) => schema.restoreUpdated!(
+          snapshot.weddingId,
+          id,
+          previous,
+          { ...context, db: transaction },
+        ))
+      } else {
+        await restoreRecordById(snapshot.moduleKey, id, previous, snapshot.weddingId)
+      }
+      restored += 1
+    } catch (error) {
+      failed += 1
+      rollbackErrors.push(
+        `Failed to restore ${snapshot.moduleKey}#${id}: ${error instanceof Error ? error.message : String(error)}`,
       )
     }
   }
 
-  // Drop the snapshot so the token can't be replayed.
   ROLLBACK_STORE.delete(rollbackToken)
-
-  return { rollbackToken, deleted, restored, failed, errors }
+  return { rollbackToken, deleted, restored, failed, errors: rollbackErrors }
 }
 
-// ============================================================
-// Internal helpers
-// ============================================================
-
-/**
- * Find an existing record by id, using the schema's fetchExisting
- * (we don't have a generic get-by-id on every schema, so we filter
- * the fetchExisting result). For very large modules, a per-schema
- * `findById` would be more efficient — acceptable for now.
- */
 async function findExistingById(
   schema: ModuleSchema,
   id: string,
   weddingId: string,
 ): Promise<any | undefined> {
   const all = await schema.fetchExisting(weddingId)
-  return all.find((r) => r.id === id)
+  return all.find((record) => record.id === id)
 }
 
-/**
- * Delete a record by id using the appropriate Prisma model.
- */
-async function deleteRecordById(moduleKey: string, id: string): Promise<void> {
+async function deleteRecordById(moduleKey: string, id: string, weddingId: string): Promise<void> {
+  let count = 0
   switch (moduleKey) {
     case 'guests':
     case 'wedding-party':
     case 'travel':
-      await db.guest.delete({ where: { id } })
+      count = (await db.guest.deleteMany({ where: { id, weddingId } })).count
       break
     case 'budget':
-      await db.budgetItem.delete({ where: { id } })
+      count = (await db.budgetItem.deleteMany({ where: { id, weddingId } })).count
       break
     case 'checklist':
-      await db.plannerTask.delete({ where: { id } })
+      count = (await db.plannerTask.deleteMany({ where: { id, weddingId } })).count
       break
     case 'seating':
-      // Seating import creates/updates Guests. The "created" snapshot
-      // ids are guest ids; the table itself is intentionally left
-      // (it may now have other guests assigned).
-      await db.guest.delete({ where: { id } }).catch(() => {})
+      count = (await db.guest.deleteMany({ where: { id, weddingId } })).count
       break
     case 'vendors':
-      await db.vendor.delete({ where: { id } })
+      count = (await db.vendor.deleteMany({ where: { id, weddingId } })).count
       break
     case 'timeline':
-      await db.programmeItem.delete({ where: { id } })
+      count = (await db.programmeItem.deleteMany({ where: { id, weddingId } })).count
       break
     case 'songs':
-      await db.song.delete({ where: { id } })
+      count = (await db.song.deleteMany({ where: { id, weddingId } })).count
       break
     case 'media':
-      await db.mediaItem.delete({ where: { id } })
+      count = (await db.mediaItem.deleteMany({ where: { id, weddingId } })).count
       break
     default:
       throw new Error(`Unknown module for delete: ${moduleKey}`)
   }
+  if (count !== 1) throw new Error('Record was not found in the active wedding.')
 }
 
-/**
- * Restore a record by id from a snapshot row (the output of
- * schema.recordToRow). We re-convert via schema.rowToRecord, then
- * call Prisma's update.
- */
 async function restoreRecordById(
   moduleKey: string,
   id: string,
-  snapshot: Record<string, string>,
+  previous: Record<string, string>,
   weddingId: string,
 ): Promise<void> {
-  // We need the schema to convert row → record. Import here would
-  // cause a cycle (schemas.ts imports nothing from executor.ts).
-  // Use a dynamic lookup.
-  const { getModuleSchema } = await import('./schemas')
-  const schema = getModuleSchema(moduleKey)
-  const record = schema.rowToRecord(snapshot)
-  // Strip _importMeta — schemas' upsert drops it before writing.
+  const { getWorksheetSchema } = await import('./schema-resolver')
+  const schema = getWorksheetSchema(moduleKey as any)
+  const record = schema.rowToRecord(previous)
   const { _importMeta, ...data } = record
 
+  let count = 0
   switch (moduleKey) {
     case 'guests':
     case 'wedding-party':
     case 'travel':
-      await db.guest.update({ where: { id }, data: { ...data, weddingId } })
+      count = (await db.guest.updateMany({ where: { id, weddingId }, data })).count
       break
     case 'budget':
-      await db.budgetItem.update({ where: { id }, data: { ...data, weddingId } })
+      count = (await db.budgetItem.updateMany({ where: { id, weddingId }, data })).count
       break
     case 'checklist':
-      await db.plannerTask.update({ where: { id }, data: { ...data, weddingId } })
+      count = (await db.plannerTask.updateMany({ where: { id, weddingId }, data })).count
       break
     case 'seating':
-      // For seating, restore = remove the seatingTable link (set to null)
-      await db.guest.update({ where: { id }, data: { seatingTableId: null } }).catch(() => {})
+      count = (await db.guest.updateMany({ where: { id, weddingId }, data: { seatingTableId: null } })).count
       break
     case 'vendors':
-      await db.vendor.update({ where: { id }, data: { ...data, weddingId } })
+      count = (await db.vendor.updateMany({ where: { id, weddingId }, data })).count
       break
     case 'timeline':
-      await db.programmeItem.update({ where: { id }, data: { ...data, weddingId } })
+      count = (await db.programmeItem.updateMany({ where: { id, weddingId }, data })).count
       break
     case 'songs':
-      await db.song.update({ where: { id }, data: { ...data, weddingId } })
+      count = (await db.song.updateMany({ where: { id, weddingId }, data })).count
       break
     case 'media':
-      await db.mediaItem.update({ where: { id }, data: { ...data, weddingId } })
+      count = (await db.mediaItem.updateMany({ where: { id, weddingId }, data })).count
       break
     default:
       throw new Error(`Unknown module for restore: ${moduleKey}`)
   }
+  if (count !== 1) throw new Error('Record was not found in the active wedding.')
 }
 
-/**
- * Look up a rollback snapshot by token (without consuming it).
- * Used by GET /api/imports/[jobId] to surface job status.
- */
 export function peekRollback(token: string): RollbackSnapshot | undefined {
   return ROLLBACK_STORE.get(token)
 }

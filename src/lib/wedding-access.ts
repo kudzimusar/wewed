@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { readAppSession, type AppSession } from '@/lib/app-session'
 import { isWewedPlatformAdministrator } from '@/lib/business-access'
+import {
+  PREVIEW_WRITE_BLOCK_MESSAGE,
+  shouldBlockPreviewWrite,
+} from '@/lib/preview-write-safety'
 
 export type MembershipRole = 'owner' | 'planner' | 'coordinator' | 'viewer' | 'admin'
 
@@ -261,6 +265,28 @@ export async function requireWeddingPermission(
       error: NextResponse.json(
         { success: false, error: `Forbidden — requires ${permission} permission.` },
         { status: 403 }
+      ),
+    }
+  }
+
+  if (
+    shouldBlockPreviewWrite({
+      method: request.method,
+      weddingId: context.weddingId,
+    })
+  ) {
+    return {
+      context: null,
+      error: NextResponse.json(
+        {
+          success: false,
+          code: 'PREVIEW_WRITE_BLOCKED',
+          error: PREVIEW_WRITE_BLOCK_MESSAGE,
+        },
+        {
+          status: 423,
+          headers: { 'x-wewed-preview-write-blocked': 'true' },
+        }
       ),
     }
   }

@@ -88,6 +88,7 @@ describe('Stage 10 executable planner release gate', () => {
         source('tests/e2e/planner-data-workflows.spec.ts'),
         source('tests/e2e/planner-ux.spec.ts'),
         source('tests/e2e/planner-gap-closure.spec.ts'),
+        source('tests/e2e/planner-seating-operations.spec.ts'),
         source('tests/e2e/planner-deep-link-navigation.spec.ts'),
         source('tests/e2e/support/planner-browser.ts'),
       ])
@@ -112,7 +113,9 @@ describe('Stage 10 executable planner release gate', () => {
       '@mobile',
       'expectNoDocumentOverflow',
       'browser/runtime errors',
-      'seating search and assignment',
+      'seating tables expose operational type, zone, green/red status, bulk moves, and safe deletion',
+      'server rejects over-capacity individual and bulk moves atomically',
+      'a 230-seat Imba Manor plan remains usable on desktop and mobile',
       'guest core fields edit directly',
       'module, task filter, and full task edits',
       'planner modules, filters, tools, history, and scroll position have durable URLs',
