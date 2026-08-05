@@ -25,15 +25,20 @@ async function createTimelineItem(
   expect(response.ok()).toBe(true)
 }
 
-async function timelineItemTop(
+async function timelineItemIndex(
   page: Parameters<typeof openModule>[0],
   event: string,
 ): Promise<number> {
-  const item = page.getByTestId('timeline-item').filter({ hasText: event })
-  await expect(item).toHaveCount(1)
-  const box = await item.boundingBox()
-  expect(box).not.toBeNull()
-  return box!.y
+  const matchingItem = page.getByTestId('timeline-item').filter({ hasText: event })
+  await expect(matchingItem).toHaveCount(1)
+  await expect(matchingItem).toBeVisible()
+
+  const index = await page.getByTestId('timeline-item').evaluateAll(
+    (items, targetEvent) => items.findIndex((item) => item.textContent?.includes(targetEvent)),
+    event,
+  )
+  expect(index).toBeGreaterThanOrEqual(0)
+  return index
 }
 
 test('Timeline panels are ordered automatically by clock time', async ({ plannerPage: page }) => {
@@ -49,11 +54,11 @@ test('Timeline panels are ordered automatically by clock time', async ({ planner
 
   await openModule(page, 'timeline')
 
-  const earlyTop = await timelineItemTop(page, early)
-  const middleTop = await timelineItemTop(page, middle)
-  const lateTop = await timelineItemTop(page, late)
-  expect(earlyTop).toBeLessThan(middleTop)
-  expect(middleTop).toBeLessThan(lateTop)
+  const earlyIndex = await timelineItemIndex(page, early)
+  const middleIndex = await timelineItemIndex(page, middle)
+  const lateIndex = await timelineItemIndex(page, late)
+  expect(earlyIndex).toBeLessThan(middleIndex)
+  expect(middleIndex).toBeLessThan(lateIndex)
 
   const payloadResponse = await page.request.get('/api/planner/timeline')
   expect(payloadResponse.ok()).toBe(true)
@@ -69,9 +74,9 @@ test('Timeline panels are ordered automatically by clock time', async ({ planner
   await page.reload()
   await openModule(page, 'timeline')
 
-  const movedTop = await timelineItemTop(page, middle)
-  const previousEarlyTop = await timelineItemTop(page, early)
-  expect(movedTop).toBeLessThan(previousEarlyTop)
+  const movedIndex = await timelineItemIndex(page, middle)
+  const previousEarlyIndex = await timelineItemIndex(page, early)
+  expect(movedIndex).toBeLessThan(previousEarlyIndex)
 
   const movedCard = page.getByTestId('timeline-item').filter({ hasText: middle })
   await expect(movedCard).toHaveAttribute('data-timeline-time', '05:55')
