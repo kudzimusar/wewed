@@ -6,10 +6,17 @@ import { Heart, MessageCircle, Send, Sparkles, X } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { cn } from '@/lib/utils'
 
+interface ChatSource {
+  citation: string
+  title: string
+  sourceUrl: string | null
+}
+
 interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   ts: number
+  sources?: ChatSource[]
 }
 
 interface AiAssistantProps {
@@ -28,7 +35,7 @@ const QUICK_SUGGESTIONS: { label: string; query: string }[] = [
   },
   {
     label: 'How do I get there?',
-    query: 'How do I get to Imba Manor? Is there a shuttle?',
+    query: 'How do I get to the wedding venue? Is transport provided?',
   },
   {
     label: 'What food will be served?',
@@ -36,19 +43,43 @@ const QUICK_SUGGESTIONS: { label: string; query: string }[] = [
   },
   {
     label: 'Can I bring my kids?',
-    query: 'Can I bring my children to the wedding?',
+    query: 'May I bring my children to the wedding?',
   },
   {
-    label: 'Shona wedding etiquette',
-    query: 'What respectful Shona wedding traditions should guests know?',
+    label: 'Wedding etiquette',
+    query: 'What respectful wedding traditions or etiquette should guests know?',
   },
 ]
 
 const WELCOME_MESSAGE: ChatMessage = {
   role: 'assistant',
   content:
-    "Mhoro! 👋 I'm **Wewed AI** — here to help with Charity & Kudzie's wedding on Dec 23, 2026 at Imba Manor, Harare. Ask me about timing, dress code, transport, the menu, or Zimbabwean wedding traditions. 💛",
-  ts: Date.now(),
+    "Welcome! 👋 I'm **Wewed AI**, the Guest Concierge for this wedding page. Ask me about published timing, venue, transport, dress code, food, RSVP guidance, or guest etiquette. 💛",
+  ts: 0,
+}
+
+function currentWeddingSlug(): string | null {
+  if (typeof window === 'undefined') return null
+  const match = window.location.pathname.match(/^\/w\/([^/?#]+)/)
+  if (!match?.[1]) return null
+  try {
+    const slug = decodeURIComponent(match[1]).trim().toLowerCase()
+    return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) ? slug : null
+  } catch {
+    return null
+  }
+}
+
+function safeExternalHref(value: string | undefined): string | undefined {
+  if (!value) return undefined
+  try {
+    const url = new URL(value, window.location.origin)
+    return url.protocol === 'http:' || url.protocol === 'https:'
+      ? url.toString()
+      : undefined
+  } catch {
+    return undefined
+  }
 }
 
 function TypingDots() {
@@ -109,16 +140,21 @@ function GuestMarkdown({ children }: { children: string }) {
           <strong className="font-semibold text-espresso">{content}</strong>
         ),
         em: ({ children: content }) => <em>{content}</em>,
-        a: ({ href, children: content }) => (
-          <a
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-medium text-gold underline underline-offset-2 hover:text-gold-muted"
-          >
-            {content}
-          </a>
-        ),
+        a: ({ href, children: content }) => {
+          const safeHref = safeExternalHref(href)
+          return safeHref ? (
+            <a
+              href={safeHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-gold underline underline-offset-2 hover:text-gold-muted"
+            >
+              {content}
+            </a>
+          ) : (
+            <span>{content}</span>
+          )
+        },
         h1: ({ children: content }) => (
           <p className="font-semibold text-espresso">{content}</p>
         ),
@@ -142,7 +178,6 @@ function GuestMarkdown({ children }: { children: string }) {
 
 function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === 'user'
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -160,6 +195,36 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         )}
       >
         {isUser ? message.content : <GuestMarkdown>{message.content}</GuestMarkdown>}
+        {!isUser && message.sources && message.sources.length > 0 && (
+          <div className="mt-2 border-t border-gold/15 pt-2">
+            <p className="mb-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-espresso/45">
+              Sources
+            </p>
+            <div className="space-y-1">
+              {message.sources.map((source) => {
+                const safeHref = safeExternalHref(source.sourceUrl ?? undefined)
+                return safeHref ? (
+                  <a
+                    key={`${source.citation}-${source.title}`}
+                    href={safeHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block text-[10px] text-gold underline underline-offset-2"
+                  >
+                    [{source.citation}] {source.title}
+                  </a>
+                ) : (
+                  <p
+                    key={`${source.citation}-${source.title}`}
+                    className="text-[10px] text-espresso/55"
+                  >
+                    [{source.citation}] {source.title}
+                  </p>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </motion.div>
   )
@@ -170,7 +235,6 @@ export function AiAssistant({ onDismiss, className }: AiAssistantProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -201,17 +265,30 @@ export function AiAssistant({ onDismiss, className }: AiAssistantProps) {
       const trimmed = text.trim()
       if (!trimmed || isLoading) return
 
+      const weddingSlug = currentWeddingSlug()
       const userMessage: ChatMessage = {
         role: 'user',
         content: trimmed,
         ts: Date.now(),
       }
       const nextMessages = [...messages, userMessage]
-
       setMessages(nextMessages)
       setInput('')
-      setIsLoading(true)
 
+      if (!weddingSlug) {
+        setMessages((current) => [
+          ...current,
+          {
+            role: 'assistant',
+            content:
+              'I could not identify this wedding page safely. Please reopen the wedding link before asking a question.',
+            ts: Date.now(),
+          },
+        ])
+        return
+      }
+
+      setIsLoading(true)
       try {
         const response = await fetch('/api/ai/chat', {
           method: 'POST',
@@ -219,25 +296,30 @@ export function AiAssistant({ onDismiss, className }: AiAssistantProps) {
           body: JSON.stringify({
             context: 'guest',
             area: 'guest_concierge',
+            weddingSlug,
             messages: nextMessages.map((message) => ({
               role: message.role,
               content: message.content,
             })),
           }),
         })
-
         const data = (await response.json()) as {
           reply?: string
           error?: string
+          sources?: ChatSource[]
         }
-
         const reply =
           data.reply ??
+          data.error ??
           "I'm having a brief moment of trouble. Please try again in a moment. 💛"
-
         setMessages((current) => [
           ...current,
-          { role: 'assistant', content: reply, ts: Date.now() },
+          {
+            role: 'assistant',
+            content: reply,
+            sources: data.sources ?? [],
+            ts: Date.now(),
+          },
         ])
       } catch {
         setMessages((current) => [
@@ -268,14 +350,13 @@ export function AiAssistant({ onDismiss, className }: AiAssistantProps) {
   return (
     <div
       className={cn(
-        'pointer-events-none fixed inset-x-0 bottom-0 z-[80] flex justify-end p-3 sm:p-5',
+        'pointer-events-none fixed inset-0 z-[90] flex items-end justify-end pb-5 pr-3 sm:pb-6 sm:pr-5',
         className,
       )}
     >
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            key="panel"
             initial={{ opacity: 0, y: 24, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 24, scale: 0.96 }}
@@ -284,10 +365,6 @@ export function AiAssistant({ onDismiss, className }: AiAssistantProps) {
           >
             <div className="flex h-[min(72vh,560px)] flex-col overflow-hidden rounded-2xl border border-gold/30 bg-champagne shadow-[0_24px_64px_-20px_rgba(26,20,16,0.45)] ring-1 ring-gold/10">
               <header className="relative shrink-0 overflow-hidden bg-espresso px-4 py-3 text-champagne">
-                <div
-                  className="absolute inset-0 bg-gradient-to-br from-plum/30 via-transparent to-gold/15"
-                  aria-hidden="true"
-                />
                 <div className="relative flex items-center gap-3">
                   <AiAvatar size={36} />
                   <div className="min-w-0 flex-1">
@@ -297,8 +374,8 @@ export function AiAssistant({ onDismiss, className }: AiAssistantProps) {
                         Guest Concierge
                       </span>
                     </h2>
-                    <p className="truncate font-sans text-[11px] text-champagne/60">
-                      Ask me anything about the wedding
+                    <p className="truncate font-sans text-[10px] text-champagne/50">
+                      Published information for this wedding
                     </p>
                   </div>
                   <button
@@ -325,16 +402,14 @@ export function AiAssistant({ onDismiss, className }: AiAssistantProps) {
                     message={message}
                   />
                 ))}
-
                 {isLoading && (
                   <div className="flex items-end gap-2">
                     <AiAvatar size={24} />
-                    <div className="rounded-2xl rounded-bl-sm border border-gold/20 bg-white/70 px-2 py-1">
+                    <div className="rounded-2xl rounded-bl-sm border border-gold/20 bg-white/75 px-3 py-2">
                       <TypingDots />
                     </div>
                   </div>
                 )}
-
                 {showQuickSuggestions && !isLoading && (
                   <div className="space-y-2 pt-2">
                     <p className="px-1 font-sans text-[10px] uppercase tracking-[0.16em] text-espresso/40">
@@ -383,8 +458,7 @@ export function AiAssistant({ onDismiss, className }: AiAssistantProps) {
                     Enter to send · Shift+Enter for new line
                   </p>
                   <p className="shrink-0 font-sans text-[9px] text-espresso/30">
-                    Powered by{' '}
-                    <span className="font-semibold text-gold">Wewed AI</span>
+                    Powered by <span className="font-semibold text-gold">Wewed AI</span>
                   </p>
                 </div>
               </div>
@@ -426,7 +500,6 @@ export function AiAssistant({ onDismiss, className }: AiAssistantProps) {
                 <Heart className="size-2.5 fill-current" />
               </span>
             </button>
-
             {onDismiss && (
               <button
                 type="button"
