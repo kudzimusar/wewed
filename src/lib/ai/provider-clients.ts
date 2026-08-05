@@ -1,4 +1,4 @@
-import { getProviderConfig } from './config'
+import { getAiSettings, getProviderConfig } from './config'
 import type {
   AiGenerateResult,
   AiMessage,
@@ -6,15 +6,32 @@ import type {
   AiUsage,
 } from './types'
 
+const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 504])
+const RETRYABLE_ZAI_CODES = new Set(['1302', '1303', '1305', '1312'])
+const NON_RETRYABLE_ZAI_CODES = new Set(['1113', '1304', '1308', '1310', '1311'])
+
 export class AiProviderRequestError extends Error {
   readonly provider: AiProviderName
   readonly status?: number
+  readonly code?: string
+  readonly retryable: boolean
+  readonly retryAfterMs?: number
 
-  constructor(provider: AiProviderName, message: string, status?: number) {
-    super(message)
+  constructor(input: {
+    provider: AiProviderName
+    message: string
+    status?: number
+    code?: string
+    retryable?: boolean
+    retryAfterMs?: number
+  }) {
+    super(input.message)
     this.name = 'AiProviderRequestError'
-    this.provider = provider
-    this.status = status
+    this.provider = input.provider
+    this.status = input.status
+    this.code = input.code
+    this.retryable = input.retryable === true
+    this.retryAfterMs = input.retryAfterMs
   }
 }
 
@@ -44,54 +61,148 @@ interface GeminiResponse {
   }
 }
 
+interface ProviderErrorPayload {
+  error?: {
+    code?: string | number
+    message?: string
+    status?: string
+  }
+  code?: string | number
+  message?: string
+}
+
+function sanitizeErrorText(value: unknown, max = 360): string {
+  return String(value ?? '')
+    .replace(/[\u0000-\u001f\u007f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, max)
+}
+
+function parseRetryAfter(value: string | null): number | undefined {
+  if (!value) return undefined
+  const seconds = Number(value)
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.round(seconds * 1_000)
+  const date = Date.parse(value)
+  if (Number.isFinite(date)) return Math.max(0, date - Date.now())
+  return undefined
+}
+
+async function providerHttpError(
+  provider: AiProviderName,
+  response: Response,
+): Promise<AiProviderRequestError> {
+  let payload: ProviderErrorPayload | null = null
+  let raw = ''
+  try {
+    raw = await response.text()
+    payload = raw ? (JSON.parse(raw) as ProviderErrorPayload) : null
+  } catch {
+    payload = null
+  }
+
+  const rawCode = payload?.error?.code ?? payload?.code
+  const code = rawCode === undefined ? undefined : sanitizeErrorText(rawCode, 40)
+  const providerMessage = sanitizeErrorText(
+    payload?.error?.message ?? payload?.message ?? raw,
+  )
+  const retryAfterMs = parseRetryAfter(response.headers.get('retry-after'))
+
+  let retryable = RETRYABLE_STATUS_CODES.has(response.status)
+  if (provider === 'zai' && code) {
+    if (RETRYABLE_ZAI_CODES.has(code)) retryable = true
+    if (NON_RETRYABLE_ZAI_CODES.has(code)) retryable = false
+  }
+
+  const details = [
+    `${provider} returned HTTP ${response.status}`,
+    code ? `code ${code}` : '',
+    providerMessage || '',
+  ].filter(Boolean)
+
+  return new AiProviderRequestError({
+    provider,
+    message: details.join(': '),
+    status: response.status,
+    code,
+    retryable,
+    retryAfterMs,
+  })
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function retryDelay(error: AiProviderRequestError, attempt: number): number {
+  if (error.retryAfterMs !== undefined) {
+    return Math.min(Math.max(error.retryAfterMs, 0), 8_000)
+  }
+  const exponential = Math.min(250 * 2 ** attempt, 4_000)
+  const jitter = Math.floor(Math.random() * 150)
+  return exponential + jitter
+}
+
 async function fetchJson<T>(
   provider: AiProviderName,
   url: string,
   init: RequestInit,
-  timeoutMs: number
+  timeoutMs: number,
 ): Promise<T> {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+  const maxRetries = getAiSettings().maxRetries
+  let lastError: AiProviderRequestError | null = null
 
-  try {
-    const response = await fetch(url, {
-      ...init,
-      signal: controller.signal,
-      cache: 'no-store',
-    })
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), timeoutMs)
 
-    if (!response.ok) {
-      throw new AiProviderRequestError(
-        provider,
-        `${provider} returned HTTP ${response.status}`,
-        response.status
-      )
+    try {
+      const response = await fetch(url, {
+        ...init,
+        signal: controller.signal,
+        cache: 'no-store',
+      })
+
+      if (!response.ok) throw await providerHttpError(provider, response)
+      return (await response.json()) as T
+    } catch (error) {
+      if (error instanceof AiProviderRequestError) {
+        lastError = error
+      } else if (error instanceof Error && error.name === 'AbortError') {
+        lastError = new AiProviderRequestError({
+          provider,
+          message: `${provider} request timed out after ${timeoutMs}ms`,
+          retryable: true,
+        })
+      } else {
+        lastError = new AiProviderRequestError({
+          provider,
+          message:
+            error instanceof Error
+              ? `${provider} request failed: ${sanitizeErrorText(error.message)}`
+              : `${provider} request failed`,
+          retryable: true,
+        })
+      }
+    } finally {
+      clearTimeout(timeout)
     }
 
-    return (await response.json()) as T
-  } catch (error) {
-    if (error instanceof AiProviderRequestError) throw error
-
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new AiProviderRequestError(
-        provider,
-        `${provider} request timed out after ${timeoutMs}ms`
-      )
-    }
-
-    throw new AiProviderRequestError(
-      provider,
-      error instanceof Error
-        ? `${provider} request failed: ${error.message}`
-        : `${provider} request failed`
-    )
-  } finally {
-    clearTimeout(timeout)
+    if (!lastError.retryable || attempt >= maxRetries) throw lastError
+    await sleep(retryDelay(lastError, attempt))
   }
+
+  throw (
+    lastError ??
+    new AiProviderRequestError({
+      provider,
+      message: `${provider} request failed`,
+    })
+  )
 }
 
 function openAiUsage(
-  usage: OpenAiCompatibleResponse['usage']
+  usage: OpenAiCompatibleResponse['usage'],
 ): AiUsage | undefined {
   if (!usage) return undefined
   return {
@@ -105,11 +216,14 @@ async function callOpenAiCompatible(
   provider: 'groq' | 'zai',
   messages: AiMessage[],
   maxOutputTokens: number,
-  timeoutMs: number
+  timeoutMs: number,
 ): Promise<AiGenerateResult> {
   const config = getProviderConfig(provider)
   if (!config.apiKey) {
-    throw new AiProviderRequestError(provider, `${provider} API key is missing`)
+    throw new AiProviderRequestError({
+      provider,
+      message: `${provider} API key is missing`,
+    })
   }
 
   const body: Record<string, unknown> = {
@@ -138,12 +252,15 @@ async function callOpenAiCompatible(
       },
       body: JSON.stringify(body),
     },
-    timeoutMs
+    timeoutMs,
   )
 
   const text = response.choices?.[0]?.message?.content?.trim()
   if (!text) {
-    throw new AiProviderRequestError(provider, `${provider} returned empty text`)
+    throw new AiProviderRequestError({
+      provider,
+      message: `${provider} returned empty text`,
+    })
   }
 
   return {
@@ -181,17 +298,23 @@ function geminiContents(messages: AiMessage[]): Array<{
 async function callGemini(
   messages: AiMessage[],
   maxOutputTokens: number,
-  timeoutMs: number
+  timeoutMs: number,
 ): Promise<AiGenerateResult> {
   const provider: AiProviderName = 'gemini'
   const config = getProviderConfig(provider)
   if (!config.apiKey) {
-    throw new AiProviderRequestError(provider, 'gemini API key is missing')
+    throw new AiProviderRequestError({
+      provider,
+      message: 'gemini API key is missing',
+    })
   }
 
   const contents = geminiContents(messages)
   if (contents.length === 0) {
-    throw new AiProviderRequestError(provider, 'gemini requires a user message')
+    throw new AiProviderRequestError({
+      provider,
+      message: 'gemini requires a user message',
+    })
   }
 
   const systemText = messages
@@ -216,10 +339,9 @@ async function callGemini(
         generationConfig: {
           maxOutputTokens,
         },
-        store: false,
       }),
     },
-    timeoutMs
+    timeoutMs,
   )
 
   const text = response.candidates?.[0]?.content?.parts
@@ -228,7 +350,10 @@ async function callGemini(
     .trim()
 
   if (!text) {
-    throw new AiProviderRequestError(provider, 'gemini returned empty text')
+    throw new AiProviderRequestError({
+      provider,
+      message: 'gemini returned empty text',
+    })
   }
 
   return {
@@ -249,7 +374,7 @@ export async function callAiProvider(
   provider: AiProviderName,
   messages: AiMessage[],
   maxOutputTokens: number,
-  timeoutMs: number
+  timeoutMs: number,
 ): Promise<AiGenerateResult> {
   switch (provider) {
     case 'groq':
