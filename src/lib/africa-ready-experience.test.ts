@@ -4,20 +4,22 @@ import { readFileSync } from 'node:fs'
 const source = (path: string) => readFileSync(path, 'utf8')
 
 describe('Wewed wedding-first product experience', () => {
-  test('the public home is media-rich, wedding-first and free of stock-media references', () => {
+  test('the public home restores the first iteration composition with approved hero media', () => {
     const home = source('src/components/public/public-platform-home-v2.tsx')
     expect(home).toContain("'use client'")
     expect(home).toContain('data-testid="africa-ready-hero"')
     expect(home).toContain('<video')
-    expect(home).toContain('/media/wewed-couple-hero.svg')
-    expect(home).toContain('/media/wewed-couple-planning.svg')
-    expect(home).toContain('/media/wewed-couple-guests.svg')
+    expect(home).toContain('hf_20260804_140303_f8b02a87-f03b-4db5-81e2-969b5f3c3544.mp4')
+    expect(home).toContain('hf_20260804_124328_63fdf59b-a32d-498e-853a-27cbefe4ee5b.png')
     expect(home).toContain('data-testid="featured-planner-carousel"')
     expect(home).toContain('data-testid="wedding-inspiration-carousel"')
     expect(home).toContain('id="vendors"')
     expect(home).toContain('Everything for a beautifully planned wedding')
+    expect(home).toContain('Wedding inspiration with a heartbeat.')
+    expect(home).toContain('Privacy by design')
+    expect(home).toContain('Ready to start your forever?')
     expect(home).toContain("marketplaceFetch<{ planners: PublicPlannerProfile[] }>")
-    expect(home).not.toContain('pexels.com')
+    expect(home).not.toContain('/media/wewed-couple-hero.svg')
     expect(home).not.toContain('Zimbabwe first')
     expect(home).not.toContain('designed for Africa')
   })
@@ -40,12 +42,10 @@ describe('Wewed wedding-first product experience', () => {
     expect(shell).not.toContain('Designed for Africa')
   })
 
-  test('text-heavy public pages use local artwork and neutral copy', () => {
+  test('text-heavy public pages retain neutral copy', () => {
     const info = source('src/components/public/public-info-page.tsx')
-    expect(info).toContain('/media/wewed-couple-hero.svg')
     expect(info).toContain('Made for meaningful celebrations.')
     expect(info).toContain('PublicPlatformShell')
-    expect(info).not.toContain('pexels.com')
     expect(info).not.toContain('Zimbabwe first')
   })
 
@@ -65,9 +65,10 @@ describe('Wewed wedding-first product experience', () => {
     expect(browser).toContain('expectNoHorizontalOverflow')
   })
 
-  test('the redesign remains frontend-only', () => {
-    const plan = source('docs/africa-ready-ui-release.md')
-    expect(plan).toContain('frontend-only')
-    expect(plan).toContain('no schema, database, permission, privacy, subscription, billing or API contract changes')
+  test('the recalibration remains frontend-only', () => {
+    const plan = source('docs/homepage-visual-recalibration-2026-08-05.md')
+    expect(plan).toContain('visual recalibration')
+    expect(plan).toContain('No schema or migration changes')
+    expect(plan).toContain('No production data mutation')
   })
 })
