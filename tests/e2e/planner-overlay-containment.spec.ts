@@ -1,4 +1,4 @@
-import { expect, openModule, test } from './support/planner-browser'
+import { expect, openModule, openWorksheetActions, test } from './support/planner-browser'
 
 const DEVICE_VIEWPORTS = [
   { name: 'compact-phone', width: 360, height: 640 },
@@ -31,21 +31,12 @@ async function expectNoDocumentOverflow(page: Parameters<typeof openModule>[0]) 
   expect(dimensions.width).toBeLessThanOrEqual(dimensions.viewport + 1)
 }
 
-async function openWorksheetActions(page: Parameters<typeof openModule>[0]) {
-  const toggle = page.getByRole('button', { name: /Worksheet actions/i })
-  if (await toggle.isVisible()) {
-    const expanded = await toggle.getAttribute('aria-expanded')
-    if (expanded !== 'true') await toggle.click()
-    await expect(toggle).toHaveAttribute('aria-expanded', 'true')
-  }
-}
-
 async function openWorksheetTools(page: Parameters<typeof openModule>[0]) {
   await openWorksheetActions(page)
-  const toolbar = page.locator('[data-planner-worksheet-toolbar]')
-  await expect(toolbar).toBeVisible()
-  await expect(toolbar.getByRole('button', { name: 'Template', exact: true })).toBeVisible()
-  await expect(toolbar.getByRole('button', { name: 'Import', exact: true })).toBeVisible()
+  const actions = page.locator('#planner-worksheet-actions')
+  await expect(actions).toBeVisible()
+  await expect(actions.getByRole('button', { name: 'Template', exact: true })).toBeVisible()
+  await expect(actions.getByRole('button', { name: 'Import', exact: true })).toBeVisible()
 }
 
 async function assertDialogGeometry(
@@ -61,7 +52,10 @@ async function assertDialogGeometry(
   expect(box.y + box.height).toBeLessThanOrEqual(viewport.height + 1)
 
   const title = dialog.locator('[data-slot="dialog-title"]').first()
-  if (await title.isVisible()) await expect(title).toBeInViewport()
+  const titleClasses = await title.getAttribute('class')
+  if (await title.isVisible() && !titleClasses?.split(/\s+/).includes('sr-only')) {
+    await expect(title).toBeInViewport()
+  }
 
   const closeButtons = dialog.locator('[data-slot="dialog-close"]')
   for (let index = 0; index < await closeButtons.count(); index += 1) {
