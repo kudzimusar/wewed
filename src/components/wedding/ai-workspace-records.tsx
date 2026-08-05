@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Archive,
@@ -46,7 +47,7 @@ type DraftValue = {
   draftId: string
   title: string
   audience: string
-  channel: string
+  channel: 'email' | 'whatsapp' | 'sms' | 'internal' | 'speech'
   subject: string | null
   body: string
 }
@@ -57,6 +58,7 @@ type ProposalValue = {
   summary: string
   preview: Record<string, unknown>
   failure: string | null
+  executionId?: string | null
 }
 
 type DocumentRow = {
@@ -71,6 +73,15 @@ type DocumentRow = {
   chunkCount: number
   indexedAt: string
   updatedAt: string
+}
+
+type SearchResult = {
+  documentId: string
+  title: string
+  excerpt: string
+  sourceUrl: string | null
+  visibility: string
+  score: number
 }
 
 const TABS: Array<{ id: WorkspaceTab; label: string; icon: typeof FileText }> = [
@@ -96,7 +107,13 @@ function formatDate(value: string | null | undefined): string {
 
 function objectSummary(value: Record<string, unknown>): string {
   return Object.entries(value)
-    .map(([key, item]) => `${key}: ${Array.isArray(item) ? item.join(', ') : String(item)}`)
+    .map(([key, item]) => {
+      const rendered =
+        item && typeof item === 'object'
+          ? JSON.stringify(item)
+          : String(item)
+      return `${key}: ${rendered}`
+    })
     .join(' · ')
 }
 
@@ -115,18 +132,10 @@ export function AiWorkspaceRecords() {
   const [documentTitle, setDocumentTitle] = useState('')
   const [documentText, setDocumentText] = useState('')
   const [documentKind, setDocumentKind] = useState('other')
-  const [documentVisibility, setDocumentVisibility] = useState<'private' | 'public'>('private')
   const [documentSourceUrl, setDocumentSourceUrl] = useState('')
   const [retentionUntil, setRetentionUntil] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<Array<{
-    documentId: string
-    title: string
-    excerpt: string
-    sourceUrl: string | null
-    visibility: string
-    score: number
-  }>>([])
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -142,7 +151,9 @@ export function AiWorkspaceRecords() {
 
       const [templatePayload, draftPayload, actionPayload, documentPayload] =
         await Promise.all([
-          readJson<{ data: { latest: RecordEnvelope<TemplateValue>[] } }>(templateResponse),
+          readJson<{ data: { latest: RecordEnvelope<TemplateValue>[] } }>(
+            templateResponse,
+          ),
           readJson<{ data: RecordEnvelope<DraftValue>[] }>(draftResponse),
           readJson<{ data: RecordEnvelope<ProposalValue>[] }>(actionResponse),
           readJson<{ data: DocumentRow[] }>(documentResponse),
@@ -153,7 +164,11 @@ export function AiWorkspaceRecords() {
       setActions(actionPayload.data)
       setDocuments(documentPayload.data)
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Unable to load AI workspace records.')
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : 'Unable to load AI workspace records.',
+      )
     } finally {
       setLoading(false)
     }
@@ -161,6 +176,9 @@ export function AiWorkspaceRecords() {
 
   useEffect(() => {
     void load()
+    const refresh = () => void load()
+    window.addEventListener('wewed:ai-records-refresh', refresh)
+    return () => window.removeEventListener('wewed:ai-records-refresh', refresh)
   }, [load])
 
   const runAction = useCallback(
@@ -178,12 +196,16 @@ export function AiWorkspaceRecords() {
         )
         setNotice(
           status === 'executed'
-            ? `Action executed${payload.result ? `: ${objectSummary(payload.result)}` : '.'}`
+            ? `Confirmed action executed${payload.result ? `: ${objectSummary(payload.result)}` : '.'}`
             : `Action ${status}.`,
         )
         await load()
       } catch (actionError) {
-        setError(actionError instanceof Error ? actionError.message : 'Unable to update action.')
+        setError(
+          actionError instanceof Error
+            ? actionError.message
+            : 'Unable to update action.',
+        )
       } finally {
         setBusyId(null)
       }
@@ -203,8 +225,6 @@ export function AiWorkspaceRecords() {
             body: JSON.stringify({
               action: 'propose_apply',
               versionId: template.id,
-              name: template.value.name,
-              itemCount: template.value.items.length,
             }),
           }),
         )
@@ -212,7 +232,11 @@ export function AiWorkspaceRecords() {
         setActiveTab('actions')
         await load()
       } catch (proposalError) {
-        setError(proposalError instanceof Error ? proposalError.message : 'Unable to propose template application.')
+        setError(
+          proposalError instanceof Error
+            ? proposalError.message
+            : 'Unable to propose template application.',
+        )
       } finally {
         setBusyId(null)
       }
@@ -221,7 +245,10 @@ export function AiWorkspaceRecords() {
   )
 
   const proposeDraft = useCallback(
-    async (draft: RecordEnvelope<DraftValue>, action: 'propose_approval' | 'propose_reminder') => {
+    async (
+      draft: RecordEnvelope<DraftValue>,
+      action: 'propose_approval' | 'propose_reminder',
+    ) => {
       setBusyId(draft.id)
       setError(null)
       try {
@@ -244,7 +271,11 @@ export function AiWorkspaceRecords() {
         setActiveTab('actions')
         await load()
       } catch (proposalError) {
-        setError(proposalError instanceof Error ? proposalError.message : 'Unable to create draft proposal.')
+        setError(
+          proposalError instanceof Error
+            ? proposalError.message
+            : 'Unable to create draft proposal.',
+        )
       } finally {
         setBusyId(null)
       }
@@ -266,7 +297,6 @@ export function AiWorkspaceRecords() {
             title: documentTitle,
             text: documentText,
             kind: documentKind,
-            visibility: documentVisibility,
             sourceUrl: documentSourceUrl || null,
             retentionUntil: retentionUntil || null,
           }),
@@ -276,27 +306,52 @@ export function AiWorkspaceRecords() {
       setDocumentText('')
       setDocumentSourceUrl('')
       setRetentionUntil('')
-      setNotice('Document indexed successfully.')
+      setNotice(
+        'Document indexed privately. Public retrieval requires a separate reviewed publication proposal.',
+      )
       await load()
     } catch (ingestError) {
-      setError(ingestError instanceof Error ? ingestError.message : 'Unable to index document.')
+      setError(
+        ingestError instanceof Error
+          ? ingestError.message
+          : 'Unable to index document.',
+      )
     } finally {
       setBusyId(null)
     }
-  }, [documentKind, documentSourceUrl, documentText, documentTitle, documentVisibility, load, retentionUntil])
+  }, [
+    documentKind,
+    documentSourceUrl,
+    documentText,
+    documentTitle,
+    load,
+    retentionUntil,
+  ])
 
   const readFile = useCallback(async (file: File | null) => {
     if (!file) return
-    const allowed = ['text/plain', 'text/markdown', 'text/csv', 'application/json']
-    if (!allowed.includes(file.type) && !/\.(txt|md|markdown|csv|json)$/i.test(file.name)) {
-      setError('This browser importer accepts TXT, Markdown, CSV, and JSON. Extract PDF or DOCX text before indexing.')
+    const allowed = [
+      'text/plain',
+      'text/markdown',
+      'text/csv',
+      'application/json',
+    ]
+    if (
+      !allowed.includes(file.type) &&
+      !/\.(txt|md|markdown|csv|json)$/i.test(file.name)
+    ) {
+      setError(
+        'This importer accepts TXT, Markdown, CSV, and JSON. Extract PDF or DOCX text before indexing.',
+      )
       return
     }
     if (file.size > 1_000_000) {
-      setError('Document files must be 1 MB or smaller for browser text import.')
+      setError('Document files must be 1 MB or smaller for browser import.')
       return
     }
-    setDocumentTitle((current) => current || file.name.replace(/\.[^.]+$/, ''))
+    setDocumentTitle((current) =>
+      current || file.name.replace(/\.[^.]+$/, ''),
+    )
     setDocumentText(await file.text())
   }, [])
 
@@ -305,63 +360,73 @@ export function AiWorkspaceRecords() {
     setBusyId('search')
     setError(null)
     try {
-      const payload = await readJson<{ data: typeof searchResults }>(
-        await fetch(`/api/ai/documents?q=${encodeURIComponent(searchQuery.trim())}`, {
-          cache: 'no-store',
-        }),
+      const payload = await readJson<{ data: SearchResult[] }>(
+        await fetch(
+          `/api/ai/documents?q=${encodeURIComponent(searchQuery.trim())}`,
+          { cache: 'no-store' },
+        ),
       )
       setSearchResults(payload.data)
     } catch (searchError) {
-      setError(searchError instanceof Error ? searchError.message : 'Document search failed.')
+      setError(
+        searchError instanceof Error
+          ? searchError.message
+          : 'Document search failed.',
+      )
     } finally {
       setBusyId(null)
     }
-  }, [searchQuery, searchResults])
+  }, [searchQuery])
 
-  const proposePublish = useCallback(
-    async (document: DocumentRow) => {
-      setBusyId(document.documentId)
-      setError(null)
-      try {
-        await readJson(
-          await fetch('/api/ai/documents', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action: 'propose_publish',
-              documentId: document.documentId,
-            }),
-          }),
-        )
-        setNotice('Document publication proposal added to the review queue.')
-        setActiveTab('actions')
-        await load()
-      } catch (publishError) {
-        setError(publishError instanceof Error ? publishError.message : 'Unable to propose publication.')
-      } finally {
-        setBusyId(null)
+  const documentAction = useCallback(
+    async (
+      document: DocumentRow,
+      action: 'propose_publish' | 'reindex' | 'delete',
+    ) => {
+      if (
+        action === 'delete' &&
+        !window.confirm(`Delete “${document.title}” and all indexed chunks?`)
+      ) {
+        return
       }
-    },
-    [load],
-  )
-
-  const deleteDocument = useCallback(
-    async (document: DocumentRow) => {
-      if (!window.confirm(`Delete “${document.title}” and all indexed chunks?`)) return
       setBusyId(document.documentId)
       setError(null)
+      setNotice(null)
       try {
-        await readJson(
-          await fetch('/api/ai/documents', {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ documentId: document.documentId }),
-          }),
-        )
-        setNotice('Document and index chunks deleted.')
+        if (action === 'delete') {
+          await readJson(
+            await fetch('/api/ai/documents', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ documentId: document.documentId }),
+            }),
+          )
+          setNotice('Document and index chunks deleted.')
+        } else {
+          await readJson(
+            await fetch('/api/ai/documents', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action,
+                documentId: document.documentId,
+              }),
+            }),
+          )
+          setNotice(
+            action === 'propose_publish'
+              ? 'Publication proposal added to the review queue.'
+              : 'Document reindexed from its canonical source.',
+          )
+          if (action === 'propose_publish') setActiveTab('actions')
+        }
         await load()
-      } catch (deleteError) {
-        setError(deleteError instanceof Error ? deleteError.message : 'Unable to delete document.')
+      } catch (actionError) {
+        setError(
+          actionError instanceof Error
+            ? actionError.message
+            : 'Document action failed.',
+        )
       } finally {
         setBusyId(null)
       }
@@ -370,7 +435,10 @@ export function AiWorkspaceRecords() {
   )
 
   const pendingActions = useMemo(
-    () => actions.filter((action) => action.status === 'proposed' || action.status === 'approved'),
+    () =>
+      actions.filter((action) =>
+        ['proposed', 'approved', 'executing', 'failed'].includes(action.status),
+      ),
     [actions],
   )
 
@@ -379,9 +447,12 @@ export function AiWorkspaceRecords() {
       <header className="border-b border-gold/15 px-4 py-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="wewed-heading text-lg text-champagne">AI Records & Review</h2>
+            <h2 className="wewed-heading text-lg text-champagne">
+              AI Records & Review
+            </h2>
             <p className="mt-1 max-w-2xl text-xs leading-relaxed text-champagne/55">
-              Durable templates, communication drafts, human-confirmed actions, and permission-aware document retrieval.
+              Durable versions and drafts, explicit approval, single-claim
+              execution, and private-first document retrieval.
             </p>
           </div>
           <button
@@ -422,7 +493,9 @@ export function AiWorkspaceRecords() {
                   <Icon className="size-4" />
                   {tab.label}
                 </span>
-                <span className="rounded-full bg-champagne/10 px-2 py-0.5 text-[10px]">{count}</span>
+                <span className="rounded-full bg-champagne/10 px-2 py-0.5 text-[10px]">
+                  {count}
+                </span>
               </button>
             )
           })}
@@ -440,7 +513,13 @@ export function AiWorkspaceRecords() {
             )}
           >
             <span>{error || notice}</span>
-            <button type="button" onClick={() => { setError(null); setNotice(null) }}>
+            <button
+              type="button"
+              onClick={() => {
+                setError(null)
+                setNotice(null)
+              }}
+            >
               <X className="size-3.5" />
             </button>
           </div>
@@ -449,34 +528,42 @@ export function AiWorkspaceRecords() {
 
       <div className="wewed-scroll min-h-0 flex-1 overflow-y-auto p-4">
         {loading ? (
-          <div className="flex min-h-64 items-center justify-center gap-2 text-sm text-champagne/55">
-            <Loader2 className="size-5 animate-spin text-gold" />
-            Loading AI workspace records…
-          </div>
+          <LoadingState />
         ) : activeTab === 'templates' ? (
           <div className="space-y-3">
-            {templates.length === 0 && <EmptyState text="No saved AI template versions yet." />}
+            {templates.length === 0 && (
+              <EmptyState text="No reviewed AI template versions yet." />
+            )}
             {templates.map((template) => (
               <RecordCard
                 key={template.id}
                 title={`${template.value.name} · v${template.value.version}`}
-                meta={`${template.value.items.length} structured items · ${template.value.anonymized ? 'anonymized' : 'review anonymization'}`}
+                meta={`${template.value.items.length} validated items · ${template.value.anonymized ? 'anonymization reviewed' : 'not reusable'}`}
                 status={template.status}
                 expanded={expanded === template.id}
-                onToggle={() => setExpanded((current) => current === template.id ? null : template.id)}
+                onToggle={() =>
+                  setExpanded((current) =>
+                    current === template.id ? null : template.id,
+                  )
+                }
                 actions={
                   <button
                     type="button"
                     onClick={() => void proposeTemplate(template)}
-                    disabled={busyId === template.id || template.value.items.length === 0}
-                    className="inline-flex items-center gap-1 rounded-full border border-gold/25 px-2.5 py-1 text-[10px] text-gold hover:bg-gold/10 disabled:cursor-not-allowed disabled:opacity-40"
+                    disabled={
+                      busyId === template.id ||
+                      template.value.items.length === 0 ||
+                      !template.value.anonymized
+                    }
+                    className="inline-flex items-center gap-1 rounded-full border border-gold/25 px-2.5 py-1 text-[10px] text-gold hover:bg-gold/10 disabled:opacity-40"
                   >
-                    <ShieldCheck className="size-3" />
-                    Propose apply
+                    <ShieldCheck className="size-3" /> Propose apply
                   </button>
                 }
               >
-                <p className="text-xs text-champagne/65">{template.value.description || 'No description.'}</p>
+                <p className="text-xs text-champagne/65">
+                  {template.value.description || 'No description.'}
+                </p>
                 <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap rounded-lg bg-black/20 p-3 text-[11px] leading-relaxed text-champagne/75">
                   {template.value.content}
                 </pre>
@@ -485,50 +572,35 @@ export function AiWorkspaceRecords() {
           </div>
         ) : activeTab === 'drafts' ? (
           <div className="space-y-3">
-            {drafts.length === 0 && <EmptyState text="No persistent communication drafts yet." />}
+            {drafts.length === 0 && (
+              <EmptyState text="No persistent communication drafts yet." />
+            )}
             {drafts.map((draft) => (
-              <RecordCard
+              <DraftCard
                 key={draft.id}
-                title={draft.value.title}
-                meta={`${draft.value.channel} · ${draft.value.audience} · updated ${formatDate(draft.updatedAt)}`}
-                status={draft.status}
+                draft={draft}
+                busy={busyId === draft.id}
                 expanded={expanded === draft.id}
-                onToggle={() => setExpanded((current) => current === draft.id ? null : draft.id)}
-                actions={
-                  <div className="flex flex-wrap gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => void proposeDraft(draft, 'propose_approval')}
-                      disabled={busyId === draft.id}
-                      className="inline-flex items-center gap-1 rounded-full border border-gold/25 px-2.5 py-1 text-[10px] text-gold hover:bg-gold/10 disabled:opacity-40"
-                    >
-                      <Check className="size-3" />
-                      Propose approval
-                    </button>
-                    {draft.value.channel === 'email' && (
-                      <button
-                        type="button"
-                        onClick={() => void proposeDraft(draft, 'propose_reminder')}
-                        disabled={busyId === draft.id}
-                        className="inline-flex items-center gap-1 rounded-full border border-gold/25 px-2.5 py-1 text-[10px] text-gold hover:bg-gold/10 disabled:opacity-40"
-                      >
-                        <Send className="size-3" />
-                        Propose reminder
-                      </button>
-                    )}
-                  </div>
+                onToggle={() =>
+                  setExpanded((current) =>
+                    current === draft.id ? null : draft.id,
+                  )
                 }
-              >
-                {draft.value.subject && <p className="mb-2 text-xs font-semibold text-gold-light">Subject: {draft.value.subject}</p>}
-                <pre className="whitespace-pre-wrap rounded-lg bg-black/20 p-3 text-[11px] leading-relaxed text-champagne/75">
-                  {draft.value.body}
-                </pre>
-              </RecordCard>
+                onPropose={(action) => void proposeDraft(draft, action)}
+                onSaved={async () => {
+                  setNotice('Draft changes saved.')
+                  await load()
+                }}
+                onError={setError}
+                setBusy={setBusyId}
+              />
             ))}
           </div>
         ) : activeTab === 'actions' ? (
           <div className="space-y-3">
-            {actions.length === 0 && <EmptyState text="No AI action proposals have been created." />}
+            {actions.length === 0 && (
+              <EmptyState text="No AI action proposals have been created." />
+            )}
             {actions.map((action) => (
               <RecordCard
                 key={action.id}
@@ -536,10 +608,14 @@ export function AiWorkspaceRecords() {
                 meta={`${action.value.type.replaceAll('_', ' ')} · created ${formatDate(action.createdAt)}`}
                 status={action.status}
                 expanded={expanded === action.id}
-                onToggle={() => setExpanded((current) => current === action.id ? null : action.id)}
+                onToggle={() =>
+                  setExpanded((current) =>
+                    current === action.id ? null : action.id,
+                  )
+                }
                 actions={
                   <div className="flex flex-wrap gap-1.5">
-                    {action.status === 'proposed' && (
+                    {(action.status === 'proposed' || action.status === 'failed') && (
                       <>
                         <button
                           type="button"
@@ -569,107 +645,431 @@ export function AiWorkspaceRecords() {
                         <Play className="size-3" /> Execute confirmed action
                       </button>
                     )}
+                    {action.status === 'executing' && (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-champagne/45">
+                        <Loader2 className="size-3 animate-spin" /> Execution claimed
+                      </span>
+                    )}
                   </div>
                 }
               >
-                <p className="text-[11px] text-champagne/60">{objectSummary(action.value.preview)}</p>
-                {action.value.failure && <p className="mt-2 text-[11px] text-red-200">Failure: {action.value.failure}</p>}
+                <p className="text-[11px] text-champagne/60">
+                  {objectSummary(action.value.preview)}
+                </p>
+                {action.value.executionId && (
+                  <p className="mt-2 break-all text-[10px] text-champagne/35">
+                    Execution claim: {action.value.executionId}
+                  </p>
+                )}
+                {action.value.failure && (
+                  <p className="mt-2 text-[11px] text-red-200">
+                    Failure: {action.value.failure}
+                  </p>
+                )}
               </RecordCard>
             ))}
           </div>
         ) : (
-          <div className="space-y-5">
-            <div className="rounded-xl border border-gold/15 bg-champagne/[0.025] p-4">
-              <h3 className="font-sans text-sm font-semibold text-champagne">Index a workspace document</h3>
-              <p className="mt-1 text-[11px] leading-relaxed text-champagne/50">
-                Add extracted text from contracts, venue manuals, proposals, wedding briefs, or policies. Private is the safe default.
-              </p>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <input value={documentTitle} onChange={(event) => setDocumentTitle(event.target.value)} placeholder="Document title" className="rounded-lg border border-gold/20 bg-espresso/60 px-3 py-2 text-sm outline-none focus:border-gold" />
-                <select value={documentKind} onChange={(event) => setDocumentKind(event.target.value)} className="rounded-lg border border-gold/20 bg-espresso/60 px-3 py-2 text-sm outline-none focus:border-gold">
-                  <option value="contract">Contract</option>
-                  <option value="venue_manual">Venue manual</option>
-                  <option value="proposal">Proposal</option>
-                  <option value="wedding_brief">Wedding brief</option>
-                  <option value="policy">Policy</option>
-                  <option value="other">Other</option>
-                </select>
-                <input value={documentSourceUrl} onChange={(event) => setDocumentSourceUrl(event.target.value)} placeholder="Source URL (optional)" className="rounded-lg border border-gold/20 bg-espresso/60 px-3 py-2 text-sm outline-none focus:border-gold" />
-                <input type="date" value={retentionUntil} onChange={(event) => setRetentionUntil(event.target.value)} className="rounded-lg border border-gold/20 bg-espresso/60 px-3 py-2 text-sm outline-none focus:border-gold" />
-                <select value={documentVisibility} onChange={(event) => setDocumentVisibility(event.target.value as 'private' | 'public')} className="rounded-lg border border-gold/20 bg-espresso/60 px-3 py-2 text-sm outline-none focus:border-gold">
-                  <option value="private">Private planner retrieval</option>
-                  <option value="public">Public Guest Concierge retrieval</option>
-                </select>
-                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-gold/30 px-3 py-2 text-xs text-gold hover:bg-gold/5">
-                  <Upload className="size-4" />
-                  Import text file
-                  <input type="file" accept=".txt,.md,.markdown,.csv,.json,text/plain,text/markdown,text/csv,application/json" className="sr-only" onChange={(event) => void readFile(event.target.files?.[0] ?? null)} />
-                </label>
-              </div>
-              <textarea value={documentText} onChange={(event) => setDocumentText(event.target.value)} rows={8} placeholder="Paste or import extracted document text…" className="mt-3 w-full resize-y rounded-lg border border-gold/20 bg-espresso/60 px-3 py-2 text-sm outline-none focus:border-gold" />
-              <div className="mt-3 flex justify-end">
-                <button type="button" onClick={() => void ingestDocument()} disabled={busyId === 'document-form' || !documentTitle.trim() || documentText.trim().length < 20} className="inline-flex items-center gap-2 rounded-lg bg-gold px-4 py-2 text-xs font-semibold text-espresso hover:bg-gold-light disabled:cursor-not-allowed disabled:opacity-40">
-                  {busyId === 'document-form' ? <Loader2 className="size-4 animate-spin" /> : <Database className="size-4" />}
-                  Index document
-                </button>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-gold/15 bg-champagne/[0.025] p-4">
-              <div className="flex gap-2">
-                <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void searchDocuments() }} placeholder="Search indexed documents…" className="min-w-0 flex-1 rounded-lg border border-gold/20 bg-espresso/60 px-3 py-2 text-sm outline-none focus:border-gold" />
-                <button type="button" onClick={() => void searchDocuments()} disabled={!searchQuery.trim() || busyId === 'search'} className="inline-flex items-center gap-2 rounded-lg border border-gold/25 px-3 py-2 text-xs text-gold hover:bg-gold/10 disabled:opacity-40">
-                  <FileSearch className="size-4" /> Search
-                </button>
-              </div>
-              {searchResults.length > 0 && (
-                <div className="mt-3 space-y-2">
-                  {searchResults.map((result) => (
-                    <div key={`${result.documentId}-${result.excerpt}`} className="rounded-lg border border-gold/10 bg-black/15 p-3">
-                      <p className="text-xs font-semibold text-gold-light">{result.title}</p>
-                      <p className="mt-1 text-[11px] leading-relaxed text-champagne/60">{result.excerpt}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-3">
-              {documents.length === 0 && <EmptyState text="No indexed workspace documents yet." />}
-              {documents.map((document) => (
-                <RecordCard
-                  key={document.documentId}
-                  title={document.title}
-                  meta={`${document.kind.replaceAll('_', ' ')} · ${document.chunkCount} chunks · indexed ${formatDate(document.indexedAt)}`}
-                  status={document.visibility}
-                  expanded={expanded === document.documentId}
-                  onToggle={() => setExpanded((current) => current === document.documentId ? null : document.documentId)}
-                  actions={
-                    <div className="flex flex-wrap gap-1.5">
-                      {document.visibility === 'private' && (
-                        <button type="button" onClick={() => void proposePublish(document)} disabled={busyId === document.documentId} className="inline-flex items-center gap-1 rounded-full border border-gold/25 px-2.5 py-1 text-[10px] text-gold hover:bg-gold/10 disabled:opacity-40">
-                          <ShieldCheck className="size-3" /> Propose public access
-                        </button>
-                      )}
-                      <button type="button" onClick={() => void deleteDocument(document)} disabled={busyId === document.documentId} className="inline-flex items-center gap-1 rounded-full border border-red-400/25 px-2.5 py-1 text-[10px] text-red-200 hover:bg-red-400/10 disabled:opacity-40">
-                        <Trash2 className="size-3" /> Delete
-                      </button>
-                    </div>
-                  }
-                >
-                  <dl className="grid gap-2 text-[11px] sm:grid-cols-2">
-                    <div><dt className="text-champagne/35">Document ID</dt><dd className="break-all text-champagne/70">{document.documentId}</dd></div>
-                    <div><dt className="text-champagne/35">Retention until</dt><dd className="text-champagne/70">{formatDate(document.retentionUntil)}</dd></div>
-                    <div><dt className="text-champagne/35">Checksum</dt><dd className="break-all text-champagne/70">{document.checksum}</dd></div>
-                    <div><dt className="text-champagne/35">Source</dt><dd className="break-all text-champagne/70">{document.sourceUrl || '—'}</dd></div>
-                  </dl>
-                </RecordCard>
-              ))}
-            </div>
-          </div>
+          <DocumentPanel
+            documentTitle={documentTitle}
+            setDocumentTitle={setDocumentTitle}
+            documentText={documentText}
+            setDocumentText={setDocumentText}
+            documentKind={documentKind}
+            setDocumentKind={setDocumentKind}
+            documentSourceUrl={documentSourceUrl}
+            setDocumentSourceUrl={setDocumentSourceUrl}
+            retentionUntil={retentionUntil}
+            setRetentionUntil={setRetentionUntil}
+            busyId={busyId}
+            ingestDocument={ingestDocument}
+            readFile={readFile}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            searchDocuments={searchDocuments}
+            searchResults={searchResults}
+            documents={documents}
+            expanded={expanded}
+            setExpanded={setExpanded}
+            documentAction={documentAction}
+          />
         )}
       </div>
     </section>
+  )
+}
+
+function DraftCard({
+  draft,
+  busy,
+  expanded,
+  onToggle,
+  onPropose,
+  onSaved,
+  onError,
+  setBusy,
+}: {
+  draft: RecordEnvelope<DraftValue>
+  busy: boolean
+  expanded: boolean
+  onToggle: () => void
+  onPropose: (action: 'propose_approval' | 'propose_reminder') => void
+  onSaved: () => Promise<void>
+  onError: (message: string | null) => void
+  setBusy: (id: string | null) => void
+}) {
+  const [title, setTitle] = useState(draft.value.title)
+  const [audience, setAudience] = useState(draft.value.audience)
+  const [subject, setSubject] = useState(draft.value.subject ?? '')
+  const [body, setBody] = useState(draft.value.body)
+  const editable = draft.status === 'draft'
+
+  const save = async () => {
+    setBusy(draft.id)
+    onError(null)
+    try {
+      await readJson(
+        await fetch('/api/ai/drafts', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: draft.id,
+            title,
+            audience,
+            subject: subject || null,
+            body,
+          }),
+        }),
+      )
+      await onSaved()
+    } catch (error) {
+      onError(error instanceof Error ? error.message : 'Unable to save draft.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <RecordCard
+      title={draft.value.title}
+      meta={`${draft.value.channel} · ${draft.value.audience} · updated ${formatDate(draft.updatedAt)}`}
+      status={draft.status}
+      expanded={expanded}
+      onToggle={onToggle}
+      actions={
+        <div className="flex flex-wrap gap-1.5">
+          {draft.status === 'draft' && (
+            <button
+              type="button"
+              onClick={() => onPropose('propose_approval')}
+              disabled={busy}
+              className="inline-flex items-center gap-1 rounded-full border border-gold/25 px-2.5 py-1 text-[10px] text-gold hover:bg-gold/10 disabled:opacity-40"
+            >
+              <Check className="size-3" /> Propose approval
+            </button>
+          )}
+          {draft.value.channel === 'email' &&
+            ['draft', 'approved'].includes(draft.status) && (
+              <button
+                type="button"
+                onClick={() => onPropose('propose_reminder')}
+                disabled={busy}
+                className="inline-flex items-center gap-1 rounded-full border border-gold/25 px-2.5 py-1 text-[10px] text-gold hover:bg-gold/10 disabled:opacity-40"
+              >
+                <Send className="size-3" /> Propose reminder
+              </button>
+            )}
+        </div>
+      }
+    >
+      {editable ? (
+        <div className="space-y-2">
+          <input
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            className="w-full rounded-lg border border-gold/20 bg-espresso/60 px-3 py-2 text-xs"
+          />
+          <div className="grid gap-2 sm:grid-cols-2">
+            <input
+              value={audience}
+              onChange={(event) => setAudience(event.target.value)}
+              className="rounded-lg border border-gold/20 bg-espresso/60 px-3 py-2 text-xs"
+            />
+            <input
+              value={subject}
+              onChange={(event) => setSubject(event.target.value)}
+              placeholder="Subject"
+              className="rounded-lg border border-gold/20 bg-espresso/60 px-3 py-2 text-xs"
+            />
+          </div>
+          <textarea
+            value={body}
+            onChange={(event) => setBody(event.target.value)}
+            rows={8}
+            className="w-full rounded-lg border border-gold/20 bg-espresso/60 px-3 py-2 text-xs"
+          />
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => void save()}
+              disabled={busy || !title.trim() || !body.trim()}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-gold px-3 py-2 text-xs font-semibold text-espresso disabled:opacity-40"
+            >
+              <Save className="size-3.5" /> Save draft changes
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {draft.value.subject && (
+            <p className="mb-2 text-xs font-semibold text-gold-light">
+              Subject: {draft.value.subject}
+            </p>
+          )}
+          <pre className="whitespace-pre-wrap rounded-lg bg-black/20 p-3 text-[11px] leading-relaxed text-champagne/75">
+            {draft.value.body}
+          </pre>
+          <p className="mt-2 text-[10px] text-champagne/35">
+            Approved or archived drafts are immutable. Create a new draft for
+            further changes. No delivery occurred in this review surface.
+          </p>
+        </>
+      )}
+    </RecordCard>
+  )
+}
+
+function DocumentPanel(props: {
+  documentTitle: string
+  setDocumentTitle: (value: string) => void
+  documentText: string
+  setDocumentText: (value: string) => void
+  documentKind: string
+  setDocumentKind: (value: string) => void
+  documentSourceUrl: string
+  setDocumentSourceUrl: (value: string) => void
+  retentionUntil: string
+  setRetentionUntil: (value: string) => void
+  busyId: string | null
+  ingestDocument: () => Promise<void>
+  readFile: (file: File | null) => Promise<void>
+  searchQuery: string
+  setSearchQuery: (value: string) => void
+  searchDocuments: () => Promise<void>
+  searchResults: SearchResult[]
+  documents: DocumentRow[]
+  expanded: string | null
+  setExpanded: (value: string | null) => void
+  documentAction: (
+    document: DocumentRow,
+    action: 'propose_publish' | 'reindex' | 'delete',
+  ) => Promise<void>
+}) {
+  return (
+    <div className="space-y-5">
+      <div className="rounded-xl border border-gold/15 bg-champagne/[0.025] p-4">
+        <h3 className="text-sm font-semibold text-champagne">
+          Index a private workspace document
+        </h3>
+        <p className="mt-1 text-[11px] leading-relaxed text-champagne/50">
+          Every new document is private. Guest access is possible only after a
+          publication proposal is reviewed, approved and executed.
+        </p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <input
+            value={props.documentTitle}
+            onChange={(event) => props.setDocumentTitle(event.target.value)}
+            placeholder="Document title"
+            className="rounded-lg border border-gold/20 bg-espresso/60 px-3 py-2 text-sm"
+          />
+          <select
+            value={props.documentKind}
+            onChange={(event) => props.setDocumentKind(event.target.value)}
+            className="rounded-lg border border-gold/20 bg-espresso/60 px-3 py-2 text-sm"
+          >
+            <option value="contract">Contract</option>
+            <option value="venue_manual">Venue manual</option>
+            <option value="proposal">Proposal</option>
+            <option value="wedding_brief">Wedding brief</option>
+            <option value="policy">Policy</option>
+            <option value="other">Other</option>
+          </select>
+          <input
+            value={props.documentSourceUrl}
+            onChange={(event) => props.setDocumentSourceUrl(event.target.value)}
+            placeholder="Source URL (optional)"
+            className="rounded-lg border border-gold/20 bg-espresso/60 px-3 py-2 text-sm"
+          />
+          <input
+            type="date"
+            value={props.retentionUntil}
+            onChange={(event) => props.setRetentionUntil(event.target.value)}
+            className="rounded-lg border border-gold/20 bg-espresso/60 px-3 py-2 text-sm"
+          />
+          <div className="flex items-center gap-2 rounded-lg border border-gold/20 bg-espresso/60 px-3 py-2 text-xs text-gold">
+            <ShieldCheck className="size-4" /> Private planner retrieval
+          </div>
+          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-gold/30 px-3 py-2 text-xs text-gold hover:bg-gold/5">
+            <Upload className="size-4" /> Import text file
+            <input
+              type="file"
+              accept=".txt,.md,.markdown,.csv,.json,text/plain,text/markdown,text/csv,application/json"
+              className="sr-only"
+              onChange={(event) =>
+                void props.readFile(event.target.files?.[0] ?? null)
+              }
+            />
+          </label>
+        </div>
+        <textarea
+          value={props.documentText}
+          onChange={(event) => props.setDocumentText(event.target.value)}
+          rows={8}
+          placeholder="Paste or import extracted document text…"
+          className="mt-3 w-full resize-y rounded-lg border border-gold/20 bg-espresso/60 px-3 py-2 text-sm"
+        />
+        <div className="mt-3 flex justify-end">
+          <button
+            type="button"
+            onClick={() => void props.ingestDocument()}
+            disabled={
+              props.busyId === 'document-form' ||
+              !props.documentTitle.trim() ||
+              props.documentText.trim().length < 20
+            }
+            className="inline-flex items-center gap-2 rounded-lg bg-gold px-4 py-2 text-xs font-semibold text-espresso disabled:opacity-40"
+          >
+            {props.busyId === 'document-form' ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Database className="size-4" />
+            )}
+            Index privately
+          </button>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-gold/15 bg-champagne/[0.025] p-4">
+        <div className="flex gap-2">
+          <input
+            value={props.searchQuery}
+            onChange={(event) => props.setSearchQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') void props.searchDocuments()
+            }}
+            placeholder="Search authorised indexed documents…"
+            className="min-w-0 flex-1 rounded-lg border border-gold/20 bg-espresso/60 px-3 py-2 text-sm"
+          />
+          <button
+            type="button"
+            onClick={() => void props.searchDocuments()}
+            disabled={!props.searchQuery.trim() || props.busyId === 'search'}
+            className="inline-flex items-center gap-2 rounded-lg border border-gold/25 px-3 py-2 text-xs text-gold disabled:opacity-40"
+          >
+            <FileSearch className="size-4" /> Search
+          </button>
+        </div>
+        {props.searchResults.length > 0 && (
+          <div className="mt-3 space-y-2">
+            {props.searchResults.map((result, index) => (
+              <div
+                key={`${result.documentId}-${index}`}
+                className="rounded-lg border border-gold/10 bg-black/15 p-3"
+              >
+                <p className="text-xs font-semibold text-gold-light">
+                  {result.title} · {result.visibility}
+                </p>
+                <p className="mt-1 text-[11px] leading-relaxed text-champagne/60">
+                  {result.excerpt}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-3">
+        {props.documents.length === 0 && (
+          <EmptyState text="No indexed workspace documents yet." />
+        )}
+        {props.documents.map((document) => (
+          <RecordCard
+            key={document.documentId}
+            title={document.title}
+            meta={`${document.kind.replaceAll('_', ' ')} · ${document.chunkCount} chunks · indexed ${formatDate(document.indexedAt)}`}
+            status={document.visibility}
+            expanded={props.expanded === document.documentId}
+            onToggle={() =>
+              props.setExpanded(
+                props.expanded === document.documentId
+                  ? null
+                  : document.documentId,
+              )
+            }
+            actions={
+              <div className="flex flex-wrap gap-1.5">
+                {document.visibility === 'private' && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void props.documentAction(document, 'propose_publish')
+                    }
+                    disabled={props.busyId === document.documentId}
+                    className="inline-flex items-center gap-1 rounded-full border border-gold/25 px-2.5 py-1 text-[10px] text-gold disabled:opacity-40"
+                  >
+                    <ShieldCheck className="size-3" /> Propose public access
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => void props.documentAction(document, 'reindex')}
+                  disabled={props.busyId === document.documentId}
+                  className="inline-flex items-center gap-1 rounded-full border border-gold/25 px-2.5 py-1 text-[10px] text-gold disabled:opacity-40"
+                >
+                  <RefreshCw className="size-3" /> Reindex
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void props.documentAction(document, 'delete')}
+                  disabled={props.busyId === document.documentId}
+                  className="inline-flex items-center gap-1 rounded-full border border-red-400/25 px-2.5 py-1 text-[10px] text-red-200 disabled:opacity-40"
+                >
+                  <Trash2 className="size-3" /> Delete
+                </button>
+              </div>
+            }
+          >
+            <dl className="grid gap-2 text-[11px] sm:grid-cols-2">
+              <Detail term="Document ID" value={document.documentId} />
+              <Detail
+                term="Retention until"
+                value={formatDate(document.retentionUntil)}
+              />
+              <Detail term="Checksum" value={document.checksum} />
+              <Detail term="Source" value={document.sourceUrl || '—'} />
+            </dl>
+          </RecordCard>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function Detail({ term, value }: { term: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-champagne/35">{term}</dt>
+      <dd className="break-all text-champagne/70">{value}</dd>
+    </div>
+  )
+}
+
+function LoadingState() {
+  return (
+    <div className="flex min-h-64 items-center justify-center gap-2 text-sm text-champagne/55">
+      <Loader2 className="size-5 animate-spin text-gold" />
+      Loading AI workspace records…
+    </div>
   )
 }
 
@@ -696,23 +1096,36 @@ function RecordCard({
   status: string
   expanded: boolean
   onToggle: () => void
-  actions?: React.ReactNode
-  children: React.ReactNode
+  actions?: ReactNode
+  children: ReactNode
 }) {
   return (
     <article className="rounded-xl border border-gold/15 bg-champagne/[0.025]">
       <div className="flex flex-wrap items-start justify-between gap-3 p-3">
         <button type="button" onClick={onToggle} className="min-w-0 flex-1 text-left">
           <div className="flex items-center gap-2">
-            <span className="truncate text-xs font-semibold text-champagne">{title}</span>
-            <span className="shrink-0 rounded-full bg-gold/10 px-2 py-0.5 text-[9px] uppercase tracking-wide text-gold">{status}</span>
+            <span className="truncate text-xs font-semibold text-champagne">
+              {title}
+            </span>
+            <span className="shrink-0 rounded-full bg-gold/10 px-2 py-0.5 text-[9px] uppercase tracking-wide text-gold">
+              {status}
+            </span>
           </div>
           <p className="mt-1 text-[10px] text-champagne/40">{meta}</p>
         </button>
         <div className="flex items-center gap-2">
           {actions}
-          <button type="button" onClick={onToggle} aria-label={expanded ? 'Collapse record' : 'Expand record'} className="rounded-full p-1.5 text-champagne/45 hover:bg-gold/10 hover:text-gold">
-            {expanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-label={expanded ? 'Collapse record' : 'Expand record'}
+            className="rounded-full p-1.5 text-champagne/45 hover:bg-gold/10 hover:text-gold"
+          >
+            {expanded ? (
+              <ChevronUp className="size-4" />
+            ) : (
+              <ChevronDown className="size-4" />
+            )}
           </button>
         </div>
       </div>
