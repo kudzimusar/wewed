@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import type { ReactNode } from 'react'
+import { Children, isValidElement, type ReactNode } from 'react'
 import { HeartHandshake, Menu, Sparkles } from 'lucide-react'
 import { PublicAccountActions } from '@/components/public/public-account-actions'
 
@@ -13,6 +13,11 @@ const PUBLIC_LINKS = [
 ] as const
 
 export function PublicPlatformShell({ children }: { children: ReactNode }) {
+  const isHomepage = Children.toArray(children).some((child) => {
+    if (!isValidElement<{ 'data-testid'?: string }>(child)) return false
+    return child.props['data-testid'] === 'africa-ready-hero'
+  })
+
   return (
     <div className="min-h-screen bg-ivory text-espresso" data-release="wedding-first-v2">
       <header className="sticky top-0 z-50 border-b border-gold/20 bg-espresso/95 text-champagne shadow-xl backdrop-blur-xl">
@@ -37,6 +42,20 @@ export function PublicPlatformShell({ children }: { children: ReactNode }) {
         </nav>
       </header>
       <main id="main-content">{children}</main>
+      {isHomepage && (
+        <section className="relative overflow-hidden border-t border-gold/15 bg-[linear-gradient(120deg,#fffaf4,#f8eee6,#fff7ef)] px-4 py-20 text-center sm:px-6" aria-labelledby="homepage-closing-cta">
+          <div className="absolute left-1/2 top-0 size-72 -translate-x-1/2 rounded-full bg-gold/10 blur-3xl" aria-hidden="true" />
+          <div className="relative mx-auto max-w-3xl">
+            <Sparkles className="mx-auto size-7 text-gold-muted" aria-hidden="true" />
+            <h2 id="homepage-closing-cta" className="mt-5 font-serif text-4xl leading-tight sm:text-6xl">Ready to start your forever?</h2>
+            <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-espresso/60 sm:text-base">Discover a trusted planner, create your private wedding space or find the professionals who will help bring your celebration to life.</p>
+            <div className="mt-8 flex flex-wrap justify-center gap-3">
+              <Link href="/planners" className="rounded-full bg-gold px-6 py-3 text-sm font-semibold text-espresso shadow-lg transition hover:-translate-y-0.5 hover:bg-gold-light">Find your planner</Link>
+              <Link href="/register?accountType=couple" className="rounded-full bg-espresso px-6 py-3 text-sm font-semibold text-champagne shadow-lg transition hover:-translate-y-0.5">Get started as a couple</Link>
+            </div>
+          </div>
+        </section>
+      )}
       <footer className="border-t border-gold/20 bg-espresso text-champagne">
         <div className="mx-auto grid max-w-[90rem] gap-10 px-4 py-12 sm:grid-cols-2 sm:px-6 lg:grid-cols-[1.5fr_1fr_1fr_1fr] lg:px-8">
           <div><p className="flex items-center gap-2 font-serif text-3xl text-gold"><HeartHandshake className="size-5" />wewed</p><p className="mt-3 max-w-sm text-sm leading-6 text-champagne/60">Private wedding planning, professional support and memorable guest experiences in one connected platform.</p><p className="mt-5 text-xs text-champagne/45">Made for weddings. Built to bring people together.</p></div>
