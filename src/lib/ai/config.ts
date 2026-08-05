@@ -8,6 +8,7 @@ const DEFAULT_MODELS: Record<AiProviderName, string> = {
 
 const DEFAULT_TIMEOUT_MS = 30_000
 const DEFAULT_MAX_OUTPUT_TOKENS = 2_048
+const DEFAULT_MAX_RETRIES = 2
 
 export interface AiSettings {
   enabled: boolean
@@ -17,6 +18,7 @@ export interface AiSettings {
   allowPrivateFallback: boolean
   timeoutMs: number
   defaultMaxOutputTokens: number
+  maxRetries: number
 }
 
 export interface AiProviderConfig {
@@ -32,7 +34,7 @@ function isProviderName(value: string | undefined): value is AiProviderName {
 
 function providerFromEnv(
   value: string | undefined,
-  fallback: AiProviderName
+  fallback: AiProviderName,
 ): AiProviderName {
   return isProviderName(value?.trim().toLowerCase())
     ? (value!.trim().toLowerCase() as AiProviderName)
@@ -44,6 +46,11 @@ function positiveInteger(value: string | undefined, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
 }
 
+function nonNegativeInteger(value: string | undefined, fallback: number): number {
+  const parsed = Number.parseInt(value ?? '', 10)
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback
+}
+
 function cleanBaseUrl(value: string | undefined, fallback: string): string {
   return (value?.trim() || fallback).replace(/\/+$/, '')
 }
@@ -51,17 +58,21 @@ function cleanBaseUrl(value: string | undefined, fallback: string): string {
 export function getAiSettings(): AiSettings {
   return {
     enabled: process.env.AI_ENABLED !== 'false',
-    privateProvider: providerFromEnv(process.env.AI_PRIVATE_PROVIDER, 'groq'),
-    qualityProvider: providerFromEnv(process.env.AI_QUALITY_PROVIDER, 'gemini'),
-    fallbackProvider: providerFromEnv(process.env.AI_FALLBACK_PROVIDER, 'zai'),
+    privateProvider: providerFromEnv(process.env.AI_PRIVATE_PROVIDER, 'zai'),
+    qualityProvider: providerFromEnv(process.env.AI_QUALITY_PROVIDER, 'zai'),
+    fallbackProvider: providerFromEnv(process.env.AI_FALLBACK_PROVIDER, 'groq'),
     allowPrivateFallback: process.env.AI_ALLOW_PRIVATE_FALLBACK === 'true',
     timeoutMs: positiveInteger(
       process.env.AI_REQUEST_TIMEOUT_MS,
-      DEFAULT_TIMEOUT_MS
+      DEFAULT_TIMEOUT_MS,
     ),
     defaultMaxOutputTokens: positiveInteger(
       process.env.AI_MAX_OUTPUT_TOKENS,
-      DEFAULT_MAX_OUTPUT_TOKENS
+      DEFAULT_MAX_OUTPUT_TOKENS,
+    ),
+    maxRetries: Math.min(
+      nonNegativeInteger(process.env.AI_PROVIDER_MAX_RETRIES, DEFAULT_MAX_RETRIES),
+      4,
     ),
   }
 }
@@ -75,7 +86,7 @@ export function getProviderConfig(provider: AiProviderName): AiProviderConfig {
         model: process.env.GROQ_MODEL?.trim() || DEFAULT_MODELS.groq,
         baseUrl: cleanBaseUrl(
           process.env.GROQ_BASE_URL,
-          'https://api.groq.com/openai/v1'
+          'https://api.groq.com/openai/v1',
         ),
       }
     case 'gemini':
@@ -88,7 +99,7 @@ export function getProviderConfig(provider: AiProviderName): AiProviderConfig {
         model: process.env.GEMINI_MODEL?.trim() || DEFAULT_MODELS.gemini,
         baseUrl: cleanBaseUrl(
           process.env.GEMINI_BASE_URL,
-          'https://generativelanguage.googleapis.com/v1beta'
+          'https://generativelanguage.googleapis.com/v1beta',
         ),
       }
     case 'zai':
@@ -98,7 +109,7 @@ export function getProviderConfig(provider: AiProviderName): AiProviderConfig {
         model: process.env.ZAI_MODEL?.trim() || DEFAULT_MODELS.zai,
         baseUrl: cleanBaseUrl(
           process.env.ZAI_BASE_URL,
-          'https://api.z.ai/api/paas/v4'
+          'https://api.z.ai/api/paas/v4',
         ),
       }
   }
