@@ -16,6 +16,13 @@ async function expectWeddingFirstHero(page: import('@playwright/test').Page) {
   await expect(hero).not.toContainText('Africa ready')
 }
 
+async function expectUniqueHomepageMedia(page: import('@playwright/test').Page) {
+  await expect.poll(async () => {
+    const sources = await page.locator('#couples img, [data-testid="wedding-inspiration-carousel"] img, #vendors a img').evaluateAll((images) => images.map((image) => image.getAttribute('src')).filter(Boolean))
+    return { count: sources.length, unique: new Set(sources).size, generated: sources.every((source) => source?.includes('d2ol7oe51mr4n9.cloudfront.net')) }
+  }).toEqual({ count: 13, unique: 13, generated: true })
+}
+
 test.describe('Wewed wedding-first experience', () => {
   test('public homepage restores the first iteration visual composition with live functionality', async ({ page }) => {
     await page.goto('/')
@@ -44,8 +51,10 @@ test.describe('Wewed wedding-first experience', () => {
     await expect(inspiration).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Wedding inspiration with a heartbeat.' })).toBeVisible()
     await expect(inspiration.locator('article').first()).toContainText('A beautiful beginning')
+    await expectUniqueHomepageMedia(page)
     await page.getByRole('button', { name: 'Next inspiration' }).click()
     await expect(inspiration.locator('article').first()).toContainText('Champagne and candlelight')
+    await expectUniqueHomepageMedia(page)
 
     const vendors = page.locator('#vendors')
     await expect(vendors).toBeVisible()
@@ -87,6 +96,7 @@ test.describe('Wewed wedding-first experience', () => {
     await page.goto('/')
 
     await expectWeddingFirstHero(page)
+    await expectUniqueHomepageMedia(page)
     await page.getByLabel('Open public navigation').click()
     const mobileMenu = page.locator('details[open]')
     await expect(mobileMenu.getByRole('link', { name: 'For couples' })).toHaveAttribute('href', '/#couples')
@@ -96,6 +106,7 @@ test.describe('Wewed wedding-first experience', () => {
     const inspiration = page.getByTestId('wedding-inspiration-carousel')
     await page.getByRole('button', { name: 'Next inspiration' }).click()
     await expect(inspiration.locator('article').first()).toContainText('Champagne and candlelight')
+    await expectUniqueHomepageMedia(page)
     await expectNoHorizontalOverflow(page)
   })
 
