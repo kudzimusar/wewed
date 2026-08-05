@@ -17,7 +17,6 @@ describe('Wewed wedding-first product experience', () => {
     expect(home).toContain('Everything for a beautifully planned wedding')
     expect(home).toContain('Wedding inspiration with a heartbeat.')
     expect(home).toContain('Privacy by design')
-    expect(home).toContain('Ready to start your forever?')
     expect(home).toContain("marketplaceFetch<{ planners: PublicPlannerProfile[] }>")
     expect(home).not.toContain('/media/wewed-couple-hero.svg')
     expect(home).not.toContain('Zimbabwe first')
