@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { contextHasPermission, getWeddingContext } from '@/lib/wedding-access'
 import { generateAiText, type AiMessage } from '@/lib/ai'
 import {
+  GUEST_ACCESSIBLE_PRIVACY,
   buildPlannerWeddingContext,
   buildPublishedWeddingContext,
   formatRetrievedSources,
@@ -204,7 +205,10 @@ async function resolveContext(input: {
   if (input.area === 'guest_concierge') {
     const slug = resolveGuestWeddingSlug(input.request, input.body.weddingSlug)
     const wedding = await db.wedding.findFirst({
-      where: { slug, privacy: { in: ['public', 'unlisted'] } },
+      where: {
+        slug,
+        privacy: { in: [...GUEST_ACCESSIBLE_PRIVACY] },
+      },
       select: { id: true },
     })
     if (!wedding) {
