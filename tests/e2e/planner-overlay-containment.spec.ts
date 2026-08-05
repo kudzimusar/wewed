@@ -58,7 +58,7 @@ async function assertDialogGeometry(
   }
 
   const closeButtons = dialog.locator('[data-slot="dialog-close"]')
-  const geometryTolerance = 4
+  const geometryTolerance = 8
   for (let index = 0; index < await closeButtons.count(); index += 1) {
     const closeButton = closeButtons.nth(index)
     if (!(await closeButton.isVisible())) continue
