@@ -58,12 +58,12 @@ function normalizeMessages(messages: AiMessage[]): AiMessage[] {
 
   const totalCharacters = normalized.reduce(
     (total, message) => total + message.content.length,
-    0
+    0,
   )
   if (totalCharacters > MAX_TOTAL_CHARACTERS) {
     throw new AiUnavailableError(
       `AI request exceeds the ${MAX_TOTAL_CHARACTERS.toLocaleString()} character limit`,
-      []
+      [],
     )
   }
 
@@ -94,7 +94,7 @@ function getProviderOrder(request: AiGenerateRequest): AiProviderName[] {
 }
 
 export async function generateAiText(
-  request: AiGenerateRequest
+  request: AiGenerateRequest,
 ): Promise<AiGenerateResult> {
   const settings = getAiSettings()
   if (!settings.enabled) {
@@ -103,11 +103,8 @@ export async function generateAiText(
 
   const messages = normalizeMessages(request.messages)
   const maxOutputTokens = Math.min(
-    Math.max(
-      1,
-      request.maxOutputTokens ?? settings.defaultMaxOutputTokens
-    ),
-    MAX_OUTPUT_TOKENS
+    Math.max(1, request.maxOutputTokens ?? settings.defaultMaxOutputTokens),
+    MAX_OUTPUT_TOKENS,
   )
   const providerOrder = getProviderOrder(request)
   const attemptedProviders: AiProviderName[] = []
@@ -122,12 +119,19 @@ export async function generateAiText(
         provider,
         messages,
         maxOutputTokens,
-        settings.timeoutMs
+        settings.timeoutMs,
       )
     } catch (error) {
       const safeMessage =
         error instanceof AiProviderRequestError
-          ? `${error.message}${error.status ? ` (status ${error.status})` : ''}`
+          ? [
+              error.message,
+              error.status ? `status=${error.status}` : '',
+              error.code ? `code=${error.code}` : '',
+              `retryable=${error.retryable}`,
+            ]
+              .filter(Boolean)
+              .join(' ')
           : `${provider} failed unexpectedly`
       console.warn(`[AI ROUTER] ${safeMessage}`)
     }
@@ -136,13 +140,13 @@ export async function generateAiText(
   if (attemptedProviders.length === 0) {
     throw new AiUnavailableError(
       `No configured AI provider is available for the ${request.profile} profile`,
-      []
+      [],
     )
   }
 
   throw new AiUnavailableError(
     'Every eligible AI provider failed',
-    attemptedProviders
+    attemptedProviders,
   )
 }
 
@@ -158,6 +162,7 @@ export function getAiDiagnostics() {
     },
     limits: {
       timeoutMs: settings.timeoutMs,
+      maxRetries: settings.maxRetries,
       defaultMaxOutputTokens: settings.defaultMaxOutputTokens,
       maximumOutputTokens: MAX_OUTPUT_TOKENS,
       maximumMessages: MAX_MESSAGES,
