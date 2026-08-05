@@ -23,6 +23,21 @@ describe('Wewed wedding-first product experience', () => {
     expect(home).not.toContain('designed for Africa')
   })
 
+  test('audience, inspiration and vendor blocks use unique relevant generated media', () => {
+    const activeHome = source('src/components/public/public-platform-home.tsx')
+    const media = source('src/components/public/public-platform-home-v3.tsx')
+    expect(activeHome).toContain('PublicPlatformHomeV3')
+    for (const label of ['For couples', 'For planners', 'For guests']) expect(media).toContain(label)
+    for (const title of ['A beautiful beginning', 'Champagne and candlelight', 'The joy after “I do”', 'A day to remember']) expect(media).toContain(title)
+    for (const category of ['Venues', 'Photographers', 'Florists', 'Caterers', 'Entertainment', 'Décor & rentals']) expect(media).toContain(category)
+    const urls = [...media.matchAll(/https:\/\/d2ol7oe51mr4n9\.cloudfront\.net\/[^'\n]+\.jpg/g)].map(([url]) => url)
+    expect(urls).toHaveLength(13)
+    expect(new Set(urls).size).toBe(13)
+    expect(media).toContain('Wedding planners collaborating over a detailed event plan')
+    expect(media).toContain('Professional Black wedding photographer working with a camera')
+    expect(media).toContain('Refined plated wedding meal prepared for reception service')
+  })
+
   test('featured planner presentation uses only marketplace records with honest loading states', () => {
     const home = source('src/components/public/public-platform-home-v2.tsx')
     expect(home).toContain("type PlannerLoadState = 'loading' | 'ready' | 'empty' | 'error'")
