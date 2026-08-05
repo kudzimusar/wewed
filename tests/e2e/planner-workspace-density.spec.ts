@@ -105,6 +105,7 @@ test('compact planner chrome gives at least four fifths of the usable body to ac
     await expect(moduleSelector).toBeHidden()
     await expect(actions).toBeHidden()
     await expect(tools).toBeHidden()
+    await expect.poll(async () => (await workspaceRatio(page))?.activeToBody).toBeGreaterThanOrEqual(0.8)
     const reloaded = await workspaceRatio(page)
     expect(reloaded).not.toBeNull()
     expect(reloaded!.activeToBody).toBeGreaterThanOrEqual(0.8)
