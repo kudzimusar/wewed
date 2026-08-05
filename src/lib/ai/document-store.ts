@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
+import type { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import {
   chunkCanonicalDocument,
@@ -111,9 +112,9 @@ function summary(
 
 function normalizeStoredDocument(
   raw: LegacyDocumentValue,
-  sourceText: string,
+  sourceText?: string,
 ): SecureAiDocumentValue {
-  const normalized = normalizeDocumentText(sourceText)
+  const normalized = sourceText ? normalizeDocumentText(sourceText) : ''
   const now = new Date().toISOString()
   return {
     schemaVersion: 2,
@@ -123,8 +124,10 @@ function normalizeStoredDocument(
     sourceUrl: raw.sourceUrl ? clean(raw.sourceUrl, 1_000) : null,
     visibility: raw.visibility === 'public' ? 'public' : 'private',
     retentionUntil: raw.retentionUntil ?? null,
-    checksum: checksum(normalized),
-    chunkCount: chunkCanonicalDocument(normalized).length,
+    checksum: normalized ? checksum(normalized) : raw.checksum ?? checksum(''),
+    chunkCount: normalized
+      ? chunkCanonicalDocument(normalized).length
+      : raw.chunkCount ?? 0,
     indexedAt: raw.indexedAt ?? now,
     createdAt: raw.createdAt ?? now,
     sourceText: normalized,
@@ -132,7 +135,7 @@ function normalizeStoredDocument(
 }
 
 async function writeChunks(
-  tx: Parameters<Parameters<typeof db.$transaction>[0]>[0],
+  tx: Prisma.TransactionClient,
   input: {
     weddingId: string
     document: SecureAiDocumentValue
@@ -243,7 +246,7 @@ export async function listSecureAiDocuments(
   return rows.flatMap((row) => {
     try {
       const raw = parse<LegacyDocumentValue>(row.value)
-      const value = normalizeStoredDocument(raw, raw.sourceText ?? '')
+      const value = normalizeStoredDocument(raw, raw.sourceText)
       return [summary(row, value)]
     } catch {
       return []
