@@ -1,30 +1,37 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import ReactMarkdown from 'react-markdown'
+import type { LucideIcon } from 'lucide-react'
 import {
-  Sparkles,
-  Send,
-  X,
   Bot,
-  Wand2,
-  FileText,
-  DollarSign,
-  ListTodo,
-  Users,
-  Copy,
+  CalendarDays,
   Check,
+  ClipboardList,
+  Copy,
+  DollarSign,
+  FileText,
   Heart,
+  ListTodo,
+  Lock,
+  Mail,
+  MapPin,
+  MessageCircle,
   Save,
+  Search,
+  Send,
+  Sparkles,
+  Users,
+  Wand2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from '@/components/ui/dialog'
 import {
   Select,
@@ -37,35 +44,21 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
 
-/* ============================================================
-   AiPlannerAssistant — Couple's AI tab (inside Wedding Planner)
-   ------------------------------------------------------------
-   NOT visible to guests — only renders inside the planner
-   dashboard. The lead agent wires this into a new "AI" tab in
-   wedding-planner.tsx.
+type AiProductArea =
+  | 'guest_concierge'
+  | 'planner_copilot'
+  | 'template_intelligence'
+  | 'communication_assistant'
 
-   Features:
-   • Chat interface (context: 'couple') — calls /api/ai/chat
-   • 5 quick actions:
-       1. Summarize my RSVPs   → /api/ai/summary
-       2. Write my vows        → speech generator (groom/bride)
-       3. Budget advice        → AI chat prompt
-       4. What's due next?     → AI chat prompt + checklist fetch
-       5. Help with my speech  → speech generator (all speaker types)
-   • Speech generator modal: type/tone/length → generate → copy
-   • AI responses render with markdown (react-markdown)
-   • "Save to notes" button on AI responses (localStorage)
-   • Espresso/gold theme to match the planner dashboard
-   ============================================================ */
+type MessageKind = 'chat' | 'analysis' | 'template' | 'draft' | 'speech'
 
-// ─── Types ──────────────────────────────────────────────────────
 interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
   ts: number
-  kind?: 'chat' | 'summary' | 'speech' | 'task'
-  meta?: Record<string, unknown>
+  area: AiProductArea
+  kind: MessageKind
 }
 
 interface PlannerGuest {
@@ -75,8 +68,8 @@ interface PlannerGuest {
     attending: boolean | null
     mealChoice: string | null
     plusOne: boolean
-    message: string | null
-    dietaryNotes: string | null
+    dietaryNotes?: string | null
+    message?: string | null
   } | null
 }
 
@@ -99,405 +92,600 @@ type SpeechType =
 type SpeechTone = 'heartfelt' | 'funny' | 'traditional'
 type SpeechLength = 'short' | 'medium' | 'long'
 
-// ─── Static data ────────────────────────────────────────────────
+interface AreaConfig {
+  label: string
+  shortLabel: string
+  description: string
+  boundary: string
+  placeholder: string
+  icon: LucideIcon
+}
+
+interface QuickAction {
+  id: string
+  label: string
+  description: string
+  icon: LucideIcon
+}
+
+const AREA_ORDER: AiProductArea[] = [
+  'guest_concierge',
+  'planner_copilot',
+  'template_intelligence',
+  'communication_assistant',
+]
+
+const AREA_CONFIG: Record<AiProductArea, AreaConfig> = {
+  guest_concierge: {
+    label: 'Guest Concierge',
+    shortLabel: 'Guests',
+    description:
+      'Test approved guest answers and identify missing public information.',
+    boundary: 'Published guest information only',
+    placeholder: 'Test a guest question or ask for an FAQ gap review…',
+    icon: MessageCircle,
+  },
+  planner_copilot: {
+    label: 'Planner Copilot',
+    shortLabel: 'Planner',
+    description:
+      'Analyse tasks, RSVPs, budget pressure and operational priorities.',
+    boundary: 'Read-only analysis; confirmation required for changes',
+    placeholder: 'Ask what needs attention, what is overdue, or what is at risk…',
+    icon: ListTodo,
+  },
+  template_intelligence: {
+    label: 'Template Intelligence',
+    shortLabel: 'Templates',
+    description:
+      'Create, adapt and audit reusable wedding-planning templates.',
+    boundary: 'Drafts only; no template is applied automatically',
+    placeholder: 'Describe the wedding or template you want to create or audit…',
+    icon: FileText,
+  },
+  communication_assistant: {
+    label: 'Communication Assistant',
+    shortLabel: 'Comms',
+    description:
+      'Draft vendor, guest, couple and wedding-party communications.',
+    boundary: 'Drafts only; nothing is sent or published automatically',
+    placeholder: 'Describe the audience, channel, tone and message you need…',
+    icon: Mail,
+  },
+}
+
+const QUICK_ACTIONS: Record<AiProductArea, QuickAction[]> = {
+  guest_concierge: [
+    {
+      id: 'test_guest_answer',
+      label: 'Test a guest answer',
+      description: 'Preview the approved ceremony-time response.',
+      icon: MessageCircle,
+    },
+    {
+      id: 'guest_faq_gaps',
+      label: 'Find FAQ gaps',
+      description: 'Suggest missing public guest questions.',
+      icon: Search,
+    },
+    {
+      id: 'guest_travel_guide',
+      label: 'Draft travel guidance',
+      description: 'Create concise venue and shuttle guidance.',
+      icon: MapPin,
+    },
+    {
+      id: 'guest_privacy_review',
+      label: 'Review privacy boundary',
+      description: 'Check what the concierge must not reveal.',
+      icon: Lock,
+    },
+  ],
+  planner_copilot: [
+    {
+      id: 'daily_brief',
+      label: 'Daily attention brief',
+      description: 'Combine current tasks and RSVP signals.',
+      icon: CalendarDays,
+    },
+    {
+      id: 'rsvp_summary',
+      label: 'Summarise RSVPs',
+      description: 'Highlight attendance, meals and follow-ups.',
+      icon: Users,
+    },
+    {
+      id: 'task_priorities',
+      label: 'Prioritise open tasks',
+      description: 'Identify urgent and blocked work.',
+      icon: ListTodo,
+    },
+    {
+      id: 'budget_review',
+      label: 'Budget review',
+      description: 'Get practical Zimbabwean wedding savings ideas.',
+      icon: DollarSign,
+    },
+  ],
+  template_intelligence: [
+    {
+      id: 'starter_template',
+      label: 'Create starter template',
+      description: 'Draft a reusable plan for this wedding type.',
+      icon: Wand2,
+    },
+    {
+      id: 'template_gap_analysis',
+      label: 'Audit current checklist',
+      description: 'Compare live tasks with a complete template.',
+      icon: ClipboardList,
+    },
+    {
+      id: 'timeline_template',
+      label: 'Adapt timeline template',
+      description: 'Draft dependency-aware planning phases.',
+      icon: CalendarDays,
+    },
+    {
+      id: 'anonymise_template',
+      label: 'Prepare for reuse',
+      description: 'Define what must be removed before reuse.',
+      icon: Lock,
+    },
+  ],
+  communication_assistant: [
+    {
+      id: 'vendor_followup',
+      label: 'Vendor follow-up',
+      description: 'Draft a firm but warm confirmation request.',
+      icon: Mail,
+    },
+    {
+      id: 'guest_announcement',
+      label: 'Guest announcement',
+      description: 'Draft a concise logistics update.',
+      icon: Users,
+    },
+    {
+      id: 'progress_update',
+      label: 'Couple progress update',
+      description: 'Draft a clear weekly planning summary.',
+      icon: ClipboardList,
+    },
+    {
+      id: 'speech_vows',
+      label: 'Speech or vows',
+      description: 'Generate a structured first draft.',
+      icon: Heart,
+    },
+  ],
+}
+
+const AREA_WELCOME: Record<AiProductArea, string> = {
+  guest_concierge:
+    'Use this area to test the **public Guest Concierge** and improve approved guest information. It may answer only from published wedding details.',
+  planner_copilot:
+    'Use **Planner Copilot** for daily priorities, RSVP analysis, task risks and operational recommendations. It analyses data but does not change records.',
+  template_intelligence:
+    'Use **Template Intelligence** to create and audit reusable plans. Every result is a draft; no template is saved or applied automatically.',
+  communication_assistant:
+    'Use the **Communication Assistant** to prepare vendor, guest and couple messages. Every result is a draft; nothing is sent or published automatically.',
+}
+
 const SPEECH_TYPES: { value: SpeechType; label: string }[] = [
-  { value: 'groom', label: "Groom (Kudzie)" },
-  { value: 'bride', label: "Bride (Charity)" },
+  { value: 'groom', label: 'Groom' },
+  { value: 'bride', label: 'Bride' },
   { value: 'best_man', label: 'Best Man' },
   { value: 'maid_of_honor', label: 'Maid of Honor' },
-  { value: 'father_bride', label: "Father of the Bride" },
+  { value: 'father_bride', label: 'Father of the Bride' },
   { value: 'mother_groom', label: 'Mother of the Groom' },
 ]
 
 const SPEECH_TONES: { value: SpeechTone; label: string }[] = [
-  { value: 'heartfelt', label: 'Heartfelt & Sincere' },
-  { value: 'funny', label: 'Light & Funny' },
+  { value: 'heartfelt', label: 'Heartfelt and sincere' },
+  { value: 'funny', label: 'Light and funny' },
   { value: 'traditional', label: 'Traditional' },
 ]
 
-const SPEECH_LENGTHS: { value: SpeechLength; label: string; hint: string }[] = [
-  { value: 'short', label: 'Short', hint: '≈ 2 min' },
-  { value: 'medium', label: 'Medium', hint: '≈ 4 min' },
-  { value: 'long', label: 'Long', hint: '≈ 6 min' },
+const SPEECH_LENGTHS: {
+  value: SpeechLength
+  label: string
+  hint: string
+}[] = [
+  { value: 'short', label: 'Short', hint: 'about 2 minutes' },
+  { value: 'medium', label: 'Medium', hint: 'about 4 minutes' },
+  { value: 'long', label: 'Long', hint: 'about 6 minutes' },
 ]
-
-const QUICK_ACTIONS = [
-  {
-    id: 'summary',
-    label: 'Summarize my RSVPs',
-    icon: Users,
-    accent: 'text-gold',
-  },
-  {
-    id: 'vows',
-    label: 'Write my vows',
-    icon: Heart,
-    accent: 'text-clay-light',
-  },
-  {
-    id: 'budget',
-    label: 'Budget advice',
-    icon: DollarSign,
-    accent: 'text-sage-light',
-  },
-  {
-    id: 'due',
-    label: "What's due next?",
-    icon: ListTodo,
-    accent: 'text-gold-light',
-  },
-  {
-    id: 'speech',
-    label: 'Help with my speech',
-    icon: FileText,
-    accent: 'text-plum-light',
-  },
-] as const
-
-const WELCOME_MESSAGE: ChatMessage = {
-  id: 'welcome',
-  role: 'assistant',
-  kind: 'chat',
-  content:
-    "Mhoro Charity & Kudzie! 👋 I'm your **wewed AI planning concierge** — here to help you finalize every detail for Dec 23, 2026 at Imba Manor. Ask me about budget, the checklist, vendor questions, vows, speeches, or Zimbabwean wedding customs (roora, magumo). Try a quick action above, or just type your question below. 💛",
-  ts: Date.now(),
-}
 
 const NOTES_STORAGE_KEY = 'wewed:ai-planner-notes'
 
-// ─── Utils ──────────────────────────────────────────────────────
 function uid(): string {
-  return Math.random().toString(36).slice(2) + Date.now().toString(36)
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
 }
 
-// ─── Main component ─────────────────────────────────────────────
+function createInitialConversations(): Record<AiProductArea, ChatMessage[]> {
+  return AREA_ORDER.reduce(
+    (result, area) => {
+      result[area] = [
+        {
+          id: `welcome-${area}`,
+          role: 'assistant',
+          content: AREA_WELCOME[area],
+          ts: 0,
+          area,
+          kind: 'chat',
+        },
+      ]
+      return result
+    },
+    {} as Record<AiProductArea, ChatMessage[]>,
+  )
+}
+
+function formatTask(task: PlannerTask): string {
+  const due = task.dueDate ? task.dueDate.split('T')[0] : 'no due date'
+  return `- [${task.priority.toUpperCase()}] ${task.title} — ${task.status}, ${task.category}, ${due}`
+}
+
+function formatGuest(guest: PlannerGuest): string {
+  const rsvp = guest.rsvp
+  if (!rsvp) return `- ${guest.name}: no RSVP recorded`
+  const attendance =
+    rsvp.attending === true
+      ? 'attending'
+      : rsvp.attending === false
+        ? 'not attending'
+        : 'pending'
+  return `- ${guest.name}: ${attendance}; meal ${rsvp.mealChoice ?? 'not selected'}; plus-one ${rsvp.plusOne ? 'yes' : 'no'}; dietary ${rsvp.dietaryNotes ?? 'none recorded'}`
+}
+
 export function AiPlannerAssistant() {
   const { toast } = useToast()
-  const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE])
+  const [activeArea, setActiveArea] =
+    useState<AiProductArea>('planner_copilot')
+  const [conversations, setConversations] = useState(createInitialConversations)
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
-  // Speech generator modal
   const [speechModalOpen, setSpeechModalOpen] = useState(false)
   const [speechType, setSpeechType] = useState<SpeechType>('groom')
   const [speechTone, setSpeechTone] = useState<SpeechTone>('heartfelt')
   const [speechLength, setSpeechLength] = useState<SpeechLength>('medium')
-  const [speechResult, setSpeechResult] = useState<string>('')
+  const [speechResult, setSpeechResult] = useState('')
   const [speechLoading, setSpeechLoading] = useState(false)
   const [speechCopied, setSpeechCopied] = useState(false)
 
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
 
-  // Auto-scroll
-  useEffect(() => {
-    const el = scrollRef.current
-    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
-  }, [messages, isLoading])
+  const activeMessages = conversations[activeArea]
+  const activeConfig = AREA_CONFIG[activeArea]
+  const activeActions = QUICK_ACTIONS[activeArea]
 
-  // ── Core chat send ──
+  useEffect(() => {
+    const element = scrollRef.current
+    if (element) {
+      element.scrollTo({ top: element.scrollHeight, behavior: 'smooth' })
+    }
+  }, [activeMessages, activeArea, isLoading])
+
+  useEffect(() => {
+    setInput('')
+    const timeout = setTimeout(() => inputRef.current?.focus(), 100)
+    return () => clearTimeout(timeout)
+  }, [activeArea])
+
+  const addMessage = useCallback(
+    (
+      area: AiProductArea,
+      role: ChatMessage['role'],
+      content: string,
+      kind: MessageKind,
+    ) => {
+      setConversations((current) => ({
+        ...current,
+        [area]: [
+          ...current[area],
+          { id: uid(), role, content, ts: Date.now(), area, kind },
+        ],
+      }))
+    },
+    [],
+  )
+
   const sendToAI = useCallback(
-    async (userText: string, kind: ChatMessage['kind'] = 'chat') => {
-      const trimmed = userText.trim()
+    async (
+      text: string,
+      area: AiProductArea = activeArea,
+      kind: MessageKind = 'chat',
+    ) => {
+      const trimmed = text.trim()
       if (!trimmed || isLoading) return
 
-      const userMsg: ChatMessage = {
+      const existingMessages = conversations[area]
+      const userMessage: ChatMessage = {
         id: uid(),
         role: 'user',
         content: trimmed,
         ts: Date.now(),
+        area,
         kind,
       }
-      const nextMessages = [...messages, userMsg]
-      setMessages(nextMessages)
+      const nextMessages = [...existingMessages, userMessage]
+
+      setConversations((current) => ({
+        ...current,
+        [area]: nextMessages,
+      }))
       setInput('')
       setIsLoading(true)
 
       try {
-        const res = await fetch('/api/ai/chat', {
+        const response = await fetch('/api/ai/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             context: 'couple',
-            messages: nextMessages.map((m) => ({ role: m.role, content: m.content })),
+            area,
+            messages: nextMessages.map((message) => ({
+              role: message.role,
+              content: message.content,
+            })),
           }),
         })
-        if (res.status === 401) {
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: uid(),
-              role: 'assistant',
-              kind: 'chat',
-              content:
-                "I need you to be logged into the planner to use this. Please reopen the planner via the **Plan** button in the navbar.",
-              ts: Date.now(),
-            },
-          ])
+
+        if (response.status === 401) {
+          addMessage(
+            area,
+            'assistant',
+            'Please sign in to the planner to use this Wewed AI area.',
+            'chat',
+          )
           return
         }
-        const data = (await res.json()) as { reply?: string }
-        const reply =
+
+        const data = (await response.json()) as {
+          reply?: string
+          error?: string
+        }
+
+        addMessage(
+          area,
+          'assistant',
           data.reply ??
-          "I'm having a brief moment of trouble. Please try again in a moment. 💛"
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: uid(),
-            role: 'assistant',
-            content: reply,
-            ts: Date.now(),
-            kind,
-          },
-        ])
+            'I could not prepare a response just now. Please try again; no records were changed.',
+          kind,
+        )
       } catch {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: uid(),
-            role: 'assistant',
-            content:
-              "I couldn't reach the AI service just now. Please try again — your planning matters. 💛",
-            ts: Date.now(),
-            kind,
-          },
-        ])
+        addMessage(
+          area,
+          'assistant',
+          'I could not reach Wewed AI just now. Please try again; no records were changed and nothing was sent.',
+          kind,
+        )
       } finally {
         setIsLoading(false)
       }
     },
-    [isLoading, messages],
+    [activeArea, addMessage, conversations, isLoading],
   )
 
-  // ── Quick action: summarize RSVPs ──
-  const handleSummarizeRSVPs = useCallback(async () => {
-    if (isLoading) return
-    setIsLoading(true)
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: uid(),
-        role: 'user',
-        content: 'Please summarize my current RSVPs.',
-        ts: Date.now(),
-        kind: 'summary',
-      },
+  const fetchPlannerData = useCallback(async () => {
+    const [taskResponse, guestResponse] = await Promise.all([
+      fetch('/api/planner/tasks', { cache: 'no-store' }),
+      fetch('/api/planner/guests', { cache: 'no-store' }),
     ])
 
-    try {
-      // Fetch real RSVP data from the planner API
-      const guestRes = await fetch('/api/planner/guests', { cache: 'no-store' })
-      let rsvps: { name: string; attending: boolean | null; meal: string | null; plusOne: boolean; message: string | null }[] = []
-      if (guestRes.ok) {
-        const data = (await guestRes.json()) as { data?: PlannerGuest[] }
-        rsvps = (data.data ?? [])
-          .filter((g) => g.rsvp)
-          .map((g) => ({
-            name: g.name,
-            attending: g.rsvp!.attending,
-            meal: g.rsvp!.mealChoice,
-            plusOne: g.rsvp!.plusOne,
-            message: g.rsvp!.message,
-          }))
-      }
-
-      if (rsvps.length === 0) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: uid(),
-            role: 'assistant',
-            kind: 'summary',
-            content:
-              "You don't have any RSVP responses logged yet. Once guests start replying, I'll give you a warm, natural summary of meal counts, dietary notes, plus-ones, and the messages they've sent. Want me to remind you to send a follow-up nudge to pending guests?",
-            ts: Date.now(),
-          },
-        ])
-        return
-      }
-
-      // Call AI summary endpoint
-      const summaryRes = await fetch('/api/ai/summary', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rsvps }),
-      })
-
-      if (summaryRes.status === 401) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: uid(),
-            role: 'assistant',
-            kind: 'summary',
-            content: "I need you to be logged into the planner to use this feature.",
-            ts: Date.now(),
-          },
-        ])
-        return
-      }
-
-      const summaryData = (await summaryRes.json()) as { summary?: string }
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: uid(),
-          role: 'assistant',
-          kind: 'summary',
-          content: summaryData.summary ?? 'Here is your RSVP summary.',
-          ts: Date.now(),
-          meta: { rsvpCount: rsvps.length },
-        },
-      ])
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: uid(),
-          role: 'assistant',
-          kind: 'summary',
-          content:
-            "I couldn't fetch your RSVPs just now. Please try again — I want to give you the right picture. 💛",
-          ts: Date.now(),
-        },
-      ])
-    } finally {
-      setIsLoading(false)
+    if (!taskResponse.ok || !guestResponse.ok) {
+      throw new Error('Planner data unavailable')
     }
-  }, [isLoading])
 
-  // ── Quick action: budget advice ──
-  const handleBudgetAdvice = useCallback(() => {
-    sendToAI(
-      "We're planning our wedding at Imba Manor in Harare on Dec 23, 2026. Give me 4-5 practical budget optimization tips specific to Zimbabwean weddings — where to splurge vs. save, and any traditional cost considerations (roora, family contributions).",
-      'chat',
-    )
-  }, [sendToAI])
+    const taskPayload = (await taskResponse.json()) as
+      | { data?: PlannerTask[] }
+      | PlannerTask[]
+    const guestPayload = (await guestResponse.json()) as {
+      data?: PlannerGuest[]
+    }
 
-  // ── Quick action: what's due next ──
-  const handleWhatsDue = useCallback(async () => {
-    if (isLoading) return
-    setIsLoading(true)
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: uid(),
-        role: 'user',
-        content: "What's due next on my checklist?",
-        ts: Date.now(),
-        kind: 'task',
-      },
-    ])
+    return {
+      tasks: Array.isArray(taskPayload)
+        ? taskPayload
+        : (taskPayload.data ?? []),
+      guests: guestPayload.data ?? [],
+    }
+  }, [])
 
-    try {
-      const taskRes = await fetch('/api/planner/tasks', { cache: 'no-store' })
-      let tasks: PlannerTask[] = []
-      if (taskRes.ok) {
-        const data = (await taskRes.json()) as { data?: PlannerTask[] } | PlannerTask[]
-        tasks = Array.isArray(data) ? data : (data.data ?? [])
+  const runDataAction = useCallback(
+    async (
+      userLabel: string,
+      buildPrompt: (data: {
+        tasks: PlannerTask[]
+        guests: PlannerGuest[]
+      }) => string,
+      area: AiProductArea,
+      kind: MessageKind,
+    ) => {
+      if (isLoading) return
+      setIsLoading(true)
+      addMessage(area, 'user', userLabel, kind)
+
+      try {
+        const data = await fetchPlannerData()
+        const response = await fetch('/api/ai/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            context: 'couple',
+            area,
+            messages: [{ role: 'user', content: buildPrompt(data) }],
+          }),
+        })
+
+        if (response.status === 401) {
+          addMessage(
+            area,
+            'assistant',
+            'Please sign in to the planner to use live wedding data.',
+            kind,
+          )
+          return
+        }
+
+        const result = (await response.json()) as { reply?: string }
+        addMessage(
+          area,
+          'assistant',
+          result.reply ??
+            'I could not analyse the planner data just now. No records were changed.',
+          kind,
+        )
+      } catch {
+        addMessage(
+          area,
+          'assistant',
+          'I could not load the planner data just now. Please try again; no records were changed.',
+          kind,
+        )
+      } finally {
+        setIsLoading(false)
       }
+    },
+    [addMessage, fetchPlannerData, isLoading],
+  )
 
-      const open = tasks.filter((t) => t.status !== 'done')
-      const taskSummary =
-        open.length === 0
-          ? 'No open tasks — your checklist is fully complete!'
-          : open
-              .slice(0, 12)
-              .map(
-                (t) =>
-                  `• [${t.priority.toUpperCase()}] ${t.title}${t.dueDate ? ` (due ${t.dueDate.split('T')[0]})` : ''} — ${t.category}`,
-              )
-              .join('\n')
-
-      const prompt =
-        open.length === 0
-          ? "Our wedding checklist shows 0 open tasks. Congratulate us briefly and suggest 3 final-week polish items for a Zimbabwean wedding at Imba Manor (Dec 23, 2026)."
-          : `Here are our open wedding tasks (Dec 23, 2026, Imba Manor, Harare):\n\n${taskSummary}\n\nPlease prioritize these for me — tell me the top 3 to focus on next, and flag anything that looks urgent. Keep it warm and practical, under 200 words.`
-
-      // Send to AI as a couple-context chat with the task data baked in
-      const res = await fetch('/api/ai/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          context: 'couple',
-          messages: [
-            {
-              role: 'user',
-              content: prompt,
+  const handleQuickAction = useCallback(
+    (actionId: string) => {
+      switch (actionId) {
+        case 'test_guest_answer':
+          void sendToAI(
+            'A guest asks: “What time is the wedding ceremony?” Give the exact concise response the public Guest Concierge should show.',
+            'guest_concierge',
+          )
+          break
+        case 'guest_faq_gaps':
+          void sendToAI(
+            'Review the approved guest information in your instructions. Suggest the eight most useful missing FAQ questions that the couple should answer before public testing. Do not invent the answers.',
+            'guest_concierge',
+            'analysis',
+          )
+          break
+        case 'guest_travel_guide':
+          void sendToAI(
+            'Draft a compact guest travel note using only the approved public venue and shuttle information. Include a clear reminder to verify anything not provided.',
+            'guest_concierge',
+            'draft',
+          )
+          break
+        case 'guest_privacy_review':
+          void sendToAI(
+            'Create a short privacy checklist showing what the public Guest Concierge may answer and what it must never reveal.',
+            'guest_concierge',
+            'analysis',
+          )
+          break
+        case 'daily_brief':
+          void runDataAction(
+            'Prepare my daily attention brief.',
+            ({ tasks, guests }) => {
+              const openTasks = tasks.filter((task) => task.status !== 'done')
+              const guestLines = guests.slice(0, 80).map(formatGuest).join('\n')
+              const taskLines = openTasks.slice(0, 80).map(formatTask).join('\n')
+              return `Prepare a daily planner attention brief from this authorised snapshot. Separate facts from recommendations. Prioritise overdue/high-priority tasks, RSVP follow-ups, dietary risks and the next three actions.\n\nOPEN TASKS (${openTasks.length})\n${taskLines || '- none'}\n\nGUEST/RSVP SNAPSHOT (${guests.length})\n${guestLines || '- none'}`
             },
-          ],
-        }),
-      })
-      const data = (await res.json()) as { reply?: string }
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: uid(),
-          role: 'assistant',
-          kind: 'task',
-          content:
-            data.reply ??
-            "I pulled your checklist but couldn't quite analyze it just now. Please try again. 💛",
-          ts: Date.now(),
-          meta: { openTaskCount: open.length },
-        },
-      ])
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: uid(),
-          role: 'assistant',
-          kind: 'task',
-          content:
-            "I couldn't fetch your checklist just now. Please try again in a moment. 💛",
-          ts: Date.now(),
-        },
-      ])
-    } finally {
-      setIsLoading(false)
-    }
-  }, [isLoading])
+            'planner_copilot',
+            'analysis',
+          )
+          break
+        case 'rsvp_summary':
+          void runDataAction(
+            'Summarise the current RSVPs.',
+            ({ guests }) => {
+              const guestLines = guests.slice(0, 100).map(formatGuest).join('\n')
+              return `Summarise this authorised RSVP snapshot. Count attending, declined and pending responses; flag missing meal choices, plus-ones and dietary follow-ups. Do not expose contact details.\n\n${guestLines || '- no guest records'}`
+            },
+            'planner_copilot',
+            'analysis',
+          )
+          break
+        case 'task_priorities':
+          void runDataAction(
+            'Prioritise my open tasks.',
+            ({ tasks }) => {
+              const openTasks = tasks.filter((task) => task.status !== 'done')
+              return `Prioritise these authorised open wedding tasks. Identify the top five actions, overdue or blocked work, dependencies and anything that can safely wait. Do not claim to update tasks.\n\n${openTasks.slice(0, 100).map(formatTask).join('\n') || '- no open tasks'}`
+            },
+            'planner_copilot',
+            'analysis',
+          )
+          break
+        case 'budget_review':
+          void sendToAI(
+            'Give a practical budget review framework for a Zimbabwean wedding at Imba Manor. Cover where to protect quality, where to save, family/traditional cost considerations, payment timing and questions to ask vendors. Do not invent our actual budget figures.',
+            'planner_copilot',
+            'analysis',
+          )
+          break
+        case 'starter_template':
+          void sendToAI(
+            'Create a draft reusable planning template for a Zimbabwean wedding with a formal ceremony, traditional family elements and a hotel or manor reception. Organise it by phase, include dependencies and mark fields that must be customised.',
+            'template_intelligence',
+            'template',
+          )
+          break
+        case 'template_gap_analysis':
+          void runDataAction(
+            'Audit my current checklist against a complete template.',
+            ({ tasks }) =>
+              `Audit this authorised task list against a complete wedding-planning template. Identify likely missing categories, duplicates, weak dependencies and timing risks. Return a draft gap report only; do not create or apply tasks.\n\n${tasks.slice(0, 120).map(formatTask).join('\n') || '- no tasks available'}`,
+            'template_intelligence',
+            'template',
+          )
+          break
+        case 'timeline_template':
+          void sendToAI(
+            'Draft a dependency-aware wedding planning timeline from twelve months before the wedding through thirty days after it. Include Zimbabwean cultural and family coordination milestones and label all dates as template guidance.',
+            'template_intelligence',
+            'template',
+          )
+          break
+        case 'anonymise_template':
+          void sendToAI(
+            'Create an anonymisation checklist for converting a completed wedding into a reusable Wewed template. Cover names, contact data, private notes, vendor pricing, contracts, messages, media and culturally sensitive details.',
+            'template_intelligence',
+            'template',
+          )
+          break
+        case 'vendor_followup':
+          void sendToAI(
+            'Draft a professional vendor follow-up asking them to confirm arrival time, final deliverables, outstanding payment status and the on-the-day contact. Use placeholders for vendor-specific details and make the draft status clear.',
+            'communication_assistant',
+            'draft',
+          )
+          break
+        case 'guest_announcement':
+          void sendToAI(
+            'Draft a concise guest announcement confirming ceremony time, arrival guidance, dress code and shuttle details using only approved public information. Make it suitable for WhatsApp and label it as a draft.',
+            'communication_assistant',
+            'draft',
+          )
+          break
+        case 'progress_update':
+          void sendToAI(
+            'Draft a weekly planning update to the couple with sections for completed work, decisions needed, risks, payments due and next-week priorities. Use placeholders where live data is not supplied.',
+            'communication_assistant',
+            'draft',
+          )
+          break
+        case 'speech_vows':
+          setSpeechResult('')
+          setSpeechCopied(false)
+          setSpeechModalOpen(true)
+          break
+      }
+    },
+    [runDataAction, sendToAI],
+  )
 
-  // ── Quick action: write my vows (opens speech modal preset to bride/groom) ──
-  const handleWriteVows = useCallback(() => {
-    setSpeechResult('')
-    setSpeechTone('heartfelt')
-    setSpeechLength('medium')
-    setSpeechType('groom')
-    setSpeechModalOpen(true)
-  }, [])
-
-  // ── Quick action: help with speech (opens modal with broader type) ──
-  const handleSpeechHelp = useCallback(() => {
-    setSpeechResult('')
-    setSpeechTone('heartfelt')
-    setSpeechLength('medium')
-    setSpeechType('best_man')
-    setSpeechModalOpen(true)
-  }, [])
-
-  const handleQuickAction = (id: string) => {
-    switch (id) {
-      case 'summary':
-        void handleSummarizeRSVPs()
-        break
-      case 'vows':
-        handleWriteVows()
-        break
-      case 'budget':
-        handleBudgetAdvice()
-        break
-      case 'due':
-        void handleWhatsDue()
-        break
-      case 'speech':
-        handleSpeechHelp()
-        break
-    }
-  }
-
-  // ── Speech generator: generate ──
   const handleGenerateSpeech = useCallback(async () => {
     if (speechLoading) return
     setSpeechLoading(true)
@@ -505,7 +693,7 @@ export function AiPlannerAssistant() {
     setSpeechCopied(false)
 
     try {
-      const res = await fetch('/api/ai/speech', {
+      const response = await fetch('/api/ai/speech', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -515,69 +703,95 @@ export function AiPlannerAssistant() {
         }),
       })
 
-      if (res.status === 401) {
+      if (response.status === 401) {
         toast({
-          title: 'Unauthorized',
-          description: 'Please log into the planner to use the speech generator.',
+          title: 'Sign-in required',
+          description: 'Please sign in to the planner to generate a speech draft.',
           variant: 'destructive',
         })
         return
       }
 
-      const data = (await res.json()) as { speech?: string; error?: string; meta?: { wordCount?: number } }
+      const data = (await response.json()) as {
+        speech?: string
+        error?: string
+      }
+
       if (!data.speech) {
         toast({
-          title: 'Generation failed',
+          title: 'Draft unavailable',
           description: data.error ?? 'Please try again in a moment.',
           variant: 'destructive',
         })
         return
       }
-      setSpeechResult(data.speech)
+
+      const labelledDraft = data.speech.startsWith('Draft')
+        ? data.speech
+        : `## Draft speech or vows\n\n${data.speech}`
+      setSpeechResult(labelledDraft)
+      addMessage(
+        'communication_assistant',
+        'assistant',
+        labelledDraft,
+        'speech',
+      )
     } catch {
       toast({
         title: 'Network error',
-        description: "I couldn't reach the AI just now. Please try again.",
+        description: 'Wewed AI could not prepare the draft just now.',
         variant: 'destructive',
       })
     } finally {
       setSpeechLoading(false)
     }
-  }, [speechLoading, speechType, speechTone, speechLength, toast])
+  }, [addMessage, speechLength, speechLoading, speechTone, speechType, toast])
 
-  // ── Speech generator: copy ──
   const handleCopySpeech = useCallback(async () => {
     if (!speechResult) return
     try {
       await navigator.clipboard.writeText(speechResult)
       setSpeechCopied(true)
-      toast({ title: 'Copied to clipboard', description: 'Your speech is ready to paste.' })
+      toast({ title: 'Draft copied', description: 'Review it before sharing.' })
       setTimeout(() => setSpeechCopied(false), 2000)
     } catch {
       toast({
         title: 'Could not copy',
-        description: 'Please select the text and copy manually.',
+        description: 'Please select and copy the text manually.',
         variant: 'destructive',
       })
     }
   }, [speechResult, toast])
 
-  // ── Save any AI message to localStorage notes ──
   const handleSaveNote = useCallback(
-    (msg: ChatMessage) => {
+    (message: ChatMessage) => {
       try {
         const raw = localStorage.getItem(NOTES_STORAGE_KEY)
-        const notes = raw ? (JSON.parse(raw) as Array<{ id: string; content: string; kind: string; ts: number }>) : []
-        notes.unshift({ id: msg.id, content: msg.content, kind: msg.kind ?? 'chat', ts: msg.ts })
+        const notes = raw
+          ? (JSON.parse(raw) as Array<{
+              id: string
+              content: string
+              area: string
+              kind: string
+              ts: number
+            }>)
+          : []
+        notes.unshift({
+          id: message.id,
+          content: message.content,
+          area: message.area,
+          kind: message.kind,
+          ts: message.ts,
+        })
         localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(notes.slice(0, 50)))
         toast({
           title: 'Saved to notes',
-          description: 'Find it later in your browser’s localStorage (wewed:ai-planner-notes).',
+          description: 'The AI output was saved in this browser.',
         })
       } catch {
         toast({
           title: 'Could not save',
-          description: 'LocalStorage may be disabled in your browser.',
+          description: 'Browser storage may be unavailable.',
           variant: 'destructive',
         })
       }
@@ -585,22 +799,27 @@ export function AiPlannerAssistant() {
     [toast],
   )
 
-  // ── Send chat input ──
   const handleSendInput = () => {
-    void sendToAI(input, 'chat')
+    void sendToAI(
+      input,
+      activeArea,
+      activeArea === 'template_intelligence'
+        ? 'template'
+        : activeArea === 'communication_assistant'
+          ? 'draft'
+          : 'chat',
+    )
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
       handleSendInput()
     }
   }
 
-  // ─── Render ───────────────────────────────────────────────────
   return (
     <div className="flex h-full flex-col gap-3 bg-espresso p-3 sm:p-4">
-      {/* Header */}
       <header className="shrink-0 rounded-xl border border-gold/20 bg-gradient-to-br from-espresso via-espresso to-plum/15 px-4 py-3">
         <div className="flex items-center gap-3">
           <div className="flex size-10 items-center justify-center rounded-full bg-gradient-to-br from-gold to-gold-muted ring-1 ring-gold-light/30">
@@ -608,61 +827,118 @@ export function AiPlannerAssistant() {
           </div>
           <div className="min-w-0 flex-1">
             <h2 className="wewed-heading text-base text-champagne sm:text-lg">
-              wewed AI
-              <span className="ml-2 align-middle font-sans text-[10px] uppercase tracking-[0.18em] text-gold-light/70">
-                Planning Concierge
-              </span>
+              Wewed AI Workspace
             </h2>
             <p className="truncate font-sans text-[11px] text-champagne/50">
-              Your wedding co-pilot for Dec 23, 2026 · Imba Manor, Harare
+              Four focused product areas · private routing · human review before action
             </p>
           </div>
           <div className="hidden items-center gap-1.5 rounded-full border border-gold/20 bg-gold/5 px-3 py-1 sm:flex">
             <span className="size-1.5 rounded-full bg-gold wewed-pulse-dot" />
             <span className="font-sans text-[10px] uppercase tracking-[0.16em] text-gold-light/80">
-              Powered by GLM 5.2
+              Powered by Wewed AI
             </span>
           </div>
         </div>
       </header>
 
-      {/* Quick actions */}
-      <div className="shrink-0">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-          {QUICK_ACTIONS.map((a) => {
-            const Icon = a.icon
+      <div className="grid shrink-0 grid-cols-2 gap-2 lg:grid-cols-4">
+        {AREA_ORDER.map((area) => {
+          const config = AREA_CONFIG[area]
+          const Icon = config.icon
+          const active = activeArea === area
+          return (
+            <button
+              type="button"
+              key={area}
+              onClick={() => setActiveArea(area)}
+              className={cn(
+                'rounded-xl border px-3 py-3 text-left transition-all',
+                active
+                  ? 'border-gold/60 bg-gold/10 shadow-[0_10px_30px_-24px_rgba(191,155,95,0.8)]'
+                  : 'border-gold/15 bg-champagne/[0.025] hover:border-gold/35 hover:bg-gold/5',
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <Icon
+                  className={cn(
+                    'size-4',
+                    active ? 'text-gold' : 'text-champagne/55',
+                  )}
+                />
+                <span
+                  className={cn(
+                    'font-sans text-xs font-medium',
+                    active ? 'text-champagne' : 'text-champagne/70',
+                  )}
+                >
+                  {config.label}
+                </span>
+              </div>
+              <p className="mt-1.5 line-clamp-2 font-sans text-[10px] leading-relaxed text-champagne/40">
+                {config.description}
+              </p>
+            </button>
+          )
+        })}
+      </div>
+
+      <section className="shrink-0 rounded-xl border border-gold/15 bg-champagne/[0.025] p-3">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <p className="font-sans text-sm font-medium text-champagne">
+              {activeConfig.label}
+            </p>
+            <p className="mt-0.5 font-sans text-[11px] text-champagne/50">
+              {activeConfig.description}
+            </p>
+          </div>
+          <span className="inline-flex items-center gap-1 rounded-full border border-gold/20 bg-espresso/40 px-2 py-1 font-sans text-[9px] uppercase tracking-[0.12em] text-gold-light/75">
+            <Lock className="size-3" />
+            {activeConfig.boundary}
+          </span>
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
+          {activeActions.map((action) => {
+            const Icon = action.icon
             return (
               <button
-                key={a.id}
-                onClick={() => handleQuickAction(a.id)}
+                type="button"
+                key={action.id}
+                onClick={() => handleQuickAction(action.id)}
                 disabled={isLoading}
-                className="group flex flex-col items-start gap-1.5 rounded-lg border border-gold/20 bg-champagne/[0.03] px-3 py-2.5 text-left transition-all hover:border-gold/50 hover:bg-gold/5 disabled:cursor-not-allowed disabled:opacity-50"
+                className="group rounded-lg border border-gold/15 bg-espresso/30 px-3 py-2.5 text-left transition-all hover:border-gold/40 hover:bg-gold/5 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <Icon className={cn('size-4 transition-transform group-hover:scale-110', a.accent)} />
-                <span className="font-sans text-[11px] leading-tight text-champagne/80">
-                  {a.label}
-                </span>
+                <Icon className="size-4 text-gold transition-transform group-hover:scale-110" />
+                <p className="mt-1.5 font-sans text-[11px] font-medium leading-tight text-champagne/85">
+                  {action.label}
+                </p>
+                <p className="mt-1 line-clamp-2 font-sans text-[9px] leading-relaxed text-champagne/40">
+                  {action.description}
+                </p>
               </button>
             )
           })}
         </div>
-      </div>
+      </section>
 
-      {/* Messages */}
       <div
         ref={scrollRef}
         className="wewed-scroll min-h-0 flex-1 space-y-3 overflow-y-auto rounded-xl border border-gold/10 bg-espresso/40 p-3"
         role="log"
         aria-live="polite"
-        aria-label="AI chat messages"
+        aria-label={`${activeConfig.label} messages`}
       >
-        {messages.map((m) => (
-          <PlannerMessageBubble
-            key={m.id}
-            message={m}
-            onSaveNote={() => handleSaveNote(m)}
-          />
-        ))}
+        <AnimatePresence mode="popLayout" initial={false}>
+          {activeMessages.map((message) => (
+            <PlannerMessageBubble
+              key={message.id}
+              message={message}
+              onSaveNote={() => handleSaveNote(message)}
+            />
+          ))}
+        </AnimatePresence>
 
         {isLoading && (
           <div className="flex items-end gap-2">
@@ -676,20 +952,20 @@ export function AiPlannerAssistant() {
         )}
       </div>
 
-      {/* Input */}
       <div className="shrink-0 rounded-xl border border-gold/20 bg-champagne/[0.03] p-2.5">
         <div className="flex items-end gap-2">
           <textarea
             ref={inputRef}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(event) => setInput(event.target.value)}
             onKeyDown={handleKeyDown}
             rows={1}
-            placeholder="Ask about budget, vows, vendors, the checklist, or Zimbabwean wedding customs…"
-            aria-label="Ask wewed AI"
+            placeholder={activeConfig.placeholder}
+            aria-label={`Ask ${activeConfig.label}`}
             className="max-h-32 min-h-[40px] flex-1 resize-none rounded-lg border border-gold/20 bg-espresso/60 px-3 py-2 font-sans text-sm text-champagne placeholder:text-champagne/30 focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/20"
           />
           <button
+            type="button"
             onClick={handleSendInput}
             disabled={!input.trim() || isLoading}
             aria-label="Send message"
@@ -698,10 +974,12 @@ export function AiPlannerAssistant() {
             <Send className="size-4" />
           </button>
         </div>
+        <p className="mt-1.5 px-1 font-sans text-[9px] uppercase tracking-[0.14em] text-champagne/25">
+          Enter to send · Shift+Enter for new line · AI output requires human review
+        </p>
       </div>
 
-      {/* Speech Generator Modal */}
-      <SpeechGeneratorModal
+      <SpeechDraftDialog
         open={speechModalOpen}
         onOpenChange={setSpeechModalOpen}
         type={speechType}
@@ -715,21 +993,11 @@ export function AiPlannerAssistant() {
         copied={speechCopied}
         onGenerate={handleGenerateSpeech}
         onCopy={handleCopySpeech}
-        onSaveToNotes={(text) => {
-          handleSaveNote({
-            id: uid(),
-            role: 'assistant',
-            content: text,
-            ts: Date.now(),
-            kind: 'speech',
-          })
-        }}
       />
     </div>
   )
 }
 
-// ─── Planner message bubble (markdown rendering) ────────────────
 function PlannerMessageBubble({
   message,
   onSaveNote,
@@ -739,12 +1007,15 @@ function PlannerMessageBubble({
 }) {
   const isUser = message.role === 'user'
   const [saved, setSaved] = useState(false)
+  const areaLabel = AREA_CONFIG[message.area].shortLabel
 
   return (
     <motion.div
+      layout
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.22, ease: 'easeOut' }}
+      exit={{ opacity: 0, y: -4 }}
+      transition={{ duration: 0.2, ease: 'easeOut' }}
       className={cn('flex items-end gap-2', isUser && 'flex-row-reverse')}
     >
       {!isUser && (
@@ -754,77 +1025,103 @@ function PlannerMessageBubble({
       )}
       <div
         className={cn(
-          'max-w-[85%] rounded-2xl px-3.5 py-2.5 font-sans text-[13px] leading-relaxed',
+          'max-w-[88%] rounded-2xl px-3.5 py-2.5 font-sans text-[13px] leading-relaxed',
           isUser
             ? 'rounded-br-sm bg-gradient-to-br from-gold to-gold-muted text-espresso'
             : 'rounded-bl-sm border border-gold/20 bg-champagne/[0.04] text-champagne/90',
         )}
       >
+        {!isUser && (
+          <p className="mb-1.5 font-sans text-[8px] uppercase tracking-[0.16em] text-gold/60">
+            {areaLabel} · {message.kind}
+          </p>
+        )}
+
         {isUser ? (
           <p className="whitespace-pre-wrap">{message.content}</p>
         ) : (
-          <div className="space-y-1.5">
-            <ReactMarkdown
-              components={{
-                p: ({ children }) => <p className="leading-relaxed">{children}</p>,
-                ul: ({ children }) => (
-                  <ul className="ml-4 list-disc space-y-1">{children}</ul>
-                ),
-                ol: ({ children }) => (
-                  <ol className="ml-4 list-decimal space-y-1">{children}</ol>
-                ),
-                li: ({ children }) => <li className="leading-relaxed">{children}</li>,
-                strong: ({ children }) => (
-                  <strong className="font-semibold text-gold-light">{children}</strong>
-                ),
-                em: ({ children }) => <em className="text-clay-light">{children}</em>,
-                h3: ({ children }) => (
-                  <h3 className="wewed-heading mt-2 text-sm text-gold">{children}</h3>
-                ),
-                h4: ({ children }) => (
-                  <h4 className="wewed-heading mt-2 text-sm text-gold-light">{children}</h4>
-                ),
-                code: ({ children }) => (
-                  <code className="rounded bg-espresso/60 px-1 py-0.5 font-mono text-[11px] text-gold-light">
-                    {children}
-                  </code>
-                ),
-                blockquote: ({ children }) => (
-                  <blockquote className="border-l-2 border-gold/40 pl-3 italic text-champagne/70">
-                    {children}
-                  </blockquote>
-                ),
-                a: ({ href, children }) => (
-                  <a
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-gold underline underline-offset-2 hover:text-gold-light"
-                  >
-                    {children}
-                  </a>
-                ),
-              }}
-            >
-              {message.content}
-            </ReactMarkdown>
-
-            {/* Save-to-notes footer */}
-            {!isUser && message.id !== 'welcome' && (
-              <div className="mt-2 flex items-center justify-end gap-1.5 border-t border-gold/10 pt-1.5">
-                <button
-                  onClick={() => {
-                    onSaveNote()
-                    setSaved(true)
-                    setTimeout(() => setSaved(false), 2000)
-                  }}
-                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-sans text-[10px] uppercase tracking-[0.14em] text-champagne/50 transition-colors hover:bg-gold/10 hover:text-gold"
+          <ReactMarkdown
+            components={{
+              p: ({ children }) => (
+                <p className="mb-2 leading-relaxed last:mb-0">{children}</p>
+              ),
+              ul: ({ children }) => (
+                <ul className="mb-2 ml-4 list-disc space-y-1 last:mb-0">
+                  {children}
+                </ul>
+              ),
+              ol: ({ children }) => (
+                <ol className="mb-2 ml-4 list-decimal space-y-1 last:mb-0">
+                  {children}
+                </ol>
+              ),
+              li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+              strong: ({ children }) => (
+                <strong className="font-semibold text-gold-light">
+                  {children}
+                </strong>
+              ),
+              em: ({ children }) => <em className="text-clay-light">{children}</em>,
+              h1: ({ children }) => (
+                <h3 className="wewed-heading mb-1 mt-2 text-sm text-gold first:mt-0">
+                  {children}
+                </h3>
+              ),
+              h2: ({ children }) => (
+                <h3 className="wewed-heading mb-1 mt-2 text-sm text-gold first:mt-0">
+                  {children}
+                </h3>
+              ),
+              h3: ({ children }) => (
+                <h3 className="wewed-heading mb-1 mt-2 text-sm text-gold first:mt-0">
+                  {children}
+                </h3>
+              ),
+              h4: ({ children }) => (
+                <h4 className="mb-1 mt-2 font-sans text-xs font-semibold text-gold-light first:mt-0">
+                  {children}
+                </h4>
+              ),
+              code: ({ children }) => (
+                <code className="rounded bg-espresso/60 px-1 py-0.5 font-mono text-[11px] text-gold-light">
+                  {children}
+                </code>
+              ),
+              blockquote: ({ children }) => (
+                <blockquote className="my-2 border-l-2 border-gold/40 pl-3 italic text-champagne/70">
+                  {children}
+                </blockquote>
+              ),
+              a: ({ href, children }) => (
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-gold underline underline-offset-2 hover:text-gold-light"
                 >
-                  {saved ? <Check className="size-3" /> : <Save className="size-3" />}
-                  {saved ? 'Saved' : 'Save to notes'}
-                </button>
-              </div>
-            )}
+                  {children}
+                </a>
+              ),
+            }}
+          >
+            {message.content}
+          </ReactMarkdown>
+        )}
+
+        {!isUser && message.id !== `welcome-${message.area}` && (
+          <div className="mt-2 flex items-center justify-end border-t border-gold/10 pt-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                onSaveNote()
+                setSaved(true)
+                setTimeout(() => setSaved(false), 2000)
+              }}
+              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-sans text-[9px] uppercase tracking-[0.12em] text-champagne/45 transition-colors hover:bg-gold/10 hover:text-gold"
+            >
+              {saved ? <Check className="size-3" /> : <Save className="size-3" />}
+              {saved ? 'Saved' : 'Save note'}
+            </button>
           </div>
         )}
       </div>
@@ -832,20 +1129,22 @@ function PlannerMessageBubble({
   )
 }
 
-// ─── Typing dots ────────────────────────────────────────────────
 function TypingDots() {
   return (
-    <div className="flex items-center gap-1.5 px-1 py-1.5" aria-label="wewed AI is typing">
-      {[0, 1, 2].map((i) => (
+    <div
+      className="flex items-center gap-1.5 px-1 py-1.5"
+      aria-label="Wewed AI is typing"
+    >
+      {[0, 1, 2].map((index) => (
         <motion.span
-          key={i}
+          key={index}
           className="size-2 rounded-full bg-gold/70"
           animate={{ y: [0, -4, 0], opacity: [0.5, 1, 0.5] }}
           transition={{
             duration: 0.9,
             repeat: Infinity,
             ease: 'easeInOut',
-            delay: i * 0.15,
+            delay: index * 0.15,
           }}
         />
       ))}
@@ -853,25 +1152,23 @@ function TypingDots() {
   )
 }
 
-// ─── Speech Generator Modal ─────────────────────────────────────
-interface SpeechGeneratorModalProps {
+interface SpeechDraftDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   type: SpeechType
   tone: SpeechTone
   length: SpeechLength
-  onTypeChange: (v: SpeechType) => void
-  onToneChange: (v: SpeechTone) => void
-  onLengthChange: (v: SpeechLength) => void
+  onTypeChange: (value: SpeechType) => void
+  onToneChange: (value: SpeechTone) => void
+  onLengthChange: (value: SpeechLength) => void
   result: string
   loading: boolean
   copied: boolean
   onGenerate: () => void
   onCopy: () => void
-  onSaveToNotes: (text: string) => void
 }
 
-function SpeechGeneratorModal({
+function SpeechDraftDialog({
   open,
   onOpenChange,
   type,
@@ -885,146 +1182,125 @@ function SpeechGeneratorModal({
   copied,
   onGenerate,
   onCopy,
-  onSaveToNotes,
-}: SpeechGeneratorModalProps) {
+}: SpeechDraftDialogProps) {
+  const selectedLength = useMemo(
+    () => SPEECH_LENGTHS.find((option) => option.value === length),
+    [length],
+  )
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-hidden border-gold/30 bg-espresso p-0 sm:max-w-2xl">
-        <DialogHeader className="border-b border-gold/15 px-5 py-4 text-left">
+      <DialogContent className="max-h-[90vh] overflow-y-auto border-gold/30 bg-espresso sm:max-w-2xl">
+        <DialogHeader className="text-left">
           <DialogTitle className="wewed-heading flex items-center gap-2 text-lg text-champagne">
             <Wand2 className="size-5 text-gold" />
-            AI Speech & Vows Generator
+            Draft speech or vows
           </DialogTitle>
           <DialogDescription className="text-champagne/50">
-            Crafted for Charity & Kudzie · Dec 23, 2026 · Imba Manor
+            Wewed AI creates a first draft for human review. Nothing is sent or published.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex max-h-[calc(90vh-120px)] flex-col gap-4 overflow-y-auto px-5 py-4">
-          {/* Selectors */}
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="space-y-1.5">
-              <Label className="font-sans text-[11px] uppercase tracking-[0.14em] text-gold-light/80">
-                Speaker
-              </Label>
-              <Select value={type} onValueChange={(v) => onTypeChange(v as SpeechType)}>
-                <SelectTrigger className="border-gold/20 bg-champagne/[0.04] text-champagne hover:border-gold/40">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="border-gold/20 bg-espresso text-champagne">
-                  {SPEECH_TYPES.map((t) => (
-                    <SelectItem key={t.value} value={t.value} className="focus:bg-gold/10 focus:text-gold">
-                      {t.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="font-sans text-[11px] uppercase tracking-[0.14em] text-gold-light/80">
-                Tone
-              </Label>
-              <Select value={tone} onValueChange={(v) => onToneChange(v as SpeechTone)}>
-                <SelectTrigger className="border-gold/20 bg-champagne/[0.04] text-champagne hover:border-gold/40">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="border-gold/20 bg-espresso text-champagne">
-                  {SPEECH_TONES.map((t) => (
-                    <SelectItem key={t.value} value={t.value} className="focus:bg-gold/10 focus:text-gold">
-                      {t.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="font-sans text-[11px] uppercase tracking-[0.14em] text-gold-light/80">
-                Length
-              </Label>
-              <Select value={length} onValueChange={(v) => onLengthChange(v as SpeechLength)}>
-                <SelectTrigger className="border-gold/20 bg-champagne/[0.04] text-champagne hover:border-gold/40">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="border-gold/20 bg-espresso text-champagne">
-                  {SPEECH_LENGTHS.map((l) => (
-                    <SelectItem key={l.value} value={l.value} className="focus:bg-gold/10 focus:text-gold">
-                      {l.label} <span className="text-champagne/40">· {l.hint}</span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+        <div className="grid gap-4 py-2 sm:grid-cols-3">
+          <div className="space-y-2">
+            <Label className="text-champagne/75">Speaker</Label>
+            <Select value={type} onValueChange={(value) => onTypeChange(value as SpeechType)}>
+              <SelectTrigger className="border-gold/20 bg-espresso/60 text-champagne">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SPEECH_TYPES.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          {/* Generate button */}
+          <div className="space-y-2">
+            <Label className="text-champagne/75">Tone</Label>
+            <Select value={tone} onValueChange={(value) => onToneChange(value as SpeechTone)}>
+              <SelectTrigger className="border-gold/20 bg-espresso/60 text-champagne">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SPEECH_TONES.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-champagne/75">Length</Label>
+            <Select value={length} onValueChange={(value) => onLengthChange(value as SpeechLength)}>
+              <SelectTrigger className="border-gold/20 bg-espresso/60 text-champagne">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SPEECH_LENGTHS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label} · {option.hint}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-3">
+          <p className="font-sans text-[10px] text-champagne/40">
+            Selected length: {selectedLength?.hint}
+          </p>
           <Button
+            type="button"
             onClick={onGenerate}
             disabled={loading}
-            className="bg-gradient-to-br from-gold to-gold-muted text-espresso hover:from-gold-light hover:to-gold"
+            className="bg-gold text-espresso hover:bg-gold-light"
           >
-            <Wand2 className="size-4" />
-            {loading ? 'Writing your speech…' : result ? 'Regenerate speech' : 'Generate speech'}
+            <Sparkles className="mr-2 size-4" />
+            {loading ? 'Preparing draft…' : 'Generate draft'}
           </Button>
-
-          {/* Result */}
-          <AnimatePresence>
-            {result && (
-              <motion.div
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                className="space-y-2"
-              >
-                <div className="flex items-center justify-between">
-                  <p className="font-sans text-[11px] uppercase tracking-[0.14em] text-gold-light/80">
-                    Draft speech
-                  </p>
-                  <div className="flex items-center gap-1.5">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={onCopy}
-                      className="h-7 gap-1.5 px-2 text-[11px] text-champagne/70 hover:bg-gold/10 hover:text-gold"
-                    >
-                      {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
-                      {copied ? 'Copied' : 'Copy'}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => onSaveToNotes(result)}
-                      className="h-7 gap-1.5 px-2 text-[11px] text-champagne/70 hover:bg-gold/10 hover:text-gold"
-                    >
-                      <Save className="size-3" />
-                      Save
-                    </Button>
-                  </div>
-                </div>
-                <div className="max-h-72 overflow-y-auto rounded-lg border border-gold/20 bg-champagne/[0.04] p-3">
-                  <div className="whitespace-pre-wrap font-sans text-[13px] leading-relaxed text-champagne/90">
-                    {result}
-                  </div>
-                </div>
-                <p className="text-right font-sans text-[10px] text-champagne/30">
-                  {result.split(/\s+/).length} words · ~
-                  {Math.max(1, Math.round(result.split(/\s+/).length / 140))} min spoken
-                </p>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {!result && !loading && (
-            <div className="rounded-lg border border-dashed border-gold/20 bg-champagne/[0.02] p-6 text-center">
-              <FileText className="mx-auto mb-2 size-6 text-gold/40" />
-              <p className="font-sans text-[12px] text-champagne/40">
-                Choose a speaker, tone, and length — then click{' '}
-                <span className="text-gold">Generate speech</span>.
-              </p>
-            </div>
-          )}
         </div>
+
+        {result && (
+          <div className="rounded-xl border border-gold/20 bg-champagne/[0.04] p-4">
+            <ReactMarkdown
+              components={{
+                p: ({ children }) => (
+                  <p className="mb-3 whitespace-pre-wrap font-sans text-sm leading-relaxed text-champagne/85 last:mb-0">
+                    {children}
+                  </p>
+                ),
+                h2: ({ children }) => (
+                  <h3 className="wewed-heading mb-2 text-base text-gold">
+                    {children}
+                  </h3>
+                ),
+              }}
+            >
+              {result}
+            </ReactMarkdown>
+            <div className="mt-3 flex justify-end border-t border-gold/10 pt-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onCopy}
+                className="border-gold/25 text-gold hover:bg-gold/10"
+              >
+                {copied ? (
+                  <Check className="mr-2 size-4" />
+                ) : (
+                  <Copy className="mr-2 size-4" />
+                )}
+                {copied ? 'Copied' : 'Copy draft'}
+              </Button>
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   )
