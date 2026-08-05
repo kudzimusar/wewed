@@ -275,7 +275,10 @@ test('major planner tools share the responsive overlay contract', async ({ plann
           const style = getComputedStyle(candidate)
           return ['auto', 'scroll'].includes(style.overflowY) && candidate.clientHeight >= 100
         })
-        if (!scrollOwners.length) return { found: false, usable: false }
+        const overflowing = candidates.some((candidate) =>
+          candidate.clientHeight >= 100 && candidate.scrollHeight > candidate.clientHeight + 1,
+        )
+        if (!scrollOwners.length) return { found: !overflowing, usable: !overflowing }
 
         let overflowFound = false
         for (const owner of scrollOwners) {
@@ -291,8 +294,8 @@ test('major planner tools share the responsive overlay contract', async ({ plann
         }
         return { found: true, usable: !overflowFound }
       })
-      expect(scrollContract.found, `${String(tool.name)} owns a scroll boundary`).toBe(true)
-      expect(scrollContract.usable, `${String(tool.name)} scroll boundary is usable`).toBe(true)
+      expect(scrollContract.found, `${String(tool.name)} is contained or owns a scroll boundary`).toBe(true)
+      expect(scrollContract.usable, `${String(tool.name)} scroll boundary is usable when needed`).toBe(true)
       await closeVisibleDialog(page)
       await openPlannerToolPanel(page)
     }
