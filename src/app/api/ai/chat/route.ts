@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import ZAI from 'z-ai-web-dev-sdk'
 import { isAdmin } from '@/lib/admin-gate'
+import { generateAiText, type AiMessage } from '@/lib/ai'
 
 /* ============================================================
    POST /api/ai/chat
@@ -15,10 +15,10 @@ import { isAdmin } from '@/lib/admin-gate'
      context: 'guest' | 'couple'
    }
 
-   Response: { reply: string, usage?: { prompt_tokens, completion_tokens } }
+   Response: { reply: string, usage?, provider?, model? }
 
-   Rate-limited (10 req/min per IP) with graceful fallback if the
-   SDK ever fails — guests always get a warm answer, never a 500.
+   Rate-limited (10 req/min per IP) with graceful fallback if every
+   eligible AI provider fails.
    ============================================================ */
 
 type ChatRole = 'system' | 'user' | 'assistant'
@@ -156,48 +156,40 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const systemPrompt =
     context === 'couple' ? COUPLE_SYSTEM_PROMPT : GUEST_SYSTEM_PROMPT
   const recent = messages.slice(-10)
-  const sdkMessages: { role: ChatRole; content: string }[] = [
+  const aiMessages: AiMessage[] = [
     { role: 'system', content: systemPrompt },
     ...recent,
   ]
 
   try {
-    const zai = await ZAI.create()
-    const response = await zai.chat.completions.create({
-      messages: sdkMessages,
-      thinking: { type: 'disabled' },
+    // Treat both chat surfaces as private. Guests can type personal data even
+    // though their normal questions are public wedding information.
+    const result = await generateAiText({
+      messages: aiMessages,
+      profile: 'private',
+      maxOutputTokens: 512,
     })
-
-    const reply = response?.choices?.[0]?.message?.content
-    if (!isString(reply) || reply.trim().length === 0) {
-      return NextResponse.json({
-        success: true,
-        reply: context === 'couple' ? COUPLE_FALLBACK : GUEST_FALLBACK,
-        usage: response?.usage
-          ? {
-              prompt_tokens: response.usage.prompt_tokens ?? 0,
-              completion_tokens: response.usage.completion_tokens ?? 0,
-            }
-          : undefined,
-      })
-    }
 
     return NextResponse.json({
       success: true,
-      reply: reply.trim(),
-      usage: response?.usage
+      reply: result.text,
+      provider: result.provider,
+      model: result.model,
+      usage: result.usage
         ? {
-            prompt_tokens: response.usage.prompt_tokens ?? 0,
-            completion_tokens: response.usage.completion_tokens ?? 0,
+            prompt_tokens: result.usage.promptTokens ?? 0,
+            completion_tokens: result.usage.completionTokens ?? 0,
+            total_tokens: result.usage.totalTokens,
           }
         : undefined,
     })
-  } catch (error) {
-    console.error('[AI CHAT] SDK failure:', error)
+  } catch {
+    console.error('[AI CHAT] Every eligible provider failed')
     return NextResponse.json({
       success: true,
       reply: context === 'couple' ? COUPLE_FALLBACK : GUEST_FALLBACK,
       error: 'AI provider unavailable',
+      fallback: true,
     })
   }
 }
