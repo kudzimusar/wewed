@@ -43,7 +43,7 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
 
     services:
       postgres:
@@ -101,6 +101,9 @@ jobs:
 
       - name: Run AI unit contracts
         run: bun run ai:unit
+
+      - name: Type-check application
+        run: bunx tsc --noEmit --pretty false
 
       - name: Build application
         run: bun run build
