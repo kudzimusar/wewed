@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import ZAI from 'z-ai-web-dev-sdk'
 import { isAdmin } from '@/lib/admin-gate'
+import { generateAiText } from '@/lib/ai'
 
 /* ============================================================
    POST /api/ai/summary
@@ -207,25 +207,25 @@ Recent messages (${stats.messageCount} total): ${messagesLine}
 Please write a warm, natural-language summary for the couple. Reference the numbers naturally (e.g. "42 confirmed, 8 declines"), highlight the meal breakdown, and include a sentence about the messages they've received. Sign off with a gentle, encouraging note.`
 
   try {
-    const zai = await ZAI.create()
-    const response = await zai.chat.completions.create({
+    const result = await generateAiText({
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
-      thinking: { type: 'disabled' },
+      profile: 'private',
+      maxOutputTokens: 384,
     })
 
-    const summary = response?.choices?.[0]?.message?.content
-    if (typeof summary === 'string' && summary.trim().length > 0) {
-      return NextResponse.json({
-        success: true,
-        summary: summary.trim(),
-        stats,
-      })
-    }
-  } catch (error) {
-    console.error('[AI SUMMARY] SDK failure:', error)
+    return NextResponse.json({
+      success: true,
+      summary: result.text,
+      stats,
+      provider: result.provider,
+      model: result.model,
+      usage: result.usage,
+    })
+  } catch {
+    console.error('[AI SUMMARY] Every eligible provider failed')
   }
 
   const fallbackSummary =
