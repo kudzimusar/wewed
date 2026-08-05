@@ -56,13 +56,14 @@ test.describe('Wewed wedding-first experience', () => {
     await expect(vendors.getByRole('link', { name: 'Manage company profile' })).toHaveAttribute('href', '/vendors/manage')
     await expect(page.getByText('Made for weddings. Built to bring people together.')).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Love is personal. Your wedding remains yours.' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Ready to start your forever?' })).toBeVisible()
   })
 
   test('provider category CTA opens an honest filtered directory', async ({ page }) => {
     await page.goto('/vendors?category=photography')
     await expect(page.getByRole('heading', { name: 'Find the people and places that bring your celebration to life.' })).toBeVisible()
     await expect(page.getByLabel('Service category')).toHaveValue('photography')
-    await expect(page.getByRole('heading', { name: 'Photographers' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Photographers', exact: true })).toBeVisible()
     await expect.poll(async () =>
       (await page.getByTestId('provider-directory-results').count()) +
       (await page.getByRole('status').count()) +
