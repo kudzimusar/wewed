@@ -1,6 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import { extractTemplateItems } from '@/lib/ai/workspace-store'
-import { formatRetrievedSources } from '@/lib/ai/workspace-context'
+import {
+  GUEST_ACCESSIBLE_PRIVACY,
+  formatRetrievedSources,
+} from '@/lib/ai/workspace-context'
 
 const TASK_TEMPLATE = `
 ## Draft template
@@ -75,6 +78,14 @@ describe('AI template extraction', () => {
 
   test('returns no structured actions for prose-only AI output', () => {
     expect(extractTemplateItems('Here is a useful checklist with no machine-readable block.')).toEqual([])
+  })
+})
+
+describe('Guest-accessible wedding privacy', () => {
+  test('supports current link-only wedding pages without exposing private weddings', () => {
+    expect(GUEST_ACCESSIBLE_PRIVACY).toContain('link_only')
+    expect(GUEST_ACCESSIBLE_PRIVACY).toContain('public')
+    expect(GUEST_ACCESSIBLE_PRIVACY).not.toContain('private')
   })
 })
 
