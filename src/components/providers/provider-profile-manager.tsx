@@ -297,7 +297,7 @@ export function ProviderProfileManager() {
       }
 
       let nextProfile = mapProfile(next.profile, next.business.name)
-      let nextVerification = mapVerification(next.verification)
+      const nextVerification = mapVerification(next.verification)
       let nextOfferings = (next.offerings ?? []).map((entry) => mapOffering(entry, next.business!.name, nextProfile.serviceAreas))
       if (!nextOfferings.length) nextOfferings = [emptyOffering(next.business.type === 'venue' ? 'venue' : 'other', next.business.name, nextProfile.serviceAreas)]
 
@@ -305,10 +305,9 @@ export function ProviderProfileManager() {
       const local = window.localStorage.getItem(storageKey)
       if (local) {
         try {
-          const restored = JSON.parse(local) as { profile?: ProfileDraft; verification?: VerificationDraft; offerings?: OfferingDraft[]; savedAt?: string }
-          if (restored.profile && restored.verification && Array.isArray(restored.offerings) && restored.offerings.length) {
+          const restored = JSON.parse(local) as { profile?: ProfileDraft; offerings?: OfferingDraft[]; savedAt?: string }
+          if (restored.profile && Array.isArray(restored.offerings) && restored.offerings.length) {
             nextProfile = restored.profile
-            nextVerification = restored.verification
             nextOfferings = restored.offerings
             setAutosavedAt(restored.savedAt ?? null)
             setNotice('A locally autosaved draft was restored. Review it, then save to sync with Wewed.')
@@ -333,17 +332,17 @@ export function ProviderProfileManager() {
   useEffect(() => { void load() }, [load])
 
   useEffect(() => {
-    if (state !== 'ready' || !payload?.business || !profile || !verification || offerings.length === 0) return
+    if (state !== 'ready' || !payload?.business || !profile || offerings.length === 0) return
     const timer = window.setTimeout(() => {
       const savedAt = new Date().toISOString()
       window.localStorage.setItem(
         `wewed-provider-onboarding-${payload.business!.id}`,
-        JSON.stringify({ profile, verification, offerings, savedAt }),
+        JSON.stringify({ profile, offerings, savedAt }),
       )
       setAutosavedAt(savedAt)
     }, 800)
     return () => window.clearTimeout(timer)
-  }, [state, payload?.business, profile, verification, offerings])
+  }, [state, payload?.business, profile, offerings])
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()

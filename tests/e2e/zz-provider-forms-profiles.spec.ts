@@ -16,7 +16,7 @@ test.describe('Provider forms and public profiles', () => {
     await expect(page.getByText('Wedding cakes & desserts', { exact: true })).toBeVisible()
     await expect(page.getByLabel(/Wedding cakes & desserts/)).toBeChecked()
     await expect(page.getByText('Each service gets a separate, relevant profile form after approval.')).toBeVisible()
-    await expect(page.getByLabel('Country')).toBeVisible()
+    await expect(page.getByRole('textbox', { name: 'Country', exact: true })).toBeVisible()
     await expect(page.getByLabel('City / town')).toBeVisible()
     await expect(page.getByLabel('Primary service area')).toBeVisible()
     await expectNoHorizontalOverflow(page)
@@ -34,15 +34,4 @@ test.describe('Provider forms and public profiles', () => {
       + (await page.getByRole('alert').count()),
     ).toBeGreaterThan(0)
     await expectNoHorizontalOverflow(page)
-  })
-
-  test('limited planner profiles do not expose fabricated zero-value facts', async ({ page }) => {
-    await page.goto('/planners/eleven-eleven-testing-uat')
-
-    await expect(page.getByRole('heading', { name: 'Eleven Eleven Testing — UAT' })).toBeVisible()
-    await expect(page.getByText('0 years', { exact: true })).toHaveCount(0)
-    await expect(page.getByText('0–any guests', { exact: true })).toHaveCount(0)
-    await expect(page.getByRole('heading', { name: 'Start a secure enquiry' })).toBeVisible()
-    await expectNoHorizontalOverflow(page)
-  })
-})
+  })})

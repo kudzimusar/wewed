@@ -46,14 +46,16 @@ describe('targeted home, marketplace and provider iteration', () => {
     expect(signOut).toContain('supabase.auth.signOut()')
   })
 
-  test('planner controlled classifications use selects without changing its profile API contract', () => {
+  test('planner controlled classifications use checkbox groups without changing its profile API contract', () => {
     const form = source('src/components/marketplace/planner-marketplace-centre.tsx')
     const api = source('src/app/api/marketplace/profile/route.ts')
     for (const name of ['serviceAreas', 'services', 'weddingStyles', 'languages']) {
       expect(form).toContain(`name="${name}"`)
       expect(form).toContain(`data.getAll('${name}')`)
     }
-    expect(form).toContain('multiple')
+    expect(form).toContain('function CheckboxGroup')
+    expect(form).toContain('type="checkbox"')
+    expect(form).toContain('defaultChecked={selected.includes(option)}')
     expect(form).toContain('Minimum guest count')
     expect(form).toContain('Maximum guest count')
     expect(form).toContain('Price band')
@@ -62,30 +64,35 @@ describe('targeted home, marketplace and provider iteration', () => {
     expect(api).toContain('stringList(body.services, 30)')
   })
 
-  test('provider discovery reuses business accounts and never exposes wedding Vendor rows', () => {
+  test('provider discovery uses normalized business profiles and never exposes wedding Vendor rows', () => {
     const directory = source('src/app/api/providers/route.ts')
     const profile = source('src/app/api/providers/profile/route.ts')
     const home = source('src/components/public/public-platform-home-v2.tsx')
     expect(directory).toContain('public."BusinessAccount"')
     expect(directory).toContain("type IN ('venue', 'vendor')")
-    expect(directory).toContain('"onboardingStatus" = \'complete\'')
-    expect(directory).toContain("metadata->'publicProfile'->>'visibility'")
+    expect(directory).toContain('"onboardingStatus" = 'complete'')
+    expect(directory).toContain('public."ProviderProfile"')
+    expect(directory).toContain('public."ProviderServiceOffering"')
+    expect(directory).toContain("WHERE p.visibility = 'published'")
     expect(directory).not.toContain('public."Vendor"')
     expect(profile).toContain('public."BusinessAccountMember"')
-    expect(profile).toContain("jsonb_set(COALESCE(metadata, '{}'::jsonb), '{publicProfile}'")
+    expect(profile).toContain('public."ProviderProfile"')
+    expect(profile).toContain('ProviderVerification')
     expect(profile).toContain('createServerClient')
     expect(home).toContain('/vendors?category=')
     expect(home).toContain('/vendors/manage')
   })
 
-  test('provider registration preserves the existing review flow with category preselection', () => {
+  test('provider registration preserves review flow with multi-service preselection', () => {
     const form = source('src/components/public/public-registration-form.tsx')
     const api = source('src/app/api/auth/register/route.ts')
     expect(form).toContain("searchParams.get('accountType')")
     expect(form).toContain("searchParams.get('service')")
-    expect(form).toContain('Primary wedding service')
-    expect(form).toContain('requestedService')
-    expect(api).toContain('PROVIDER_SERVICES')
+    expect(form).toContain('Wedding services')
+    expect(form).toContain('requestedServices')
+    expect(form).toContain("requestedService: isProvider ? requestedServices[0] : null")
+    expect(api).toContain('PROVIDER_CATEGORY_VALUES')
+    expect(api).toContain('requestedServices')
     expect(api).toContain('requestedService')
     expect(api).toContain("'pending_review'")
     expect(api).toContain("'public_registration'")
