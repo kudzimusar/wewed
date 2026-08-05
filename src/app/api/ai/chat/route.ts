@@ -162,6 +162,28 @@ export function sanitizeAiChatMessages(raw: unknown): IncomingMessage[] {
   return output
 }
 
+export function resolveGuestWeddingSlug(
+  request: NextRequest,
+  requestedSlug: unknown,
+): string {
+  if (typeof requestedSlug === 'string' && requestedSlug.trim()) {
+    return requestedSlug.trim().slice(0, 160)
+  }
+
+  const referer = request.headers.get('referer')
+  if (referer) {
+    try {
+      const pathname = new URL(referer).pathname
+      const match = pathname.match(/^\/w\/([^/?#]+)/)
+      if (match?.[1]) return decodeURIComponent(match[1]).slice(0, 160)
+    } catch {
+      // Ignore malformed referrers and use the compatibility fallback below.
+    }
+  }
+
+  return 'charity-and-kudzie'
+}
+
 async function resolveContext(input: {
   request: NextRequest
   body: ChatRequestBody
@@ -180,10 +202,7 @@ async function resolveContext(input: {
     .find((message) => message.role === 'user')?.content ?? ''
 
   if (input.area === 'guest_concierge') {
-    const slug =
-      typeof input.body.weddingSlug === 'string' && input.body.weddingSlug.trim()
-        ? input.body.weddingSlug.trim().slice(0, 160)
-        : 'charity-and-kudzie'
+    const slug = resolveGuestWeddingSlug(input.request, input.body.weddingSlug)
     const wedding = await db.wedding.findFirst({
       where: { slug, privacy: { in: ['public', 'unlisted'] } },
       select: { id: true },
