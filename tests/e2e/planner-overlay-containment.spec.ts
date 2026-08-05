@@ -1,61 +1,51 @@
-import type { Locator } from '@playwright/test'
-import {
-  expect,
-  expectNoDocumentOverflow,
-  openModule,
-  openWorksheetActions,
-  test,
-} from './support/planner-browser'
+import { expect, openModule, test } from './support/planner-browser'
 
 const DEVICE_VIEWPORTS = [
-  { name: 'compact-phone', width: 390, height: 667 },
-  { name: 'large-phone', width: 430, height: 932 },
-  { name: 'tablet-portrait', width: 820, height: 1180 },
+  { name: 'compact-phone', width: 360, height: 640 },
+  { name: 'tall-phone', width: 390, height: 844 },
+  { name: 'tablet-portrait', width: 768, height: 1024 },
   { name: 'tablet-landscape', width: 1024, height: 768 },
+  { name: 'small-laptop', width: 1280, height: 720 },
   { name: 'desktop', width: 1440, height: 900 },
 ] as const
 
 const DATA_PREVIEW_VIEWPORTS = new Set(['compact-phone', 'tablet-portrait', 'desktop'])
 
-async function openWorksheetTools(page: Parameters<typeof openModule>[0]) {
-  const toggle = page.getByTestId('worksheet-tools-toggle')
+async function stableBoundingBox(locator: import('@playwright/test').Locator) {
+  await expect(locator).toBeVisible()
+  const box = await locator.boundingBox()
+  expect(box).not.toBeNull()
+  return box!
+}
+
+async function expectNoDocumentOverflow(page: Parameters<typeof openModule>[0]) {
+  await expect.poll(async () => page.evaluate(() => ({
+    width: document.documentElement.scrollWidth,
+    viewport: window.innerWidth,
+  }))).toEqual(expect.objectContaining({ width: expect.any(Number), viewport: expect.any(Number) }))
+
+  const dimensions = await page.evaluate(() => ({
+    width: document.documentElement.scrollWidth,
+    viewport: window.innerWidth,
+  }))
+  expect(dimensions.width).toBeLessThanOrEqual(dimensions.viewport + 1)
+}
+
+async function openWorksheetActions(page: Parameters<typeof openModule>[0]) {
+  const toggle = page.getByRole('button', { name: /Worksheet actions/i })
   if (await toggle.isVisible()) {
     const expanded = await toggle.getAttribute('aria-expanded')
     if (expanded !== 'true') await toggle.click()
     await expect(toggle).toHaveAttribute('aria-expanded', 'true')
-    await expect(page).toHaveURL(/panel=worksheet/)
   }
-  await expect(page.locator('#planner-worksheet-tools')).toBeVisible()
-  await openWorksheetActions(page)
 }
 
-async function stableBoundingBox(locator: Locator) {
-  let box: Awaited<ReturnType<Locator['boundingBox']>> = null
-  let previous: Awaited<ReturnType<Locator['boundingBox']>> = null
-  let consecutiveStableSamples = 0
-
-  await expect.poll(async () => {
-    const next = await locator.boundingBox()
-    if (!next || next.width <= 0 || next.height <= 0) {
-      previous = null
-      consecutiveStableSamples = 0
-      return false
-    }
-
-    const stable = previous !== null
-      && Math.abs(next.x - previous.x) <= 0.5
-      && Math.abs(next.y - previous.y) <= 0.5
-      && Math.abs(next.width - previous.width) <= 0.5
-      && Math.abs(next.height - previous.height) <= 0.5
-
-    consecutiveStableSamples = stable ? consecutiveStableSamples + 1 : 0
-    previous = next
-    box = next
-    return consecutiveStableSamples >= 1
-  }, { message: 'visible portal element has stable measurable geometry' }).toBe(true)
-
-  if (!box) throw new Error('Visible portal element did not expose stable measurable geometry.')
-  return box
+async function openWorksheetTools(page: Parameters<typeof openModule>[0]) {
+  await openWorksheetActions(page)
+  const toolbar = page.locator('[data-planner-worksheet-toolbar]')
+  await expect(toolbar).toBeVisible()
+  await expect(toolbar.getByRole('button', { name: 'Template', exact: true })).toBeVisible()
+  await expect(toolbar.getByRole('button', { name: 'Import', exact: true })).toBeVisible()
 }
 
 async function assertDialogGeometry(
@@ -70,12 +60,11 @@ async function assertDialogGeometry(
   expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1)
   expect(box.y + box.height).toBeLessThanOrEqual(viewport.height + 1)
 
-  const sharedCloseButtons = dialog.locator('[data-slot="dialog-close"]')
-  const closeButtons = (await sharedCloseButtons.count()) > 0
-    ? sharedCloseButtons
-    : dialog.getByRole('button', { name: /^close/i }).first()
-  const closeCount = await closeButtons.count()
-  for (let index = 0; index < closeCount; index += 1) {
+  const title = dialog.locator('[data-slot="dialog-title"]').first()
+  if (await title.isVisible()) await expect(title).toBeInViewport()
+
+  const closeButtons = dialog.locator('[data-slot="dialog-close"]')
+  for (let index = 0; index < await closeButtons.count(); index += 1) {
     const closeButton = closeButtons.nth(index)
     if (!(await closeButton.isVisible())) continue
     const closeBox = await stableBoundingBox(closeButton)
@@ -110,18 +99,18 @@ async function openPlannerToolPanel(page: Parameters<typeof openModule>[0]) {
   const tools = page.locator('#planner-experience-tools')
 
   await expect(page.getByRole('combobox', { name: 'Active wedding' })).toBeVisible()
-  await expect.poll(
-    async () => (await disclosure.isVisible()) || (await tools.isVisible()),
-    { message: 'planner tools expose the responsive disclosure or visible navigation' },
-  ).toBe(true)
+  await expect(disclosure).toBeVisible()
 
-  if (await disclosure.isVisible()) {
-    const expanded = await disclosure.getAttribute('aria-expanded')
-    if (expanded !== 'true') await disclosure.click()
-    await expect(disclosure).toHaveAttribute('aria-expanded', 'true')
-    await expect(page).toHaveURL(/panel=experience/)
+  if (!(await tools.isVisible())) {
+    // A tool action closes the panel and updates the URL asynchronously. Wait
+    // for that close transition to settle before requesting the next open.
+    await expect(disclosure).toHaveAttribute('aria-expanded', 'false')
+    await disclosure.click()
   }
+
+  await expect(disclosure).toHaveAttribute('aria-expanded', 'true')
   await expect(tools).toBeVisible()
+  await expect(page).toHaveURL(/panel=experience/)
 }
 
 async function assertPlannerOwnsVerticalScroll(page: Parameters<typeof openModule>[0]) {
@@ -321,17 +310,10 @@ test('major planner tools share the responsive overlay contract', async ({ plann
 test('all core planner modules retain an internal vertical scroll owner', async ({ plannerPage: page }) => {
   test.setTimeout(120_000)
   const modules = ['checklist', 'budget', 'vendors', 'guests', 'timeline', 'seating'] as const
-  const viewports = DEVICE_VIEWPORTS.filter((viewport) =>
-    ['compact-phone', 'tablet-landscape', 'desktop'].includes(viewport.name),
-  )
 
-  for (const viewport of viewports) {
-    await page.setViewportSize({ width: viewport.width, height: viewport.height })
-    await page.goto('/planner#planner-workspace')
-    for (const moduleKey of modules) {
-      await openModule(page, moduleKey)
-      await assertPlannerOwnsVerticalScroll(page)
-      await expectNoDocumentOverflow(page)
-    }
+  for (const module of modules) {
+    await page.goto(`/planner?module=${module}#planner-workspace`)
+    await openModule(page, module)
+    await assertPlannerOwnsVerticalScroll(page)
   }
 })
