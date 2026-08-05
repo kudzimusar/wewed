@@ -2,32 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireWeddingPermission } from '@/lib/wedding-access'
 import { generateAiText } from '@/lib/ai'
+import { consumeAiRateLimit } from '@/lib/ai/rate-limit'
 import { wrapUntrustedContext } from '@/lib/ai/remediation'
 
 const MAX_REQUESTS = 5
 const WINDOW_MS = 60 * 1_000
-const buckets = new Map<string, { count: number; firstAt: number }>()
-
-function pruneBuckets(now: number): void {
-  for (const [key, entry] of buckets.entries()) {
-    if (now - entry.firstAt > WINDOW_MS) buckets.delete(key)
-  }
-}
-
-function rateLimit(clientKey: string): { ok: boolean; retryAfterMs?: number } {
-  const now = Date.now()
-  pruneBuckets(now)
-  const entry = buckets.get(clientKey)
-  if (!entry || now - entry.firstAt > WINDOW_MS) {
-    buckets.set(clientKey, { count: 1, firstAt: now })
-    return { ok: true }
-  }
-  entry.count += 1
-  if (entry.count > MAX_REQUESTS) {
-    return { ok: false, retryAfterMs: WINDOW_MS - (now - entry.firstAt) }
-  }
-  return { ok: true }
-}
 
 function getClientKey(request: NextRequest): string {
   const forwarded = request.headers.get('x-forwarded-for')
@@ -39,8 +18,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const access = await requireWeddingPermission(request, 'guests.view')
   if (access.error) return access.error
 
-  const clientKey = `${access.context.weddingId}:${getClientKey(request)}`
-  const limit = rateLimit(clientKey)
+  let limit
+  try {
+    limit = await consumeAiRateLimit({
+      scope: 'ai-rsvp-summary',
+      identity: `${access.context.weddingId}:${getClientKey(request)}`,
+      maxRequests: MAX_REQUESTS,
+      windowMs: WINDOW_MS,
+    })
+  } catch (error) {
+    console.error('[AI SUMMARY] Distributed rate limiter failed:', error)
+    return NextResponse.json(
+      {
+        success: false,
+        summary: '',
+        error: 'AI request controls are temporarily unavailable.',
+      },
+      { status: 503 },
+    )
+  }
+
   if (!limit.ok) {
     return NextResponse.json(
       {
@@ -223,5 +220,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     service: 'Wewed AI RSVP summary',
     weddingId: access.context.weddingId,
     serverGeneratedSnapshot: true,
+    rateLimit: `${MAX_REQUESTS} requests per minute per hashed wedding/client identity`,
   })
 }
