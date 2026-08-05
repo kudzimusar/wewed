@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import ZAI from 'z-ai-web-dev-sdk'
 import { isAdmin } from '@/lib/admin-gate'
+import { generateAiText } from '@/lib/ai'
 
 /* ============================================================
    POST /api/ai/speech
@@ -159,37 +159,31 @@ Requirements:
 - Do NOT include stage directions in brackets.`
 
   try {
-    const zai = await ZAI.create()
-    const response = await zai.chat.completions.create({
+    const result = await generateAiText({
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
-      thinking: { type: 'disabled' },
+      profile: 'private',
+      maxOutputTokens: Math.min(LENGTH_MINUTES[length] * 320, 2400),
     })
-
-    const speech = response?.choices?.[0]?.message?.content
-    if (typeof speech !== 'string' || speech.trim().length === 0) {
-      return NextResponse.json({
-        success: false,
-        speech: '',
-        error: 'The AI returned an empty speech. Please try again.',
-      })
-    }
 
     return NextResponse.json({
       success: true,
-      speech: speech.trim(),
+      speech: result.text,
+      provider: result.provider,
+      model: result.model,
+      usage: result.usage,
       meta: {
         type,
         tone,
         length,
         targetMinutes: LENGTH_MINUTES[length],
-        wordCount: speech.trim().split(/\s+/).length,
+        wordCount: result.text.split(/\s+/).length,
       },
     })
-  } catch (error) {
-    console.error('[AI SPEECH] SDK failure:', error)
+  } catch {
+    console.error('[AI SPEECH] Every eligible provider failed')
     return NextResponse.json({
       success: false,
       speech: '',
