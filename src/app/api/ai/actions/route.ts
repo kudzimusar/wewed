@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireWeddingPermission } from '@/lib/wedding-access'
+import { blockUnsafeAiPreviewWrite } from '@/lib/ai/route-safety'
 import { dateFromOffset, normalizeTitle } from '@/lib/planner-phase2'
 import {
   AI_SECTIONS,
@@ -14,9 +15,10 @@ import {
   type AiTemplateVersionValue,
 } from '@/lib/ai/workspace-store'
 
-const TRANSITIONS: Record<string, AiProposalStatus[]> = {
+const TRANSITIONS: Record<string, string[]> = {
   proposed: ['approved', 'rejected'],
-  approved: ['executed', 'failed', 'rejected'],
+  approved: ['executed', 'rejected'],
+  executing: ['approved'],
   rejected: [],
   executed: [],
   failed: ['approved', 'rejected'],
@@ -49,40 +51,6 @@ async function executeApplyTemplate(input: {
   })
   if (!wedding) throw new Error('Wedding not found.')
 
-  const [tasks, timeline, reminders] = await Promise.all([
-    db.plannerTask.findMany({
-      where: { weddingId: input.weddingId },
-      select: { title: true },
-    }),
-    db.programmeItem.findMany({
-      where: { weddingId: input.weddingId },
-      select: { time: true, title: true },
-    }),
-    db.contentRevision.findMany({
-      where: {
-        weddingId: input.weddingId,
-        section: 'planner_reminder',
-        status: { not: 'cancelled' },
-      },
-      select: { value: true, scheduledFor: true },
-    }),
-  ])
-
-  const taskKeys = new Set(tasks.map((task) => normalizeTitle(task.title)))
-  const timelineKeys = new Set(
-    timeline.map((item) => `${item.time}|${normalizeTitle(item.title)}`),
-  )
-  const reminderKeys = new Set(
-    reminders.map((reminder) => {
-      try {
-        const value = parse<{ subject?: string; audience?: string }>(reminder.value)
-        return `${normalizeTitle(value.subject || '')}|${value.audience || 'pending'}|${reminder.scheduledFor?.toISOString() || ''}`
-      } catch {
-        return reminder.value
-      }
-    }),
-  )
-
   const result = {
     tasksCreated: 0,
     timelineCreated: 0,
@@ -91,6 +59,45 @@ async function executeApplyTemplate(input: {
   }
 
   await db.$transaction(async (tx) => {
+    // Serialize template application per wedding. This closes the race where
+    // two separately approved proposals could otherwise pass duplicate checks
+    // before either transaction committed.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.weddingId}))`
+
+    const [tasks, timeline, reminders] = await Promise.all([
+      tx.plannerTask.findMany({
+        where: { weddingId: input.weddingId },
+        select: { title: true },
+      }),
+      tx.programmeItem.findMany({
+        where: { weddingId: input.weddingId },
+        select: { time: true, title: true },
+      }),
+      tx.contentRevision.findMany({
+        where: {
+          weddingId: input.weddingId,
+          section: 'planner_reminder',
+          status: { not: 'cancelled' },
+        },
+        select: { value: true, scheduledFor: true },
+      }),
+    ])
+
+    const taskKeys = new Set(tasks.map((task) => normalizeTitle(task.title)))
+    const timelineKeys = new Set(
+      timeline.map((item) => `${item.time}|${normalizeTitle(item.title)}`),
+    )
+    const reminderKeys = new Set(
+      reminders.map((reminder) => {
+        try {
+          const value = parse<{ subject?: string; audience?: string }>(reminder.value)
+          return `${normalizeTitle(value.subject || '')}|${value.audience || 'pending'}|${reminder.scheduledFor?.toISOString() || ''}`
+        } catch {
+          return reminder.value
+        }
+      }),
+    )
+
     for (const item of template.items) {
       if (item.type === 'task') {
         const key = normalizeTitle(item.title)
@@ -166,6 +173,7 @@ async function executeApplyTemplate(input: {
             lastError: null,
             recipientCount: 0,
             lastSentAt: null,
+            sourceAiTemplateVersionId: input.versionId,
           }),
           status: scheduledFor ? 'scheduled' : 'draft',
           scheduledFor,
@@ -218,6 +226,23 @@ async function executeCreateReminder(input: {
   })
   if (!draftRow) throw new Error('Communication draft not found.')
   const draft = parse<AiCommunicationDraftValue>(draftRow.value)
+  const existingReminder = await db.contentRevision.findFirst({
+    where: {
+      weddingId: input.weddingId,
+      section: 'planner_reminder',
+      value: { contains: draft.draftId },
+      status: { not: 'cancelled' },
+    },
+  })
+  if (existingReminder) {
+    return {
+      reminderId: existingReminder.id,
+      status: existingReminder.status,
+      duplicateSkipped: true,
+      delivery: 'not sent; use the existing reminder preview/send flow separately',
+    }
+  }
+
   const allowedAudiences = ['all', 'pending', 'attending', 'declined']
   const audience = allowedAudiences.includes(input.audience) ? input.audience : 'pending'
   let scheduledFor: Date | null = null
@@ -257,6 +282,7 @@ async function executeCreateReminder(input: {
   return {
     reminderId: reminder.id,
     status: reminder.status,
+    duplicateSkipped: false,
     delivery: 'not sent; use the existing reminder preview/send flow separately',
   }
 }
@@ -357,6 +383,8 @@ export async function GET(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const access = await requireWeddingPermission(request, 'planner.edit')
   if (access.error) return access.error
+  const previewBlock = blockUnsafeAiPreviewWrite(request, access.context.weddingId)
+  if (previewBlock) return previewBlock
 
   try {
     const body = (await request.json()) as Record<string, unknown>
@@ -382,7 +410,7 @@ export async function PATCH(request: NextRequest) {
         { status: 404 },
       )
     }
-    if (!TRANSITIONS[row.status]?.includes(requested as AiProposalStatus)) {
+    if (!TRANSITIONS[row.status]?.includes(requested)) {
       return NextResponse.json(
         {
           success: false,
@@ -397,10 +425,39 @@ export async function PATCH(request: NextRequest) {
         weddingId: access.context.weddingId,
         actorId: access.context.session.userId,
         id,
-        status: requested,
+        status: requested as AiProposalStatus,
       })
       return NextResponse.json({ success: true, data: proposal })
     }
+
+    // Atomically claim the approved proposal before executing any write. This
+    // prevents double-clicks and concurrent requests from applying it twice.
+    const claimed = await db.contentRevision.updateMany({
+      where: {
+        id,
+        weddingId: access.context.weddingId,
+        section: AI_SECTIONS.proposal,
+        status: 'approved',
+      },
+      data: { status: 'executing' },
+    })
+    if (claimed.count !== 1) {
+      return NextResponse.json(
+        { success: false, error: 'Proposal is already being executed or its state changed.' },
+        { status: 409 },
+      )
+    }
+    await db.auditEvent.create({
+      data: {
+        action: 'ai.action.executing',
+        resourceType: AI_SECTIONS.proposal,
+        resourceId: id,
+        beforeValue: row.value,
+        afterValue: row.value,
+        weddingId: access.context.weddingId,
+        actorId: access.context.session.userId,
+      },
+    })
 
     const value = parse<AiActionProposalValue>(row.value)
     try {
