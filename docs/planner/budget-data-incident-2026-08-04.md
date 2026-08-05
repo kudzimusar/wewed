@@ -4,24 +4,27 @@
 
 Wedding: `cmqos70cb0004q6vxe9g9aiu5` — Charity & Kudzie.
 
-This report records the investigation into the apparent Budget regression observed while planner worksheet and Seating previews were being tested against the shared live database.
+This report records the investigation into the apparent Budget regression observed while planner worksheet and Seating previews were being tested against the shared live database. It separates confirmed database evidence from conclusions that cannot be established because comprehensive Budget mutation auditing was not active before the incident.
 
-## Findings
+## Confirmed findings
 
-### No real Budget rows were deleted
+### Current surviving rows
 
-- The original 14 Budget rows remain present.
-- Three real rows created by the user on 2026-08-03 remain present:
+The current database contains:
+
+- the 14 Budget rows originally created on 2026-06-22; and
+- three rows created on 2026-08-03:
   - Candles, holders, lights
   - Wedding Planner
   - Rings and Jewellary
-- The separate Budget worksheet UAT row was temporary test data and was removed through its controlled cleanup.
 
-### The 2026-08-03 row edits were intentional user edits
+The separate `UAT-BUDGET-001` row is identifiable in Budget import preview, execution, and rollback snapshot records and is not present in the current Budget. It was test data, not one of the three user-created rows above. The surviving ImportJob status and audit records do not, by themselves, establish the exact cleanup operation that removed it.
 
-The 14 original rows have individual `updatedAt` timestamps spanning the user's Budget editing session on 2026-08-03. The saved actual and paid values were written one row at a time through the planner interface. They must not be replaced by the older seed values.
+### 2026-08-03 edits
 
-The intended post-edit totals are:
+The 14 older rows have individual `updatedAt` timestamps spanning the 2026-08-03 Budget editing session. Their currently stored actual and paid values were written row by row and must not be replaced with older seed values without user confirmation.
+
+The current database totals are:
 
 - 17 items
 - USD 31,820 estimated
@@ -29,16 +32,18 @@ The intended post-edit totals are:
 - USD 1,850 paid
 - USD 5,090 outstanding
 
-### One confirmed agent-caused overwrite occurred
+These figures describe the current database state. They are not proof that no additional user row or earlier value was lost, and they must not be represented as the user-approved final Budget until the user confirms them.
+
+### One confirmed agent-caused overwrite
 
 At 2026-08-04 01:53:37 UTC, an engineering restoration linked the Imba Manor vendor to Budget item `cmqpub1ef002dnysp86zt265b` and also set:
 
-- `paidAmount` to `0`
+- `paidAmount` to `0`; and
 - `notes` to `Linked to the restored Imba Manor venue record. No payment recorded as of 2026-08-04.`
 
-The business-account and payment tables did not contain evidence supporting that no-payment assertion. The operation therefore overwrote a known USD 1,500 venue deposit and inserted a synthetic note.
+The available business-account and payment evidence did not support that no-payment assertion. The operation therefore overwrote a known USD 1,500 venue deposit and inserted a synthetic note.
 
-### Recovery performed
+### Confirmed recovery
 
 At 2026-08-04 13:42:45 UTC, a wedding-scoped transaction restored only the confirmed damaged fields:
 
@@ -47,25 +52,35 @@ At 2026-08-04 13:42:45 UTC, a wedding-scoped transaction restored only the confi
 
 The transaction preserved:
 
-- the user's USD 2,400 actual venue cost;
+- the currently stored USD 2,400 actual venue cost;
 - the USD 4,500 estimate;
-- the valid Imba Manor vendor ID and name;
-- all other Budget rows and user-entered values.
+- the valid Imba Manor vendor ID and name; and
+- all other surviving Budget rows and stored values.
 
 AuditEvent `audit-budget-venue-reconcile-20260804` contains the exact before and after snapshots.
 
-A later idempotent agent-side write advanced the venue row's `updatedAt` timestamp without changing any stored financial value, note, row count, or normalized Budget hash. It was not a user edit.
+A later idempotent agent-side write advanced the venue row's `updatedAt` timestamp without changing its stored financial value or note. It was not a user edit.
 
-## Verified final state
+## Evidence limitations
 
-At the close of the investigation:
+Before this incident, `BudgetItem` did not have a database-level insert, update, and delete audit trigger. The available ImportJob and AuditEvent records therefore cannot prove either of the following:
+
+- that no other real Budget row was deleted before the current snapshot; or
+- that every current value exactly matches the user's last intended value.
+
+PostgreSQL statistics show dead Budget tuples, but the database role cannot use `pageinspect` to recover their contents safely. No speculative restoration is authorized. Any additional recovery requires user-supplied source evidence such as a prior export, screenshot, invoice list, or a confirmed row-by-row comparison.
+
+## Verified current state
+
+At the close of this investigation, the read-only database check returned:
 
 - item count: `17`
 - estimated total: `31820`
 - actual total: `6940`
 - paid total: `1850`
 - outstanding total: `5090`
-- normalized Budget hash: `b863c8f4b52a4da64860e44182b626e6`
+
+This is a verified current snapshot, not a declaration that recovery is complete.
 
 ## Permanent safeguards in PR #71
 
@@ -78,4 +93,4 @@ At the close of the investigation:
 
 ## Release boundary
 
-The Budget audit-trigger migration is tested but is not active in production until the authorized release is merged and its migrations are deployed. PR #71 remains unmerged. No Seating replacement or 230-seat production data operation is authorized by this incident recovery.
+The Budget audit-trigger migration is tested but is not active in production until the authorized release is merged and its migrations are deployed. PR #71 remains unmerged. The release, production migration, Seating replacement, and 230-seat production data operation remain unauthorized by this incident investigation.
