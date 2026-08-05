@@ -1,6 +1,6 @@
 # Wewed AI Product Areas Plan
 
-Status: implementation started on `feature/ai-provider-router`
+Status: Phase 1 implemented on `feature/ai-provider-router`; Vercel Preview build passed; browser UAT is pending.
 
 ## Purpose
 
@@ -45,7 +45,7 @@ Guest Concierge may use only information explicitly published for guests. It mus
 - internal incident or risk information;
 - unpublished documents.
 
-### First implementation
+### Phase 1 implementation
 
 - Keep the existing public guest chat.
 - Render safe Markdown instead of displaying formatting symbols.
@@ -78,7 +78,7 @@ Authenticated planners and authorised wedding workspace users.
 
 Planner Copilot may analyse authorised workspace data. It must not claim to update records. Any future write operation must use a separate confirmation screen that shows the exact proposed changes.
 
-### First implementation
+### Phase 1 implementation
 
 - Make Planner Copilot one of four visible AI workspace areas.
 - Retain live RSVP and task summarisation.
@@ -109,10 +109,10 @@ Planners, planning teams and authorised couples using reusable planning template
 
 Template Intelligence must remove names, contact details, private messages, prices tied to identifiable vendors, and other client-specific information before proposing a reusable template.
 
-### First implementation
+### Phase 1 implementation
 
 - Add a dedicated Template Intelligence workspace and prompt profile.
-- Provide quick actions for starter-template creation, checklist gap analysis and timeline adaptation.
+- Provide quick actions for starter-template creation, checklist gap analysis, timeline adaptation and anonymisation guidance.
 - Return drafts only; do not write or apply templates.
 
 ### Next data milestone
@@ -139,7 +139,7 @@ Planners, couples and authorised wedding team members.
 
 Generated communication is always a draft. The assistant must not send email, WhatsApp, SMS, notifications or public updates automatically.
 
-### First implementation
+### Phase 1 implementation
 
 - Add a dedicated Communication Assistant workspace and prompt profile.
 - Provide quick actions for vendor follow-up, guest announcement, progress update and speech/vow drafting.
@@ -166,13 +166,13 @@ Add recipient selection, preview, editable draft storage, approval history and e
     | 'template_intelligence'
     | 'communication_assistant'
   messages: Array<{
-    role: 'user' | 'assistant' | 'system'
+    role: 'user' | 'assistant'
     content: string
   }>
 }
 ```
 
-Public requests are always forced to `guest_concierge`. Authenticated planner requests may select any of the four areas.
+Public requests are always forced to `guest_concierge`. Authenticated planner requests may select any of the four areas. Client-provided system messages are ignored; Wewed owns the system prompt and permission boundary.
 
 ### Prompt composition
 
@@ -191,7 +191,7 @@ shared Wewed safety and output rules
 
 ### Observability
 
-Continue returning provider, model and token usage from API responses for diagnostics, but do not display them to guests. Add area metadata to logs and responses later without logging prompt contents.
+Continue returning provider, model, selected area and token usage from API responses for diagnostics, but do not display provider/model metadata to guests. Prompt contents and keys are not logged.
 
 ---
 
@@ -200,11 +200,13 @@ Continue returning provider, model and token usage from API responses for diagno
 ### Phase 1 — Product separation and presentation
 
 - [x] Provider router and Z.AI preview configuration.
-- [ ] Safe Markdown in Guest Concierge.
-- [ ] “Powered by Wewed AI” branding.
-- [ ] Four visible AI product areas in the planner workspace.
-- [ ] Area-aware API prompt profiles.
-- [ ] Read-only and draft-only boundaries in prompts and UI.
+- [x] Safe Markdown in Guest Concierge.
+- [x] “Powered by Wewed AI” branding.
+- [x] Four visible AI product areas in the planner workspace.
+- [x] Area-aware API prompt profiles.
+- [x] Read-only and draft-only boundaries in prompts and UI.
+- [x] Vercel Preview production build.
+- [ ] Browser UAT across guest and planner surfaces.
 
 ### Phase 2 — Real application context
 
@@ -228,7 +230,7 @@ Continue returning provider, model and token usage from API responses for diagno
 
 ---
 
-## Acceptance criteria for the first implementation
+## Acceptance criteria for Phase 1
 
 1. Guest responses render bold text and lists without visible Markdown symbols.
 2. Guest and planner surfaces display “Powered by Wewed AI”, not a model version.
@@ -237,4 +239,13 @@ Continue returning provider, model and token usage from API responses for diagno
 5. The API applies the correct area prompt and enforces authentication for planner areas.
 6. Template and communication outputs are described as drafts and do not write to the database.
 7. Existing RSVP and task analysis remains available under Planner Copilot.
-8. The Vercel Preview build succeeds and the guest chat still reaches Z.AI.
+8. The Vercel Preview build succeeds and browser UAT confirms the guest chat still reaches Z.AI.
+
+## Phase 1 validation record
+
+- Branch: `feature/ai-provider-router`
+- Latest implementation commit: `689dc1ae153f79b50971fe58fac41c84913612e9`
+- Vercel deployment: `dpl_J77x2tidVXTRtsvN93JwkneCntSb`
+- Build result: `READY`
+- Build error log: no build errors; build completed successfully.
+- Runtime browser UAT: pending.
