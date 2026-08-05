@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { shouldBlockPreviewWrite } from '@/lib/preview-write-safety'
 import { extractTemplateItems } from '@/lib/ai/workspace-store'
 import {
   GUEST_ACCESSIBLE_PRIVACY,
@@ -86,6 +87,37 @@ describe('Guest-accessible wedding privacy', () => {
     expect(GUEST_ACCESSIBLE_PRIVACY).toContain('link_only')
     expect(GUEST_ACCESSIBLE_PRIVACY).toContain('public')
     expect(GUEST_ACCESSIBLE_PRIVACY).not.toContain('private')
+  })
+})
+
+describe('Preview write isolation', () => {
+  test('blocks AI workspace writes in shared previews by default', () => {
+    expect(
+      shouldBlockPreviewWrite({
+        method: 'POST',
+        weddingId: 'live-wedding',
+        vercelEnvironment: 'preview',
+        writablePreviewWeddingId: undefined,
+      }),
+    ).toBe(true)
+  })
+
+  test('allows safe reads and the explicitly isolated preview wedding', () => {
+    expect(
+      shouldBlockPreviewWrite({
+        method: 'GET',
+        weddingId: 'live-wedding',
+        vercelEnvironment: 'preview',
+      }),
+    ).toBe(false)
+    expect(
+      shouldBlockPreviewWrite({
+        method: 'PATCH',
+        weddingId: 'uat-wedding',
+        vercelEnvironment: 'preview',
+        writablePreviewWeddingId: 'uat-wedding',
+      }),
+    ).toBe(false)
   })
 })
 
