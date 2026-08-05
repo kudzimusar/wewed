@@ -1,9 +1,14 @@
 import { describe, expect, test } from 'bun:test'
-import { NextRequest } from 'next/server'
 import {
   resolveGuestWeddingSlug,
   sanitizeAiChatMessages,
-} from '@/app/api/ai/chat/route'
+} from '@/lib/ai/chat-contract'
+
+function requestWithReferer(referer?: string) {
+  return {
+    headers: new Headers(referer ? { referer } : undefined),
+  }
+}
 
 describe('AI chat input safety', () => {
   test('drops client-provided system messages', () => {
@@ -28,21 +33,19 @@ describe('AI chat input safety', () => {
 
 describe('Guest Concierge wedding routing', () => {
   test('prefers the explicit wedding slug', () => {
-    const request = new NextRequest('https://wewed.test/api/ai/chat', {
-      headers: { referer: 'https://wewed.test/w/referer-wedding' },
-    })
+    const request = requestWithReferer('https://wewed.test/w/referer-wedding')
     expect(resolveGuestWeddingSlug(request, 'explicit-wedding')).toBe('explicit-wedding')
   })
 
   test('resolves the wedding slug from the guest page referrer', () => {
-    const request = new NextRequest('https://wewed.test/api/ai/chat', {
-      headers: { referer: 'https://wewed.test/w/lindiwe-and-tawanda?guest=1' },
-    })
+    const request = requestWithReferer(
+      'https://wewed.test/w/lindiwe-and-tawanda?guest=1',
+    )
     expect(resolveGuestWeddingSlug(request, undefined)).toBe('lindiwe-and-tawanda')
   })
 
   test('retains the compatibility fallback for clients without a referrer', () => {
-    const request = new NextRequest('https://wewed.test/api/ai/chat')
+    const request = requestWithReferer()
     expect(resolveGuestWeddingSlug(request, undefined)).toBe('charity-and-kudzie')
   })
 })
