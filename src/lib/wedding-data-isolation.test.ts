@@ -9,7 +9,9 @@ describe('wedding identity isolation', () => {
     const provider = source('src/components/wedding/wedding-data-provider.tsx')
 
     expect(provider).toContain('isFlagship: activeSlug === FLAGSHIP_WEDDING_SLUG')
-    expect(home).toContain('if (!isFlagship) return <DataBackedWeddingExperience />')
+    expect(home).toContain('if (!isFlagship) {')
+    expect(home).toContain('<DataBackedWeddingExperience />')
+    expect(home).toContain('<GlobalWeddingTools accessKind={accessKind} />')
     expect(home.indexOf('if (!isFlagship)')).toBeLessThan(home.indexOf('<Navbar />'))
   })
 

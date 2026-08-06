@@ -102,7 +102,7 @@ export default async function WeddingPage({
     )
   }
 
-  return <WeddingHome slug={slug} />
+  return <WeddingHome slug={slug} accessKind={resolution.accessKind} />
 }
 
 export const dynamic = 'force-dynamic'

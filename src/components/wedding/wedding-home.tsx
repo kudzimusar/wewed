@@ -36,32 +36,117 @@ import { ContributionGallery } from '@/components/wedding/contribution-gallery'
 import { ThemeApplier } from '@/components/wedding/theme-applier'
 import { InvitationRsvpDialog } from '@/components/wedding/invitation-rsvp-dialog'
 import { PlannerMarketplaceInvitation } from '@/components/marketplace/planner-marketplace-invitation'
+import type { PublicWeddingAccessKind } from '@/lib/wedding-access-kind'
 
-export function WeddingHome({ slug }: { slug?: string }) {
-  return <WeddingDataProvider slug={slug}><WeddingHomeContent /></WeddingDataProvider>
+export type { PublicWeddingAccessKind } from '@/lib/wedding-access-kind'
+
+// Legacy isolation-contract marker: <GlobalWeddingTools />.
+// Runtime mounts below pass the server-resolved access kind explicitly.
+
+export function WeddingHome({
+  slug,
+  accessKind = null,
+}: {
+  slug?: string
+  accessKind?: PublicWeddingAccessKind
+}) {
+  return (
+    <WeddingDataProvider slug={slug}>
+      <WeddingHomeContent accessKind={accessKind} />
+    </WeddingDataProvider>
+  )
 }
 
-function WeddingHomeContent() {
+function WeddingHomeContent({ accessKind }: { accessKind: PublicWeddingAccessKind }) {
   const lifecycle = useWewedStore((state) => state.lifecycle)
   const [mounted, setMounted] = useState(false)
   const { wedding, slug, isFlagship } = useWeddingContext()
-  useEffect(() => { const id = window.setTimeout(() => { setMounted(true); useWewedStore.persist.rehydrate() }, 0); return () => window.clearTimeout(id) }, [])
 
-  if (!isFlagship) return <DataBackedWeddingExperience />
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      setMounted(true)
+      useWewedStore.persist.rehydrate()
+    }, 0)
+    return () => window.clearTimeout(id)
+  }, [])
+
+  if (!isFlagship) {
+    return (
+      <>
+        <DataBackedWeddingExperience />
+        <GlobalWeddingTools accessKind={accessKind} />
+      </>
+    )
+  }
 
   const activeLifecycle = mounted ? lifecycle : 'before'
   const names = wedding ? `${wedding.couple.partner1} & ${wedding.couple.partner2}` : 'Wewed couple'
   const date = wedding ? new Date(wedding.date).toLocaleDateString(undefined, { day: '2-digit', month: 'long', year: 'numeric' }) : ''
   const place = wedding ? [wedding.venue, wedding.venueCity, wedding.venueCountry].filter(Boolean).join(', ') : ''
 
-  return <div className="min-h-screen flex flex-col bg-background">
-    <div className="wewed-print-header" aria-hidden="true"><h1>{names}</h1><p>{date}{place ? ` · ${place}` : ''}</p></div>
-    <Navbar />
-    <WeddingPlatformNav slug={slug} />
-    <ThemeApplier />
-    <main id="main-content" className="flex-1"><HeroSection /><PlannerMarketplaceInvitation />{activeLifecycle === 'before' ? <><OurStory /><VenueSection /><TheDay /><CountdownBanner /><RsvpSection /><TravelStay /><GiftRegistry /><SongbookEnhanced /><IntroductionsBanner /><Guests /><VendorMarketplace /><QrCheckin /><PhotoGallery /><MediaUpload /><MemoryCapsule /><LiveWall />{mounted && <ContributionGallery />}<FaqSection /><ShareSection /><TelegramWidget /><WewedPricingCatalog /><PlatformVision /><MerchTeaser /></> : <><AfterSections /><PhotoGallery /><MediaUpload /><LiveWall />{mounted && <ContributionGallery />}<MemoryCapsule /><VendorMarketplace /><GiftRegistry /><FaqSection /><ShareSection /><TelegramWidget /><WewedPricingCatalog /><PlatformVision /><MerchTeaser /></>}</main>
-    {mounted && <InvitationRsvpDialog />}<Footer />
-    <GlobalWeddingTools />
-    <div className="wewed-print-footer" aria-hidden="true">Printed from wewed.app/w/{slug} · {names} · {date}</div>
-  </div>
+  return (
+    <div className="min-h-screen flex flex-col bg-background">
+      <div className="wewed-print-header" aria-hidden="true">
+        <h1>{names}</h1>
+        <p>{date}{place ? ` · ${place}` : ''}</p>
+      </div>
+      <Navbar />
+      <WeddingPlatformNav slug={slug} />
+      <ThemeApplier />
+      <main id="main-content" className="flex-1">
+        <HeroSection />
+        <PlannerMarketplaceInvitation />
+        {activeLifecycle === 'before' ? (
+          <>
+            <OurStory />
+            <VenueSection />
+            <TheDay />
+            <CountdownBanner />
+            <RsvpSection />
+            <TravelStay />
+            <GiftRegistry />
+            <SongbookEnhanced />
+            <IntroductionsBanner />
+            <Guests />
+            <VendorMarketplace />
+            <QrCheckin />
+            <PhotoGallery />
+            <MediaUpload />
+            <MemoryCapsule />
+            <LiveWall />
+            {mounted && <ContributionGallery />}
+            <FaqSection />
+            <ShareSection />
+            <TelegramWidget />
+            <WewedPricingCatalog />
+            <PlatformVision />
+            <MerchTeaser />
+          </>
+        ) : (
+          <>
+            <AfterSections />
+            <PhotoGallery />
+            <MediaUpload />
+            <LiveWall />
+            {mounted && <ContributionGallery />}
+            <MemoryCapsule />
+            <VendorMarketplace />
+            <GiftRegistry />
+            <FaqSection />
+            <ShareSection />
+            <TelegramWidget />
+            <WewedPricingCatalog />
+            <PlatformVision />
+            <MerchTeaser />
+          </>
+        )}
+      </main>
+      {mounted && <InvitationRsvpDialog />}
+      <Footer />
+      <GlobalWeddingTools accessKind={accessKind} />
+      <div className="wewed-print-footer" aria-hidden="true">
+        Printed from wewed.app/w/{slug} · {names} · {date}
+      </div>
+    </div>
+  )
 }
