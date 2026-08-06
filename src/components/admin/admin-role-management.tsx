@@ -1,7 +1,15 @@
 'use client'
 
+import Link from 'next/link'
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { Loader2, RefreshCw, ShieldCheck, UserPlus } from 'lucide-react'
+import {
+  ArrowLeft,
+  CheckCircle2,
+  Loader2,
+  RefreshCw,
+  ShieldCheck,
+  UserPlus,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -9,7 +17,6 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   WEWED_ADMIN_ROLES,
   WEWED_ADMIN_ROLE_LABELS,
-  hasWewedAdminPermission,
   type WewedAdminRole,
 } from '@/lib/wewed-admin-policy'
 
@@ -22,16 +29,10 @@ type Member = {
   lastLoginAt: string | null
   role: string
   status: string
-  createdAt: string
-  updatedAt: string
-  authUserId: string | null
   alternateEmails: unknown
   phone: string | null
-  addressLine1: string | null
-  addressLine2: string | null
   city: string | null
   stateProvince: string | null
-  postalCode: string | null
   country: string | null
   certificates: unknown
   invitationStatus: string | null
@@ -47,20 +48,22 @@ type Payload = {
   members: Member[]
 }
 
-type RoleActionPayload = {
+type ActionPayload = {
   success?: boolean
   error?: string
   invitationSent?: boolean
   invitationKind?: 'invite' | 'recovery'
-  membershipStatus?: string
 }
 
-function date(value: string | null) {
-  if (!value) return 'Never'
-  return new Intl.DateTimeFormat('en-US', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value))
+function date(value: string | null): string {
+  if (!value) return '—'
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime())
+    ? '—'
+    : parsed.toLocaleString(undefined, {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      })
 }
 
 function values(value: unknown): string[] {
@@ -80,9 +83,14 @@ function splitEntries(value: string): string[] {
   )
 }
 
-function statusLabel(value: string | null): string {
-  if (!value) return 'Not recorded'
-  return value.charAt(0).toUpperCase() + value.slice(1)
+function statusTone(status: string): string {
+  if (status === 'active') {
+    return 'border-emerald-300/30 bg-emerald-300/10 text-emerald-100'
+  }
+  if (status === 'invited') {
+    return 'border-gold/30 bg-gold/10 text-gold-light'
+  }
+  return 'border-rose-300/30 bg-rose-300/10 text-rose-100'
 }
 
 export function AdminRoleManagement() {
@@ -93,7 +101,9 @@ export function AdminRoleManagement() {
   const [notice, setNotice] = useState<string | null>(null)
   const [email, setEmail] = useState('')
   const [fullName, setFullName] = useState('')
-  const [role, setRole] = useState<WewedAdminRole>('wewed_operations_admin')
+  const [role, setRole] = useState<WewedAdminRole>(
+    'wewed_operations_admin',
+  )
   const [phone, setPhone] = useState('')
   const [alternateEmails, setAlternateEmails] = useState('')
   const [addressLine1, setAddressLine1] = useState('')
@@ -108,14 +118,20 @@ export function AdminRoleManagement() {
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch('/api/admin/roles', { cache: 'no-store' })
+      const response = await fetch('/api/admin/roles', {
+        cache: 'no-store',
+      })
       const payload = (await response.json()) as Payload
       if (!response.ok || !payload.success) {
-        throw new Error(payload.error || 'Unable to load roles.')
+        throw new Error(payload.error || 'Unable to load administrator invitations.')
       }
       setData(payload)
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Unable to load roles.')
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : 'Unable to load administrator invitations.',
+      )
     } finally {
       setLoading(false)
     }
@@ -125,62 +141,43 @@ export function AdminRoleManagement() {
     void load()
   }, [load])
 
-  async function act(
-    body: Record<string, unknown>,
-    successMessage: string,
-  ): Promise<boolean> {
+  async function invite(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
     setWorking(true)
     setError(null)
     setNotice(null)
+
+    const normalizedEmail = email.trim().toLowerCase()
     try {
       const response = await fetch('/api/admin/roles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          action: 'add_admin_member',
+          email: normalizedEmail,
+          fullName,
+          role,
+          phone,
+          alternateEmails: splitEntries(alternateEmails),
+          addressLine1,
+          addressLine2,
+          city,
+          stateProvince,
+          postalCode,
+          country,
+          certificates: splitEntries(certificates),
+        }),
       })
-      const payload = (await response.json()) as RoleActionPayload
+      const payload = (await response.json()) as ActionPayload
       if (!response.ok || !payload.success) {
-        throw new Error(payload.error || 'Role action failed.')
+        throw new Error(payload.error || 'Unable to send the invitation.')
       }
 
-      const delivery = payload.invitationSent
-        ? payload.invitationKind === 'recovery'
-          ? ' A secure account-setup email was sent to the existing identity.'
-          : ' A secure invitation email was sent.'
-        : ''
-      setNotice(`${successMessage}${delivery}`)
-      await load()
-      return true
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Role action failed.')
-      return false
-    } finally {
-      setWorking(false)
-    }
-  }
-
-  async function invite(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const normalizedEmail = email.trim().toLowerCase()
-    const ok = await act(
-      {
-        action: 'add_admin_member',
-        email: normalizedEmail,
-        fullName,
-        role,
-        phone,
-        alternateEmails: splitEntries(alternateEmails),
-        addressLine1,
-        addressLine2,
-        city,
-        stateProvince,
-        postalCode,
-        country,
-        certificates: splitEntries(certificates),
-      },
-      `${normalizedEmail} was invited to Wewed platform access.`,
-    )
-    if (ok) {
+      setNotice(
+        payload.invitationKind === 'recovery'
+          ? `${normalizedEmail} received a secure account-setup email.`
+          : `${normalizedEmail} received a secure administrator invitation.`,
+      )
       setEmail('')
       setFullName('')
       setRole('wewed_operations_admin')
@@ -193,13 +190,22 @@ export function AdminRoleManagement() {
       setPostalCode('')
       setCountry('')
       setCertificates('')
+      await load()
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : 'Unable to send the invitation.',
+      )
+    } finally {
+      setWorking(false)
     }
   }
 
   if (loading && !data) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-espresso text-champagne">
-        <Loader2 className="size-8 animate-spin text-gold" />
+      <main className="flex min-h-screen items-center justify-center bg-espresso text-gold">
+        <Loader2 className="size-8 animate-spin" />
       </main>
     )
   }
@@ -207,10 +213,12 @@ export function AdminRoleManagement() {
   if (!data) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-espresso p-6 text-champagne">
-        <Card className="max-w-lg border-red-300/25 bg-white/[0.04] text-champagne">
+        <Card className="max-w-lg border-rose-300/25 bg-white/[0.04] text-champagne">
           <CardContent className="p-8 text-center">
             <ShieldCheck className="mx-auto size-10 text-gold" />
-            <h1 className="mt-4 text-2xl font-semibold">Role management unavailable</h1>
+            <h1 className="mt-4 text-2xl font-semibold">
+              Administrator invitations unavailable
+            </h1>
             <p className="mt-3 text-sm text-champagne/60">{error}</p>
             <Button
               onClick={() => void load()}
@@ -224,52 +232,67 @@ export function AdminRoleManagement() {
     )
   }
 
-  const canManage = hasWewedAdminPermission(
-    data.admin.permissions,
-    'admin.members.manage',
-  )
-
   return (
     <main className="min-h-screen bg-espresso px-5 py-24 text-champagne lg:px-8">
       <div className="mx-auto max-w-6xl space-y-6">
-        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.22em] text-gold">Platform RBAC</p>
-            <h1 className="mt-2 text-4xl font-semibold">Administrator roles</h1>
-            <p className="mt-2 text-sm text-champagne/55">
-              Invite an administrator, collect their professional profile, assign a
-              platform role, or suspend an existing membership.
+            <p className="text-xs uppercase tracking-[0.22em] text-gold">
+              Super Admin · secure onboarding
+            </p>
+            <h1 className="mt-2 text-4xl font-semibold">
+              Invite platform administrator
+            </h1>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-champagne/55">
+              This screen creates a named invitation and professional profile only.
+              Role, lifecycle, and account-scope changes are intentionally handled
+              in the governed Platform administrators workspace, where a reason and
+              all lockout safeguards are required.
             </p>
           </div>
-          <Button
-            variant="outline"
-            onClick={() => void load()}
-            disabled={loading || working}
-            className="border-gold/25 text-gold hover:bg-gold/10"
-          >
-            <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
+          <div className="flex flex-wrap gap-3">
+            <Button
+              asChild
+              variant="outline"
+              className="border-gold/25 text-gold hover:bg-gold/10"
+            >
+              <Link href="/admin">
+                <ArrowLeft className="size-4" />
+                Governance console
+              </Link>
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => void load()}
+              disabled={loading || working}
+              className="border-gold/25 text-gold hover:bg-gold/10"
+            >
+              <RefreshCw
+                className={`size-4 ${loading ? 'animate-spin' : ''}`}
+              />
+              Refresh
+            </Button>
+          </div>
         </div>
 
-        {(error || notice) && (
-          <div
-            className={`rounded-xl border px-4 py-3 text-sm ${
-              error
-                ? 'border-red-300/25 bg-red-300/10 text-red-100'
-                : 'border-emerald-300/25 bg-emerald-300/10 text-emerald-100'
-            }`}
-          >
-            {error || notice}
+        {error && (
+          <div className="rounded-xl border border-rose-300/25 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
+            {error}
+          </div>
+        )}
+        {notice && (
+          <div className="flex items-center gap-2 rounded-xl border border-emerald-300/25 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-100">
+            <CheckCircle2 className="size-4" />
+            {notice}
           </div>
         )}
 
         <Card className="border-gold/20 bg-white/[0.045] text-champagne">
           <CardHeader>
-            <CardTitle className="text-lg">Invite administrator</CardTitle>
+            <CardTitle className="text-lg">New administrator profile</CardTitle>
             <p className="text-sm leading-6 text-champagne/50">
-              The member receives a secure email, confirms or completes this profile,
-              chooses a password, and becomes active only after accepting.
+              The recipient must open the secure email, choose a password, confirm
+              the profile, and explicitly accept before access becomes active.
             </p>
           </CardHeader>
           <CardContent>
@@ -285,7 +308,7 @@ export function AdminRoleManagement() {
                     onChange={(event) => setEmail(event.target.value)}
                     placeholder="administrator@example.com"
                     required
-                    disabled={!canManage || working}
+                    disabled={working}
                     className="border-gold/20 bg-black/15"
                   />
                 </label>
@@ -298,20 +321,20 @@ export function AdminRoleManagement() {
                     onChange={(event) => setFullName(event.target.value)}
                     placeholder="Full legal or professional name"
                     required
-                    disabled={!canManage || working}
+                    disabled={working}
                     className="border-gold/20 bg-black/15"
                   />
                 </label>
                 <label className="space-y-2">
                   <span className="text-xs uppercase tracking-[0.14em] text-champagne/55">
-                    Platform role
+                    Initial platform role
                   </span>
                   <select
                     value={role}
                     onChange={(event) =>
                       setRole(event.target.value as WewedAdminRole)
                     }
-                    disabled={!canManage || working}
+                    disabled={working}
                     className="h-10 w-full rounded-md border border-gold/20 bg-espresso px-3 text-sm"
                   >
                     {WEWED_ADMIN_ROLES.map((item) => (
@@ -323,290 +346,178 @@ export function AdminRoleManagement() {
                 </label>
               </div>
 
-              <details className="rounded-xl border border-gold/15 bg-black/10 p-4" open>
+              <details
+                className="rounded-xl border border-gold/15 bg-black/10 p-4"
+                open
+              >
                 <summary className="cursor-pointer text-sm font-semibold text-gold">
-                  Contact and professional profile
+                  Contact, address, and credentials
                 </summary>
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  <label className="space-y-2">
-                    <span className="text-xs uppercase tracking-[0.14em] text-champagne/55">
-                      Phone number
-                    </span>
-                    <Input
-                      type="tel"
-                      value={phone}
-                      onChange={(event) => setPhone(event.target.value)}
-                      placeholder="Country code and number"
-                      disabled={!canManage || working}
-                      className="border-gold/20 bg-black/15"
-                    />
-                  </label>
-                  <label className="space-y-2">
-                    <span className="text-xs uppercase tracking-[0.14em] text-champagne/55">
-                      Alternate email addresses
-                    </span>
-                    <Input
-                      value={alternateEmails}
-                      onChange={(event) => setAlternateEmails(event.target.value)}
-                      placeholder="Separate addresses with commas"
-                      disabled={!canManage || working}
-                      className="border-gold/20 bg-black/15"
-                    />
-                  </label>
-                  <label className="space-y-2 md:col-span-2">
-                    <span className="text-xs uppercase tracking-[0.14em] text-champagne/55">
-                      Address line 1
-                    </span>
-                    <Input
-                      value={addressLine1}
-                      onChange={(event) => setAddressLine1(event.target.value)}
-                      placeholder="Street address"
-                      disabled={!canManage || working}
-                      className="border-gold/20 bg-black/15"
-                    />
-                  </label>
-                  <label className="space-y-2 md:col-span-2">
-                    <span className="text-xs uppercase tracking-[0.14em] text-champagne/55">
-                      Address line 2
-                    </span>
-                    <Input
-                      value={addressLine2}
-                      onChange={(event) => setAddressLine2(event.target.value)}
-                      placeholder="Suite, building, district, or landmark"
-                      disabled={!canManage || working}
-                      className="border-gold/20 bg-black/15"
-                    />
-                  </label>
-                  <label className="space-y-2">
-                    <span className="text-xs uppercase tracking-[0.14em] text-champagne/55">
-                      City
-                    </span>
-                    <Input
-                      value={city}
-                      onChange={(event) => setCity(event.target.value)}
-                      disabled={!canManage || working}
-                      className="border-gold/20 bg-black/15"
-                    />
-                  </label>
-                  <label className="space-y-2">
-                    <span className="text-xs uppercase tracking-[0.14em] text-champagne/55">
-                      State / province
-                    </span>
-                    <Input
-                      value={stateProvince}
-                      onChange={(event) => setStateProvince(event.target.value)}
-                      disabled={!canManage || working}
-                      className="border-gold/20 bg-black/15"
-                    />
-                  </label>
-                  <label className="space-y-2">
-                    <span className="text-xs uppercase tracking-[0.14em] text-champagne/55">
-                      Postal code
-                    </span>
-                    <Input
-                      value={postalCode}
-                      onChange={(event) => setPostalCode(event.target.value)}
-                      disabled={!canManage || working}
-                      className="border-gold/20 bg-black/15"
-                    />
-                  </label>
-                  <label className="space-y-2">
-                    <span className="text-xs uppercase tracking-[0.14em] text-champagne/55">
-                      Country
-                    </span>
-                    <Input
-                      value={country}
-                      onChange={(event) => setCountry(event.target.value)}
-                      disabled={!canManage || working}
-                      className="border-gold/20 bg-black/15"
-                    />
-                  </label>
-                  <label className="space-y-2 md:col-span-2">
-                    <span className="text-xs uppercase tracking-[0.14em] text-champagne/55">
-                      Certificates and credentials
-                    </span>
-                    <Textarea
-                      value={certificates}
-                      onChange={(event) => setCertificates(event.target.value)}
-                      placeholder="Enter one certificate or credential per line"
-                      disabled={!canManage || working}
-                      className="min-h-28 border-gold/20 bg-black/15"
-                    />
-                  </label>
+                  <Input
+                    type="tel"
+                    value={phone}
+                    onChange={(event) => setPhone(event.target.value)}
+                    placeholder="Phone number"
+                    disabled={working}
+                    className="border-gold/20 bg-black/15"
+                  />
+                  <Input
+                    value={alternateEmails}
+                    onChange={(event) => setAlternateEmails(event.target.value)}
+                    placeholder="Alternate emails, comma separated"
+                    disabled={working}
+                    className="border-gold/20 bg-black/15"
+                  />
+                  <Input
+                    value={addressLine1}
+                    onChange={(event) => setAddressLine1(event.target.value)}
+                    placeholder="Address line 1"
+                    disabled={working}
+                    className="border-gold/20 bg-black/15 md:col-span-2"
+                  />
+                  <Input
+                    value={addressLine2}
+                    onChange={(event) => setAddressLine2(event.target.value)}
+                    placeholder="Address line 2"
+                    disabled={working}
+                    className="border-gold/20 bg-black/15 md:col-span-2"
+                  />
+                  <Input
+                    value={city}
+                    onChange={(event) => setCity(event.target.value)}
+                    placeholder="City"
+                    disabled={working}
+                    className="border-gold/20 bg-black/15"
+                  />
+                  <Input
+                    value={stateProvince}
+                    onChange={(event) => setStateProvince(event.target.value)}
+                    placeholder="State / province"
+                    disabled={working}
+                    className="border-gold/20 bg-black/15"
+                  />
+                  <Input
+                    value={postalCode}
+                    onChange={(event) => setPostalCode(event.target.value)}
+                    placeholder="Postal code"
+                    disabled={working}
+                    className="border-gold/20 bg-black/15"
+                  />
+                  <Input
+                    value={country}
+                    onChange={(event) => setCountry(event.target.value)}
+                    placeholder="Country"
+                    disabled={working}
+                    className="border-gold/20 bg-black/15"
+                  />
+                  <Textarea
+                    value={certificates}
+                    onChange={(event) => setCertificates(event.target.value)}
+                    placeholder="One certificate or professional credential per line"
+                    disabled={working}
+                    className="min-h-28 border-gold/20 bg-black/15 md:col-span-2"
+                  />
                 </div>
               </details>
 
               <Button
                 type="submit"
-                disabled={
-                  !canManage ||
-                  working ||
-                  !email.trim() ||
-                  !fullName.trim()
-                }
-                className="w-full bg-gold text-espresso hover:bg-gold-light sm:w-auto"
+                disabled={working || !email.trim() || !fullName.trim()}
+                className="bg-gold text-espresso hover:bg-gold-light"
               >
                 {working ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : (
                   <UserPlus className="size-4" />
                 )}
-                Send invitation
+                Send secure invitation
               </Button>
             </form>
-            {!canManage && (
-              <p className="mt-3 text-xs text-champagne/45">
-                Your current role can read memberships but cannot add or change them.
-              </p>
-            )}
           </CardContent>
         </Card>
 
-        <div className="overflow-hidden rounded-2xl border border-gold/15 bg-white/[0.025]">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1050px] text-left text-sm">
-              <thead className="border-b border-gold/15 bg-black/15 text-[10px] uppercase tracking-[0.16em] text-champagne/45">
-                <tr>
-                  <th className="px-4 py-3">Administrator</th>
-                  <th className="px-4 py-3">Profile</th>
-                  <th className="px-4 py-3">Role</th>
-                  <th className="px-4 py-3">Membership</th>
-                  <th className="px-4 py-3">Invitation</th>
-                  <th className="px-4 py-3">Last login</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gold/10">
-                {data.members.map((member) => {
-                  const memberCertificates = values(member.certificates)
-                  const memberAlternateEmails = values(member.alternateEmails)
-                  return (
-                    <tr key={member.membershipId} className="align-top">
-                      <td className="px-4 py-4">
-                        <p className="font-semibold">{member.name || member.email}</p>
-                        <p className="mt-1 text-xs text-champagne/40">{member.email}</p>
-                        {memberAlternateEmails.length > 0 && (
-                          <p className="mt-1 text-xs text-champagne/35">
-                            +{memberAlternateEmails.length} alternate email
-                            {memberAlternateEmails.length === 1 ? '' : 's'}
-                          </p>
-                        )}
-                      </td>
-                      <td className="px-4 py-4 text-xs leading-5 text-champagne/50">
-                        <p>{member.phone || 'No phone recorded'}</p>
-                        <p>
-                          {[member.city, member.stateProvince, member.country]
-                            .filter(Boolean)
-                            .join(', ') || 'No address recorded'}
-                        </p>
-                        <p>
-                          {memberCertificates.length} credential
-                          {memberCertificates.length === 1 ? '' : 's'}
-                        </p>
-                      </td>
-                      <td className="px-4 py-4">
-                        <select
-                          value={member.role}
-                          disabled={!canManage || working}
-                          onChange={(event) =>
-                            void act(
-                              {
-                                action: 'update_admin_role',
-                                membershipId: member.membershipId,
-                                role: event.target.value,
-                                status: member.status,
-                              },
-                              `${member.email} role updated.`,
-                            )
-                          }
-                          className="h-9 rounded-md border border-gold/20 bg-espresso px-2 text-sm"
-                        >
-                          {WEWED_ADMIN_ROLES.map((item) => (
-                            <option key={item} value={item}>
-                              {WEWED_ADMIN_ROLE_LABELS[item]}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-4 py-4">
-                        <select
-                          value={member.status}
-                          disabled={!canManage || working}
-                          onChange={(event) =>
-                            void act(
-                              {
-                                action: 'update_admin_role',
-                                membershipId: member.membershipId,
-                                role: member.role,
-                                status: event.target.value,
-                              },
-                              `${member.email} membership updated.`,
-                            )
-                          }
-                          className="h-9 rounded-md border border-gold/20 bg-espresso px-2 text-sm"
-                        >
-                          <option value="invited">Invited</option>
-                          <option value="active">Active</option>
-                          <option value="suspended">Suspended</option>
-                          <option value="revoked">Revoked</option>
-                        </select>
-                        <p className="mt-2 text-[11px] text-champagne/40">
-                          App user: {member.userActive ? 'active' : 'inactive'}
-                        </p>
-                      </td>
-                      <td className="px-4 py-4 text-xs leading-5 text-champagne/50">
-                        <span
-                          className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${
-                            member.invitationStatus === 'active'
-                              ? 'border-emerald-300/30 bg-emerald-300/10 text-emerald-100'
-                              : 'border-gold/30 bg-gold/10 text-gold'
-                          }`}
-                        >
-                          {statusLabel(member.invitationStatus || member.status)}
-                        </span>
-                        <p className="mt-2">
-                          Sent: {date(member.invitationSentAt)}
-                        </p>
-                        <p>Accepted: {date(member.invitationAcceptedAt)}</p>
-                        <p>
-                          Profile:{' '}
-                          {member.profileCompletedAt ? 'complete' : 'awaiting member'}
-                        </p>
-                      </td>
-                      <td className="px-4 py-4 text-xs text-champagne/45">
-                        {date(member.lastLoginAt)}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <Card className="border-gold/15 bg-white/[0.035] text-champagne">
+        <Card className="border-gold/15 bg-white/[0.03] text-champagne">
           <CardHeader>
-            <CardTitle className="text-lg">Role boundaries</CardTitle>
+            <CardTitle className="text-lg">Invitation registry</CardTitle>
+            <p className="text-sm text-champagne/50">
+              Read-only here. Use Platform administrators in the governance console
+              for role, status, and scope changes.
+            </p>
           </CardHeader>
-          <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            {Object.entries(WEWED_ADMIN_ROLE_LABELS).map(([key, label]) => (
-              <div
-                key={key}
-                className="rounded-xl border border-gold/10 bg-black/10 p-4"
-              >
-                <p className="font-semibold">{label}</p>
-                <p className="mt-2 text-xs leading-5 text-champagne/45">
-                  {key === 'wewed_super_admin'
-                    ? 'Full platform control and role assignment.'
-                    : key === 'wewed_operations_admin'
-                      ? 'Approvals, lifecycle, onboarding, support and incidents.'
-                      : key === 'wewed_billing_admin'
-                        ? 'Billing, account read and analytics.'
-                        : key === 'wewed_support_admin'
-                          ? 'Support operations and limited incident access.'
-                          : 'Read-only analysis and audit visibility.'}
-                </p>
-              </div>
-            ))}
+          <CardContent className="space-y-3">
+            {data.members.map((member) => {
+              const credentials = values(member.certificates)
+              const alternates = values(member.alternateEmails)
+              const effective =
+                member.status === 'invited'
+                  ? 'invited'
+                  : member.status === 'active' && member.userActive
+                    ? 'active'
+                    : member.status === 'revoked'
+                      ? 'revoked'
+                      : 'suspended'
+
+              return (
+                <div
+                  key={member.membershipId}
+                  className="rounded-xl border border-gold/12 bg-black/10 p-4"
+                >
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold">
+                          {member.name || member.email}
+                        </p>
+                        <span
+                          className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${statusTone(effective)}`}
+                        >
+                          {effective}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-champagne/40">
+                        {member.email}
+                      </p>
+                      <p className="mt-2 text-xs leading-5 text-champagne/50">
+                        {WEWED_ADMIN_ROLE_LABELS[
+                          member.role as WewedAdminRole
+                        ] || member.role}
+                        {' · '}
+                        {member.phone || 'No phone'}
+                        {' · '}
+                        {[member.city, member.stateProvince, member.country]
+                          .filter(Boolean)
+                          .join(', ') || 'No address'}
+                      </p>
+                      <p className="text-xs text-champagne/40">
+                        {alternates.length} alternate email
+                        {alternates.length === 1 ? '' : 's'} ·{' '}
+                        {credentials.length} credential
+                        {credentials.length === 1 ? '' : 's'}
+                      </p>
+                    </div>
+                    <div className="grid min-w-[280px] gap-1 text-xs text-champagne/45 sm:grid-cols-2 lg:text-right">
+                      <span>Invitation sent</span>
+                      <strong className="font-medium text-champagne/65">
+                        {date(member.invitationSentAt)}
+                      </strong>
+                      <span>Accepted</span>
+                      <strong className="font-medium text-champagne/65">
+                        {date(member.invitationAcceptedAt)}
+                      </strong>
+                      <span>Profile</span>
+                      <strong className="font-medium text-champagne/65">
+                        {member.profileCompletedAt ? 'Complete' : 'Pending'}
+                      </strong>
+                      <span>Last login</span>
+                      <strong className="font-medium text-champagne/65">
+                        {date(member.lastLoginAt)}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
           </CardContent>
         </Card>
       </div>
