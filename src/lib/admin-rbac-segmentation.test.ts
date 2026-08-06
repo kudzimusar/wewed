@@ -86,6 +86,23 @@ describe('Admin RBAC and account segmentation contract', () => {
     expect(migration).not.toContain('CREATE VIEW public."PlatformAdministrator"')
   })
 
+  test('last Super Admin guards serialize concurrent privilege removal', () => {
+    const freshMigration = source(
+      'prisma/migrations/20260806180000_protect_last_active_super_admin/migration.sql',
+    )
+    const upgradeMigration = source(
+      'prisma/migrations/20260806181000_serialize_last_super_admin_guard/migration.sql',
+    )
+
+    for (const migration of [freshMigration, upgradeMigration]) {
+      expect(migration).toContain(
+        "pg_advisory_xact_lock(hashtext('wewed:last-active-super-admin'))",
+      )
+      expect(migration).toContain('protect_last_super_admin_membership')
+      expect(migration).toContain('protect_last_super_admin_identity')
+    }
+  })
+
   test('inactive registry membership cannot fall back to legacy access', () => {
     const access = source('src/lib/wewed-admin.ts')
 
@@ -108,6 +125,21 @@ describe('Admin RBAC and account segmentation contract', () => {
     expect(api).toContain('Wewed internal lifecycle is governed through platform controls.')
     expect(api).toContain("action: 'platform_administrator.status_changed'")
     expect(api).toContain("action: 'platform_administrator.scopes_replaced'")
+  })
+
+  test('the invitation endpoint cannot bypass governed role and lifecycle mutations', () => {
+    const route = source('src/app/api/admin/roles/route.ts')
+    const invitationUi = source(
+      'src/components/admin/admin-role-management.tsx',
+    )
+
+    expect(route).toContain("'admin.platform_admins.manage'")
+    expect(route).toContain("if (action === 'update_admin_role')")
+    expect(route).toContain('Role, lifecycle, and scope changes are available only')
+    expect(route).not.toContain("action: 'admin_membership.updated'")
+    expect(invitationUi).not.toContain("action: 'update_admin_role'")
+    expect(invitationUi).toContain('Read-only here.')
+    expect(invitationUi).toContain('Governance console')
   })
 
   test('primary Admin UI separates account categories and surfaces secure role management', () => {
