@@ -215,8 +215,15 @@ export function PublicProviderProfile({ slug }: { slug: string }) {
               </div>
 
               <aside className="space-y-5 lg:sticky lg:top-24 lg:self-start">
-                {isProvisional(provider) || !provider.acceptingEnquiries ? (
+                {isProvisional(provider) ? (
                   <div id="claim-business"><ProviderClaimPanel slug={provider.slug} businessName={provider.displayName} listingStatus={provider.listingStatus} sourceSummary={provider.sourceSummary} lastSourceCheckAt={provider.lastSourceCheckAt} /></div>
+                ) : !provider.acceptingEnquiries ? (
+                  <section className="rounded-3xl border border-sage/30 bg-sage/10 p-6">
+                    <ShieldCheck className="size-6 text-sage" />
+                    <h2 className="mt-4 font-serif text-3xl">Ownership verified</h2>
+                    <p className="mt-3 text-sm leading-6 text-espresso/65">{provider.claimNotice || 'The business owner is completing and confirming this profile.'}</p>
+                    <p className="mt-3 text-xs leading-5 text-espresso/50">Secure enquiries will open after the owner confirms the imported details and publishes an enquiry-ready profile.</p>
+                  </section>
                 ) : (
                   <section className="rounded-3xl bg-espresso p-6 text-champagne">
                     <ShieldCheck className="size-6 text-gold" />

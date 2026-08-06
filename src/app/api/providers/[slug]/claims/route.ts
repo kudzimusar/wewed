@@ -111,28 +111,45 @@ export async function POST(
       )
     }
 
-    const openClaims = await db.$queryRawUnsafe<Array<{ id: string; status: string }>>(
-      `SELECT id, status
-       FROM wewed_admin."ProviderClaimRequest"
-       WHERE "providerProfileId" = $1
-         AND lower("claimantEmail") = lower($2)
-         AND status IN ('pending', 'verification_required')
-       LIMIT 1`,
-      profile.profileId,
-      claimantEmail,
-    )
-    if (openClaims[0]) {
-      return NextResponse.json({
-        success: true,
-        duplicate: true,
-        reference: openClaims[0].id,
-        status: openClaims[0].status,
-        message: 'Your existing claim is already in the Wewed review queue.',
-      })
-    }
-
     const claimId = `provider-claim-${randomUUID()}`
-    await db.$transaction(async (transaction) => {
+    const submission = await db.$transaction(async (transaction) => {
+      const lockedProfiles = await transaction.$queryRawUnsafe<Array<{
+        listingStatus: string
+        isClaimable: boolean
+      }>>(
+        `SELECT "listingStatus", "isClaimable"
+         FROM wewed_admin."ProviderProfile"
+         WHERE id = $1
+         FOR UPDATE`,
+        profile.profileId,
+      )
+      const lockedProfile = lockedProfiles[0]
+      if (
+        !lockedProfile ||
+        !lockedProfile.isClaimable ||
+        !['unclaimed', 'claim_pending'].includes(lockedProfile.listingStatus)
+      ) {
+        return { type: 'unavailable' as const }
+      }
+
+      const openClaims = await transaction.$queryRawUnsafe<Array<{ id: string; status: string }>>(
+        `SELECT id, status
+         FROM wewed_admin."ProviderClaimRequest"
+         WHERE "providerProfileId" = $1
+           AND lower("claimantEmail") = lower($2)
+           AND status IN ('pending', 'verification_required')
+         LIMIT 1`,
+        profile.profileId,
+        claimantEmail,
+      )
+      if (openClaims[0]) {
+        return {
+          type: 'duplicate' as const,
+          id: openClaims[0].id,
+          status: openClaims[0].status,
+        }
+      }
+
       await transaction.$executeRawUnsafe(
         `INSERT INTO wewed_admin."ProviderClaimRequest" (
            id, "providerProfileId", "businessAccountId", "claimantUserId",
@@ -162,10 +179,29 @@ export async function POST(
          SET "listingStatus" = 'claim_pending',
              "claimNotice" = 'An ownership claim is being reviewed by Wewed.',
              "updatedAt" = CURRENT_TIMESTAMP
-         WHERE id = $1`,
+         WHERE id = $1 AND "isClaimable" = true
+           AND "listingStatus" IN ('unclaimed', 'claim_pending')`,
         profile.profileId,
       )
+
+      return { type: 'created' as const }
     })
+
+    if (submission.type === 'unavailable') {
+      return NextResponse.json(
+        { success: false, error: 'This business listing is no longer available to claim.' },
+        { status: 409 },
+      )
+    }
+    if (submission.type === 'duplicate') {
+      return NextResponse.json({
+        success: true,
+        duplicate: true,
+        reference: submission.id,
+        status: submission.status,
+        message: 'Your existing claim is already in the Wewed review queue.',
+      })
+    }
 
     return NextResponse.json(
       {
