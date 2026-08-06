@@ -138,8 +138,11 @@ replace_once(
 )
 replace_once(
     context,
-    "    'AUTHORISED PLANNER CONTEXT',\n    `Wedding: ${cleanLine(wedding.title)}`,
-    "    'AUTHORISED PLANNER CONTEXT',\n    `Context generated at (UTC): ${contextGeneratedAt.toISOString()}`,\n    `Wedding: ${cleanLine(wedding.title)}`,
+    """    'AUTHORISED PLANNER CONTEXT',
+    `Wedding: ${cleanLine(wedding.title)}`,""",
+    """    'AUTHORISED PLANNER CONTEXT',
+    `Context generated at (UTC): ${contextGeneratedAt.toISOString()}`,
+    `Wedding: ${cleanLine(wedding.title)}`,""",
     "context timestamp output",
 )
 replace_once(
