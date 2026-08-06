@@ -1,5 +1,6 @@
 -- Prevent any application path or direct database mutation from removing the
--- final usable Super Admin identity.
+-- final usable Super Admin identity. A transaction-scoped advisory lock
+-- serializes concurrent demotion, suspension, revocation, and deactivation.
 
 CREATE OR REPLACE FUNCTION wewed_admin.protect_last_super_admin_membership()
 RETURNS TRIGGER
@@ -31,6 +32,8 @@ BEGIN
      AND NEW.status = 'active' THEN
     RETURN NEW;
   END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext('wewed:last-active-super-admin'));
 
   SELECT COUNT(*)::int
   INTO remaining_active_supers
@@ -94,6 +97,8 @@ BEGIN
   IF NOT is_active_super THEN
     RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
   END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext('wewed:last-active-super-admin'));
 
   SELECT COUNT(*)::int
   INTO remaining_active_supers
