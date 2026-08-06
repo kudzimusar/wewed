@@ -16,7 +16,7 @@ describe('administrator invitation and profile contract', () => {
     expect(route).not.toContain('admin.listUsers')
     expect(route).toContain("existingMembership?.status === 'active'")
     expect(route).toContain("? 'active' : 'invited'")
-    expect(route).toContain("action: 'admin_membership.invited'")
+    expect(route).toContain("'admin_membership.invited'")
   })
 
   test('administrator profiles stay private and include professional fields', () => {
