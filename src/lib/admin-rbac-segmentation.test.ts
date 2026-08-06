@@ -6,6 +6,7 @@ import {
   hasWewedAdminPermission,
   resolveWewedAdminPermissions,
   rolePermissionMatrix,
+  type PlatformAdminScope,
 } from './wewed-admin-policy'
 
 const root = process.cwd()
@@ -39,12 +40,16 @@ describe('Admin RBAC and account segmentation contract', () => {
   })
 
   test('scope resolution never exposes internal accounts to scoped roles', () => {
-    const scoped = {
+    const scoped: PlatformAdminScope = {
       global: false,
-      accountTypes: ['planning_company', 'couple'] as const,
+      accountTypes: ['planning_company', 'couple'],
       businessAccountIds: ['explicit-client'],
     }
-    const global = { global: true, accountTypes: [], businessAccountIds: [] }
+    const global: PlatformAdminScope = {
+      global: true,
+      accountTypes: [],
+      businessAccountIds: [],
+    }
 
     expect(accountScopeAllows(scoped, { id: 'planner-1', type: 'planning_company' })).toBe(true)
     expect(accountScopeAllows(scoped, { id: 'explicit-client', type: 'client' })).toBe(true)
