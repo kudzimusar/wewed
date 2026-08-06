@@ -54,6 +54,20 @@ interface LegacyAdminMembershipRow {
   permissions: unknown
 }
 
+type PlatformRegistryLookup =
+  | {
+      state: 'active'
+      membership: PlatformAdminRow
+      scope: PlatformAdminScope
+    }
+  | {
+      state: 'inactive'
+      status: string
+    }
+  | {
+      state: 'missing'
+    }
+
 export function assertWewedAdminPermission(
   context: WewedAdminContext,
   permission: WewedAdminPermission,
@@ -79,28 +93,44 @@ function defaultScopeForRole(role: string): PlatformAdminScope {
 
 function normalizeScope(rows: ScopeRow[], role: string): PlatformAdminScope {
   if (rows.length === 0) return defaultScopeForRole(role)
-  const global = role === 'wewed_super_admin' && rows.some(
-    (row) => row.scopeType === 'global' && row.scopeValue === '*',
+
+  const global =
+    role === 'wewed_super_admin' &&
+    rows.some(
+      (row) => row.scopeType === 'global' && row.scopeValue === '*',
+    )
+  const accountTypes = Array.from(
+    new Set(
+      rows
+        .filter((row) => row.scopeType === 'account_type')
+        .map((row) => row.scopeValue)
+        .filter(isPlatformAccountType),
+    ),
+  ) as PlatformAccountType[]
+  const businessAccountIds = Array.from(
+    new Set(
+      rows
+        .filter((row) => row.scopeType === 'business_account')
+        .map((row) => row.scopeValue)
+        .filter(Boolean),
+    ),
   )
-  const accountTypes = Array.from(new Set(
-    rows
-      .filter((row) => row.scopeType === 'account_type')
-      .map((row) => row.scopeValue)
-      .filter(isPlatformAccountType),
-  )) as PlatformAccountType[]
-  const businessAccountIds = Array.from(new Set(
-    rows
-      .filter((row) => row.scopeType === 'business_account')
-      .map((row) => row.scopeValue)
-      .filter(Boolean),
-  ))
+
   return { global, accountTypes, businessAccountIds }
 }
 
-async function readPlatformRegistry(userId: string): Promise<{
-  membership: PlatformAdminRow
-  scope: PlatformAdminScope
-} | null> {
+function isMissingPlatformRegistryError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return (
+    message.includes('PlatformAdministrator') ||
+    message.includes('PlatformAdministratorScope') ||
+    message.includes('does not exist')
+  )
+}
+
+async function readPlatformRegistry(
+  userId: string,
+): Promise<PlatformRegistryLookup> {
   try {
     const rows = await db.$queryRawUnsafe<PlatformAdminRow[]>(
       `SELECT
@@ -117,7 +147,12 @@ async function readPlatformRegistry(userId: string): Promise<{
       userId,
     )
     const membership = rows[0]
-    if (!membership || membership.status !== 'active') return null
+
+    if (!membership) return { state: 'missing' }
+    if (membership.status !== 'active') {
+      return { state: 'inactive', status: membership.status }
+    }
+
     const scopeRows = await db.$queryRawUnsafe<ScopeRow[]>(
       `SELECT "scopeType", "scopeValue"
        FROM wewed_admin."PlatformAdministratorScope"
@@ -125,24 +160,23 @@ async function readPlatformRegistry(userId: string): Promise<{
        ORDER BY "scopeType", "scopeValue"`,
       userId,
     )
+
     return {
+      state: 'active',
       membership,
       scope: normalizeScope(scopeRows, membership.adminRole),
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    if (
-      message.includes('PlatformAdministrator') ||
-      message.includes('PlatformAdministratorScope') ||
-      message.includes('does not exist')
-    ) {
-      return null
+    if (isMissingPlatformRegistryError(error)) {
+      return { state: 'missing' }
     }
     throw error
   }
 }
 
-async function readLegacyMembership(userId: string): Promise<LegacyAdminMembershipRow | null> {
+async function readLegacyMembership(
+  userId: string,
+): Promise<LegacyAdminMembershipRow | null> {
   const memberships = await db.$queryRawUnsafe<LegacyAdminMembershipRow[]>(
     `SELECT
        bam.id AS "membershipId",
@@ -166,6 +200,7 @@ async function readLegacyMembership(userId: string): Promise<LegacyAdminMembersh
      LIMIT 1`,
     userId,
   )
+
   return memberships[0] ?? null
 }
 
@@ -194,8 +229,20 @@ export async function requireWewedAdmin(
   }
 
   const registry = await readPlatformRegistry(session.userId)
-  const legacy = registry ? null : await readLegacyMembership(session.userId)
-  const membership = registry?.membership ?? legacy
+  if (registry.state === 'inactive') {
+    throw new WewedAdminAccessError(
+      `This Wewed platform membership is ${registry.status}.`,
+      403,
+    )
+  }
+
+  const legacy =
+    registry.state === 'missing'
+      ? await readLegacyMembership(session.userId)
+      : null
+  const membership =
+    registry.state === 'active' ? registry.membership : legacy
+
   if (!membership) {
     throw new WewedAdminAccessError(
       'An active, named Wewed platform role is required.',
@@ -205,15 +252,22 @@ export async function requireWewedAdmin(
 
   const context: WewedAdminContext = {
     session,
-    membershipId: membership.membershipId || `platform-admin-${session.userId}`,
+    membershipId:
+      membership.membershipId || `platform-admin-${session.userId}`,
     businessAccountId: membership.businessAccountId,
     adminRole: membership.adminRole,
     permissions: resolveWewedAdminPermissions(
       membership.adminRole,
       membership.permissions,
     ),
-    accountScope: registry?.scope ?? defaultScopeForRole(membership.adminRole),
-    registrySource: registry ? 'platform_registry' : 'legacy_membership',
+    accountScope:
+      registry.state === 'active'
+        ? registry.scope
+        : defaultScopeForRole(membership.adminRole),
+    registrySource:
+      registry.state === 'active'
+        ? 'platform_registry'
+        : 'legacy_membership',
   }
 
   assertWewedAdminPermission(context, permission)
@@ -226,17 +280,24 @@ export function buildBusinessAccountScopeSql(
   firstParameter = 1,
 ): { clause: string; values: unknown[] } {
   if (context.accountScope.global) return { clause: 'TRUE', values: [] }
+
   const clauses: string[] = []
   const values: unknown[] = []
+
   if (context.accountScope.accountTypes.length > 0) {
     values.push(context.accountScope.accountTypes)
-    clauses.push(`${alias}.type = ANY($${firstParameter + values.length - 1}::text[])`)
+    clauses.push(
+      `${alias}.type = ANY($${firstParameter + values.length - 1}::text[])`,
+    )
   }
   if (context.accountScope.businessAccountIds.length > 0) {
     values.push(context.accountScope.businessAccountIds)
-    clauses.push(`${alias}.id = ANY($${firstParameter + values.length - 1}::text[])`)
+    clauses.push(
+      `${alias}.id = ANY($${firstParameter + values.length - 1}::text[])`,
+    )
   }
   if (clauses.length === 0) return { clause: 'FALSE', values: [] }
+
   return {
     clause: `${alias}.type <> 'wewed_internal' AND (${clauses.join(' OR ')})`,
     values,
