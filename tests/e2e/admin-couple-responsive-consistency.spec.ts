@@ -55,7 +55,7 @@ test('planner overview keeps compact metric density without document overflow', 
   }
 })
 
-test('authenticated wedding members receive workspace navigation instead of a login prompt', async ({
+test('authenticated wedding members receive workspace navigation without flagship-only tools', async ({
   plannerPage: page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 })
@@ -69,5 +69,8 @@ test('authenticated wedding members receive workspace navigation instead of a lo
   await expect(workspaceLink).toBeVisible()
   await expect(workspaceLink).toHaveAttribute('href', '/planner')
   await expect(page.getByRole('button', { name: 'Couple login' })).toBeHidden()
+  await expect(
+    page.getByRole('button', { name: 'Quick RSVP via WhatsApp' }),
+  ).toHaveCount(0)
   await expectNoDocumentOverflow(page)
 })
