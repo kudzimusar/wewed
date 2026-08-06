@@ -344,7 +344,7 @@ export async function POST(request: NextRequest) {
              p."ownerConfirmedAt"
            FROM wewed_admin."ProviderProfile" p
            WHERE
-             ($1::text IS NOT NULL AND p.website IS NOT NULL AND lower(regexp_replace(p.website, '^https?://(www\\.)?', '')) LIKE lower($1) || '%') OR
+             ($1::text IS NOT NULL AND p.website IS NOT NULL AND lower(split_part(split_part(regexp_replace(p.website, '^https?://(www\\.)?', ''), '/', 1), ':', 1)) = lower($1)) OR
              ($2::text IS NOT NULL AND p.phone IS NOT NULL AND regexp_replace(p.phone, '\\D', '', 'g') LIKE '%' || $2) OR
              (lower(regexp_replace(p."displayName", '[^a-zA-Z0-9]+', ' ', 'g')) = lower($3) AND COALESCE(lower(p.city), '') = COALESCE(lower($4), ''))
            LIMIT 1`,
