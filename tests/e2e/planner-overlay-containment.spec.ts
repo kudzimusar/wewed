@@ -11,6 +11,19 @@ const DEVICE_VIEWPORTS = [
 
 const DATA_PREVIEW_VIEWPORTS = new Set(['compact-phone', 'tablet-portrait', 'desktop'])
 
+type RectSnapshot = {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+type DialogGeometrySnapshot = {
+  dialog: RectSnapshot
+  title: (RectSnapshot & { visible: boolean; screenReaderOnly: boolean }) | null
+  closeButtons: RectSnapshot[]
+}
+
 async function stableBoundingBox(locator: import('@playwright/test').Locator) {
   await expect(locator).toBeVisible()
   const box = await locator.boundingBox()
@@ -18,11 +31,104 @@ async function stableBoundingBox(locator: import('@playwright/test').Locator) {
   return box!
 }
 
+function rectIsStable(left: RectSnapshot, right: RectSnapshot, tolerance = 0.75) {
+  return (
+    Math.abs(left.x - right.x) <= tolerance &&
+    Math.abs(left.y - right.y) <= tolerance &&
+    Math.abs(left.width - right.width) <= tolerance &&
+    Math.abs(left.height - right.height) <= tolerance
+  )
+}
+
+function snapshotIsStable(
+  left: DialogGeometrySnapshot,
+  right: DialogGeometrySnapshot,
+) {
+  if (!rectIsStable(left.dialog, right.dialog)) return false
+  if (left.closeButtons.length !== right.closeButtons.length) return false
+  return left.closeButtons.every((box, index) =>
+    rectIsStable(box, right.closeButtons[index]!),
+  )
+}
+
+async function readCurrentDialogGeometry(
+  page: Parameters<typeof openModule>[0],
+): Promise<DialogGeometrySnapshot | null> {
+  return page.evaluate(() => {
+    const isVisible = (element: HTMLElement) => {
+      const style = getComputedStyle(element)
+      const rect = element.getBoundingClientRect()
+      return (
+        element.isConnected &&
+        style.display !== 'none' &&
+        style.visibility !== 'hidden' &&
+        Number.parseFloat(style.opacity || '1') > 0 &&
+        rect.width > 0 &&
+        rect.height > 0
+      )
+    }
+    const toRect = (element: HTMLElement) => {
+      const rect = element.getBoundingClientRect()
+      return {
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        height: rect.height,
+      }
+    }
+
+    const dialogs = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-slot="dialog-content"]'),
+    ).filter(isVisible)
+    const dialog = dialogs.at(-1)
+    if (!dialog) return null
+
+    const title = dialog.querySelector<HTMLElement>('[data-slot="dialog-title"]')
+    const closeButtons = Array.from(
+      dialog.querySelectorAll<HTMLElement>('[data-slot="dialog-close"]'),
+    ).filter(isVisible)
+
+    return {
+      dialog: toRect(dialog),
+      title: title
+        ? {
+            ...toRect(title),
+            visible: isVisible(title),
+            screenReaderOnly: title.classList.contains('sr-only'),
+          }
+        : null,
+      closeButtons: closeButtons.map(toRect),
+    }
+  })
+}
+
+async function stableDialogGeometry(page: Parameters<typeof openModule>[0]) {
+  let previous: DialogGeometrySnapshot | null = null
+
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const current = await readCurrentDialogGeometry(page)
+    if (current && previous && snapshotIsStable(previous, current)) return current
+    previous = current
+    await page.waitForTimeout(50)
+  }
+
+  throw new Error('Visible dialog geometry did not settle on a single portal node.')
+}
+
 async function expectNoDocumentOverflow(page: Parameters<typeof openModule>[0]) {
-  await expect.poll(async () => page.evaluate(() => ({
-    width: document.documentElement.scrollWidth,
-    viewport: window.innerWidth,
-  }))).toEqual(expect.objectContaining({ width: expect.any(Number), viewport: expect.any(Number) }))
+  await expect
+    .poll(async () =>
+      page.evaluate(() => ({
+        width: document.documentElement.scrollWidth,
+        viewport: window.innerWidth,
+      })),
+    )
+    .toEqual(
+      expect.objectContaining({
+        width: expect.any(Number),
+        viewport: expect.any(Number),
+      }),
+    )
 
   const dimensions = await page.evaluate(() => ({
     width: document.documentElement.scrollWidth,
@@ -35,45 +141,63 @@ async function openWorksheetTools(page: Parameters<typeof openModule>[0]) {
   await openWorksheetActions(page)
   const actions = page.locator('#planner-worksheet-actions')
   await expect(actions).toBeVisible()
-  await expect(actions.getByRole('button', { name: 'Template', exact: true })).toBeVisible()
-  await expect(actions.getByRole('button', { name: 'Import', exact: true })).toBeVisible()
+  await expect(
+    actions.getByRole('button', { name: 'Template', exact: true }),
+  ).toBeVisible()
+  await expect(
+    actions.getByRole('button', { name: 'Import', exact: true }),
+  ).toBeVisible()
 }
 
 async function assertDialogGeometry(
   page: Parameters<typeof openModule>[0],
   viewport: { width: number; height: number },
 ) {
-  const dialog = page.locator('[data-slot="dialog-content"]:visible').last()
-  await expect(dialog).toBeVisible()
-  const box = await stableBoundingBox(dialog)
+  const dialogLocator = page
+    .locator('[data-slot="dialog-content"]:visible')
+    .last()
+  await expect(dialogLocator).toBeVisible()
+
+  // Radix portals can replace an entering node while its animation is settling.
+  // Measure the current dialog, title, and close buttons in one browser frame,
+  // then require two consecutive stable snapshots before checking geometry.
+  // This preserves every viewport assertion without combining rectangles from
+  // different portal nodes.
+  const snapshot = await stableDialogGeometry(page)
+  const box = snapshot.dialog
   expect(box.x).toBeGreaterThanOrEqual(-1)
   expect(box.y).toBeGreaterThanOrEqual(-1)
   expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1)
   expect(box.y + box.height).toBeLessThanOrEqual(viewport.height + 1)
 
-  const title = dialog.locator('[data-slot="dialog-title"]').first()
-  const titleClasses = await title.getAttribute('class')
-  if (await title.isVisible() && !titleClasses?.split(/\s+/).includes('sr-only')) {
-    await expect(title).toBeInViewport()
+  if (snapshot.title?.visible && !snapshot.title.screenReaderOnly) {
+    expect(snapshot.title.x).toBeGreaterThanOrEqual(-1)
+    expect(snapshot.title.y).toBeGreaterThanOrEqual(-1)
+    expect(snapshot.title.x + snapshot.title.width).toBeLessThanOrEqual(
+      viewport.width + 1,
+    )
+    expect(snapshot.title.y + snapshot.title.height).toBeLessThanOrEqual(
+      viewport.height + 1,
+    )
   }
 
-  const closeButtons = dialog.locator('[data-slot="dialog-close"]')
   const geometryTolerance = 8
-  for (let index = 0; index < await closeButtons.count(); index += 1) {
-    const closeButton = closeButtons.nth(index)
-    if (!(await closeButton.isVisible())) continue
-    const closeBox = await stableBoundingBox(closeButton)
+  for (const closeBox of snapshot.closeButtons) {
     expect(closeBox.x).toBeGreaterThanOrEqual(box.x - geometryTolerance)
     expect(closeBox.y).toBeGreaterThanOrEqual(box.y - geometryTolerance)
-    expect(closeBox.x + closeBox.width).toBeLessThanOrEqual(box.x + box.width + geometryTolerance)
-    expect(closeBox.y + closeBox.height).toBeLessThanOrEqual(box.y + box.height + geometryTolerance)
+    expect(closeBox.x + closeBox.width).toBeLessThanOrEqual(
+      box.x + box.width + geometryTolerance,
+    )
+    expect(closeBox.y + closeBox.height).toBeLessThanOrEqual(
+      box.y + box.height + geometryTolerance,
+    )
     if (viewport.width < 640) {
       expect(closeBox.width).toBeGreaterThanOrEqual(40)
       expect(closeBox.height).toBeGreaterThanOrEqual(40)
     }
   }
 
-  return dialog
+  return page.locator('[data-slot="dialog-content"]:visible').last()
 }
 
 async function closeVisibleDialog(page: Parameters<typeof openModule>[0]) {
@@ -119,13 +243,19 @@ async function assertPlannerOwnsVerticalScroll(page: Parameters<typeof openModul
       candidates.add(ancestor)
       ancestor = ancestor.parentElement
     }
-    for (const descendant of root.querySelectorAll<HTMLElement>('*')) candidates.add(descendant)
+    for (const descendant of root.querySelectorAll<HTMLElement>('*')) {
+      candidates.add(descendant)
+    }
 
     const scrollOwners = Array.from(candidates).filter((element) => {
       const style = getComputedStyle(element)
-      return ['auto', 'scroll'].includes(style.overflowY) && element.clientHeight >= 100
+      return (
+        ['auto', 'scroll'].includes(style.overflowY) && element.clientHeight >= 100
+      )
     })
-    if (!scrollOwners.length) return { found: false, overflowFound: false, moved: false }
+    if (!scrollOwners.length) {
+      return { found: false, overflowFound: false, moved: false }
+    }
 
     let overflowFound = false
     for (const owner of scrollOwners) {
@@ -142,11 +272,19 @@ async function assertPlannerOwnsVerticalScroll(page: Parameters<typeof openModul
 
     return { found: true, overflowFound, moved: !overflowFound }
   })
-  expect(result.found, 'planner module has an owned vertical scroll boundary').toBe(true)
-  expect(result.moved, 'owned planner scroll boundary responds when content overflows').toBe(true)
+  expect(
+    result.found,
+    'planner module has an owned vertical scroll boundary',
+  ).toBe(true)
+  expect(
+    result.moved,
+    'owned planner scroll boundary responds when content overflows',
+  ).toBe(true)
 }
 
-test('worksheet import is actionable and viewport-safe across device classes', async ({ plannerPage: page }, testInfo) => {
+test('worksheet import is actionable and viewport-safe across device classes', async ({
+  plannerPage: page,
+}, testInfo) => {
   test.setTimeout(150_000)
   let templatePath = ''
 
@@ -169,20 +307,34 @@ test('worksheet import is actionable and viewport-safe across device classes', a
       await expect(toastTitle).toBeVisible()
       const headerBox = await stableBoundingBox(header)
       const toastBox = await stableBoundingBox(toastTitle)
-      expect(toastBox.y).toBeGreaterThanOrEqual(headerBox.y + headerBox.height - 1)
+      expect(toastBox.y).toBeGreaterThanOrEqual(
+        headerBox.y + headerBox.height - 1,
+      )
     }
 
     await page.getByRole('button', { name: 'Import', exact: true }).click()
     let dialog = await assertDialogGeometry(page, viewport)
     await dialog.locator('input[type="file"]').setInputFiles(templatePath)
-    await expect(dialog.getByTestId('import-stat-rows').getByText('0', { exact: true })).toBeVisible()
+    await expect(
+      dialog.getByTestId('import-stat-rows').getByText('0', { exact: true }),
+    ).toBeVisible()
     await expect(dialog.getByTestId('import-empty-preview')).toBeVisible()
-    await expect(dialog.getByText('Blank template confirmed', { exact: true })).toBeVisible()
-    await expect(dialog.getByRole('button', { name: 'Review import', exact: true })).toHaveCount(0)
-    await expect(dialog.getByRole('button', { name: 'Choose another file', exact: true })).toBeEnabled()
-    await expect(dialog.getByRole('button', { name: 'Close preview', exact: true })).toBeEnabled()
+    await expect(
+      dialog.getByText('Blank template confirmed', { exact: true }),
+    ).toBeVisible()
+    await expect(
+      dialog.getByRole('button', { name: 'Review import', exact: true }),
+    ).toHaveCount(0)
+    await expect(
+      dialog.getByRole('button', { name: 'Choose another file', exact: true }),
+    ).toBeEnabled()
+    await expect(
+      dialog.getByRole('button', { name: 'Close preview', exact: true }),
+    ).toBeEnabled()
     await expect(dialog.getByTestId('import-dialog-footer')).toBeInViewport()
-    await dialog.getByRole('button', { name: 'Close preview', exact: true }).click()
+    await dialog
+      .getByRole('button', { name: 'Close preview', exact: true })
+      .click()
     await expect(page.locator('[data-slot="dialog-content"]:visible')).toHaveCount(0)
 
     if (DATA_PREVIEW_VIEWPORTS.has(viewport.name)) {
@@ -199,7 +351,9 @@ test('worksheet import is actionable and viewport-safe across device classes', a
         mimeType: 'text/csv',
         buffer: Buffer.from(csv, 'utf8'),
       })
-      await expect(dialog.getByTestId('import-stat-rows').getByText('1', { exact: true })).toBeVisible()
+      await expect(
+        dialog.getByTestId('import-stat-rows').getByText('1', { exact: true }),
+      ).toBeVisible()
       if (viewport.width < 768) {
         const cards = dialog.getByTestId('import-review-cards')
         await expect(cards).toBeVisible()
@@ -218,13 +372,20 @@ test('worksheet import is actionable and viewport-safe across device classes', a
         const scrollBox = await stableBoundingBox(tableScroll)
         const headerBox = await stableBoundingBox(rowHeader)
         expect(headerBox.y).toBeLessThanOrEqual(scrollBox.y + 2)
-        expect(headerBox.y + headerBox.height).toBeGreaterThanOrEqual(scrollBox.y + 1)
+        expect(headerBox.y + headerBox.height).toBeGreaterThanOrEqual(
+          scrollBox.y + 1,
+        )
       }
-      const reviewButton = dialog.getByRole('button', { name: 'Review import', exact: true })
+      const reviewButton = dialog.getByRole('button', {
+        name: 'Review import',
+        exact: true,
+      })
       await expect(reviewButton).toBeEnabled()
       await expect(dialog.getByTestId('import-dialog-footer')).toBeInViewport()
       await reviewButton.click()
-      await expect(dialog.getByRole('button', { name: 'Import now', exact: true })).toBeEnabled()
+      await expect(
+        dialog.getByRole('button', { name: 'Import now', exact: true }),
+      ).toBeEnabled()
       await expect(dialog.getByText(/Import 1 records\?/)).toBeVisible()
       const confirmationRecords = dialog.getByTestId('import-confirmation-records')
       await expect(confirmationRecords).toBeVisible()
@@ -236,8 +397,12 @@ test('worksheet import is actionable and viewport-safe across device classes', a
       await mappingTrigger.click()
       const selectContent = page.locator('[data-slot="select-content"]:visible')
       await expect(selectContent).toBeVisible()
-      const dialogZ = await dialog.evaluate((element) => Number.parseInt(getComputedStyle(element).zIndex || '0', 10))
-      const selectZ = await selectContent.evaluate((element) => Number.parseInt(getComputedStyle(element).zIndex || '0', 10))
+      const dialogZ = await dialog.evaluate((element) =>
+        Number.parseInt(getComputedStyle(element).zIndex || '0', 10),
+      )
+      const selectZ = await selectContent.evaluate((element) =>
+        Number.parseInt(getComputedStyle(element).zIndex || '0', 10),
+      )
       expect(selectZ).toBeGreaterThan(dialogZ)
       await page.keyboard.press('Escape')
       await expect(selectContent).toHaveCount(0)
@@ -247,7 +412,9 @@ test('worksheet import is actionable and viewport-safe across device classes', a
   }
 })
 
-test('major planner tools share the responsive overlay contract', async ({ plannerPage: page }) => {
+test('major planner tools share the responsive overlay contract', async ({
+  plannerPage: page,
+}) => {
   test.setTimeout(150_000)
   const viewports = DEVICE_VIEWPORTS.filter((viewport) =>
     ['compact-phone', 'tablet-portrait', 'desktop'].includes(viewport.name),
@@ -271,15 +438,25 @@ test('major planner tools share the responsive overlay contract', async ({ plann
       await trigger.click()
       const dialog = await assertDialogGeometry(page, viewport)
       const scrollContract = await dialog.evaluate((element) => {
-        const candidates = [element, ...Array.from(element.querySelectorAll<HTMLElement>('*'))]
+        const candidates = [
+          element,
+          ...Array.from(element.querySelectorAll<HTMLElement>('*')),
+        ]
         const scrollOwners = candidates.filter((candidate) => {
           const style = getComputedStyle(candidate)
-          return ['auto', 'scroll'].includes(style.overflowY) && candidate.clientHeight >= 100
+          return (
+            ['auto', 'scroll'].includes(style.overflowY) &&
+            candidate.clientHeight >= 100
+          )
         })
-        const overflowing = candidates.some((candidate) =>
-          candidate.clientHeight >= 100 && candidate.scrollHeight > candidate.clientHeight + 1,
+        const overflowing = candidates.some(
+          (candidate) =>
+            candidate.clientHeight >= 100 &&
+            candidate.scrollHeight > candidate.clientHeight + 1,
         )
-        if (!scrollOwners.length) return { found: !overflowing, usable: !overflowing }
+        if (!scrollOwners.length) {
+          return { found: !overflowing, usable: !overflowing }
+        }
 
         let overflowFound = false
         for (const owner of scrollOwners) {
@@ -295,8 +472,14 @@ test('major planner tools share the responsive overlay contract', async ({ plann
         }
         return { found: true, usable: !overflowFound }
       })
-      expect(scrollContract.found, `${String(tool.name)} is contained or owns a scroll boundary`).toBe(true)
-      expect(scrollContract.usable, `${String(tool.name)} scroll boundary is usable when needed`).toBe(true)
+      expect(
+        scrollContract.found,
+        `${String(tool.name)} is contained or owns a scroll boundary`,
+      ).toBe(true)
+      expect(
+        scrollContract.usable,
+        `${String(tool.name)} scroll boundary is usable when needed`,
+      ).toBe(true)
       await closeVisibleDialog(page)
       await openPlannerToolPanel(page)
     }
@@ -305,9 +488,18 @@ test('major planner tools share the responsive overlay contract', async ({ plann
   }
 })
 
-test('all core planner modules retain an internal vertical scroll owner', async ({ plannerPage: page }) => {
+test('all core planner modules retain an internal vertical scroll owner', async ({
+  plannerPage: page,
+}) => {
   test.setTimeout(120_000)
-  const modules = ['checklist', 'budget', 'vendors', 'guests', 'timeline', 'seating'] as const
+  const modules = [
+    'checklist',
+    'budget',
+    'vendors',
+    'guests',
+    'timeline',
+    'seating',
+  ] as const
 
   for (const module of modules) {
     await page.goto(`/planner?module=${module}#planner-workspace`)

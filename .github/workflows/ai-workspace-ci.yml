@@ -1,0 +1,163 @@
+name: AI Workspace CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/app/api/ai/**'
+      - 'src/app/api/planner/**'
+      - 'src/app/planner/ai-workspace/**'
+      - 'src/components/wedding/ai-**'
+      - 'src/components/wedding/planner-account-dock.tsx'
+      - 'src/lib/ai/**'
+      - 'src/lib/wedding-access.ts'
+      - 'src/lib/admin-gate.ts'
+      - 'src/lib/app-session.ts'
+      - 'src/lib/preview-write-safety.ts'
+      - 'src/proxy.ts'
+      - 'prisma/schema.prisma'
+      - 'prisma/migrations/**ai_**'
+      - 'scripts/ai-workspace-**'
+      - 'scripts/test-ai-workspace-runtime.sh'
+      - 'scripts/test-ai-providers.ts'
+      - 'tests/e2e/ai-workspace.spec.ts'
+      - 'tests/e2e/support/planner-**'
+      - 'docs/AI_PRODUCT_AREAS_PLAN.md'
+      - 'docs/AI_WORKSPACE_OPERATIONS.md'
+      - 'docs/AI_PROVIDER_SETUP.md'
+      - '.github/workflows/ai-workspace-ci.yml'
+      - 'package.json'
+      - 'tsconfig.ai.json'
+  push:
+    branches:
+      - feature/ai-provider-router
+    paths:
+      - 'src/app/api/ai/**'
+      - 'src/app/api/planner/**'
+      - 'src/app/planner/ai-workspace/**'
+      - 'src/components/wedding/ai-**'
+      - 'src/components/wedding/planner-account-dock.tsx'
+      - 'src/lib/ai/**'
+      - 'src/lib/wedding-access.ts'
+      - 'src/lib/admin-gate.ts'
+      - 'src/lib/app-session.ts'
+      - 'src/lib/preview-write-safety.ts'
+      - 'src/proxy.ts'
+      - 'prisma/schema.prisma'
+      - 'prisma/migrations/**ai_**'
+      - 'scripts/ai-workspace-**'
+      - 'scripts/test-ai-workspace-runtime.sh'
+      - 'scripts/test-ai-providers.ts'
+      - 'tests/e2e/ai-workspace.spec.ts'
+      - 'tests/e2e/support/planner-**'
+      - 'docs/AI_PRODUCT_AREAS_PLAN.md'
+      - 'docs/AI_WORKSPACE_OPERATIONS.md'
+      - 'docs/AI_PROVIDER_SETUP.md'
+      - '.github/workflows/ai-workspace-ci.yml'
+      - 'package.json'
+      - 'tsconfig.ai.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-workspace-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: wewed
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      CI: 'true'
+      AI_ENABLED: 'false'
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/wewed?schema=public
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/wewed?schema=public
+      PGPASSWORD: postgres
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: ci-service-role-key
+      WEWED_SESSION_SECRET: ci-session-secret-not-for-production
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      NEXT_TELEMETRY_DISABLED: 1
+      ZAI_API_KEY: ${{ secrets.ZAI_API_KEY }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Validate and generate Prisma
+        run: |
+          bunx prisma validate --schema prisma/schema.prisma
+          bunx prisma generate --schema prisma/schema.prisma
+
+      - name: Apply migrations
+        run: bunx prisma migrate deploy --schema prisma/schema.prisma
+
+      - name: Verify AI PostgreSQL contracts
+        run: psql -h localhost -p 5432 -U postgres -d wewed -f scripts/ai-workspace-postgres-integration.sql
+
+      - name: Seed runtime smoke fixture
+        run: psql -h localhost -p 5432 -U postgres -d wewed -f scripts/ai-workspace-runtime-seed.sql
+
+      - name: Run AI unit and remediation contracts
+        run: bun run ai:unit
+
+      - name: Run live GLM smoke when the repository secret is configured
+        if: env.ZAI_API_KEY != ''
+        env:
+          AI_ENABLED: 'true'
+          AI_PRIVATE_PROVIDER: zai
+          AI_QUALITY_PROVIDER: zai
+          AI_FALLBACK_PROVIDER: groq
+          AI_ALLOW_PRIVATE_FALLBACK: 'false'
+          ZAI_MODEL: glm-4.7-flash
+          ZAI_BASE_URL: https://api.z.ai/api/paas/v4
+          AI_PROVIDER_MAX_RETRIES: '2'
+        run: bun run ai:test
+
+      - name: Type-check AI workspace
+        run: |
+          set -o pipefail
+          bunx tsc --project tsconfig.ai.json --pretty false 2>&1 | tee typescript-errors.log
+
+      - name: Upload TypeScript diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ai-workspace-typescript-errors
+          path: typescript-errors.log
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Build application
+        run: bun run build
+
+      - name: Run built application smoke test
+        run: bash scripts/test-ai-workspace-runtime.sh
