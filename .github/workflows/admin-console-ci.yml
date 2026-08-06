@@ -20,6 +20,7 @@ on:
       - 'src/lib/wewed-admin.ts'
       - 'src/lib/wewed-admin-policy.ts'
       - 'src/lib/wewed-admin-governance.test.ts'
+      - 'src/lib/admin-invitation-profile.test.ts'
       - 'src/lib/wedding-access.ts'
       - 'src/lib/stripe-billing.ts'
       - 'src/lib/wewed-plans.ts'
@@ -80,6 +81,9 @@ jobs:
       - name: Run admin governance contracts
         run: bun test src/lib/wewed-admin-governance.test.ts
 
+      - name: Run administrator invitation contracts
+        run: bun test src/lib/admin-invitation-profile.test.ts
+
       - name: Run registration, RBAC and Stripe contracts
         run: bun scripts/public-registration-rbac-stripe-contract.ts
 
@@ -109,6 +113,7 @@ jobs:
           src/lib/wewed-admin.ts
           src/lib/wewed-admin-policy.ts
           src/lib/wewed-admin-governance.test.ts
+          src/lib/admin-invitation-profile.test.ts
           src/lib/wedding-access.ts
           src/lib/stripe-billing.ts
           src/lib/wewed-plans.ts
