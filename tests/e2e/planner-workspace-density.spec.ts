@@ -30,6 +30,24 @@ async function workspaceRatio(page: Parameters<typeof openModule>[0]) {
   })
 }
 
+type WorkspaceRatio = NonNullable<Awaited<ReturnType<typeof workspaceRatio>>>
+
+async function waitForWorkspaceRatio(
+  page: Parameters<typeof openModule>[0],
+  predicate: (ratio: WorkspaceRatio) => boolean,
+  message: string,
+): Promise<WorkspaceRatio> {
+  let captured: WorkspaceRatio | null = null
+  await expect.poll(async () => {
+    const ratio = await workspaceRatio(page)
+    if (ratio && predicate(ratio)) captured = ratio
+    return captured !== null
+  }, { message }).toBe(true)
+
+  if (!captured) throw new Error(message)
+  return captured
+}
+
 test('compact planner chrome gives at least four fifths of the usable body to active work', async ({ plannerPage: page }) => {
   test.setTimeout(90_000)
 
@@ -58,25 +76,33 @@ test('compact planner chrome gives at least four fifths of the usable body to ac
     await expect(toolsToggle).toHaveAttribute('aria-expanded', 'false')
     await expect(tools).toBeHidden()
 
-    await expect.poll(async () => (await workspaceRatio(page))?.contextInsideRail).toBe(true)
-    const compact = await workspaceRatio(page)
-    expect(compact).not.toBeNull()
-    expect(compact!.railHeight, 'compact planner rail stays shallow').toBeLessThan(viewport.height * 0.09)
-    expect(compact!.activeToBody, 'active planner slot owns at least four fifths of usable planner height').toBeGreaterThanOrEqual(0.8)
+    const compact = await waitForWorkspaceRatio(
+      page,
+      (ratio) => ratio.contextInsideRail && ratio.activeToBody >= 0.8,
+      'compact planner chrome should settle before density assertions',
+    )
+    expect(compact.railHeight, 'compact planner rail stays shallow').toBeLessThan(viewport.height * 0.09)
+    expect(compact.activeToBody, 'active planner slot owns at least four fifths of usable planner height').toBeGreaterThanOrEqual(0.8)
 
     await toolsToggle.click()
     await expect(toolsToggle).toHaveAttribute('aria-expanded', 'true')
     await expect(tools).toBeVisible()
-    const expandedTools = await workspaceRatio(page)
-    expect(expandedTools).not.toBeNull()
-    expect(expandedTools!.activeHeight).toBeLessThan(compact!.activeHeight)
+    const expandedTools = await waitForWorkspaceRatio(
+      page,
+      (ratio) => ratio.activeHeight < compact.activeHeight,
+      'expanded tools should reduce the active workspace height',
+    )
+    expect(expandedTools.activeHeight).toBeLessThan(compact.activeHeight)
 
     await toolsToggle.click()
     await expect(toolsToggle).toHaveAttribute('aria-expanded', 'false')
     await expect(tools).toBeHidden()
-    const restoredTools = await workspaceRatio(page)
-    expect(restoredTools).not.toBeNull()
-    expect(restoredTools!.activeToBody).toBeGreaterThanOrEqual(0.8)
+    const restoredTools = await waitForWorkspaceRatio(
+      page,
+      (ratio) => ratio.activeToBody >= 0.8,
+      'collapsed tools should restore workspace density',
+    )
+    expect(restoredTools.activeToBody).toBeGreaterThanOrEqual(0.8)
 
     await openWorksheetActions(page)
     await expect(actions).toBeVisible()
@@ -105,9 +131,11 @@ test('compact planner chrome gives at least four fifths of the usable body to ac
     await expect(moduleSelector).toBeHidden()
     await expect(actions).toBeHidden()
     await expect(tools).toBeHidden()
-    await expect.poll(async () => (await workspaceRatio(page))?.activeToBody).toBeGreaterThanOrEqual(0.8)
-    const reloaded = await workspaceRatio(page)
-    expect(reloaded).not.toBeNull()
-    expect(reloaded!.activeToBody).toBeGreaterThanOrEqual(0.8)
+    const reloaded = await waitForWorkspaceRatio(
+      page,
+      (ratio) => ratio.activeToBody >= 0.8,
+      'reloaded planner should restore compact workspace density',
+    )
+    expect(reloaded.activeToBody).toBeGreaterThanOrEqual(0.8)
   }
 })

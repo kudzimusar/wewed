@@ -44,6 +44,12 @@ function publicProvider(row: Record<string, unknown>) {
     responseTime: typeof row.responseTime === 'string' ? row.responseTime : null,
     minimumBookingNotice: typeof row.minimumBookingNotice === 'string' ? row.minimumBookingNotice : null,
     verificationBadges: stringList(row.verificationBadges),
+    listingStatus: typeof row.listingStatus === 'string' ? row.listingStatus : 'claimed',
+    isClaimable: row.isClaimable === true,
+    acceptingEnquiries: row.acceptingEnquiries !== false,
+    sourceSummary: typeof row.sourceSummary === 'string' ? row.sourceSummary : null,
+    lastSourceCheckAt: row.lastSourceCheckAt ?? null,
+    claimNotice: typeof row.claimNotice === 'string' ? row.claimNotice : null,
     offering: {
       id: String(row.offeringId),
       category: String(row.category),
@@ -68,10 +74,14 @@ export async function GET(request: NextRequest) {
   const category = PROVIDER_CATEGORY_VALUES.has(requestedCategory) ? requestedCategory : null
   const query = request.nextUrl.searchParams.get('q')?.trim().slice(0, 100) || null
   const area = request.nextUrl.searchParams.get('area')?.trim().slice(0, 120) || null
+  const page = Math.max(1, Number.parseInt(request.nextUrl.searchParams.get('page') || '1', 10) || 1)
+  const pageSize = Math.min(60, Math.max(1, Number.parseInt(request.nextUrl.searchParams.get('pageSize') || '24', 10) || 24))
+  const offset = (page - 1) * pageSize
 
   try {
     const rows = await db.$queryRawUnsafe<Array<Record<string, unknown>>>(
       `SELECT
+         COUNT(*) OVER()::int AS "totalCount",
          p.id AS "profileId",
          p.slug,
          ba.type AS "accountType",
@@ -90,6 +100,12 @@ export async function GET(request: NextRequest) {
          p."responseTime",
          p."minimumBookingNotice",
          p."verificationBadges",
+         p."listingStatus",
+         p."isClaimable",
+         p."acceptingEnquiries",
+         p."sourceSummary",
+         p."lastSourceCheckAt",
+         p."claimNotice",
          o.id AS "offeringId",
          o.category,
          o."displayName" AS "offeringName",
@@ -109,31 +125,78 @@ export async function GET(request: NextRequest) {
          ON ba.id = p."businessAccountId"
         AND ba.type IN ('venue', 'vendor')
         AND ba.status = 'active'
-        AND ba."onboardingStatus" = 'complete'
-       JOIN public."ProviderServiceOffering" o
-         ON o."businessAccountId" = p."businessAccountId"
-        AND o.status = 'published'
+        AND (
+          ba."onboardingStatus" = 'complete' OR
+          p."listingStatus" IN ('unclaimed', 'claim_pending')
+        )
+       LEFT JOIN wewed_admin."ProviderDiscoveryCandidate" dc
+         ON dc.id = ba."sourceId"
+       JOIN LATERAL (
+         SELECT candidate_offering.*
+         FROM public."ProviderServiceOffering" candidate_offering
+         WHERE candidate_offering."businessAccountId" = p."businessAccountId"
+           AND candidate_offering.status = 'published'
+           AND ($1::text IS NULL OR candidate_offering.category = $1)
+           AND ($2::text IS NULL OR
+                p."displayName" ILIKE '%' || $2 || '%' OR
+                COALESCE(p.headline, '') ILIKE '%' || $2 || '%' OR
+                COALESCE(p.description, '') ILIKE '%' || $2 || '%' OR
+                candidate_offering."displayName" ILIKE '%' || $2 || '%' OR
+                COALESCE(candidate_offering.description, '') ILIKE '%' || $2 || '%')
+         ORDER BY
+           CASE
+             WHEN $1::text IS NOT NULL AND candidate_offering.category = $1 THEN 0
+             WHEN dc."primaryCategory" IS NOT NULL AND candidate_offering.category = dc."primaryCategory" THEN 0
+             ELSE 1
+           END,
+           candidate_offering."createdAt",
+           candidate_offering.category
+         LIMIT 1
+       ) o ON true
        WHERE p.visibility = 'published'
-         AND ($1::text IS NULL OR o.category = $1)
-         AND ($2::text IS NULL OR
-              p."displayName" ILIKE '%' || $2 || '%' OR
-              COALESCE(p.headline, '') ILIKE '%' || $2 || '%' OR
-              COALESCE(p.description, '') ILIKE '%' || $2 || '%' OR
-              o."displayName" ILIKE '%' || $2 || '%' OR
-              COALESCE(o.description, '') ILIKE '%' || $2 || '%')
+         AND p."listingStatus" NOT IN ('suspended', 'removed')
          AND ($3::text IS NULL OR
               p.city ILIKE $3 OR
               p.country ILIKE $3 OR
               p."serviceAreas" @> jsonb_build_array($3) OR
-              o."serviceAreas" @> jsonb_build_array($3))
-       ORDER BY p."displayName", o.category
-       LIMIT 200`,
+              EXISTS (
+                SELECT 1
+                FROM public."ProviderServiceOffering" area_offering
+                WHERE area_offering."businessAccountId" = p."businessAccountId"
+                  AND area_offering.status = 'published'
+                  AND area_offering."serviceAreas" @> jsonb_build_array($3)
+              ))
+       ORDER BY
+         CASE p."listingStatus"
+           WHEN 'verified' THEN 0
+           WHEN 'claimed' THEN 1
+           WHEN 'claim_pending' THEN 2
+           ELSE 3
+         END,
+         p."displayName"
+       LIMIT $4 OFFSET $5`,
       category,
       query,
       area,
+      pageSize,
+      offset,
     )
 
-    return NextResponse.json({ success: true, category, query, area, providers: rows.map(publicProvider) })
+    const total = rows.length > 0 && typeof rows[0].totalCount === 'number' ? rows[0].totalCount : 0
+    return NextResponse.json({
+      success: true,
+      category,
+      query,
+      area,
+      providers: rows.map(publicProvider),
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / pageSize)),
+        hasMore: offset + rows.length < total,
+      },
+    })
   } catch (error) {
     console.error('[providers] Error:', error)
     return NextResponse.json({ success: false, providers: [], error: 'Provider profiles are temporarily unavailable.' }, { status: 500 })

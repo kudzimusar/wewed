@@ -58,6 +58,8 @@ export async function POST(request: NextRequest) {
        JOIN public."ProviderProfile" p
          ON p."businessAccountId" = o."businessAccountId"
         AND p.visibility = 'published'
+        AND p."listingStatus" IN ('claimed', 'verified')
+        AND p."acceptingEnquiries" = true
        JOIN public."BusinessAccount" ba
          ON ba.id = o."businessAccountId"
         AND ba.type IN ('venue', 'vendor')

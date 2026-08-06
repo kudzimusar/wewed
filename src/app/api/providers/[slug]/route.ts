@@ -36,9 +36,13 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ sl
          ON ba.id = p."businessAccountId"
         AND ba.type IN ('venue', 'vendor')
         AND ba.status = 'active'
-        AND ba."onboardingStatus" = 'complete'
+        AND (
+          ba."onboardingStatus" = 'complete' OR
+          p."listingStatus" IN ('unclaimed', 'claim_pending')
+        )
        WHERE p.slug = $1
          AND p.visibility = 'published'
+         AND p."listingStatus" NOT IN ('suspended', 'removed')
        LIMIT 1`,
       slug,
     )
@@ -100,6 +104,14 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ sl
         coverImageUrl: typeof profile.coverImageUrl === 'string' ? profile.coverImageUrl : null,
         faq: Array.isArray(profile.faq) ? profile.faq : [],
         verificationBadges: list(profile.verificationBadges),
+        listingStatus: typeof profile.listingStatus === 'string' ? profile.listingStatus : 'claimed',
+        isClaimable: profile.isClaimable === true,
+        acceptingEnquiries: profile.acceptingEnquiries !== false,
+        sourceSummary: typeof profile.sourceSummary === 'string' ? profile.sourceSummary : null,
+        lastSourceCheckAt: profile.lastSourceCheckAt ?? null,
+        ownerConfirmedAt: profile.ownerConfirmedAt ?? null,
+        provisionalPublishedAt: profile.provisionalPublishedAt ?? null,
+        claimNotice: typeof profile.claimNotice === 'string' ? profile.claimNotice : null,
         lastProfileUpdate: profile.lastProfileUpdate,
         offerings: offerings.map((offering) => ({
           id: String(offering.id),
@@ -116,6 +128,7 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ sl
           serviceAreas: list(offering.serviceAreas),
           inclusions: list(offering.inclusions),
           details: objectValue(offering.details),
+          sourceConfidence: typeof offering.sourceConfidence === 'number' ? offering.sourceConfidence : null,
           packages: packages.filter((entry) => entry.offeringId === offering.id).map((entry) => ({
             id: String(entry.id),
             name: String(entry.name),
