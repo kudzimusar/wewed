@@ -2,7 +2,8 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { BadgeCheck, BriefcaseBusiness, CalendarDays, Check, Clock3, Globe2, Loader2, Mail, MapPin, Phone, Send, ShieldCheck, Users } from 'lucide-react'
+import { AlertTriangle, BadgeCheck, BriefcaseBusiness, CalendarDays, Check, Clock3, Globe2, Loader2, Mail, MapPin, Phone, Send, ShieldCheck, Users } from 'lucide-react'
+import { ProviderClaimPanel } from '@/components/providers/provider-claim-panel'
 import { PublicPlatformShell } from '@/components/public/public-platform-shell'
 import { providerCategoryLabel, providerServiceFields, type ProviderFieldDefinition } from '@/lib/provider-catalog'
 
@@ -23,6 +24,7 @@ type Offering = {
   serviceAreas: string[]
   inclusions: string[]
   details: Record<string, unknown>
+  sourceConfidence: number | null
   packages: Package[]
   portfolio: Portfolio[]
 }
@@ -55,6 +57,14 @@ type Provider = {
   coverImageUrl: string | null
   faq: Array<{ question?: string; answer?: string }>
   verificationBadges: string[]
+  listingStatus: string
+  isClaimable: boolean
+  acceptingEnquiries: boolean
+  sourceSummary: string | null
+  lastSourceCheckAt: string | null
+  ownerConfirmedAt: string | null
+  provisionalPublishedAt: string | null
+  claimNotice: string | null
   lastProfileUpdate: string | null
   offerings: Offering[]
 }
@@ -73,6 +83,10 @@ function money(cents: number | null, currency: string): string | null {
 
 function detailLabel(key: string): string {
   return key.replace(/([A-Z])/g, ' $1').replace(/[-_]/g, ' ').replace(/^./, (character) => character.toUpperCase())
+}
+
+function isProvisional(provider: Provider): boolean {
+  return provider.listingStatus === 'unclaimed' || provider.listingStatus === 'claim_pending'
 }
 
 export function PublicProviderProfile({ slug }: { slug: string }) {
@@ -103,7 +117,7 @@ export function PublicProviderProfile({ slug }: { slug: string }) {
 
   async function submitEnquiry(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!offering) return
+    if (!offering || !provider || !provider.acceptingEnquiries || isProvisional(provider)) return
     const form = new FormData(event.currentTarget)
     setBusy(true)
     setError(null)
@@ -152,12 +166,17 @@ export function PublicProviderProfile({ slug }: { slug: string }) {
             {provider.coverImageUrl && <img src={provider.coverImageUrl} alt="" className="absolute inset-0 size-full object-cover opacity-45" />}
             <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(20,14,10,0.98),rgba(20,14,10,0.78),rgba(20,14,10,0.45))]" />
             <div className="relative mx-auto max-w-6xl px-4 py-20 sm:px-6">
-              <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.15em] text-gold"><span>{providerCategoryLabel(offering.category)}</span>{provider.verificationBadges.map((badge) => <span key={badge} className="inline-flex items-center gap-1 rounded-full border border-gold/30 bg-black/20 px-3 py-1"><BadgeCheck className="size-3.5" />{badge}</span>)}</div>
+              <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.15em] text-gold">
+                <span>{providerCategoryLabel(offering.category)}</span>
+                {isProvisional(provider) ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-300/40 bg-amber-100/10 px-3 py-1 text-amber-200"><AlertTriangle className="size-3.5" />{provider.listingStatus === 'claim_pending' ? 'Claim pending' : 'Unclaimed listing'}</span>
+                ) : provider.verificationBadges.map((badge) => <span key={badge} className="inline-flex items-center gap-1 rounded-full border border-gold/30 bg-black/20 px-3 py-1"><BadgeCheck className="size-3.5" />{badge}</span>)}
+              </div>
               <h1 className="mt-5 max-w-4xl font-serif text-5xl leading-tight sm:text-7xl">{provider.displayName}</h1>
               {provider.headline && <p className="mt-4 max-w-3xl text-lg text-champagne/75">{provider.headline}</p>}
               <div className="mt-7 flex flex-wrap gap-x-6 gap-y-3 text-sm text-champagne/65">
                 {(provider.city || provider.country) && <span className="inline-flex items-center gap-2"><MapPin className="size-4 text-gold" />{[provider.city, provider.country].filter(Boolean).join(', ')}</span>}
-                {provider.responseTime && <span className="inline-flex items-center gap-2"><Clock3 className="size-4 text-gold" />Responds {provider.responseTime.toLowerCase()}</span>}
+                {provider.responseTime && !isProvisional(provider) && <span className="inline-flex items-center gap-2"><Clock3 className="size-4 text-gold" />Responds {provider.responseTime.toLowerCase()}</span>}
                 {provider.minimumBookingNotice && <span className="inline-flex items-center gap-2"><CalendarDays className="size-4 text-gold" />Book {provider.minimumBookingNotice.toLowerCase()} ahead</span>}
               </div>
             </div>
@@ -166,13 +185,19 @@ export function PublicProviderProfile({ slug }: { slug: string }) {
           <main className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
             <div className="grid gap-8 lg:grid-cols-[1fr_23rem]">
               <div className="space-y-8">
+                {isProvisional(provider) && (
+                  <section className="rounded-3xl border border-amber-200 bg-amber-50 p-6">
+                    <div className="flex items-start gap-3"><AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-700" /><div><h2 className="font-semibold text-amber-950">Public information not yet owner-verified</h2><p className="mt-2 text-sm leading-6 text-amber-900/75">This provisional profile was assembled from public business information. Wewed has not represented it as an endorsement, and missing prices, policies or portfolio media remain unpublished until the owner confirms them.</p>{provider.sourceSummary && <p className="mt-2 text-xs text-amber-900/65">Source summary: {provider.sourceSummary}</p>}</div></div>
+                  </section>
+                )}
+
                 {provider.description && <section className="rounded-3xl border border-gold/20 bg-white p-7"><h2 className="font-serif text-3xl">About the business</h2><p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-espresso/68">{provider.description}</p><div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{provider.yearsOperating != null && <Fact icon={<BriefcaseBusiness className="size-4" />} label="Years operating" value={String(provider.yearsOperating)} />}{provider.teamSize != null && <Fact icon={<Users className="size-4" />} label="Team size" value={String(provider.teamSize)} />}{provider.languages.length > 0 && <Fact icon={<Globe2 className="size-4" />} label="Languages" value={provider.languages.join(', ')} />}</div></section>}
 
                 <section className="rounded-3xl border border-gold/20 bg-white p-7">
                   <h2 className="font-serif text-3xl">Services</h2>
                   <div className="mt-4 flex flex-wrap gap-2">{provider.offerings.map((entry, index) => <button key={entry.id} type="button" onClick={() => { setActive(index); setAnswers({}) }} className={`rounded-full px-4 py-2 text-xs font-semibold ${active === index ? 'bg-espresso text-champagne' : 'border border-gold/25 text-gold-muted'}`}>{providerCategoryLabel(entry.category)}</button>)}</div>
                   <div className="mt-7 rounded-2xl bg-champagne/55 p-6">
-                    <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-gold-muted">{providerCategoryLabel(offering.category)}</p><h3 className="mt-2 font-serif text-3xl">{offering.displayName}</h3></div><div className="text-right">{money(offering.startingPriceCents, offering.currency) && <><p className="text-xs text-espresso/50">Starting from</p><p className="mt-1 text-2xl font-semibold">{money(offering.startingPriceCents, offering.currency)}</p></>}</div></div>
+                    <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-gold-muted">{providerCategoryLabel(offering.category)}</p><h3 className="mt-2 font-serif text-3xl">{offering.displayName}</h3></div><div className="text-right">{money(offering.startingPriceCents, offering.currency) ? <><p className="text-xs text-espresso/50">Starting from</p><p className="mt-1 text-2xl font-semibold">{money(offering.startingPriceCents, offering.currency)}</p></> : <><p className="text-xs text-espresso/50">Pricing</p><p className="mt-1 font-semibold">Contact for quotation</p></>}</div></div>
                     {offering.description && <p className="mt-4 text-sm leading-7 text-espresso/65">{offering.description}</p>}
                     <div className="mt-5 grid gap-3 sm:grid-cols-2">{offering.bookingLeadTime && <Fact icon={<CalendarDays className="size-4" />} label="Booking lead time" value={offering.bookingLeadTime} />}{(offering.minimumCapacity != null || offering.maximumCapacity != null) && <Fact icon={<Users className="size-4" />} label="Capacity" value={`${offering.minimumCapacity ?? 'Any'}–${offering.maximumCapacity ?? 'Any'}`} />}</div>
                     {offering.inclusions.length > 0 && <div className="mt-6"><h4 className="text-xs font-semibold uppercase tracking-[0.12em] text-gold-muted">Included</h4><div className="mt-3 grid gap-2 sm:grid-cols-2">{offering.inclusions.map((item) => <span key={item} className="flex items-start gap-2 text-sm"><Check className="mt-0.5 size-4 shrink-0 text-sage" />{item}</span>)}</div></div>}
@@ -190,24 +215,28 @@ export function PublicProviderProfile({ slug }: { slug: string }) {
               </div>
 
               <aside className="space-y-5 lg:sticky lg:top-24 lg:self-start">
-                <section className="rounded-3xl bg-espresso p-6 text-champagne">
-                  <ShieldCheck className="size-6 text-gold" />
-                  <h2 className="mt-4 font-serif text-3xl">Send a secure enquiry</h2>
-                  <p className="mt-3 text-sm leading-6 text-champagne/65">Questions adapt to {providerCategoryLabel(offering.category).toLowerCase()}. Sending an enquiry never grants wedding access.</p>
-                  <form onSubmit={submitEnquiry} className="mt-5 space-y-4">
-                    <label className="block text-xs text-champagne/65">Wedding date<input name="eventDate" type="date" className={`${inputClass} mt-1.5`} /></label>
-                    <label className="block text-xs text-champagne/65">Location<input name="location" className={`${inputClass} mt-1.5`} /></label>
-                    <label className="block text-xs text-champagne/65">Guest count<input name="guestCount" type="number" min="0" max="100000" className={`${inputClass} mt-1.5`} /></label>
-                    <label className="block text-xs text-champagne/65">Budget range<select name="budgetBand" className={`${inputClass} mt-1.5`}><option value="">Select…</option><option>Under USD 5,000</option><option>USD 5,000–15,000</option><option>USD 15,000–30,000</option><option>USD 30,000–75,000</option><option>USD 75,000+</option><option>By consultation</option></select></label>
-                    {fields.map((field) => <EnquiryField key={field.key} field={field} value={answers[field.key]} onChange={(value) => setAnswers((current) => ({ ...current, [field.key]: value }))} />)}
-                    <label className="block text-xs text-champagne/65">Preferred reply<select name="contactPreference" className={`${inputClass} mt-1.5`}><option value="wewed">Wewed message</option><option value="email">Email</option><option value="phone">Phone</option></select></label>
-                    <label className="block text-xs text-champagne/65">Message<textarea name="message" className={`${textareaClass} mt-1.5`} /></label>
-                    <fieldset className="rounded-xl border border-gold/20 p-3"><legend className="px-2 text-[10px] uppercase tracking-[0.12em] text-gold">Details you authorise</legend>{[['shareWeddingTitle', 'Wedding title'], ['shareWeddingDate', 'Wedding date'], ['shareLocation', 'Location'], ['shareGuestCount', 'Guest count'], ['shareBudget', 'Budget band']].map(([name, label]) => <label key={name} className="mt-2 flex items-center gap-2 text-xs text-champagne/65"><input name={name} type="checkbox" className="accent-[#BF9B5F]" />{label}</label>)}</fieldset>
-                    {(error || notice) && <p role={error ? 'alert' : 'status'} className={`rounded-xl border p-3 text-xs ${error ? 'border-clay/40 bg-clay/10' : 'border-sage/40 bg-sage/10'}`}>{error || notice}</p>}
-                    <button type="submit" disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-xl bg-gold px-4 py-3 text-sm font-semibold text-espresso disabled:opacity-60">{busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}Send enquiry</button>
-                  </form>
-                  <p className="mt-3 text-xs text-champagne/45">A signed-in couple-owner account is required. <Link href="/sign-in" className="font-semibold text-gold">Sign in</Link></p>
-                </section>
+                {isProvisional(provider) || !provider.acceptingEnquiries ? (
+                  <div id="claim-business"><ProviderClaimPanel slug={provider.slug} businessName={provider.displayName} listingStatus={provider.listingStatus} sourceSummary={provider.sourceSummary} lastSourceCheckAt={provider.lastSourceCheckAt} /></div>
+                ) : (
+                  <section className="rounded-3xl bg-espresso p-6 text-champagne">
+                    <ShieldCheck className="size-6 text-gold" />
+                    <h2 className="mt-4 font-serif text-3xl">Send a secure enquiry</h2>
+                    <p className="mt-3 text-sm leading-6 text-champagne/65">Questions adapt to {providerCategoryLabel(offering.category).toLowerCase()}. Sending an enquiry never grants wedding access.</p>
+                    <form onSubmit={submitEnquiry} className="mt-5 space-y-4">
+                      <label className="block text-xs text-champagne/65">Wedding date<input name="eventDate" type="date" className={`${inputClass} mt-1.5`} /></label>
+                      <label className="block text-xs text-champagne/65">Location<input name="location" className={`${inputClass} mt-1.5`} /></label>
+                      <label className="block text-xs text-champagne/65">Guest count<input name="guestCount" type="number" min="0" max="100000" className={`${inputClass} mt-1.5`} /></label>
+                      <label className="block text-xs text-champagne/65">Budget range<select name="budgetBand" className={`${inputClass} mt-1.5`}><option value="">Select…</option><option>Under USD 5,000</option><option>USD 5,000–15,000</option><option>USD 15,000–30,000</option><option>USD 30,000–75,000</option><option>USD 75,000+</option><option>By consultation</option></select></label>
+                      {fields.map((field) => <EnquiryField key={field.key} field={field} value={answers[field.key]} onChange={(value) => setAnswers((current) => ({ ...current, [field.key]: value }))} />)}
+                      <label className="block text-xs text-champagne/65">Preferred reply<select name="contactPreference" className={`${inputClass} mt-1.5`}><option value="wewed">Wewed message</option><option value="email">Email</option><option value="phone">Phone</option></select></label>
+                      <label className="block text-xs text-champagne/65">Message<textarea name="message" className={`${textareaClass} mt-1.5`} /></label>
+                      <fieldset className="rounded-xl border border-gold/20 p-3"><legend className="px-2 text-[10px] uppercase tracking-[0.12em] text-gold">Details you authorise</legend>{[['shareWeddingTitle', 'Wedding title'], ['shareWeddingDate', 'Wedding date'], ['shareLocation', 'Location'], ['shareGuestCount', 'Guest count'], ['shareBudget', 'Budget band']].map(([name, label]) => <label key={name} className="mt-2 flex items-center gap-2 text-xs text-champagne/65"><input name={name} type="checkbox" className="accent-[#BF9B5F]" />{label}</label>)}</fieldset>
+                      {(error || notice) && <p role={error ? 'alert' : 'status'} className={`rounded-xl border p-3 text-xs ${error ? 'border-clay/40 bg-clay/10' : 'border-sage/40 bg-sage/10'}`}>{error || notice}</p>}
+                      <button type="submit" disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-xl bg-gold px-4 py-3 text-sm font-semibold text-espresso disabled:opacity-60">{busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}Send enquiry</button>
+                    </form>
+                    <p className="mt-3 text-xs text-champagne/45">A signed-in couple-owner account is required. <Link href="/sign-in" className="font-semibold text-gold">Sign in</Link></p>
+                  </section>
+                )}
 
                 <section className="rounded-3xl border border-gold/20 bg-white p-6"><h2 className="font-serif text-2xl">Contact and location</h2><div className="mt-4 space-y-3 text-sm">{provider.serviceAreas.length > 0 && <p className="flex gap-2"><MapPin className="mt-0.5 size-4 shrink-0 text-gold-muted" />{provider.serviceAreas.join(', ')}</p>}{provider.website && <a href={provider.website} target="_blank" rel="noreferrer" className="flex gap-2 text-gold-muted"><Globe2 className="mt-0.5 size-4 shrink-0" />Visit website</a>}{provider.phone && <a href={`tel:${provider.phone}`} className="flex gap-2 text-gold-muted"><Phone className="mt-0.5 size-4 shrink-0" />{provider.phone}</a>}{provider.publicEmail && <a href={`mailto:${provider.publicEmail}`} className="flex gap-2 break-all text-gold-muted"><Mail className="mt-0.5 size-4 shrink-0" />{provider.publicEmail}</a>}</div></section>
                 {provider.lastProfileUpdate && <p className="text-center text-xs text-espresso/45">Information updated {new Date(provider.lastProfileUpdate).toLocaleDateString()}</p>}
