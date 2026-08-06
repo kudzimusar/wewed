@@ -31,12 +31,22 @@ assert.ok(!weddingPage.includes('<WeddingHome slug={slug} />'))
 const weddingHome = includesAll('src/components/wedding/wedding-home.tsx', [
   'accessKind?: PublicWeddingAccessKind',
   '<DataBackedWeddingExperience />',
+  '<CoupleLogin accessKind={accessKind} />',
   '<GlobalWeddingTools accessKind={accessKind} />',
 ])
 assert.equal(
   weddingHome.split('<GlobalWeddingTools accessKind={accessKind} />').length - 1,
-  2,
-  'Both data-backed and flagship wedding experiences must mount access-aware controls.',
+  1,
+  'Only the flagship wedding experience may mount the full wedding utility bundle.',
+)
+const nonFlagshipStart = weddingHome.indexOf('if (!isFlagship) {')
+const flagshipStart = weddingHome.indexOf('const activeLifecycle')
+const nonFlagshipBranch = weddingHome.slice(nonFlagshipStart, flagshipStart)
+assert.ok(nonFlagshipBranch.includes('<DataBackedWeddingExperience />'))
+assert.ok(nonFlagshipBranch.includes('<CoupleLogin accessKind={accessKind} />'))
+assert.ok(
+  !nonFlagshipBranch.includes('<GlobalWeddingTools'),
+  'Data-backed weddings must not mount flagship-only utilities such as the Charity & Kudzie WhatsApp RSVP helper.',
 )
 
 includesAll('src/components/wedding/global-wedding-tools.tsx', [
@@ -65,6 +75,8 @@ const adminRoute = includesAll('src/app/api/admin/account-identity/route.ts', [
   'pendingInvitations',
   'workspace_membership_without_engagement',
   'engagement_without_matching_workspace_membership',
+  "engagement.status !== 'active'",
+  "WHERE pe.status IN ('requested', 'planner_accepted', 'active', 'paused')",
 ])
 for (const mutatingHandler of ['POST', 'PUT', 'PATCH', 'DELETE']) {
   assert.ok(!adminRoute.includes(`export async function ${mutatingHandler}`), `Account identity diagnostics must remain read-only; found ${mutatingHandler}.`)
