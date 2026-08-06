@@ -588,3 +588,13 @@ model Comment {
   @@index([weddingId, status])
   @@index([authorId])
 }
+
+model AiRateLimitBucket {
+  keyHash     String
+  windowStart DateTime @db.Timestamptz(6)
+  count       Int      @default(1)
+  expiresAt   DateTime @db.Timestamptz(6)
+
+  @@id([keyHash, windowStart])
+  @@index([expiresAt])
+}

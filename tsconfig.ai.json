@@ -1,0 +1,24 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "incremental": false,
+    "noImplicitAny": true,
+    "types": ["bun-types", "node"]
+  },
+  "include": [
+    "next-env.d.ts",
+    "src/app/api/ai/**/*.ts",
+    "src/app/planner/ai-workspace/**/*.tsx",
+    "src/components/wedding/ai-*.tsx",
+    "src/components/wedding/planner-account-dock.tsx",
+    "src/lib/ai/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".next",
+    "src/**/*.test.ts",
+    "tests",
+    "scripts"
+  ]
+}

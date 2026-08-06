@@ -16,9 +16,14 @@ function isGuestWeddingSessionRoute(pathname: string): boolean {
   )
 }
 
+function isProtectedPlannerPage(pathname: string): boolean {
+  return pathname === '/planner/ai-workspace'
+}
+
 function requiresDashboardSession(request: NextRequest): boolean {
   const { pathname } = request.nextUrl
 
+  if (isProtectedPlannerPage(pathname)) return true
   if (pathname.startsWith('/api/planner/')) return true
   if (pathname === '/api/planner') return true
   if (pathname === '/api/seed') return true
@@ -31,10 +36,7 @@ function requiresDashboardSession(request: NextRequest): boolean {
 
   if (pathname === '/api/rsvp' && request.method === 'GET') return true
 
-  if (
-    pathname.startsWith('/api/rsvp/') &&
-    request.method === 'PATCH'
-  ) {
+  if (pathname.startsWith('/api/rsvp/') && request.method === 'PATCH') {
     return true
   }
 
@@ -50,6 +52,12 @@ export function proxy(request: NextRequest) {
   const session = token ? verifyAppSessionToken(token) : null
 
   if (!session) {
+    if (isProtectedPlannerPage(request.nextUrl.pathname)) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/planner'
+      url.searchParams.set('signin', 'required')
+      return privateNoStore(NextResponse.redirect(url))
+    }
     return privateNoStore(
       NextResponse.json(
         { success: false, error: 'Unauthorized — sign in is required' },
@@ -63,6 +71,7 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
+    '/planner/ai-workspace',
     '/api/planner/:path*',
     '/api/rsvp',
     '/api/rsvp/:path*',
