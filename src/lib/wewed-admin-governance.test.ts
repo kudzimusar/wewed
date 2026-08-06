@@ -78,7 +78,13 @@ describe('admin route isolation and governance source contracts', () => {
     expect(weddingHome).toContain('<GlobalWeddingTools accessKind={accessKind} />')
     expect(
       weddingHome.split('<GlobalWeddingTools accessKind={accessKind} />').length - 1,
-    ).toBe(2)
+    ).toBe(1)
+    const nonFlagship = weddingHome.slice(
+      weddingHome.indexOf('if (!isFlagship) {'),
+      weddingHome.indexOf('const activeLifecycle'),
+    )
+    expect(nonFlagship).toContain('<CoupleLogin accessKind={accessKind} />')
+    expect(nonFlagship).not.toContain('<GlobalWeddingTools')
     expect(tools).not.toContain('usePathname')
     expect(tools).toContain('<WhatsAppRSVP />')
     expect(tools).toContain('<CoupleLogin accessKind={accessKind} />')
