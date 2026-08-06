@@ -23,7 +23,7 @@ jobs:
       - name: Apply targeted release remediations
         run: python scripts/apply-ai-release-remediation.py
 
-      - name: Commit remediations
+      - name: Commit verified remediations
         shell: bash
         run: |
           git config user.name "Wewed Release Bot"
