@@ -14,13 +14,14 @@ describe('administrator invitation and profile contract', () => {
     expect(route).toContain('findAuthIdentityByEmail')
     expect(route).toContain('FROM auth.users')
     expect(route).not.toContain('admin.listUsers')
-    expect(route).toContain("membershipStatus === 'active' ? 'active' : 'invited'")
+    expect(route).toContain("existingMembership?.status === 'active'")
+    expect(route).toContain("? 'active' : 'invited'")
     expect(route).toContain("action: 'admin_membership.invited'")
   })
 
   test('administrator profiles stay private and include professional fields', () => {
     const migration = source(
-      'prisma/migrations/20260806150000_administrator_invitation_profiles/migration.sql',
+      'prisma/migrations/20260806090000_admin_invitation_profiles/migration.sql',
     )
 
     expect(migration).toContain('wewed_admin."AdministratorProfile"')
@@ -37,10 +38,10 @@ describe('administrator invitation and profile contract', () => {
     const route = source('src/app/api/admin/invitations/accept/route.ts')
     const page = source('src/app/admin/accept-invite/page.tsx')
 
-    expect(route).toContain('Authorization')
-    expect(route).toContain('service.auth.getUser(accessToken)')
-    expect(route).toContain("role = 'admin'")
-    expect(route).toContain("status = 'active'")
+    expect(route).toContain("request.headers.get('authorization')")
+    expect(route).toContain('service.auth.getUser(token)')
+    expect(route).toContain("u.role = 'admin'")
+    expect(route).toContain("SET status = 'active'")
     expect(route).toContain("action: 'admin_membership.accepted'")
     expect(route).toContain('"profileCompletedAt" = CURRENT_TIMESTAMP')
     expect(page).toContain('exchangeCodeForSession')
