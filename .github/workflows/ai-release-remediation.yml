@@ -25,43 +25,20 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
+          import textwrap
 
-          def replace_once(path: str, old: str, new: str) -> None:
-              file = Path(path)
-              text = file.read_text()
+          def replace_literal(text: str, old: str, new: str, label: str) -> str:
               count = text.count(old)
               if count != 1:
-                  raise SystemExit(f'{path}: expected one match, found {count}')
-              file.write_text(text.replace(old, new, 1))
+                  raise SystemExit(f'{label}: expected one match, found {count}')
+              return text.replace(old, new, 1)
 
-          assistant = 'src/components/wedding/ai-planner-assistant.tsx'
-          replace_once(
-              assistant,
-              """function safeHref(value: string | null): string | null {
-            if (!value) return null
-            try {
-              const url = new URL(value, window.location.origin)
-              return url.protocol === 'http:' || url.protocol === 'https:'
-                ? url.toString()
-                : null
-            } catch {
-              return null
-            }
-          }
+          assistant_path = Path('src/components/wedding/ai-planner-assistant.tsx')
+          assistant = assistant_path.read_text()
 
-          function Markdown""",
-              """function safeHref(value: string | null): string | null {
-            if (!value) return null
-            try {
-              const url = new URL(value, window.location.origin)
-              return url.protocol === 'http:' || url.protocol === 'https:'
-                ? url.toString()
-                : null
-            } catch {
-              return null
-            }
-          }
-
+          markdown_marker = "function Markdown({ children }: { children: string })"
+          helper = textwrap.dedent("""
           async function copyTextToClipboard(value: string): Promise<boolean> {
             if (navigator.clipboard?.writeText) {
               try {
@@ -90,24 +67,22 @@ jobs:
               document.body.removeChild(textarea)
             }
           }
-
-          function Markdown""",
+          """).strip()
+          assistant = replace_literal(
+              assistant,
+              markdown_marker,
+              f'{helper}\n\n{markdown_marker}',
+              'clipboard helper insertion',
           )
 
-          replace_once(
-              assistant,
-              """function MessageBubble({ message }: { message: ChatMessage }) {
-            const isUser = message.role === 'user'
-            const copy = async () => {
-              try {
-                await navigator.clipboard.writeText(message.content)
-              } catch {
-                // Manual selection remains available.
-              }
-            }
-
-            return (""",
-              """function MessageBubble({ message }: { message: ChatMessage }) {
+          message_pattern = re.compile(
+              r"function MessageBubble\(\{ message \}: \{ message: ChatMessage \}\) \{\n"
+              r"  const isUser = message\.role === 'user'\n"
+              r"  const copy = async \(\) => \{\n.*?\n  \}\n\n  return \(",
+              re.DOTALL,
+          )
+          message_replacement = textwrap.dedent("""
+          function MessageBubble({ message }: { message: ChatMessage }) {
             const isUser = message.role === 'user'
             const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
 
@@ -117,43 +92,28 @@ jobs:
               window.setTimeout(() => setCopyState('idle'), 2_000)
             }
 
-            return (""",
-          )
+            return (
+          """).strip()
+          assistant, count = message_pattern.subn(message_replacement, assistant, count=1)
+          if count != 1:
+              raise SystemExit(f'copy handler replacement: expected one match, found {count}')
 
-          replace_once(
+          assistant = replace_literal(
               assistant,
-              """            <button
-              type=\"button\"
-              onClick={() => void copy()}
-              className=\"inline-flex items-center gap-1 text-[9px] text-gold\"
-            >
-              <Copy className=\"size-3\" /> Copy
-            </button>""",
-              """            <button
-              type=\"button\"
-              onClick={() => void copy()}
-              aria-label={copyState === 'copied' ? 'Copied AI response' : 'Copy AI response'}
-              aria-live=\"polite\"
-              className=\"inline-flex min-h-8 items-center gap-1 rounded-md px-2 text-[9px] text-gold transition-colors hover:bg-gold/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60\"
-            >
-              <Copy className=\"size-3\" />
+              '<Copy className="size-3" /> Copy',
+              """<Copy className=\"size-3\" />
               {copyState === 'copied'
                 ? 'Copied'
                 : copyState === 'failed'
                   ? 'Select text to copy'
-                  : 'Copy'}
-            </button>""",
+                  : 'Copy'}""",
+              'copy feedback label',
           )
+          assistant_path.write_text(assistant)
 
-          context = 'src/lib/ai/workspace-context.ts'
-          replace_once(
-              context,
-              """const MAX_CONTEXT_CHARACTERS = 32_000
-          const MAX_DOCUMENT_RESULTS = 6
-
-          export type AiContextPermission""",
-              """const MAX_CONTEXT_CHARACTERS = 32_000
-          const MAX_DOCUMENT_RESULTS = 6
+          context_path = Path('src/lib/ai/workspace-context.ts')
+          context = context_path.read_text()
+          due_helper = textwrap.dedent("""
           const DAY_MS = 24 * 60 * 60 * 1_000
 
           function utcDay(value: Date): number {
@@ -177,79 +137,83 @@ jobs:
             if (dayDifference === 1) return 'due_tomorrow'
             return `due_in_${dayDifference}_days`
           }
-
-          export type AiContextPermission""",
-          )
-
-          replace_once(
+          """).strip()
+          context = replace_literal(
               context,
-              """  const has = (permission: AiContextPermission) =>
-            permissions.includes('*') || permissions.includes(permission)
-
-            const [wedding, tasks, guests, budgets, vendors, timeline]""",
-              """  const has = (permission: AiContextPermission) =>
-            permissions.includes('*') || permissions.includes(permission)
-          const contextGeneratedAt = new Date()
-
-            const [wedding, tasks, guests, budgets, vendors, timeline]""",
+              'const MAX_DOCUMENT_RESULTS = 6\n',
+              f'const MAX_DOCUMENT_RESULTS = 6\n{due_helper}\n\n',
+              'due-state helper insertion',
           )
-
-          replace_once(
+          context = replace_literal(
               context,
-              """  const lines = [
-            'AUTHORISED PLANNER CONTEXT',
-            `Wedding: ${cleanLine(wedding.title)}`,""",
-              """  const lines = [
-            'AUTHORISED PLANNER CONTEXT',
-            `Context generated at (UTC): ${contextGeneratedAt.toISOString()}`,
-            `Wedding: ${cleanLine(wedding.title)}`,""",
+              "  const has = (permission: AiContextPermission) =>\n    permissions.includes('*') || permissions.includes(permission)\n\n",
+              "  const has = (permission: AiContextPermission) =>\n    permissions.includes('*') || permissions.includes(permission)\n  const contextGeneratedAt = new Date()\n\n",
+              'context timestamp declaration',
           )
-
-          replace_once(
+          context = replace_literal(
               context,
-              """        task.title,
-              task.dueDate?.toISOString() ?? 'no due date',
-              task.assignee ?? 'unassigned',""",
-              """        task.title,
-              task.dueDate?.toISOString() ?? 'no due date',
-              `due_state ${describeTaskDueState(task.dueDate, task.status, contextGeneratedAt)}`,
-              task.assignee ?? 'unassigned',""",
+              "    'AUTHORISED PLANNER CONTEXT',\n    `Wedding: ${cleanLine(wedding.title)}`,",
+              "    'AUTHORISED PLANNER CONTEXT',\n    `Context generated at (UTC): ${contextGeneratedAt.toISOString()}`,\n    `Wedding: ${cleanLine(wedding.title)}`,
+              'context timestamp output',
           )
+          context = replace_literal(
+              context,
+              "        task.dueDate?.toISOString() ?? 'no due date',\n        task.assignee ?? 'unassigned',",
+              "        task.dueDate?.toISOString() ?? 'no due date',\n        `due_state ${describeTaskDueState(task.dueDate, task.status, contextGeneratedAt)}`,\n        task.assignee ?? 'unassigned',",
+              'task due-state output',
+          )
+          context_path.write_text(context)
 
-          route = 'src/app/api/ai/chat/route.ts'
-          replace_once(
+          route_path = Path('src/app/api/ai/chat/route.ts')
+          route = route_path.read_text()
+          route = replace_literal(
               route,
-              """Analyse authorised planning information such as tasks, RSVPs, vendors, budget, payments, timeline, risks, and cultural considerations. Prioritise concrete next steps, dependencies, overdue work, conflicts, missing decisions, and operational risks. Keep normal answers under 300 words. Any proposed change must be presented as a recommendation requiring confirmation through Wewed's action-review flow.""",
-              """Analyse authorised planning information such as tasks, RSVPs, vendors, budget, payments, timeline, risks, and cultural considerations. Prioritise concrete next steps, dependencies, overdue work, conflicts, missing decisions, and operational risks. The application context includes a server-generated UTC timestamp and a deterministic due_state for every task. Use due_state exactly when describing overdue, due-today, tomorrow, or future work; never recalculate or contradict it. Keep normal answers under 300 words. Any proposed change must be presented as a recommendation requiring confirmation through Wewed's action-review flow.""",
+              "Analyse authorised planning information such as tasks, RSVPs, vendors, budget, payments, timeline, risks, and cultural considerations. Prioritise concrete next steps, dependencies, overdue work, conflicts, missing decisions, and operational risks. Keep normal answers under 300 words. Any proposed change must be presented as a recommendation requiring confirmation through Wewed's action-review flow.",
+              "Analyse authorised planning information such as tasks, RSVPs, vendors, budget, payments, timeline, risks, and cultural considerations. Prioritise concrete next steps, dependencies, overdue work, conflicts, missing decisions, and operational risks. The application context includes a server-generated UTC timestamp and a deterministic due_state for every task. Use due_state exactly when describing overdue, due-today, tomorrow, or future work; never recalculate or contradict it. Keep normal answers under 300 words. Any proposed change must be presented as a recommendation requiring confirmation through Wewed's action-review flow.",
+              'planner due-state prompt',
           )
+          route_path.write_text(route)
 
-          Path('src/lib/ai/workspace-context-date.test.ts').write_text("""import { describe, expect, test } from 'bun:test'
-          import { describeTaskDueState } from './workspace-context'
+          Path('src/lib/ai/workspace-context-date.test.ts').write_text(
+              textwrap.dedent("""
+              import { describe, expect, test } from 'bun:test'
+              import { describeTaskDueState } from './workspace-context'
 
-          describe('describeTaskDueState', () => {
-            const now = new Date('2026-08-06T09:00:00.000Z')
+              describe('describeTaskDueState', () => {
+                const now = new Date('2026-08-06T09:00:00.000Z')
 
-            test('keeps future UAT dates in the future', () => {
-              expect(describeTaskDueState(new Date('2027-12-30T10:00:00.000Z'), 'in_progress', now))
-                .toBe('due_in_511_days')
-            })
+                test('keeps future UAT dates in the future', () => {
+                  expect(
+                    describeTaskDueState(
+                      new Date('2027-12-30T10:00:00.000Z'),
+                      'in_progress',
+                      now,
+                    ),
+                  ).toBe('due_in_511_days')
+                })
 
-            test('classifies relative dates deterministically', () => {
-              expect(describeTaskDueState(new Date('2026-08-05T10:00:00.000Z'), 'todo', now))
-                .toBe('overdue_by_1_days')
-              expect(describeTaskDueState(new Date('2026-08-06T23:00:00.000Z'), 'todo', now))
-                .toBe('due_today')
-              expect(describeTaskDueState(new Date('2026-08-07T01:00:00.000Z'), 'todo', now))
-                .toBe('due_tomorrow')
-            })
+                test('classifies relative dates deterministically', () => {
+                  expect(describeTaskDueState(new Date('2026-08-05T10:00:00.000Z'), 'todo', now))
+                    .toBe('overdue_by_1_days')
+                  expect(describeTaskDueState(new Date('2026-08-06T23:00:00.000Z'), 'todo', now))
+                    .toBe('due_today')
+                  expect(describeTaskDueState(new Date('2026-08-07T01:00:00.000Z'), 'todo', now))
+                    .toBe('due_tomorrow')
+                })
 
-            test('does not mark completed or undated tasks overdue', () => {
-              expect(describeTaskDueState(new Date('2026-08-01T00:00:00.000Z'), 'completed', now))
-                .toBe('completed')
-              expect(describeTaskDueState(null, 'todo', now)).toBe('no_due_date')
-            })
-          })
-          """)
+                test('does not mark completed or undated tasks overdue', () => {
+                  expect(
+                    describeTaskDueState(
+                      new Date('2026-08-01T00:00:00.000Z'),
+                      'completed',
+                      now,
+                    ),
+                  ).toBe('completed')
+                  expect(describeTaskDueState(null, 'todo', now)).toBe('no_due_date')
+                })
+              })
+              """).lstrip(),
+          )
 
           Path('.github/workflows/ai-release-remediation.yml').unlink()
           PY
