@@ -5,8 +5,12 @@ import type { NextRequest } from 'next/server'
 import { readAppSession, type AppSession } from '@/lib/app-session'
 import { db } from '@/lib/db'
 import {
+  CUSTOMER_PARTNER_ACCOUNT_TYPES,
   hasWewedAdminPermission,
+  isPlatformAccountType,
   resolveWewedAdminPermissions,
+  type PlatformAdminScope,
+  type PlatformAccountType,
   type WewedAdminPermission,
 } from '@/lib/wewed-admin-policy'
 
@@ -26,9 +30,24 @@ export interface WewedAdminContext {
   businessAccountId: string
   adminRole: string
   permissions: string[]
+  accountScope: PlatformAdminScope
+  registrySource: 'platform_registry' | 'legacy_membership'
 }
 
-interface AdminMembershipRow {
+interface PlatformAdminRow {
+  membershipId: string | null
+  businessAccountId: string
+  adminRole: string
+  permissions: unknown
+  status: string
+}
+
+interface ScopeRow {
+  scopeType: string
+  scopeValue: string
+}
+
+interface LegacyAdminMembershipRow {
   membershipId: string
   businessAccountId: string
   adminRole: string
@@ -47,40 +66,84 @@ export function assertWewedAdminPermission(
   }
 }
 
-export async function requireWewedAdmin(
-  request: NextRequest,
-  permission: WewedAdminPermission = 'admin.overview.read',
-): Promise<WewedAdminContext> {
-  const session = readAppSession(request)
-
-  if (!session) {
-    throw new WewedAdminAccessError('Sign in is required.', 401)
+function defaultScopeForRole(role: string): PlatformAdminScope {
+  if (role === 'wewed_super_admin') {
+    return { global: true, accountTypes: [], businessAccountIds: [] }
   }
+  return {
+    global: false,
+    accountTypes: [...CUSTOMER_PARTNER_ACCOUNT_TYPES],
+    businessAccountIds: [],
+  }
+}
 
-  if (session.role !== 'admin') {
-    throw new WewedAdminAccessError(
-      'This area is restricted to Wewed company administrators.',
-      403,
+function normalizeScope(rows: ScopeRow[], role: string): PlatformAdminScope {
+  if (rows.length === 0) return defaultScopeForRole(role)
+  const global = role === 'wewed_super_admin' && rows.some(
+    (row) => row.scopeType === 'global' && row.scopeValue === '*',
+  )
+  const accountTypes = Array.from(new Set(
+    rows
+      .filter((row) => row.scopeType === 'account_type')
+      .map((row) => row.scopeValue)
+      .filter(isPlatformAccountType),
+  )) as PlatformAccountType[]
+  const businessAccountIds = Array.from(new Set(
+    rows
+      .filter((row) => row.scopeType === 'business_account')
+      .map((row) => row.scopeValue)
+      .filter(Boolean),
+  ))
+  return { global, accountTypes, businessAccountIds }
+}
+
+async function readPlatformRegistry(userId: string): Promise<{
+  membership: PlatformAdminRow
+  scope: PlatformAdminScope
+} | null> {
+  try {
+    const rows = await db.$queryRawUnsafe<PlatformAdminRow[]>(
+      `SELECT
+         pa."legacyMembershipId" AS "membershipId",
+         COALESCE(bam."businessAccountId", 'wewed-platform') AS "businessAccountId",
+         pa.role AS "adminRole",
+         COALESCE(bam.permissions, '[]'::jsonb) AS permissions,
+         pa.status
+       FROM wewed_admin."PlatformAdministrator" pa
+       LEFT JOIN wewed_admin."BusinessAccountMember" bam
+         ON bam.id = pa."legacyMembershipId"
+       WHERE pa."userId" = $1
+       LIMIT 1`,
+      userId,
     )
-  }
-
-  const activeAdmin = await db.user.findFirst({
-    where: {
-      id: session.userId,
-      role: 'admin',
-      isActive: true,
-    },
-    select: { id: true },
-  })
-
-  if (!activeAdmin) {
-    throw new WewedAdminAccessError(
-      'This Wewed administrator account is inactive.',
-      403,
+    const membership = rows[0]
+    if (!membership || membership.status !== 'active') return null
+    const scopeRows = await db.$queryRawUnsafe<ScopeRow[]>(
+      `SELECT "scopeType", "scopeValue"
+       FROM wewed_admin."PlatformAdministratorScope"
+       WHERE "administratorUserId" = $1
+       ORDER BY "scopeType", "scopeValue"`,
+      userId,
     )
+    return {
+      membership,
+      scope: normalizeScope(scopeRows, membership.adminRole),
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (
+      message.includes('PlatformAdministrator') ||
+      message.includes('PlatformAdministratorScope') ||
+      message.includes('does not exist')
+    ) {
+      return null
+    }
+    throw error
   }
+}
 
-  const memberships = await db.$queryRawUnsafe<AdminMembershipRow[]>(
+async function readLegacyMembership(userId: string): Promise<LegacyAdminMembershipRow | null> {
+  const memberships = await db.$queryRawUnsafe<LegacyAdminMembershipRow[]>(
     `SELECT
        bam.id AS "membershipId",
        ba.id AS "businessAccountId",
@@ -101,30 +164,83 @@ export async function requireWewedAdmin(
        ELSE 5
      END
      LIMIT 1`,
-    session.userId,
+    userId,
   )
+  return memberships[0] ?? null
+}
 
-  const membership = memberships[0]
+export async function requireWewedAdmin(
+  request: NextRequest,
+  permission: WewedAdminPermission = 'admin.overview.read',
+): Promise<WewedAdminContext> {
+  const session = readAppSession(request)
+  if (!session) throw new WewedAdminAccessError('Sign in is required.', 401)
+  if (session.role !== 'admin') {
+    throw new WewedAdminAccessError(
+      'This area is restricted to Wewed company administrators.',
+      403,
+    )
+  }
+
+  const activeAdmin = await db.user.findFirst({
+    where: { id: session.userId, role: 'admin', isActive: true },
+    select: { id: true },
+  })
+  if (!activeAdmin) {
+    throw new WewedAdminAccessError(
+      'This Wewed administrator identity is inactive.',
+      403,
+    )
+  }
+
+  const registry = await readPlatformRegistry(session.userId)
+  const legacy = registry ? null : await readLegacyMembership(session.userId)
+  const membership = registry?.membership ?? legacy
   if (!membership) {
     throw new WewedAdminAccessError(
-      'An active Wewed platform role is required.',
+      'An active, named Wewed platform role is required.',
       403,
     )
   }
 
   const context: WewedAdminContext = {
     session,
-    membershipId: membership.membershipId,
+    membershipId: membership.membershipId || `platform-admin-${session.userId}`,
     businessAccountId: membership.businessAccountId,
     adminRole: membership.adminRole,
     permissions: resolveWewedAdminPermissions(
       membership.adminRole,
       membership.permissions,
     ),
+    accountScope: registry?.scope ?? defaultScopeForRole(membership.adminRole),
+    registrySource: registry ? 'platform_registry' : 'legacy_membership',
   }
 
   assertWewedAdminPermission(context, permission)
   return context
+}
+
+export function buildBusinessAccountScopeSql(
+  context: WewedAdminContext,
+  alias = 'ba',
+  firstParameter = 1,
+): { clause: string; values: unknown[] } {
+  if (context.accountScope.global) return { clause: 'TRUE', values: [] }
+  const clauses: string[] = []
+  const values: unknown[] = []
+  if (context.accountScope.accountTypes.length > 0) {
+    values.push(context.accountScope.accountTypes)
+    clauses.push(`${alias}.type = ANY($${firstParameter + values.length - 1}::text[])`)
+  }
+  if (context.accountScope.businessAccountIds.length > 0) {
+    values.push(context.accountScope.businessAccountIds)
+    clauses.push(`${alias}.id = ANY($${firstParameter + values.length - 1}::text[])`)
+  }
+  if (clauses.length === 0) return { clause: 'FALSE', values: [] }
+  return {
+    clause: `${alias}.type <> 'wewed_internal' AND (${clauses.join(' OR ')})`,
+    values,
+  }
 }
 
 export function createBusinessId(prefix: string): string {
