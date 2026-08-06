@@ -64,7 +64,10 @@ assert.match(roles, /admin\.platform_admins\.manage/)
 assert.match(roles, /action === 'update_admin_role'/)
 assert.match(roles, /Role, lifecycle, and scope changes are available only/)
 assert.match(roles, /separate Wewed administrator email/)
-assert.match(governance, /Only a Super Admin may assign the Super Admin role/)
+assert.match(
+  governance,
+  /assertWewedAdminPermission\(context, 'admin\.platform_admins\.manage'\)/,
+)
 assert.match(governance, /The last active Super Admin cannot be demoted/)
 assert.match(governance, /cannot suspend or revoke their own account/)
 assert.match(governance, /become active only by accepting their secure invitation/)
