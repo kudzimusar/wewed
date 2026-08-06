@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { describeTaskDueState } from '@/lib/ai/task-due-state'
 
 export const PUBLIC_AI_CONTENT_SECTIONS = new Set([
   'faq',
@@ -148,6 +149,7 @@ export async function buildPlannerWeddingContext(
 ): Promise<string> {
   const has = (permission: AiContextPermission) =>
     permissions.includes('*') || permissions.includes(permission)
+  const contextGeneratedAt = new Date()
 
   const [wedding, tasks, guests, budgets, vendors, timeline] = await Promise.all([
     db.wedding.findUnique({
@@ -285,6 +287,7 @@ export async function buildPlannerWeddingContext(
 
   const lines = [
     'AUTHORISED PLANNER CONTEXT',
+    `Context generated at (UTC): ${contextGeneratedAt.toISOString()}`,
     `Wedding: ${cleanLine(wedding.title)}`,
     `Date: ${wedding.date.toISOString()}`,
     `Venue: ${cleanLine(wedding.venue)}, ${cleanLine(wedding.venueCity)}, ${cleanLine(wedding.venueCountry)}`,
@@ -301,6 +304,7 @@ export async function buildPlannerWeddingContext(
         task.category,
         task.title,
         task.dueDate?.toISOString() ?? 'no due date',
+        `due_state ${describeTaskDueState(task.dueDate, task.status, contextGeneratedAt)}`,
         task.assignee ?? 'unassigned',
         task.description ?? '',
       ]

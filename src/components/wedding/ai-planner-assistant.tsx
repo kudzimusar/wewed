@@ -269,6 +269,35 @@ function safeHref(value: string | null): string | null {
   }
 }
 
+async function copyTextToClipboard(value: string): Promise<boolean> {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(value)
+      return true
+    } catch {
+      // Fall through to the selection-based browser fallback.
+    }
+  }
+
+  const textarea = document.createElement('textarea')
+  textarea.value = value
+  textarea.setAttribute('readonly', '')
+  textarea.style.position = 'fixed'
+  textarea.style.left = '-9999px'
+  textarea.style.opacity = '0'
+  document.body.appendChild(textarea)
+  textarea.select()
+  textarea.setSelectionRange(0, textarea.value.length)
+
+  try {
+    return document.execCommand('copy')
+  } catch {
+    return false
+  } finally {
+    document.body.removeChild(textarea)
+  }
+}
+
 function Markdown({ children }: { children: string }) {
   return (
     <ReactMarkdown
@@ -682,12 +711,12 @@ export function AiPlannerAssistant() {
 
 function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === 'user'
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
+
   const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(message.content)
-    } catch {
-      // Manual selection remains available.
-    }
+    const copied = await copyTextToClipboard(message.content)
+    setCopyState(copied ? 'copied' : 'failed')
+    window.setTimeout(() => setCopyState('idle'), 2_000)
   }
 
   return (
@@ -744,9 +773,16 @@ function MessageBubble({ message }: { message: ChatMessage }) {
             <button
               type="button"
               onClick={() => void copy()}
-              className="inline-flex items-center gap-1 text-[9px] text-gold"
+              aria-label={copyState === 'copied' ? 'Copied AI response' : 'Copy AI response'}
+              aria-live="polite"
+              className="inline-flex min-h-8 items-center gap-1 rounded-md px-2 text-[9px] text-gold transition-colors hover:bg-gold/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60"
             >
-              <Copy className="size-3" /> Copy
+              <Copy className="size-3" />
+              {copyState === 'copied'
+                ? 'Copied'
+                : copyState === 'failed'
+                  ? 'Select text to copy'
+                  : 'Copy'}
             </button>
           </div>
         )}
