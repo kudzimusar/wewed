@@ -7,6 +7,9 @@ import {
   writeBusinessAudit,
 } from '@/lib/wewed-admin'
 
+const OPEN_CLAIM_STATUSES = ['pending', 'verification_required']
+const CLAIMABLE_LISTING_STATUSES = ['unclaimed', 'claim_pending']
+
 function text(value: unknown, max: number): string {
   return typeof value === 'string' ? value.trim().slice(0, max) : ''
 }
@@ -87,21 +90,32 @@ export async function PATCH(request: NextRequest) {
     )
     const claim = rows[0]
     if (!claim) return NextResponse.json({ success: false, error: 'Claim request not found.' }, { status: 404 })
-    if (!['pending', 'verification_required'].includes(claim.status)) {
+    if (!OPEN_CLAIM_STATUSES.includes(claim.status)) {
       return NextResponse.json({ success: false, error: 'This claim has already been resolved.' }, { status: 409 })
     }
 
     if (action === 'verification_required') {
-      await db.$executeRawUnsafe(
-        `UPDATE wewed_admin."ProviderClaimRequest"
-         SET status = 'verification_required', "reviewNotes" = $2,
-             "reviewedByUserId" = $3, "reviewedAt" = CURRENT_TIMESTAMP,
-             "updatedAt" = CURRENT_TIMESTAMP
-         WHERE id = $1`,
-        claimId,
-        reviewNotes,
-        admin.session.userId,
-      )
+      const transitioned = await db.$transaction(async (transaction) => {
+        await transaction.$queryRawUnsafe(
+          `SELECT id FROM wewed_admin."ProviderProfile" WHERE id = $1 FOR UPDATE`,
+          claim.providerProfileId,
+        )
+        const updated = await transaction.$queryRawUnsafe<Array<{ id: string }>>(
+          `UPDATE wewed_admin."ProviderClaimRequest"
+           SET status = 'verification_required', "reviewNotes" = $2,
+               "reviewedByUserId" = $3, "reviewedAt" = CURRENT_TIMESTAMP,
+               "updatedAt" = CURRENT_TIMESTAMP
+           WHERE id = $1 AND status IN ('pending', 'verification_required')
+           RETURNING id`,
+          claimId,
+          reviewNotes,
+          admin.session.userId,
+        )
+        return updated.length === 1
+      })
+      if (!transitioned) {
+        return NextResponse.json({ success: false, error: 'This claim has already been resolved.' }, { status: 409 })
+      }
       await writeBusinessAudit({
         actorUserId: admin.session.userId,
         businessAccountId: claim.businessAccountId,
@@ -114,17 +128,24 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (action === 'reject') {
-      await db.$transaction(async (transaction) => {
-        await transaction.$executeRawUnsafe(
+      const transitioned = await db.$transaction(async (transaction) => {
+        await transaction.$queryRawUnsafe(
+          `SELECT id FROM wewed_admin."ProviderProfile" WHERE id = $1 FOR UPDATE`,
+          claim.providerProfileId,
+        )
+        const updated = await transaction.$queryRawUnsafe<Array<{ id: string }>>(
           `UPDATE wewed_admin."ProviderClaimRequest"
            SET status = 'rejected', "reviewNotes" = $2,
                "reviewedByUserId" = $3, "reviewedAt" = CURRENT_TIMESTAMP,
                "updatedAt" = CURRENT_TIMESTAMP
-           WHERE id = $1`,
+           WHERE id = $1 AND status IN ('pending', 'verification_required')
+           RETURNING id`,
           claimId,
           reviewNotes,
           admin.session.userId,
         )
+        if (updated.length !== 1) return false
+
         const otherOpen = await transaction.$queryRawUnsafe<Array<{ count: number }>>(
           `SELECT count(*)::int AS count
            FROM wewed_admin."ProviderClaimRequest"
@@ -140,11 +161,15 @@ export async function PATCH(request: NextRequest) {
              SET "listingStatus" = 'unclaimed',
                  "claimNotice" = 'Own this business? Claim this listing to verify and manage it.',
                  "updatedAt" = CURRENT_TIMESTAMP
-             WHERE id = $1`,
+             WHERE id = $1 AND "listingStatus" IN ('unclaimed', 'claim_pending')`,
             claim.providerProfileId,
           )
         }
+        return true
       })
+      if (!transitioned) {
+        return NextResponse.json({ success: false, error: 'This claim has already been resolved.' }, { status: 409 })
+      }
       await writeBusinessAudit({
         actorUserId: admin.session.userId,
         businessAccountId: claim.businessAccountId,
@@ -172,22 +197,27 @@ export async function PATCH(request: NextRequest) {
     }
 
     const approval = await db.$transaction(async (transaction) => {
-      const lockedRows = await transaction.$queryRawUnsafe<Array<{
-        status: string
-        listingStatus: string
-      }>>(
-        `SELECT c.status, p."listingStatus"
-         FROM wewed_admin."ProviderClaimRequest" c
-         JOIN wewed_admin."ProviderProfile" p ON p.id = c."providerProfileId"
-         WHERE c.id = $1
-         FOR UPDATE OF c, p`,
+      const lockedProfiles = await transaction.$queryRawUnsafe<Array<{ listingStatus: string }>>(
+        `SELECT "listingStatus"
+         FROM wewed_admin."ProviderProfile"
+         WHERE id = $1
+         FOR UPDATE`,
+        claim.providerProfileId,
+      )
+      const lockedProfile = lockedProfiles[0]
+      if (!lockedProfile || !CLAIMABLE_LISTING_STATUSES.includes(lockedProfile.listingStatus)) {
+        return { approved: false as const }
+      }
+
+      const lockedClaims = await transaction.$queryRawUnsafe<Array<{ status: string }>>(
+        `SELECT status
+         FROM wewed_admin."ProviderClaimRequest"
+         WHERE id = $1
+         FOR UPDATE`,
         claimId,
       )
-      const lockedClaim = lockedRows[0]
-      const claimIsOpen = lockedClaim && ['pending', 'verification_required'].includes(lockedClaim.status)
-      const profileIsClaimable = lockedClaim && ['unclaimed', 'claim_pending'].includes(lockedClaim.listingStatus)
-
-      if (!claimIsOpen || !profileIsClaimable) {
+      const lockedClaim = lockedClaims[0]
+      if (!lockedClaim || !OPEN_CLAIM_STATUSES.includes(lockedClaim.status)) {
         return { approved: false as const }
       }
 
@@ -266,7 +296,7 @@ export async function PATCH(request: NextRequest) {
 
     if (!approval.approved) {
       return NextResponse.json(
-        { success: false, error: 'Another ownership claim has already been approved for this provider.' },
+        { success: false, error: 'Another ownership claim has already been approved or resolved for this provider.' },
         { status: 409 },
       )
     }
