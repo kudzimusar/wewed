@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import {
-  assertWewedAdminPermission,
   requireWewedAdmin,
   WewedAdminAccessError,
   writeBusinessAudit,
@@ -82,7 +81,10 @@ function errorResponse(error: unknown) {
   }
 
   return NextResponse.json(
-    { success: false, error: 'Unable to complete the role-management request.' },
+    {
+      success: false,
+      error: 'Unable to complete the administrator invitation request.',
+    },
     { status: 500 },
   )
 }
@@ -125,8 +127,8 @@ async function listMembers() {
       ap."postalCode", ap.country, ap.certificates,
       ap."invitationStatus", ap."invitationSentAt", ap."invitationAcceptedAt",
       ap."profileCompletedAt"
-    FROM public."BusinessAccountMember" bam
-    JOIN public."BusinessAccount" ba ON ba.id = bam."businessAccountId"
+    FROM wewed_admin."BusinessAccountMember" bam
+    JOIN wewed_admin."BusinessAccount" ba ON ba.id = bam."businessAccountId"
     JOIN public."User" u ON u.id = bam."userId"
     LEFT JOIN wewed_admin."AdministratorProfile" ap ON ap."userId" = u.id
     WHERE ba.type = 'wewed_internal'
@@ -141,7 +143,9 @@ async function listMembers() {
   `)
 }
 
-async function findAuthIdentityByEmail(email: string): Promise<AuthIdentityRow | null> {
+async function findAuthIdentityByEmail(
+  email: string,
+): Promise<AuthIdentityRow | null> {
   const rows = await db.$queryRawUnsafe<AuthIdentityRow[]>(
     `SELECT id::text AS id,
        COALESCE(raw_user_meta_data, '{}'::jsonb) AS "userMetadata"
@@ -157,8 +161,12 @@ async function findAuthIdentityByEmail(email: string): Promise<AuthIdentityRow |
 
 export async function GET(request: NextRequest) {
   try {
-    const context = await requireWewedAdmin(request, 'admin.members.read')
+    const context = await requireWewedAdmin(
+      request,
+      'admin.platform_admins.manage',
+    )
     const members = await listMembers()
+
     return NextResponse.json({
       success: true,
       admin: {
@@ -175,390 +183,284 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const context = await requireWewedAdmin(request, 'admin.members.manage')
+    const context = await requireWewedAdmin(
+      request,
+      'admin.platform_admins.manage',
+    )
     const body = (await request.json()) as Record<string, unknown>
     const action = text(body.action, 50)
 
-    if (action === 'add_admin_member') {
-      const email = text(body.email, 180).toLowerCase()
-      const fullName = text(body.fullName ?? body.name, 160)
-      const role = text(body.role, 80)
-      const alternateEmails = stringList(body.alternateEmails, {
-        maxItems: 5,
-        maxLength: 180,
-      })
-        .map((item) => item.toLowerCase())
-        .filter((item) => item !== email && EMAIL_PATTERN.test(item))
-      const phone = nullableText(body.phone, 60)
-      const addressLine1 = nullableText(body.addressLine1, 180)
-      const addressLine2 = nullableText(body.addressLine2, 180)
-      const city = nullableText(body.city, 100)
-      const stateProvince = nullableText(body.stateProvince, 100)
-      const postalCode = nullableText(body.postalCode, 40)
-      const country = nullableText(body.country, 100)
-      const certificates = stringList(body.certificates, {
-        maxItems: 20,
-        maxLength: 240,
-      })
-
-      if (!EMAIL_PATTERN.test(email) || !fullName || !isWewedAdminRole(role)) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'A valid email, full name and Wewed role are required.',
-          },
-          { status: 400 },
-        )
-      }
-      if (role === 'wewed_super_admin' && context.adminRole !== 'wewed_super_admin') {
-        throw new WewedAdminAccessError(
-          'Only a Super Admin may assign the Super Admin role.',
-          403,
-        )
-      }
-
-      const [existingAppUser, existingMembership] = await Promise.all([
-        db.user.findUnique({
-          where: { email },
-          select: { id: true, role: true, isActive: true },
-        }),
-        db.$queryRawUnsafe<ExistingMembershipRow[]>(
-          `SELECT bam.id AS "membershipId", bam.status
-           FROM public."BusinessAccountMember" bam
-           JOIN public."User" u ON u.id = bam."userId"
-           WHERE bam."businessAccountId" = $1
-             AND lower(u.email) = lower($2)
-           LIMIT 1`,
-          context.businessAccountId,
-          email,
-        ).then((rows) => rows[0] ?? null),
-      ])
-
-      if (existingAppUser && existingAppUser.role !== 'admin') {
-        return NextResponse.json(
-          {
-            success: false,
-            error:
-              'This email belongs to a client or planner identity. Use a separate Wewed administrator email to preserve role separation.',
-          },
-          { status: 409 },
-        )
-      }
-
-      const service = createSupabaseServiceClient()
-      const existingIdentity = await findAuthIdentityByEmail(email)
-      const profileMetadata = {
-        alternate_emails: alternateEmails,
-        phone,
-        address: {
-          line1: addressLine1,
-          line2: addressLine2,
-          city,
-          state_province: stateProvince,
-          postal_code: postalCode,
-          country,
+    if (action === 'update_admin_role') {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            'Role, lifecycle, and scope changes are available only in Admin → Platform administrators, where a reason and all governance safeguards are required.',
         },
-        certificates,
-      }
-      const redirectTo = `${request.nextUrl.origin}/admin/accept-invite`
+        { status: 409 },
+      )
+    }
 
-      let authUserId = existingIdentity?.id ?? null
-      let invitationSent = false
-      let invitationKind: 'invite' | 'recovery' = 'invite'
+    if (action !== 'add_admin_member') {
+      return NextResponse.json(
+        { success: false, error: 'Unknown administrator invitation action.' },
+        { status: 400 },
+      )
+    }
 
-      if (!authUserId) {
-        const { data, error } = await service.auth.admin.inviteUserByEmail(email, {
+    const email = text(body.email, 180).toLowerCase()
+    const fullName = text(body.fullName ?? body.name, 160)
+    const role = text(body.role, 80)
+    const alternateEmails = stringList(body.alternateEmails, {
+      maxItems: 5,
+      maxLength: 180,
+    })
+      .map((item) => item.toLowerCase())
+      .filter((item) => item !== email && EMAIL_PATTERN.test(item))
+    const phone = nullableText(body.phone, 60)
+    const addressLine1 = nullableText(body.addressLine1, 180)
+    const addressLine2 = nullableText(body.addressLine2, 180)
+    const city = nullableText(body.city, 100)
+    const stateProvince = nullableText(body.stateProvince, 100)
+    const postalCode = nullableText(body.postalCode, 40)
+    const country = nullableText(body.country, 100)
+    const certificates = stringList(body.certificates, {
+      maxItems: 20,
+      maxLength: 240,
+    })
+
+    if (!EMAIL_PATTERN.test(email) || !fullName || !isWewedAdminRole(role)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'A valid email, full name and Wewed role are required.',
+        },
+        { status: 400 },
+      )
+    }
+
+    const [existingAppUser, existingMembership] = await Promise.all([
+      db.user.findUnique({
+        where: { email },
+        select: { id: true, role: true, isActive: true },
+      }),
+      db.$queryRawUnsafe<ExistingMembershipRow[]>(
+        `SELECT bam.id AS "membershipId", bam.status
+         FROM wewed_admin."BusinessAccountMember" bam
+         JOIN public."User" u ON u.id = bam."userId"
+         WHERE bam."businessAccountId" = $1
+           AND lower(u.email) = lower($2)
+         LIMIT 1`,
+        context.businessAccountId,
+        email,
+      ).then((rows) => rows[0] ?? null),
+    ])
+
+    if (existingAppUser && existingAppUser.role !== 'admin') {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            'This email belongs to a client or planner identity. Use a separate Wewed administrator email to preserve role separation.',
+        },
+        { status: 409 },
+      )
+    }
+
+    const service = createSupabaseServiceClient()
+    const existingIdentity = await findAuthIdentityByEmail(email)
+    const profileMetadata = {
+      alternate_emails: alternateEmails,
+      phone,
+      address: {
+        line1: addressLine1,
+        line2: addressLine2,
+        city,
+        state_province: stateProvince,
+        postal_code: postalCode,
+        country,
+      },
+      certificates,
+    }
+    const redirectTo = `${request.nextUrl.origin}/admin/accept-invite`
+
+    let authUserId = existingIdentity?.id ?? null
+    let invitationSent = false
+    let invitationKind: 'invite' | 'recovery' = 'invite'
+
+    if (!authUserId) {
+      const { data, error } = await service.auth.admin.inviteUserByEmail(
+        email,
+        {
           data: {
             display_name: fullName,
             wewed_role: 'admin',
             administrator_profile: profileMetadata,
           },
           redirectTo,
-        })
-        if (error || !data.user) {
-          throw error || new Error('Supabase did not create an invited user.')
-        }
-        authUserId = data.user.id
-        invitationSent = true
-      } else {
-        const { error: updateError } = await service.auth.admin.updateUserById(
-          authUserId,
-          {
-            user_metadata: {
-              ...metadata(existingIdentity?.userMetadata),
-              display_name: fullName,
-              wewed_role: 'admin',
-              administrator_profile: profileMetadata,
-            },
-          },
-        )
-        if (updateError) throw updateError
-
-        const { error: recoveryError } = await service.auth.resetPasswordForEmail(
-          email,
-          { redirectTo },
-        )
-        if (recoveryError) throw recoveryError
-        invitationSent = true
-        invitationKind = 'recovery'
+        },
+      )
+      if (error || !data.user) {
+        throw error || new Error('Supabase did not create an invited user.')
       }
-
-      const membershipStatus =
-        existingMembership?.status === 'active' ? 'active' : 'invited'
-      const appUser = existingAppUser
-        ? await db.user.update({
-            where: { id: existingAppUser.id },
-            data: {
-              name: fullName,
-              role: 'admin',
-              isActive: membershipStatus === 'active',
-            },
-          })
-        : await db.user.create({
-            data: {
-              id: randomUUID(),
-              email,
-              name: fullName,
-              role: 'admin',
-              isActive: false,
-            },
-          })
-
-      await db.$transaction([
-        db.userProfile.upsert({
-          where: { id: authUserId },
-          create: {
-            id: authUserId,
-            email,
-            displayName: fullName,
-            role: 'admin',
-          },
-          update: {
-            email,
-            displayName: fullName,
-            role: 'admin',
-            isBanned: false,
-            bannedAt: null,
-            banReason: null,
-          },
-        }),
-        db.$executeRawUnsafe(
-          `INSERT INTO public."BusinessAccountMember"
-            ("id", "businessAccountId", "userId", "role", "status", "permissions")
-           VALUES ($1, $2, $3, $4, $5, '[]'::jsonb)
-           ON CONFLICT ("businessAccountId", "userId") DO UPDATE SET
-             role = EXCLUDED.role,
-             status = CASE
-               WHEN public."BusinessAccountMember".status = 'active' THEN 'active'
-               ELSE 'invited'
-             END,
-             permissions = '[]'::jsonb,
-             "updatedAt" = CURRENT_TIMESTAMP`,
-          `member-wewed-admin-${appUser.id}`,
-          context.businessAccountId,
-          appUser.id,
-          role,
-          membershipStatus,
-        ),
-        db.$executeRawUnsafe(
-          `INSERT INTO wewed_admin."AdministratorProfile" (
-             "userId", "authUserId", "primaryEmail", "alternateEmails",
-             "fullName", phone, "addressLine1", "addressLine2", city,
-             "stateProvince", "postalCode", country, certificates,
-             "invitationStatus", "invitationSentAt"
-           ) VALUES (
-             $1, $2::uuid, $3, $4::jsonb, $5, $6, $7, $8, $9,
-             $10, $11, $12, $13::jsonb, $14, CURRENT_TIMESTAMP
-           )
-           ON CONFLICT ("userId") DO UPDATE SET
-             "authUserId" = EXCLUDED."authUserId",
-             "primaryEmail" = EXCLUDED."primaryEmail",
-             "alternateEmails" = EXCLUDED."alternateEmails",
-             "fullName" = EXCLUDED."fullName",
-             phone = EXCLUDED.phone,
-             "addressLine1" = EXCLUDED."addressLine1",
-             "addressLine2" = EXCLUDED."addressLine2",
-             city = EXCLUDED.city,
-             "stateProvince" = EXCLUDED."stateProvince",
-             "postalCode" = EXCLUDED."postalCode",
-             country = EXCLUDED.country,
-             certificates = EXCLUDED.certificates,
-             "invitationStatus" = CASE
-               WHEN wewed_admin."AdministratorProfile"."invitationStatus" = 'active'
-                 THEN 'active'
-               ELSE EXCLUDED."invitationStatus"
-             END,
-             "invitationSentAt" = CURRENT_TIMESTAMP,
-             "updatedAt" = CURRENT_TIMESTAMP`,
-          appUser.id,
-          authUserId,
-          email,
-          JSON.stringify(alternateEmails),
-          fullName,
-          phone,
-          addressLine1,
-          addressLine2,
-          city,
-          stateProvince,
-          postalCode,
-          country,
-          JSON.stringify(certificates),
-          membershipStatus,
-        ),
-      ])
-
-      await writeBusinessAudit({
-        actorUserId: context.session.userId,
-        businessAccountId: context.businessAccountId,
-        action:
-          membershipStatus === 'active'
-            ? 'admin_membership.profile_updated'
-            : 'admin_membership.invited',
-        resourceType: 'User',
-        resourceId: appUser.id,
-        details: {
-          email,
-          fullName,
-          role,
-          invitationSent,
-          invitationKind,
-          profileFields: {
-            alternateEmailCount: alternateEmails.length,
-            hasPhone: Boolean(phone),
-            hasAddress: Boolean(addressLine1 || city || country),
-            certificateCount: certificates.length,
+      authUserId = data.user.id
+      invitationSent = true
+    } else {
+      const { error: updateError } = await service.auth.admin.updateUserById(
+        authUserId,
+        {
+          user_metadata: {
+            ...metadata(existingIdentity?.userMetadata),
+            display_name: fullName,
+            wewed_role: 'admin',
+            administrator_profile: profileMetadata,
           },
         },
-      })
+      )
+      if (updateError) throw updateError
 
-      return NextResponse.json({
-        success: true,
+      const { error: recoveryError } =
+        await service.auth.resetPasswordForEmail(email, { redirectTo })
+      if (recoveryError) throw recoveryError
+      invitationSent = true
+      invitationKind = 'recovery'
+    }
+
+    const membershipStatus =
+      existingMembership?.status === 'active' ? 'active' : 'invited'
+    const appUser = existingAppUser
+      ? await db.user.update({
+          where: { id: existingAppUser.id },
+          data: {
+            name: fullName,
+            role: 'admin',
+            isActive: membershipStatus === 'active',
+          },
+        })
+      : await db.user.create({
+          data: {
+            id: randomUUID(),
+            email,
+            name: fullName,
+            role: 'admin',
+            isActive: false,
+          },
+        })
+
+    await db.$transaction([
+      db.userProfile.upsert({
+        where: { id: authUserId },
+        create: {
+          id: authUserId,
+          email,
+          displayName: fullName,
+          role: 'admin',
+        },
+        update: {
+          email,
+          displayName: fullName,
+          role: 'admin',
+          isBanned: false,
+          bannedAt: null,
+          banReason: null,
+        },
+      }),
+      db.$executeRawUnsafe(
+        `INSERT INTO wewed_admin."BusinessAccountMember"
+          ("id", "businessAccountId", "userId", "role", "status", "permissions")
+         VALUES ($1, $2, $3, $4, $5, '[]'::jsonb)
+         ON CONFLICT ("businessAccountId", "userId") DO UPDATE SET
+           role = EXCLUDED.role,
+           status = CASE
+             WHEN wewed_admin."BusinessAccountMember".status = 'active'
+               THEN 'active'
+             ELSE 'invited'
+           END,
+           permissions = '[]'::jsonb,
+           "updatedAt" = CURRENT_TIMESTAMP`,
+        `member-wewed-admin-${appUser.id}`,
+        context.businessAccountId,
+        appUser.id,
+        role,
+        membershipStatus,
+      ),
+      db.$executeRawUnsafe(
+        `INSERT INTO wewed_admin."AdministratorProfile" (
+           "userId", "authUserId", "primaryEmail", "alternateEmails",
+           "fullName", phone, "addressLine1", "addressLine2", city,
+           "stateProvince", "postalCode", country, certificates,
+           "invitationStatus", "invitationSentAt"
+         ) VALUES (
+           $1, $2::uuid, $3, $4::jsonb, $5, $6, $7, $8, $9,
+           $10, $11, $12, $13::jsonb, $14, CURRENT_TIMESTAMP
+         )
+         ON CONFLICT ("userId") DO UPDATE SET
+           "authUserId" = EXCLUDED."authUserId",
+           "primaryEmail" = EXCLUDED."primaryEmail",
+           "alternateEmails" = EXCLUDED."alternateEmails",
+           "fullName" = EXCLUDED."fullName",
+           phone = EXCLUDED.phone,
+           "addressLine1" = EXCLUDED."addressLine1",
+           "addressLine2" = EXCLUDED."addressLine2",
+           city = EXCLUDED.city,
+           "stateProvince" = EXCLUDED."stateProvince",
+           "postalCode" = EXCLUDED."postalCode",
+           country = EXCLUDED.country,
+           certificates = EXCLUDED.certificates,
+           "invitationStatus" = CASE
+             WHEN wewed_admin."AdministratorProfile"."invitationStatus" = 'active'
+               THEN 'active'
+             ELSE EXCLUDED."invitationStatus"
+           END,
+           "invitationSentAt" = CURRENT_TIMESTAMP,
+           "updatedAt" = CURRENT_TIMESTAMP`,
+        appUser.id,
+        authUserId,
+        email,
+        JSON.stringify(alternateEmails),
+        fullName,
+        phone,
+        addressLine1,
+        addressLine2,
+        city,
+        stateProvince,
+        postalCode,
+        country,
+        JSON.stringify(certificates),
+        membershipStatus,
+      ),
+    ])
+
+    await writeBusinessAudit({
+      actorUserId: context.session.userId,
+      businessAccountId: context.businessAccountId,
+      action:
+        membershipStatus === 'active'
+          ? 'admin_membership.profile_updated'
+          : 'admin_membership.invited',
+      resourceType: 'User',
+      resourceId: appUser.id,
+      details: {
+        email,
+        fullName,
+        role,
         invitationSent,
         invitationKind,
-        membershipStatus,
-      })
-    }
-
-    if (action === 'update_admin_role') {
-      assertWewedAdminPermission(context, 'admin.members.manage')
-      const membershipId = text(body.membershipId, 120)
-      const role = text(body.role, 80)
-      const status = text(body.status, 40) || 'active'
-
-      if (
-        !membershipId ||
-        !isWewedAdminRole(role) ||
-        !['invited', 'active', 'suspended', 'revoked'].includes(status)
-      ) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'A valid administrator membership, role and status are required.',
-          },
-          { status: 400 },
-        )
-      }
-      if (role === 'wewed_super_admin' && context.adminRole !== 'wewed_super_admin') {
-        throw new WewedAdminAccessError(
-          'Only a Super Admin may assign the Super Admin role.',
-          403,
-        )
-      }
-
-      const targets = await db.$queryRawUnsafe<
-        Array<{
-          membershipId: string
-          userId: string
-          email: string
-          role: string
-          status: string
-        }>
-      >(
-        `SELECT bam.id AS "membershipId", bam."userId", u.email, bam.role, bam.status
-         FROM public."BusinessAccountMember" bam
-         JOIN public."BusinessAccount" ba ON ba.id = bam."businessAccountId"
-         JOIN public."User" u ON u.id = bam."userId"
-         WHERE bam.id = $1 AND ba.type = 'wewed_internal'
-         LIMIT 1`,
-        membershipId,
-      )
-      const target = targets[0]
-      if (!target) {
-        return NextResponse.json(
-          { success: false, error: 'Administrator membership was not found.' },
-          { status: 404 },
-        )
-      }
-
-      if (
-        target.role === 'wewed_super_admin' &&
-        (role !== 'wewed_super_admin' || status !== 'active')
-      ) {
-        const counts = await db.$queryRawUnsafe<Array<{ count: number }>>(`
-          SELECT COUNT(*)::int AS count
-          FROM public."BusinessAccountMember" bam
-          JOIN public."BusinessAccount" ba ON ba.id = bam."businessAccountId"
-          WHERE ba.type = 'wewed_internal'
-            AND bam.role = 'wewed_super_admin'
-            AND bam.status = 'active'
-        `)
-        if ((counts[0]?.count ?? 0) <= 1) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: 'At least one active Wewed Super Admin must remain.',
-            },
-            { status: 409 },
-          )
-        }
-      }
-
-      await db.$transaction([
-        db.$executeRawUnsafe(
-          `UPDATE public."BusinessAccountMember"
-           SET role = $2, status = $3, permissions = '[]'::jsonb,
-             "updatedAt" = CURRENT_TIMESTAMP
-           WHERE id = $1`,
-          membershipId,
-          role,
-          status,
-        ),
-        db.user.update({
-          where: { id: target.userId },
-          data: { isActive: status === 'active' },
-        }),
-        db.$executeRawUnsafe(
-          `UPDATE wewed_admin."AdministratorProfile"
-           SET "invitationStatus" = $2,
-             "updatedAt" = CURRENT_TIMESTAMP
-           WHERE "userId" = $1`,
-          target.userId,
-          status,
-        ),
-      ])
-
-      await writeBusinessAudit({
-        actorUserId: context.session.userId,
-        businessAccountId: context.businessAccountId,
-        action: 'admin_membership.updated',
-        resourceType: 'BusinessAccountMember',
-        resourceId: membershipId,
-        details: {
-          targetEmail: target.email,
-          previousRole: target.role,
-          role,
-          previousStatus: target.status,
-          status,
+        profileFields: {
+          alternateEmailCount: alternateEmails.length,
+          hasPhone: Boolean(phone),
+          hasAddress: Boolean(addressLine1 || city || country),
+          certificateCount: certificates.length,
         },
-      })
+      },
+    })
 
-      return NextResponse.json({ success: true })
-    }
-
-    return NextResponse.json(
-      { success: false, error: 'Unknown role-management action.' },
-      { status: 400 },
-    )
+    return NextResponse.json({
+      success: true,
+      invitationSent,
+      invitationKind,
+      membershipStatus,
+    })
   } catch (error) {
     return errorResponse(error)
   }
