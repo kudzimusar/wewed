@@ -107,7 +107,7 @@ export function ProviderDirectory() {
     return () => { cancelled = true }
   }, [])
 
-  const fetchPage = useCallback(async (nextPage: number, append: boolean) => {
+  const fetchPage = useCallback(async (nextPage: number, append: boolean, signal?: AbortSignal) => {
     const parameters = new URLSearchParams()
     if (category) parameters.set('category', category)
     if (query) parameters.set('q', query)
@@ -115,9 +115,10 @@ export function ProviderDirectory() {
     parameters.set('page', String(nextPage))
     parameters.set('pageSize', '24')
 
-    const response = await fetch(`/api/providers?${parameters.toString()}`, { cache: 'no-store' })
+    const response = await fetch(`/api/providers?${parameters.toString()}`, { cache: 'no-store', signal })
     const payload = await response.json() as DirectoryPayload
     if (!response.ok) throw new Error(payload.error || 'Unable to load providers.')
+    if (signal?.aborted) return
     const nextProviders = payload.providers ?? []
     setProviders((current) => append ? [...current, ...nextProviders] : nextProviders)
     setPage(nextPage)
@@ -127,13 +128,17 @@ export function ProviderDirectory() {
 
   useEffect(() => {
     let cancelled = false
+    const controller = new AbortController()
     setLoading(true)
     setError(null)
     setProviders([])
-    void fetchPage(1, false)
+    void fetchPage(1, false, controller.signal)
       .catch((caught) => { if (!cancelled) setError(caught instanceof Error ? caught.message : 'Unable to load providers.') })
       .finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
   }, [fetchPage])
 
   const categoryLabel = useMemo(() => category ? providerCategoryLabel(category) : 'All wedding services', [category])
