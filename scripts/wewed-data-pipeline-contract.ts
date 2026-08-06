@@ -58,18 +58,25 @@ assert.match(onboarding, /"onboardingStatus" = 'complete'/)
 
 assert.match(billing, /businessMemberCanManageBilling/)
 assert.match(billing, /onboardingStatus !== 'complete'/)
-assert.match(billing, /COALESCE\(metadata, '\{\}'::jsonb\) \|\| jsonb_build_object/)
+assert.match(
+  billing,
+  /COALESCE\(metadata,\s*'\{\}'::jsonb\)\s*\|\|\s*jsonb_build_object/,
+)
 assert.match(billing, /keys\.customerId/)
 assert.match(billing, /Only a business owner or billing manager/)
+assert.match(billing, /resolveBillingOfferCode/)
+assert.match(billing, /isWewedBillableAccountType/)
 
 assert.match(webhook, /pg_advisory_xact_lock/)
 assert.match(webhook, /stripe\.webhook_processed/)
-assert.match(webhook, /UPDATE public\."PaymentRecord"/)
+assert.match(webhook, /UPDATE wewed_admin\."PaymentRecord"/)
 assert.match(webhook, /could not be matched to a Wewed account/)
 assert.match(webhook, /event\.livemode !== expectedLivemode/)
 assert.match(webhook, /if \(stripeUsesTestMode\(\)\) return/)
+assert.match(webhook, /resolveEventOffer/)
 assert.doesNotMatch(webhook, /text\(object\.status\) === 'complete' \? 'active'/)
 
 assert.match(navigation, /\/admin\/onboarding/)
+assert.match(navigation, /\/admin\/client-operations/)
 
 console.log('Wewed stakeholder data-pipeline contracts passed.')
