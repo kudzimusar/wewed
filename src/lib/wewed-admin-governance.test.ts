@@ -27,15 +27,16 @@ describe('Wewed platform RBAC', () => {
     expect(hasWewedAdminPermission(analyst, 'admin.accounts.suspend')).toBe(false)
   })
 
-  test('explicit permissions extend a known role without weakening defaults', () => {
+  test('explicit permissions remain bounded by the known role ceiling', () => {
     const permissions = resolveWewedAdminPermissions(
       'wewed_support_admin',
-      ['admin.incidents.manage'],
+      ['admin.incidents.manage', 'admin.support.manage'],
     )
 
     expect(permissions).toContain('admin.support.manage')
-    expect(permissions).toContain('admin.incidents.manage')
+    expect(permissions).not.toContain('admin.incidents.manage')
     expect(permissions).not.toContain('admin.billing.manage')
+    expect(permissions).not.toContain('*')
   })
 })
 
