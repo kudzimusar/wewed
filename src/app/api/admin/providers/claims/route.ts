@@ -171,7 +171,26 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
-    await db.$transaction(async (transaction) => {
+    const approval = await db.$transaction(async (transaction) => {
+      const lockedRows = await transaction.$queryRawUnsafe<Array<{
+        status: string
+        listingStatus: string
+      }>>(
+        `SELECT c.status, p."listingStatus"
+         FROM wewed_admin."ProviderClaimRequest" c
+         JOIN wewed_admin."ProviderProfile" p ON p.id = c."providerProfileId"
+         WHERE c.id = $1
+         FOR UPDATE OF c, p`,
+        claimId,
+      )
+      const lockedClaim = lockedRows[0]
+      const claimIsOpen = lockedClaim && ['pending', 'verification_required'].includes(lockedClaim.status)
+      const profileIsClaimable = lockedClaim && ['unclaimed', 'claim_pending'].includes(lockedClaim.listingStatus)
+
+      if (!claimIsOpen || !profileIsClaimable) {
+        return { approved: false as const }
+      }
+
       await transaction.$executeRawUnsafe(
         `INSERT INTO wewed_admin."BusinessAccountMember" (
            id, "businessAccountId", "userId", role, status, permissions,
@@ -241,7 +260,16 @@ export async function PATCH(request: NextRequest) {
         claimId,
         admin.session.userId,
       )
+
+      return { approved: true as const }
     })
+
+    if (!approval.approved) {
+      return NextResponse.json(
+        { success: false, error: 'Another ownership claim has already been approved for this provider.' },
+        { status: 409 },
+      )
+    }
 
     await writeBusinessAudit({
       actorUserId: admin.session.userId,
