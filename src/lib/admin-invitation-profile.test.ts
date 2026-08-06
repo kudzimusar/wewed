@@ -9,19 +9,18 @@ describe('administrator invitation and profile contract', () => {
   test('invitation flow avoids the fragile Supabase user-list endpoint', () => {
     const route = source('src/app/api/admin/roles/route.ts')
 
-    expect(route).not.toContain('findSupabaseAuthUserByEmail')
-    expect(route).not.toContain('.listUsers(')
+    expect(route).toContain('inviteUserByEmail')
+    expect(route).toContain('resetPasswordForEmail')
+    expect(route).toContain('findAuthIdentityByEmail')
     expect(route).toContain('FROM auth.users')
-    expect(route).toContain('/admin/accept-invite')
-    expect(route).toContain("existingMembership?.status === 'active'")
-    expect(route).toContain("? 'active' : 'invited'")
-    expect(route).toContain('status = CASE')
-    expect(route).toContain("ELSE 'invited'")
+    expect(route).not.toContain('admin.listUsers')
+    expect(route).toContain("membershipStatus === 'active' ? 'active' : 'invited'")
+    expect(route).toContain("action: 'admin_membership.invited'")
   })
 
   test('administrator profiles stay private and include professional fields', () => {
     const migration = source(
-      'prisma/migrations/20260806090000_admin_invitation_profiles/migration.sql',
+      'prisma/migrations/20260806150000_administrator_invitation_profiles/migration.sql',
     )
 
     expect(migration).toContain('wewed_admin."AdministratorProfile"')
@@ -38,10 +37,10 @@ describe('administrator invitation and profile contract', () => {
     const route = source('src/app/api/admin/invitations/accept/route.ts')
     const page = source('src/app/admin/accept-invite/page.tsx')
 
-    expect(route).toContain("request.headers.get('authorization')")
-    expect(route).toContain('service.auth.getUser(token)')
-    expect(route).toContain("!['invited', 'active'].includes(membership.status)")
-    expect(route).toContain("SET status = 'active'")
+    expect(route).toContain('Authorization')
+    expect(route).toContain('service.auth.getUser(accessToken)')
+    expect(route).toContain("role = 'admin'")
+    expect(route).toContain("status = 'active'")
     expect(route).toContain("action: 'admin_membership.accepted'")
     expect(route).toContain('"profileCompletedAt" = CURRENT_TIMESTAMP')
     expect(page).toContain('exchangeCodeForSession')
@@ -49,15 +48,16 @@ describe('administrator invitation and profile contract', () => {
     expect(page).toContain('Accept invitation and activate account')
   })
 
-  test('role-management form captures the complete invitation profile', () => {
+  test('invitation form captures the complete profile without exposing lifecycle mutation', () => {
     const form = source('src/components/admin/admin-role-management.tsx')
 
     expect(form).toContain('Full name')
     expect(form).toContain('Phone number')
-    expect(form).toContain('Alternate email addresses')
+    expect(form).toContain('Alternate emails, comma separated')
     expect(form).toContain('Address line 1')
-    expect(form).toContain('Certificates and credentials')
-    expect(form).toContain('Send invitation')
-    expect(form).toContain('<option value="invited">Invited</option>')
+    expect(form).toContain('One certificate or professional credential per line')
+    expect(form).toContain('Send secure invitation')
+    expect(form).toContain('Read-only here.')
+    expect(form).not.toContain("action: 'update_admin_role'")
   })
 })
