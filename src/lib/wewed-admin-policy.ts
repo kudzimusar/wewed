@@ -268,3 +268,15 @@ export function permissionForAccountTransition(
   if (to === 'archived') return 'admin.accounts.archive'
   return 'admin.accounts.restore'
 }
+
+export function isRestrictiveAccountStatus(
+  status: AccountLifecycleStatus,
+): boolean {
+  return ['rejected', 'suspended', 'blocked', 'cancelled', 'archived'].includes(
+    status,
+  )
+}
+
+export function accountStatusAllowsWorkspace(status: string): boolean {
+  return normalizeAccountLifecycleStatus(status) === 'active'
+}
