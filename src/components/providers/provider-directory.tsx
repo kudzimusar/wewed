@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { AlertTriangle, ArrowRight, BadgeCheck, BriefcaseBusiness, Clock3, Loader2, MapPin, Search, Users } from 'lucide-react'
 import { PublicPlatformShell } from '@/components/public/public-platform-shell'
@@ -77,6 +77,10 @@ function isProvisional(provider: ProviderProfile): boolean {
   return provider.listingStatus === 'unclaimed' || provider.listingStatus === 'claim_pending'
 }
 
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError'
+}
+
 export function ProviderDirectory() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -92,6 +96,7 @@ export function ProviderDirectory() {
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [hasMore, setHasMore] = useState(false)
+  const requestControllers = useRef<Set<AbortController>>(new Set())
 
   useEffect(() => {
     let cancelled = false
@@ -107,7 +112,14 @@ export function ProviderDirectory() {
     return () => { cancelled = true }
   }, [])
 
-  const fetchPage = useCallback(async (nextPage: number, append: boolean, signal?: AbortSignal) => {
+  const abortActiveRequests = useCallback(() => {
+    for (const controller of requestControllers.current) controller.abort()
+    requestControllers.current.clear()
+  }, [])
+
+  const fetchPage = useCallback(async (nextPage: number, append: boolean) => {
+    const controller = new AbortController()
+    requestControllers.current.add(controller)
     const parameters = new URLSearchParams()
     if (category) parameters.set('category', category)
     if (query) parameters.set('q', query)
@@ -115,31 +127,39 @@ export function ProviderDirectory() {
     parameters.set('page', String(nextPage))
     parameters.set('pageSize', '24')
 
-    const response = await fetch(`/api/providers?${parameters.toString()}`, { cache: 'no-store', signal })
-    const payload = await response.json() as DirectoryPayload
-    if (!response.ok) throw new Error(payload.error || 'Unable to load providers.')
-    if (signal?.aborted) return
-    const nextProviders = payload.providers ?? []
-    setProviders((current) => append ? [...current, ...nextProviders] : nextProviders)
-    setPage(nextPage)
-    setTotal(payload.pagination?.total ?? nextProviders.length)
-    setHasMore(payload.pagination?.hasMore ?? false)
+    try {
+      const response = await fetch(`/api/providers?${parameters.toString()}`, { cache: 'no-store', signal: controller.signal })
+      const payload = await response.json() as DirectoryPayload
+      if (!response.ok) throw new Error(payload.error || 'Unable to load providers.')
+      if (controller.signal.aborted) return
+      const nextProviders = payload.providers ?? []
+      setProviders((current) => append ? [...current, ...nextProviders] : nextProviders)
+      setPage(nextPage)
+      setTotal(payload.pagination?.total ?? nextProviders.length)
+      setHasMore(payload.pagination?.hasMore ?? false)
+    } finally {
+      requestControllers.current.delete(controller)
+    }
   }, [category, query, area])
 
   useEffect(() => {
     let cancelled = false
-    const controller = new AbortController()
+    abortActiveRequests()
     setLoading(true)
     setError(null)
     setProviders([])
-    void fetchPage(1, false, controller.signal)
-      .catch((caught) => { if (!cancelled) setError(caught instanceof Error ? caught.message : 'Unable to load providers.') })
+    void fetchPage(1, false)
+      .catch((caught) => {
+        if (!cancelled && !isAbortError(caught)) {
+          setError(caught instanceof Error ? caught.message : 'Unable to load providers.')
+        }
+      })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => {
       cancelled = true
-      controller.abort()
+      abortActiveRequests()
     }
-  }, [fetchPage])
+  }, [fetchPage, abortActiveRequests])
 
   const categoryLabel = useMemo(() => category ? providerCategoryLabel(category) : 'All wedding services', [category])
   const registrationType = category === 'venue' ? 'venue' : 'vendor'
@@ -163,7 +183,9 @@ export function ProviderDirectory() {
     try {
       await fetchPage(page + 1, true)
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Unable to load more providers.')
+      if (!isAbortError(caught)) {
+        setError(caught instanceof Error ? caught.message : 'Unable to load more providers.')
+      }
     } finally {
       setLoadingMore(false)
     }
