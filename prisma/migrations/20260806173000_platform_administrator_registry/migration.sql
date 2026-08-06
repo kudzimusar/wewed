@@ -154,7 +154,10 @@ BEGIN
     IF internal_account THEN
       UPDATE wewed_admin."PlatformAdministrator"
       SET status = 'revoked',
-          "statusReason" = COALESCE("statusReason", 'Legacy platform membership removed.'),
+          "statusReason" = COALESCE(
+            "statusReason",
+            'Legacy platform membership removed.'
+          ),
           "revokedAt" = COALESCE("revokedAt", CURRENT_TIMESTAMP),
           version = version + 1,
           "updatedAt" = CURRENT_TIMESTAMP
@@ -199,7 +202,10 @@ BEGIN
     NEW.id,
     NEW.role,
     normalized_status,
-    CASE WHEN normalized_status = 'invited' THEN COALESCE(NEW."createdAt", CURRENT_TIMESTAMP) END,
+    CASE
+      WHEN normalized_status = 'invited'
+        THEN COALESCE(NEW."createdAt", CURRENT_TIMESTAMP)
+    END,
     CASE WHEN normalized_status = 'active' THEN CURRENT_TIMESTAMP END,
     CASE WHEN normalized_status = 'suspended' THEN CURRENT_TIMESTAMP END,
     CASE WHEN normalized_status = 'revoked' THEN CURRENT_TIMESTAMP END
@@ -210,12 +216,18 @@ BEGIN
     status = EXCLUDED.status,
     "invitedAt" = CASE
       WHEN EXCLUDED.status = 'invited'
-        THEN COALESCE(wewed_admin."PlatformAdministrator"."invitedAt", CURRENT_TIMESTAMP)
+        THEN COALESCE(
+          wewed_admin."PlatformAdministrator"."invitedAt",
+          CURRENT_TIMESTAMP
+        )
       ELSE wewed_admin."PlatformAdministrator"."invitedAt"
     END,
     "activatedAt" = CASE
       WHEN EXCLUDED.status = 'active'
-        THEN COALESCE(wewed_admin."PlatformAdministrator"."activatedAt", CURRENT_TIMESTAMP)
+        THEN COALESCE(
+          wewed_admin."PlatformAdministrator"."activatedAt",
+          CURRENT_TIMESTAMP
+        )
       ELSE wewed_admin."PlatformAdministrator"."activatedAt"
     END,
     "suspendedAt" = CASE
@@ -264,9 +276,18 @@ SELECT
   bam.role,
   bam.status,
   CASE WHEN bam.status = 'invited' THEN bam."createdAt" END,
-  CASE WHEN bam.status = 'active' THEN COALESCE(bam."updatedAt", CURRENT_TIMESTAMP) END,
-  CASE WHEN bam.status = 'suspended' THEN COALESCE(bam."updatedAt", CURRENT_TIMESTAMP) END,
-  CASE WHEN bam.status = 'revoked' THEN COALESCE(bam."updatedAt", CURRENT_TIMESTAMP) END
+  CASE
+    WHEN bam.status = 'active'
+      THEN COALESCE(bam."updatedAt", CURRENT_TIMESTAMP)
+  END,
+  CASE
+    WHEN bam.status = 'suspended'
+      THEN COALESCE(bam."updatedAt", CURRENT_TIMESTAMP)
+  END,
+  CASE
+    WHEN bam.status = 'revoked'
+      THEN COALESCE(bam."updatedAt", CURRENT_TIMESTAMP)
+  END
 FROM wewed_admin."BusinessAccountMember" bam
 JOIN wewed_admin."BusinessAccount" ba
   ON ba.id = bam."businessAccountId"
@@ -305,6 +326,13 @@ REVOKE ALL PRIVILEGES ON TABLE
   wewed_admin."PlatformAdministratorScope"
 FROM PUBLIC;
 
+REVOKE ALL PRIVILEGES ON FUNCTION
+  wewed_admin.ensure_platform_admin_default_scopes(TEXT, TEXT)
+FROM PUBLIC;
+REVOKE ALL PRIVILEGES ON FUNCTION
+  wewed_admin.sync_platform_admin_from_membership()
+FROM PUBLIC;
+
 DO $revoke_client_roles$
 DECLARE
   role_name TEXT;
@@ -319,6 +347,17 @@ BEGIN
       EXECUTE format(
         'REVOKE ALL PRIVILEGES ON TABLE wewed_admin.%I FROM %I',
         'PlatformAdministratorScope',
+        role_name
+      );
+      EXECUTE format(
+        'REVOKE ALL PRIVILEGES ON FUNCTION '
+        || 'wewed_admin.ensure_platform_admin_default_scopes(TEXT, TEXT) '
+        || 'FROM %I',
+        role_name
+      );
+      EXECUTE format(
+        'REVOKE ALL PRIVILEGES ON FUNCTION '
+        || 'wewed_admin.sync_platform_admin_from_membership() FROM %I',
         role_name
       );
     END IF;
