@@ -29,6 +29,20 @@ describe('provider claim and directory regression contracts', () => {
     expect(claims).toContain("WHERE id = $1 AND \"listingStatus\" IN ('unclaimed', 'claim_pending')")
   })
 
+  test('serializes public submission against Admin review', () => {
+    const submission = source('src/app/api/providers/[slug]/claims/route.ts')
+    const providerLockIndex = submission.indexOf('SELECT "listingStatus", "isClaimable"')
+    const duplicateCheckIndex = submission.indexOf('lower("claimantEmail") = lower($2)')
+    const insertIndex = submission.indexOf('INSERT INTO wewed_admin."ProviderClaimRequest"')
+
+    expect(providerLockIndex).toBeGreaterThan(-1)
+    expect(duplicateCheckIndex).toBeGreaterThan(providerLockIndex)
+    expect(insertIndex).toBeGreaterThan(duplicateCheckIndex)
+    expect(submission).toContain("!['unclaimed', 'claim_pending'].includes(lockedProfile.listingStatus)")
+    expect(submission).toContain('This business listing is no longer available to claim.')
+    expect(submission).toContain("WHERE id = $1 AND \"isClaimable\" = true")
+  })
+
   test('keeps claimed profiles out of the public claim flow', () => {
     const profile = source('src/components/providers/public-provider-profile.tsx')
 
