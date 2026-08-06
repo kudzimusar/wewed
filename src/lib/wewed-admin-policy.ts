@@ -20,6 +20,8 @@ export const WEWED_ADMIN_PERMISSIONS = [
   'admin.accounts.cancel',
   'admin.accounts.archive',
   'admin.accounts.restore',
+  'admin.departments.read',
+  'admin.departments.manage',
   'admin.members.read',
   'admin.members.manage',
   'admin.platform_admins.read',
@@ -61,6 +63,8 @@ const ROLE_PERMISSIONS: Record<
     'admin.accounts.cancel',
     'admin.accounts.archive',
     'admin.accounts.restore',
+    'admin.departments.read',
+    'admin.departments.manage',
     'admin.support.read',
     'admin.support.manage',
     'admin.incidents.read',
@@ -70,12 +74,14 @@ const ROLE_PERMISSIONS: Record<
   wewed_billing_admin: [
     'admin.analytics.read',
     'admin.accounts.read',
+    'admin.departments.read',
     'admin.billing.read',
     'admin.billing.manage',
     'admin.audit.read',
   ],
   wewed_support_admin: [
     'admin.accounts.read',
+    'admin.departments.read',
     'admin.support.read',
     'admin.support.manage',
     'admin.incidents.read',
@@ -84,6 +90,7 @@ const ROLE_PERMISSIONS: Record<
   wewed_analyst: [
     'admin.analytics.read',
     'admin.accounts.read',
+    'admin.departments.read',
     'admin.billing.read',
     'admin.support.read',
     'admin.incidents.read',
@@ -239,39 +246,25 @@ export function normalizeAccountLifecycleStatus(
 }
 
 export function canTransitionAccount(
-  current: AccountLifecycleStatus,
-  next: AccountLifecycleStatus,
+  from: AccountLifecycleStatus,
+  to: AccountLifecycleStatus,
 ): boolean {
-  return current !== next && ACCOUNT_TRANSITIONS[current].includes(next)
+  return from !== to && ACCOUNT_TRANSITIONS[from].includes(to)
 }
 
 export function permissionForAccountTransition(
-  current: AccountLifecycleStatus,
-  next: AccountLifecycleStatus,
+  from: AccountLifecycleStatus,
+  to: AccountLifecycleStatus,
 ): WewedAdminPermission {
-  if (current === 'pending_review' && next === 'active') {
-    return 'admin.accounts.approve'
+  if (to === 'active') {
+    return from === 'pending_review'
+      ? 'admin.accounts.approve'
+      : 'admin.accounts.restore'
   }
-  if (next === 'rejected') return 'admin.accounts.reject'
-  if (next === 'suspended') return 'admin.accounts.suspend'
-  if (next === 'blocked') return 'admin.accounts.block'
-  if (next === 'cancelled') return 'admin.accounts.cancel'
-  if (next === 'archived') return 'admin.accounts.archive'
+  if (to === 'rejected') return 'admin.accounts.reject'
+  if (to === 'suspended') return 'admin.accounts.suspend'
+  if (to === 'blocked') return 'admin.accounts.block'
+  if (to === 'cancelled') return 'admin.accounts.cancel'
+  if (to === 'archived') return 'admin.accounts.archive'
   return 'admin.accounts.restore'
-}
-
-export function isRestrictiveAccountStatus(
-  status: AccountLifecycleStatus,
-): boolean {
-  return [
-    'rejected',
-    'suspended',
-    'blocked',
-    'cancelled',
-    'archived',
-  ].includes(status)
-}
-
-export function accountStatusAllowsWorkspace(status: string): boolean {
-  return normalizeAccountLifecycleStatus(status) === 'active'
 }
