@@ -52,14 +52,17 @@ describe('provider claim and directory regression contracts', () => {
     expect(profile).toContain('Secure enquiries will open after the owner confirms')
   })
 
-  test('aborts superseded provider-directory requests before updating results', () => {
+  test('aborts every superseded provider-directory request including load more', () => {
     const directory = source('src/components/providers/provider-directory.tsx')
 
-    expect(directory).toContain('signal?: AbortSignal')
-    expect(directory).toContain('const controller = new AbortController()')
-    expect(directory).toContain("{ cache: 'no-store', signal }")
-    expect(directory).toContain('if (signal?.aborted) return')
-    expect(directory).toContain('controller.abort()')
+    expect(directory).toContain('useRef<Set<AbortController>>(new Set())')
+    expect(directory).toContain('requestControllers.current.add(controller)')
+    expect(directory).toContain('signal: controller.signal')
+    expect(directory).toContain('requestControllers.current.delete(controller)')
+    expect(directory).toContain('for (const controller of requestControllers.current) controller.abort()')
+    expect(directory).toContain('abortActiveRequests()')
+    expect(directory).toContain('await fetchPage(page + 1, true)')
+    expect(directory).toContain("error.name === 'AbortError'")
   })
 
   test('deduplicates websites by complete hostname rather than prefix', () => {
