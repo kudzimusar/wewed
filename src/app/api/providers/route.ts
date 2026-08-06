@@ -129,23 +129,43 @@ export async function GET(request: NextRequest) {
           ba."onboardingStatus" = 'complete' OR
           p."listingStatus" IN ('unclaimed', 'claim_pending')
         )
-       JOIN public."ProviderServiceOffering" o
-         ON o."businessAccountId" = p."businessAccountId"
-        AND o.status = 'published'
+       LEFT JOIN wewed_admin."ProviderDiscoveryCandidate" dc
+         ON dc.id = ba."sourceId"
+       JOIN LATERAL (
+         SELECT candidate_offering.*
+         FROM public."ProviderServiceOffering" candidate_offering
+         WHERE candidate_offering."businessAccountId" = p."businessAccountId"
+           AND candidate_offering.status = 'published'
+           AND ($1::text IS NULL OR candidate_offering.category = $1)
+           AND ($2::text IS NULL OR
+                p."displayName" ILIKE '%' || $2 || '%' OR
+                COALESCE(p.headline, '') ILIKE '%' || $2 || '%' OR
+                COALESCE(p.description, '') ILIKE '%' || $2 || '%' OR
+                candidate_offering."displayName" ILIKE '%' || $2 || '%' OR
+                COALESCE(candidate_offering.description, '') ILIKE '%' || $2 || '%')
+         ORDER BY
+           CASE
+             WHEN $1::text IS NOT NULL AND candidate_offering.category = $1 THEN 0
+             WHEN dc."primaryCategory" IS NOT NULL AND candidate_offering.category = dc."primaryCategory" THEN 0
+             ELSE 1
+           END,
+           candidate_offering."createdAt",
+           candidate_offering.category
+         LIMIT 1
+       ) o ON true
        WHERE p.visibility = 'published'
          AND p."listingStatus" NOT IN ('suspended', 'removed')
-         AND ($1::text IS NULL OR o.category = $1)
-         AND ($2::text IS NULL OR
-              p."displayName" ILIKE '%' || $2 || '%' OR
-              COALESCE(p.headline, '') ILIKE '%' || $2 || '%' OR
-              COALESCE(p.description, '') ILIKE '%' || $2 || '%' OR
-              o."displayName" ILIKE '%' || $2 || '%' OR
-              COALESCE(o.description, '') ILIKE '%' || $2 || '%')
          AND ($3::text IS NULL OR
               p.city ILIKE $3 OR
               p.country ILIKE $3 OR
               p."serviceAreas" @> jsonb_build_array($3) OR
-              o."serviceAreas" @> jsonb_build_array($3))
+              EXISTS (
+                SELECT 1
+                FROM public."ProviderServiceOffering" area_offering
+                WHERE area_offering."businessAccountId" = p."businessAccountId"
+                  AND area_offering.status = 'published'
+                  AND area_offering."serviceAreas" @> jsonb_build_array($3)
+              ))
        ORDER BY
          CASE p."listingStatus"
            WHEN 'verified' THEN 0
@@ -153,8 +173,7 @@ export async function GET(request: NextRequest) {
            WHEN 'claim_pending' THEN 2
            ELSE 3
          END,
-         p."displayName",
-         o.category
+         p."displayName"
        LIMIT $4 OFFSET $5`,
       category,
       query,
