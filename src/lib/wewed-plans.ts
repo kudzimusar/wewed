@@ -47,67 +47,78 @@ export type WewedBillingOffer = {
 }
 
 /**
- * Compatibility catalog retained for registration, reporting, and existing
- * Stripe mirrors. Checkout must use BILLING_OFFERS and account-type validation.
+ * Compatibility catalog retained unchanged for registration, public pricing,
+ * reporting, and existing Stripe mirrors. Checkout uses BILLING_OFFERS and
+ * validates the resolved business account type before selecting a price.
  */
 export const WEWED_PLANS: readonly WewedPlan[] = [
   {
     id: 'free',
     publicName: 'Free',
-    audience: 'Category-specific Wewed foundations',
-    summary: 'The free foundation selected for the account category.',
+    audience: 'Couples and first-time Wewed users',
+    summary:
+      'Launch a wedding space and experience the core collaboration flow before upgrading.',
     monthlyCents: 0,
     annualCents: 0,
     selfService: false,
     features: [
-      'Account-category foundation',
-      'Core profile or workspace',
+      'Public wedding page and mobile experience',
+      'RSVP, guest participation, live wall and memories',
+      'One active wedding workspace',
+      'Wewed branding',
       'Community support',
     ],
   },
   {
     id: 'starter',
     publicName: 'Canon',
-    audience: 'Couples',
-    summary: 'The complete planning and collaboration workspace for one couple.',
+    audience: 'Couples and solo wedding professionals',
+    summary:
+      'The complete planning workspace for one active wedding, with preservation and professional tools.',
     monthlyCents: 1500,
     annualCents: 15000,
     selfService: true,
     highlighted: true,
     features: [
-      'Private wedding workspace',
-      'Tasks, budget, guests, vendors, timeline and seating',
-      'Content, memories, templates and exports',
+      'Everything in Free',
+      'Full planner workspace: tasks, budget, guests, vendors and timeline',
+      'Private or link-only wedding experience',
+      'Reusable planner templates and exports',
       'Email support',
     ],
   },
   {
     id: 'professional',
-    publicName: 'Professional',
-    audience: 'Planners and planning companies',
-    summary: 'Multi-wedding operations with team governance and reusable resources.',
+    publicName: 'Forever',
+    audience: 'Planners, planning companies and growing teams',
+    summary:
+      'Run multiple weddings with team governance, operational visibility and priority support.',
     monthlyCents: 3900,
     annualCents: 39000,
     selfService: true,
     features: [
-      'Multi-wedding portfolio operations',
-      'Client delivery and engagement authority',
-      'Templates, imports, exports and worksheets',
-      'Team roles, audit history and analytics',
+      'Everything in Canon',
+      'Multi-wedding planner operations',
+      'Team roles and permissions',
+      'Operational analytics and audit history',
+      'Priority onboarding and support',
     ],
   },
   {
     id: 'enterprise',
-    publicName: 'Contract',
-    audience: 'Vendors, venues and contract clients',
-    summary: 'A sales-assisted offer configured for the account category and contracted services.',
-    monthlyCents: null,
-    annualCents: null,
+    publicName: 'Enterprise',
+    audience: 'Venues, agencies and larger wedding portfolios',
+    summary:
+      'A sales-assisted plan for custom governance, onboarding, portfolio and support requirements.',
+    monthlyCents: 12900,
+    annualCents: 129000,
     selfService: false,
     features: [
-      'Category-specific systems and data points',
-      'Contract-defined resources and support',
-      'Configured governance and billing terms',
+      'Everything in Forever',
+      'Custom account and portfolio structure',
+      'Dedicated implementation and data onboarding',
+      'Advanced governance and support controls',
+      'Contracted service and support terms',
     ],
   },
 ] as const
@@ -118,7 +129,8 @@ export const BILLING_OFFERS: readonly WewedBillingOffer[] = [
     accountType: 'couple',
     publicName: 'Couple Free',
     audience: 'Couples starting their wedding workspace',
-    summary: 'Core wedding site, guest participation, content and support foundation.',
+    summary:
+      'Core wedding site, guest participation, content and support foundation.',
     billingModel: 'free',
     legacyPlan: 'free',
     monthlyCents: 0,
@@ -142,7 +154,8 @@ export const BILLING_OFFERS: readonly WewedBillingOffer[] = [
     accountType: 'couple',
     publicName: 'Couple Canon',
     audience: 'Couples who need complete planning controls',
-    summary: 'Complete private wedding planning and collaboration for one couple.',
+    summary:
+      'Complete private wedding planning and collaboration for one couple.',
     billingModel: 'subscription',
     legacyPlan: 'starter',
     monthlyCents: 1500,
@@ -190,7 +203,8 @@ export const BILLING_OFFERS: readonly WewedBillingOffer[] = [
     accountType: 'planning_company',
     publicName: 'Planner Professional',
     audience: 'Planning companies running multiple weddings',
-    summary: 'Multi-wedding operations, templates, team governance and analytics.',
+    summary:
+      'Multi-wedding operations, templates, team governance and analytics.',
     billingModel: 'subscription',
     legacyPlan: 'professional',
     monthlyCents: 3900,
@@ -216,7 +230,8 @@ export const BILLING_OFFERS: readonly WewedBillingOffer[] = [
     accountType: 'vendor',
     publicName: 'Vendor Profile',
     audience: 'Wedding vendors building a verified Wewed presence',
-    summary: 'Profile, services, packages, portfolio, enquiries and verification foundation.',
+    summary:
+      'Profile, services, packages, portfolio, enquiries and verification foundation.',
     billingModel: 'free',
     legacyPlan: 'free',
     monthlyCents: 0,
@@ -241,7 +256,8 @@ export const BILLING_OFFERS: readonly WewedBillingOffer[] = [
     accountType: 'vendor',
     publicName: 'Vendor Growth',
     audience: 'Verified vendors requiring expanded commercial tools',
-    summary: 'Contract/configured vendor tools; Checkout stays unavailable until a dedicated vendor price is approved.',
+    summary:
+      'Contract/configured vendor tools; Checkout stays unavailable until a dedicated vendor price is approved.',
     billingModel: 'contract',
     legacyPlan: 'enterprise',
     monthlyCents: null,
@@ -265,7 +281,8 @@ export const BILLING_OFFERS: readonly WewedBillingOffer[] = [
     accountType: 'venue',
     publicName: 'Venue Profile',
     audience: 'Venues publishing spaces and packages',
-    summary: 'Venue profile, capacity, availability, packages, enquiries and verification foundation.',
+    summary:
+      'Venue profile, capacity, availability, packages, enquiries and verification foundation.',
     billingModel: 'free',
     legacyPlan: 'free',
     monthlyCents: 0,
@@ -290,7 +307,8 @@ export const BILLING_OFFERS: readonly WewedBillingOffer[] = [
     accountType: 'venue',
     publicName: 'Venue Portfolio',
     audience: 'Venues requiring expanded multi-space operations',
-    summary: 'Contract/configured venue portfolio tools; no cross-audience Stripe fallback.',
+    summary:
+      'Contract/configured venue portfolio tools; no cross-audience Stripe fallback.',
     billingModel: 'contract',
     legacyPlan: 'enterprise',
     monthlyCents: null,
@@ -314,7 +332,8 @@ export const BILLING_OFFERS: readonly WewedBillingOffer[] = [
     accountType: 'client',
     publicName: 'Business Custom',
     audience: 'Contract clients with defined systems and resources',
-    summary: 'Sales-assisted services, data operations, integrations and support.',
+    summary:
+      'Sales-assisted services, data operations, integrations and support.',
     billingModel: 'contract',
     legacyPlan: 'enterprise',
     monthlyCents: null,
@@ -346,7 +365,9 @@ export function isWewedPlanId(value: unknown): value is WewedPlanId {
   return typeof value === 'string' && value in WEWED_PLAN_BY_ID
 }
 
-export function isWewedBillingInterval(value: unknown): value is WewedBillingInterval {
+export function isWewedBillingInterval(
+  value: unknown,
+): value is WewedBillingInterval {
   return value === 'month' || value === 'year'
 }
 
