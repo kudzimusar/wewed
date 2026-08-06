@@ -6,6 +6,8 @@ import { Building2, ShieldCheck, UserRoundCheck, UserRoundSearch } from 'lucide-
 export function AdminUtilityNav() {
   const pathname = usePathname()
 
+  if (pathname.startsWith('/admin/accept-invite')) return null
+
   const items = [
     ['/admin', 'Console', Building2, pathname === '/admin'],
     ['/admin/onboarding', 'Onboarding', UserRoundCheck, pathname.startsWith('/admin/onboarding')],
