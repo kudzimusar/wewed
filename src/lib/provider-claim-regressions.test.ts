@@ -8,13 +8,25 @@ const source = (path: string) => readFileSync(join(root, path), 'utf8')
 describe('provider claim and directory regression contracts', () => {
   test('serializes ownership approval before creating provider authority', () => {
     const claims = source('src/app/api/admin/providers/claims/route.ts')
-    const lockIndex = claims.indexOf('FOR UPDATE OF c, p')
+    const providerLockIndex = claims.indexOf('SELECT "listingStatus"')
+    const claimLockIndex = claims.indexOf('SELECT status\n         FROM wewed_admin."ProviderClaimRequest"')
     const membershipIndex = claims.indexOf('INSERT INTO wewed_admin."BusinessAccountMember"')
 
-    expect(lockIndex).toBeGreaterThan(-1)
-    expect(membershipIndex).toBeGreaterThan(lockIndex)
-    expect(claims).toContain("['unclaimed', 'claim_pending'].includes(lockedClaim.listingStatus)")
-    expect(claims).toContain('Another ownership claim has already been approved for this provider.')
+    expect(providerLockIndex).toBeGreaterThan(-1)
+    expect(claimLockIndex).toBeGreaterThan(providerLockIndex)
+    expect(membershipIndex).toBeGreaterThan(claimLockIndex)
+    expect(claims).toContain('CLAIMABLE_LISTING_STATUSES.includes(lockedProfile.listingStatus)')
+    expect(claims).toContain('OPEN_CLAIM_STATUSES.includes(lockedClaim.status)')
+    expect(claims).toContain('Another ownership claim has already been approved or resolved for this provider.')
+  })
+
+  test('serializes verification and rejection without overwriting a resolved claim', () => {
+    const claims = source('src/app/api/admin/providers/claims/route.ts')
+
+    expect(claims.split('SELECT id FROM wewed_admin."ProviderProfile" WHERE id = $1 FOR UPDATE').length - 1).toBe(2)
+    expect(claims.split("WHERE id = $1 AND status IN ('pending', 'verification_required')").length - 1).toBeGreaterThanOrEqual(2)
+    expect(claims.split('RETURNING id').length - 1).toBeGreaterThanOrEqual(2)
+    expect(claims).toContain("WHERE id = $1 AND \"listingStatus\" IN ('unclaimed', 'claim_pending')")
   })
 
   test('keeps claimed profiles out of the public claim flow', () => {
