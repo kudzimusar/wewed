@@ -9,7 +9,7 @@ describe('provider claim and directory regression contracts', () => {
   test('serializes ownership approval before creating provider authority', () => {
     const claims = source('src/app/api/admin/providers/claims/route.ts')
     const lockIndex = claims.indexOf('FOR UPDATE OF c, p')
-    const membershipIndex = claims.indexOf('INSERT INTO wewed_admin.\\"BusinessAccountMember\\"')
+    const membershipIndex = claims.indexOf('INSERT INTO wewed_admin."BusinessAccountMember"')
 
     expect(lockIndex).toBeGreaterThan(-1)
     expect(membershipIndex).toBeGreaterThan(lockIndex)
