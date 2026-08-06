@@ -7,6 +7,7 @@ import { DataBackedWeddingExperience } from '@/components/wedding/data-backed-we
 import { Navbar } from '@/components/wedding/navbar'
 import { WeddingPlatformNav } from '@/components/wedding/wedding-platform-nav'
 import { GlobalWeddingTools } from '@/components/wedding/global-wedding-tools'
+import { CoupleLogin } from '@/components/wedding/couple-login'
 import { HeroSection } from '@/components/wedding/hero-section'
 import { CountdownBanner } from '@/components/wedding/countdown-banner'
 import { OurStory } from '@/components/wedding/our-story'
@@ -74,7 +75,7 @@ function WeddingHomeContent({ accessKind }: { accessKind: PublicWeddingAccessKin
     return (
       <>
         <DataBackedWeddingExperience />
-        <GlobalWeddingTools accessKind={accessKind} />
+        <CoupleLogin accessKind={accessKind} />
       </>
     )
   }
