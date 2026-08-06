@@ -94,6 +94,11 @@ type Payload = {
   accounts: ClientAccount[]
 }
 
+type DepartmentDraft = {
+  sourceSignature: string
+  selected: string[]
+}
+
 function values(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === 'string')
@@ -123,6 +128,16 @@ function date(value: string | null): string {
     : parsed.toLocaleDateString()
 }
 
+function departmentSignature(account: ClientAccount): string {
+  return account.departments
+    .map(
+      (assignment) =>
+        `${assignment.departmentKey}:${assignment.status}:${assignment.version}:${assignment.updatedAt}`,
+    )
+    .sort()
+    .join('|')
+}
+
 function AccountOperationsCard({
   account,
   definitions,
@@ -148,22 +163,27 @@ function AccountOperationsCard({
   const enabledAtLoad = account.departments
     .filter((assignment) => assignment.status === 'enabled')
     .map((assignment) => assignment.departmentKey)
-  const [selected, setSelected] = useState<string[]>(enabledAtLoad)
+  const sourceSignature = departmentSignature(account)
+  const [draft, setDraft] = useState<DepartmentDraft | null>(null)
   const [reason, setReason] = useState('')
+  const selected =
+    draft?.sourceSignature === sourceSignature ? draft.selected : enabledAtLoad
   const offer = offers.find(
     (candidate) => candidate.offerCode === account.billingOfferCode,
   )
 
-  useEffect(() => {
-    setSelected(enabledAtLoad)
-  }, [account.id, account.departments])
-
   function toggle(departmentKey: string) {
-    setSelected((current) =>
-      current.includes(departmentKey)
-        ? current.filter((value) => value !== departmentKey)
-        : [...current, departmentKey],
-    )
+    const nextSelected = selected.includes(departmentKey)
+      ? selected.filter((value) => value !== departmentKey)
+      : [...selected, departmentKey]
+
+    setDraft({ sourceSignature, selected: nextSelected })
+  }
+
+  async function save() {
+    await onSave(account, selected, reason.trim())
+    setDraft(null)
+    setReason('')
   }
 
   const changed =
@@ -234,11 +254,13 @@ function AccountOperationsCard({
                 <div className="mt-3 space-y-2 text-[11px] leading-5 text-champagne/45">
                   <p>
                     <Database className="mr-1 inline size-3.5 text-gold" />
-                    {values(definition.dataPoints).map(label).join(', ')}
+                    <span className="font-medium text-champagne/60">Data points:</span>{' '}
+                    {values(definition.dataPoints).map(label).join(', ') || 'None'}
                   </p>
                   <p>
                     <Wrench className="mr-1 inline size-3.5 text-gold" />
-                    {values(definition.resourceTools).map(label).join(', ')}
+                    <span className="font-medium text-champagne/60">Resource tools:</span>{' '}
+                    {values(definition.resourceTools).map(label).join(', ') || 'None'}
                   </p>
                 </div>
               </label>
@@ -265,7 +287,7 @@ function AccountOperationsCard({
                 selected.length === 0 ||
                 reason.trim().length < 5
               }
-              onClick={() => void onSave(account, selected, reason.trim())}
+              onClick={() => void save()}
               className="bg-gold text-espresso hover:bg-gold-light"
             >
               {working ? (
@@ -351,6 +373,7 @@ export function ClientOperationsConsole() {
           ? caught.message
           : 'Unable to save account departments.',
       )
+      throw caught
     } finally {
       setWorkingAccountId(null)
     }
