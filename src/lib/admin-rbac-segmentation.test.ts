@@ -81,16 +81,23 @@ describe('Admin RBAC and account segmentation contract', () => {
     expect(migration).toContain('sync_platform_admin_from_membership')
     expect(migration).toContain('AFTER INSERT OR UPDATE OR DELETE')
     expect(migration).not.toContain('UPDATE OF role, status OR DELETE')
-    expect(migration).toContain('REVOKE ALL PRIVILEGES')
+    expect(migration).toContain('REVOKE ALL PRIVILEGES ON FUNCTION')
+    expect(migration).toContain('REVOKE ALL PRIVILEGES ON TABLE')
     expect(migration).not.toContain('CREATE VIEW public."PlatformAdministrator"')
+  })
+
+  test('inactive registry membership cannot fall back to legacy access', () => {
+    const access = source('src/lib/wewed-admin.ts')
+
+    expect(access).toContain("state: 'inactive'")
+    expect(access).toContain("if (registry.state === 'inactive')")
+    expect(access).toContain("registry.state === 'missing'")
+    expect(access).toContain("${alias}.type <> 'wewed_internal'")
   })
 
   test('governance API applies scope predicates and protects privileged lifecycle changes', () => {
     const api = source('src/app/api/admin/governance/route.ts')
-    const access = source('src/lib/wewed-admin.ts')
 
-    expect(access).toContain('buildBusinessAccountScopeSql')
-    expect(access).toContain("account.type === 'wewed_internal'")
     expect(api).toContain('buildBusinessAccountScopeSql(context')
     expect(api).toContain("assertWewedAdminPermission(context, 'admin.platform_admins.manage')")
     expect(api).toContain("assertWewedAdminPermission(context, 'admin.scopes.manage')")
@@ -98,6 +105,7 @@ describe('Admin RBAC and account segmentation contract', () => {
     expect(api).toContain('The last active Super Admin cannot be suspended or revoked.')
     expect(api).toContain('cannot suspend or revoke their own account')
     expect(api).toContain('become active only by accepting their secure invitation')
+    expect(api).toContain('Wewed internal lifecycle is governed through platform controls.')
     expect(api).toContain("action: 'platform_administrator.status_changed'")
     expect(api).toContain("action: 'platform_administrator.scopes_replaced'")
   })
