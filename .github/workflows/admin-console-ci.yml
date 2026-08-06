@@ -21,6 +21,7 @@ on:
       - 'src/lib/wewed-admin-policy.ts'
       - 'src/lib/wewed-admin-governance.test.ts'
       - 'src/lib/admin-invitation-profile.test.ts'
+      - 'src/lib/admin-rbac-segmentation.test.ts'
       - 'src/lib/wedding-access.ts'
       - 'src/lib/stripe-billing.ts'
       - 'src/lib/wewed-plans.ts'
@@ -35,6 +36,7 @@ on:
       - 'docs/WEWED_PUBLIC_REGISTRATION_RBAC_STRIPE_PLAN.md'
       - 'docs/WEWED_PRICING_AND_BILLING_V1.md'
       - 'docs/WEWED_ADMIN_ACCESS.md'
+      - 'docs/admin-rbac-account-segmentation-plan.md'
       - '.github/workflows/admin-console-ci.yml'
   workflow_dispatch:
 
@@ -84,6 +86,9 @@ jobs:
       - name: Run administrator invitation contracts
         run: bun test src/lib/admin-invitation-profile.test.ts
 
+      - name: Run Admin segmentation and RBAC contracts
+        run: bun test src/lib/admin-rbac-segmentation.test.ts
+
       - name: Run registration, RBAC and Stripe contracts
         run: bun scripts/public-registration-rbac-stripe-contract.ts
 
@@ -114,6 +119,7 @@ jobs:
           src/lib/wewed-admin-policy.ts
           src/lib/wewed-admin-governance.test.ts
           src/lib/admin-invitation-profile.test.ts
+          src/lib/admin-rbac-segmentation.test.ts
           src/lib/wedding-access.ts
           src/lib/stripe-billing.ts
           src/lib/wewed-plans.ts
