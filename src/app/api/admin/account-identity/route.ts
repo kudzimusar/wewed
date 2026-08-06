@@ -49,6 +49,11 @@ type EngagementRow = {
   updatedAt: Date
 }
 
+type PlannerWorkspaceMembership = {
+  id: string
+  userId: string
+}
+
 function adminError(error: unknown) {
   if (error instanceof WewedAdminAccessError) {
     return NextResponse.json(
@@ -66,6 +71,32 @@ function adminError(error: unknown) {
 
 function iso(value: Date | null) {
   return value?.toISOString() ?? null
+}
+
+function plannerAlignment(
+  engagement: EngagementRow | undefined,
+  activePlannerMemberships: PlannerWorkspaceMembership[],
+) {
+  if (!engagement) {
+    return activePlannerMemberships.length > 0
+      ? 'workspace_membership_without_engagement'
+      : 'none'
+  }
+
+  // Requested, accepted-but-not-active, and paused engagements are valid
+  // without active workspace access. Only an active engagement requires a
+  // matching active planner membership.
+  if (engagement.status !== 'active') return 'aligned'
+
+  const engagementMatchesMembership = activePlannerMemberships.some(
+    (membership) =>
+      membership.id === engagement.membershipId ||
+      membership.userId === engagement.plannerUserId,
+  )
+
+  return engagementMatchesMembership
+    ? 'aligned'
+    : 'engagement_without_matching_workspace_membership'
 }
 
 export async function GET(request: NextRequest) {
@@ -199,21 +230,10 @@ export async function GET(request: NextRequest) {
       const engagement = engagementRows.find(
         (candidate) => candidate.weddingId === row.weddingId,
       )
-      const engagementMatchesMembership = engagement
-        ? activePlannerMemberships.some(
-            (membership) =>
-              membership.id === engagement.membershipId ||
-              membership.userId === engagement.plannerUserId,
-          )
-        : false
-
-      const plannerAlignment = engagement
-        ? engagementMatchesMembership
-          ? 'aligned'
-          : 'engagement_without_matching_workspace_membership'
-        : activePlannerMemberships.length > 0
-          ? 'workspace_membership_without_engagement'
-          : 'none'
+      const alignment = plannerAlignment(
+        engagement,
+        activePlannerMemberships,
+      )
 
       accounts.get(row.accountId)?.weddings.push({
         id: row.weddingId,
@@ -229,7 +249,7 @@ export async function GET(request: NextRequest) {
             membership.role === 'owner' && membership.status === 'active',
         ),
         plannerRelationship: {
-          alignment: plannerAlignment,
+          alignment,
           activeWorkspaceMemberships: activePlannerMemberships,
           engagement: engagement
             ? {
