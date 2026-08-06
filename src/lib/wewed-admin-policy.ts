@@ -20,8 +20,13 @@ export const WEWED_ADMIN_PERMISSIONS = [
   'admin.accounts.cancel',
   'admin.accounts.archive',
   'admin.accounts.restore',
+  'admin.departments.read',
+  'admin.departments.manage',
   'admin.members.read',
   'admin.members.manage',
+  'admin.platform_admins.read',
+  'admin.platform_admins.manage',
+  'admin.scopes.manage',
   'admin.billing.read',
   'admin.billing.manage',
   'admin.support.read',
@@ -41,10 +46,13 @@ export const WEWED_ADMIN_ROLE_LABELS: Record<WewedAdminRole, string> = {
   wewed_analyst: 'Analyst / Viewer',
 }
 
-const ROLE_PERMISSIONS: Record<WewedAdminRole, readonly (WewedAdminPermission | '*')[]> = {
+/** The legacy operations console is global, so only Super Admin receives it. */
+const ROLE_PERMISSIONS: Record<
+  WewedAdminRole,
+  readonly (WewedAdminPermission | '*')[]
+> = {
   wewed_super_admin: ['*'],
   wewed_operations_admin: [
-    'admin.overview.read',
     'admin.analytics.read',
     'admin.accounts.read',
     'admin.accounts.create',
@@ -55,8 +63,8 @@ const ROLE_PERMISSIONS: Record<WewedAdminRole, readonly (WewedAdminPermission | 
     'admin.accounts.cancel',
     'admin.accounts.archive',
     'admin.accounts.restore',
-    'admin.members.read',
-    'admin.members.manage',
+    'admin.departments.read',
+    'admin.departments.manage',
     'admin.support.read',
     'admin.support.manage',
     'admin.incidents.read',
@@ -64,28 +72,25 @@ const ROLE_PERMISSIONS: Record<WewedAdminRole, readonly (WewedAdminPermission | 
     'admin.audit.read',
   ],
   wewed_billing_admin: [
-    'admin.overview.read',
     'admin.analytics.read',
     'admin.accounts.read',
-    'admin.members.read',
+    'admin.departments.read',
     'admin.billing.read',
     'admin.billing.manage',
     'admin.audit.read',
   ],
   wewed_support_admin: [
-    'admin.overview.read',
     'admin.accounts.read',
-    'admin.members.read',
+    'admin.departments.read',
     'admin.support.read',
     'admin.support.manage',
     'admin.incidents.read',
     'admin.audit.read',
   ],
   wewed_analyst: [
-    'admin.overview.read',
     'admin.analytics.read',
     'admin.accounts.read',
-    'admin.members.read',
+    'admin.departments.read',
     'admin.billing.read',
     'admin.support.read',
     'admin.incidents.read',
@@ -93,15 +98,51 @@ const ROLE_PERMISSIONS: Record<WewedAdminRole, readonly (WewedAdminPermission | 
   ],
 }
 
+export const PLATFORM_ACCOUNT_TYPES = [
+  'wewed_internal',
+  'planning_company',
+  'couple',
+  'venue',
+  'vendor',
+  'client',
+] as const
+
+export type PlatformAccountType = (typeof PLATFORM_ACCOUNT_TYPES)[number]
+
+export const CUSTOMER_PARTNER_ACCOUNT_TYPES = [
+  'planning_company',
+  'couple',
+  'venue',
+  'vendor',
+  'client',
+] as const satisfies readonly PlatformAccountType[]
+
+export type PlatformAdminScope = {
+  global: boolean
+  accountTypes: PlatformAccountType[]
+  businessAccountIds: string[]
+}
+
 export function isWewedAdminRole(value: unknown): value is WewedAdminRole {
-  return typeof value === 'string' && (WEWED_ADMIN_ROLES as readonly string[]).includes(value)
+  return (
+    typeof value === 'string' &&
+    (WEWED_ADMIN_ROLES as readonly string[]).includes(value)
+  )
+}
+
+export function isPlatformAccountType(
+  value: unknown,
+): value is PlatformAccountType {
+  return (
+    typeof value === 'string' &&
+    (PLATFORM_ACCOUNT_TYPES as readonly string[]).includes(value)
+  )
 }
 
 function parseExplicitPermissions(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value.filter((item): item is string => typeof item === 'string')
   }
-
   if (typeof value === 'string') {
     try {
       const parsed = JSON.parse(value)
@@ -112,18 +153,34 @@ function parseExplicitPermissions(value: unknown): string[] {
       return []
     }
   }
-
   return []
 }
 
+/** Database permissions can never expand a role beyond its code-defined ceiling. */
 export function resolveWewedAdminPermissions(
   role: string,
   explicitPermissions?: unknown,
 ): string[] {
-  const defaults = isWewedAdminRole(role) ? ROLE_PERMISSIONS[role] : []
+  if (!isWewedAdminRole(role)) return []
+  const defaults = ROLE_PERMISSIONS[role]
   if (defaults.includes('*')) return ['*']
 
-  return Array.from(new Set([...defaults, ...parseExplicitPermissions(explicitPermissions)]))
+  const allowed = new Set(defaults)
+  const boundedExplicit = parseExplicitPermissions(explicitPermissions).filter(
+    (permission) => allowed.has(permission as WewedAdminPermission),
+  )
+  return Array.from(new Set([...defaults, ...boundedExplicit]))
+}
+
+export function rolePermissionMatrix(): Record<WewedAdminRole, string[]> {
+  return Object.fromEntries(
+    WEWED_ADMIN_ROLES.map((role) => [
+      role,
+      ROLE_PERMISSIONS[role].includes('*')
+        ? [...WEWED_ADMIN_PERMISSIONS]
+        : [...ROLE_PERMISSIONS[role]],
+    ]),
+  ) as Record<WewedAdminRole, string[]>
 }
 
 export function hasWewedAdminPermission(
@@ -131,6 +188,18 @@ export function hasWewedAdminPermission(
   permission: WewedAdminPermission,
 ): boolean {
   return permissions.includes('*') || permissions.includes(permission)
+}
+
+export function accountScopeAllows(
+  scope: PlatformAdminScope,
+  account: { id: string; type: string },
+): boolean {
+  if (scope.global) return true
+  if (account.type === 'wewed_internal') return false
+  return (
+    scope.businessAccountIds.includes(account.id) ||
+    scope.accountTypes.includes(account.type as PlatformAccountType)
+  )
 }
 
 export const ACCOUNT_LIFECYCLE_STATUSES = [
@@ -143,9 +212,13 @@ export const ACCOUNT_LIFECYCLE_STATUSES = [
   'archived',
 ] as const
 
-export type AccountLifecycleStatus = (typeof ACCOUNT_LIFECYCLE_STATUSES)[number]
+export type AccountLifecycleStatus =
+  (typeof ACCOUNT_LIFECYCLE_STATUSES)[number]
 
-const ACCOUNT_TRANSITIONS: Record<AccountLifecycleStatus, readonly AccountLifecycleStatus[]> = {
+const ACCOUNT_TRANSITIONS: Record<
+  AccountLifecycleStatus,
+  readonly AccountLifecycleStatus[]
+> = {
   pending_review: ['active', 'rejected'],
   active: ['suspended', 'blocked', 'cancelled', 'archived'],
   rejected: ['pending_review', 'archived'],
@@ -155,38 +228,53 @@ const ACCOUNT_TRANSITIONS: Record<AccountLifecycleStatus, readonly AccountLifecy
   archived: ['pending_review', 'active'],
 }
 
-export function isAccountLifecycleStatus(value: unknown): value is AccountLifecycleStatus {
-  return typeof value === 'string' && (ACCOUNT_LIFECYCLE_STATUSES as readonly string[]).includes(value)
+export function isAccountLifecycleStatus(
+  value: unknown,
+): value is AccountLifecycleStatus {
+  return (
+    typeof value === 'string' &&
+    (ACCOUNT_LIFECYCLE_STATUSES as readonly string[]).includes(value)
+  )
 }
 
-export function normalizeAccountLifecycleStatus(value: unknown): AccountLifecycleStatus {
+export function normalizeAccountLifecycleStatus(
+  value: unknown,
+): AccountLifecycleStatus {
   if (isAccountLifecycleStatus(value)) return value
   if (value === 'trial') return 'active'
   return 'pending_review'
 }
 
 export function canTransitionAccount(
-  current: AccountLifecycleStatus,
-  next: AccountLifecycleStatus,
+  from: AccountLifecycleStatus,
+  to: AccountLifecycleStatus,
 ): boolean {
-  return current !== next && ACCOUNT_TRANSITIONS[current].includes(next)
+  return from !== to && ACCOUNT_TRANSITIONS[from].includes(to)
 }
 
 export function permissionForAccountTransition(
-  current: AccountLifecycleStatus,
-  next: AccountLifecycleStatus,
+  from: AccountLifecycleStatus,
+  to: AccountLifecycleStatus,
 ): WewedAdminPermission {
-  if (current === 'pending_review' && next === 'active') return 'admin.accounts.approve'
-  if (next === 'rejected') return 'admin.accounts.reject'
-  if (next === 'suspended') return 'admin.accounts.suspend'
-  if (next === 'blocked') return 'admin.accounts.block'
-  if (next === 'cancelled') return 'admin.accounts.cancel'
-  if (next === 'archived') return 'admin.accounts.archive'
+  if (to === 'active') {
+    return from === 'pending_review'
+      ? 'admin.accounts.approve'
+      : 'admin.accounts.restore'
+  }
+  if (to === 'rejected') return 'admin.accounts.reject'
+  if (to === 'suspended') return 'admin.accounts.suspend'
+  if (to === 'blocked') return 'admin.accounts.block'
+  if (to === 'cancelled') return 'admin.accounts.cancel'
+  if (to === 'archived') return 'admin.accounts.archive'
   return 'admin.accounts.restore'
 }
 
-export function isRestrictiveAccountStatus(status: AccountLifecycleStatus): boolean {
-  return ['rejected', 'suspended', 'blocked', 'cancelled', 'archived'].includes(status)
+export function isRestrictiveAccountStatus(
+  status: AccountLifecycleStatus,
+): boolean {
+  return ['rejected', 'suspended', 'blocked', 'cancelled', 'archived'].includes(
+    status,
+  )
 }
 
 export function accountStatusAllowsWorkspace(status: string): boolean {

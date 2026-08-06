@@ -9,8 +9,10 @@ const [
   registration,
   registrationForm,
   roles,
+  governance,
   webhook,
   billing,
+  stripeBilling,
   globalTools,
   publicShell,
   adminLayout,
@@ -27,8 +29,10 @@ const [
   file('src/app/api/auth/register/route.ts'),
   file('src/components/public/public-registration-form.tsx'),
   file('src/app/api/admin/roles/route.ts'),
+  file('src/app/api/admin/governance/route.ts'),
   file('src/app/api/stripe/webhook/route.ts'),
   file('src/app/api/billing/account/route.ts'),
+  file('src/lib/stripe-billing.ts'),
   file('src/components/wedding/global-wedding-tools.tsx'),
   file('src/components/public/public-platform-shell.tsx'),
   file('src/app/admin/layout.tsx'),
@@ -56,19 +60,32 @@ assert.match(registrationForm, /Do not submit another application/)
 assert.match(registrationForm, /autoComplete="new-password"/)
 
 assert.match(roles, /inviteUserByEmail/)
-assert.match(roles, /Only a Super Admin may assign the Super Admin role/)
-assert.match(roles, /At least one active Wewed Super Admin must remain/)
+assert.match(roles, /admin\.platform_admins\.manage/)
+assert.match(roles, /action === 'update_admin_role'/)
+assert.match(roles, /Role, lifecycle, and scope changes are available only/)
 assert.match(roles, /separate Wewed administrator email/)
+assert.match(
+  governance,
+  /assertWewedAdminPermission\(context, 'admin\.platform_admins\.manage'\)/,
+)
+assert.match(governance, /The last active Super Admin cannot be demoted/)
+assert.match(governance, /cannot suspend or revoke their own account/)
+assert.match(governance, /become active only by accepting their secure invitation/)
 
 assert.match(webhook, /verifyStripeWebhookSignature/)
 assert.match(webhook, /eventAlreadyProcessed/)
 assert.match(webhook, /stripe\.webhook_processed/)
 assert.match(webhook, /PaymentRecord/)
+assert.match(webhook, /resolveEventOffer/)
 
 assert.match(billing, /createStripeCheckoutSession/)
 assert.match(billing, /createStripePortalSession/)
-assert.match(billing, /account\.status !== 'active'/)
-assert.match(billing, /stripePriceIdForPlan/)
+assert.match(billing, /resolved\.account\.status !== 'active'/)
+assert.match(billing, /stripePriceIdForOffer/)
+assert.match(billing, /resolveBillingOfferCode/)
+assert.match(stripeBilling, /offer\.accountType !== input\.accountType/)
+assert.match(stripeBilling, /metadata\[accountType\]/)
+assert.match(stripeBilling, /metadata\[offerCode\]/)
 
 assert.doesNotMatch(globalTools, /PublicRegistrationTrigger/)
 assert.match(publicShell, /href="\/register"/)
@@ -81,7 +98,10 @@ assert.match(dashboardAuthGate, /Forgot password\?/)
 assert.match(dashboardAuthGate, /\/forgot-password/)
 assert.match(forgotPasswordPage, /resetPasswordForEmail/)
 assert.match(forgotPasswordPage, /\/reset-password/)
-assert.match(forgotPasswordPage, /without revealing whether the address is registered/)
+assert.match(
+  forgotPasswordPage,
+  /without revealing whether the address is registered/,
+)
 assert.match(resetPasswordPage, /setSession/)
 assert.match(resetPasswordPage, /updateUser\(\{ password \}\)/)
 assert.match(resetPasswordPage, /signOut\(\{ scope: 'global' \}\)/)
@@ -92,7 +112,10 @@ for (const template of [confirmSignupTemplate, resetPasswordTemplate]) {
   assert.match(template, /WEWED · SECURE ACCESS/)
   assert.match(template, /\{\{ \.ConfirmationURL \}\}/)
   assert.match(template, /single-use and time-limited/)
-  assert.match(template, /never ask you to send a password, access token, or recovery code/)
+  assert.match(
+    template,
+    /never ask you to send a password, access token, or recovery code/,
+  )
 }
 assert.match(confirmSignupTemplate, /does not activate dashboard access/)
 assert.match(confirmSignupTemplate, /pending until a Wewed administrator reviews/)
@@ -105,4 +128,6 @@ assert.match(pricingCatalog, /\/register\?plan=/)
 assert.match(pricingCatalog, /WEWED_PLANS/)
 assert.match(pricingCatalog, /Annual · 2 months free/)
 
-console.log('Public registration, RBAC provisioning, auth recovery, branded email and Stripe contracts passed.')
+console.log(
+  'Public registration, governed RBAC provisioning, auth recovery, branded email, and account-specific Stripe contracts passed.',
+)

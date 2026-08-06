@@ -9,8 +9,10 @@ import {
   stripeUsesTestMode,
 } from '@/lib/stripe-billing'
 import {
+  BILLING_OFFER_BY_CODE,
+  isWewedBillableAccountType,
   isWewedBillingInterval,
-  isWewedPlanId,
+  resolveBillingOfferCode,
 } from '@/lib/wewed-plans'
 
 export const runtime = 'nodejs'
@@ -18,11 +20,13 @@ export const dynamic = 'force-dynamic'
 
 type BillingAccountRow = {
   id: string
+  type: string
   status: string
   onboardingStatus: string
   metadata: Record<string, unknown> | null
   memberRole: string
   memberPermissions: unknown
+  billingOfferCode: string | null
 }
 
 type StripeSubscription = {
@@ -51,11 +55,14 @@ type StripeList<T> = {
 
 function objectValue(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown>
+    ? (value as Record<string, unknown>)
     : {}
 }
 
-function metadataText(metadata: Record<string, unknown>, key: string): string | null {
+function metadataText(
+  metadata: Record<string, unknown>,
+  key: string,
+): string | null {
   const value = metadata[key]
   return typeof value === 'string' && value.trim() ? value.trim() : null
 }
@@ -102,9 +109,13 @@ async function stripeGet<T>(
       cache: 'no-store',
     },
   )
-  const payload = (await response.json()) as T & { error?: { message?: string } }
+  const payload = (await response.json()) as T & {
+    error?: { message?: string }
+  }
   if (!response.ok) {
-    throw new Error(payload.error?.message || 'Stripe rejected the reconciliation request.')
+    throw new Error(
+      payload.error?.message || 'Stripe rejected the reconciliation request.',
+    )
   }
   return payload
 }
@@ -128,15 +139,20 @@ function normalizeStatus(status: string): string {
   return status === 'canceled' ? 'cancelled' : status
 }
 
-async function resolveBillingAccount(request: NextRequest): Promise<BillingAccountRow | null> {
+async function resolveBillingAccount(
+  request: NextRequest,
+): Promise<BillingAccountRow | null> {
   const session = readAppSession(request)
   if (!session) return null
 
   const rows = await db.$queryRawUnsafe<BillingAccountRow[]>(
-    `SELECT ba.id, ba.status, ba."onboardingStatus", ba.metadata,
-      bam.role AS "memberRole", bam.permissions AS "memberPermissions"
-     FROM public."BusinessAccountMember" bam
-     JOIN public."BusinessAccount" ba ON ba.id = bam."businessAccountId"
+    `SELECT ba.id, ba.type, ba.status, ba."onboardingStatus", ba.metadata,
+      bam.role AS "memberRole", bam.permissions AS "memberPermissions",
+      billing."offerCode" AS "billingOfferCode"
+     FROM wewed_admin."BusinessAccountMember" bam
+     JOIN wewed_admin."BusinessAccount" ba ON ba.id = bam."businessAccountId"
+     LEFT JOIN wewed_admin."BusinessAccountBillingProfile" billing
+       ON billing."businessAccountId" = ba.id
      WHERE bam."userId" = $1
        AND bam.status = 'active'
        AND ba.type <> 'wewed_internal'
@@ -162,16 +178,37 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!businessMemberCanManageBilling(account.memberRole, account.memberPermissions)) {
+    if (!isWewedBillableAccountType(account.type)) {
       return NextResponse.json(
-        { success: false, error: 'Only a business owner or billing manager may synchronize billing.' },
+        { success: false, error: 'This account type is not eligible for billing.' },
         { status: 403 },
       )
     }
 
-    if (account.status !== 'active' || account.onboardingStatus !== 'complete') {
+    if (
+      !businessMemberCanManageBilling(
+        account.memberRole,
+        account.memberPermissions,
+      )
+    ) {
       return NextResponse.json(
-        { success: false, error: 'Complete approval and onboarding before synchronizing billing.' },
+        {
+          success: false,
+          error: 'Only a business owner or billing manager may synchronize billing.',
+        },
+        { status: 403 },
+      )
+    }
+
+    if (
+      account.status !== 'active' ||
+      account.onboardingStatus !== 'complete'
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Complete approval and onboarding before synchronizing billing.',
+        },
         { status: 403 },
       )
     }
@@ -181,29 +218,43 @@ export async function POST(request: NextRequest) {
     const customerId = metadataText(metadata, keys.customerId)
     if (!customerId) {
       return NextResponse.json(
-        { success: false, error: 'No Stripe customer exists for this account yet.' },
+        {
+          success: false,
+          error: 'No Stripe customer exists for this account yet.',
+        },
         { status: 409 },
       )
     }
 
     const environment = stripeEnvironment()
-    const payload = await stripeGet<StripeList<StripeSubscription>>('/subscriptions', {
-      customer: customerId,
-      status: 'all',
-      limit: 20,
-    })
+    const payload = await stripeGet<StripeList<StripeSubscription>>(
+      '/subscriptions',
+      {
+        customer: customerId,
+        status: 'all',
+        limit: 20,
+      },
+    )
 
     const subscriptions = (payload.data || [])
       .filter((subscription) => {
         const subscriptionCustomer = stringId(subscription.customer)
         const subscriptionMetadata = subscription.metadata || {}
-        const accountMatches = subscriptionMetadata.businessAccountId === account.id
-        const environmentMatches = !subscriptionMetadata.environment ||
+        const accountMatches =
+          subscriptionMetadata.businessAccountId === account.id
+        const environmentMatches =
+          !subscriptionMetadata.environment ||
           subscriptionMetadata.environment === environment
-        return subscriptionCustomer === customerId && accountMatches && environmentMatches
+        return (
+          subscriptionCustomer === customerId &&
+          accountMatches &&
+          environmentMatches
+        )
       })
       .sort((left, right) => {
-        const priority = subscriptionPriority(left.status) - subscriptionPriority(right.status)
+        const priority =
+          subscriptionPriority(left.status) -
+          subscriptionPriority(right.status)
         if (priority !== 0) return priority
         return (right.created || 0) - (left.created || 0)
       })
@@ -213,28 +264,54 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Stripe Checkout returned, but no matching subscription was found for this account.',
+          error:
+            'Stripe Checkout returned, but no matching subscription was found for this account.',
         },
         { status: 409 },
       )
     }
 
     const subscriptionMetadata = subscription.metadata || {}
-    const plan = subscriptionMetadata.plan
-    const recurringInterval = subscription.items?.data?.[0]?.price?.recurring?.interval
-    const interval = subscriptionMetadata.interval || recurringInterval || null
-
-    if (!isWewedPlanId(plan) || plan === 'free') {
-      throw new Error(`Stripe subscription ${subscription.id} has an invalid Wewed plan.`)
+    const metadataAccountType = subscriptionMetadata.accountType
+    if (metadataAccountType && metadataAccountType !== account.type) {
+      throw new Error(
+        `Stripe subscription ${subscription.id} belongs to a different account category.`,
+      )
     }
+
+    const offerCode = resolveBillingOfferCode({
+      accountType: account.type,
+      offerCode: subscriptionMetadata.offerCode,
+      legacyPlan: subscriptionMetadata.plan,
+    })
+    if (!offerCode) {
+      throw new Error(
+        `Stripe subscription ${subscription.id} has no valid offer for ${account.type}.`,
+      )
+    }
+    const offer = BILLING_OFFER_BY_CODE[offerCode]
+    if (!offer.selfService || offer.billingModel !== 'subscription') {
+      throw new Error(
+        `Stripe subscription ${subscription.id} references a non-self-service offer.`,
+      )
+    }
+
+    const recurringInterval =
+      subscription.items?.data?.[0]?.price?.recurring?.interval
+    const interval =
+      subscriptionMetadata.interval || recurringInterval || null
     if (!isWewedBillingInterval(interval)) {
-      throw new Error(`Stripe subscription ${subscription.id} has an invalid billing interval.`)
+      throw new Error(
+        `Stripe subscription ${subscription.id} has an invalid billing interval.`,
+      )
     }
 
-    const currentPeriodEnd = integer(subscription.current_period_end) ??
+    const currentPeriodEnd =
+      integer(subscription.current_period_end) ??
       integer(subscription.items?.data?.[0]?.current_period_end)
     const scheduledCancellationAt = integer(subscription.cancel_at)
-    const cancelAtPeriodEnd = subscription.cancel_at_period_end === true ||
+    const cancelAtPeriodEnd =
+      subscription.cancel_at_period_end === true ||
       scheduledCancellationAt !== null
     const accessOrRenewalEnd = cancelAtPeriodEnd
       ? scheduledCancellationAt ?? currentPeriodEnd
@@ -243,20 +320,26 @@ export async function POST(request: NextRequest) {
     const metadataPatch: Record<string, string> = {
       [keys.customerId]: customerId,
       [keys.subscriptionId]: subscription.id,
-      [keys.subscriptionPlan]: plan,
+      [keys.billingOfferCode]: offerCode,
+      [keys.billingAccountType]: account.type,
+      [keys.subscriptionPlan]: offer.legacyPlan,
       [keys.subscriptionStatus]: normalizedStatus,
       [keys.billingInterval]: interval,
       [keys.cancelAtPeriodEnd]: String(cancelAtPeriodEnd),
       [keys.lastSyncedAt]: new Date().toISOString(),
     }
     if (accessOrRenewalEnd) {
-      metadataPatch[keys.currentPeriodEndsAt] = new Date(accessOrRenewalEnd * 1000).toISOString()
+      metadataPatch[keys.currentPeriodEndsAt] = new Date(
+        accessOrRenewalEnd * 1000,
+      ).toISOString()
     }
 
     await db.$transaction(async (tx) => {
       if (stripeUsesTestMode()) {
+        // Sandbox state remains in environment-prefixed account metadata and is
+        // never promoted into the authoritative live billing profile or ledger.
         await tx.$executeRawUnsafe(
-          `UPDATE public."BusinessAccount"
+          `UPDATE wewed_admin."BusinessAccount"
            SET metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb,
              "updatedAt" = CURRENT_TIMESTAMP
            WHERE id = $1`,
@@ -265,7 +348,7 @@ export async function POST(request: NextRequest) {
         )
       } else {
         await tx.$executeRawUnsafe(
-          `UPDATE public."BusinessAccount"
+          `UPDATE wewed_admin."BusinessAccount"
            SET "subscriptionPlan" = $2,
              "subscriptionStatus" = $3,
              "currentPeriodEndsAt" = CASE
@@ -276,15 +359,53 @@ export async function POST(request: NextRequest) {
              "updatedAt" = CURRENT_TIMESTAMP
            WHERE id = $1`,
           account.id,
-          plan,
+          offer.legacyPlan,
           normalizedStatus,
           accessOrRenewalEnd,
           JSON.stringify(metadataPatch),
         )
+
+        await tx.$executeRawUnsafe(
+          `INSERT INTO wewed_admin."BusinessAccountBillingProfile" (
+             "businessAccountId", "accountType", "offerCode", interval,
+             status, source, currency, "currentPeriodEndsAt", metadata
+           ) VALUES (
+             $1, $2, $3, $4, $5, 'stripe_sync', 'USD',
+             CASE WHEN $6::bigint IS NULL THEN NULL
+               ELSE to_timestamp($6::bigint) END,
+             $7::jsonb
+           )
+           ON CONFLICT ("businessAccountId") DO UPDATE SET
+             "accountType" = EXCLUDED."accountType",
+             "offerCode" = EXCLUDED."offerCode",
+             interval = EXCLUDED.interval,
+             status = EXCLUDED.status,
+             source = 'stripe_sync',
+             currency = EXCLUDED.currency,
+             "currentPeriodEndsAt" = COALESCE(
+               EXCLUDED."currentPeriodEndsAt",
+               wewed_admin."BusinessAccountBillingProfile"."currentPeriodEndsAt"
+             ),
+             metadata = wewed_admin."BusinessAccountBillingProfile".metadata
+               || EXCLUDED.metadata,
+             version = wewed_admin."BusinessAccountBillingProfile".version + 1,
+             "updatedAt" = CURRENT_TIMESTAMP`,
+          account.id,
+          account.type,
+          offerCode,
+          interval,
+          normalizedStatus,
+          accessOrRenewalEnd,
+          JSON.stringify({
+            stripeEnvironment: environment,
+            stripeSubscriptionId: subscription.id,
+            lastSyncedAt: new Date().toISOString(),
+          }),
+        )
       }
 
       await tx.$executeRawUnsafe(
-        `INSERT INTO public."BusinessAuditLog"
+        `INSERT INTO wewed_admin."BusinessAuditLog"
           ("id", "actorUserId", "businessAccountId", "action", "resourceType", "resourceId", "details")
          VALUES ($1, NULL, $2, 'stripe.subscription_reconciled', 'StripeSubscription', $3, $4::jsonb)`,
         `audit-${randomUUID()}`,
@@ -294,7 +415,9 @@ export async function POST(request: NextRequest) {
           environment,
           customerId,
           subscriptionId: subscription.id,
-          plan,
+          accountType: account.type,
+          offerCode,
+          legacyPlan: offer.legacyPlan,
           interval,
           status: normalizedStatus,
           cancelAtPeriodEnd,
@@ -303,6 +426,7 @@ export async function POST(request: NextRequest) {
             : null,
           source: 'stripe_api_reconciliation',
           liveLedgerWriteSkipped: stripeUsesTestMode(),
+          liveBillingProfileWriteSkipped: stripeUsesTestMode(),
         }),
       )
     })
@@ -311,7 +435,9 @@ export async function POST(request: NextRequest) {
       success: true,
       subscription: {
         id: subscription.id,
-        plan,
+        accountType: account.type,
+        offerCode,
+        plan: offer.legacyPlan,
         interval,
         status: normalizedStatus,
         cancelAtPeriodEnd,
@@ -325,9 +451,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error
-          ? error.message
-          : 'Unable to synchronize billing with Stripe.',
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Unable to synchronize billing with Stripe.',
       },
       { status: 500 },
     )

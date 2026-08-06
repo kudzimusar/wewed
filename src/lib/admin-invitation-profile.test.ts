@@ -9,14 +9,14 @@ describe('administrator invitation and profile contract', () => {
   test('invitation flow avoids the fragile Supabase user-list endpoint', () => {
     const route = source('src/app/api/admin/roles/route.ts')
 
-    expect(route).not.toContain('findSupabaseAuthUserByEmail')
-    expect(route).not.toContain('.listUsers(')
+    expect(route).toContain('inviteUserByEmail')
+    expect(route).toContain('resetPasswordForEmail')
+    expect(route).toContain('findAuthIdentityByEmail')
     expect(route).toContain('FROM auth.users')
-    expect(route).toContain('/admin/accept-invite')
+    expect(route).not.toContain('admin.listUsers')
     expect(route).toContain("existingMembership?.status === 'active'")
     expect(route).toContain("? 'active' : 'invited'")
-    expect(route).toContain('status = CASE')
-    expect(route).toContain("ELSE 'invited'")
+    expect(route).toContain("'admin_membership.invited'")
   })
 
   test('administrator profiles stay private and include professional fields', () => {
@@ -40,7 +40,7 @@ describe('administrator invitation and profile contract', () => {
 
     expect(route).toContain("request.headers.get('authorization')")
     expect(route).toContain('service.auth.getUser(token)')
-    expect(route).toContain("!['invited', 'active'].includes(membership.status)")
+    expect(route).toContain("u.role = 'admin'")
     expect(route).toContain("SET status = 'active'")
     expect(route).toContain("action: 'admin_membership.accepted'")
     expect(route).toContain('"profileCompletedAt" = CURRENT_TIMESTAMP')
@@ -49,15 +49,16 @@ describe('administrator invitation and profile contract', () => {
     expect(page).toContain('Accept invitation and activate account')
   })
 
-  test('role-management form captures the complete invitation profile', () => {
+  test('invitation form captures the complete profile without exposing lifecycle mutation', () => {
     const form = source('src/components/admin/admin-role-management.tsx')
 
     expect(form).toContain('Full name')
     expect(form).toContain('Phone number')
-    expect(form).toContain('Alternate email addresses')
+    expect(form).toContain('Alternate emails, comma separated')
     expect(form).toContain('Address line 1')
-    expect(form).toContain('Certificates and credentials')
-    expect(form).toContain('Send invitation')
-    expect(form).toContain('<option value="invited">Invited</option>')
+    expect(form).toContain('One certificate or professional credential per line')
+    expect(form).toContain('Send secure invitation')
+    expect(form).toContain('Read-only here.')
+    expect(form).not.toContain("action: 'update_admin_role'")
   })
 })

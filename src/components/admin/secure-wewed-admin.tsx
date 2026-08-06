@@ -1,7 +1,7 @@
 'use client'
 
 import { DashboardAuthGate } from '@/components/wedding/dashboard-auth-gate'
-import { WewedAdminConsole } from '@/components/admin/wewed-admin-console'
+import { GovernedWewedAdminConsole } from '@/components/admin/governed-wewed-admin'
 
 interface SecureWewedAdminProps {
   onClose: () => void
@@ -10,11 +10,11 @@ interface SecureWewedAdminProps {
 export function SecureWewedAdmin({ onClose }: SecureWewedAdminProps) {
   return (
     <DashboardAuthGate
-      title="Wewed Business Admin Console"
-      description="Sign in with an active Wewed company administrator account."
+      title="Wewed Governance & Business Admin"
+      description="Sign in with your individual, active Wewed platform administrator identity."
       onClose={onClose}
     >
-      <WewedAdminConsole />
+      <GovernedWewedAdminConsole />
     </DashboardAuthGate>
   )
 }
