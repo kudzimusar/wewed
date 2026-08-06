@@ -242,7 +242,7 @@ $function$;
 DROP TRIGGER IF EXISTS sync_platform_admin_membership
   ON wewed_admin."BusinessAccountMember";
 CREATE TRIGGER sync_platform_admin_membership
-AFTER INSERT OR UPDATE OF role, status OR DELETE
+AFTER INSERT OR UPDATE OR DELETE
 ON wewed_admin."BusinessAccountMember"
 FOR EACH ROW
 EXECUTE FUNCTION wewed_admin.sync_platform_admin_from_membership();
