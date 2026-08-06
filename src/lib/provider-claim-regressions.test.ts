@@ -5,6 +5,7 @@ import { join } from 'node:path'
 const root = process.cwd()
 const source = (path: string) => readFileSync(join(root, path), 'utf8')
 
+// Release contract for provider-claim concurrency, presentation, directory and dedupe regressions.
 describe('provider claim and directory regression contracts', () => {
   test('serializes ownership approval before creating provider authority', () => {
     const claims = source('src/app/api/admin/providers/claims/route.ts')
