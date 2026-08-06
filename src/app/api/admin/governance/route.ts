@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import {
@@ -111,6 +112,7 @@ function errorResponse(error: unknown) {
       { status: error.status },
     )
   }
+
   console.error('[api/admin/governance] Error:', error)
   return NextResponse.json(
     { success: false, error: 'Unable to complete the governance request.' },
@@ -129,14 +131,26 @@ function riskFlags(account: AccountRow): string[] {
   if (account.onboardingStatus !== 'complete') {
     flags.push('incomplete_onboarding')
   }
-  if (['rejected', 'suspended', 'blocked', 'cancelled', 'archived'].includes(account.status)) {
+  if (
+    ['rejected', 'suspended', 'blocked', 'cancelled', 'archived'].includes(
+      account.status,
+    )
+  ) {
     flags.push('restricted_access')
   }
-  if (['past_due', 'unpaid', 'incomplete_expired'].includes(account.subscriptionStatus)) {
+  if (
+    ['past_due', 'unpaid', 'incomplete_expired'].includes(
+      account.subscriptionStatus,
+    )
+  ) {
     flags.push('billing_attention')
   }
-  const staleCutoff = Date.now() - 60 * 24 * 60 * 60 * 1000
-  if (account.lastActivityAt.getTime() < staleCutoff) flags.push('inactive_60_days')
+  if (
+    account.lastActivityAt.getTime() <
+    Date.now() - 60 * 24 * 60 * 60 * 1000
+  ) {
+    flags.push('inactive_60_days')
+  }
   return flags
 }
 
@@ -144,11 +158,12 @@ function effectiveAdminStatus(admin: PlatformAdministratorRow): string {
   if (admin.membershipStatus === 'invited') return 'invited'
   if (admin.membershipStatus === 'revoked') return 'revoked'
   if (admin.membershipStatus === 'suspended') return 'suspended'
-  if (!admin.userActive) return 'suspended'
-  return 'active'
+  return admin.userActive ? 'active' : 'suspended'
 }
 
-async function readScopedAccounts(context: WewedAdminContext): Promise<AccountRow[]> {
+async function readScopedAccounts(
+  context: WewedAdminContext,
+): Promise<AccountRow[]> {
   const scope = buildBusinessAccountScopeSql(context, 'ba', 1)
   return db.$queryRawUnsafe<AccountRow[]>(
     `SELECT
@@ -163,18 +178,25 @@ async function readScopedAccounts(context: WewedAdminContext): Promise<AccountRo
        ba."onboardingStatus",
        ba."subscriptionPlan",
        ba."subscriptionStatus",
-       (SELECT COUNT(*)::int FROM wewed_admin."BusinessAccountMember" member
+       (SELECT COUNT(*)::int
+        FROM wewed_admin."BusinessAccountMember" member
         WHERE member."businessAccountId" = ba.id) AS "memberCount",
-       (SELECT COUNT(*)::int FROM wewed_admin."BusinessAccountMember" member
-        WHERE member."businessAccountId" = ba.id AND member.status = 'active') AS "activeMemberCount",
-       (SELECT COUNT(*)::int FROM wewed_admin."BusinessAccountLink" link
-        WHERE link."businessAccountId" = ba.id AND link."entityType" = 'wedding') AS "weddingCount",
-       (SELECT COUNT(*)::int FROM wewed_admin."BusinessAccountLink" link
+       (SELECT COUNT(*)::int
+        FROM wewed_admin."BusinessAccountMember" member
+        WHERE member."businessAccountId" = ba.id
+          AND member.status = 'active') AS "activeMemberCount",
+       (SELECT COUNT(*)::int
+        FROM wewed_admin."BusinessAccountLink" link
+        WHERE link."businessAccountId" = ba.id
+          AND link."entityType" = 'wedding') AS "weddingCount",
+       (SELECT COUNT(*)::int
+        FROM wewed_admin."BusinessAccountLink" link
         WHERE link."businessAccountId" = ba.id) AS "linkedEntityCount",
        COALESCE(
          (SELECT MAX(member_user."lastLoginAt")
           FROM wewed_admin."BusinessAccountMember" member
-          JOIN public."User" member_user ON member_user.id = member."userId"
+          JOIN public."User" member_user
+            ON member_user.id = member."userId"
           WHERE member."businessAccountId" = ba.id),
          owner."lastLoginAt",
          ba."updatedAt"
@@ -198,41 +220,50 @@ async function readScopedAccounts(context: WewedAdminContext): Promise<AccountRo
 
 async function readPlatformAdministrators(
   context: WewedAdminContext,
-): Promise<Array<PlatformAdministratorRow & { scopes: ScopeRow[]; effectiveStatus: string }>> {
+): Promise<
+  Array<
+    PlatformAdministratorRow & {
+      scopes: ScopeRow[]
+      effectiveStatus: string
+    }
+  >
+> {
   const canManageAll = context.adminRole === 'wewed_super_admin'
-  const administrators = await db.$queryRawUnsafe<PlatformAdministratorRow[]>(
-    `SELECT
-       pa."userId",
-       pa."legacyMembershipId",
-       u.email,
-       u.name,
-       u."isActive" AS "userActive",
-       u."lastLoginAt",
-       pa.role,
-       pa.status AS "membershipStatus",
-       pa."statusReason",
-       profile."invitationStatus",
-       pa."invitedAt",
-       pa."activatedAt",
-       pa."suspendedAt",
-       pa."revokedAt",
-       pa.version,
-       pa."updatedAt"
-     FROM wewed_admin."PlatformAdministrator" pa
-     JOIN public."User" u ON u.id = pa."userId"
-     LEFT JOIN wewed_admin."AdministratorProfile" profile
-       ON profile."userId" = pa."userId"
-     WHERE $1::boolean OR pa."userId" = $2
-     ORDER BY CASE pa.role
-       WHEN 'wewed_super_admin' THEN 0
-       WHEN 'wewed_operations_admin' THEN 1
-       WHEN 'wewed_billing_admin' THEN 2
-       WHEN 'wewed_support_admin' THEN 3
-       ELSE 4
-     END, u.email`,
-    canManageAll,
-    context.session.userId,
-  )
+  const administrators =
+    await db.$queryRawUnsafe<PlatformAdministratorRow[]>(
+      `SELECT
+         pa."userId",
+         pa."legacyMembershipId",
+         u.email,
+         u.name,
+         u."isActive" AS "userActive",
+         u."lastLoginAt",
+         pa.role,
+         pa.status AS "membershipStatus",
+         pa."statusReason",
+         profile."invitationStatus",
+         pa."invitedAt",
+         pa."activatedAt",
+         pa."suspendedAt",
+         pa."revokedAt",
+         pa.version,
+         pa."updatedAt"
+       FROM wewed_admin."PlatformAdministrator" pa
+       JOIN public."User" u ON u.id = pa."userId"
+       LEFT JOIN wewed_admin."AdministratorProfile" profile
+         ON profile."userId" = pa."userId"
+       WHERE $1::boolean OR pa."userId" = $2
+       ORDER BY CASE pa.role
+         WHEN 'wewed_super_admin' THEN 0
+         WHEN 'wewed_operations_admin' THEN 1
+         WHEN 'wewed_billing_admin' THEN 2
+         WHEN 'wewed_support_admin' THEN 3
+         ELSE 4
+       END, u.email`,
+      canManageAll,
+      context.session.userId,
+    )
+
   const userIds = administrators.map((admin) => admin.userId)
   const scopes = userIds.length
     ? await db.$queryRawUnsafe<ScopeRow[]>(
@@ -243,16 +274,22 @@ async function readPlatformAdministrators(
         userIds,
       )
     : []
+
   return administrators.map((admin) => ({
     ...admin,
-    scopes: scopes.filter((scope) => scope.administratorUserId === admin.userId),
+    scopes: scopes.filter(
+      (scope) => scope.administratorUserId === admin.userId,
+    ),
     effectiveStatus: effectiveAdminStatus(admin),
   }))
 }
 
 export async function GET(request: NextRequest) {
   try {
-    const context = await requireWewedAdmin(request, 'admin.accounts.read')
+    const context = await requireWewedAdmin(
+      request,
+      'admin.accounts.read',
+    )
     const [accountRows, administrators] = await Promise.all([
       readScopedAccounts(context),
       readPlatformAdministrators(context),
@@ -270,13 +307,17 @@ export async function GET(request: NextRequest) {
         accounts.filter((account) => account.type === type).length,
       ]),
     )
+    const roleLabel = isWewedAdminRole(context.adminRole)
+      ? WEWED_ADMIN_ROLE_LABELS[context.adminRole]
+      : context.adminRole
+
     return NextResponse.json({
       success: true,
       admin: {
         userId: context.session.userId,
         email: context.session.email,
         role: context.adminRole,
-        roleLabel: WEWED_ADMIN_ROLE_LABELS[context.adminRole as keyof typeof WEWED_ADMIN_ROLE_LABELS] || context.adminRole,
+        roleLabel,
         permissions: context.permissions,
         accountScope: context.accountScope,
         registrySource: context.registrySource,
@@ -320,7 +361,10 @@ async function requireScopedAccount(
   )
   const account = rows[0]
   if (!account || !accountScopeAllows(context.accountScope, account)) {
-    throw new GovernanceRequestError('The account is outside this administrator scope.', 404)
+    throw new GovernanceRequestError(
+      'The account is outside this administrator scope.',
+      404,
+    )
   }
   return account
 }
@@ -337,14 +381,27 @@ async function activeSuperAdminCount(): Promise<number> {
   return rows[0]?.count || 0
 }
 
-async function platformAdministrator(userId: string): Promise<PlatformAdministratorRow> {
+async function platformAdministrator(
+  userId: string,
+): Promise<PlatformAdministratorRow> {
   const rows = await db.$queryRawUnsafe<PlatformAdministratorRow[]>(
     `SELECT
-       pa."userId", pa."legacyMembershipId", u.email, u.name,
-       u."isActive" AS "userActive", u."lastLoginAt", pa.role,
-       pa.status AS "membershipStatus", pa."statusReason",
-       profile."invitationStatus", pa."invitedAt", pa."activatedAt",
-       pa."suspendedAt", pa."revokedAt", pa.version, pa."updatedAt"
+       pa."userId",
+       pa."legacyMembershipId",
+       u.email,
+       u.name,
+       u."isActive" AS "userActive",
+       u."lastLoginAt",
+       pa.role,
+       pa.status AS "membershipStatus",
+       pa."statusReason",
+       profile."invitationStatus",
+       pa."invitedAt",
+       pa."activatedAt",
+       pa."suspendedAt",
+       pa."revokedAt",
+       pa.version,
+       pa."updatedAt"
      FROM wewed_admin."PlatformAdministrator" pa
      JOIN public."User" u ON u.id = pa."userId"
      LEFT JOIN wewed_admin."AdministratorProfile" profile
@@ -353,12 +410,14 @@ async function platformAdministrator(userId: string): Promise<PlatformAdministra
      LIMIT 1`,
     userId,
   )
-  if (!rows[0]) throw new GovernanceRequestError('Administrator not found.', 404)
+  if (!rows[0]) {
+    throw new GovernanceRequestError('Administrator not found.', 404)
+  }
   return rows[0]
 }
 
-async function auditInTransaction(
-  tx: Parameters<Parameters<typeof db.$transaction>[0]>[0],
+async function writeAudit(
+  tx: Prisma.TransactionClient,
   input: {
     actorUserId: string
     businessAccountId?: string | null
@@ -370,7 +429,8 @@ async function auditInTransaction(
 ) {
   await tx.$executeRawUnsafe(
     `INSERT INTO wewed_admin."BusinessAuditLog"
-      (id, "actorUserId", "businessAccountId", action, "resourceType", "resourceId", details)
+      (id, "actorUserId", "businessAccountId", action,
+       "resourceType", "resourceId", details)
      VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)`,
     createBusinessId('audit'),
     input.actorUserId,
@@ -390,31 +450,48 @@ async function transitionAccount(
   const nextStatus = text(body.status, 50)
   const reason = text(body.reason, 2000)
   const note = text(body.note, 4000)
+
   if (!accountId || !isAccountLifecycleStatus(nextStatus) || !reason) {
-    throw new GovernanceRequestError('Account, valid status, and reason are required.', 400)
+    throw new GovernanceRequestError(
+      'Account, valid status, and reason are required.',
+      400,
+    )
   }
+
   const account = await requireScopedAccount(context, accountId)
-  if (!isAccountLifecycleStatus(account.status) || !canTransitionAccount(account.status, nextStatus)) {
+  if (account.type === 'wewed_internal') {
+    throw new GovernanceRequestError(
+      'Wewed internal lifecycle is governed through platform controls.',
+      409,
+    )
+  }
+  if (
+    !isAccountLifecycleStatus(account.status) ||
+    !canTransitionAccount(account.status, nextStatus)
+  ) {
     throw new GovernanceRequestError(
       `The account cannot move from ${account.status} to ${nextStatus}.`,
       409,
     )
   }
+
   assertWewedAdminPermission(
     context,
     permissionForAccountTransition(account.status, nextStatus),
   )
+
   await db.$transaction(async (tx) => {
     await tx.$executeRawUnsafe(
       `UPDATE wewed_admin."BusinessAccount"
-       SET status = $2, notes = CASE WHEN $3 = '' THEN notes ELSE $3 END,
+       SET status = $2,
+           notes = CASE WHEN $3 = '' THEN notes ELSE $3 END,
            "updatedAt" = CURRENT_TIMESTAMP
        WHERE id = $1`,
       account.id,
       nextStatus,
       note,
     )
-    await auditInTransaction(tx, {
+    await writeAudit(tx, {
       actorUserId: context.session.userId,
       businessAccountId: account.id,
       action: 'account.lifecycle_changed',
@@ -439,12 +516,24 @@ async function updatePlatformAdminRole(
   const userId = text(body.userId, 200)
   const role = text(body.role, 80)
   const reason = text(body.reason, 2000)
+
   if (!userId || !isWewedAdminRole(role) || !reason) {
-    throw new GovernanceRequestError('Administrator, valid role, and reason are required.', 400)
+    throw new GovernanceRequestError(
+      'Administrator, valid role, and reason are required.',
+      400,
+    )
   }
+
   const target = await platformAdministrator(userId)
-  if (target.userId === context.session.userId && target.role === 'wewed_super_admin' && role !== target.role) {
-    throw new GovernanceRequestError('A Super Admin cannot demote their own active account.', 409)
+  if (
+    target.userId === context.session.userId &&
+    target.role === 'wewed_super_admin' &&
+    role !== target.role
+  ) {
+    throw new GovernanceRequestError(
+      'A Super Admin cannot demote their own active account.',
+      409,
+    )
   }
   if (
     target.role === 'wewed_super_admin' &&
@@ -452,9 +541,13 @@ async function updatePlatformAdminRole(
     target.membershipStatus === 'active' &&
     (await activeSuperAdminCount()) <= 1
   ) {
-    throw new GovernanceRequestError('The last active Super Admin cannot be demoted.', 409)
+    throw new GovernanceRequestError(
+      'The last active Super Admin cannot be demoted.',
+      409,
+    )
   }
   if (target.role === role) return
+
   await db.$transaction(async (tx) => {
     if (target.legacyMembershipId) {
       await tx.$executeRawUnsafe(
@@ -467,27 +560,32 @@ async function updatePlatformAdminRole(
     } else {
       await tx.$executeRawUnsafe(
         `UPDATE wewed_admin."PlatformAdministrator"
-         SET role = $2, version = version + 1, "updatedAt" = CURRENT_TIMESTAMP
+         SET role = $2,
+             version = version + 1,
+             "updatedAt" = CURRENT_TIMESTAMP
          WHERE "userId" = $1`,
         target.userId,
         role,
       )
-      await tx.$executeRawUnsafe(
+      await tx.$queryRawUnsafe(
         `SELECT wewed_admin.ensure_platform_admin_default_scopes($1, $2)`,
         target.userId,
         role,
       )
     }
+
     await tx.$executeRawUnsafe(
       `UPDATE wewed_admin."PlatformAdministrator"
-       SET "statusReason" = $2, "updatedByUserId" = $3,
-           version = version + 1, "updatedAt" = CURRENT_TIMESTAMP
+       SET "statusReason" = $2,
+           "updatedByUserId" = $3,
+           version = version + 1,
+           "updatedAt" = CURRENT_TIMESTAMP
        WHERE "userId" = $1`,
       target.userId,
       reason,
       context.session.userId,
     )
-    await auditInTransaction(tx, {
+    await writeAudit(tx, {
       actorUserId: context.session.userId,
       businessAccountId: context.businessAccountId,
       action: 'platform_administrator.role_changed',
@@ -511,9 +609,18 @@ async function transitionPlatformAdmin(
   const userId = text(body.userId, 200)
   const status = text(body.status, 40)
   const reason = text(body.reason, 2000)
-  if (!userId || !['active', 'suspended', 'revoked'].includes(status) || !reason) {
-    throw new GovernanceRequestError('Administrator, valid status, and reason are required.', 400)
+
+  if (
+    !userId ||
+    !['active', 'suspended', 'revoked'].includes(status) ||
+    !reason
+  ) {
+    throw new GovernanceRequestError(
+      'Administrator, valid status, and reason are required.',
+      400,
+    )
   }
+
   const target = await platformAdministrator(userId)
   if (target.membershipStatus === status) return
   if (target.membershipStatus === 'invited' && status === 'active') {
@@ -529,7 +636,10 @@ async function transitionPlatformAdmin(
     )
   }
   if (target.userId === context.session.userId && status !== 'active') {
-    throw new GovernanceRequestError('An administrator cannot suspend or revoke their own account.', 409)
+    throw new GovernanceRequestError(
+      'An administrator cannot suspend or revoke their own account.',
+      409,
+    )
   }
   if (
     target.role === 'wewed_super_admin' &&
@@ -537,8 +647,12 @@ async function transitionPlatformAdmin(
     status !== 'active' &&
     (await activeSuperAdminCount()) <= 1
   ) {
-    throw new GovernanceRequestError('The last active Super Admin cannot be suspended or revoked.', 409)
+    throw new GovernanceRequestError(
+      'The last active Super Admin cannot be suspended or revoked.',
+      409,
+    )
   }
+
   await db.$transaction(async (tx) => {
     if (target.legacyMembershipId) {
       await tx.$executeRawUnsafe(
@@ -551,19 +665,34 @@ async function transitionPlatformAdmin(
     } else {
       await tx.$executeRawUnsafe(
         `UPDATE wewed_admin."PlatformAdministrator"
-         SET status = $2, version = version + 1, "updatedAt" = CURRENT_TIMESTAMP
+         SET status = $2,
+             version = version + 1,
+             "updatedAt" = CURRENT_TIMESTAMP
          WHERE "userId" = $1`,
         target.userId,
         status,
       )
     }
+
     await tx.$executeRawUnsafe(
       `UPDATE wewed_admin."PlatformAdministrator"
        SET "statusReason" = $2,
            "updatedByUserId" = $3,
-           "activatedAt" = CASE WHEN $4 = 'active' THEN COALESCE("activatedAt", CURRENT_TIMESTAMP) ELSE "activatedAt" END,
-           "suspendedAt" = CASE WHEN $4 = 'suspended' THEN CURRENT_TIMESTAMP WHEN $4 = 'active' THEN NULL ELSE "suspendedAt" END,
-           "revokedAt" = CASE WHEN $4 = 'revoked' THEN CURRENT_TIMESTAMP WHEN $4 = 'active' THEN NULL ELSE "revokedAt" END,
+           "activatedAt" = CASE
+             WHEN $4 = 'active'
+               THEN COALESCE("activatedAt", CURRENT_TIMESTAMP)
+             ELSE "activatedAt"
+           END,
+           "suspendedAt" = CASE
+             WHEN $4 = 'suspended' THEN CURRENT_TIMESTAMP
+             WHEN $4 = 'active' THEN NULL
+             ELSE "suspendedAt"
+           END,
+           "revokedAt" = CASE
+             WHEN $4 = 'revoked' THEN CURRENT_TIMESTAMP
+             WHEN $4 = 'active' THEN NULL
+             ELSE "revokedAt"
+           END,
            version = version + 1,
            "updatedAt" = CURRENT_TIMESTAMP
        WHERE "userId" = $1`,
@@ -574,12 +703,13 @@ async function transitionPlatformAdmin(
     )
     await tx.$executeRawUnsafe(
       `UPDATE wewed_admin."AdministratorProfile"
-       SET "invitationStatus" = $2, "updatedAt" = CURRENT_TIMESTAMP
+       SET "invitationStatus" = $2,
+           "updatedAt" = CURRENT_TIMESTAMP
        WHERE "userId" = $1`,
       target.userId,
       status,
     )
-    await auditInTransaction(tx, {
+    await writeAudit(tx, {
       actorUserId: context.session.userId,
       businessAccountId: context.businessAccountId,
       action: 'platform_administrator.status_changed',
@@ -607,27 +737,47 @@ async function replacePlatformAdminScopes(
     (value): value is PlatformAccountType =>
       isPlatformAccountType(value) && value !== 'wewed_internal',
   )
-  const businessAccountIds = uniqueStrings(body.businessAccountIds, 100)
+  const businessAccountIds = uniqueStrings(
+    body.businessAccountIds,
+    100,
+  )
+
   if (!userId || !reason) {
-    throw new GovernanceRequestError('Administrator and reason are required.', 400)
+    throw new GovernanceRequestError(
+      'Administrator and reason are required.',
+      400,
+    )
   }
+
   const target = await platformAdministrator(userId)
   if (target.role === 'wewed_super_admin') {
-    throw new GovernanceRequestError('Super Admin scope is always global and cannot be narrowed.', 409)
+    throw new GovernanceRequestError(
+      'Super Admin scope is always global and cannot be narrowed.',
+      409,
+    )
   }
   if (accountTypes.length === 0 && businessAccountIds.length === 0) {
-    throw new GovernanceRequestError('Assign at least one account category or explicit account.', 400)
+    throw new GovernanceRequestError(
+      'Assign at least one account category or explicit account.',
+      400,
+    )
   }
   if (businessAccountIds.length) {
     const rows = await db.$queryRawUnsafe<Array<{ id: string }>>(
-      `SELECT id FROM wewed_admin."BusinessAccount"
-       WHERE id = ANY($1::text[]) AND type <> 'wewed_internal'`,
+      `SELECT id
+       FROM wewed_admin."BusinessAccount"
+       WHERE id = ANY($1::text[])
+         AND type <> 'wewed_internal'`,
       businessAccountIds,
     )
     if (rows.length !== businessAccountIds.length) {
-      throw new GovernanceRequestError('One or more explicit account scopes are invalid.', 400)
+      throw new GovernanceRequestError(
+        'One or more explicit account scopes are invalid.',
+        400,
+      )
     }
   }
+
   await db.$transaction(async (tx) => {
     await tx.$executeRawUnsafe(
       `DELETE FROM wewed_admin."PlatformAdministratorScope"
@@ -637,7 +787,8 @@ async function replacePlatformAdminScopes(
     for (const accountType of accountTypes) {
       await tx.$executeRawUnsafe(
         `INSERT INTO wewed_admin."PlatformAdministratorScope"
-          (id, "administratorUserId", "scopeType", "scopeValue", "createdByUserId")
+          (id, "administratorUserId", "scopeType", "scopeValue",
+           "createdByUserId")
          VALUES ($1, $2, 'account_type', $3, $4)`,
         createBusinessId('platform-scope'),
         target.userId,
@@ -648,7 +799,8 @@ async function replacePlatformAdminScopes(
     for (const accountId of businessAccountIds) {
       await tx.$executeRawUnsafe(
         `INSERT INTO wewed_admin."PlatformAdministratorScope"
-          (id, "administratorUserId", "scopeType", "scopeValue", "createdByUserId")
+          (id, "administratorUserId", "scopeType", "scopeValue",
+           "createdByUserId")
          VALUES ($1, $2, 'business_account', $3, $4)`,
         createBusinessId('platform-scope'),
         target.userId,
@@ -656,16 +808,19 @@ async function replacePlatformAdminScopes(
         context.session.userId,
       )
     }
+
     await tx.$executeRawUnsafe(
       `UPDATE wewed_admin."PlatformAdministrator"
-       SET "statusReason" = $2, "updatedByUserId" = $3,
-           version = version + 1, "updatedAt" = CURRENT_TIMESTAMP
+       SET "statusReason" = $2,
+           "updatedByUserId" = $3,
+           version = version + 1,
+           "updatedAt" = CURRENT_TIMESTAMP
        WHERE "userId" = $1`,
       target.userId,
       reason,
       context.session.userId,
     )
-    await auditInTransaction(tx, {
+    await writeAudit(tx, {
       actorUserId: context.session.userId,
       businessAccountId: context.businessAccountId,
       action: 'platform_administrator.scopes_replaced',
@@ -683,9 +838,13 @@ async function replacePlatformAdminScopes(
 
 export async function POST(request: NextRequest) {
   try {
-    const context = await requireWewedAdmin(request, 'admin.accounts.read')
+    const context = await requireWewedAdmin(
+      request,
+      'admin.accounts.read',
+    )
     const body = (await request.json()) as Record<string, unknown>
     const action = text(body.action, 100) as GovernanceAction
+
     if (action === 'transition_account') {
       await transitionAccount(context, body)
     } else if (action === 'update_platform_admin_role') {
@@ -695,8 +854,12 @@ export async function POST(request: NextRequest) {
     } else if (action === 'replace_platform_admin_scopes') {
       await replacePlatformAdminScopes(context, body)
     } else {
-      throw new GovernanceRequestError('Unsupported governance action.', 400)
+      throw new GovernanceRequestError(
+        'Unsupported governance action.',
+        400,
+      )
     }
+
     return NextResponse.json({ success: true })
   } catch (error) {
     return errorResponse(error)
