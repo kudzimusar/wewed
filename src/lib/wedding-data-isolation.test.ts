@@ -11,7 +11,15 @@ describe('wedding identity isolation', () => {
     expect(provider).toContain('isFlagship: activeSlug === FLAGSHIP_WEDDING_SLUG')
     expect(home).toContain('if (!isFlagship) {')
     expect(home).toContain('<DataBackedWeddingExperience />')
+    expect(home).toContain('<CoupleLogin accessKind={accessKind} />')
     expect(home).toContain('<GlobalWeddingTools accessKind={accessKind} />')
+    const nonFlagship = home.slice(
+      home.indexOf('if (!isFlagship) {'),
+      home.indexOf('const activeLifecycle'),
+    )
+    expect(nonFlagship).toContain('<DataBackedWeddingExperience />')
+    expect(nonFlagship).toContain('<CoupleLogin accessKind={accessKind} />')
+    expect(nonFlagship).not.toContain('<GlobalWeddingTools')
     expect(home.indexOf('if (!isFlagship)')).toBeLessThan(home.indexOf('<Navbar />'))
   })
 
