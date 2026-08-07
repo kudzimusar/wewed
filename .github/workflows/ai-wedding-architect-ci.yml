@@ -64,6 +64,8 @@ jobs:
         run: bun test src/lib/wedding-requirements.test.ts
       - name: Deterministic wedding pricing contract
         run: bun test src/lib/wedding-architect-pricing.test.ts
+      - name: Deterministic provider eligibility contract
+        run: bun test src/lib/wedding-architect-eligibility.test.ts
       - name: Cross-ecosystem Wedding Architect contract
         run: bun test src/lib/wedding-architect-ecosystem-contract.test.ts
       - name: Detect migration/schema drift
