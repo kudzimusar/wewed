@@ -18,6 +18,7 @@ export const PRICE_COMPONENT_TYPES = [
   'per_session',
   'per_kilometre',
   'per_trip',
+  'percentage_of_budget',
   'percentage_surcharge',
   'fixed_surcharge',
   'discount',
