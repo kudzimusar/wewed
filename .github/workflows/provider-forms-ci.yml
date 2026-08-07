@@ -54,6 +54,7 @@ jobs:
       - run: bunx prisma migrate deploy --schema prisma/schema.prisma
       - run: bun test src/lib/provider-forms-profile-upgrade.test.ts
       - run: bun test src/lib/provider-commercial.test.ts
+      - run: bun test src/lib/provider-pricing-catalog.test.ts
       - run: bun test src/lib/provider-claim-regressions.test.ts
       - run: >-
           bunx prisma migrate diff
