@@ -55,7 +55,9 @@ const migration = requireAll('prisma/migrations/20260807150000_admin_command_cen
   'ON CONFLICT ("businessAccountId", "departmentKey") DO NOTHING',
   'ON CONFLICT ("businessAccountId") DO NOTHING',
   'REVOKE ALL ON TABLE',
-  'FROM PUBLIC, anon, authenticated',
+  'FROM PUBLIC;',
+  "IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon')",
+  "IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated')",
   "classification.source='system'",
 ])
 assert.ok(
