@@ -1,5 +1,8 @@
 import type { NextConfig } from "next";
 
+const OFFICIAL_ORIGIN = "https://wewed.pro";
+const productionVercelHost = process.env.VERCEL_PROJECT_PRODUCTION_URL?.replace(/^https?:\/\//, "").replace(/\/$/, "");
+
 const nextConfig: NextConfig = {
   output: "standalone",
   typescript: {
@@ -27,6 +30,20 @@ const nextConfig: NextConfig = {
     "socket.io-client",
     "sharp",
   ],
+  async redirects() {
+    if (process.env.VERCEL_ENV !== "production" || !productionVercelHost || productionVercelHost === "wewed.pro") {
+      return [];
+    }
+
+    return [
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: productionVercelHost }],
+        destination: `${OFFICIAL_ORIGIN}/:path*`,
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;
