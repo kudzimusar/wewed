@@ -172,12 +172,12 @@ export function FaqSection() {
             Still have questions?
           </p>
           <a
-            href="mailto:hello@wewed.app"
+            href="/company/contact"
             className="group inline-flex items-center gap-2 font-sans text-sm tracking-wide text-gold-muted transition-colors hover:text-gold"
           >
             <Mail className="h-4 w-4 transition-transform group-hover:-translate-y-0.5" />
             <span className="border-b border-gold/30 pb-0.5 transition-colors group-hover:border-gold">
-              hello@wewed.app
+              Wewed contact
             </span>
           </a>
           <p className="mt-4 wewed-monogram text-xs">C&amp;K &middot; 23.12.26</p>

@@ -146,7 +146,7 @@ function WeddingHomeContent({ accessKind }: { accessKind: PublicWeddingAccessKin
       <Footer />
       <GlobalWeddingTools accessKind={accessKind} />
       <div className="wewed-print-footer" aria-hidden="true">
-        Printed from wewed.app/w/{slug} · {names} · {date}
+        Printed from wewed.pro/w/{slug} · {names} · {date}
       </div>
     </div>
   )

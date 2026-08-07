@@ -968,7 +968,7 @@ function travelValidateRow(row: Record<string, string>): string[] {
 const mediaFields: FieldDefinition[] = [
   { key: 'mediaId', label: 'Media ID', required: false, type: 'string' },
   { key: 'fileName', label: 'File Name', required: true, type: 'string', example: 'first-dance-01.jpg' },
-  { key: 'cloudUrl', label: 'Cloud URL', required: true, type: 'string', example: 'https://cdn.wewed.app/first-dance-01.jpg' },
+  { key: 'cloudUrl', label: 'Cloud URL', required: true, type: 'string', example: 'https://cdn.wewed.pro/first-dance-01.jpg' },
   { key: 'caption', label: 'Caption', required: false, type: 'string', example: 'The first dance' },
   { key: 'description', label: 'Description', required: false, type: 'string' },
   { key: 'dateTaken', label: 'Date Taken', required: false, type: 'date', example: '2026-12-23' },
