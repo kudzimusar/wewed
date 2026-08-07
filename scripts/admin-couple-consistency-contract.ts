@@ -69,15 +69,31 @@ assert.ok(
 )
 
 const adminRoute = includesAll('src/app/api/admin/account-identity/route.ts', [
-  "requireWewedAdmin(request, 'admin.accounts.read')",
+  "const context = await requireWewedAdmin(request, 'admin.accounts.read')",
+  "buildBusinessAccountScopeSql(context, 'ba', 1)",
+  'AND (${accountScope.clause})',
   'public."WeddingMembership"',
   'public."PlannerEngagement"',
   'pendingInvitations',
   'workspace_membership_without_engagement',
+  'inactive_engagement_with_active_workspace_membership',
   'engagement_without_matching_workspace_membership',
+  "if (!diagnosticsAvailable) return 'unavailable'",
   "engagement.status !== 'active'",
-  "WHERE pe.status IN ('requested', 'planner_accepted', 'active', 'paused')",
+  "AND pe.status IN ('requested', 'planner_accepted', 'active', 'paused')",
 ])
+assert.ok(
+  adminRoute.includes('WHERE wm."weddingId" = ANY($1::text[])'),
+  'Admin identity membership diagnostics must stay within weddings from the scoped account query.',
+)
+assert.ok(
+  adminRoute.includes('WHERE pe."weddingId" = ANY($1::text[])'),
+  'Planner engagement diagnostics must stay within weddings from the scoped account query.',
+)
+assert.ok(
+  adminRoute.includes('plannerDiagnosticsAvailable = false'),
+  'A failed PlannerEngagement diagnostic source must become explicitly unavailable, not an empty relationship set.',
+)
 for (const mutatingHandler of ['POST', 'PUT', 'PATCH', 'DELETE']) {
   assert.ok(!adminRoute.includes(`export async function ${mutatingHandler}`), `Account identity diagnostics must remain read-only; found ${mutatingHandler}.`)
 }
