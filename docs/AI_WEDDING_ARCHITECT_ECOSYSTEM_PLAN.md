@@ -551,27 +551,31 @@ No database-only or UI-only commercial field is considered complete.
 
 ## 20. Delivery phases
 
-### Phase A — Data contract and provider catalogue readiness
+### Phase A — Data contract and provider catalogue readiness — COMPLETE
 
-- [ ] Add structured commercial fields and calculation components.
-- [ ] Extend package model.
-- [ ] Add AI planning readiness/completeness calculation.
-- [ ] Upgrade category forms and validation.
-- [ ] Preserve public provider and marketplace compatibility.
+- [x] Add structured commercial fields and calculation components.
+- [x] Extend package model.
+- [x] Add AI planning readiness/completeness calculation.
+- [x] Upgrade category forms and validation.
+- [x] Preserve public provider and marketplace compatibility.
 
-### Phase B — Client requirements
+### Phase B — Client requirements — COMPLETE
 
-- [ ] Canonical wedding requirements model.
-- [ ] Couple/planner shared requirement UI.
-- [ ] Category-specific questions and priority levels.
-- [ ] AI-assisted conversational requirement completion.
+- [x] Canonical wedding requirements model.
+- [x] Couple/planner shared requirement UI.
+- [x] Category-specific questions and priority levels.
+- [x] AI-assisted conversational requirement completion.
 
-### Phase C — Pricing and eligibility
+### Phase C — Pricing and eligibility — PARTIAL / FAIL-CLOSED
 
-- [ ] Deterministic pricing library with category fixtures.
-- [ ] Price provenance/versioning.
-- [ ] Eligibility filter and explicit rejection reasons.
-- [ ] Subscription entitlement integration.
+- [x] Deterministic pricing library with category fixtures.
+- [x] Price provenance/versioning primitives in deterministic calculation results.
+- [x] Eligibility filter and explicit rejection reasons as a deterministic library.
+- [ ] Canonical marketplace candidate adapter resolving live provider/account/subscription/availability data.
+- [ ] End-to-end subscription entitlement integration into Wedding Architect candidate selection.
+- [ ] Category-semantic approval for ambiguous variable quantity bindings.
+
+Release boundary: Phase C libraries are present for controlled development and testing, but the production-facing Wedding Architect does not yet auto-select or optimise real providers. Ambiguous variable units are stored but fail AI Planning Readiness for automatic selection until their category semantics are explicitly approved.
 
 ### Phase D — Optimisation and Wedding Plan
 
@@ -623,8 +627,8 @@ No phase is merged merely because its isolated tests pass.
 
 Before merge, the branch must be synchronised with current `main` and the **combined build** must pass the relevant ecosystem gates. Production remains unchanged until the release candidate is verified.
 
-## 23. Initial implementation decision
+## 23. Current implementation status
 
-Implementation starts with **Phase A: canonical provider commercial data and AI Planning Readiness**, because the Wedding Architect must not optimise against ambiguous or invented prices.
+Phases A and B are implemented on the Wedding Architect feature branch. Phase C has deterministic pricing, provenance primitives, eligibility rules and quantity-binding infrastructure, but live marketplace candidate selection, subscription integration and category-semantic approval remain intentionally incomplete.
 
-The first deliverable is complete only when the database, provider APIs, provider forms and regression tests agree on the same commercial contract. The optimiser and user-facing Wedding Architect must not be built on top of a partially implemented catalogue contract.
+The release therefore fails closed: no production-facing optimiser or automatic provider recommendation is exposed from partial Phase C work. The shared provider catalogue and Wedding Brief may be tested and merged only after the exact-head regression gates, Preview deployment and UAT pass. Later optimiser work must consume the same canonical records rather than creating a parallel AI data model.

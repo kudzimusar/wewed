@@ -13,7 +13,11 @@ import {
   calculateCommercialReadiness,
   calculatePackageCompletion,
 } from '@/lib/provider-commercial'
-import { defaultPriceBinding, providerPriceBindingOptions } from '@/lib/provider-price-bindings'
+import {
+  defaultPriceBinding,
+  priceComponentsUseCanonicalAutomaticBindings,
+  providerPriceBindingOptions,
+} from '@/lib/provider-price-bindings'
 
 const VISIBILITY = new Set(['draft', 'published'])
 const OFFERING_STATUS = new Set(['draft', 'published'])
@@ -424,6 +428,15 @@ export async function PUT(request: NextRequest) {
         const pricingVisibility = typeof input.pricingVisibility === 'string' && PRICING_VISIBILITY.has(input.pricingVisibility) ? input.pricingVisibility : 'quote_only'
         const commercialTerms = normalizeCommercialTerms(input.commercialTerms)
         const priceComponents = normalizePriceComponents(input.priceComponents, category)
+        const packages = Array.isArray(input.packages) ? input.packages.slice(0, 20).map(jsonObject) : []
+        const allPriceComponents = [
+          ...priceComponents,
+          ...packages.flatMap((packageInput) =>
+            Array.isArray(packageInput.priceComponents) ? packageInput.priceComponents : [],
+          ),
+        ]
+        const automaticQuantityBindingsApproved =
+          priceComponentsUseCanonicalAutomaticBindings(allPriceComponents)
         const priceValidFrom = dateValue(input.priceValidFrom, 'Price valid from')
         const priceValidUntil = dateValue(input.priceValidUntil, 'Price valid until', true)
         if (priceValidFrom && priceValidUntil && priceValidFrom > priceValidUntil) throw new Error('Price valid from cannot be after price valid until.')
@@ -451,7 +464,7 @@ export async function PUT(request: NextRequest) {
           serviceAreas: stringList(input.serviceAreas, 50),
           inclusions: stringList(input.inclusions, 50),
           details,
-          packages: Array.isArray(input.packages) ? input.packages.slice(0, 20).map(jsonObject) : [],
+          packages,
           portfolio: Array.isArray(input.portfolio) ? input.portfolio.slice(0, 30).map(jsonObject) : [],
         }
         offering.completionScore = offeringCompletion(category, input, details)
@@ -459,6 +472,8 @@ export async function PUT(request: NextRequest) {
           ...offering,
           serviceAreas: offering.serviceAreas,
           packages: offering.packages,
+          priceComponents: allPriceComponents,
+          automaticQuantityBindingsApproved,
           commercialConfirmed,
         })
         Object.assign(offering, {
