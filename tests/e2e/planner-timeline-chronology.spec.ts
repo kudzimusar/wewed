@@ -29,15 +29,26 @@ async function timelineItemIndex(
   page: Parameters<typeof openModule>[0],
   event: string,
 ): Promise<number> {
-  const matchingItem = page.getByTestId('timeline-item').filter({ hasText: event })
+  const timelineItems = page.getByTestId('timeline-item')
+  const matchingItem = timelineItems.filter({ hasText: event })
+
+  // Timeline state can refresh after module navigation. Read the list and find
+  // the target in one browser-side snapshot so a React rerender cannot occur
+  // between a visibility assertion and the index lookup.
+  let index = -1
+  await expect
+    .poll(async () => {
+      index = await timelineItems.evaluateAll(
+        (items, targetEvent) =>
+          items.findIndex((item) => item.textContent?.includes(targetEvent)),
+        event,
+      )
+      return index
+    })
+    .toBeGreaterThanOrEqual(0)
+
   await expect(matchingItem).toHaveCount(1)
   await expect(matchingItem).toBeVisible()
-
-  const index = await page.getByTestId('timeline-item').evaluateAll(
-    (items, targetEvent) => items.findIndex((item) => item.textContent?.includes(targetEvent)),
-    event,
-  )
-  expect(index).toBeGreaterThanOrEqual(0)
   return index
 }
 

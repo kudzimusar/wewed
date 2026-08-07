@@ -1,0 +1,122 @@
+name: Admin Command Centre CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - feat/admin-command-center-taxonomy-responsive-20260807
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: admin-command-centre-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify plan, migration, build, and responsive Admin
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: wewed
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      CI: 'true'
+      WEWED_E2E_MODE: '1'
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/wewed?schema=public
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/wewed?schema=public
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: ci-service-role-key
+      WEWED_SESSION_SECRET: ci-session-secret-not-for-production
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      NEXT_TELEMETRY_DISABLED: 1
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install pinned browser test runner
+        run: bun add --no-save --exact @playwright/test@1.55.0
+
+      - name: Execute documented-plan source contract
+        run: bun scripts/admin-command-center-contract.ts
+
+      - name: Validate Prisma schema
+        run: bunx prisma validate --schema prisma/schema.prisma
+
+      - name: Generate Prisma client
+        run: bunx prisma generate --schema prisma/schema.prisma
+
+      - name: Apply complete migration chain to clean PostgreSQL
+        run: bunx prisma migrate deploy --schema prisma/schema.prisma
+
+      - name: Verify migration status
+        run: bunx prisma migrate status --schema prisma/schema.prisma
+
+      - name: Detect schema drift
+        run: >-
+          bunx prisma migrate diff
+          --from-url "$DATABASE_URL"
+          --to-schema-datamodel prisma/schema.prisma
+          --exit-code
+
+      - name: Verify Admin taxonomy provisioning invariants
+        run: psql "postgresql://postgres:postgres@localhost:5432/wewed" -f scripts/admin-command-center-postgres-integration.sql
+
+      - name: Lint changed Admin implementation
+        run: >-
+          bunx eslint
+          scripts/admin-command-center-contract.ts
+          src/app/api/admin/command-center/route.ts
+          src/app/admin/layout.tsx
+          src/components/admin/admin-command-centre.tsx
+          src/components/admin/admin-utility-nav.tsx
+          src/components/admin/secure-wewed-admin.tsx
+          tests/e2e/support/admin-browser.ts
+          tests/e2e/admin-command-centre-responsive.spec.ts
+
+      - name: Build production application
+        run: bun run build
+
+      - name: Install Chromium and system dependencies
+        run: bunx playwright install --with-deps chromium
+
+      - name: Run Admin Windows/mobile browser gate
+        run: bunx playwright test tests/e2e/admin-command-centre-responsive.spec.ts --project=desktop-chromium --fail-on-flaky-tests
+
+      - name: Upload browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-command-centre-browser-gate
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 14

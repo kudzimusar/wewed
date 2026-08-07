@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
 import { AdminUtilityNav } from '@/components/admin/admin-utility-nav'
+import './admin-responsive.css'
 
 export const metadata: Metadata = {
   title: 'Wewed Business Admin Console',
