@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { BriefcaseBusiness, CheckCircle2, Eye, EyeOff, Loader2, Lock, LogOut, Plus, Save, Sparkles, Trash2 } from 'lucide-react'
 import { PublicPlatformShell } from '@/components/public/public-platform-shell'
+import { ProviderCommercialAiCoach } from '@/components/providers/provider-commercial-ai-coach'
 import { createClient } from '@/lib/supabase/client'
 import {
   LANGUAGE_OPTIONS,
@@ -877,6 +878,13 @@ function OfferingEditor({ offering, index, onUpdate, onRemove, removable }: {
             return <div key={recommended.key} className={`rounded-xl border p-3 text-xs ${added ? "border-sage/25 bg-sage/5" : "border-gold/15 bg-white"}`}><div className="flex items-center justify-between gap-2"><strong>{recommended.label}</strong><span className="text-[10px] uppercase tracking-[0.12em] text-espresso/40">{recommended.priority}</span></div><p className="mt-1 leading-5 text-espresso/50">{recommended.help}</p>{recommended.unit && <p className="mt-1 text-[10px] text-gold-muted">Unit: {recommended.unit}</p>}</div>
           })}
         </div>
+        <ProviderCommercialAiCoach
+          category={offering.category}
+          description={offering.description}
+          details={offering.details}
+          priceComponents={offering.priceComponents}
+          readinessMissing={offering.aiReadinessMissing}
+        />
       </div>
       <PriceComponentEditor value={offering.priceComponents} onChange={(priceComponents) => onUpdate(index, { priceComponents })} />
       <div className="mt-6 rounded-2xl border border-gold/25 bg-white p-5">
