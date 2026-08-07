@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { PublicDocumentDetail } from '@/components/public/public-document-pages'
-import { getPublicDocument, getPublicDocuments } from '@/lib/public-documents'
+import { getPublicDocument, getPublicDocuments } from '@/lib/public-site-documents'
 
 export function generateStaticParams() {
   return getPublicDocuments('developers').map(({ slug }) => ({ slug }))
