@@ -104,9 +104,17 @@ test('Business account registry switches away from mandatory horizontal scrollin
 test('Account 360 keeps classification separate from lifecycle, systems, and billing', async ({ adminPage: page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/admin')
-  await page.getByRole('button', { name: 'Accounts' }).first().click()
 
   const commandCentre = page.locator('[data-admin-command-centre="true"]')
+  await expect(commandCentre).toBeVisible()
+  const commandNav = commandCentre.getByRole('navigation', {
+    name: 'Command centre sections',
+  })
+  await commandNav.getByRole('button', { name: 'Accounts', exact: true }).click()
+  await expect(
+    commandCentre.getByPlaceholder('Search account, owner, service, subtype'),
+  ).toBeVisible()
+
   const accountCard = commandCentre
     .getByText('Wewed', { exact: true })
     .locator('xpath=ancestor::button[1]')
