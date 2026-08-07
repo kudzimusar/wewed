@@ -1,0 +1,171 @@
+.wewed-admin-responsive {
+  overflow-x: clip;
+  padding-bottom: calc(5.75rem + env(safe-area-inset-bottom));
+}
+
+.admin-governance-responsive {
+  min-width: 0;
+  overflow-x: clip;
+}
+
+.admin-governance-responsive [class~="overflow-x-auto"] {
+  scrollbar-gutter: stable both-edges;
+  overscroll-behavior-x: contain;
+}
+
+@media (max-width: 1199px) {
+  .admin-governance-responsive table[class*="min-w-[1050px]"] {
+    display: block;
+    min-width: 0 !important;
+    width: 100%;
+  }
+
+  .admin-governance-responsive table[class*="min-w-[1050px]"] thead {
+    display: none;
+  }
+
+  .admin-governance-responsive table[class*="min-w-[1050px]"] tbody {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+    padding: 0.65rem;
+  }
+
+  .admin-governance-responsive table[class*="min-w-[1050px]"] tbody tr {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid rgb(191 155 95 / 0.14);
+    border-radius: 0.8rem;
+    background: rgb(255 255 255 / 0.025);
+  }
+
+  .admin-governance-responsive table[class*="min-w-[1050px]"] tbody td {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: 6.5rem minmax(0, 1fr);
+    align-items: center;
+    gap: 0.5rem;
+    border-bottom: 1px solid rgb(191 155 95 / 0.08);
+    padding: 0.5rem 0.65rem !important;
+    font-size: 0.7rem;
+    line-height: 1rem;
+  }
+
+  .admin-governance-responsive table[class*="min-w-[1050px]"] tbody td:last-child {
+    border-bottom: 0;
+  }
+
+  .admin-governance-responsive table[class*="min-w-[1050px]"] tbody td::before {
+    color: rgb(232 216 187 / 0.42);
+    font-size: 0.56rem;
+    font-weight: 700;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+  }
+
+  .admin-governance-responsive table[class*="min-w-[1050px]"] tbody td:nth-child(1)::before { content: "Account"; }
+  .admin-governance-responsive table[class*="min-w-[1050px]"] tbody td:nth-child(2)::before { content: "Lifecycle"; }
+  .admin-governance-responsive table[class*="min-w-[1050px]"] tbody td:nth-child(3)::before { content: "Owner"; }
+  .admin-governance-responsive table[class*="min-w-[1050px]"] tbody td:nth-child(4)::before { content: "Team"; }
+  .admin-governance-responsive table[class*="min-w-[1050px]"] tbody td:nth-child(5)::before { content: "Weddings"; }
+  .admin-governance-responsive table[class*="min-w-[1050px]"] tbody td:nth-child(6)::before { content: "Onboarding"; }
+  .admin-governance-responsive table[class*="min-w-[1050px]"] tbody td:nth-child(7)::before { content: "Risk"; }
+  .admin-governance-responsive table[class*="min-w-[1050px]"] tbody td:nth-child(8)::before { content: "Action"; }
+
+  .admin-governance-responsive table[class*="min-w-[1050px]"] tbody td > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .admin-governance-responsive table[class*="min-w-[1050px]"] tbody td button,
+  .admin-governance-responsive table[class*="min-w-[1050px]"] tbody td a {
+    min-height: 2.75rem;
+  }
+}
+
+@media (max-width: 767px) {
+  .wewed-admin-responsive {
+    padding-bottom: calc(5.25rem + env(safe-area-inset-bottom));
+  }
+
+  .admin-command-centre h2,
+  .admin-governance-responsive h2 {
+    font-size: 1.25rem !important;
+    line-height: 1.4 !important;
+  }
+
+  .admin-governance-responsive [class*="max-w-[1500px]"] {
+    gap: 0.75rem !important;
+  }
+
+  .admin-governance-responsive aside {
+    border-radius: 0.85rem !important;
+    padding: 0.45rem !important;
+  }
+
+  .admin-governance-responsive aside nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.35rem !important;
+  }
+
+  .admin-governance-responsive aside nav button {
+    min-height: 2.75rem;
+    padding: 0.55rem 0.65rem !important;
+    font-size: 0.68rem !important;
+  }
+
+  .admin-governance-responsive aside nav button svg:last-child {
+    display: none;
+  }
+
+  .admin-governance-responsive [class*="2xl:grid-cols-6"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.5rem !important;
+  }
+
+  .admin-governance-responsive [class*="2xl:grid-cols-6"] button {
+    min-height: 4.5rem;
+    padding: 0.7rem !important;
+    border-radius: 0.75rem !important;
+  }
+
+  .admin-governance-responsive [class*="2xl:grid-cols-6"] button p:last-child {
+    margin-top: 0.2rem !important;
+    font-size: 1.15rem !important;
+  }
+
+  [data-admin-identity-review-trigger="true"] {
+    right: 0.75rem !important;
+    bottom: calc(5.35rem + env(safe-area-inset-bottom)) !important;
+    min-width: 2.75rem !important;
+    min-height: 2.75rem !important;
+    padding-inline: 0.75rem !important;
+  }
+}
+
+@media (max-width: 639px) {
+  .admin-governance-responsive table[class*="min-w-[1050px]"] tbody {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.5rem;
+    padding: 0.5rem;
+  }
+
+  .admin-governance-responsive table[class*="min-w-[1050px]"] tbody td {
+    grid-template-columns: 5.6rem minmax(0, 1fr);
+    padding: 0.45rem 0.55rem !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .wewed-admin-responsive {
+    padding-bottom: 6.75rem;
+  }
+}
+
+@media (min-width: 1200px) {
+  .wewed-admin-responsive {
+    padding-bottom: 6rem;
+  }
+}
