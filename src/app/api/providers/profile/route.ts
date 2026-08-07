@@ -13,6 +13,7 @@ import {
   calculateCommercialReadiness,
   calculatePackageCompletion,
 } from '@/lib/provider-commercial'
+import { defaultPriceBinding, providerPriceBindingOptions } from '@/lib/provider-price-bindings'
 
 const VISIBILITY = new Set(['draft', 'published'])
 const OFFERING_STATUS = new Set(['draft', 'published'])
@@ -128,11 +129,21 @@ function normalizeCommercialTerms(value: unknown): Record<string, unknown> {
   }
 }
 
-function normalizePriceComponents(value: unknown): Array<Record<string, unknown>> {
+function normalizePriceComponents(value: unknown, category: string): Array<Record<string, unknown>> {
   if (!Array.isArray(value)) return []
+  const allowedBindings = new Set(providerPriceBindingOptions(category).map((option) => option.key))
   return value.slice(0, 60).map((entry, index) => {
     const row = jsonObject(entry)
     const type = typeof row.type === 'string' && PRICE_COMPONENT_TYPE_SET.has(row.type) ? row.type : 'fixed'
+    const defaultBinding = defaultPriceBinding(type as Parameters<typeof defaultPriceBinding>[0])
+    const requestedQuantityKey = text(row.quantityKey, 160) || defaultBinding
+    const requestedMultiplierKey = text(row.multiplierKey, 160)
+    if (requestedQuantityKey && !allowedBindings.has(requestedQuantityKey)) {
+      throw new Error(`Price component ${index + 1} uses an invalid wedding quantity binding.`)
+    }
+    if (requestedMultiplierKey && !allowedBindings.has(requestedMultiplierKey)) {
+      throw new Error(`Price component ${index + 1} uses an invalid wedding quantity multiplier.`)
+    }
     return {
       id: text(row.id, 160) || `component-${index + 1}`,
       label: text(row.label, 160) || `Price component ${index + 1}`,
@@ -142,6 +153,8 @@ function normalizePriceComponents(value: unknown): Array<Record<string, unknown>
       condition: text(row.condition, 500),
       minimumQuantity: nullableInteger(row.minimumQuantity, 'Price component minimum quantity', 0, 1000000),
       maximumQuantity: nullableInteger(row.maximumQuantity, 'Price component maximum quantity', 0, 1000000),
+      quantityKey: requestedQuantityKey ?? null,
+      multiplierKey: requestedMultiplierKey ?? null,
     }
   }).filter((entry) => entry.amount !== null)
 }
@@ -410,7 +423,7 @@ export async function PUT(request: NextRequest) {
         const status = typeof input.status === 'string' && OFFERING_STATUS.has(input.status) ? input.status : 'draft'
         const pricingVisibility = typeof input.pricingVisibility === 'string' && PRICING_VISIBILITY.has(input.pricingVisibility) ? input.pricingVisibility : 'quote_only'
         const commercialTerms = normalizeCommercialTerms(input.commercialTerms)
-        const priceComponents = normalizePriceComponents(input.priceComponents)
+        const priceComponents = normalizePriceComponents(input.priceComponents, category)
         const priceValidFrom = dateValue(input.priceValidFrom, 'Price valid from')
         const priceValidUntil = dateValue(input.priceValidUntil, 'Price valid until', true)
         if (priceValidFrom && priceValidUntil && priceValidFrom > priceValidUntil) throw new Error('Price valid from cannot be after price valid until.')
@@ -518,7 +531,7 @@ export async function PUT(request: NextRequest) {
           const packageName = text(packageInput.name, 160)
           if (!packageName) continue
           const packageCommercialTerms = normalizeCommercialTerms(packageInput.commercialTerms)
-          const packagePriceComponents = normalizePriceComponents(packageInput.priceComponents)
+          const packagePriceComponents = normalizePriceComponents(packageInput.priceComponents, String(offering.category))
           const packagePriceValidFrom = dateValue(packageInput.priceValidFrom, 'Package price valid from')
           const packagePriceValidUntil = dateValue(packageInput.priceValidUntil, 'Package price valid until', true)
           if (packagePriceValidFrom && packagePriceValidUntil && packagePriceValidFrom > packagePriceValidUntil) throw new Error('Package price valid from cannot be after package price valid until.')
