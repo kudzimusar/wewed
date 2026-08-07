@@ -77,6 +77,17 @@ assert.ok(
   'The provisioning repair must insert missing billing profiles without overwriting existing profiles.',
 )
 
+requireAll(
+  'prisma/migrations/20260807151500_fix_vendor_classification_move_refresh/migration.sql',
+  [
+    'target_business_account_ids',
+    'OLD."businessAccountId" IS DISTINCT FROM NEW."businessAccountId"',
+    'FOREACH target_business_account_id IN ARRAY target_business_account_ids',
+    "classification.source='system'",
+    'wewed_admin.default_business_account_subtype(',
+  ],
+)
+
 const api = requireAll('src/app/api/admin/command-center/route.ts', [
   "requireWewedAdmin(request, 'admin.accounts.read')",
   'buildBusinessAccountScopeSql',
@@ -100,6 +111,9 @@ const api = requireAll('src/app/api/admin/command-center/route.ts', [
   'if (!canManageQueueCategory(context, item.category))',
   "This administrator cannot manage this work-item category.",
   "Work items may only be assigned to an active platform administrator.",
+  'lower(name)=lower($3)',
+  'A saved view with this name already exists on this screen.',
+  '409,',
 ])
 assert.ok(
   api.indexOf("if (!isSuperAdmin(context))") < api.indexOf("action === 'save_view'"),
@@ -169,7 +183,26 @@ requireAll('src/app/admin/admin-responsive.css', [
   'table[class*="min-w-[1050px]"]',
   'grid-template-columns: repeat(2, minmax(0, 1fr))',
   '[data-admin-identity-review-trigger="true"]',
+  ':not(:has(tbody td:nth-child(9)))',
+  ':has(tbody td:nth-child(9))',
+  'content: "Activity"',
+  'content: "Signals"',
+  'content: "Inspect"',
 ])
+
+const postgresIntegration = requireAll(
+  'scripts/admin-command-center-postgres-integration.sql',
+  [
+    'e2e-command-centre-move-source',
+    'e2e-command-centre-move-target',
+    'Offering move left stale source classification',
+    'Offering move did not refresh destination classification',
+  ],
+)
+assert.ok(
+  postgresIntegration.includes("classification_source IS DISTINCT FROM 'manual'"),
+  'Vendor-offering refresh coverage must continue proving that manual classifications are never overwritten.',
+)
 
 const browser = requireAll('tests/e2e/admin-command-centre-responsive.spec.ts', [
   "name: 'small phone', width: 360, height: 800",
@@ -181,6 +214,8 @@ const browser = requireAll('tests/e2e/admin-command-centre-responsive.spec.ts', 
   'expectNoDocumentOverflow(page)',
   'identity control stays above mobile navigation',
   'mandatory horizontal scrolling',
+  "name: 'Command centre sections'",
+  "getByRole('button', { name: 'Accounts', exact: true })",
 ])
 assert.ok(browser.includes("getByRole('button', { name: 'More' })"))
 
