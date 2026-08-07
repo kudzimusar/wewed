@@ -49,13 +49,22 @@ jobs:
               text = text.replace('royalty@wewed.app', 'Wewed support')
               text = text.replace('@wewed.app accounts', 'Wewed social accounts')
 
+              # Retire stale social-profile destinations instead of inventing new accounts on the new domain.
+              if path.as_posix() == 'src/lib/social.ts':
+                  text = text.replace("instagram: 'https://instagram.com/wewed.app',", 'instagram: undefined,')
+                  text = text.replace("facebook: 'https://facebook.com/wewed.app',", 'facebook: undefined,')
+                  text = text.replace("tiktok: 'https://tiktok.com/@wewed.app',", 'tiktok: undefined,')
+                  text = text.replace("handle: 'facebook.com/wewed.app',", 'handle: undefined,')
+                  text = text.replace("handle: '@wewed.app',", 'handle: undefined,')
+                  text = text.replace('Display handle (e.g. @wewed.app).', 'Display handle when a verified Wewed profile is configured.')
+
               # Keep negative regression checks without embedding the banned literal in runtime/test source.
               text = text.replace(
                   "expect(health).not.toContain('wewed-nu.vercel.app')",
                   "expect(health).not.toContain(['wewed-nu', 'vercel', 'app'].join('.'))",
               )
 
-              # Abort rather than silently inventing an email address on the new domain.
+              # Abort rather than silently inventing an email address or social handle on the new domain.
               if '@wewed.app' in text:
                   raise SystemExit(f'Unhandled legacy email/handle in {path}')
 
