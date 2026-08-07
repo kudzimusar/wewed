@@ -5,6 +5,7 @@ import { resetPlannerE2EFixture } from './planner-fixture'
 
 const SESSION_COOKIE = 'wewed_admin_auth'
 const SESSION_SECRET = process.env.WEWED_SESSION_SECRET ?? ''
+const WEWED_PLATFORM_SESSION_ID = 'wewed-platform'
 
 export const E2E_ADMIN = {
   id: 'e2e-wewed-super-admin',
@@ -94,7 +95,7 @@ function signedSession(): string {
     email: E2E_ADMIN.email,
     role: 'admin',
     coupleId: null,
-    activeWeddingId: null,
+    activeWeddingId: WEWED_PLATFORM_SESSION_ID,
     expiresAt: Date.now() + 60 * 60 * 1000,
   }
   const encoded = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url')
