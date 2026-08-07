@@ -178,6 +178,12 @@ const CURRENCIES = ['USD', 'ZAR', 'GBP', 'EUR', 'BWP', 'ZMW', 'MZN'] as const
 const PRICING_MODELS = ['Contact for pricing', 'Fixed package', 'Per guest', 'Per hour', 'Per item', 'Per serving', 'Per kilometre', 'Custom proposal'] as const
 const RESPONSE_TIMES = ['Within 2 hours', 'Within 4 hours', 'Same business day', 'Within 24 hours', 'Within 48 hours', 'By appointment'] as const
 const BOOKING_NOTICE = ['1–2 weeks', '1 month', '2–3 months', '4–6 months', '6–12 months', '12+ months', 'Depends on service'] as const
+const AI_PLANNING_DATA_KEYS = new Set<keyof OfferingDraft>([
+  'startingPrice', 'maximumPrice', 'currency', 'pricingModel', 'pricingVisibility',
+  'commercialTerms', 'priceComponents', 'priceValidFrom', 'priceValidUntil',
+  'minimumCapacity', 'maximumCapacity', 'bookingLeadTime', 'serviceAreas',
+  'inclusions', 'details', 'packages',
+])
 
 function list(value: unknown): string[] {
   if (Array.isArray(value)) return value.filter((entry): entry is string => typeof entry === 'string')
@@ -322,7 +328,7 @@ function mapOffering(row: Record<string, unknown>, businessName: string, profile
     priceValidFrom: dateInputValue(row.priceValidFrom),
     priceValidUntil: dateInputValue(row.priceValidUntil),
     ownerConfirmedCommercialAt: stringValue(row.ownerConfirmedCommercialAt),
-    confirmCommercialPricing: false,
+    confirmCommercialPricing: Boolean(row.ownerConfirmedCommercialAt),
     aiReadinessScore: Number(row.aiReadinessScore || 0),
     aiReadinessStatus: stringValue(row.aiReadinessStatus) || 'not_ready',
     aiReadinessMissing: list(row.aiReadinessMissing),
@@ -574,7 +580,14 @@ export function ProviderProfileManager() {
   }
 
   function updateOffering(index: number, patch: Partial<OfferingDraft>) {
-    setOfferings((current) => current.map((entry, position) => position === index ? { ...entry, ...patch } : entry))
+    const planningDataChanged = Object.keys(patch).some((key) =>
+      key !== 'confirmCommercialPricing' && AI_PLANNING_DATA_KEYS.has(key as keyof OfferingDraft),
+    )
+    setOfferings((current) => current.map((entry, position) => {
+      if (position !== index) return entry
+      const next = { ...entry, ...patch }
+      return planningDataChanged ? { ...next, confirmCommercialPricing: false } : next
+    }))
   }
 
   function addOffering() {

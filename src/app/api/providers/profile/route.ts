@@ -79,9 +79,12 @@ function decimalText(value: unknown, label: string, maxWholeDigits = 9): string 
   return normalized
 }
 
-function dateValue(value: unknown, label: string): Date | null {
+function dateValue(value: unknown, label: string, endOfDay = false): Date | null {
   if (value === null || value === undefined || value === '') return null
-  const parsed = new Date(String(value))
+  const normalized = String(value).trim()
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(normalized)
+    ? new Date(`${normalized}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}Z`)
+    : new Date(normalized)
   if (!Number.isFinite(parsed.getTime())) throw new Error(`${label} is invalid.`)
   return parsed
 }
@@ -409,9 +412,9 @@ export async function PUT(request: NextRequest) {
         const commercialTerms = normalizeCommercialTerms(input.commercialTerms)
         const priceComponents = normalizePriceComponents(input.priceComponents)
         const priceValidFrom = dateValue(input.priceValidFrom, 'Price valid from')
-        const priceValidUntil = dateValue(input.priceValidUntil, 'Price valid until')
+        const priceValidUntil = dateValue(input.priceValidUntil, 'Price valid until', true)
         if (priceValidFrom && priceValidUntil && priceValidFrom > priceValidUntil) throw new Error('Price valid from cannot be after price valid until.')
-        const commercialConfirmed = input.confirmCommercialPricing === true || Boolean(input.ownerConfirmedCommercialAt)
+        const commercialConfirmed = input.confirmCommercialPricing === true
         const offering = {
           id: text(input.id, 160) || `provider-offering-${randomUUID()}`,
           category,
@@ -501,7 +504,7 @@ export async function PUT(request: NextRequest) {
         await transaction.$executeRawUnsafe(
           `INSERT INTO wewed_admin."ProviderServiceOffering" (id,"businessAccountId",category,"displayName",description,status,"startingPriceCents","maximumPriceCents",currency,"pricingModel","minimumCapacity","maximumCapacity","bookingLeadTime","serviceAreas",inclusions,details,"completionScore","pricingVisibility","commercialTerms","priceComponents","priceValidFrom","priceValidUntil","ownerConfirmedCommercialAt","aiReadinessScore","aiReadinessStatus","aiReadinessMissing","publishedAt","updatedAt")
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15::jsonb,$16::jsonb,$17,$18,$19::jsonb,$20::jsonb,$21,$22,CASE WHEN $23 THEN CURRENT_TIMESTAMP ELSE NULL END,$24,$25,$26::jsonb,CASE WHEN $6='published' THEN CURRENT_TIMESTAMP ELSE NULL END,CURRENT_TIMESTAMP)
-           ON CONFLICT ("businessAccountId",category) DO UPDATE SET "displayName"=EXCLUDED."displayName",description=EXCLUDED.description,status=EXCLUDED.status,"startingPriceCents"=EXCLUDED."startingPriceCents","maximumPriceCents"=EXCLUDED."maximumPriceCents",currency=EXCLUDED.currency,"pricingModel"=EXCLUDED."pricingModel","minimumCapacity"=EXCLUDED."minimumCapacity","maximumCapacity"=EXCLUDED."maximumCapacity","bookingLeadTime"=EXCLUDED."bookingLeadTime","serviceAreas"=EXCLUDED."serviceAreas",inclusions=EXCLUDED.inclusions,details=EXCLUDED.details,"completionScore"=EXCLUDED."completionScore","pricingVisibility"=EXCLUDED."pricingVisibility","commercialTerms"=EXCLUDED."commercialTerms","priceComponents"=EXCLUDED."priceComponents","priceValidFrom"=EXCLUDED."priceValidFrom","priceValidUntil"=EXCLUDED."priceValidUntil","ownerConfirmedCommercialAt"=CASE WHEN $23 THEN CURRENT_TIMESTAMP ELSE wewed_admin."ProviderServiceOffering"."ownerConfirmedCommercialAt" END,"aiReadinessScore"=EXCLUDED."aiReadinessScore","aiReadinessStatus"=EXCLUDED."aiReadinessStatus","aiReadinessMissing"=EXCLUDED."aiReadinessMissing","publishedAt"=CASE WHEN EXCLUDED.status='published' THEN COALESCE(wewed_admin."ProviderServiceOffering"."publishedAt",CURRENT_TIMESTAMP) ELSE NULL END,"updatedAt"=CURRENT_TIMESTAMP`,
+           ON CONFLICT ("businessAccountId",category) DO UPDATE SET "displayName"=EXCLUDED."displayName",description=EXCLUDED.description,status=EXCLUDED.status,"startingPriceCents"=EXCLUDED."startingPriceCents","maximumPriceCents"=EXCLUDED."maximumPriceCents",currency=EXCLUDED.currency,"pricingModel"=EXCLUDED."pricingModel","minimumCapacity"=EXCLUDED."minimumCapacity","maximumCapacity"=EXCLUDED."maximumCapacity","bookingLeadTime"=EXCLUDED."bookingLeadTime","serviceAreas"=EXCLUDED."serviceAreas",inclusions=EXCLUDED.inclusions,details=EXCLUDED.details,"completionScore"=EXCLUDED."completionScore","pricingVisibility"=EXCLUDED."pricingVisibility","commercialTerms"=EXCLUDED."commercialTerms","priceComponents"=EXCLUDED."priceComponents","priceValidFrom"=EXCLUDED."priceValidFrom","priceValidUntil"=EXCLUDED."priceValidUntil","ownerConfirmedCommercialAt"=CASE WHEN $23 THEN CURRENT_TIMESTAMP ELSE NULL END,"aiReadinessScore"=EXCLUDED."aiReadinessScore","aiReadinessStatus"=EXCLUDED."aiReadinessStatus","aiReadinessMissing"=EXCLUDED."aiReadinessMissing","publishedAt"=CASE WHEN EXCLUDED.status='published' THEN COALESCE(wewed_admin."ProviderServiceOffering"."publishedAt",CURRENT_TIMESTAMP) ELSE NULL END,"updatedAt"=CURRENT_TIMESTAMP`,
           offeringId, context.businessAccountId, offering.category, offering.displayName, offering.description, offering.status, offering.startingPriceCents, offering.maximumPriceCents,
           offering.currency, offering.pricingModel, offering.minimumCapacity, offering.maximumCapacity, offering.bookingLeadTime, JSON.stringify(offering.serviceAreas), JSON.stringify(offering.inclusions), JSON.stringify(offering.details), offering.completionScore,
           offering.pricingVisibility, JSON.stringify(offering.commercialTerms), JSON.stringify(offering.priceComponents), offering.priceValidFrom, offering.priceValidUntil, offering.confirmCommercialPricing, offering.aiReadinessScore, offering.aiReadinessStatus, JSON.stringify(offering.aiReadinessMissing),
@@ -517,7 +520,7 @@ export async function PUT(request: NextRequest) {
           const packageCommercialTerms = normalizeCommercialTerms(packageInput.commercialTerms)
           const packagePriceComponents = normalizePriceComponents(packageInput.priceComponents)
           const packagePriceValidFrom = dateValue(packageInput.priceValidFrom, 'Package price valid from')
-          const packagePriceValidUntil = dateValue(packageInput.priceValidUntil, 'Package price valid until')
+          const packagePriceValidUntil = dateValue(packageInput.priceValidUntil, 'Package price valid until', true)
           if (packagePriceValidFrom && packagePriceValidUntil && packagePriceValidFrom > packagePriceValidUntil) throw new Error('Package price valid from cannot be after package price valid until.')
           const packageCompletion = calculatePackageCompletion({
             ...packageInput,
