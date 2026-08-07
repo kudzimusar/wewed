@@ -11,7 +11,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params
   const document = getPublicDocument('company', slug)
   if (!document) return {}
-  return { title: `${document.title} | Wewed`, description: document.summary }
+  return { title: `${document.title} | Wewed`, description: document.summary, alternates: { canonical: `/company/${slug}` } }
 }
 
 export default async function CompanyDocumentPage({ params }: { params: Promise<{ slug: string }> }) {
