@@ -11,7 +11,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params
   const document = getPublicDocument('trust', slug)
   if (!document) return {}
-  return { title: `${document.title} | Wewed`, description: document.summary }
+  return { title: `${document.title} | Wewed`, description: document.summary, alternates: { canonical: `/trust/${slug}` } }
 }
 
 export default async function TrustDocumentPage({ params }: { params: Promise<{ slug: string }> }) {
