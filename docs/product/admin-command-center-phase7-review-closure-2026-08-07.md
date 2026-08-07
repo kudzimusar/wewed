@@ -73,6 +73,25 @@ The responsive card transform applied one set of pseudo-labels to both Admin acc
 
 The browser release gate remains responsible for verifying the card transformation at phone, tablet, Windows-laptop, and desktop widths.
 
+## Repository-wide browser blocker — Timeline chronology lookup race
+
+### Finding
+
+After the three Admin findings were fixed, repository-wide CI correctly remained red because `--fail-on-flaky-tests` detected one retry in the existing Timeline chronology test. The chronology helper first asserted that an item existed and was visible, then performed a second DOM snapshot to calculate its index. A Timeline React refresh between those separate operations could make the second snapshot return `-1` even though the item had just been observed.
+
+The retry passing did not satisfy the plan because Phase 7 explicitly treats flaky browser behavior as a release blocker.
+
+### Resolution
+
+`tests/e2e/planner-timeline-chronology.spec.ts` now polls a single browser-side snapshot of all timeline cards and resolves the expected event's index atomically. The original chronology assertions remain unchanged:
+
+- reverse-created items must render in clock-time order;
+- changing the middle item to `05:55` must move it before the earlier event;
+- same-time manual move controls remain disabled;
+- impossible clock values remain rejected by the API.
+
+This change stabilizes observation of the existing behavior; it does not relax, skip, retry around, or alter the product chronology contract.
+
 ## Phase 7 executable contract
 
 `scripts/admin-command-center-contract.ts` now requires all three review closures:
