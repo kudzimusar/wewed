@@ -10,9 +10,9 @@ export default function robots(): MetadataRoute.Robots {
         allow: '/',
         disallow: [
           '/api/',
-          '/admin/',
-          '/couple/',
-          '/planner/',
+          '/admin',
+          '/couple',
+          '/planner',
           '/w/',
           '/vendors/manage',
           '/sign-in',
