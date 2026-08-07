@@ -18,9 +18,65 @@ const CATEGORY_PATH: Record<PublicDocumentCategory, string> = {
   help: '/help',
 }
 
+function asPublishedDocument(document: PublicDocument): PublicDocument {
+  if (document.category === 'vendors' && document.slug === 'how-ranking-works') {
+    return {
+      ...document,
+      summary: 'How Wewed currently filters and orders planner marketplace results, including the signals that do not affect ranking today.',
+      sections: [
+        {
+          heading: 'Who is eligible to appear',
+          paragraphs: [
+            'The current planner marketplace returns profiles whose planner profile is published, whose planning-company business account is active and whose business onboarding is complete. Profiles that do not meet those publication and account conditions are not included in the public planner result set.',
+          ],
+        },
+        {
+          heading: 'Search and filters',
+          paragraphs: [
+            'People can narrow planner results using free-text search and supported marketplace filters. Current filtering covers planner display name or headline, service area, service, wedding style, price band and availability status.',
+          ],
+        },
+        {
+          heading: 'Current default ordering',
+          bullets: [
+            'Availability status first: accepting planners, then limited availability, then other availability states.',
+            'Within those groups, more recently published profiles appear before older published profiles.',
+            'Display name is used as the final stable alphabetical tie-breaker.',
+            'The current planner query returns up to 100 matching profiles.',
+          ],
+        },
+        {
+          heading: 'Signals that do not currently change planner order',
+          paragraphs: [
+            'The current planner marketplace ordering query does not rank profiles by review score, verification badge, response time, subscription payment or sponsored-placement status. Wewed should update this explanation before relying on any additional ranking signal in production.',
+            'If paid or sponsored placement is introduced, it should be clearly distinguishable from ordinary marketplace ordering rather than silently changing the meaning of an organic result.',
+          ],
+        },
+      ],
+    }
+  }
+
+  if ((document.category === 'vendors' && document.slug === 'reviews') || (document.category === 'trust' && document.slug === 'review-integrity')) {
+    return {
+      ...document,
+      sections: [
+        {
+          heading: 'Current product status',
+          paragraphs: [
+            'This guidance defines the integrity standard Wewed applies to review functionality where it is available. It does not mean that every current marketplace profile exposes public reviews, ratings or a review-dispute workflow. Product pages should only display review capabilities that are actually enabled for that surface.',
+          ],
+        },
+        ...document.sections,
+      ],
+    }
+  }
+
+  return document
+}
+
 export function PublicDocumentHub({ category }: { category: PublicDocumentCategory }) {
   const meta = CATEGORY_META[category]
-  const documents = getPublicDocuments(category)
+  const documents = getPublicDocuments(category).map(asPublishedDocument)
 
   return (
     <PublicInfoPage eyebrow={meta.eyebrow} title={meta.title} description={meta.description}>
@@ -57,7 +113,8 @@ export function PublicDocumentHub({ category }: { category: PublicDocumentCatego
   )
 }
 
-export function PublicDocumentDetail({ document }: { document: PublicDocument }) {
+export function PublicDocumentDetail({ document: sourceDocument }: { document: PublicDocument }) {
+  const document = asPublishedDocument(sourceDocument)
   const categoryPath = CATEGORY_PATH[document.category]
   const categoryMeta = CATEGORY_META[document.category]
 
