@@ -17,6 +17,14 @@ function replaceOnce(path, needle, replacement) {
   write(path, current.replace(needle, replacement))
 }
 
+function replaceFirst(path, needle, replacement) {
+  const current = read(path)
+  if (!current.includes(needle)) {
+    throw new Error(`${path}: guarded first-match replacement did not find: ${needle.slice(0, 100)}`)
+  }
+  write(path, current.replace(needle, replacement))
+}
+
 function replaceRegexOnce(path, pattern, replacement) {
   const current = read(path)
   const matches = current.match(pattern)
@@ -42,7 +50,7 @@ replaceOnce(
   "function jsonObject(value: unknown): Record<string, unknown> {\n  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}\n}\n",
   `function jsonObject(value: unknown): Record<string, unknown> {\n  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}\n}\n\nfunction decimalText(value: unknown, label: string, maxWholeDigits = 9): string | null {\n  if (value === null || value === undefined || value === '') return null\n  const normalized = String(value).trim()\n  const pattern = new RegExp('^\\\\d{1,' + maxWholeDigits + '}(?:\\\\.\\\\d{1,2})?$')\n  if (!pattern.test(normalized)) throw new Error(\`${'${label}'} must be a non-negative amount with at most two decimal places.\`)\n  return normalized\n}\n\nfunction dateValue(value: unknown, label: string): Date | null {\n  if (value === null || value === undefined || value === '') return null\n  const parsed = new Date(String(value))\n  if (!Number.isFinite(parsed.getTime())) throw new Error(\`${'${label}'} is invalid.\`)\n  return parsed\n}\n\nfunction normalizeCommercialTerms(value: unknown): Record<string, unknown> {\n  const source = jsonObject(value)\n  const taxIncluded = source.taxIncluded === true || source.taxIncluded === 'true'\n    ? true\n    : source.taxIncluded === false || source.taxIncluded === 'false'\n      ? false\n      : null\n  const serviceChargeType = typeof source.serviceChargeType === 'string' && CHARGE_TYPES.has(source.serviceChargeType)\n    ? source.serviceChargeType\n    : 'none'\n  const depositType = typeof source.depositType === 'string' && DEPOSIT_TYPES.has(source.depositType)\n    ? source.depositType\n    : 'none'\n  const availabilityMode = typeof source.availabilityMode === 'string' && AVAILABILITY_MODES.has(source.availabilityMode)\n    ? source.availabilityMode\n    : 'request'\n  return {\n    minimumSpend: decimalText(source.minimumSpend, 'Minimum spend'),\n    includedQuantity: nullableInteger(source.includedQuantity, 'Included quantity', 0, 1000000),\n    incrementalUnitPrice: decimalText(source.incrementalUnitPrice, 'Incremental unit price'),\n    minimumBillableQuantity: nullableInteger(source.minimumBillableQuantity, 'Minimum billable quantity', 0, 1000000),\n    billingIncrement: nullableInteger(source.billingIncrement, 'Billing increment', 1, 1000000),\n    setupFee: decimalText(source.setupFee, 'Setup fee'),\n    deliveryFee: decimalText(source.deliveryFee, 'Delivery fee'),\n    includedTravelKm: nullableInteger(source.includedTravelKm, 'Included travel', 0, 50000),\n    travelFeePerKm: decimalText(source.travelFeePerKm, 'Travel fee per kilometre'),\n    overtimeRate: decimalText(source.overtimeRate, 'Overtime rate'),\n    overtimeUnit: text(source.overtimeUnit, 80),\n    taxIncluded,\n    taxPercentage: decimalText(source.taxPercentage, 'Tax percentage', 3),\n    serviceChargeType,\n    serviceChargeValue: decimalText(source.serviceChargeValue, 'Service charge value'),\n    depositType,\n    depositValue: decimalText(source.depositValue, 'Deposit value'),\n    balanceDueRule: text(source.balanceDueRule, 500),\n    availabilityMode,\n  }\n}\n\nfunction normalizePriceComponents(value: unknown): Array<Record<string, unknown>> {\n  if (!Array.isArray(value)) return []\n  return value.slice(0, 60).map((entry, index) => {\n    const row = jsonObject(entry)\n    const type = typeof row.type === 'string' && PRICE_COMPONENT_TYPE_SET.has(row.type) ? row.type : 'fixed'\n    return {\n      id: text(row.id, 160) || \`component-${'${index + 1}'}\`,\n      label: text(row.label, 160) || \`Price component ${'${index + 1}'}\`,\n      type,\n      amount: decimalText(row.amount, 'Price component amount'),\n      unit: text(row.unit, 80),\n      condition: text(row.condition, 500),\n      minimumQuantity: nullableInteger(row.minimumQuantity, 'Price component minimum quantity', 0, 1000000),\n      maximumQuantity: nullableInteger(row.maximumQuantity, 'Price component maximum quantity', 0, 1000000),\n    }\n  }).filter((entry) => entry.amount !== null)\n}\n`,
 )
-replaceOnce(
+replaceFirst(
   api,
   "        const status = typeof input.status === 'string' && OFFERING_STATUS.has(input.status) ? input.status : 'draft'\n        const offering = {\n",
   "        const status = typeof input.status === 'string' && OFFERING_STATUS.has(input.status) ? input.status : 'draft'\n        const pricingVisibility = typeof input.pricingVisibility === 'string' && PRICING_VISIBILITY.has(input.pricingVisibility) ? input.pricingVisibility : 'quote_only'\n        const commercialTerms = normalizeCommercialTerms(input.commercialTerms)\n        const priceComponents = normalizePriceComponents(input.priceComponents)\n        const priceValidFrom = dateValue(input.priceValidFrom, 'Price valid from')\n        const priceValidUntil = dateValue(input.priceValidUntil, 'Price valid until')\n        if (priceValidFrom && priceValidUntil && priceValidFrom > priceValidUntil) throw new Error('Price valid from cannot be after price valid until.')\n        const commercialConfirmed = input.confirmCommercialPricing === true || Boolean(input.ownerConfirmedCommercialAt)\n        const offering = {\n",
@@ -143,6 +151,11 @@ replaceOnce(
 )
 
 const publicComponent = 'src/components/providers/public-provider-profile.tsx'
+replaceOnce(
+  publicComponent,
+  "import { AlertTriangle, BadgeCheck, BriefcaseBusiness, CalendarDays, Check, Clock3, Globe2, Loader2, Mail, MapPin, Phone, Send, ShieldCheck, Users } from 'lucide-react'\n",
+  "import { AlertTriangle, BadgeCheck, BriefcaseBusiness, CalendarDays, Check, Clock3, Globe2, Loader2, Mail, MapPin, Phone, Send, ShieldCheck, Sparkles, Users } from 'lucide-react'\n",
+)
 replaceOnce(
   publicComponent,
   "type Package = { id: string; name: string; description: string | null; priceCents: number | null; currency: string; pricingUnit: string | null; inclusions: string[] }\n",
