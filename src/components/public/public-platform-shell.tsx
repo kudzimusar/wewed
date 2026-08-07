@@ -156,7 +156,8 @@ export function PublicPlatformShell({ children }: { children: ReactNode }) {
             <div>
               <p className="flex items-center gap-2 font-serif text-3xl text-gold"><HeartHandshake className="size-5" />wewed</p>
               <p className="mt-3 max-w-xl text-sm leading-6 text-champagne/60">Private wedding planning, professional support, trusted marketplace guidance and memorable guest experiences in one connected platform.</p>
-              <p className="mt-5 text-xs text-champagne/45">wewed.pro · Privacy-led wedding technology.</p>
+              <p className="mt-4 text-xs text-champagne/50">Made for weddings. Built to bring people together.</p>
+              <p className="mt-2 text-xs text-champagne/40">wewed.pro · Privacy-led wedding technology.</p>
             </div>
             <div className="flex flex-wrap gap-2">
               {CENTER_LINKS.map(([label, href]) => <Link key={href} href={href} className="rounded-full border border-gold/20 px-3 py-1.5 text-xs text-champagne/65 transition hover:border-gold/45 hover:text-gold">{label}</Link>)}
