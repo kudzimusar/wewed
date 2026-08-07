@@ -14,6 +14,13 @@ import {
   providerServiceFields,
   type ProviderFieldDefinition,
 } from '@/lib/provider-catalog'
+import {
+  AVAILABILITY_MODE_OPTIONS,
+  CHARGE_TYPE_OPTIONS,
+  DEPOSIT_TYPE_OPTIONS,
+  PRICE_COMPONENT_TYPES,
+  PRICING_VISIBILITY_OPTIONS,
+} from '@/lib/provider-commercial'
 
 type ProfileDraft = {
   slug: string
@@ -59,6 +66,39 @@ type VerificationDraft = {
   permitStatus: string
 }
 
+type CommercialTermsDraft = {
+  minimumSpend: string
+  includedQuantity: string
+  incrementalUnitPrice: string
+  minimumBillableQuantity: string
+  billingIncrement: string
+  setupFee: string
+  deliveryFee: string
+  includedTravelKm: string
+  travelFeePerKm: string
+  overtimeRate: string
+  overtimeUnit: string
+  taxIncluded: boolean | null
+  taxPercentage: string
+  serviceChargeType: string
+  serviceChargeValue: string
+  depositType: string
+  depositValue: string
+  balanceDueRule: string
+  availabilityMode: string
+}
+
+type PriceComponentDraft = {
+  id: string
+  label: string
+  type: string
+  amount: string
+  unit: string
+  condition: string
+  minimumQuantity: string
+  maximumQuantity: string
+}
+
 type PackageDraft = {
   name: string
   description: string
@@ -66,6 +106,18 @@ type PackageDraft = {
   currency: string
   pricingUnit: string
   inclusions: string[]
+  minimumQuantity: string
+  maximumQuantity: string
+  includedQuantity: string
+  additionalUnitPrice: string
+  exclusions: string[]
+  requiredAddOns: string[]
+  optionalAddOns: string[]
+  commercialTerms: CommercialTermsDraft
+  priceComponents: PriceComponentDraft[]
+  priceValidFrom: string
+  priceValidUntil: string
+  completionScore: number
 }
 
 type PortfolioDraft = {
@@ -86,6 +138,16 @@ type OfferingDraft = {
   maximumPrice: string
   currency: string
   pricingModel: string
+  pricingVisibility: string
+  commercialTerms: CommercialTermsDraft
+  priceComponents: PriceComponentDraft[]
+  priceValidFrom: string
+  priceValidUntil: string
+  ownerConfirmedCommercialAt: string
+  confirmCommercialPricing: boolean
+  aiReadinessScore: number
+  aiReadinessStatus: string
+  aiReadinessMissing: string[]
   minimumCapacity: string
   maximumCapacity: string
   bookingLeadTime: string
@@ -138,6 +200,54 @@ function stringValue(value: unknown): string {
 
 function priceValue(value: unknown): string {
   return typeof value === 'number' ? (value / 100).toFixed(2).replace(/\.00$/, '') : ''
+}
+
+function dateInputValue(value: unknown): string {
+  if (!value) return ''
+  const date = new Date(String(value))
+  return Number.isFinite(date.getTime()) ? date.toISOString().slice(0, 10) : ''
+}
+
+function commercialTermsDraft(value: unknown): CommercialTermsDraft {
+  const row = object(value)
+  return {
+    minimumSpend: stringValue(row.minimumSpend),
+    includedQuantity: stringValue(row.includedQuantity),
+    incrementalUnitPrice: stringValue(row.incrementalUnitPrice),
+    minimumBillableQuantity: stringValue(row.minimumBillableQuantity),
+    billingIncrement: stringValue(row.billingIncrement),
+    setupFee: stringValue(row.setupFee),
+    deliveryFee: stringValue(row.deliveryFee),
+    includedTravelKm: stringValue(row.includedTravelKm),
+    travelFeePerKm: stringValue(row.travelFeePerKm),
+    overtimeRate: stringValue(row.overtimeRate),
+    overtimeUnit: stringValue(row.overtimeUnit),
+    taxIncluded: typeof row.taxIncluded === 'boolean' ? row.taxIncluded : null,
+    taxPercentage: stringValue(row.taxPercentage),
+    serviceChargeType: stringValue(row.serviceChargeType) || 'none',
+    serviceChargeValue: stringValue(row.serviceChargeValue),
+    depositType: stringValue(row.depositType) || 'none',
+    depositValue: stringValue(row.depositValue),
+    balanceDueRule: stringValue(row.balanceDueRule),
+    availabilityMode: stringValue(row.availabilityMode) || 'request',
+  }
+}
+
+function priceComponentsDraft(value: unknown): PriceComponentDraft[] {
+  if (!Array.isArray(value)) return []
+  return value.map((item, index) => {
+    const row = object(item)
+    return {
+      id: stringValue(row.id) || `component-${index + 1}`,
+      label: stringValue(row.label),
+      type: stringValue(row.type) || 'fixed',
+      amount: stringValue(row.amount),
+      unit: stringValue(row.unit),
+      condition: stringValue(row.condition),
+      minimumQuantity: stringValue(row.minimumQuantity),
+      maximumQuantity: stringValue(row.maximumQuantity),
+    }
+  })
 }
 
 function toggle(values: string[], value: string): string[] {
@@ -206,6 +316,16 @@ function mapOffering(row: Record<string, unknown>, businessName: string, profile
     maximumPrice: priceValue(row.maximumPriceCents),
     currency: stringValue(row.currency) || 'USD',
     pricingModel: stringValue(row.pricingModel),
+    pricingVisibility: stringValue(row.pricingVisibility) || 'quote_only',
+    commercialTerms: commercialTermsDraft(row.commercialTerms),
+    priceComponents: priceComponentsDraft(row.priceComponents),
+    priceValidFrom: dateInputValue(row.priceValidFrom),
+    priceValidUntil: dateInputValue(row.priceValidUntil),
+    ownerConfirmedCommercialAt: stringValue(row.ownerConfirmedCommercialAt),
+    confirmCommercialPricing: false,
+    aiReadinessScore: Number(row.aiReadinessScore || 0),
+    aiReadinessStatus: stringValue(row.aiReadinessStatus) || 'not_ready',
+    aiReadinessMissing: list(row.aiReadinessMissing),
     minimumCapacity: row.minimumCapacity == null ? '' : String(row.minimumCapacity),
     maximumCapacity: row.maximumCapacity == null ? '' : String(row.maximumCapacity),
     bookingLeadTime: stringValue(row.bookingLeadTime),
@@ -222,6 +342,18 @@ function mapOffering(row: Record<string, unknown>, businessName: string, profile
         currency: stringValue(entry.currency) || 'USD',
         pricingUnit: stringValue(entry.pricingUnit),
         inclusions: list(entry.inclusions),
+        minimumQuantity: stringValue(entry.minimumQuantity),
+        maximumQuantity: stringValue(entry.maximumQuantity),
+        includedQuantity: stringValue(entry.includedQuantity),
+        additionalUnitPrice: priceValue(entry.additionalUnitPriceCents),
+        exclusions: list(entry.exclusions),
+        requiredAddOns: list(entry.requiredAddOns),
+        optionalAddOns: list(entry.optionalAddOns),
+        commercialTerms: commercialTermsDraft(entry.commercialTerms),
+        priceComponents: priceComponentsDraft(entry.priceComponents),
+        priceValidFrom: dateInputValue(entry.priceValidFrom),
+        priceValidUntil: dateInputValue(entry.priceValidUntil),
+        completionScore: Number(entry.completionScore || 0),
       }
     }) : [],
     portfolio: Array.isArray(row.portfolio) ? row.portfolio.map((item) => {
@@ -249,6 +381,16 @@ function emptyOffering(category: string, businessName: string, areas: string[]):
     maximumPrice: '',
     currency: 'USD',
     pricingModel: '',
+    pricingVisibility: 'quote_only',
+    commercialTerms: commercialTermsDraft({}),
+    priceComponents: [],
+    priceValidFrom: '',
+    priceValidUntil: '',
+    ownerConfirmedCommercialAt: '',
+    confirmCommercialPricing: false,
+    aiReadinessScore: 0,
+    aiReadinessStatus: 'not_ready',
+    aiReadinessMissing: ['Add calculation-ready pricing and confirm it is current'],
     minimumCapacity: '',
     maximumCapacity: '',
     bookingLeadTime: '',
@@ -655,13 +797,42 @@ function OfferingEditor({ offering, index, onUpdate, onRemove, removable }: {
         <Field label="Maximum indicative price"><input type="number" min="0" step="0.01" value={offering.maximumPrice} onChange={(event) => onUpdate(index, { maximumPrice: event.target.value })} className={inputClass} /></Field>
         <SelectField label="Currency" value={offering.currency} options={CURRENCIES} onChange={(value) => onUpdate(index, { currency: value })} />
         <SelectField label="Pricing model" value={offering.pricingModel} options={PRICING_MODELS} onChange={(value) => onUpdate(index, { pricingModel: value })} />
+        <SelectField label="AI pricing visibility" value={offering.pricingVisibility} options={PRICING_VISIBILITY_OPTIONS} onChange={(value) => onUpdate(index, { pricingVisibility: value })} />
+        <Field label="Price valid from"><input type="date" value={offering.priceValidFrom} onChange={(event) => onUpdate(index, { priceValidFrom: event.target.value })} className={inputClass} /></Field>
+        <Field label="Price valid until"><input type="date" value={offering.priceValidUntil} onChange={(event) => onUpdate(index, { priceValidUntil: event.target.value })} className={inputClass} /></Field>
+        <Field label="Minimum spend"><input type="number" min="0" step="0.01" value={offering.commercialTerms.minimumSpend} onChange={(event) => onUpdate(index, { commercialTerms: { ...offering.commercialTerms, minimumSpend: event.target.value } })} className={inputClass} /></Field>
+        <Field label="Quantity included in base price"><input type="number" min="0" value={offering.commercialTerms.includedQuantity} onChange={(event) => onUpdate(index, { commercialTerms: { ...offering.commercialTerms, includedQuantity: event.target.value } })} className={inputClass} /></Field>
+        <Field label="Additional unit price"><input type="number" min="0" step="0.01" value={offering.commercialTerms.incrementalUnitPrice} onChange={(event) => onUpdate(index, { commercialTerms: { ...offering.commercialTerms, incrementalUnitPrice: event.target.value } })} className={inputClass} /></Field>
+        <Field label="Minimum billable quantity"><input type="number" min="0" value={offering.commercialTerms.minimumBillableQuantity} onChange={(event) => onUpdate(index, { commercialTerms: { ...offering.commercialTerms, minimumBillableQuantity: event.target.value } })} className={inputClass} /></Field>
+        <Field label="Billing increment"><input type="number" min="1" value={offering.commercialTerms.billingIncrement} onChange={(event) => onUpdate(index, { commercialTerms: { ...offering.commercialTerms, billingIncrement: event.target.value } })} className={inputClass} /></Field>
+        <Field label="Setup fee"><input type="number" min="0" step="0.01" value={offering.commercialTerms.setupFee} onChange={(event) => onUpdate(index, { commercialTerms: { ...offering.commercialTerms, setupFee: event.target.value } })} className={inputClass} /></Field>
+        <Field label="Delivery fee"><input type="number" min="0" step="0.01" value={offering.commercialTerms.deliveryFee} onChange={(event) => onUpdate(index, { commercialTerms: { ...offering.commercialTerms, deliveryFee: event.target.value } })} className={inputClass} /></Field>
+        <Field label="Travel included (km)"><input type="number" min="0" value={offering.commercialTerms.includedTravelKm} onChange={(event) => onUpdate(index, { commercialTerms: { ...offering.commercialTerms, includedTravelKm: event.target.value } })} className={inputClass} /></Field>
+        <Field label="Extra travel / km"><input type="number" min="0" step="0.01" value={offering.commercialTerms.travelFeePerKm} onChange={(event) => onUpdate(index, { commercialTerms: { ...offering.commercialTerms, travelFeePerKm: event.target.value } })} className={inputClass} /></Field>
+        <Field label="Overtime rate"><input type="number" min="0" step="0.01" value={offering.commercialTerms.overtimeRate} onChange={(event) => onUpdate(index, { commercialTerms: { ...offering.commercialTerms, overtimeRate: event.target.value } })} className={inputClass} /></Field>
+        <Field label="Overtime unit"><input value={offering.commercialTerms.overtimeUnit} onChange={(event) => onUpdate(index, { commercialTerms: { ...offering.commercialTerms, overtimeUnit: event.target.value } })} placeholder="Example: hour" className={inputClass} /></Field>
+        <SelectField label="Tax included" value={offering.commercialTerms.taxIncluded == null ? '' : offering.commercialTerms.taxIncluded ? 'Yes' : 'No'} options={['Yes', 'No']} onChange={(value) => onUpdate(index, { commercialTerms: { ...offering.commercialTerms, taxIncluded: value === 'Yes' } })} />
+        <Field label="Tax % if applicable"><input type="number" min="0" max="100" step="0.01" value={offering.commercialTerms.taxPercentage} onChange={(event) => onUpdate(index, { commercialTerms: { ...offering.commercialTerms, taxPercentage: event.target.value } })} className={inputClass} /></Field>
+        <SelectField label="Service charge type" value={offering.commercialTerms.serviceChargeType} options={CHARGE_TYPE_OPTIONS} onChange={(value) => onUpdate(index, { commercialTerms: { ...offering.commercialTerms, serviceChargeType: value } })} />
+        <Field label="Service charge value"><input type="number" min="0" step="0.01" value={offering.commercialTerms.serviceChargeValue} onChange={(event) => onUpdate(index, { commercialTerms: { ...offering.commercialTerms, serviceChargeValue: event.target.value } })} className={inputClass} /></Field>
+        <SelectField label="Deposit type" value={offering.commercialTerms.depositType} options={DEPOSIT_TYPE_OPTIONS} onChange={(value) => onUpdate(index, { commercialTerms: { ...offering.commercialTerms, depositType: value } })} />
+        <Field label="Deposit value"><input type="number" min="0" step="0.01" value={offering.commercialTerms.depositValue} onChange={(event) => onUpdate(index, { commercialTerms: { ...offering.commercialTerms, depositValue: event.target.value } })} className={inputClass} /></Field>
+        <SelectField label="Availability source" value={offering.commercialTerms.availabilityMode} options={AVAILABILITY_MODE_OPTIONS} onChange={(value) => onUpdate(index, { commercialTerms: { ...offering.commercialTerms, availabilityMode: value } })} />
+        <Field label="Balance due rule" wide><input value={offering.commercialTerms.balanceDueRule} onChange={(event) => onUpdate(index, { commercialTerms: { ...offering.commercialTerms, balanceDueRule: event.target.value } })} placeholder="Example: balance due 14 days before the wedding" className={inputClass} /></Field>
         <Field label="Minimum capacity"><input type="number" min="0" value={offering.minimumCapacity} onChange={(event) => onUpdate(index, { minimumCapacity: event.target.value })} className={inputClass} /></Field>
         <Field label="Maximum capacity"><input type="number" min="0" value={offering.maximumCapacity} onChange={(event) => onUpdate(index, { maximumCapacity: event.target.value })} className={inputClass} /></Field>
         <Field label="Booking lead time" wide><input value={offering.bookingLeadTime} onChange={(event) => onUpdate(index, { bookingLeadTime: event.target.value })} placeholder="Example: 3–6 months" className={inputClass} /></Field>
         <Checks label="Offering service areas" options={SERVICE_AREA_OPTIONS} values={offering.serviceAreas} onChange={(values) => onUpdate(index, { serviceAreas: values })} wide />
         <Field label="Inclusions" wide><textarea value={offering.inclusions.join('\n')} onChange={(event) => onUpdate(index, { inclusions: event.target.value.split('\n').map((entry) => entry.trim()).filter(Boolean) })} placeholder="One inclusion per line" className={textareaClass} /></Field>
       </div>
-      <div className="mt-7 border-t border-gold/15 pt-6"><h4 className="font-serif text-2xl">Questions for {providerCategoryLabel(offering.category).toLowerCase()}</h4><p className="mt-1 text-xs text-espresso/50">Only fields relevant to this service are shown.</p><div className="mt-4 grid gap-4 sm:grid-cols-2">{providerServiceFields(offering.category).map((field) => <DynamicField key={field.key} field={field} value={offering.details[field.key]} onChange={(value) => onUpdate(index, { details: { ...offering.details, [field.key]: value } })} />)}</div></div>
+      <div className="mt-7 border-t border-gold/15 pt-6"><h4 className="font-serif text-2xl">Questions for {providerCategoryLabel(offering.category).toLowerCase()}</h4><p className="mt-1 text-xs text-espresso/50">Only fields relevant to this service are shown. These answers are used with the commercial catalogue so Wewed can calculate fit for each wedding.</p><div className="mt-4 grid gap-4 sm:grid-cols-2">{providerServiceFields(offering.category).map((field) => <DynamicField key={field.key} field={field} value={offering.details[field.key]} onChange={(value) => onUpdate(index, { details: { ...offering.details, [field.key]: value } })} />)}</div></div>
+      <PriceComponentEditor value={offering.priceComponents} onChange={(priceComponents) => onUpdate(index, { priceComponents })} />
+      <div className="mt-6 rounded-2xl border border-gold/25 bg-white p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3"><div><h4 className="font-serif text-2xl">AI Planning Readiness</h4><p className="mt-1 text-xs text-espresso/50">Only calculation-ready, current offerings can be selected automatically into an exact-budget Wedding Architect plan.</p></div><span className="rounded-full border border-gold/25 px-3 py-1 text-xs font-semibold">{offering.aiReadinessScore}% · {offering.aiReadinessStatus.replaceAll('_', ' ')}</span></div>
+        {offering.aiReadinessMissing.length > 0 && <ul className="mt-3 grid gap-1 text-xs text-espresso/60 sm:grid-cols-2">{offering.aiReadinessMissing.map((item) => <li key={item}>• {item}</li>)}</ul>}
+        <label className="mt-4 flex items-start gap-3 rounded-xl border border-gold/20 bg-champagne/35 p-3 text-xs"><input type="checkbox" checked={offering.confirmCommercialPricing} onChange={(event) => onUpdate(index, { confirmCommercialPricing: event.target.checked })} className="mt-0.5 accent-[#BF9B5F]" /><span><strong>Confirm current commercial pricing.</strong> I confirm these prices, fees, inclusions and conditions are current and may be used by Wewed to calculate client-specific wedding plans.</span></label>
+        {offering.ownerConfirmedCommercialAt && <p className="mt-2 text-[11px] text-espresso/45">Last confirmed: {new Date(offering.ownerConfirmedCommercialAt).toLocaleString()}</p>}
+      </div>
       <PackageEditor value={offering.packages} currency={offering.currency} onChange={(packages) => onUpdate(index, { packages })} />
       <PortfolioEditor value={offering.portfolio} onChange={(portfolio) => onUpdate(index, { portfolio })} />
     </div>
@@ -672,8 +843,13 @@ function FaqEditor({ value, onChange }: { value: Array<{ question: string; answe
   return <div className="mt-7 border-t border-gold/15 pt-6"><div className="flex items-center justify-between gap-3"><div><h3 className="font-serif text-2xl">Frequently asked questions</h3><p className="mt-1 text-xs text-espresso/50">Help couples understand the booking process before enquiring.</p></div><button type="button" onClick={() => onChange([...value, { question: '', answer: '' }])} className="inline-flex items-center gap-1 rounded-full border border-gold/30 px-3 py-2 text-xs font-semibold"><Plus className="size-3.5" />Add FAQ</button></div><div className="mt-4 space-y-3">{value.map((item, index) => <div key={index} className="grid gap-2 rounded-xl border border-gold/15 bg-ivory p-3 sm:grid-cols-[1fr_1.5fr_auto]"><input value={item.question} onChange={(event) => onChange(value.map((entry, position) => position === index ? { ...entry, question: event.target.value } : entry))} placeholder="Question" className={inputClass} /><textarea value={item.answer} onChange={(event) => onChange(value.map((entry, position) => position === index ? { ...entry, answer: event.target.value } : entry))} placeholder="Answer" className={`${textareaClass} min-h-20`} /><button type="button" onClick={() => onChange(value.filter((_, position) => position !== index))} aria-label="Remove FAQ" className="self-start rounded-xl border border-clay/25 p-3 text-clay"><Trash2 className="size-4" /></button></div>)}</div></div>
 }
 
+function PriceComponentEditor({ value, onChange }: { value: PriceComponentDraft[]; onChange: (value: PriceComponentDraft[]) => void }) {
+  return <div className="mt-7 border-t border-gold/15 pt-6"><div className="flex items-center justify-between gap-3"><div><h4 className="font-serif text-2xl">Structured price components</h4><p className="mt-1 text-xs text-espresso/50">Break down charges that Wewed must calculate instead of asking AI to guess them.</p></div><button type="button" onClick={() => onChange([...value, { id: `component-${Date.now()}`, label: '', type: 'fixed', amount: '', unit: '', condition: '', minimumQuantity: '', maximumQuantity: '' }])} className="inline-flex items-center gap-1 rounded-full border border-gold/30 px-3 py-2 text-xs font-semibold"><Plus className="size-3.5" />Add component</button></div><div className="mt-4 space-y-3">{value.map((item, index) => <div key={item.id || index} className="grid gap-3 rounded-xl border border-gold/15 bg-white p-4 sm:grid-cols-2"><input value={item.label} onChange={(event) => onChange(value.map((entry, position) => position === index ? { ...entry, label: event.target.value } : entry))} placeholder="Charge name — e.g. Adult guest" className={inputClass} /><select value={item.type} onChange={(event) => onChange(value.map((entry, position) => position === index ? { ...entry, type: event.target.value } : entry))} className={selectClass}>{PRICE_COMPONENT_TYPES.map((option) => <option key={option} value={option}>{option.replaceAll('_', ' ')}</option>)}</select><input type="number" min="0" step="0.01" value={item.amount} onChange={(event) => onChange(value.map((entry, position) => position === index ? { ...entry, amount: event.target.value } : entry))} placeholder="Amount or percentage" className={inputClass} /><input value={item.unit} onChange={(event) => onChange(value.map((entry, position) => position === index ? { ...entry, unit: event.target.value } : entry))} placeholder="Unit — guest, hour, item…" className={inputClass} /><input type="number" min="0" value={item.minimumQuantity} onChange={(event) => onChange(value.map((entry, position) => position === index ? { ...entry, minimumQuantity: event.target.value } : entry))} placeholder="Minimum quantity" className={inputClass} /><input type="number" min="0" value={item.maximumQuantity} onChange={(event) => onChange(value.map((entry, position) => position === index ? { ...entry, maximumQuantity: event.target.value } : entry))} placeholder="Maximum quantity" className={inputClass} /><textarea value={item.condition} onChange={(event) => onChange(value.map((entry, position) => position === index ? { ...entry, condition: event.target.value } : entry))} placeholder="When does this component apply?" className={`${textareaClass} min-h-20 sm:col-span-2`} /><div className="sm:col-span-2 flex justify-end"><button type="button" onClick={() => onChange(value.filter((_, position) => position !== index))} className="inline-flex items-center gap-1 text-xs text-clay"><Trash2 className="size-3.5" />Remove component</button></div></div>)}</div></div>
+}
+
 function PackageEditor({ value, currency, onChange }: { value: PackageDraft[]; currency: string; onChange: (value: PackageDraft[]) => void }) {
-  return <div className="mt-7 border-t border-gold/15 pt-6"><div className="flex items-center justify-between gap-3"><div><h4 className="font-serif text-2xl">Packages</h4><p className="mt-1 text-xs text-espresso/50">Add structured packages so couples can compare real inclusions.</p></div><button type="button" onClick={() => onChange([...value, { name: '', description: '', price: '', currency, pricingUnit: '', inclusions: [] }])} className="inline-flex items-center gap-1 rounded-full border border-gold/30 px-3 py-2 text-xs font-semibold"><Plus className="size-3.5" />Add package</button></div><div className="mt-4 space-y-3">{value.map((item, index) => <div key={index} className="grid gap-3 rounded-xl border border-gold/15 bg-white p-4 sm:grid-cols-2"><input value={item.name} onChange={(event) => onChange(value.map((entry, position) => position === index ? { ...entry, name: event.target.value } : entry))} placeholder="Package name" className={inputClass} /><input type="number" min="0" step="0.01" value={item.price} onChange={(event) => onChange(value.map((entry, position) => position === index ? { ...entry, price: event.target.value } : entry))} placeholder="Price" className={inputClass} /><textarea value={item.description} onChange={(event) => onChange(value.map((entry, position) => position === index ? { ...entry, description: event.target.value } : entry))} placeholder="Package description" className={textareaClass} /><textarea value={item.inclusions.join('\n')} onChange={(event) => onChange(value.map((entry, position) => position === index ? { ...entry, inclusions: event.target.value.split('\n').map((line) => line.trim()).filter(Boolean) } : entry))} placeholder="One inclusion per line" className={textareaClass} /><div className="sm:col-span-2 flex justify-end"><button type="button" onClick={() => onChange(value.filter((_, position) => position !== index))} className="inline-flex items-center gap-1 text-xs text-clay"><Trash2 className="size-3.5" />Remove package</button></div></div>)}</div></div>
+  const emptyPackage = (): PackageDraft => ({ name: '', description: '', price: '', currency, pricingUnit: '', inclusions: [], minimumQuantity: '', maximumQuantity: '', includedQuantity: '', additionalUnitPrice: '', exclusions: [], requiredAddOns: [], optionalAddOns: [], commercialTerms: commercialTermsDraft({}), priceComponents: [], priceValidFrom: '', priceValidUntil: '', completionScore: 0 })
+  return <div className="mt-7 border-t border-gold/15 pt-6"><div className="flex items-center justify-between gap-3"><div><h4 className="font-serif text-2xl">Packages</h4><p className="mt-1 text-xs text-espresso/50">Packages are calculation-ready catalogue products: include quantities, overage pricing, exclusions, add-ons and validity.</p></div><button type="button" onClick={() => onChange([...value, emptyPackage()])} className="inline-flex items-center gap-1 rounded-full border border-gold/30 px-3 py-2 text-xs font-semibold"><Plus className="size-3.5" />Add package</button></div><div className="mt-4 space-y-4">{value.map((item, index) => <div key={index} className="rounded-xl border border-gold/15 bg-white p-4"><div className="grid gap-3 sm:grid-cols-2"><input value={item.name} onChange={(event) => onChange(value.map((entry, position) => position === index ? { ...entry, name: event.target.value } : entry))} placeholder="Package name" className={inputClass} /><input type="number" min="0" step="0.01" value={item.price} onChange={(event) => onChange(value.map((entry, position) => position === index ? { ...entry, price: event.target.value } : entry))} placeholder="Base price" className={inputClass} /><input value={item.pricingUnit} onChange={(event) => onChange(value.map((entry, position) => position === index ? { ...entry, pricingUnit: event.target.value } : entry))} placeholder="Pricing unit — package, guest, hour…" className={inputClass} /><input type="date" value={item.priceValidUntil} onChange={(event) => onChange(value.map((entry, position) => position === index ? { ...entry, priceValidUntil: event.target.value } : entry))} className={inputClass} /><input type="number" min="0" value={item.minimumQuantity} onChange={(event) => onChange(value.map((entry, position) => position === index ? { ...entry, minimumQuantity: event.target.value } : entry))} placeholder="Minimum quantity" className={inputClass} /><input type="number" min="0" value={item.maximumQuantity} onChange={(event) => onChange(value.map((entry, position) => position === index ? { ...entry, maximumQuantity: event.target.value } : entry))} placeholder="Maximum quantity" className={inputClass} /><input type="number" min="0" value={item.includedQuantity} onChange={(event) => onChange(value.map((entry, position) => position === index ? { ...entry, includedQuantity: event.target.value } : entry))} placeholder="Quantity included" className={inputClass} /><input type="number" min="0" step="0.01" value={item.additionalUnitPrice} onChange={(event) => onChange(value.map((entry, position) => position === index ? { ...entry, additionalUnitPrice: event.target.value } : entry))} placeholder="Additional unit price" className={inputClass} /><textarea value={item.description} onChange={(event) => onChange(value.map((entry, position) => position === index ? { ...entry, description: event.target.value } : entry))} placeholder="Package description" className={textareaClass} /><textarea value={item.inclusions.join('\n')} onChange={(event) => onChange(value.map((entry, position) => position === index ? { ...entry, inclusions: event.target.value.split('\n').map((line) => line.trim()).filter(Boolean) } : entry))} placeholder="One inclusion per line" className={textareaClass} /><textarea value={item.exclusions.join('\n')} onChange={(event) => onChange(value.map((entry, position) => position === index ? { ...entry, exclusions: event.target.value.split('\n').map((line) => line.trim()).filter(Boolean) } : entry))} placeholder="One exclusion per line" className={textareaClass} /><textarea value={item.optionalAddOns.join('\n')} onChange={(event) => onChange(value.map((entry, position) => position === index ? { ...entry, optionalAddOns: event.target.value.split('\n').map((line) => line.trim()).filter(Boolean) } : entry))} placeholder="Optional add-ons, one per line" className={textareaClass} /></div><PriceComponentEditor value={item.priceComponents} onChange={(priceComponents) => onChange(value.map((entry, position) => position === index ? { ...entry, priceComponents } : entry))} /><div className="mt-3 flex items-center justify-between gap-3"><span className="text-[11px] text-espresso/45">Catalogue completeness: {item.completionScore}%</span><button type="button" onClick={() => onChange(value.filter((_, position) => position !== index))} className="inline-flex items-center gap-1 text-xs text-clay"><Trash2 className="size-3.5" />Remove package</button></div></div>)}</div></div>
 }
 
 function PortfolioEditor({ value, onChange }: { value: PortfolioDraft[]; onChange: (value: PortfolioDraft[]) => void }) {
