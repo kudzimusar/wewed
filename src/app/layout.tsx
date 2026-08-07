@@ -44,7 +44,6 @@ export const metadata: Metadata = {
   },
   openGraph: { title, description, type: 'website', url: 'https://wewed.pro' },
   twitter: { card: 'summary', title, description },
-  alternates: { canonical: '/' },
   manifest: '/manifest.json',
 }
 
