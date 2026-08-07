@@ -116,6 +116,38 @@ Before applying the follow-up migration, production must be checked for any exis
 
 After production application, verify the trigger function definition, trigger enabled state, and zero stale system-derived vendor classifications without creating disposable production provider records.
 
+## Final production verification
+
+After the exact candidate passed all nine repository workflows, the live pre-migration stale-system-classification count was confirmed as `0` and the function-only migration was applied to the Wewed Supabase project as `fix_vendor_classification_move_refresh`.
+
+Post-migration verification confirmed:
+
+- the registered live migration is `fix_vendor_classification_move_refresh`;
+- `wewed_admin.refresh_system_vendor_classification()` contains the `OLD."businessAccountId" IS DISTINCT FROM NEW."businessAccountId"` branch and refreshes both affected accounts;
+- trigger `refresh_system_vendor_classification_after_offering` remains enabled (`tgenabled='O'`) on `wewed_admin."ProviderServiceOffering"` for INSERT, DELETE, and updates of category / `businessAccountId`;
+- stale system-derived vendor classifications remain `0`;
+- no disposable production provider/offering records were created for verification.
+
+The first trigger-state verification query used a longer assumed trigger name and returned no row. Inspection of the original migration confirmed the actual trigger name is `refresh_system_vendor_classification_after_offering`; querying the live trigger set by table then confirmed it is present and enabled. This was a verification-name mismatch, not a database defect.
+
+## Final exact-head qualification
+
+Exact head `834180b49f575939ab23f13bd04426cc76d05374` passed all nine repository workflows:
+
+1. Preview Data Safety
+2. Budget Data Integrity
+3. Admin and Couple Consistency
+4. Provider Security CI
+5. Admin Console CI
+6. Admin Command Centre CI
+7. Planner Marketplace CI
+8. Provider Forms CI
+9. repository-wide CI
+
+The repository-wide CI passed the final executable planner browser release gate with flaky tests treated as failures. The dedicated Admin gate passed the documented-plan contract, complete clean migration chain, migration status, zero Prisma drift, PostgreSQL provisioning/classification integration, lint, production build, and responsive Windows/mobile browser gate.
+
+At qualification time the branch was 36 commits ahead and 0 behind `main`; all three P2 review threads were formally resolved; the exact-head Vercel preview was READY and the Vercel commit status was success.
+
 ## Merge readiness criteria
 
 Phase 7 is cleared only when all of the following are simultaneously true on the final candidate:
@@ -128,4 +160,4 @@ Phase 7 is cleared only when all of the following are simultaneously true on the
 6. The three P2 review findings above have been answered and verified against the final code.
 7. The follow-up production migration has passed its pre/post database verification gate.
 
-Only after those conditions are proven should PR #84 proceed to merge.
+All seven criteria were satisfied on 2026-08-07. PR #84 remains unmerged pending the user's explicit merge instruction.
