@@ -92,6 +92,50 @@ describe('provider commercial readiness', () => {
     expect(readiness.missing).toEqual([])
   })
 
+  test('refuses ambiguous variable pricing until it is bound to the wedding quantity that drives it', () => {
+    const unbound = calculateCommercialReadiness({
+      status: 'published',
+      serviceAreas: ['Harare'],
+      pricingVisibility: 'exact',
+      pricingModel: 'Per item',
+      startingPrice: '5',
+      priceValidUntil: '2027-01-01T00:00:00.000Z',
+      commercialTerms: {
+        taxIncluded: true,
+        depositType: 'percentage',
+        balanceDueRule: '14 days before the wedding',
+      },
+      priceComponents: [
+        { label: 'Printed invitation', type: 'per_item', amount: '5', unit: 'invitation' },
+      ],
+      commercialConfirmed: true,
+    }, now)
+
+    expect(unbound.status).toBe('not_ready')
+    expect(unbound.missing).toContain('Bind every variable price component to the wedding quantity that drives it')
+
+    const bound = calculateCommercialReadiness({
+      status: 'published',
+      serviceAreas: ['Harare'],
+      pricingVisibility: 'exact',
+      pricingModel: 'Per item',
+      startingPrice: '5',
+      priceValidUntil: '2027-01-01T00:00:00.000Z',
+      commercialTerms: {
+        taxIncluded: true,
+        depositType: 'percentage',
+        balanceDueRule: '14 days before the wedding',
+      },
+      priceComponents: [
+        { label: 'Printed invitation', type: 'per_item', amount: '5', unit: 'invitation', quantityKey: 'invitations' },
+      ],
+      commercialConfirmed: true,
+    }, now)
+
+    expect(bound.status).toBe('ready')
+    expect(bound.missing).not.toContain('Bind every variable price component to the wedding quantity that drives it')
+  })
+
   test('keeps package completeness distinct from AI readiness', () => {
     expect(calculatePackageCompletion({
       name: 'Gold',
@@ -108,6 +152,7 @@ describe('provider commercial readiness', () => {
     expect(PRICE_COMPONENT_TYPES).toContain('per_guest')
     expect(PRICE_COMPONENT_TYPES).toContain('per_child')
     expect(PRICE_COMPONENT_TYPES).toContain('per_kilometre')
+    expect(PRICE_COMPONENT_TYPES).toContain('percentage_of_budget')
     expect(PRICE_COMPONENT_TYPES).toContain('percentage_surcharge')
     expect(PRICE_COMPONENT_TYPES).toContain('tax')
     expect(PRICE_COMPONENT_TYPES).toContain('discount')
