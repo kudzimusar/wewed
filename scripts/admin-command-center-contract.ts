@@ -90,6 +90,16 @@ const api = requireAll('src/app/api/admin/command-center/route.ts', [
   'wewed_admin."BillingOffer"',
   'plannerRelationshipMismatches',
   'missingProvisioning',
+  'function canReadBilling',
+  'function isOperationsAdmin',
+  'function canReadQueueCategory',
+  'function canManageQueueCategory',
+  'billingOfferCode: billingVisible ? account.billingOfferCode : null',
+  "subscriptionStatus: billingVisible ? account.subscriptionStatus : 'restricted'",
+  "if (!isOperationsAdmin(context)) return []",
+  'if (!canManageQueueCategory(context, item.category))',
+  "This administrator cannot manage this work-item category.",
+  "Work items may only be assigned to an active platform administrator.",
 ])
 assert.ok(
   api.indexOf("if (!isSuperAdmin(context))") < api.indexOf("action === 'save_view'"),
@@ -98,6 +108,15 @@ assert.ok(
 assert.ok(
   !api.includes('SELECT * FROM public."User"'),
   'The command centre must not expose the unclassified generic User population.',
+)
+assert.ok(
+  api.includes("hasPermission(context, 'admin.billing.read')") &&
+    api.includes("hasPermission(context, 'admin.billing.manage')"),
+  'Billing fields and queue projections must remain subordinate to existing billing permissions.',
+)
+assert.ok(
+  api.includes("context.adminRole === 'wewed_operations_admin'"),
+  'Provider claims, verification, and operational relationship diagnostics must remain Operations/Super-Admin work.',
 )
 
 const commandCentre = requireAll('src/components/admin/admin-command-centre.tsx', [
@@ -108,6 +127,11 @@ const commandCentre = requireAll('src/components/admin/admin-command-centre.tsx'
   'People & Organisation',
   'No platform admin access',
   'Pricing remains segmented by account type',
+  'Billing details are restricted by your platform role.',
+  "? account.billingOfferName || 'Missing'",
+  ": 'Restricted'",
+  'canManageClassification={data.admin.canManageClassification}',
+  'canReadBilling={data.admin.canReadBilling}',
   'grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6',
   'data-admin-command-centre="true"',
 ])
@@ -167,6 +191,8 @@ requireAll('tests/e2e/support/admin-browser.ts', [
   "'wewed_super_admin'",
   'PlatformAdministrator',
   "role: 'admin'",
+  'The shared planner reset truncates public tables with CASCADE',
+  'ON CONFLICT ("businessAccountId", "userId") DO UPDATE SET',
 ])
 
 console.log('Admin command centre plan contract: PASS')
