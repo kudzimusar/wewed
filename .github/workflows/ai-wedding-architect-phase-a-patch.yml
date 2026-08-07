@@ -39,7 +39,6 @@ jobs:
             src/app/api/providers/[slug]/route.ts \
             src/components/providers/provider-profile-manager.tsx \
             src/components/providers/public-provider-profile.tsx \
-            src/lib/provider-forms-profile-upgrade.test.ts \
-            .github/workflows/provider-forms-ci.yml
+            src/lib/provider-forms-profile-upgrade.test.ts
           git commit -m "Integrate AI-ready provider commercial catalogue"
           git push origin HEAD:feature/ai-wedding-architect
