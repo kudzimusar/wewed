@@ -52,3 +52,4 @@ replaceOnce(
 )
 
 console.log('Pre-UAT gap patches applied cleanly.')
+// trigger: 2026-08-07 pre-UAT audit
