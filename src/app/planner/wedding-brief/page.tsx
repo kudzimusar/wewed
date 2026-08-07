@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { ArrowLeft, Sparkles } from 'lucide-react'
+import { WeddingBriefAiCoach } from '@/components/wedding/wedding-brief-ai-coach'
 import { WeddingRequirementsEditor } from '@/components/wedding/wedding-requirements-editor'
 
 export default function WeddingBriefPage() {
@@ -16,6 +17,7 @@ export default function WeddingBriefPage() {
           </div>
           <Link href="/planner" className="inline-flex items-center gap-2 rounded-full border border-gold/25 px-3 py-2 text-xs text-gold hover:bg-gold/10"><ArrowLeft className="size-3.5" />Planner workspace</Link>
         </header>
+        <WeddingBriefAiCoach />
         <WeddingRequirementsEditor />
       </div>
     </main>
