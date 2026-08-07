@@ -144,39 +144,50 @@ function jsonObject(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>
 }
 
-function canManageOperations(context: WewedAdminContext): boolean {
-  return (
-    context.permissions.includes('*') ||
-    context.permissions.includes('admin.departments.manage') ||
-    context.permissions.includes('admin.support.manage') ||
-    context.permissions.includes('admin.billing.manage')
-  )
-}
-
-function canReadBilling(context: WewedAdminContext): boolean {
-  return (
-    context.permissions.includes('*') ||
-    context.permissions.includes('admin.billing.read') ||
-    context.permissions.includes('admin.billing.manage')
-  )
+function hasPermission(context: WewedAdminContext, permission: string): boolean {
+  return context.permissions.includes('*') || context.permissions.includes(permission)
 }
 
 function isSuperAdmin(context: WewedAdminContext): boolean {
   return context.adminRole === 'wewed_super_admin'
 }
 
+function isOperationsAdmin(context: WewedAdminContext): boolean {
+  return isSuperAdmin(context) || context.adminRole === 'wewed_operations_admin'
+}
+
+function canReadBilling(context: WewedAdminContext): boolean {
+  return hasPermission(context, 'admin.billing.read') || hasPermission(context, 'admin.billing.manage')
+}
+
+function canReadSupport(context: WewedAdminContext): boolean {
+  return hasPermission(context, 'admin.support.read') || hasPermission(context, 'admin.support.manage')
+}
+
+function canManageClassification(context: WewedAdminContext): boolean {
+  return hasPermission(context, 'admin.departments.manage')
+}
+
+function canReadQueueCategory(context: WewedAdminContext, category: string): boolean {
+  if (isOperationsAdmin(context)) return true
+  if (category === 'billing_attention') return canReadBilling(context)
+  if (category === 'support') return canReadSupport(context)
+  return false
+}
+
+function canManageQueueCategory(context: WewedAdminContext, category: string): boolean {
+  if (isOperationsAdmin(context)) return true
+  if (category === 'billing_attention') return hasPermission(context, 'admin.billing.manage')
+  if (category === 'support') return hasPermission(context, 'admin.support.manage')
+  return false
+}
+
 function errorResponse(error: unknown) {
   if (error instanceof WewedAdminAccessError) {
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: error.status },
-    )
+    return NextResponse.json({ success: false, error: error.message }, { status: error.status })
   }
   if (error instanceof CommandCenterRequestError) {
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: error.status },
-    )
+    return NextResponse.json({ success: false, error: error.message }, { status: error.status })
   }
   console.error('[api/admin/command-center] Error:', error)
   return NextResponse.json(
@@ -199,10 +210,7 @@ async function scopedAccount(
     ...scope.values,
   )
   if (!rows[0]) {
-    throw new CommandCenterRequestError(
-      'The account is outside this administrator scope.',
-      404,
-    )
+    throw new CommandCenterRequestError('The account is outside this administrator scope.', 404)
   }
   return rows[0]
 }
@@ -276,11 +284,9 @@ async function readAccounts(context: WewedAdminContext): Promise<AccountRow[]> {
   )
 }
 
-async function readPersistedWorkItems(
-  context: WewedAdminContext,
-): Promise<WorkItemRow[]> {
+async function readPersistedWorkItems(context: WewedAdminContext): Promise<WorkItemRow[]> {
   const scope = buildBusinessAccountScopeSql(context, 'ba', 2)
-  return db.$queryRawUnsafe<WorkItemRow[]>(
+  const rows = await db.$queryRawUnsafe<WorkItemRow[]>(
     `SELECT
        item.id,
        item."businessAccountId",
@@ -312,14 +318,11 @@ async function readPersistedWorkItems(
     context.session.userId,
     ...scope.values,
   )
+  return rows.filter((item) => canReadQueueCategory(context, item.category))
 }
 
 async function readSupport(context: WewedAdminContext): Promise<SupportRow[]> {
-  if (
-    !context.permissions.includes('*') &&
-    !context.permissions.includes('admin.support.read') &&
-    !context.permissions.includes('admin.support.manage')
-  ) return []
+  if (!canReadSupport(context)) return []
   const scope = buildBusinessAccountScopeSql(context, 'ba', 1)
   return db.$queryRawUnsafe<SupportRow[]>(
     `SELECT support.id,
@@ -341,6 +344,7 @@ async function readSupport(context: WewedAdminContext): Promise<SupportRow[]> {
 }
 
 async function readClaims(context: WewedAdminContext): Promise<ClaimRow[]> {
+  if (!isOperationsAdmin(context)) return []
   const scope = buildBusinessAccountScopeSql(context, 'ba', 1)
   return db.$queryRawUnsafe<ClaimRow[]>(
     `SELECT claim.id,
@@ -359,9 +363,8 @@ async function readClaims(context: WewedAdminContext): Promise<ClaimRow[]> {
   )
 }
 
-async function readVerification(
-  context: WewedAdminContext,
-): Promise<VerificationRow[]> {
+async function readVerification(context: WewedAdminContext): Promise<VerificationRow[]> {
+  if (!isOperationsAdmin(context)) return []
   const scope = buildBusinessAccountScopeSql(context, 'ba', 1)
   return db.$queryRawUnsafe<VerificationRow[]>(
     `SELECT verification.id,
@@ -422,6 +425,7 @@ async function readInternalStaff(context: WewedAdminContext): Promise<InternalSt
 }
 
 async function plannerMismatchCount(context: WewedAdminContext): Promise<number> {
+  if (!isOperationsAdmin(context)) return 0
   const scope = buildBusinessAccountScopeSql(context, 'couple_account', 1)
   const rows = await db.$queryRawUnsafe<Array<{ count: number }>>(
     `SELECT COUNT(*)::int AS count
@@ -445,8 +449,11 @@ async function plannerMismatchCount(context: WewedAdminContext): Promise<number>
 export async function GET(request: NextRequest) {
   try {
     const context = await requireWewedAdmin(request, 'admin.accounts.read')
+    const billingVisible = canReadBilling(context)
+    const operationsVisible = isOperationsAdmin(context)
+
     const [
-      accounts,
+      rawAccounts,
       persistedWork,
       support,
       claims,
@@ -464,13 +471,24 @@ export async function GET(request: NextRequest) {
       readVerification(context),
       readInternalStaff(context),
       plannerMismatchCount(context),
-      db.$queryRawUnsafe<Array<{ subtypeKey: string; accountType: string; name: string; description: string; sortOrder: number }>>(
+      db.$queryRawUnsafe<Array<{
+        subtypeKey: string
+        accountType: string
+        name: string
+        description: string
+        sortOrder: number
+      }>>(
         `SELECT "subtypeKey", "accountType", name, description, "sortOrder"
          FROM wewed_admin."AccountSubtypeDefinition"
          WHERE status='active'
          ORDER BY "accountType", "sortOrder", name`,
       ),
-      db.$queryRawUnsafe<Array<{ departmentKey: string; name: string; description: string; sortOrder: number }>>(
+      db.$queryRawUnsafe<Array<{
+        departmentKey: string
+        name: string
+        description: string
+        sortOrder: number
+      }>>(
         `SELECT "departmentKey", name, description, "sortOrder"
          FROM wewed_admin."InternalDepartmentDefinition"
          WHERE status='active'
@@ -485,7 +503,7 @@ export async function GET(request: NextRequest) {
       ),
     ])
 
-    const offers = canReadBilling(context)
+    const offers = billingVisible
       ? await db.$queryRawUnsafe<Array<{
           offerCode: string
           accountType: string
@@ -509,69 +527,78 @@ export async function GET(request: NextRequest) {
       : []
 
     const projectedWork = [
-      ...accounts
-        .filter((account) => account.status === 'pending_review')
-        .map((account) => ({
-          id: `projected-review-${account.id}`,
-          businessAccountId: account.id,
-          accountName: account.name,
-          resourceType: 'business_account',
-          resourceId: account.id,
-          category: 'account_review',
-          priority: 'high',
-          status: 'open',
-          title: `Review ${account.name}`,
-          summary: `${account.type.replaceAll('_',' ')} account is awaiting a lifecycle decision.`,
-          assignedToUserId: null,
-          assignedToEmail: null,
-          departmentKey: 'operations',
-          source: 'account',
-          dueAt: null,
-          createdAt: account.lastActivityAt,
-          projected: true,
-        })),
-      ...accounts
-        .filter((account) => account.onboardingStatus !== 'complete')
-        .map((account) => ({
-          id: `projected-onboarding-${account.id}`,
-          businessAccountId: account.id,
-          accountName: account.name,
-          resourceType: 'business_account',
-          resourceId: account.id,
-          category: 'onboarding',
-          priority: 'normal',
-          status: 'open',
-          title: `Complete onboarding: ${account.name}`,
-          summary: `Onboarding is ${account.onboardingStatus.replaceAll('_',' ')}.`,
-          assignedToUserId: null,
-          assignedToEmail: null,
-          departmentKey: 'operations',
-          source: 'onboarding',
-          dueAt: null,
-          createdAt: account.lastActivityAt,
-          projected: true,
-        })),
-      ...accounts
-        .filter((account) => ['past_due','unpaid','incomplete_expired'].includes(account.billingProfileStatus || account.subscriptionStatus))
-        .map((account) => ({
-          id: `projected-billing-${account.id}`,
-          businessAccountId: account.id,
-          accountName: account.name,
-          resourceType: 'business_account',
-          resourceId: account.id,
-          category: 'billing_attention',
-          priority: 'high',
-          status: 'open',
-          title: `Billing attention: ${account.name}`,
-          summary: `Billing status is ${(account.billingProfileStatus || account.subscriptionStatus).replaceAll('_',' ')}.`,
-          assignedToUserId: null,
-          assignedToEmail: null,
-          departmentKey: 'billing_finance',
-          source: 'billing',
-          dueAt: null,
-          createdAt: account.lastActivityAt,
-          projected: true,
-        })),
+      ...(operationsVisible
+        ? rawAccounts
+            .filter((account) => account.status === 'pending_review')
+            .map((account) => ({
+              id: `projected-review-${account.id}`,
+              businessAccountId: account.id,
+              accountName: account.name,
+              resourceType: 'business_account',
+              resourceId: account.id,
+              category: 'account_review',
+              priority: 'high',
+              status: 'open',
+              title: `Review ${account.name}`,
+              summary: `${account.type.replaceAll('_', ' ')} account is awaiting a lifecycle decision.`,
+              assignedToUserId: null,
+              assignedToEmail: null,
+              departmentKey: 'operations',
+              source: 'account',
+              createdAt: account.lastActivityAt,
+              projected: true,
+            }))
+        : []),
+      ...(operationsVisible
+        ? rawAccounts
+            .filter((account) => account.onboardingStatus !== 'complete')
+            .map((account) => ({
+              id: `projected-onboarding-${account.id}`,
+              businessAccountId: account.id,
+              accountName: account.name,
+              resourceType: 'business_account',
+              resourceId: account.id,
+              category: 'onboarding',
+              priority: 'normal',
+              status: 'open',
+              title: `Complete onboarding: ${account.name}`,
+              summary: `Onboarding is ${account.onboardingStatus.replaceAll('_', ' ')}.`,
+              assignedToUserId: null,
+              assignedToEmail: null,
+              departmentKey: 'operations',
+              source: 'onboarding',
+              createdAt: account.lastActivityAt,
+              projected: true,
+            }))
+        : []),
+      ...(billingVisible
+        ? rawAccounts
+            .filter((account) =>
+              ['past_due', 'unpaid', 'incomplete_expired'].includes(
+                account.billingProfileStatus || account.subscriptionStatus,
+              ),
+            )
+            .map((account) => ({
+              id: `projected-billing-${account.id}`,
+              businessAccountId: account.id,
+              accountName: account.name,
+              resourceType: 'business_account',
+              resourceId: account.id,
+              category: 'billing_attention',
+              priority: 'high',
+              status: 'open',
+              title: `Billing attention: ${account.name}`,
+              summary: `Billing status is ${(
+                account.billingProfileStatus || account.subscriptionStatus
+              ).replaceAll('_', ' ')}.`,
+              assignedToUserId: null,
+              assignedToEmail: null,
+              departmentKey: 'billing_finance',
+              source: 'billing',
+              createdAt: account.lastActivityAt,
+              projected: true,
+            }))
+        : []),
       ...claims.map((claim) => ({
         id: `projected-claim-${claim.id}`,
         businessAccountId: claim.businessAccountId,
@@ -582,12 +609,11 @@ export async function GET(request: NextRequest) {
         priority: 'high',
         status: 'open',
         title: `Provider claim: ${claim.accountName}`,
-        summary: `${claim.claimantName} submitted a ${claim.status.replaceAll('_',' ')} claim.`,
+        summary: `${claim.claimantName} submitted a ${claim.status.replaceAll('_', ' ')} claim.`,
         assignedToUserId: null,
         assignedToEmail: null,
         departmentKey: 'marketplace',
         source: 'provider_claim',
-        dueAt: null,
         createdAt: claim.createdAt,
         projected: true,
       })),
@@ -606,7 +632,6 @@ export async function GET(request: NextRequest) {
         assignedToEmail: null,
         departmentKey: 'compliance',
         source: 'provider_verification',
-        dueAt: null,
         createdAt: item.updatedAt,
         projected: true,
       })),
@@ -617,19 +642,23 @@ export async function GET(request: NextRequest) {
         resourceType: 'support_case',
         resourceId: item.id,
         category: 'support',
-        priority: item.priority === 'critical' ? 'critical' : item.priority === 'high' ? 'high' : 'normal',
+        priority:
+          item.priority === 'critical'
+            ? 'critical'
+            : item.priority === 'high'
+              ? 'high'
+              : 'normal',
         status: 'open',
         title: item.title,
-        summary: `${item.accountName || 'Platform'} support case · ${item.status.replaceAll('_',' ')}`,
+        summary: `${item.accountName || 'Platform'} support case · ${item.status.replaceAll('_', ' ')}`,
         assignedToUserId: null,
         assignedToEmail: null,
         departmentKey: 'customer_support',
         source: 'support',
-        dueAt: null,
         createdAt: item.createdAt,
         projected: true,
       })),
-    ]
+    ].filter((item) => canReadQueueCategory(context, item.category))
 
     const queue = [
       ...persistedWork.map((item) => ({
@@ -643,27 +672,55 @@ export async function GET(request: NextRequest) {
         dueAt: null,
         createdAt: item.createdAt.toISOString(),
       })),
-    ].sort((a, b) => {
-      const priorityRank: Record<string, number> = { critical: 0, high: 1, normal: 2, low: 3 }
-      const priorityDelta = (priorityRank[a.priority] ?? 9) - (priorityRank[b.priority] ?? 9)
-      if (priorityDelta !== 0) return priorityDelta
-      return a.createdAt.localeCompare(b.createdAt)
-    }).slice(0, 100)
+    ]
+      .sort((a, b) => {
+        const priorityRank: Record<string, number> = {
+          critical: 0,
+          high: 1,
+          normal: 2,
+          low: 3,
+        }
+        const priorityDelta =
+          (priorityRank[a.priority] ?? 9) - (priorityRank[b.priority] ?? 9)
+        if (priorityDelta !== 0) return priorityDelta
+        return a.createdAt.localeCompare(b.createdAt)
+      })
+      .slice(0, 100)
 
-    const externalAccounts = accounts.filter((account) => account.type !== 'wewed_internal')
-    const pendingReview = externalAccounts.filter((account) => account.status === 'pending_review').length
-    const onboardingAttention = externalAccounts.filter((account) => account.onboardingStatus !== 'complete').length
-    const billingAttention = externalAccounts.filter((account) =>
-      ['past_due','unpaid','incomplete_expired'].includes(account.billingProfileStatus || account.subscriptionStatus),
-    ).length
-    const missingProvisioning = externalAccounts.filter((account) => !account.departmentCount || !account.billingOfferCode).length
+    const externalAccounts = rawAccounts.filter((account) => account.type !== 'wewed_internal')
+    const pendingReview = operationsVisible
+      ? externalAccounts.filter((account) => account.status === 'pending_review').length
+      : 0
+    const onboardingAttention = operationsVisible
+      ? externalAccounts.filter((account) => account.onboardingStatus !== 'complete').length
+      : 0
+    const billingAttention = billingVisible
+      ? externalAccounts.filter((account) =>
+          ['past_due', 'unpaid', 'incomplete_expired'].includes(
+            account.billingProfileStatus || account.subscriptionStatus,
+          ),
+        ).length
+      : 0
+    const missingProvisioning = operationsVisible
+      ? externalAccounts.filter(
+          (account) => !account.departmentCount || !account.billingOfferCode,
+        ).length
+      : 0
 
     const accountTypeCounts = Object.fromEntries(
-      ['couple','planning_company','venue','vendor','client','wewed_internal'].map((type) => [
-        type,
-        accounts.filter((account) => account.type === type).length,
-      ]),
+      ['couple', 'planning_company', 'venue', 'vendor', 'client', 'wewed_internal'].map(
+        (type) => [type, rawAccounts.filter((account) => account.type === type).length],
+      ),
     )
+
+    const accounts = rawAccounts.map((account) => ({
+      ...account,
+      billingOfferCode: billingVisible ? account.billingOfferCode : null,
+      billingOfferName: billingVisible ? account.billingOfferName : null,
+      billingProfileStatus: billingVisible ? account.billingProfileStatus : null,
+      subscriptionStatus: billingVisible ? account.subscriptionStatus : 'restricted',
+      lastActivityAt: account.lastActivityAt.toISOString(),
+    }))
 
     return NextResponse.json({
       success: true,
@@ -672,8 +729,13 @@ export async function GET(request: NextRequest) {
         email: context.session.email,
         role: context.adminRole,
         isSuperAdmin: isSuperAdmin(context),
-        canManageOperations: canManageOperations(context),
-        canReadBilling: canReadBilling(context),
+        isOperationsAdmin: operationsVisible,
+        canManageClassification: canManageClassification(context),
+        canManageWorkItems:
+          isOperationsAdmin(context) ||
+          hasPermission(context, 'admin.billing.manage') ||
+          hasPermission(context, 'admin.support.manage'),
+        canReadBilling: billingVisible,
         accountScope: context.accountScope,
       },
       metrics: {
@@ -683,15 +745,14 @@ export async function GET(request: NextRequest) {
         providerClaims: claims.length,
         providerVerification: verification.length,
         billingAttention,
-        highPrioritySupport: support.filter((item) => ['critical','high'].includes(item.priority)).length,
+        highPrioritySupport: support.filter((item) =>
+          ['critical', 'high'].includes(item.priority),
+        ).length,
         plannerRelationshipMismatches: mismatchCount,
         missingProvisioning,
       },
       accountTypeCounts,
-      accounts: accounts.map((account) => ({
-        ...account,
-        lastActivityAt: account.lastActivityAt.toISOString(),
-      })),
+      accounts,
       queue,
       internalStaff: internalStaff.map((staff) => ({
         ...staff,
@@ -717,15 +778,21 @@ export async function POST(request: NextRequest) {
     const action = text(body.action, 80)
 
     if (action === 'set_account_classification') {
-      if (!context.permissions.includes('*') && !context.permissions.includes('admin.departments.manage')) {
-        throw new WewedAdminAccessError('This administrator cannot manage account classification.', 403)
+      if (!canManageClassification(context)) {
+        throw new WewedAdminAccessError(
+          'This administrator cannot manage account classification.',
+          403,
+        )
       }
       const accountId = text(body.accountId, 200)
       const subtypeKey = optionalText(body.subtypeKey, 120)
       const segment = optionalText(body.segment, 120)
       const reason = text(body.reason, 1000)
       if (!accountId || reason.length < 5) {
-        throw new CommandCenterRequestError('Account and a reason of at least 5 characters are required.', 400)
+        throw new CommandCenterRequestError(
+          'Account and a reason of at least 5 characters are required.',
+          400,
+        )
       }
       const account = await scopedAccount(context, accountId)
       if (subtypeKey) {
@@ -736,11 +803,16 @@ export async function POST(request: NextRequest) {
           subtypeKey,
         )
         if (!definitions[0]) {
-          throw new CommandCenterRequestError('The selected subtype is not valid for this account type.', 400)
+          throw new CommandCenterRequestError(
+            'The selected subtype is not valid for this account type.',
+            400,
+          )
         }
       }
 
-      const beforeRows = await db.$queryRawUnsafe<Array<{ subtypeKey: string | null; segment: string | null; source: string }>>(
+      const beforeRows = await db.$queryRawUnsafe<
+        Array<{ subtypeKey: string | null; segment: string | null; source: string }>
+      >(
         `SELECT "subtypeKey", segment, source
          FROM wewed_admin."BusinessAccountClassification"
          WHERE "businessAccountId"=$1 LIMIT 1`,
@@ -781,7 +853,10 @@ export async function POST(request: NextRequest) {
 
     if (action === 'set_staff_profile') {
       if (!isSuperAdmin(context)) {
-        throw new WewedAdminAccessError('Only Super Admin can manage workforce profiles.', 403)
+        throw new WewedAdminAccessError(
+          'Only Super Admin can manage workforce profiles.',
+          403,
+        )
       }
       const userId = text(body.userId, 200)
       const departmentKey = optionalText(body.departmentKey, 120)
@@ -791,12 +866,15 @@ export async function POST(request: NextRequest) {
       const managerUserId = optionalText(body.managerUserId, 200)
       const reason = text(body.reason, 1000)
       if (!userId || reason.length < 5) {
-        throw new CommandCenterRequestError('Staff user and a reason of at least 5 characters are required.', 400)
+        throw new CommandCenterRequestError(
+          'Staff user and a reason of at least 5 characters are required.',
+          400,
+        )
       }
-      if (!['employee','contractor','advisor'].includes(employmentType)) {
+      if (!['employee', 'contractor', 'advisor'].includes(employmentType)) {
         throw new CommandCenterRequestError('Invalid employment type.', 400)
       }
-      if (!['active','leave','suspended','left'].includes(employmentStatus)) {
+      if (!['active', 'leave', 'suspended', 'left'].includes(employmentStatus)) {
         throw new CommandCenterRequestError('Invalid employment status.', 400)
       }
       const members = await db.$queryRawUnsafe<Array<{ userId: string }>>(
@@ -805,17 +883,42 @@ export async function POST(request: NextRequest) {
         userId,
       )
       if (!members[0]) {
-        throw new CommandCenterRequestError('The user is not a Wewed internal-account member.', 404)
+        throw new CommandCenterRequestError(
+          'The user is not a Wewed internal-account member.',
+          404,
+        )
       }
       if (departmentKey) {
-        const departments = await db.$queryRawUnsafe<Array<{ departmentKey: string }>>(
+        const knownDepartments = await db.$queryRawUnsafe<
+          Array<{ departmentKey: string }>
+        >(
           `SELECT "departmentKey" FROM wewed_admin."InternalDepartmentDefinition"
            WHERE "departmentKey"=$1 AND status='active' LIMIT 1`,
           departmentKey,
         )
-        if (!departments[0]) throw new CommandCenterRequestError('Unknown internal department.', 400)
+        if (!knownDepartments[0]) {
+          throw new CommandCenterRequestError('Unknown internal department.', 400)
+        }
       }
-      if (managerUserId === userId) throw new CommandCenterRequestError('A staff member cannot manage themselves.', 400)
+      if (managerUserId === userId) {
+        throw new CommandCenterRequestError(
+          'A staff member cannot manage themselves.',
+          400,
+        )
+      }
+      if (managerUserId) {
+        const managers = await db.$queryRawUnsafe<Array<{ userId: string }>>(
+          `SELECT "userId" FROM wewed_admin."BusinessAccountMember"
+           WHERE "businessAccountId"='wewed-platform' AND "userId"=$1 AND status='active' LIMIT 1`,
+          managerUserId,
+        )
+        if (!managers[0]) {
+          throw new CommandCenterRequestError(
+            'The selected manager is not an active Wewed workforce member.',
+            400,
+          )
+        }
+      }
 
       await db.$executeRawUnsafe(
         `INSERT INTO wewed_admin."InternalStaffProfile"
@@ -841,7 +944,14 @@ export async function POST(request: NextRequest) {
         action: 'admin.internal_staff.profile.updated',
         resourceType: 'InternalStaffProfile',
         resourceId: userId,
-        details: { reason, departmentKey, jobTitle, employmentType, employmentStatus, managerUserId },
+        details: {
+          reason,
+          departmentKey,
+          jobTitle,
+          employmentType,
+          employmentStatus,
+          managerUserId,
+        },
       })
       return NextResponse.json({ success: true })
     }
@@ -849,18 +959,35 @@ export async function POST(request: NextRequest) {
     if (action === 'save_view') {
       const screen = text(body.screen, 40)
       const name = text(body.name, 100)
-      const viewId = optionalText(body.id, 200) || createBusinessId('admin-view')
-      if (!['accounts','queue','commercial','people'].includes(screen) || !name) {
-        throw new CommandCenterRequestError('Saved view name and supported screen are required.', 400)
+      const requestedId = optionalText(body.id, 200)
+      if (!['accounts', 'queue', 'commercial', 'people'].includes(screen) || !name) {
+        throw new CommandCenterRequestError(
+          'Saved view name and supported screen are required.',
+          400,
+        )
       }
+      if (requestedId) {
+        const ownViews = await db.$queryRawUnsafe<Array<{ id: string }>>(
+          `SELECT id FROM wewed_admin."AdminSavedView"
+           WHERE id=$1 AND "administratorUserId"=$2 LIMIT 1`,
+          requestedId,
+          context.session.userId,
+        )
+        if (!ownViews[0]) {
+          throw new CommandCenterRequestError('Saved view not found.', 404)
+        }
+      }
+      const viewId = requestedId || createBusinessId('admin-view')
       const filters = jsonObject(body.filters)
       const sort = jsonObject(body.sort)
       const columns = stringArray(body.columns, 30)
       const isDefault = body.isDefault === true
+
       await db.$transaction(async (tx) => {
         if (isDefault) {
           await tx.$executeRawUnsafe(
-            `UPDATE wewed_admin."AdminSavedView" SET "isDefault"=false, "updatedAt"=CURRENT_TIMESTAMP
+            `UPDATE wewed_admin."AdminSavedView"
+             SET "isDefault"=false, "updatedAt"=CURRENT_TIMESTAMP
              WHERE "administratorUserId"=$1 AND screen=$2`,
             context.session.userId,
             screen,
@@ -894,7 +1021,9 @@ export async function POST(request: NextRequest) {
 
     if (action === 'delete_view') {
       const id = text(body.id, 200)
-      if (!id) throw new CommandCenterRequestError('Saved view id is required.', 400)
+      if (!id) {
+        throw new CommandCenterRequestError('Saved view id is required.', 400)
+      }
       await db.$executeRawUnsafe(
         `DELETE FROM wewed_admin."AdminSavedView"
          WHERE id=$1 AND "administratorUserId"=$2`,
@@ -905,33 +1034,75 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'update_work_item') {
-      if (!canManageOperations(context)) {
-        throw new WewedAdminAccessError('This administrator cannot manage work items.', 403)
-      }
       const id = text(body.id, 200)
       const status = text(body.status, 40)
       const priority = text(body.priority, 40)
       const departmentKey = optionalText(body.departmentKey, 120)
       const assignedToUserId = optionalText(body.assignedToUserId, 200)
-      if (!id || !['open','in_progress','blocked','resolved','dismissed'].includes(status)) {
-        throw new CommandCenterRequestError('Valid work item and status are required.', 400)
+      if (!id || !['open', 'in_progress', 'blocked', 'resolved', 'dismissed'].includes(status)) {
+        throw new CommandCenterRequestError(
+          'Valid work item and status are required.',
+          400,
+        )
       }
-      if (!['low','normal','high','critical'].includes(priority)) {
+      if (!['low', 'normal', 'high', 'critical'].includes(priority)) {
         throw new CommandCenterRequestError('Invalid priority.', 400)
       }
-      const items = await db.$queryRawUnsafe<Array<{ businessAccountId: string | null }>>(
-        `SELECT "businessAccountId" FROM wewed_admin."AdminWorkItem" WHERE id=$1 LIMIT 1`,
+      const items = await db.$queryRawUnsafe<
+        Array<{ businessAccountId: string | null; category: string }>
+      >(
+        `SELECT "businessAccountId", category
+         FROM wewed_admin."AdminWorkItem"
+         WHERE id=$1 LIMIT 1`,
         id,
       )
-      if (!items[0]) throw new CommandCenterRequestError('Work item not found.', 404)
-      if (items[0].businessAccountId) await scopedAccount(context, items[0].businessAccountId)
+      const item = items[0]
+      if (!item) throw new CommandCenterRequestError('Work item not found.', 404)
+      if (!canManageQueueCategory(context, item.category)) {
+        throw new WewedAdminAccessError(
+          'This administrator cannot manage this work-item category.',
+          403,
+        )
+      }
+      if (item.businessAccountId) {
+        await scopedAccount(context, item.businessAccountId)
+      }
+      if (departmentKey) {
+        const knownDepartments = await db.$queryRawUnsafe<
+          Array<{ departmentKey: string }>
+        >(
+          `SELECT "departmentKey" FROM wewed_admin."InternalDepartmentDefinition"
+           WHERE "departmentKey"=$1 AND status='active' LIMIT 1`,
+          departmentKey,
+        )
+        if (!knownDepartments[0]) {
+          throw new CommandCenterRequestError('Unknown internal department.', 400)
+        }
+      }
+      if (assignedToUserId) {
+        const assignees = await db.$queryRawUnsafe<Array<{ userId: string }>>(
+          `SELECT "userId" FROM wewed_admin."PlatformAdministrator"
+           WHERE "userId"=$1 AND status='active' LIMIT 1`,
+          assignedToUserId,
+        )
+        if (!assignees[0]) {
+          throw new CommandCenterRequestError(
+            'Work items may only be assigned to an active platform administrator.',
+            400,
+          )
+        }
+      }
+
       await db.$executeRawUnsafe(
         `UPDATE wewed_admin."AdminWorkItem"
          SET status=$2,
              priority=$3,
              "departmentKey"=$4,
              "assignedToUserId"=$5,
-             "resolvedAt"=CASE WHEN $2 IN ('resolved','dismissed') THEN CURRENT_TIMESTAMP ELSE NULL END,
+             "resolvedAt"=CASE
+               WHEN $2 IN ('resolved','dismissed') THEN CURRENT_TIMESTAMP
+               ELSE NULL
+             END,
              "updatedAt"=CURRENT_TIMESTAMP
          WHERE id=$1`,
         id,
@@ -942,7 +1113,7 @@ export async function POST(request: NextRequest) {
       )
       await writeBusinessAudit({
         actorUserId: context.session.userId,
-        businessAccountId: items[0].businessAccountId,
+        businessAccountId: item.businessAccountId,
         action: 'admin.work_item.updated',
         resourceType: 'AdminWorkItem',
         resourceId: id,
