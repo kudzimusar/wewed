@@ -113,7 +113,7 @@ type AdminFixtures = {
 }
 
 export const test = base.extend<AdminFixtures>({
-  adminPage: async ({ page }, use, testInfo) => {
+  adminPage: async ({ page }, providePage, testInfo) => {
     await seedAdmin()
     const errors: string[] = []
 
@@ -131,7 +131,7 @@ export const test = base.extend<AdminFixtures>({
     })
 
     await openAdmin(page)
-    await use(page)
+    await providePage(page)
 
     await testInfo.attach('admin-command-centre.png', {
       body: await page.screenshot({ animations: 'disabled', fullPage: true }),
