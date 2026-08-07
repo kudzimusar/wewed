@@ -33,6 +33,20 @@ async function seedAdmin(): Promise<void> {
   await resetPlannerE2EFixture()
   const prisma = new PrismaClient()
   try {
+    // The shared planner reset truncates public tables with CASCADE. Private business
+    // registry rows that depend on public users are therefore removed as well. Recreate
+    // the canonical Wewed internal account before adding its governed Admin membership.
+    await prisma.$executeRawUnsafe(`
+      INSERT INTO wewed_admin."BusinessAccount" (
+        id, name, slug, type, status, "onboardingStatus",
+        "subscriptionPlan", "subscriptionStatus", metadata
+      ) VALUES (
+        'wewed-platform', 'Wewed', 'wewed-platform', 'wewed_internal', 'active',
+        'complete', 'internal', 'active', '{"system":true,"e2e":true}'::jsonb
+      )
+      ON CONFLICT (id) DO NOTHING
+    `)
+
     await prisma.user.create({
       data: {
         id: E2E_ADMIN.id,
@@ -46,7 +60,12 @@ async function seedAdmin(): Promise<void> {
     await prisma.$executeRawUnsafe(
       `INSERT INTO wewed_admin."BusinessAccountMember"
         (id, "businessAccountId", "userId", role, status, permissions)
-       VALUES ($1, 'wewed-platform', $2, 'wewed_super_admin', 'active', '["*"]'::jsonb)`,
+       VALUES ($1, 'wewed-platform', $2, 'wewed_super_admin', 'active', '["*"]'::jsonb)
+       ON CONFLICT ("businessAccountId", "userId") DO UPDATE SET
+         role='wewed_super_admin',
+         status='active',
+         permissions='["*"]'::jsonb,
+         "updatedAt"=CURRENT_TIMESTAMP`,
       'e2e-wewed-super-admin-membership',
       E2E_ADMIN.id,
     )
