@@ -457,7 +457,11 @@ AS $function$
 DECLARE
   target_business_account_id TEXT;
 BEGIN
-  target_business_account_id := COALESCE(NEW."businessAccountId", OLD."businessAccountId");
+  IF TG_OP = 'DELETE' THEN
+    target_business_account_id := OLD."businessAccountId";
+  ELSE
+    target_business_account_id := NEW."businessAccountId";
+  END IF;
 
   UPDATE wewed_admin."BusinessAccountClassification" classification
   SET "subtypeKey" = wewed_admin.default_business_account_subtype(
@@ -469,7 +473,10 @@ BEGIN
     AND classification."accountType"='vendor'
     AND classification.source='system';
 
-  RETURN COALESCE(NEW, OLD);
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
 END;
 $function$;
 
@@ -518,8 +525,9 @@ BEGIN
 END;
 $backfill_business_account_defaults$;
 
--- New Admin tables and helper functions are server-only. Keep the same private posture
--- as the existing wewed_admin schema.
+-- New Admin tables and helper functions are server-only. PUBLIC is always revoked.
+-- Supabase API roles are revoked only when those roles exist so the migration remains
+-- executable on the vanilla PostgreSQL CI database used by the release gate.
 REVOKE ALL ON TABLE
   wewed_admin."AccountSubtypeDefinition",
   wewed_admin."BusinessAccountClassification",
@@ -527,10 +535,46 @@ REVOKE ALL ON TABLE
   wewed_admin."InternalStaffProfile",
   wewed_admin."AdminWorkItem",
   wewed_admin."AdminSavedView"
-FROM PUBLIC, anon, authenticated;
+FROM PUBLIC;
 
-REVOKE ALL ON FUNCTION wewed_admin.validate_business_account_classification() FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION wewed_admin.default_business_account_subtype(TEXT, TEXT) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION wewed_admin.provision_business_account_defaults(TEXT) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION wewed_admin.provision_business_account_defaults_trigger() FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION wewed_admin.refresh_system_vendor_classification() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION wewed_admin.validate_business_account_classification() FROM PUBLIC;
+REVOKE ALL ON FUNCTION wewed_admin.default_business_account_subtype(TEXT, TEXT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION wewed_admin.provision_business_account_defaults(TEXT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION wewed_admin.provision_business_account_defaults_trigger() FROM PUBLIC;
+REVOKE ALL ON FUNCTION wewed_admin.refresh_system_vendor_classification() FROM PUBLIC;
+
+DO $revoke_supabase_api_roles$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN
+    REVOKE ALL ON TABLE
+      wewed_admin."AccountSubtypeDefinition",
+      wewed_admin."BusinessAccountClassification",
+      wewed_admin."InternalDepartmentDefinition",
+      wewed_admin."InternalStaffProfile",
+      wewed_admin."AdminWorkItem",
+      wewed_admin."AdminSavedView"
+    FROM anon;
+    REVOKE ALL ON FUNCTION wewed_admin.validate_business_account_classification() FROM anon;
+    REVOKE ALL ON FUNCTION wewed_admin.default_business_account_subtype(TEXT, TEXT) FROM anon;
+    REVOKE ALL ON FUNCTION wewed_admin.provision_business_account_defaults(TEXT) FROM anon;
+    REVOKE ALL ON FUNCTION wewed_admin.provision_business_account_defaults_trigger() FROM anon;
+    REVOKE ALL ON FUNCTION wewed_admin.refresh_system_vendor_classification() FROM anon;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN
+    REVOKE ALL ON TABLE
+      wewed_admin."AccountSubtypeDefinition",
+      wewed_admin."BusinessAccountClassification",
+      wewed_admin."InternalDepartmentDefinition",
+      wewed_admin."InternalStaffProfile",
+      wewed_admin."AdminWorkItem",
+      wewed_admin."AdminSavedView"
+    FROM authenticated;
+    REVOKE ALL ON FUNCTION wewed_admin.validate_business_account_classification() FROM authenticated;
+    REVOKE ALL ON FUNCTION wewed_admin.default_business_account_subtype(TEXT, TEXT) FROM authenticated;
+    REVOKE ALL ON FUNCTION wewed_admin.provision_business_account_defaults(TEXT) FROM authenticated;
+    REVOKE ALL ON FUNCTION wewed_admin.provision_business_account_defaults_trigger() FROM authenticated;
+    REVOKE ALL ON FUNCTION wewed_admin.refresh_system_vendor_classification() FROM authenticated;
+  END IF;
+END
+$revoke_supabase_api_roles$;
