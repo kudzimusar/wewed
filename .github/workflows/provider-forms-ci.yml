@@ -55,6 +55,7 @@ jobs:
       - run: bun test src/lib/provider-forms-profile-upgrade.test.ts
       - run: bun test src/lib/provider-commercial.test.ts
       - run: bun test src/lib/provider-pricing-catalog.test.ts
+      - run: bun test src/lib/provider-price-bindings.test.ts
       - run: bun test src/lib/provider-commercial-guidance.test.ts
       - run: bun test src/lib/provider-claim-regressions.test.ts
       - run: >-
