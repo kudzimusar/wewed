@@ -1,0 +1,27 @@
+name: AI Wedding Architect Category Pricing UI
+
+on:
+  push:
+    branches: [feature/ai-wedding-architect]
+    paths:
+      - scripts/apply-provider-pricing-prompts.mjs
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feature/ai-wedding-architect
+      - run: node scripts/apply-provider-pricing-prompts.mjs
+      - run: git diff --check
+      - run: |
+          git config user.name "wewed-release-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/components/providers/provider-profile-manager.tsx
+          git commit -m "Prompt providers for category-specific AI pricing"
+          git push origin HEAD:feature/ai-wedding-architect
