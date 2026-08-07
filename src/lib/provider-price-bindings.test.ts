@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   defaultPriceBinding,
   priceComponentNeedsExplicitBinding,
+  priceComponentsUseCanonicalAutomaticBindings,
   providerPriceBindingOptions,
   resolveBoundQuantity,
 } from './provider-price-bindings'
@@ -29,6 +30,26 @@ describe('provider price quantity bindings', () => {
     const stationery = providerPriceBindingOptions('stationery')
     expect(stationery).toContainEqual({ key: 'invitations', label: 'Printed invitations' })
     expect(stationery).toContainEqual({ key: 'menus', label: 'Menus/programmes' })
+  })
+
+  test('allows only canonical globally-defined quantity semantics for automatic planning', () => {
+    expect(priceComponentsUseCanonicalAutomaticBindings([
+      { type: 'fixed', amount: '1000' },
+      { type: 'per_guest', amount: '25', quantityKey: '__guest_count' },
+      { type: 'per_kilometre', amount: '1.50', quantityKey: '__travel_km' },
+    ])).toBe(true)
+
+    expect(priceComponentsUseCanonicalAutomaticBindings([
+      { type: 'per_guest', amount: '25', quantityKey: 'drinkingGuests' },
+    ])).toBe(false)
+
+    expect(priceComponentsUseCanonicalAutomaticBindings([
+      { type: 'per_item', amount: '5', quantityKey: 'invitations' },
+    ])).toBe(false)
+
+    expect(priceComponentsUseCanonicalAutomaticBindings([
+      { type: 'per_room', amount: '80', quantityKey: 'rooms', multiplierKey: 'nights' },
+    ])).toBe(false)
   })
 
   test('resolves a single requirement quantity deterministically', () => {
@@ -67,5 +88,18 @@ describe('provider price quantity bindings', () => {
       type: 'per_item',
       context: { categoryRequirements: {} },
     })).toThrow('requires an explicit wedding requirement quantity binding')
+  })
+
+  test('fails when a bound requirement is missing instead of pricing it as zero', () => {
+    expect(() => resolveBoundQuantity({
+      type: 'per_serving',
+      quantityKey: 'servings',
+      context: { categoryRequirements: {} },
+    })).toThrow('servings is required for deterministic pricing')
+
+    expect(() => resolveBoundQuantity({
+      type: 'per_guest',
+      context: { guestCount: null, categoryRequirements: {} },
+    })).toThrow('Guest count is required for deterministic pricing')
   })
 })
