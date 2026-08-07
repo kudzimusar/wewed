@@ -1,0 +1,27 @@
+name: AI Wedding Architect Provider Copy Repair
+
+on:
+  push:
+    branches: [feature/ai-wedding-architect]
+    paths:
+      - scripts/repair-provider-package-copy.mjs
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feature/ai-wedding-architect
+      - run: node scripts/repair-provider-package-copy.mjs
+      - run: git diff --check
+      - run: |
+          git config user.name "wewed-release-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/components/providers/provider-profile-manager.tsx
+          git commit -m "Preserve structured package onboarding contract"
+          git push origin HEAD:feature/ai-wedding-architect
