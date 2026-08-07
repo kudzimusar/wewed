@@ -106,8 +106,14 @@ test('Account 360 keeps classification separate from lifecycle, systems, and bil
   await page.goto('/admin')
   await page.getByRole('button', { name: 'Accounts' }).first().click()
 
-  const accountCard = page.locator('[data-admin-command-centre="true"] button').filter({ hasText: 'Wewed' }).last()
+  const commandCentre = page.locator('[data-admin-command-centre="true"]')
+  const accountCard = commandCentre
+    .getByText('Wewed', { exact: true })
+    .locator('xpath=ancestor::button[1]')
+  await expect(accountCard).toHaveCount(1)
   await expect(accountCard).toBeVisible()
+  await expect(accountCard).toBeEnabled()
+  await accountCard.scrollIntoViewIfNeeded()
   await accountCard.click()
 
   const drawer = page.getByRole('dialog', { name: /Wewed account overview/ })
