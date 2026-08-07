@@ -56,6 +56,8 @@ jobs:
         run: bun test src/lib/provider-commercial.test.ts
       - name: Provider category pricing contract
         run: bun test src/lib/provider-pricing-catalog.test.ts
+      - name: Provider-to-wedding quantity binding contract
+        run: bun test src/lib/provider-price-bindings.test.ts
       - name: Private provider AI guidance contract
         run: bun test src/lib/provider-commercial-guidance.test.ts
       - name: Wedding requirement taxonomy contract
