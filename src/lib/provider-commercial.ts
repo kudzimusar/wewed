@@ -89,6 +89,19 @@ export type CommercialReadiness = {
   missing: string[]
 }
 
+const EXPLICIT_QUANTITY_BINDING_TYPES = new Set<PriceComponentType>([
+  'per_item',
+  'per_serving',
+  'per_table',
+  'per_room',
+  'per_vehicle',
+  'per_hour',
+  'per_day',
+  'per_night',
+  'per_session',
+  'per_trip',
+])
+
 function present(value: unknown): boolean {
   if (value === null || value === undefined) return false
   if (typeof value === 'string') return value.trim().length > 0
@@ -115,6 +128,15 @@ function packageHasPrice(value: unknown): boolean {
   })
 }
 
+function explicitQuantityBindingsComplete(value: unknown): boolean {
+  return array(value).every((entry) => {
+    const row = object(entry)
+    if (!present(row.amount)) return true
+    const type = String(row.type ?? '') as PriceComponentType
+    return !EXPLICIT_QUANTITY_BINDING_TYPES.has(type) || present(row.quantityKey)
+  })
+}
+
 function validFutureDate(value: unknown, now: Date): boolean {
   if (!present(value)) return false
   const date = new Date(String(value))
@@ -138,6 +160,7 @@ export function calculateCommercialReadiness(
   const depositDefined = present(terms.depositType)
   const balanceDefined = present(terms.balanceDueRule)
   const componentsDefined = array(input.priceComponents).length > 0 || packageHasPrice(input.packages)
+  const quantityBindingsComplete = explicitQuantityBindingsComplete(input.priceComponents)
   const automaticQuantityBindingsApproved = input.automaticQuantityBindingsApproved !== false
 
   const checks: Array<[boolean, string, boolean]> = [
@@ -155,6 +178,11 @@ export function calculateCommercialReadiness(
     [depositDefined, 'Add deposit terms', false],
     [balanceDefined, 'Add a balance-due rule', false],
     [componentsDefined, 'Add at least one structured price component or priced package', false],
+    [
+      quantityBindingsComplete,
+      'Bind every variable price component to the wedding quantity that drives it',
+      true,
+    ],
     [
       automaticQuantityBindingsApproved,
       'Review variable quantity bindings before automatic AI planning',
