@@ -135,6 +135,96 @@ BEGIN
 END
 $admin_manual_classification_is_stable$;
 
+-- Review regression: moving an offering must recalculate both the source and destination
+-- when classifications remain system-derived.
+INSERT INTO wewed_admin."BusinessAccount" (
+  id, name, slug, type, status, "onboardingStatus",
+  "subscriptionPlan", "subscriptionStatus", metadata
+) VALUES
+  (
+    'e2e-command-centre-move-source',
+    'Command Centre Move Source',
+    'command-centre-move-source',
+    'vendor',
+    'active',
+    'not_started',
+    'free',
+    'free',
+    '{"source":"postgres-integration"}'::jsonb
+  ),
+  (
+    'e2e-command-centre-move-target',
+    'Command Centre Move Target',
+    'command-centre-move-target',
+    'vendor',
+    'active',
+    'not_started',
+    'free',
+    'free',
+    '{"source":"postgres-integration"}'::jsonb
+  );
+
+INSERT INTO wewed_admin."ProviderServiceOffering" (
+  id, "businessAccountId", category, "displayName", status, currency
+) VALUES
+  (
+    'e2e-command-centre-move-photography',
+    'e2e-command-centre-move-source',
+    'photography',
+    'Photography',
+    'published',
+    'USD'
+  ),
+  (
+    'e2e-command-centre-move-catering',
+    'e2e-command-centre-move-source',
+    'catering',
+    'Catering',
+    'published',
+    'USD'
+  );
+
+DO $admin_move_source_becomes_multi_service$
+DECLARE
+  source_subtype TEXT;
+BEGIN
+  SELECT "subtypeKey" INTO source_subtype
+  FROM wewed_admin."BusinessAccountClassification"
+  WHERE "businessAccountId"='e2e-command-centre-move-source';
+
+  IF source_subtype IS DISTINCT FROM 'multi_service' THEN
+    RAISE EXCEPTION 'Expected move source to be multi_service before reassignment, got %.', source_subtype;
+  END IF;
+END
+$admin_move_source_becomes_multi_service$;
+
+UPDATE wewed_admin."ProviderServiceOffering"
+SET "businessAccountId"='e2e-command-centre-move-target'
+WHERE id='e2e-command-centre-move-catering';
+
+DO $admin_offering_move_refreshes_both_accounts$
+DECLARE
+  source_subtype TEXT;
+  target_subtype TEXT;
+BEGIN
+  SELECT "subtypeKey" INTO source_subtype
+  FROM wewed_admin."BusinessAccountClassification"
+  WHERE "businessAccountId"='e2e-command-centre-move-source';
+
+  SELECT "subtypeKey" INTO target_subtype
+  FROM wewed_admin."BusinessAccountClassification"
+  WHERE "businessAccountId"='e2e-command-centre-move-target';
+
+  IF source_subtype IS DISTINCT FROM 'photography' THEN
+    RAISE EXCEPTION 'Offering move left stale source classification. expected photography, got %.', source_subtype;
+  END IF;
+
+  IF target_subtype IS DISTINCT FROM 'catering' THEN
+    RAISE EXCEPTION 'Offering move did not refresh destination classification. expected catering, got %.', target_subtype;
+  END IF;
+END
+$admin_offering_move_refreshes_both_accounts$;
+
 DO $admin_private_access$
 DECLARE
   current_table TEXT;
