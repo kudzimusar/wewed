@@ -156,17 +156,29 @@ test('real browser CRUD covers guests, seating, timeline, and printing', async (
   const timelineName = 'Browser processional'
   const updatedTimelineName = 'Browser processional updated'
   await openModule(page, 'timeline')
-  await page.locator('#workspace-timeline-time').fill('14:30')
   await page.locator('#workspace-timeline-event').fill(timelineName)
   await page.locator('#workspace-timeline-duration').fill('20 min')
   await page.locator('#workspace-timeline-location').fill('Test Lawn')
   await page.locator('#workspace-timeline-notes').fill('Cue the musicians')
+  await page.locator('#workspace-timeline-time').fill('14:30')
+  await expect(page.locator('#workspace-timeline-event')).toHaveValue(timelineName)
+  await expect(page.locator('#workspace-timeline-time')).toHaveValue('14:30')
+
+  const timelineCreateResponse = page.waitForResponse(
+    (response) => response.url().endsWith('/api/planner/timeline') && response.request().method() === 'POST',
+  )
   await page.getByRole('button', { name: 'Add', exact: true }).click()
+  expect((await timelineCreateResponse).ok()).toBe(true)
   await expect(page.getByText(timelineName, { exact: true })).toBeVisible()
 
   await page.getByRole('button', { name: `Edit ${timelineName}` }).click()
   await page.locator('#workspace-timeline-event').fill(updatedTimelineName)
+  await expect(page.locator('#workspace-timeline-event')).toHaveValue(updatedTimelineName)
+  const timelineUpdateResponse = page.waitForResponse(
+    (response) => response.url().includes('/api/planner/timeline/') && response.request().method() === 'PATCH',
+  )
   await page.getByRole('button', { name: 'Save', exact: true }).click()
+  expect((await timelineUpdateResponse).ok()).toBe(true)
   await expect(page.getByText(updatedTimelineName, { exact: true })).toBeVisible()
 
   const popupPromise = page.waitForEvent('popup')
@@ -178,6 +190,10 @@ test('real browser CRUD covers guests, seating, timeline, and printing', async (
   await printPage.close()
 
   acceptNextConfirmation(page)
+  const timelineDeleteResponse = page.waitForResponse(
+    (response) => response.url().includes('/api/planner/timeline/') && response.request().method() === 'DELETE',
+  )
   await page.getByRole('button', { name: `Delete ${updatedTimelineName}` }).click()
+  expect((await timelineDeleteResponse).ok()).toBe(true)
   await expect(page.getByText(updatedTimelineName, { exact: true })).toHaveCount(0)
 })
