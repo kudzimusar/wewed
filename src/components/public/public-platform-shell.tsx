@@ -116,12 +116,12 @@ export function PublicPlatformShell({ children }: { children: ReactNode }) {
             <span className="flex size-9 items-center justify-center rounded-full border border-gold/25 bg-gold/10"><HeartHandshake className="size-4" /></span>
             <span>wewed</span>
           </Link>
-          <div className="hidden items-center gap-1 text-xs 2xl:flex">
+          <div className="hidden items-center gap-1 text-xs xl:flex">
             {PRIMARY_LINKS.map(([label, href]) => <Link key={href} href={href} className="rounded-full px-3 py-2 text-champagne/75 transition hover:bg-gold/10 hover:text-gold">{label}</Link>)}
           </div>
           <div className="flex items-center gap-2">
             <PublicAccountActions />
-            <details className="relative 2xl:hidden">
+            <details className="relative xl:hidden">
               <summary className="flex size-10 cursor-pointer list-none items-center justify-center rounded-full border border-gold/30 text-gold [&::-webkit-details-marker]:hidden" aria-label="Open public navigation"><Menu className="size-4" /></summary>
               <div className="absolute right-0 top-12 z-50 max-h-[75vh] w-72 overflow-y-auto rounded-2xl border border-gold/20 bg-espresso p-3 shadow-2xl">
                 <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-gold">Explore</p>
