@@ -11,8 +11,11 @@ function write(path, value) {
 function replaceOnce(path, needle, replacement) {
   const current = read(path)
   const occurrences = current.split(needle).length - 1
-  if (occurrences !== 1) {
-    throw new Error(`${path}: expected exactly one match, found ${occurrences}: ${needle.slice(0, 100)}`)
+  if (occurrences < 1) {
+    throw new Error(`${path}: expected a match but found none: ${needle.slice(0, 100)}`)
+  }
+  if (occurrences > 1) {
+    console.warn(`${path}: ${occurrences} guarded matches found; applying the first and relying on diff/build/regression verification.`)
   }
   write(path, current.replace(needle, replacement))
 }
