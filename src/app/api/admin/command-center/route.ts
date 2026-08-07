@@ -977,6 +977,26 @@ export async function POST(request: NextRequest) {
           throw new CommandCenterRequestError('Saved view not found.', 404)
         }
       }
+
+      const conflictingViews = await db.$queryRawUnsafe<Array<{ id: string }>>(
+        `SELECT id FROM wewed_admin."AdminSavedView"
+         WHERE "administratorUserId"=$1
+           AND screen=$2
+           AND lower(name)=lower($3)
+           AND ($4::text IS NULL OR id<>$4)
+         LIMIT 1`,
+        context.session.userId,
+        screen,
+        name,
+        requestedId,
+      )
+      if (conflictingViews[0]) {
+        throw new CommandCenterRequestError(
+          'A saved view with this name already exists on this screen.',
+          409,
+        )
+      }
+
       const viewId = requestedId || createBusinessId('admin-view')
       const filters = jsonObject(body.filters)
       const sort = jsonObject(body.sort)
