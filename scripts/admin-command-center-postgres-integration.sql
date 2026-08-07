@@ -137,10 +137,10 @@ $admin_manual_classification_is_stable$;
 
 DO $admin_private_access$
 DECLARE
-  table_name TEXT;
+  current_table TEXT;
   role_name TEXT;
 BEGIN
-  FOREACH table_name IN ARRAY ARRAY[
+  FOREACH current_table IN ARRAY ARRAY[
     'AccountSubtypeDefinition',
     'BusinessAccountClassification',
     'InternalDepartmentDefinition',
@@ -149,21 +149,25 @@ BEGIN
     'AdminSavedView'
   ]
   LOOP
-    IF has_table_privilege('PUBLIC', format('wewed_admin.%I', table_name), 'SELECT')
-       OR has_table_privilege('PUBLIC', format('wewed_admin.%I', table_name), 'INSERT')
-       OR has_table_privilege('PUBLIC', format('wewed_admin.%I', table_name), 'UPDATE')
-       OR has_table_privilege('PUBLIC', format('wewed_admin.%I', table_name), 'DELETE') THEN
-      RAISE EXCEPTION 'Private Admin table % exposes PUBLIC privileges.', table_name;
+    IF EXISTS (
+      SELECT 1
+      FROM information_schema.table_privileges privilege
+      WHERE privilege.table_schema='wewed_admin'
+        AND privilege.table_name=current_table
+        AND privilege.grantee='PUBLIC'
+        AND privilege.privilege_type IN ('SELECT','INSERT','UPDATE','DELETE')
+    ) THEN
+      RAISE EXCEPTION 'Private Admin table % exposes PUBLIC privileges.', current_table;
     END IF;
 
     FOREACH role_name IN ARRAY ARRAY['anon','authenticated']
     LOOP
       IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname=role_name) THEN
-        IF has_table_privilege(role_name, format('wewed_admin.%I', table_name), 'SELECT')
-           OR has_table_privilege(role_name, format('wewed_admin.%I', table_name), 'INSERT')
-           OR has_table_privilege(role_name, format('wewed_admin.%I', table_name), 'UPDATE')
-           OR has_table_privilege(role_name, format('wewed_admin.%I', table_name), 'DELETE') THEN
-          RAISE EXCEPTION 'Private Admin table % exposes direct % privileges.', table_name, role_name;
+        IF has_table_privilege(role_name, format('wewed_admin.%I', current_table), 'SELECT')
+           OR has_table_privilege(role_name, format('wewed_admin.%I', current_table), 'INSERT')
+           OR has_table_privilege(role_name, format('wewed_admin.%I', current_table), 'UPDATE')
+           OR has_table_privilege(role_name, format('wewed_admin.%I', current_table), 'DELETE') THEN
+          RAISE EXCEPTION 'Private Admin table % exposes direct % privileges.', current_table, role_name;
         END IF;
       END IF;
     END LOOP;
