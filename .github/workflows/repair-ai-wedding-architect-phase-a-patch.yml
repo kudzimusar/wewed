@@ -1,0 +1,27 @@
+name: Repair AI Wedding Architect Phase A Patch
+
+on:
+  push:
+    branches: [feature/ai-wedding-architect]
+    paths:
+      - scripts/repair-ai-wedding-architect-phase-a-patch.mjs
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feature/ai-wedding-architect
+      - run: node scripts/repair-ai-wedding-architect-phase-a-patch.mjs
+      - run: git diff --check
+      - run: |
+          git config user.name "wewed-release-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add scripts/apply-ai-wedding-architect-phase-a.mjs
+          git commit -m "Repair guarded Wedding Architect integration patch"
+          git push origin HEAD:feature/ai-wedding-architect
