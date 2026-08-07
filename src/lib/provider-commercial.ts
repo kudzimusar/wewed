@@ -39,6 +39,8 @@ export type PriceComponentInput = {
   condition?: unknown
   minimumQuantity?: unknown
   maximumQuantity?: unknown
+  quantityKey?: unknown
+  multiplierKey?: unknown
 }
 
 export type CommercialTermsInput = {
@@ -112,6 +114,28 @@ function packageHasPrice(value: unknown): boolean {
   })
 }
 
+const EXPLICIT_BINDING_TYPES = new Set([
+  'per_item',
+  'per_serving',
+  'per_table',
+  'per_room',
+  'per_vehicle',
+  'per_hour',
+  'per_day',
+  'per_night',
+  'per_session',
+  'per_trip',
+])
+
+function priceComponentBindingsComplete(value: unknown): boolean {
+  return array(value).every((entry) => {
+    const row = object(entry)
+    const type = String(row.type ?? '')
+    if (!EXPLICIT_BINDING_TYPES.has(type)) return true
+    return present(row.quantityKey)
+  })
+}
+
 function validFutureDate(value: unknown, now: Date): boolean {
   if (!present(value)) return false
   const date = new Date(String(value))
@@ -135,6 +159,7 @@ export function calculateCommercialReadiness(
   const depositDefined = present(terms.depositType)
   const balanceDefined = present(terms.balanceDueRule)
   const componentsDefined = array(input.priceComponents).length > 0 || packageHasPrice(input.packages)
+  const bindingsComplete = priceComponentBindingsComplete(input.priceComponents)
 
   const checks: Array<[boolean, string, boolean]> = [
     [input.status === 'published', 'Publish this offering', true],
@@ -151,6 +176,7 @@ export function calculateCommercialReadiness(
     [depositDefined, 'Add deposit terms', false],
     [balanceDefined, 'Add a balance-due rule', false],
     [componentsDefined, 'Add at least one structured price component or priced package', false],
+    [bindingsComplete, 'Bind every variable price component to the wedding quantity that drives it', true],
     [confirmed, 'Confirm that commercial pricing is current', true],
   ]
 
@@ -178,6 +204,7 @@ export function calculatePackageCompletion(input: Record<string, unknown>): numb
     present(input.priceValidUntil),
     typeof terms.taxIncluded === 'boolean',
     present(terms.depositType),
+    priceComponentBindingsComplete(input.priceComponents),
   ]
   return Math.round((checks.filter(Boolean).length / checks.length) * 100)
 }
