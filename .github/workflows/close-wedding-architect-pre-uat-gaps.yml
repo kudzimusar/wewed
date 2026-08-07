@@ -1,0 +1,35 @@
+name: Close Wedding Architect Pre-UAT Gaps
+
+on:
+  push:
+    branches: [feature/ai-wedding-architect]
+    paths:
+      - scripts/close-wedding-architect-pre-uat-gaps.mjs
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feature/ai-wedding-architect
+      - name: Apply guarded pre-UAT patches
+        run: node scripts/close-wedding-architect-pre-uat-gaps.mjs
+      - name: Verify diff
+        run: git diff --check && git diff --exit-code --quiet -- .github/workflows || true
+      - name: Commit application and documentation changes
+        run: |
+          git config user.name "wewed-release-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/app/api/providers/profile/route.ts docs/AI_WEDDING_ARCHITECT_ECOSYSTEM_PLAN.md
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "No patch changes to commit."
+            exit 0
+          fi
+          git commit -m "Close Wedding Architect pre-UAT safety gaps"
+          git push origin HEAD:feature/ai-wedding-architect
