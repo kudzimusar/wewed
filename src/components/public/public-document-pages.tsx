@@ -7,12 +7,15 @@ import {
   getPublicDocuments,
   type PublicDocument,
   type PublicDocumentCategory,
-} from '@/lib/public-documents'
+} from '@/lib/public-site-documents'
 
 const CATEGORY_PATH: Record<PublicDocumentCategory, string> = {
-  legal: '/legal',
+  company: '/company',
   trust: '/trust',
+  legal: '/legal',
+  vendors: '/vendors/resources',
   developers: '/developers',
+  help: '/help',
 }
 
 export function PublicDocumentHub({ category }: { category: PublicDocumentCategory }) {
@@ -28,7 +31,7 @@ export function PublicDocumentHub({ category }: { category: PublicDocumentCatego
             <p className="mt-2 font-serif text-3xl">{WEWED_DOMAIN}</p>
           </div>
           <p className="max-w-2xl text-sm leading-6 text-espresso/65">
-            Wewed keeps public policies and trust guidance together so couples, planners, providers and partners can understand the rules that apply before sharing data or making commitments.
+            Wewed keeps company information, trust guidance, legal terms, professional resources, developer standards and role-specific help discoverable from one public framework.
           </p>
         </div>
       </div>
@@ -87,6 +90,15 @@ export function PublicDocumentDetail({ document }: { document: PublicDocument })
                     {section.bullets.map((bullet) => <li key={bullet} className="flex gap-3"><span className="mt-3 size-1.5 shrink-0 rounded-full bg-gold" aria-hidden="true" /><span>{bullet}</span></li>)}
                   </ul>
                 )}
+                {section.links && (
+                  <div className="mt-5 flex flex-wrap gap-3">
+                    {section.links.map((link) => (
+                      <Link key={`${section.heading}-${link.href}`} href={link.href} className="inline-flex items-center gap-2 rounded-full border border-gold/25 bg-gold/5 px-4 py-2 text-xs font-semibold text-gold-muted transition hover:border-gold/50 hover:bg-gold/10 hover:text-espresso">
+                        {link.label}<ArrowRight className="size-3.5" aria-hidden="true" />
+                      </Link>
+                    ))}
+                  </div>
+                )}
               </section>
             ))}
           </div>
@@ -100,7 +112,7 @@ export function PublicDocumentDetail({ document }: { document: PublicDocument })
             {document.effectiveDate && <div><dt className="text-espresso/45">Effective</dt><dd className="mt-1 font-medium">{document.effectiveDate}</dd></div>}
           </dl>
           <p className="mt-6 border-t border-gold/15 pt-5 text-xs leading-5 text-espresso/50">
-            Product-specific notices, checkout terms or signed business agreements may add to this document. Mandatory rights under applicable law remain unaffected.
+            Legal documents may be supplemented by product-specific notices, checkout terms or signed business agreements. Public guidance describes Wewed’s current operating expectations and must not be read as a guarantee beyond the feature or check described.
           </p>
           <a href={`https://${WEWED_DOMAIN}`} className="mt-5 inline-flex items-center gap-2 text-xs font-semibold text-gold-muted hover:text-espresso">
             Visit {WEWED_DOMAIN}<ExternalLink className="size-3.5" />
