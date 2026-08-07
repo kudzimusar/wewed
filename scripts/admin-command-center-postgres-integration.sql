@@ -138,6 +138,7 @@ $admin_manual_classification_is_stable$;
 DO $admin_private_access$
 DECLARE
   table_name TEXT;
+  role_name TEXT;
 BEGIN
   FOREACH table_name IN ARRAY ARRAY[
     'AccountSubtypeDefinition',
@@ -148,16 +149,24 @@ BEGIN
     'AdminSavedView'
   ]
   LOOP
-    IF has_table_privilege('anon', format('wewed_admin.%I', table_name), 'SELECT')
-       OR has_table_privilege('anon', format('wewed_admin.%I', table_name), 'INSERT')
-       OR has_table_privilege('anon', format('wewed_admin.%I', table_name), 'UPDATE')
-       OR has_table_privilege('anon', format('wewed_admin.%I', table_name), 'DELETE')
-       OR has_table_privilege('authenticated', format('wewed_admin.%I', table_name), 'SELECT')
-       OR has_table_privilege('authenticated', format('wewed_admin.%I', table_name), 'INSERT')
-       OR has_table_privilege('authenticated', format('wewed_admin.%I', table_name), 'UPDATE')
-       OR has_table_privilege('authenticated', format('wewed_admin.%I', table_name), 'DELETE') THEN
-      RAISE EXCEPTION 'Private Admin table % exposes direct API-role privileges.', table_name;
+    IF has_table_privilege('PUBLIC', format('wewed_admin.%I', table_name), 'SELECT')
+       OR has_table_privilege('PUBLIC', format('wewed_admin.%I', table_name), 'INSERT')
+       OR has_table_privilege('PUBLIC', format('wewed_admin.%I', table_name), 'UPDATE')
+       OR has_table_privilege('PUBLIC', format('wewed_admin.%I', table_name), 'DELETE') THEN
+      RAISE EXCEPTION 'Private Admin table % exposes PUBLIC privileges.', table_name;
     END IF;
+
+    FOREACH role_name IN ARRAY ARRAY['anon','authenticated']
+    LOOP
+      IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname=role_name) THEN
+        IF has_table_privilege(role_name, format('wewed_admin.%I', table_name), 'SELECT')
+           OR has_table_privilege(role_name, format('wewed_admin.%I', table_name), 'INSERT')
+           OR has_table_privilege(role_name, format('wewed_admin.%I', table_name), 'UPDATE')
+           OR has_table_privilege(role_name, format('wewed_admin.%I', table_name), 'DELETE') THEN
+          RAISE EXCEPTION 'Private Admin table % exposes direct % privileges.', table_name, role_name;
+        END IF;
+      END IF;
+    END LOOP;
   END LOOP;
 END
 $admin_private_access$;
