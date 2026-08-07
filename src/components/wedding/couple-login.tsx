@@ -1,15 +1,19 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import {
+  BriefcaseBusiness,
   Eye,
   EyeOff,
+  LayoutDashboard,
   Loader2,
   Lock,
   LogIn,
   LogOut,
   Mail,
   Pencil,
+  ShieldCheck,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -26,16 +30,50 @@ import {
   logoutAdmin,
   refreshAdminSession,
   signInAdmin,
+  type DashboardRole,
 } from '@/lib/admin-auth'
 import { useWewedStore } from '@/lib/store'
+import type { PublicWeddingAccessKind } from '@/components/wedding/wedding-home'
 
-export function CoupleLogin() {
+const navigationByRole: Record<
+  DashboardRole,
+  { href: string; label: string; icon: typeof LayoutDashboard }
+> = {
+  couple: {
+    href: '/couple',
+    label: 'Couple dashboard',
+    icon: LayoutDashboard,
+  },
+  planner: {
+    href: '/planner',
+    label: 'Planner workspace',
+    icon: BriefcaseBusiness,
+  },
+  admin: {
+    href: '/admin',
+    label: 'Admin console',
+    icon: ShieldCheck,
+  },
+}
+
+export function CoupleLogin({
+  accessKind,
+}: {
+  accessKind: PublicWeddingAccessKind
+}) {
+  const serverConfirmedMember =
+    accessKind === 'couple_owner' || accessKind === 'wedding_member'
+  const serverConfirmedOwner = accessKind === 'couple_owner'
+
   const [showLogin, setShowLogin] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [loggedIn, setLoggedIn] = useState(false)
-  const [checking, setChecking] = useState(true)
+  const [loggedIn, setLoggedIn] = useState(serverConfirmedMember)
+  const [dashboardRole, setDashboardRole] = useState<DashboardRole | null>(
+    serverConfirmedOwner ? 'couple' : null,
+  )
+  const [checking, setChecking] = useState(!serverConfirmedMember)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -46,16 +84,22 @@ export function CoupleLogin() {
     let cancelled = false
 
     void refreshAdminSession().then((result) => {
-      if (!cancelled) {
-        setLoggedIn(result.success)
-        setChecking(false)
+      if (cancelled) return
+
+      if (result.success && result.user && serverConfirmedMember) {
+        setLoggedIn(true)
+        setDashboardRole(result.user.role)
+      } else if (!serverConfirmedMember) {
+        setLoggedIn(false)
+        setDashboardRole(null)
       }
+      setChecking(false)
     })
 
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [serverConfirmedMember])
 
   async function handleLogin() {
     setSubmitting(true)
@@ -64,27 +108,24 @@ export function CoupleLogin() {
     const result = await signInAdmin(email, password)
 
     if (result.success) {
-      setLoggedIn(true)
-      setShowLogin(false)
       setPassword('')
-      setEditMode(true)
-      toast.success('Edit mode is ON!', {
-        description: 'Click a gold pencil to edit that section.',
-        duration: 5000,
-      })
-    } else {
-      setError(result.error || 'Unable to sign in.')
-      toast.error('Sign in failed', {
-        description: result.error || 'Check your account details and try again.',
-      })
+      setShowLogin(false)
+      toast.success('Signed in. Checking access to this wedding…')
+      window.location.reload()
+      return
     }
 
+    setError(result.error || 'Unable to sign in.')
+    toast.error('Sign in failed', {
+      description: result.error || 'Check your account details and try again.',
+    })
     setSubmitting(false)
   }
 
   function handleLogout() {
     logoutAdmin()
     setLoggedIn(false)
+    setDashboardRole(null)
     setEditMode(false)
     toast.info('Signed out. Edit mode disabled.')
   }
@@ -102,9 +143,12 @@ export function CoupleLogin() {
     }
   }
 
+  const navigation = dashboardRole ? navigationByRole[dashboardRole] : null
+  const NavigationIcon = navigation?.icon ?? LayoutDashboard
+
   return (
     <>
-      {loggedIn && editMode && (
+      {serverConfirmedOwner && loggedIn && editMode && (
         <div className="fixed left-0 right-0 top-16 z-30 bg-gold/90 px-4 py-2 text-center backdrop-blur-sm">
           <p className="font-sans text-xs font-semibold uppercase tracking-[0.18em] text-espresso">
             ✏️ Edit Mode is ON — Click any gold pencil icon to edit text
@@ -116,7 +160,7 @@ export function CoupleLogin() {
         <div className="fixed bottom-6 left-6 z-40">
           <Button
             onClick={() => setShowLogin(true)}
-            className="group flex items-center gap-2 rounded-full border border-gold/40 bg-espresso/90 px-4 py-2.5 text-champagne shadow-lg backdrop-blur-md transition-all hover:border-gold hover:bg-espresso"
+            className="group flex min-h-11 items-center gap-2 rounded-full border border-gold/40 bg-espresso/90 px-4 py-2.5 text-champagne shadow-lg backdrop-blur-md transition-all hover:border-gold hover:bg-espresso"
             aria-label="Couple login"
           >
             <Lock className="h-4 w-4 text-gold transition-transform group-hover:scale-110" />
@@ -126,26 +170,39 @@ export function CoupleLogin() {
           </Button>
         </div>
       ) : loggedIn ? (
-        <div className="fixed bottom-6 left-6 z-40 flex items-center gap-2">
-          <Button
-            onClick={toggleEditMode}
-            className={`flex items-center gap-2 rounded-full border px-4 py-2.5 shadow-lg backdrop-blur-md transition-all ${
-              editMode
-                ? 'border-gold bg-gold text-espresso hover:bg-gold/90'
-                : 'border-gold/40 bg-espresso/90 text-champagne hover:border-gold hover:bg-espresso'
-            }`}
-            aria-label={editMode ? 'Turn off edit mode' : 'Turn on edit mode'}
-          >
-            <Pencil className={`h-4 w-4 ${editMode ? 'text-espresso' : 'text-gold'}`} />
-            <span className="font-sans text-[10px] font-semibold uppercase tracking-[0.18em]">
-              {editMode ? 'Editing' : 'Edit'}
-            </span>
-          </Button>
+        <div className="fixed bottom-6 left-6 z-40 flex max-w-[calc(100vw-3rem)] flex-wrap items-center gap-2">
+          {navigation && (
+            <Link
+              href={navigation.href}
+              className="inline-flex min-h-11 items-center gap-2 rounded-full border border-gold/40 bg-espresso/95 px-4 py-2.5 font-sans text-[10px] font-semibold uppercase tracking-[0.16em] text-champagne shadow-lg backdrop-blur-md transition hover:border-gold hover:bg-espresso focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"
+              aria-label={navigation.label}
+            >
+              <NavigationIcon className="h-4 w-4 text-gold" />
+              {navigation.label}
+            </Link>
+          )}
+
+          {serverConfirmedOwner && dashboardRole === 'couple' && (
+            <Button
+              onClick={toggleEditMode}
+              className={`flex min-h-11 items-center gap-2 rounded-full border px-4 py-2.5 shadow-lg backdrop-blur-md transition-all ${
+                editMode
+                  ? 'border-gold bg-gold text-espresso hover:bg-gold/90'
+                  : 'border-gold/40 bg-espresso/95 text-champagne hover:border-gold hover:bg-espresso'
+              }`}
+              aria-label={editMode ? 'Turn off edit mode' : 'Turn on edit mode'}
+            >
+              <Pencil className={`h-4 w-4 ${editMode ? 'text-espresso' : 'text-gold'}`} />
+              <span className="font-sans text-[10px] font-semibold uppercase tracking-[0.18em]">
+                {editMode ? 'Editing' : 'Edit'}
+              </span>
+            </Button>
+          )}
 
           <Button
             onClick={handleLogout}
-            className="flex items-center gap-2 rounded-full border border-gold/40 bg-espresso/90 px-3 py-2.5 text-champagne shadow-lg backdrop-blur-md transition-all hover:border-clay hover:bg-espresso hover:text-clay"
-            aria-label="Logout"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-full border border-gold/40 bg-espresso/95 px-3 py-2.5 text-champagne shadow-lg backdrop-blur-md transition-all hover:border-clay hover:bg-espresso hover:text-clay"
+            aria-label="Sign out"
           >
             <LogOut className="h-4 w-4 text-gold/70" />
           </Button>
@@ -162,7 +219,7 @@ export function CoupleLogin() {
               Couple Login
             </DialogTitle>
             <DialogDescription className="text-center text-espresso/60">
-              Sign in with your invited Wewed account to edit this wedding.
+              Sign in with an invited Wewed account. Access to this wedding is verified after sign-in.
             </DialogDescription>
           </DialogHeader>
 
@@ -221,13 +278,13 @@ export function CoupleLogin() {
                 <button
                   type="button"
                   onClick={() => setShowPassword((value) => !value)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-espresso/40 hover:text-gold"
+                  className="absolute right-3 top-1/2 min-h-11 min-w-11 -translate-y-1/2 text-espresso/40 hover:text-gold"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
+                    <EyeOff className="mx-auto h-4 w-4" />
                   ) : (
-                    <Eye className="h-4 w-4" />
+                    <Eye className="mx-auto h-4 w-4" />
                   )}
                 </button>
               </div>
@@ -242,19 +299,18 @@ export function CoupleLogin() {
             <Button
               type="submit"
               disabled={!email.trim() || !password || submitting}
-              className="w-full bg-gold text-espresso hover:bg-gold/90 disabled:opacity-40"
+              className="min-h-11 w-full bg-gold text-espresso hover:bg-gold/90 disabled:opacity-40"
             >
               {submitting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <LogIn className="mr-2 h-4 w-4" />
               )}
-              Sign In &amp; Start Editing
+              Sign in
             </Button>
 
             <p className="text-center font-sans text-[11px] text-espresso/50">
-              Access is invite-only. Contact the Wewed administrator if you do
-              not have an account.
+              Access is invite-only. The server verifies that this account belongs to this wedding before showing management controls.
             </p>
           </form>
         </DialogContent>

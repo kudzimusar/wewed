@@ -16,8 +16,13 @@ import { AmbientMusicPlayer } from '@/components/wedding/ambient-music-player'
 import { SectionTracker } from '@/components/wedding/section-tracker'
 import { KeyboardSectionNav } from '@/components/wedding/keyboard-section-nav'
 import { KeyboardShortcutsHelp } from '@/components/wedding/keyboard-shortcuts-help'
+import type { PublicWeddingAccessKind } from '@/components/wedding/wedding-home'
 
-export function GlobalWeddingTools() {
+export function GlobalWeddingTools({
+  accessKind,
+}: {
+  accessKind: PublicWeddingAccessKind
+}) {
   return (
     <>
       <StoreRehydrator />
@@ -27,7 +32,7 @@ export function GlobalWeddingTools() {
       <ProgressTrigger />
       <AiTrigger />
       <WhatsAppRSVP />
-      <CoupleLogin />
+      <CoupleLogin accessKind={accessKind} />
       <ContributionTrigger />
       <HelpPopups />
       <OnboardingTrigger />
