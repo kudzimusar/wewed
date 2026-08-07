@@ -178,7 +178,7 @@ export function PublicPlatformShell({ children }: { children: ReactNode }) {
             <p>© {new Date().getFullYear()} Wewed · wewed.pro · Privacy-led wedding technology.</p>
             <div className="flex flex-wrap gap-4">
               <Link href="/sign-in" className="hover:text-gold">Sign in</Link>
-              <Link href="/register" className="hover:text-gold">Create account</Link>
+              <Link href="/register" className="hover:text-gold">Create a Wewed account</Link>
               <Link href="/guest-access-help" className="hover:text-gold">Guest access</Link>
               <Link href="/vendors/manage" className="hover:text-gold">Manage provider profile</Link>
             </div>
