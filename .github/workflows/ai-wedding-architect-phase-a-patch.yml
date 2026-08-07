@@ -5,6 +5,7 @@ on:
     branches: [feature/ai-wedding-architect]
     paths:
       - scripts/apply-ai-wedding-architect-phase-a.mjs
+      - scripts/ai-wedding-architect-phase-a-trigger.txt
 
 permissions:
   contents: write
