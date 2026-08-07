@@ -65,14 +65,26 @@
     text-transform: uppercase;
   }
 
-  .admin-governance-responsive table[class*="min-w-[1050px]"] tbody td:nth-child(1)::before { content: "Account"; }
-  .admin-governance-responsive table[class*="min-w-[1050px]"] tbody td:nth-child(2)::before { content: "Lifecycle"; }
-  .admin-governance-responsive table[class*="min-w-[1050px]"] tbody td:nth-child(3)::before { content: "Owner"; }
-  .admin-governance-responsive table[class*="min-w-[1050px]"] tbody td:nth-child(4)::before { content: "Team"; }
-  .admin-governance-responsive table[class*="min-w-[1050px]"] tbody td:nth-child(5)::before { content: "Weddings"; }
-  .admin-governance-responsive table[class*="min-w-[1050px]"] tbody td:nth-child(6)::before { content: "Onboarding"; }
-  .admin-governance-responsive table[class*="min-w-[1050px]"] tbody td:nth-child(7)::before { content: "Risk"; }
-  .admin-governance-responsive table[class*="min-w-[1050px]"] tbody td:nth-child(8)::before { content: "Action"; }
+  /* The governed registry has eight columns; the nested operations registry has nine.
+     Keep their card labels distinct so responsive values never inherit the wrong heading. */
+  .admin-governance-responsive table[class*="min-w-[1050px]"]:not(:has(tbody td:nth-child(9))) tbody td:nth-child(1)::before { content: "Account"; }
+  .admin-governance-responsive table[class*="min-w-[1050px]"]:not(:has(tbody td:nth-child(9))) tbody td:nth-child(2)::before { content: "Lifecycle"; }
+  .admin-governance-responsive table[class*="min-w-[1050px]"]:not(:has(tbody td:nth-child(9))) tbody td:nth-child(3)::before { content: "Owner"; }
+  .admin-governance-responsive table[class*="min-w-[1050px]"]:not(:has(tbody td:nth-child(9))) tbody td:nth-child(4)::before { content: "Team"; }
+  .admin-governance-responsive table[class*="min-w-[1050px]"]:not(:has(tbody td:nth-child(9))) tbody td:nth-child(5)::before { content: "Weddings"; }
+  .admin-governance-responsive table[class*="min-w-[1050px]"]:not(:has(tbody td:nth-child(9))) tbody td:nth-child(6)::before { content: "Onboarding"; }
+  .admin-governance-responsive table[class*="min-w-[1050px]"]:not(:has(tbody td:nth-child(9))) tbody td:nth-child(7)::before { content: "Risk"; }
+  .admin-governance-responsive table[class*="min-w-[1050px]"]:not(:has(tbody td:nth-child(9))) tbody td:nth-child(8)::before { content: "Action"; }
+
+  .admin-governance-responsive table[class*="min-w-[1050px]"]:has(tbody td:nth-child(9)) tbody td:nth-child(1)::before { content: "Account"; }
+  .admin-governance-responsive table[class*="min-w-[1050px]"]:has(tbody td:nth-child(9)) tbody td:nth-child(2)::before { content: "Lifecycle"; }
+  .admin-governance-responsive table[class*="min-w-[1050px]"]:has(tbody td:nth-child(9)) tbody td:nth-child(3)::before { content: "Owner"; }
+  .admin-governance-responsive table[class*="min-w-[1050px]"]:has(tbody td:nth-child(9)) tbody td:nth-child(4)::before { content: "Team"; }
+  .admin-governance-responsive table[class*="min-w-[1050px]"]:has(tbody td:nth-child(9)) tbody td:nth-child(5)::before { content: "Weddings"; }
+  .admin-governance-responsive table[class*="min-w-[1050px]"]:has(tbody td:nth-child(9)) tbody td:nth-child(6)::before { content: "Onboarding"; }
+  .admin-governance-responsive table[class*="min-w-[1050px]"]:has(tbody td:nth-child(9)) tbody td:nth-child(7)::before { content: "Activity"; }
+  .admin-governance-responsive table[class*="min-w-[1050px]"]:has(tbody td:nth-child(9)) tbody td:nth-child(8)::before { content: "Signals"; }
+  .admin-governance-responsive table[class*="min-w-[1050px]"]:has(tbody td:nth-child(9)) tbody td:nth-child(9)::before { content: "Inspect"; }
 
   .admin-governance-responsive table[class*="min-w-[1050px]"] tbody td > * {
     min-width: 0;
