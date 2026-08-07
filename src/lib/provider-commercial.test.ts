@@ -136,6 +136,30 @@ describe('provider commercial readiness', () => {
     expect(bound.missing).not.toContain('Bind every variable price component to the wedding quantity that drives it')
   })
 
+  test('keeps semantically unapproved variable bindings out of automatic AI planning', () => {
+    const readiness = calculateCommercialReadiness({
+      status: 'published',
+      serviceAreas: ['Harare'],
+      pricingVisibility: 'exact',
+      pricingModel: 'Per item',
+      startingPrice: '5',
+      priceValidUntil: '2027-01-01T00:00:00.000Z',
+      commercialTerms: {
+        taxIncluded: true,
+        depositType: 'percentage',
+        balanceDueRule: '14 days before the wedding',
+      },
+      priceComponents: [
+        { label: 'Printed invitation', type: 'per_item', amount: '5', unit: 'invitation', quantityKey: 'invitations' },
+      ],
+      automaticQuantityBindingsApproved: false,
+      commercialConfirmed: true,
+    }, now)
+
+    expect(readiness.status).toBe('not_ready')
+    expect(readiness.missing).toContain('Review variable quantity bindings before automatic AI planning')
+  })
+
   test('keeps package completeness distinct from AI readiness', () => {
     expect(calculatePackageCompletion({
       name: 'Gold',
