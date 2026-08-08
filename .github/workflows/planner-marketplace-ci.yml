@@ -84,7 +84,7 @@ jobs:
           --project=mobile-chromium
       - name: Upload digital invitation card samples
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: digital-invitation-card-samples
           path: artifacts/invitation-card-samples
@@ -92,7 +92,7 @@ jobs:
           retention-days: 30
       - name: Upload marketplace, privacy and experience browser failure evidence
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: marketplace-privacy-experience-browser-release-gate
           path: |
