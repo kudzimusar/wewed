@@ -24,7 +24,7 @@ describe('production integration hardening contracts', () => {
   test('keeps Stripe-hosted return paths on the canonical public origin', () => {
     const billing = source('src/app/api/billing/account/route.ts')
 
-    expect(billing).toContain('const origin = publicOrigin()')
+    expect(billing).toContain('origin: publicOrigin()')
     expect(billing).not.toContain('request.nextUrl.origin')
   })
 
