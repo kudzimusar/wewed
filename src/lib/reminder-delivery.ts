@@ -147,7 +147,7 @@ export async function deliverReminder(input: {
     orderBy: { name: 'asc' },
   })
   const recipients = selectReminderRecipients(guests, value.audience)
-  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://wewed.app').replace(/\/$/, '')
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://wewed.pro').replace(/\/$/, '')
   const dateLabel = new Intl.DateTimeFormat('en-US', {
     dateStyle: 'long',
     timeZone: 'UTC',

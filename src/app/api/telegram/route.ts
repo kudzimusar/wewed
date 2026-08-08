@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic'
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ''
 const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://wewed.app').replace(/\/$/, '')
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://wewed.pro').replace(/\/$/, '')
 
 interface TelegramUpdate {
   update_id: number

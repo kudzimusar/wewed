@@ -124,7 +124,7 @@ export const PROJECT_STATUS: StatusItem[] = [
   { id: 'soc-whatsapp', name: 'WhatsApp share / RSVP', category: 'social', status: 'done', progress: 100, notes: 'src/components/wedding/whatsapp-rsvp.tsx (floating FAB, pre-filled RSVP message)' },
   { id: 'soc-telegram', name: 'Telegram bot + widget', category: 'social', status: 'done', progress: 100, notes: 'src/app/api/telegram/route.ts + telegram-widget.tsx (/start /info /rsvp /song /help)' },
   { id: 'soc-share', name: 'Share section (8 platforms)', category: 'social', status: 'done', progress: 100, notes: 'src/components/wedding/share-section.tsx + share-bar.tsx (WhatsApp/Telegram/FB/X/IG/TikTok/Email/Copy)' },
-  { id: 'soc-links', name: 'Social media follow links', category: 'social', status: 'done', progress: 100, notes: 'Footer + share bar wired to @wewed.app accounts' },
+  { id: 'soc-links', name: 'Social media follow links', category: 'social', status: 'done', progress: 100, notes: 'Footer + share bar wired to Wewed social accounts' },
   { id: 'soc-qr', name: 'QR Gateway (7 destinations)', category: 'social', status: 'done', progress: 100, notes: 'src/components/wedding/qr-gateway.tsx (Website/RSVP/Photos/Songs/Programme/Venue/Registry)' },
 
   // ── Planner (8 items, all done) ───────────────────────────────────────

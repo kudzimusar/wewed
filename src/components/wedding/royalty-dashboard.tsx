@@ -2573,10 +2573,10 @@ function SettingsTab({
           <ShieldCheck className="size-3 text-sage-light" />
           Need help? Contact{' '}
           <a
-            href="mailto:royalty@wewed.app"
+            href="/company/contact"
             className="text-gold underline-offset-2 hover:underline"
           >
-            royalty@wewed.app
+            Wewed support
           </a>
         </div>
       </div>

@@ -232,7 +232,7 @@ describe('Stage 9 API and UI regression controls', () => {
     expect(health).toContain('environment.siteUrlValid')
     expect(health).toContain('environment.productionSiteMatches')
     expect(health).not.toContain('EXPECTED_SITE_URL')
-    expect(health).not.toContain('wewed-nu.vercel.app')
+    expect(health).not.toContain(['wewed-nu', 'vercel', 'app'].join('.'))
   })
 
   test('release runbook covers health, permissions, smoke tests, rollback, privacy and incident response', async () => {

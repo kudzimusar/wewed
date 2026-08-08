@@ -86,7 +86,7 @@ export function OnboardingWizard() {
             {data.partner1} & {data.partner2}'s website has been created. Share this link with your guests:
           </p>
           <div className="rounded-lg border border-gold/30 bg-white/60 p-3 mb-6">
-            <code className="font-mono text-sm text-gold">wewed.app{created.url}</code>
+            <code className="font-mono text-sm text-gold">wewed.pro{created.url}</code>
           </div>
           <Button
             onClick={() => { window.location.href = created.url }}

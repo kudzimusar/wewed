@@ -55,7 +55,7 @@ const TIERS: Tier[] = [
     icon: Gift,
     features: [
       { label: 'Public wedding page', included: true },
-      { label: 'Custom URL (wewed.app/your-names)', included: true },
+      { label: 'Custom URL (wewed.pro/your-names)', included: true },
       { label: 'RSVP + songbook + live wall', included: true },
       { label: '1 year of AFTER preservation', included: true },
       { label: 'Mobile PWA', included: true },
@@ -173,7 +173,7 @@ const FEATURE_MATRIX: MatrixRow[] = [
     features: [
       { label: 'Public wedding page', free: true, canon: true, forever: true },
       {
-        label: 'Custom URL (wewed.app/your-names)',
+        label: 'Custom URL (wewed.pro/your-names)',
         free: true,
         canon: true,
         forever: true,

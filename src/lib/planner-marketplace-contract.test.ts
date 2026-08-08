@@ -141,7 +141,7 @@ describe('planner marketplace secure appointment contract', () => {
 
   test('each couple keeps a slug-resolved public wedding homepage', () => {
     expect(weddingHome).toContain('WeddingDataProvider slug={slug}')
-    expect(weddingHome).toContain('Printed from wewed.app/w/{slug}')
+    expect(weddingHome).toContain('Printed from wewed.pro/w/{slug}')
     expect(weddingHome).not.toContain('Charity &')
   })
 })

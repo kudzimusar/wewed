@@ -27,7 +27,7 @@ const description =
   'Create an invitation-controlled wedding site, manage the planning process, and discover verified wedding planners through Wewed.'
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://wewed.app'),
+  metadataBase: new URL('https://wewed.pro'),
   title,
   description,
   keywords: [
@@ -42,7 +42,7 @@ export const metadata: Metadata = {
     icon: '/icon-192.png',
     apple: '/icon-512.png',
   },
-  openGraph: { title, description, type: 'website' },
+  openGraph: { title, description, type: 'website', url: 'https://wewed.pro' },
   twitter: { card: 'summary', title, description },
   manifest: '/manifest.json',
 }
