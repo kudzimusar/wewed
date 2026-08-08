@@ -2,7 +2,7 @@ import 'server-only'
 
 import { db } from '@/lib/db'
 import { calculateCommercialReadiness } from '@/lib/provider-commercial'
-import { priceComponentsUseApprovedAutomaticBindings } from '@/lib/wedding-architect-binding-policy'
+import { isApprovedAutomaticPriceBinding, priceComponentsUseApprovedAutomaticBindings } from '@/lib/wedding-architect-binding-policy'
 import { priceWeddingArchitectCandidate } from '@/lib/wedding-architect-candidate-pricing'
 import {
   WEDDING_ARCHITECT_PROVIDER_ENTITLEMENT,
@@ -45,6 +45,8 @@ interface OfferingRow {
   businessAccountId: string
   providerName: string
   providerSlug: string
+  providerCountry: string | null
+  providerCity: string | null
   listingStatus: string
   profileCompletionScore: number
   businessType: string
@@ -172,7 +174,18 @@ function runtimeReadiness(row: OfferingRow, packages: PackageRow[], now: Date) {
     commercialTerms: row.commercialTerms,
     priceComponents: allComponents,
     ownerConfirmedCommercialAt: row.ownerConfirmedCommercialAt,
-    automaticQuantityBindingsApproved: priceComponentsUseApprovedAutomaticBindings(row.category, allComponents),
+    automaticQuantityBindingsApproved:
+      priceComponentsUseApprovedAutomaticBindings(row.category, allComponents) &&
+      packages.every((pkg) => {
+        if (!pkg.additionalUnitPriceCents || pkg.additionalUnitPriceCents <= 0) return true
+        if (!pkg.quantityType || !pkg.quantityKey) return false
+        return isApprovedAutomaticPriceBinding({
+          category: row.category,
+          type: pkg.quantityType,
+          quantityKey: pkg.quantityKey,
+          multiplierKey: pkg.multiplierKey,
+        })
+      }),
   }, now)
 }
 
@@ -198,7 +211,8 @@ async function readOfferings(categories: string[]): Promise<OfferingRow[]> {
   return db.$queryRawUnsafe<OfferingRow[]>(
     `SELECT
        pp.id AS "providerId", pp."businessAccountId", pp."displayName" AS "providerName",
-       pp.slug AS "providerSlug", pp."listingStatus", pp."completionScore" AS "profileCompletionScore",
+       pp.slug AS "providerSlug", pp.country AS "providerCountry", pp.city AS "providerCity",
+       pp."listingStatus", pp."completionScore" AS "profileCompletionScore",
        ba.type AS "businessType", ba.status AS "businessStatus",
        o.id AS "offeringId", o.category, o."displayName" AS "offeringName", o.status AS "offeringStatus",
        o."pricingVisibility", o."pricingModel", o."startingPriceCents", o."maximumPriceCents", o.currency,
@@ -236,12 +250,20 @@ async function readPackages(offeringIds: string[]): Promise<PackageRow[]> {
   )
 }
 
-function quantityContext(profile: RequirementProfileRow, category: CategoryRequirementRow): PriceQuantityContext {
+function normalizedLocation(value: string | null | undefined): string {
+  return String(value ?? '').trim().toLowerCase()
+}
+
+function quantityContext(profile: RequirementProfileRow, category: CategoryRequirementRow, provider: OfferingRow): PriceQuantityContext {
+  const sameCountry = normalizedLocation(provider.providerCountry) === normalizedLocation(profile.country)
+  const sameCity = normalizedLocation(provider.providerCity) === normalizedLocation(profile.city)
   return {
     guestCount: profile.guestCount,
     adultCount: profile.adultCount,
     childCount: profile.childCount,
-    travelKm: 0,
+    // We can prove zero inter-city travel only when both canonical locations match.
+    // Any other distance remains unknown until Wewed has geocoded routing data.
+    travelKm: sameCountry && sameCity ? 0 : null,
     categoryRequirements: jsonObject(category.requirements),
   }
 }
@@ -337,7 +359,7 @@ export async function buildWeddingArchitectMarketplacePlan(input: {
     for (const { package: pkg } of variants) {
       const price = priceWeddingArchitectCandidate({
         weddingBudgetCents: budget!,
-        quantityContext: quantityContext(profile, categoryRequirement),
+        quantityContext: quantityContext(profile, categoryRequirement, row),
         calculatedAt: now,
         variant: {
           providerId: row.providerId,
