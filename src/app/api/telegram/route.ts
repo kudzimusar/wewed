@@ -1,11 +1,14 @@
+import { timingSafeEqual } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
+import { publicOrigin } from '@/lib/public-origin'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ''
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN?.trim() || ''
+const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET?.trim() || ''
 const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://wewed.pro').replace(/\/$/, '')
+const SITE_URL = publicOrigin()
 
 interface TelegramUpdate {
   update_id: number
@@ -59,6 +62,14 @@ Try /invite, /rsvp, /planners or /help.
 
 Wewed: ${SITE_URL}`
 
+function safeSecretEqual(actual: string | null, expected: string): boolean {
+  if (!actual || !expected) return false
+  const actualBuffer = Buffer.from(actual)
+  const expectedBuffer = Buffer.from(expected)
+  if (actualBuffer.length !== expectedBuffer.length) return false
+  return timingSafeEqual(actualBuffer, expectedBuffer)
+}
+
 async function sendTelegramMessage(
   chatId: number,
   text: string,
@@ -87,13 +98,32 @@ async function sendTelegramMessage(
 export async function GET() {
   return NextResponse.json({
     status: 'ok',
-    webhook: { configured: Boolean(BOT_TOKEN) },
+    webhook: {
+      configured: Boolean(BOT_TOKEN && WEBHOOK_SECRET),
+      botConfigured: Boolean(BOT_TOKEN),
+      secretConfigured: Boolean(WEBHOOK_SECRET),
+    },
     commands: Object.keys(COMMANDS),
     privacy: 'Wedding invitations are guest-specific and are never exposed by the platform bot.',
   })
 }
 
 export async function POST(request: NextRequest) {
+  if (!BOT_TOKEN || !WEBHOOK_SECRET) {
+    return NextResponse.json(
+      { ok: false, error: 'telegram_webhook_not_configured' },
+      { status: 503 },
+    )
+  }
+
+  const suppliedSecret = request.headers.get('x-telegram-bot-api-secret-token')
+  if (!safeSecretEqual(suppliedSecret, WEBHOOK_SECRET)) {
+    return NextResponse.json(
+      { ok: false, error: 'invalid_telegram_webhook_secret' },
+      { status: 401 },
+    )
+  }
+
   let update: TelegramUpdate
   try {
     update = (await request.json()) as TelegramUpdate
@@ -107,9 +137,9 @@ export async function POST(request: NextRequest) {
   const reply = COMMANDS[command] || FALLBACK_REPLY
   const result = await sendTelegramMessage(message.chat.id, reply)
 
-  if (!result.ok && result.error !== 'bot_token_not_configured') {
+  if (!result.ok) {
     console.error('[telegram webhook] delivery failed:', result.error)
     return NextResponse.json({ ok: false, error: 'delivery_failed' }, { status: 502 })
   }
-  return NextResponse.json({ ok: true, delivered: result.ok, configured: Boolean(BOT_TOKEN) })
+  return NextResponse.json({ ok: true, delivered: true, configured: true })
 }

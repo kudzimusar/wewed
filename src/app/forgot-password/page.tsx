@@ -6,6 +6,7 @@ import { ArrowLeft, CheckCircle2, Loader2, LockKeyhole, Mail } from 'lucide-reac
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { publicUrl } from '@/lib/public-origin'
 import { createClient } from '@/lib/supabase/client'
 
 export default function ForgotPasswordPage() {
@@ -24,10 +25,9 @@ export default function ForgotPasswordPage() {
 
     try {
       const supabase = createClient()
-      const redirectTo = `${window.location.origin}/reset-password`
       const { error: recoveryError } = await supabase.auth.resetPasswordForEmail(
         normalizedEmail,
-        { redirectTo },
+        { redirectTo: publicUrl('/reset-password') },
       )
 
       if (recoveryError) {
