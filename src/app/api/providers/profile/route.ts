@@ -15,9 +15,12 @@ import {
 } from '@/lib/provider-commercial'
 import {
   defaultPriceBinding,
-  priceComponentsUseCanonicalAutomaticBindings,
   providerPriceBindingOptions,
 } from '@/lib/provider-price-bindings'
+import {
+  isApprovedAutomaticPriceBinding,
+  priceComponentsUseApprovedAutomaticBindings,
+} from '@/lib/wedding-architect-binding-policy'
 
 const VISIBILITY = new Set(['draft', 'published'])
 const OFFERING_STATUS = new Set(['draft', 'published'])
@@ -435,8 +438,21 @@ export async function PUT(request: NextRequest) {
             Array.isArray(packageInput.priceComponents) ? packageInput.priceComponents : [],
           ),
         ]
+        const packageQuantityBindingsApproved = packages.every((packageInput) => {
+          if (packageInput.additionalUnitPrice === null || packageInput.additionalUnitPrice === undefined || packageInput.additionalUnitPrice === '') return true
+          const quantityType = text(packageInput.quantityType, 80)
+          const quantityKey = text(packageInput.quantityKey, 160)
+          const multiplierKey = text(packageInput.multiplierKey, 160)
+          if (!quantityType || !quantityKey || !PRICE_COMPONENT_TYPE_SET.has(quantityType)) return false
+          return isApprovedAutomaticPriceBinding({
+            category,
+            type: quantityType as Parameters<typeof isApprovedAutomaticPriceBinding>[0]['type'],
+            quantityKey,
+            multiplierKey,
+          })
+        })
         const automaticQuantityBindingsApproved =
-          priceComponentsUseCanonicalAutomaticBindings(allPriceComponents)
+          priceComponentsUseApprovedAutomaticBindings(category, allPriceComponents) && packageQuantityBindingsApproved
         const priceValidFrom = dateValue(input.priceValidFrom, 'Price valid from')
         const priceValidUntil = dateValue(input.priceValidUntil, 'Price valid until', true)
         if (priceValidFrom && priceValidUntil && priceValidFrom > priceValidUntil) throw new Error('Price valid from cannot be after price valid until.')
@@ -546,7 +562,26 @@ export async function PUT(request: NextRequest) {
           const packageName = text(packageInput.name, 160)
           if (!packageName) continue
           const packageCommercialTerms = normalizeCommercialTerms(packageInput.commercialTerms)
-          const packagePriceComponents = normalizePriceComponents(packageInput.priceComponents, String(offering.category))
+          const packageCategory = String(offering.category)
+          const packagePriceComponents = normalizePriceComponents(packageInput.priceComponents, packageCategory)
+          const packageQuantityType = text(packageInput.quantityType, 80)
+          const packageQuantityKey = text(packageInput.quantityKey, 160)
+          const packageMultiplierKey = text(packageInput.multiplierKey, 160)
+          const packageAdditionalUnitPriceCents = moneyCents(packageInput.additionalUnitPrice, 'Package additional unit price')
+          const allowedPackageBindings = new Set(providerPriceBindingOptions(packageCategory).map((option) => option.key))
+          if (packageQuantityKey && !allowedPackageBindings.has(packageQuantityKey)) throw new Error('Package quantity source is invalid for this category.')
+          if (packageMultiplierKey && !allowedPackageBindings.has(packageMultiplierKey)) throw new Error('Package quantity multiplier is invalid for this category.')
+          if (packageAdditionalUnitPriceCents && (!packageQuantityType || !packageQuantityKey || !PRICE_COMPONENT_TYPE_SET.has(packageQuantityType))) {
+            throw new Error('Package additional-unit pricing requires an explicit quantity type and wedding quantity source.')
+          }
+          if (packageAdditionalUnitPriceCents && !isApprovedAutomaticPriceBinding({
+            category: packageCategory,
+            type: packageQuantityType as Parameters<typeof isApprovedAutomaticPriceBinding>[0]['type'],
+            quantityKey: packageQuantityKey,
+            multiplierKey: packageMultiplierKey,
+          })) {
+            throw new Error('Package quantity pricing is not approved for automatic Wedding Architect calculation.')
+          }
           const packagePriceValidFrom = dateValue(packageInput.priceValidFrom, 'Package price valid from')
           const packagePriceValidUntil = dateValue(packageInput.priceValidUntil, 'Package price valid until', true)
           if (packagePriceValidFrom && packagePriceValidUntil && packagePriceValidFrom > packagePriceValidUntil) throw new Error('Package price valid from cannot be after package price valid until.')
@@ -556,12 +591,13 @@ export async function PUT(request: NextRequest) {
             priceComponents: packagePriceComponents,
           })
           await transaction.$executeRawUnsafe(
-            `INSERT INTO wewed_admin."ProviderPackage" (id,"offeringId",name,description,"priceCents",currency,"pricingUnit",inclusions,"sortOrder","isActive","minimumQuantity","maximumQuantity","includedQuantity","additionalUnitPriceCents",exclusions,"requiredAddOns","optionalAddOns","commercialTerms","priceComponents","priceValidFrom","priceValidUntil","completionScore") VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,true,$10,$11,$12,$13,$14::jsonb,$15::jsonb,$16::jsonb,$17::jsonb,$18::jsonb,$19,$20,$21)`,
+            `INSERT INTO wewed_admin."ProviderPackage" (id,"offeringId",name,description,"priceCents",currency,"pricingUnit",inclusions,"sortOrder","isActive","minimumQuantity","maximumQuantity","includedQuantity","additionalUnitPriceCents","quantityType","quantityKey","multiplierKey",exclusions,"requiredAddOns","optionalAddOns","commercialTerms","priceComponents","priceValidFrom","priceValidUntil","completionScore") VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,true,$10,$11,$12,$13,$14,$15,$16,$17::jsonb,$18::jsonb,$19::jsonb,$20::jsonb,$21::jsonb,$22,$23,$24)`,
             `provider-package-${randomUUID()}`, savedOfferingId, packageName, text(packageInput.description, 2000), moneyCents(packageInput.price, 'Package price'),
             typeof packageInput.currency === 'string' && CURRENCIES.has(packageInput.currency) ? packageInput.currency : offering.currency,
             text(packageInput.pricingUnit, 120), JSON.stringify(stringList(packageInput.inclusions, 50)), index,
             nullableInteger(packageInput.minimumQuantity, 'Package minimum quantity', 0, 1000000), nullableInteger(packageInput.maximumQuantity, 'Package maximum quantity', 0, 1000000),
-            nullableInteger(packageInput.includedQuantity, 'Package included quantity', 0, 1000000), moneyCents(packageInput.additionalUnitPrice, 'Package additional unit price'),
+            nullableInteger(packageInput.includedQuantity, 'Package included quantity', 0, 1000000), packageAdditionalUnitPriceCents,
+            packageQuantityType || null, packageQuantityKey || null, packageMultiplierKey || null,
             JSON.stringify(stringList(packageInput.exclusions, 50)), JSON.stringify(stringList(packageInput.requiredAddOns, 50)), JSON.stringify(stringList(packageInput.optionalAddOns, 50)),
             JSON.stringify(packageCommercialTerms), JSON.stringify(packagePriceComponents), packagePriceValidFrom, packagePriceValidUntil, packageCompletion,
           )
