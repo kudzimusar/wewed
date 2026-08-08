@@ -49,7 +49,21 @@ A production integration is not complete merely because the external provider is
 - Each staff member should use their own Gmail destination and matching Wewed default sender.
 - This system is deliberately separate from Resend application mail.
 
-### 6. Authentication and security callbacks — MOSTLY COMPLETE; FINAL AUDIT REQUIRED
+### 6. Wewed communication hub — NOT COMPLETE; KEEP AS A PRODUCT/OPERATIONS PHASE
+
+Wewed already has in-app wedding messaging and now has reliable external email transport, but those are not yet one unified communication system.
+
+Remaining scope:
+- decide which conversations belong in Wewed versus ordinary staff email;
+- connect support/marketplace/planner communication records to the correct account, wedding or provider where appropriate;
+- preserve external email metadata and delivery state where Wewed initiates a message;
+- define staff ownership, assignment, read/unread and escalation behavior;
+- prevent duplicate sends when a conversation exists both in app and by email;
+- keep private staff correspondence out of shared wedding/provider communication records.
+
+This phase should not block basic production infrastructure hardening, but it must not be marked complete merely because Cloudflare, Resend, Brevo and Gmail transport work.
+
+### 7. Authentication and security callbacks — MOSTLY COMPLETE; FINAL AUDIT REQUIRED
 
 Completed:
 - registration confirmation returns through `https://wewed.pro`;
@@ -60,9 +74,9 @@ Remaining:
 - scan all auth/OAuth/reset/invite callback surfaces for request-derived hosts, `VERCEL_URL`, old domains and preview host leakage;
 - review Supabase Auth redirect allow-list and production security settings;
 - verify password reset/invite flows with production canaries;
-- separately evaluate the existing Supabase leaked-password-protection warning.
+- evaluate the Supabase `Leaked Password Protection Disabled` warning before wider public account activation.
 
-### 7. Stripe subscription billing loop — IN PROGRESS
+### 8. Stripe subscription billing loop — IN PROGRESS
 
 Implemented:
 - account-aware Stripe customers, Checkout, Customer Portal and subscription reconciliation;
@@ -70,13 +84,10 @@ Implemented:
 - signed raw-body Stripe webhook verification;
 - event idempotency/audit logging;
 - subscription lifecycle and payment-record updates;
-- production code path for Checkout success/cancel and Portal return.
-
-Current hardening:
-- PR #90 pins Stripe Checkout and Customer Portal return URLs to canonical `https://wewed.pro` instead of `request.nextUrl.origin`.
+- Checkout success/cancel and Customer Portal returns are pinned to canonical `https://wewed.pro` in merged PR #90.
 
 Remaining:
-- qualify and merge PR #90;
+- verify the PR #90 production deployment after Vercel finishes building;
 - replace or retire stale Stripe test webhook destinations that point at ephemeral preview deployments;
 - establish the canonical live webhook destination only when live Stripe environment variables and webhook secret are intentionally activated;
 - run test-mode subscription UAT end-to-end before any live-money activation;
@@ -84,16 +95,16 @@ Remaining:
 
 No live charge, subscription, refund or connected-account action should be created as part of infrastructure hardening without an intentional monetisation release decision.
 
-### 8. Social/OAuth/integration return paths — NOT YET QUALIFIED
+### 9. Social/OAuth/integration return paths — NOT YET QUALIFIED
 
-Next audit after billing:
+Next audit after billing/auth:
 - inventory all external OAuth/social/integration providers;
 - ensure every callback URL is canonical and environment-scoped;
 - remove old `.vercel.app`, `wewed.app`, request-origin and uncontrolled return URLs;
 - verify state/nonce/CSRF handling where applicable;
 - define disconnect/revocation behavior.
 
-### 9. Failure tracking and operational observability — PARTIAL
+### 10. Failure tracking and operational observability — PARTIAL
 
 Already present:
 - application audit logs;
@@ -107,7 +118,7 @@ Remaining:
 - define retry/replay procedures for failed webhooks;
 - document ownership/escalation for `support@`, `billing@`, `privacy@`, `legal@` and `security@`.
 
-### 10. Production ecosystem UAT — FINAL RELEASE GATE
+### 11. Production ecosystem UAT — FINAL INFRASTRUCTURE RELEASE GATE
 
 Run one controlled UAT matrix covering:
 
@@ -126,15 +137,20 @@ Run one controlled UAT matrix covering:
 
 A phase is only marked complete when both the provider configuration and Wewed's return/observability path have been verified.
 
+### 12. Return to product expansion — AFTER INFRASTRUCTURE GATES STABILISE
+
+The production ecosystem work is infrastructure, not a permanent freeze on product development. Once the remaining callback/billing/UAT gates are stable, resume the product roadmap, including the pending Wedding Architect Phase C work and planner testing, without reopening already-settled email/DNS architecture unless evidence requires it.
+
 ## Immediate execution order
 
-1. Finish PR #90 qualification and merge if all exact-head gates are green.
-2. Audit and normalize every auth/reset/invite/OAuth callback to the canonical origin.
+1. Verify merged PR #90 reaches READY in Vercel Production and check runtime errors.
+2. Finish the auth/reset/invite callback audit and resolve any canonical-origin leaks.
 3. Clean up Stripe webhook destinations and complete test-mode billing UAT without live charges.
 4. Audit social/integration callbacks and disconnect paths.
 5. Add cross-provider failure/replay operational documentation and diagnostics.
 6. Run the full production ecosystem UAT matrix.
-7. Return focus to product feature work, including the pending Wedding Architect Phase C PR, only after the production integration loop is stable enough that feature releases do not inherit infrastructure ambiguity.
+7. Resume product releases, beginning with already-prepared work rather than creating new infrastructure side quests.
+8. Treat the Communication Hub as a scoped product/operations feature after the transport and callback foundations are stable.
 
 ## Non-goals during this roadmap
 
@@ -142,4 +158,4 @@ A phase is only marked complete when both the provider configuration and Wewed's
 - no live payment activation without an explicit release decision;
 - no replacement of a working provider solely for architectural neatness;
 - no staff mailbox migration to a paid suite unless the forwarding + Gmail Send-As pattern becomes operationally insufficient;
-- no unrelated product expansion while an integration release gate is red.
+- no unrelated infrastructure diversion while an integration release gate is red.
