@@ -120,6 +120,7 @@ export async function sendTransactionalEmail(input: TransactionalEmailInput): Pr
   }
 
   const tags: EmailTag[] = [
+    { name: 'application', value: 'wewed' },
     { name: 'category', value: safeTagPart(input.category, 'transactional') },
     { name: 'delivery_id', value: safeTagPart(delivery.id, 'unknown') },
     ...(input.tags ?? []).map((tag) => ({
