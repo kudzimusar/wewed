@@ -18,10 +18,10 @@ describe('Wewed Wedding Architect ecosystem contract', () => {
     const plan = source('docs/AI_WEDDING_ARCHITECT_ECOSYSTEM_PLAN.md')
     expect(plan).toContain('Phase A — Data contract and provider catalogue readiness — COMPLETE')
     expect(plan).toContain('Phase B — Client requirements — COMPLETE')
-    expect(plan).toContain('Phase C — Pricing and eligibility — PARTIAL / FAIL-CLOSED')
-    expect(plan).toContain('no production-facing optimiser or automatic provider recommendation is exposed')
-    expect(plan).toContain('Canonical marketplace candidate adapter')
-    expect(plan).toContain('End-to-end subscription entitlement integration')
+    expect(plan).toContain('Phase C — Pricing and eligibility — COMPLETE')
+    expect(plan).toContain('No provider is contacted by Phase C')
+    expect(plan).toContain('Canonical marketplace candidate adapter resolving live provider, account, billing, catalogue and requirement data')
+    expect(plan).toContain('End-to-end provider and planner subscription entitlement integration')
   })
 
   test('keeps provider commercial data additive and exact-budget readiness explicit', () => {
@@ -93,12 +93,32 @@ describe('Wewed Wedding Architect ecosystem contract', () => {
   test('fails closed on ambiguous variable provider quantities before automatic planning', () => {
     const route = source('src/app/api/providers/profile/route.ts')
     const bindings = source('src/lib/provider-price-bindings.ts')
+    const policy = source('src/lib/wedding-architect-binding-policy.ts')
     const commercial = source('src/lib/provider-commercial.ts')
-    expect(route).toContain('priceComponentsUseCanonicalAutomaticBindings(allPriceComponents)')
-    expect(route).toContain('automaticQuantityBindingsApproved')
+    const manager = source('src/components/providers/provider-profile-manager.tsx')
+    expect(route).toContain('priceComponentsUseApprovedAutomaticBindings(category, allPriceComponents)')
+    expect(route).toContain('packageQuantityBindingsApproved')
+    expect(route).toContain('isApprovedAutomaticPriceBinding')
+    expect(route).toContain('Package additional-unit pricing requires an explicit quantity type and wedding quantity source.')
     expect(bindings).toContain('Category-specific/compound units are collected and preserved')
     expect(bindings).toContain('is required for deterministic pricing')
+    expect(policy).toContain('APPROVED_BINDINGS')
+    expect(policy).toContain('isApprovedAutomaticPriceBinding')
     expect(commercial).toContain('Review variable quantity bindings before automatic AI planning')
+    expect(manager).toContain('Wedding quantity for package overage')
+    expect(manager).toContain('Optional quantity multiplier')
+  })
+
+  test('keeps commercial recommendation trust fail-closed across provider and planner stakeholders', () => {
+    const eligibility = source('src/lib/wedding-architect-eligibility.ts')
+    const access = source('src/lib/wedding-architect-access.ts')
+    const claimMigration = source('prisma/migrations/20260806232000_marketplace_population_claim_pipeline/migration.sql')
+
+    expect(claimMigration).toContain("'unclaimed', 'claim_pending', 'claimed', 'verified', 'suspended', 'removed'")
+    expect(eligibility).toContain("candidate.listingStatus !== 'verified'")
+    expect(eligibility).toContain('Provider listing is not verified for AI-originated commercial recommendations.')
+    expect(access).toContain('return rows.some(plannerBillingRowIsEntitled)')
+    expect(access).not.toContain('LIMIT 1')
   })
 
   test('aligns supply and demand on the same provider category taxonomy', () => {

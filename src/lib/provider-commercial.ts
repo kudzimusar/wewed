@@ -81,6 +81,7 @@ export type CommercialReadinessInput = {
   commercialConfirmed?: boolean
   ownerConfirmedCommercialAt?: unknown
   automaticQuantityBindingsApproved?: boolean
+  automaticPackageBasePricesApproved?: boolean
 }
 
 export type CommercialReadiness = {
@@ -162,6 +163,7 @@ export function calculateCommercialReadiness(
   const componentsDefined = array(input.priceComponents).length > 0 || packageHasPrice(input.packages)
   const quantityBindingsComplete = explicitQuantityBindingsComplete(input.priceComponents)
   const automaticQuantityBindingsApproved = input.automaticQuantityBindingsApproved !== false
+  const automaticPackageBasePricesApproved = input.automaticPackageBasePricesApproved !== false
 
   const checks: Array<[boolean, string, boolean]> = [
     [input.status === 'published', 'Publish this offering', true],
@@ -186,6 +188,11 @@ export function calculateCommercialReadiness(
     [
       automaticQuantityBindingsApproved,
       'Review variable quantity bindings before automatic AI planning',
+      true,
+    ],
+    [
+      automaticPackageBasePricesApproved,
+      'Use a fixed/package total for package base prices; model variable prices with structured components',
       true,
     ],
     [confirmed, 'Confirm that commercial pricing is current', true],
