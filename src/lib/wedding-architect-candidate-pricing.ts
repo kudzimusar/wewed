@@ -1,5 +1,5 @@
 import type { PriceComponentType } from '@/lib/provider-commercial'
-import { isApprovedAutomaticPriceBinding, priceComponentsUseApprovedAutomaticBindings } from '@/lib/wedding-architect-binding-policy'
+import { isApprovedAutomaticPriceBinding, isAutomaticExactPackageBasePrice, priceComponentsUseApprovedAutomaticBindings } from '@/lib/wedding-architect-binding-policy'
 import { resolveBoundQuantity, type PriceQuantityContext } from '@/lib/provider-price-bindings'
 import { calculateWeddingPrice, decimalAmountToCents, type CalculableCommercialTerms, type CalculablePriceComponent, type WeddingPriceCalculation } from '@/lib/wedding-architect-pricing'
 
@@ -17,6 +17,7 @@ export type WeddingArchitectCatalogueVariant = {
   offeringPriceValidUntil?: Date | string | null
   packageName?: string | null
   packagePriceCents?: number | null
+  packagePricingUnit?: string | null
   packageCommercialTerms?: unknown
   packagePriceComponents?: unknown
   packagePriceValidUntil?: Date | string | null
@@ -179,6 +180,9 @@ export function priceWeddingArchitectCandidate(input: {
   // the final client price. A fixed package price is exact by definition.
   if (!hasPackage && variant.pricingVisibility !== 'exact') {
     reasons.push('Offering pricing is not exact enough for an automatic budget plan.')
+  }
+  if (hasPackage && !isAutomaticExactPackageBasePrice(variant.packagePricingUnit)) {
+    reasons.push('Package base price is not marked as a fixed/package total; variable package pricing must use structured quantity components.')
   }
   if (basePriceCents === null || basePriceCents === undefined || !Number.isSafeInteger(basePriceCents) || basePriceCents < 0) {
     reasons.push('Candidate has no exact non-negative base price.')
