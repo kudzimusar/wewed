@@ -19,6 +19,7 @@ import {
 } from '@/lib/provider-price-bindings'
 import {
   isApprovedAutomaticPriceBinding,
+  isAutomaticExactPackageBasePrice,
   priceComponentsUseApprovedAutomaticBindings,
 } from '@/lib/wedding-architect-binding-policy'
 
@@ -438,6 +439,10 @@ export async function PUT(request: NextRequest) {
             Array.isArray(packageInput.priceComponents) ? packageInput.priceComponents : [],
           ),
         ]
+        const automaticPackageBasePricesApproved = packages.every((packageInput) => {
+          if (packageInput.price === null || packageInput.price === undefined || packageInput.price === '') return true
+          return isAutomaticExactPackageBasePrice(packageInput.pricingUnit)
+        })
         const packageQuantityBindingsApproved = packages.every((packageInput) => {
           if (packageInput.additionalUnitPrice === null || packageInput.additionalUnitPrice === undefined || packageInput.additionalUnitPrice === '') return true
           const quantityType = text(packageInput.quantityType, 80)
@@ -490,6 +495,7 @@ export async function PUT(request: NextRequest) {
           packages: offering.packages,
           priceComponents: allPriceComponents,
           automaticQuantityBindingsApproved,
+          automaticPackageBasePricesApproved,
           commercialConfirmed,
         })
         Object.assign(offering, {

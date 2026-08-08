@@ -2,7 +2,7 @@ import 'server-only'
 
 import { db } from '@/lib/db'
 import { calculateCommercialReadiness } from '@/lib/provider-commercial'
-import { isApprovedAutomaticPriceBinding, priceComponentsUseApprovedAutomaticBindings } from '@/lib/wedding-architect-binding-policy'
+import { isApprovedAutomaticPriceBinding, isAutomaticExactPackageBasePrice, priceComponentsUseApprovedAutomaticBindings } from '@/lib/wedding-architect-binding-policy'
 import { priceWeddingArchitectCandidate } from '@/lib/wedding-architect-candidate-pricing'
 import {
   WEDDING_ARCHITECT_PROVIDER_ENTITLEMENT,
@@ -86,6 +86,7 @@ interface PackageRow {
   name: string
   priceCents: number
   currency: string
+  pricingUnit: string | null
   isActive: boolean
   minimumQuantity: number | null
   maximumQuantity: number | null
@@ -186,6 +187,7 @@ function runtimeReadiness(row: OfferingRow, packages: PackageRow[], now: Date) {
           multiplierKey: pkg.multiplierKey,
         })
       }),
+    automaticPackageBasePricesApproved: packages.every((pkg) => isAutomaticExactPackageBasePrice(pkg.pricingUnit)),
   }, now)
 }
 
@@ -239,7 +241,7 @@ async function readOfferings(categories: string[]): Promise<OfferingRow[]> {
 async function readPackages(offeringIds: string[]): Promise<PackageRow[]> {
   if (!offeringIds.length) return []
   return db.$queryRawUnsafe<PackageRow[]>(
-    `SELECT id, "offeringId", name, "priceCents", currency, "isActive",
+    `SELECT id, "offeringId", name, "priceCents", currency, "pricingUnit", "isActive",
             "minimumQuantity", "maximumQuantity", "includedQuantity", "additionalUnitPriceCents",
             "commercialTerms", "priceComponents", "priceValidUntil", "completionScore",
             "quantityType", "quantityKey", "multiplierKey"
@@ -250,20 +252,14 @@ async function readPackages(offeringIds: string[]): Promise<PackageRow[]> {
   )
 }
 
-function normalizedLocation(value: string | null | undefined): string {
-  return String(value ?? '').trim().toLowerCase()
-}
-
-function quantityContext(profile: RequirementProfileRow, category: CategoryRequirementRow, provider: OfferingRow): PriceQuantityContext {
-  const sameCountry = normalizedLocation(provider.providerCountry) === normalizedLocation(profile.country)
-  const sameCity = normalizedLocation(provider.providerCity) === normalizedLocation(profile.city)
+function quantityContext(profile: RequirementProfileRow, category: CategoryRequirementRow): PriceQuantityContext {
   return {
     guestCount: profile.guestCount,
     adultCount: profile.adultCount,
     childCount: profile.childCount,
-    // We can prove zero inter-city travel only when both canonical locations match.
-    // Any other distance remains unknown until Wewed has geocoded routing data.
-    travelKm: sameCountry && sameCity ? 0 : null,
+    // Exact route distance is provider-specific. Until Wewed has geocoded routing
+    // data, kilometre-based travel pricing must fail closed rather than assume zero.
+    travelKm: null,
     categoryRequirements: jsonObject(category.requirements),
   }
 }
@@ -359,7 +355,7 @@ export async function buildWeddingArchitectMarketplacePlan(input: {
     for (const { package: pkg } of variants) {
       const price = priceWeddingArchitectCandidate({
         weddingBudgetCents: budget!,
-        quantityContext: quantityContext(profile, categoryRequirement, row),
+        quantityContext: quantityContext(profile, categoryRequirement),
         calculatedAt: now,
         variant: {
           providerId: row.providerId,
@@ -375,6 +371,7 @@ export async function buildWeddingArchitectMarketplacePlan(input: {
           offeringPriceValidUntil: row.priceValidUntil,
           packageName: pkg?.name ?? null,
           packagePriceCents: pkg?.priceCents ?? null,
+          packagePricingUnit: pkg?.pricingUnit ?? null,
           packageCommercialTerms: pkg?.commercialTerms,
           packagePriceComponents: pkg?.priceComponents,
           packagePriceValidUntil: pkg?.priceValidUntil,
