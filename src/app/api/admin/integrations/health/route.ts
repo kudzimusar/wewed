@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
           COUNT(*)::int AS total,
           COUNT(*) FILTER (WHERE status = 'sent')::int AS sent,
           COUNT(*) FILTER (WHERE status = 'delivered')::int AS delivered,
-          COUNT(*) FILTER (WHERE status = 'delivery_delayed')::int AS delayed,
+          COUNT(*) FILTER (WHERE status = 'delayed')::int AS delayed,
           COUNT(*) FILTER (WHERE status = 'bounced')::int AS bounced,
           COUNT(*) FILTER (WHERE status = 'complained')::int AS complained,
           COUNT(*) FILTER (WHERE status = 'failed')::int AS failed,
