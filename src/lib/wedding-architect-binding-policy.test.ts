@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import {
   isApprovedAutomaticPriceBinding,
+  isAutomaticExactPackageBasePrice,
   priceComponentsUseApprovedAutomaticBindings,
 } from '@/lib/wedding-architect-binding-policy'
 
@@ -56,5 +57,14 @@ describe('Wedding Architect automatic binding policy', () => {
       quantityKey: 'placeCards',
       multiplierKey: 'invitations',
     }])).toBe(false)
+  })
+
+  test('treats only explicit fixed/package units as an exact package base price', () => {
+    expect(isAutomaticExactPackageBasePrice('per package')).toBe(true)
+    expect(isAutomaticExactPackageBasePrice('Flat rate')).toBe(true)
+    expect(isAutomaticExactPackageBasePrice('fixed')).toBe(true)
+    expect(isAutomaticExactPackageBasePrice('per guest')).toBe(false)
+    expect(isAutomaticExactPackageBasePrice('per hour')).toBe(false)
+    expect(isAutomaticExactPackageBasePrice('')).toBe(false)
   })
 })
