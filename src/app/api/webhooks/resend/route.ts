@@ -19,7 +19,11 @@ export async function POST(request: NextRequest) {
       event,
     })
 
-    return NextResponse.json({ success: true, duplicate: result.duplicate })
+    return NextResponse.json({
+      success: true,
+      duplicate: result.duplicate,
+      ignored: result.ignored,
+    })
   } catch (error) {
     console.error('[webhooks/resend] Rejected webhook:', error)
     return NextResponse.json({ success: false, error: 'Invalid webhook.' }, { status: 400 })
