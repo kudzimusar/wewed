@@ -26,13 +26,13 @@ A production integration is not complete merely because the external provider is
 - Canonical metadata, robots and sitemap use `wewed.pro`.
 - Public policy/trust documentation is separated from internal APIs and unearned claims.
 
-### 3. Human inbound email — COMPLETE FOR OPERATIONS; STAFF SEPARATION IN PROGRESS
+### 3. Human inbound email — COMPLETE FOR OPERATIONS; STAFF SEPARATION IS AN OPERATIONS ROLLOUT
 
 - Cloudflare Email Routing is enabled.
 - Root-domain operational aliases are routed explicitly.
 - Catch-all is set to `Drop`.
 - Inbound canary to `support@wewed.pro` succeeded.
-- Staff aliases exist; each becomes private only after it is routed to that staff member's own verified Gmail destination.
+- Staff aliases exist; each becomes private when routed to that staff member's own verified Gmail destination.
 
 ### 4. Application transactional email — COMPLETE FOUNDATION
 
@@ -49,11 +49,11 @@ A production integration is not complete merely because the external provider is
 - Each staff member should use their own Gmail destination and matching Wewed default sender.
 - This system is deliberately separate from Resend application mail.
 
-### 6. Wewed communication hub — NOT COMPLETE; KEEP AS A PRODUCT/OPERATIONS PHASE
+### 6. Wewed communication hub — NOT COMPLETE; PRODUCT/OPERATIONS PHASE
 
-Wewed already has in-app wedding messaging and now has reliable external email transport, but those are not yet one unified communication system.
+Wewed already has in-app wedding messaging and reliable external email transport, but those are not yet one unified communication system.
 
-Remaining scope:
+Remaining product scope:
 - decide which conversations belong in Wewed versus ordinary staff email;
 - connect support/marketplace/planner communication records to the correct account, wedding or provider where appropriate;
 - preserve external email metadata and delivery state where Wewed initiates a message;
@@ -61,96 +61,108 @@ Remaining scope:
 - prevent duplicate sends when a conversation exists both in app and by email;
 - keep private staff correspondence out of shared wedding/provider communication records.
 
-This phase should not block basic production infrastructure hardening, but it must not be marked complete merely because Cloudflare, Resend, Brevo and Gmail transport work.
+This phase does not block infrastructure hardening.
 
-### 7. Authentication and security callbacks — MOSTLY COMPLETE; FINAL AUDIT REQUIRED
+### 7. Authentication and security callbacks — CODE HARDENING COMPLETE; PROVIDER UAT REMAINS
 
-Completed:
+Completed in application code:
 - registration confirmation returns through `https://wewed.pro`;
-- password sign-in itself does not derive a user-facing redirect from the request host;
-- production origin helper exists.
+- password sign-in/sign-out do not derive an external return URL from the request host;
+- password recovery now uses `publicUrl('/reset-password')` instead of `window.location.origin`;
+- the reset page strips recovery tokens from the visible URL, requires a valid recovery session, enforces the Wewed password floor and globally signs out prior sessions after update;
+- administrator invitation acceptance requires a valid Supabase bearer session and does not trust a browser-supplied callback hostname;
+- guarded callback surfaces are covered by permanent Production Integration Hardening CI.
 
-Remaining:
-- scan all auth/OAuth/reset/invite callback surfaces for request-derived hosts, `VERCEL_URL`, old domains and preview host leakage;
-- review Supabase Auth redirect allow-list and production security settings;
-- verify password reset/invite flows with production canaries;
-- evaluate the Supabase `Leaked Password Protection Disabled` warning before wider public account activation.
+Provider-side/manual verification still required:
+- Supabase Auth production Site URL and redirect allow-list must contain the canonical `wewed.pro` recovery/confirmation destinations and must not depend on Preview hosts;
+- run a real password-recovery email/link canary after provider settings are confirmed.
 
-### 8. Stripe subscription billing loop — IN PROGRESS
+The Supabase leaked-password-protection advisory is accepted as a free-tier limitation for now; Wewed retains its 12-character password floor rather than upgrading infrastructure solely to clear that advisory.
+
+### 8. Stripe subscription billing loop — CODE COMPLETE; TEST WEBHOOK ENV/UAT GATE REMAINS
 
 Implemented:
 - account-aware Stripe customers, Checkout, Customer Portal and subscription reconciliation;
 - strict test/live environment separation;
 - signed raw-body Stripe webhook verification;
 - event idempotency/audit logging;
-- subscription lifecycle and payment-record updates;
-- Checkout success/cancel and Customer Portal returns are pinned to canonical `https://wewed.pro` in merged PR #90.
+- subscription lifecycle and payment-record handling;
+- Checkout success/cancel and Customer Portal returns are pinned to canonical `https://wewed.pro` in merged PR #90;
+- PR #90 is READY in Vercel Production with no post-deploy runtime errors;
+- the stale test webhook destination was moved in place to the stable production-integration-hardening Preview branch while preserving its test-only event set and signing-secret identity;
+- an existing disposable billing-QA account proves prior `checkout.session.completed` and `customer.subscription.updated` processing in Wewed's test metadata namespace;
+- a test refund was issued against the disposable test PaymentIntent to exercise `charge.refunded` delivery without real money.
 
-Remaining:
-- verify the PR #90 production deployment after Vercel finishes building;
-- replace or retire stale Stripe test webhook destinations that point at ephemeral preview deployments;
-- establish the canonical live webhook destination only when live Stripe environment variables and webhook secret are intentionally activated;
-- run test-mode subscription UAT end-to-end before any live-money activation;
-- verify failed payment, cancellation, refund and portal-return handling.
+Current red gate:
+- the new stable Preview environment does not currently contain `STRIPE_TEST_WEBHOOK_SECRET`; Wewed therefore correctly rejects incoming Stripe test events instead of accepting unverifiable payloads;
+- add the existing test endpoint signing secret to Vercel Preview, then replay/retry the failed test event and finish lifecycle verification.
 
-No live charge, subscription, refund or connected-account action should be created as part of infrastructure hardening without an intentional monetisation release decision.
+Still required after that one environment fix:
+- verify subscription update/cancellation and refund events are processed on the stable Preview target;
+- exercise/verify payment-failure handling in test mode;
+- run authenticated Checkout success/cancel and Customer Portal return UAT;
+- establish a live production webhook only when live billing activation is intentionally approved.
 
-### 9. Social/OAuth/integration return paths — NOT YET QUALIFIED
+No live charge, subscription, refund or connected-account action is part of infrastructure hardening.
 
-Next audit after billing/auth:
-- inventory all external OAuth/social/integration providers;
-- ensure every callback URL is canonical and environment-scoped;
-- remove old `.vercel.app`, `wewed.app`, request-origin and uncontrolled return URLs;
-- verify state/nonce/CSRF handling where applicable;
-- define disconnect/revocation behavior.
+### 9. External OAuth/social/integration return paths — CURRENT INVENTORY QUALIFIED
 
-### 10. Failure tracking and operational observability — PARTIAL
+Current repository inventory contains no active social-login/OAuth callback flow requiring a provider redirect cutover.
+
+The external callback surface beyond Resend and Stripe is the optional Telegram bot webhook. It is now hardened so that:
+- all user-facing Wewed links use the canonical public-origin helper;
+- POST requires Telegram's webhook secret header;
+- the route fails closed unless both bot token and webhook secret are configured;
+- Production currently reports the Telegram bot as unconfigured, so there is no live Telegram migration to perform.
+
+Future OAuth/social providers must pass the same canonical-return, state/nonce/CSRF and disconnect/revocation review before activation.
+
+### 10. Failure tracking and operational observability — IMPLEMENTED FOUNDATION
 
 Already present:
 - application audit logs;
 - Resend delivery records/webhook events;
 - Stripe event audit processing;
-- Vercel runtime/build logs.
+- Vercel runtime/build logs;
+- public platform `/api/health` readiness diagnostics.
 
-Remaining:
-- define one operator-facing integration health view or runbook covering email, billing, auth and external callbacks;
-- record actionable provider failures rather than only console errors where appropriate;
-- define retry/replay procedures for failed webhooks;
-- document ownership/escalation for `support@`, `billing@`, `privacy@`, `legal@` and `security@`.
+Added by production-integration hardening:
+- authenticated `GET /api/admin/integrations/health` for non-secret Resend, Stripe, Telegram and Auth readiness/recent-event diagnostics;
+- `docs/INTEGRATION_OPERATIONS.md` with canonical callback inventory, failure triage, replay/idempotency procedure and operational mailbox ownership;
+- dedicated Production Integration Hardening CI for canonical callbacks and webhook-security contracts.
 
 ### 11. Production ecosystem UAT — FINAL INFRASTRUCTURE RELEASE GATE
 
-Run one controlled UAT matrix covering:
-
+Automated/verified evidence already covers:
 - apex/`www`/legacy-host navigation;
-- registration + confirmation;
-- sign-in/sign-out/reset/invite;
+- production canonical metadata and public routes;
 - operational inbound email;
-- staff inbound + Send-As reply;
-- application transactional email + delivery webhook;
-- Stripe Checkout success/cancel;
-- Stripe Portal return;
-- Stripe webhook lifecycle/replay/idempotency;
-- external OAuth/integration callback(s);
-- mobile and desktop return paths;
-- failure/recovery behavior.
+- staff Send-As pattern;
+- application transactional outbound canary;
+- canonical registration and billing return URLs;
+- Stripe signature/environment/idempotency source contracts;
+- optional Telegram fail-closed behavior;
+- production and Preview deployment/runtime logs.
 
-A phase is only marked complete when both the provider configuration and Wewed's return/observability path have been verified.
+Final manual/provider-assisted UAT is intentionally small:
+- confirm Supabase Site URL / redirect allow-list and click one real recovery email;
+- add `STRIPE_TEST_WEBHOOK_SECRET` to Vercel Preview and verify the queued/replayed test lifecycle event reaches Wewed;
+- authenticated Stripe Checkout success/cancel and Customer Portal return using the disposable billing QA account;
+- route Tony/Charity staff aliases to their individual Gmail destinations when those addresses are available.
 
-### 12. Return to product expansion — AFTER INFRASTRUCTURE GATES STABILISE
+A provider configuration is complete only when its Wewed return and observability path are also verified.
 
-The production ecosystem work is infrastructure, not a permanent freeze on product development. Once the remaining callback/billing/UAT gates are stable, resume the product roadmap, including the pending Wedding Architect Phase C work and planner testing, without reopening already-settled email/DNS architecture unless evidence requires it.
+### 12. Return to product expansion — AFTER FINAL PROVIDER UAT
+
+Once the small provider-side UAT list above is green, infrastructure hardening is closed. Resume product releases, including the pending Wedding Architect Phase C and planner testing, without reopening settled DNS/email architecture unless new evidence requires it.
 
 ## Immediate execution order
 
-1. Verify merged PR #90 reaches READY in Vercel Production and check runtime errors.
-2. Finish the auth/reset/invite callback audit and resolve any canonical-origin leaks.
-3. Clean up Stripe webhook destinations and complete test-mode billing UAT without live charges.
-4. Audit social/integration callbacks and disconnect paths.
-5. Add cross-provider failure/replay operational documentation and diagnostics.
-6. Run the full production ecosystem UAT matrix.
-7. Resume product releases, beginning with already-prepared work rather than creating new infrastructure side quests.
-8. Treat the Communication Hub as a scoped product/operations feature after the transport and callback foundations are stable.
+1. Qualify and merge the production-integration-hardening PR.
+2. Complete the two provider-side manual controls: Supabase redirect settings and Vercel Preview Stripe signing secret.
+3. Replay/verify Stripe test lifecycle and run authenticated Checkout/Portal canaries.
+4. Run the compact final ecosystem UAT matrix and close infrastructure hardening.
+5. Resume product work.
 
 ## Non-goals during this roadmap
 
