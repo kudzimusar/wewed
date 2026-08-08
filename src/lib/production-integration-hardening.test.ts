@@ -28,6 +28,33 @@ describe('production integration hardening contracts', () => {
     expect(billing).not.toContain('request.nextUrl.origin')
   })
 
+  test('keeps Stripe webhook lifecycle signed, environment-scoped and idempotent', () => {
+    const webhook = source('src/app/api/stripe/webhook/route.ts')
+    const billing = source('src/lib/stripe-billing.ts')
+
+    for (const event of [
+      'checkout.session.completed',
+      'customer.subscription.created',
+      'customer.subscription.updated',
+      'customer.subscription.deleted',
+      'invoice.paid',
+      'invoice.payment_succeeded',
+      'invoice.payment_failed',
+      'charge.refunded',
+    ]) {
+      expect(webhook).toContain(`'${event}'`)
+    }
+
+    expect(webhook).toContain('verifyStripeWebhookSignature')
+    expect(webhook).toContain('Stripe event environment mismatch.')
+    expect(webhook).toContain('eventAlreadyProcessed')
+    expect(webhook).toContain('stripe.webhook_processed')
+    expect(webhook).toContain('sandboxLedgerWriteSkipped')
+    expect(billing).toContain("return process.env.VERCEL_ENV !== 'production'")
+    expect(billing).toContain("optional('STRIPE_TEST_WEBHOOK_SECRET')")
+    expect(billing).toContain("optional('STRIPE_WEBHOOK_SECRET')")
+  })
+
   test('requires an authenticated Supabase session to accept administrator invitations', () => {
     const invitation = source('src/app/api/admin/invitations/accept/route.ts')
 
