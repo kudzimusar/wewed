@@ -1,5 +1,7 @@
 \set ON_ERROR_STOP on
 
+BEGIN;
+
 -- Executable contract for:
 -- docs/product/database-integrity-vendor-admin-hardening-plan-2026-08-09.md
 
@@ -194,6 +196,7 @@ UPDATE wewed_admin."ProviderClaimRequest"
 SET "claimantUserId"='e2e-integrity-owner', status='approved', "approvedAt"=CURRENT_TIMESTAMP
 WHERE id='e2e-integrity-claim';
 SET CONSTRAINTS ALL IMMEDIATE;
+SET CONSTRAINTS ALL DEFERRED;
 
 DO $assert_core_relationships$
 DECLARE
@@ -230,7 +233,14 @@ BEGIN
     'wewed_admin.validate_discovery_candidate_import_link()'::regprocedure,
     'wewed_admin.validate_provider_claim_approval()'::regprocedure
   ] LOOP
-    IF has_function_privilege('PUBLIC', fn, 'EXECUTE') THEN
+    IF EXISTS (
+      SELECT 1
+      FROM pg_proc p,
+      LATERAL aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) acl
+      WHERE p.oid = fn::oid
+        AND acl.grantee = 0
+        AND acl.privilege_type = 'EXECUTE'
+    ) THEN
       RAISE EXCEPTION 'Trigger helper % exposes PUBLIC EXECUTE', fn;
     END IF;
     FOREACH role_name IN ARRAY ARRAY['anon','authenticated'] LOOP
@@ -242,5 +252,7 @@ BEGIN
   END LOOP;
 END
 $assert_trigger_function_privileges$;
+
+COMMIT;
 
 SELECT 'Database integrity vendor/Admin PostgreSQL contract: PASS' AS result;
