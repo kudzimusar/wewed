@@ -5,11 +5,14 @@ import { db } from '@/lib/db'
 
 const WEBHOOK_TOLERANCE_SECONDS = 5 * 60
 
+type ResendEventTags = Record<string, string> | Array<{ name?: unknown; value?: unknown }>
+
 export type ResendWebhookEvent = {
   type: string
   created_at?: string
   data?: {
     email_id?: string
+    tags?: ResendEventTags
     [key: string]: unknown
   }
   [key: string]: unknown
@@ -60,6 +63,23 @@ export function verifyResendWebhook(input: {
   return parsed
 }
 
+function eventTag(event: ResendWebhookEvent, key: string): string | null {
+  const tags = event.data?.tags
+  if (!tags) return null
+
+  if (Array.isArray(tags)) {
+    const match = tags.find((tag) => tag?.name === key && typeof tag.value === 'string')
+    return match && typeof match.value === 'string' ? match.value : null
+  }
+
+  const value = tags[key]
+  return typeof value === 'string' ? value : null
+}
+
+export function isWewedResendEvent(event: ResendWebhookEvent): boolean {
+  return eventTag(event, 'application') === 'wewed'
+}
+
 function eventTimestamp(value: unknown): string | null {
   if (typeof value !== 'string' || !Number.isFinite(Date.parse(value))) return null
   return value
@@ -80,7 +100,11 @@ function statusForEvent(type: string): { status?: string; timestampColumn?: stri
 export async function recordResendWebhook(input: {
   webhookId: string
   event: ResendWebhookEvent
-}): Promise<{ duplicate: boolean; deliveryId: string | null }> {
+}): Promise<{ duplicate: boolean; ignored: boolean; deliveryId: string | null }> {
+  if (!isWewedResendEvent(input.event)) {
+    return { duplicate: false, ignored: true, deliveryId: null }
+  }
+
   const providerEmailId = typeof input.event.data?.email_id === 'string' ? input.event.data.email_id : null
   const createdAt = eventTimestamp(input.event.created_at)
 
@@ -106,8 +130,8 @@ export async function recordResendWebhook(input: {
     createdAt,
   )
 
-  if (inserted.length === 0) return { duplicate: true, deliveryId }
-  if (!deliveryId) return { duplicate: false, deliveryId: null }
+  if (inserted.length === 0) return { duplicate: true, ignored: false, deliveryId }
+  if (!deliveryId) return { duplicate: false, ignored: false, deliveryId: null }
 
   const state = statusForEvent(input.event.type)
   const occurredAt = createdAt ?? new Date().toISOString()
@@ -138,5 +162,5 @@ export async function recordResendWebhook(input: {
     )
   }
 
-  return { duplicate: false, deliveryId }
+  return { duplicate: false, ignored: false, deliveryId }
 }
