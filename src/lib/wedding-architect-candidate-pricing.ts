@@ -1,7 +1,7 @@
 import type { PriceComponentType } from '@/lib/provider-commercial'
 import { isApprovedAutomaticPriceBinding, priceComponentsUseApprovedAutomaticBindings } from '@/lib/wedding-architect-binding-policy'
 import { resolveBoundQuantity, type PriceQuantityContext } from '@/lib/provider-price-bindings'
-import { calculateWeddingPrice, type CalculableCommercialTerms, type CalculablePriceComponent, type WeddingPriceCalculation } from '@/lib/wedding-architect-pricing'
+import { calculateWeddingPrice, decimalAmountToCents, type CalculableCommercialTerms, type CalculablePriceComponent, type WeddingPriceCalculation } from '@/lib/wedding-architect-pricing'
 
 export type WeddingArchitectCatalogueVariant = {
   providerId: string
@@ -172,6 +172,7 @@ export function priceWeddingArchitectCandidate(input: {
   const reasons: string[] = []
   const hasPackage = Boolean(variant.packageId)
   const basePriceCents = hasPackage ? variant.packagePriceCents : variant.startingPriceCents
+  const commercialTerms = mergeTerms(variant.offeringCommercialTerms, variant.packageCommercialTerms)
 
   // "From" and range prices are useful in ordinary marketplace browsing, but an
   // exact-budget Wedding Architect plan must never present their lower bound as
@@ -181,6 +182,15 @@ export function priceWeddingArchitectCandidate(input: {
   }
   if (basePriceCents === null || basePriceCents === undefined || !Number.isSafeInteger(basePriceCents) || basePriceCents < 0) {
     reasons.push('Candidate has no exact non-negative base price.')
+  }
+
+  try {
+    const travelRateCents = decimalAmountToCents(commercialTerms.travelFeePerKm, 'Travel fee per kilometre')
+    if (travelRateCents > 0 && (input.quantityContext.travelKm === null || input.quantityContext.travelKm === undefined)) {
+      reasons.push('Provider travel distance is unknown, so kilometre-based travel charges cannot be calculated exactly.')
+    }
+  } catch (error) {
+    reasons.push(error instanceof Error ? error.message : 'Travel pricing could not be validated.')
   }
 
   const offeringComponents = buildComponents({
@@ -205,9 +215,11 @@ export function priceWeddingArchitectCandidate(input: {
         currency: variant.currency,
         basePriceCents: basePriceCents ?? 0,
         weddingBudgetCents: input.weddingBudgetCents,
-        quantities: {},
+        quantities: {
+          kilometres: input.quantityContext.travelKm ?? 0,
+        },
         components: [...offeringComponents, ...packageComponents, ...(overage ? [overage] : [])],
-        commercialTerms: mergeTerms(variant.offeringCommercialTerms, variant.packageCommercialTerms),
+        commercialTerms,
         source: {
           providerId: variant.providerId,
           offeringId: variant.offeringId,
