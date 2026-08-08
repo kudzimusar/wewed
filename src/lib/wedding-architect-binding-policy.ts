@@ -41,8 +41,22 @@ const APPROVED_BINDINGS: readonly ApprovedPriceBinding[] = [
   { category: 'security', type: 'per_hour', quantityKey: 'hours', multiplierKey: 'guards' },
 ] as const
 
+const FIXED_PACKAGE_PRICE_UNITS = new Set([
+  'fixed',
+  'fixed price',
+  'flat',
+  'flat rate',
+  'package',
+  'per package',
+  'total',
+])
+
 function normalized(value: unknown): string {
   return String(value ?? '').trim()
+}
+
+export function isAutomaticExactPackageBasePrice(pricingUnit: unknown): boolean {
+  return FIXED_PACKAGE_PRICE_UNITS.has(normalized(pricingUnit).toLowerCase())
 }
 
 export function isApprovedAutomaticPriceBinding(input: {
