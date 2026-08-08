@@ -109,6 +109,18 @@ describe('Wewed Wedding Architect ecosystem contract', () => {
     expect(manager).toContain('Optional quantity multiplier')
   })
 
+  test('keeps commercial recommendation trust fail-closed across provider and planner stakeholders', () => {
+    const eligibility = source('src/lib/wedding-architect-eligibility.ts')
+    const access = source('src/lib/wedding-architect-access.ts')
+    const claimMigration = source('prisma/migrations/20260806232000_marketplace_population_claim_pipeline/migration.sql')
+
+    expect(claimMigration).toContain("'unclaimed', 'claim_pending', 'claimed', 'verified', 'suspended', 'removed'")
+    expect(eligibility).toContain("candidate.listingStatus !== 'verified'")
+    expect(eligibility).toContain('Provider listing is not verified for AI-originated commercial recommendations.')
+    expect(access).toContain('return rows.some(plannerBillingRowIsEntitled)')
+    expect(access).not.toContain('LIMIT 1')
+  })
+
   test('aligns supply and demand on the same provider category taxonomy', () => {
     const providerPricing = source('src/lib/provider-pricing-catalog.ts')
     const clientRequirements = source('src/lib/wedding-requirement-catalog.ts')
