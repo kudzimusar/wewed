@@ -4,10 +4,29 @@ import { db } from '@/lib/db'
 import { createServerClient } from '@/lib/supabase/server'
 import { marketplaceAudit, stringList, text } from '@/lib/marketplace-access'
 import { PROVIDER_CATEGORY_VALUES, providerServiceFields } from '@/lib/provider-catalog'
+import {
+  AVAILABILITY_MODE_OPTIONS,
+  CHARGE_TYPE_OPTIONS,
+  DEPOSIT_TYPE_OPTIONS,
+  PRICE_COMPONENT_TYPES,
+  PRICING_VISIBILITY_OPTIONS,
+  calculateCommercialReadiness,
+  calculatePackageCompletion,
+} from '@/lib/provider-commercial'
+import {
+  defaultPriceBinding,
+  priceComponentsUseCanonicalAutomaticBindings,
+  providerPriceBindingOptions,
+} from '@/lib/provider-price-bindings'
 
 const VISIBILITY = new Set(['draft', 'published'])
 const OFFERING_STATUS = new Set(['draft', 'published'])
 const CURRENCIES = new Set(['USD', 'ZAR', 'GBP', 'EUR', 'BWP', 'ZMW', 'MZN'])
+const PRICING_VISIBILITY = new Set<string>(PRICING_VISIBILITY_OPTIONS)
+const AVAILABILITY_MODES = new Set<string>(AVAILABILITY_MODE_OPTIONS)
+const CHARGE_TYPES = new Set<string>(CHARGE_TYPE_OPTIONS)
+const DEPOSIT_TYPES = new Set<string>(DEPOSIT_TYPE_OPTIONS)
+const PRICE_COMPONENT_TYPE_SET = new Set<string>(PRICE_COMPONENT_TYPES)
 
 type ProviderBusiness = {
   businessAccountId: string
@@ -53,6 +72,95 @@ function httpsUrl(value: unknown, label: string): string | null {
 
 function jsonObject(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+}
+
+function decimalText(value: unknown, label: string, maxWholeDigits = 9): string | null {
+  if (value === null || value === undefined || value === '') return null
+  const normalized = String(value).trim()
+  const pattern = new RegExp('^\\d{1,' + maxWholeDigits + '}(?:\\.\\d{1,2})?$')
+  if (!pattern.test(normalized)) {
+    throw new Error(`${label} must be a non-negative amount with at most two decimal places.`)
+  }
+  return normalized
+}
+
+function dateValue(value: unknown, label: string, endOfDay = false): Date | null {
+  if (value === null || value === undefined || value === '') return null
+  const normalized = String(value).trim()
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(normalized)
+    ? new Date(`${normalized}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}Z`)
+    : new Date(normalized)
+  if (!Number.isFinite(parsed.getTime())) throw new Error(`${label} is invalid.`)
+  return parsed
+}
+
+function normalizeCommercialTerms(value: unknown): Record<string, unknown> {
+  const source = jsonObject(value)
+  const taxIncluded = source.taxIncluded === true || source.taxIncluded === 'true'
+    ? true
+    : source.taxIncluded === false || source.taxIncluded === 'false'
+      ? false
+      : null
+  const serviceChargeType = typeof source.serviceChargeType === 'string' && CHARGE_TYPES.has(source.serviceChargeType)
+    ? source.serviceChargeType
+    : 'none'
+  const depositType = typeof source.depositType === 'string' && DEPOSIT_TYPES.has(source.depositType)
+    ? source.depositType
+    : 'none'
+  const availabilityMode = typeof source.availabilityMode === 'string' && AVAILABILITY_MODES.has(source.availabilityMode)
+    ? source.availabilityMode
+    : 'request'
+  return {
+    minimumSpend: decimalText(source.minimumSpend, 'Minimum spend'),
+    includedQuantity: nullableInteger(source.includedQuantity, 'Included quantity', 0, 1000000),
+    incrementalUnitPrice: decimalText(source.incrementalUnitPrice, 'Incremental unit price'),
+    minimumBillableQuantity: nullableInteger(source.minimumBillableQuantity, 'Minimum billable quantity', 0, 1000000),
+    billingIncrement: nullableInteger(source.billingIncrement, 'Billing increment', 1, 1000000),
+    setupFee: decimalText(source.setupFee, 'Setup fee'),
+    deliveryFee: decimalText(source.deliveryFee, 'Delivery fee'),
+    includedTravelKm: nullableInteger(source.includedTravelKm, 'Included travel', 0, 50000),
+    travelFeePerKm: decimalText(source.travelFeePerKm, 'Travel fee per kilometre'),
+    overtimeRate: decimalText(source.overtimeRate, 'Overtime rate'),
+    overtimeUnit: text(source.overtimeUnit, 80),
+    taxIncluded,
+    taxPercentage: decimalText(source.taxPercentage, 'Tax percentage', 3),
+    serviceChargeType,
+    serviceChargeValue: decimalText(source.serviceChargeValue, 'Service charge value'),
+    depositType,
+    depositValue: decimalText(source.depositValue, 'Deposit value'),
+    balanceDueRule: text(source.balanceDueRule, 500),
+    availabilityMode,
+  }
+}
+
+function normalizePriceComponents(value: unknown, category: string): Array<Record<string, unknown>> {
+  if (!Array.isArray(value)) return []
+  const allowedBindings = new Set(providerPriceBindingOptions(category).map((option) => option.key))
+  return value.slice(0, 60).map((entry, index) => {
+    const row = jsonObject(entry)
+    const type = typeof row.type === 'string' && PRICE_COMPONENT_TYPE_SET.has(row.type) ? row.type : 'fixed'
+    const defaultBinding = defaultPriceBinding(type as Parameters<typeof defaultPriceBinding>[0])
+    const requestedQuantityKey = text(row.quantityKey, 160) || defaultBinding
+    const requestedMultiplierKey = text(row.multiplierKey, 160)
+    if (requestedQuantityKey && !allowedBindings.has(requestedQuantityKey)) {
+      throw new Error(`Price component ${index + 1} uses an invalid wedding quantity binding.`)
+    }
+    if (requestedMultiplierKey && !allowedBindings.has(requestedMultiplierKey)) {
+      throw new Error(`Price component ${index + 1} uses an invalid wedding quantity multiplier.`)
+    }
+    return {
+      id: text(row.id, 160) || `component-${index + 1}`,
+      label: text(row.label, 160) || `Price component ${index + 1}`,
+      type,
+      amount: decimalText(row.amount, 'Price component amount'),
+      unit: text(row.unit, 80),
+      condition: text(row.condition, 500),
+      minimumQuantity: nullableInteger(row.minimumQuantity, 'Price component minimum quantity', 0, 1000000),
+      maximumQuantity: nullableInteger(row.maximumQuantity, 'Price component maximum quantity', 0, 1000000),
+      quantityKey: requestedQuantityKey ?? null,
+      multiplierKey: requestedMultiplierKey ?? null,
+    }
+  }).filter((entry) => entry.amount !== null)
 }
 
 function normalizeFaq(value: unknown): Array<{ question: string; answer: string }> {
@@ -317,6 +425,22 @@ export async function PUT(request: NextRequest) {
         const maximumCapacity = nullableInteger(input.maximumCapacity, 'Maximum capacity', 0, 100000)
         if (minimumCapacity !== null && maximumCapacity !== null && minimumCapacity > maximumCapacity) throw new Error('Minimum capacity cannot exceed maximum capacity.')
         const status = typeof input.status === 'string' && OFFERING_STATUS.has(input.status) ? input.status : 'draft'
+        const pricingVisibility = typeof input.pricingVisibility === 'string' && PRICING_VISIBILITY.has(input.pricingVisibility) ? input.pricingVisibility : 'quote_only'
+        const commercialTerms = normalizeCommercialTerms(input.commercialTerms)
+        const priceComponents = normalizePriceComponents(input.priceComponents, category)
+        const packages = Array.isArray(input.packages) ? input.packages.slice(0, 20).map(jsonObject) : []
+        const allPriceComponents = [
+          ...priceComponents,
+          ...packages.flatMap((packageInput) =>
+            Array.isArray(packageInput.priceComponents) ? packageInput.priceComponents : [],
+          ),
+        ]
+        const automaticQuantityBindingsApproved =
+          priceComponentsUseCanonicalAutomaticBindings(allPriceComponents)
+        const priceValidFrom = dateValue(input.priceValidFrom, 'Price valid from')
+        const priceValidUntil = dateValue(input.priceValidUntil, 'Price valid until', true)
+        if (priceValidFrom && priceValidUntil && priceValidFrom > priceValidUntil) throw new Error('Price valid from cannot be after price valid until.')
+        const commercialConfirmed = input.confirmCommercialPricing === true
         const offering = {
           id: text(input.id, 160) || `provider-offering-${randomUUID()}`,
           category,
@@ -327,16 +451,36 @@ export async function PUT(request: NextRequest) {
           maximumPriceCents,
           currency: typeof input.currency === 'string' && CURRENCIES.has(input.currency) ? input.currency : 'USD',
           pricingModel: text(input.pricingModel, 120),
+          pricingVisibility,
+          commercialTerms,
+          priceComponents,
+          priceValidFrom,
+          priceValidUntil,
+          confirmCommercialPricing: input.confirmCommercialPricing === true,
+          ownerConfirmedCommercialAt: text(input.ownerConfirmedCommercialAt, 100),
           minimumCapacity,
           maximumCapacity,
           bookingLeadTime: text(input.bookingLeadTime, 160),
           serviceAreas: stringList(input.serviceAreas, 50),
           inclusions: stringList(input.inclusions, 50),
           details,
-          packages: Array.isArray(input.packages) ? input.packages.slice(0, 20).map(jsonObject) : [],
+          packages,
           portfolio: Array.isArray(input.portfolio) ? input.portfolio.slice(0, 30).map(jsonObject) : [],
         }
         offering.completionScore = offeringCompletion(category, input, details)
+        const readiness = calculateCommercialReadiness({
+          ...offering,
+          serviceAreas: offering.serviceAreas,
+          packages: offering.packages,
+          priceComponents: allPriceComponents,
+          automaticQuantityBindingsApproved,
+          commercialConfirmed,
+        })
+        Object.assign(offering, {
+          aiReadinessScore: readiness.score,
+          aiReadinessStatus: readiness.status,
+          aiReadinessMissing: readiness.missing,
+        })
         if (status === 'published' && Number(offering.completionScore) < 60) throw new Error(`Complete at least 60% of the ${category} offering before publishing.`)
         normalizedOfferings.push(offering)
       }
@@ -386,11 +530,12 @@ export async function PUT(request: NextRequest) {
         )
         const offeringId = owned[0]?.id ?? String(offering.id)
         await transaction.$executeRawUnsafe(
-          `INSERT INTO wewed_admin."ProviderServiceOffering" (id,"businessAccountId",category,"displayName",description,status,"startingPriceCents","maximumPriceCents",currency,"pricingModel","minimumCapacity","maximumCapacity","bookingLeadTime","serviceAreas",inclusions,details,"completionScore","publishedAt","updatedAt")
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15::jsonb,$16::jsonb,$17,CASE WHEN $6='published' THEN CURRENT_TIMESTAMP ELSE NULL END,CURRENT_TIMESTAMP)
-           ON CONFLICT ("businessAccountId",category) DO UPDATE SET "displayName"=EXCLUDED."displayName",description=EXCLUDED.description,status=EXCLUDED.status,"startingPriceCents"=EXCLUDED."startingPriceCents","maximumPriceCents"=EXCLUDED."maximumPriceCents",currency=EXCLUDED.currency,"pricingModel"=EXCLUDED."pricingModel","minimumCapacity"=EXCLUDED."minimumCapacity","maximumCapacity"=EXCLUDED."maximumCapacity","bookingLeadTime"=EXCLUDED."bookingLeadTime","serviceAreas"=EXCLUDED."serviceAreas",inclusions=EXCLUDED.inclusions,details=EXCLUDED.details,"completionScore"=EXCLUDED."completionScore","publishedAt"=CASE WHEN EXCLUDED.status='published' THEN COALESCE(wewed_admin."ProviderServiceOffering"."publishedAt",CURRENT_TIMESTAMP) ELSE NULL END,"updatedAt"=CURRENT_TIMESTAMP`,
+          `INSERT INTO wewed_admin."ProviderServiceOffering" (id,"businessAccountId",category,"displayName",description,status,"startingPriceCents","maximumPriceCents",currency,"pricingModel","minimumCapacity","maximumCapacity","bookingLeadTime","serviceAreas",inclusions,details,"completionScore","pricingVisibility","commercialTerms","priceComponents","priceValidFrom","priceValidUntil","ownerConfirmedCommercialAt","aiReadinessScore","aiReadinessStatus","aiReadinessMissing","publishedAt","updatedAt")
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15::jsonb,$16::jsonb,$17,$18,$19::jsonb,$20::jsonb,$21,$22,CASE WHEN $23 THEN CURRENT_TIMESTAMP ELSE NULL END,$24,$25,$26::jsonb,CASE WHEN $6='published' THEN CURRENT_TIMESTAMP ELSE NULL END,CURRENT_TIMESTAMP)
+           ON CONFLICT ("businessAccountId",category) DO UPDATE SET "displayName"=EXCLUDED."displayName",description=EXCLUDED.description,status=EXCLUDED.status,"startingPriceCents"=EXCLUDED."startingPriceCents","maximumPriceCents"=EXCLUDED."maximumPriceCents",currency=EXCLUDED.currency,"pricingModel"=EXCLUDED."pricingModel","minimumCapacity"=EXCLUDED."minimumCapacity","maximumCapacity"=EXCLUDED."maximumCapacity","bookingLeadTime"=EXCLUDED."bookingLeadTime","serviceAreas"=EXCLUDED."serviceAreas",inclusions=EXCLUDED.inclusions,details=EXCLUDED.details,"completionScore"=EXCLUDED."completionScore","pricingVisibility"=EXCLUDED."pricingVisibility","commercialTerms"=EXCLUDED."commercialTerms","priceComponents"=EXCLUDED."priceComponents","priceValidFrom"=EXCLUDED."priceValidFrom","priceValidUntil"=EXCLUDED."priceValidUntil","ownerConfirmedCommercialAt"=CASE WHEN $23 THEN CURRENT_TIMESTAMP ELSE NULL END,"aiReadinessScore"=EXCLUDED."aiReadinessScore","aiReadinessStatus"=EXCLUDED."aiReadinessStatus","aiReadinessMissing"=EXCLUDED."aiReadinessMissing","publishedAt"=CASE WHEN EXCLUDED.status='published' THEN COALESCE(wewed_admin."ProviderServiceOffering"."publishedAt",CURRENT_TIMESTAMP) ELSE NULL END,"updatedAt"=CURRENT_TIMESTAMP`,
           offeringId, context.businessAccountId, offering.category, offering.displayName, offering.description, offering.status, offering.startingPriceCents, offering.maximumPriceCents,
           offering.currency, offering.pricingModel, offering.minimumCapacity, offering.maximumCapacity, offering.bookingLeadTime, JSON.stringify(offering.serviceAreas), JSON.stringify(offering.inclusions), JSON.stringify(offering.details), offering.completionScore,
+          offering.pricingVisibility, JSON.stringify(offering.commercialTerms), JSON.stringify(offering.priceComponents), offering.priceValidFrom, offering.priceValidUntil, offering.confirmCommercialPricing, offering.aiReadinessScore, offering.aiReadinessStatus, JSON.stringify(offering.aiReadinessMissing),
         )
         const savedOffering = await transaction.$queryRawUnsafe<Array<{ id: string }>>(`SELECT id FROM wewed_admin."ProviderServiceOffering" WHERE "businessAccountId"=$1 AND category=$2 LIMIT 1`, context.businessAccountId, offering.category)
         const savedOfferingId = savedOffering[0]?.id
@@ -400,11 +545,25 @@ export async function PUT(request: NextRequest) {
         for (const [index, packageInput] of (offering.packages as OfferingInput[]).entries()) {
           const packageName = text(packageInput.name, 160)
           if (!packageName) continue
+          const packageCommercialTerms = normalizeCommercialTerms(packageInput.commercialTerms)
+          const packagePriceComponents = normalizePriceComponents(packageInput.priceComponents, String(offering.category))
+          const packagePriceValidFrom = dateValue(packageInput.priceValidFrom, 'Package price valid from')
+          const packagePriceValidUntil = dateValue(packageInput.priceValidUntil, 'Package price valid until', true)
+          if (packagePriceValidFrom && packagePriceValidUntil && packagePriceValidFrom > packagePriceValidUntil) throw new Error('Package price valid from cannot be after package price valid until.')
+          const packageCompletion = calculatePackageCompletion({
+            ...packageInput,
+            commercialTerms: packageCommercialTerms,
+            priceComponents: packagePriceComponents,
+          })
           await transaction.$executeRawUnsafe(
-            `INSERT INTO wewed_admin."ProviderPackage" (id,"offeringId",name,description,"priceCents",currency,"pricingUnit",inclusions,"sortOrder","isActive") VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,true)`,
+            `INSERT INTO wewed_admin."ProviderPackage" (id,"offeringId",name,description,"priceCents",currency,"pricingUnit",inclusions,"sortOrder","isActive","minimumQuantity","maximumQuantity","includedQuantity","additionalUnitPriceCents",exclusions,"requiredAddOns","optionalAddOns","commercialTerms","priceComponents","priceValidFrom","priceValidUntil","completionScore") VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,true,$10,$11,$12,$13,$14::jsonb,$15::jsonb,$16::jsonb,$17::jsonb,$18::jsonb,$19,$20,$21)`,
             `provider-package-${randomUUID()}`, savedOfferingId, packageName, text(packageInput.description, 2000), moneyCents(packageInput.price, 'Package price'),
             typeof packageInput.currency === 'string' && CURRENCIES.has(packageInput.currency) ? packageInput.currency : offering.currency,
             text(packageInput.pricingUnit, 120), JSON.stringify(stringList(packageInput.inclusions, 50)), index,
+            nullableInteger(packageInput.minimumQuantity, 'Package minimum quantity', 0, 1000000), nullableInteger(packageInput.maximumQuantity, 'Package maximum quantity', 0, 1000000),
+            nullableInteger(packageInput.includedQuantity, 'Package included quantity', 0, 1000000), moneyCents(packageInput.additionalUnitPrice, 'Package additional unit price'),
+            JSON.stringify(stringList(packageInput.exclusions, 50)), JSON.stringify(stringList(packageInput.requiredAddOns, 50)), JSON.stringify(stringList(packageInput.optionalAddOns, 50)),
+            JSON.stringify(packageCommercialTerms), JSON.stringify(packagePriceComponents), packagePriceValidFrom, packagePriceValidUntil, packageCompletion,
           )
         }
 
@@ -446,10 +605,25 @@ export async function PUT(request: NextRequest) {
       action: 'provider_profile.normalized_updated',
       resourceType: 'provider_profile',
       resourceId: profileId,
-      details: { visibility: profile.visibility, categories: normalizedOfferings.map((offering) => offering.category), completionScore: profile.completionScore },
+      details: {
+        visibility: profile.visibility,
+        categories: normalizedOfferings.map((offering) => offering.category),
+        completionScore: profile.completionScore,
+        aiReadyCategories: normalizedOfferings.filter((offering) => offering.aiReadinessStatus === 'ready').map((offering) => offering.category),
+      },
     })
 
-    return NextResponse.json({ success: true, profileId, completionScore: profile.completionScore })
+    return NextResponse.json({
+      success: true,
+      profileId,
+      completionScore: profile.completionScore,
+      offeringReadiness: normalizedOfferings.map((offering) => ({
+        category: offering.category,
+        score: offering.aiReadinessScore,
+        status: offering.aiReadinessStatus,
+        missing: offering.aiReadinessMissing,
+      })),
+    })
   } catch (error) {
     console.error('[providers/profile] PUT error:', error)
     return errorResponse(error instanceof Error ? error.message : 'Unable to save the provider profile.', 500)

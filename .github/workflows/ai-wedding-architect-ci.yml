@@ -1,4 +1,4 @@
-name: Provider Forms CI
+name: AI Wedding Architect CI
 
 on:
   pull_request:
@@ -11,11 +11,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: provider-forms-${{ github.ref }}
+  group: ai-wedding-architect-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  provider-forms:
+  wedding-architect:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     services:
@@ -48,35 +48,33 @@ jobs:
         with:
           bun-version: 1.3.14
       - run: bun install --frozen-lockfile
-      - run: bun add --no-save --exact @playwright/test@1.55.0
       - run: bunx prisma validate --schema prisma/schema.prisma
       - run: bunx prisma generate --schema prisma/schema.prisma
-      - run: bunx prisma migrate deploy --schema prisma/schema.prisma
-      - run: bun test src/lib/provider-forms-profile-upgrade.test.ts
-      - run: bun test src/lib/provider-commercial.test.ts
-      - run: bun test src/lib/provider-pricing-catalog.test.ts
-      - run: bun test src/lib/provider-price-bindings.test.ts
-      - run: bun test src/lib/provider-commercial-guidance.test.ts
-      - run: bun test src/lib/provider-claim-regressions.test.ts
-      - run: >-
+      - name: Apply all migrations to a clean PostgreSQL database
+        run: bunx prisma migrate deploy --schema prisma/schema.prisma
+      - name: Provider commercial calculation-readiness contract
+        run: bun test src/lib/provider-commercial.test.ts
+      - name: Provider category pricing contract
+        run: bun test src/lib/provider-pricing-catalog.test.ts
+      - name: Provider-to-wedding quantity binding contract
+        run: bun test src/lib/provider-price-bindings.test.ts
+      - name: Private provider AI guidance contract
+        run: bun test src/lib/provider-commercial-guidance.test.ts
+      - name: Wedding requirement taxonomy contract
+        run: bun test src/lib/wedding-requirement-catalog.test.ts
+      - name: Wedding requirement normalisation contract
+        run: bun test src/lib/wedding-requirements.test.ts
+      - name: Deterministic wedding pricing contract
+        run: bun test src/lib/wedding-architect-pricing.test.ts
+      - name: Deterministic provider eligibility contract
+        run: bun test src/lib/wedding-architect-eligibility.test.ts
+      - name: Cross-ecosystem Wedding Architect contract
+        run: bun test src/lib/wedding-architect-ecosystem-contract.test.ts
+      - name: Detect migration/schema drift
+        run: >-
           bunx prisma migrate diff
           --from-url "$DATABASE_URL"
           --to-schema-datamodel prisma/schema.prisma
           --exit-code
-      - run: bun run build
-      - run: bunx playwright install --with-deps chromium
-      - run: >-
-          bunx playwright test
-          tests/e2e/zz-provider-forms-profiles.spec.ts
-          --project=desktop-chromium
-          --project=mobile-chromium
-      - name: Upload provider form failure evidence
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: provider-forms-browser-release-gate
-          path: |
-            playwright-report
-            test-results
-          if-no-files-found: ignore
-          retention-days: 14
+      - name: Production build
+        run: bun run build

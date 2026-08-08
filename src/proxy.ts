@@ -17,7 +17,7 @@ function isGuestWeddingSessionRoute(pathname: string): boolean {
 }
 
 function isProtectedPlannerPage(pathname: string): boolean {
-  return pathname === '/planner/ai-workspace'
+  return pathname === '/planner/ai-workspace' || pathname === '/planner/wedding-brief'
 }
 
 function requiresDashboardSession(request: NextRequest): boolean {
@@ -72,6 +72,7 @@ export function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     '/planner/ai-workspace',
+    '/planner/wedding-brief',
     '/api/planner/:path*',
     '/api/rsvp',
     '/api/rsvp/:path*',

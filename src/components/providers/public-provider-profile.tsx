@@ -2,12 +2,12 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { AlertTriangle, BadgeCheck, BriefcaseBusiness, CalendarDays, Check, Clock3, Globe2, Loader2, Mail, MapPin, Phone, Send, ShieldCheck, Users } from 'lucide-react'
+import { AlertTriangle, BadgeCheck, BriefcaseBusiness, CalendarDays, Check, Clock3, Globe2, Loader2, Mail, MapPin, Phone, Send, ShieldCheck, Sparkles, Users } from 'lucide-react'
 import { ProviderClaimPanel } from '@/components/providers/provider-claim-panel'
 import { PublicPlatformShell } from '@/components/public/public-platform-shell'
 import { providerCategoryLabel, providerServiceFields, type ProviderFieldDefinition } from '@/lib/provider-catalog'
 
-type Package = { id: string; name: string; description: string | null; priceCents: number | null; currency: string; pricingUnit: string | null; inclusions: string[] }
+type Package = { id: string; name: string; description: string | null; priceCents: number | null; currency: string; pricingUnit: string | null; inclusions: string[]; minimumQuantity: number | null; maximumQuantity: number | null; includedQuantity: number | null; additionalUnitPriceCents: number | null; priceValidUntil: string | null; completionScore: number }
 type Portfolio = { id: string; type: string; url: string; thumbnailUrl: string | null; altText: string; caption: string | null }
 type Offering = {
   id: string
@@ -18,6 +18,10 @@ type Offering = {
   maximumPriceCents: number | null
   currency: string
   pricingModel: string | null
+  pricingVisibility: string
+  priceValidUntil: string | null
+  aiReadinessScore: number
+  aiReadinessStatus: string
   minimumCapacity: number | null
   maximumCapacity: number | null
   bookingLeadTime: string | null
@@ -197,7 +201,7 @@ export function PublicProviderProfile({ slug }: { slug: string }) {
                   <h2 className="font-serif text-3xl">Services</h2>
                   <div className="mt-4 flex flex-wrap gap-2">{provider.offerings.map((entry, index) => <button key={entry.id} type="button" onClick={() => { setActive(index); setAnswers({}) }} className={`rounded-full px-4 py-2 text-xs font-semibold ${active === index ? 'bg-espresso text-champagne' : 'border border-gold/25 text-gold-muted'}`}>{providerCategoryLabel(entry.category)}</button>)}</div>
                   <div className="mt-7 rounded-2xl bg-champagne/55 p-6">
-                    <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-gold-muted">{providerCategoryLabel(offering.category)}</p><h3 className="mt-2 font-serif text-3xl">{offering.displayName}</h3></div><div className="text-right">{money(offering.startingPriceCents, offering.currency) ? <><p className="text-xs text-espresso/50">Starting from</p><p className="mt-1 text-2xl font-semibold">{money(offering.startingPriceCents, offering.currency)}</p></> : <><p className="text-xs text-espresso/50">Pricing</p><p className="mt-1 font-semibold">Contact for quotation</p></>}</div></div>
+                    <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-gold-muted">{providerCategoryLabel(offering.category)}</p><h3 className="mt-2 font-serif text-3xl">{offering.displayName}</h3>{offering.aiReadinessStatus === 'ready' && <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-sage/30 bg-sage/10 px-3 py-1 text-[11px] font-semibold text-sage"><Sparkles className="size-3" />Budget-ready for Wewed AI</span>}</div><div className="text-right">{money(offering.startingPriceCents, offering.currency) ? <><p className="text-xs text-espresso/50">Starting from</p><p className="mt-1 text-2xl font-semibold">{money(offering.startingPriceCents, offering.currency)}</p></> : <><p className="text-xs text-espresso/50">Pricing</p><p className="mt-1 font-semibold">Contact for quotation</p></>}</div></div>
                     {offering.description && <p className="mt-4 text-sm leading-7 text-espresso/65">{offering.description}</p>}
                     <div className="mt-5 grid gap-3 sm:grid-cols-2">{offering.bookingLeadTime && <Fact icon={<CalendarDays className="size-4" />} label="Booking lead time" value={offering.bookingLeadTime} />}{(offering.minimumCapacity != null || offering.maximumCapacity != null) && <Fact icon={<Users className="size-4" />} label="Capacity" value={`${offering.minimumCapacity ?? 'Any'}–${offering.maximumCapacity ?? 'Any'}`} />}</div>
                     {offering.inclusions.length > 0 && <div className="mt-6"><h4 className="text-xs font-semibold uppercase tracking-[0.12em] text-gold-muted">Included</h4><div className="mt-3 grid gap-2 sm:grid-cols-2">{offering.inclusions.map((item) => <span key={item} className="flex items-start gap-2 text-sm"><Check className="mt-0.5 size-4 shrink-0 text-sage" />{item}</span>)}</div></div>}

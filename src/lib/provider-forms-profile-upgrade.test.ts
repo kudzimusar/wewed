@@ -68,6 +68,23 @@ describe('provider forms, profiles and service taxonomy', () => {
     expect(enquiryApi).not.toContain('PlannerEngagement')
   })
 
+  test('keeps AI Wedding Architect commercial data aligned across database, API and provider UI', () => {
+    const plan = source('docs/AI_WEDDING_ARCHITECT_ECOSYSTEM_PLAN.md')
+    const migration = source('prisma/migrations/20260807195000_ai_wedding_architect_provider_commercial/migration.sql')
+    const profileApi = source('src/app/api/providers/profile/route.ts')
+    const manager = source('src/components/providers/provider-profile-manager.tsx')
+    expect(plan).toContain('Database/UI alignment rule')
+    expect(plan).toContain('AI Planning Readiness')
+    expect(migration).toContain('aiReadinessStatus')
+    expect(migration).toContain('priceComponents')
+    expect(migration).toContain('CREATE OR REPLACE VIEW public.\"ProviderServiceOffering\"')
+    expect(profileApi).toContain('calculateCommercialReadiness')
+    expect(profileApi).toContain('confirmCommercialPricing')
+    expect(manager).toContain('AI Planning Readiness')
+    expect(manager).toContain('Structured price components')
+    expect(manager).toContain('Confirm current commercial pricing')
+  })
+
   test('does not render fabricated zero-value planner facts publicly', () => {
     const publicPlanner = source('src/components/marketplace/public-planner-profile.tsx')
     expect(publicPlanner).not.toContain('0–any guests')
