@@ -18,10 +18,10 @@ describe('Wewed Wedding Architect ecosystem contract', () => {
     const plan = source('docs/AI_WEDDING_ARCHITECT_ECOSYSTEM_PLAN.md')
     expect(plan).toContain('Phase A — Data contract and provider catalogue readiness — COMPLETE')
     expect(plan).toContain('Phase B — Client requirements — COMPLETE')
-    expect(plan).toContain('Phase C — Pricing and eligibility — PARTIAL / FAIL-CLOSED')
-    expect(plan).toContain('no production-facing optimiser or automatic provider recommendation is exposed')
-    expect(plan).toContain('Canonical marketplace candidate adapter')
-    expect(plan).toContain('End-to-end subscription entitlement integration')
+    expect(plan).toContain('Phase C — Pricing and eligibility — COMPLETE')
+    expect(plan).toContain('No provider is contacted by Phase C')
+    expect(plan).toContain('Canonical marketplace candidate adapter resolving live provider, account, billing, catalogue and requirement data')
+    expect(plan).toContain('End-to-end provider and planner subscription entitlement integration')
   })
 
   test('keeps provider commercial data additive and exact-budget readiness explicit', () => {
