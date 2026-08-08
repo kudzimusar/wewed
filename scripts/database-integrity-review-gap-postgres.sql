@@ -36,12 +36,12 @@ BEGIN
     UPDATE wewed_admin."ProviderDiscoveryCandidate"
     SET "importedBusinessAccountId"=NULL
     WHERE id='e2e-review-candidate';
-    SET CONSTRAINTS validate_discovery_candidate_import_link IMMEDIATE;
+    SET CONSTRAINTS ALL IMMEDIATE;
     RAISE EXCEPTION 'Expected imported candidate backlink removal to be rejected';
   EXCEPTION WHEN OTHERS THEN
     IF SQLERRM = 'Expected imported candidate backlink removal to be rejected' THEN RAISE; END IF;
   END;
-  SET CONSTRAINTS validate_discovery_candidate_import_link DEFERRED;
+  SET CONSTRAINTS ALL DEFERRED;
 END
 $reject_discovery_backlink_removal$;
 
