@@ -1,0 +1,36 @@
+name: Phase C Package Exactness
+
+on:
+  push:
+    branches: [feature/ai-wedding-architect-phase-c]
+    paths:
+      - scripts/phase-c-package-exactness.py
+      - .github/workflows/phase-c-package-exactness.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feature/ai-wedding-architect-phase-c
+      - name: Apply guarded package exactness patch
+        run: python3 scripts/phase-c-package-exactness.py
+      - name: Verify patch
+        run: |
+          git diff --check
+          grep -q 'automaticPackageBasePricesApproved' src/app/api/providers/profile/route.ts
+          grep -q 'packagePricingUnit' src/lib/wedding-architect-marketplace.ts
+          grep -q 'travelKm: null' src/lib/wedding-architect-marketplace.ts
+          grep -q 'For automatic Wedding Architect pricing use a fixed/package total' src/components/providers/provider-profile-manager.tsx
+      - name: Commit product changes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/app/api/providers/profile/route.ts src/lib/wedding-architect-marketplace.ts src/components/providers/provider-profile-manager.tsx
+          git commit -m 'Align package exactness across provider UI and Wedding Architect'
+          git push origin HEAD:feature/ai-wedding-architect-phase-c
