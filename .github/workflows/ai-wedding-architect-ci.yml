@@ -74,6 +74,8 @@ jobs:
         run: bun test src/lib/wedding-architect-fit.test.ts src/lib/wedding-architect-eligibility.test.ts
       - name: Deterministic Wedding Architect optimisation contract
         run: bun test src/lib/wedding-architect-optimizer.test.ts
+      - name: Migrated Wedding Architect database contract
+        run: bun test src/lib/wedding-architect-db-contract.test.ts
       - name: Cross-ecosystem Wedding Architect contract
         run: bun test src/lib/wedding-architect-ecosystem-contract.test.ts
       - name: Wedding Architect no-auto-contact boundary
