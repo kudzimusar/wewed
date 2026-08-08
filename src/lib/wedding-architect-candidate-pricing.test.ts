@@ -59,4 +59,35 @@ describe('Wedding Architect candidate pricing', () => {
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.calculation.totalCostCents).toBe(150_000)
   })
+
+  test('includes deterministic kilometre travel fees when distance is known', () => {
+    const result = priceWeddingArchitectCandidate({
+      weddingBudgetCents: 2_000_000,
+      quantityContext: { ...quantityContext, travelKm: 40 },
+      variant: {
+        providerId: 'provider-3', businessAccountId: 'business-3', offeringId: 'transport-1', category: 'transport', currency: 'USD',
+        pricingVisibility: 'exact', startingPriceCents: 50_000,
+        offeringCommercialTerms: { includedTravelKm: 10, travelFeePerKm: '2.00', taxIncluded: true, depositType: 'none' },
+      },
+    })
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.calculation.totalCostCents).toBe(56_000)
+      expect(result.calculation.lines.find((line) => line.code === 'travel_fee')?.amountCents).toBe(6_000)
+    }
+  })
+
+  test('rejects kilometre travel charges when provider distance is unknown', () => {
+    const result = priceWeddingArchitectCandidate({
+      weddingBudgetCents: 2_000_000,
+      quantityContext: { ...quantityContext, travelKm: null },
+      variant: {
+        providerId: 'provider-4', businessAccountId: 'business-4', offeringId: 'transport-2', category: 'transport', currency: 'USD',
+        pricingVisibility: 'exact', startingPriceCents: 50_000,
+        offeringCommercialTerms: { includedTravelKm: 10, travelFeePerKm: '2.00', taxIncluded: true, depositType: 'none' },
+      },
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reasons.join(' ')).toContain('travel distance is unknown')
+  })
 })
