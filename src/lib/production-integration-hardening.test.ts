@@ -22,10 +22,19 @@ describe('production integration hardening contracts', () => {
   })
 
   test('keeps Stripe-hosted return paths on the canonical public origin', () => {
-    const billing = source('src/app/api/billing/route.ts')
+    const billing = source('src/app/api/billing/account/route.ts')
 
     expect(billing).toContain('const origin = publicOrigin()')
     expect(billing).not.toContain('request.nextUrl.origin')
+  })
+
+  test('requires an authenticated Supabase session to accept administrator invitations', () => {
+    const invitation = source('src/app/api/admin/invitations/accept/route.ts')
+
+    expect(invitation).toContain('const token = bearerToken(request)')
+    expect(invitation).toContain('await service.auth.getUser(token)')
+    expect(invitation).toContain("error: 'A valid invitation session is required.'")
+    expect(invitation).not.toContain('request.nextUrl.origin')
   })
 
   test('fails Telegram webhooks closed and emits only canonical Wewed links', () => {
@@ -51,7 +60,8 @@ describe('production integration hardening contracts', () => {
     const guarded = [
       source('src/app/forgot-password/page.tsx'),
       source('src/app/api/auth/register/route.ts'),
-      source('src/app/api/billing/route.ts'),
+      source('src/app/api/billing/account/route.ts'),
+      source('src/app/api/admin/invitations/accept/route.ts'),
       source('src/app/api/telegram/route.ts'),
       source('src/lib/public-origin.ts'),
     ].join('\n')
