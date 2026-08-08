@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { readAppSession } from '@/lib/app-session'
 import { db } from '@/lib/db'
 import { businessMemberCanManageBilling } from '@/lib/business-access'
+import { publicOrigin } from '@/lib/public-origin'
 import {
   createStripeCheckoutSession,
   createStripeCustomer,
@@ -342,7 +343,7 @@ export async function POST(request: NextRequest) {
       }
 
       const checkout = await createStripeCheckoutSession({
-        origin: request.nextUrl.origin,
+        origin: publicOrigin(),
         businessAccountId: resolved.account.id,
         customerId: stripeCustomerId,
         accountType: resolved.account.type,
@@ -364,7 +365,7 @@ export async function POST(request: NextRequest) {
         )
       }
       const portal = await createStripePortalSession({
-        origin: request.nextUrl.origin,
+        origin: publicOrigin(),
         customerId: stripeCustomerId,
       })
       return NextResponse.json({ success: true, url: portal.url })
