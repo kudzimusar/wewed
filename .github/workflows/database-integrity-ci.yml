@@ -85,6 +85,9 @@ jobs:
       - name: Run vendor/Admin relational integrity PostgreSQL contract
         run: psql "postgresql://postgres:postgres@localhost:5432/wewed" -f scripts/database-integrity-vendor-admin-postgres.sql
 
+      - name: Run Phase C review-gap PostgreSQL contract
+        run: psql "postgresql://postgres:postgres@localhost:5432/wewed" -f scripts/database-integrity-review-gap-postgres.sql
+
       - name: Lint changed application and contract files
         run: >-
           bunx eslint
