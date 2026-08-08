@@ -44,5 +44,16 @@ CREATE INDEX IF NOT EXISTS "EmailWebhookEvent_providerEmailId_idx"
 CREATE INDEX IF NOT EXISTS "EmailWebhookEvent_eventType_receivedAt_idx"
   ON wewed_admin."EmailWebhookEvent" ("eventType", "receivedAt" DESC);
 
-REVOKE ALL ON TABLE wewed_admin."EmailDelivery" FROM anon, authenticated;
-REVOKE ALL ON TABLE wewed_admin."EmailWebhookEvent" FROM anon, authenticated;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+    REVOKE ALL ON TABLE wewed_admin."EmailDelivery" FROM anon;
+    REVOKE ALL ON TABLE wewed_admin."EmailWebhookEvent" FROM anon;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    REVOKE ALL ON TABLE wewed_admin."EmailDelivery" FROM authenticated;
+    REVOKE ALL ON TABLE wewed_admin."EmailWebhookEvent" FROM authenticated;
+  END IF;
+END
+$$;
