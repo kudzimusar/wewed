@@ -2,7 +2,10 @@ import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { db } from '@/lib/db'
+import { registrationReceivedEmail } from '@/lib/email/templates'
+import { sendTransactionalEmail } from '@/lib/email/resend'
 import { PROVIDER_CATEGORY_VALUES } from '@/lib/provider-catalog'
+import { publicUrl } from '@/lib/public-origin'
 import { createSupabaseServiceClient } from '@/lib/supabase/service'
 
 export const dynamic = 'force-dynamic'
@@ -119,7 +122,7 @@ export async function POST(request: NextRequest) {
       email,
       password,
       options: {
-        emailRedirectTo: `${request.nextUrl.origin}/register?confirmed=1`,
+        emailRedirectTo: publicUrl('/register?confirmed=1'),
         data: {
           display_name: name,
           wewed_application: true,
@@ -231,6 +234,25 @@ export async function POST(request: NextRequest) {
         }
       }
     })
+
+    try {
+      const receipt = registrationReceivedEmail({ name, businessName, applicationId: accountId })
+      await sendTransactionalEmail({
+        idempotencyKey: `registration-received-${accountId}`,
+        category: 'registration_received',
+        to: email,
+        subject: receipt.subject,
+        html: receipt.html,
+        text: receipt.text,
+        metadata: { accountId, authUserId, accountType, requestedRole, requestedPlan },
+        tags: [
+          { name: 'account_type', value: accountType },
+          { name: 'plan', value: requestedPlan },
+        ],
+      })
+    } catch (emailError) {
+      console.error('[auth/register] Registration receipt email failed:', emailError)
+    }
 
     return NextResponse.json({
       success: true,
