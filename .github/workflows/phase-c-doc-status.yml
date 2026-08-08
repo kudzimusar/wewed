@@ -1,0 +1,35 @@
+name: Phase C Documentation Closeout
+
+on:
+  push:
+    branches: [feature/ai-wedding-architect-phase-c]
+    paths:
+      - scripts/phase-c-doc-status.py
+      - .github/workflows/phase-c-doc-status.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feature/ai-wedding-architect-phase-c
+      - name: Apply guarded documentation patch
+        run: python3 scripts/phase-c-doc-status.py
+      - name: Verify documentation contract
+        run: |
+          git diff --check
+          grep -q 'Phase C — Pricing and eligibility — COMPLETE' docs/AI_WEDDING_ARCHITECT_ECOSYSTEM_PLAN.md
+          grep -q 'Phase D — Optimisation and Wedding Plan — PARTIAL' docs/AI_WEDDING_ARCHITECT_ECOSYSTEM_PLAN.md
+          grep -q 'No provider is contacted by Phase C' docs/AI_WEDDING_ARCHITECT_ECOSYSTEM_PLAN.md
+      - name: Commit permanent documentation and test updates
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/AI_WEDDING_ARCHITECT_ECOSYSTEM_PLAN.md src/lib/wedding-architect-ecosystem-contract.test.ts
+          git commit -m 'Document completed Wedding Architect Phase C'
+          git push origin HEAD:feature/ai-wedding-architect-phase-c
