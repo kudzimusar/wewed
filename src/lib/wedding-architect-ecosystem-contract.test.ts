@@ -93,12 +93,20 @@ describe('Wewed Wedding Architect ecosystem contract', () => {
   test('fails closed on ambiguous variable provider quantities before automatic planning', () => {
     const route = source('src/app/api/providers/profile/route.ts')
     const bindings = source('src/lib/provider-price-bindings.ts')
+    const policy = source('src/lib/wedding-architect-binding-policy.ts')
     const commercial = source('src/lib/provider-commercial.ts')
-    expect(route).toContain('priceComponentsUseCanonicalAutomaticBindings(allPriceComponents)')
-    expect(route).toContain('automaticQuantityBindingsApproved')
+    const manager = source('src/components/providers/provider-profile-manager.tsx')
+    expect(route).toContain('priceComponentsUseApprovedAutomaticBindings(category, allPriceComponents)')
+    expect(route).toContain('packageQuantityBindingsApproved')
+    expect(route).toContain('isApprovedAutomaticPriceBinding')
+    expect(route).toContain('Package additional-unit pricing requires an explicit quantity type and wedding quantity source.')
     expect(bindings).toContain('Category-specific/compound units are collected and preserved')
     expect(bindings).toContain('is required for deterministic pricing')
+    expect(policy).toContain('APPROVED_BINDINGS')
+    expect(policy).toContain('isApprovedAutomaticPriceBinding')
     expect(commercial).toContain('Review variable quantity bindings before automatic AI planning')
+    expect(manager).toContain('Wedding quantity for package overage')
+    expect(manager).toContain('Optional quantity multiplier')
   })
 
   test('aligns supply and demand on the same provider category taxonomy', () => {
