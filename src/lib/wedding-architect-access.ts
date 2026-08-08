@@ -19,23 +19,7 @@ interface PlannerBillingRow {
   entitlements: unknown
 }
 
-async function plannerHasArchitectAccess(userId: string): Promise<boolean> {
-  const rows = await db.$queryRawUnsafe<PlannerBillingRow[]>(
-    `SELECT ba.type AS "accountType", ba.status AS "accountStatus",
-            bp."offerCode", bp.status AS "profileStatus", bp."currentPeriodEndsAt",
-            bo."billingModel", bo.status AS "offerStatus", bo.entitlements
-     FROM wewed_admin."BusinessAccountMember" bam
-     JOIN wewed_admin."BusinessAccount" ba ON ba.id=bam."businessAccountId"
-     LEFT JOIN wewed_admin."BusinessAccountBillingProfile" bp ON bp."businessAccountId"=ba.id
-     LEFT JOIN wewed_admin."BillingOffer" bo ON bo."offerCode"=bp."offerCode" AND bo."accountType"=bp."accountType"
-     WHERE bam."userId"=$1 AND bam.status='active' AND ba.type='planning_company'
-       AND ba.status='active' AND ba."onboardingStatus"='complete'
-     ORDER BY CASE bam.role WHEN 'business_owner' THEN 0 ELSE 1 END
-     LIMIT 1`,
-    userId,
-  )
-  const row = rows[0]
-  if (!row) return false
+function plannerBillingRowIsEntitled(row: PlannerBillingRow): boolean {
   return resolveWeddingArchitectEntitlement({
     accountType: row.accountType,
     accountStatus: row.accountStatus,
@@ -55,6 +39,26 @@ async function plannerHasArchitectAccess(userId: string): Promise<boolean> {
     entitlement: WEDDING_ARCHITECT_PLANNER_ENTITLEMENT,
     requirePaid: true,
   }).entitled
+}
+
+async function plannerHasArchitectAccess(userId: string): Promise<boolean> {
+  const rows = await db.$queryRawUnsafe<PlannerBillingRow[]>(
+    `SELECT ba.type AS "accountType", ba.status AS "accountStatus",
+            bp."offerCode", bp.status AS "profileStatus", bp."currentPeriodEndsAt",
+            bo."billingModel", bo.status AS "offerStatus", bo.entitlements
+     FROM wewed_admin."BusinessAccountMember" bam
+     JOIN wewed_admin."BusinessAccount" ba ON ba.id=bam."businessAccountId"
+     LEFT JOIN wewed_admin."BusinessAccountBillingProfile" bp ON bp."businessAccountId"=ba.id
+     LEFT JOIN wewed_admin."BillingOffer" bo ON bo."offerCode"=bp."offerCode" AND bo."accountType"=bp."accountType"
+     WHERE bam."userId"=$1 AND bam.status='active' AND ba.type='planning_company'
+       AND ba.status='active' AND ba."onboardingStatus"='complete'
+     ORDER BY CASE bam.role WHEN 'business_owner' THEN 0 ELSE 1 END, ba.id`,
+    userId,
+  )
+
+  // Entitlement belongs to the planning company, not to an arbitrary first
+  // membership row. A planner may operate across multiple active companies.
+  return rows.some(plannerBillingRowIsEntitled)
 }
 
 export async function requireWeddingArchitectPlanningAccess(request: NextRequest): Promise<
