@@ -52,7 +52,7 @@ describe('Wedding Architect migrated database contract', () => {
 
   test('executes package and planner entitlement joins with Phase C columns', async () => {
     const packages = await db.$queryRawUnsafe<Array<Record<string, unknown>>>(
-      `SELECT id, "offeringId", name, "priceCents", currency, "isActive",
+      `SELECT id, "offeringId", name, "priceCents", currency, "pricingUnit", "isActive",
               "minimumQuantity", "maximumQuantity", "includedQuantity", "additionalUnitPriceCents",
               "commercialTerms", "priceComponents", "priceValidUntil", "completionScore",
               "quantityType", "quantityKey", "multiplierKey"
@@ -82,10 +82,10 @@ describe('Wedding Architect migrated database contract', () => {
     const columns = await db.$queryRawUnsafe<Array<{ column_name: string }>>(
       `SELECT column_name FROM information_schema.columns
        WHERE table_schema='public' AND table_name='ProviderPackage'
-         AND column_name IN ('quantityType','quantityKey','multiplierKey')
+         AND column_name IN ('pricingUnit','quantityType','quantityKey','multiplierKey')
        ORDER BY column_name`,
     )
-    expect(columns.map((row) => row.column_name).sort()).toEqual(['multiplierKey', 'quantityKey', 'quantityType'])
+    expect(columns.map((row) => row.column_name).sort()).toEqual(['multiplierKey', 'pricingUnit', 'quantityKey', 'quantityType'])
 
     const grants = await db.$queryRawUnsafe<Array<{ grantee: string; privilege_type: string }>>(
       `SELECT grantee, privilege_type FROM information_schema.role_table_grants
