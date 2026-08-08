@@ -4,6 +4,8 @@ import { join } from 'node:path'
 
 const root = process.cwd()
 const source = (path: string) => readFileSync(join(root, path), 'utf8')
+const retiredWewedHost = ['wewed', '.app'].join('')
+const retiredVercelSuffix = ['.vercel', '.app'].join('')
 
 describe('production integration hardening contracts', () => {
   test('pins password recovery to the canonical public origin', () => {
@@ -93,7 +95,7 @@ describe('production integration hardening contracts', () => {
       source('src/lib/public-origin.ts'),
     ].join('\n')
 
-    expect(guarded).not.toContain('wewed.app')
-    expect(guarded).not.toContain('.vercel.app')
+    expect(guarded).not.toContain(retiredWewedHost)
+    expect(guarded).not.toContain(retiredVercelSuffix)
   })
 })
