@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import {
   clearAppSessionCookie,
   isDashboardRole,
+  PLANNER_PORTFOLIO_SESSION_ID,
   readAppSession,
   setAppSessionCookie,
   type AppSession,
@@ -142,6 +143,47 @@ async function authorizedResponse(input: {
   const activeWeddings = weddings.filter(
     (wedding) => wedding.membershipStatus === 'active',
   )
+
+  if (activeWeddings.length === 0 && dashboardRole === 'planner') {
+    if (appSession.activeWeddingId !== PLANNER_PORTFOLIO_SESSION_ID) {
+      await db.user.update({
+        where: { id: accessUser.id },
+        data: { currentWeddingId: null },
+      })
+    }
+
+    const response = NextResponse.json({
+      success: true,
+      authorized: true,
+      user: {
+        id: authUserId,
+        accessUserId: accessUser.id,
+        email,
+        displayName: profile?.displayName ?? accessUser.name ?? null,
+        avatarUrl: profile?.avatarUrl ?? null,
+        role: 'planner',
+        coupleId: accessUser.coupleId,
+        activeWeddingId: PLANNER_PORTFOLIO_SESSION_ID,
+      },
+      activeWedding: null,
+      weddings: [],
+      workspace: 'planner_portfolio',
+      expiresAt: appSession.expiresAt,
+    })
+
+    if (appSession.activeWeddingId !== PLANNER_PORTFOLIO_SESSION_ID) {
+      setAppSessionCookie(response, {
+        userId: accessUser.id,
+        authUserId,
+        email,
+        role: 'planner',
+        coupleId: accessUser.coupleId,
+        activeWeddingId: PLANNER_PORTFOLIO_SESSION_ID,
+      })
+    }
+
+    return response
+  }
 
   if (activeWeddings.length === 0) return signedOutResponse()
 
