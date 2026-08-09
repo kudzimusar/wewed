@@ -99,6 +99,39 @@ assert.ok(
   'Queue exports must be category-authorized server-side.',
 )
 
+const commandWrapper = requireAll('src/app/api/admin/command-center/route.ts', [
+  'readCommandCentreCore',
+  'mutateCommandCentreCore',
+  'persistedKeys.has(workKey(item))',
+  "item.category === 'onboarding'",
+  'Boolean(account?.ownerEmail)',
+  'account.onboardingStatus !== \'complete\'',
+])
+assert.ok(
+  commandWrapper.indexOf('persistedKeys.has(workKey(item))') <
+    commandWrapper.indexOf("item.category === 'onboarding'"),
+  'Durable work must suppress matching projections before onboarding projection filtering.',
+)
+
+const commandCore = requireAll('src/lib/admin-command-center-route-core.ts', [
+  'async function readPersistedWorkItems',
+  'const projectedWork = [',
+  "action === 'set_account_classification'",
+  "action === 'set_staff_profile'",
+  "action === 'save_view'",
+  "action === 'update_work_item'",
+  'canManageQueueCategory',
+  'writeBusinessAudit',
+])
+assert.ok(
+  !commandWrapper.includes('UPDATE wewed_admin."AdminWorkItem"'),
+  'The compatibility wrapper must not duplicate governed mutation logic from the Command Centre core.',
+)
+assert.ok(
+  commandCore.includes("requireWewedAdmin(request, 'admin.accounts.read')"),
+  'Extracting the route core must preserve the existing Admin authorization boundary.',
+)
+
 const ui = requireAll('src/components/admin/admin-productivity-console.tsx', [
   'data-admin-productivity-console="true"',
   'Open Admin command palette',
