@@ -23,8 +23,27 @@ INSERT INTO wewed_admin."BusinessAccountMember" (id, "businessAccountId", "userI
 INSERT INTO wewed_admin."BusinessAccountLink" (id, "businessAccountId", "entityType", "entityId", relationship, "createdAt")
 VALUES ('market-test-couple-wedding-link', 'market-test-couple-account', 'wedding', 'market-test-wedding', 'owns', CURRENT_TIMESTAMP);
 
-INSERT INTO wewed_admin."PlannerProfile" (id, "businessAccountId", slug, "displayName", services, "serviceAreas", status, "publishedAt", "createdAt", "updatedAt")
-VALUES ('market-test-profile', 'market-test-planner-account', 'morgan-planning', 'Morgan Planning', '["Full planning"]'::jsonb, '["Harare"]'::jsonb, 'published', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM wewed_admin."PlannerProfile"
+    WHERE "businessAccountId"='market-test-planner-account'
+      AND status='draft'
+      AND "displayName"='Morgan Planning'
+  ) THEN
+    RAISE EXCEPTION 'Active complete planning company must automatically receive a private draft PlannerProfile';
+  END IF;
+END $$;
+
+UPDATE wewed_admin."PlannerProfile"
+SET id='market-test-profile',
+    slug='morgan-planning',
+    "displayName"='Morgan Planning',
+    services='["Full planning"]'::jsonb,
+    "serviceAreas"='["Harare"]'::jsonb,
+    status='published',
+    "publishedAt"=CURRENT_TIMESTAMP,
+    "updatedAt"=CURRENT_TIMESTAMP
+WHERE "businessAccountId"='market-test-planner-account';
 
 INSERT INTO wewed_admin."PlannerShortlist" (id, "weddingId", "plannerProfileId", "createdByUserId") VALUES
   ('market-test-shortlist-1', 'market-test-wedding', 'market-test-profile', 'market-test-couple-user'),
@@ -87,4 +106,4 @@ DO $$ BEGIN
 END $$;
 
 ROLLBACK;
-\echo '[wewed-marketplace-postgres] secure appointment, graph isolation and revocation contract passed'
+\echo '[wewed-marketplace-postgres] provisioning, secure appointment, graph isolation and revocation contract passed'
