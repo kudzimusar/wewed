@@ -89,6 +89,13 @@ jobs:
       - name: Run communications policy tests
         run: bun test src/lib/communications-policy.test.ts
 
+      - name: Provide server-only test sentinel
+        shell: bash
+        run: |
+          mkdir -p node_modules/server-only
+          printf '%s\n' '{"name":"server-only","version":"0.0.0-test","type":"module","exports":"./index.js"}' > node_modules/server-only/package.json
+          printf '%s\n' 'export {};' > node_modules/server-only/index.js
+
       - name: Run communications authorization integration
         run: bun test src/lib/communications.integration.test.ts
 
