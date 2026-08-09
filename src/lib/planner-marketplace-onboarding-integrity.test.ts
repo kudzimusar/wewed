@@ -5,6 +5,8 @@ function source(path: string) { return readFileSync(path, 'utf8') }
 
 const integrityMigration = source('prisma/migrations/20260809030000_planner_marketplace_onboarding_integrity/migration.sql')
 const adminProfiles = source('src/app/api/admin/planner-profiles/route.ts')
+const adminOnboarding = source('src/app/api/admin/onboarding/route.ts')
+const adminOnboardingUi = source('src/components/admin/admin-onboarding-management.tsx')
 const profileRoute = source('src/app/api/marketplace/profile/route.ts')
 const submitRoute = source('src/app/api/marketplace/profile/submit/route.ts')
 const publicDirectory = source('src/app/api/marketplace/planners/route.ts')
@@ -30,6 +32,17 @@ describe('planner marketplace onboarding integrity', () => {
     expect(backfill).toContain('FROM wewed_admin."BusinessAccount" ba')
     expect(backfill).not.toContain('FROM public."User"')
     expect(backfill).not.toContain("role = 'planner'")
+  })
+
+  test('planner onboarding no longer requires an existing client wedding', () => {
+    expect(adminOnboarding).toContain('Planning-company onboarding is intentionally independent from having a client wedding.')
+    expect(adminOnboarding).toContain('if (weddingId)')
+    expect(adminOnboarding).toContain('currentWeddingId: weddingId || null')
+    expect(adminOnboarding).toContain('plannerMarketplaceReady: true')
+    expect(adminOnboarding).not.toContain('Assign an existing wedding to complete planner onboarding.')
+    expect(adminOnboardingUi).toContain('No wedding yet — activate planner marketplace only')
+    expect(adminOnboardingUi).toContain('Normal appointment authorization can grant wedding access later.')
+    expect(adminOnboardingUi).not.toContain('name="weddingId" required')
   })
 
   test('admin governance starts from planning businesses so missing profiles remain visible', () => {
