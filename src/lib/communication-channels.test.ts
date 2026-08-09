@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import {
-  buildResendEmailRequest,
+  buildCommunicationEmail,
   buildWhatsAppRequest,
   communicationDispatchAuthorized,
   normalizeCommunicationEndpoint,
@@ -50,23 +50,13 @@ describe('communication endpoint normalization', () => {
 })
 
 describe('communication provider request builders', () => {
-  test('Resend stays disabled until server credentials and sender exist', () => {
-    delete process.env.RESEND_API_KEY
-    delete process.env.WEWED_COMMUNICATION_FROM
-    expect(buildResendEmailRequest(delivery)).toBeNull()
-  })
-
-  test('builds a deterministic Resend request without logging through the builder', () => {
-    process.env.RESEND_API_KEY = 'resend-test-secret'
-    process.env.WEWED_COMMUNICATION_FROM = 'Wewed <updates@updates.wewed.pro>'
+  test('builds deterministic email content for the existing transactional sender', () => {
     process.env.WEWED_APP_URL = 'https://wewed.pro'
-    const request = buildResendEmailRequest(delivery)
-    expect(request?.url).toBe('https://api.resend.com/emails')
-    expect(request?.headers.Authorization).toBe('Bearer resend-test-secret')
-    expect(request?.body.to).toEqual(['planner@example.test'])
-    expect(request?.body.subject).toContain('Amina')
-    expect(request?.body.text).toContain('Please confirm the ceremony timeline.')
-    expect(request?.body.text).toContain('https://wewed.pro/messages')
+    const content = buildCommunicationEmail(delivery)
+    expect(content.subject).toContain('Amina')
+    expect(content.text).toContain('Please confirm the ceremony timeline.')
+    expect(content.text).toContain('https://wewed.pro/messages')
+    expect(content.html).toContain('Open Wewed')
   })
 
   test('WhatsApp stays disabled until the Meta binding is configured', () => {
