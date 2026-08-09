@@ -4,7 +4,10 @@ import {
   requireCommunicationActor,
   sendCommunicationMessage,
 } from '@/lib/communications'
-import { enforceCommunicationRateLimit } from '@/lib/communications-rate-limit'
+import {
+  enforceCommunicationConversationFanoutLimit,
+  enforceCommunicationRateLimit,
+} from '@/lib/communications-rate-limit'
 import {
   communicationErrorResponse,
   communicationJson,
@@ -33,6 +36,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       scope: 'message_send',
     })
     const { id } = await context.params
+    await enforceCommunicationConversationFanoutLimit(actor.userId, id)
     const body = await request.json().catch(() => ({}))
     const result = await sendCommunicationMessage(actor, id, body)
     return communicationJson({ success: true, data: result }, { status: 201 })
