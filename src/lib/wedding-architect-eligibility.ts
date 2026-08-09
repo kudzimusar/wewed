@@ -64,7 +64,11 @@ export function evaluateWeddingArchitectEligibility(
 
   if (!candidate.businessActive) reasons.push('Provider business is not active.')
   if (!candidate.subscriptionEntitled) reasons.push('Provider is not entitled to AI-originated opportunities.')
-  if (!['claimed', 'verified'].includes(candidate.listingStatus)) reasons.push('Provider listing is not owner-governed for AI matching.')
+  // AI-originated commercial recommendations use the strongest operational
+  // provider governance state Wewed currently maintains. A claimed listing may
+  // continue normal marketplace activity, but only a verified listing can be
+  // automatically selected into a paid Wedding Architect plan.
+  if (candidate.listingStatus !== 'verified') reasons.push('Provider listing is not verified for AI-originated commercial recommendations.')
   if (candidate.offeringStatus !== 'published') reasons.push('Offering is not published.')
   if (candidate.aiReadinessStatus !== 'ready') reasons.push('Offering is not calculation-ready for AI planning.')
   if (!['exact', 'from', 'range'].includes(candidate.pricingVisibility)) reasons.push('Offering does not expose calculation-ready pricing.')
