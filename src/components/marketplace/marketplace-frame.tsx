@@ -57,10 +57,39 @@ export function MarketplaceFrame({
         </div>
       </header>
       <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">{children}</section>
+
+      <style jsx global>{`
+        [data-marketplace-path='/planner/marketplace'] article:has([data-marketplace-status='accepted_interest']) {
+          border-color: rgb(92 122 93 / 0.42) !important;
+          background: rgb(92 122 93 / 0.09) !important;
+        }
+        [data-marketplace-path='/planner/marketplace'] article:has([data-marketplace-status='declined']) {
+          opacity: 0.78;
+        }
+        [data-marketplace-path='/planner/marketplace'] article:has([data-marketplace-status='accepted_interest']) > .mt-4.space-y-3,
+        [data-marketplace-path='/planner/marketplace'] article:has([data-marketplace-status='declined']) > .mt-4.space-y-3,
+        [data-marketplace-path='/planner/marketplace'] article:has([data-marketplace-status='appointed']) > .mt-4.space-y-3,
+        [data-marketplace-path='/planner/marketplace'] article:has([data-marketplace-status='withdrawn']) > .mt-4.space-y-3,
+        [data-marketplace-path='/planner/marketplace'] article:has([data-marketplace-status='closed']) > .mt-4.space-y-3 {
+          display: none !important;
+        }
+      `}</style>
     </main>
   )
 }
 
 export function StatusPill({ value }: { value: string }) {
-  return <span className="inline-flex rounded-full border border-gold/30 bg-gold/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-espresso">{value.replaceAll('_', ' ')}</span>
+  const normalized = value.toLowerCase()
+  const label = normalized === 'accepted_interest'
+    ? 'Interest accepted'
+    : normalized === 'responded'
+      ? 'Response sent'
+      : normalized.replaceAll('_', ' ')
+  const classes = normalized === 'accepted_interest' || normalized === 'accepted' || normalized === 'authorized'
+    ? 'border-sage/50 bg-sage/15 text-sage-dark'
+    : normalized === 'declined' || normalized === 'withdrawn' || normalized === 'closed'
+      ? 'border-clay/30 bg-clay/10 text-clay'
+      : 'border-gold/30 bg-gold/10 text-espresso'
+
+  return <span data-marketplace-status={normalized} role="status" aria-label={`Status: ${label}`} className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${classes}`}>{label}</span>
 }
