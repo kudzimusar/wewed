@@ -1,11 +1,18 @@
 'use client'
 
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { PlannerPortfolioCommandCentre } from '@/components/wedding/planner-portfolio-command-centre'
 import { DashboardAuthGate } from '@/components/wedding/dashboard-auth-gate'
 
 export default function PlannerPortfolioPage() {
   const router = useRouter()
+
+  useEffect(() => {
+    if (window.location.hash === '#planner-workspace') {
+      router.replace('/planner/overview#planner-workspace')
+    }
+  }, [router])
 
   return (
     <DashboardAuthGate
