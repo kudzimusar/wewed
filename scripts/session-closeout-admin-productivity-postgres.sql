@@ -6,8 +6,11 @@ BEGIN;
 -- Durable work-item synchronization
 -- ---------------------------------------------------------------------------
 
-INSERT INTO public."User" (id,email,name,role,"isActive")
-VALUES ('closeout-productivity-owner','closeout.owner@example.test','Closeout Owner','couple',TRUE)
+INSERT INTO public."User" (id,email,name,role,"isActive","createdAt","updatedAt")
+VALUES (
+  'closeout-productivity-owner','closeout.owner@example.test','Closeout Owner','couple',TRUE,
+  CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO wewed_admin."BusinessAccount" (
