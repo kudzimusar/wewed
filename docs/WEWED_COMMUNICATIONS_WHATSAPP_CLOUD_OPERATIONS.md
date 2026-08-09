@@ -9,7 +9,7 @@ This runbook activates Meta WhatsApp Cloud API as a transport around Wewed's can
 
 ## Current Meta test assets
 
-- WABA: `1052651633933852`
+- WABA: **must be read directly from Meta WhatsApp Manager/API Setup before subscription; do not infer it from usage or analytics identifiers**
 - Cloud API Phone Number ID: `1262607510266445`
 - Graph API: `v26.0`
 - notification template: `wewed_new_message_v1`
@@ -51,6 +51,7 @@ Do not subscribe the app to the WABA until all of these conditions are true:
 3. A direct GET verification test against the deployed callback succeeds.
 4. The Meta notification template is approved and the configured language matches the approved template.
 5. The production/test System User token can list the WABA phone numbers.
+6. The WABA ID has been copied directly from Meta WhatsApp Manager/API Setup and independently checked against the phone-number asset before subscription.
 
 ## Meta webhook callback configuration
 
@@ -67,12 +68,12 @@ For webhook POSTs, Wewed validates `X-Hub-Signature-256` against the raw HTTP re
 
 ## Subscribe the app to the WABA
 
-After Meta accepts the callback, subscribe the Wewed app to the WABA. Keep the token in a shell variable rather than writing it into shell history:
+After Meta accepts the callback, copy the exact WABA ID from Meta WhatsApp Manager/API Setup and keep it in a shell variable. Do not substitute another Meta business/usage identifier.
 
 ```bash
 read -s WA_TOKEN
 export WA_TOKEN
-export WABA_ID='1052651633933852'
+export WABA_ID='<verified WABA ID from Meta>'
 
 curl -sS -X POST \
   "https://graph.facebook.com/v26.0/${WABA_ID}/subscribed_apps" \
