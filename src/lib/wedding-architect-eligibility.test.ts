@@ -29,7 +29,7 @@ const request = {
 }
 
 describe('Wedding Architect provider eligibility', () => {
-  test('accepts a subscribed, governed, AI-ready provider that fits hard constraints', () => {
+  test('accepts a subscribed, verified, AI-ready provider that fits hard constraints', () => {
     expect(evaluateWeddingArchitectEligibility(baseCandidate, request)).toEqual({
       status: 'eligible',
       reasons: [],
@@ -44,6 +44,21 @@ describe('Wedding Architect provider eligibility', () => {
     )
     expect(result.status).toBe('ineligible')
     expect(result.reasons).toContain('Provider is not entitled to AI-originated opportunities.')
+  })
+
+  test('requires verified listing status for AI-originated commercial recommendations', () => {
+    const claimed = evaluateWeddingArchitectEligibility(
+      { ...baseCandidate, listingStatus: 'claimed' },
+      request,
+    )
+    expect(claimed.status).toBe('ineligible')
+    expect(claimed.reasons).toContain('Provider listing is not verified for AI-originated commercial recommendations.')
+
+    const unclaimed = evaluateWeddingArchitectEligibility(
+      { ...baseCandidate, listingStatus: 'unclaimed' },
+      request,
+    )
+    expect(unclaimed.status).toBe('ineligible')
   })
 
   test('rejects stale, quote-only or incomplete commercial catalogues', () => {
