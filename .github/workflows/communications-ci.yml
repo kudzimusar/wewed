@@ -10,8 +10,11 @@ on:
       - 'scripts/communications-postgres-integration.sql'
       - 'src/app/messages/**'
       - 'src/app/api/communications/**'
+      - 'src/app/api/internal/communications/**'
       - 'src/lib/communications*.ts'
       - 'src/lib/communications*.test.ts'
+      - 'src/lib/communication-channels*.ts'
+      - 'src/lib/communication-channels*.test.ts'
       - 'src/components/admin/admin-utility-nav.tsx'
       - 'src/components/couple/couple-dashboard.tsx'
       - 'src/components/wedding/planner-account-dock.tsx'
@@ -96,6 +99,9 @@ jobs:
           printf '%s\n' '{"name":"server-only","version":"0.0.0-test","type":"module","exports":"./index.js"}' > node_modules/server-only/package.json
           printf '%s\n' 'export {};' > node_modules/server-only/index.js
 
+      - name: Run communications channel contracts
+        run: bun test src/lib/communication-channels.test.ts
+
       - name: Run communications authorization integration
         run: bun test src/lib/communications.integration.test.ts
 
@@ -110,6 +116,14 @@ jobs:
         run: |
           if grep -nE "metadata:[[:space:]]*\{[^}]*body([,:}])" src/lib/communications.ts; then
             echo "::error::CommunicationEvent metadata must not contain raw message bodies"
+            exit 1
+          fi
+
+      - name: Confirm channel code does not log message bodies or provider tokens
+        shell: bash
+        run: |
+          if grep -nE "console\.(log|info|debug|warn|error)" src/lib/communication-channels.ts; then
+            echo "::error::Communication channel transport must not log message bodies/endpoints/tokens"
             exit 1
           fi
 
