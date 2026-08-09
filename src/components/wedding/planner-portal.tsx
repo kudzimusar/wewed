@@ -160,7 +160,7 @@ function PlannerExperienceNavigation({ showPortfolioLink }: { showPortfolioLink:
           </Link>
         )}
 
-        <div data-planner-context-inline className="min-w-0 flex-1">
+        <div data-planner-context-inline className="min-w-[7rem] flex-1">
           <WeddingContextControls />
         </div>
 
@@ -204,7 +204,9 @@ function PlannerExperienceNavigation({ showPortfolioLink }: { showPortfolioLink:
         }
 
         [data-planner-context-inline] #active-wedding {
+          display: block !important;
           height: 2.25rem !important;
+          min-width: 6.5rem !important;
           width: min(56vw, 22rem) !important;
           max-width: 100% !important;
           padding-block: 0.25rem !important;
