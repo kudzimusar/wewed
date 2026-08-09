@@ -261,14 +261,25 @@ export function buildWhatsAppRequest(input: ClaimedDeliveryRow) {
   const token = process.env.WHATSAPP_CLOUD_ACCESS_TOKEN?.trim()
   const phoneNumberId = process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID?.trim()
   const version = process.env.WHATSAPP_CLOUD_GRAPH_VERSION?.trim()
-  if (!token || !phoneNumberId || !version) return null
-  const base = (process.env.WHATSAPP_CLOUD_GRAPH_BASE_URL || 'https://graph.facebook.com').replace(/\/$/, '')
   const template = process.env.WEWED_WHATSAPP_NOTIFICATION_TEMPLATE?.trim()
-  const language = process.env.WEWED_WHATSAPP_TEMPLATE_LANGUAGE?.trim() || 'en'
+  if (!token || !phoneNumberId || !version || !template) return null
+  const base = (process.env.WHATSAPP_CLOUD_GRAPH_BASE_URL || 'https://graph.facebook.com').replace(/\/$/, '')
+  const language = process.env.WEWED_WHATSAPP_TEMPLATE_LANGUAGE?.trim() || 'en_US'
   const to = input.normalizedAddress.replace(/^\+/, '')
-  const body = template
-    ? { messaging_product: 'whatsapp', to, type: 'template', template: { name: template, language: { code: language }, components: [{ type: 'body', parameters: [{ type: 'text', text: input.body.slice(0, 1000) }] }] } }
-    : { messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'text', text: { preview_url: false, body: input.body.slice(0, 4000) } }
+  const senderName = input.senderName.trim() || 'Wewed'
+  const body = {
+    messaging_product: 'whatsapp',
+    to,
+    type: 'template',
+    template: {
+      name: template,
+      language: { code: language },
+      components: [{
+        type: 'body',
+        parameters: [{ type: 'text', text: senderName.slice(0, 256) }],
+      }],
+    },
+  }
   return { url: `${base}/${version}/${encodeURIComponent(phoneNumberId)}/messages`, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body }
 }
 
