@@ -23,6 +23,12 @@ export async function GET(request: NextRequest) {
         { status: 401 },
       )
     }
+    if (session.role !== 'planner') {
+      return NextResponse.json(
+        { success: false, error: 'Planner portfolio access is required.' },
+        { status: 403 },
+      )
+    }
 
     const accessible = await listAccessibleWeddings(session.userId, session.role)
     const managed = accessible.filter(
