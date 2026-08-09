@@ -12,9 +12,13 @@ function source(path: string) {
 const portfolioRoute = source('src/app/api/planner/portfolio/route.ts')
 const portfolioUi = source('src/components/wedding/planner-portfolio-command-centre.tsx')
 const plannerLanding = source('src/app/planner/page.tsx')
+const plannerPortfolioPage = source('src/app/planner/portfolio/page.tsx')
 const adminRoute = source('src/app/api/admin/planner-profiles/route.ts')
 const adminUi = source('src/components/marketplace/admin-planner-profiles.tsx')
 const weddingAccess = source('src/lib/wedding-access.ts')
+const appSession = source('src/lib/app-session.ts')
+const signInRoute = source('src/app/api/auth/signin/route.ts')
+const authMeRoute = source('src/app/api/auth/me/route.ts')
 
 describe('planner relationship and portfolio intelligence', () => {
   test('marks close weddings with overdue work as at risk and explains why', () => {
@@ -101,9 +105,22 @@ describe('planner relationship and portfolio intelligence', () => {
 
   test('planner landing opens the portfolio command centre before the single-wedding workspace', () => {
     expect(plannerLanding).toContain("redirect('/planner/portfolio')")
+    expect(plannerPortfolioPage).toContain("allowedRoles={['planner']}")
     expect(portfolioUi).toContain('Your wedding command centre')
     expect(portfolioUi).toContain("router.push(`/planner/${module}#planner-workspace`)")
     expect(portfolioUi).toContain("fetch('/api/auth/wedding'")
+  })
+
+  test('approved planners remain authorized before their first client wedding', () => {
+    expect(appSession).toContain('PLANNER_PORTFOLIO_SESSION_ID')
+    expect(signInRoute).toContain("weddings.length === 0 && accessUser.role === 'planner'")
+    expect(signInRoute).toContain("workspace: 'planner_portfolio'")
+    expect(signInRoute).toContain('activeWeddingId: PLANNER_PORTFOLIO_SESSION_ID')
+    expect(authMeRoute).toContain("activeWeddings.length === 0 && dashboardRole === 'planner'")
+    expect(authMeRoute).toContain("workspace: 'planner_portfolio'")
+    expect(authMeRoute).toContain('activeWeddingId: PLANNER_PORTFOLIO_SESSION_ID')
+    expect(signInRoute).toContain("if (weddings.length === 0) {")
+    expect(authMeRoute).toContain('if (activeWeddings.length === 0) return signedOutResponse()')
   })
 
   test('admin relationship view reads the same WeddingMembership graph in both directions', () => {
