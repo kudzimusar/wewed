@@ -4,6 +4,7 @@ import {
   listCommunicationConversations,
   requireCommunicationActor,
 } from '@/lib/communications'
+import { enforceCommunicationRateLimit } from '@/lib/communications-rate-limit'
 import {
   communicationErrorResponse,
   communicationJson,
@@ -22,6 +23,10 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const actor = await requireCommunicationActor(request)
+    await enforceCommunicationRateLimit({
+      userId: actor.userId,
+      scope: 'conversation_create',
+    })
     const body = await request.json().catch(() => ({}))
     const result = await createCommunicationConversation(actor, body)
     return communicationJson(
