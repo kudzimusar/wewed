@@ -129,12 +129,14 @@ describe('Stage 3 six-module extraction', () => {
     const workspace = await source('src/components/wedding/planner-workspace.tsx')
 
     for (const marker of [
-      "api<{ data: TaskRow[] }>('/api/planner/tasks')",
+      "api<{ data: TaskRow[] }>('/api/planner/tasks', requestInit)",
       'byCategory: CategoryBreakdown[]',
-      ">('/api/planner/budget')",
-      "api<{ data: VendorRow[] }>('/api/planner/vendors')",
-      "api<{ data: GuestRow[]; tables: SeatingTableRow[] }>('/api/planner/guests')",
-      "api<{ data: TimelineRow[] }>('/api/planner/timeline')",
+      ">('/api/planner/budget', requestInit)",
+      "api<{ data: VendorRow[] }>('/api/planner/vendors', requestInit)",
+      "api<{ data: GuestRow[]; tables: SeatingTableRow[] }>('/api/planner/guests', requestInit)",
+      "api<{ data: TimelineRow[] }>('/api/planner/timeline', requestInit)",
+      'const requestInit = { signal: controller.signal }',
+      'refreshControllerRef.current?.abort()',
       'window.setInterval(() => void refresh(false), 30_000)',
       'async function addTask',
       'async function updateTaskStatus',
