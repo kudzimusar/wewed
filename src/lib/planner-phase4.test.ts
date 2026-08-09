@@ -13,11 +13,16 @@ describe('Phase 4 independent planner portal', () => {
     expect(trigger).not.toContain('SecureWeddingPlanner')
   })
 
-  test('planner has a dedicated application route with isolated metadata', async () => {
+  test('planner has a portfolio-first application route with isolated metadata and secure wedding modules', async () => {
     const page = await source('src/app/planner/page.tsx')
+    const portfolioPage = await source('src/app/planner/portfolio/page.tsx')
+    const modulePage = await source('src/app/planner/[module]/page.tsx')
     const layout = await source('src/app/planner/layout.tsx')
 
-    expect(page).toContain('SecureWeddingPlanner')
+    expect(page).toContain("redirect('/planner/portfolio')")
+    expect(portfolioPage).toContain('PlannerPortfolioCommandCentre')
+    expect(portfolioPage).toContain("allowedRoles={['planner']}")
+    expect(modulePage).toContain('SecureWeddingPlanner')
     expect(layout).toContain("const title = 'Wewed Planner Workspace'")
     expect(layout).toContain('keywords:')
     expect(layout).toContain('openGraph:')
