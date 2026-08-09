@@ -318,20 +318,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, ...result })
     }
 
+    // Planning-company onboarding is intentionally independent from having a client wedding.
+    // An existing wedding can still be attached here for a controlled legacy/admin workflow,
+    // but marketplace activation and professional profile setup must not depend on it.
     const weddingId = text(body.weddingId, 120)
-    if (!weddingId) {
-      return NextResponse.json(
-        { success: false, error: 'Assign an existing wedding to complete planner onboarding.' },
-        { status: 400 },
-      )
-    }
-
-    const wedding = await db.wedding.findUnique({
-      where: { id: weddingId },
-      select: { id: true },
-    })
-    if (!wedding) {
-      return NextResponse.json({ success: false, error: 'Assigned wedding was not found.' }, { status: 404 })
+    if (weddingId) {
+      const wedding = await db.wedding.findUnique({
+        where: { id: weddingId },
+        select: { id: true },
+      })
+      if (!wedding) {
+        return NextResponse.json({ success: false, error: 'Assigned wedding was not found.' }, { status: 404 })
+      }
     }
 
     const weddingRole = account.memberRole === 'coordinator' ? 'coordinator' : 'planner'
@@ -341,7 +339,7 @@ export async function POST(request: NextRequest) {
         data: {
           role: 'planner',
           coupleId: null,
-          currentWeddingId: weddingId,
+          currentWeddingId: weddingId || null,
           isActive: true,
         },
       })
@@ -363,33 +361,37 @@ export async function POST(request: NextRequest) {
           banReason: null,
         },
       })
-      await tx.weddingMembership.upsert({
-        where: { userId_weddingId: { userId: account.ownerUserId, weddingId } },
-        create: {
-          userId: account.ownerUserId,
+
+      if (weddingId) {
+        await tx.weddingMembership.upsert({
+          where: { userId_weddingId: { userId: account.ownerUserId, weddingId } },
+          create: {
+            userId: account.ownerUserId,
+            weddingId,
+            role: weddingRole,
+            status: 'active',
+            invitedById: context.session.userId,
+            acceptedAt: new Date(),
+          },
+          update: {
+            role: weddingRole,
+            status: 'active',
+            acceptedAt: new Date(),
+            revokedAt: null,
+          },
+        })
+        await tx.$executeRawUnsafe(
+          `INSERT INTO public."BusinessAccountLink"
+            ("id", "businessAccountId", "entityType", "entityId", "relationship")
+           VALUES ($1, $2, 'wedding', $3, 'manages')
+           ON CONFLICT ("businessAccountId", "entityType", "entityId") DO UPDATE SET
+             relationship = EXCLUDED.relationship`,
+          createBusinessId('link'),
+          account.id,
           weddingId,
-          role: weddingRole,
-          status: 'active',
-          invitedById: context.session.userId,
-          acceptedAt: new Date(),
-        },
-        update: {
-          role: weddingRole,
-          status: 'active',
-          acceptedAt: new Date(),
-          revokedAt: null,
-        },
-      })
-      await tx.$executeRawUnsafe(
-        `INSERT INTO public."BusinessAccountLink"
-          ("id", "businessAccountId", "entityType", "entityId", "relationship")
-         VALUES ($1, $2, 'wedding', $3, 'manages')
-         ON CONFLICT ("businessAccountId", "entityType", "entityId") DO UPDATE SET
-           relationship = EXCLUDED.relationship`,
-        createBusinessId('link'),
-        account.id,
-        weddingId,
-      )
+        )
+      }
+
       await tx.$executeRawUnsafe(
         `UPDATE public."BusinessAccountMember"
          SET status = 'active', permissions = '["account.manage","billing.manage","weddings.manage"]'::jsonb,
@@ -405,7 +407,8 @@ export async function POST(request: NextRequest) {
          WHERE id = $1`,
         account.id,
         JSON.stringify({
-          provisionedWeddingId: weddingId,
+          provisionedWeddingId: weddingId || null,
+          plannerMarketplaceReady: true,
           onboardingCompletedAt: new Date().toISOString(),
         }),
       )
@@ -416,11 +419,16 @@ export async function POST(request: NextRequest) {
         createBusinessId('audit'),
         context.session.userId,
         account.id,
-        JSON.stringify({ accountType: account.type, weddingId, weddingRole }),
+        JSON.stringify({
+          accountType: account.type,
+          marketplaceReady: true,
+          weddingId: weddingId || null,
+          weddingRole: weddingId ? weddingRole : null,
+        }),
       )
     })
 
-    return NextResponse.json({ success: true, weddingId })
+    return NextResponse.json({ success: true, weddingId: weddingId || null, marketplaceReady: true })
   } catch (error) {
     return errorResponse(error)
   }

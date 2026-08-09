@@ -10,14 +10,45 @@ export async function GET(request: NextRequest) {
   try {
     await requireWewedAdmin(request, 'admin.accounts.read')
     const rows = await db.$queryRawUnsafe<Array<Record<string, unknown>>>(
-      `SELECT p.*, ba.name AS "businessName", ba.slug AS "businessSlug",
-              ba."subscriptionPlan", ba."subscriptionStatus"
-       FROM public."PlannerProfile" p
-       JOIN public."BusinessAccount" ba ON ba.id = p."businessAccountId"
-       ORDER BY CASE p.status WHEN 'submitted' THEN 0 WHEN 'changes_requested' THEN 1 ELSE 2 END,
-                p."updatedAt" DESC`,
+      `SELECT
+         p.*,
+         ba.id AS "businessAccountId",
+         ba.name AS "businessName",
+         ba.slug AS "businessSlug",
+         ba.status AS "businessStatus",
+         ba."onboardingStatus",
+         ba."subscriptionPlan",
+         ba."subscriptionStatus",
+         ba."ownerUserId",
+         u.email AS "ownerEmail",
+         u.name AS "ownerName",
+         CASE WHEN p.id IS NULL THEN 'not_started' ELSE p.status END AS "profileState"
+       FROM public."BusinessAccount" ba
+       LEFT JOIN public."PlannerProfile" p ON p."businessAccountId" = ba.id
+       LEFT JOIN public."User" u ON u.id = ba."ownerUserId"
+       WHERE ba.type = 'planning_company'
+       ORDER BY
+         CASE
+           WHEN p.id IS NULL THEN 0
+           WHEN p.status = 'submitted' THEN 1
+           WHEN p.status = 'changes_requested' THEN 2
+           WHEN p.status = 'draft' THEN 3
+           WHEN p.status = 'published' THEN 4
+           ELSE 5
+         END,
+         COALESCE(p."updatedAt", ba."updatedAt") DESC`,
     )
-    return NextResponse.json({ success: true, profiles: rows })
+
+    const metrics = {
+      planningBusinesses: rows.length,
+      activeCompleteBusinesses: rows.filter((row) => row.businessStatus === 'active' && row.onboardingStatus === 'complete').length,
+      profilesNotStarted: rows.filter((row) => !row.id).length,
+      draftProfiles: rows.filter((row) => row.profileState === 'draft').length,
+      submittedProfiles: rows.filter((row) => row.profileState === 'submitted').length,
+      publishedProfiles: rows.filter((row) => row.profileState === 'published').length,
+    }
+
+    return NextResponse.json({ success: true, profiles: rows, metrics })
   } catch (error) {
     return marketplaceErrorResponse(error)
   }
