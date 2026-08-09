@@ -1,0 +1,37 @@
+import { NextRequest } from 'next/server'
+import {
+  listCommunicationMessages,
+  requireCommunicationActor,
+  sendCommunicationMessage,
+} from '@/lib/communications'
+import {
+  communicationErrorResponse,
+  communicationJson,
+} from '@/lib/communications-route'
+
+interface RouteContext {
+  params: Promise<{ id: string }>
+}
+
+export async function GET(request: NextRequest, context: RouteContext) {
+  try {
+    const actor = await requireCommunicationActor(request)
+    const { id } = await context.params
+    const messages = await listCommunicationMessages(actor, id)
+    return communicationJson({ success: true, data: messages })
+  } catch (error) {
+    return communicationErrorResponse(error)
+  }
+}
+
+export async function POST(request: NextRequest, context: RouteContext) {
+  try {
+    const actor = await requireCommunicationActor(request)
+    const { id } = await context.params
+    const body = await request.json().catch(() => ({}))
+    const result = await sendCommunicationMessage(actor, id, body)
+    return communicationJson({ success: true, data: result }, { status: 201 })
+  } catch (error) {
+    return communicationErrorResponse(error)
+  }
+}
