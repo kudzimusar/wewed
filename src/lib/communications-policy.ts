@@ -22,6 +22,7 @@ const ORDINARY_TYPES = new Set<CommunicationConversationType>([
   'DIRECT',
   'WEDDING',
   'PLANNER_CLIENT',
+  'SUPPORT',
 ])
 const ADMIN_TYPES = new Set<CommunicationConversationType>([
   ...COMMUNICATION_CONVERSATION_TYPES,
