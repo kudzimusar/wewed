@@ -26,10 +26,10 @@ The migration therefore:
 ### Consequences
 
 1. Prisma schema validation and generation continue to cover the existing public application schema.
-2. Prisma migrations still apply the private communications DDL because the SQL migration is part of `prisma/migrations`.
+2. The reviewed SQL remains stored under `prisma/migrations` so clean-database CI exercises it with the repository's complete migration history.
 3. Communication tables are intentionally absent from `schema.prisma`; application access goes through `src/lib/communications.ts`.
 4. Browser/Supabase clients cannot bypass the Wewed communication permission layer to query private messages directly.
-5. Future schema changes to communications must be made through reviewed migrations and matching server-domain changes.
+5. Future schema changes to communications must be reviewed, migration-managed and matched by server-domain changes.
 
 ## Decision 2 — Canonical write precedes every delivery adapter
 
@@ -65,33 +65,59 @@ The email bridge remains an adapter gate. When that sender path is represented i
 
 ## Decision 6 — Release qualification
 
-The communications branch is not mergeable merely because the UI compiles. The exact head must pass:
+The communications branch is not mergeable merely because the UI compiles. The exact tree must pass:
 
 - clean PostgreSQL migration deployment
-- migration status/diff checks used by Wewed CI
 - communications policy and schema contracts
 - signed-session, cross-user authorization integration tests
 - application production build
 - existing main release/regression workflows
 - changed-file review confirming the public wedding `Message` system was not modified
 
-## Decision 7 — Production migration remains Prisma-led and is automated only for this migration
+The qualified tree SHA for the initial release was `84295bcacd0173feb22c1f3d87c7fe21fa108863`. The final PR head and the merged `main` commit both resolve to that exact tree.
 
-The existing `Deploy database migrations` workflow remains the production authority because it runs `prisma migrate deploy`, validates the target project, and preserves Prisma's migration ledger.
+## Decision 7 — Production DDL authority follows the existing Supabase migration history until Prisma is reconciled
 
-For this release, that workflow also listens for a push to `main` that contains the exact file:
+The first merge-time attempt to run `prisma migrate deploy` exposed pre-existing production migration-ledger drift. The production schema has historically been advanced through the Supabase migration system, while `public._prisma_migrations` contains only a small subset of the repository's migration directories.
+
+The failed Prisma run attempted to replay historical migrations against schema that already contained their DDL and stopped at `20260729131000_normalize_planner_metadata` because `Vendor.contact` already existed. This is a migration-history problem, not a communications-schema problem.
+
+Wewed therefore **must not baseline or mark historical Prisma migrations as applied without a separate reconciliation audit**. It must also not automatically replay the repository's historical Prisma migration chain against production.
+
+For the communications release, the reviewed SQL file
 
 `prisma/migrations/20260809090000_wewed_communications_foundation/migration.sql`
 
-This is intentionally narrow:
+was applied through the connected Supabase migration API as `wewed_communications_foundation`. This preserves a production migration record in the system that has historically managed the production DDL while avoiding false Prisma ledger entries.
 
-- the normal manual `workflow_dispatch` path remains available for other migrations
-- only this exact communications migration path enables the merge-time automatic run
-- the workflow still targets the protected `production` environment
-- it still rejects any database URL that does not contain the Wewed Supabase project ID `kjigkhjdeymukwradoqu`
-- it still requires the approved Supabase pooler port
-- it still runs Prisma validate, generate, deploy, status and schema diff verification
+The generic `Deploy database migrations` workflow is returned to manual-only operation and now fails closed before `prisma migrate deploy` when either:
 
-Direct Supabase DDL execution is deliberately not used for this release because it would bypass or complicate Prisma's migration ledger.
+- an unresolved Prisma migration row exists; or
+- the number of successfully recorded Prisma migrations does not match the repository migration directory count.
 
-If the GitHub `production` environment itself requires a human approval gate, that approval is the only acceptable manual release boundary; the application implementation does not require user configuration work.
+This prevents another accidental historical replay. A future database-governance task should reconcile Supabase migration history, Prisma migration history and the current production schema before Prisma becomes the sole production migration authority.
+
+## Decision 8 — Production communications schema verification
+
+After applying the communications migration to the Wewed Supabase project `kjigkhjdeymukwradoqu`, verification confirmed:
+
+- `CommunicationConversation` exists
+- `CommunicationParticipant` exists
+- `CommunicationMessage` exists
+- `CommunicationEntityLink` exists
+- `CommunicationDelivery` exists
+- `CommunicationEvent` exists
+- Supabase migration history contains `wewed_communications_foundation`
+- `anon` has no `USAGE` privilege on `wewed_communications`
+- `authenticated` has no `USAGE` privilege on `wewed_communications`
+- neither browser role has `SELECT` privilege on `CommunicationMessage`
+
+The production database foundation is therefore installed and fail-closed independently of application deployment status.
+
+## Decision 9 — Hosting quota is an external release boundary, not a reason to weaken the architecture
+
+The Vercel Hobby account exhausted its deployment build quota during branch qualification. Vercel reported `Deployment rate limited — retry in 24 hours` and did not create a deployment for the communications merge commit.
+
+The active production deployment remains the prior READY `main` deployment until Vercel permits another build. The communications schema is additive, so installing it before the application build is safe; the previous production application does not reference the new private schema.
+
+No paid upgrade is required for the communications architecture. Wewed should retry the normal `main` production deployment after the free-tier build limit clears rather than purchasing capacity solely to complete this release.

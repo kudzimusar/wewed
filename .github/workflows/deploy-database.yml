@@ -1,11 +1,6 @@
 name: Deploy database migrations
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'prisma/migrations/20260809090000_wewed_communications_foundation/migration.sql'
   workflow_dispatch:
     inputs:
       confirmation:
@@ -23,7 +18,7 @@ concurrency:
 jobs:
   migrate:
     name: Deploy Prisma migrations
-    if: ${{ github.event_name == 'push' || inputs.confirmation == 'deploy-wewed' }}
+    if: ${{ inputs.confirmation == 'deploy-wewed' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production
@@ -67,6 +62,25 @@ jobs:
 
       - name: Generate Prisma client
         run: bunx prisma generate --schema prisma/schema.prisma
+
+      - name: Fail closed on unresolved Prisma migration ledger drift
+        shell: bash
+        run: |
+          repo_migrations=$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')
+          completed_migrations=$(psql "$DATABASE_URL" -Atqc \
+            "select count(*) from public._prisma_migrations where finished_at is not null and rolled_back_at is null" \
+            | tr -d '[:space:]')
+          failed_migrations=$(psql "$DATABASE_URL" -Atqc \
+            "select count(*) from public._prisma_migrations where finished_at is null and rolled_back_at is null" \
+            | tr -d '[:space:]')
+
+          if [[ "$failed_migrations" != "0" || "$completed_migrations" != "$repo_migrations" ]]; then
+            echo "::error::Production Prisma migration history is not reconciled with the repository. Refusing to replay historical migrations."
+            echo "Repository migrations: $repo_migrations"
+            echo "Completed Prisma ledger rows: $completed_migrations"
+            echo "Unresolved Prisma ledger rows: $failed_migrations"
+            exit 1
+          fi
 
       - name: Deploy pending migrations
         run: bunx prisma migrate deploy --schema prisma/schema.prisma
