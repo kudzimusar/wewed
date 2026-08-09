@@ -13,6 +13,7 @@ const publicDirectory = source('src/app/api/marketplace/planners/route.ts')
 const quickStart = source('src/components/marketplace/planner-profile-quick-start.tsx')
 const plannerMarketplacePage = source('src/app/planner/marketplace/page.tsx')
 const postgresIntegration = source('scripts/planner-marketplace-postgres-integration.sql')
+const browserFixture = source('tests/e2e/support/marketplace-fixture.ts')
 
 describe('planner marketplace onboarding integrity', () => {
   test('automatically provisions a private draft profile for every active completed planning company', () => {
@@ -79,5 +80,11 @@ describe('planner marketplace onboarding integrity', () => {
     expect(postgresIntegration).toContain('Active complete planning company must automatically receive a private draft PlannerProfile')
     expect(postgresIntegration).toContain("status='draft'")
     expect(postgresIntegration).toContain("status='published'")
+  })
+
+  test('browser fixtures promote the provisioned profile instead of inserting a duplicate', () => {
+    expect(browserFixture).toContain('UPDATE wewed_admin."PlannerProfile"')
+    expect(browserFixture).toContain('expected exactly one auto-provisioned profile')
+    expect(browserFixture).not.toContain('INSERT INTO wewed_admin."PlannerProfile"')
   })
 })
