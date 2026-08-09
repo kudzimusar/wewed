@@ -22,7 +22,7 @@ const plan = requireAll('docs/product/session-closeout-admin-productivity-plan-2
   'Stage 2D — scoped exports',
   'Stage 2E — keyboard productivity',
   'Stage 3 — final qualification',
-  'existing Admin permission and scope checks remain authoritative',
+  'Existing Admin permission and scope checks remain authoritative',
   'Already-applied migrations are immutable',
   '360x800',
   '1366x768',
@@ -83,7 +83,7 @@ const api = requireAll('src/app/api/admin/productivity/route.ts', [
   'supersedesOfferCode',
 ])
 assert.ok(
-  api.includes('buildBusinessAccountScopeSql(context, \'ba\''),
+  api.includes("buildBusinessAccountScopeSql(context, 'ba'"),
   'Command search and exports must remain backed by server-side account scope SQL.',
 )
 assert.ok(
@@ -95,7 +95,7 @@ assert.ok(
   'Pricing mutation must remain behind billing management authority.',
 )
 assert.ok(
-  api.includes("canReadQueueCategory(context, row.category)"),
+  api.includes('canReadQueueCategory(context, row.category)'),
   'Queue exports must be category-authorized server-side.',
 )
 
@@ -144,7 +144,7 @@ const policy = requireAll('src/lib/wewed-admin-policy.ts', [
   'admin.support.manage',
   'Database permissions can never expand a role beyond its code-defined ceiling.',
 ])
-assert.ok(policy.includes("wewed_billing_admin: ["))
-assert.ok(policy.includes("wewed_support_admin: ["))
+assert.ok(policy.includes('wewed_billing_admin: ['))
+assert.ok(policy.includes('wewed_support_admin: ['))
 
 console.log('Session closeout Admin productivity contract: PASS')
