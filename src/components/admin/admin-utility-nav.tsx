@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   Layers3,
   Menu,
+  MessageCircle,
   ShieldCheck,
   UserRoundCheck,
   UserRoundSearch,
@@ -21,6 +22,12 @@ export function AdminUtilityNav() {
 
   const desktopItems = [
     ['/admin', 'Console', Building2, pathname === '/admin'],
+    [
+      '/messages',
+      'Messages',
+      MessageCircle,
+      pathname.startsWith('/messages'),
+    ],
     [
       '/admin/client-operations',
       'Client systems',
@@ -130,6 +137,7 @@ export function AdminUtilityNav() {
               <button type="button" onClick={() => setMoreOpen(false)} className="flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-gold/20 text-gold" aria-label="Close Admin menu"><X className="size-4" /></button>
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
+              <a href="/messages" className="flex min-h-14 items-center gap-2 rounded-xl border border-gold/12 bg-white/[0.025] px-3 text-xs font-semibold text-champagne"><MessageCircle className="size-4 text-gold" />Messages</a>
               <a href="/admin/planner-profiles" className="flex min-h-14 items-center gap-2 rounded-xl border border-gold/12 bg-white/[0.025] px-3 text-xs font-semibold text-champagne"><UserRoundSearch className="size-4 text-gold" />Planner profiles</a>
               <a href="/admin/client-operations" className="flex min-h-14 items-center gap-2 rounded-xl border border-gold/12 bg-white/[0.025] px-3 text-xs font-semibold text-champagne"><Layers3 className="size-4 text-gold" />Client systems</a>
               <a href="/admin/onboarding" className="flex min-h-14 items-center gap-2 rounded-xl border border-gold/12 bg-white/[0.025] px-3 text-xs font-semibold text-champagne"><UserRoundCheck className="size-4 text-gold" />Onboarding</a>
