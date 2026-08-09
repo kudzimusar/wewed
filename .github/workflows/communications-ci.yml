@@ -8,6 +8,7 @@ on:
       - 'docs/WEWED_COMMUNICATIONS_*.md'
       - 'prisma/migrations/**'
       - 'scripts/communications-postgres-integration.sql'
+      - 'scripts/communications-rate-limit-postgres-integration.sql'
       - 'src/app/messages/**'
       - 'src/app/api/communications/**'
       - 'src/app/api/internal/communications/**'
@@ -92,6 +93,9 @@ jobs:
       - name: Run communications PostgreSQL contract
         run: psql "postgresql://postgres:postgres@localhost:5432/wewed" -f scripts/communications-postgres-integration.sql
 
+      - name: Run communications rate-limit PostgreSQL contract
+        run: psql "postgresql://postgres:postgres@localhost:5432/wewed" -f scripts/communications-rate-limit-postgres-integration.sql
+
       - name: Run communications policy tests
         run: bun test src/lib/communications-policy.test.ts
 
@@ -101,6 +105,9 @@ jobs:
           mkdir -p node_modules/server-only
           printf '%s\n' '{"name":"server-only","version":"0.0.0-test","type":"module","exports":"./index.js"}' > node_modules/server-only/package.json
           printf '%s\n' 'export {};' > node_modules/server-only/index.js
+
+      - name: Run communications rate-limit contracts
+        run: bun test src/lib/communications-rate-limit.test.ts
 
       - name: Run communications channel contracts
         run: bun test src/lib/communication-channels.test.ts
@@ -122,11 +129,11 @@ jobs:
             exit 1
           fi
 
-      - name: Confirm channel code does not log message bodies or provider tokens
+      - name: Confirm channel and rate-limit code do not log sensitive data
         shell: bash
         run: |
-          if grep -nE "console\.(log|info|debug|warn|error)" src/lib/communication-channels.ts; then
-            echo "::error::Communication channel transport must not log message bodies/endpoints/tokens"
+          if grep -nE "console\.(log|info|debug|warn|error)" src/lib/communication-channels.ts src/lib/communications-rate-limit.ts; then
+            echo "::error::Communication transport/rate-limit code must not log message bodies, endpoints, actor keys or provider tokens"
             exit 1
           fi
 

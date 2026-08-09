@@ -2,6 +2,10 @@ import 'server-only'
 
 import { NextResponse } from 'next/server'
 import { CommunicationError } from '@/lib/communications'
+import {
+  CommunicationRateLimitBackendError,
+  CommunicationRateLimitError,
+} from '@/lib/communications-rate-limit'
 
 export function communicationJson(
   body: unknown,
@@ -14,6 +18,23 @@ export function communicationJson(
 }
 
 export function communicationErrorResponse(error: unknown): NextResponse {
+  if (error instanceof CommunicationRateLimitError) {
+    return communicationJson(
+      { success: false, error: error.message },
+      {
+        status: error.status,
+        headers: { 'Retry-After': String(error.retryAfterSeconds) },
+      },
+    )
+  }
+
+  if (error instanceof CommunicationRateLimitBackendError) {
+    return communicationJson(
+      { success: false, error: error.message },
+      { status: error.status, headers: { 'Retry-After': '5' } },
+    )
+  }
+
   if (error instanceof CommunicationError) {
     return communicationJson(
       { success: false, error: error.message },
