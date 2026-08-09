@@ -6,6 +6,7 @@ import {
   setCommunicationPreference,
 } from '@/lib/communication-channels'
 import { requireCommunicationActor } from '@/lib/communications'
+import { enforceCommunicationRateLimit } from '@/lib/communications-rate-limit'
 import {
   communicationErrorResponse,
   communicationJson,
@@ -24,6 +25,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const actor = await requireCommunicationActor(request)
+    await enforceCommunicationRateLimit({ userId: actor.userId, scope: 'channel_mutation' })
     const body = await request.json().catch(() => ({}))
     const result = await registerCommunicationEndpoint(actor, body)
     return communicationJson({ success: true, data: result }, { status: 201 })
@@ -35,6 +37,7 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const actor = await requireCommunicationActor(request)
+    await enforceCommunicationRateLimit({ userId: actor.userId, scope: 'channel_mutation' })
     const body = await request.json().catch(() => ({})) as Record<string, unknown>
     if (body.action === 'preference') {
       const result = await setCommunicationPreference(actor, {
