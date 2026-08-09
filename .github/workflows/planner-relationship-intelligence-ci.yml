@@ -5,13 +5,24 @@ on:
     branches:
       - main
     paths:
+      - 'prisma/schema.prisma'
+      - 'prisma/migrations/**'
       - 'src/app/api/admin/planner-profiles/**'
+      - 'src/app/api/marketplace/enquiries/**'
+      - 'src/app/api/planner/budget/**'
       - 'src/app/api/planner/portfolio/**'
+      - 'src/app/api/planner/vendors/**'
       - 'src/app/planner/**'
       - 'src/components/marketplace/admin-planner-profiles.tsx'
+      - 'src/components/marketplace/marketplace-frame.tsx'
+      - 'src/components/wedding/planner/**'
+      - 'src/components/wedding/planner-portal.tsx'
       - 'src/components/wedding/planner-portfolio-command-centre.tsx'
+      - 'src/components/wedding/planner-workspace.tsx'
       - 'src/lib/planner-relationship-intelligence*'
+      - 'src/lib/planner-uat-remediation.test.ts'
       - 'docs/PLANNER_RELATIONSHIP_PORTFOLIO_INTELLIGENCE_PLAN.md'
+      - 'docs/PLANNER_UAT_REMEDIATION_2026-08-09.md'
       - '.github/workflows/planner-relationship-intelligence-ci.yml'
   workflow_dispatch:
 
@@ -53,3 +64,6 @@ jobs:
 
       - name: Run relationship intelligence contracts
         run: bun test src/lib/planner-relationship-intelligence.test.ts
+
+      - name: Run planner UAT remediation contracts
+        run: bun test src/lib/planner-uat-remediation.test.ts
