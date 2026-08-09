@@ -138,11 +138,18 @@ export async function enforceCommunicationConversationFanoutLimit(
 ): Promise<number> {
   try {
     const rows = await db.$queryRaw<RecipientCountRow[]>(Prisma.sql`
-      SELECT COUNT(*)::int AS "recipientCount"
-      FROM wewed_communications."CommunicationParticipant"
-      WHERE "conversationId" = ${conversationId}
-        AND "userId" <> ${userId}
-        AND "leftAt" IS NULL
+      SELECT COUNT(recipient."userId")::int AS "recipientCount"
+      FROM wewed_communications."CommunicationParticipant" actor_membership
+      JOIN wewed_communications."CommunicationConversation" conversation
+        ON conversation."id" = actor_membership."conversationId"
+       AND conversation."status" = 'OPEN'
+      LEFT JOIN wewed_communications."CommunicationParticipant" recipient
+        ON recipient."conversationId" = actor_membership."conversationId"
+       AND recipient."userId" <> ${userId}
+       AND recipient."leftAt" IS NULL
+      WHERE actor_membership."conversationId" = ${conversationId}
+        AND actor_membership."userId" = ${userId}
+        AND actor_membership."leftAt" IS NULL
     `)
     const recipientCount = Number(rows[0]?.recipientCount ?? 0)
     if (recipientCount > 0) {
