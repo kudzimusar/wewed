@@ -3,29 +3,27 @@
 **Date:** 2026-08-09  
 **Authoritative plan:** `docs/product/session-closeout-admin-productivity-plan-2026-08-09.md`  
 **Pull request:** #98  
-**Status:** Implementation complete; final cross-product, live-migration, merge and production gates remain authoritative until recorded as complete.
+**Status:** Implementation, production database rollout, review remediation, and code-head qualification are complete. Exact report-inclusive CI/Vercel status, merge, production application deployment, and live production smoke remain mandatory before session closure.
 
 ## 1. Purpose
 
-This report maps the delivered closeout implementation back to the documented three-stage plan. It does not weaken any release requirement from the plan.
+This report maps the delivered closeout implementation back to the documented session-closeout plan and records the release evidence recovered after the interrupted agent run.
 
-The closeout intentionally remains inside the Admin/database workstream and preserves the prior Admin Command Centre and vendor/Admin database-hardening invariants.
+The closeout remains inside the Admin/database workstream. It preserves the prior Admin Command Centre, provider/vendor integrity, planner, Guest, billing, authorization, and database-hardening invariants.
+
+No release state is inferred from agent intent. A gate is marked complete only where GitHub, Vercel, or the live Supabase project supplied direct evidence.
 
 ## 2. Stage 1 — production completion
 
 ### Starting state
 
-At closeout start, `main` already contained:
+At closeout start, `main` already contained the Admin Command Centre, vendor/Admin database integrity hardening, and later planner/database work. Vercel production was still serving an older application SHA while newer hardened trees had READY previews.
 
-- PR #84 Admin Command Centre;
-- PR #94 vendor/Admin database integrity hardening;
-- the production database migrations from PR #94.
+The closeout therefore keeps **production application alignment** as the final post-merge gate. Production database rollout may safely precede the application merge only where the migration is additive/backward-compatible and post-migration integrity is proven.
 
-Vercel production was still serving the older application SHA `2a232e81ef1b4d333202d74025949687d5ead97e`, while the hardened application tree had already produced a READY preview. The closeout therefore keeps production application/database alignment as a final mandatory post-merge gate rather than pretending the stale runtime is complete.
+### Remaining Stage 1 application requirement
 
-### Release requirement
-
-Stage 1 is complete only after the final closeout merge is deployed as a READY production build and the Admin/provider/planner/Guest/runtime/database smoke suite is clean.
+Stage 1 is complete only after the final PR #98 merge is deployed as a READY production build and the Admin/provider/planner/Guest/runtime/database smoke suite is clean on the production domain.
 
 ## 3. Stage 2A — durable Admin work items: delivered
 
@@ -57,30 +55,21 @@ The implementation:
 - automatically resolves generated open/in-progress/blocked work when the canonical source condition disappears;
 - never auto-closes manual items;
 - preserves human-dismissed items;
-- does not manufacture thousands of onboarding tasks for intentionally unclaimed marketplace providers.
+- does not manufacture onboarding tasks for intentionally unclaimed marketplace providers.
 
-The last rule is enforced with `BusinessAccount.ownerUserId IS NOT NULL` for durable onboarding work.
+Durable onboarding requires `BusinessAccount.ownerUserId IS NOT NULL`.
 
 ### Command Centre integration
 
-The existing Command Centre historically displayed source-table projections and persisted work together. Once durable synchronization existed, this could have displayed the same issue twice.
-
-The governed route implementation was therefore extracted unchanged to:
+The governed route implementation remains in:
 
 - `src/lib/admin-command-center-route-core.ts`
 
-The public route remains:
+The route wrapper remains:
 
 - `src/app/api/admin/command-center/route.ts`
 
-The route wrapper:
-
-- preserves the original core GET/POST authorization/mutation logic;
-- suppresses a projected work row whenever an active persisted row has the same `(resourceType, resourceId, category)` identity;
-- removes unowned marketplace accounts from projected onboarding work;
-- recalculates onboarding-attention metrics using the same owned-account boundary.
-
-This keeps durable work and temporary projections coherent during the transition.
+The wrapper preserves existing authorization and mutation logic while suppressing duplicate projected work when a matching persisted work item exists. Unowned marketplace accounts are also excluded from projected onboarding attention.
 
 ## 4. Stage 2B — governed pricing offer management: delivered
 
@@ -89,7 +78,7 @@ Reused canonical structures:
 - `BillingOffer`;
 - `BusinessAccountBillingProfile`.
 
-Additive migration:
+Primary additive migration:
 
 - `prisma/migrations/20260809143000_session_closeout_admin_productivity/migration.sql`
 
@@ -103,26 +92,22 @@ Added commercial-history guard:
 
 - `wewed_admin.protect_billing_offer_commercial_history()`.
 
-### Commercial invariants
+Commercial invariants:
 
-- Published commercial terms cannot be edited in place.
-- Active offers may transition to `retired`.
-- Retired offers cannot be reactivated in place.
-- New terms create a new BillingOffer row/version.
-- Existing `BusinessAccountBillingProfile.offerCode` assignments are never automatically rewritten by the migration or versioning action.
-- A new version may supersede the previous offer while the previous row remains historical commercial evidence.
+- published commercial terms cannot be edited in place;
+- active offers may transition to `retired`;
+- retired offers cannot be reactivated in place;
+- changed terms create a new BillingOffer row/version;
+- existing `BusinessAccountBillingProfile.offerCode` assignments are never automatically rewritten;
+- historical offer rows remain commercial evidence.
 
-### Governed API/UI
+### Concurrent offer creation hardening
 
-`src/app/api/admin/productivity/route.ts` provides audited actions:
+PR review identified a race where two same-code creates could both pass the existence check and the losing insert could surface a 500.
 
-- `create_offer`;
-- `version_offer`;
-- `retire_offer`.
+The final API wrapper serializes same-code creation with a PostgreSQL transaction advisory lock using `hashtextextended(offerCode, 0)`. The Prisma adapter path hides PostgreSQL's `void` lock result behind a CTE returning `1::int`, preserving the lock while remaining deserializable.
 
-Mutation requires billing-management permission and an audit reason.
-
-`src/components/admin/admin-productivity-console.tsx` adds a versioned pricing-governance drawer for authorized Billing/Super Admin users. Read-only billing roles retain catalog access without pricing mutation controls.
+The browser regression `Concurrent pricing creates return one success and one controlled conflict` now proves the expected `[200, 409]` outcome.
 
 ## 5. Stage 2C — global Admin command palette: delivered
 
@@ -138,7 +123,11 @@ Search is server-authorized through `/api/admin/productivity?mode=search` and in
 
 The implementation does not download a global client-side account/user index and filter it locally.
 
-Account/provider commands reuse the existing Accounts panel/search; saved views reuse the existing saved-view controls; navigation commands reuse existing Admin destinations.
+### Provider result exact-account remediation
+
+PR review identified that `ProviderProfile.displayName` may not match searchable BusinessAccount identity.
+
+The final route wrapper keeps the returned `businessAccountId` as the authoritative key, resolves it against `wewed_admin."BusinessAccount"`, drops unresolved targets, and rewrites the UI command to the canonical unique BusinessAccount slug rather than the provider display name. The executable source contract requires the ID retention and canonical resolution path.
 
 ## 6. Stage 2D — scoped exports: delivered
 
@@ -151,13 +140,13 @@ Server-generated CSV exports are available for:
 
 Authorization rules:
 
-- account export reapplies BusinessAccount server scope and current registry filters;
+- account export reapplies BusinessAccount server scope and registry filters;
 - queue export reapplies account scope and category authorization;
 - workforce export is Super Admin only;
 - commercial export requires billing-read permission;
 - billing data remains redacted/restricted where billing permission is absent.
 
-Every successful export writes `admin.export.generated` through the existing business-audit mechanism with screen, filters and row count.
+Every successful export writes `admin.export.generated` through the existing business-audit mechanism with screen, filters, and row count.
 
 No raw database dump endpoint was introduced.
 
@@ -172,7 +161,7 @@ Initial shortcuts:
 - `/`: focus account search;
 - `Esc`: close command palette.
 
-Shortcuts are progressive enhancement. The visible buttons/navigation remain available to pointer/touch users, and shortcuts are ignored while focus is inside editable form controls.
+Shortcuts remain progressive enhancement and are ignored while focus is inside editable form controls.
 
 ## 8. Authorization posture
 
@@ -186,7 +175,16 @@ Dedicated permission regression proves:
 - Support Admin cannot inherit billing-management authority;
 - Analyst/viewer remains read-only even if database permission rows request management permissions.
 
-Pricing management requires existing `admin.billing.manage` authority. Queue exports and durable-work visibility remain category-authorized.
+### Global work synchronization remediation
+
+PR review correctly identified that the durable synchronizer operates globally and therefore must not be callable by a category- or account-scoped administrator.
+
+The final wrapper now allows `sync_work_items` only when both are true:
+
+- role is `wewed_super_admin`;
+- account scope is global.
+
+The overview reports `canSyncWorkItems=false` to all other roles/scopes, preventing the client from invoking the global mutation outside that boundary.
 
 ## 9. Database security posture
 
@@ -195,16 +193,51 @@ The new helper functions:
 - use explicit fixed `search_path`;
 - are not public application RPCs;
 - have PUBLIC EXECUTE revoked;
-- revoke `anon`/`authenticated` execute when those roles exist.
+- revoke `anon`/`authenticated` execute where those roles exist.
 
-The migration is additive and does not:
+Live production privilege proof confirmed:
+
+- PUBLIC cannot execute `sync_admin_operational_work_items()`;
+- `anon` cannot execute it;
+- `authenticated` cannot execute it;
+- PUBLIC cannot execute `protect_billing_offer_commercial_history()`.
+
+The closeout migrations do not:
 
 - rewrite canonical BusinessAccount rows;
-- update BusinessAccountBillingProfile assignments;
+- rewrite BusinessAccountBillingProfile assignments;
 - delete BillingOffer rows;
-- weaken PR #94 provider/discovery/claim integrity guards.
+- weaken the existing provider/discovery/claim integrity guards.
 
-## 10. Executable qualification delivered
+Supabase security advisors still report pre-existing informational RLS-without-policy items and unrelated existing function/auth warnings. No new closeout helper-function exposure was reported.
+
+## 10. Nullable public-onboarding source guard repair
+
+During regression qualification, a synthetic non-public client account with `BusinessAccount.sourceType = NULL` exposed a real pre-existing trigger edge case.
+
+The prior public-onboarding guard used:
+
+```sql
+NEW."sourceType" <> 'public_registration'
+```
+
+In PostgreSQL, `NULL <> 'public_registration'` evaluates to NULL rather than TRUE, so a non-public account with a nullable source could incorrectly fall through into public-registration completion validation.
+
+A new additive migration was created instead of editing an already-applied migration:
+
+- `prisma/migrations/20260809144500_fix_public_onboarding_null_source_guard/migration.sql`
+
+The guard now uses:
+
+```sql
+NEW."sourceType" IS DISTINCT FROM 'public_registration'
+```
+
+This preserves all public-registration validation while safely excluding NULL/non-public sources.
+
+Live production function proof confirms the deployed guard uses `IS DISTINCT FROM 'public_registration'`.
+
+## 11. Executable qualification delivered
 
 Dedicated workflow:
 
@@ -235,30 +268,6 @@ The dedicated workflow re-runs:
 - production build;
 - Chromium closeout + existing Admin responsive browser gates with flaky tests treated as failures.
 
-## 11. Dedicated pre-PR qualification
-
-Exact head before opening PR #98:
-
-`ceef24f2c4b515bd318e35b0fdce82a6c625a1af`
-
-Dedicated workflow run:
-
-`31297306591`
-
-Result: **PASS**.
-
-That exact head passed:
-
-- plan/source contracts;
-- permission matrix;
-- complete clean migration chain;
-- clean migration status;
-- zero Prisma drift;
-- all new and inherited PostgreSQL regressions;
-- lint;
-- production build;
-- Chromium browser release gate.
-
 Browser coverage includes:
 
 - 360x800;
@@ -269,31 +278,126 @@ Browser coverage includes:
 - 1366x768;
 - 1440x1000.
 
-## 12. Remaining mandatory release gates
+## 12. Qualification evidence before this final report-only commit
 
-This report does not declare the session closed until all of the following are recorded as complete:
+The last code-changing release candidate was:
 
-1. report-inclusive final PR head remains zero behind current `main`;
-2. dedicated and full cross-product PR workflow matrix is green on that exact head;
-3. exact-head Vercel Preview is READY;
-4. all P1/P2 review findings are remediated and review threads resolved;
-5. fresh production pre-migration fingerprint confirms the expected change set;
-6. the qualified migration is applied unchanged;
-7. post-migration database proof is clean;
-8. PR #98 merges with an exact-head SHA guard;
-9. final production deployment becomes READY;
-10. `wewed.pro` Admin/provider/planner/Guest smoke tests, runtime errors and database integrity remain clean.
+`f8ccea2a7ec4f7cdfaaf1cb805202923030a29a3`
 
-## 13. Final release evidence
+Dedicated closeout workflow run:
 
-To be finalized at release closure:
+`31299227707`
 
-- **Final qualified PR head:** pending
-- **Migration production proof:** pending
+Result: **PASS**.
+
+A later duplicate closeout run on the same tree also passed completely.
+
+The same exact code SHA also has successful cross-product evidence for:
+
+- general CI/planner release gate;
+- Admin Command Centre;
+- Admin Console;
+- Admin/Couple consistency;
+- AI Wedding Architect;
+- Database Integrity;
+- Production Integration Hardening;
+- Preview Data Safety;
+- Provider Security;
+- Provider Forms;
+- Planner Marketplace;
+- Budget Data Integrity.
+
+A later duplicate general-CI run was cancelled by workflow concurrency after the preview-only ref activity; all preceding steps in that cancelled duplicate had passed, and the same exact SHA already retained a completed successful general-CI/planner-browser run.
+
+All three Codex P1/P2 review threads have been replied to with remediation evidence and resolved.
+
+## 13. Vercel preview evidence
+
+The original `f8ccea2a…` GitHub Vercel status remained red because the earlier deployment request hit the free-tier build-rate limit.
+
+A preview-only draft PR was therefore used to obtain runtime build proof without altering the release-candidate tree. Preview PR #100 uses one empty trigger commit on top of `f8ccea2a…`; GitHub compare reports **zero changed files** between the release candidate and the trigger commit.
+
+Vercel deployment:
+
+- ID: `dpl_6WUWoCzS7nhDdt8SCyYM9tq393Dm`;
+- state: **READY**;
+- deployment tree: byte-identical to `f8ccea2a…`.
+
+Preview application smoke is blocked by Vercel deployment protection/SAML redirect, so it is not represented as an application-level pass. The local executable browser gates remain the UI/runtime qualification for the byte-identical tree; production smoke remains mandatory after merge.
+
+## 14. Production database rollout evidence
+
+Correct live project:
+
+- Supabase project ref: `kjigkhjdeymukwradoqu`;
+- region: `eu-central-1`.
+
+Supabase's production migration history records both closeout migrations as applied:
+
+- `session_closeout_admin_productivity` — production migration version `20260809064420`;
+- `fix_public_onboarding_null_source_guard` — production migration version `20260809064432`.
+
+No migration was re-applied after this was recovered from the interrupted agent state, and `_prisma_migrations` was not manually mutated.
+
+### Pre/post production snapshot
+
+The production snapshot before/after closeout migration verification remained:
+
+- BusinessAccounts: **4,059**;
+- BusinessAccountBillingProfiles: **4,058**;
+- BillingOffers: **9**;
+- AdminWorkItems: **0**;
+- open AdminWorkItems: **0**;
+- owned incomplete onboarding accounts: **0**;
+- unowned marketplace accounts in progress: **139**.
+
+Post-migration structural proof confirmed:
+
+- both BillingOffer lineage columns exist;
+- all 9 historical offers have an `offerFamilyCode`;
+- `sync_admin_operational_work_items()` exists;
+- `protect_billing_offer_commercial_history()` exists;
+- corrected `validate_public_onboarding_completion()` exists;
+- existing billing assignment count remains **4,058**;
+- the 139 unowned marketplace accounts did **not** generate false work items.
+
+## 15. Final report-inclusive release gate
+
+This report update is intentionally documentation-only. It creates the final pre-merge release SHA so GitHub/Vercel can attach a fresh status to the actual merge head after the earlier Vercel rate-limit failure.
+
+Before merge, the report-inclusive head must again prove:
+
+1. zero behind current `main`;
+2. required GitHub workflows are green on that head/tree;
+3. Vercel status/preview for that head/tree is READY;
+4. PR #98 remains mergeable with all review threads resolved.
+
+## 16. Remaining mandatory post-merge gates
+
+The session is **not closed** until all of the following are complete:
+
+1. PR #98 merges with an exact-head SHA guard;
+2. merged `main` SHA is confirmed from GitHub;
+3. Vercel production deployment becomes READY for the merged tree;
+4. production `/admin` smoke succeeds;
+5. provider API/page smoke succeeds;
+6. planner core-path smoke succeeds;
+7. Guest/public wedding path smoke succeeds;
+8. production runtime error logs remain clean;
+9. final live database integrity snapshot remains clean;
+10. preview-only PRs are closed without merge.
+
+## 17. Final release evidence
+
+- **Last code-changing qualified head:** `f8ccea2a7ec4f7cdfaaf1cb805202923030a29a3` — PASS
+- **Report-inclusive final PR head:** pending qualification after this documentation-only commit
+- **Production database migration proof:** PASS
+- **P1/P2 review remediation:** PASS / all threads resolved
+- **Byte-identical Vercel preview:** READY (`dpl_6WUWoCzS7nhDdt8SCyYM9tq393Dm`)
 - **PR #98 merge SHA:** pending
 - **Production deployment ID/SHA:** pending
-- **Production smoke:** pending
+- **Production application smoke:** pending
 - **Production runtime error check:** pending
-- **Final live database integrity snapshot:** pending
+- **Final live database integrity snapshot:** pending post-deployment
 
 No pending field above may be treated as complete until confirmed by the live release systems.
