@@ -59,7 +59,9 @@ This is a deliberate security boundary.
 
 The repository does not currently expose a reusable, verified application-level Resend/Brevo sender abstraction in the inspected source tree. Phase A therefore does not add a second email stack, duplicate secrets or invent provider configuration.
 
-The email bridge remains an adapter gate. When the existing production sender/webhook path is represented in the repository (or a single approved abstraction is added), it can consume `CommunicationDelivery` without changing the conversation schema.
+The connected Resend account does have the verified sending domain `updates.wewed.pro`, so the transport side is ready for a later adapter. The deployed application still needs one approved reusable sender abstraction and a verified runtime credential before Wewed communication fan-out is enabled.
+
+The email bridge remains an adapter gate. When that sender path is represented in the repository, it can consume `CommunicationDelivery` without changing the conversation schema.
 
 ## Decision 6 — Release qualification
 
@@ -68,8 +70,28 @@ The communications branch is not mergeable merely because the UI compiles. The e
 - clean PostgreSQL migration deployment
 - migration status/diff checks used by Wewed CI
 - communications policy and schema contracts
+- signed-session, cross-user authorization integration tests
 - application production build
 - existing main release/regression workflows
 - changed-file review confirming the public wedding `Message` system was not modified
 
-Production database migration is performed only after merge through Wewed's existing protected production migration path.
+## Decision 7 — Production migration remains Prisma-led and is automated only for this migration
+
+The existing `Deploy database migrations` workflow remains the production authority because it runs `prisma migrate deploy`, validates the target project, and preserves Prisma's migration ledger.
+
+For this release, that workflow also listens for a push to `main` that contains the exact file:
+
+`prisma/migrations/20260809090000_wewed_communications_foundation/migration.sql`
+
+This is intentionally narrow:
+
+- the normal manual `workflow_dispatch` path remains available for other migrations
+- only this exact communications migration path enables the merge-time automatic run
+- the workflow still targets the protected `production` environment
+- it still rejects any database URL that does not contain the Wewed Supabase project ID `kjigkhjdeymukwradoqu`
+- it still requires the approved Supabase pooler port
+- it still runs Prisma validate, generate, deploy, status and schema diff verification
+
+Direct Supabase DDL execution is deliberately not used for this release because it would bypass or complicate Prisma's migration ledger.
+
+If the GitHub `production` environment itself requires a human approval gate, that approval is the only acceptable manual release boundary; the application implementation does not require user configuration work.
