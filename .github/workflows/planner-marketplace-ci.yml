@@ -55,6 +55,7 @@ jobs:
       - run: >-
           bun test
           src/lib/planner-marketplace-contract.test.ts
+          src/lib/planner-marketplace-onboarding-integrity.test.ts
           src/lib/planner-marketplace-metadata.test.ts
           src/lib/unified-navigation-privacy.test.ts
           src/lib/wedding-guest-proxy.test.ts

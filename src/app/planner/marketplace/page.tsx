@@ -14,5 +14,10 @@ export const metadata: Metadata = {
 }
 
 export default function PlannerMarketplacePage() {
-  return <PlannerMarketplaceCentre />
+  return <>
+    <div className="border-b border-gold/15 bg-champagne px-4 py-3 text-center text-sm text-espresso">
+      New to the marketplace? <a href="/planner/get-listed" className="font-semibold underline decoration-gold underline-offset-4">Start with the four essentials</a>. You can add packages, policies and portfolio depth later.
+    </div>
+    <PlannerMarketplaceCentre />
+  </>
 }

@@ -110,9 +110,11 @@ export function AdminOnboardingManagement() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      const payload = (await response.json()) as { success?: boolean; error?: string }
+      const payload = (await response.json()) as { success?: boolean; error?: string; marketplaceReady?: boolean }
       if (!response.ok || !payload.success) throw new Error(payload.error || 'Onboarding failed.')
-      setNotice(`${account.name} now has a complete, linked workspace identity.`)
+      setNotice(account.type === 'planning_company'
+        ? `${account.name} is active. A private planner profile is ready for the planner to complete and submit.`
+        : `${account.name} now has a complete, linked workspace identity.`)
       await load()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Onboarding failed.')
@@ -136,7 +138,7 @@ export function AdminOnboardingManagement() {
           <div>
             <p className="text-xs uppercase tracking-[0.22em] text-gold">Controlled activation</p>
             <h1 className="mt-2 text-4xl font-semibold">Internal onboarding</h1>
-            <p className="mt-2 max-w-3xl text-sm text-champagne/55">Complete the database links that turn an approved application into a usable couple or planner workspace. No access is granted before this transaction succeeds.</p>
+            <p className="mt-2 max-w-3xl text-sm text-champagne/55">Turn an approved application into the minimum usable account. Planner marketplace activation no longer depends on already having a client wedding.</p>
           </div>
           <Button variant="outline" onClick={() => void load()} disabled={loading || working} className="border-gold/25 text-gold hover:bg-gold/10"><RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} />Refresh</Button>
         </div>
@@ -182,10 +184,13 @@ export function AdminOnboardingManagement() {
                           <Input name="venueCountry" placeholder="Country" required className="border-gold/20 bg-black/15" />
                         </>
                       ) : (
-                        <label className="text-xs text-champagne/50 md:col-span-2">Assigned wedding<select name="weddingId" required className="mt-1 h-10 w-full rounded-md border border-gold/20 bg-espresso px-3 text-sm text-champagne"><option value="">Select an existing wedding</option>{data.weddings.map((wedding) => <option key={wedding.id} value={wedding.id}>{wedding.title} · {new Date(wedding.date).toLocaleDateString()} · {wedding.venue}</option>)}</select></label>
+                        <div className="md:col-span-2">
+                          <label className="text-xs text-champagne/50">Existing client wedding <span className="text-champagne/35">optional</span><select name="weddingId" className="mt-1 h-10 w-full rounded-md border border-gold/20 bg-espresso px-3 text-sm text-champagne"><option value="">No wedding yet — activate planner marketplace only</option>{data.weddings.map((wedding) => <option key={wedding.id} value={wedding.id}>{wedding.title} · {new Date(wedding.date).toLocaleDateString()} · {wedding.venue}</option>)}</select></label>
+                          <div className="mt-3 rounded-xl border border-gold/15 bg-black/10 p-4 text-xs leading-5 text-champagne/55">Choose a wedding only when there is already an approved client relationship to attach. Otherwise leave this blank. The planner can complete onboarding, build the professional profile and receive marketplace enquiries without wedding access. Normal appointment authorization can grant wedding access later.</div>
+                        </div>
                       )}
 
-                      <div className="rounded-xl border border-gold/15 bg-black/10 p-4 text-xs leading-5 text-champagne/50 md:col-span-2">This single transaction creates or assigns the wedding, activates the application user and business membership, creates the wedding membership and business links, synchronizes the user profile, and records an audit event. A partial result is rolled back.</div>
+                      <div className="rounded-xl border border-gold/15 bg-black/10 p-4 text-xs leading-5 text-champagne/50 md:col-span-2">{account.type === 'planning_company' ? 'This transaction activates the planner identity and business membership, marks onboarding complete, provisions a private draft PlannerProfile, and records an audit event. Wedding membership and business links are created only when an existing client wedding is explicitly selected.' : 'This single transaction creates the wedding, activates the application user and business membership, creates the wedding membership and business links, synchronizes the user profile, and records an audit event. A partial result is rolled back.'}</div>
                       <div className="flex justify-end md:col-span-2"><Button type="submit" disabled={working} className="bg-gold text-espresso hover:bg-gold-light">{working ? <Loader2 className="size-4 animate-spin" /> : <UserRoundCheck className="size-4" />}Complete onboarding</Button></div>
                     </form>
                   )}

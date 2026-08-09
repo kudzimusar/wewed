@@ -124,8 +124,8 @@ export async function PUT(request: NextRequest) {
     const packageRows = packages(body.packages)
     const faqRows = faq(body.faq)
 
-    const existing = await db.$queryRawUnsafe<Array<{ id: string; status: string; slug: string }>>(
-      `SELECT id, status, slug FROM public."PlannerProfile" WHERE "businessAccountId" = $1 LIMIT 1`,
+    const existing = await db.$queryRawUnsafe<Array<{ id: string; status: string; slug: string; publishedAt: Date | null }>>(
+      `SELECT id, status, slug, "publishedAt" FROM public."PlannerProfile" WHERE "businessAccountId" = $1 LIMIT 1`,
       context.business.businessAccountId,
     )
     const slugOwner = await db.$queryRawUnsafe<Array<{ businessAccountId: string }>>(
@@ -135,9 +135,16 @@ export async function PUT(request: NextRequest) {
       throw new MarketplaceAccessError('That public planner URL is already in use.', 409)
     }
 
+    if (existing[0]?.status === 'suspended') {
+      throw new MarketplaceAccessError('This planner profile is suspended and cannot be edited.', 403)
+    }
+    if (existing[0]?.status === 'submitted') {
+      throw new MarketplaceAccessError('This planner profile is currently under review. Wait for the review outcome before editing it.', 409)
+    }
+
     const profileId = existing[0]?.id ?? marketplaceId('planner-profile')
-    const status = existing[0]?.status === 'suspended' ? 'suspended' : 'draft'
-    if (status === 'suspended') throw new MarketplaceAccessError('This planner profile is suspended and cannot be edited.', 403)
+    const status = existing[0]?.status === 'published' ? 'published' : 'draft'
+    const publishedAt = status === 'published' ? existing[0]?.publishedAt ?? new Date() : null
 
     await db.$executeRawUnsafe(
       `INSERT INTO wewed_admin."PlannerProfile" (
@@ -147,7 +154,7 @@ export async function PUT(request: NextRequest) {
          "profileDetails", packages, faq, status, "reviewNotes", "publishedAt", "lastProfileUpdate", "updatedAt"
        ) VALUES (
          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11::jsonb,$12::jsonb,$13::jsonb,
-         $14,$15,$16,$17,$18::jsonb,$19::jsonb,$20::jsonb,$21::jsonb,$22,NULL,NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+         $14,$15,$16,$17,$18::jsonb,$19::jsonb,$20::jsonb,$21::jsonb,$22,NULL,$23,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
        )
        ON CONFLICT ("businessAccountId") DO UPDATE SET
          slug=EXCLUDED.slug,"displayName"=EXCLUDED."displayName",headline=EXCLUDED.headline,bio=EXCLUDED.bio,
@@ -155,7 +162,7 @@ export async function PUT(request: NextRequest) {
          "serviceAreas"=EXCLUDED."serviceAreas",services=EXCLUDED.services,"weddingStyles"=EXCLUDED."weddingStyles",languages=EXCLUDED.languages,
          "priceBand"=EXCLUDED."priceBand","minimumGuestCount"=EXCLUDED."minimumGuestCount","maximumGuestCount"=EXCLUDED."maximumGuestCount",
          "availabilityStatus"=EXCLUDED."availabilityStatus",portfolio=EXCLUDED.portfolio,"profileDetails"=EXCLUDED."profileDetails",
-         packages=EXCLUDED.packages,faq=EXCLUDED.faq,status=EXCLUDED.status,"reviewNotes"=NULL,"publishedAt"=NULL,
+         packages=EXCLUDED.packages,faq=EXCLUDED.faq,status=EXCLUDED.status,"reviewNotes"=NULL,"publishedAt"=EXCLUDED."publishedAt",
          "lastProfileUpdate"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP`,
       profileId,
       context.business.businessAccountId,
@@ -179,6 +186,7 @@ export async function PUT(request: NextRequest) {
       JSON.stringify(packageRows),
       JSON.stringify(faqRows),
       status,
+      publishedAt,
     )
 
     await marketplaceAudit({
