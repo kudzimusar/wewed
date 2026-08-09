@@ -71,6 +71,11 @@ function roleLabel(value?: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
+function isRequestCancellation(error: unknown, signal: AbortSignal): boolean {
+  if (signal.aborted) return true
+  return error instanceof DOMException && error.name === 'AbortError'
+}
+
 function PlannerToolTriggers() {
   return (
     <div
@@ -261,27 +266,33 @@ export function PlannerPortal({ onExit }: PlannerPortalProps) {
 
   useEffect(() => {
     let cancelled = false
+    let activeController: AbortController | null = null
 
     const loadSession = () => {
+      activeController?.abort()
+      const controller = new AbortController()
+      activeController = controller
       setSessionError(null)
-      void fetch('/api/auth/me', { cache: 'no-store' })
+
+      void fetch('/api/auth/me', { cache: 'no-store', signal: controller.signal })
         .then(async (response) => {
           const payload = (await response.json().catch(() => null)) as PlannerSession | null
           if (!response.ok || !payload?.authorized) {
             throw new Error(payload?.error || 'Unable to refresh the planner session.')
           }
-          if (!cancelled) setSession(payload)
+          if (!cancelled && !controller.signal.aborted) setSession(payload)
         })
         .catch((caught) => {
-          console.error('[PLANNER PORTAL CLIENT] session refresh failed', caught)
-          if (!cancelled) {
-            setSessionError(
-              caught instanceof Error ? caught.message : 'Unable to refresh the planner session.',
-            )
-          }
+          if (cancelled || isRequestCancellation(caught, controller.signal)) return
+          console.warn('[PLANNER PORTAL CLIENT] session refresh failed', caught)
+          setSessionError(
+            caught instanceof Error ? caught.message : 'Unable to refresh the planner session.',
+          )
         })
         .finally(() => {
-          if (!cancelled) setLoading(false)
+          if (!cancelled && !controller.signal.aborted && activeController === controller) {
+            setLoading(false)
+          }
         })
     }
 
@@ -290,6 +301,7 @@ export function PlannerPortal({ onExit }: PlannerPortalProps) {
     window.addEventListener('wewed:wedding-switched', loadSession)
     return () => {
       cancelled = true
+      activeController?.abort()
       window.removeEventListener('wewed:client-profile-updated', loadSession)
       window.removeEventListener('wewed:wedding-switched', loadSession)
     }
