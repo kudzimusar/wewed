@@ -160,11 +160,16 @@ export async function POST(request: NextRequest) {
 
       // Serialize competing creates for the same commercial key in PostgreSQL. The
       // existing core existence check then deterministically returns 409 to the loser
-      // instead of allowing a primary-key race to surface as a generic 500.
+      // instead of allowing a primary-key race to surface as a generic 500. The lock
+      // function itself returns PostgreSQL void, so expose only a normal integer column
+      // to Prisma while preserving execution of the volatile advisory-lock function.
       return db.$transaction(
         async (tx) => {
-          await tx.$queryRawUnsafe(
-            `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
+          await tx.$queryRawUnsafe<Array<{ locked: number }>>(
+            `WITH lock_state AS (
+               SELECT pg_advisory_xact_lock(hashtextextended($1, 0))
+             )
+             SELECT 1::int AS locked FROM lock_state`,
             offerCode,
           )
           return mutateProductivityCore(request)
