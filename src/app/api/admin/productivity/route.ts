@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import {
   buildBusinessAccountScopeSql,
-  createBusinessId,
   requireWewedAdmin,
   WewedAdminAccessError,
   writeBusinessAudit,
@@ -281,7 +280,11 @@ async function handleSearch(request: NextRequest, context: WewedAdminContext) {
     ),
   )
 
-  const scope = buildBusinessAccountScopeSql(context, 'ba', 2)
+  const accountScope = buildBusinessAccountScopeSql(context, 'ba', q ? 2 : 1)
+  const accountFilter = q
+    ? `(lower(ba.name) LIKE $1 OR lower(ba.slug) LIKE $1 OR lower(COALESCE(subtype.name,'')) LIKE $1)`
+    : 'TRUE'
+  const accountParameters = q ? [like, ...accountScope.values] : accountScope.values
   const accounts = await db.$queryRawUnsafe<
     Array<{ id: string; name: string; type: string; slug: string; subtypeName: string | null }>
   >(
@@ -292,13 +295,11 @@ async function handleSearch(request: NextRequest, context: WewedAdminContext) {
      LEFT JOIN wewed_admin."AccountSubtypeDefinition" subtype
        ON subtype."subtypeKey"=classification."subtypeKey"
       AND subtype."accountType"=classification."accountType"
-     WHERE ${scope.clause}
-       AND ($1='' OR lower(ba.name) LIKE $2 OR lower(ba.slug) LIKE $2 OR lower(COALESCE(subtype.name,'')) LIKE $2)
+     WHERE ${accountScope.clause}
+       AND ${accountFilter}
      ORDER BY ba.name
      LIMIT 20`,
-    q,
-    like,
-    ...scope.values,
+    ...accountParameters,
   )
   results.push(
     ...accounts.map((account) => ({
@@ -312,21 +313,22 @@ async function handleSearch(request: NextRequest, context: WewedAdminContext) {
     })),
   )
 
-  const providerScope = buildBusinessAccountScopeSql(context, 'ba', 2)
+  const providerScope = buildBusinessAccountScopeSql(context, 'ba', q ? 2 : 1)
+  const providerFilter = q
+    ? `(lower(provider."displayName") LIKE $1 OR lower(provider.slug) LIKE $1)`
+    : 'TRUE'
+  const providerParameters = q ? [like, ...providerScope.values] : providerScope.values
   const providers = await db.$queryRawUnsafe<
-    Array<{ id: string; displayName: string; slug: string; businessAccountId: string; accountType: string }>
+    Array<{ id: string; displayName: string; businessAccountId: string; accountType: string }>
   >(
-    `SELECT provider.id, provider."displayName", provider.slug,
-            provider."businessAccountId", ba.type AS "accountType"
+    `SELECT provider.id, provider."displayName", provider."businessAccountId", ba.type AS "accountType"
      FROM wewed_admin."ProviderProfile" provider
      JOIN wewed_admin."BusinessAccount" ba ON ba.id=provider."businessAccountId"
      WHERE ${providerScope.clause}
-       AND ($1='' OR lower(provider."displayName") LIKE $2 OR lower(provider.slug) LIKE $2)
+       AND ${providerFilter}
      ORDER BY provider."displayName"
      LIMIT 15`,
-    q,
-    like,
-    ...providerScope.values,
+    ...providerParameters,
   )
   results.push(
     ...providers.map((provider) => ({
@@ -480,13 +482,31 @@ async function handleExport(request: NextRequest, context: WewedAdminContext) {
     )
     const visible = queueRows.filter((row) => canReadQueueCategory(context, row.category))
     headers = ['Title', 'Account', 'Category', 'Priority', 'Status', 'Assignee', 'Department', 'Source', 'Created']
-    rows = visible.map((row) => [row.title,row.accountName || '',row.category,row.priority,row.status,row.assignedToEmail || '',row.departmentKey || '',row.source,row.createdAt.toISOString()])
+    rows = visible.map((row) => [
+      row.title,
+      row.accountName || '',
+      row.category,
+      row.priority,
+      row.status,
+      row.assignedToEmail || '',
+      row.departmentKey || '',
+      row.source,
+      row.createdAt.toISOString(),
+    ])
   } else if (screen === 'people') {
     if (!isSuperAdmin(context)) {
       throw new WewedAdminAccessError('People exports are restricted to Super Admin.', 403)
     }
     const people = await db.$queryRawUnsafe<
-      Array<{ email: string; name: string | null; departmentName: string | null; jobTitle: string | null; employmentType: string | null; employmentStatus: string | null; platformRole: string | null }>
+      Array<{
+        email: string
+        name: string | null
+        departmentName: string | null
+        jobTitle: string | null
+        employmentType: string | null
+        employmentStatus: string | null
+        platformRole: string | null
+      }>
     >(
       `SELECT u.email,u.name,department.name AS "departmentName",staff."jobTitle",staff."employmentType",staff."employmentStatus",administrator.role AS "platformRole"
        FROM wewed_admin."BusinessAccountMember" member
@@ -498,14 +518,34 @@ async function handleExport(request: NextRequest, context: WewedAdminContext) {
        ORDER BY COALESCE(u.name,u.email)`,
     )
     headers = ['Name', 'Email', 'Department', 'Job title', 'Employment type', 'Employment status', 'Platform role']
-    rows = people.map((row) => [row.name || '',row.email,row.departmentName || '',row.jobTitle || '',row.employmentType || '',row.employmentStatus || '',row.platformRole || ''])
+    rows = people.map((row) => [
+      row.name || '',
+      row.email,
+      row.departmentName || '',
+      row.jobTitle || '',
+      row.employmentType || '',
+      row.employmentStatus || '',
+      row.platformRole || '',
+    ])
   } else if (screen === 'commercial') {
     if (!canReadBilling(context)) {
       throw new WewedAdminAccessError('Billing permission is required for commercial exports.', 403)
     }
     const offers = await readOffers()
     headers = ['Offer code', 'Family', 'Version', 'Account type', 'Name', 'Model', 'Currency', 'Monthly cents', 'Annual cents', 'Status', 'Assignments']
-    rows = offers.map((offer) => [offer.offerCode,offer.offerFamilyCode,offer.version,offer.accountType,offer.name,offer.billingModel,offer.currency,offer.monthlyCents ?? '',offer.annualCents ?? '',offer.status,offer.assignmentCount])
+    rows = offers.map((offer) => [
+      offer.offerCode,
+      offer.offerFamilyCode,
+      offer.version,
+      offer.accountType,
+      offer.name,
+      offer.billingModel,
+      offer.currency,
+      offer.monthlyCents ?? '',
+      offer.annualCents ?? '',
+      offer.status,
+      offer.assignmentCount,
+    ])
   } else {
     throw new ProductivityRequestError('Unsupported export screen.', 400)
   }
@@ -517,7 +557,11 @@ async function handleExport(request: NextRequest, context: WewedAdminContext) {
     resourceId: screen,
     details: { screen, filters: filterSummary, rowCount: rows.length },
   })
-  return csvResponse(`wewed-admin-${screen}-${new Date().toISOString().slice(0, 10)}.csv`, headers, rows)
+  return csvResponse(
+    `wewed-admin-${screen}-${new Date().toISOString().slice(0, 10)}.csv`,
+    headers,
+    rows,
+  )
 }
 
 export async function GET(request: NextRequest) {
@@ -529,7 +573,10 @@ export async function GET(request: NextRequest) {
     if (mode === 'export') return handleExport(request, context)
     if (mode === 'offers') {
       if (!canReadBilling(context)) {
-        throw new WewedAdminAccessError('Billing permission is required to read pricing governance.', 403)
+        throw new WewedAdminAccessError(
+          'Billing permission is required to read pricing governance.',
+          403,
+        )
       }
       const offers = await readOffers()
       return NextResponse.json({
@@ -554,7 +601,8 @@ export async function GET(request: NextRequest) {
         canReadBilling: canReadBilling(context),
         canManageBilling: canManageBilling(context),
         canExportAccounts: true,
-        canExportQueue: isOperationsAdmin(context) || canReadBilling(context) || canReadSupport(context),
+        canExportQueue:
+          isOperationsAdmin(context) || canReadBilling(context) || canReadSupport(context),
         canExportPeople: isSuperAdmin(context),
         canExportCommercial: canReadBilling(context),
       },
@@ -572,7 +620,10 @@ export async function POST(request: NextRequest) {
 
     if (action === 'sync_work_items') {
       if (!canSyncWork(context)) {
-        throw new WewedAdminAccessError('This administrator cannot synchronize operational work.', 403)
+        throw new WewedAdminAccessError(
+          'This administrator cannot synchronize operational work.',
+          403,
+        )
       }
       const rows = await db.$queryRawUnsafe<Array<{ result: unknown }>>(
         `SELECT wewed_admin.sync_admin_operational_work_items() AS result`,
@@ -610,8 +661,18 @@ export async function POST(request: NextRequest) {
           ("offerCode","offerFamilyCode","accountType",name,description,"billingModel","legacyPlan",currency,
            "monthlyCents","annualCents","departmentKeys",entitlements,"selfService",status,version)
          VALUES ($1,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11::jsonb,$12,'active',1)`,
-        offerCode,input.accountType,input.name,input.description,input.billingModel,input.legacyPlan,input.currency,
-        input.monthlyCents,input.annualCents,JSON.stringify(input.departmentKeys),JSON.stringify(input.entitlements),input.selfService,
+        offerCode,
+        input.accountType,
+        input.name,
+        input.description,
+        input.billingModel,
+        input.legacyPlan,
+        input.currency,
+        input.monthlyCents,
+        input.annualCents,
+        JSON.stringify(input.departmentKeys),
+        JSON.stringify(input.entitlements),
+        input.selfService,
       )
       await writeBusinessAudit({
         actorUserId: context.session.userId,
@@ -633,7 +694,13 @@ export async function POST(request: NextRequest) {
         throw new ProductivityRequestError('Source offer and reason are required.', 400)
       }
       const sourceRows = await db.$queryRawUnsafe<
-        Array<{ offerCode: string; offerFamilyCode: string; accountType: string; version: number; status: string }>
+        Array<{
+          offerCode: string
+          offerFamilyCode: string
+          accountType: string
+          version: number
+          status: string
+        }>
       >(
         `SELECT "offerCode","offerFamilyCode","accountType",version,status
          FROM wewed_admin."BillingOffer" WHERE "offerCode"=$1 LIMIT 1`,
@@ -658,9 +725,21 @@ export async function POST(request: NextRequest) {
               ("offerCode","offerFamilyCode","supersedesOfferCode","accountType",name,description,"billingModel","legacyPlan",currency,
                "monthlyCents","annualCents","departmentKeys",entitlements,"selfService",status,version)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13::jsonb,$14,'active',$15)`,
-            nextOfferCode,source.offerFamilyCode,source.offerCode,source.accountType,input.name,input.description,input.billingModel,
-            input.legacyPlan,input.currency,input.monthlyCents,input.annualCents,JSON.stringify(input.departmentKeys),
-            JSON.stringify(input.entitlements),input.selfService,nextVersion,
+            nextOfferCode,
+            source.offerFamilyCode,
+            source.offerCode,
+            source.accountType,
+            input.name,
+            input.description,
+            input.billingModel,
+            input.legacyPlan,
+            input.currency,
+            input.monthlyCents,
+            input.annualCents,
+            JSON.stringify(input.departmentKeys),
+            JSON.stringify(input.entitlements),
+            input.selfService,
+            nextVersion,
           )
           await tx.$executeRawUnsafe(
             `UPDATE wewed_admin."BillingOffer"
@@ -671,7 +750,10 @@ export async function POST(request: NextRequest) {
         })
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
-        if (message.includes('BillingOffer_family_type_version_unique') || message.includes('duplicate key')) {
+        if (
+          message.includes('BillingOffer_family_type_version_unique') ||
+          message.includes('duplicate key')
+        ) {
           throw new ProductivityRequestError('This offer version already exists.', 409)
         }
         throw error
@@ -682,7 +764,12 @@ export async function POST(request: NextRequest) {
         action: 'admin.billing.offer.versioned',
         resourceType: 'BillingOffer',
         resourceId: nextOfferCode,
-        details: { reason, supersedesOfferCode: source.offerCode, family: source.offerFamilyCode, version: nextVersion },
+        details: {
+          reason,
+          supersedesOfferCode: source.offerCode,
+          family: source.offerFamilyCode,
+          version: nextVersion,
+        },
       })
       return NextResponse.json({ success: true, offerCode: nextOfferCode, version: nextVersion })
     }
@@ -705,7 +792,9 @@ export async function POST(request: NextRequest) {
         throw new ProductivityRequestError('Offer is already retired.', 409)
       }
       await db.$executeRawUnsafe(
-        `UPDATE wewed_admin."BillingOffer" SET status='retired',"updatedAt"=CURRENT_TIMESTAMP WHERE "offerCode"=$1`,
+        `UPDATE wewed_admin."BillingOffer"
+         SET status='retired',"updatedAt"=CURRENT_TIMESTAMP
+         WHERE "offerCode"=$1`,
         offerCode,
       )
       await writeBusinessAudit({
