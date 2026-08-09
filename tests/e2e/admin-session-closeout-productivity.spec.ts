@@ -91,6 +91,37 @@ test('Super Admin can inspect pricing governance and create a new immutable offe
   await expectNoDocumentOverflow(page)
 })
 
+test('Concurrent pricing creates return one success and one controlled conflict', async ({ adminPage: page }) => {
+  await page.goto('/admin')
+
+  const payload = {
+    action: 'create_offer',
+    offerCode: 'e2e_concurrent_offer',
+    accountType: 'client',
+    name: 'E2E Concurrent Offer',
+    description: 'Proves same-code pricing races resolve as a controlled conflict.',
+    billingModel: 'contract',
+    legacyPlan: 'enterprise',
+    currency: 'USD',
+    monthlyCents: null,
+    annualCents: null,
+    departmentKeys: [],
+    entitlements: ['e2e_concurrency'],
+    selfService: false,
+    reason: 'E2E concurrent offer conflict regression',
+  }
+
+  const [first, second] = await Promise.all([
+    page.request.post('/api/admin/productivity', { data: payload }),
+    page.request.post('/api/admin/productivity', { data: payload }),
+  ])
+  const statuses = [first.status(), second.status()].sort((a, b) => a - b)
+  expect(statuses).toEqual([200, 409])
+
+  const conflict = first.status() === 409 ? first : second
+  await expect.poll(async () => (await conflict.json()).error).toBe('Offer code already exists.')
+})
+
 test('Scoped CSV export is generated without navigating away from Admin', async ({ adminPage: page }) => {
   await page.setViewportSize({ width: 1024, height: 768 })
   await page.goto('/admin')
