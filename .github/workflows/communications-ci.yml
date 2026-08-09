@@ -89,6 +89,9 @@ jobs:
       - name: Run communications policy tests
         run: bun test src/lib/communications-policy.test.ts
 
+      - name: Run communications authorization integration
+        run: bun test src/lib/communications.integration.test.ts
+
       - name: Confirm legacy public message system is untouched
         if: github.event_name == 'pull_request'
         shell: bash
