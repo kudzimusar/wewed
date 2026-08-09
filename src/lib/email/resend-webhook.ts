@@ -110,6 +110,24 @@ function communicationStatusForEvent(type: string): 'SENT' | 'DELIVERED' | 'FAIL
   }
 }
 
+async function attachResendIdentityToCommunicationDelivery(
+  communicationDeliveryId: string,
+  providerEmailId: string,
+): Promise<void> {
+  await db.$executeRawUnsafe(
+    `UPDATE wewed_communications."CommunicationDelivery"
+        SET "provider" = COALESCE("provider", 'resend'),
+            "providerMessageId" = COALESCE("providerMessageId", $2),
+            "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "id" = $1
+        AND "channel" = 'EMAIL'
+        AND ("provider" IS NULL OR "provider" = 'resend')
+        AND ("providerMessageId" IS NULL OR "providerMessageId" = $2)`,
+    communicationDeliveryId,
+    providerEmailId,
+  )
+}
+
 export async function recordResendWebhook(input: {
   webhookId: string
   event: ResendWebhookEvent
@@ -177,6 +195,10 @@ export async function recordResendWebhook(input: {
 
   const communicationStatus = communicationStatusForEvent(input.event.type)
   if (communicationDeliveryId && providerEmailId && communicationStatus) {
+    // Resend can deliver a lifecycle webhook before the dispatcher has persisted
+    // providerMessageId on CommunicationDelivery. The signed Wewed tag lets us
+    // attach that provider identity first, then use the normal deduped status path.
+    await attachResendIdentityToCommunicationDelivery(communicationDeliveryId, providerEmailId)
     await applyCommunicationProviderStatus({
       provider: 'resend',
       channel: 'EMAIL',
