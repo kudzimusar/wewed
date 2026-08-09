@@ -111,6 +111,7 @@ jobs:
           scripts/session-closeout-admin-permissions.ts
           scripts/admin-command-center-contract.ts
           src/app/api/admin/productivity/route.ts
+          src/lib/admin-productivity-route-core.ts
           src/app/api/admin/command-center/route.ts
           src/lib/admin-command-center-route-core.ts
           src/components/admin/admin-productivity-console.tsx
