@@ -64,7 +64,7 @@ assert.ok(
   'Retired pricing history must not be reactivated in place.',
 )
 
-const api = requireAll('src/app/api/admin/productivity/route.ts', [
+const apiCore = requireAll('src/lib/admin-productivity-route-core.ts', [
   "requireWewedAdmin(request, 'admin.accounts.read')",
   'buildBusinessAccountScopeSql',
   'writeBusinessAudit',
@@ -76,27 +76,59 @@ const api = requireAll('src/app/api/admin/productivity/route.ts', [
   "action === 'version_offer'",
   "action === 'retire_offer'",
   "hasPermission(context, 'admin.billing.manage')",
-  "People exports are restricted to Super Admin.",
+  'People exports are restricted to Super Admin.',
   'admin.export.generated',
   'profile."offerCode"=offer."offerCode"',
   "SET status='retired'",
   'supersedesOfferCode',
 ])
 assert.ok(
-  api.includes("buildBusinessAccountScopeSql(context, 'ba'"),
+  apiCore.includes("buildBusinessAccountScopeSql(context, 'ba'"),
   'Command search and exports must remain backed by server-side account scope SQL.',
 )
 assert.ok(
-  !api.includes('SELECT * FROM public."User"'),
+  !apiCore.includes('SELECT * FROM public."User"'),
   'Productivity search must never expose the generic User population.',
 )
 assert.ok(
-  api.includes("if (!canManageBilling(context))"),
+  apiCore.includes("if (!canManageBilling(context))"),
   'Pricing mutation must remain behind billing management authority.',
 )
 assert.ok(
-  api.includes('canReadQueueCategory(context, row.category)'),
+  apiCore.includes('canReadQueueCategory(context, row.category)'),
   'Queue exports must be category-authorized server-side.',
+)
+
+const apiWrapper = requireAll('src/app/api/admin/productivity/route.ts', [
+  'isGlobalSuperAdmin',
+  "context.adminRole === 'wewed_super_admin' && context.accountScope.global",
+  "action === 'sync_work_items'",
+  'Operational work synchronization is restricted to a globally scoped Super Admin.',
+  'enrichProviderSearchTargets',
+  'result.businessAccountId',
+  'WHERE id = ANY($1::text[])',
+  'search: account.slug',
+  "kind: 'account'",
+  "action === 'create_offer'",
+  'pg_advisory_xact_lock',
+  'hashtextextended',
+])
+assert.ok(
+  apiWrapper.indexOf('isGlobalSuperAdmin(context)') <
+    apiWrapper.indexOf('return mutateProductivityCore(request)'),
+  'Global work synchronization must be rejected before the global core mutation executes.',
+)
+assert.ok(
+  apiWrapper.includes('businessAccountId: account.id'),
+  'Provider command results must retain the canonical BusinessAccount ID after resolution.',
+)
+assert.ok(
+  apiWrapper.includes('search: account.slug'),
+  'Provider command results must target the unique canonical BusinessAccount slug rather than ProviderProfile.displayName.',
+)
+assert.ok(
+  apiWrapper.includes('pg_advisory_xact_lock(hashtextextended($1, 0))'),
+  'Concurrent offer creation must be serialized by commercial key before the core existence check.',
 )
 
 const commandWrapper = requireAll('src/app/api/admin/command-center/route.ts', [
