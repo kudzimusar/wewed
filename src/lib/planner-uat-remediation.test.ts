@@ -60,7 +60,7 @@ describe('planner UAT remediation contracts', () => {
 
     expect(picker).toContain("onChange({ vendorId: vendor.id, vendorName: vendor.name })")
     expect(picker).toContain("onChange({ vendorId: '', vendorName: event.target.value })")
-    expect(picker).toContain('manual external vendor')
+    expect(picker).toContain('external/manual vendor')
     expect(budgetModule).toContain('<PlannerVendorPicker')
     expect(budgetModule).toContain('Vendor linked')
     expect(workspace).toContain('vendorId: budgetForm.vendorId || null')
