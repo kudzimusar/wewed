@@ -5,7 +5,9 @@ on:
     branches:
       - main
     paths:
+      - '.env.example'
       - 'docs/WEWED_COMMUNICATIONS_*.md'
+      - 'docs/WEWED_WHATSAPP_CLOUD_WEBHOOK_IMPLEMENTATION_PLAN.md'
       - 'prisma/migrations/**'
       - 'scripts/communications-postgres-integration.sql'
       - 'scripts/communications-rate-limit-postgres-integration.sql'
@@ -13,10 +15,12 @@ on:
       - 'src/app/api/communications/**'
       - 'src/app/api/internal/communications/**'
       - 'src/app/api/webhooks/resend/**'
+      - 'src/app/api/webhooks/whatsapp/**'
       - 'src/lib/communications*.ts'
       - 'src/lib/communications*.test.ts'
       - 'src/lib/communication-channels*.ts'
       - 'src/lib/communication-channels*.test.ts'
+      - 'src/lib/whatsapp-cloud-webhook*.ts'
       - 'src/lib/email/resend.ts'
       - 'src/lib/email/resend-webhook.ts'
       - 'src/components/admin/admin-utility-nav.tsx'
@@ -109,8 +113,8 @@ jobs:
       - name: Run communications rate-limit contracts
         run: bun test src/lib/communications-rate-limit.test.ts
 
-      - name: Run communications channel contracts
-        run: bun test src/lib/communication-channels.test.ts
+      - name: Run communications channel and WhatsApp webhook contracts
+        run: bun test src/lib/communication-channels.test.ts src/lib/whatsapp-cloud-webhook.test.ts src/app/api/webhooks/whatsapp/route.test.ts
 
       - name: Run communications authorization integration
         run: bun test src/lib/communications.integration.test.ts
@@ -129,11 +133,15 @@ jobs:
             exit 1
           fi
 
-      - name: Confirm channel and rate-limit code do not log sensitive data
+      - name: Confirm channel, webhook and rate-limit code do not log sensitive data
         shell: bash
         run: |
-          if grep -nE "console\.(log|info|debug|warn|error)" src/lib/communication-channels.ts src/lib/communications-rate-limit.ts; then
-            echo "::error::Communication transport/rate-limit code must not log message bodies, endpoints, actor keys or provider tokens"
+          if grep -nE "console\.(log|info|debug|warn|error)" \
+            src/lib/communication-channels.ts \
+            src/lib/communications-rate-limit.ts \
+            src/lib/whatsapp-cloud-webhook.ts \
+            src/app/api/webhooks/whatsapp/route.ts; then
+            echo "::error::Communication transport/webhook/rate-limit code must not log message bodies, endpoints, actor keys or provider tokens"
             exit 1
           fi
 

@@ -63,6 +63,7 @@ describe('communication provider request builders', () => {
     delete process.env.WHATSAPP_CLOUD_ACCESS_TOKEN
     delete process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID
     delete process.env.WHATSAPP_CLOUD_GRAPH_VERSION
+    delete process.env.WEWED_WHATSAPP_NOTIFICATION_TEMPLATE
     expect(buildWhatsAppRequest({
       ...delivery,
       channel: 'WHATSAPP',
@@ -71,28 +72,47 @@ describe('communication provider request builders', () => {
     })).toBeNull()
   })
 
-  test('builds a configurable WhatsApp Cloud text request', () => {
+  test('fails closed when proactive Meta transport lacks an approved template', () => {
     process.env.WHATSAPP_CLOUD_ACCESS_TOKEN = 'meta-test-secret'
     process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID = 'phone-number-id'
-    process.env.WHATSAPP_CLOUD_GRAPH_VERSION = 'v-test'
+    process.env.WHATSAPP_CLOUD_GRAPH_VERSION = 'v26.0'
+    delete process.env.WEWED_WHATSAPP_NOTIFICATION_TEMPLATE
+    expect(buildWhatsAppRequest({
+      ...delivery,
+      channel: 'WHATSAPP',
+      address: '+263771234567',
+      normalizedAddress: '+263771234567',
+    })).toBeNull()
+  })
+
+  test('builds a privacy-preserving WhatsApp template request using sender name only', () => {
+    process.env.WHATSAPP_CLOUD_ACCESS_TOKEN = 'meta-test-secret'
+    process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID = 'phone-number-id'
+    process.env.WHATSAPP_CLOUD_GRAPH_VERSION = 'v26.0'
+    process.env.WEWED_WHATSAPP_NOTIFICATION_TEMPLATE = 'wewed_new_message_v1'
+    process.env.WEWED_WHATSAPP_TEMPLATE_LANGUAGE = 'en_US'
     const request = buildWhatsAppRequest({
       ...delivery,
       channel: 'WHATSAPP',
       address: '+263771234567',
       normalizedAddress: '+263771234567',
     })
-    expect(request?.url).toBe('https://graph.facebook.com/v-test/phone-number-id/messages')
+    expect(request?.url).toBe('https://graph.facebook.com/v26.0/phone-number-id/messages')
     expect(request?.headers.Authorization).toBe('Bearer meta-test-secret')
     expect(request?.body).toEqual({
       messaging_product: 'whatsapp',
-      recipient_type: 'individual',
       to: '263771234567',
-      type: 'text',
-      text: {
-        preview_url: false,
-        body: 'Please confirm the ceremony timeline.',
+      type: 'template',
+      template: {
+        name: 'wewed_new_message_v1',
+        language: { code: 'en_US' },
+        components: [{
+          type: 'body',
+          parameters: [{ type: 'text', text: 'Amina' }],
+        }],
       },
     })
+    expect(JSON.stringify(request?.body)).not.toContain('Please confirm the ceremony timeline.')
   })
 })
 
