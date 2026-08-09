@@ -58,9 +58,12 @@ BEGIN
 END
 $work_idempotent$;
 
--- Canonical source resolution closes generated work.
+-- Canonical source resolution closes generated work. The durable onboarding
+-- condition is specifically an owned account with incomplete onboarding, so
+-- removing the synthetic owner makes that source condition disappear without
+-- invoking unrelated public-onboarding completion rules.
 UPDATE wewed_admin."BusinessAccount"
-SET "onboardingStatus"='complete', "updatedAt"=CURRENT_TIMESTAMP
+SET "ownerUserId"=NULL, "updatedAt"=CURRENT_TIMESTAMP
 WHERE id='closeout-productivity-account';
 SELECT wewed_admin.sync_admin_operational_work_items();
 
@@ -82,7 +85,7 @@ $work_resolved$;
 
 -- A genuinely reappearing canonical condition reopens an automatically resolved item.
 UPDATE wewed_admin."BusinessAccount"
-SET "onboardingStatus"='not_started', "updatedAt"=CURRENT_TIMESTAMP
+SET "ownerUserId"='closeout-productivity-owner', "updatedAt"=CURRENT_TIMESTAMP
 WHERE id='closeout-productivity-account';
 SELECT wewed_admin.sync_admin_operational_work_items();
 
