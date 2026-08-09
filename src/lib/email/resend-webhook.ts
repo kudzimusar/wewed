@@ -2,6 +2,7 @@ import 'server-only'
 
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { db } from '@/lib/db'
+import { applyCommunicationProviderStatus } from '@/lib/communication-channels'
 
 const WEBHOOK_TOLERANCE_SECONDS = 5 * 60
 
@@ -66,12 +67,10 @@ export function verifyResendWebhook(input: {
 function eventTag(event: ResendWebhookEvent, key: string): string | null {
   const tags = event.data?.tags
   if (!tags) return null
-
   if (Array.isArray(tags)) {
     const match = tags.find((tag) => tag?.name === key && typeof tag.value === 'string')
     return match && typeof match.value === 'string' ? match.value : null
   }
-
   const value = tags[key]
   return typeof value === 'string' ? value : null
 }
@@ -97,6 +96,20 @@ function statusForEvent(type: string): { status?: string; timestampColumn?: stri
   }
 }
 
+function communicationStatusForEvent(type: string): 'SENT' | 'DELIVERED' | 'FAILED' | null {
+  switch (type) {
+    case 'email.sent': return 'SENT'
+    case 'email.delivered': return 'DELIVERED'
+    case 'email.bounced':
+    case 'email.complained':
+    case 'email.failed':
+    case 'email.suppressed':
+      return 'FAILED'
+    default:
+      return null
+  }
+}
+
 export async function recordResendWebhook(input: {
   webhookId: string
   event: ResendWebhookEvent
@@ -107,6 +120,7 @@ export async function recordResendWebhook(input: {
 
   const providerEmailId = typeof input.event.data?.email_id === 'string' ? input.event.data.email_id : null
   const createdAt = eventTimestamp(input.event.created_at)
+  const communicationDeliveryId = eventTag(input.event, 'communication_delivery_id')
 
   const deliveryRows = providerEmailId
     ? await db.$queryRawUnsafe<Array<{ id: string }>>(
@@ -131,35 +145,46 @@ export async function recordResendWebhook(input: {
   )
 
   if (inserted.length === 0) return { duplicate: true, ignored: false, deliveryId }
-  if (!deliveryId) return { duplicate: false, ignored: false, deliveryId: null }
 
-  const state = statusForEvent(input.event.type)
-  const occurredAt = createdAt ?? new Date().toISOString()
+  if (deliveryId) {
+    const state = statusForEvent(input.event.type)
+    const occurredAt = createdAt ?? new Date().toISOString()
+    if (state.status && state.timestampColumn) {
+      const allowedColumns = new Set(['sentAt', 'deliveredAt', 'delayedAt', 'bouncedAt', 'complainedAt', 'failedAt'])
+      if (!allowedColumns.has(state.timestampColumn)) throw new Error('Unsupported email delivery timestamp column.')
+      await db.$executeRawUnsafe(
+        `UPDATE wewed_admin."EmailDelivery"
+            SET "status" = $2,
+                "${state.timestampColumn}" = $3::timestamptz,
+                "lastEventAt" = $3::timestamptz,
+                "updatedAt" = CURRENT_TIMESTAMP
+          WHERE "id" = $1`,
+        deliveryId,
+        state.status,
+        occurredAt,
+      )
+    } else {
+      await db.$executeRawUnsafe(
+        `UPDATE wewed_admin."EmailDelivery"
+            SET "lastEventAt" = $2::timestamptz,
+                "updatedAt" = CURRENT_TIMESTAMP
+          WHERE "id" = $1`,
+        deliveryId,
+        occurredAt,
+      )
+    }
+  }
 
-  if (state.status && state.timestampColumn) {
-    const allowedColumns = new Set(['sentAt', 'deliveredAt', 'delayedAt', 'bouncedAt', 'complainedAt', 'failedAt'])
-    if (!allowedColumns.has(state.timestampColumn)) throw new Error('Unsupported email delivery timestamp column.')
-
-    await db.$executeRawUnsafe(
-      `UPDATE wewed_admin."EmailDelivery"
-          SET "status" = $2,
-              "${state.timestampColumn}" = $3::timestamptz,
-              "lastEventAt" = $3::timestamptz,
-              "updatedAt" = CURRENT_TIMESTAMP
-        WHERE "id" = $1`,
-      deliveryId,
-      state.status,
-      occurredAt,
-    )
-  } else {
-    await db.$executeRawUnsafe(
-      `UPDATE wewed_admin."EmailDelivery"
-          SET "lastEventAt" = $2::timestamptz,
-              "updatedAt" = CURRENT_TIMESTAMP
-        WHERE "id" = $1`,
-      deliveryId,
-      occurredAt,
-    )
+  const communicationStatus = communicationStatusForEvent(input.event.type)
+  if (communicationDeliveryId && providerEmailId && communicationStatus) {
+    await applyCommunicationProviderStatus({
+      provider: 'resend',
+      channel: 'EMAIL',
+      providerEventId: input.webhookId,
+      providerMessageId: providerEmailId,
+      status: communicationStatus,
+      metadata: { providerStatus: input.event.type },
+    })
   }
 
   return { duplicate: false, ignored: false, deliveryId }
