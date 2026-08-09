@@ -236,7 +236,6 @@ export async function PATCH(request: NextRequest) {
       await transaction.$executeRawUnsafe(
         `UPDATE wewed_admin."BusinessAccount"
          SET "ownerUserId" = $2,
-             "sourceType" = 'claimed_marketplace_listing',
              "onboardingStatus" = 'complete',
              metadata = jsonb_set(
                COALESCE(metadata, '{}'::jsonb),
@@ -269,13 +268,14 @@ export async function PATCH(request: NextRequest) {
 
       await transaction.$executeRawUnsafe(
         `UPDATE wewed_admin."ProviderClaimRequest"
-         SET status = 'approved', "reviewNotes" = $2,
+         SET status = 'approved', "claimantUserId" = $4, "reviewNotes" = $2,
              "reviewedByUserId" = $3, "reviewedAt" = CURRENT_TIMESTAMP,
              "approvedAt" = CURRENT_TIMESTAMP, "updatedAt" = CURRENT_TIMESTAMP
          WHERE id = $1`,
         claimId,
         reviewNotes,
         admin.session.userId,
+        claimant.id,
       )
 
       await transaction.$executeRawUnsafe(
