@@ -3,18 +3,17 @@
 import { useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { BriefcaseBusiness, ClipboardList, House, LayoutDashboard, Sparkles } from 'lucide-react'
+import { BriefcaseBusiness, ClipboardList, LayoutDashboard, MessageCircle, Sparkles } from 'lucide-react'
 
 const items = [
   ['/planner', 'Workspace', LayoutDashboard],
   ['/planner/wedding-brief', 'Brief', ClipboardList],
+  ['/messages', 'Messages', MessageCircle],
   ['/planner/ai-workspace', 'AI', Sparkles],
   ['/planner/marketplace', 'Business', BriefcaseBusiness],
-  ['/', 'Wewed', House],
 ] as const
 
 function itemIsActive(pathname: string, href: string): boolean {
-  if (href === '/') return pathname === '/'
   if (href === '/planner') {
     return (
       pathname === '/planner' ||
