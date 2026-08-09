@@ -1,6 +1,11 @@
 name: Deploy database migrations
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'prisma/migrations/20260809090000_wewed_communications_foundation/migration.sql'
   workflow_dispatch:
     inputs:
       confirmation:
@@ -18,7 +23,7 @@ concurrency:
 jobs:
   migrate:
     name: Deploy Prisma migrations
-    if: ${{ inputs.confirmation == 'deploy-wewed' }}
+    if: ${{ github.event_name == 'push' || inputs.confirmation == 'deploy-wewed' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production
