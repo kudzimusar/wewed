@@ -18,7 +18,7 @@ Inbound WhatsApp replies may become canonical Wewed messages only when Wewed can
 
 The integration is being qualified against:
 
-- WABA ID: `1052651633933852`
+- WABA ID: **not yet independently verified; obtain directly from Meta WhatsApp Manager/API Setup before subscription**
 - Cloud API Phone Number ID: `1262607510266445`
 - Graph API version: `v26.0`
 - notification template: `wewed_new_message_v1`
@@ -75,7 +75,7 @@ Document the required environment contract:
 - `WHATSAPP_WEBHOOK_VERIFY_TOKEN`
 - `WHATSAPP_WEBHOOK_APP_SECRET`
 
-After the exact code head is qualified and the callback is deployed on a public HTTPS Wewed URL, configure Meta callback verification and only then subscribe the Wewed app to WABA `1052651633933852`.
+After the exact code head is qualified and the callback is deployed on a public HTTPS Wewed URL, configure Meta callback verification and only then subscribe the Wewed app to the **WABA ID copied directly from Meta WhatsApp Manager/API Setup and checked against the target phone-number asset**. Do not infer the WABA ID from unrelated Meta usage, analytics, business, or app identifiers.
 
 ## Security invariants
 
@@ -117,5 +117,5 @@ The exact candidate head must prove:
 6. Configure deployment secrets without exposing them in GitHub or chat.
 7. Deploy the exact merged tree to `wewed.pro`.
 8. Configure Meta webhook callback verification.
-9. Subscribe the Wewed app to the WABA.
+9. Verify the WABA ID directly in Meta and subscribe the Wewed app to that verified WABA.
 10. Perform outbound status and inbound contextual-reply round-trip qualification using the Meta test number before attaching a real production WhatsApp number.
