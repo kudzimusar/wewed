@@ -1,0 +1,69 @@
+name: Planner Relationship Intelligence CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'prisma/schema.prisma'
+      - 'prisma/migrations/**'
+      - 'src/app/api/admin/planner-profiles/**'
+      - 'src/app/api/marketplace/enquiries/**'
+      - 'src/app/api/planner/budget/**'
+      - 'src/app/api/planner/portfolio/**'
+      - 'src/app/api/planner/vendors/**'
+      - 'src/app/planner/**'
+      - 'src/components/marketplace/admin-planner-profiles.tsx'
+      - 'src/components/marketplace/marketplace-frame.tsx'
+      - 'src/components/wedding/planner/**'
+      - 'src/components/wedding/planner-portal.tsx'
+      - 'src/components/wedding/planner-portfolio-command-centre.tsx'
+      - 'src/components/wedding/planner-workspace.tsx'
+      - 'src/lib/planner-relationship-intelligence*'
+      - 'src/lib/planner-uat-remediation.test.ts'
+      - 'docs/PLANNER_RELATIONSHIP_PORTFOLIO_INTELLIGENCE_PLAN.md'
+      - 'docs/PLANNER_UAT_REMEDIATION_2026-08-09.md'
+      - '.github/workflows/planner-relationship-intelligence-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: planner-relationship-intelligence-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    name: Relationship and portfolio contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/wewed?schema=public
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/wewed?schema=public
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: ci-service-role-key
+      WEWED_SESSION_SECRET: ci-session-secret-not-for-production
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      NEXT_TELEMETRY_DISABLED: 1
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: bunx prisma generate --schema prisma/schema.prisma
+
+      - name: Run relationship intelligence contracts
+        run: bun test src/lib/planner-relationship-intelligence.test.ts
+
+      - name: Run planner UAT remediation contracts
+        run: bun test src/lib/planner-uat-remediation.test.ts

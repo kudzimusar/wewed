@@ -214,6 +214,7 @@ model Vendor {
   description    String?
   website        String?
   phone          String?
+  email          String?
   imageUrl       String?
   rating         Float?
   featured       Boolean @default(false)
@@ -223,8 +224,9 @@ model Vendor {
   planningRating Float?
   notes          String?
 
-  weddingId String
-  wedding   Wedding @relation(fields: [weddingId], references: [id])
+  weddingId   String
+  wedding     Wedding      @relation(fields: [weddingId], references: [id])
+  budgetItems BudgetItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -299,9 +301,12 @@ model BudgetItem {
 
   weddingId String
   wedding   Wedding @relation(fields: [weddingId], references: [id])
+  vendor    Vendor? @relation(fields: [vendorId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([vendorId])
 }
 
 model SeatingTable {
@@ -426,7 +431,7 @@ model ContentSubmission {
   reviewedBy String?
   reviewedAt DateTime?
   createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  updatedAt DateTime @updatedAt
 }
 
 model AuditEvent {
