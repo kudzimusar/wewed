@@ -14,6 +14,17 @@ function requireAll(path: string, values: string[]): string {
   return contents
 }
 
+function requireAllCombined(paths: string[], values: string[]): string {
+  const contents = paths.map((path) => source(path)).join('\n')
+  for (const value of values) {
+    assert.ok(
+      contents.includes(value),
+      `${paths.join(' + ')} must include ${JSON.stringify(value)}`,
+    )
+  }
+  return contents
+}
+
 const plan = requireAll('docs/product/admin-command-center-taxonomy-responsive-plan-2026-08-07.md', [
   'Taxonomy clarity',
   'Responsive productivity',
@@ -88,33 +99,42 @@ requireAll(
   ],
 )
 
-const api = requireAll('src/app/api/admin/command-center/route.ts', [
-  "requireWewedAdmin(request, 'admin.accounts.read')",
-  'buildBusinessAccountScopeSql',
-  'writeBusinessAudit',
-  "action === 'set_account_classification'",
-  "action === 'set_staff_profile'",
-  "action === 'save_view'",
-  "action === 'update_work_item'",
-  'wewed_admin."PlatformAdministrator"',
-  'wewed_admin."InternalStaffProfile"',
-  'wewed_admin."BillingOffer"',
-  'plannerRelationshipMismatches',
-  'missingProvisioning',
-  'function canReadBilling',
-  'function isOperationsAdmin',
-  'function canReadQueueCategory',
-  'function canManageQueueCategory',
-  'billingOfferCode: billingVisible ? account.billingOfferCode : null',
-  "subscriptionStatus: billingVisible ? account.subscriptionStatus : 'restricted'",
-  "if (!isOperationsAdmin(context)) return []",
-  'if (!canManageQueueCategory(context, item.category))',
-  "This administrator cannot manage this work-item category.",
-  "Work items may only be assigned to an active platform administrator.",
-  'lower(name)=lower($3)',
-  'A saved view with this name already exists on this screen.',
-  '409,',
-])
+const api = requireAllCombined(
+  [
+    'src/lib/admin-command-center-route-core.ts',
+    'src/app/api/admin/command-center/route.ts',
+  ],
+  [
+    "requireWewedAdmin(request, 'admin.accounts.read')",
+    'buildBusinessAccountScopeSql',
+    'writeBusinessAudit',
+    "action === 'set_account_classification'",
+    "action === 'set_staff_profile'",
+    "action === 'save_view'",
+    "action === 'update_work_item'",
+    'wewed_admin."PlatformAdministrator"',
+    'wewed_admin."InternalStaffProfile"',
+    'wewed_admin."BillingOffer"',
+    'plannerRelationshipMismatches',
+    'missingProvisioning',
+    'function canReadBilling',
+    'function isOperationsAdmin',
+    'function canReadQueueCategory',
+    'function canManageQueueCategory',
+    'billingOfferCode: billingVisible ? account.billingOfferCode : null',
+    "subscriptionStatus: billingVisible ? account.subscriptionStatus : 'restricted'",
+    "if (!isOperationsAdmin(context)) return []",
+    'if (!canManageQueueCategory(context, item.category))',
+    "This administrator cannot manage this work-item category.",
+    "Work items may only be assigned to an active platform administrator.",
+    'lower(name)=lower($3)',
+    'A saved view with this name already exists on this screen.',
+    '409,',
+    'persistedKeys.has(workKey(item))',
+    "item.category === 'onboarding'",
+    'Boolean(account?.ownerEmail)',
+  ],
+)
 assert.ok(
   api.indexOf("if (!isSuperAdmin(context))") < api.indexOf("action === 'save_view'"),
   'Workforce-profile mutations must remain guarded by the Super Admin boundary.',
