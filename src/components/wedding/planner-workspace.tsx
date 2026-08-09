@@ -77,6 +77,7 @@ interface BudgetRow {
   actualCost: number | null
   paidAmount: number
   currency: string
+  vendorId: string | null
   vendorName: string | null
   notes: string | null
   dueDate: string | null
@@ -121,7 +122,12 @@ class PlannerApiError extends Error {
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { cache: 'no-store', ...init })
-  const payload = (await response.json()) as T & { error?: string; field?: string }
+  const payload = (await response.json().catch(() => null)) as (T & { error?: string; field?: string }) | null
+  if (!payload) {
+    throw new PlannerApiError(
+      response.ok ? 'Wewed returned an unexpected response. Please retry.' : `Request failed (${response.status}).`,
+    )
+  }
   if (!response.ok) throw new PlannerApiError(payload.error || 'Request failed.', payload.field)
   return payload
 }
@@ -160,6 +166,7 @@ const EMPTY_VENDOR_FORM: VendorForm = {
   category: 'photographer',
   contact: '',
   phone: '',
+  email: '',
   website: '',
   contractStatus: 'pending',
   paymentStatus: 'unpaid',
@@ -216,6 +223,7 @@ export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }
     estimatedCost: '',
     actualCost: '',
     paidAmount: '',
+    vendorId: '',
     vendorName: '',
     notes: '',
     dueDate: '',
@@ -227,31 +235,61 @@ export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }
   const refresh = useCallback(async (showSpinner = false) => {
     if (showSpinner) setLoading(true)
     setError(null)
-    try {
-      const [taskPayload, budgetPayload, vendorPayload, guestPayload, timelinePayload] =
-        await Promise.all([
-          api<{ data: TaskRow[] }>('/api/planner/tasks'),
-          api<{
-            data: BudgetRow[]
-            summary: BudgetSummary
-            byCategory: CategoryBreakdown[]
-          }>('/api/planner/budget'),
-          api<{ data: VendorRow[] }>('/api/planner/vendors'),
-          api<{ data: GuestRow[]; tables: SeatingTableRow[] }>('/api/planner/guests'),
-          api<{ data: TimelineRow[] }>('/api/planner/timeline'),
-        ])
 
-      setTasks(taskPayload.data ?? [])
-      setBudget(budgetPayload.data ?? [])
-      setBudgetSummary(budgetPayload.summary ?? null)
-      setBudgetByCategory(budgetPayload.byCategory ?? [])
-      setVendors(vendorPayload.data ?? [])
-      setGuests(guestPayload.data ?? [])
-      setTables(guestPayload.tables ?? [])
-      setTimeline((timelinePayload.data ?? []).sort((a, b) => a.order - b.order))
-      setLastUpdated(new Date())
+    const requests = [
+      ['Tasks', api<{ data: TaskRow[] }>('/api/planner/tasks')],
+      ['Budget', api<{ data: BudgetRow[]; summary: BudgetSummary; byCategory: CategoryBreakdown[] }>('/api/planner/budget')],
+      ['Vendors', api<{ data: VendorRow[] }>('/api/planner/vendors')],
+      ['Guests', api<{ data: GuestRow[]; tables: SeatingTableRow[] }>('/api/planner/guests')],
+      ['Timeline', api<{ data: TimelineRow[] }>('/api/planner/timeline')],
+    ] as const
+
+    try {
+      const results = await Promise.allSettled(requests.map(([, request]) => request))
+      const failures: string[] = []
+
+      const taskResult = results[0]
+      if (taskResult.status === 'fulfilled') setTasks(taskResult.value.data ?? [])
+      else failures.push('Tasks')
+
+      const budgetResult = results[1]
+      if (budgetResult.status === 'fulfilled') {
+        setBudget(budgetResult.value.data ?? [])
+        setBudgetSummary(budgetResult.value.summary ?? null)
+        setBudgetByCategory(budgetResult.value.byCategory ?? [])
+      } else failures.push('Budget')
+
+      const vendorResult = results[2]
+      if (vendorResult.status === 'fulfilled') setVendors(vendorResult.value.data ?? [])
+      else failures.push('Vendors')
+
+      const guestResult = results[3]
+      if (guestResult.status === 'fulfilled') {
+        setGuests(guestResult.value.data ?? [])
+        setTables(guestResult.value.tables ?? [])
+      } else failures.push('Guests')
+
+      const timelineResult = results[4]
+      if (timelineResult.status === 'fulfilled') {
+        setTimeline((timelineResult.value.data ?? []).sort((a, b) => a.order - b.order))
+      } else failures.push('Timeline')
+
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          console.error('[PLANNER WORKSPACE CLIENT] refresh failed', {
+            module: requests[index][0],
+            error: result.reason,
+          })
+        }
+      })
+
+      if (failures.length > 0) {
+        setError(`Could not refresh ${failures.join(', ')}. Your last loaded data is still shown. Check the connection and retry.`)
+      }
+      if (failures.length < requests.length) setLastUpdated(new Date())
     } catch (refreshError) {
-      setError(refreshError instanceof Error ? refreshError.message : 'Unable to load planner data.')
+      console.error('[PLANNER WORKSPACE CLIENT] refresh failed unexpectedly', refreshError)
+      setError('Unable to refresh planner data. Your last loaded data is still shown. Please retry.')
     } finally {
       setLoading(false)
     }
@@ -277,8 +315,8 @@ export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }
       toast({ title: successTitle })
       return true
     } catch (mutationError) {
-      const message =
-        mutationError instanceof Error ? mutationError.message : 'The change could not be saved.'
+      const message = mutationError instanceof Error ? mutationError.message : 'The change could not be saved.'
+      console.error('[PLANNER WORKSPACE CLIENT] mutation failed', mutationError)
       setError(message)
       toast({ title: 'Save failed', description: message, variant: 'destructive' })
       return false
@@ -296,214 +334,115 @@ export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }
       return
     }
     await mutate(
-      () =>
-        api('/api/planner/tasks', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: normalizePlannerTitle(taskForm.title),
-            category: taskForm.category,
-            priority: taskForm.priority,
-            dueDate: taskForm.dueDate || null,
-            assignee: taskForm.assignee.trim() || null,
-            status: 'todo',
-          }),
-        }),
+      () => api('/api/planner/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: normalizePlannerTitle(taskForm.title), category: taskForm.category, priority: taskForm.priority, dueDate: taskForm.dueDate || null, assignee: taskForm.assignee.trim() || null, status: 'todo' }) }),
       'Task added',
-      () =>
-        setTaskForm({
-          title: '',
-          category: 'venue',
-          priority: 'medium',
-          dueDate: '',
-          assignee: '',
-        }),
+      () => setTaskForm({ title: '', category: 'venue', priority: 'medium', dueDate: '', assignee: '' }),
     )
   }
 
-
   async function updateTask(task: TaskRow, updates: TaskUpdate): Promise<boolean> {
-    return mutate(
-      () =>
-        api(`/api/planner/tasks/${task.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updates),
-        }),
-      'Task updated',
-    )
+    return mutate(() => api(`/api/planner/tasks/${task.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) }), 'Task updated')
   }
 
   async function updateTaskStatus(task: TaskRow, status: string) {
     const previous = task.status
-    setTasks((current) =>
-      current.map((item) => (item.id === task.id ? { ...item, status } : item)),
-    )
+    setTasks((current) => current.map((item) => (item.id === task.id ? { ...item, status } : item)))
     try {
-      await api(`/api/planner/tasks/${task.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      })
+      await api(`/api/planner/tasks/${task.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
       toast({ title: 'Task updated', description: task.title })
     } catch (statusError) {
-      setTasks((current) =>
-        current.map((item) => (item.id === task.id ? { ...item, status: previous } : item)),
-      )
-      toast({
-        title: 'Update failed',
-        description: statusError instanceof Error ? statusError.message : undefined,
-        variant: 'destructive',
-      })
+      setTasks((current) => current.map((item) => (item.id === task.id ? { ...item, status: previous } : item)))
+      toast({ title: 'Update failed', description: statusError instanceof Error ? statusError.message : undefined, variant: 'destructive' })
     }
   }
 
   async function deleteTask(task: TaskRow) {
-    await mutate(
-      () => api(`/api/planner/tasks/${task.id}`, { method: 'DELETE' }),
-      'Task removed',
-    )
+    await mutate(() => api(`/api/planner/tasks/${task.id}`, { method: 'DELETE' }), 'Task removed')
   }
 
   async function addBudgetItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!budgetForm.description.trim()) return
     await mutate(
-      () =>
-        api('/api/planner/budget', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            description: budgetForm.description.trim(),
-            category: budgetForm.category,
-            estimatedCost: Number(budgetForm.estimatedCost || 0),
-            actualCost: budgetForm.actualCost ? Number(budgetForm.actualCost) : null,
-            paidAmount: Number(budgetForm.paidAmount || 0),
-            vendorName: budgetForm.vendorName.trim() || null,
-            notes: budgetForm.notes.trim() || null,
-            dueDate: budgetForm.dueDate || null,
-            currency: 'USD',
-          }),
+      () => api('/api/planner/budget', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          description: budgetForm.description.trim(),
+          category: budgetForm.category,
+          estimatedCost: Number(budgetForm.estimatedCost || 0),
+          actualCost: budgetForm.actualCost ? Number(budgetForm.actualCost) : null,
+          paidAmount: Number(budgetForm.paidAmount || 0),
+          vendorId: budgetForm.vendorId || null,
+          vendorName: budgetForm.vendorName.trim() || null,
+          notes: budgetForm.notes.trim() || null,
+          dueDate: budgetForm.dueDate || null,
+          currency: 'USD',
         }),
+      }),
       'Budget item added',
-      () =>
-        setBudgetForm({
-          description: '',
-          category: 'venue',
-          estimatedCost: '',
-          actualCost: '',
-          paidAmount: '',
-          vendorName: '',
-          notes: '',
-          dueDate: '',
-        }),
+      () => setBudgetForm({ description: '', category: 'venue', estimatedCost: '', actualCost: '', paidAmount: '', vendorId: '', vendorName: '', notes: '', dueDate: '' }),
     )
   }
 
-  async function updateBudgetItem(
-    item: BudgetRow,
-    field: 'actualCost' | 'paidAmount',
-    value: string,
-  ) {
+  async function updateBudgetItem(item: BudgetRow, field: 'actualCost' | 'paidAmount', value: string) {
     const parsed = Number(value || 0)
     if (!Number.isFinite(parsed) || parsed < 0) return
-    await mutate(
-      () =>
-        api(`/api/planner/budget/${item.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ [field]: parsed }),
-        }),
-      field === 'paidAmount' ? 'Payment updated' : 'Actual cost updated',
-    )
+    await mutate(() => api(`/api/planner/budget/${item.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [field]: parsed }) }), field === 'paidAmount' ? 'Payment updated' : 'Actual cost updated')
   }
 
   async function deleteBudgetItem(item: BudgetRow) {
-    await mutate(
-      () => api(`/api/planner/budget/${item.id}`, { method: 'DELETE' }),
-      'Budget item removed',
-    )
+    await mutate(() => api(`/api/planner/budget/${item.id}`, { method: 'DELETE' }), 'Budget item removed')
   }
 
   async function addVendor(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!vendorForm.name.trim()) return
     await mutate(
-      () =>
-        api('/api/planner/vendors', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: vendorForm.name.trim(),
-            category: vendorForm.category,
-            contact: vendorForm.contact.trim() || null,
-            phone: vendorForm.phone.trim() || null,
-            website: vendorForm.website.trim() || null,
-            contractStatus: vendorForm.contractStatus,
-            paymentStatus: vendorForm.paymentStatus,
-            rating: vendorForm.rating ? Number(vendorForm.rating) : null,
-            notes: vendorForm.notes.trim() || null,
-          }),
+      () => api('/api/planner/vendors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: vendorForm.name.trim(),
+          category: vendorForm.category,
+          contact: vendorForm.contact.trim() || null,
+          phone: vendorForm.phone.trim() || null,
+          email: vendorForm.email.trim() || null,
+          website: vendorForm.website.trim() || null,
+          contractStatus: vendorForm.contractStatus,
+          paymentStatus: vendorForm.paymentStatus,
+          rating: vendorForm.rating ? Number(vendorForm.rating) : null,
+          notes: vendorForm.notes.trim() || null,
         }),
+      }),
       'Vendor added',
       () => setVendorForm(EMPTY_VENDOR_FORM),
     )
   }
 
   async function updateVendor(vendor: VendorRow, updates: VendorUpdate) {
-    await mutate(
-      () =>
-        api(`/api/planner/vendors/${vendor.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updates),
-        }),
-      'Vendor updated',
-    )
+    await mutate(() => api(`/api/planner/vendors/${vendor.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) }), 'Vendor updated')
   }
 
   async function deleteVendor(vendor: VendorRow) {
-    await mutate(
-      () => api(`/api/planner/vendors/${vendor.id}`, { method: 'DELETE' }),
-      'Vendor removed',
-    )
+    await mutate(() => api(`/api/planner/vendors/${vendor.id}`, { method: 'DELETE' }), 'Vendor removed')
   }
 
   async function addGuest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!guestForm.name.trim()) return
     await mutate(
-      () =>
-        api('/api/planner/guests', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            kind: 'guest',
-            name: guestForm.name.trim(),
-            email: guestForm.email.trim() || null,
-            phone: guestForm.phone.trim() || null,
-            role: guestForm.role,
-            side: guestForm.side,
-            seatingTableId: guestForm.seatingTableId || null,
-          }),
-        }),
+      () => api('/api/planner/guests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: 'guest', name: guestForm.name.trim(), email: guestForm.email.trim() || null, phone: guestForm.phone.trim() || null, role: guestForm.role, side: guestForm.side, seatingTableId: guestForm.seatingTableId || null }) }),
       'Guest added',
       () => setGuestForm(EMPTY_GUEST_FORM),
     )
   }
 
-  async function updateGuest(
-    guest: GuestRow,
-    updates: GuestUpdate,
-  ): Promise<{ success: boolean; error?: string; field?: string }> {
+  async function updateGuest(guest: GuestRow, updates: GuestUpdate): Promise<{ success: boolean; error?: string; field?: string }> {
     setSaving(true)
     setError(null)
     try {
-      await api(`/api/planner/guests/${guest.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      })
+      await api(`/api/planner/guests/${guest.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) })
       await refresh(false)
       toast({ title: 'Guest updated' })
       return { success: true }
@@ -521,33 +460,15 @@ export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }
   async function assignGuestTable(guest: GuestRow, tableId: string | null): Promise<boolean> {
     const previous = guest
     const tableName = tables.find((table) => table.id === tableId)?.name ?? null
-    setGuests((current) =>
-      current.map((item) =>
-        item.id === guest.id
-          ? { ...item, seatingTableId: tableId, seatingTableName: tableName }
-          : item,
-      ),
-    )
+    setGuests((current) => current.map((item) => item.id === guest.id ? { ...item, seatingTableId: tableId, seatingTableName: tableName } : item))
     try {
-      const payload = await api<{ data: GuestRow }>(`/api/planner/guests/${guest.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ seatingTableId: tableId }),
-      })
-      setGuests((current) =>
-        current.map((item) => (item.id === guest.id ? payload.data : item)),
-      )
+      const payload = await api<{ data: GuestRow }>(`/api/planner/guests/${guest.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ seatingTableId: tableId }) })
+      setGuests((current) => current.map((item) => (item.id === guest.id ? payload.data : item)))
       toast({ title: tableId ? 'Guest assigned to table' : 'Guest unassigned' })
       return true
     } catch (assignmentError) {
-      setGuests((current) =>
-        current.map((item) => (item.id === guest.id ? previous : item)),
-      )
-      toast({
-        title: 'Seating update failed',
-        description: assignmentError instanceof Error ? assignmentError.message : undefined,
-        variant: 'destructive',
-      })
+      setGuests((current) => current.map((item) => (item.id === guest.id ? previous : item)))
+      toast({ title: 'Seating update failed', description: assignmentError instanceof Error ? assignmentError.message : undefined, variant: 'destructive' })
       return false
     }
   }
@@ -557,56 +478,19 @@ export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }
   }
 
   async function deleteGuest(guest: GuestRow) {
-    await mutate(
-      () => api(`/api/planner/guests/${guest.id}`, { method: 'DELETE' }),
-      'Guest removed',
-    )
+    await mutate(() => api(`/api/planner/guests/${guest.id}`, { method: 'DELETE' }), 'Guest removed')
   }
 
   async function addTimelineItem(input: TimelineInput): Promise<boolean> {
-    return mutate(
-      () =>
-        api('/api/planner/timeline', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            time: input.time.trim(),
-            event: input.event.trim(),
-            duration: input.duration.trim(),
-            location: input.location.trim(),
-            notes: input.notes.trim(),
-          }),
-        }),
-      'Timeline item added',
-    )
+    return mutate(() => api('/api/planner/timeline', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ time: input.time.trim(), event: input.event.trim(), duration: input.duration.trim(), location: input.location.trim(), notes: input.notes.trim() }) }), 'Timeline item added')
   }
 
-  async function updateTimelineItem(
-    item: TimelineRow,
-    input: TimelineInput,
-  ): Promise<boolean> {
-    return mutate(
-      () =>
-        api(`/api/planner/timeline/${item.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            time: input.time.trim(),
-            event: input.event.trim(),
-            duration: input.duration.trim(),
-            location: input.location.trim(),
-            notes: input.notes.trim(),
-          }),
-        }),
-      'Timeline item updated',
-    )
+  async function updateTimelineItem(item: TimelineRow, input: TimelineInput): Promise<boolean> {
+    return mutate(() => api(`/api/planner/timeline/${item.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ time: input.time.trim(), event: input.event.trim(), duration: input.duration.trim(), location: input.location.trim(), notes: input.notes.trim() }) }), 'Timeline item updated')
   }
 
   async function deleteTimelineItem(item: TimelineRow): Promise<boolean> {
-    return mutate(
-      () => api(`/api/planner/timeline/${item.id}`, { method: 'DELETE' }),
-      'Timeline item removed',
-    )
+    return mutate(() => api(`/api/planner/timeline/${item.id}`, { method: 'DELETE' }), 'Timeline item removed')
   }
 
   async function moveTimelineItem(item: TimelineRow, direction: -1 | 1): Promise<boolean> {
@@ -617,33 +501,18 @@ export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }
     const previous = timeline
     const next = [...timeline]
     ;[next[index], next[swapIndex]] = [next[swapIndex], next[index]]
-    const reordered = next.map((candidate, orderIndex) => ({
-      ...candidate,
-      order: orderIndex + 1,
-    }))
+    const reordered = next.map((candidate, orderIndex) => ({ ...candidate, order: orderIndex + 1 }))
     setTimeline(reordered)
     setSaving(true)
 
     const orderPayload = (reordered: number) => ({ order: reordered })
     try {
-      await Promise.all(
-        [reordered[index], reordered[swapIndex]].map((candidate) =>
-          api(`/api/planner/timeline/${candidate.id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(orderPayload(candidate.order)),
-          }),
-        ),
-      )
+      await Promise.all([reordered[index], reordered[swapIndex]].map((candidate) => api(`/api/planner/timeline/${candidate.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(orderPayload(candidate.order)) })))
       toast({ title: 'Timeline order updated' })
       return true
     } catch (moveError) {
       setTimeline(previous)
-      toast({
-        title: 'Reorder failed',
-        description: moveError instanceof Error ? moveError.message : undefined,
-        variant: 'destructive',
-      })
+      toast({ title: 'Reorder failed', description: moveError instanceof Error ? moveError.message : undefined, variant: 'destructive' })
       return false
     } finally {
       setSaving(false)
@@ -658,42 +527,26 @@ export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }
       return
     }
 
-    const rows = timeline
-      .map(
-        (item) => `
-          <section class="row">
-            <div class="time">${escapeHtml(item.time)}</div>
-            <div>
-              <div class="event">${escapeHtml(item.event)}${
-                item.duration ? ` <span class="meta">(${escapeHtml(item.duration)})</span>` : ''
-              }</div>
-              ${item.location ? `<div class="meta">Location: ${escapeHtml(item.location)}</div>` : ''}
-              ${item.notes ? `<div class="notes">${escapeHtml(item.notes)}</div>` : ''}
-            </div>
-          </section>`,
-      )
-      .join('')
+    const rows = timeline.map((item) => `
+      <section class="row">
+        <div class="time">${escapeHtml(item.time)}</div>
+        <div>
+          <div class="event">${escapeHtml(item.event)}${item.duration ? ` <span class="meta">(${escapeHtml(item.duration)})</span>` : ''}</div>
+          ${item.location ? `<div class="meta">Location: ${escapeHtml(item.location)}</div>` : ''}
+          ${item.notes ? `<div class="notes">${escapeHtml(item.notes)}</div>` : ''}
+        </div>
+      </section>`).join('')
 
     printWindow.document.write(`<!doctype html>
-      <html>
-        <head>
-          <title>Wedding Day Timeline</title>
-          <style>
-            body { font-family: Georgia, serif; padding: 40px; color: #1a1410; }
-            h1 { font-weight: 400; }
-            .row { display: grid; grid-template-columns: 90px 1fr; gap: 18px; padding: 13px 0; border-bottom: 1px solid #ddd4c8; }
-            .time { font-weight: 700; color: #8a6c38; }
-            .event { font-weight: 700; }
-            .meta { color: #645e57; font-size: 13px; }
-            .notes { color: #403b36; font-size: 13px; margin-top: 5px; }
-          </style>
-        </head>
-        <body>
-          <h1>Wedding Day Timeline</h1>
-          <p class="meta">Operational run sheet generated from the selected wedding.</p>
-          ${rows}
-        </body>
-      </html>`)
+      <html><head><title>Wedding Day Timeline</title><style>
+        body { font-family: Georgia, serif; padding: 40px; color: #1a1410; }
+        h1 { font-weight: 400; }
+        .row { display: grid; grid-template-columns: 90px 1fr; gap: 18px; padding: 13px 0; border-bottom: 1px solid #ddd4c8; }
+        .time { font-weight: 700; color: #8a6c38; }
+        .event { font-weight: 700; }
+        .meta { color: #645e57; font-size: 13px; }
+        .notes { color: #403b36; font-size: 13px; margin-top: 5px; }
+      </style></head><body><h1>Wedding Day Timeline</h1><p class="meta">Operational run sheet generated from the selected wedding.</p>${rows}</body></html>`)
     printWindow.document.close()
     printWindow.focus()
     printWindow.window.print()
@@ -702,42 +555,15 @@ export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }
   async function addTable(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!tableForm.name.trim()) return
-    await mutate(
-      () =>
-        api('/api/planner/guests', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            kind: 'table',
-            tableName: tableForm.name.trim(),
-            capacity: Number(tableForm.capacity || 8),
-          }),
-        }),
-      'Seating table added',
-      () => setTableForm({ name: '', capacity: '8' }),
-    )
+    await mutate(() => api('/api/planner/guests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: 'table', tableName: tableForm.name.trim(), capacity: Number(tableForm.capacity || 8) }) }), 'Seating table added', () => setTableForm({ name: '', capacity: '8' }))
   }
 
-  async function updateTable(
-    table: SeatingTableRow,
-    updates: { name: string; capacity: number },
-  ): Promise<boolean> {
-    return mutate(
-      () =>
-        api(`/api/planner/guests/${table.id}?kind=table`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updates),
-        }),
-      'Seating table updated',
-    )
+  async function updateTable(table: SeatingTableRow, updates: { name: string; capacity: number }): Promise<boolean> {
+    return mutate(() => api(`/api/planner/guests/${table.id}?kind=table`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) }), 'Seating table updated')
   }
 
   async function deleteTable(table: SeatingTableRow): Promise<boolean> {
-    return mutate(
-      () => api(`/api/planner/guests/${table.id}?kind=table`, { method: 'DELETE' }),
-      'Seating table removed',
-    )
+    return mutate(() => api(`/api/planner/guests/${table.id}?kind=table`, { method: 'DELETE' }), 'Seating table removed')
   }
 
   const taskStats = useMemo(() => {
@@ -747,12 +573,7 @@ export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }
       if (!task.dueDate || task.status === 'done') return false
       return new Date(task.dueDate).getTime() < Date.now()
     }).length
-    return {
-      done,
-      blocked,
-      overdue,
-      percent: tasks.length ? Math.round((done / tasks.length) * 100) : 0,
-    }
+    return { done, blocked, overdue, percent: tasks.length ? Math.round((done / tasks.length) * 100) : 0 }
   }, [tasks])
 
   const guestStats = useMemo<GuestStats>(() => {
@@ -760,40 +581,20 @@ export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }
     const declined = guests.filter((guest) => guest.rsvp?.attending === false).length
     const pending = guests.filter((guest) => guest.rsvp?.attending == null).length
     const plusOnes = guests.filter((guest) => guest.rsvp?.plusOne).length
-    const kidsTotal = guests.reduce(
-      (total, guest) => total + (guest.rsvp?.kidsAttending ? guest.rsvp.kidsCount : 0),
-      0,
-    )
+    const kidsTotal = guests.reduce((total, guest) => total + (guest.rsvp?.kidsAttending ? guest.rsvp.kidsCount : 0), 0)
     const checkedIn = guests.filter((guest) => guest.rsvp?.checkedIn).length
     const heads = guests.reduce((total, guest) => {
       if (guest.rsvp?.attending !== true) return total
-      return (
-        total +
-        1 +
-        (guest.rsvp.plusOne ? 1 : 0) +
-        (guest.rsvp.kidsAttending ? guest.rsvp.kidsCount : 0)
-      )
+      return total + 1 + (guest.rsvp.plusOne ? 1 : 0) + (guest.rsvp.kidsAttending ? guest.rsvp.kidsCount : 0)
     }, 0)
-    return {
-      total: guests.length,
-      confirmed,
-      declined,
-      pending,
-      plusOnes,
-      kidsTotal,
-      checkedIn,
-      heads,
-    }
+    return { total: guests.length, confirmed, declined, pending, plusOnes, kidsTotal, checkedIn, heads }
   }, [guests])
 
   const tableOccupancy = useMemo(() => {
     const counts = new Map<string, number>()
     for (const guest of guests) {
       if (!guest.seatingTableId || guest.rsvp?.attending !== true) continue
-      const party =
-        1 +
-        (guest.rsvp.plusOne ? 1 : 0) +
-        (guest.rsvp.kidsAttending ? guest.rsvp.kidsCount : 0)
+      const party = 1 + (guest.rsvp.plusOne ? 1 : 0) + (guest.rsvp.kidsAttending ? guest.rsvp.kidsCount : 0)
       counts.set(guest.seatingTableId, (counts.get(guest.seatingTableId) ?? 0) + party)
     }
     return counts
@@ -804,224 +605,43 @@ export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gold/15 bg-espresso/95 px-3 py-2 sm:px-5">
         <div className="min-w-0 flex-1">
           <label className="sr-only" htmlFor="planner-workspace-section">Planner workspace section</label>
-          <select
-            id="planner-workspace-section"
-            value={activeTab}
-            onChange={(event) => setActiveTab(event.target.value as WorkspaceTab)}
-            className="h-11 w-full rounded-lg border border-gold/25 bg-espresso px-3 font-sans text-sm text-champagne sm:hidden"
-          >
-            {TABS.map((tab) => <option key={tab.value} value={tab.value}>{tab.label}</option>)}
-          </select>
-          <nav className="hidden items-center gap-1 sm:flex" aria-label="Planner workspace sections">
-            {TABS.map((tab) => (
-              <button
-                key={tab.value}
-                type="button"
-                onClick={() => setActiveTab(tab.value)}
-                className={`inline-flex min-h-10 items-center gap-1.5 rounded-lg border px-3 py-2 font-sans text-[11px] transition-colors ${
-                  activeTab === tab.value
-                    ? 'border-gold/35 bg-gold/12 text-gold'
-                    : 'border-transparent text-champagne/55 hover:border-gold/15 hover:text-champagne'
-                }`}
-              >
-                {tab.icon}
-                {tab.label}
-              </button>
-            ))}
-          </nav>
+          <select id="planner-workspace-section" value={activeTab} onChange={(event) => setActiveTab(event.target.value as WorkspaceTab)} className="h-11 w-full rounded-lg border border-gold/25 bg-espresso px-3 font-sans text-sm text-champagne sm:hidden">{TABS.map((tab) => <option key={tab.value} value={tab.value}>{tab.label}</option>)}</select>
+          <nav className="hidden items-center gap-1 sm:flex" aria-label="Planner workspace sections">{TABS.map((tab) => <button key={tab.value} type="button" onClick={() => setActiveTab(tab.value)} className={`inline-flex min-h-10 items-center gap-1.5 rounded-lg border px-3 py-2 font-sans text-[11px] transition-colors ${activeTab === tab.value ? 'border-gold/35 bg-gold/12 text-gold' : 'border-transparent text-champagne/55 hover:border-gold/15 hover:text-champagne'}`}>{tab.icon}{tab.label}</button>)}</nav>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => void refresh(true)}
-          disabled={loading}
-          className="shrink-0 border-gold/25 bg-transparent text-champagne/65 hover:bg-gold/10 hover:text-gold"
-        >
-          <RefreshCw className={`size-3.5 ${loading ? 'animate-spin' : ''}`} />
-          <span className="hidden sm:inline">Refresh</span>
-        </Button>
+        <Button type="button" variant="outline" size="sm" onClick={() => void refresh(true)} disabled={loading} className="shrink-0 border-gold/25 bg-transparent text-champagne/65 hover:bg-gold/10 hover:text-gold"><RefreshCw className={`size-3.5 ${loading ? 'animate-spin' : ''}`} /><span className="hidden sm:inline">Refresh</span></Button>
       </div>
 
       <div data-planner-module-scroll="true" className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-6 sm:py-6">
         <div className="mx-auto w-full max-w-7xl space-y-5 pb-10 sm:pb-16">
-          {error && (
-            <div className="rounded-xl border border-clay/30 bg-clay/10 px-4 py-3 font-sans text-sm text-clay-light">
-              {error}
-            </div>
-          )}
+          {error && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-clay/30 bg-clay/10 px-4 py-3 font-sans text-sm text-clay-light"><span className="min-w-0">{error}</span><Button type="button" variant="outline" size="sm" onClick={() => void refresh(true)} disabled={loading} className="h-8 shrink-0 border-clay/30 bg-transparent text-clay-light"><RefreshCw className={`size-3.5 ${loading ? 'animate-spin' : ''}`} />Retry</Button></div>}
 
-          {loading && !lastUpdated ? (
-            <div className="flex min-h-[50vh] items-center justify-center">
-              <Loader2 className="size-7 animate-spin text-gold" />
-            </div>
-          ) : (
-            <>
-              {activeTab === 'overview' && (
-                <div className="space-y-5">
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                    {[
-                      [
-                        'Task progress',
-                        `${taskStats.percent}%`,
-                        `${taskStats.done} of ${tasks.length} complete`,
-                      ],
-                      [
-                        'Budget outstanding',
-                        money(
-                          budgetSummary?.totalOutstanding ?? 0,
-                          budgetSummary?.currency,
-                        ),
-                        `${money(
-                          budgetSummary?.totalPaid ?? 0,
-                          budgetSummary?.currency,
-                        )} paid`,
-                      ],
-                      [
-                        'Confirmed guests',
-                        String(guestStats.confirmed),
-                        `${guestStats.heads} confirmed seats`,
-                      ],
-                      [
-                        'Vendor pipeline',
-                        String(vendors.length),
-                        `${vendors.filter((vendor) => vendor.contractStatus === 'signed').length} signed`,
-                      ],
-                    ].map(([label, value, detail]) => (
-                      <SectionCard key={label} className="p-4">
-                        <p className="font-sans text-[10px] uppercase tracking-[0.16em] text-gold/65">
-                          {label}
-                        </p>
-                        <p className="mt-2 font-serif text-3xl text-champagne">{value}</p>
-                        <p className="mt-1 font-sans text-xs text-champagne/45">{detail}</p>
-                      </SectionCard>
-                    ))}
-                  </div>
-
-                  <SectionCard className="p-5">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <h2 className="font-serif text-xl">Planning readiness</h2>
-                        <p className="mt-1 font-sans text-xs text-champagne/50">
-                          This workspace uses only the selected wedding’s saved records. Empty
-                          weddings stay empty until a planner adds data, imports a file, or applies
-                          a template.
-                        </p>
-                      </div>
-                      <Badge variant="outline" className="border-gold/25 bg-gold/5 text-gold">
-                        {lastUpdated
-                          ? `Updated ${lastUpdated.toLocaleTimeString('en-US', {
-                              hour: 'numeric',
-                              minute: '2-digit',
-                            })}`
-                          : 'Not synced'}
-                      </Badge>
-                    </div>
-                    <Progress
-                      value={taskStats.percent}
-                      className="mt-5 h-2 bg-champagne/10 [&>div]:bg-gold"
-                    />
-                    <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                      <div className="rounded-xl border border-gold/10 p-3">
-                        <p className="font-sans text-xs text-champagne/50">Overdue tasks</p>
-                        <p className="mt-1 font-serif text-2xl">{taskStats.overdue}</p>
-                      </div>
-                      <div className="rounded-xl border border-gold/10 p-3">
-                        <p className="font-sans text-xs text-champagne/50">Blocked tasks</p>
-                        <p className="mt-1 font-serif text-2xl">{taskStats.blocked}</p>
-                      </div>
-                      <div className="rounded-xl border border-gold/10 p-3">
-                        <p className="font-sans text-xs text-champagne/50">Pending RSVPs</p>
-                        <p className="mt-1 font-serif text-2xl">{guestStats.pending}</p>
-                      </div>
-                    </div>
-                  </SectionCard>
+          {loading && !lastUpdated ? <div className="flex min-h-[50vh] items-center justify-center"><Loader2 className="size-7 animate-spin text-gold" /></div> : <>
+            {activeTab === 'overview' && (
+              <div className="space-y-5">
+                <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
+                  {[
+                    ['Task progress', `${taskStats.percent}%`, `${taskStats.done} of ${tasks.length} complete`],
+                    ['Budget outstanding', money(budgetSummary?.totalOutstanding ?? 0, budgetSummary?.currency), `${money(budgetSummary?.totalPaid ?? 0, budgetSummary?.currency)} paid`],
+                    ['Confirmed guests', String(guestStats.confirmed), `${guestStats.heads} confirmed seats`],
+                    ['Vendor pipeline', String(vendors.length), `${vendors.filter((vendor) => vendor.contractStatus === 'signed').length} signed`],
+                  ].map(([label, value, detail]) => <SectionCard key={label} className="p-3 sm:p-4"><p className="font-sans text-[9px] uppercase tracking-[0.12em] text-gold/65 sm:text-[10px] sm:tracking-[0.16em]">{label}</p><p className="mt-1.5 font-serif text-2xl text-champagne sm:mt-2 sm:text-3xl">{value}</p><p className="mt-1 font-sans text-[10px] text-champagne/45 sm:text-xs">{detail}</p></SectionCard>)}
                 </div>
-              )}
 
-              {activeTab === 'tasks' && (
-                <PlannerTasksModule
-                  tasks={tasks}
-                  taskForm={taskForm}
-                  setTaskForm={setTaskForm}
-                  saving={saving}
-                  taskProgressPercent={taskStats.percent}
-                  onAddTask={addTask}
-                  onUpdateTask={updateTask}
-                  onUpdateTaskStatus={updateTaskStatus}
-                  onDeleteTask={deleteTask}
-                />
-              )}
+                <SectionCard className="p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-serif text-xl">Planning readiness</h2><p className="mt-1 font-sans text-xs text-champagne/50">This workspace uses only the selected wedding’s saved records. Empty weddings stay empty until a planner adds data, imports a file, or applies a template.</p></div><Badge variant="outline" className="border-gold/25 bg-gold/5 text-gold">{lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : 'Not synced'}</Badge></div>
+                  <Progress value={taskStats.percent} className="mt-5 h-2 bg-champagne/10 [&>div]:bg-gold" />
+                  <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3"><div className="rounded-xl border border-gold/10 p-3"><p className="font-sans text-[10px] text-champagne/50 sm:text-xs">Overdue tasks</p><p className="mt-1 font-serif text-xl sm:text-2xl">{taskStats.overdue}</p></div><div className="rounded-xl border border-gold/10 p-3"><p className="font-sans text-[10px] text-champagne/50 sm:text-xs">Blocked tasks</p><p className="mt-1 font-serif text-xl sm:text-2xl">{taskStats.blocked}</p></div><div className="rounded-xl border border-gold/10 p-3"><p className="font-sans text-[10px] text-champagne/50 sm:text-xs">Pending RSVPs</p><p className="mt-1 font-serif text-xl sm:text-2xl">{guestStats.pending}</p></div></div>
+                </SectionCard>
+              </div>
+            )}
 
-              {activeTab === 'budget' && (
-                <PlannerBudgetModule
-                  budget={budget}
-                  budgetSummary={budgetSummary}
-                  budgetByCategory={budgetByCategory}
-                  budgetForm={budgetForm}
-                  setBudgetForm={setBudgetForm}
-                  saving={saving}
-                  onAddBudgetItem={addBudgetItem}
-                  onUpdateBudgetItem={updateBudgetItem}
-                  onDeleteBudgetItem={deleteBudgetItem}
-                />
-              )}
-
-              {activeTab === 'vendors' && (
-                <PlannerVendorsModule
-                  vendors={vendors}
-                  vendorForm={vendorForm}
-                  setVendorForm={setVendorForm}
-                  saving={saving}
-                  onAddVendor={addVendor}
-                  onUpdateVendor={updateVendor}
-                  onDeleteVendor={deleteVendor}
-                />
-              )}
-
-              {activeTab === 'guests' && (
-                <PlannerGuestsModule
-                  guests={guests}
-                  tables={tables}
-                  guestForm={guestForm}
-                  setGuestForm={setGuestForm}
-                  guestStats={guestStats}
-                  saving={saving}
-                  onAddGuest={addGuest}
-                  onUpdateGuest={updateGuest}
-                  onAssignGuestTable={assignGuestTable}
-                  onDeleteGuest={deleteGuest}
-                />
-              )}
-
-              {activeTab === 'timeline' && (
-                <PlannerTimelineModule
-                  timeline={timeline}
-                  saving={saving}
-                  onCreateTimelineItem={addTimelineItem}
-                  onUpdateTimelineItem={updateTimelineItem}
-                  onDeleteTimelineItem={deleteTimelineItem}
-                  onMoveTimelineItem={moveTimelineItem}
-                  onPrintTimeline={printTimeline}
-                />
-              )}
-
-              {activeTab === 'seating' && (
-                <PlannerSeatingModule
-                  tables={tables}
-                  guests={guests}
-                  tableForm={tableForm}
-                  setTableForm={setTableForm}
-                  tableOccupancy={tableOccupancy}
-                  saving={saving}
-                  onAddTable={addTable}
-                  onUpdateTable={updateTable}
-                  onDeleteTable={deleteTable}
-                  onAssignGuestToTable={assignGuestToTable}
-                />
-              )}
-            </>
-          )}
+            {activeTab === 'tasks' && <PlannerTasksModule tasks={tasks} taskForm={taskForm} setTaskForm={setTaskForm} saving={saving} taskProgressPercent={taskStats.percent} onAddTask={addTask} onUpdateTask={updateTask} onUpdateTaskStatus={updateTaskStatus} onDeleteTask={deleteTask} />}
+            {activeTab === 'budget' && <PlannerBudgetModule budget={budget} budgetSummary={budgetSummary} budgetByCategory={budgetByCategory} budgetForm={budgetForm} setBudgetForm={setBudgetForm} vendors={vendors} saving={saving} onAddBudgetItem={addBudgetItem} onUpdateBudgetItem={updateBudgetItem} onDeleteBudgetItem={deleteBudgetItem} />}
+            {activeTab === 'vendors' && <PlannerVendorsModule vendors={vendors} vendorForm={vendorForm} setVendorForm={setVendorForm} saving={saving} onAddVendor={addVendor} onUpdateVendor={updateVendor} onDeleteVendor={deleteVendor} />}
+            {activeTab === 'guests' && <PlannerGuestsModule guests={guests} tables={tables} guestForm={guestForm} setGuestForm={setGuestForm} guestStats={guestStats} saving={saving} onAddGuest={addGuest} onUpdateGuest={updateGuest} onAssignGuestTable={assignGuestTable} onDeleteGuest={deleteGuest} />}
+            {activeTab === 'timeline' && <PlannerTimelineModule timeline={timeline} saving={saving} onCreateTimelineItem={addTimelineItem} onUpdateTimelineItem={updateTimelineItem} onDeleteTimelineItem={deleteTimelineItem} onMoveTimelineItem={moveTimelineItem} onPrintTimeline={printTimeline} />}
+            {activeTab === 'seating' && <PlannerSeatingModule tables={tables} guests={guests} tableForm={tableForm} setTableForm={setTableForm} tableOccupancy={tableOccupancy} saving={saving} onAddTable={addTable} onUpdateTable={updateTable} onDeleteTable={deleteTable} onAssignGuestToTable={assignGuestToTable} />}
+          </>}
         </div>
       </div>
     </div>
