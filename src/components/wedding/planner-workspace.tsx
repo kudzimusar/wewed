@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
   type ReactNode,
@@ -120,6 +121,11 @@ class PlannerApiError extends Error {
   }
 }
 
+function isRequestCancellation(error: unknown, signal: AbortSignal): boolean {
+  if (signal.aborted) return true
+  return error instanceof DOMException && error.name === 'AbortError'
+}
+
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { cache: 'no-store', ...init })
   const payload = (await response.json().catch(() => null)) as (T & { error?: string; field?: string }) | null
@@ -200,6 +206,7 @@ export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const refreshControllerRef = useRef<AbortController | null>(null)
 
   const [tasks, setTasks] = useState<TaskRow[]>([])
   const [budget, setBudget] = useState<BudgetRow[]>([])
@@ -233,19 +240,26 @@ export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }
   const [tableForm, setTableForm] = useState({ name: '', capacity: '8' })
 
   const refresh = useCallback(async (showSpinner = false) => {
+    refreshControllerRef.current?.abort()
+    const controller = new AbortController()
+    refreshControllerRef.current = controller
+
     if (showSpinner) setLoading(true)
     setError(null)
 
+    const requestInit = { signal: controller.signal }
     const requests = [
-      ['Tasks', api<{ data: TaskRow[] }>('/api/planner/tasks')],
-      ['Budget', api<{ data: BudgetRow[]; summary: BudgetSummary; byCategory: CategoryBreakdown[] }>('/api/planner/budget')],
-      ['Vendors', api<{ data: VendorRow[] }>('/api/planner/vendors')],
-      ['Guests', api<{ data: GuestRow[]; tables: SeatingTableRow[] }>('/api/planner/guests')],
-      ['Timeline', api<{ data: TimelineRow[] }>('/api/planner/timeline')],
+      ['Tasks', api<{ data: TaskRow[] }>('/api/planner/tasks', requestInit)],
+      ['Budget', api<{ data: BudgetRow[]; summary: BudgetSummary; byCategory: CategoryBreakdown[] }>('/api/planner/budget', requestInit)],
+      ['Vendors', api<{ data: VendorRow[] }>('/api/planner/vendors', requestInit)],
+      ['Guests', api<{ data: GuestRow[]; tables: SeatingTableRow[] }>('/api/planner/guests', requestInit)],
+      ['Timeline', api<{ data: TimelineRow[] }>('/api/planner/timeline', requestInit)],
     ] as const
 
     try {
       const results = await Promise.allSettled(requests.map(([, request]) => request))
+      if (controller.signal.aborted) return
+
       const failures: string[] = []
 
       const taskResult = results[0]
@@ -275,8 +289,8 @@ export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }
       } else failures.push('Timeline')
 
       results.forEach((result, index) => {
-        if (result.status === 'rejected') {
-          console.error('[PLANNER WORKSPACE CLIENT] refresh failed', {
+        if (result.status === 'rejected' && !isRequestCancellation(result.reason, controller.signal)) {
+          console.warn('[PLANNER WORKSPACE CLIENT] refresh failed', {
             module: requests[index][0],
             error: result.reason,
           })
@@ -288,17 +302,25 @@ export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }
       }
       if (failures.length < requests.length) setLastUpdated(new Date())
     } catch (refreshError) {
-      console.error('[PLANNER WORKSPACE CLIENT] refresh failed unexpectedly', refreshError)
+      if (isRequestCancellation(refreshError, controller.signal)) return
+      console.warn('[PLANNER WORKSPACE CLIENT] refresh failed unexpectedly', refreshError)
       setError('Unable to refresh planner data. Your last loaded data is still shown. Please retry.')
     } finally {
-      setLoading(false)
+      if (refreshControllerRef.current === controller) {
+        refreshControllerRef.current = null
+        if (!controller.signal.aborted) setLoading(false)
+      }
     }
   }, [])
 
   useEffect(() => {
     void refresh(true)
     const timer = window.setInterval(() => void refresh(false), 30_000)
-    return () => window.clearInterval(timer)
+    return () => {
+      window.clearInterval(timer)
+      refreshControllerRef.current?.abort()
+      refreshControllerRef.current = null
+    }
   }, [refresh])
 
   async function mutate(
