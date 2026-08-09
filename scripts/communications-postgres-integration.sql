@@ -16,7 +16,10 @@ BEGIN
      to_regclass('wewed_communications."CommunicationParticipant"') IS NULL OR
      to_regclass('wewed_communications."CommunicationMessage"') IS NULL OR
      to_regclass('wewed_communications."CommunicationDelivery"') IS NULL OR
-     to_regclass('wewed_communications."CommunicationEvent"') IS NULL THEN
+     to_regclass('wewed_communications."CommunicationEvent"') IS NULL OR
+     to_regclass('wewed_communications."CommunicationEndpoint"') IS NULL OR
+     to_regclass('wewed_communications."CommunicationPreference"') IS NULL OR
+     to_regclass('wewed_communications."CommunicationProviderEvent"') IS NULL THEN
     RAISE EXCEPTION 'one or more communications tables are missing';
   END IF;
 END
@@ -31,8 +34,10 @@ BEGIN
       IF has_schema_privilege(role_name, 'wewed_communications', 'USAGE') THEN
         RAISE EXCEPTION '% unexpectedly has USAGE on wewed_communications', role_name;
       END IF;
-      IF has_table_privilege(role_name, 'wewed_communications."CommunicationMessage"', 'SELECT') THEN
-        RAISE EXCEPTION '% unexpectedly has SELECT on private communication messages', role_name;
+      IF has_table_privilege(role_name, 'wewed_communications."CommunicationMessage"', 'SELECT') OR
+         has_table_privilege(role_name, 'wewed_communications."CommunicationEndpoint"', 'SELECT') OR
+         has_table_privilege(role_name, 'wewed_communications."CommunicationPreference"', 'SELECT') THEN
+        RAISE EXCEPTION '% unexpectedly has SELECT on private communication data', role_name;
       END IF;
     END IF;
   END LOOP;
@@ -72,6 +77,16 @@ VALUES
   ('comm-participant-couple', 'comm-conversation', 'comm-couple-user', 'ADMIN', now(), now(), now()),
   ('comm-participant-planner', 'comm-conversation', 'comm-planner-user', 'MEMBER', now(), now(), now());
 
+INSERT INTO wewed_communications."CommunicationEndpoint"
+  ("id", "userId", "channel", "address", "normalizedAddress", "status", "verifiedAt", "metadata", "createdAt", "updatedAt")
+VALUES
+  ('comm-endpoint-planner-email', 'comm-planner-user', 'EMAIL', 'Planner@Example.Test', 'planner@example.test', 'VERIFIED', now(), '{}', now(), now());
+
+INSERT INTO wewed_communications."CommunicationPreference"
+  ("id", "userId", "channel", "enabled", "createdAt", "updatedAt")
+VALUES
+  ('comm-pref-planner-email', 'comm-planner-user', 'EMAIL', true, now(), now());
+
 INSERT INTO wewed_communications."CommunicationMessage"
   ("id", "conversationId", "senderUserId", "messageType", "visibility", "body", "createdAt", "updatedAt")
 VALUES
@@ -97,6 +112,7 @@ DECLARE
   participant_count integer;
   communication_message_count integer;
   public_message_count integer;
+  queued_email_count integer;
   event_has_body boolean;
 BEGIN
   SELECT count(*) INTO participant_count
@@ -111,6 +127,17 @@ BEGIN
   WHERE "conversationId" = 'comm-conversation';
   IF communication_message_count <> 1 THEN
     RAISE EXCEPTION 'expected 1 private communication message, got %', communication_message_count;
+  END IF;
+
+  SELECT count(*) INTO queued_email_count
+  FROM wewed_communications."CommunicationDelivery"
+  WHERE "messageId" = 'comm-message'
+    AND "recipientUserId" = 'comm-planner-user'
+    AND "channel" = 'EMAIL'
+    AND "status" = 'QUEUED'
+    AND "endpointId" = 'comm-endpoint-planner-email';
+  IF queued_email_count <> 1 THEN
+    RAISE EXCEPTION 'verified enabled email endpoint was not queued exactly once';
   END IF;
 
   SELECT count(*) INTO public_message_count
@@ -129,8 +156,44 @@ BEGIN
 END
 $$;
 
+-- A staff-only message must not fan out to a non-admin external endpoint even if
+-- an IN_APP delivery row exists.
+INSERT INTO wewed_communications."CommunicationMessage"
+  ("id", "conversationId", "senderUserId", "messageType", "visibility", "body", "createdAt", "updatedAt")
+VALUES
+  ('comm-staff-message', 'comm-conversation', 'comm-admin-user', 'INTERNAL_NOTE', 'STAFF_ONLY', 'Private staff note', now(), now());
+INSERT INTO wewed_communications."CommunicationDelivery"
+  ("id", "messageId", "recipientUserId", "channel", "status", "provider", "createdAt", "updatedAt")
+VALUES
+  ('comm-staff-delivery', 'comm-staff-message', 'comm-planner-user', 'IN_APP', 'DELIVERED', 'wewed', now(), now());
+
+DO $$
+DECLARE
+  leaked integer;
+BEGIN
+  SELECT count(*) INTO leaked
+  FROM wewed_communications."CommunicationDelivery"
+  WHERE "messageId" = 'comm-staff-message'
+    AND "channel" <> 'IN_APP';
+  IF leaked <> 0 THEN
+    RAISE EXCEPTION 'STAFF_ONLY message unexpectedly queued an external delivery';
+  END IF;
+END
+$$;
+
 DO $$
 BEGIN
+  BEGIN
+    INSERT INTO wewed_communications."CommunicationEndpoint"
+      ("id", "userId", "channel", "address", "normalizedAddress", "status", "verifiedAt", "metadata", "createdAt", "updatedAt")
+    VALUES
+      ('comm-endpoint-planner-email-2', 'comm-planner-user', 'EMAIL', 'second@example.test', 'second@example.test', 'VERIFIED', now(), '{}', now(), now());
+    RAISE EXCEPTION 'multiple verified endpoints for one user/channel were accepted';
+  EXCEPTION
+    WHEN unique_violation THEN
+      NULL;
+  END;
+
   BEGIN
     INSERT INTO wewed_communications."CommunicationParticipant"
       ("id", "conversationId", "userId", "role", "joinedAt", "createdAt", "updatedAt")
