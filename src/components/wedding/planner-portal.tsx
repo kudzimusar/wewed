@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
+  ArrowLeft,
   CalendarDays,
   ChevronDown,
   ChevronUp,
@@ -11,6 +12,7 @@ import {
   LayoutDashboard,
   Loader2,
   LogOut,
+  RefreshCw,
   ShieldCheck,
   SlidersHorizontal,
 } from 'lucide-react'
@@ -50,6 +52,7 @@ interface PlannerSession {
     role: string
   }
   activeWedding?: ActiveWedding
+  error?: string
 }
 
 function dateLabel(value?: string): string {
@@ -92,7 +95,7 @@ function PlannerToolTriggers() {
   )
 }
 
-function PlannerExperienceNavigation() {
+function PlannerExperienceNavigation({ showPortfolioLink }: { showPortfolioLink: boolean }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const urlToolsOpen = searchParams.get('panel') === 'experience'
@@ -145,6 +148,18 @@ function PlannerExperienceNavigation() {
       className="shrink-0 border-b border-gold/15 bg-espresso/95 px-3 py-1.5 sm:px-5"
     >
       <div className="mx-auto flex min-h-10 w-full max-w-[1500px] items-center gap-2">
+        {showPortfolioLink && (
+          <Link
+            href="/planner/portfolio"
+            aria-label="Back to all managed weddings"
+            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-gold/25 bg-gold/[0.06] px-2.5 font-sans text-xs font-medium text-gold transition hover:bg-gold/12 sm:px-3"
+          >
+            <ArrowLeft className="size-3.5" />
+            <span className="sm:hidden">Portfolio</span>
+            <span className="hidden sm:inline">All weddings</span>
+          </Link>
+        )}
+
         <div data-planner-context-inline className="min-w-0 flex-1">
           <WeddingContextControls />
         </div>
@@ -162,7 +177,7 @@ function PlannerExperienceNavigation() {
           className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border border-gold/20 bg-gold/[0.05] px-3 font-sans text-xs text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60"
         >
           <SlidersHorizontal className="size-3.5" />
-          Planner tools
+          <span className="hidden min-[410px]:inline">Planner tools</span>
           {toolsOpen ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
         </button>
       </div>
@@ -228,7 +243,7 @@ function PlannerExperienceNavigation() {
 
         @media (max-width: 639px) {
           [data-planner-context-inline] #active-wedding {
-            width: min(48vw, 15rem) !important;
+            width: min(42vw, 13rem) !important;
           }
         }
       `}</style>
@@ -239,15 +254,29 @@ function PlannerExperienceNavigation() {
 export function PlannerPortal({ onExit }: PlannerPortalProps) {
   const [session, setSession] = useState<PlannerSession | null>(null)
   const [loading, setLoading] = useState(true)
+  const [sessionError, setSessionError] = useState<string | null>(null)
+  const [sessionRetryVersion, setSessionRetryVersion] = useState(0)
 
   useEffect(() => {
     let cancelled = false
 
     const loadSession = () => {
+      setSessionError(null)
       void fetch('/api/auth/me', { cache: 'no-store' })
         .then(async (response) => {
-          const payload = (await response.json()) as PlannerSession
-          if (!cancelled && response.ok && payload.authorized) setSession(payload)
+          const payload = (await response.json().catch(() => null)) as PlannerSession | null
+          if (!response.ok || !payload?.authorized) {
+            throw new Error(payload?.error || 'Unable to refresh the planner session.')
+          }
+          if (!cancelled) setSession(payload)
+        })
+        .catch((caught) => {
+          console.error('[PLANNER PORTAL CLIENT] session refresh failed', caught)
+          if (!cancelled) {
+            setSessionError(
+              caught instanceof Error ? caught.message : 'Unable to refresh the planner session.',
+            )
+          }
         })
         .finally(() => {
           if (!cancelled) setLoading(false)
@@ -262,7 +291,7 @@ export function PlannerPortal({ onExit }: PlannerPortalProps) {
       window.removeEventListener('wewed:client-profile-updated', loadSession)
       window.removeEventListener('wewed:wedding-switched', loadSession)
     }
-  }, [])
+  }, [sessionRetryVersion])
 
   useEffect(() => {
     const root = document.querySelector('[data-planner-portal]')
@@ -361,7 +390,19 @@ export function PlannerPortal({ onExit }: PlannerPortalProps) {
       </header>
 
       <div className="planner-portal-body relative flex min-h-0 flex-1 flex-col overflow-hidden">
-        <PlannerExperienceNavigation key={`tools-${wedding?.id ?? 'no-active-wedding'}`} />
+        {sessionError && (
+          <div role="alert" className="flex shrink-0 items-center justify-between gap-3 border-b border-clay/25 bg-clay/10 px-3 py-2 text-xs text-clay-light sm:px-5">
+            <span className="min-w-0">{sessionError}</span>
+            <Button type="button" size="sm" variant="outline" onClick={() => { setLoading(true); setSessionRetryVersion((current) => current + 1) }} className="h-8 shrink-0 border-clay/30 bg-transparent text-clay-light">
+              <RefreshCw className="size-3.5" /> Retry
+            </Button>
+          </div>
+        )}
+
+        <PlannerExperienceNavigation
+          key={`tools-${wedding?.id ?? 'no-active-wedding'}`}
+          showPortfolioLink={session?.user?.role === 'planner'}
+        />
 
         <main
           id="planner-workspace"
