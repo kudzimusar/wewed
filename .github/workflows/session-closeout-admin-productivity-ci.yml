@@ -67,6 +67,9 @@ jobs:
       - name: Execute session closeout source contract
         run: bun scripts/session-closeout-admin-productivity-contract.ts
 
+      - name: Re-run Admin Command Centre source contract
+        run: bun scripts/admin-command-center-contract.ts
+
       - name: Verify Admin productivity permission matrix
         run: bun scripts/session-closeout-admin-permissions.ts
 
@@ -106,7 +109,10 @@ jobs:
           bunx eslint
           scripts/session-closeout-admin-productivity-contract.ts
           scripts/session-closeout-admin-permissions.ts
+          scripts/admin-command-center-contract.ts
           src/app/api/admin/productivity/route.ts
+          src/app/api/admin/command-center/route.ts
+          src/lib/admin-command-center-route-core.ts
           src/components/admin/admin-productivity-console.tsx
           src/components/admin/secure-wewed-admin.tsx
           tests/e2e/admin-session-closeout-productivity.spec.ts
