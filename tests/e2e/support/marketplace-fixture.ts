@@ -72,8 +72,28 @@ export async function resetMarketplaceE2EFixture(): Promise<void> {
       await tx.$executeRawUnsafe(`INSERT INTO wewed_admin."BusinessAccountLink" (id,"businessAccountId","entityType","entityId",relationship,"createdAt") VALUES
         ('e2e-market-couple-wedding','${E2E_MARKETPLACE.coupleBusinessId}','wedding','${E2E_WEDDINGS.primary.id}','owns',CURRENT_TIMESTAMP),
         ('e2e-market-planner-existing-wedding','${E2E_MARKETPLACE.plannerBusinessId}','wedding','${E2E_WEDDINGS.secondary.id}','manages',CURRENT_TIMESTAMP)`)
-      await tx.$executeRawUnsafe(`INSERT INTO wewed_admin."PlannerProfile" (id,"businessAccountId",slug,"displayName",headline,bio,"yearsExperience","serviceAreas",services,"weddingStyles",languages,"priceBand","availabilityStatus",status,"publishedAt","createdAt","updatedAt") VALUES
-        ('${E2E_MARKETPLACE.profileId}','${E2E_MARKETPLACE.plannerBusinessId}','${E2E_MARKETPLACE.profileSlug}','Planner E2E Studio','Secure full-service planning','Synthetic published planner profile for Chromium testing.',8,'["Harare"]','["Full planning"]','["Modern"]','["English"]','standard','accepting','published',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`)
+
+      // Active + complete planning companies receive a private draft profile from the
+      // lifecycle trigger. Promote that exact record to the deterministic published
+      // fixture instead of creating a second profile for the same business.
+      const promoted = await tx.$executeRawUnsafe(`UPDATE wewed_admin."PlannerProfile"
+        SET id='${E2E_MARKETPLACE.profileId}',
+            slug='${E2E_MARKETPLACE.profileSlug}',
+            "displayName"='Planner E2E Studio',
+            headline='Secure full-service planning',
+            bio='Synthetic published planner profile for Chromium testing.',
+            "yearsExperience"=8,
+            "serviceAreas"='["Harare"]'::jsonb,
+            services='["Full planning"]'::jsonb,
+            "weddingStyles"='["Modern"]'::jsonb,
+            languages='["English"]'::jsonb,
+            "priceBand"='standard',
+            "availabilityStatus"='accepting',
+            status='published',
+            "publishedAt"=CURRENT_TIMESTAMP,
+            "updatedAt"=CURRENT_TIMESTAMP
+        WHERE "businessAccountId"='${E2E_MARKETPLACE.plannerBusinessId}'`)
+      if (promoted !== 1) throw new Error('Planner marketplace fixture expected exactly one auto-provisioned profile.')
     })
   } finally {
     await prisma.$disconnect()
