@@ -16,6 +16,10 @@ interface RateLimitDecisionRow {
   remaining: number
 }
 
+interface RecipientCountRow {
+  recipientCount: number | bigint
+}
+
 export class CommunicationRateLimitError extends Error {
   readonly status = 429
 
@@ -117,6 +121,38 @@ export async function enforceCommunicationRateLimit(input: {
       remaining: Math.max(0, Number(decision.remaining) || 0),
       retryAfterSeconds: Math.max(1, Number(decision.retryAfter) || 1),
     }
+  } catch (error) {
+    if (
+      error instanceof CommunicationRateLimitError ||
+      error instanceof CommunicationRateLimitBackendError
+    ) {
+      throw error
+    }
+    throw new CommunicationRateLimitBackendError()
+  }
+}
+
+export async function enforceCommunicationConversationFanoutLimit(
+  userId: string,
+  conversationId: string,
+): Promise<number> {
+  try {
+    const rows = await db.$queryRaw<RecipientCountRow[]>(Prisma.sql`
+      SELECT COUNT(*)::int AS "recipientCount"
+      FROM wewed_communications."CommunicationParticipant"
+      WHERE "conversationId" = ${conversationId}
+        AND "userId" <> ${userId}
+        AND "leftAt" IS NULL
+    `)
+    const recipientCount = Number(rows[0]?.recipientCount ?? 0)
+    if (recipientCount > 0) {
+      await enforceCommunicationRateLimit({
+        userId,
+        scope: 'recipient_fanout',
+        cost: recipientCount,
+      })
+    }
+    return recipientCount
   } catch (error) {
     if (
       error instanceof CommunicationRateLimitError ||
