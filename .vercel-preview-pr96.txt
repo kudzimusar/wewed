@@ -1,0 +1,3 @@
+Preview-only deployment trigger for PR #96.
+Application source is based on PR head 2941b6f54fe9e8acb7541932bba28c8452f16170.
+This file is not part of PR #96 or main.
