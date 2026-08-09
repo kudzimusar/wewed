@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 
+// Preview-only rebuild trigger for PR #96 UAT. No runtime behavior change.
 const LEGACY_MODULES = new Set([
   'overview',
   'tasks',
