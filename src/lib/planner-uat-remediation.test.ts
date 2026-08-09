@@ -17,6 +17,8 @@ describe('planner UAT remediation contracts', () => {
     expect(portal).toContain("response.json().catch(() => null)")
     expect(portal).toContain('All weddings')
     expect(portal).toContain('Portfolio')
+    expect(portal).toContain('min-w-[7rem] flex-1')
+    expect(portal).toContain('min-width: 6.5rem !important')
   })
 
   test('portfolio uses compact mobile metrics and an explicit wedding CTA', async () => {
