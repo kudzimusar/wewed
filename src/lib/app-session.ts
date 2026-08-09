@@ -5,6 +5,7 @@ import type { NextRequest, NextResponse } from 'next/server'
 
 export const APP_SESSION_COOKIE = 'wewed_admin_auth'
 export const APP_SESSION_TTL_SECONDS = 8 * 60 * 60
+export const PLANNER_PORTFOLIO_SESSION_ID = '__wewed_planner_portfolio__'
 
 export type DashboardRole = 'admin' | 'couple' | 'planner'
 
