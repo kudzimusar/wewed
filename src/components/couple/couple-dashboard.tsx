@@ -12,6 +12,7 @@ import {
   KeyRound,
   Loader2,
   MapPin,
+  MessageCircle,
   Search,
   Settings2,
   ShieldCheck,
@@ -28,6 +29,7 @@ interface SessionPayload {
 
 const links = [
   ['Find a planner', 'Search, save, enquire, appoint and control delegated authority.', '/couple/planners', Search, 'bg-plum/10 text-plum'],
+  ['Messages', 'Talk with your planner, wedding team and Wewed support without losing the conversation outside the platform.', '/messages', MessageCircle, 'bg-gold/15 text-gold-muted'],
   ['Guests & invitations', 'Design wedding cards, create QR links and manage private guest access.', '/couple/invitations', UsersRound, 'bg-clay/10 text-clay'],
   ['Privacy & access', 'Choose public, invitation-only or private visibility for the active wedding.', '/couple/privacy', KeyRound, 'bg-sage/10 text-sage'],
   ['Planning workspace', 'Open tasks, budget, vendors, guests, timeline and seating.', '/planner', Settings2, 'bg-gold/15 text-gold-muted'],
@@ -85,6 +87,7 @@ function CoupleDashboardContent() {
             </div>
             <div className="flex flex-wrap gap-2">
               {wedding && <Link href={`/w/${wedding.slug}`} className="inline-flex min-h-11 items-center rounded-full bg-gold px-5 py-2.5 text-xs font-semibold text-espresso shadow-lg hover:bg-gold-light">View wedding site</Link>}
+              <Link href="/messages" className="inline-flex min-h-11 items-center gap-2 rounded-full border border-gold/30 bg-black/20 px-5 py-2.5 text-xs text-champagne/75 backdrop-blur hover:border-gold hover:text-gold"><MessageCircle className="size-4" />Messages</Link>
               <Link href="/" className="inline-flex min-h-11 items-center rounded-full border border-gold/30 bg-black/20 px-5 py-2.5 text-xs text-champagne/75 backdrop-blur hover:border-gold hover:text-gold">Wewed home</Link>
             </div>
           </div>
