@@ -134,7 +134,7 @@ describe('Stage 4 Tasks and Budget parity', () => {
     const itemRoute = await source('src/app/api/planner/budget/[id]/route.ts')
 
     expect(workspace).toContain('byCategory: CategoryBreakdown[]')
-    expect(workspace).toContain('setBudgetByCategory(budgetPayload.byCategory ?? [])')
+    expect(workspace).toContain('setBudgetByCategory(budgetResult.value.byCategory ?? [])')
     expect(workspace).toContain('actualCost: budgetForm.actualCost')
     expect(workspace).toContain('paidAmount: Number(budgetForm.paidAmount')
     expect(workspace).toContain('dueDate: budgetForm.dueDate || null')
