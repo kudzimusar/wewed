@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { processQueuedCommunicationDeliveries } from '@/lib/communication-channels'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 const DEFAULT_BATCH_LIMIT = 20
 
