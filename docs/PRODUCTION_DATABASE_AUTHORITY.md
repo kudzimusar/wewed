@@ -18,7 +18,7 @@ Production was historically advanced through Supabase migrations while the repos
 
 with PostgreSQL error `42701` because `Vendor.contact` already existed. The Prisma row has zero applied steps and remains unfinished. That row is evidence of the retired deployment path; it is not permission to replay the migration.
 
-The normalized Vendor and ProgrammeItem columns are present in Production in the shape expected by the current application. The old migration also contained transitional legacy-sync triggers that Production never installed and that current application code no longer requires.
+The normalized Vendor and ProgrammeItem columns are present in Production in the shape expected by the current application. The historical migration also introduced compatibility triggers for legacy sentinel/JSON writes. Production never reached those trigger definitions during the failed Prisma replay, but clean-database CI and Stage 2 migration tests confirm the compatibility behavior remains part of Wewed's supported planner contract.
 
 ## Reconciliation migration
 
@@ -26,7 +26,9 @@ The normalized Vendor and ProgrammeItem columns are present in Production in the
 
 1. `GuestContribution.guestId` remains `ON DELETE RESTRICT`, matching Prisma.
 2. `wewed_delete_guest_contribution_before_guest` removes the owned one-to-one contribution immediately before a Guest is deleted, restoring the planner Guest lifecycle without Prisma schema drift.
-3. obsolete `sync_vendor_planner_metadata` and `sync_programme_item_metadata` triggers/functions are absent from the final schema.
+3. `sync_vendor_planner_metadata` remains available for historical Vendor description-sentinel writes while normalized fields are authoritative.
+4. `sync_programme_item_metadata` remains available for historical ProgrammeItem icon-JSON writes while normalized fields are authoritative.
+5. all three trigger functions use a controlled search path and are revoked from PUBLIC/`anon`/`authenticated`; they exist only as internal trigger guards.
 
 The same reviewed SQL is applied to Production through the Supabase migration API with migration name `production_schema_reconciliation`.
 
@@ -44,7 +46,7 @@ Do not run `prisma migrate deploy` or `prisma migrate resolve` against Wewed Pro
 
 ## Repository workflow
 
-`.github/workflows/deploy-database.yml` is retained only as a **read-only Production database authority verifier** for compatibility with existing GitHub configuration. It validates the target, application Prisma schema, Supabase reconciliation marker, known historical Prisma state, guest lifecycle trigger and absence of obsolete legacy-sync functions.
+`.github/workflows/deploy-database.yml` is retained only as a **read-only Production database authority verifier** for compatibility with existing GitHub configuration. It validates the target, application Prisma schema, Supabase reconciliation marker, known historical Prisma state, guest lifecycle trigger and both planner compatibility trigger/function pairs.
 
 It contains no production DDL execution step.
 
