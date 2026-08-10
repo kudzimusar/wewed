@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { stripeBillingConfiguration } from '@/lib/stripe-billing'
+import { normalizeMailboxEnvironmentValue } from '@/lib/email/mailbox-config'
 import {
   requireWewedAdmin,
   WewedAdminAccessError,
@@ -126,11 +127,18 @@ export async function GET(request: NextRequest) {
     }
     const stripeConfiguration = stripeBillingConfiguration()
 
+    const normalizedEmailFrom = normalizeMailboxEnvironmentValue(
+      process.env.WEWED_EMAIL_FROM,
+      { preserveDisplayName: true },
+    )
+    const normalizedEmailReplyTo = normalizeMailboxEnvironmentValue(
+      process.env.WEWED_EMAIL_REPLY_TO,
+    )
     const resendReady =
       configured('RESEND_API_KEY') &&
       configured('RESEND_WEBHOOK_SECRET') &&
-      configured('WEWED_EMAIL_FROM') &&
-      configured('WEWED_EMAIL_REPLY_TO')
+      Boolean(normalizedEmailFrom) &&
+      Boolean(normalizedEmailReplyTo)
     const telegramBotConfigured = configured('TELEGRAM_BOT_TOKEN')
     const telegramSecretConfigured = configured('TELEGRAM_WEBHOOK_SECRET')
     const telegramReady = telegramBotConfigured && telegramSecretConfigured
