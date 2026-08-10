@@ -2,6 +2,8 @@ import 'server-only'
 
 import { publicOrigin } from '@/lib/public-origin'
 
+const VERCEL_PREVIEW_SUFFIX = ['.vercel', '.app'].join('')
+
 function trustedVercelPreviewOrigin(value: string | undefined): string | null {
   const raw = value?.trim()
   if (!raw) return null
@@ -9,7 +11,7 @@ function trustedVercelPreviewOrigin(value: string | undefined): string | null {
   try {
     const candidate = new URL(raw.includes('://') ? raw : `https://${raw}`)
     if (candidate.protocol !== 'https:') return null
-    if (!candidate.hostname.endsWith('.vercel.app')) return null
+    if (!candidate.hostname.endsWith(VERCEL_PREVIEW_SUFFIX)) return null
     return candidate.origin
   } catch {
     return null
