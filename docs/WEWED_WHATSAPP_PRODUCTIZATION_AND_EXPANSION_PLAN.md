@@ -36,15 +36,16 @@ Goal: prove that a real Couple account can use the same experience already quali
 Test sequence:
 
 1. Use an active Couple account attached to a real Wewed wedding.
-2. Add the Couple's test WhatsApp number to Meta's allowed test recipients while the Wewed Meta test sender is still in use.
-3. Couple signs in to Wewed and opens `Messages -> Channels`.
-4. Couple saves their WhatsApp number as an endpoint.
-5. Verify ownership through the controlled endpoint-verification process and enable WhatsApp delivery.
-6. Admin or planner sends the Couple a Wewed message while no service window exists. Expect the approved Wewed notification template.
-7. Couple replies to that WhatsApp notification to establish the safe Wewed conversation binding.
-8. Send a normal, non-quoted WhatsApp message. Expect it in the same Wewed conversation once only.
-9. Admin/planner sends a fresh Wewed message inside the active window. Expect the exact message text on the Couple's WhatsApp.
-10. Verify SENT -> DELIVERED -> READ where Meta supplies those statuses, one provider attempt, no duplicate canonical message, and no private message body in logs/provider metadata.
+2. Use a WhatsApp number that is different from every other Wewed test user's verified WhatsApp endpoint.
+3. Add the Couple's test WhatsApp number to Meta's allowed test recipients while the Wewed Meta test sender is still in use.
+4. Couple signs in to Wewed and opens `Messages -> Channels`.
+5. Couple saves their WhatsApp number as an endpoint.
+6. Verify ownership through the controlled endpoint-verification process and enable WhatsApp delivery.
+7. Admin or planner sends the Couple a Wewed message while no service window exists. Expect the approved Wewed notification template.
+8. Couple replies to that WhatsApp notification to establish the safe Wewed conversation binding.
+9. Send a normal, non-quoted WhatsApp message. Expect it in the same Wewed conversation once only.
+10. Admin/planner sends a fresh Wewed message inside the active window. Expect the exact message text on the Couple's WhatsApp.
+11. Verify SENT -> DELIVERED -> READ where Meta supplies those statuses, one provider attempt, no duplicate canonical message, and no private message body in logs/provider metadata.
 
 Pass condition: Couple can move naturally between Wewed and WhatsApp with the same safety rules already qualified for the planner path.
 
@@ -60,6 +61,12 @@ The current Channels page allows a user to save a WhatsApp endpoint and enable t
 - show status such as Pending, Verified, Disabled, Bounced/Unavailable;
 - allow number replacement without creating duplicate verified endpoints;
 - retain audit history without exposing phone numbers in logs.
+
+### Endpoint identity collision rule
+
+Production currently enforces only one verified endpoint per user/channel, not global uniqueness of a WhatsApp number across different Wewed users. Until that is hardened, controlled tests must not reuse the same WhatsApp number for Planner, Couple, Admin or future Provider identities.
+
+Before broad launch Wewed should enforce an explicit ownership rule for verified WhatsApp addresses. Default recommendation: one verified WhatsApp address maps to one active Wewed user identity unless a deliberate shared-business-number model is introduced for provider organisations. Verification should fail closed on cross-user collisions rather than allowing inbound identity ambiguity.
 
 ## Provider communications expansion
 
@@ -145,6 +152,7 @@ Email currently uses the existing transactional sender while WhatsApp uses Meta 
 
 - qualify Couple path end-to-end;
 - build user-facing WhatsApp endpoint verification;
+- enforce verified WhatsApp ownership/collision rules;
 - improve Channels status/help copy;
 - add safe service-window/conversation status where useful;
 - retain approved-template fallback and fail-closed ambiguity handling.
