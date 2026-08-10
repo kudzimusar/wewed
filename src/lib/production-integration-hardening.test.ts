@@ -23,11 +23,19 @@ describe('production integration hardening contracts', () => {
     expect(registration).not.toContain('request.nextUrl.origin')
   })
 
-  test('keeps Stripe-hosted return paths on the canonical public origin', () => {
+  test('keeps Production Stripe returns canonical and Preview Stripe returns isolated', () => {
     const billing = source('src/app/api/billing/account/route.ts')
+    const returnOrigin = source('src/lib/billing-return-origin.ts')
 
-    expect(billing).toContain('origin: publicOrigin()')
+    expect(billing).toContain("import { billingReturnOrigin } from '@/lib/billing-return-origin'")
+    expect(billing).toContain('origin: billingReturnOrigin()')
     expect(billing).not.toContain('request.nextUrl.origin')
+    expect(returnOrigin).toContain("process.env.VERCEL_ENV === 'production'")
+    expect(returnOrigin).toContain("process.env.VERCEL_ENV === 'preview'")
+    expect(returnOrigin).toContain('process.env.VERCEL_BRANCH_URL')
+    expect(returnOrigin).toContain('process.env.VERCEL_URL')
+    expect(returnOrigin).toContain('trustedVercelPreviewOrigin')
+    expect(returnOrigin).toContain('return publicOrigin()')
   })
 
   test('keeps Stripe webhook lifecycle signed, environment-scoped and idempotent', () => {
@@ -55,6 +63,17 @@ describe('production integration hardening contracts', () => {
     expect(billing).toContain("return process.env.VERCEL_ENV !== 'production'")
     expect(billing).toContain("optional('STRIPE_TEST_WEBHOOK_SECRET')")
     expect(billing).toContain("optional('STRIPE_WEBHOOK_SECRET')")
+  })
+
+  test('records Resend suppression as a failed terminal state across both audit paths', () => {
+    const resendWebhook = source('src/lib/email/resend-webhook.ts')
+    const health = source('src/app/api/admin/integrations/health/route.ts')
+
+    expect(resendWebhook).toContain("case 'email.suppressed': return { status: 'suppressed', timestampColumn: 'failedAt' }")
+    expect(resendWebhook).toContain("case 'email.suppressed':")
+    expect(health).toContain("COUNT(*) FILTER (WHERE status = 'suppressed')::int AS suppressed")
+    expect(health).toContain('email.failed + email.bounced + email.complained + email.suppressed > 0')
+    expect(health).toContain("if (email.total === 0) return 'configured'")
   })
 
   test('requires an authenticated Supabase session to accept administrator invitations', () => {
@@ -85,7 +104,7 @@ describe('production integration hardening contracts', () => {
     expect(origin).not.toContain('NEXT_PUBLIC_VERCEL_URL')
   })
 
-  test('does not reintroduce legacy public-domain callbacks in guarded surfaces', () => {
+  test('does not reintroduce legacy public-domain callbacks in guarded canonical surfaces', () => {
     const guarded = [
       source('src/app/forgot-password/page.tsx'),
       source('src/app/api/auth/register/route.ts'),
