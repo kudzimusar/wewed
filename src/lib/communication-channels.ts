@@ -257,15 +257,54 @@ export function buildCommunicationEmail(input: ClaimedDeliveryRow) {
   }
 }
 
+function whatsappTestRecipients(): Set<string> {
+  const configured = process.env.WEWED_WHATSAPP_TEST_RECIPIENTS?.trim()
+  if (!configured) return new Set()
+  const recipients = new Set<string>()
+  for (const value of configured.split(',')) {
+    const candidate = value.trim()
+    if (!candidate) continue
+    try {
+      recipients.add(normalizeCommunicationEndpoint('WHATSAPP', candidate).normalizedAddress)
+    } catch {
+      continue
+    }
+  }
+  return recipients
+}
+
 export function buildWhatsAppRequest(input: ClaimedDeliveryRow) {
   const token = process.env.WHATSAPP_CLOUD_ACCESS_TOKEN?.trim()
   const phoneNumberId = process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID?.trim()
   const version = process.env.WHATSAPP_CLOUD_GRAPH_VERSION?.trim()
-  const template = process.env.WEWED_WHATSAPP_NOTIFICATION_TEMPLATE?.trim()
-  if (!token || !phoneNumberId || !version || !template) return null
+  if (!token || !phoneNumberId || !version) return null
+
   const base = (process.env.WHATSAPP_CLOUD_GRAPH_BASE_URL || 'https://graph.facebook.com').replace(/\/$/, '')
   const language = process.env.WEWED_WHATSAPP_TEMPLATE_LANGUAGE?.trim() || 'en_US'
   const to = input.normalizedAddress.replace(/^\+/, '')
+  const testMode = process.env.WEWED_WHATSAPP_TEST_MODE?.trim().toLowerCase() === 'true'
+
+  if (testMode) {
+    const testTemplate = process.env.WEWED_WHATSAPP_TEST_TEMPLATE?.trim()
+    const testRecipients = whatsappTestRecipients()
+    if (!testTemplate || !testRecipients.has(input.normalizedAddress)) return null
+    return {
+      url: `${base}/${version}/${encodeURIComponent(phoneNumberId)}/messages`,
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: {
+        messaging_product: 'whatsapp',
+        to,
+        type: 'template',
+        template: {
+          name: testTemplate,
+          language: { code: language },
+        },
+      },
+    }
+  }
+
+  const template = process.env.WEWED_WHATSAPP_NOTIFICATION_TEMPLATE?.trim()
+  if (!template) return null
   const senderName = input.senderName.trim() || 'Wewed'
   const body = {
     messaging_product: 'whatsapp',
