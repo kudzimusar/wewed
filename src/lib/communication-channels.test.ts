@@ -124,19 +124,19 @@ describe('communication provider request builders', () => {
     process.env.WEWED_WHATSAPP_TEMPLATE_LANGUAGE = 'en_US'
     process.env.WEWED_WHATSAPP_TEST_MODE = 'true'
     process.env.WEWED_WHATSAPP_TEST_TEMPLATE = 'hello_world'
-    process.env.WEWED_WHATSAPP_TEST_RECIPIENTS = '+81 80-8120-1356, +263771111111'
+    process.env.WEWED_WHATSAPP_TEST_RECIPIENTS = '+1 202-555-0123, +1 202-555-0124'
     process.env.WEWED_WHATSAPP_NOTIFICATION_TEMPLATE = 'wewed_new_message_v1'
 
     const request = buildWhatsAppRequest({
       ...delivery,
       channel: 'WHATSAPP',
-      address: '+81 80-8120-1356',
-      normalizedAddress: '+818081201356',
+      address: '+1 202-555-0123',
+      normalizedAddress: '+12025550123',
     })
 
     expect(request?.body).toEqual({
       messaging_product: 'whatsapp',
-      to: '818081201356',
+      to: '12025550123',
       type: 'template',
       template: {
         name: 'hello_world',
@@ -153,7 +153,7 @@ describe('communication provider request builders', () => {
     process.env.WHATSAPP_CLOUD_GRAPH_VERSION = 'v26.0'
     process.env.WEWED_WHATSAPP_TEST_MODE = 'true'
     process.env.WEWED_WHATSAPP_TEST_TEMPLATE = 'hello_world'
-    process.env.WEWED_WHATSAPP_TEST_RECIPIENTS = '+818081201356'
+    process.env.WEWED_WHATSAPP_TEST_RECIPIENTS = '+12025550123'
     process.env.WEWED_WHATSAPP_NOTIFICATION_TEMPLATE = 'wewed_new_message_v1'
 
     expect(buildWhatsAppRequest({
@@ -169,14 +169,14 @@ describe('communication provider request builders', () => {
     process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID = 'phone-number-id'
     process.env.WHATSAPP_CLOUD_GRAPH_VERSION = 'v26.0'
     process.env.WEWED_WHATSAPP_TEST_MODE = 'true'
-    process.env.WEWED_WHATSAPP_TEST_RECIPIENTS = '+818081201356'
+    process.env.WEWED_WHATSAPP_TEST_RECIPIENTS = '+12025550123'
     delete process.env.WEWED_WHATSAPP_TEST_TEMPLATE
 
     expect(buildWhatsAppRequest({
       ...delivery,
       channel: 'WHATSAPP',
-      address: '+81 80-8120-1356',
-      normalizedAddress: '+818081201356',
+      address: '+1 202-555-0123',
+      normalizedAddress: '+12025550123',
     })).toBeNull()
 
     process.env.WEWED_WHATSAPP_TEST_TEMPLATE = 'hello_world'
@@ -185,8 +185,8 @@ describe('communication provider request builders', () => {
     expect(buildWhatsAppRequest({
       ...delivery,
       channel: 'WHATSAPP',
-      address: '+81 80-8120-1356',
-      normalizedAddress: '+818081201356',
+      address: '+1 202-555-0123',
+      normalizedAddress: '+12025550123',
     })).toBeNull()
   })
 })
