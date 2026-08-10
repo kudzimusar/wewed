@@ -76,6 +76,7 @@ describe('communication provider request builders', () => {
     process.env.WHATSAPP_CLOUD_ACCESS_TOKEN = 'meta-test-secret'
     process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID = 'phone-number-id'
     process.env.WHATSAPP_CLOUD_GRAPH_VERSION = 'v26.0'
+    process.env.WEWED_WHATSAPP_TEST_MODE = 'false'
     delete process.env.WEWED_WHATSAPP_NOTIFICATION_TEMPLATE
     expect(buildWhatsAppRequest({
       ...delivery,
@@ -85,10 +86,11 @@ describe('communication provider request builders', () => {
     })).toBeNull()
   })
 
-  test('builds a privacy-preserving WhatsApp template request using sender name only', () => {
+  test('builds a privacy-preserving production WhatsApp template request using sender name only', () => {
     process.env.WHATSAPP_CLOUD_ACCESS_TOKEN = 'meta-test-secret'
     process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID = 'phone-number-id'
     process.env.WHATSAPP_CLOUD_GRAPH_VERSION = 'v26.0'
+    process.env.WEWED_WHATSAPP_TEST_MODE = 'false'
     process.env.WEWED_WHATSAPP_NOTIFICATION_TEMPLATE = 'wewed_new_message_v1'
     process.env.WEWED_WHATSAPP_TEMPLATE_LANGUAGE = 'en_US'
     const request = buildWhatsAppRequest({
@@ -113,6 +115,79 @@ describe('communication provider request builders', () => {
       },
     })
     expect(JSON.stringify(request?.body)).not.toContain('Please confirm the ceremony timeline.')
+  })
+
+  test('uses hello_world without parameters only for an allowlisted test recipient', () => {
+    process.env.WHATSAPP_CLOUD_ACCESS_TOKEN = 'meta-test-secret'
+    process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID = 'phone-number-id'
+    process.env.WHATSAPP_CLOUD_GRAPH_VERSION = 'v26.0'
+    process.env.WEWED_WHATSAPP_TEMPLATE_LANGUAGE = 'en_US'
+    process.env.WEWED_WHATSAPP_TEST_MODE = 'true'
+    process.env.WEWED_WHATSAPP_TEST_TEMPLATE = 'hello_world'
+    process.env.WEWED_WHATSAPP_TEST_RECIPIENTS = '+81 80-8120-1356, +263771111111'
+    process.env.WEWED_WHATSAPP_NOTIFICATION_TEMPLATE = 'wewed_new_message_v1'
+
+    const request = buildWhatsAppRequest({
+      ...delivery,
+      channel: 'WHATSAPP',
+      address: '+81 80-8120-1356',
+      normalizedAddress: '+818081201356',
+    })
+
+    expect(request?.body).toEqual({
+      messaging_product: 'whatsapp',
+      to: '818081201356',
+      type: 'template',
+      template: {
+        name: 'hello_world',
+        language: { code: 'en_US' },
+      },
+    })
+    expect(JSON.stringify(request?.body)).not.toContain('Amina')
+    expect(JSON.stringify(request?.body)).not.toContain('Please confirm the ceremony timeline.')
+  })
+
+  test('test mode fails closed for a recipient outside the explicit allowlist', () => {
+    process.env.WHATSAPP_CLOUD_ACCESS_TOKEN = 'meta-test-secret'
+    process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID = 'phone-number-id'
+    process.env.WHATSAPP_CLOUD_GRAPH_VERSION = 'v26.0'
+    process.env.WEWED_WHATSAPP_TEST_MODE = 'true'
+    process.env.WEWED_WHATSAPP_TEST_TEMPLATE = 'hello_world'
+    process.env.WEWED_WHATSAPP_TEST_RECIPIENTS = '+818081201356'
+    process.env.WEWED_WHATSAPP_NOTIFICATION_TEMPLATE = 'wewed_new_message_v1'
+
+    expect(buildWhatsAppRequest({
+      ...delivery,
+      channel: 'WHATSAPP',
+      address: '+263771234567',
+      normalizedAddress: '+263771234567',
+    })).toBeNull()
+  })
+
+  test('test mode fails closed when its template or allowlist is incomplete', () => {
+    process.env.WHATSAPP_CLOUD_ACCESS_TOKEN = 'meta-test-secret'
+    process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID = 'phone-number-id'
+    process.env.WHATSAPP_CLOUD_GRAPH_VERSION = 'v26.0'
+    process.env.WEWED_WHATSAPP_TEST_MODE = 'true'
+    process.env.WEWED_WHATSAPP_TEST_RECIPIENTS = '+818081201356'
+    delete process.env.WEWED_WHATSAPP_TEST_TEMPLATE
+
+    expect(buildWhatsAppRequest({
+      ...delivery,
+      channel: 'WHATSAPP',
+      address: '+81 80-8120-1356',
+      normalizedAddress: '+818081201356',
+    })).toBeNull()
+
+    process.env.WEWED_WHATSAPP_TEST_TEMPLATE = 'hello_world'
+    delete process.env.WEWED_WHATSAPP_TEST_RECIPIENTS
+
+    expect(buildWhatsAppRequest({
+      ...delivery,
+      channel: 'WHATSAPP',
+      address: '+81 80-8120-1356',
+      normalizedAddress: '+818081201356',
+    })).toBeNull()
   })
 })
 
