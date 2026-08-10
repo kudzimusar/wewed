@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import {
   CommunicationRateLimitError,
   communicationRateLimitPolicy,
+  enforceCommunicationRateLimit,
   hashCommunicationRateLimitKey,
 } from '@/lib/communications-rate-limit'
 
@@ -40,5 +41,16 @@ describe('communications rate limit policy', () => {
     const error = new CommunicationRateLimitError('limited', 17)
     expect(error.status).toBe(429)
     expect(error.retryAfterSeconds).toBe(17)
+  })
+
+  test('binds Prisma numeric parameters to the integer PostgreSQL function signature', async () => {
+    const decision = await enforceCommunicationRateLimit({
+      userId: 'ci-prisma-integer-binding-contract',
+      scope: 'channel_mutation',
+    })
+
+    expect(decision.remaining).toBe(19)
+    expect(decision.retryAfterSeconds).toBeGreaterThanOrEqual(1)
+    expect(decision.retryAfterSeconds).toBeLessThanOrEqual(60)
   })
 })
