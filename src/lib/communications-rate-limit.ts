@@ -102,9 +102,9 @@ export async function enforceCommunicationRateLimit(input: {
       FROM wewed_communications."consume_rate_limit"(
         ${keyHash},
         ${input.scope},
-        ${cost},
-        ${policy.limit},
-        ${policy.windowSeconds}
+        CAST(${cost} AS integer),
+        CAST(${policy.limit} AS integer),
+        CAST(${policy.windowSeconds} AS integer)
       )
     `)
     const decision = rows[0]
