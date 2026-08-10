@@ -43,6 +43,7 @@ interface ClaimedDeliveryRow {
   body: string
   conversationId: string
   senderName: string
+  whatsappServiceWindowActive: boolean
 }
 
 export interface TransportResult {
@@ -303,6 +304,22 @@ export function buildWhatsAppRequest(input: ClaimedDeliveryRow) {
     }
   }
 
+  if (input.whatsappServiceWindowActive) {
+    return {
+      url: `${base}/${version}/${encodeURIComponent(phoneNumberId)}/messages`,
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: {
+        messaging_product: 'whatsapp',
+        to,
+        type: 'text',
+        text: {
+          preview_url: false,
+          body: input.body,
+        },
+      },
+    }
+  }
+
   const template = process.env.WEWED_WHATSAPP_NOTIFICATION_TEMPLATE?.trim()
   if (!template) return null
   const senderName = input.senderName.trim() || 'Wewed'
@@ -400,7 +417,24 @@ async function claimNextDelivery(): Promise<ClaimedDeliveryRow | null> {
     const rows = await tx.$queryRaw<ClaimedDeliveryRow[]>(Prisma.sql`
       SELECT delivery."id", delivery."messageId", delivery."recipientUserId", delivery."channel", delivery."attemptCount", delivery."maxAttempts",
         endpoint."address", endpoint."normalizedAddress", message."body", message."conversationId",
-        COALESCE(NULLIF(btrim(sender."name"), ''), sender."email", 'Wewed') AS "senderName"
+        COALESCE(NULLIF(btrim(sender."name"), ''), sender."email", 'Wewed') AS "senderName",
+        CASE WHEN delivery."channel" = 'WHATSAPP' THEN EXISTS (
+          SELECT 1
+          FROM wewed_communications."CommunicationProviderEvent" inbound_event
+          JOIN wewed_communications."CommunicationMessage" inbound_message
+            ON inbound_message."id" = inbound_event."messageId"
+          JOIN wewed_communications."CommunicationParticipant" inbound_participant
+            ON inbound_participant."conversationId" = inbound_message."conversationId"
+            AND inbound_participant."userId" = delivery."recipientUserId"
+            AND inbound_participant."leftAt" IS NULL
+          WHERE inbound_event."provider" = 'meta-whatsapp-cloud'
+            AND inbound_event."channel" = 'WHATSAPP'
+            AND inbound_event."direction" = 'INBOUND'
+            AND inbound_event."status" = 'PROCESSED'
+            AND inbound_event."createdAt" >= now() - interval '24 hours'
+            AND inbound_message."conversationId" = message."conversationId"
+            AND inbound_message."senderUserId" = delivery."recipientUserId"
+        ) ELSE false END AS "whatsappServiceWindowActive"
       FROM wewed_communications."CommunicationDelivery" delivery
       JOIN wewed_communications."CommunicationEndpoint" endpoint ON endpoint."id" = delivery."endpointId"
       JOIN wewed_communications."CommunicationMessage" message ON message."id" = delivery."messageId"
