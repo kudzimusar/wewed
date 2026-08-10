@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import {
-  applyCommunicationProviderStatus,
-  ingestInboundCommunicationReply,
-} from '@/lib/communication-channels'
+import { applyCommunicationProviderStatus } from '@/lib/communication-channels'
+import { ingestInboundWhatsAppMessage } from '@/lib/communication-channels-inbound'
 import { CommunicationError } from '@/lib/communications'
 import {
   normalizeWhatsAppWebhookPayload,
@@ -68,9 +66,8 @@ export async function POST(request: NextRequest) {
   let ignoredInboundCount = normalized.ignoredInboundCount
   for (const reply of normalized.inboundReplies) {
     try {
-      await ingestInboundCommunicationReply({
+      await ingestInboundWhatsAppMessage({
         provider: WHATSAPP_PROVIDER,
-        channel: 'WHATSAPP',
         providerEventId: reply.providerEventId,
         fromAddress: reply.fromAddress,
         replyToProviderMessageId: reply.replyToProviderMessageId,

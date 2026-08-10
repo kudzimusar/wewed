@@ -16,7 +16,7 @@ export interface NormalizedWhatsAppStatusEvent {
 export interface NormalizedWhatsAppInboundReply {
   providerEventId: string
   fromAddress: string
-  replyToProviderMessageId: string
+  replyToProviderMessageId: string | null
   body: string
 }
 
@@ -146,7 +146,6 @@ export function normalizeWhatsAppWebhookPayload(payload: unknown): NormalizedWha
             type !== 'text'
             || !providerInboundMessageId
             || !fromAddress
-            || !replyToProviderMessageId
             || !body
           ) {
             result.ignoredInboundCount += 1
