@@ -76,6 +76,23 @@ describe('production integration hardening contracts', () => {
     expect(health).toContain("if (email.total === 0) return 'configured'")
   })
 
+  test('keeps Supabase as the sole Production DDL authority', () => {
+    const workflow = source('.github/workflows/deploy-database.yml')
+    const reconciliation = source('prisma/migrations/20260810100000_production_schema_reconciliation/migration.sql')
+    const authority = source('docs/PRODUCTION_DATABASE_AUTHORITY.md')
+
+    expect(workflow).toContain('Verify Supabase production migration authority')
+    expect(workflow).toContain('supabase_migrations.schema_migrations')
+    expect(workflow).not.toContain('bunx prisma migrate deploy')
+    expect(workflow).not.toContain('bunx prisma migrate resolve')
+    expect(reconciliation).toContain('wewed_delete_guest_contribution_before_guest')
+    expect(reconciliation).toContain('ON DELETE RESTRICT')
+    expect(reconciliation).toContain('DROP FUNCTION IF EXISTS public."sync_vendor_planner_metadata"()')
+    expect(reconciliation).toContain('DROP FUNCTION IF EXISTS public."sync_programme_item_metadata"()')
+    expect(authority).toContain('Supabase migration ledger')
+    expect(authority).toContain('Do not run `prisma migrate deploy` or `prisma migrate resolve` against Wewed Production.')
+  })
+
   test('requires an authenticated Supabase session to accept administrator invitations', () => {
     const invitation = source('src/app/api/admin/invitations/accept/route.ts')
 
