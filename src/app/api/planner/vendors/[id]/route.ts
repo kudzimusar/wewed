@@ -19,6 +19,16 @@ const CATEGORIES = [
 const CONTRACT_STATUSES = ['signed', 'pending', 'negotiating', 'declined'] as const
 const PAYMENT_STATUSES = ['paid', 'deposit', 'unpaid'] as const
 
+function normalizedEmail(value: unknown): string | null {
+  if (value == null || value === '') return null
+  if (typeof value !== 'string') throw new Error('INVALID_VENDOR_EMAIL')
+  const email = value.trim().toLowerCase()
+  if (email.length > 320 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error('INVALID_VENDOR_EMAIL')
+  }
+  return email
+}
+
 function formatVendor(v: {
   id: string
   name: string
@@ -26,6 +36,7 @@ function formatVendor(v: {
   description: string | null
   website: string | null
   phone: string | null
+  email: string | null
   imageUrl: string | null
   rating: number | null
   featured: boolean
@@ -46,6 +57,7 @@ function formatVendor(v: {
     description: planning.description,
     website: v.website,
     phone: v.phone,
+    email: v.email,
     imageUrl: v.imageUrl,
     rating: v.rating,
     featured: v.featured,
@@ -66,6 +78,7 @@ interface PatchVendorPayload {
   description?: string | null
   website?: string | null
   phone?: string | null
+  email?: string | null
   contact?: string | null
   contractStatus?: string
   paymentStatus?: string
@@ -117,6 +130,16 @@ export async function PATCH(
     if (body.description !== undefined) updates.description = body.description?.trim() || null
     if (body.website !== undefined) updates.website = body.website?.trim() || null
     if (body.phone !== undefined) updates.phone = body.phone?.trim() || null
+    if (body.email !== undefined) {
+      try {
+        updates.email = normalizedEmail(body.email)
+      } catch {
+        return NextResponse.json(
+          { success: false, error: 'Enter a valid vendor email address', field: 'email' },
+          { status: 400 },
+        )
+      }
+    }
     if (body.featured !== undefined) updates.featured = body.featured === true
     if (body.contact !== undefined) updates.contact = body.contact?.trim() || null
     if (body.contractStatus !== undefined) {

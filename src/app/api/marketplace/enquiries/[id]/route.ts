@@ -11,6 +11,8 @@ import {
 import { marketplaceErrorResponse } from '@/lib/marketplace-response'
 
 const PLANNER_TRANSITIONS = new Set(['responded', 'consultation_requested', 'accepted_interest', 'declined'])
+const PLANNER_ACTIONABLE_STATUSES = new Set(['submitted', 'viewed', 'responded', 'consultation_requested'])
+const PLANNER_DECISION_STATUSES = new Set(['accepted_interest', 'declined'])
 
 export async function PATCH(
   request: NextRequest,
@@ -28,6 +30,34 @@ export async function PATCH(
       if (!PLANNER_TRANSITIONS.has(nextStatus)) {
         throw new MarketplaceAccessError('Unsupported planner enquiry transition.', 400)
       }
+
+      const existing = await db.$queryRawUnsafe<Array<{ status: string }>>(
+        `SELECT status
+         FROM wewed_admin."PlannerEnquiry"
+         WHERE id = $1
+           AND "plannerBusinessAccountId" = $2
+         LIMIT 1`,
+        id,
+        context.business.businessAccountId,
+      )
+      const currentStatus = existing[0]?.status
+      if (!currentStatus) {
+        throw new MarketplaceAccessError('Enquiry was not found.', 404)
+      }
+
+      // Exact retries of a completed planner decision are intentionally idempotent.
+      // This protects mobile double taps / network retries without reopening the enquiry.
+      if (PLANNER_DECISION_STATUSES.has(currentStatus)) {
+        if (currentStatus === nextStatus) {
+          return NextResponse.json({ success: true, status: currentStatus, idempotent: true })
+        }
+        throw new MarketplaceAccessError('This enquiry decision is already closed.', 409)
+      }
+
+      if (!PLANNER_ACTIONABLE_STATUSES.has(currentStatus)) {
+        throw new MarketplaceAccessError('Enquiry is no longer actionable.', 409)
+      }
+
       const rows = await db.$queryRawUnsafe<Array<{ status: string; coupleBusinessAccountId: string }>>(
         `UPDATE wewed_admin."PlannerEnquiry"
          SET status = $3,
@@ -38,15 +68,18 @@ export async function PATCH(
              "updatedAt" = CURRENT_TIMESTAMP
          WHERE id = $1
            AND "plannerBusinessAccountId" = $5
-           AND status IN ('submitted','viewed','responded','consultation_requested','accepted_interest')
+           AND status = $6
          RETURNING status, "coupleBusinessAccountId"`,
         id,
         context.user.id,
         nextStatus,
         text(body.response, 3000),
         context.business.businessAccountId,
+        currentStatus,
       )
-      if (!rows[0]) throw new MarketplaceAccessError('Enquiry was not found or is no longer actionable.', 409)
+      if (!rows[0]) {
+        throw new MarketplaceAccessError('Enquiry changed while this action was being saved. Refresh and try again.', 409)
+      }
       await marketplaceAudit({
         actorUserId: context.user.id,
         businessAccountId: context.business.businessAccountId,

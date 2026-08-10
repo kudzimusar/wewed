@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import {
   clearAppSessionCookie,
   isDashboardRole,
+  PLANNER_PORTFOLIO_SESSION_ID,
   setAppSessionCookie,
 } from '@/lib/app-session'
 import {
@@ -150,6 +151,58 @@ export async function POST(request: NextRequest) {
     await acceptPendingMemberships(accessUser.id)
 
     const weddings = await listAccessibleWeddings(accessUser.id, accessUser.role)
+    if (weddings.length === 0 && accessUser.role === 'planner') {
+      await db.$transaction([
+        db.user.update({
+          where: { id: accessUser.id },
+          data: { currentWeddingId: null, lastLoginAt: now },
+        }),
+        db.userProfile.upsert({
+          where: { id: data.user.id },
+          create: {
+            id: data.user.id,
+            email: normalizedAuthEmail,
+            displayName,
+            role: 'planner',
+            lastLoginAt: now,
+          },
+          update: {
+            email: normalizedAuthEmail,
+            displayName,
+            role: 'planner',
+            lastLoginAt: now,
+          },
+        }),
+      ])
+
+      const response = NextResponse.json({
+        success: true,
+        user: {
+          id: data.user.id,
+          accessUserId: accessUser.id,
+          email: normalizedAuthEmail,
+          displayName,
+          role: 'planner',
+          coupleId: accessUser.coupleId,
+          activeWeddingId: PLANNER_PORTFOLIO_SESSION_ID,
+        },
+        activeWedding: null,
+        weddings: [],
+        workspace: 'planner_portfolio',
+      })
+
+      setAppSessionCookie(response, {
+        userId: accessUser.id,
+        authUserId: data.user.id,
+        email: normalizedAuthEmail,
+        role: 'planner',
+        coupleId: accessUser.coupleId,
+        activeWeddingId: PLANNER_PORTFOLIO_SESSION_ID,
+      })
+
+      return response
+    }
+
     if (weddings.length === 0) {
       await supabase.auth.signOut()
       return errorResponse(
