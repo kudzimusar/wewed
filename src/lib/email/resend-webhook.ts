@@ -92,6 +92,7 @@ function statusForEvent(type: string): { status?: string; timestampColumn?: stri
     case 'email.bounced': return { status: 'bounced', timestampColumn: 'bouncedAt' }
     case 'email.complained': return { status: 'complained', timestampColumn: 'complainedAt' }
     case 'email.failed': return { status: 'failed', timestampColumn: 'failedAt' }
+    case 'email.suppressed': return { status: 'suppressed', timestampColumn: 'failedAt' }
     default: return {}
   }
 }
