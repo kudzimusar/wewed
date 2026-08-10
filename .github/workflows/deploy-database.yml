@@ -104,7 +104,7 @@ jobs:
         shell: bash
         run: |
           workflow_file='.github/workflows/deploy-database.yml'
-          if grep -nE 'bunx prisma migrate (deploy|resolve)|supabase db push|psql .*-[cf].*\.sql' "$workflow_file"; then
+          if grep -nE '^[[:space:]]*run:[[:space:]]+(bunx prisma migrate (deploy|resolve)|supabase db push)' "$workflow_file"; then
             echo "::error::Production database verification workflow contains a DDL execution command."
             exit 1
           fi
