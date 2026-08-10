@@ -1,29 +1,24 @@
-import { timingSafeEqual } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { processQueuedCommunicationDeliveries } from '@/lib/communication-channels'
+import { communicationSchedulerAuthorized } from '@/lib/communications-scheduler'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 const DEFAULT_BATCH_LIMIT = 20
 
-function cronAuthorized(authorization: string | null): boolean {
-  const secret = process.env.CRON_SECRET?.trim()
-  if (!secret || !authorization) return false
-  const expected = Buffer.from(`Bearer ${secret}`)
-  const provided = Buffer.from(authorization)
-  return expected.length === provided.length && timingSafeEqual(expected, provided)
-}
-
-export async function GET(request: NextRequest) {
-  if (!process.env.CRON_SECRET?.trim()) {
+export async function POST(request: NextRequest) {
+  let authorized = false
+  try {
+    authorized = await communicationSchedulerAuthorized(request.headers.get('authorization'))
+  } catch {
     return NextResponse.json(
-      { success: false, error: 'Communications cron is not configured.' },
+      { success: false, error: 'Communications scheduler authorization is unavailable.' },
       { status: 503 },
     )
   }
 
-  if (!cronAuthorized(request.headers.get('authorization'))) {
+  if (!authorized) {
     return NextResponse.json({ success: false, error: 'Not found.' }, { status: 404 })
   }
 
