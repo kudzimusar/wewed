@@ -100,10 +100,10 @@ Configure only during a controlled test window:
 ```text
 WEWED_WHATSAPP_TEST_MODE=true
 WEWED_WHATSAPP_TEST_TEMPLATE=hello_world
-WEWED_WHATSAPP_TEST_RECIPIENTS=+818081201356
+WEWED_WHATSAPP_TEST_RECIPIENTS=<tester E.164 number>
 ```
 
-The recipient list is comma-separated E.164. The implementation normalizes each configured number and fails closed unless the current delivery recipient is explicitly allowlisted. In test mode Wewed supplies no template components or parameters, so no sender name or private message body is sent to `hello_world`.
+The real tester number belongs only in deployment environment configuration; do not commit it to the repository. The recipient list is comma-separated E.164. The implementation normalizes each configured number and fails closed unless the current delivery recipient is explicitly allowlisted. In test mode Wewed supplies no template components or parameters, so no sender name or private message body is sent to `hello_world`.
 
 If test mode is enabled but the template is missing, the allowlist is empty, an allowlist value is invalid, or the delivery recipient is not allowlisted, no WhatsApp request is built. The canonical Wewed message still exists; the external delivery is treated as unavailable rather than silently falling back to the production template.
 
@@ -143,7 +143,7 @@ The webhook layer must not log raw webhook payloads, message bodies, phone endpo
 Before attaching a real Wewed business number, exercise the Meta test number through this sequence:
 
 1. Register and internally verify a Wewed WhatsApp endpoint for an authenticated tester, then enable the WhatsApp channel preference.
-2. If the production Wewed template is not yet approved, enable the controlled `hello_world` qualification mode and allowlist only the tester number.
+2. If the production Wewed template is not yet approved, enable the controlled `hello_world` qualification mode and allowlist only the tester number in deployment environment configuration.
 3. Send a canonical Wewed message to that tester and run the protected communications dispatcher.
 4. Confirm Meta returns a provider message ID and the Wewed delivery reaches `SENT`.
 5. Confirm Meta webhook status transitions reconcile to `DELIVERED` and a later `read` event does not downgrade state.
