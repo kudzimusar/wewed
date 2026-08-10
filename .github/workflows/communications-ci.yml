@@ -6,13 +6,16 @@ on:
       - main
     paths:
       - '.env.example'
+      - 'vercel.json'
       - 'docs/WEWED_COMMUNICATIONS_*.md'
       - 'docs/WEWED_WHATSAPP_CLOUD_WEBHOOK_IMPLEMENTATION_PLAN.md'
       - 'prisma/migrations/**'
       - 'scripts/communications-postgres-integration.sql'
       - 'scripts/communications-rate-limit-postgres-integration.sql'
+      - 'scripts/communications-supabase-scheduler.sql'
       - 'src/app/messages/**'
       - 'src/app/api/communications/**'
+      - 'src/app/api/cron/communications-deliveries/**'
       - 'src/app/api/internal/communications/**'
       - 'src/app/api/webhooks/resend/**'
       - 'src/app/api/webhooks/whatsapp/**'
@@ -113,8 +116,31 @@ jobs:
       - name: Run communications rate-limit contracts
         run: bun test src/lib/communications-rate-limit.test.ts
 
-      - name: Run communications channel and WhatsApp webhook contracts
-        run: bun test src/lib/communication-channels.test.ts src/lib/whatsapp-cloud-webhook.test.ts src/app/api/webhooks/whatsapp/route.test.ts
+      - name: Run communications channel, scheduler and WhatsApp webhook contracts
+        run: bun test src/lib/communication-channels.test.ts src/lib/whatsapp-cloud-webhook.test.ts src/app/api/webhooks/whatsapp/route.test.ts src/app/api/cron/communications-deliveries/route.test.ts
+
+      - name: Verify Supabase automatic scheduler contract
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path('scripts/communications-supabase-scheduler.sql').read_text()
+          required = [
+              "CREATE EXTENSION IF NOT EXISTS pg_net",
+              "CREATE EXTENSION IF NOT EXISTS pg_cron",
+              "vault.create_secret",
+              "wewed_communications_scheduler_secret",
+              "wewed-communications-automatic-dispatch",
+              "'* * * * *'",
+              "https://wewed.pro/api/cron/communications-deliveries",
+              "'Authorization', 'Bearer ' ||",
+          ]
+          missing = [item for item in required if item not in text]
+          if missing:
+              raise SystemExit(f'Missing automatic scheduler contract fragments: {missing}')
+          if 'WEWED_COMMUNICATIONS_DISPATCH_KEY' in text:
+              raise SystemExit('Automatic scheduler must not reuse the manual dispatch secret.')
+          PY
 
       - name: Run communications authorization integration
         run: bun test src/lib/communications.integration.test.ts
@@ -133,15 +159,17 @@ jobs:
             exit 1
           fi
 
-      - name: Confirm channel, webhook and rate-limit code do not log sensitive data
+      - name: Confirm channel, webhook, scheduler and rate-limit code do not log sensitive data
         shell: bash
         run: |
           if grep -nE "console\.(log|info|debug|warn|error)" \
             src/lib/communication-channels.ts \
             src/lib/communications-rate-limit.ts \
+            src/lib/communications-scheduler.ts \
             src/lib/whatsapp-cloud-webhook.ts \
+            src/app/api/cron/communications-deliveries/route.ts \
             src/app/api/webhooks/whatsapp/route.ts; then
-            echo "::error::Communication transport/webhook/rate-limit code must not log message bodies, endpoints, actor keys or provider tokens"
+            echo "::error::Communication transport/webhook/scheduler/rate-limit code must not log message bodies, endpoints, actor keys or provider tokens"
             exit 1
           fi
 
