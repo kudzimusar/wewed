@@ -88,11 +88,14 @@ jobs:
           guest_delete_guard=$(psql "$DATABASE_URL" -Atqc \
             "select count(*) from pg_trigger where tgname = 'wewed_delete_guest_contribution_before_guest' and not tgisinternal" \
             | tr -d '[:space:]')
-          legacy_sync_functions=$(psql "$DATABASE_URL" -Atqc \
+          compatibility_functions=$(psql "$DATABASE_URL" -Atqc \
             "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('sync_vendor_planner_metadata','sync_programme_item_metadata')" \
             | tr -d '[:space:]')
+          compatibility_triggers=$(psql "$DATABASE_URL" -Atqc \
+            "select count(*) from pg_trigger where tgname in ('sync_vendor_planner_metadata_trigger','sync_programme_item_metadata_trigger') and not tgisinternal" \
+            | tr -d '[:space:]')
 
-          if [[ "$guest_delete_guard" != "1" || "$legacy_sync_functions" != "0" ]]; then
+          if [[ "$guest_delete_guard" != "1" || "$compatibility_functions" != "2" || "$compatibility_triggers" != "2" ]]; then
             echo "::error::Production reconciliation objects do not match the reviewed authority contract."
             exit 1
           fi
