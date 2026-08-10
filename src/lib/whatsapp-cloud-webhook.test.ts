@@ -101,7 +101,7 @@ describe('WhatsApp webhook normalization', () => {
     expect(first.statuses[0]?.providerEventId).toBe(second.statuses[0]?.providerEventId)
   })
 
-  test('accepts only contextual inbound text replies and never guesses a conversation', () => {
+  test('normalizes contextual and non-context inbound text while ignoring non-text payloads', () => {
     const payload = {
       object: 'whatsapp_business_account',
       entry: [{
@@ -124,7 +124,7 @@ describe('WhatsApp webhook normalization', () => {
                 id: 'wamid.inbound-unscoped',
                 timestamp: '201',
                 type: 'text',
-                text: { body: 'Which wedding is this?' },
+                text: { body: 'Following up without quoting.' },
               },
               {
                 from: '263771234567',
@@ -141,13 +141,18 @@ describe('WhatsApp webhook normalization', () => {
     }
 
     const normalized = normalizeWhatsAppWebhookPayload(payload)
-    expect(normalized.inboundReplies).toHaveLength(1)
+    expect(normalized.inboundReplies).toHaveLength(2)
     expect(normalized.inboundReplies[0]).toMatchObject({
       fromAddress: '263771234567',
       replyToProviderMessageId: 'wamid.outbound',
       body: 'I have confirmed it.',
     })
-    expect(normalized.ignoredInboundCount).toBe(2)
+    expect(normalized.inboundReplies[1]).toMatchObject({
+      fromAddress: '263771234567',
+      replyToProviderMessageId: null,
+      body: 'Following up without quoting.',
+    })
+    expect(normalized.ignoredInboundCount).toBe(1)
   })
 
   test('ignores payloads that are not WhatsApp Business Account message webhooks', () => {
