@@ -103,7 +103,8 @@ jobs:
       - name: Assert this workflow cannot mutate production DDL
         shell: bash
         run: |
-          if grep -nE 'prisma migrate (deploy|resolve)|supabase db push|psql .*-[cf].*\.sql' "$GITHUB_WORKFLOW_REF" 2>/dev/null; then
+          workflow_file='.github/workflows/deploy-database.yml'
+          if grep -nE 'bunx prisma migrate (deploy|resolve)|supabase db push|psql .*-[cf].*\.sql' "$workflow_file"; then
             echo "::error::Production database verification workflow contains a DDL execution command."
             exit 1
           fi
