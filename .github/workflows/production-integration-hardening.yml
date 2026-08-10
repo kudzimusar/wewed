@@ -35,4 +35,4 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Run production integration hardening contracts
-        run: bun test src/lib/production-integration-hardening.test.ts
+        run: bun test src/lib/production-integration-hardening.test.ts src/lib/email/mailbox-config.test.ts
