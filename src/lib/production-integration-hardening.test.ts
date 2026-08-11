@@ -19,7 +19,9 @@ describe('production integration hardening contracts', () => {
   test('keeps registration confirmation on the canonical public origin', () => {
     const registration = source('src/app/api/auth/register/route.ts')
 
-    expect(registration).toContain("publicUrl('/register?confirmed=1')")
+    expect(registration).toContain("publicUrl(reservedVendor ? '/register?confirmed=vendor' : '/register?confirmed=1')")
+    expect(registration).toContain("'/register?confirmed=vendor'")
+    expect(registration).toContain("'/register?confirmed=1'")
     expect(registration).not.toContain('request.nextUrl.origin')
   })
 
