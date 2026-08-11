@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { PROVIDER_CATEGORY_VALUES } from '@/lib/provider-catalog'
 
+const FEATURED_BADGE = 'Wewed Featured'
+
 function stringList(value: unknown, limit = 50): string[] {
   if (Array.isArray(value)) return value.filter((entry): entry is string => typeof entry === 'string').slice(0, limit)
   if (typeof value !== 'string') return []
@@ -25,6 +27,7 @@ function objectValue(value: unknown): Record<string, unknown> {
 }
 
 function publicProvider(row: Record<string, unknown>) {
+  const verificationBadges = stringList(row.verificationBadges)
   return {
     id: String(row.profileId),
     slug: String(row.slug),
@@ -43,7 +46,8 @@ function publicProvider(row: Record<string, unknown>) {
     teamSize: typeof row.teamSize === 'number' ? row.teamSize : null,
     responseTime: typeof row.responseTime === 'string' ? row.responseTime : null,
     minimumBookingNotice: typeof row.minimumBookingNotice === 'string' ? row.minimumBookingNotice : null,
-    verificationBadges: stringList(row.verificationBadges),
+    verificationBadges,
+    featured: verificationBadges.includes(FEATURED_BADGE),
     listingStatus: typeof row.listingStatus === 'string' ? row.listingStatus : 'claimed',
     isClaimable: row.isClaimable === true,
     acceptingEnquiries: row.acceptingEnquiries !== false,
@@ -167,6 +171,7 @@ export async function GET(request: NextRequest) {
                   AND area_offering."serviceAreas" @> jsonb_build_array($3)
               ))
        ORDER BY
+         CASE WHEN COALESCE(p."verificationBadges", '[]'::jsonb) @> '["Wewed Featured"]'::jsonb THEN 0 ELSE 1 END,
          CASE p."listingStatus"
            WHEN 'verified' THEN 0
            WHEN 'claimed' THEN 1
