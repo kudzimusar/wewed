@@ -1,0 +1,8 @@
+@media (max-width: 1023px) {
+  [data-communications-inbox="true"],
+  [data-communications-thread="true"] {
+    height: calc(100dvh - 4rem);
+    max-height: calc(100dvh - 4rem);
+    overflow: hidden;
+  }
+}

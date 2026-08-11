@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'bun:test'
-import { communicationThreadNeedsReconciliation } from '@/lib/communications-client-state'
+import {
+  communicationThreadIsNearBottom,
+  communicationThreadNeedsReconciliation,
+} from '@/lib/communications-client-state'
 
 describe('communication thread reconciliation', () => {
   test('detects when the conversation preview has a newer visible message than the thread', () => {
@@ -31,5 +34,54 @@ describe('communication thread reconciliation', () => {
 
   test('does not reconcile an empty conversation', () => {
     expect(communicationThreadNeedsReconciliation(null, [])).toBe(false)
+  })
+})
+
+describe('communication thread latest-message following', () => {
+  test('follows the latest message when the reader is already near the end', () => {
+    expect(communicationThreadIsNearBottom({
+      scrollHeight: 1200,
+      scrollTop: 650,
+      clientHeight: 500,
+    })).toBe(true)
+  })
+
+  test('does not pull a reader away from older history', () => {
+    expect(communicationThreadIsNearBottom({
+      scrollHeight: 1200,
+      scrollTop: 300,
+      clientHeight: 500,
+    })).toBe(false)
+  })
+
+  test('treats an exact threshold as close enough to follow', () => {
+    expect(communicationThreadIsNearBottom({
+      scrollHeight: 1200,
+      scrollTop: 604,
+      clientHeight: 500,
+    }, 96)).toBe(true)
+  })
+
+  test('rejects invalid scroll measurements', () => {
+    expect(communicationThreadIsNearBottom({
+      scrollHeight: Number.NaN,
+      scrollTop: 0,
+      clientHeight: 500,
+    })).toBe(false)
+  })
+
+  test('messages page keeps mobile inbox and thread exclusive while anchoring latest content', async () => {
+    const page = await Bun.file('src/app/messages/page.tsx').text()
+    expect(page).toContain('data-communications-inbox="true"')
+    expect(page).toContain('data-communications-thread="true"')
+    expect(page).toContain('data-communications-thread-scroll="true"')
+    expect(page).toContain("mobileThreadOpen ? 'hidden lg:flex' : 'flex'")
+    expect(page).toContain("mobileThreadOpen ? 'flex' : 'hidden lg:flex'")
+    expect(page).toContain('min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain')
+    expect(page).toContain('threadScrollRef')
+    expect(page).toContain('threadEndRef')
+    expect(page).toContain('communicationThreadIsNearBottom')
+    expect(page).toContain('container.scrollTop = container.scrollHeight')
+    expect(page).toContain('[latestMessageId, mobileThreadOpen, selectedId]')
   })
 })
