@@ -103,8 +103,8 @@ jobs:
       - name: Run communications rate-limit PostgreSQL contract
         run: psql "postgresql://postgres:postgres@localhost:5432/wewed" -f scripts/communications-rate-limit-postgres-integration.sql
 
-      - name: Run communications policy tests
-        run: bun test src/lib/communications-policy.test.ts
+      - name: Run communications policy and client-state tests
+        run: bun test src/lib/communications-policy.test.ts src/lib/communications-client-state.test.ts
 
       - name: Provide server-only test sentinel
         shell: bash

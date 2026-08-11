@@ -98,6 +98,13 @@ export async function openModule(page: Page, moduleKey: ModuleKey): Promise<void
     routeKey,
   )
 
+  // Canonical route navigation can remount the planner portal. Do not return an
+  // editable module while the portal is still resolving its active-wedding key;
+  // otherwise the session response can remount PlannerWorkspace and erase a draft
+  // that the browser test (or a very fast user) just entered.
+  await expect(page.locator('[data-planner-portal] h1')).not.toHaveText('Loading assigned wedding…')
+  await expect(page.locator('#active-wedding')).not.toHaveValue('')
+
   const worksheetToggle = page.getByTestId('worksheet-tools-toggle')
   if (await worksheetToggle.isVisible()) await expect(worksheetToggle).toBeEnabled()
 

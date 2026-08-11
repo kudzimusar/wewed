@@ -21,6 +21,14 @@ const MODULES = new Set<PlannerModuleSlug>([
 
 const TOOLS = new Set<PlannerToolSlug>(['import', 'imports'])
 
+export function plannerLegacyModuleSlug(
+  moduleKey: string | null | undefined,
+): PlannerModuleSlug | null {
+  if (!moduleKey) return null
+  if (moduleKey === 'checklist') return 'tasks'
+  return MODULES.has(moduleKey as PlannerModuleSlug) ? (moduleKey as PlannerModuleSlug) : null
+}
+
 export function plannerModuleFromPath(
   pathname: string,
   legacyModule?: string | null,
@@ -29,9 +37,8 @@ export function plannerModuleFromPath(
   if (segment && MODULES.has(segment as PlannerModuleSlug)) {
     return segment as PlannerModuleSlug
   }
-  if (legacyModule && MODULES.has(legacyModule as PlannerModuleSlug)) {
-    return legacyModule as PlannerModuleSlug
-  }
+  const legacySlug = plannerLegacyModuleSlug(legacyModule)
+  if (legacySlug) return legacySlug
   return 'overview'
 }
 
@@ -53,5 +60,5 @@ export function plannerModulePath(
 }
 
 export function plannerWorksheetModuleSlug(moduleKey: string): PlannerModuleSlug {
-  return moduleKey === 'checklist' ? 'tasks' : plannerModuleFromPath(`/planner/${moduleKey}`)
+  return plannerLegacyModuleSlug(moduleKey) ?? 'overview'
 }

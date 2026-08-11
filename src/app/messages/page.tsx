@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
   ArrowLeft,
@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   Users,
 } from 'lucide-react'
+import { communicationThreadNeedsReconciliation } from '@/lib/communications-client-state'
 
 type DashboardRole = 'admin' | 'couple' | 'planner'
 
@@ -108,6 +109,7 @@ export default function MessagesPage() {
   const [sending, setSending] = useState(false)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const messageRequestSequence = useRef(0)
 
   const selected = useMemo(
     () => conversations.find((conversation) => conversation.id === selectedId) ?? null,
@@ -154,9 +156,11 @@ export default function MessagesPage() {
     const next = payload.data ?? []
     setConversations(next)
     setSelectedId((current) => current ?? next[0]?.id ?? null)
+    return next
   }, [])
 
   const loadMessages = useCallback(async (conversationId: string, silent = false) => {
+    const requestId = ++messageRequestSequence.current
     if (!silent) setThreadLoading(true)
     try {
       const response = await fetch(
@@ -167,13 +171,17 @@ export default function MessagesPage() {
       if (!response.ok || !payload.success) {
         throw new Error(payload.error || 'Unable to load messages.')
       }
-      setMessages(payload.data ?? [])
+      const next = payload.data ?? []
+      if (requestId !== messageRequestSequence.current) return next
+
+      setMessages(next)
       await fetch(
         `/api/communications/conversations/${encodeURIComponent(conversationId)}/read`,
         { method: 'POST' },
       ).catch(() => undefined)
+      return next
     } finally {
-      if (!silent) setThreadLoading(false)
+      if (!silent && requestId === messageRequestSequence.current) setThreadLoading(false)
     }
   }, [])
 
@@ -197,6 +205,7 @@ export default function MessagesPage() {
 
   useEffect(() => {
     if (!selectedId) {
+      messageRequestSequence.current += 1
       setMessages([])
       return
     }
@@ -207,10 +216,40 @@ export default function MessagesPage() {
   }, [loadMessages, selectedId])
 
   useEffect(() => {
+    const lastVisibleMessageAt = selected?.lastMessageAt ?? null
+    if (!selectedId || !communicationThreadNeedsReconciliation(lastVisibleMessageAt, messages)) return
+
+    let cancelled = false
+    async function reconcileThread() {
+      for (let attempt = 0; attempt < 3 && !cancelled; attempt += 1) {
+        try {
+          const next = await loadMessages(selectedId, true)
+          if (cancelled || !communicationThreadNeedsReconciliation(lastVisibleMessageAt, next)) return
+        } catch (loadError) {
+          if (!cancelled) {
+            setError(loadError instanceof Error ? loadError.message : 'Unable to synchronize messages.')
+          }
+          return
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, 200 * (attempt + 1)))
+      }
+    }
+
+    void reconcileThread()
+    return () => { cancelled = true }
+  }, [loadMessages, messages, selected?.lastMessageAt, selectedId])
+
+  useEffect(() => {
     const timer = window.setInterval(() => {
       if (document.visibilityState !== 'visible') return
-      void loadConversations(true).catch(() => undefined)
-      if (selectedId) void loadMessages(selectedId, true).catch(() => undefined)
+      void (async () => {
+        try {
+          await loadConversations(true)
+          if (selectedId) await loadMessages(selectedId, true)
+        } catch {
+          // Polling is best-effort; explicit refresh and send paths surface errors.
+        }
+      })()
     }, 8000)
     return () => window.clearInterval(timer)
   }, [loadConversations, loadMessages, selectedId])
@@ -280,11 +319,8 @@ export default function MessagesPage() {
   async function refresh() {
     setError(null)
     try {
-      await Promise.all([
-        loadConversations(true),
-        loadContacts(),
-        selectedId ? loadMessages(selectedId, true) : Promise.resolve(),
-      ])
+      await Promise.all([loadConversations(true), loadContacts()])
+      if (selectedId) await loadMessages(selectedId, true)
     } catch (refreshError) {
       setError(refreshError instanceof Error ? refreshError.message : 'Unable to refresh.')
     }

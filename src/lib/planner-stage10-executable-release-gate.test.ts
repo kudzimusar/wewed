@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { plannerLegacyModuleSlug } from './planner-route-state'
 
 async function source(path: string): Promise<string> {
   return Bun.file(path).text()
@@ -30,6 +31,23 @@ describe('Stage 10 executable planner release gate', () => {
     expect(filters).toContain('router.replace(')
     expect(worksheetBar).toContain("routeTool === 'import'")
     expect(worksheetBar).toContain("routeTool === 'imports'")
+  })
+
+  test('legacy checklist routes canonicalize directly to Tasks instead of mounting Portfolio', async () => {
+    expect(plannerLegacyModuleSlug('checklist')).toBe('tasks')
+    expect(plannerLegacyModuleSlug('timeline')).toBe('timeline')
+    expect(plannerLegacyModuleSlug('not-a-planner-module')).toBeNull()
+
+    const landing = await source('src/app/planner/page.tsx')
+    expect(landing).toContain('plannerLegacyModuleSlug(legacyModule)')
+    expect(landing).toContain('redirect(`/planner/${canonicalModule}')
+    expect(landing).not.toContain('LEGACY_MODULES')
+  })
+
+  test('browser helpers wait for active-wedding resolution before returning editable modules', async () => {
+    const helper = await source('tests/e2e/support/planner-browser.ts')
+    expect(helper).toContain("not.toHaveText('Loading assigned wedding…')")
+    expect(helper).toContain("page.locator('#active-wedding')).not.toHaveValue('')")
   })
 
   test('browser authentication and local cookies are production-inert', async () => {
