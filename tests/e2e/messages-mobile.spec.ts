@@ -151,12 +151,7 @@ test('@mobile Couple inbox opens one conversation at a time, preserves unread se
   await expect.poll(async () => thread.evaluate((element) => element.scrollTop)).toBe(0)
 
   includeFreshReply = true
-  await page.getByRole('button', { name: 'Refresh messages' }).click().catch(() => undefined)
-  if (await productHeader.isHidden()) {
-    // The mobile conversation intentionally hides the global header. Trigger the same
-    // refresh path by waiting for the visible-tab poll instead of exposing duplicate UI.
-    await page.waitForTimeout(8200)
-  }
+  await page.waitForTimeout(8200)
   await expect(page.getByText(freshReply.body, { exact: true })).toBeVisible()
 
   await expect.poll(async () => thread.evaluate((element) => element.scrollTop), {
