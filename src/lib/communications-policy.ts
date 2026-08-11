@@ -11,7 +11,7 @@ export const COMMUNICATION_CONVERSATION_TYPES = [
 ] as const
 
 export type CommunicationConversationType = (typeof COMMUNICATION_CONVERSATION_TYPES)[number]
-export type CommunicationActorRole = 'admin' | 'couple' | 'planner'
+export type CommunicationActorRole = 'admin' | 'couple' | 'planner' | 'vendor'
 export type CommunicationMessageVisibility = 'PARTICIPANTS' | 'STAFF_ONLY'
 export type CommunicationMessageType = 'USER' | 'INTERNAL_NOTE'
 
@@ -22,6 +22,7 @@ const ORDINARY_TYPES = new Set<CommunicationConversationType>([
   'DIRECT',
   'WEDDING',
   'PLANNER_CLIENT',
+  'MARKETPLACE',
   'SUPPORT',
 ])
 const ADMIN_TYPES = new Set<CommunicationConversationType>([
@@ -99,6 +100,7 @@ export function defaultConversationTypeForRoles(
 ): CommunicationConversationType {
   if (actorRole === 'admin' && targetRole === 'admin') return 'INTERNAL'
   if (actorRole === 'admin' || targetRole === 'admin') return 'SUPPORT'
+  if (actorRole === 'vendor' || targetRole === 'vendor') return 'MARKETPLACE'
   if (
     (actorRole === 'planner' && targetRole === 'couple') ||
     (actorRole === 'couple' && targetRole === 'planner')

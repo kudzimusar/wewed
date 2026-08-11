@@ -5,6 +5,7 @@ import {
   requireCommunicationActor,
   sendCommunicationMessage,
 } from '@/lib/communications'
+import { maybeCreateVendorMarketplaceConversation } from '@/lib/vendor-marketplace-communications'
 import { enforceCommunicationRateLimit } from '@/lib/communications-rate-limit'
 import {
   communicationErrorResponse,
@@ -45,8 +46,9 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const result = await createCommunicationConversation(actor, body)
-    if (result.reused && initialMessage) {
+    const vendorResult = await maybeCreateVendorMarketplaceConversation(actor, body)
+    const result = vendorResult ?? await createCommunicationConversation(actor, body)
+    if (initialMessage && (vendorResult || result.reused)) {
       await sendCommunicationMessage(actor, result.id, { body: initialMessage })
     }
 

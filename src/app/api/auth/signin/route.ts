@@ -5,6 +5,7 @@ import {
   clearAppSessionCookie,
   isDashboardRole,
   PLANNER_PORTFOLIO_SESSION_ID,
+  VENDOR_PORTFOLIO_SESSION_ID,
   setAppSessionCookie,
 } from '@/lib/app-session'
 import {
@@ -23,6 +24,30 @@ function errorResponse(message: string, status: number) {
   )
   clearAppSessionCookie(response)
   return response
+}
+
+async function activeVendorIdentity(userId: string): Promise<{ businessAccountId: string; businessName: string } | null> {
+  const rows = await db.$queryRawUnsafe<Array<{ businessAccountId: string; businessName: string }>>(
+    `SELECT ba.id AS "businessAccountId", ba.name AS "businessName"
+     FROM public."BusinessAccountMember" bam
+     JOIN public."BusinessAccount" ba
+       ON ba.id = bam."businessAccountId"
+      AND ba.type = 'vendor'
+      AND ba.status = 'active'
+      AND ba."onboardingStatus" = 'complete'
+     JOIN public."ProviderProfile" profile
+       ON profile."businessAccountId" = ba.id
+      AND profile."listingStatus" IN ('claimed', 'verified')
+      AND profile.visibility = 'published'
+      AND profile."isClaimable" = false
+     WHERE bam."userId" = $1
+       AND bam.status = 'active'
+       AND bam.role IN ('business_owner', 'vendor_manager')
+     ORDER BY CASE WHEN ba."ownerUserId" = $1 THEN 0 ELSE 1 END, ba."createdAt" ASC
+     LIMIT 1`,
+    userId,
+  )
+  return rows[0] ?? null
 }
 
 export async function POST(request: NextRequest) {
@@ -143,6 +168,69 @@ export async function POST(request: NextRequest) {
         role: 'admin',
         coupleId: null,
         activeWeddingId: WEWED_PLATFORM_SESSION_ID,
+      })
+
+      return response
+    }
+
+    if (accessUser.role === 'vendor') {
+      const vendor = await activeVendorIdentity(accessUser.id)
+      if (!vendor) {
+        await supabase.auth.signOut()
+        return errorResponse(
+          'This vendor account is not yet approved for owner-managed access.',
+          403,
+        )
+      }
+
+      await db.$transaction([
+        db.user.update({
+          where: { id: accessUser.id },
+          data: { currentWeddingId: null, lastLoginAt: now },
+        }),
+        db.userProfile.upsert({
+          where: { id: data.user.id },
+          create: {
+            id: data.user.id,
+            email: normalizedAuthEmail,
+            displayName: vendor.businessName,
+            role: 'vendor',
+            lastLoginAt: now,
+          },
+          update: {
+            email: normalizedAuthEmail,
+            displayName: vendor.businessName,
+            role: 'vendor',
+            coupleId: null,
+            lastLoginAt: now,
+          },
+        }),
+      ])
+
+      const response = NextResponse.json({
+        success: true,
+        user: {
+          id: data.user.id,
+          accessUserId: accessUser.id,
+          email: normalizedAuthEmail,
+          displayName: vendor.businessName,
+          role: 'vendor',
+          coupleId: null,
+          activeWeddingId: VENDOR_PORTFOLIO_SESSION_ID,
+        },
+        activeWedding: null,
+        weddings: [],
+        workspace: 'vendor_portfolio',
+        businessAccountId: vendor.businessAccountId,
+      })
+
+      setAppSessionCookie(response, {
+        userId: accessUser.id,
+        authUserId: data.user.id,
+        email: normalizedAuthEmail,
+        role: 'vendor',
+        coupleId: null,
+        activeWeddingId: VENDOR_PORTFOLIO_SESSION_ID,
       })
 
       return response
