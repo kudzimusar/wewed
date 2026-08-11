@@ -293,7 +293,7 @@ export default function MessagesPage() {
       threadEndRef.current?.scrollIntoView({ block: 'end' })
     })
     return () => window.cancelAnimationFrame(frame)
-  }, [latestMessageId, selectedId])
+  }, [latestMessageId, mobileThreadOpen, selectedId])
 
   useEffect(() => {
     if (!selectedId) {
@@ -373,6 +373,7 @@ export default function MessagesPage() {
       setNewMessageOpen(false)
       await loadConversations(true)
       setSelectedId(payload.data.id)
+      followLatestRef.current = true
       setMobileThreadOpen(true)
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : 'Unable to start conversation.')
@@ -422,6 +423,7 @@ export default function MessagesPage() {
 
   function openConversation(conversationId: string) {
     setSelectedId(conversationId)
+    followLatestRef.current = true
     setMobileThreadOpen(true)
   }
 
@@ -438,7 +440,7 @@ export default function MessagesPage() {
 
   return (
     <main className="min-h-[100dvh] bg-ivory text-espresso lg:px-5 lg:py-5">
-      <div className="mx-auto flex min-h-[100dvh] max-w-[1500px] flex-col lg:min-h-0 lg:h-[calc(100dvh-2.5rem)]">
+      <div className="mx-auto flex min-h-[100dvh] max-w-[1500px] flex-col lg:h-[calc(100dvh-2.5rem)] lg:min-h-0">
         <header className="flex h-16 shrink-0 items-center justify-between border-b border-gold/15 bg-white px-3 sm:px-4 lg:rounded-t-2xl lg:border lg:border-b-0 lg:px-5">
           <div className="flex min-w-0 items-center gap-2.5">
             <Link
@@ -539,6 +541,7 @@ export default function MessagesPage() {
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
                   placeholder="Search conversations"
+                  aria-label="Search conversations"
                   className="h-10 w-full rounded-xl border border-gold/15 bg-ivory/45 pl-9 pr-3 text-sm outline-none transition placeholder:text-espresso/35 focus:border-gold/45 focus:bg-white"
                 />
               </label>
@@ -573,7 +576,7 @@ export default function MessagesPage() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline justify-between gap-3">
                         <p className={`truncate text-sm ${unread ? 'font-extrabold' : 'font-semibold'}`}>{name}</p>
-                        <span className={`shrink-0 text-[10px] ${unread ? 'font-bold text-gold-dark' : 'text-espresso/40'}`}>
+                        <span className={`shrink-0 text-[10px] ${unread ? 'font-bold text-gold' : 'text-espresso/40'}`}>
                           {compactTimeLabel(conversation.lastMessageAt)}
                         </span>
                       </div>
