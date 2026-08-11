@@ -4,15 +4,19 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 're
 import Link from 'next/link'
 import {
   ArrowLeft,
+  ChevronLeft,
   CirclePlus,
   Inbox,
   Loader2,
   LockKeyhole,
   MessageCircle,
+  Pencil,
   RefreshCw,
+  Search,
   Send,
   ShieldCheck,
   Users,
+  X,
 } from 'lucide-react'
 import {
   communicationThreadIsNearBottom,
@@ -80,22 +84,53 @@ async function readJson<T>(response: Response): Promise<T> {
   return body
 }
 
-function timeLabel(value: string | null): string {
+function roleHome(role: DashboardRole | null): string {
+  if (role === 'admin') return '/admin'
+  if (role === 'couple') return '/couple'
+  return '/planner'
+}
+
+function initials(value: string): string {
+  const parts = value.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return 'W'
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return `${parts[0][0] ?? ''}${parts[parts.length - 1][0] ?? ''}`.toUpperCase()
+}
+
+function compactTimeLabel(value: string | null): string {
   if (!value) return ''
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return ''
+
+  const now = new Date()
+  const sameDay = date.toDateString() === now.toDateString()
+  if (sameDay) {
+    return new Intl.DateTimeFormat(undefined, {
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date)
+  }
+
+  const difference = now.getTime() - date.getTime()
+  if (difference >= 0 && difference < 6 * 24 * 60 * 60 * 1000) {
+    return new Intl.DateTimeFormat(undefined, { weekday: 'short' }).format(date)
+  }
+
   return new Intl.DateTimeFormat(undefined, {
-    hour: '2-digit',
-    minute: '2-digit',
     month: 'short',
     day: 'numeric',
   }).format(date)
 }
 
-function roleHome(role: DashboardRole | null): string {
-  if (role === 'admin') return '/admin'
-  if (role === 'couple') return '/couple'
-  return '/planner'
+function messageTimeLabel(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const now = new Date()
+  const sameDay = date.toDateString() === now.toDateString()
+  return new Intl.DateTimeFormat(undefined, sameDay
+    ? { hour: '2-digit', minute: '2-digit' }
+    : { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }
+  ).format(date)
 }
 
 export default function MessagesPage() {
@@ -107,6 +142,9 @@ export default function MessagesPage() {
   const [draft, setDraft] = useState('')
   const [internalNote, setInternalNote] = useState(false)
   const [newContactId, setNewContactId] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [newMessageOpen, setNewMessageOpen] = useState(false)
+  const [mobileThreadOpen, setMobileThreadOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [threadLoading, setThreadLoading] = useState(false)
   const [sending, setSending] = useState(false)
@@ -131,6 +169,25 @@ export default function MessagesPage() {
     if (others.length === 0) return 'Wewed conversation'
     return others.map((participant) => participant.name).join(', ')
   }, [me?.accessUserId])
+
+  const unreadTotal = useMemo(
+    () => conversations.reduce((total, conversation) => total + conversation.unreadCount, 0),
+    [conversations],
+  )
+
+  const filteredConversations = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+    if (!query) return conversations
+    return conversations.filter((conversation) => {
+      const searchable = [
+        conversationName(conversation),
+        conversation.lastMessageBody,
+        conversation.lastMessageSenderName,
+        conversation.type,
+      ].filter(Boolean).join(' ').toLowerCase()
+      return searchable.includes(query)
+    })
+  }, [conversationName, conversations, searchQuery])
 
   const loadMe = useCallback(async () => {
     const response = await fetch('/api/auth/me', { cache: 'no-store' })
@@ -313,8 +370,10 @@ export default function MessagesPage() {
         throw new Error(payload.error || 'Unable to start conversation.')
       }
       setNewContactId('')
+      setNewMessageOpen(false)
       await loadConversations(true)
       setSelectedId(payload.data.id)
+      setMobileThreadOpen(true)
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : 'Unable to start conversation.')
     } finally {
@@ -361,117 +420,171 @@ export default function MessagesPage() {
     }
   }
 
+  function openConversation(conversationId: string) {
+    setSelectedId(conversationId)
+    setMobileThreadOpen(true)
+  }
+
   if (loading) {
     return (
-      <main className="min-h-screen bg-ivory px-6 py-16 text-espresso">
-        <div className="mx-auto flex max-w-6xl items-center justify-center rounded-3xl border border-gold/20 bg-white/80 p-16 shadow-sm">
-          <Loader2 className="mr-3 size-5 animate-spin text-gold" />
-          Loading Wewed Messages…
+      <main className="flex min-h-screen items-center justify-center bg-ivory px-4 text-espresso">
+        <div className="flex items-center gap-3 text-sm font-medium text-espresso/65">
+          <Loader2 className="size-5 animate-spin text-gold" />
+          Loading messages…
         </div>
       </main>
     )
   }
 
   return (
-    <main className="min-h-screen bg-ivory px-3 py-4 text-espresso sm:px-6 sm:py-8">
-      <div className="mx-auto max-w-7xl">
-        <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
+    <main className="min-h-[100dvh] bg-ivory text-espresso lg:px-5 lg:py-5">
+      <div className="mx-auto flex min-h-[100dvh] max-w-[1500px] flex-col lg:min-h-0 lg:h-[calc(100dvh-2.5rem)]">
+        <header className="flex h-16 shrink-0 items-center justify-between border-b border-gold/15 bg-white px-3 sm:px-4 lg:rounded-t-2xl lg:border lg:border-b-0 lg:px-5">
+          <div className="flex min-w-0 items-center gap-2.5">
             <Link
               href={roleHome(me?.role ?? null)}
-              className="inline-flex size-10 items-center justify-center rounded-full border border-gold/25 bg-white text-espresso hover:border-gold"
+              className="inline-flex size-10 shrink-0 items-center justify-center rounded-full text-espresso/70 transition hover:bg-champagne/45 hover:text-espresso"
               aria-label="Back to workspace"
             >
-              <ArrowLeft className="size-4" />
+              <ArrowLeft className="size-5" />
             </Link>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <MessageCircle className="size-5 text-gold" />
-                <h1 className="font-serif text-2xl font-semibold sm:text-3xl">Messages</h1>
+                <MessageCircle className="size-5 shrink-0 text-gold" />
+                <h1 className="truncate font-serif text-xl font-semibold sm:text-2xl">Messages</h1>
               </div>
-              <p className="text-xs text-espresso/55 sm:text-sm">
-                Conversations stay connected to Wewed. External channels are optional delivery layers.
-              </p>
+              <p className="hidden text-xs text-espresso/45 sm:block">Your Wewed conversations</p>
             </div>
           </div>
           <button
             type="button"
             onClick={() => void refresh()}
-            className="inline-flex items-center gap-2 rounded-full border border-gold/25 bg-white px-4 py-2 text-sm font-semibold hover:border-gold"
+            className="inline-flex size-10 items-center justify-center rounded-full text-espresso/60 transition hover:bg-champagne/45 hover:text-espresso"
+            aria-label="Refresh messages"
           >
-            <RefreshCw className="size-4" /> Refresh
+            <RefreshCw className="size-[18px]" />
           </button>
         </header>
 
         {error ? (
-          <div className="mb-4 rounded-2xl border border-clay/30 bg-clay/10 px-4 py-3 text-sm text-espresso" role="alert">
+          <div className="border-x border-t border-clay/25 bg-clay/10 px-4 py-2.5 text-sm text-espresso" role="alert">
             {error}
           </div>
         ) : null}
 
-        <section className="grid min-h-[72vh] overflow-hidden rounded-3xl border border-gold/20 bg-white shadow-sm lg:h-[72vh] lg:min-h-0 lg:grid-cols-[360px_minmax(0,1fr)]">
-          <aside className="border-b border-gold/15 bg-champagne/20 lg:border-b-0 lg:border-r">
-            <div className="border-b border-gold/15 p-4">
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-espresso/50">
-                Start a conversation
-              </label>
-              <div className="flex gap-2">
-                <select
-                  value={newContactId}
-                  onChange={(event) => setNewContactId(event.target.value)}
-                  className="min-w-0 flex-1 rounded-xl border border-gold/20 bg-white px-3 py-2 text-sm outline-none focus:border-gold"
-                  aria-label="Choose someone to message"
-                >
-                  <option value="">Choose a person…</option>
-                  {contacts.map((contact) => (
-                    <option key={contact.id} value={contact.id}>
-                      {contact.name} · {contact.role === 'admin' ? 'Wewed' : contact.role}
-                    </option>
-                  ))}
-                </select>
+        <section className="grid min-h-0 flex-1 overflow-hidden bg-white lg:grid-cols-[380px_minmax(0,1fr)] lg:rounded-b-2xl lg:border lg:border-gold/15 lg:shadow-sm">
+          <aside
+            data-communications-inbox="true"
+            className={`${mobileThreadOpen ? 'hidden lg:flex' : 'flex'} min-h-0 flex-col border-gold/15 bg-white lg:border-r`}
+          >
+            <div className="shrink-0 border-b border-gold/10 px-4 pb-3 pt-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-bold">Inbox</h2>
+                    {unreadTotal > 0 ? (
+                      <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-espresso px-1.5 py-0.5 text-[10px] font-bold text-champagne">
+                        {unreadTotal > 99 ? '99+' : unreadTotal}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="text-xs text-espresso/45">{conversations.length} conversation{conversations.length === 1 ? '' : 's'}</p>
+                </div>
                 <button
                   type="button"
-                  onClick={() => void createConversation()}
-                  disabled={!newContactId || creating}
-                  className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-espresso text-champagne disabled:cursor-not-allowed disabled:opacity-40"
-                  aria-label="Start conversation"
+                  onClick={() => setNewMessageOpen((current) => !current)}
+                  className="inline-flex items-center gap-2 rounded-full bg-espresso px-3.5 py-2 text-xs font-bold text-champagne transition hover:opacity-90"
                 >
-                  {creating ? <Loader2 className="size-4 animate-spin" /> : <CirclePlus className="size-4" />}
+                  {newMessageOpen ? <X className="size-4" /> : <Pencil className="size-4" />}
+                  {newMessageOpen ? 'Close' : 'New message'}
                 </button>
               </div>
+
+              {newMessageOpen ? (
+                <div className="mb-3 rounded-xl border border-gold/15 bg-champagne/20 p-2.5">
+                  <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.12em] text-espresso/45">
+                    Message someone
+                  </label>
+                  <div className="flex gap-2">
+                    <select
+                      value={newContactId}
+                      onChange={(event) => setNewContactId(event.target.value)}
+                      className="min-w-0 flex-1 rounded-lg border border-gold/20 bg-white px-3 py-2 text-sm outline-none focus:border-gold"
+                      aria-label="Choose someone to message"
+                    >
+                      <option value="">Choose a person…</option>
+                      {contacts.map((contact) => (
+                        <option key={contact.id} value={contact.id}>
+                          {contact.name} · {contact.role === 'admin' ? 'Wewed' : contact.role}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => void createConversation()}
+                      disabled={!newContactId || creating}
+                      className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg bg-espresso text-champagne disabled:cursor-not-allowed disabled:opacity-40"
+                      aria-label="Start conversation"
+                    >
+                      {creating ? <Loader2 className="size-4 animate-spin" /> : <CirclePlus className="size-4" />}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              <label className="relative block">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-espresso/35" />
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search conversations"
+                  className="h-10 w-full rounded-xl border border-gold/15 bg-ivory/45 pl-9 pr-3 text-sm outline-none transition placeholder:text-espresso/35 focus:border-gold/45 focus:bg-white"
+                />
+              </label>
             </div>
 
-            <div className="max-h-[64vh] overflow-y-auto lg:max-h-[calc(72vh-92px)]">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
               {conversations.length === 0 ? (
-                <div className="p-8 text-center text-sm text-espresso/55">
-                  <Inbox className="mx-auto mb-3 size-8 text-gold/60" />
-                  No conversations yet. Choose someone above to start one.
+                <div className="flex h-full min-h-72 items-center justify-center p-8 text-center">
+                  <div>
+                    <Inbox className="mx-auto mb-3 size-8 text-gold/55" />
+                    <p className="font-semibold">Your inbox is empty</p>
+                    <p className="mt-1 text-sm text-espresso/50">Start a new message when you are ready.</p>
+                  </div>
                 </div>
-              ) : conversations.map((conversation) => {
+              ) : filteredConversations.length === 0 ? (
+                <div className="p-8 text-center text-sm text-espresso/50">No conversations match “{searchQuery}”.</div>
+              ) : filteredConversations.map((conversation) => {
                 const active = conversation.id === selectedId
+                const unread = conversation.unreadCount > 0
+                const name = conversationName(conversation)
                 return (
                   <button
                     type="button"
                     key={conversation.id}
-                    onClick={() => setSelectedId(conversation.id)}
-                    className={`w-full border-b border-gold/10 px-4 py-4 text-left transition ${active ? 'bg-white' : 'hover:bg-white/70'}`}
+                    onClick={() => openConversation(conversation.id)}
+                    aria-current={active ? 'true' : undefined}
+                    className={`group flex w-full gap-3 border-b border-gold/10 px-4 py-3.5 text-left transition ${active ? 'bg-champagne/35' : 'bg-white hover:bg-ivory/55'}`}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          {conversation.kind === 'GROUP' ? <Users className="size-4 shrink-0 text-gold" /> : null}
-                          <p className="truncate font-semibold">{conversationName(conversation)}</p>
-                        </div>
-                        <p className="mt-1 truncate text-xs text-espresso/55">
+                    <div className={`flex size-11 shrink-0 items-center justify-center rounded-full text-xs font-bold ${active ? 'bg-espresso text-champagne' : 'bg-champagne text-espresso'}`}>
+                      {conversation.kind === 'GROUP' ? <Users className="size-4" /> : initials(name)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <p className={`truncate text-sm ${unread ? 'font-extrabold' : 'font-semibold'}`}>{name}</p>
+                        <span className={`shrink-0 text-[10px] ${unread ? 'font-bold text-gold-dark' : 'text-espresso/40'}`}>
+                          {compactTimeLabel(conversation.lastMessageAt)}
+                        </span>
+                      </div>
+                      <div className="mt-0.5 flex items-center gap-2">
+                        <p className={`min-w-0 flex-1 truncate text-xs ${unread ? 'font-semibold text-espresso/70' : 'text-espresso/48'}`}>
                           {conversation.lastMessageBody
                             ? `${conversation.lastMessageSenderName ?? 'Wewed'}: ${conversation.lastMessageBody}`
                             : conversation.type.replaceAll('_', ' ').toLowerCase()}
                         </p>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <p className="text-[10px] text-espresso/40">{timeLabel(conversation.lastMessageAt)}</p>
-                        {conversation.unreadCount > 0 ? (
-                          <span className="mt-1 inline-flex min-w-5 items-center justify-center rounded-full bg-gold px-1.5 py-0.5 text-[10px] font-bold text-espresso">
+                        {unread ? (
+                          <span className="inline-flex min-w-5 shrink-0 items-center justify-center rounded-full bg-gold px-1.5 py-0.5 text-[10px] font-extrabold text-espresso">
                             {conversation.unreadCount > 99 ? '99+' : conversation.unreadCount}
                           </span>
                         ) : null}
@@ -483,27 +596,44 @@ export default function MessagesPage() {
             </div>
           </aside>
 
-          <div className="flex min-h-[56vh] min-w-0 flex-col lg:min-h-0">
+          <div
+            data-communications-thread="true"
+            className={`${mobileThreadOpen ? 'flex' : 'hidden lg:flex'} min-h-0 min-w-0 flex-col bg-ivory/20`}
+          >
             {!selected ? (
               <div className="flex flex-1 items-center justify-center p-8 text-center text-espresso/50">
                 <div>
-                  <MessageCircle className="mx-auto mb-3 size-10 text-gold/50" />
-                  Select or start a conversation.
+                  <MessageCircle className="mx-auto mb-3 size-10 text-gold/45" />
+                  <p className="font-semibold text-espresso/70">Choose a conversation</p>
+                  <p className="mt-1 text-sm">Your messages will open here.</p>
                 </div>
               </div>
             ) : (
               <>
-                <div className="border-b border-gold/15 px-5 py-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <h2 className="font-serif text-xl font-semibold">{conversationName(selected)}</h2>
-                      <p className="text-xs text-espresso/50">
-                        {selected.type.replaceAll('_', ' ').toLowerCase()} · {selected.participants.length} participant{selected.participants.length === 1 ? '' : 's'}
+                <div className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-gold/10 bg-white px-2.5 sm:px-4">
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setMobileThreadOpen(false)}
+                      className="inline-flex size-10 shrink-0 items-center justify-center rounded-full text-espresso/70 transition hover:bg-champagne/45 lg:hidden"
+                      aria-label="Back to inbox"
+                    >
+                      <ChevronLeft className="size-6" />
+                    </button>
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-champagne text-xs font-bold text-espresso">
+                      {selected.kind === 'GROUP' ? <Users className="size-4" /> : initials(conversationName(selected))}
+                    </div>
+                    <div className="min-w-0">
+                      <h2 className="truncate text-sm font-extrabold sm:text-base">{conversationName(selected)}</h2>
+                      <p className="truncate text-[11px] text-espresso/45 sm:text-xs">
+                        {selected.participants.length} participant{selected.participants.length === 1 ? '' : 's'} · {selected.type.replaceAll('_', ' ').toLowerCase()}
                       </p>
                     </div>
-                    <div className="inline-flex items-center gap-1.5 rounded-full bg-sage/10 px-3 py-1.5 text-xs font-semibold text-sage-dark">
-                      <ShieldCheck className="size-3.5" /> Wewed protected
-                    </div>
+                  </div>
+                  <div className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-sage/10 px-2.5 py-1.5 text-[10px] font-bold text-sage-dark sm:text-xs">
+                    <ShieldCheck className="size-3.5" />
+                    <span className="hidden sm:inline">Wewed protected</span>
+                    <span className="sm:hidden">Protected</span>
                   </div>
                 </div>
 
@@ -511,15 +641,19 @@ export default function MessagesPage() {
                   ref={threadScrollRef}
                   onScroll={trackThreadScroll}
                   data-communications-thread-scroll="true"
-                  className="h-[52vh] min-h-[22rem] flex-none space-y-3 overflow-y-auto overscroll-contain bg-ivory/35 p-4 sm:p-6 lg:h-auto lg:min-h-0 lg:flex-1"
+                  className="min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain bg-champagne/15 px-3 py-4 sm:px-5 sm:py-5"
                 >
                   {threadLoading ? (
                     <div className="flex justify-center py-12 text-sm text-espresso/50">
-                      <Loader2 className="mr-2 size-4 animate-spin" /> Loading thread…
+                      <Loader2 className="mr-2 size-4 animate-spin" /> Loading conversation…
                     </div>
                   ) : messages.length === 0 ? (
-                    <div className="py-12 text-center text-sm text-espresso/50">
-                      This conversation is ready. Send the first message.
+                    <div className="flex min-h-64 items-center justify-center text-center text-sm text-espresso/50">
+                      <div>
+                        <MessageCircle className="mx-auto mb-2 size-7 text-gold/45" />
+                        <p className="font-semibold text-espresso/65">No messages yet</p>
+                        <p className="mt-1">Say hello to start the conversation.</p>
+                      </div>
                     </div>
                   ) : messages.map((message) => {
                     const mine = message.senderUserId === me?.accessUserId
@@ -527,18 +661,26 @@ export default function MessagesPage() {
                     return (
                       <div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                         <article
-                          className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm shadow-sm sm:max-w-[72%] ${staffOnly ? 'border border-gold/30 bg-gold/10' : mine ? 'bg-espresso text-champagne' : 'border border-gold/10 bg-white text-espresso'}`}
+                          className={`max-w-[86%] rounded-[18px] px-3.5 py-2.5 text-sm shadow-sm sm:max-w-[72%] ${staffOnly
+                            ? 'border border-gold/35 bg-gold/10 text-espresso'
+                            : mine
+                              ? 'rounded-br-md bg-espresso text-champagne'
+                              : 'rounded-bl-md border border-gold/10 bg-white text-espresso'
+                          }`}
                         >
-                          <div className="mb-1 flex items-center gap-2 text-[11px] opacity-65">
-                            <span className="font-semibold">{message.senderName ?? 'Wewed'}</span>
-                            {staffOnly ? (
-                              <span className="inline-flex items-center gap-1 font-semibold">
-                                <LockKeyhole className="size-3" /> Staff only
-                              </span>
-                            ) : null}
-                          </div>
+                          {staffOnly ? (
+                            <div className="mb-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-espresso/55">
+                              <LockKeyhole className="size-3" /> Staff note
+                            </div>
+                          ) : !mine ? (
+                            <div className="mb-1 text-[11px] font-bold text-espresso/55">
+                              {message.senderName ?? 'Wewed'}
+                            </div>
+                          ) : null}
                           <p className="whitespace-pre-wrap break-words leading-relaxed">{message.body}</p>
-                          <p className="mt-1.5 text-right text-[10px] opacity-50">{timeLabel(message.createdAt)}</p>
+                          <p className={`mt-1 text-right text-[10px] ${mine && !staffOnly ? 'text-champagne/55' : 'text-espresso/40'}`}>
+                            {messageTimeLabel(message.createdAt)}
+                          </p>
                         </article>
                       </div>
                     )
@@ -546,16 +688,17 @@ export default function MessagesPage() {
                   <div ref={threadEndRef} aria-hidden="true" className="h-px" />
                 </div>
 
-                <form onSubmit={sendMessage} className="border-t border-gold/15 bg-white p-4">
+                <form onSubmit={sendMessage} className="shrink-0 border-t border-gold/10 bg-white px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2.5 sm:px-4 sm:pb-3">
                   {me?.role === 'admin' ? (
-                    <label className="mb-2 inline-flex cursor-pointer items-center gap-2 text-xs text-espresso/60">
+                    <label className={`mb-2 inline-flex cursor-pointer items-center gap-2 rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${internalNote ? 'bg-gold/15 text-espresso' : 'text-espresso/48 hover:bg-champagne/35'}`}>
                       <input
                         type="checkbox"
                         checked={internalNote}
                         onChange={(event) => setInternalNote(event.target.checked)}
-                        className="accent-espresso"
+                        className="sr-only"
                       />
-                      <LockKeyhole className="size-3.5" /> Internal note — visible only to Wewed staff in this conversation
+                      <LockKeyhole className="size-3.5" />
+                      {internalNote ? 'Staff-only note enabled' : 'Add staff-only note'}
                     </label>
                   ) : null}
                   <div className="flex items-end gap-2">
@@ -563,22 +706,21 @@ export default function MessagesPage() {
                       value={draft}
                       onChange={(event) => setDraft(event.target.value)}
                       maxLength={4000}
-                      rows={2}
-                      placeholder={internalNote ? 'Write a staff-only note…' : 'Write a message…'}
-                      className="min-h-12 flex-1 resize-y rounded-2xl border border-gold/20 bg-ivory/40 px-4 py-3 text-sm outline-none focus:border-gold"
+                      rows={1}
+                      placeholder={internalNote ? 'Write a staff-only note…' : 'Message…'}
+                      className={`min-h-12 max-h-32 flex-1 resize-none rounded-2xl border px-4 py-3 text-sm outline-none transition ${internalNote ? 'border-gold/35 bg-gold/5 focus:border-gold' : 'border-gold/15 bg-ivory/45 focus:border-gold/45 focus:bg-white'}`}
                     />
                     <button
                       type="submit"
                       disabled={!draft.trim() || sending || selected.status !== 'OPEN'}
-                      className="inline-flex h-12 items-center gap-2 rounded-2xl bg-espresso px-5 text-sm font-semibold text-champagne disabled:cursor-not-allowed disabled:opacity-40"
+                      className="inline-flex size-12 shrink-0 items-center justify-center rounded-full bg-espresso text-champagne transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-35"
+                      aria-label="Send message"
                     >
-                      {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-                      <span className="hidden sm:inline">Send</span>
+                      {sending ? <Loader2 className="size-5 animate-spin" /> : <Send className="size-5" />}
                     </button>
                   </div>
-                  <div className="mt-2 flex items-center justify-between text-[10px] text-espresso/40">
-                    <span>Messages are stored in Wewed; polling refreshes the thread without paid realtime infrastructure.</span>
-                    <span>{draft.length}/4000</span>
+                  <div className="mt-1.5 flex min-h-4 justify-end text-[10px] text-espresso/35">
+                    {draft.length >= 3600 ? <span>{draft.length}/4000</span> : null}
                   </div>
                 </form>
               </>
