@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Building2, CalendarHeart, ShieldCheck, UsersRound } from 'lucide-react'
+import { Building2, CalendarHeart, ShieldCheck, Store, UsersRound } from 'lucide-react'
 import { PublicInfoPage } from '@/components/public/public-info-page'
 
 export const metadata: Metadata = {
@@ -12,6 +12,7 @@ export const metadata: Metadata = {
 const workspaces = [
   ['Couple workspace', 'Manage your wedding, invitations, privacy and planner relationship.', '/couple', CalendarHeart],
   ['Planner workspace', 'Manage your business profile, enquiries, appointments and assigned weddings.', '/planner', UsersRound],
+  ['Vendor workspace', 'Manage your approved Vendor presence and respond to marketplace conversations.', '/vendor', Store],
   ['Wewed administration', 'Review onboarding, roles and planner-profile publication.', '/admin', ShieldCheck],
 ] as const
 
@@ -22,7 +23,7 @@ export default function SignInPage() {
       title="Choose your Wewed workspace."
       description="Each workspace verifies the signed-in account role before displaying private data."
     >
-      <div className="grid gap-5 md:grid-cols-3">
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
         {workspaces.map(([title, detail, href, Icon]) => (
           <Link key={href} href={href} className="group rounded-2xl border border-gold/20 bg-champagne p-6 transition hover:-translate-y-1 hover:shadow-lg">
             <Icon className="size-6 text-gold-muted" />
