@@ -21,7 +21,7 @@ function message(id: string, body: string, createdAt: string, senderUserId = adm
   }
 }
 
-test('@mobile Couple thread opens on the latest persisted external message and respects history reading', async ({ page }) => {
+test('@mobile Couple inbox opens one conversation at a time, follows latest, and respects history reading', async ({ page }) => {
   let includeFreshReply = false
 
   const history = [
@@ -112,7 +112,15 @@ test('@mobile Couple thread opens on the latest persisted external message and r
 
   await page.goto('/messages')
 
+  const inbox = page.locator('[data-communications-inbox="true"]')
+  const conversation = page.locator('[data-communications-thread="true"]')
   const thread = page.locator('[data-communications-thread-scroll="true"]')
+
+  await expect(inbox).toBeVisible()
+  await expect(conversation).toBeHidden()
+  await page.getByText('Wewed Administrator', { exact: true }).click()
+  await expect(inbox).toBeHidden()
+  await expect(conversation).toBeVisible()
   await expect(thread).toBeVisible()
   await expect(page.getByText('Testing new connection', { exact: true })).toBeVisible()
 
@@ -128,10 +136,14 @@ test('@mobile Couple thread opens on the latest persisted external message and r
   await expect.poll(async () => thread.evaluate((element) => element.scrollTop)).toBe(0)
 
   includeFreshReply = true
-  await page.getByRole('button', { name: 'Refresh' }).click()
+  await page.getByRole('button', { name: 'Refresh messages' }).click()
   await expect(page.getByText(freshReply.body, { exact: true })).toBeVisible()
 
   await expect.poll(async () => thread.evaluate((element) => element.scrollTop), {
     message: 'polling does not drag a reader away from deliberately opened history',
   }).toBe(0)
+
+  await page.getByRole('button', { name: 'Back to inbox' }).click()
+  await expect(inbox).toBeVisible()
+  await expect(conversation).toBeHidden()
 })
