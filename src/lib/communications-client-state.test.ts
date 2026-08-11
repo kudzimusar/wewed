@@ -70,7 +70,7 @@ describe('communication thread latest-message following', () => {
     })).toBe(false)
   })
 
-  test('messages page keeps mobile inbox and thread exclusive while anchoring latest content', async () => {
+  test('messages page keeps mobile inbox and thread exclusive while anchoring latest content after rendering', async () => {
     const page = await Bun.file('src/app/messages/page.tsx').text()
     expect(page).toContain('data-communications-inbox="true"')
     expect(page).toContain('data-communications-thread="true"')
@@ -82,6 +82,7 @@ describe('communication thread latest-message following', () => {
     expect(page).toContain('threadEndRef')
     expect(page).toContain('communicationThreadIsNearBottom')
     expect(page).toContain('container.scrollTop = container.scrollHeight')
-    expect(page).toContain('[latestMessageId, mobileThreadOpen, selectedId]')
+    expect(page).toContain('if (threadLoading || !selectedId || !latestMessageId || !followLatestRef.current) return')
+    expect(page).toContain('[latestMessageId, mobileThreadOpen, selectedId, threadLoading]')
   })
 })

@@ -23,8 +23,10 @@ function message(id: string, body: string, createdAt: string, senderUserId = adm
   }
 }
 
-test('@mobile Couple inbox opens one conversation at a time, follows latest, and respects history reading', async ({ page }) => {
+test('@mobile Couple inbox opens one conversation at a time, preserves unread semantics, follows latest, and respects history reading', async ({ page }) => {
   let includeFreshReply = false
+  let messageFetches = 0
+  let readCalls = 0
 
   const history = [
     message('m01', 'Qualification message one with enough detail to make the mobile thread meaningfully scrollable.', '2026-08-10T23:17:24.640Z'),
@@ -97,6 +99,7 @@ test('@mobile Couple inbox opens one conversation at a time, follows latest, and
   })
 
   await page.route(`**/api/communications/conversations/${conversationId}/messages`, async (route) => {
+    messageFetches += 1
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -105,6 +108,7 @@ test('@mobile Couple inbox opens one conversation at a time, follows latest, and
   })
 
   await page.route(`**/api/communications/conversations/${conversationId}/read`, async (route) => {
+    readCalls += 1
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -114,17 +118,26 @@ test('@mobile Couple inbox opens one conversation at a time, follows latest, and
 
   await page.goto('/messages')
 
+  const productHeader = page.locator('[data-communications-product-header="true"]')
   const inbox = page.locator('[data-communications-inbox="true"]')
   const conversation = page.locator('[data-communications-thread="true"]')
   const thread = page.locator('[data-communications-thread-scroll="true"]')
 
+  await expect(productHeader).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Message channels' })).toBeVisible()
   await expect(inbox).toBeVisible()
   await expect(conversation).toBeHidden()
+  expect(messageFetches).toBe(0)
+  expect(readCalls).toBe(0)
+
   await inbox.getByText('Wewed Administrator', { exact: true }).click()
+  await expect(productHeader).toBeHidden()
   await expect(inbox).toBeHidden()
   await expect(conversation).toBeVisible()
   await expect(thread).toBeVisible()
   await expect(page.getByText('Testing new connection', { exact: true })).toBeVisible()
+  await expect.poll(() => messageFetches).toBeGreaterThan(0)
+  await expect.poll(() => readCalls).toBeGreaterThan(0)
 
   await expect.poll(async () => thread.evaluate((element) => {
     const remaining = element.scrollHeight - element.scrollTop - element.clientHeight
@@ -138,14 +151,27 @@ test('@mobile Couple inbox opens one conversation at a time, follows latest, and
   await expect.poll(async () => thread.evaluate((element) => element.scrollTop)).toBe(0)
 
   includeFreshReply = true
-  await page.getByRole('button', { name: 'Refresh messages' }).click()
+  await page.waitForTimeout(8200)
   await expect(page.getByText(freshReply.body, { exact: true })).toBeVisible()
 
   await expect.poll(async () => thread.evaluate((element) => element.scrollTop), {
     message: 'polling does not drag a reader away from deliberately opened history',
   }).toBe(0)
 
+  const composer = page.getByPlaceholder('Message…')
+  await composer.fill('Draft preserved for this conversation')
+
   await page.getByRole('button', { name: 'Back to inbox' }).click()
+  await expect(productHeader).toBeVisible()
   await expect(inbox).toBeVisible()
   await expect(conversation).toBeHidden()
+
+  const fetchesAfterBack = messageFetches
+  const readsAfterBack = readCalls
+  await page.getByRole('button', { name: 'Refresh messages' }).click()
+  await expect.poll(() => messageFetches).toBe(fetchesAfterBack)
+  await expect.poll(() => readCalls).toBe(readsAfterBack)
+
+  await inbox.getByText('Wewed Administrator', { exact: true }).click()
+  await expect(page.getByPlaceholder('Message…')).toHaveValue('Draft preserved for this conversation')
 })
