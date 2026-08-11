@@ -84,6 +84,16 @@ describe('Stage 2 worksheet permissions', () => {
     expect(toolbar).toContain('canDownloadWorksheetTemplate')
     expect(toolbar).toContain('canExportWorksheet')
   })
+
+  test('planning-company team management derives only the governed members permission', async () => {
+    const access = await source('src/lib/wedding-access.ts')
+
+    expect(access).toContain("team_bam.role = 'business_owner'")
+    expect(access).toContain("? 'weddings.manage'")
+    expect(access).toContain("team_bal.relationship = 'manages'")
+    expect(access).toContain("return [...permissions, 'members.manage']")
+    expect(access).toContain('permissions: resolveWeddingPermissions(')
+  })
 })
 
 describe('Stage 2 unsaved planner drafts', () => {
@@ -175,6 +185,6 @@ describe('Stage 2 unsaved planner drafts', () => {
     expect(route).toContain('activeWedding:')
     expect(route).toContain('...wedding')
     expect(route).toContain('setAppSessionCookie')
-    expect(access).toContain('permissions: parsePermissions')
+    expect(access).toContain('permissions: resolveWeddingPermissions(')
   })
 })
