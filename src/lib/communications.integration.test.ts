@@ -158,10 +158,10 @@ describe('communications integration authorization', () => {
     })
     await db.$executeRaw(Prisma.sql`
       INSERT INTO public."BusinessAccount"
-        ("id", "name", "slug", "type", "status", "ownerUserId", "onboardingStatus")
+        ("id", "name", "slug", "type", "status", "ownerUserId", "onboardingStatus", "subscriptionStatus")
       VALUES
-        (${PLANNER_BUSINESS_ID}, 'Planner Business Name', 'communications-integration-planner-business', 'planning_company', 'active', ${PLANNER_USER_ID}, 'complete'),
-        (${SECOND_PLANNER_BUSINESS_ID}, 'Second Planner Business', 'communications-integration-second-planner-business', 'planning_company', 'active', ${SECOND_PLANNER_USER_ID}, 'complete')
+        (${PLANNER_BUSINESS_ID}, 'Planner Business Name', 'communications-integration-planner-business', 'planning_company', 'active', ${PLANNER_USER_ID}, 'complete', 'free'),
+        (${SECOND_PLANNER_BUSINESS_ID}, 'Second Planner Business', 'communications-integration-second-planner-business', 'planning_company', 'active', ${SECOND_PLANNER_USER_ID}, 'complete', 'free')
     `)
     await db.$executeRaw(Prisma.sql`
       INSERT INTO public."BusinessAccountMember"
