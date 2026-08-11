@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { CalendarDays, Loader2, UserPlus, Users, X } from 'lucide-react'
+import { CalendarDays, Loader2, Search, UserPlus, Users, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -48,6 +48,15 @@ interface WeddingMember {
   revokedAt: string | null
 }
 
+interface PlannerDirectoryResult {
+  userId: string
+  email: string
+  name: string | null
+  businessAccountId: string
+  businessName: string
+  profileStatus: string
+}
+
 const TEAM_ROLES: Array<{ value: WeddingMember['role']; label: string }> = [
   { value: 'owner', label: 'Owner' },
   { value: 'planner', label: 'Planner' },
@@ -85,6 +94,10 @@ export function WeddingContextControls() {
     role: 'planner' as WeddingMember['role'],
   })
   const [inviting, setInviting] = useState(false)
+  const [plannerSearch, setPlannerSearch] = useState('')
+  const [plannerResults, setPlannerResults] = useState<PlannerDirectoryResult[]>([])
+  const [searchingPlanners, setSearchingPlanners] = useState(false)
+  const [plannerSearchError, setPlannerSearchError] = useState<string | null>(null)
 
   const loadSession = useCallback(async () => {
     setLoadingSession(true)
@@ -120,7 +133,9 @@ export function WeddingContextControls() {
   const activeWedding = session?.activeWedding
   const weddings = session?.weddings ?? []
   const canManageTeam = useMemo(
-    () => activeWedding?.permissions.includes('*') === true,
+    () =>
+      activeWedding?.permissions.includes('*') === true ||
+      activeWedding?.permissions.includes('members.manage') === true,
     [activeWedding],
   )
 
@@ -189,6 +204,8 @@ export function WeddingContextControls() {
       )
       setTeamOpen(false)
       setMembers([])
+      setPlannerSearch('')
+      setPlannerResults([])
       window.dispatchEvent(
         new CustomEvent('wewed:wedding-switched', {
           detail: { weddingId: payload.activeWedding.id },
@@ -203,6 +220,52 @@ export function WeddingContextControls() {
     } finally {
       setSwitching(false)
     }
+  }
+
+  async function searchRegisteredPlanners() {
+    const search = plannerSearch.trim()
+    setPlannerSearchError(null)
+    setPlannerResults([])
+    if (search.length < 2) {
+      setPlannerSearchError('Enter at least two characters to find a registered planner.')
+      return
+    }
+
+    setSearchingPlanners(true)
+    try {
+      const response = await fetch(
+        `/api/weddings/planner-directory?search=${encodeURIComponent(search)}`,
+        { cache: 'no-store' },
+      )
+      const payload = (await response.json()) as {
+        success?: boolean
+        planners?: PlannerDirectoryResult[]
+        error?: string
+      }
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error || 'Unable to search registered planners.')
+      }
+      setPlannerResults(payload.planners ?? [])
+    } catch (searchError) {
+      setPlannerSearchError(
+        searchError instanceof Error
+          ? searchError.message
+          : 'Unable to search registered planners.',
+      )
+    } finally {
+      setSearchingPlanners(false)
+    }
+  }
+
+  function chooseRegisteredPlanner(planner: PlannerDirectoryResult) {
+    setInvite({
+      email: planner.email,
+      name: planner.name || planner.businessName,
+      role: 'planner',
+    })
+    setPlannerSearch(planner.businessName)
+    setPlannerResults([])
+    setPlannerSearchError(null)
   }
 
   async function inviteMember(event: FormEvent<HTMLFormElement>) {
@@ -222,6 +285,8 @@ export function WeddingContextControls() {
       }
 
       setInvite({ email: '', name: '', role: 'planner' })
+      setPlannerSearch('')
+      setPlannerResults([])
       await loadMembers()
     } catch (inviteError) {
       setError(
@@ -367,6 +432,76 @@ export function WeddingContextControls() {
                 <UserPlus className="size-4 text-gold" />
                 <h3 className="font-sans text-sm font-medium text-champagne">Invite a team member</h3>
               </div>
+
+              <div className="mb-4 rounded-lg border border-gold/15 bg-espresso/35 p-3">
+                <label htmlFor="registered-planner-search" className="font-sans text-xs font-medium text-champagne">
+                  Find an existing Wewed planner
+                </label>
+                <p className="mt-1 font-sans text-[11px] text-champagne/50">
+                  Search registered planner accounts privately. Their public marketplace profile does not need to be published.
+                </p>
+                <div className="mt-2 flex gap-2">
+                  <Input
+                    id="registered-planner-search"
+                    value={plannerSearch}
+                    onChange={(event) => setPlannerSearch(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault()
+                        void searchRegisteredPlanners()
+                      }
+                    }}
+                    placeholder="Planner name, business or email"
+                    className="border-gold/25 bg-espresso/60 text-champagne placeholder:text-champagne/35"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={searchingPlanners}
+                    onClick={() => void searchRegisteredPlanners()}
+                    className="shrink-0 border-gold/25 bg-transparent text-champagne hover:bg-gold/10 hover:text-gold"
+                  >
+                    {searchingPlanners ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
+                    <span className="hidden sm:inline">Search</span>
+                  </Button>
+                </div>
+
+                {plannerSearchError && (
+                  <p className="mt-2 font-sans text-xs text-clay-light">{plannerSearchError}</p>
+                )}
+
+                {!searchingPlanners && plannerSearch.trim().length >= 2 && plannerResults.length === 0 && !plannerSearchError ? (
+                  <p className="mt-2 font-sans text-xs text-champagne/45">
+                    No unassigned registered planners found for this search.
+                  </p>
+                ) : null}
+
+                {plannerResults.length > 0 && (
+                  <div className="mt-3 space-y-2" aria-label="Registered planner search results">
+                    {plannerResults.map((planner) => (
+                      <button
+                        key={`${planner.businessAccountId}:${planner.userId}`}
+                        type="button"
+                        onClick={() => chooseRegisteredPlanner(planner)}
+                        className="flex w-full items-center justify-between gap-3 rounded-md border border-gold/15 bg-champagne/[0.04] px-3 py-2 text-left transition hover:border-gold/35 hover:bg-gold/[0.07]"
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate font-sans text-sm text-champagne">
+                            {planner.businessName}
+                          </span>
+                          <span className="block truncate font-sans text-xs text-champagne/50">
+                            {planner.name || planner.email} · {planner.email}
+                          </span>
+                        </span>
+                        <span className="shrink-0 rounded-full border border-gold/20 px-2 py-1 font-sans text-[9px] uppercase tracking-[0.1em] text-gold-muted">
+                          {planner.profileStatus === 'published' ? 'Published' : 'Registered'}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div className="grid gap-3 md:grid-cols-[1fr_1fr_9rem_auto]">
                 <Input
                   type="email"

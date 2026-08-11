@@ -35,6 +35,7 @@ interface WeddingRow {
   membershipRole: MembershipRole
   membershipStatus: 'active' | 'invited'
   permissions: string | null
+  businessCanManageMembers: boolean
 }
 
 const DEFAULT_ROLE_PERMISSIONS: Record<MembershipRole, string[]> = {
@@ -95,6 +96,23 @@ function parsePermissions(raw: string | null, role: MembershipRole): string[] {
   }
 }
 
+function resolveWeddingPermissions(
+  raw: string | null,
+  role: MembershipRole,
+  businessCanManageMembers: boolean,
+): string[] {
+  const permissions = parsePermissions(raw, role)
+  if (
+    !businessCanManageMembers ||
+    permissions.includes('*') ||
+    permissions.includes('members.manage')
+  ) {
+    return permissions
+  }
+
+  return [...permissions, 'members.manage']
+}
+
 const GOVERNED_WEDDING_ACCESS = `
   AND (
     NOT EXISTS (
@@ -119,6 +137,30 @@ const GOVERNED_WEDDING_ACCESS = `
   )
 `
 
+const BUSINESS_TEAM_MANAGEMENT_ACCESS = `
+  EXISTS (
+    SELECT 1
+    FROM public."BusinessAccountMember" team_bam
+    JOIN public."BusinessAccount" team_ba
+      ON team_ba.id = team_bam."businessAccountId"
+    JOIN public."BusinessAccountLink" team_bal
+      ON team_bal."businessAccountId" = team_bam."businessAccountId"
+    WHERE team_bam."userId" = m."userId"
+      AND team_bam.status = 'active'
+      AND team_bam.role = 'business_owner'
+      AND (
+        COALESCE(team_bam.permissions, '[]'::jsonb) ? 'weddings.manage'
+        OR COALESCE(team_bam.permissions, '[]'::jsonb) ? '*'
+      )
+      AND team_ba.type = 'planning_company'
+      AND team_ba.status = 'active'
+      AND team_ba."onboardingStatus" = 'complete'
+      AND team_bal."entityType" = 'wedding'
+      AND team_bal."entityId" = m."weddingId"
+      AND team_bal.relationship = 'manages'
+  )
+`
+
 export async function listAccessibleWeddings(
   userId: string,
   globalRole: AppSession['role']
@@ -133,7 +175,8 @@ export async function listAccessibleWeddings(
              w."venueCity", w."venueCountry", w."coupleId",
              'admin'::text AS "membershipRole",
              'active'::text AS "membershipStatus",
-             NULL::text AS permissions
+             NULL::text AS permissions,
+             FALSE AS "businessCanManageMembers"
       FROM public."Wedding" w
       ORDER BY w.date ASC, w."createdAt" ASC
     `)
@@ -143,7 +186,8 @@ export async function listAccessibleWeddings(
       SELECT w.id, w.slug, w.title, w.date, w.venue,
              w."venueCity", w."venueCountry", w."coupleId",
              m.role AS "membershipRole", m.status AS "membershipStatus",
-             m.permissions
+             m.permissions,
+             ${BUSINESS_TEAM_MANAGEMENT_ACCESS} AS "businessCanManageMembers"
       FROM public."WeddingMembership" m
       JOIN public."Wedding" w ON w.id = m."weddingId"
       WHERE m."userId" = $1
@@ -156,10 +200,17 @@ export async function listAccessibleWeddings(
     )
   }
 
-  return rows.map((row) => ({
-    ...row,
-    permissions: parsePermissions(row.permissions, row.membershipRole),
-  }))
+  return rows.map((row) => {
+    const { businessCanManageMembers, ...wedding } = row
+    return {
+      ...wedding,
+      permissions: resolveWeddingPermissions(
+        row.permissions,
+        row.membershipRole,
+        businessCanManageMembers,
+      ),
+    }
+  })
 }
 
 export async function acceptPendingMemberships(userId: string): Promise<void> {
@@ -207,10 +258,12 @@ export async function getWeddingContext(
       weddingId: string
       role: MembershipRole
       permissions: string | null
+      businessCanManageMembers: boolean
     }>
   >(
     `
-      SELECT m."weddingId", m.role, m.permissions
+      SELECT m."weddingId", m.role, m.permissions,
+             ${BUSINESS_TEAM_MANAGEMENT_ACCESS} AS "businessCanManageMembers"
       FROM public."WeddingMembership" m
       WHERE m."userId" = $1
         AND m."weddingId" = $2
@@ -228,7 +281,11 @@ export async function getWeddingContext(
         session,
         weddingId: membership.weddingId,
         role: membership.role,
-        permissions: parsePermissions(membership.permissions, membership.role),
+        permissions: resolveWeddingPermissions(
+          membership.permissions,
+          membership.role,
+          membership.businessCanManageMembers,
+        ),
       }
     : null
 }

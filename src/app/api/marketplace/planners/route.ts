@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
          AND ba.type = 'planning_company'
          AND ba.status = 'active'
          AND ba."onboardingStatus" = 'complete'
+         AND COALESCE(ba.metadata->>'testData', 'false') <> 'true'
          AND ($1 = '' OR lower(p."displayName") LIKE '%' || $1 || '%' OR lower(COALESCE(p.headline, '')) LIKE '%' || $1 || '%')
          AND ($2 = '' OR EXISTS (SELECT 1 FROM jsonb_array_elements_text(p."serviceAreas") area_value WHERE lower(area_value) LIKE '%' || $2 || '%'))
          AND ($3 = '' OR EXISTS (SELECT 1 FROM jsonb_array_elements_text(p.services) service_value WHERE lower(service_value) = $3))
