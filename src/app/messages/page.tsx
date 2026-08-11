@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
   ArrowLeft,
@@ -14,7 +14,7 @@ import {
   RefreshCw,
   Search,
   Send,
-  ShieldCheck,
+  Settings2,
   Users,
   X,
 } from 'lucide-react'
@@ -139,7 +139,7 @@ export default function MessagesPage() {
   const [contacts, setContacts] = useState<Contact[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [messages, setMessages] = useState<ThreadMessage[]>([])
-  const [draft, setDraft] = useState('')
+  const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [internalNote, setInternalNote] = useState(false)
   const [newContactId, setNewContactId] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
@@ -151,15 +151,20 @@ export default function MessagesPage() {
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const messageRequestSequence = useRef(0)
+  const selectedIdRef = useRef<string | null>(null)
   const threadScrollRef = useRef<HTMLDivElement | null>(null)
   const threadEndRef = useRef<HTMLDivElement | null>(null)
+  const composerRef = useRef<HTMLTextAreaElement | null>(null)
   const followLatestRef = useRef(true)
+
+  selectedIdRef.current = selectedId
 
   const selected = useMemo(
     () => conversations.find((conversation) => conversation.id === selectedId) ?? null,
     [conversations, selectedId],
   )
   const latestMessageId = messages[messages.length - 1]?.id ?? null
+  const draft = selectedId ? drafts[selectedId] ?? '' : ''
 
   const conversationName = useCallback((conversation: Conversation) => {
     if (conversation.title) return conversation.title
@@ -219,11 +224,15 @@ export default function MessagesPage() {
     }
     const next = payload.data ?? []
     setConversations(next)
-    setSelectedId((current) => current ?? next[0]?.id ?? null)
+    setSelectedId((current) => (
+      current && next.some((conversation) => conversation.id === current) ? current : null
+    ))
     return next
   }, [])
 
   const loadMessages = useCallback(async (conversationId: string, silent = false) => {
+    if (selectedIdRef.current !== conversationId) return []
+
     const requestId = ++messageRequestSequence.current
     if (!silent) setThreadLoading(true)
     try {
@@ -236,16 +245,31 @@ export default function MessagesPage() {
         throw new Error(payload.error || 'Unable to load messages.')
       }
       const next = payload.data ?? []
-      if (requestId !== messageRequestSequence.current) return next
+      if (
+        requestId !== messageRequestSequence.current
+        || selectedIdRef.current !== conversationId
+      ) return next
 
       setMessages(next)
-      await fetch(
+      const readResponse = await fetch(
         `/api/communications/conversations/${encodeURIComponent(conversationId)}/read`,
         { method: 'POST' },
-      ).catch(() => undefined)
+      ).catch(() => null)
+
+      if (readResponse?.ok && selectedIdRef.current === conversationId) {
+        const readAt = new Date().toISOString()
+        setConversations((current) => current.map((conversation) => (
+          conversation.id === conversationId && conversation.unreadCount > 0
+            ? { ...conversation, unreadCount: 0, lastReadAt: readAt }
+            : conversation
+        )))
+      }
       return next
     } finally {
-      if (requestId === messageRequestSequence.current) setThreadLoading(false)
+      if (
+        requestId === messageRequestSequence.current
+        && selectedIdRef.current === conversationId
+      ) setThreadLoading(false)
     }
   }, [])
 
@@ -282,6 +306,13 @@ export default function MessagesPage() {
   }, [selectedId])
 
   useEffect(() => {
+    const composer = composerRef.current
+    if (!composer) return
+    composer.style.height = 'auto'
+    composer.style.height = `${Math.min(composer.scrollHeight, 128)}px`
+  }, [draft])
+
+  useEffect(() => {
     if (!selectedId || !latestMessageId || !followLatestRef.current) return
     const frame = window.requestAnimationFrame(() => {
       const container = threadScrollRef.current
@@ -299,6 +330,7 @@ export default function MessagesPage() {
     if (!selectedId) {
       messageRequestSequence.current += 1
       setMessages([])
+      setThreadLoading(false)
       return
     }
     setInternalNote(false)
@@ -306,6 +338,11 @@ export default function MessagesPage() {
       setError(loadError instanceof Error ? loadError.message : 'Unable to load messages.')
     })
   }, [loadMessages, selectedId])
+
+  useEffect(() => {
+    if (selectedId || !mobileThreadOpen) return
+    setMobileThreadOpen(false)
+  }, [mobileThreadOpen, selectedId])
 
   useEffect(() => {
     const lastVisibleMessageAt = selected?.lastMessageAt ?? null
@@ -336,8 +373,11 @@ export default function MessagesPage() {
       if (document.visibilityState !== 'visible') return
       void (async () => {
         try {
-          await loadConversations(true)
-          if (selectedId) await loadMessages(selectedId, true)
+          const next = await loadConversations(true)
+          if (
+            selectedId
+            && next.some((conversation) => conversation.id === selectedId)
+          ) await loadMessages(selectedId, true)
         } catch {
           // Polling is best-effort; explicit refresh and send paths surface errors.
         }
@@ -372,6 +412,7 @@ export default function MessagesPage() {
       setNewContactId('')
       setNewMessageOpen(false)
       await loadConversations(true)
+      setInternalNote(false)
       setSelectedId(payload.data.id)
       followLatestRef.current = true
       setMobileThreadOpen(true)
@@ -384,13 +425,14 @@ export default function MessagesPage() {
 
   async function sendMessage(event: FormEvent) {
     event.preventDefault()
+    const conversationId = selectedId
     const body = draft.trim()
-    if (!selectedId || !body || sending) return
+    if (!conversationId || !body || sending || selected?.status !== 'OPEN') return
     setSending(true)
     setError(null)
     try {
       const response = await fetch(
-        `/api/communications/conversations/${encodeURIComponent(selectedId)}/messages`,
+        `/api/communications/conversations/${encodeURIComponent(conversationId)}/messages`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -401,9 +443,17 @@ export default function MessagesPage() {
       if (!response.ok || !payload.success) {
         throw new Error(payload.error || 'Unable to send message.')
       }
-      setDraft('')
+      setDrafts((current) => {
+        const next = { ...current }
+        delete next[conversationId]
+        return next
+      })
       setInternalNote(false)
-      await Promise.all([loadMessages(selectedId, true), loadConversations(true)])
+      await loadConversations(true)
+      if (selectedIdRef.current === conversationId) {
+        followLatestRef.current = true
+        await loadMessages(conversationId, true)
+      }
     } catch (sendError) {
       setError(sendError instanceof Error ? sendError.message : 'Unable to send message.')
     } finally {
@@ -414,22 +464,52 @@ export default function MessagesPage() {
   async function refresh() {
     setError(null)
     try {
-      await Promise.all([loadConversations(true), loadContacts()])
-      if (selectedId) await loadMessages(selectedId, true)
+      const [next] = await Promise.all([loadConversations(true), loadContacts()])
+      if (
+        selectedId
+        && next.some((conversation) => conversation.id === selectedId)
+      ) await loadMessages(selectedId, true)
     } catch (refreshError) {
       setError(refreshError instanceof Error ? refreshError.message : 'Unable to refresh.')
     }
   }
 
   function openConversation(conversationId: string) {
+    setNewMessageOpen(false)
+    setInternalNote(false)
     setSelectedId(conversationId)
     followLatestRef.current = true
     setMobileThreadOpen(true)
   }
 
+  function closeMobileConversation() {
+    setMobileThreadOpen(false)
+    setInternalNote(false)
+    setSelectedId(null)
+    messageRequestSequence.current += 1
+  }
+
+  function updateDraft(value: string) {
+    if (!selectedId) return
+    setDrafts((current) => ({ ...current, [selectedId]: value }))
+  }
+
+  function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (
+      event.key !== 'Enter'
+      || event.shiftKey
+      || event.nativeEvent.isComposing
+      || typeof window === 'undefined'
+      || !window.matchMedia('(min-width: 1024px)').matches
+    ) return
+
+    event.preventDefault()
+    event.currentTarget.form?.requestSubmit()
+  }
+
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-ivory px-4 text-espresso">
+      <main className="flex h-[100dvh] items-center justify-center overflow-hidden bg-ivory px-4 text-espresso">
         <div className="flex items-center gap-3 text-sm font-medium text-espresso/65">
           <Loader2 className="size-5 animate-spin text-gold" />
           Loading messages…
@@ -439,9 +519,12 @@ export default function MessagesPage() {
   }
 
   return (
-    <main className="min-h-[100dvh] bg-ivory text-espresso lg:px-5 lg:py-5">
-      <div className="mx-auto flex min-h-[100dvh] max-w-[1500px] flex-col lg:h-[calc(100dvh-2.5rem)] lg:min-h-0">
-        <header className="flex h-16 shrink-0 items-center justify-between border-b border-gold/15 bg-white px-3 sm:px-4 lg:rounded-t-2xl lg:border lg:border-b-0 lg:px-5">
+    <main className="h-[100dvh] overflow-hidden bg-ivory text-espresso lg:px-5 lg:py-5">
+      <div className="mx-auto flex h-full min-h-0 max-w-[1500px] flex-col">
+        <header
+          data-communications-product-header="true"
+          className={`${mobileThreadOpen ? 'hidden lg:flex' : 'flex'} h-16 shrink-0 items-center justify-between border-b border-gold/15 bg-white px-3 sm:px-4 lg:rounded-t-2xl lg:border lg:border-b-0 lg:px-5`}
+        >
           <div className="flex min-w-0 items-center gap-2.5">
             <Link
               href={roleHome(me?.role ?? null)}
@@ -458,18 +541,27 @@ export default function MessagesPage() {
               <p className="hidden text-xs text-espresso/45 sm:block">Your Wewed conversations</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => void refresh()}
-            className="inline-flex size-10 items-center justify-center rounded-full text-espresso/60 transition hover:bg-champagne/45 hover:text-espresso"
-            aria-label="Refresh messages"
-          >
-            <RefreshCw className="size-[18px]" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => void refresh()}
+              className="inline-flex size-10 items-center justify-center rounded-full text-espresso/60 transition hover:bg-champagne/45 hover:text-espresso"
+              aria-label="Refresh messages"
+            >
+              <RefreshCw className="size-[18px]" />
+            </button>
+            <Link
+              href="/messages/settings"
+              className="inline-flex size-10 items-center justify-center rounded-full text-espresso/60 transition hover:bg-champagne/45 hover:text-espresso"
+              aria-label="Message channels"
+            >
+              <Settings2 className="size-[18px]" />
+            </Link>
+          </div>
         </header>
 
         {error ? (
-          <div className="border-x border-t border-clay/25 bg-clay/10 px-4 py-2.5 text-sm text-espresso" role="alert">
+          <div className="shrink-0 border-x border-t border-clay/25 bg-clay/10 px-4 py-2.5 text-sm text-espresso" role="alert">
             {error}
           </div>
         ) : null}
@@ -494,7 +586,12 @@ export default function MessagesPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setNewMessageOpen((current) => !current)}
+                  onClick={() => {
+                    setNewMessageOpen((current) => {
+                      if (current) setNewContactId('')
+                      return !current
+                    })
+                  }}
                   className="inline-flex items-center gap-2 rounded-full bg-espresso px-3.5 py-2 text-xs font-bold text-champagne transition hover:opacity-90"
                 >
                   {newMessageOpen ? <X className="size-4" /> : <Pencil className="size-4" />}
@@ -507,30 +604,34 @@ export default function MessagesPage() {
                   <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.12em] text-espresso/45">
                     Message someone
                   </label>
-                  <div className="flex gap-2">
-                    <select
-                      value={newContactId}
-                      onChange={(event) => setNewContactId(event.target.value)}
-                      className="min-w-0 flex-1 rounded-lg border border-gold/20 bg-white px-3 py-2 text-sm outline-none focus:border-gold"
-                      aria-label="Choose someone to message"
-                    >
-                      <option value="">Choose a person…</option>
-                      {contacts.map((contact) => (
-                        <option key={contact.id} value={contact.id}>
-                          {contact.name} · {contact.role === 'admin' ? 'Wewed' : contact.role}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => void createConversation()}
-                      disabled={!newContactId || creating}
-                      className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg bg-espresso text-champagne disabled:cursor-not-allowed disabled:opacity-40"
-                      aria-label="Start conversation"
-                    >
-                      {creating ? <Loader2 className="size-4 animate-spin" /> : <CirclePlus className="size-4" />}
-                    </button>
-                  </div>
+                  {contacts.length === 0 ? (
+                    <p className="rounded-lg bg-white px-3 py-2 text-sm text-espresso/50">No available contacts yet.</p>
+                  ) : (
+                    <div className="flex gap-2">
+                      <select
+                        value={newContactId}
+                        onChange={(event) => setNewContactId(event.target.value)}
+                        className="min-w-0 flex-1 rounded-lg border border-gold/20 bg-white px-3 py-2 text-sm outline-none focus:border-gold"
+                        aria-label="Choose someone to message"
+                      >
+                        <option value="">Choose a person…</option>
+                        {contacts.map((contact) => (
+                          <option key={contact.id} value={contact.id}>
+                            {contact.name} · {contact.role === 'admin' ? 'Wewed' : contact.role}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => void createConversation()}
+                        disabled={!newContactId || creating}
+                        className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg bg-espresso text-champagne disabled:cursor-not-allowed disabled:opacity-40"
+                        aria-label="Start conversation"
+                      >
+                        {creating ? <Loader2 className="size-4 animate-spin" /> : <CirclePlus className="size-4" />}
+                      </button>
+                    </div>
+                  )}
                 </div>
               ) : null}
 
@@ -542,8 +643,18 @@ export default function MessagesPage() {
                   onChange={(event) => setSearchQuery(event.target.value)}
                   placeholder="Search conversations"
                   aria-label="Search conversations"
-                  className="h-10 w-full rounded-xl border border-gold/15 bg-ivory/45 pl-9 pr-3 text-sm outline-none transition placeholder:text-espresso/35 focus:border-gold/45 focus:bg-white"
+                  className="h-10 w-full rounded-xl border border-gold/15 bg-ivory/45 pl-9 pr-9 text-sm outline-none transition placeholder:text-espresso/35 focus:border-gold/45 focus:bg-white"
                 />
+                {searchQuery ? (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    aria-label="Clear conversation search"
+                    className="absolute right-1.5 top-1/2 inline-flex size-7 -translate-y-1/2 items-center justify-center rounded-full text-espresso/40 transition hover:bg-champagne/45 hover:text-espresso"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                ) : null}
               </label>
             </div>
 
@@ -617,7 +728,7 @@ export default function MessagesPage() {
                   <div className="flex min-w-0 items-center gap-2.5">
                     <button
                       type="button"
-                      onClick={() => setMobileThreadOpen(false)}
+                      onClick={closeMobileConversation}
                       className="inline-flex size-10 shrink-0 items-center justify-center rounded-full text-espresso/70 transition hover:bg-champagne/45 lg:hidden"
                       aria-label="Back to inbox"
                     >
@@ -633,11 +744,11 @@ export default function MessagesPage() {
                       </p>
                     </div>
                   </div>
-                  <div className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-sage/10 px-2.5 py-1.5 text-[10px] font-bold text-sage-dark sm:text-xs">
-                    <ShieldCheck className="size-3.5" />
-                    <span className="hidden sm:inline">Wewed protected</span>
-                    <span className="sm:hidden">Protected</span>
-                  </div>
+                  {selected.status !== 'OPEN' ? (
+                    <span className="shrink-0 rounded-full bg-espresso/8 px-2.5 py-1.5 text-[10px] font-bold text-espresso/55 sm:text-xs">
+                      Closed
+                    </span>
+                  ) : null}
                 </div>
 
                 <div
@@ -675,7 +786,7 @@ export default function MessagesPage() {
                             <div className="mb-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-espresso/55">
                               <LockKeyhole className="size-3" /> Staff note
                             </div>
-                          ) : !mine ? (
+                          ) : !mine && selected.kind === 'GROUP' ? (
                             <div className="mb-1 text-[11px] font-bold text-espresso/55">
                               {message.senderName ?? 'Wewed'}
                             </div>
@@ -692,39 +803,50 @@ export default function MessagesPage() {
                 </div>
 
                 <form onSubmit={sendMessage} className="shrink-0 border-t border-gold/10 bg-white px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2.5 sm:px-4 sm:pb-3">
-                  {me?.role === 'admin' ? (
-                    <label className={`mb-2 inline-flex cursor-pointer items-center gap-2 rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${internalNote ? 'bg-gold/15 text-espresso' : 'text-espresso/48 hover:bg-champagne/35'}`}>
-                      <input
-                        type="checkbox"
-                        checked={internalNote}
-                        onChange={(event) => setInternalNote(event.target.checked)}
-                        className="sr-only"
-                      />
-                      <LockKeyhole className="size-3.5" />
-                      {internalNote ? 'Staff-only note enabled' : 'Add staff-only note'}
-                    </label>
-                  ) : null}
-                  <div className="flex items-end gap-2">
-                    <textarea
-                      value={draft}
-                      onChange={(event) => setDraft(event.target.value)}
-                      maxLength={4000}
-                      rows={1}
-                      placeholder={internalNote ? 'Write a staff-only note…' : 'Message…'}
-                      className={`min-h-12 max-h-32 flex-1 resize-none rounded-2xl border px-4 py-3 text-sm outline-none transition ${internalNote ? 'border-gold/35 bg-gold/5 focus:border-gold' : 'border-gold/15 bg-ivory/45 focus:border-gold/45 focus:bg-white'}`}
-                    />
-                    <button
-                      type="submit"
-                      disabled={!draft.trim() || sending || selected.status !== 'OPEN'}
-                      className="inline-flex size-12 shrink-0 items-center justify-center rounded-full bg-espresso text-champagne transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-35"
-                      aria-label="Send message"
-                    >
-                      {sending ? <Loader2 className="size-5 animate-spin" /> : <Send className="size-5" />}
-                    </button>
-                  </div>
-                  <div className="mt-1.5 flex min-h-4 justify-end text-[10px] text-espresso/35">
-                    {draft.length >= 3600 ? <span>{draft.length}/4000</span> : null}
-                  </div>
+                  {selected.status !== 'OPEN' ? (
+                    <div className="flex min-h-12 items-center justify-center rounded-2xl bg-ivory/60 px-4 py-3 text-center text-sm text-espresso/50">
+                      This conversation is closed. You can still read the message history.
+                    </div>
+                  ) : (
+                    <>
+                      {me?.role === 'admin' ? (
+                        <label className={`mb-2 inline-flex cursor-pointer items-center gap-2 rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${internalNote ? 'bg-gold/15 text-espresso' : 'text-espresso/48 hover:bg-champagne/35'}`}>
+                          <input
+                            type="checkbox"
+                            checked={internalNote}
+                            onChange={(event) => setInternalNote(event.target.checked)}
+                            className="sr-only"
+                          />
+                          <LockKeyhole className="size-3.5" />
+                          {internalNote ? 'Staff-only note enabled' : 'Add staff-only note'}
+                        </label>
+                      ) : null}
+                      <div className="flex items-end gap-2">
+                        <textarea
+                          ref={composerRef}
+                          value={draft}
+                          onChange={(event) => updateDraft(event.target.value)}
+                          onKeyDown={handleComposerKeyDown}
+                          maxLength={4000}
+                          rows={1}
+                          placeholder={internalNote ? 'Write a staff-only note…' : 'Message…'}
+                          className={`min-h-12 max-h-32 flex-1 resize-none overflow-y-auto rounded-2xl border px-4 py-3 text-sm outline-none transition ${internalNote ? 'border-gold/35 bg-gold/5 focus:border-gold' : 'border-gold/15 bg-ivory/45 focus:border-gold/45 focus:bg-white'}`}
+                        />
+                        <button
+                          type="submit"
+                          disabled={!draft.trim() || sending}
+                          className="inline-flex size-12 shrink-0 items-center justify-center rounded-full bg-espresso text-champagne transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-35"
+                          aria-label="Send message"
+                        >
+                          {sending ? <Loader2 className="size-5 animate-spin" /> : <Send className="size-5" />}
+                        </button>
+                      </div>
+                      <div className="mt-1.5 flex min-h-4 items-center justify-between text-[10px] text-espresso/35">
+                        <span className="hidden lg:inline">Enter to send · Shift+Enter for a new line</span>
+                        {draft.length >= 3600 ? <span className="ml-auto">{draft.length}/4000</span> : null}
+                      </div>
+                    </>
+                  )}
                 </form>
               </>
             )}
