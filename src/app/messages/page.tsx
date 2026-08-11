@@ -245,7 +245,7 @@ export default function MessagesPage() {
       ).catch(() => undefined)
       return next
     } finally {
-      if (!silent && requestId === messageRequestSequence.current) setThreadLoading(false)
+      if (requestId === messageRequestSequence.current) setThreadLoading(false)
     }
   }, [])
 
