@@ -14,7 +14,10 @@ import {
   ShieldCheck,
   Users,
 } from 'lucide-react'
-import { communicationThreadNeedsReconciliation } from '@/lib/communications-client-state'
+import {
+  communicationThreadIsNearBottom,
+  communicationThreadNeedsReconciliation,
+} from '@/lib/communications-client-state'
 
 type DashboardRole = 'admin' | 'couple' | 'planner'
 
@@ -110,11 +113,15 @@ export default function MessagesPage() {
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const messageRequestSequence = useRef(0)
+  const threadScrollRef = useRef<HTMLDivElement | null>(null)
+  const threadEndRef = useRef<HTMLDivElement | null>(null)
+  const followLatestRef = useRef(true)
 
   const selected = useMemo(
     () => conversations.find((conversation) => conversation.id === selectedId) ?? null,
     [conversations, selectedId],
   )
+  const latestMessageId = messages[messages.length - 1]?.id ?? null
 
   const conversationName = useCallback((conversation: Conversation) => {
     if (conversation.title) return conversation.title
@@ -185,6 +192,16 @@ export default function MessagesPage() {
     }
   }, [])
 
+  const trackThreadScroll = useCallback(() => {
+    const container = threadScrollRef.current
+    if (!container) return
+    followLatestRef.current = communicationThreadIsNearBottom({
+      scrollHeight: container.scrollHeight,
+      scrollTop: container.scrollTop,
+      clientHeight: container.clientHeight,
+    })
+  }, [])
+
   useEffect(() => {
     let cancelled = false
     async function initialLoad() {
@@ -202,6 +219,24 @@ export default function MessagesPage() {
     void initialLoad()
     return () => { cancelled = true }
   }, [loadContacts, loadConversations, loadMe])
+
+  useEffect(() => {
+    followLatestRef.current = true
+  }, [selectedId])
+
+  useEffect(() => {
+    if (!selectedId || !latestMessageId || !followLatestRef.current) return
+    const frame = window.requestAnimationFrame(() => {
+      const container = threadScrollRef.current
+      if (container) {
+        container.scrollTop = container.scrollHeight
+        followLatestRef.current = true
+        return
+      }
+      threadEndRef.current?.scrollIntoView({ block: 'end' })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [latestMessageId, selectedId])
 
   useEffect(() => {
     if (!selectedId) {
@@ -374,7 +409,7 @@ export default function MessagesPage() {
           </div>
         ) : null}
 
-        <section className="grid min-h-[72vh] overflow-hidden rounded-3xl border border-gold/20 bg-white shadow-sm lg:grid-cols-[360px_minmax(0,1fr)]">
+        <section className="grid min-h-[72vh] overflow-hidden rounded-3xl border border-gold/20 bg-white shadow-sm lg:h-[72vh] lg:min-h-0 lg:grid-cols-[360px_minmax(0,1fr)]">
           <aside className="border-b border-gold/15 bg-champagne/20 lg:border-b-0 lg:border-r">
             <div className="border-b border-gold/15 p-4">
               <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-espresso/50">
@@ -448,7 +483,7 @@ export default function MessagesPage() {
             </div>
           </aside>
 
-          <div className="flex min-h-[56vh] flex-col">
+          <div className="flex min-h-[56vh] min-w-0 flex-col lg:min-h-0">
             {!selected ? (
               <div className="flex flex-1 items-center justify-center p-8 text-center text-espresso/50">
                 <div>
@@ -472,7 +507,12 @@ export default function MessagesPage() {
                   </div>
                 </div>
 
-                <div className="flex-1 space-y-3 overflow-y-auto bg-ivory/35 p-4 sm:p-6">
+                <div
+                  ref={threadScrollRef}
+                  onScroll={trackThreadScroll}
+                  data-communications-thread-scroll="true"
+                  className="h-[52vh] min-h-[22rem] flex-none space-y-3 overflow-y-auto overscroll-contain bg-ivory/35 p-4 sm:p-6 lg:h-auto lg:min-h-0 lg:flex-1"
+                >
                   {threadLoading ? (
                     <div className="flex justify-center py-12 text-sm text-espresso/50">
                       <Loader2 className="mr-2 size-4 animate-spin" /> Loading thread…
@@ -503,6 +543,7 @@ export default function MessagesPage() {
                       </div>
                     )
                   })}
+                  <div ref={threadEndRef} aria-hidden="true" className="h-px" />
                 </div>
 
                 <form onSubmit={sendMessage} className="border-t border-gold/15 bg-white p-4">
