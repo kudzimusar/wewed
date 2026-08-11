@@ -26,6 +26,7 @@ type ProviderProfile = {
   responseTime: string | null
   minimumBookingNotice: string | null
   verificationBadges: string[]
+  featured: boolean
   listingStatus: string
   isClaimable: boolean
   acceptingEnquiries: boolean
@@ -77,6 +78,13 @@ function isProvisional(provider: ProviderProfile): boolean {
   return provider.listingStatus === 'unclaimed' || provider.listingStatus === 'claim_pending'
 }
 
+function profileBadge(provider: ProviderProfile): string | null {
+  if (provider.featured || provider.verificationBadges.includes('Wewed Featured')) return 'Featured'
+  if (provider.verificationBadges.includes('Wewed Approved')) return 'Approved'
+  if (provider.verificationBadges.length > 0) return 'Verified'
+  return null
+}
+
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError'
 }
@@ -87,6 +95,9 @@ export function ProviderDirectory() {
   const category = searchParams.get('category') || ''
   const query = searchParams.get('q') || ''
   const area = searchParams.get('area') || ''
+  const profile = searchParams.get('profile') || ''
+  const availability = searchParams.get('availability') || ''
+  const sort = searchParams.get('sort') || 'recommended'
   const [providers, setProviders] = useState<ProviderProfile[]>([])
   const [areas, setAreas] = useState<ServiceArea[]>([])
   const [broaderAreas, setBroaderAreas] = useState<string[]>([])
@@ -124,6 +135,9 @@ export function ProviderDirectory() {
     if (category) parameters.set('category', category)
     if (query) parameters.set('q', query)
     if (area) parameters.set('area', area)
+    if (profile) parameters.set('profile', profile)
+    if (availability) parameters.set('availability', availability)
+    if (sort !== 'recommended') parameters.set('sort', sort)
     parameters.set('page', String(nextPage))
     parameters.set('pageSize', '24')
 
@@ -140,7 +154,7 @@ export function ProviderDirectory() {
     } finally {
       requestControllers.current.delete(controller)
     }
-  }, [category, query, area])
+  }, [category, query, area, profile, availability, sort])
 
   useEffect(() => {
     let cancelled = false
@@ -163,6 +177,7 @@ export function ProviderDirectory() {
 
   const categoryLabel = useMemo(() => category ? providerCategoryLabel(category) : 'All wedding services', [category])
   const registrationType = category === 'venue' ? 'venue' : 'vendor'
+  const hasFilters = Boolean(category || query || area || profile || availability || sort !== 'recommended')
 
   function search(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -171,9 +186,15 @@ export function ProviderDirectory() {
     const nextCategory = String(form.get('category') || '')
     const nextQuery = String(form.get('q') || '').trim()
     const nextArea = String(form.get('area') || '')
+    const nextProfile = String(form.get('profile') || '')
+    const nextAvailability = String(form.get('availability') || '')
+    const nextSort = String(form.get('sort') || 'recommended')
     if (nextCategory) next.set('category', nextCategory)
     if (nextQuery) next.set('q', nextQuery)
     if (nextArea) next.set('area', nextArea)
+    if (nextProfile) next.set('profile', nextProfile)
+    if (nextAvailability) next.set('availability', nextAvailability)
+    if (nextSort !== 'recommended') next.set('sort', nextSort)
     router.push(next.toString() ? `/vendors?${next.toString()}` : '/vendors')
   }
 
@@ -203,11 +224,19 @@ export function ProviderDirectory() {
       </section>
 
       <section className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
-        <form onSubmit={search} className="grid gap-4 rounded-3xl border border-gold/20 bg-white p-5 shadow-sm md:grid-cols-[1fr_1fr_1fr_auto]">
-          <label className="text-xs font-semibold text-espresso/70">Service category<select name="category" defaultValue={category} className="mt-1.5 h-11 w-full rounded-xl border border-gold/25 bg-ivory px-3 text-sm"><option value="">All services</option>{PROVIDER_CATEGORIES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-          <label className="text-xs font-semibold text-espresso/70">Search business or service<span className="relative mt-1.5 block"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gold-muted" /><input name="q" defaultValue={query} placeholder="Cake, venue, photographer…" className="h-11 w-full rounded-xl border border-gold/25 bg-ivory pl-10 pr-3 text-sm" /></span></label>
-          <label className="text-xs font-semibold text-espresso/70">Service area<select name="area" defaultValue={area} className="mt-1.5 h-11 w-full rounded-xl border border-gold/25 bg-ivory px-3 text-sm"><option value="">All areas</option>{broaderAreas.map((option) => <option key={option} value={option}>{option}</option>)}{areas.map((option) => <option key={`${option.province}-${option.name}`} value={option.name}>{option.name} · {option.province}</option>)}</select></label>
-          <button type="submit" className="self-end rounded-xl bg-espresso px-5 py-3 text-sm font-semibold text-champagne">Search</button>
+        <form onSubmit={search} className="rounded-3xl border border-gold/20 bg-white p-5 shadow-sm">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <label className="text-xs font-semibold text-espresso/70">Search business or service<span className="relative mt-1.5 block"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gold-muted" /><input name="q" defaultValue={query} placeholder="Business name, gown, tent, photographer…" className="h-11 w-full rounded-xl border border-gold/25 bg-ivory pl-10 pr-3 text-sm" /></span></label>
+            <label className="text-xs font-semibold text-espresso/70">Service category<select name="category" defaultValue={category} className="mt-1.5 h-11 w-full rounded-xl border border-gold/25 bg-ivory px-3 text-sm"><option value="">All services</option>{PROVIDER_CATEGORIES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+            <label className="text-xs font-semibold text-espresso/70">Service area<select name="area" defaultValue={area} className="mt-1.5 h-11 w-full rounded-xl border border-gold/25 bg-ivory px-3 text-sm"><option value="">All areas</option>{broaderAreas.map((option) => <option key={option} value={option}>{option}</option>)}{areas.map((option) => <option key={`${option.province}-${option.name}`} value={option.name}>{option.name} · {option.province}</option>)}</select></label>
+            <label className="text-xs font-semibold text-espresso/70">Profile status<select name="profile" defaultValue={profile} className="mt-1.5 h-11 w-full rounded-xl border border-gold/25 bg-ivory px-3 text-sm"><option value="">All profile types</option><option value="featured">Featured</option><option value="approved">Approved / verified</option><option value="unclaimed">Unclaimed / provisional</option></select></label>
+            <label className="text-xs font-semibold text-espresso/70">Availability<select name="availability" defaultValue={availability} className="mt-1.5 h-11 w-full rounded-xl border border-gold/25 bg-ivory px-3 text-sm"><option value="">Any availability</option><option value="accepting">Accepting enquiries</option></select></label>
+            <label className="text-xs font-semibold text-espresso/70">Sort by<select name="sort" defaultValue={sort} className="mt-1.5 h-11 w-full rounded-xl border border-gold/25 bg-ivory px-3 text-sm"><option value="recommended">Recommended</option><option value="name">Business name A–Z</option><option value="newest">Newest profiles</option></select></label>
+          </div>
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+            <div>{hasFilters && <Link href="/vendors" className="text-sm font-semibold text-gold-muted hover:text-espresso">Clear filters</Link>}</div>
+            <button type="submit" className="rounded-xl bg-espresso px-7 py-3 text-sm font-semibold text-champagne">Search vendors</button>
+          </div>
         </form>
 
         <div className="mt-5 flex flex-wrap justify-end gap-3"><Link href={`/register?accountType=${registrationType}${category ? `&service=${encodeURIComponent(category)}` : ''}`} className="rounded-full bg-gold px-5 py-2.5 text-sm font-semibold text-espresso">List your business</Link><Link href="/vendors/manage" className="rounded-full border border-gold/30 px-5 py-2.5 text-sm font-semibold text-gold-muted">Manage profile</Link></div>
@@ -219,9 +248,9 @@ export function ProviderDirectory() {
         {!loading && !error && providers.length === 0 && (
           <div role="status" className="mt-8 rounded-3xl border border-gold/20 bg-champagne/60 p-10 text-center">
             <BriefcaseBusiness className="mx-auto size-8 text-gold-muted" />
-            <h3 className="mt-4 font-serif text-3xl">No published {category ? categoryLabel.toLowerCase() : 'provider profiles'} yet.</h3>
-            <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-espresso/60">Wewed publishes only real businesses supported by source evidence. Owner-managed profiles and provisional listings are labelled separately; missing details are never invented.</p>
-            <Link href={`/register?accountType=${registrationType}${category ? `&service=${encodeURIComponent(category)}` : ''}`} className="mt-6 inline-flex items-center gap-2 rounded-full bg-espresso px-5 py-3 text-sm font-semibold text-champagne">Register a company <ArrowRight className="size-4" /></Link>
+            <h3 className="mt-4 font-serif text-3xl">No published {category ? categoryLabel.toLowerCase() : 'provider profiles'} match these filters.</h3>
+            <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-espresso/60">Try clearing one filter or searching by the business name. Wewed keeps approved, provisional and enquiry-ready states distinct rather than mixing them together.</p>
+            {hasFilters ? <Link href="/vendors" className="mt-6 inline-flex items-center gap-2 rounded-full bg-espresso px-5 py-3 text-sm font-semibold text-champagne">Clear all filters <ArrowRight className="size-4" /></Link> : <Link href={`/register?accountType=${registrationType}${category ? `&service=${encodeURIComponent(category)}` : ''}`} className="mt-6 inline-flex items-center gap-2 rounded-full bg-espresso px-5 py-3 text-sm font-semibold text-champagne">Register a company <ArrowRight className="size-4" /></Link>}
           </div>
         )}
 
@@ -230,10 +259,11 @@ export function ProviderDirectory() {
             <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-3" data-testid="provider-directory-results">
               {providers.map((provider) => {
                 const provisional = isProvisional(provider)
+                const badge = profileBadge(provider)
                 const startingPrice = price(provider.offering.startingPriceCents, provider.offering.currency)
                 return (
                   <article key={`${provider.id}-${provider.offering.id}`} className="overflow-hidden rounded-3xl border border-gold/20 bg-white shadow-sm">
-                    <div className="relative h-52 bg-espresso">{provider.coverImageUrl ? <img src={provider.coverImageUrl} alt="" className="size-full object-cover opacity-90" /> : <div className="size-full bg-[radial-gradient(circle_at_75%_20%,rgba(191,155,95,0.45),transparent_35%),linear-gradient(135deg,#1a1410,#5b3428)]" />}<span className="absolute left-4 top-4 rounded-full bg-espresso/80 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-gold backdrop-blur">{providerCategoryLabel(provider.offering.category)}</span>{provisional ? <span className="absolute right-4 top-4 flex items-center gap-1 rounded-full bg-amber-50/95 px-3 py-1 text-[10px] font-semibold text-amber-800"><AlertTriangle className="size-3" />{provider.listingStatus === 'claim_pending' ? 'Claim pending' : 'Unclaimed'}</span> : provider.verificationBadges.length > 0 && <span className="absolute right-4 top-4 flex items-center gap-1 rounded-full bg-white/90 px-3 py-1 text-[10px] font-semibold text-sage"><BadgeCheck className="size-3" />Verified</span>}</div>
+                    <div className="relative h-52 bg-espresso">{provider.coverImageUrl ? <img src={provider.coverImageUrl} alt="" className="size-full object-cover opacity-90" /> : <div className="size-full bg-[radial-gradient(circle_at_75%_20%,rgba(191,155,95,0.45),transparent_35%),linear-gradient(135deg,#1a1410,#5b3428)]" />}<span className="absolute left-4 top-4 rounded-full bg-espresso/80 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-gold backdrop-blur">{providerCategoryLabel(provider.offering.category)}</span>{provisional ? <span className="absolute right-4 top-4 flex items-center gap-1 rounded-full bg-amber-50/95 px-3 py-1 text-[10px] font-semibold text-amber-800"><AlertTriangle className="size-3" />{provider.listingStatus === 'claim_pending' ? 'Claim pending' : 'Unclaimed'}</span> : badge && <span className="absolute right-4 top-4 flex items-center gap-1 rounded-full bg-white/90 px-3 py-1 text-[10px] font-semibold text-sage"><BadgeCheck className="size-3" />{badge}</span>}</div>
                     <div className="p-6"><h3 className="font-serif text-3xl">{provider.displayName}</h3><p className="mt-1 text-xs font-semibold text-gold-muted">{provider.offering.displayName}</p>{provider.headline && <p className="mt-3 text-sm font-semibold text-espresso/75">{provider.headline}</p>}{provider.offering.description && <p className="mt-3 line-clamp-3 text-sm leading-6 text-espresso/58">{provider.offering.description}</p>}
                       <div className="mt-4 space-y-2 text-xs text-espresso/58">{(provider.city || provider.country || provider.serviceAreas.length > 0) && <p className="flex items-start gap-2"><MapPin className="mt-0.5 size-3.5 shrink-0 text-gold-muted" />{[provider.city, provider.country].filter(Boolean).join(', ') || provider.serviceAreas.join(', ')}</p>}{provider.responseTime && !provisional && <p className="flex items-start gap-2"><Clock3 className="mt-0.5 size-3.5 shrink-0 text-gold-muted" />Responds {provider.responseTime.toLowerCase()}</p>}{(provider.offering.minimumCapacity != null || provider.offering.maximumCapacity != null) && <p className="flex items-start gap-2"><Users className="mt-0.5 size-3.5 shrink-0 text-gold-muted" />Capacity {provider.offering.minimumCapacity ?? 'any'}–{provider.offering.maximumCapacity ?? 'any'}</p>}</div>
                       {provisional && <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">Public business information; not yet owner-verified.</p>}

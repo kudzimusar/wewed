@@ -3,6 +3,8 @@ import { db } from '@/lib/db'
 import { PROVIDER_CATEGORY_VALUES } from '@/lib/provider-catalog'
 
 const FEATURED_BADGE = 'Wewed Featured'
+const PROFILE_FILTERS = new Set(['featured', 'approved', 'unclaimed'])
+const SORT_VALUES = new Set(['recommended', 'name', 'newest'])
 
 function stringList(value: unknown, limit = 50): string[] {
   if (Array.isArray(value)) return value.filter((entry): entry is string => typeof entry === 'string').slice(0, limit)
@@ -78,6 +80,11 @@ export async function GET(request: NextRequest) {
   const category = PROVIDER_CATEGORY_VALUES.has(requestedCategory) ? requestedCategory : null
   const query = request.nextUrl.searchParams.get('q')?.trim().slice(0, 100) || null
   const area = request.nextUrl.searchParams.get('area')?.trim().slice(0, 120) || null
+  const requestedProfile = request.nextUrl.searchParams.get('profile')?.trim() || ''
+  const profile = PROFILE_FILTERS.has(requestedProfile) ? requestedProfile : null
+  const availability = request.nextUrl.searchParams.get('availability') === 'accepting' ? true : null
+  const requestedSort = request.nextUrl.searchParams.get('sort')?.trim() || 'recommended'
+  const sort = SORT_VALUES.has(requestedSort) ? requestedSort : 'recommended'
   const page = Math.max(1, Number.parseInt(request.nextUrl.searchParams.get('page') || '1', 10) || 1)
   const pageSize = Math.min(60, Math.max(1, Number.parseInt(request.nextUrl.searchParams.get('pageSize') || '24', 10) || 24))
   const offset = (page - 1) * pageSize
@@ -170,19 +177,31 @@ export async function GET(request: NextRequest) {
                   AND area_offering.status = 'published'
                   AND area_offering."serviceAreas" @> jsonb_build_array($3)
               ))
+         AND ($4::text IS NULL OR
+              ($4 = 'featured' AND COALESCE(p."verificationBadges", '[]'::jsonb) @> '["Wewed Featured"]'::jsonb) OR
+              ($4 = 'approved' AND p."listingStatus" IN ('verified', 'claimed')) OR
+              ($4 = 'unclaimed' AND p."listingStatus" IN ('unclaimed', 'claim_pending')))
+         AND ($5::boolean IS NULL OR p."acceptingEnquiries" = $5)
        ORDER BY
-         CASE WHEN COALESCE(p."verificationBadges", '[]'::jsonb) @> '["Wewed Featured"]'::jsonb THEN 0 ELSE 1 END,
-         CASE p."listingStatus"
-           WHEN 'verified' THEN 0
-           WHEN 'claimed' THEN 1
-           WHEN 'claim_pending' THEN 2
-           ELSE 3
-         END,
+         CASE WHEN $6::text = 'name' THEN p."displayName" END ASC,
+         CASE WHEN $6::text = 'newest' THEN COALESCE(p."publishedAt", p."createdAt") END DESC,
+         CASE WHEN $6::text = 'recommended' AND COALESCE(p."verificationBadges", '[]'::jsonb) @> '["Wewed Featured"]'::jsonb THEN 0 ELSE 1 END,
+         CASE WHEN $6::text = 'recommended' THEN
+           CASE p."listingStatus"
+             WHEN 'verified' THEN 0
+             WHEN 'claimed' THEN 1
+             WHEN 'claim_pending' THEN 2
+             ELSE 3
+           END
+         ELSE 0 END,
          p."displayName"
-       LIMIT $4 OFFSET $5`,
+       LIMIT $7 OFFSET $8`,
       category,
       query,
       area,
+      profile,
+      availability,
+      sort,
       pageSize,
       offset,
     )
@@ -193,6 +212,9 @@ export async function GET(request: NextRequest) {
       category,
       query,
       area,
+      profile,
+      availability: availability ? 'accepting' : null,
+      sort,
       providers: rows.map(publicProvider),
       pagination: {
         page,
