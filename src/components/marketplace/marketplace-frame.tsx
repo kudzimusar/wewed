@@ -59,6 +59,15 @@ export function MarketplaceFrame({
       <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">{children}</section>
 
       <style jsx global>{`
+        [data-marketplace-frame] {
+          --wewed-sage-dark: #4c4a2f;
+        }
+        [data-marketplace-frame] [data-slot='card'].bg-champagne {
+          color: var(--color-espresso);
+        }
+        [data-marketplace-frame] .text-sage-dark {
+          color: var(--wewed-sage-dark) !important;
+        }
         [data-marketplace-path='/planner/marketplace'] article:has([data-marketplace-status='accepted_interest']) {
           border-color: rgb(92 122 93 / 0.42) !important;
           background: rgb(92 122 93 / 0.09) !important;
