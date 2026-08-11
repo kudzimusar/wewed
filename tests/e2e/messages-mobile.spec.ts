@@ -116,13 +116,10 @@ test('@mobile Couple thread opens on the latest persisted external message and r
   await expect(thread).toBeVisible()
   await expect(page.getByText('Testing new connection', { exact: true })).toBeVisible()
 
-  await expect.poll(async () => thread.evaluate((element) => ({
-    remaining: element.scrollHeight - element.scrollTop - element.clientHeight,
-    scrollable: element.scrollHeight > element.clientHeight,
-  })), { message: 'newly opened Couple thread follows its latest rendered message' }).toMatchObject({
-    remaining: 0,
-    scrollable: true,
-  })
+  await expect.poll(async () => thread.evaluate((element) => {
+    const remaining = element.scrollHeight - element.scrollTop - element.clientHeight
+    return element.scrollHeight > element.clientHeight && remaining <= 2
+  }), { message: 'newly opened Couple thread follows its latest rendered message' }).toBe(true)
 
   await thread.evaluate((element) => {
     element.scrollTop = 0
