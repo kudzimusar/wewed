@@ -118,7 +118,7 @@ test('@mobile Couple inbox opens one conversation at a time, follows latest, and
 
   await expect(inbox).toBeVisible()
   await expect(conversation).toBeHidden()
-  await page.getByText('Wewed Administrator', { exact: true }).click()
+  await inbox.getByText('Wewed Administrator', { exact: true }).click()
   await expect(inbox).toBeHidden()
   await expect(conversation).toBeVisible()
   await expect(thread).toBeVisible()
