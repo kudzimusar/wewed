@@ -313,7 +313,7 @@ export default function MessagesPage() {
   }, [draft])
 
   useEffect(() => {
-    if (!selectedId || !latestMessageId || !followLatestRef.current) return
+    if (threadLoading || !selectedId || !latestMessageId || !followLatestRef.current) return
     const frame = window.requestAnimationFrame(() => {
       const container = threadScrollRef.current
       if (container) {
@@ -324,7 +324,7 @@ export default function MessagesPage() {
       threadEndRef.current?.scrollIntoView({ block: 'end' })
     })
     return () => window.cancelAnimationFrame(frame)
-  }, [latestMessageId, mobileThreadOpen, selectedId])
+  }, [latestMessageId, mobileThreadOpen, selectedId, threadLoading])
 
   useEffect(() => {
     if (!selectedId) {
