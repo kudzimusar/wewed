@@ -15,6 +15,13 @@ const REQUESTED_ROLES = new Set(['business_owner', 'planner', 'coordinator', 'co
 const PLANS = new Set(['free', 'starter', 'professional', 'enterprise'])
 const attempts = new Map<string, { count: number; resetAt: number }>()
 
+type ReservedVendorRow = {
+  accountId: string
+  businessName: string
+  profileId: string
+  profileSlug: string
+}
+
 function text(value: unknown, max = 200): string {
   return typeof value === 'string' ? value.trim().slice(0, max) : ''
 }
@@ -56,6 +63,32 @@ function isRateLimited(request: NextRequest): boolean {
   return current.count > 5
 }
 
+async function reservedVendorForEmail(email: string): Promise<ReservedVendorRow | null | 'ambiguous'> {
+  const rows = await db.$queryRawUnsafe<ReservedVendorRow[]>(
+    `SELECT
+       ba.id AS "accountId",
+       ba.name AS "businessName",
+       profile.id AS "profileId",
+       profile.slug AS "profileSlug"
+     FROM public."BusinessAccount" ba
+     JOIN public."ProviderProfile" profile
+       ON profile."businessAccountId" = ba.id
+      AND profile.visibility = 'published'
+      AND profile."listingStatus" IN ('claimed', 'verified')
+      AND profile."isClaimable" = false
+     WHERE ba.type = 'vendor'
+       AND ba.status = 'active'
+       AND ba."onboardingStatus" = 'complete'
+       AND ba."ownerUserId" IS NULL
+       AND lower(COALESCE(ba.metadata->>'reservedOwnerEmail', '')) = $1
+     ORDER BY ba."createdAt" ASC, ba.id ASC
+     LIMIT 2`,
+    email,
+  )
+  if (rows.length > 1) return 'ambiguous'
+  return rows[0] ?? null
+}
+
 export async function POST(request: NextRequest) {
   if (isRateLimited(request)) {
     return NextResponse.json({ success: false, error: 'Too many registration attempts. Please try again later.' }, { status: 429 })
@@ -85,6 +118,7 @@ export async function POST(request: NextRequest) {
     const acceptedTerms = body.acceptedTerms === true
     const requestedServices = stringList(body.requestedServices, 8)
     const requestedService = requestedServices[0] || text(body.requestedService, 80)
+    const reservedProfileSlug = text(body.reservedProfileSlug, 100)
     const providerApplication = accountType === 'venue' || accountType === 'vendor'
 
     if (!name || !email || !businessName || !ACCOUNT_TYPES.has(accountType)) {
@@ -95,7 +129,29 @@ export async function POST(request: NextRequest) {
     if (password.length < 12) return NextResponse.json({ success: false, error: 'Use a password with at least 12 characters.' }, { status: 400 })
     if (!acceptedTerms) return NextResponse.json({ success: false, error: 'You must accept the registration terms.' }, { status: 400 })
 
-    if (providerApplication) {
+    const reservedVendor = await reservedVendorForEmail(email)
+    if (reservedVendor === 'ambiguous') {
+      return NextResponse.json({ success: false, error: 'This email is reserved for more than one Vendor profile. Wewed support must reconcile the reservation before registration.' }, { status: 409 })
+    }
+
+    if (reservedVendor) {
+      if (accountType !== 'vendor') {
+        return NextResponse.json({ success: false, error: 'This email is reserved for an approved Wewed Vendor profile. Use the Vendor owner activation link.' }, { status: 409 })
+      }
+      if (!reservedProfileSlug || reservedProfileSlug !== reservedVendor.profileSlug) {
+        return NextResponse.json({ success: false, error: 'This email is reserved for an existing Vendor profile. Open that profile’s secure owner activation link instead of creating a new application.' }, { status: 409 })
+      }
+      if (businessName.toLocaleLowerCase() !== reservedVendor.businessName.toLocaleLowerCase()) {
+        return NextResponse.json({ success: false, error: `This login is reserved for ${reservedVendor.businessName}. Keep the approved business name unchanged.` }, { status: 409 })
+      }
+      if (requestedRole !== 'business_owner') {
+        return NextResponse.json({ success: false, error: 'Reserved Vendor activation must be completed by the business owner.' }, { status: 400 })
+      }
+    } else if (reservedProfileSlug) {
+      return NextResponse.json({ success: false, error: 'The reserved Vendor profile is not available for this email. Check the reserved owner email before continuing.' }, { status: 409 })
+    }
+
+    if (providerApplication && !reservedVendor) {
       if (!country || !city || !primaryServiceArea) {
         return NextResponse.json({ success: false, error: 'Country, city and primary service area are required for provider applications.' }, { status: 400 })
       }
@@ -122,13 +178,14 @@ export async function POST(request: NextRequest) {
       email,
       password,
       options: {
-        emailRedirectTo: publicUrl('/register?confirmed=1'),
+        emailRedirectTo: publicUrl(reservedVendor ? '/register?confirmed=vendor' : '/register?confirmed=1'),
         data: {
           display_name: name,
           wewed_application: true,
           requested_account_type: accountType,
           requested_service: requestedService || null,
           requested_services: requestedServices,
+          reserved_profile_slug: reservedVendor?.profileSlug ?? null,
         },
       },
     })
@@ -139,9 +196,106 @@ export async function POST(request: NextRequest) {
 
     authUserId = data.user.id
     const appUserId = randomUUID()
+    const submittedAt = new Date().toISOString()
+
+    if (reservedVendor) {
+      const membershipId = `member-${randomUUID()}`
+      const attachedMetadata = {
+        authUserId,
+        applicantName: name,
+        applicantEmail: email,
+        ownerAccessStatus: 'auth_identity_attached',
+        ownerAttachedAt: submittedAt,
+        emailConfirmationRequired: !data.session,
+      }
+
+      await db.$transaction(async (transaction) => {
+        await transaction.$executeRawUnsafe(
+          `INSERT INTO public."User" ("id", "email", "name", "role", "isActive", "createdAt", "updatedAt") VALUES ($1, $2, $3, 'vendor', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          appUserId,
+          email,
+          name,
+        )
+        await transaction.userProfile.create({ data: { id: authUserId as string, email, displayName: reservedVendor.businessName, role: 'vendor' } })
+
+        const attached = await transaction.$executeRawUnsafe(
+          `UPDATE public."BusinessAccount"
+           SET "ownerUserId" = $2,
+             metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb,
+             "updatedAt" = CURRENT_TIMESTAMP
+           WHERE id = $1
+             AND type = 'vendor'
+             AND status = 'active'
+             AND "onboardingStatus" = 'complete'
+             AND "ownerUserId" IS NULL
+             AND lower(COALESCE(metadata->>'reservedOwnerEmail', '')) = $4`,
+          reservedVendor.accountId,
+          appUserId,
+          JSON.stringify(attachedMetadata),
+          email,
+        )
+        if (attached !== 1) {
+          throw new Error('The reserved Vendor profile was claimed by another request before this registration completed.')
+        }
+
+        await transaction.$executeRawUnsafe(
+          `INSERT INTO public."BusinessAccountMember"
+            ("id", "businessAccountId", "userId", "role", "status", "permissions", "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, 'business_owner', 'active', $4::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          membershipId,
+          reservedVendor.accountId,
+          appUserId,
+          JSON.stringify(['account.manage', 'profile.manage', 'enquiries.manage']),
+        )
+
+        await transaction.$executeRawUnsafe(
+          `UPDATE public."ProviderProfile"
+           SET "acceptingEnquiries" = true,
+             "claimNotice" = NULL,
+             "lastProfileUpdate" = CURRENT_TIMESTAMP,
+             "updatedAt" = CURRENT_TIMESTAMP
+           WHERE id = $1
+             AND "businessAccountId" = $2
+             AND visibility = 'published'
+             AND "listingStatus" IN ('claimed', 'verified')
+             AND "isClaimable" = false`,
+          reservedVendor.profileId,
+          reservedVendor.accountId,
+        )
+
+        await transaction.$executeRawUnsafe(
+          `INSERT INTO public."BusinessAuditLog"
+            ("id", "actorUserId", "businessAccountId", "action", "resourceType", "resourceId", "details", "createdAt")
+           VALUES ($1, $2, $3, 'business_account.reserved_vendor_owner_attached', 'BusinessAccount', $3, $4::jsonb, CURRENT_TIMESTAMP)`,
+          `audit-${randomUUID()}`,
+          appUserId,
+          reservedVendor.accountId,
+          JSON.stringify({
+            authUserId,
+            email,
+            profileId: reservedVendor.profileId,
+            profileSlug: reservedVendor.profileSlug,
+            confirmationRequired: !data.session,
+            attachedAt: submittedAt,
+          }),
+        )
+      })
+
+      return NextResponse.json({
+        success: true,
+        applicationId: reservedVendor.accountId,
+        confirmationRequired: !data.session,
+        reservedProfileAttached: true,
+        businessName: reservedVendor.businessName,
+        profileSlug: reservedVendor.profileSlug,
+        message: data.session
+          ? 'Your approved Vendor profile is attached and ready to sign in.'
+          : 'Your approved Vendor profile is attached. Confirm your email, then sign in to the Vendor workspace.',
+      })
+    }
+
     const accountId = `business-${randomUUID()}`
     const membershipId = `member-${randomUUID()}`
-    const submittedAt = new Date().toISOString()
     const businessSlug = `${slugify(businessName)}-${accountId.slice(-8)}`
     const metadata = {
       applicationSource: 'public_registration',
@@ -258,6 +412,7 @@ export async function POST(request: NextRequest) {
       success: true,
       applicationId: accountId,
       confirmationRequired: !data.session,
+      reservedProfileAttached: false,
       message: 'Your Wewed application is pending review. Internal onboarding follows approval.',
     })
   } catch (error) {
