@@ -47,6 +47,7 @@ interface ConversationRow {
   createdAt: Date
   lastVisibleMessageAt: Date | null
   lastMessageBody: string | null
+  lastMessageSenderUserId: string | null
   lastMessageSenderName: string | null
   lastReadAt: Date | null
   unreadCount: bigint | number
@@ -76,6 +77,13 @@ interface MembershipRow {
 
 interface ReusedConversationRow {
   id: string
+}
+
+interface PlannerDirectoryRow {
+  userId: string
+  email: string
+  userName: string | null
+  businessName: string
 }
 
 export interface CommunicationContact {
@@ -141,6 +149,44 @@ function asParticipantArray(value: Prisma.JsonValue): Array<{
   })
 }
 
+async function listRegisteredPlannerDirectory(
+  userIds?: string[],
+): Promise<PlannerDirectoryRow[]> {
+  if (userIds && userIds.length === 0) return []
+  const userFilter = userIds
+    ? Prisma.sql`AND u."id" IN (${Prisma.join(userIds)})`
+    : Prisma.sql``
+
+  return db.$queryRaw<PlannerDirectoryRow[]>(Prisma.sql`
+    SELECT DISTINCT ON (u."id")
+      u."id" AS "userId",
+      u."email",
+      u."name" AS "userName",
+      ba."name" AS "businessName"
+    FROM public."User" u
+    JOIN public."BusinessAccountMember" bam
+      ON bam."userId" = u."id"
+      AND bam."status" = 'active'
+    JOIN public."BusinessAccount" ba
+      ON ba."id" = bam."businessAccountId"
+      AND ba."type" = 'planning_company'
+      AND ba."status" = 'active'
+      AND ba."onboardingStatus" = 'complete'
+    WHERE u."isActive" = true
+      AND u."role" = 'planner'
+      ${userFilter}
+    ORDER BY
+      u."id",
+      CASE WHEN ba."ownerUserId" = u."id" THEN 0 ELSE 1 END,
+      ba."createdAt" ASC,
+      ba."id" ASC
+  `)
+}
+
+function plannerDirectoryMap(rows: PlannerDirectoryRow[]) {
+  return new Map(rows.map((row) => [row.userId, row]))
+}
+
 export async function requireCommunicationActor(
   request: NextRequest,
 ): Promise<CommunicationActor> {
@@ -183,6 +229,9 @@ export async function requireCommunicationActor(
 export async function listCommunicationContacts(
   actor: CommunicationActor,
 ): Promise<CommunicationContact[]> {
+  const plannerDirectory = await listRegisteredPlannerDirectory()
+  const plannersByUserId = plannerDirectoryMap(plannerDirectory)
+
   if (actor.role === 'admin') {
     const users = await db.user.findMany({
       where: {
@@ -197,9 +246,10 @@ export async function listCommunicationContacts(
 
     return users.flatMap((user) => {
       if (!isDashboardRole(user.role)) return []
+      const plannerIdentity = plannersByUserId.get(user.id)
       return [{
         id: user.id,
-        name: user.name?.trim() || user.email,
+        name: plannerIdentity?.businessName.trim() || user.name?.trim() || user.email,
         email: user.email,
         role: user.role,
         defaultType: defaultConversationTypeForRoles(actor.role, user.role),
@@ -212,32 +262,33 @@ export async function listCommunicationContacts(
     where: { id: actor.activeWeddingId },
     select: { id: true, coupleId: true },
   })
-  if (!wedding) return []
 
-  const [memberships, coupleUsers, admins] = await Promise.all([
-    db.weddingMembership.findMany({
-      where: {
-        weddingId: wedding.id,
-        status: 'active',
-        user: { isActive: true },
-      },
-      select: {
-        user: { select: { id: true, email: true, name: true, role: true } },
-      },
-    }),
-    db.user.findMany({
-      where: {
-        coupleId: wedding.coupleId,
-        isActive: true,
-      },
-      select: { id: true, email: true, name: true, role: true },
-    }),
-    db.user.findMany({
-      where: { isActive: true, role: 'admin' },
-      select: { id: true, email: true, name: true, role: true },
-      take: 25,
-    }),
-  ])
+  const memberships = wedding
+    ? await db.weddingMembership.findMany({
+        where: {
+          weddingId: wedding.id,
+          status: 'active',
+          user: { isActive: true },
+        },
+        select: {
+          user: { select: { id: true, email: true, name: true, role: true } },
+        },
+      })
+    : []
+  const coupleUsers = wedding
+    ? await db.user.findMany({
+        where: {
+          coupleId: wedding.coupleId,
+          isActive: true,
+        },
+        select: { id: true, email: true, name: true, role: true },
+      })
+    : []
+  const admins = await db.user.findMany({
+    where: { isActive: true, role: 'admin' },
+    select: { id: true, email: true, name: true, role: true },
+    take: 25,
+  })
 
   const contacts = new Map<string, CommunicationContact>()
   for (const user of [
@@ -246,14 +297,39 @@ export async function listCommunicationContacts(
     ...admins,
   ]) {
     if (user.id === actor.userId || !isDashboardRole(user.role)) continue
+    const plannerIdentity = plannersByUserId.get(user.id)
     contacts.set(user.id, {
       id: user.id,
-      name: user.name?.trim() || user.email,
+      name: plannerIdentity?.businessName.trim() || user.name?.trim() || user.email,
       email: user.email,
       role: user.role,
       defaultType: defaultConversationTypeForRoles(actor.role, user.role),
       context: user.role === 'admin' ? 'wewed' : 'wedding',
     })
+  }
+
+  if (actor.role === 'planner') {
+    for (const planner of plannerDirectory) {
+      if (planner.userId === actor.userId) continue
+      const existing = contacts.get(planner.userId)
+      if (existing) {
+        contacts.set(planner.userId, {
+          ...existing,
+          name: planner.businessName.trim() || planner.userName?.trim() || planner.email,
+          role: 'planner',
+          defaultType: 'DIRECT',
+        })
+        continue
+      }
+      contacts.set(planner.userId, {
+        id: planner.userId,
+        name: planner.businessName.trim() || planner.userName?.trim() || planner.email,
+        email: planner.email,
+        role: 'planner',
+        defaultType: 'DIRECT',
+        context: 'wewed',
+      })
+    }
   }
 
   return Array.from(contacts.values()).sort((a, b) => {
@@ -276,6 +352,7 @@ export async function listCommunicationConversations(actor: CommunicationActor) 
       p."lastReadAt",
       visible_last."createdAt" AS "lastVisibleMessageAt",
       visible_last."body" AS "lastMessageBody",
+      visible_last."senderUserId" AS "lastMessageSenderUserId",
       visible_last."senderName" AS "lastMessageSenderName",
       (
         SELECT COUNT(*)
@@ -308,6 +385,7 @@ export async function listCommunicationConversations(actor: CommunicationActor) 
       SELECT
         message."body",
         message."createdAt",
+        message."senderUserId",
         COALESCE(NULLIF(btrim(sender."name"), ''), sender."email", 'Wewed') AS "senderName"
       FROM wewed_communications."CommunicationMessage" message
       LEFT JOIN public."User" sender ON sender."id" = message."senderUserId"
@@ -324,6 +402,13 @@ export async function listCommunicationConversations(actor: CommunicationActor) 
     LIMIT 200
   `)
 
+  const participantUserIds = Array.from(new Set(rows.flatMap((row) =>
+    asParticipantArray(row.participants).map((participant) => participant.userId),
+  )))
+  const plannerIdentities = plannerDirectoryMap(
+    await listRegisteredPlannerDirectory(participantUserIds),
+  )
+
   return rows.map((row) => ({
     id: row.id,
     kind: row.kind,
@@ -334,10 +419,21 @@ export async function listCommunicationConversations(actor: CommunicationActor) 
     createdAt: row.createdAt.toISOString(),
     lastMessageAt: row.lastVisibleMessageAt?.toISOString() ?? null,
     lastMessageBody: row.lastMessageBody,
-    lastMessageSenderName: row.lastMessageSenderName,
+    lastMessageSenderName: row.lastMessageSenderUserId
+      ? plannerIdentities.get(row.lastMessageSenderUserId)?.businessName.trim()
+        || row.lastMessageSenderName
+      : row.lastMessageSenderName,
     lastReadAt: row.lastReadAt?.toISOString() ?? null,
     unreadCount: asCount(row.unreadCount),
-    participants: asParticipantArray(row.participants),
+    participants: asParticipantArray(row.participants).map((participant) => {
+      const planner = plannerIdentities.get(participant.userId)
+      if (!planner) return participant
+      return {
+        ...participant,
+        name: planner.businessName.trim() || planner.userName?.trim() || planner.email,
+        role: 'planner',
+      }
+    }),
   }))
 }
 
@@ -561,6 +657,10 @@ export async function createCommunicationConversation(
   }
 
   const targetAdmins = typedTargets.filter((target) => target.role === 'admin')
+  const plannerDirect = actor.role === 'planner'
+    && typedTargets.length === 1
+    && typedTargets[0].role === 'planner'
+    && requestedType === 'DIRECT'
   let weddingId = stringOrNull(input.weddingId)
 
   if (actor.role === 'admin') {
@@ -577,6 +677,18 @@ export async function createCommunicationConversation(
     }
     weddingId = actor.activeWeddingId || null
     if (weddingId && !(await userCanAccessWedding(actor.userId, weddingId))) weddingId = null
+  } else if (plannerDirect) {
+    const registeredPlanners = await listRegisteredPlannerDirectory([
+      actor.userId,
+      typedTargets[0].id,
+    ])
+    if (registeredPlanners.length !== 2) {
+      throw new CommunicationError(
+        'Planner-to-planner conversations require active registered planner accounts.',
+        403,
+      )
+    }
+    weddingId = null
   } else {
     weddingId = actor.activeWeddingId
     if (!weddingId || !(await userCanAccessWedding(actor.userId, weddingId))) {
@@ -688,8 +800,21 @@ export async function listCommunicationMessages(
     LIMIT 500
   `)
 
+  const senderUserIds = Array.from(new Set(rows.flatMap((row) =>
+    row.senderUserId ? [row.senderUserId] : [],
+  )))
+  const plannerIdentities = plannerDirectoryMap(
+    await listRegisteredPlannerDirectory(senderUserIds),
+  )
+
   return rows.map((row) => ({
     ...row,
+    senderName: row.senderUserId
+      ? plannerIdentities.get(row.senderUserId)?.businessName.trim() || row.senderName
+      : row.senderName,
+    senderRole: row.senderUserId && plannerIdentities.has(row.senderUserId)
+      ? 'planner'
+      : row.senderRole,
     createdAt: row.createdAt.toISOString(),
     editedAt: row.editedAt?.toISOString() ?? null,
   }))
