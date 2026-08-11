@@ -4,6 +4,8 @@ const conversationId = '8ccb960a-b8da-45f1-a55c-f5cc5282a87b'
 const coupleId = 'dfc1b4e1-6bec-434d-8c42-e26a145bfcaa'
 const adminId = 'd8bfe2a5-a13d-4bfa-b26c-451f39b1ef9e'
 
+test.use({ serviceWorkers: 'block' })
+
 function message(id: string, body: string, createdAt: string, senderUserId = adminId) {
   const coupleSender = senderUserId === coupleId
   return {
