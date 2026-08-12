@@ -50,6 +50,20 @@ export interface WeddingProgrammeItem {
   order: number;
 }
 
+export interface WeddingSong {
+  id: string;
+  title: string;
+  artist: string;
+  phase: string;
+  moment: string | null;
+  order: number;
+  votes: number;
+  spotifyUrl: string | null;
+  appleUrl: string | null;
+  playedAt: string | null;
+  notes: string | null;
+}
+
 export interface WeddingContent {
   field: string;
   value: string;
@@ -65,6 +79,7 @@ export interface WeddingData {
   contentMeta: Record<string, Record<string, string | null>>;
   ordered: Record<string, WeddingContent[]>;
   programmeItems: WeddingProgrammeItem[];
+  songs: WeddingSong[];
 }
 
 export function getContent(
@@ -172,6 +187,7 @@ interface UseWeddingDataResult {
   contentMeta: Record<string, Record<string, string | null>>;
   ordered: Record<string, WeddingContent[]>;
   programmeItems: WeddingProgrammeItem[];
+  songs: WeddingSong[];
   loading: boolean;
   error: string | null;
   refetch: () => void;
@@ -267,6 +283,7 @@ export function useWeddingData(slug?: string): UseWeddingDataResult {
     contentMeta: data?.contentMeta ?? {},
     ordered: data?.ordered ?? {},
     programmeItems: data?.programmeItems ?? [],
+    songs: data?.songs ?? [],
     loading,
     error,
     refetch,
