@@ -163,13 +163,13 @@ jobs:
       - name: Validate message API wedding isolation contract
         shell: bash
         run: |
-          grep -q 'weddingSlugFromRequest(request)' src/app/api/messages/route.ts
+          grep -q 'weddingSlugFromRequest(request' src/app/api/messages/route.ts
           grep -q 'resolveWeddingAccessForRequest' src/app/api/messages/route.ts
-          grep -q "where: { weddingId: resolved.wedding.id }" src/app/api/messages/route.ts
+          grep -q 'if (!access.allowed || !access.wedding)' src/app/api/messages/route.ts
+          grep -q "where: { weddingId: resolved.access.wedding.id, isPublic: true }" src/app/api/messages/route.ts
           grep -q "resolved.access.accessKind === 'public'" src/app/api/messages/route.ts
-          grep -q 'weddingId: resolved.wedding.id' src/app/api/messages/route.ts
-          grep -q 'guestId: guestAttribution?.guestId' src/app/api/messages/route.ts
-          grep -q 'memberId: guestAttribution ? null : resolved.access.memberId' src/app/api/messages/route.ts
+          grep -q 'weddingId: resolved.access.wedding.id' src/app/api/messages/route.ts
+          grep -q 'authorToken: resolved.access.guest?.rsvpToken ?? null' src/app/api/messages/route.ts
 
       - name: Confirm analytics writer does not copy message body
         shell: bash
