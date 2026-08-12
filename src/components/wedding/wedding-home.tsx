@@ -78,8 +78,6 @@ function WeddingHomeContent({
     return () => window.clearTimeout(id)
   }, [])
 
-  // The persisted Wedding lifecycle is authoritative for the initial social-site
-  // state. The before/after toggle remains a viewer convenience after mount.
   useEffect(() => {
     if (!wedding) return
     if (wedding.lifecycle === 'before' || wedding.lifecycle === 'after') {
@@ -96,6 +94,7 @@ function WeddingHomeContent({
   const date = wedding ? new Date(wedding.date).toLocaleDateString(undefined, { day: '2-digit', month: 'long', year: 'numeric' }) : ''
   const place = wedding ? [wedding.venue, wedding.venueCity, wedding.venueCountry].filter(Boolean).join(', ') : ''
   const isCoupleOwner = accessKind === 'couple_owner' && viewerRole === 'couple'
+  const canContribute = accessKind !== 'public' && accessKind !== null
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -124,9 +123,9 @@ function WeddingHomeContent({
             <VendorMarketplace />
             <QrCheckin />
             <PhotoGallery />
-            <MediaUpload />
+            {canContribute && <MediaUpload />}
             <MemoryCapsule />
-            <LiveWall />
+            <LiveWall canPost={canContribute} />
             {mounted && <ContributionGallery />}
             <FaqSection />
             <ShareSection />
@@ -139,8 +138,8 @@ function WeddingHomeContent({
           <>
             <AfterSections />
             <PhotoGallery />
-            <MediaUpload />
-            <LiveWall />
+            {canContribute && <MediaUpload />}
+            <LiveWall canPost={canContribute} />
             {mounted && <ContributionGallery />}
             <MemoryCapsule />
             <VendorMarketplace />
