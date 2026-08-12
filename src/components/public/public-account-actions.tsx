@@ -4,14 +4,20 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { ChevronDown, LayoutDashboard, Loader2, LogOut, Sparkles, UserRound } from 'lucide-react'
 
-type AccountRole = 'admin' | 'couple' | 'planner' | 'provider'
-type AccountSession = {
+export type AccountRole = 'admin' | 'couple' | 'planner' | 'vendor' | 'provider'
+export type AccountSession = {
   authorized?: boolean
   user?: {
     displayName?: string | null
     email?: string
     role?: AccountRole
   } | null
+  activeWedding?: {
+    id?: string
+    title?: string
+    membershipRole?: string
+  } | null
+  workspace?: string
 }
 type ProviderSession = {
   business?: { name?: string }
@@ -21,17 +27,18 @@ type ProviderSession = {
 function workspaceFor(role: AccountRole | undefined) {
   if (role === 'admin') return { href: '/admin', label: 'Administration' }
   if (role === 'planner') return { href: '/planner', label: 'Planner workspace' }
+  if (role === 'vendor') return { href: '/vendor', label: 'Vendor workspace' }
   if (role === 'provider') return { href: '/vendors/manage', label: 'Provider profile' }
   return { href: '/couple', label: 'Couple workspace' }
 }
 
-async function resolvePublicSession(): Promise<AccountSession> {
+export async function resolvePublicSession(): Promise<AccountSession> {
   try {
     const response = await fetch('/api/auth/me', { cache: 'no-store', credentials: 'same-origin' })
     const dashboard = await response.json() as AccountSession
     if (dashboard.authorized && dashboard.user) return dashboard
   } catch {
-    // Continue to the approved provider-session check.
+    // Continue to the approved legacy provider-session check.
   }
 
   try {
@@ -44,21 +51,51 @@ async function resolvePublicSession(): Promise<AccountSession> {
         displayName: provider.profile?.displayName || provider.business?.name || 'Provider account',
         role: 'provider',
       },
+      activeWedding: null,
+      workspace: 'provider_profile',
     }
   } catch {
     return { authorized: false, user: null }
   }
 }
 
-export function PublicAccountActions() {
+export function usePublicAccountSession(): AccountSession | null {
   const [session, setSession] = useState<AccountSession | null>(null)
-  const [signingOut, setSigningOut] = useState(false)
 
   useEffect(() => {
     let cancelled = false
-    void resolvePublicSession().then((payload) => { if (!cancelled) setSession(payload) })
-    return () => { cancelled = true }
+    let requestSequence = 0
+
+    async function refresh() {
+      const requestId = ++requestSequence
+      const payload = await resolvePublicSession()
+      if (!cancelled && requestId === requestSequence) setSession(payload)
+    }
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void refresh()
+    }
+    const refreshOnFocus = () => void refresh()
+
+    void refresh()
+    window.addEventListener('focus', refreshOnFocus)
+    window.addEventListener('pageshow', refreshOnFocus)
+    document.addEventListener('visibilitychange', refreshWhenVisible)
+
+    return () => {
+      cancelled = true
+      window.removeEventListener('focus', refreshOnFocus)
+      window.removeEventListener('pageshow', refreshOnFocus)
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
+    }
   }, [])
+
+  return session
+}
+
+export function PublicAccountActions() {
+  const session = usePublicAccountSession()
+  const [signingOut, setSigningOut] = useState(false)
 
   async function signOut() {
     setSigningOut(true)

@@ -2,9 +2,10 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { AlertTriangle, BadgeCheck, BriefcaseBusiness, CalendarDays, Check, Clock3, Globe2, Loader2, Mail, MapPin, Phone, Send, ShieldCheck, Sparkles, Users } from 'lucide-react'
+import { AlertTriangle, BadgeCheck, BriefcaseBusiness, CalendarDays, Check, Clock3, Globe2, Loader2, Mail, MapPin, MessageCircle, Phone, Send, ShieldCheck, Sparkles, Users } from 'lucide-react'
 import { ProviderClaimPanel } from '@/components/providers/provider-claim-panel'
 import { PublicPlatformShell } from '@/components/public/public-platform-shell'
+import { usePublicAccountSession } from '@/components/public/public-account-actions'
 import { providerCategoryLabel, providerServiceFields, type ProviderFieldDefinition } from '@/lib/provider-catalog'
 
 type Package = { id: string; name: string; description: string | null; priceCents: number | null; currency: string; pricingUnit: string | null; inclusions: string[]; minimumQuantity: number | null; maximumQuantity: number | null; includedQuantity: number | null; additionalUnitPriceCents: number | null; priceValidUntil: string | null; completionScore: number }
@@ -94,11 +95,13 @@ function isProvisional(provider: Provider): boolean {
 }
 
 export function PublicProviderProfile({ slug }: { slug: string }) {
+  const accountSession = usePublicAccountSession()
   const [provider, setProvider] = useState<Provider | null>(null)
   const [active, setActive] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [conversationId, setConversationId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [answers, setAnswers] = useState<Record<string, unknown>>({})
 
@@ -118,14 +121,25 @@ export function PublicProviderProfile({ slug }: { slug: string }) {
 
   const offering = provider?.offerings[active] ?? null
   const fields = useMemo(() => offering ? providerServiceFields(offering.category) : [], [offering])
+  const coupleOwner = Boolean(
+    accountSession?.authorized
+    && accountSession.user?.role === 'couple'
+    && accountSession.activeWedding?.membershipRole === 'owner',
+  )
+  const sessionChecking = accountSession === null
 
   async function submitEnquiry(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!offering || !provider || !provider.acceptingEnquiries || isProvisional(provider)) return
+    if (!coupleOwner) {
+      setError('Sign in with the Couple owner account for the active wedding before sending this enquiry.')
+      return
+    }
     const form = new FormData(event.currentTarget)
     setBusy(true)
     setError(null)
     setNotice(null)
+    setConversationId(null)
     try {
       const response = await fetch('/api/providers/enquiries', {
         method: 'POST',
@@ -148,9 +162,10 @@ export function PublicProviderProfile({ slug }: { slug: string }) {
           },
         }),
       })
-      const payload = await response.json() as { success?: boolean; error?: string }
+      const payload = await response.json() as { success?: boolean; conversationId?: string; providerName?: string; error?: string }
       if (!response.ok || !payload.success) throw new Error(payload.error || 'Unable to send the enquiry.')
-      setNotice('Your structured enquiry was sent. No wedding access or provider authority was created.')
+      setConversationId(payload.conversationId ?? null)
+      setNotice(`Your enquiry was sent${payload.providerName ? ` to ${payload.providerName}` : ''} and is now available in Wewed Messages. No wedding access or provider authority was created.`)
       setAnswers({})
       event.currentTarget.reset()
     } catch (caught) {
@@ -243,9 +258,24 @@ export function PublicProviderProfile({ slug }: { slug: string }) {
                       <label className="block text-xs text-champagne/65">Message<textarea name="message" className={`${textareaClass} mt-1.5`} /></label>
                       <fieldset className="rounded-xl border border-gold/20 p-3"><legend className="px-2 text-[10px] uppercase tracking-[0.12em] text-gold">Details you authorise</legend>{[['shareWeddingTitle', 'Wedding title'], ['shareWeddingDate', 'Wedding date'], ['shareLocation', 'Location'], ['shareGuestCount', 'Guest count'], ['shareBudget', 'Budget band']].map(([name, label]) => <label key={name} className="mt-2 flex items-center gap-2 text-xs text-champagne/65"><input name={name} type="checkbox" className="accent-[#BF9B5F]" />{label}</label>)}</fieldset>
                       {(error || notice) && <p role={error ? 'alert' : 'status'} className={`rounded-xl border p-3 text-xs ${error ? 'border-clay/40 bg-clay/10' : 'border-sage/40 bg-sage/10'}`}>{error || notice}</p>}
-                      <button type="submit" disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-xl bg-gold px-4 py-3 text-sm font-semibold text-espresso disabled:opacity-60">{busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}Send enquiry</button>
+                      {conversationId && notice ? <Link href="/messages" className="flex w-full items-center justify-center gap-2 rounded-xl border border-gold/35 bg-gold/10 px-4 py-3 text-sm font-semibold text-gold"><MessageCircle className="size-4" />Open conversation in Messages</Link> : null}
+                      {coupleOwner ? (
+                        <button type="submit" disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-xl bg-gold px-4 py-3 text-sm font-semibold text-espresso disabled:opacity-60">{busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}Send enquiry</button>
+                      ) : sessionChecking ? (
+                        <button type="button" disabled className="flex w-full items-center justify-center gap-2 rounded-xl bg-gold/45 px-4 py-3 text-sm font-semibold text-espresso/70"><Loader2 className="size-4 animate-spin" />Checking Wewed account…</button>
+                      ) : (
+                        <Link href="/sign-in" className="flex w-full items-center justify-center gap-2 rounded-xl bg-gold px-4 py-3 text-sm font-semibold text-espresso"><Send className="size-4" />Sign in as Couple to send</Link>
+                      )}
                     </form>
-                    <p className="mt-3 text-xs text-champagne/45">A signed-in couple-owner account is required. <Link href="/sign-in" className="font-semibold text-gold">Sign in</Link></p>
+                    {sessionChecking ? (
+                      <p className="mt-3 text-xs text-champagne/45">Checking your Wewed account and active wedding…</p>
+                    ) : coupleOwner ? (
+                      <p className="mt-3 text-xs text-champagne/55">Signed in as <span className="font-semibold text-gold">{accountSession?.user?.displayName || accountSession?.user?.email || 'Couple owner'}</span>{accountSession?.activeWedding?.title ? <> for <span className="font-semibold text-champagne/75">{accountSession.activeWedding.title}</span></> : null}. This enquiry opens or reuses a private Wewed Vendor conversation.</p>
+                    ) : accountSession?.authorized && accountSession.user ? (
+                      <p className="mt-3 text-xs text-champagne/55">You are signed in with a <span className="font-semibold text-gold">{accountSession.user.role}</span> account. A Couple owner account is required to send a Couple enquiry.</p>
+                    ) : (
+                      <p className="mt-3 text-xs text-champagne/45">Sign in with the Couple owner account for the active wedding to send this secure enquiry.</p>
+                    )}
                   </section>
                 )}
 

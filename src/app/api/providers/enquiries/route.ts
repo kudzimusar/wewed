@@ -3,6 +3,12 @@ import { db } from '@/lib/db'
 import { marketplaceAudit, marketplaceId, requireCoupleMarketplace, stringList, text } from '@/lib/marketplace-access'
 import { marketplaceErrorResponse } from '@/lib/marketplace-response'
 import { providerServiceFields } from '@/lib/provider-catalog'
+import { requireCommunicationActor, sendCommunicationMessage } from '@/lib/communications'
+import { enforceCommunicationRateLimit } from '@/lib/communications-rate-limit'
+import {
+  eligibleVendorUserForBusinessAccount,
+  maybeCreateVendorMarketplaceConversation,
+} from '@/lib/vendor-marketplace-communications'
 
 function objectValue(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
@@ -36,7 +42,14 @@ function structuredAnswers(category: string, value: unknown): Record<string, unk
 
 export async function POST(request: NextRequest) {
   try {
-    const couple = await requireCoupleMarketplace(request)
+    const [couple, actor] = await Promise.all([
+      requireCoupleMarketplace(request),
+      requireCommunicationActor(request),
+    ])
+    if (actor.role !== 'couple' || actor.userId !== couple.user.id || actor.activeWeddingId !== couple.weddingId) {
+      return NextResponse.json({ success: false, error: 'The active Couple wedding could not be verified.' }, { status: 403 })
+    }
+
     const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
     if (!body) return NextResponse.json({ success: false, error: 'Invalid provider enquiry.' }, { status: 400 })
 
@@ -46,12 +59,14 @@ export async function POST(request: NextRequest) {
     const rows = await db.$queryRawUnsafe<Array<{
       offeringId: string
       category: string
+      serviceName: string
       providerBusinessAccountId: string
       providerName: string
     }>>(
       `SELECT
          o.id AS "offeringId",
          o.category,
+         o."displayName" AS "serviceName",
          o."businessAccountId" AS "providerBusinessAccountId",
          p."displayName" AS "providerName"
        FROM public."ProviderServiceOffering" o
@@ -72,6 +87,11 @@ export async function POST(request: NextRequest) {
     const offering = rows[0]
     if (!offering) return NextResponse.json({ success: false, error: 'This provider service is not available for enquiries.' }, { status: 404 })
 
+    const providerUserId = await eligibleVendorUserForBusinessAccount(offering.providerBusinessAccountId)
+    if (!providerUserId) {
+      return NextResponse.json({ success: false, error: 'This provider is not ready to receive secure Wewed Messages.' }, { status: 409 })
+    }
+
     const eventDateRaw = text(body.eventDate, 40)
     const eventDate = eventDateRaw ? new Date(eventDateRaw) : null
     if (eventDate && Number.isNaN(eventDate.getTime())) return NextResponse.json({ success: false, error: 'Event date is invalid.' }, { status: 400 })
@@ -89,6 +109,19 @@ export async function POST(request: NextRequest) {
       location: share.location === true,
       guestCount: share.guestCount === true,
       budgetBand: share.budgetBand === true,
+    }
+
+    await enforceCommunicationRateLimit({ userId: actor.userId, scope: 'conversation_create' })
+    await enforceCommunicationRateLimit({ userId: actor.userId, scope: 'message_send' })
+    await enforceCommunicationRateLimit({ userId: actor.userId, scope: 'recipient_fanout', cost: 1 })
+
+    const conversation = await maybeCreateVendorMarketplaceConversation(actor, {
+      participantIds: [providerUserId],
+      type: 'MARKETPLACE',
+      weddingId: couple.weddingId,
+    })
+    if (!conversation) {
+      return NextResponse.json({ success: false, error: 'Unable to establish the secure Vendor conversation.' }, { status: 409 })
     }
 
     const enquiryId = marketplaceId('provider-enquiry')
@@ -113,6 +146,13 @@ export async function POST(request: NextRequest) {
       message,
     )
 
+    await sendCommunicationMessage(actor, conversation.id, {
+      body: [
+        `Enquiry about ${offering.serviceName}`,
+        message || 'I would like to discuss this service for our wedding.',
+      ].join('\n\n'),
+    })
+
     await marketplaceAudit({
       actorUserId: couple.user.id,
       businessAccountId: offering.providerBusinessAccountId,
@@ -123,6 +163,8 @@ export async function POST(request: NextRequest) {
         offeringId: offering.offeringId,
         category: offering.category,
         weddingId: couple.weddingId,
+        conversationId: conversation.id,
+        conversationReused: conversation.reused,
         sharedSummary: allowedSharedSummary,
         authorityCreated: false,
       },
@@ -131,6 +173,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       enquiryId,
+      conversationId: conversation.id,
+      conversationReused: conversation.reused,
       providerName: offering.providerName,
       status: 'sent',
       authorityCreated: false,

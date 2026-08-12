@@ -13,14 +13,17 @@ on:
       - 'scripts/communications-postgres-integration.sql'
       - 'scripts/communications-rate-limit-postgres-integration.sql'
       - 'scripts/communications-supabase-scheduler.sql'
+      - 'scripts/couple-vendor-marketplace-contract.ts'
       - 'src/app/messages/**'
       - 'src/app/api/communications/**'
+      - 'src/app/api/providers/enquiries/**'
       - 'src/app/api/cron/communications-deliveries/**'
       - 'src/app/api/internal/communications/**'
       - 'src/app/api/webhooks/resend/**'
       - 'src/app/api/webhooks/whatsapp/**'
       - 'src/lib/communications*.ts'
       - 'src/lib/communications*.test.ts'
+      - 'src/lib/vendor-marketplace-communications*.ts'
       - 'src/lib/communication-channels*.ts'
       - 'src/lib/communication-channels*.test.ts'
       - 'src/lib/whatsapp-cloud-webhook*.ts'
@@ -28,6 +31,8 @@ on:
       - 'src/lib/email/resend-webhook.ts'
       - 'src/components/admin/admin-utility-nav.tsx'
       - 'src/components/couple/couple-dashboard.tsx'
+      - 'src/components/providers/public-provider-profile.tsx'
+      - 'src/components/public/public-account-actions.tsx'
       - 'src/components/wedding/planner-account-dock.tsx'
       - '.github/workflows/communications-ci.yml'
   workflow_dispatch:
@@ -106,6 +111,9 @@ jobs:
       - name: Run communications policy and client-state tests
         run: bun test src/lib/communications-policy.test.ts src/lib/communications-client-state.test.ts
 
+      - name: Run Couple Vendor marketplace source contract
+        run: bun scripts/couple-vendor-marketplace-contract.ts
+
       - name: Provide server-only test sentinel
         shell: bash
         run: |
@@ -143,7 +151,7 @@ jobs:
           PY
 
       - name: Run communications authorization integration
-        run: bun test src/lib/communications.integration.test.ts
+        run: bun test src/lib/communications.integration.test.ts src/lib/vendor-marketplace-communications.integration.test.ts
 
       - name: Confirm legacy public message system is untouched
         if: github.event_name == 'pull_request'
