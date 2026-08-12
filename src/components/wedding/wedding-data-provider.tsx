@@ -1,31 +1,5 @@
 "use client";
 
-/**
- * wedding-data-provider.tsx
- * ------------------------------------------------------------
- * React Context that holds the active wedding's data-driven
- * content. Reads the slug from the `?wedding=` URL param
- * (defaulting to "charity-and-kudzie"), fetches once on mount,
- * and exposes `{ wedding, content, contentMeta, ordered,
- * loading, error, refetch }` to all descendants via the
- * `useWeddingContext()` hook.
- *
- * Wrap the entire app (in page.tsx or layout.tsx) so every
- * wedding section component can read content without each one
- * having to call the API independently.
- *
- * Usage:
- *   <WeddingDataProvider>
- *     <HeroSection />
- *     <OurStory />
- *     ...
- *   </WeddingDataProvider>
- *
- *   // inside any child:
- *   const { content, getContent } = useWeddingContext();
- *   const bride = getContent("hero", "brideName", "Charity");
- */
-
 import {
   createContext,
   useContext,
@@ -42,6 +16,7 @@ import {
   type WeddingInfo,
   type WeddingContentMap,
   type WeddingContent as WeddingContentRow,
+  type WeddingProgrammeItem,
 } from "@/lib/wedding-data";
 
 interface WeddingContextValue {
@@ -49,19 +24,18 @@ interface WeddingContextValue {
   content: WeddingContentMap;
   contentMeta: Record<string, Record<string, string | null>>;
   ordered: Record<string, WeddingContentRow[]>;
+  programmeItems: WeddingProgrammeItem[];
   loading: boolean;
   error: string | null;
   refetch: () => void;
   slug: string;
-  /** True when this is the flagship Charity & Kudzie wedding. */
+  /** Regression marker only — never use this to select a different renderer. */
   isFlagship: boolean;
-  /** Convenience accessor — see getContent() in /lib/wedding-data. */
   getContent: (
     section: string,
     field: string,
     defaultValue?: string,
   ) => string;
-  /** Convenience accessor — see getOrderedContent() in /lib/wedding-data. */
   getOrdered: (
     section: string,
     prefix: string,
@@ -78,7 +52,6 @@ const WeddingContext = createContext<WeddingContextValue | null>(null);
 
 interface WeddingDataProviderProps {
   children: ReactNode;
-  /** Optional explicit slug — overrides ?wedding= URL param. */
   slug?: string;
 }
 
@@ -91,6 +64,7 @@ export function WeddingDataProvider({
     content,
     contentMeta,
     ordered,
+    programmeItems,
     loading,
     error,
     refetch,
@@ -99,7 +73,7 @@ export function WeddingDataProvider({
   const value = useMemo<WeddingContextValue>(() => {
     const activeSlug = wedding?.slug ?? slug ?? FLAGSHIP_WEDDING_SLUG;
     const data: WeddingData | null = wedding
-      ? { wedding, content, contentMeta, ordered }
+      ? { wedding, content, contentMeta, ordered, programmeItems }
       : null;
 
     return {
@@ -107,6 +81,7 @@ export function WeddingDataProvider({
       content,
       contentMeta,
       ordered,
+      programmeItems,
       loading,
       error,
       refetch,
@@ -117,7 +92,17 @@ export function WeddingDataProvider({
       getOrdered: (section, prefix) =>
         getOrderedContentBase(data, section, prefix),
     };
-  }, [wedding, content, contentMeta, ordered, loading, error, refetch, slug]);
+  }, [
+    wedding,
+    content,
+    contentMeta,
+    ordered,
+    programmeItems,
+    loading,
+    error,
+    refetch,
+    slug,
+  ]);
 
   return (
     <WeddingContext.Provider value={value}>
@@ -126,12 +111,6 @@ export function WeddingDataProvider({
   );
 }
 
-/**
- * Access the active wedding's data from any descendant of
- * <WeddingDataProvider>. Throws if used outside the provider
- * (developer error — surfaces a clear message instead of a
- * cryptic null deref).
- */
 export function useWeddingContext(): WeddingContextValue {
   const ctx = useContext(WeddingContext);
   if (!ctx) {
@@ -142,17 +121,10 @@ export function useWeddingContext(): WeddingContextValue {
   return ctx;
 }
 
-/**
- * Safe version — returns null instead of throwing when used outside
- * a <WeddingDataProvider>. Use this in components that should work
- * both with and without the provider (e.g. legacy components).
- */
 export function useWeddingContextSafe(): WeddingContextValue | null {
   return useContext(WeddingContext);
 }
 
-// Re-export the helpers + types so consumers can import everything
-// from one place if they prefer.
 export {
   getContentBase as getContent,
   getOrderedContentBase as getOrderedContent,
@@ -164,4 +136,5 @@ export type {
   WeddingInfo,
   WeddingContentMap,
   WeddingContentRow,
+  WeddingProgrammeItem,
 };
