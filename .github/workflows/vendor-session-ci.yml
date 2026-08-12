@@ -8,6 +8,7 @@ on:
       - 'src/app/api/auth/**'
       - 'src/lib/app-session.ts'
       - 'src/lib/admin-auth.ts'
+      - 'src/app/messages/**'
       - 'src/app/vendor/**'
       - 'src/app/vendors/page.tsx'
       - 'scripts/vendor-session-messages-contract.ts'
