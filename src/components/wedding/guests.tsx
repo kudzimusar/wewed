@@ -13,27 +13,14 @@ import {
 import { Card, CardContent } from '@/components/ui/card'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/ui/accordion'
-import {
-  BRIDAL_PARTY,
-  getNextBridalIndex,
-  getPrevBridalIndex,
-  type BridalPartyMember,
-} from '@/lib/bridal-party-data'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import type { BridalPartyMember } from '@/lib/bridal-party-data'
 import { BridalProfileModal } from '@/components/wedding/bridal-profile-modal'
 import { SectionEyebrow } from '@/components/wedding/section-eyebrow'
+import { useWeddingContextSafe } from '@/components/wedding/wedding-data-provider'
+import { compactWeddingDate, coupleNames } from '@/lib/wedding-template-defaults'
 
-/* ── Cultural Guide Data ── */
 interface CulturalEntry {
   id: string
   icon: React.ReactNode
@@ -41,128 +28,169 @@ interface CulturalEntry {
   content: string
 }
 
-const culturalGuide: CulturalEntry[] = [
+const STARTER_PARTY: BridalPartyMember[] = [
   {
-    id: 'traditions',
-    icon: <BookOpen className="size-4 text-gold" />,
-    title: 'Shona Wedding Traditions',
-    content:
-      'A traditional Shona wedding includes the roora (bridewealth) process, where the groom\'s family presents gifts to the bride\'s family as a sign of respect and gratitude. The magumo (gifts) are negotiated between families and symbolise the joining of two families, not just two people. The ceremony often includes traditional dancing, singing, and the sharing of food as a communal celebration of love and unity.',
+    id: 'starter-person-1',
+    name: 'Example Wedding Party Member',
+    role: 'Maid of Honour / Best Person',
+    side: 'bride',
+    initials: 'EP',
+    avatarColor: 'from-clay/30 via-clay/15 to-plum/20',
+    bio: 'Example: introduce this person in two or three warm sentences so guests know why they are important to your story.',
+    relationshipToCouple: 'Example: childhood friend, sibling, cousin or chosen family',
+    likes: ['Add a hobby', 'Add a favourite food', 'Add a fun fact'],
+    favoriteMemory: 'Example: add one short memory this person shares with the couple.',
+    favoriteSong: 'Example: add their dance-floor song if you would like.',
+    quote: 'Example: add a short message or toast to the couple.',
   },
   {
-    id: 'dress',
-    icon: <Shirt className="size-4 text-gold" />,
-    title: 'What to Wear',
-    content:
-      'The dress code is Formal / Black Tie Optional. Traditional Zimbabwean attire is warmly welcomed — for women, this might include elegant African-print dresses or wraps; for men, a smart safari suit or traditional shirt. Harare weddings tend to be stylish affairs — think bold colours, beautiful fabrics, and expressive personal style. Comfortable shoes are recommended as there will be dancing!',
-  },
-  {
-    id: 'cuisine',
-    icon: <Utensils className="size-4 text-gold" />,
-    title: 'Zimbabwean Cuisine',
-    content:
-      'The menu will feature a blend of traditional and contemporary dishes. Expect sadza (maize meal porridge, a Zimbabwean staple) served with nyama (meat — beef, chicken, or goat), madora (dried caterpillars, a local delicacy), muriwo (leafy green vegetables), and peanut butter dishes. Vegetarian and international options will also be available. The wedding cake is a centrepiece — often a rich fruit cake symbolising prosperity and fertility.',
-  },
-  {
-    id: 'phrases',
-    icon: <MessageSquare className="size-4 text-gold" />,
-    title: 'Useful Shona Phrases',
-    content:
-      'Mangwanani — Good morning | Masikati — Good afternoon | Maita basa — Thank you for the work (a deep expression of gratitude) | Makorokoto — Congratulations | Munhu wese munhu — Every person is a person (unity) | Tine base — We have work/a role (encouragement) | Kumbirai ruregerero — Please forgive me | Ndatenda — Thank you. Don\'t worry about perfect pronunciation — your effort to try will be deeply appreciated!',
+    id: 'starter-person-2',
+    name: 'Example Wedding Party Member',
+    role: 'Best Man / Best Person',
+    side: 'groom',
+    initials: 'EP',
+    avatarColor: 'from-sage/30 via-sage/15 to-espresso/20',
+    bio: 'Example: use this public profile for a person who is happy to be introduced to wedding guests.',
+    relationshipToCouple: 'Example: sibling, university friend, colleague or chosen family',
+    likes: ['Add a hobby', 'Add a favourite place', 'Add a fun fact'],
+    favoriteMemory: 'Example: add one moment that captures your friendship.',
+    favoriteSong: 'Example: add their dance-floor song if you would like.',
+    quote: 'Example: add a short message or toast to the couple.',
   },
 ]
 
-/* ── Card Animation Variants ── */
+const STARTER_GUIDE = [
+  {
+    title: 'Wedding Traditions',
+    content: 'Example: explain any family, religious or cultural traditions guests may see during the celebration.',
+  },
+  {
+    title: 'What to Wear',
+    content: 'Example: add the dress code, colours, cultural attire, footwear or weather guidance guests should know.',
+  },
+  {
+    title: 'Food & Hospitality',
+    content: 'Example: tell guests what kind of meal to expect and remind them to share allergies through RSVP.',
+  },
+  {
+    title: 'Useful Notes',
+    content: 'Example: add greetings, etiquette, accessibility guidance or anything that will help guests feel included.',
+  },
+]
+
+const GUIDE_ICONS = [BookOpen, Shirt, Utensils, MessageSquare]
+
 const cardVariants: Variants = {
   hidden: { opacity: 0, y: 20, scale: 0.95 },
   visible: (i: number) => ({
     opacity: 1,
     y: 0,
     scale: 1,
-    transition: {
-      delay: i * 0.08,
-      duration: 0.5,
-      ease: [0.25, 0.46, 0.45, 0.94],
-    },
+    transition: { delay: i * 0.08, duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] },
   }),
 }
 
-/* ── Side badge helper (uses new 'bride' | 'groom' | 'family' values) ── */
-function sideBadgeLabel(side: BridalPartyMember['side']): string {
-  if (side === 'bride') return "Charity's Side"
-  if (side === 'groom') return "Kudzie's Side"
+function strings(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
+}
+
+function partyMemberFromRow(
+  value: string,
+  metadata: Record<string, unknown>,
+  index: number,
+): BridalPartyMember {
+  const side = metadata.side === 'groom' || metadata.side === 'family' ? metadata.side : 'bride'
+  const initials = typeof metadata.initials === 'string'
+    ? metadata.initials
+    : value.split(/\s+/).map((part) => part[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
+
+  return {
+    id: typeof metadata.id === 'string' ? metadata.id : `party-${index}`,
+    name: value,
+    role: typeof metadata.role === 'string' ? metadata.role : 'Wedding Party',
+    side,
+    initials: initials || 'WP',
+    avatarColor: typeof metadata.avatarColor === 'string' ? metadata.avatarColor : 'from-gold/25 via-clay/15 to-plum/20',
+    bio: typeof metadata.bio === 'string' ? metadata.bio : 'A cherished person standing beside the couple.',
+    relationshipToCouple: typeof metadata.relationshipToCouple === 'string' ? metadata.relationshipToCouple : 'A cherished member of the wedding party',
+    likes: strings(metadata.likes),
+    favoriteMemory: typeof metadata.favoriteMemory === 'string' ? metadata.favoriteMemory : '',
+    favoriteSong: typeof metadata.favoriteSong === 'string' ? metadata.favoriteSong : '',
+    quote: typeof metadata.quote === 'string' ? metadata.quote : '',
+    socialHandle: typeof metadata.socialHandle === 'string' ? metadata.socialHandle : undefined,
+    isKid: metadata.isKid === true,
+    kidFunFact: typeof metadata.kidFunFact === 'string' ? metadata.kidFunFact : undefined,
+  }
+}
+
+function sideBadgeLabel(side: BridalPartyMember['side'], partner1: string, partner2: string): string {
+  if (side === 'bride') return `${partner1}'s Side`
+  if (side === 'groom') return `${partner2}'s Side`
   return 'Our Family'
 }
 
-/* ── Main Component ── */
 export function Guests() {
+  const ctx = useWeddingContextSafe()
+  const wedding = ctx?.wedding
+  const partner1 = wedding?.couple.partner1 || 'Partner One'
+  const partner2 = wedding?.couple.partner2 || 'Partner Two'
+  const partyRows = ctx?.getOrdered('guests', 'party-') ?? []
+  const party = partyRows.length > 0
+    ? partyRows.map((row, index) => partyMemberFromRow(row.value, row.metadata, index))
+    : STARTER_PARTY
+  const guideRows = ctx?.getOrdered('guests', 'guide-') ?? []
+  const guide: CulturalEntry[] = (guideRows.length > 0
+    ? guideRows.map((row) => ({
+        title: row.value,
+        content: typeof row.metadata.content === 'string' ? row.metadata.content : '',
+      }))
+    : STARTER_GUIDE
+  ).map((entry, index) => {
+    const Icon = GUIDE_ICONS[index % GUIDE_ICONS.length]
+    return { id: `guide-${index}`, icon: <Icon className="size-4 text-gold" />, ...entry }
+  })
+
+  const heading = ctx?.getContent('guests', 'heading', 'The Wedding Party') ?? 'The Wedding Party'
+  const subtitle = ctx?.getContent('guests', 'subtitle', 'The cherished people standing beside us on our day.') ?? 'The cherished people standing beside us on our day.'
+  const guideHeading = ctx?.getContent('guests', 'guideHeading', 'Guest Guide') ?? 'Guest Guide'
+  const guideSubtitle = ctx?.getContent('guests', 'guideSubtitle', 'A few notes to help everyone feel at home in the celebration.') ?? 'A few notes to help everyone feel at home in the celebration.'
+  const footerMark = [wedding?.monogram || coupleNames(wedding), compactWeddingDate(wedding?.date)].filter(Boolean).join(' · ')
+
   const [selectedIndex, setSelectedIndex] = React.useState<number | null>(null)
   const [modalOpen, setModalOpen] = React.useState(false)
+  const selectedMember = selectedIndex !== null ? party[selectedIndex] ?? null : null
 
   const handleOpen = (index: number) => {
     setSelectedIndex(index)
     setModalOpen(true)
   }
 
-  const handleClose = () => {
-    setModalOpen(false)
-  }
-
   const handlePrev = React.useCallback(() => {
-    setSelectedIndex((curr) =>
-      curr === null ? 0 : getPrevBridalIndex(curr),
-    )
-  }, [])
-
+    setSelectedIndex((curr) => curr === null ? 0 : (curr - 1 + party.length) % party.length)
+  }, [party.length])
   const handleNext = React.useCallback(() => {
-    setSelectedIndex((curr) =>
-      curr === null ? 0 : getNextBridalIndex(curr),
-    )
-  }, [])
-
-  const selectedMember =
-    selectedIndex !== null ? BRIDAL_PARTY[selectedIndex] ?? null : null
+    setSelectedIndex((curr) => curr === null ? 0 : (curr + 1) % party.length)
+  }, [party.length])
 
   return (
     <section id="guests" className="wewed-section py-20 md:py-32">
       <div className="mx-auto max-w-6xl px-4">
-        {/* Header */}
-        <motion.div
-          className="mb-16 text-center"
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: '-100px' }}
-          transition={{ duration: 0.7 }}
-        >
+        <motion.div className="mb-16 text-center" initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: '-100px' }} transition={{ duration: 0.7 }}>
           <SectionEyebrow>Who&rsquo;s Who</SectionEyebrow>
-          <h2 className="wewed-heading wewed-heading-accent text-4xl md:text-5xl text-espresso">
-            The Wedding Party
-          </h2>
-          <p className="mt-4 font-sans text-muted-foreground">
-            The cherished people standing beside us on our day.
-          </p>
-          <p className="mt-1 font-sans text-xs uppercase tracking-[0.18em] text-gold-muted">
-            Tap any face to learn their story
-          </p>
+          <h2 className="wewed-heading wewed-heading-accent text-4xl text-espresso md:text-5xl">{heading}</h2>
+          <p className="mt-4 font-sans text-muted-foreground">{subtitle}</p>
+          <p className="mt-1 font-sans text-xs uppercase tracking-[0.18em] text-gold-muted">Tap any public profile to learn their story</p>
         </motion.div>
 
-        {/* Party Grid */}
         <div className="mb-16 grid grid-cols-2 gap-4 sm:gap-6 md:grid-cols-4">
-          {BRIDAL_PARTY.map((member, i) => (
-            <motion.div
-              key={member.id}
-              custom={i}
-              variants={cardVariants}
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true, margin: '-30px' }}
-            >
+          {party.map((member, i) => (
+            <motion.div key={`${member.id}-${i}`} custom={i} variants={cardVariants} initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-30px' }}>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Card
                     role="button"
                     tabIndex={0}
-                    aria-label={`View ${member.name}'s profile`}
+                    aria-label={`View ${member.name}'s public wedding-party profile`}
                     onClick={() => handleOpen(i)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
@@ -170,120 +198,51 @@ export function Guests() {
                         handleOpen(i)
                       }
                     }}
-                    className={`wewed-photo-frame group relative cursor-pointer text-center outline-none focus-visible:ring-2 focus-visible:ring-gold/60 focus-visible:ring-offset-2 focus-visible:ring-offset-champagne ${
-                      member.isKid
-                        ? 'border-2 border-gold/50 bg-champagne shadow-md hover:border-gold hover:ring-2 hover:ring-gold/40'
-                        : 'border-gold/15 bg-champagne hover:border-gold/40 hover:ring-2 hover:ring-gold/40'
-                    }`}
+                    className="wewed-photo-frame group relative cursor-pointer border-gold/15 bg-champagne text-center outline-none hover:border-gold/40 hover:ring-2 hover:ring-gold/40 focus-visible:ring-2 focus-visible:ring-gold/60"
                   >
-                    <CardContent className="flex flex-col items-center gap-3 pt-6 pb-4">
-                      {/* Avatar */}
-                      <Avatar
-                        className={`size-16 shadow-md transition-transform duration-300 group-hover:scale-105 ${
-                          member.isKid
-                            ? 'ring-2 ring-gold/60 ring-offset-2 ring-offset-champagne'
-                            : ''
-                        }`}
-                      >
-                        <AvatarFallback
-                          className={`wewed-heading text-lg ${
-                            member.isKid
-                              ? 'bg-gold/20 text-gold'
-                              : member.side === 'bride'
-                                ? 'bg-clay/15 text-clay'
-                                : member.side === 'groom'
-                                  ? 'bg-sage/15 text-sage'
-                                  : 'bg-gold/20 text-gold'
-                          }`}
-                        >
-                          {member.initials}
-                        </AvatarFallback>
+                    <CardContent className="flex flex-col items-center gap-3 pb-4 pt-6">
+                      <Avatar className="size-16 shadow-md transition-transform duration-300 group-hover:scale-105">
+                        <AvatarFallback className="wewed-heading bg-gold/15 text-lg text-gold">{member.initials}</AvatarFallback>
                       </Avatar>
-
-                      {/* Name */}
                       <div className="space-y-1 text-center">
-                        <p className="wewed-heading text-lg text-espresso">
-                          {member.name}
-                        </p>
-                        <p className="font-sans text-xs text-muted-foreground">
-                          {member.role}
-                        </p>
+                        <p className="wewed-heading text-lg text-espresso">{member.name}</p>
+                        <p className="font-sans text-xs text-muted-foreground">{member.role}</p>
                       </div>
-
-                      {/* Side Badge */}
                       {member.isKid ? (
-                        <Badge className="border-gold/40 bg-gold/15 font-sans text-xs text-gold">
-                          <Star className="size-3" />
-                          Our Little Stars
-                        </Badge>
+                        <Badge className="border-gold/40 bg-gold/15 font-sans text-xs text-gold"><Star className="size-3" />Our Little Stars</Badge>
                       ) : (
-                        <Badge
-                          variant="outline"
-                          className={`font-sans text-xs ${
-                            member.side === 'bride'
-                              ? 'border-clay/30 text-clay'
-                              : member.side === 'groom'
-                                ? 'border-sage/30 text-sage'
-                                : 'border-gold/30 text-gold'
-                          }`}
-                        >
-                          {sideBadgeLabel(member.side)}
-                        </Badge>
+                        <Badge variant="outline" className="border-gold/30 font-sans text-xs text-gold-muted">{sideBadgeLabel(member.side, partner1, partner2)}</Badge>
                       )}
-
-                      {/* "Learn more" hint — revealed on hover */}
-                      <span className="mt-1 inline-flex items-center gap-1 font-sans text-[0.65rem] uppercase tracking-[0.15em] text-gold-muted opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-                        Learn more
-                        <ChevronRight className="size-3" />
-                      </span>
+                      <span className="mt-1 inline-flex items-center gap-1 font-sans text-[0.65rem] uppercase tracking-[0.15em] text-gold-muted opacity-0 transition-opacity duration-300 group-hover:opacity-100">Learn more<ChevronRight className="size-3" /></span>
                     </CardContent>
                   </Card>
                 </TooltipTrigger>
-                <TooltipContent
-                  side="top"
-                  className="border border-gold/30 bg-espresso text-champagne"
-                >
-                  Click to learn more about {member.name}
-                </TooltipContent>
+                <TooltipContent side="top" className="border border-gold/30 bg-espresso text-champagne">Public wedding-party profile</TooltipContent>
               </Tooltip>
             </motion.div>
           ))}
         </div>
 
-        {/* Cultural Guide Accordion */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: '-50px' }}
-          transition={{ duration: 0.6 }}
-        >
-          <div className="mb-8 text-center">
-            <h3 className="wewed-heading text-2xl md:text-3xl text-espresso">
-              Cultural Guide
-            </h3>
-            <p className="mt-2 font-sans text-sm text-muted-foreground">
-              For our guests joining from near and far — a warm introduction to Zimbabwean wedding traditions.
-            </p>
-          </div>
+        {partyRows.length === 0 && (
+          <p className="mx-auto mb-12 max-w-2xl rounded-xl border border-dashed border-gold/30 bg-champagne/40 p-4 text-center text-xs leading-5 text-espresso/55">
+            Example public wedding-party profiles are shown. Private guest-list records are never used here; the couple can publish only the people and details they want guests to see.
+          </p>
+        )}
 
-          <Card className="border-gold/20 bg-champagne shadow-md max-w-3xl mx-auto">
+        <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: '-50px' }} transition={{ duration: 0.6 }}>
+          <div className="mb-8 text-center">
+            <h3 className="wewed-heading text-2xl text-espresso md:text-3xl">{guideHeading}</h3>
+            <p className="mt-2 font-sans text-sm text-muted-foreground">{guideSubtitle}</p>
+          </div>
+          <Card className="mx-auto max-w-3xl border-gold/20 bg-champagne shadow-md">
             <CardContent className="p-0">
               <Accordion type="single" collapsible className="w-full">
-                {culturalGuide.map((entry) => (
-                  <AccordionItem
-                    key={entry.id}
-                    value={entry.id}
-                    className="border-gold/15 px-6"
-                  >
-                    <AccordionTrigger className="font-sans text-sm font-medium text-espresso hover:no-underline hover:text-gold">
-                      <span className="flex items-center gap-2">
-                        {entry.icon}
-                        {entry.title}
-                      </span>
+                {guide.map((entry) => (
+                  <AccordionItem key={entry.id} value={entry.id} className="border-gold/15 px-6">
+                    <AccordionTrigger className="font-sans text-sm font-medium text-espresso hover:text-gold hover:no-underline">
+                      <span className="flex items-center gap-2">{entry.icon}{entry.title}</span>
                     </AccordionTrigger>
-                    <AccordionContent className="font-sans text-sm text-muted-foreground leading-relaxed">
-                      {entry.content}
-                    </AccordionContent>
+                    <AccordionContent className="font-sans text-sm leading-relaxed text-muted-foreground">{entry.content}</AccordionContent>
                   </AccordionItem>
                 ))}
               </Accordion>
@@ -291,29 +250,13 @@ export function Guests() {
           </Card>
         </motion.div>
 
-        {/* Footer monogram */}
-        <motion.div
-          className="mt-12 text-center"
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-        >
-          <div className="wewed-divider w-32 mx-auto" />
-          <p className="mt-6 wewed-monogram text-xs tracking-widest">
-            C&amp;K &middot; 23.12.26
-          </p>
+        <motion.div className="mt-12 text-center" initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} transition={{ duration: 0.5, delay: 0.3 }}>
+          <div className="wewed-divider mx-auto w-32" />
+          {footerMark && <p className="mt-6 wewed-monogram text-xs tracking-widest">{footerMark}</p>}
         </motion.div>
       </div>
 
-      {/* ── Bridal Profile Modal ── */}
-      <BridalProfileModal
-        member={selectedMember}
-        isOpen={modalOpen}
-        onClose={handleClose}
-        onPrev={handlePrev}
-        onNext={handleNext}
-      />
+      <BridalProfileModal member={selectedMember} isOpen={modalOpen} onClose={() => setModalOpen(false)} onPrev={handlePrev} onNext={handleNext} />
     </section>
   )
 }

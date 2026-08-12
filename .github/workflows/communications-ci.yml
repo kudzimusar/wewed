@@ -15,6 +15,7 @@ on:
       - 'scripts/communications-supabase-scheduler.sql'
       - 'scripts/couple-vendor-marketplace-contract.ts'
       - 'src/app/messages/**'
+      - 'src/app/api/messages/route.ts'
       - 'src/app/api/communications/**'
       - 'src/app/api/providers/enquiries/**'
       - 'src/app/api/cron/communications-deliveries/**'
@@ -153,11 +154,22 @@ jobs:
       - name: Run communications authorization integration
         run: bun test src/lib/communications.integration.test.ts src/lib/vendor-marketplace-communications.integration.test.ts
 
-      - name: Confirm legacy public message system is untouched
+      - name: Confirm public Prisma schema is untouched
         if: github.event_name == 'pull_request'
         shell: bash
         run: |
-          git diff --exit-code "origin/${{ github.base_ref }}"...HEAD -- prisma/schema.prisma src/app/api/messages/route.ts
+          git diff --exit-code "origin/${{ github.base_ref }}"...HEAD -- prisma/schema.prisma
+
+      - name: Validate message API wedding isolation contract
+        shell: bash
+        run: |
+          grep -q 'weddingSlugFromRequest(request' src/app/api/messages/route.ts
+          grep -q 'resolveWeddingAccessForRequest' src/app/api/messages/route.ts
+          grep -q 'if (!access.allowed || !access.wedding)' src/app/api/messages/route.ts
+          grep -q "where: { weddingId: resolved.access.wedding.id, isPublic: true }" src/app/api/messages/route.ts
+          grep -q "resolved.access.accessKind === 'public'" src/app/api/messages/route.ts
+          grep -q 'weddingId: resolved.access.wedding.id' src/app/api/messages/route.ts
+          grep -q 'authorToken: resolved.access.guest?.rsvpToken ?? null' src/app/api/messages/route.ts
 
       - name: Confirm analytics writer does not copy message body
         shell: bash

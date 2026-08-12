@@ -18,17 +18,12 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { SectionEyebrow } from '@/components/wedding/section-eyebrow'
 import { useWeddingContextSafe } from '@/components/wedding/wedding-data-provider'
+import {
+  STARTER_VENUE_FEATURES,
+  STARTER_VENUE_MOMENTS,
+  weddingLocation,
+} from '@/lib/wedding-template-defaults'
 
-const FLAGSHIP_FEATURES = [
-  'Ceremony garden with capacity for 200 guests',
-  'Grand reception hall with crystal chandeliers',
-  'Manicured lawns for outdoor cocktail hour',
-  'On-site catering with Zimbabwean & international cuisine',
-  'Complimentary valet parking',
-  'Bridal suite with full preparation facilities',
-]
-
-const FLAGSHIP_MOMENTS = ['Garden Ceremony', 'Cocktail Hour', 'Grand Reception', 'Sparkler Exit']
 const MOMENT_ICONS = [Flower2, Wine, Sparkles, Star]
 
 function FeatureItem({ text }: { text: string }) {
@@ -64,7 +59,7 @@ function formatDate(value?: string): string {
   if (!value) return ''
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return ''
-  return new Intl.DateTimeFormat('en-US', {
+  return new Intl.DateTimeFormat('en-GB', {
     day: '2-digit',
     month: '2-digit',
     year: '2-digit',
@@ -76,12 +71,14 @@ export function VenueSection() {
   const sectionRef = useRef(null)
   const isInView = useInView(sectionRef, { once: true, margin: '-100px' })
   const wedding = ctx?.wedding
-  const isFlagship = ctx?.isFlagship ?? true
   const get = (field: string, fallback = '') => ctx?.getContent('venue', field, fallback) ?? fallback
 
-  const venueName = get('heading', wedding?.venue || (isFlagship ? 'Imba Manor' : 'Wedding Venue'))
-  const subtitle = get('subtitle', isFlagship ? 'Our chosen sanctuary — where forever begins' : '')
-  const description = get('description', '')
+  const venueName = get('heading', wedding?.venue || 'Wedding Venue')
+  const subtitle = get('subtitle', 'Our chosen place to celebrate together')
+  const description = get(
+    'description',
+    'Add a short description of your venue and the details that will help guests feel prepared.',
+  )
   const address = get('address', '')
   const suburb = get('suburb', '')
   const cityCountry = get(
@@ -96,22 +93,22 @@ export function VenueSection() {
   const imageTitle = get('imageTitle', '')
   const aboutEyebrow = get('aboutEyebrow', 'About the Venue')
   const aboutHeading = get('aboutHeading', venueName)
-  const mapUrl = wedding?.venueMapUrl || ''
+  const mapUrl = wedding?.venueMapUrl || (wedding
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(weddingLocation(wedding))}`
+    : '')
   const exploreLabel = get('exploreLabel', 'Explore Venue')
   const directionsLabel = get('directionsLabel', 'Get Directions')
   const date = formatDate(wedding?.date)
   const monogram = wedding?.monogram || wedding?.title || ''
 
   const featureRows = ctx?.getOrdered('venue', 'feature').map((item) => item.value).filter(Boolean) ?? []
-  const features = featureRows.length ? featureRows : isFlagship ? FLAGSHIP_FEATURES : []
+  const features = featureRows.length ? featureRows : STARTER_VENUE_FEATURES
   const momentRows = ctx?.getOrdered('venue', 'moment').map((item) => item.value).filter(Boolean) ?? []
-  const moments = momentRows.length ? momentRows : isFlagship ? FLAGSHIP_MOMENTS : []
+  const moments = momentRows.length ? momentRows : STARTER_VENUE_MOMENTS
   const location = useMemo(
     () => [address, suburb, cityCountry].filter(Boolean).join(', '),
     [address, suburb, cityCountry],
   )
-
-  if (!venueName && !description && !location) return null
 
   return (
     <section id="venue" className="wewed-section bg-ivory py-20 md:py-32">
@@ -157,6 +154,7 @@ export function VenueSection() {
                     <MapPin className="mx-auto size-12 text-gold" strokeWidth={1} />
                     <p className="mt-4 font-serif text-3xl">{venueName}</p>
                     {location && <p className="mt-2 max-w-sm px-6 font-sans text-xs uppercase tracking-[0.16em] text-champagne/60">{location}</p>}
+                    <p className="mt-4 px-6 font-sans text-[10px] uppercase tracking-[0.16em] text-gold/70">Add a venue photograph</p>
                   </div>
                 </div>
               )}

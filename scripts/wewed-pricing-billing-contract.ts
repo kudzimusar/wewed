@@ -344,8 +344,10 @@ assert(
   'Billing and public routes must remain isolated from wedding-only utilities.',
 )
 assert(
-  weddingHome.includes('<GlobalWeddingTools />'),
-  'Wedding-only utilities must remain available inside authorized wedding homes.',
+  weddingHome.includes(
+    '<GlobalWeddingTools accessKind={accessKind} viewerRole={viewerRole} />',
+  ),
+  'Role-aware wedding-only utilities must remain available inside authorized wedding homes.',
 )
 
 console.log(

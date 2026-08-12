@@ -19,10 +19,7 @@ interface QrResponse {
 
 async function fetchQr(data: string, size = 360): Promise<string | null> {
   try {
-    const response = await fetch(
-      `/api/qrcode?data=${encodeURIComponent(data)}&size=${size}`,
-      { cache: 'no-store' },
-    )
+    const response = await fetch(`/api/qrcode?data=${encodeURIComponent(data)}&size=${size}`, { cache: 'no-store' })
     if (!response.ok) return null
     const payload = (await response.json()) as QrResponse
     return payload.success ? payload.qr ?? null : null
@@ -50,26 +47,15 @@ export function ShareSection() {
   const { canShare, share } = useNativeShare()
   const privateWedding = wedding?.privacy !== 'public'
   const [origin, setOrigin] = useState('')
-  const names = wedding
-    ? `${wedding.couple.partner1} & ${wedding.couple.partner2}`
-    : 'This wedding'
+  const names = wedding ? `${wedding.couple.partner1} & ${wedding.couple.partner2}` : 'This wedding'
   const date = wedding
-    ? new Intl.DateTimeFormat(undefined, {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      }).format(new Date(wedding.date))
+    ? new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'long', day: 'numeric' }).format(new Date(wedding.date))
     : ''
-  const venue = wedding
-    ? [wedding.venue, wedding.venueCity, wedding.venueCountry].filter(Boolean).join(', ')
-    : ''
+  const venue = wedding ? [wedding.venue, wedding.venueCity, wedding.venueCountry].filter(Boolean).join(', ') : ''
 
   useEffect(() => setOrigin(window.location.origin), [])
 
-  const shareUrl = useMemo(
-    () => `${origin}/w/${encodeURIComponent(slug)}`,
-    [origin, slug],
-  )
+  const shareUrl = useMemo(() => `${origin}/w/${encodeURIComponent(slug)}`, [origin, slug])
   const defaultMessage = useMemo(
     () => [`Celebrate with ${names}.`, date, venue, shareUrl].filter(Boolean).join('\n'),
     [date, names, shareUrl, venue],
@@ -112,18 +98,14 @@ export function ShareSection() {
   }, [qrDataUrl, slug])
 
   return (
-    <section
-      id="share-wedding"
-      className="wewed-section relative bg-ivory py-20 sm:py-28"
-      aria-labelledby="share-wedding-heading"
-    >
+    <section id="share-wedding" className="wewed-section relative bg-ivory py-20 sm:py-28" aria-labelledby="share-wedding-heading">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-60" style={{ background: 'radial-gradient(ellipse at 50% 0%, rgba(191,155,95,0.10), transparent 60%)' }} />
       <div className="relative mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
         <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: '-80px' }} className="text-center">
           <p className="wewed-monogram mb-3 font-sans text-xs uppercase tracking-[0.32em]">Wedding sharing</p>
           <h2 id="share-wedding-heading" className="wewed-heading text-4xl text-espresso sm:text-5xl lg:text-6xl">
             {privateWedding ? 'Your Invitation Is Private' : 'Spread the Love'}
-            <SectionInfo text={privateWedding ? 'Private wedding access is guest-specific. Use only the digital card or QR issued to you.' : 'Share this public wedding website with a wedding-scoped link or QR code.'} />
+            <SectionInfo text={privateWedding ? 'Private wedding access is guest-specific. Never forward a personal invitation or QR.' : 'This wedding is public, so its public site link and QR may be shared.'} />
           </h2>
           <GoldOrnament className="mx-auto mt-6 w-full max-w-[16rem]" height={20} />
         </motion.div>
@@ -131,14 +113,10 @@ export function ShareSection() {
         {privateWedding ? (
           <Card className="mx-auto mt-12 max-w-3xl rounded-3xl border-gold/30 bg-white/80 p-7 text-center shadow-lg sm:p-10" data-testid="private-share-guard">
             <ShieldCheck className="mx-auto size-12 text-gold-muted" />
-            <h3 className="mt-5 font-serif text-3xl text-espresso">Do not forward a private guest link</h3>
+            <h3 className="mt-5 font-serif text-3xl text-espresso">Keep your personal invitation private</h3>
             <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-espresso/65">
-              Each digital wedding card and QR code is tied to one guest record. Forwarding it can expose that guest&apos;s RSVP. Couples and planners should send cards from the invitation manager, where links can be rotated and revoked.
+              Personal wedding links and QR codes can be tied to one invited guest and their RSVP. Please do not forward them. If another person needs access, ask the couple or planner to invite them separately.
             </p>
-            <div className="mt-6 flex flex-wrap justify-center gap-2">
-              <Button asChild className="bg-gold text-espresso hover:bg-gold-light"><a href="/couple/invitations">Digital invitation cards</a></Button>
-              <Button asChild variant="outline"><a href="/planner/guests">Planner guest tools</a></Button>
-            </div>
           </Card>
         ) : (
           <Card className="mt-12 overflow-hidden rounded-3xl border-gold/40 bg-white/80 p-0 shadow-[0_20px_60px_-30px_rgba(191,155,95,0.45)] backdrop-blur">

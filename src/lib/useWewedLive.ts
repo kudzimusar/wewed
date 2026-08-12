@@ -5,8 +5,14 @@ import { io, Socket } from 'socket.io-client'
 
 /* ============================================================
    useWewedLive — Real-time wedding socket hook
-   Connects to the wewed-live mini-service (socket.io on port 3003)
-   Exposes reactive state + emit helpers for the live features.
+
+   IMPORTANT PRIVACY CONTRACT
+   --------------------------
+   The legacy mini-service did not prove wedding-room isolation to this
+   frontend. Cross-wedding realtime would be an unacceptable privacy risk.
+   Realtime therefore FAILS CLOSED unless the deployment explicitly enables
+   NEXT_PUBLIC_WEWED_LIVE_SCOPED=1 after the socket service itself has been
+   upgraded and verified to isolate every event by wedding.
    ============================================================ */
 
 export type LiveMessageType = 'message' | 'applause' | 'photo'
@@ -54,24 +60,18 @@ interface UseWewedLiveReturn {
   songVotes: SongVote[]
   currentCeremonyItem: string | null
   nextCeremonyItem: string | null
-  /** Emit guest:identify */
   identify: (name: string, opts?: IdentifyOptions) => void
-  /** Emit checkin:scan */
   checkIn: (token: string, guestName: string, table?: number) => void
-  /** Emit message:send */
   sendMessage: (authorName: string, content: string) => void
-  /** Emit applause:send */
   sendApplause: (authorName?: string) => void
-  /** Emit photo:share */
   sharePhoto: (guestName: string, photoUrl: string, caption?: string) => void
-  /** Emit song:vote */
   voteSong: (songId: string, title: string, artist: string) => void
-  /** Emit ceremony:progress (couple/DJ only) */
   updateCeremony: (current: string, next?: string) => void
 }
 
 const MAX_MESSAGES = 50
 const MAX_CHECKINS = 20
+const LIVE_SCOPED_ENABLED = process.env.NEXT_PUBLIC_WEWED_LIVE_SCOPED === '1'
 
 export function useWewedLive(): UseWewedLiveReturn {
   const [isConnected, setIsConnected] = useState(false)
@@ -82,11 +82,23 @@ export function useWewedLive(): UseWewedLiveReturn {
   const [songVotes, setSongVotes] = useState<SongVote[]>([])
   const [currentCeremonyItem, setCurrentCeremonyItem] = useState<string | null>(null)
   const [nextCeremonyItem, setNextCeremonyItem] = useState<string | null>(null)
-
   const socketRef = useRef<Socket | null>(null)
 
   useEffect(() => {
-    // IMPORTANT: connect via the gateway. NEVER use http://localhost:3003 directly.
+    if (!LIVE_SCOPED_ENABLED) {
+      setIsConnected(false)
+      setConnectedGuests(0)
+      setCheckedInCount(0)
+      setCheckedInGuests([])
+      setLiveMessages([])
+      setSongVotes([])
+      setCurrentCeremonyItem(null)
+      setNextCeremonyItem(null)
+      return
+    }
+
+    // When this gate is enabled, the backing service MUST already enforce
+    // wedding-room isolation for every state and event before production use.
     const socket = io('/?XTransformPort=3003', {
       transports: ['websocket', 'polling'],
       reconnection: true,
@@ -100,7 +112,6 @@ export function useWewedLive(): UseWewedLiveReturn {
     const onConnect = () => setIsConnected(true)
     const onDisconnect = () => setIsConnected(false)
     const onReconnectAttempt = () => setIsConnected(false)
-
     const onStateInit = (payload: {
       checkedInCount: number
       checkedInGuests: CheckedInGuest[]
@@ -109,61 +120,26 @@ export function useWewedLive(): UseWewedLiveReturn {
       connectedCount: number
     }) => {
       if (typeof payload.checkedInCount === 'number') setCheckedInCount(payload.checkedInCount)
-      if (Array.isArray(payload.checkedInGuests)) {
-        setCheckedInGuests(payload.checkedInGuests.slice(-MAX_CHECKINS))
-      }
-      if (Array.isArray(payload.messages)) {
-        setLiveMessages(payload.messages.slice(-MAX_MESSAGES))
-      }
-      if (Array.isArray(payload.songVotes)) {
-        setSongVotes([...payload.songVotes].sort((a, b) => b.votes - a.votes))
-      }
+      if (Array.isArray(payload.checkedInGuests)) setCheckedInGuests(payload.checkedInGuests.slice(-MAX_CHECKINS))
+      if (Array.isArray(payload.messages)) setLiveMessages(payload.messages.slice(-MAX_MESSAGES))
+      if (Array.isArray(payload.songVotes)) setSongVotes([...payload.songVotes].sort((a, b) => b.votes - a.votes))
       if (typeof payload.connectedCount === 'number') setConnectedGuests(payload.connectedCount)
     }
-
-    const onMessageNew = (msg: LiveMessage) => {
-      setLiveMessages((prev) => {
-        const next = [...prev, msg]
-        return next.slice(-MAX_MESSAGES)
-      })
-    }
-
-    const onApplauseBurst = (_payload: { id: string; authorName: string }) => {
-      // Applause is also delivered as a message via message:new, so no
-      // additional state update is required here. The dedicated event is
-      // useful for triggering burst animations on the wall (handled in
-      // the component via a separate listener if needed).
-    }
-
-    const onCheckInNew = (checkIn: CheckedInGuest) => {
-      setCheckedInGuests((prev) => [...prev, checkIn].slice(-MAX_CHECKINS))
-    }
-
-    const onCheckInCount = (payload: { count: number }) => {
-      if (typeof payload.count === 'number') setCheckedInCount(payload.count)
-    }
-
-    const onSongsRanked = (list: SongVote[]) => {
-      if (Array.isArray(list)) {
-        setSongVotes([...list].sort((a, b) => b.votes - a.votes))
-      }
-    }
-
+    const onMessageNew = (msg: LiveMessage) => setLiveMessages((prev) => [...prev, msg].slice(-MAX_MESSAGES))
+    const onCheckInNew = (checkIn: CheckedInGuest) => setCheckedInGuests((prev) => [...prev, checkIn].slice(-MAX_CHECKINS))
+    const onCheckInCount = (payload: { count: number }) => { if (typeof payload.count === 'number') setCheckedInCount(payload.count) }
+    const onSongsRanked = (list: SongVote[]) => { if (Array.isArray(list)) setSongVotes([...list].sort((a, b) => b.votes - a.votes)) }
     const onCeremonyUpdate = (payload: CeremonyState) => {
       if (payload?.currentItem) setCurrentCeremonyItem(payload.currentItem)
       setNextCeremonyItem(payload?.nextItem ?? null)
     }
-
-    const onGuestsCount = (payload: { count: number }) => {
-      if (typeof payload.count === 'number') setConnectedGuests(payload.count)
-    }
+    const onGuestsCount = (payload: { count: number }) => { if (typeof payload.count === 'number') setConnectedGuests(payload.count) }
 
     socket.on('connect', onConnect)
     socket.on('disconnect', onDisconnect)
     socket.on('reconnect_attempt', onReconnectAttempt)
     socket.on('state:init', onStateInit)
     socket.on('message:new', onMessageNew)
-    socket.on('applause:burst', onApplauseBurst)
     socket.on('checkin:new', onCheckInNew)
     socket.on('checkin:count', onCheckInCount)
     socket.on('songs:ranked', onSongsRanked)
@@ -176,7 +152,6 @@ export function useWewedLive(): UseWewedLiveReturn {
       socket.off('reconnect_attempt', onReconnectAttempt)
       socket.off('state:init', onStateInit)
       socket.off('message:new', onMessageNew)
-      socket.off('applause:burst', onApplauseBurst)
       socket.off('checkin:new', onCheckInNew)
       socket.off('checkin:count', onCheckInCount)
       socket.off('songs:ranked', onSongsRanked)
@@ -188,42 +163,23 @@ export function useWewedLive(): UseWewedLiveReturn {
   }, [])
 
   const identify = useCallback((name: string, opts?: IdentifyOptions) => {
-    socketRef.current?.emit('guest:identify', {
-      name,
-      isDJ: opts?.isDJ ?? false,
-      isCouple: opts?.isCouple ?? false,
-    })
+    socketRef.current?.emit('guest:identify', { name, isDJ: opts?.isDJ ?? false, isCouple: opts?.isCouple ?? false })
   }, [])
-
-  const checkIn = useCallback(
-    (token: string, guestName: string, table?: number) => {
-      socketRef.current?.emit('checkin:scan', { token, guestName, table })
-    },
-    []
-  )
-
+  const checkIn = useCallback((token: string, guestName: string, table?: number) => {
+    socketRef.current?.emit('checkin:scan', { token, guestName, table })
+  }, [])
   const sendMessage = useCallback((authorName: string, content: string) => {
     socketRef.current?.emit('message:send', { authorName, content })
   }, [])
-
   const sendApplause = useCallback((authorName?: string) => {
     socketRef.current?.emit('applause:send', { authorName })
   }, [])
-
-  const sharePhoto = useCallback(
-    (guestName: string, photoUrl: string, caption?: string) => {
-      socketRef.current?.emit('photo:share', { guestName, photoUrl, caption })
-    },
-    []
-  )
-
-  const voteSong = useCallback(
-    (songId: string, title: string, artist: string) => {
-      socketRef.current?.emit('song:vote', { songId, title, artist })
-    },
-    []
-  )
-
+  const sharePhoto = useCallback((guestName: string, photoUrl: string, caption?: string) => {
+    socketRef.current?.emit('photo:share', { guestName, photoUrl, caption })
+  }, [])
+  const voteSong = useCallback((songId: string, title: string, artist: string) => {
+    socketRef.current?.emit('song:vote', { songId, title, artist })
+  }, [])
   const updateCeremony = useCallback((current: string, next?: string) => {
     socketRef.current?.emit('ceremony:progress', { currentItem: current, nextItem: next })
   }, [])

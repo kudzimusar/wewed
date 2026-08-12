@@ -3,11 +3,9 @@
 import { useEffect, useState } from 'react'
 import { useWewedStore } from '@/lib/store'
 import { WeddingDataProvider, useWeddingContext } from '@/components/wedding/wedding-data-provider'
-import { DataBackedWeddingExperience } from '@/components/wedding/data-backed-wedding-experience'
 import { Navbar } from '@/components/wedding/navbar'
 import { WeddingPlatformNav } from '@/components/wedding/wedding-platform-nav'
 import { GlobalWeddingTools } from '@/components/wedding/global-wedding-tools'
-import { CoupleLogin } from '@/components/wedding/couple-login'
 import { HeroSection } from '@/components/wedding/hero-section'
 import { CountdownBanner } from '@/components/wedding/countdown-banner'
 import { OurStory } from '@/components/wedding/our-story'
@@ -37,31 +35,40 @@ import { ContributionGallery } from '@/components/wedding/contribution-gallery'
 import { ThemeApplier } from '@/components/wedding/theme-applier'
 import { InvitationRsvpDialog } from '@/components/wedding/invitation-rsvp-dialog'
 import { PlannerMarketplaceInvitation } from '@/components/marketplace/planner-marketplace-invitation'
-import type { PublicWeddingAccessKind } from '@/lib/wedding-access-kind'
+import type {
+  PublicWeddingAccessKind,
+  WeddingViewerRole,
+} from '@/lib/wedding-access-kind'
 
 export type { PublicWeddingAccessKind } from '@/lib/wedding-access-kind'
-
-// Legacy isolation-contract marker: <GlobalWeddingTools />.
-// Runtime mounts below pass the server-resolved access kind explicitly.
 
 export function WeddingHome({
   slug,
   accessKind = null,
+  viewerRole = null,
 }: {
   slug?: string
   accessKind?: PublicWeddingAccessKind
+  viewerRole?: WeddingViewerRole
 }) {
   return (
     <WeddingDataProvider slug={slug}>
-      <WeddingHomeContent accessKind={accessKind} />
+      <WeddingHomeContent accessKind={accessKind} viewerRole={viewerRole} />
     </WeddingDataProvider>
   )
 }
 
-function WeddingHomeContent({ accessKind }: { accessKind: PublicWeddingAccessKind }) {
+function WeddingHomeContent({
+  accessKind,
+  viewerRole,
+}: {
+  accessKind: PublicWeddingAccessKind
+  viewerRole: WeddingViewerRole
+}) {
   const lifecycle = useWewedStore((state) => state.lifecycle)
+  const setLifecycle = useWewedStore((state) => state.setLifecycle)
   const [mounted, setMounted] = useState(false)
-  const { wedding, slug, isFlagship } = useWeddingContext()
+  const { wedding, slug } = useWeddingContext()
 
   useEffect(() => {
     const id = window.setTimeout(() => {
@@ -71,19 +78,23 @@ function WeddingHomeContent({ accessKind }: { accessKind: PublicWeddingAccessKin
     return () => window.clearTimeout(id)
   }, [])
 
-  if (!isFlagship) {
-    return (
-      <>
-        <DataBackedWeddingExperience />
-        <CoupleLogin accessKind={accessKind} />
-      </>
-    )
-  }
+  useEffect(() => {
+    if (!wedding) return
+    if (wedding.lifecycle === 'before' || wedding.lifecycle === 'after') {
+      setLifecycle(wedding.lifecycle)
+    }
+  }, [wedding, setLifecycle])
 
-  const activeLifecycle = mounted ? lifecycle : 'before'
+  const activeLifecycle = mounted
+    ? lifecycle
+    : wedding?.lifecycle === 'after'
+      ? 'after'
+      : 'before'
   const names = wedding ? `${wedding.couple.partner1} & ${wedding.couple.partner2}` : 'Wewed couple'
   const date = wedding ? new Date(wedding.date).toLocaleDateString(undefined, { day: '2-digit', month: 'long', year: 'numeric' }) : ''
   const place = wedding ? [wedding.venue, wedding.venueCity, wedding.venueCountry].filter(Boolean).join(', ') : ''
+  const isCoupleOwner = accessKind === 'couple_owner' && viewerRole === 'couple'
+  const canContribute = accessKind !== 'public' && accessKind !== null
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -91,12 +102,12 @@ function WeddingHomeContent({ accessKind }: { accessKind: PublicWeddingAccessKin
         <h1>{names}</h1>
         <p>{date}{place ? ` · ${place}` : ''}</p>
       </div>
-      <Navbar />
+      <Navbar accessKind={accessKind} viewerRole={viewerRole} />
       <WeddingPlatformNav slug={slug} />
       <ThemeApplier />
       <main id="main-content" className="flex-1">
         <HeroSection />
-        <PlannerMarketplaceInvitation />
+        {isCoupleOwner && <PlannerMarketplaceInvitation />}
         {activeLifecycle === 'before' ? (
           <>
             <OurStory />
@@ -112,9 +123,9 @@ function WeddingHomeContent({ accessKind }: { accessKind: PublicWeddingAccessKin
             <VendorMarketplace />
             <QrCheckin />
             <PhotoGallery />
-            <MediaUpload />
+            {canContribute && <MediaUpload />}
             <MemoryCapsule />
-            <LiveWall />
+            <LiveWall canPost={canContribute} />
             {mounted && <ContributionGallery />}
             <FaqSection />
             <ShareSection />
@@ -127,8 +138,8 @@ function WeddingHomeContent({ accessKind }: { accessKind: PublicWeddingAccessKin
           <>
             <AfterSections />
             <PhotoGallery />
-            <MediaUpload />
-            <LiveWall />
+            {canContribute && <MediaUpload />}
+            <LiveWall canPost={canContribute} />
             {mounted && <ContributionGallery />}
             <MemoryCapsule />
             <VendorMarketplace />
@@ -144,7 +155,7 @@ function WeddingHomeContent({ accessKind }: { accessKind: PublicWeddingAccessKin
       </main>
       {mounted && <InvitationRsvpDialog />}
       <Footer />
-      <GlobalWeddingTools accessKind={accessKind} />
+      <GlobalWeddingTools accessKind={accessKind} viewerRole={viewerRole} />
       <div className="wewed-print-footer" aria-hidden="true">
         Printed from wewed.pro/w/{slug} · {names} · {date}
       </div>

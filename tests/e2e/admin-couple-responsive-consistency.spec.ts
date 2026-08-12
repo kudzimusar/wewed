@@ -55,19 +55,28 @@ test('planner overview keeps compact metric density without document overflow', 
   }
 })
 
-test('authenticated wedding members receive workspace navigation without flagship-only tools', async ({
+test('authenticated planner members receive canonical wedding navigation without owner-only tools', async ({
   plannerPage: page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto(`/w/${E2E_WEDDINGS.primary.slug}`)
 
-  await expect(page.getByTestId('data-backed-wedding-experience')).toBeVisible()
-  const workspaceLink = page.getByRole('link', {
-    name: 'Planner workspace',
-    exact: true,
-  })
-  await expect(workspaceLink).toBeVisible()
-  await expect(workspaceLink).toHaveAttribute('href', '/planner')
+  const weddingSurface = page.locator('#main-content')
+  await expect(weddingSurface).toBeVisible()
+  await expect(weddingSurface).toContainText('Aurora')
+  await expect(weddingSurface).toContainText('Blake')
+
+  const navigationToggle = page.getByRole('button', { name: 'Open navigation menu' })
+  await expect(navigationToggle).toBeVisible()
+  await navigationToggle.click()
+
+  const navigationDialog = page.getByRole('dialog')
+  await expect(navigationDialog).toBeVisible()
+  await expect(navigationDialog.locator('a[href="#story"]')).toBeVisible()
+
+  await expect(
+    page.getByRole('link', { name: 'Open the Wewed Planner Workspace' }),
+  ).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Couple login' })).toBeHidden()
   await expect(
     page.getByRole('button', { name: 'Quick RSVP via WhatsApp' }),

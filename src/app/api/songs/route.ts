@@ -21,33 +21,13 @@ function noStore(response: NextResponse): NextResponse {
 }
 
 async function accessForRequest(request: NextRequest, explicit?: unknown) {
-  const slug = weddingSlugFromRequest(
-    request,
-    typeof explicit === 'string' ? explicit : null,
-  )
+  const slug = weddingSlugFromRequest(request, typeof explicit === 'string' ? explicit : null)
   if (!slug) {
-    return {
-      slug: null,
-      access: null,
-      error: noStore(
-        NextResponse.json(
-          { success: false, error: 'Wedding route context is required.' },
-          { status: 400 },
-        ),
-      ),
-    }
+    return { slug: null, access: null, error: noStore(NextResponse.json({ success: false, error: 'Wedding route context is required.' }, { status: 400 })) }
   }
   const access = await resolveWeddingAccessForRequest(request, slug)
   if (!access.allowed || !access.wedding) {
-    return {
-      slug,
-      access: null,
-      error: noStore(
-        NextResponse.json(weddingAccessErrorPayload(access), {
-          status: access.status,
-        }),
-      ),
-    }
+    return { slug, access: null, error: noStore(NextResponse.json(weddingAccessErrorPayload(access), { status: access.status })) }
   }
   return { slug, access, error: null }
 }
@@ -62,22 +42,10 @@ export async function GET(request: NextRequest) {
       orderBy: [{ order: 'asc' }, { title: 'asc' }],
     })
 
-    return noStore(
-      NextResponse.json({
-        success: true,
-        source: 'database',
-        count: songs.length,
-        data: songs,
-      }),
-    )
+    return noStore(NextResponse.json({ success: true, source: 'database', count: songs.length, data: songs }))
   } catch (error) {
     console.error('[SONGS GET] Error:', error)
-    return noStore(
-      NextResponse.json(
-        { success: false, error: 'Failed to load wedding songs.' },
-        { status: 500 },
-      ),
-    )
+    return noStore(NextResponse.json({ success: false, error: 'Failed to load wedding songs.' }, { status: 500 }))
   }
 }
 
@@ -88,14 +56,17 @@ export async function POST(request: NextRequest) {
     const artist = typeof body?.artist === 'string' ? body.artist.trim() : ''
 
     if (!title || !artist) {
-      return NextResponse.json(
-        { success: false, error: 'Song title and artist are required.' },
-        { status: 400 },
-      )
+      return NextResponse.json({ success: false, error: 'Song title and artist are required.' }, { status: 400 })
     }
 
     const resolved = await accessForRequest(request, body?.slug)
     if (resolved.error) return resolved.error
+    if (resolved.access.accessKind === 'public') {
+      return NextResponse.json(
+        { success: false, error: 'Open your personal invitation before requesting a wedding song.' },
+        { status: 403 },
+      )
+    }
 
     const maxOrder = await db.song.aggregate({
       where: { weddingId: resolved.access.wedding.id },
@@ -106,14 +77,8 @@ export async function POST(request: NextRequest) {
       data: {
         title,
         artist,
-        phase:
-          typeof body?.phase === 'string' && body.phase.trim()
-            ? body.phase.trim()
-            : 'requested',
-        moment:
-          typeof body?.moment === 'string' && body.moment.trim()
-            ? body.moment.trim()
-            : null,
+        phase: typeof body?.phase === 'string' && body.phase.trim() ? body.phase.trim() : 'requested',
+        moment: typeof body?.moment === 'string' && body.moment.trim() ? body.moment.trim() : null,
         order: (maxOrder._max.order ?? 0) + 1,
         votes: 1,
         weddingId: resolved.access.wedding.id,
@@ -123,9 +88,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, data: song }, { status: 201 })
   } catch (error) {
     console.error('[SONGS POST] Error:', error)
-    return NextResponse.json(
-      { success: false, error: 'Failed to add song request.' },
-      { status: 500 },
-    )
+    return NextResponse.json({ success: false, error: 'Failed to add song request.' }, { status: 500 })
   }
 }

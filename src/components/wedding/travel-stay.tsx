@@ -5,6 +5,8 @@ import { MapPin, Hotel, Info, Plane, Car, ExternalLink } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { SectionEyebrow } from '@/components/wedding/section-eyebrow'
+import { useWeddingContextSafe } from '@/components/wedding/wedding-data-provider'
+import { weddingLocation } from '@/lib/wedding-template-defaults'
 
 const EASE_T = [0.25, 0.46, 0.45, 0.94] as const
 const cardVariants: Variants = {
@@ -12,50 +14,111 @@ const cardVariants: Variants = {
   visible: (i: number) => ({
     opacity: 1,
     y: 0,
-    transition: {
-      delay: i * 0.15,
-      duration: 0.6,
-      ease: EASE_T,
-    },
+    transition: { delay: i * 0.15, duration: 0.6, ease: EASE_T },
   }),
 }
 
-const hotels = [
-  {
-    name: 'Meikles Hotel',
-    stars: '5-star',
-    location: 'City center',
-    price: '$180',
-    link: '#',
-  },
-  {
-    name: 'Rainbow Towers Hotel',
-    stars: '4-star',
-    location: 'Central Harare',
-    price: '$120',
-    link: '#',
-  },
-  {
-    name: 'Crowne Plaza Harare',
-    stars: '4-star',
-    location: 'Borrowdale area',
-    price: '$140',
-    link: '#',
-  },
-  {
-    name: 'Airbnbs in Borrowdale',
-    stars: 'Self-catering',
-    location: 'Borrowdale area',
-    price: '$60',
-    link: '#',
-  },
-]
+interface HotelRow {
+  name: string
+  stars?: string
+  location?: string
+  price?: string
+}
+
+interface TipRow {
+  label: string
+  text: string
+  color?: string
+}
+
+function metaString(meta: Record<string, unknown>, key: string, fallback = ''): string {
+  return typeof meta[key] === 'string' ? String(meta[key]) : fallback
+}
 
 export function TravelStay() {
+  const ctx = useWeddingContextSafe()
+  const wedding = ctx?.wedding
+  const cards = ctx?.getOrdered('travel', 'card-') ?? []
+  const getCard = (index: number) => cards.find((card) => card.index === index)
+  const travelCard = getCard(0)
+  const stayCard = getCard(1)
+  const knowCard = getCard(2)
+
+  const heading = ctx?.getContent('travel', 'heading', 'Travel & Stay') ?? 'Travel & Stay'
+  const subtitle = ctx?.getContent(
+    'travel',
+    'subtitle',
+    wedding
+      ? `Everything guests need to plan their journey to ${wedding.venue}.`
+      : 'Add travel, accommodation and arrival information for your guests.',
+  ) ?? 'Add travel, accommodation and arrival information for your guests.'
+
+  const travelMeta = travelCard?.metadata ?? {}
+  const venueName = metaString(travelMeta, 'venue', wedding?.venue || 'Add your venue')
+  const venueLocation = metaString(
+    travelMeta,
+    'location',
+    wedding ? [wedding.venueCity, wedding.venueCountry].filter(Boolean).join(', ') : 'Add location',
+  )
+  const directions = metaString(
+    travelMeta,
+    'directions',
+    'Example guidance: add the easiest route, landmarks, parking entrance and expected travel time.',
+  )
+  const airport = metaString(
+    travelMeta,
+    'airport',
+    'Nearest airport / station — add the best arrival point for out-of-town guests.',
+  )
+  const airportNote = metaString(
+    travelMeta,
+    'airportNote',
+    'Add approximate travel time from the arrival point to the venue.',
+  )
+  const shuttle = metaString(
+    travelMeta,
+    'shuttle',
+    'Wedding transport',
+  )
+  const shuttleNote = metaString(
+    travelMeta,
+    'shuttleNote',
+    'Add shuttle, taxi, parking or pickup details when confirmed.',
+  )
+
+  const rawHotels = Array.isArray(stayCard?.metadata.hotels)
+    ? stayCard?.metadata.hotels
+    : []
+  const hotels: HotelRow[] = rawHotels.length > 0
+    ? rawHotels.filter((row): row is HotelRow => Boolean(row && typeof row === 'object' && 'name' in row))
+    : [
+        { name: 'Example Hotel One', stars: 'Hotel', location: 'Near the venue', price: 'Add rate' },
+        { name: 'Example Guesthouse', stars: 'Guesthouse', location: 'Nearby area', price: 'Add rate' },
+        { name: 'Example Self-Catering Stay', stars: 'Self-catering', location: 'Nearby area', price: 'Add rate' },
+      ]
+  const hotelNote = metaString(
+    stayCard?.metadata ?? {},
+    'note',
+    'Example accommodation shown — replace this with verified nearby options, booking links and rates.',
+  )
+
+  const rawTips = Array.isArray(knowCard?.metadata.tips) ? knowCard?.metadata.tips : []
+  const tips: TipRow[] = rawTips.length > 0
+    ? rawTips.filter((row): row is TipRow => Boolean(row && typeof row === 'object' && 'label' in row && 'text' in row))
+    : [
+        { label: 'Dress Code', text: 'Formal — edit this to match your celebration.', color: 'clay' },
+        { label: 'Weather', text: 'Add seasonal weather advice and anything guests should bring.', color: 'gold' },
+        { label: 'Gifts', text: 'Add your preferred gift or registry guidance.', color: 'sage' },
+        { label: 'Good to Know', text: 'Add cultural, accessibility, family or venue guidance here.', color: 'plum' },
+      ]
+
+  const mapUrl = wedding?.venueMapUrl || (wedding
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(weddingLocation(wedding))}`
+    : '#venue')
+
   return (
     <section id="travel" className="wewed-section py-20 md:py-32">
       <div className="mx-auto max-w-6xl px-4">
-        {/* Header */}
         <motion.div
           className="mb-16 text-center"
           initial={{ opacity: 0, y: 30 }}
@@ -65,190 +128,93 @@ export function TravelStay() {
         >
           <SectionEyebrow>Getting There</SectionEyebrow>
           <h2 className="wewed-heading wewed-heading-accent text-4xl md:text-5xl text-espresso">
-            Travel &amp; Stay
+            {heading}
           </h2>
-          <p className="mt-4 font-sans text-muted-foreground">
-            Everything you need to plan your journey to Imba Manor.
-          </p>
+          <p className="mt-4 font-sans text-muted-foreground">{subtitle}</p>
         </motion.div>
 
-        {/* Cards Grid */}
         <div className="grid gap-6 md:grid-cols-3">
-          {/* Getting There */}
-          <motion.div
-            custom={0}
-            variants={cardVariants}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: '-50px' }}
-          >
+          <motion.div custom={0} variants={cardVariants} initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-50px' }}>
             <Card className="h-full border-gold/20 bg-champagne shadow-md transition-shadow duration-300 hover:shadow-lg">
               <CardHeader className="items-center text-center">
                 <div className="flex size-14 items-center justify-center rounded-full bg-gold/15">
                   <MapPin className="size-6 text-gold" strokeWidth={1.5} />
                 </div>
                 <CardTitle className="wewed-heading text-2xl text-espresso mt-2">
-                  Getting There
+                  {travelCard?.value || 'Getting There'}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-5 font-sans text-sm">
-                {/* Venue Address */}
                 <div className="space-y-1">
-                  <p className="font-medium text-espresso">Imba Manor</p>
-                  <p className="text-muted-foreground">Harare, Zimbabwe</p>
+                  <p className="font-medium text-espresso">{venueName}</p>
+                  <p className="text-muted-foreground">{venueLocation}</p>
                 </div>
-
-                {/* Directions */}
                 <div className="space-y-2 rounded-lg border border-gold/15 bg-white/50 p-3">
-                  <p className="font-medium text-espresso text-xs uppercase tracking-wider">
-                    Directions
-                  </p>
-                  <p className="text-muted-foreground leading-relaxed">
-                    From Harare city center, head northeast on Samora Machel Ave, then follow signs to Borrowdale. Imba Manor is approximately 20 minutes from the center.
-                  </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-2 border-gold/30 text-gold hover:bg-gold/10 font-sans"
-                    asChild
-                  >
-                    <a
-                      href="https://maps.google.com/?q=Imba+Manor+Harare+Zimbabwe"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <ExternalLink className="size-3.5" />
-                      Get Directions
+                  <p className="font-medium text-espresso text-xs uppercase tracking-wider">Directions</p>
+                  <p className="text-muted-foreground leading-relaxed">{directions}</p>
+                  <Button variant="outline" size="sm" className="mt-2 border-gold/30 text-gold hover:bg-gold/10 font-sans" asChild>
+                    <a href={mapUrl} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="size-3.5" /> Get Directions
                     </a>
                   </Button>
                 </div>
-
-                {/* Airport */}
                 <div className="flex items-start gap-3">
                   <Plane className="mt-0.5 size-4 shrink-0 text-gold" />
-                  <div>
-                    <p className="font-medium text-espresso">Robert Gabriel Mugabe International Airport (HRE)</p>
-                    <p className="text-muted-foreground text-xs">20 min drive to Imba Manor</p>
-                  </div>
+                  <div><p className="font-medium text-espresso">{airport}</p><p className="text-muted-foreground text-xs">{airportNote}</p></div>
                 </div>
-
-                {/* Shuttle */}
                 <div className="flex items-start gap-3">
                   <Car className="mt-0.5 size-4 shrink-0 text-gold" />
-                  <div>
-                    <p className="font-medium text-espresso">Complimentary Shuttle</p>
-                    <p className="text-muted-foreground text-xs">From Meikles Hotel at 12:30 on the day</p>
-                  </div>
+                  <div><p className="font-medium text-espresso">{shuttle}</p><p className="text-muted-foreground text-xs">{shuttleNote}</p></div>
                 </div>
               </CardContent>
             </Card>
           </motion.div>
 
-          {/* Where to Stay */}
-          <motion.div
-            custom={1}
-            variants={cardVariants}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: '-50px' }}
-          >
+          <motion.div custom={1} variants={cardVariants} initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-50px' }}>
             <Card className="h-full border-gold/20 bg-champagne shadow-md transition-shadow duration-300 hover:shadow-lg">
               <CardHeader className="items-center text-center">
                 <div className="flex size-14 items-center justify-center rounded-full bg-gold/15">
                   <Hotel className="size-6 text-gold" strokeWidth={1.5} />
                 </div>
                 <CardTitle className="wewed-heading text-2xl text-espresso mt-2">
-                  Where to Stay
+                  {stayCard?.value || 'Where to Stay'}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 font-sans text-sm">
-                {hotels.map((hotel) => (
-                  <div
-                    key={hotel.name}
-                    className="flex items-start justify-between gap-3 rounded-lg border border-gold/15 bg-white/50 p-3 transition-colors hover:bg-white/80"
-                  >
+                {hotels.map((hotel, index) => (
+                  <div key={`${hotel.name}-${index}`} className="flex items-start justify-between gap-3 rounded-lg border border-gold/15 bg-white/50 p-3 transition-colors hover:bg-white/80">
                     <div className="space-y-0.5">
                       <p className="font-medium text-espresso">{hotel.name}</p>
-                      <p className="text-muted-foreground text-xs">
-                        {hotel.stars} &middot; {hotel.location}
-                      </p>
+                      <p className="text-muted-foreground text-xs">{[hotel.stars, hotel.location].filter(Boolean).join(' · ')}</p>
                     </div>
-                    <div className="flex flex-col items-end gap-1 shrink-0">
-                      <span className="font-medium text-gold">
-                        from {hotel.price}
-                      </span>
-                      <span className="text-muted-foreground text-xs">/night</span>
-                    </div>
+                    {hotel.price && <span className="shrink-0 font-medium text-gold">{hotel.price}</span>}
                   </div>
                 ))}
-                <p className="pt-2 text-center text-xs text-muted-foreground">
-                  Prices are approximate and may vary by season.
-                </p>
+                <p className="pt-2 text-center text-xs text-muted-foreground">{hotelNote}</p>
               </CardContent>
             </Card>
           </motion.div>
 
-          {/* What to Know */}
-          <motion.div
-            custom={2}
-            variants={cardVariants}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: '-50px' }}
-          >
+          <motion.div custom={2} variants={cardVariants} initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-50px' }}>
             <Card className="h-full border-gold/20 bg-champagne shadow-md transition-shadow duration-300 hover:shadow-lg">
               <CardHeader className="items-center text-center">
                 <div className="flex size-14 items-center justify-center rounded-full bg-gold/15">
                   <Info className="size-6 text-gold" strokeWidth={1.5} />
                 </div>
                 <CardTitle className="wewed-heading text-2xl text-espresso mt-2">
-                  What to Know
+                  {knowCard?.value || 'What to Know'}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-5 font-sans text-sm">
-                {/* Dress Code */}
-                <div className="space-y-1.5">
-                  <p className="font-medium text-espresso flex items-center gap-2">
-                    <span className="inline-block size-2 rounded-full bg-clay" />
-                    Dress Code
-                  </p>
-                  <p className="text-muted-foreground leading-relaxed">
-                    Formal / Black Tie Optional — Traditional Zimbabwean attire warmly welcomed.
-                  </p>
-                </div>
-
-                {/* Weather */}
-                <div className="space-y-1.5">
-                  <p className="font-medium text-espresso flex items-center gap-2">
-                    <span className="inline-block size-2 rounded-full bg-gold" />
-                    Weather
-                  </p>
-                  <p className="text-muted-foreground leading-relaxed">
-                    December in Harare is warm (25–30°C / 77–86°F) with possible afternoon showers. Light layers recommended.
-                  </p>
-                </div>
-
-                {/* Gifts */}
-                <div className="space-y-1.5">
-                  <p className="font-medium text-espresso flex items-center gap-2">
-                    <span className="inline-block size-2 rounded-full bg-sage" />
-                    Gifts
-                  </p>
-                  <p className="text-muted-foreground leading-relaxed">
-                    Your presence is our greatest gift. A registry link will be shared soon.
-                  </p>
-                </div>
-
-                {/* Cultural Note */}
-                <div className="space-y-1.5">
-                  <p className="font-medium text-espresso flex items-center gap-2">
-                    <span className="inline-block size-2 rounded-full bg-plum" />
-                    Cultural Note
-                  </p>
-                  <p className="text-muted-foreground leading-relaxed">
-                    In Shona tradition, it is customary to bring a small gift for the families. This is entirely optional — your presence is what matters most.
-                  </p>
-                </div>
+                {tips.map((tip, index) => (
+                  <div key={`${tip.label}-${index}`} className="space-y-1.5">
+                    <p className="font-medium text-espresso flex items-center gap-2">
+                      <span className="inline-block size-2 rounded-full bg-gold" />
+                      {tip.label}
+                    </p>
+                    <p className="text-muted-foreground leading-relaxed">{tip.text}</p>
+                  </div>
+                ))}
               </CardContent>
             </Card>
           </motion.div>
