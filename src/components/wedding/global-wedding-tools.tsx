@@ -16,11 +16,9 @@ import type {
 /**
  * Role-aware global wedding chrome.
  *
- * Guests receive only the guest-safe AI entry point. RSVP, contributions,
- * share/QR, help and other social actions remain available inside their
- * relevant sections or the top navigation instead of competing as floating
- * controls. Private owner/admin tools are mounted only from server-resolved
- * access state.
+ * Ordinary guests receive the wedding itself, not an owner/admin control dock.
+ * Private AI/edit/dashboard/admin/keyboard affordances are mounted only after a
+ * signed server session resolves the active wedding role.
  */
 export function GlobalWeddingTools({
   accessKind,
@@ -31,18 +29,18 @@ export function GlobalWeddingTools({
 }) {
   const isCoupleOwner = accessKind === 'couple_owner' && viewerRole === 'couple'
   const isAdmin = viewerRole === 'admin'
-  const showKeyboardTools = isCoupleOwner || isAdmin
+  const showOwnerUtilities = isCoupleOwner || isAdmin
 
   return (
     <>
       <StoreRehydrator />
       <PWARegister />
       <SectionTracker />
-      <AiTrigger />
+      {showOwnerUtilities && <AiTrigger />}
       {isAdmin && <AdminTrigger />}
       {isCoupleOwner && <CoupleLogin accessKind={accessKind} />}
-      {showKeyboardTools && <KeyboardSectionNav />}
-      {showKeyboardTools && <KeyboardShortcutsHelp />}
+      {showOwnerUtilities && <KeyboardSectionNav />}
+      {showOwnerUtilities && <KeyboardShortcutsHelp />}
     </>
   )
 }
