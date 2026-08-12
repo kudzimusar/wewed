@@ -5,8 +5,8 @@ import { motion, useInView } from 'framer-motion';
 import { CalendarPlus, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useRef } from 'react';
-
-const WEDDING_DATE = new Date('2026-12-23T14:00:00+02:00'); // 2pm CAT
+import { useWeddingContextSafe } from '@/components/wedding/wedding-data-provider';
+import { googleCalendarUrl } from '@/lib/wedding-template-defaults';
 
 interface TimeLeft {
   days: number;
@@ -15,14 +15,11 @@ interface TimeLeft {
   total: number;
 }
 
-function calculateTimeLeft(): TimeLeft {
-  const now = new Date().getTime();
-  const target = WEDDING_DATE.getTime();
-  const total = target - now;
-
-  if (total <= 0) {
-    return { days: 0, hours: 0, minutes: 0, total: 0 };
-  }
+function calculateTimeLeft(targetValue: string): TimeLeft {
+  const target = new Date(targetValue).getTime();
+  if (Number.isNaN(target)) return { days: 0, hours: 0, minutes: 0, total: 0 };
+  const total = target - Date.now();
+  if (total <= 0) return { days: 0, hours: 0, minutes: 0, total: 0 };
 
   return {
     days: Math.floor(total / (1000 * 60 * 60 * 24)),
@@ -30,18 +27,6 @@ function calculateTimeLeft(): TimeLeft {
     minutes: Math.floor((total / (1000 * 60)) % 60),
     total,
   };
-}
-
-function getGoogleCalendarUrl(): string {
-  const params = new URLSearchParams({
-    action: 'TEMPLATE',
-    text: 'Charity & Kudzie — Wedding Celebration',
-    dates: '20261223T130000/20261223T220000',
-    location: 'Imba Manor, Harare, Zimbabwe',
-    details:
-      'Join us for the celebration of Charity & Kudzie (Mr & Mrs Musarurwa) at Imba Manor, Harare, Zimbabwe. wewed — where love lives forever.',
-  });
-  return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
 
 interface TimeSegmentProps {
@@ -63,16 +48,22 @@ function TimeSegment({ value, label }: TimeSegmentProps) {
 }
 
 export function CountdownBanner() {
+  const wedding = useWeddingContextSafe()?.wedding;
+  const weddingDate = wedding?.date ?? '';
   const [timeLeft, setTimeLeft] = useState<TimeLeft | null>(null);
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: '-80px' });
 
   useEffect(() => {
-    const update = () => setTimeLeft(calculateTimeLeft());
+    if (!weddingDate) {
+      setTimeLeft(null);
+      return;
+    }
+    const update = () => setTimeLeft(calculateTimeLeft(weddingDate));
     update();
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [weddingDate]);
 
   const isPast = timeLeft?.total === 0;
 
@@ -82,7 +73,6 @@ export function CountdownBanner() {
       aria-label="Countdown to the wedding"
       className="relative overflow-hidden bg-espresso"
     >
-      {/* Subtle gold pattern background */}
       <div
         className="wewed-ken-burns pointer-events-none absolute inset-0 opacity-[0.07]"
         style={{
@@ -92,12 +82,8 @@ export function CountdownBanner() {
         }}
         aria-hidden="true"
       />
-
-      {/* Gold top + bottom hairlines */}
       <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-gold/60 to-transparent" />
       <span className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-gold/30 to-transparent" />
-
-      {/* Radial glow */}
       <div
         className="pointer-events-none absolute inset-0 opacity-30"
         style={{
@@ -113,10 +99,9 @@ export function CountdownBanner() {
         transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
         className="relative mx-auto flex max-w-6xl flex-col items-center justify-between gap-6 px-4 py-10 sm:px-6 md:flex-row md:gap-8 md:py-12 lg:px-8"
       >
-        {/* Left: Add to Calendar link */}
         <div className="order-3 w-full md:order-1 md:w-auto md:flex-1">
           <a
-            href={getGoogleCalendarUrl()}
+            href={googleCalendarUrl(wedding)}
             target="_blank"
             rel="noopener noreferrer"
             className="group inline-flex w-full items-center justify-center gap-2 font-sans text-[11px] font-medium uppercase tracking-[0.18em] text-champagne/60 transition-colors hover:text-gold md:justify-start md:w-auto"
@@ -131,7 +116,6 @@ export function CountdownBanner() {
           </a>
         </div>
 
-        {/* Center: Live countdown */}
         <div className="order-1 flex flex-col items-center gap-2 md:order-2 md:flex-1 md:gap-3">
           {timeLeft && !isPast ? (
             <>
@@ -154,7 +138,6 @@ export function CountdownBanner() {
           )}
         </div>
 
-        {/* Right: RSVP Now button */}
         <div className="order-2 w-full md:order-3 md:w-auto md:flex-1 md:flex md:justify-end">
           <Button
             asChild
