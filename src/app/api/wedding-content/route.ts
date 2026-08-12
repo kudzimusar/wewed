@@ -51,6 +51,22 @@ export async function GET(request: NextRequest) {
             order: true,
           },
         },
+        songs: {
+          orderBy: [{ order: 'asc' }, { title: 'asc' }],
+          select: {
+            id: true,
+            title: true,
+            artist: true,
+            phase: true,
+            moment: true,
+            order: true,
+            votes: true,
+            spotifyUrl: true,
+            appleUrl: true,
+            playedAt: true,
+            notes: true,
+          },
+        },
       },
     })
 
@@ -122,6 +138,7 @@ export async function GET(request: NextRequest) {
           contentMeta,
           ordered,
           programmeItems: wedding.programmeItems,
+          songs: wedding.songs,
         },
       }),
     )
