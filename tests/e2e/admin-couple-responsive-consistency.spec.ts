@@ -69,7 +69,10 @@ test('authenticated planner members receive canonical wedding navigation without
   const navigationToggle = page.getByRole('button', { name: 'Open navigation menu' })
   await expect(navigationToggle).toBeVisible()
   await navigationToggle.click()
-  await expect(page.getByRole('link', { name: 'Gallery', exact: true })).toBeVisible()
+
+  const navigationDialog = page.getByRole('dialog')
+  await expect(navigationDialog).toBeVisible()
+  await expect(navigationDialog.locator('a[href="#story"]')).toBeVisible()
 
   await expect(
     page.getByRole('link', { name: 'Open the Wewed Planner Workspace' }),
