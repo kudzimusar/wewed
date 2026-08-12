@@ -2,12 +2,34 @@
 
 import Link from 'next/link'
 import { useState, type FormEvent } from 'react'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { ArrowLeft, CheckCircle2, Loader2, LockKeyhole, Mail } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { publicUrl } from '@/lib/public-origin'
-import { createClient } from '@/lib/supabase/client'
+
+function createPasswordRecoveryClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  if (!url || !anonKey) {
+    throw new Error('Password recovery is not configured.')
+  }
+
+  // Recovery email links must be usable on a different device from the browser
+  // that requested them. The public reset page immediately consumes the fragment
+  // credentials, establishes the normal Wewed cookie session, and removes them
+  // from the address bar.
+  return createSupabaseClient(url, anonKey, {
+    auth: {
+      flowType: 'implicit',
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+  })
+}
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
@@ -24,7 +46,7 @@ export default function ForgotPasswordPage() {
     setError(null)
 
     try {
-      const supabase = createClient()
+      const supabase = createPasswordRecoveryClient()
       const { error: recoveryError } = await supabase.auth.resetPasswordForEmail(
         normalizedEmail,
         { redirectTo: publicUrl('/reset-password') },
@@ -66,7 +88,7 @@ export default function ForgotPasswordPage() {
                 Open only the newest Wewed recovery email. The link is single-use and time-limited. Wewed will never ask you to send a password or recovery token by email or chat.
               </div>
               <Button asChild className="w-full bg-gold text-espresso hover:bg-gold-light">
-                <Link href="/admin">Return to secure sign-in</Link>
+                <Link href="/sign-in">Return to secure sign-in</Link>
               </Button>
             </div>
           ) : (
@@ -112,7 +134,7 @@ export default function ForgotPasswordPage() {
               </Button>
 
               <Link
-                href="/admin"
+                href="/sign-in"
                 className="flex items-center justify-center gap-2 text-sm text-champagne/55 transition hover:text-gold"
               >
                 <ArrowLeft className="size-4" />
