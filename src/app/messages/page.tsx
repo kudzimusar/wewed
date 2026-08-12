@@ -23,7 +23,7 @@ import {
   communicationThreadNeedsReconciliation,
 } from '@/lib/communications-client-state'
 
-type DashboardRole = 'admin' | 'couple' | 'planner'
+type DashboardRole = 'admin' | 'couple' | 'planner' | 'vendor'
 
 interface Participant {
   userId: string
@@ -87,6 +87,7 @@ async function readJson<T>(response: Response): Promise<T> {
 function roleHome(role: DashboardRole | null): string {
   if (role === 'admin') return '/admin'
   if (role === 'couple') return '/couple'
+  if (role === 'vendor') return '/vendor'
   return '/planner'
 }
 
@@ -288,9 +289,17 @@ export default function MessagesPage() {
     async function initialLoad() {
       setLoading(true)
       try {
-        await Promise.all([loadMe(), loadContacts(), loadConversations()])
+        await loadMe()
+        if (cancelled) return
+        await Promise.all([loadContacts(), loadConversations()])
       } catch (loadError) {
         if (!cancelled) {
+          setMe(null)
+          setContacts([])
+          setConversations([])
+          setSelectedId(null)
+          setMessages([])
+          setMobileThreadOpen(false)
           setError(loadError instanceof Error ? loadError.message : 'Unable to load Wewed Messages.')
         }
       } finally {
