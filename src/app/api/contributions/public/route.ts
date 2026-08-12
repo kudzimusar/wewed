@@ -15,7 +15,11 @@ interface PublicContribution {
   photoUrl: string | null
   favoriteSong: string | null
   privacy: string
+  status: string
   isFeatured: boolean
+  wordCount: number
+  charCount: number
+  createdAt: string
   submittedAt: string | null
 }
 
@@ -62,6 +66,9 @@ export async function GET(request: NextRequest) {
         favoriteSong: true,
         privacy: true,
         status: true,
+        wordCount: true,
+        charCount: true,
+        createdAt: true,
         submittedAt: true,
       },
       orderBy: [{ submittedAt: 'desc' }],
@@ -71,29 +78,25 @@ export async function GET(request: NextRequest) {
       .map((row) => ({
         id: row.id,
         type: row.type,
-        displayName:
-          row.privacy === 'anonymous' ? 'Anonymous' : row.displayName,
-        relationship:
-          row.privacy === 'anonymous' ? null : row.relationship,
+        displayName: row.privacy === 'anonymous' ? 'Anonymous' : row.displayName,
+        relationship: row.privacy === 'anonymous' ? null : row.relationship,
         message: row.message,
         photoUrl: row.privacy === 'anonymous' ? null : row.photoUrl,
-        favoriteSong:
-          row.privacy === 'anonymous' ? null : row.favoriteSong,
+        favoriteSong: row.privacy === 'anonymous' ? null : row.favoriteSong,
         privacy: row.privacy,
+        status: row.status,
         isFeatured: row.status === 'featured',
+        wordCount: row.wordCount,
+        charCount: row.charCount,
+        createdAt: row.createdAt.toISOString(),
         submittedAt: row.submittedAt?.toISOString() ?? null,
       }))
       .sort((a, b) => {
         if (a.isFeatured !== b.isFeatured) return a.isFeatured ? -1 : 1
-        return (
-          new Date(b.submittedAt ?? 0).getTime() -
-          new Date(a.submittedAt ?? 0).getTime()
-        )
+        return new Date(b.submittedAt ?? b.createdAt).getTime() - new Date(a.submittedAt ?? a.createdAt).getTime()
       })
 
-    return noStore(
-      NextResponse.json({ success: true, count: data.length, data }),
-    )
+    return noStore(NextResponse.json({ success: true, count: data.length, data }))
   } catch (error) {
     console.error('[CONTRIBUTIONS PUBLIC GET] Error:', error)
     return noStore(
