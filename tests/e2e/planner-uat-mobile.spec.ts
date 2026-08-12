@@ -17,8 +17,15 @@ test('planner portfolio and client workspace stay navigable at UAT mobile widths
 
     const activeWedding = plannerPage.locator('#active-wedding')
     await expect(activeWedding).toBeVisible()
-    const activeWeddingBox = await activeWedding.boundingBox()
-    expect(activeWeddingBox?.width ?? 0).toBeGreaterThanOrEqual(100)
+    await expect
+      .poll(
+        async () => (await activeWedding.boundingBox())?.width ?? 0,
+        {
+          message: `active wedding selector has stable width at ${viewport.width}px`,
+          timeout: 12_000,
+        },
+      )
+      .toBeGreaterThanOrEqual(100)
 
     await expect(
       plannerPage.getByRole('link', { name: 'Back to all managed weddings' }),
