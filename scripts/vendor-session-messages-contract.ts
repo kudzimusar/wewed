@@ -17,6 +17,7 @@ function requireOrder(source: string, first: string, second: string, message: st
 const authMe = read('src/app/api/auth/me/route.ts')
 const authSignin = read('src/app/api/auth/signin/route.ts')
 const browserAuth = read('src/lib/admin-auth.ts')
+const messagesPage = read('src/app/messages/page.tsx')
 const vendorWorkspace = read('src/app/vendor/page.tsx')
 const vendorMarketplace = read('src/app/vendors/page.tsx')
 
@@ -60,6 +61,27 @@ requireText(
   browserAuth,
   "export type DashboardRole = 'admin' | 'couple' | 'planner' | 'vendor'",
   'Browser dashboard auth must recognize Vendor as a first-class role.',
+)
+requireText(
+  messagesPage,
+  "type DashboardRole = 'admin' | 'couple' | 'planner' | 'vendor'",
+  'Messages must recognize Vendor as a first-class participant role.',
+)
+requireText(
+  messagesPage,
+  "if (role === 'vendor') return '/vendor'",
+  'Messages back navigation must return Vendors to the Vendor workspace.',
+)
+requireOrder(
+  messagesPage,
+  'await loadMe()',
+  'await Promise.all([loadContacts(), loadConversations()])',
+  'Messages must verify authentication before loading private inbox/contact data.',
+)
+requireText(
+  messagesPage,
+  'setConversations([])',
+  'Messages must clear partial conversation state when initial authentication fails.',
 )
 requireText(
   vendorWorkspace,
