@@ -74,8 +74,8 @@ type Provider = {
   offerings: Offering[]
 }
 
-const inputClass = 'h-11 w-full rounded-xl border border-gold/25 bg-white px-3 text-sm outline-none focus:border-gold focus:ring-2 focus:ring-gold/20'
-const textareaClass = 'min-h-24 w-full rounded-xl border border-gold/25 bg-white px-3 py-2 text-sm outline-none focus:border-gold focus:ring-2 focus:ring-gold/20'
+const inputClass = 'h-12 w-full rounded-xl border border-gold/35 bg-white px-3 text-base text-espresso caret-espresso shadow-sm outline-none placeholder:text-espresso/40 disabled:cursor-not-allowed disabled:bg-ivory disabled:text-espresso/55 disabled:opacity-100 focus:border-gold focus:ring-2 focus:ring-gold/30'
+const textareaClass = 'min-h-28 w-full rounded-xl border border-gold/35 bg-white px-3 py-3 text-base leading-6 text-espresso caret-espresso shadow-sm outline-none placeholder:text-espresso/40 disabled:cursor-not-allowed disabled:bg-ivory disabled:text-espresso/55 disabled:opacity-100 focus:border-gold focus:ring-2 focus:ring-gold/30'
 
 function valueList(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : []
@@ -135,7 +135,8 @@ export function PublicProviderProfile({ slug }: { slug: string }) {
       setError('Sign in with the Couple owner account for the active wedding before sending this enquiry.')
       return
     }
-    const form = new FormData(event.currentTarget)
+    const formElement = event.currentTarget
+    const form = new FormData(formElement)
     setBusy(true)
     setError(null)
     setNotice(null)
@@ -167,7 +168,7 @@ export function PublicProviderProfile({ slug }: { slug: string }) {
       setConversationId(payload.conversationId ?? null)
       setNotice(`Your enquiry was sent${payload.providerName ? ` to ${payload.providerName}` : ''} and is now available in Wewed Messages. No wedding access or provider authority was created.`)
       setAnswers({})
-      event.currentTarget.reset()
+      formElement.reset()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to send the enquiry.')
     } finally {
@@ -247,24 +248,24 @@ export function PublicProviderProfile({ slug }: { slug: string }) {
                   <section className="rounded-3xl bg-espresso p-6 text-champagne">
                     <ShieldCheck className="size-6 text-gold" />
                     <h2 className="mt-4 font-serif text-3xl">Send a secure enquiry</h2>
-                    <p className="mt-3 text-sm leading-6 text-champagne/65">Questions adapt to {providerCategoryLabel(offering.category).toLowerCase()}. Sending an enquiry never grants wedding access.</p>
-                    <form onSubmit={submitEnquiry} className="mt-5 space-y-4">
-                      <label className="block text-xs text-champagne/65">Wedding date<input name="eventDate" type="date" className={`${inputClass} mt-1.5`} /></label>
-                      <label className="block text-xs text-champagne/65">Location<input name="location" className={`${inputClass} mt-1.5`} /></label>
-                      <label className="block text-xs text-champagne/65">Guest count<input name="guestCount" type="number" min="0" max="100000" className={`${inputClass} mt-1.5`} /></label>
-                      <label className="block text-xs text-champagne/65">Budget range<select name="budgetBand" className={`${inputClass} mt-1.5`}><option value="">Select…</option><option>Under USD 5,000</option><option>USD 5,000–15,000</option><option>USD 15,000–30,000</option><option>USD 30,000–75,000</option><option>USD 75,000+</option><option>By consultation</option></select></label>
+                    <p className="mt-3 text-sm leading-6 text-champagne/70">Questions adapt to {providerCategoryLabel(offering.category).toLowerCase()}. Sending an enquiry never grants wedding access.</p>
+                    <form onSubmit={submitEnquiry} className="mt-5 space-y-5" data-wewed-form-surface="dark">
+                      <label className="block text-sm font-medium text-champagne/80">Wedding date<input name="eventDate" type="date" className={`${inputClass} mt-2`} /></label>
+                      <label className="block text-sm font-medium text-champagne/80">Location<input name="location" className={`${inputClass} mt-2`} /></label>
+                      <label className="block text-sm font-medium text-champagne/80">Guest count<input name="guestCount" type="number" min="0" max="100000" className={`${inputClass} mt-2`} /></label>
+                      <label className="block text-sm font-medium text-champagne/80">Budget range<select name="budgetBand" className={`${inputClass} mt-2`}><option value="">Select…</option><option>Under USD 5,000</option><option>USD 5,000–15,000</option><option>USD 15,000–30,000</option><option>USD 30,000–75,000</option><option>USD 75,000+</option><option>By consultation</option></select></label>
                       {fields.map((field) => <EnquiryField key={field.key} field={field} value={answers[field.key]} onChange={(value) => setAnswers((current) => ({ ...current, [field.key]: value }))} />)}
-                      <label className="block text-xs text-champagne/65">Preferred reply<select name="contactPreference" className={`${inputClass} mt-1.5`}><option value="wewed">Wewed message</option><option value="email">Email</option><option value="phone">Phone</option></select></label>
-                      <label className="block text-xs text-champagne/65">Message<textarea name="message" className={`${textareaClass} mt-1.5`} /></label>
-                      <fieldset className="rounded-xl border border-gold/20 p-3"><legend className="px-2 text-[10px] uppercase tracking-[0.12em] text-gold">Details you authorise</legend>{[['shareWeddingTitle', 'Wedding title'], ['shareWeddingDate', 'Wedding date'], ['shareLocation', 'Location'], ['shareGuestCount', 'Guest count'], ['shareBudget', 'Budget band']].map(([name, label]) => <label key={name} className="mt-2 flex items-center gap-2 text-xs text-champagne/65"><input name={name} type="checkbox" className="accent-[#BF9B5F]" />{label}</label>)}</fieldset>
-                      {(error || notice) && <p role={error ? 'alert' : 'status'} className={`rounded-xl border p-3 text-xs ${error ? 'border-clay/40 bg-clay/10' : 'border-sage/40 bg-sage/10'}`}>{error || notice}</p>}
-                      {conversationId && notice ? <Link href="/messages" className="flex w-full items-center justify-center gap-2 rounded-xl border border-gold/35 bg-gold/10 px-4 py-3 text-sm font-semibold text-gold"><MessageCircle className="size-4" />Open conversation in Messages</Link> : null}
+                      <label className="block text-sm font-medium text-champagne/80">Preferred reply<select name="contactPreference" className={`${inputClass} mt-2`}><option value="wewed">Wewed message</option><option value="email">Email</option><option value="phone">Phone</option></select></label>
+                      <label className="block text-sm font-medium text-champagne/80">Message<textarea name="message" className={`${textareaClass} mt-2`} /></label>
+                      <fieldset className="rounded-xl border border-gold/30 p-4"><legend className="px-2 text-xs font-semibold uppercase tracking-[0.12em] text-gold">Details you authorise</legend>{[['shareWeddingTitle', 'Wedding title'], ['shareWeddingDate', 'Wedding date'], ['shareLocation', 'Location'], ['shareGuestCount', 'Guest count'], ['shareBudget', 'Budget band']].map(([name, label]) => <label key={name} className="mt-3 flex min-h-7 items-center gap-3 text-sm text-champagne/75"><input name={name} type="checkbox" className="size-5 shrink-0 accent-[#BF9B5F]" />{label}</label>)}</fieldset>
+                      {(error || notice) && <p role={error ? 'alert' : 'status'} className={`rounded-xl border p-3 text-sm leading-6 ${error ? 'border-clay/50 bg-clay/10 text-champagne' : 'border-sage/50 bg-sage/10 text-champagne'}`}>{error || notice}</p>}
+                      {conversationId && notice ? <Link href="/messages" className="flex w-full items-center justify-center gap-2 rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-sm font-semibold text-gold"><MessageCircle className="size-4" />Open conversation in Messages</Link> : null}
                       {coupleOwner ? (
-                        <button type="submit" disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-xl bg-gold px-4 py-3 text-sm font-semibold text-espresso disabled:opacity-60">{busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}Send enquiry</button>
+                        <button type="submit" disabled={busy} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-gold px-4 py-3 text-base font-semibold text-espresso shadow-sm disabled:opacity-60">{busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}Send enquiry</button>
                       ) : sessionChecking ? (
-                        <button type="button" disabled className="flex w-full items-center justify-center gap-2 rounded-xl bg-gold/45 px-4 py-3 text-sm font-semibold text-espresso/70"><Loader2 className="size-4 animate-spin" />Checking Wewed account…</button>
+                        <button type="button" disabled className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-gold/45 px-4 py-3 text-sm font-semibold text-espresso/70"><Loader2 className="size-4 animate-spin" />Checking Wewed account…</button>
                       ) : (
-                        <Link href="/sign-in" className="flex w-full items-center justify-center gap-2 rounded-xl bg-gold px-4 py-3 text-sm font-semibold text-espresso"><Send className="size-4" />Sign in as Couple to send</Link>
+                        <Link href="/sign-in" className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-gold px-4 py-3 text-sm font-semibold text-espresso"><Send className="size-4" />Sign in as Couple to send</Link>
                       )}
                     </form>
                     {sessionChecking ? (
@@ -301,10 +302,10 @@ function Policy({ title, value }: { title: string; value: string }) {
 function EnquiryField({ field, value, onChange }: { field: ProviderFieldDefinition; value: unknown; onChange: (value: unknown) => void }) {
   if (field.type === 'checkboxes' || field.type === 'multiselect') {
     const selected = valueList(value)
-    return <fieldset className="rounded-xl border border-gold/20 p-3"><legend className="px-2 text-[10px] uppercase tracking-[0.12em] text-gold">{field.label}</legend>{(field.options ?? []).map((option) => <label key={option} className="mt-2 flex items-center gap-2 text-xs text-champagne/65"><input type="checkbox" checked={selected.includes(option)} onChange={() => onChange(selected.includes(option) ? selected.filter((entry) => entry !== option) : [...selected, option])} className="accent-[#BF9B5F]" />{option}</label>)}</fieldset>
+    return <fieldset className="rounded-xl border border-gold/30 p-4"><legend className="px-2 text-xs font-semibold uppercase tracking-[0.12em] text-gold">{field.label}</legend>{(field.options ?? []).map((option) => <label key={option} className="mt-3 flex min-h-7 items-center gap-3 text-sm text-champagne/75"><input type="checkbox" checked={selected.includes(option)} onChange={() => onChange(selected.includes(option) ? selected.filter((entry) => entry !== option) : [...selected, option])} className="size-5 shrink-0 accent-[#BF9B5F]" />{option}</label>)}</fieldset>
   }
-  if (field.type === 'select') return <label className="block text-xs text-champagne/65">{field.label}<select value={typeof value === 'string' ? value : ''} onChange={(event) => onChange(event.target.value)} className={`${inputClass} mt-1.5`}><option value="">Select…</option>{(field.options ?? []).map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
-  if (field.type === 'textarea') return <label className="block text-xs text-champagne/65">{field.label}<textarea value={typeof value === 'string' ? value : ''} onChange={(event) => onChange(event.target.value)} className={`${textareaClass} mt-1.5`} /></label>
-  if (field.type === 'number') return <label className="block text-xs text-champagne/65">{field.label}<input type="number" min={field.min} max={field.max} value={value == null ? '' : String(value)} onChange={(event) => onChange(event.target.value)} className={`${inputClass} mt-1.5`} /></label>
-  return <label className="block text-xs text-champagne/65">{field.label}<input value={typeof value === 'string' ? value : ''} onChange={(event) => onChange(event.target.value)} className={`${inputClass} mt-1.5`} /></label>
+  if (field.type === 'select') return <label className="block text-sm font-medium text-champagne/80">{field.label}<select value={typeof value === 'string' ? value : ''} onChange={(event) => onChange(event.target.value)} className={`${inputClass} mt-2`}><option value="">Select…</option>{(field.options ?? []).map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+  if (field.type === 'textarea') return <label className="block text-sm font-medium text-champagne/80">{field.label}<textarea value={typeof value === 'string' ? value : ''} onChange={(event) => onChange(event.target.value)} className={`${textareaClass} mt-2`} /></label>
+  if (field.type === 'number') return <label className="block text-sm font-medium text-champagne/80">{field.label}<input type="number" min={field.min} max={field.max} value={value == null ? '' : String(value)} onChange={(event) => onChange(event.target.value)} className={`${inputClass} mt-2`} /></label>
+  return <label className="block text-sm font-medium text-champagne/80">{field.label}<input value={typeof value === 'string' ? value : ''} onChange={(event) => onChange(event.target.value)} className={`${inputClass} mt-2`} /></label>
 }

@@ -2,6 +2,74 @@
  * Scope is limited by docs/africa-ready-product-remediation-2026-08-04.md.
  */
 
+/* 0. Shared form controls: keep explicit light surfaces readable in every theme.
+ * This is intentionally conservative: only controls that declare a light surface,
+ * or forms that opt into the Wewed form-surface contract, are forced to espresso text.
+ */
+:where(input, textarea, select).bg-white,
+:where(input, textarea, select).bg-ivory,
+:where(input, textarea, select).bg-champagne {
+  color: #211711 !important;
+  -webkit-text-fill-color: #211711 !important;
+  caret-color: #211711 !important;
+  opacity: 1;
+}
+:where(input, textarea).bg-white::placeholder,
+:where(input, textarea).bg-ivory::placeholder,
+:where(input, textarea).bg-champagne::placeholder {
+  color: #756960 !important;
+  -webkit-text-fill-color: #756960 !important;
+  opacity: 1 !important;
+}
+:where(select).bg-white option,
+:where(select).bg-ivory option,
+:where(select).bg-champagne option {
+  background: #fffdf8;
+  color: #211711;
+}
+
+[data-wewed-form-surface="dark"] {
+  --wewed-form-field-bg: #fffdf8;
+  --wewed-form-field-disabled-bg: #eee8df;
+  --wewed-form-field-border: #b69a67;
+  --wewed-form-field-text: #211711;
+  --wewed-form-field-muted: #756960;
+}
+[data-wewed-form-surface="dark"] input:not([type="checkbox"]):not([type="radio"]),
+[data-wewed-form-surface="dark"] textarea,
+[data-wewed-form-surface="dark"] select {
+  background: var(--wewed-form-field-bg) !important;
+  color: var(--wewed-form-field-text) !important;
+  -webkit-text-fill-color: var(--wewed-form-field-text) !important;
+  caret-color: var(--wewed-form-field-text) !important;
+  border-color: var(--wewed-form-field-border) !important;
+  opacity: 1 !important;
+  color-scheme: light;
+}
+[data-wewed-form-surface="dark"] input:not([type="checkbox"]):not([type="radio"])::placeholder,
+[data-wewed-form-surface="dark"] textarea::placeholder {
+  color: var(--wewed-form-field-muted) !important;
+  -webkit-text-fill-color: var(--wewed-form-field-muted) !important;
+  opacity: 1 !important;
+}
+[data-wewed-form-surface="dark"] select option {
+  background: var(--wewed-form-field-bg);
+  color: var(--wewed-form-field-text);
+}
+[data-wewed-form-surface="dark"] input:not([type="checkbox"]):not([type="radio"]):disabled,
+[data-wewed-form-surface="dark"] textarea:disabled,
+[data-wewed-form-surface="dark"] select:disabled {
+  background: var(--wewed-form-field-disabled-bg) !important;
+  color: #554a42 !important;
+  -webkit-text-fill-color: #554a42 !important;
+}
+[data-wewed-form-surface="dark"] input:not([type="checkbox"]):not([type="radio"]):focus,
+[data-wewed-form-surface="dark"] textarea:focus,
+[data-wewed-form-surface="dark"] select:focus {
+  outline: 3px solid rgba(191, 155, 95, .48) !important;
+  outline-offset: 2px;
+}
+
 /* 1. Landing hero: keep the Wewed-created bride-and-groom film and local poster readable. */
 [data-testid="africa-ready-hero"] > img,
 [data-testid="africa-ready-hero"] > video {

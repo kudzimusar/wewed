@@ -58,6 +58,7 @@ jobs:
       - run: bun test src/lib/provider-price-bindings.test.ts
       - run: bun test src/lib/provider-commercial-guidance.test.ts
       - run: bun test src/lib/provider-claim-regressions.test.ts
+      - run: bun test src/lib/form-surface-regression.test.ts
       - run: >-
           bunx prisma migrate diff
           --from-url "$DATABASE_URL"
