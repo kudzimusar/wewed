@@ -19,8 +19,12 @@ import { PlannerTrigger } from '@/components/wedding/planner-trigger';
 import { ThemeToggle } from '@/components/wedding/theme-toggle';
 import { QrGateway, QrGatewayTrigger } from '@/components/wedding/qr-gateway';
 import { useLocale, useT } from '@/lib/i18n';
-import { isAdminLoggedIn, logoutAdmin } from '@/lib/admin-auth';
+import { logoutAdmin } from '@/lib/admin-auth';
 import { useWeddingContextSafe } from '@/components/wedding/wedding-data-provider';
+import type {
+  PublicWeddingAccessKind,
+  WeddingViewerRole,
+} from '@/lib/wedding-access-kind';
 
 // 6 primary nav links (desktop) — clean, not crowded
 const PRIMARY_NAV = [
@@ -39,18 +43,51 @@ const SECONDARY_NAV = [
   { key: 'nav.travel', href: '#travel' },
 ] as const;
 
-export function Navbar() {
+function fallbackMonogram(
+  partner1?: string,
+  partner2?: string,
+  dateValue?: string,
+): string {
+  const initials = [partner1?.trim()?.[0], partner2?.trim()?.[0]]
+    .filter(Boolean)
+    .join('&');
+  if (!dateValue) return initials || 'Wewed';
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return initials || 'Wewed';
+  const shortDate = new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+  }).format(date).replaceAll('/', '.');
+  return [initials, shortDate].filter(Boolean).join(' · ');
+}
+
+export function Navbar({
+  accessKind = null,
+  viewerRole = null,
+}: {
+  accessKind?: PublicWeddingAccessKind;
+  viewerRole?: WeddingViewerRole;
+}) {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
-  const [adminLoggedIn, setAdminLoggedIn] = useState(false);
   const [activeSection, setActiveSection] = useState<string>('');
   const t = useT();
   useLocale();
 
-  // Dynamic monogram from wedding data context (multi-couple)
   const ctx = useWeddingContextSafe();
-  const monogram = ctx?.getContent('hero', 'monogram', 'C&K · 23.12.26') || 'C&K · 23.12.26';
+  const wedding = ctx?.wedding;
+  const generatedMonogram = fallbackMonogram(
+    wedding?.couple.partner1,
+    wedding?.couple.partner2,
+    wedding?.date,
+  );
+  const monogram =
+    ctx?.getContent('hero', 'monogram', wedding?.monogram || generatedMonogram) ||
+    generatedMonogram;
+  const showPlannerControl = accessKind === 'couple_owner' && viewerRole === 'couple';
+  const showAdminLogout = viewerRole === 'admin';
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 50);
@@ -58,12 +95,10 @@ export function Navbar() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Scroll-spy: track which section is currently in the viewport's reading band
-  // and highlight the corresponding navbar link. Uses IntersectionObserver with
-  // a rootMargin that focuses on the middle 30% of the viewport.
+  // Scroll-spy: track which section is currently in the viewport's reading band.
   useEffect(() => {
     const allLinks = [...PRIMARY_NAV, ...SECONDARY_NAV];
-    const sectionIds = allLinks.map((l) => l.href.slice(1)); // strip '#'
+    const sectionIds = allLinks.map((l) => l.href.slice(1));
     const sections = sectionIds
       .map((id) => document.getElementById(id))
       .filter((el): el is HTMLElement => el !== null);
@@ -79,7 +114,6 @@ export function Navbar() {
             visible.delete(entry.target.id);
           }
         }
-        // Pick the most-visible section
         let bestId = '';
         let bestRatio = 0;
         visible.forEach((ratio, id) => {
@@ -99,15 +133,8 @@ export function Navbar() {
     return () => observer.disconnect();
   }, []);
 
-  // Check admin status after mount (client-only, no hydration mismatch)
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setAdminLoggedIn(isAdminLoggedIn());
-  }, []);
-
   const handleLogout = () => {
     logoutAdmin();
-    setAdminLoggedIn(false);
     window.location.reload();
   };
 
@@ -130,7 +157,6 @@ export function Navbar() {
         }`}
       >
         <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          {/* Left — wordmark */}
           <div className="flex flex-col">
             <a
               href="#home"
@@ -147,7 +173,6 @@ export function Navbar() {
             </span>
           </div>
 
-          {/* Center — 6 primary nav links (desktop) */}
           <div className="hidden items-center gap-6 lg:flex">
             {PRIMARY_NAV.map((link) => {
               const isActive = activeSection === link.href;
@@ -166,7 +191,6 @@ export function Navbar() {
                   }`}
                 >
                   {t(link.key)}
-                  {/* Active underline indicator */}
                   <span
                     className={`absolute -bottom-1.5 left-1/2 h-px -translate-x-1/2 bg-gold transition-all duration-300 ${
                       isActive ? 'w-full opacity-100' : 'w-0 opacity-0'
@@ -178,19 +202,17 @@ export function Navbar() {
             })}
           </div>
 
-          {/* Right — PLAN + BEFORE|AFTER toggle + More dropdown + hamburger */}
           <div className="flex items-center gap-2">
-            {/* PLAN button (desktop) */}
-            <div className="hidden md:block">
-              <PlannerTrigger />
-            </div>
+            {showPlannerControl && (
+              <div className="hidden md:block">
+                <PlannerTrigger />
+              </div>
+            )}
 
-            {/* BEFORE | AFTER toggle — visible on desktop, cool feature worth being public */}
             <div className="hidden sm:flex items-center">
               <BeforeAfterToggle />
             </div>
 
-            {/* More dropdown — consolidates secondary links + toggles */}
             <div className="hidden sm:block">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -230,7 +252,7 @@ export function Navbar() {
                     <span className="font-sans text-xs uppercase tracking-[0.15em]">QR & Share</span>
                   </DropdownMenuItem>
 
-                  {adminLoggedIn && (
+                  {showAdminLogout && (
                     <>
                       <DropdownMenuSeparator className="bg-gold/20" />
                       <DropdownMenuItem
@@ -247,8 +269,6 @@ export function Navbar() {
                   <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gold/70">
                     Settings
                   </DropdownMenuLabel>
-
-                  {/* Toggles in a row */}
                   <div className="flex items-center gap-2 px-2 py-1">
                     <ThemeToggle />
                     <LanguageToggle size="sm" />
@@ -257,7 +277,6 @@ export function Navbar() {
               </DropdownMenu>
             </div>
 
-            {/* Mobile hamburger */}
             <Button
               variant="ghost"
               size="icon"
@@ -271,7 +290,6 @@ export function Navbar() {
         </nav>
       </motion.header>
 
-      {/* Mobile sheet */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <SheetContent
           side="right"
@@ -310,7 +328,7 @@ export function Navbar() {
               );
             })}
 
-            <div className="mt-6"><PlannerTrigger /></div>
+            {showPlannerControl && <div className="mt-6"><PlannerTrigger /></div>}
             <div className="mt-4"><QrGatewayTrigger onOpen={() => { setMobileOpen(false); setQrOpen(true); }} /></div>
 
             <div className="mt-6 flex items-center gap-3">
@@ -319,7 +337,7 @@ export function Navbar() {
             </div>
             <div className="mt-4"><BeforeAfterToggle /></div>
 
-            {adminLoggedIn && (
+            {showAdminLogout && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -334,7 +352,6 @@ export function Navbar() {
         </SheetContent>
       </Sheet>
 
-      {/* QR Gateway modal */}
       <QrGateway open={qrOpen} onOpenChange={setQrOpen} />
     </>
   );
