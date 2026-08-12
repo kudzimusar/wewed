@@ -61,7 +61,10 @@ test('authenticated wedding members receive workspace navigation without flagshi
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto(`/w/${E2E_WEDDINGS.primary.slug}`)
 
-  await expect(page.getByTestId('data-backed-wedding-experience')).toBeVisible()
+  const weddingSurface = page.locator('#main-content')
+  await expect(weddingSurface).toBeVisible()
+  await expect(weddingSurface).toContainText('Aurora')
+  await expect(weddingSurface).toContainText('Blake')
   const workspaceLink = page.getByRole('link', {
     name: 'Planner workspace',
     exact: true,
