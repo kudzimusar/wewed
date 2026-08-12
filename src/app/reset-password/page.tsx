@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { CheckCircle2, Eye, EyeOff, Loader2, LockKeyhole, ShieldAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -12,6 +12,8 @@ type RecoveryState = 'checking' | 'ready' | 'invalid' | 'complete'
 
 export default function ResetPasswordPage() {
   const supabase = useMemo(() => createClient(), [])
+  const recoveryHandoffRef = useRef<Promise<boolean> | null>(null)
+  const rejectedRecoveryRef = useRef(false)
   const [state, setState] = useState<RecoveryState>('checking')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -23,21 +25,53 @@ export default function ResetPasswordPage() {
     let cancelled = false
 
     async function establishRecoverySession() {
-      const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+      const url = new URL(window.location.href)
+      const hash = new URLSearchParams(url.hash.replace(/^#/, ''))
+      const code = url.searchParams.get('code')
       const accessToken = hash.get('access_token')
       const refreshToken = hash.get('refresh_token')
+      const recoveryError = url.searchParams.get('error') ?? hash.get('error')
 
-      if (window.location.hash) {
-        window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
+      // Remove one-time credentials and Auth error details from the address bar as
+      // soon as they have been captured. React Strict Mode can run this effect twice,
+      // so the handoff promise below is retained across the duplicate invocation.
+      const cleanUrl = new URL(window.location.href)
+      cleanUrl.searchParams.delete('code')
+      cleanUrl.searchParams.delete('error')
+      cleanUrl.searchParams.delete('error_code')
+      cleanUrl.searchParams.delete('error_description')
+      cleanUrl.hash = ''
+      window.history.replaceState(null, '', `${cleanUrl.pathname}${cleanUrl.search}`)
+
+      if (recoveryError) {
+        rejectedRecoveryRef.current = true
       }
 
-      if (accessToken && refreshToken) {
-        const { error: sessionError } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        })
+      if (rejectedRecoveryRef.current) {
+        if (!cancelled) setState('invalid')
+        return
+      }
 
-        if (sessionError) {
+      if (!recoveryHandoffRef.current) {
+        if (code) {
+          recoveryHandoffRef.current = supabase.auth
+            .exchangeCodeForSession(code)
+            .then(({ error: exchangeError }) => !exchangeError)
+            .catch(() => false)
+        } else if (accessToken && refreshToken) {
+          recoveryHandoffRef.current = supabase.auth
+            .setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            })
+            .then(({ error: sessionError }) => !sessionError)
+            .catch(() => false)
+        }
+      }
+
+      if (recoveryHandoffRef.current) {
+        const established = await recoveryHandoffRef.current
+        if (!established) {
           if (!cancelled) setState('invalid')
           return
         }
@@ -152,7 +186,7 @@ export default function ResetPasswordPage() {
                 Your password has been changed and previous Supabase sessions have been signed out. Sign in again using the new password.
               </p>
               <Button asChild className="w-full bg-gold text-espresso hover:bg-gold-light">
-                <Link href="/admin">Return to Wewed Admin sign-in</Link>
+                <Link href="/sign-in">Continue to Wewed sign-in</Link>
               </Button>
             </div>
           )}
