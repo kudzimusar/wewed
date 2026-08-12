@@ -5,8 +5,8 @@ import { Music, Heart, Disc3, Radio } from 'lucide-react'
 import { useWewedLive } from '@/lib/useWewedLive'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-
-/* ── Helpers ── */
+import { useWeddingContextSafe } from '@/components/wedding/wedding-data-provider'
+import { compactWeddingDate, coupleNames } from '@/lib/wedding-template-defaults'
 
 function rankBadgeClass(rank: number): string {
   if (rank === 1) return 'bg-gold text-espresso'
@@ -15,18 +15,23 @@ function rankBadgeClass(rank: number): string {
   return 'bg-gold/10 text-gold-muted'
 }
 
-/* ── Main Songbook Live Widget ── */
-
 export function SongbookLive() {
   const { isConnected, songVotes } = useWewedLive()
+  const ctx = useWeddingContextSafe()
+  const wedding = ctx?.wedding
 
   const topSongs = songVotes.slice(0, 10)
   const totalVotes = songVotes.reduce((sum, s) => sum + s.votes, 0)
+  const footerMark = [
+    wedding?.monogram || coupleNames(wedding),
+    compactWeddingDate(wedding?.date),
+  ]
+    .filter(Boolean)
+    .join(' · ')
 
   return (
     <Card className="border border-gold/30 bg-champagne/80 shadow-sm">
       <CardContent className="p-5">
-        {/* Header */}
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="flex size-8 items-center justify-center rounded-full bg-gold/10">
@@ -62,7 +67,6 @@ export function SongbookLive() {
           )}
         </div>
 
-        {/* Songs */}
         {!isConnected && songVotes.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
             <Disc3 className="size-6 text-gold/40" />
@@ -106,16 +110,14 @@ export function SongbookLive() {
                         : 'border-gold/10 bg-white/40'
                     }`}
                   >
-                    {/* Rank */}
                     <div
                       className={`flex size-7 shrink-0 items-center justify-center rounded-full font-sans text-xs font-semibold ${rankBadgeClass(
-                        rank
+                        rank,
                       )}`}
                     >
                       {rank}
                     </div>
 
-                    {/* Song info */}
                     <div className="min-w-0 flex-1">
                       <p className="wewed-heading truncate text-sm text-espresso leading-tight">
                         {song.title}
@@ -125,7 +127,6 @@ export function SongbookLive() {
                       </p>
                     </div>
 
-                    {/* Votes */}
                     <div className="flex shrink-0 items-center gap-1">
                       <Heart className="size-3 fill-clay text-clay" />
                       <span className="font-sans text-xs font-medium text-clay">
@@ -145,16 +146,17 @@ export function SongbookLive() {
           </motion.div>
         )}
 
-        {/* Footer */}
         <div className="mt-4 flex items-center justify-between border-t border-gold/15 pt-3">
           <p className="font-sans text-[10px] text-muted-foreground">
             {isConnected
               ? 'Updates live as guests vote'
               : 'Will refresh when connected'}
           </p>
-          <span className="wewed-monogram text-[10px] tracking-widest">
-            C&amp;K · 23.12.26
-          </span>
+          {footerMark && (
+            <span className="wewed-monogram text-[10px] tracking-widest">
+              {footerMark}
+            </span>
+          )}
         </div>
       </CardContent>
     </Card>
