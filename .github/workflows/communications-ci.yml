@@ -14,6 +14,7 @@ on:
       - 'scripts/communications-rate-limit-postgres-integration.sql'
       - 'scripts/communications-supabase-scheduler.sql'
       - 'src/app/messages/**'
+      - 'src/app/api/messages/route.ts'
       - 'src/app/api/communications/**'
       - 'src/app/api/cron/communications-deliveries/**'
       - 'src/app/api/internal/communications/**'
@@ -145,11 +146,42 @@ jobs:
       - name: Run communications authorization integration
         run: bun test src/lib/communications.integration.test.ts
 
-      - name: Confirm legacy public message system is untouched
+      - name: Confirm legacy public message compatibility and privacy boundary
         if: github.event_name == 'pull_request'
         shell: bash
         run: |
-          git diff --exit-code "origin/${{ github.base_ref }}"...HEAD -- prisma/schema.prisma src/app/api/messages/route.ts
+          # The private communications foundation must not silently reshape the
+          # Prisma public schema. Wedding-message hardening is allowed, but it
+          # must preserve the legacy wedding-scoped read/write model and add a
+          # verified participant boundary for writes.
+          git diff --exit-code "origin/${{ github.base_ref }}"...HEAD -- prisma/schema.prisma
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/app/api/messages/route.ts')
+          text = path.read_text()
+          required = [
+              'resolveWeddingAccessForRequest',
+              'weddingSlugFromRequest',
+              'db.message.findMany',
+              'weddingId: resolved.access.wedding.id',
+              'isPublic: true',
+              'db.message.create',
+              'authorToken: resolved.access.guest?.rsvpToken ?? null',
+              "resolved.access.accessKind === 'public'",
+              "Open your personal invitation before posting to the wedding wall.",
+              '{ status: 403 }',
+          ]
+          missing = [item for item in required if item not in text]
+          if missing:
+              raise SystemExit(f'Public wedding message compatibility/privacy contract missing: {missing}')
+
+          if 'where: { weddingId: resolved.access.wedding.id, isPublic: true }' not in text:
+              raise SystemExit('Public message reads must remain scoped to the resolved wedding and public messages only.')
+
+          if text.count('export async function GET') != 1 or text.count('export async function POST') != 1:
+              raise SystemExit('Legacy public message API must retain exactly one GET and one POST handler.')
+          PY
 
       - name: Confirm analytics writer does not copy message body
         shell: bash
