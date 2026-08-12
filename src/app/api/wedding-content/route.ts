@@ -37,6 +37,20 @@ export async function GET(request: NextRequest) {
           },
         },
         contentItems: true,
+        programmeItems: {
+          orderBy: [{ order: 'asc' }, { time: 'asc' }],
+          select: {
+            id: true,
+            time: true,
+            title: true,
+            description: true,
+            icon: true,
+            duration: true,
+            location: true,
+            displayIcon: true,
+            order: true,
+          },
+        },
       },
     })
 
@@ -107,6 +121,7 @@ export async function GET(request: NextRequest) {
           content,
           contentMeta,
           ordered,
+          programmeItems: wedding.programmeItems,
         },
       }),
     )
