@@ -1,8 +1,15 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { ShieldCheck } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { SecureAdminDashboard } from '@/components/wedding/secure-admin-dashboard'
 
+/**
+ * This component must only be mounted after the server has resolved an admin
+ * application session for the active wedding. It is intentionally a compact
+ * owner control rather than part of the guest navigation surface.
+ */
 export function AdminTrigger() {
   const [open, setOpen] = useState(false)
 
@@ -47,7 +54,22 @@ export function AdminTrigger() {
     }
   }, [])
 
-  if (!open) return null
-
-  return <SecureAdminDashboard onClose={() => setOpen(false)} />
+  return (
+    <>
+      <div className="fixed bottom-6 left-6 z-40" data-testid="admin-console-control">
+        <Button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="min-h-11 rounded-full border border-gold/40 bg-espresso/95 px-4 text-champagne shadow-lg backdrop-blur-md hover:border-gold hover:bg-espresso"
+          aria-label="Open admin console"
+        >
+          <ShieldCheck className="mr-2 h-4 w-4 text-gold" />
+          <span className="font-sans text-[10px] font-semibold uppercase tracking-[0.16em]">
+            Admin console
+          </span>
+        </Button>
+      </div>
+      {open && <SecureAdminDashboard onClose={() => setOpen(false)} />}
+    </>
+  )
 }
