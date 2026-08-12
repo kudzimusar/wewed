@@ -70,9 +70,7 @@ function TimelineItem({
               } justify-start`}
             >
               <span className="text-gold">{milestone.icon}</span>
-              <h3 className="wewed-heading text-xl font-light text-espresso sm:text-2xl">
-                {title}
-              </h3>
+              <h3 className="wewed-heading text-xl font-light text-espresso sm:text-2xl">{title}</h3>
               <InlineEditButton
                 section="story"
                 field={`milestoneTitle${index}`}
@@ -80,14 +78,8 @@ function TimelineItem({
                 defaultValue={milestone.title}
               />
             </div>
-            <p className="font-sans text-sm leading-relaxed text-espresso/75 sm:text-base">
-              {body}
-            </p>
-            <div
-              className={`mt-3 flex ${
-                isLeft ? 'md:justify-end' : 'md:justify-start'
-              } justify-start`}
-            >
+            <p className="font-sans text-sm leading-relaxed text-espresso/75 sm:text-base">{body}</p>
+            <div className={`mt-3 flex ${isLeft ? 'md:justify-end' : 'md:justify-start'} justify-start`}>
               <InlineEditButton
                 section="story"
                 field={`milestoneBody${index}`}
@@ -123,9 +115,7 @@ export function OurStory() {
     'familyNames',
     `${names} · Add family or wedding-party names here`,
   ) ?? `${names} · Add family or wedding-party names here`;
-  const familyImageUrl =
-    ctx?.getContent('story', 'familyImageUrl', '') ||
-    (ctx?.isFlagship ? '/couple-silhouette.png' : '');
+  const familyImageUrl = ctx?.getContent('story', 'familyImageUrl', '') ?? '';
 
   const dbMilestones = ctx?.getOrdered('story', 'milestone-') ?? [];
   const baseMilestones: Milestone[] = dbMilestones.length > 0
@@ -158,27 +148,12 @@ export function OurStory() {
         >
           <SectionEyebrow>Chapter One</SectionEyebrow>
           <div className="inline-flex items-center gap-2">
-            <h2 className="wewed-heading wewed-heading-accent text-3xl font-light text-espresso sm:text-4xl md:text-5xl">
-              {heading}
-            </h2>
-            <InlineEditButton
-              section="story"
-              field="heading"
-              label="section heading"
-              defaultValue={dbHeading}
-              size="md"
-            />
+            <h2 className="wewed-heading wewed-heading-accent text-3xl font-light text-espresso sm:text-4xl md:text-5xl">{heading}</h2>
+            <InlineEditButton section="story" field="heading" label="section heading" defaultValue={dbHeading} size="md" />
           </div>
           <div className="mt-6 flex items-center justify-center gap-2">
-            <p className="font-sans text-sm tracking-wide text-espresso/60 sm:text-base">
-              {subtitle}
-            </p>
-            <InlineEditButton
-              section="story"
-              field="subtitle"
-              label="section subtitle"
-              defaultValue={dbSubtitle}
-            />
+            <p className="font-sans text-sm tracking-wide text-espresso/60 sm:text-base">{subtitle}</p>
+            <InlineEditButton section="story" field="subtitle" label="section subtitle" defaultValue={dbSubtitle} />
           </div>
         </motion.div>
 
@@ -212,35 +187,18 @@ export function OurStory() {
             ) : (
               <div className="px-6 text-center">
                 <p className="font-serif text-3xl text-champagne">{names}</p>
-                <p className="mt-3 font-sans text-[10px] uppercase tracking-[0.18em] text-gold">
-                  Add your favourite portrait
-                </p>
+                <p className="mt-3 font-sans text-[10px] uppercase tracking-[0.18em] text-gold">Add your favourite portrait</p>
               </div>
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-champagne/30 to-transparent" />
           </div>
           <div className="mt-6 flex items-center justify-center gap-2">
-            <h3 className="wewed-heading text-2xl font-light text-espresso sm:text-3xl">
-              {familyTitle}
-            </h3>
-            <InlineEditButton
-              section="story"
-              field="familyTitle"
-              label="family portrait title"
-              defaultValue={dbFamilyTitle}
-              size="md"
-            />
+            <h3 className="wewed-heading text-2xl font-light text-espresso sm:text-3xl">{familyTitle}</h3>
+            <InlineEditButton section="story" field="familyTitle" label="family portrait title" defaultValue={dbFamilyTitle} size="md" />
           </div>
           <div className="mt-2 flex items-center justify-center gap-2">
-            <p className="font-sans text-sm tracking-wider text-espresso/60 sm:text-base">
-              {familySubtitle}
-            </p>
-            <InlineEditButton
-              section="story"
-              field="familyNames"
-              label="family portrait names"
-              defaultValue={dbFamilyNames}
-            />
+            <p className="font-sans text-sm tracking-wider text-espresso/60 sm:text-base">{familySubtitle}</p>
+            <InlineEditButton section="story" field="familyNames" label="family portrait names" defaultValue={dbFamilyNames} />
           </div>
         </motion.div>
       </div>
