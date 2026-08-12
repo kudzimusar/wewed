@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Send, Heart, MessageSquare, Loader2 } from 'lucide-react'
+import { Send, Heart, MessageSquare, Loader2, Lock } from 'lucide-react'
 import { useWewedStore } from '@/lib/store'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -60,7 +60,7 @@ function MessageRow({ msg, index }: { msg: WallMessage; index: number }) {
   )
 }
 
-export function LiveWall() {
+export function LiveWall({ canPost = false }: { canPost?: boolean }) {
   const { lifecycle } = useWewedStore()
   const ctx = useWeddingContextSafe()
   const wedding = ctx?.wedding
@@ -97,7 +97,7 @@ export function LiveWall() {
   const handleSend = async (event: React.FormEvent) => {
     event.preventDefault()
     const content = draftMsg.trim()
-    if (!content || !ctx?.slug) return
+    if (!canPost || !content || !ctx?.slug) return
     setSending(true)
     setError(null)
     try {
@@ -157,23 +157,30 @@ export function LiveWall() {
               ) : (
                 <div className="rounded-xl border border-dashed border-gold/25 bg-white/40 p-6 text-center">
                   <Heart className="mx-auto size-6 text-gold/60" />
-                  <p className="mt-3 font-sans text-sm text-muted-foreground">No public messages yet. Be the first to leave a note for the couple.</p>
+                  <p className="mt-3 font-sans text-sm text-muted-foreground">No public messages yet.</p>
                 </div>
               )}
             </div>
 
-            <form onSubmit={(event) => void handleSend(event)} className="space-y-3 border-t border-gold/15 pt-5">
-              <div className="grid gap-3 sm:grid-cols-[11rem_1fr]">
-                <Input value={draftName} onChange={(event) => setDraftName(event.target.value)} placeholder="Your name" className="border-gold/25 bg-white/70" />
-                <div className="flex gap-2">
-                  <Input value={draftMsg} onChange={(event) => setDraftMsg(event.target.value)} placeholder="Write a message for the couple…" maxLength={1000} className="border-gold/25 bg-white/70" />
-                  <Button type="submit" disabled={sending || !draftMsg.trim()} className="bg-gold text-espresso hover:bg-gold-light">
-                    {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-                  </Button>
+            {canPost ? (
+              <form onSubmit={(event) => void handleSend(event)} className="space-y-3 border-t border-gold/15 pt-5">
+                <div className="grid gap-3 sm:grid-cols-[11rem_1fr]">
+                  <Input value={draftName} onChange={(event) => setDraftName(event.target.value)} placeholder="Your name" className="border-gold/25 bg-white/70" />
+                  <div className="flex gap-2">
+                    <Input value={draftMsg} onChange={(event) => setDraftMsg(event.target.value)} placeholder="Write a message for the couple…" maxLength={1000} className="border-gold/25 bg-white/70" />
+                    <Button type="submit" disabled={sending || !draftMsg.trim()} className="bg-gold text-espresso hover:bg-gold-light">
+                      {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+                    </Button>
+                  </div>
                 </div>
+                {error && <p role="alert" className="font-sans text-xs text-clay">{error}</p>}
+              </form>
+            ) : (
+              <div className="flex items-center justify-center gap-2 border-t border-gold/15 pt-5 text-center font-sans text-xs text-muted-foreground">
+                <Lock className="size-3.5 text-gold" />
+                Posting is available through a verified personal invitation.
               </div>
-              {error && <p role="alert" className="font-sans text-xs text-clay">{error}</p>}
-            </form>
+            )}
           </CardContent>
         </Card>
       </div>
