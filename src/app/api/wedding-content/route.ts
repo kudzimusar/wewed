@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { requireAdmin } from '@/lib/admin-gate'
+import { getAdminSession, hasPermission } from '@/lib/admin-gate'
 import {
   resolveWeddingAccessForRequest,
   weddingAccessErrorPayload,
@@ -130,10 +130,34 @@ interface PostBody {
   metadata?: string | Record<string, unknown> | null
 }
 
-export async function POST(request: NextRequest) {
-  const denied = requireAdmin(request)
-  if (denied) return denied
+async function canEditWeddingContent(
+  request: NextRequest,
+  wedding: { id: string; coupleId: string },
+): Promise<boolean> {
+  const session = getAdminSession(request)
+  if (!session) return false
+  if (session.role === 'admin') return true
+  if (session.activeWeddingId !== wedding.id) return false
+  if (!hasPermission(request, 'content.edit')) return false
 
+  const membership = await db.weddingMembership.findFirst({
+    where: {
+      weddingId: wedding.id,
+      userId: session.userId,
+      status: 'active',
+    },
+    select: { role: true },
+  })
+  if (!membership) return false
+
+  if (session.role === 'couple') {
+    return session.coupleId === wedding.coupleId && membership.role === 'owner'
+  }
+
+  return session.role === 'planner'
+}
+
+export async function POST(request: NextRequest) {
   try {
     const body = (await request.json().catch(() => null)) as PostBody | null
     const slug = body?.slug?.trim()
@@ -146,9 +170,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const wedding = await db.wedding.findUnique({ where: { slug }, select: { id: true } })
+    const wedding = await db.wedding.findUnique({
+      where: { slug },
+      select: { id: true, coupleId: true },
+    })
     if (!wedding) {
       return NextResponse.json({ success: false, error: 'Wedding not found.' }, { status: 404 })
+    }
+
+    if (!(await canEditWeddingContent(request, wedding))) {
+      return NextResponse.json(
+        { success: false, error: 'Forbidden — this account cannot edit this wedding.' },
+        { status: 403 },
+      )
     }
 
     let metadata: string | null = null
