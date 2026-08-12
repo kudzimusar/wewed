@@ -17,6 +17,7 @@ import {
   type WeddingContentMap,
   type WeddingContent as WeddingContentRow,
   type WeddingProgrammeItem,
+  type WeddingSong,
 } from "@/lib/wedding-data";
 
 interface WeddingContextValue {
@@ -25,6 +26,7 @@ interface WeddingContextValue {
   contentMeta: Record<string, Record<string, string | null>>;
   ordered: Record<string, WeddingContentRow[]>;
   programmeItems: WeddingProgrammeItem[];
+  songs: WeddingSong[];
   loading: boolean;
   error: string | null;
   refetch: () => void;
@@ -65,6 +67,7 @@ export function WeddingDataProvider({
     contentMeta,
     ordered,
     programmeItems,
+    songs,
     loading,
     error,
     refetch,
@@ -73,7 +76,7 @@ export function WeddingDataProvider({
   const value = useMemo<WeddingContextValue>(() => {
     const activeSlug = wedding?.slug ?? slug ?? FLAGSHIP_WEDDING_SLUG;
     const data: WeddingData | null = wedding
-      ? { wedding, content, contentMeta, ordered, programmeItems }
+      ? { wedding, content, contentMeta, ordered, programmeItems, songs }
       : null;
 
     return {
@@ -82,6 +85,7 @@ export function WeddingDataProvider({
       contentMeta,
       ordered,
       programmeItems,
+      songs,
       loading,
       error,
       refetch,
@@ -98,6 +102,7 @@ export function WeddingDataProvider({
     contentMeta,
     ordered,
     programmeItems,
+    songs,
     loading,
     error,
     refetch,
@@ -137,4 +142,5 @@ export type {
   WeddingContentMap,
   WeddingContentRow,
   WeddingProgrammeItem,
+  WeddingSong,
 };
