@@ -1,7 +1,7 @@
-'use client';
+'use client'
 
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   ExternalLink,
   ChevronDown,
@@ -11,108 +11,94 @@ import {
   Music,
   HelpCircle,
   Sparkles,
-} from 'lucide-react';
+} from 'lucide-react'
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from '@/components/ui/collapsible';
-import { Button } from '@/components/ui/button';
+} from '@/components/ui/collapsible'
+import { Button } from '@/components/ui/button'
 import {
   SOCIAL_PLATFORMS,
-  TELEGRAM_CHANNEL,
-  TELEGRAM_CHANNEL_HANDLE,
   type SocialPlatform,
-} from '@/lib/social';
+} from '@/lib/social'
+import { useWeddingContextSafe } from '@/components/wedding/wedding-data-provider'
 
-/* ============================================================
-   TelegramWidget — "Join our Telegram Channel" card
-   ------------------------------------------------------------
-   A compact, elegant card inviting guests to subscribe to the
-   wedding Telegram channel for day-of updates. Stays within
-   the wewed design system (champagne bg, gold border) while
-   using Telegram's blue brand color as the accent.
-   ============================================================ */
-
-/* ── Telegram glyph (brand) ── */
 function TelegramGlyph({ className }: { className?: string }) {
-  const p: SocialPlatform = SOCIAL_PLATFORMS.telegram;
+  const platform: SocialPlatform = SOCIAL_PLATFORMS.telegram
   return (
     <svg
-      viewBox={p.iconViewBox}
+      viewBox={platform.iconViewBox}
       className={className}
       fill="currentColor"
-      fillRule={p.iconFillRule || 'nonzero'}
+      fillRule={platform.iconFillRule || 'nonzero'}
       aria-hidden="true"
     >
-      {p.iconPaths.map((d, i) => (
-        <path key={i} d={d} />
+      {platform.iconPaths.map((path, index) => (
+        <path key={index} d={path} />
       ))}
     </svg>
-  );
+  )
 }
 
 interface BotCommand {
-  cmd: string;
-  label: string;
-  description: string;
-  icon: React.ReactNode;
+  cmd: string
+  description: string
+  icon: React.ReactNode
 }
 
 const BOT_COMMANDS: BotCommand[] = [
   {
     cmd: '/start',
-    label: 'Start',
     description: 'Welcome message + command list',
     icon: <Sparkles className="h-3.5 w-3.5" />,
   },
   {
     cmd: '/info',
-    label: 'Info',
     description: 'Date, venue, time, dress code',
     icon: <CalendarCheck className="h-3.5 w-3.5" />,
   },
   {
     cmd: '/rsvp',
-    label: 'RSVP',
     description: 'Direct link to the RSVP form',
     icon: <Send className="h-3.5 w-3.5" />,
   },
   {
     cmd: '/song',
-    label: 'Song',
     description: 'Request a dance-floor track',
     icon: <Music className="h-3.5 w-3.5" />,
   },
   {
     cmd: '/help',
-    label: 'Help',
     description: 'Full list of bot commands',
     icon: <HelpCircle className="h-3.5 w-3.5" />,
   },
-];
+]
 
 export interface TelegramWidgetProps {
-  /** Override the channel URL (defaults to the wewed placeholder). */
-  channelUrl?: string;
-  /** Optional className for layout integration. */
-  className?: string;
-  /** Show the "Bot Commands" collapsible (default true). */
-  showCommands?: boolean;
+  channelUrl?: string
+  className?: string
+  showCommands?: boolean
 }
 
 export function TelegramWidget({
-  channelUrl = TELEGRAM_CHANNEL,
+  channelUrl,
   className = '',
   showCommands = true,
 }: TelegramWidgetProps) {
-  const [commandsOpen, setCommandsOpen] = useState(false);
+  const [commandsOpen, setCommandsOpen] = useState(false)
+  const ctx = useWeddingContextSafe()
+  const configuredUrl =
+    channelUrl?.trim() || ctx?.getContent('social', 'telegramUrl', '').trim() || ''
+  const configuredHandle =
+    ctx?.getContent('social', 'telegramHandle', '').trim() || ''
+
+  if (!configuredUrl) return null
 
   return (
     <div
       className={`relative overflow-hidden rounded-2xl border border-gold/40 bg-champagne/70 p-5 shadow-[0_10px_30px_-18px_rgba(0,136,204,0.4)] backdrop-blur-sm sm:p-6 ${className}`}
     >
-      {/* Decorative top accent — Telegram blue hairline */}
       <div
         aria-hidden="true"
         className="absolute inset-x-0 top-0 h-0.5"
@@ -121,8 +107,6 @@ export function TelegramWidget({
             'linear-gradient(90deg, transparent, #0088cc 30%, #0088cc 70%, transparent)',
         }}
       />
-
-      {/* Soft blue radial glow */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full opacity-20 blur-2xl"
@@ -130,7 +114,6 @@ export function TelegramWidget({
       />
 
       <div className="relative flex items-start gap-4">
-        {/* Telegram icon medallion */}
         <div
           className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-white shadow-md"
           style={{ background: '#0088cc' }}
@@ -143,23 +126,23 @@ export function TelegramWidget({
             <Bell className="h-3 w-3" />
             Live updates
           </p>
-          <h3 className="wewed-heading text-espresso text-xl sm:text-2xl">
+          <h3 className="wewed-heading text-xl text-espresso sm:text-2xl">
             Join our Telegram Channel
           </h3>
           <p className="mt-2 font-sans text-sm leading-relaxed text-espresso/70">
-            Get instant updates about the wedding — programme changes, live
+            Get instant updates about this wedding — programme changes, live
             moments, and day-of photos.
           </p>
 
-          {/* Channel handle pill */}
-          <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/60 px-2.5 py-1 font-sans text-[11px] text-espresso/70 ring-1 ring-gold/20">
-            <span style={{ color: '#0088cc' }}>
-              <TelegramGlyph className="h-3 w-3" />
-            </span>
-            <span className="font-medium">{TELEGRAM_CHANNEL_HANDLE}</span>
-          </p>
+          {configuredHandle && (
+            <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/60 px-2.5 py-1 font-sans text-[11px] text-espresso/70 ring-1 ring-gold/20">
+              <span style={{ color: '#0088cc' }}>
+                <TelegramGlyph className="h-3 w-3" />
+              </span>
+              <span className="font-medium">{configuredHandle}</span>
+            </p>
+          )}
 
-          {/* Join button */}
           <Button
             type="button"
             asChild
@@ -167,10 +150,10 @@ export function TelegramWidget({
             style={{ background: '#0088cc' }}
           >
             <a
-              href={channelUrl}
+              href={configuredUrl}
               target="_blank"
               rel="noopener noreferrer"
-              aria-label="Join the wewed Telegram channel (opens in a new tab)"
+              aria-label="Join this wedding's Telegram channel (opens in a new tab)"
             >
               <TelegramGlyph className="mr-2 h-4 w-4" />
               Join Channel
@@ -180,7 +163,6 @@ export function TelegramWidget({
         </div>
       </div>
 
-      {/* ── Bot commands collapsible ── */}
       {showCommands && (
         <Collapsible
           open={commandsOpen}
@@ -217,13 +199,13 @@ export function TelegramWidget({
                   className="overflow-hidden"
                 >
                   <p className="mt-3 font-sans text-xs text-espresso/55">
-                    Message the bot directly on Telegram — it&apos;ll reply
-                    instantly with the relevant link or detail.
+                    Message the configured wedding bot directly on Telegram for
+                    the relevant link or detail.
                   </p>
                   <ul className="mt-3 space-y-2">
-                    {BOT_COMMANDS.map((c) => (
+                    {BOT_COMMANDS.map((command) => (
                       <li
-                        key={c.cmd}
+                        key={command.cmd}
                         className="flex items-center gap-3 rounded-lg bg-white/50 px-3 py-2 ring-1 ring-gold/15"
                       >
                         <code
@@ -233,11 +215,11 @@ export function TelegramWidget({
                             color: '#0088cc',
                           }}
                         >
-                          {c.icon}
-                          {c.cmd}
+                          {command.icon}
+                          {command.cmd}
                         </code>
                         <span className="font-sans text-xs text-espresso/70">
-                          {c.description}
+                          {command.description}
                         </span>
                       </li>
                     ))}
@@ -249,7 +231,7 @@ export function TelegramWidget({
         </Collapsible>
       )}
     </div>
-  );
+  )
 }
 
-export default TelegramWidget;
+export default TelegramWidget
