@@ -1,7 +1,7 @@
-'use client';
+'use client'
 
-import { useRef } from 'react';
-import { motion, useInView } from 'framer-motion';
+import { useRef } from 'react'
+import { motion, useInView } from 'framer-motion'
 import {
   Flame,
   Coffee,
@@ -10,35 +10,33 @@ import {
   ShoppingBag,
   ArrowRight,
   Sparkles,
-} from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { GoldOrnament } from '@/components/wedding/decorative-elements';
+} from 'lucide-react'
+import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { GoldOrnament } from '@/components/wedding/decorative-elements'
+import { useWeddingContextSafe } from '@/components/wedding/wedding-data-provider'
+import { compactWeddingDate, coupleNames } from '@/lib/wedding-template-defaults'
 
-/* ─── Types ──────────────────────────────────────────────────────────────── */
-
-type ProductId = 'candle' | 'mug' | 'print' | 'album';
+type ProductId = 'candle' | 'mug' | 'print' | 'album'
 
 interface Product {
-  id: ProductId;
-  name: string;
-  price: number;
-  description: string;
-  icon: typeof Flame;
-  gradient: string;
-  available: boolean;
-  badge?: string;
+  id: ProductId
+  name: string
+  price: number
+  description: string
+  icon: typeof Flame
+  gradient: string
+  available: boolean
+  badge?: string
 }
-
-/* ─── Data ───────────────────────────────────────────────────────────────── */
 
 const PRODUCTS: Product[] = [
   {
     id: 'candle',
-    name: '“Mr & Mrs Musarurwa” Candle',
+    name: 'Personalised Wedding Candle',
     price: 24,
-    description: 'Hand-poured soy candle with gold monogram. 40-hour burn time.',
+    description: 'Hand-poured soy candle with a personalised wedding monogram. 40-hour burn time.',
     icon: Flame,
     gradient: 'from-clay/30 via-gold/15 to-espresso/10',
     available: true,
@@ -47,7 +45,7 @@ const PRODUCTS: Product[] = [
     id: 'mug',
     name: 'Monogram Mug',
     price: 18,
-    description: 'Ceramic mug with C&K 23.12.26 monogram. Dishwasher safe.',
+    description: 'Ceramic keepsake mug personalised for the active wedding. Dishwasher safe.',
     icon: Coffee,
     gradient: 'from-sage/25 via-gold/15 to-espresso/10',
     available: true,
@@ -56,8 +54,7 @@ const PRODUCTS: Product[] = [
     id: 'print',
     name: 'Forever Print',
     price: 45,
-    description:
-      'Archival-quality art print of the couple. A heirloom for the mantle.',
+    description: 'Archival-quality wedding art print designed as a lasting keepsake.',
     icon: ImageIcon,
     gradient: 'from-plum/25 via-gold/15 to-espresso/10',
     available: false,
@@ -67,22 +64,28 @@ const PRODUCTS: Product[] = [
     id: 'album',
     name: 'Memory Album',
     price: 65,
-    description: 'Linen-bound photo album for your favorite 60 moments.',
+    description: 'Linen-bound photo album for favourite moments from the wedding.',
     icon: BookOpen,
     gradient: 'from-gold/30 via-champagne/20 to-espresso/10',
     available: false,
     badge: 'Coming Soon',
   },
-];
+]
 
-const EASING = [0.22, 1, 0.36, 1] as const;
+const EASING = [0.22, 1, 0.36, 1] as const
 
-/* ─── Product card ───────────────────────────────────────────────────────── */
-
-function ProductCard({ product, index }: { product: Product; index: number }) {
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: '-60px' });
-  const Icon = product.icon;
+function ProductCard({
+  product,
+  index,
+  monogramMark,
+}: {
+  product: Product
+  index: number
+  monogramMark: string
+}) {
+  const ref = useRef(null)
+  const isInView = useInView(ref, { once: true, margin: '-60px' })
+  const Icon = product.icon
 
   return (
     <motion.div
@@ -92,14 +95,10 @@ function ProductCard({ product, index }: { product: Product; index: number }) {
       transition={{ duration: 0.7, ease: EASING, delay: 0.1 * index }}
       className="h-full"
     >
-      <Card
-        className="group h-full overflow-hidden border border-gold/25 bg-champagne shadow-sm transition-all duration-300 hover:-translate-y-1.5 hover:border-gold/50 hover:shadow-xl"
-      >
-        {/* Image placeholder — gradient + icon + monogram motif */}
+      <Card className="group h-full overflow-hidden border border-gold/25 bg-champagne shadow-sm transition-all duration-300 hover:-translate-y-1.5 hover:border-gold/50 hover:shadow-xl">
         <div
           className={`relative flex aspect-[4/5] items-center justify-center overflow-hidden bg-gradient-to-br ${product.gradient}`}
         >
-          {/* Dotted texture */}
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 opacity-[0.07]"
@@ -109,24 +108,20 @@ function ProductCard({ product, index }: { product: Product; index: number }) {
               backgroundSize: '18px 18px',
             }}
           />
-
-          {/* Subtle shimmer on hover */}
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 bg-gradient-to-tr from-transparent via-white/0 to-white/20 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
           />
-
-          {/* Center product icon with gold ring */}
           <div className="relative flex h-24 w-24 items-center justify-center rounded-full border border-gold/40 bg-champagne/40 backdrop-blur-sm transition-transform duration-500 group-hover:scale-110">
             <Icon className="h-10 w-10 text-gold" />
           </div>
 
-          {/* Monogram watermark in corner */}
-          <span className="absolute bottom-3 right-3 font-serif text-[10px] uppercase tracking-[0.2em] text-espresso/40">
-            C&amp;K · 23.12.26
-          </span>
+          {monogramMark && (
+            <span className="absolute bottom-3 right-3 font-serif text-[10px] uppercase tracking-[0.2em] text-espresso/40">
+              {monogramMark}
+            </span>
+          )}
 
-          {/* Coming soon badge */}
           {product.badge && (
             <div className="absolute left-3 top-3">
               <Badge className="border border-gold/40 bg-espresso/85 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-gold-light shadow-sm backdrop-blur-sm">
@@ -137,7 +132,6 @@ function ProductCard({ product, index }: { product: Product; index: number }) {
         </div>
 
         <CardContent className="flex h-full flex-col p-5 md:p-6">
-          {/* Name + price */}
           <div className="mb-2 flex items-start justify-between gap-3">
             <h3 className="wewed-heading text-lg leading-snug text-espresso md:text-xl">
               {product.name}
@@ -146,13 +140,9 @@ function ProductCard({ product, index }: { product: Product; index: number }) {
               ${product.price}
             </span>
           </div>
-
-          {/* Description */}
           <p className="mb-5 text-sm leading-relaxed text-espresso/65">
             {product.description}
           </p>
-
-          {/* CTA pinned to bottom */}
           <div className="mt-auto">
             <Button
               disabled={!product.available}
@@ -165,21 +155,23 @@ function ProductCard({ product, index }: { product: Product; index: number }) {
         </CardContent>
       </Card>
     </motion.div>
-  );
+  )
 }
 
-/* ─── Main merch teaser section ──────────────────────────────────────────── */
-
 export function MerchTeaser() {
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: '-80px' });
+  const ref = useRef(null)
+  const isInView = useInView(ref, { once: true, margin: '-80px' })
+  const ctx = useWeddingContextSafe()
+  const wedding = ctx?.wedding
+  const monogramMark = [
+    wedding?.monogram || coupleNames(wedding),
+    compactWeddingDate(wedding?.date),
+  ]
+    .filter(Boolean)
+    .join(' · ')
 
   return (
-    <section
-      id="merch"
-      className="wewed-section relative bg-ivory py-20 md:py-32"
-    >
-      {/* Soft background texture */}
+    <section id="merch" className="wewed-section relative bg-ivory py-20 md:py-32">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 opacity-[0.05]"
@@ -191,7 +183,6 @@ export function MerchTeaser() {
       />
 
       <div className="relative mx-auto max-w-7xl px-4 md:px-8">
-        {/* Heading */}
         <motion.div
           ref={ref}
           initial={{ opacity: 0, y: 24 }}
@@ -203,24 +194,27 @@ export function MerchTeaser() {
             <GoldOrnament className="w-full max-w-[180px]" />
           </div>
           <p className="mb-3 text-xs font-semibold uppercase tracking-[0.32em] text-gold-muted">
-            wewed Keepsakes
+            Wewed Keepsakes
           </p>
           <h2 className="wewed-heading text-4xl text-espresso md:text-5xl lg:text-6xl">
-            wewed Keepsakes
+            Wedding Keepsakes
           </h2>
           <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-espresso/70 md:text-lg">
-            Take a piece of forever with you
+            Personalised objects that can carry this wedding&apos;s own identity rather than another couple&apos;s details.
           </p>
         </motion.div>
 
-        {/* Product grid */}
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 lg:gap-7 lg:items-stretch">
-          {PRODUCTS.map((product, i) => (
-            <ProductCard key={product.id} product={product} index={i} />
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 lg:items-stretch lg:gap-7">
+          {PRODUCTS.map((product, index) => (
+            <ProductCard
+              key={product.id}
+              product={product}
+              index={index}
+              monogramMark={monogramMark}
+            />
           ))}
         </div>
 
-        {/* Note about shipping */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={isInView ? { opacity: 1 } : { opacity: 0 }}
@@ -229,11 +223,10 @@ export function MerchTeaser() {
         >
           <div className="inline-flex items-center gap-2 rounded-full border border-gold/30 bg-champagne/70 px-5 py-2.5 text-xs text-espresso/70 shadow-sm backdrop-blur-sm md:text-sm">
             <Sparkles className="h-3.5 w-3.5 text-gold" />
-            All keepsakes are made-to-order and ship globally from Harare.
+            Keepsakes are personalised only from the active wedding&apos;s own details.
           </div>
         </motion.div>
 
-        {/* Browse full store CTA */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
@@ -244,15 +237,15 @@ export function MerchTeaser() {
             asChild
             className="group rounded-full bg-espresso px-8 py-3 text-sm font-semibold uppercase tracking-[0.12em] text-champagne transition-all hover:bg-plum hover:shadow-lg hover:shadow-plum/20"
           >
-            <a href="#">
-              Browse Full Store
+            <a href="/vendors?category=Gifts%20%26%20Favours">
+              Browse keepsake providers
               <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
             </a>
           </Button>
         </motion.div>
       </div>
     </section>
-  );
+  )
 }
 
-export default MerchTeaser;
+export default MerchTeaser
