@@ -25,47 +25,76 @@ assert.ok(plan.indexOf('Delivery sequence') > plan.indexOf('Implementation works
 const weddingPage = includesAll('src/app/w/[slug]/page.tsx', [
   'resolveWeddingAccessFromTokens',
   'accessKind={resolution.accessKind}',
+  'viewerRole={viewerRole}',
+  "appSession?.activeWeddingId === wedding.id ? appSession.role : null",
 ])
 assert.ok(!weddingPage.includes('<WeddingHome slug={slug} />'))
 
 const weddingHome = includesAll('src/components/wedding/wedding-home.tsx', [
   'accessKind?: PublicWeddingAccessKind',
-  '<DataBackedWeddingExperience />',
-  '<CoupleLogin accessKind={accessKind} />',
-  '<GlobalWeddingTools accessKind={accessKind} />',
+  'viewerRole?: WeddingViewerRole',
+  '<WeddingHomeContent accessKind={accessKind} viewerRole={viewerRole} />',
+  '<Navbar accessKind={accessKind} viewerRole={viewerRole} />',
+  "const isCoupleOwner = accessKind === 'couple_owner' && viewerRole === 'couple'",
+  "const canContribute = accessKind !== 'public' && accessKind !== null",
+  '{canContribute && <MediaUpload />}',
+  '<LiveWall canPost={canContribute} />',
+  '<GlobalWeddingTools accessKind={accessKind} viewerRole={viewerRole} />',
 ])
-assert.equal(
-  weddingHome.split('<GlobalWeddingTools accessKind={accessKind} />').length - 1,
-  1,
-  'Only the flagship wedding experience may mount the full wedding utility bundle.',
-)
-const nonFlagshipStart = weddingHome.indexOf('if (!isFlagship) {')
-const flagshipStart = weddingHome.indexOf('const activeLifecycle')
-const nonFlagshipBranch = weddingHome.slice(nonFlagshipStart, flagshipStart)
-assert.ok(nonFlagshipBranch.includes('<DataBackedWeddingExperience />'))
-assert.ok(nonFlagshipBranch.includes('<CoupleLogin accessKind={accessKind} />'))
 assert.ok(
-  !nonFlagshipBranch.includes('<GlobalWeddingTools'),
-  'Data-backed weddings must not mount flagship-only utilities such as the Charity & Kudzie WhatsApp RSVP helper.',
+  !weddingHome.includes('DataBackedWeddingExperience'),
+  'All weddings must use the same canonical rich renderer; the reduced data-backed renderer must not return.',
+)
+assert.ok(
+  !weddingHome.includes('if (!isFlagship)'),
+  'The canonical renderer must not branch into a reduced non-flagship wedding experience.',
+)
+assert.equal(
+  weddingHome.split('<GlobalWeddingTools accessKind={accessKind} viewerRole={viewerRole} />').length - 1,
+  1,
+  'The canonical wedding experience must mount one role-aware utility bundle.',
+)
+assert.ok(
+  weddingHome.includes('{isCoupleOwner && <PlannerMarketplaceInvitation />}'),
+  'Planner marketplace owner controls must remain couple-owner only.',
 )
 
-includesAll('src/components/wedding/global-wedding-tools.tsx', [
+const globalTools = includesAll('src/components/wedding/global-wedding-tools.tsx', [
   'accessKind: PublicWeddingAccessKind',
-  '<CoupleLogin accessKind={accessKind} />',
+  'viewerRole: WeddingViewerRole',
+  "const isCoupleOwner = accessKind === 'couple_owner' && viewerRole === 'couple'",
+  "const isAdmin = viewerRole === 'admin'",
+  'const showOwnerUtilities = isCoupleOwner || isAdmin',
+  '{showOwnerUtilities && <AiTrigger />}',
+  '{isAdmin && <AdminTrigger />}',
+  '{isCoupleOwner && <CoupleLogin accessKind={accessKind} />}',
+  '{showOwnerUtilities && <KeyboardSectionNav />}',
+  '{showOwnerUtilities && <KeyboardShortcutsHelp />}',
 ])
+assert.ok(
+  !globalTools.includes('<AiTrigger />\n      <AdminTrigger />'),
+  'AI and admin controls must not mount unconditionally for guests.',
+)
 
 const coupleLogin = includesAll('src/components/wedding/couple-login.tsx', [
-  "accessKind === 'couple_owner' || accessKind === 'wedding_member'",
-  "accessKind === 'couple_owner'",
-  "label: 'Couple dashboard'",
-  "label: 'Planner workspace'",
-  "label: 'Admin console'",
+  "if (accessKind !== 'couple_owner') return null",
+  'data-testid="couple-owner-controls"',
+  'aria-label="Couple dashboard"',
+  "href=\"/couple\"",
+  "setEditMode(false)",
   'window.location.reload()',
-  "serverConfirmedOwner && dashboardRole === 'couple'",
 ])
 assert.ok(
-  coupleLogin.indexOf('window.location.reload()') < coupleLogin.indexOf("toast.info('Signed out."),
-  'Successful sign-in must be re-resolved by the server before edit controls are shown.',
+  !coupleLogin.includes('Planner workspace'),
+  'The couple owner dock must not expose planner workspace navigation.',
+)
+assert.ok(
+  !coupleLogin.includes('Admin console'),
+  'The couple owner dock must not expose admin console navigation.',
+)
+assert.ok(
+  coupleLogin.indexOf('setEditMode(false)') < coupleLogin.indexOf('window.location.reload()'),
+  'Signing out must disable edit mode before the page is re-resolved by the server.',
 )
 
 const adminRoute = includesAll('src/app/api/admin/account-identity/route.ts', [
