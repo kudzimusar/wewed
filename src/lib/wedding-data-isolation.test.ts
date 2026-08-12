@@ -67,9 +67,13 @@ describe('wedding identity isolation', () => {
     const browser = source(
       'tests/e2e/zz-unified-navigation-privacy.spec.ts',
     )
-    expect(browser).toContain('E2E_WEDDINGS.secondary.title')
+    expect(browser).toContain("const selectedWedding = page.locator('#main-content')")
+    expect(browser).toContain("toContainText('Cedar')")
+    expect(browser).toContain("toContainText('Drew')")
+    expect(browser).toContain("toContainText('Secondary Test Gardens')")
     expect(browser).toContain("not.toContainText('Charity & Kudzie')")
     expect(browser).toContain("not.toContainText('Imba Manor')")
     expect(browser).toContain("not.toContainText('23 · 12 · 26')")
+    expect(browser).toContain("not.toContainText('Musarurwa')")
   })
 })
