@@ -5,6 +5,7 @@ import {
   clearAppSessionCookie,
   isDashboardRole,
   PLANNER_PORTFOLIO_SESSION_ID,
+  VENDOR_PORTFOLIO_SESSION_ID,
   readAppSession,
   setAppSessionCookie,
   type AppSession,
@@ -31,6 +32,11 @@ interface ProfileSummary {
   displayName: string | null
   avatarUrl: string | null
   isBanned: boolean
+}
+
+interface VendorIdentity {
+  businessAccountId: string
+  businessName: string
 }
 
 function signedOutResponse() {
@@ -71,6 +77,30 @@ async function loadAccessUser(userId: string): Promise<AccessUser | null> {
       isActive: true,
     },
   })
+}
+
+async function activeVendorIdentity(userId: string): Promise<VendorIdentity | null> {
+  const rows = await db.$queryRawUnsafe<VendorIdentity[]>(
+    `SELECT ba.id AS "businessAccountId", ba.name AS "businessName"
+     FROM public."BusinessAccountMember" bam
+     JOIN public."BusinessAccount" ba
+       ON ba.id = bam."businessAccountId"
+      AND ba.type = 'vendor'
+      AND ba.status = 'active'
+      AND ba."onboardingStatus" = 'complete'
+     JOIN public."ProviderProfile" profile
+       ON profile."businessAccountId" = ba.id
+      AND profile."listingStatus" IN ('claimed', 'verified')
+      AND profile.visibility = 'published'
+      AND profile."isClaimable" = false
+     WHERE bam."userId" = $1
+       AND bam.status = 'active'
+       AND bam.role IN ('business_owner', 'vendor_manager')
+     ORDER BY CASE WHEN ba."ownerUserId" = $1 THEN 0 ELSE 1 END, ba."createdAt" ASC
+     LIMIT 1`,
+    userId,
+  )
+  return rows[0] ?? null
 }
 
 function accessUserMatchesSession(accessUser: AccessUser, appSession: AppSession): boolean {
@@ -132,6 +162,51 @@ async function authorizedResponse(input: {
         role: 'admin',
         coupleId: null,
         activeWeddingId: WEWED_PLATFORM_SESSION_ID,
+      })
+    }
+
+    return response
+  }
+
+  if (dashboardRole === 'vendor') {
+    const vendor = await activeVendorIdentity(accessUser.id)
+    if (!vendor) return signedOutResponse()
+
+    if (appSession.activeWeddingId !== VENDOR_PORTFOLIO_SESSION_ID) {
+      await db.user.update({
+        where: { id: accessUser.id },
+        data: { currentWeddingId: null },
+      })
+    }
+
+    const response = NextResponse.json({
+      success: true,
+      authorized: true,
+      user: {
+        id: authUserId,
+        accessUserId: accessUser.id,
+        email,
+        displayName: vendor.businessName,
+        avatarUrl: profile?.avatarUrl ?? null,
+        role: 'vendor',
+        coupleId: null,
+        activeWeddingId: VENDOR_PORTFOLIO_SESSION_ID,
+      },
+      activeWedding: null,
+      weddings: [],
+      workspace: 'vendor_portfolio',
+      businessAccountId: vendor.businessAccountId,
+      expiresAt: appSession.expiresAt,
+    })
+
+    if (appSession.activeWeddingId !== VENDOR_PORTFOLIO_SESSION_ID) {
+      setAppSessionCookie(response, {
+        userId: accessUser.id,
+        authUserId,
+        email,
+        role: 'vendor',
+        coupleId: null,
+        activeWeddingId: VENDOR_PORTFOLIO_SESSION_ID,
       })
     }
 
