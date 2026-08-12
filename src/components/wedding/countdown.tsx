@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-
-const WEDDING_DATE = new Date('2026-12-23T14:00:00+02:00'); // 2pm CAT
+import { useWeddingContextSafe } from '@/components/wedding/wedding-data-provider';
 
 interface TimeLeft {
   days: number;
@@ -13,28 +12,22 @@ interface TimeLeft {
   total: number;
 }
 
-function calculateTimeLeft(): TimeLeft {
-  const now = new Date().getTime();
-  const target = WEDDING_DATE.getTime();
-  const total = target - now;
-
-  if (total <= 0) {
-    const elapsed = now - target;
-    return {
-      days: Math.floor(elapsed / (1000 * 60 * 60 * 24)),
-      hours: Math.floor((elapsed / (1000 * 60 * 60)) % 24),
-      minutes: Math.floor((elapsed / (1000 * 60)) % 60),
-      seconds: Math.floor((elapsed / 1000) % 60),
-      total: elapsed,
-    };
+function calculateTimeLeft(targetValue: string): TimeLeft {
+  const now = Date.now();
+  const target = new Date(targetValue).getTime();
+  if (Number.isNaN(target)) {
+    return { days: 0, hours: 0, minutes: 0, seconds: 0, total: 0 };
   }
 
+  const signedTotal = target - now;
+  const absoluteTotal = Math.abs(signedTotal);
+
   return {
-    days: Math.floor(total / (1000 * 60 * 60 * 24)),
-    hours: Math.floor((total / (1000 * 60 * 60)) % 24),
-    minutes: Math.floor((total / (1000 * 60)) % 60),
-    seconds: Math.floor((total / 1000) % 60),
-    total,
+    days: Math.floor(absoluteTotal / (1000 * 60 * 60 * 24)),
+    hours: Math.floor((absoluteTotal / (1000 * 60 * 60)) % 24),
+    minutes: Math.floor((absoluteTotal / (1000 * 60)) % 60),
+    seconds: Math.floor((absoluteTotal / 1000) % 60),
+    total: signedTotal,
   };
 }
 
@@ -71,35 +64,35 @@ function CountdownUnit({
 }
 
 export function Countdown() {
+  const wedding = useWeddingContextSafe()?.wedding;
+  const weddingDate = wedding?.date ?? '';
   const [timeLeft, setTimeLeft] = useState<TimeLeft | null>(null);
-  const [isPast, setIsPast] = useState(false);
 
   useEffect(() => {
-    const update = () => {
-      const t = calculateTimeLeft();
-      setTimeLeft(t);
-      setIsPast(t.total > 0 ? false : true);
-    };
+    if (!weddingDate) {
+      setTimeLeft(null);
+      return;
+    }
 
+    const update = () => setTimeLeft(calculateTimeLeft(weddingDate));
     update();
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [weddingDate]);
 
   if (!timeLeft) {
     return (
       <div className="flex items-center justify-center gap-3 sm:gap-5">
         {[0, 0, 0, 0].map((_, i) => (
-          <div
-            key={i}
-            className="flex flex-col items-center"
-          >
+          <div key={i} className="flex flex-col items-center">
             <div className="h-20 w-20 rounded-lg border border-gold/20 bg-champagne/40 sm:h-24 sm:w-24" />
           </div>
         ))}
       </div>
     );
   }
+
+  const isPast = timeLeft.total <= 0;
 
   return (
     <div className="flex flex-col items-center gap-4">
@@ -117,16 +110,8 @@ export function Countdown() {
       <div className="grid grid-cols-2 gap-3 sm:flex sm:gap-5">
         <CountdownUnit value={timeLeft.days} label="Days" isPast={isPast} />
         <CountdownUnit value={timeLeft.hours} label="Hours" isPast={isPast} />
-        <CountdownUnit
-          value={timeLeft.minutes}
-          label="Minutes"
-          isPast={isPast}
-        />
-        <CountdownUnit
-          value={timeLeft.seconds}
-          label="Seconds"
-          isPast={isPast}
-        />
+        <CountdownUnit value={timeLeft.minutes} label="Minutes" isPast={isPast} />
+        <CountdownUnit value={timeLeft.seconds} label="Seconds" isPast={isPast} />
       </div>
     </div>
   );
