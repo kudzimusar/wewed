@@ -3,13 +3,17 @@ import { cookies } from 'next/headers'
 import { notFound, redirect } from 'next/navigation'
 import { WeddingHome } from '@/components/wedding/wedding-home'
 import { GuestAccessGateway } from '@/components/wedding/guest-access-gateway'
-import { APP_SESSION_COOKIE } from '@/lib/app-session'
+import {
+  APP_SESSION_COOKIE,
+  verifyAppSessionToken,
+} from '@/lib/app-session'
 import { normalizeInvitationCardStyle } from '@/lib/digital-invitation-card'
 import { WEDDING_GUEST_SESSION_COOKIE } from '@/lib/wedding-guest-session'
 import {
   loadWeddingAccessRecord,
   resolveWeddingAccessFromTokens,
 } from '@/lib/wedding-public-access'
+import type { WeddingViewerRole } from '@/lib/wedding-access-kind'
 
 interface WeddingPageProps {
   params: Promise<{ slug: string }>
@@ -91,7 +95,19 @@ export default async function WeddingPage({
     )
   }
 
-  const resolution = await accessForSlug(slug)
+  const cookieStore = await cookies()
+  const appSessionToken = cookieStore.get(APP_SESSION_COOKIE)?.value ?? null
+  const guestSessionToken =
+    cookieStore.get(WEDDING_GUEST_SESSION_COOKIE)?.value ?? null
+  const [resolution, appSession] = await Promise.all([
+    resolveWeddingAccessFromTokens({
+      slug,
+      appSessionToken,
+      guestSessionToken,
+    }),
+    Promise.resolve(appSessionToken ? verifyAppSessionToken(appSessionToken) : null),
+  ])
+
   if (!resolution.allowed) {
     return (
       <GuestAccessGateway
@@ -102,7 +118,16 @@ export default async function WeddingPage({
     )
   }
 
-  return <WeddingHome slug={slug} accessKind={resolution.accessKind} />
+  const viewerRole: WeddingViewerRole =
+    appSession?.activeWeddingId === wedding.id ? appSession.role : null
+
+  return (
+    <WeddingHome
+      slug={slug}
+      accessKind={resolution.accessKind}
+      viewerRole={viewerRole}
+    />
+  )
 }
 
 export const dynamic = 'force-dynamic'
