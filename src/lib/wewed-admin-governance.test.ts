@@ -23,7 +23,7 @@ describe('Wewed platform RBAC', () => {
 
     expect(hasWewedAdminPermission(operations, 'admin.accounts.approve')).toBe(true)
     expect(hasWewedAdminPermission(operations, 'admin.billing.manage')).toBe(false)
-    expect(hasWewedAdminAdminPermissionSafe(analyst, 'admin.analytics.read')).toBe(true)
+    expect(hasWewedAdminPermission(analyst, 'admin.analytics.read')).toBe(true)
     expect(hasWewedAdminPermission(analyst, 'admin.accounts.suspend')).toBe(false)
   })
 
@@ -39,13 +39,6 @@ describe('Wewed platform RBAC', () => {
     expect(permissions).not.toContain('*')
   })
 })
-
-function hasWewedAdminAdminPermissionSafe(
-  permissions: string[],
-  permission: string,
-): boolean {
-  return hasWewedAdminPermission(permissions, permission)
-}
 
 describe('business account lifecycle', () => {
   test('valid transitions and permissions are deterministic', () => {
