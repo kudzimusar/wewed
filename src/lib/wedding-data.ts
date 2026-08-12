@@ -1,29 +1,6 @@
 "use client";
 
-/**
- * wedding-data.ts
- * ------------------------------------------------------------
- * Client-side types + hook + helpers for the multi-couple
- * data-driven content layer.
- *
- * Single source of truth for:
- *   • TypeScript types matching the /api/wedding-content response
- *   • useWeddingData(slug?) — React hook that fetches + caches
- *     wedding content in component state
- *   • getContent(content, section, field, defaultValue) — safe
- *     single-field accessor
- *   • getOrderedContent(content, section, prefix) — returns
- *     ordered items (milestones, programme, features, faq, cards)
- *     sorted by `order`, with metadata parsed back to objects
- *
- * The hook is SSR-safe: it only fetches after mount and returns
- * `loading: true` for the first render so server-rendered markup
- * matches the very first client render (avoids hydration warnings).
- */
-
 import { useCallback, useEffect, useState } from "react";
-
-// ─── types ────────────────────────────────────────────────────
 
 export interface WeddingCouple {
   id: string;
@@ -48,7 +25,7 @@ export interface WeddingInfo {
   title: string;
   monogram: string | null;
   tagline: string | null;
-  date: string; // ISO string from Prisma DateTime
+  date: string;
   venue: string;
   venueCity: string;
   venueCountry: string;
@@ -61,7 +38,18 @@ export interface WeddingInfo {
   couple: WeddingCouple;
 }
 
-/** A single WeddingContent row's client-side representation. */
+export interface WeddingProgrammeItem {
+  id: string;
+  time: string;
+  title: string;
+  description: string | null;
+  icon: string | null;
+  duration: string | null;
+  location: string | null;
+  displayIcon: string | null;
+  order: number;
+}
+
 export interface WeddingContent {
   field: string;
   value: string;
@@ -69,28 +57,16 @@ export interface WeddingContent {
   metadata: string | null;
 }
 
-/** The nested content map: { [section]: { [field]: value } }. */
 export type WeddingContentMap = Record<string, Record<string, string>>;
 
-/** The full API response from GET /api/wedding-content. */
 export interface WeddingData {
   wedding: WeddingInfo;
   content: WeddingContentMap;
-  /** Metadata map mirroring `content` shape — JSON strings or null. */
   contentMeta: Record<string, Record<string, string | null>>;
-  /** Ordered items grouped by section, pre-sorted by `order`. */
   ordered: Record<string, WeddingContent[]>;
+  programmeItems: WeddingProgrammeItem[];
 }
 
-// ─── helpers ──────────────────────────────────────────────────
-
-/**
- * Safely read a single content field. Returns `defaultValue`
- * when the section, field, or wedding data is missing.
- *
- * @example
- *   const bride = getContent(content, "hero", "brideName", "Charity")
- */
 export function getContent(
   content: WeddingContentMap | null | undefined,
   section: string,
@@ -102,10 +78,6 @@ export function getContent(
   return v == null || v === "" ? defaultValue : v;
 }
 
-/**
- * Parse a metadata JSON string into an object. Returns `{}`
- * if the string is null, empty, or fails to parse.
- */
 export function parseMetadata(
   meta: string | null | undefined,
 ): Record<string, unknown> {
@@ -118,22 +90,6 @@ export function parseMetadata(
   }
 }
 
-/**
- * Fetch all ordered items for a section + prefix, sorted by `order`.
- *
- * The flagship seed stores ordered items as `<prefix>-<index>`
- * (e.g. `milestone-0`, `programme-3`, `feature-5`, `item-7`,
- * `card-1`, `moment-2`). This helper returns them as a clean
- * array of `{ index, value, order, metadata }` objects.
- *
- * Accepts either the full `WeddingData` (uses the precomputed
- * `ordered` index) or just the content map (falls back to a
- * client-side scan + sort).
- *
- * @example
- *   const milestones = getOrderedContent(data, "story", "milestone")
- *   // → [{ index: 0, value: "When Two Worlds Met", order: 0, metadata: { icon: "✦", body: "..." } }, ...]
- */
 export function getOrderedContent(
   data: WeddingData | null | undefined,
   section: string,
@@ -147,10 +103,6 @@ export function getOrderedContent(
 }> {
   if (!data) return [];
 
-  // Fast path: the server pre-computed an ordered index for us.
-  // But it indexes by section only, so we still need to filter
-  // by prefix client-side. (The server can't know which prefix
-  // the caller wants.)
   const source: Array<{
     field: string;
     value: string;
@@ -158,8 +110,6 @@ export function getOrderedContent(
     metadata: string | null;
   }> = data.ordered?.[section] ?? [];
 
-  // If the server index missed this section (e.g. content was
-  // added after the GET), fall back to scanning the flat map.
   const rows =
     source.length > 0
       ? source
@@ -182,6 +132,7 @@ export function getOrderedContent(
   for (const row of rows) {
     if (!row.field.startsWith(prefixWithDash)) continue;
     const idxStr = row.field.slice(prefixWithDash.length);
+    if (!/^\d+$/.test(idxStr)) continue;
     const idx = Number.parseInt(idxStr, 10);
     if (!Number.isFinite(idx)) continue;
     out.push({
@@ -202,16 +153,8 @@ export function getOrderedContent(
   return out;
 }
 
-// ─── slug resolution ──────────────────────────────────────────
-
 export const FLAGSHIP_WEDDING_SLUG = "charity-and-kudzie";
 
-/**
- * Read the `?wedding=` param from the current URL.
- * Returns "charity-and-kudzie" when not present (flagship default).
- * Safe on the server (returns the default) — call inside useEffect
- * for accurate client-side reads.
- */
 export function readWeddingSlugFromUrl(): string {
   if (typeof window === "undefined") return FLAGSHIP_WEDDING_SLUG;
   try {
@@ -223,39 +166,22 @@ export function readWeddingSlugFromUrl(): string {
   }
 }
 
-// ─── hook ─────────────────────────────────────────────────────
-
 interface UseWeddingDataResult {
   wedding: WeddingInfo | null;
   content: WeddingContentMap;
   contentMeta: Record<string, Record<string, string | null>>;
   ordered: Record<string, WeddingContent[]>;
+  programmeItems: WeddingProgrammeItem[];
   loading: boolean;
   error: string | null;
   refetch: () => void;
 }
 
-/**
- * Fetch + cache wedding content for a slug.
- *
- * @param slug  The wedding slug. If omitted, reads `?wedding=`
- *              from the URL on mount (defaults to "charity-and-kudzie").
- *
- * @returns { wedding, content, contentMeta, ordered, loading, error, refetch }
- *
- * The hook stores the result in component state — no global store
- * (Zustand/React Query) for the MVP. A `refetch()` is exposed for
- * manual refreshes after a content edit.
- */
 export function useWeddingData(slug?: string): UseWeddingDataResult {
   const [data, setData] = useState<WeddingData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [refetchSignal, setRefetchSignal] = useState<number>(0);
-
-  // Resolve the slug once on mount (or when the prop changes).
-  // On the server, slug ?? FLAGSHIP_WEDDING_SLUG keeps the first
-  // render stable.
   const [resolvedSlug, setResolvedSlug] = useState<string>(
     slug ?? FLAGSHIP_WEDDING_SLUG,
   );
@@ -265,15 +191,11 @@ export function useWeddingData(slug?: string): UseWeddingDataResult {
       setResolvedSlug(slug);
       return;
     }
-    // No slug prop — read from URL on the client.
-    const fromUrl = readWeddingSlugFromUrl();
-    setResolvedSlug(fromUrl);
+    setResolvedSlug(readWeddingSlugFromUrl());
   }, [slug]);
 
-  // Listen for URL changes (e.g. user clicks a link to a different
-  // couple's wedding). Updates the resolved slug in-place.
   useEffect(() => {
-    if (slug) return; // explicit slug prop wins
+    if (slug) return;
     const handler = () => {
       setResolvedSlug(readWeddingSlugFromUrl());
     };
@@ -322,9 +244,7 @@ export function useWeddingData(slug?: string): UseWeddingDataResult {
         if (!json.success || !json.data) {
           throw new Error(json.error || "Malformed response from server.");
         }
-        if (!cancelled) {
-          setData(json.data);
-        }
+        if (!cancelled) setData(json.data);
       } catch (err) {
         if (cancelled) return;
         if (err instanceof DOMException && err.name === "AbortError") return;
@@ -346,6 +266,7 @@ export function useWeddingData(slug?: string): UseWeddingDataResult {
     content: data?.content ?? {},
     contentMeta: data?.contentMeta ?? {},
     ordered: data?.ordered ?? {},
+    programmeItems: data?.programmeItems ?? [],
     loading,
     error,
     refetch,
