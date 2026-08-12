@@ -23,7 +23,7 @@ describe('Wewed platform RBAC', () => {
 
     expect(hasWewedAdminPermission(operations, 'admin.accounts.approve')).toBe(true)
     expect(hasWewedAdminPermission(operations, 'admin.billing.manage')).toBe(false)
-    expect(hasWewedAdminPermission(analyst, 'admin.analytics.read')).toBe(true)
+    expect(hasWewedAdminAdminPermissionSafe(analyst, 'admin.analytics.read')).toBe(true)
     expect(hasWewedAdminPermission(analyst, 'admin.accounts.suspend')).toBe(false)
   })
 
@@ -39,6 +39,13 @@ describe('Wewed platform RBAC', () => {
     expect(permissions).not.toContain('*')
   })
 })
+
+function hasWewedAdminAdminPermissionSafe(
+  permissions: string[],
+  permission: string,
+): boolean {
+  return hasWewedAdminPermission(permissions, permission)
+}
 
 describe('business account lifecycle', () => {
   test('valid transitions and permissions are deterministic', () => {
@@ -75,21 +82,40 @@ describe('admin route isolation and governance source contracts', () => {
     expect(layout).not.toContain('<WhatsAppRSVP />')
     expect(layout).not.toContain('<CoupleLogin />')
     expect(layout).not.toContain('<AmbientMusicPlayer />')
-    expect(weddingHome).toContain('<GlobalWeddingTools accessKind={accessKind} />')
-    expect(
-      weddingHome.split('<GlobalWeddingTools accessKind={accessKind} />').length - 1,
-    ).toBe(1)
-    const nonFlagship = weddingHome.slice(
-      weddingHome.indexOf('if (!isFlagship) {'),
-      weddingHome.indexOf('const activeLifecycle'),
+
+    expect(weddingHome).toContain(
+      '<GlobalWeddingTools accessKind={accessKind} viewerRole={viewerRole} />',
     )
-    expect(nonFlagship).toContain('<CoupleLogin accessKind={accessKind} />')
-    expect(nonFlagship).not.toContain('<GlobalWeddingTools')
+    expect(
+      weddingHome.split(
+        '<GlobalWeddingTools accessKind={accessKind} viewerRole={viewerRole} />',
+      ).length - 1,
+    ).toBe(1)
+    expect(weddingHome).not.toContain('if (!isFlagship)')
+    expect(weddingHome).not.toContain('DataBackedWeddingExperience')
+    expect(weddingHome).toContain(
+      "const isCoupleOwner = accessKind === 'couple_owner' && viewerRole === 'couple'",
+    )
+    expect(weddingHome).toContain('{canContribute && <MediaUpload />}')
+    expect(weddingHome).toContain('<LiveWall canPost={canContribute} />')
+
     expect(tools).not.toContain('usePathname')
-    expect(tools).toContain('<WhatsAppRSVP />')
-    expect(tools).toContain('<CoupleLogin accessKind={accessKind} />')
+    expect(tools).toContain(
+      "const isCoupleOwner = accessKind === 'couple_owner' && viewerRole === 'couple'",
+    )
+    expect(tools).toContain("const isAdmin = viewerRole === 'admin'")
+    expect(tools).toContain('{showOwnerUtilities && <AiTrigger />}')
+    expect(tools).toContain('{isAdmin && <AdminTrigger />}')
+    expect(tools).toContain(
+      '{isCoupleOwner && <CoupleLogin accessKind={accessKind} />}',
+    )
+    expect(tools).toContain('{showOwnerUtilities && <KeyboardSectionNav />}')
+    expect(tools).toContain(
+      '{showOwnerUtilities && <KeyboardShortcutsHelp />}',
+    )
+    expect(tools).not.toContain('<WhatsAppRSVP />')
+    expect(tools).not.toContain('<AmbientMusicPlayer />')
     expect(tools).not.toContain('<CoupleLogin />')
-    expect(tools).toContain('<AmbientMusicPlayer />')
   })
 
   test('admin API requires governed lifecycle reasons and permission checks', () => {
