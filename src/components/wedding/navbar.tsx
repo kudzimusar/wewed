@@ -26,7 +26,6 @@ import type {
   WeddingViewerRole,
 } from '@/lib/wedding-access-kind';
 
-// 6 primary nav links (desktop) — clean, not crowded
 const PRIMARY_NAV = [
   { key: 'nav.story', href: '#story' },
   { key: 'nav.theday', href: '#theday' },
@@ -36,7 +35,6 @@ const PRIMARY_NAV = [
   { key: 'nav.faq', href: '#faq' },
 ] as const;
 
-// Secondary links (in "More" dropdown)
 const SECONDARY_NAV = [
   { key: 'nav.home', href: '#home' },
   { key: 'nav.venue', href: '#venue' },
@@ -86,7 +84,7 @@ export function Navbar({
   const monogram =
     ctx?.getContent('hero', 'monogram', wedding?.monogram || generatedMonogram) ||
     generatedMonogram;
-  const showPlannerControl = accessKind === 'couple_owner' && viewerRole === 'couple';
+  const isCoupleOwner = accessKind === 'couple_owner' && viewerRole === 'couple';
   const showAdminLogout = viewerRole === 'admin';
 
   useEffect(() => {
@@ -95,7 +93,6 @@ export function Navbar({
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Scroll-spy: track which section is currently in the viewport's reading band.
   useEffect(() => {
     const allLinks = [...PRIMARY_NAV, ...SECONDARY_NAV];
     const sectionIds = allLinks.map((l) => l.href.slice(1));
@@ -108,11 +105,8 @@ export function Navbar({
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          if (entry.isIntersecting) {
-            visible.set(entry.target.id, entry.intersectionRatio);
-          } else {
-            visible.delete(entry.target.id);
-          }
+          if (entry.isIntersecting) visible.set(entry.target.id, entry.intersectionRatio);
+          else visible.delete(entry.target.id);
         }
         let bestId = '';
         let bestRatio = 0;
@@ -168,9 +162,7 @@ export function Navbar({
             >
               wewed
             </a>
-            <span className="wewed-monogram text-[9px] font-sans opacity-60">
-              {monogram}
-            </span>
+            <span className="wewed-monogram text-[9px] font-sans opacity-60">{monogram}</span>
           </div>
 
           <div className="hidden items-center gap-6 lg:flex">
@@ -185,9 +177,7 @@ export function Navbar({
                     handleNavClick(link.href);
                   }}
                   className={`group relative font-sans text-[10px] font-semibold uppercase tracking-[0.18em] transition-colors duration-200 ${
-                    isActive
-                      ? 'text-gold'
-                      : 'text-champagne/85 hover:text-gold'
+                    isActive ? 'text-gold' : 'text-champagne/85 hover:text-gold'
                   }`}
                 >
                   {t(link.key)}
@@ -203,7 +193,7 @@ export function Navbar({
           </div>
 
           <div className="flex items-center gap-2">
-            {showPlannerControl && (
+            {isCoupleOwner && (
               <div className="hidden md:block">
                 <PlannerTrigger />
               </div>
@@ -230,27 +220,25 @@ export function Navbar({
                   sideOffset={8}
                   className="w-56 border-gold/20 bg-espresso/98 text-champagne backdrop-blur-lg"
                 >
-                  <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gold/70">
-                    Explore
-                  </DropdownMenuLabel>
+                  <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gold/70">Explore</DropdownMenuLabel>
                   {SECONDARY_NAV.map((link) => (
                     <DropdownMenuItem
                       key={link.href}
                       onClick={() => handleNavClick(link.href)}
                       className="cursor-pointer focus:bg-gold/10 focus:text-gold"
                     >
-                      <span className="font-sans text-xs uppercase tracking-[0.15em]">
-                        {t(link.key)}
-                      </span>
+                      <span className="font-sans text-xs uppercase tracking-[0.15em]">{t(link.key)}</span>
                     </DropdownMenuItem>
                   ))}
 
-                  <DropdownMenuItem
-                    onClick={() => setQrOpen(true)}
-                    className="cursor-pointer focus:bg-gold/10 focus:text-gold"
-                  >
-                    <span className="font-sans text-xs uppercase tracking-[0.15em]">QR & Share</span>
-                  </DropdownMenuItem>
+                  {isCoupleOwner && (
+                    <DropdownMenuItem
+                      onClick={() => setQrOpen(true)}
+                      className="cursor-pointer focus:bg-gold/10 focus:text-gold"
+                    >
+                      <span className="font-sans text-xs uppercase tracking-[0.15em]">QR & Share</span>
+                    </DropdownMenuItem>
+                  )}
 
                   {showAdminLogout && (
                     <>
@@ -266,9 +254,7 @@ export function Navbar({
                   )}
 
                   <DropdownMenuSeparator className="bg-gold/20" />
-                  <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gold/70">
-                    Settings
-                  </DropdownMenuLabel>
+                  <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gold/70">Settings</DropdownMenuLabel>
                   <div className="flex items-center gap-2 px-2 py-1">
                     <ThemeToggle />
                     <LanguageToggle size="sm" />
@@ -291,10 +277,7 @@ export function Navbar({
       </motion.header>
 
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent
-          side="right"
-          className="border-gold/20 bg-espresso/98 backdrop-blur-lg"
-        >
+        <SheetContent side="right" className="border-gold/20 bg-espresso/98 backdrop-blur-lg">
           <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
           <div className="flex flex-col items-center gap-1 pt-8">
             <p className="wewed-monogram mb-6 text-sm">{monogram}</p>
@@ -328,8 +311,8 @@ export function Navbar({
               );
             })}
 
-            {showPlannerControl && <div className="mt-6"><PlannerTrigger /></div>}
-            <div className="mt-4"><QrGatewayTrigger onOpen={() => { setMobileOpen(false); setQrOpen(true); }} /></div>
+            {isCoupleOwner && <div className="mt-6"><PlannerTrigger /></div>}
+            {isCoupleOwner && <div className="mt-4"><QrGatewayTrigger onOpen={() => { setMobileOpen(false); setQrOpen(true); }} /></div>}
 
             <div className="mt-6 flex items-center gap-3">
               <ThemeToggle />
@@ -352,7 +335,7 @@ export function Navbar({
         </SheetContent>
       </Sheet>
 
-      <QrGateway open={qrOpen} onOpenChange={setQrOpen} />
+      {isCoupleOwner && <QrGateway open={qrOpen} onOpenChange={setQrOpen} />}
     </>
   );
 }
