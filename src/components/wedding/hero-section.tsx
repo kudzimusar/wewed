@@ -48,7 +48,7 @@ export function HeroSection() {
   const dbDate = ctx?.getContent('hero', 'date', defaultDate) ?? defaultDate;
   const dbVenue = ctx?.getContent('hero', 'venue', defaultVenue) ?? defaultVenue;
   const dbTagline = ctx?.getContent('hero', 'tagline', defaultTagline) ?? defaultTagline;
-  const heroImageUrl = ctx?.getContent('hero', 'imageUrl', '') || (ctx?.isFlagship ? '/hero-wedding.png' : '');
+  const heroImageUrl = ctx?.getContent('hero', 'imageUrl', '') ?? '';
 
   const [nameOne] = useInlineContent('hero', 'brideName', dbPartner1);
   const [nameTwo] = useInlineContent('hero', 'groomName', dbPartner2);
@@ -130,9 +130,7 @@ export function HeroSection() {
         </motion.div>
 
         <motion.div variants={fadeUp} className="mt-5 flex items-center gap-2">
-          <p className="wewed-monogram text-xl tracking-[0.3em] sm:text-3xl">
-            {date}
-          </p>
+          <p className="wewed-monogram text-xl tracking-[0.3em] sm:text-3xl">{date}</p>
           <InlineEditButton
             section="hero"
             field="date"
@@ -142,9 +140,7 @@ export function HeroSection() {
         </motion.div>
 
         <motion.div variants={fadeUp} className="mt-3 flex items-center gap-2">
-          <p className="font-sans text-sm font-light tracking-wider text-champagne/80 sm:text-base">
-            {venue}
-          </p>
+          <p className="font-sans text-sm font-light tracking-wider text-champagne/80 sm:text-base">{venue}</p>
           <InlineEditButton
             section="hero"
             field="venue"
@@ -154,9 +150,7 @@ export function HeroSection() {
         </motion.div>
 
         <motion.div variants={fadeUp} className="mt-2 flex items-center gap-2">
-          <p className="font-serif text-base font-light italic text-gold/80 sm:text-lg">
-            {tagline}
-          </p>
+          <p className="font-serif text-base font-light italic text-gold/80 sm:text-lg">{tagline}</p>
           <InlineEditButton
             section="hero"
             field="tagline"
