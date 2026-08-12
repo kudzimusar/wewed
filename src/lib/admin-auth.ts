@@ -5,7 +5,7 @@ export const ADMIN_AUTH_EVENT = 'wewed:dashboard-auth-changed'
 
 const STORAGE_KEY = 'wewed:dashboard-session'
 
-export type DashboardRole = 'admin' | 'couple' | 'planner'
+export type DashboardRole = 'admin' | 'couple' | 'planner' | 'vendor'
 
 export interface DashboardUser {
   id: string

@@ -14,20 +14,34 @@ export default function VendorWorkspacePage() {
       wrongRoleMessage="This workspace is available to approved Wewed Vendor accounts."
       title="Wewed Vendor Workspace"
       description="Sign in as an approved Vendor owner to manage your Wewed presence and conversations."
-      onClose={() => router.push('/')}
+      onClose={() => router.push('/vendors')}
     >
-      <main className="min-h-dvh bg-ivory px-4 py-12 text-espresso sm:px-6">
+      <main className="min-h-dvh bg-ivory px-4 py-8 text-espresso sm:px-6 sm:py-12">
         <div className="mx-auto max-w-5xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-muted">Vendor workspace</p>
-          <h1 className="mt-3 max-w-3xl font-serif text-5xl leading-tight sm:text-6xl">Your business conversations start here.</h1>
-          <p className="mt-4 max-w-2xl text-sm leading-7 text-espresso/60">Wewed keeps the initial Vendor workspace intentionally focused: respond to planners and couples in Messages, review the public marketplace profile, and use the governed profile-management flow for business updates.</p>
+          <div className="rounded-3xl border border-gold/20 bg-white p-6 shadow-sm sm:p-8">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-muted">Vendor workspace</p>
+            <div className="mt-3 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <h1 className="max-w-3xl font-serif text-4xl leading-tight sm:text-6xl">Your business conversations start here.</h1>
+                <p className="mt-4 max-w-2xl text-sm leading-7 text-espresso/60">Respond to planners and couples in Messages, then manage the public profile and marketplace presence for your business.</p>
+              </div>
+              <Link
+                href="/messages"
+                className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-full bg-espresso px-6 py-3 text-sm font-bold text-champagne shadow-sm transition hover:bg-espresso/90"
+              >
+                <MessageCircle className="size-5" />
+                Open Messages
+                <ArrowRight className="size-4" />
+              </Link>
+            </div>
+          </div>
 
-          <div className="mt-10 grid gap-5 md:grid-cols-3">
-            <Link href="/messages" className="group rounded-3xl border border-gold/20 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
-              <MessageCircle className="size-6 text-gold-muted" />
+          <div className="mt-6 grid gap-5 md:grid-cols-3">
+            <Link href="/messages" className="group rounded-3xl border-2 border-gold/35 bg-champagne/45 p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+              <MessageCircle className="size-7 text-gold-muted" />
               <h2 className="mt-5 font-serif text-3xl">Messages</h2>
-              <p className="mt-3 text-sm leading-6 text-espresso/60">Receive and reply to approved in-app conversations, including Planner ↔ Vendor enquiries.</p>
-              <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-gold-muted">Open inbox <ArrowRight className="size-4" /></span>
+              <p className="mt-3 text-sm leading-6 text-espresso/65">Open your inbox, receive Planner ↔ Vendor enquiries and reply from the same Wewed conversation.</p>
+              <span className="mt-6 inline-flex items-center gap-2 text-sm font-bold text-espresso">Open inbox <ArrowRight className="size-4" /></span>
             </Link>
 
             <Link href="/vendors" className="group rounded-3xl border border-gold/20 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">

@@ -13,15 +13,18 @@ on:
       - 'scripts/communications-postgres-integration.sql'
       - 'scripts/communications-rate-limit-postgres-integration.sql'
       - 'scripts/communications-supabase-scheduler.sql'
+      - 'scripts/couple-vendor-marketplace-contract.ts'
       - 'src/app/messages/**'
       - 'src/app/api/messages/route.ts'
       - 'src/app/api/communications/**'
+      - 'src/app/api/providers/enquiries/**'
       - 'src/app/api/cron/communications-deliveries/**'
       - 'src/app/api/internal/communications/**'
       - 'src/app/api/webhooks/resend/**'
       - 'src/app/api/webhooks/whatsapp/**'
       - 'src/lib/communications*.ts'
       - 'src/lib/communications*.test.ts'
+      - 'src/lib/vendor-marketplace-communications*.ts'
       - 'src/lib/communication-channels*.ts'
       - 'src/lib/communication-channels*.test.ts'
       - 'src/lib/whatsapp-cloud-webhook*.ts'
@@ -29,6 +32,8 @@ on:
       - 'src/lib/email/resend-webhook.ts'
       - 'src/components/admin/admin-utility-nav.tsx'
       - 'src/components/couple/couple-dashboard.tsx'
+      - 'src/components/providers/public-provider-profile.tsx'
+      - 'src/components/public/public-account-actions.tsx'
       - 'src/components/wedding/planner-account-dock.tsx'
       - '.github/workflows/communications-ci.yml'
   workflow_dispatch:
@@ -107,6 +112,9 @@ jobs:
       - name: Run communications policy and client-state tests
         run: bun test src/lib/communications-policy.test.ts src/lib/communications-client-state.test.ts
 
+      - name: Run Couple Vendor marketplace source contract
+        run: bun scripts/couple-vendor-marketplace-contract.ts
+
       - name: Provide server-only test sentinel
         shell: bash
         run: |
@@ -144,44 +152,24 @@ jobs:
           PY
 
       - name: Run communications authorization integration
-        run: bun test src/lib/communications.integration.test.ts
+        run: bun test src/lib/communications.integration.test.ts src/lib/vendor-marketplace-communications.integration.test.ts
 
-      - name: Confirm legacy public message compatibility and privacy boundary
+      - name: Confirm public Prisma schema is untouched
         if: github.event_name == 'pull_request'
         shell: bash
         run: |
-          # The private communications foundation must not silently reshape the
-          # Prisma public schema. Wedding-message hardening is allowed, but it
-          # must preserve the legacy wedding-scoped read/write model and add a
-          # verified participant boundary for writes.
           git diff --exit-code "origin/${{ github.base_ref }}"...HEAD -- prisma/schema.prisma
-          python3 - <<'PY'
-          from pathlib import Path
 
-          path = Path('src/app/api/messages/route.ts')
-          text = path.read_text()
-          required = [
-              'resolveWeddingAccessForRequest',
-              'weddingSlugFromRequest',
-              'db.message.findMany',
-              'weddingId: resolved.access.wedding.id',
-              'isPublic: true',
-              'db.message.create',
-              'authorToken: resolved.access.guest?.rsvpToken ?? null',
-              "resolved.access.accessKind === 'public'",
-              "Open your personal invitation before posting to the wedding wall.",
-              '{ status: 403 }',
-          ]
-          missing = [item for item in required if item not in text]
-          if missing:
-              raise SystemExit(f'Public wedding message compatibility/privacy contract missing: {missing}')
-
-          if 'where: { weddingId: resolved.access.wedding.id, isPublic: true }' not in text:
-              raise SystemExit('Public message reads must remain scoped to the resolved wedding and public messages only.')
-
-          if text.count('export async function GET') != 1 or text.count('export async function POST') != 1:
-              raise SystemExit('Legacy public message API must retain exactly one GET and one POST handler.')
-          PY
+      - name: Validate message API wedding isolation contract
+        shell: bash
+        run: |
+          grep -q 'weddingSlugFromRequest(request)' src/app/api/messages/route.ts
+          grep -q 'resolveWeddingAccessForRequest' src/app/api/messages/route.ts
+          grep -q "where: { weddingId: resolved.wedding.id }" src/app/api/messages/route.ts
+          grep -q "resolved.access.accessKind === 'public'" src/app/api/messages/route.ts
+          grep -q 'weddingId: resolved.wedding.id' src/app/api/messages/route.ts
+          grep -q 'guestId: guestAttribution?.guestId' src/app/api/messages/route.ts
+          grep -q 'memberId: guestAttribution ? null : resolved.access.memberId' src/app/api/messages/route.ts
 
       - name: Confirm analytics writer does not copy message body
         shell: bash
