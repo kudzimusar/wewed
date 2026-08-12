@@ -81,15 +81,27 @@ describe('canonical wedding social template', () => {
       'src/components/wedding/venue-section.tsx',
       'src/components/wedding/gift-registry.tsx',
       'src/components/wedding/songbook.tsx',
+      'src/components/wedding/songbook-live.tsx',
       'src/components/wedding/guests.tsx',
+      'src/components/wedding/vendor-marketplace.tsx',
       'src/components/wedding/faq-section.tsx',
       'src/components/wedding/live-wall.tsx',
       'src/components/wedding/photo-gallery.tsx',
       'src/components/wedding/media-upload.tsx',
       'src/components/wedding/memory-capsule.tsx',
       'src/components/wedding/after-sections.tsx',
+      'src/components/wedding/telegram-widget.tsx',
+      'src/components/wedding/platform-vision.tsx',
+      'src/components/wedding/merch-teaser.tsx',
     ]
-    const forbidden = ['Charity', 'Kudzie', 'Musarurwa', 'Imba Manor']
+    const forbidden = [
+      'Charity',
+      'Kudzie',
+      'Musarurwa',
+      'Imba Manor',
+      '23.12.26',
+      '@wewedcharitykudzie',
+    ]
 
     for (const file of files) {
       const text = await source(file)
