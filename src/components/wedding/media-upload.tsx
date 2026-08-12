@@ -1,687 +1,207 @@
-'use client';
+'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { motion, AnimatePresence, useInView } from 'framer-motion';
-import {
-  Camera,
-  Upload,
-  X,
-  Check,
-  Image as ImageIcon,
-  Video,
-  Sparkles,
-  AlertCircle,
-} from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Progress } from '@/components/ui/progress';
-import { useToast } from '@/hooks/use-toast';
-import { SectionEyebrow } from '@/components/wedding/section-eyebrow';
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { motion, useInView } from 'framer-motion'
+import { Camera, Upload, X, Check, Image as ImageIcon, Video, Loader2, Lock } from 'lucide-react'
+import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useToast } from '@/hooks/use-toast'
+import { SectionEyebrow } from '@/components/wedding/section-eyebrow'
+import { useWeddingContextSafe } from '@/components/wedding/wedding-data-provider'
+import { coupleNames, formatWeddingDate } from '@/lib/wedding-template-defaults'
 
-/* ─── Types ──────────────────────────────────────────────────────────────── */
-
-type Moment = 'ceremony' | 'reception' | 'candid' | 'preparation' | 'group_photo';
+type Moment = 'ceremony' | 'reception' | 'candid' | 'preparation' | 'group_photo'
 
 interface QueuedFile {
-  id: string;
-  file: File;
-  previewUrl: string;
-  caption: string;
-  moment: Moment;
-  error?: string;
-  status: 'queued' | 'uploading' | 'done' | 'error';
-  progress: number;
+  id: string
+  file: File
+  previewUrl: string
+  caption: string
+  moment: Moment
+  status: 'queued' | 'uploading' | 'done' | 'error'
+  error?: string
 }
 
-interface UploadResponse {
-  success: boolean;
-  media?: {
-    id: string;
-    url: string;
-    caption?: string | null;
-    moment?: string | null;
-  };
-  error?: string;
-}
-
-/* ─── Constants ──────────────────────────────────────────────────────────── */
-
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
-
-const ALLOWED_IMAGE = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/gif',
-]);
-const ALLOWED_VIDEO = new Set(['video/mp4', 'video/webm']);
-
-const MOMENT_OPTIONS: { value: Moment; label: string }[] = [
+const MAX_FILE_SIZE = 10 * 1024 * 1024
+const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/webm'])
+const MOMENT_OPTIONS: Array<{ value: Moment; label: string }> = [
   { value: 'ceremony', label: 'Ceremony' },
   { value: 'reception', label: 'Reception' },
   { value: 'candid', label: 'Candid' },
   { value: 'preparation', label: 'Preparation' },
   { value: 'group_photo', label: 'Group Photo' },
-];
-
-const EASING = [0.22, 1, 0.36, 1] as const;
-
-/* ─── Helpers ────────────────────────────────────────────────────────────── */
+]
 
 function fileKey(): string {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
-
-function isWeddingDay(): boolean {
-  const wedding = new Date('2026-12-23T00:00:00');
-  return new Date() >= wedding;
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-/* ─── Component ──────────────────────────────────────────────────────────── */
 
 export function MediaUpload() {
-  const sectionRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const isInView = useInView(sectionRef, { once: true, margin: '-80px' });
-  const { toast } = useToast();
-
-  const [queue, setQueue] = useState<QueuedFile[]>([]);
-  const [dragActive, setDragActive] = useState(false);
-  const [defaultMoment, setDefaultMoment] = useState<Moment>('candid');
-  const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-  const [opened, setOpened] = useState(false);
+  const ctx = useWeddingContextSafe()
+  const wedding = ctx?.wedding
+  const sectionRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const isInView = useInView(sectionRef, { once: true, margin: '-80px' })
+  const { toast } = useToast()
+  const [queue, setQueue] = useState<QueuedFile[]>([])
+  const [defaultMoment, setDefaultMoment] = useState<Moment>('candid')
+  const [submitting, setSubmitting] = useState(false)
+  const [sharingOpen, setSharingOpen] = useState(false)
 
   useEffect(() => {
-    // Defer time-based flag to avoid SSR mismatch.
-    const t = setTimeout(() => setOpened(isWeddingDay()), 0);
-    return () => clearTimeout(t);
-  }, []);
-
-  /* ─── File selection ─────────────────────────────────────────────────── */
-
-  const validateFile = (file: File): string | undefined => {
-    if (!ALLOWED_IMAGE.has(file.type) && !ALLOWED_VIDEO.has(file.type)) {
-      return 'Unsupported file type.';
+    if (!wedding?.date) {
+      setSharingOpen(false)
+      return
     }
-    if (file.size > MAX_FILE_SIZE) {
-      return 'File exceeds 10 MB limit.';
-    }
-    return undefined;
-  };
+    const weddingTime = new Date(wedding.date).getTime()
+    setSharingOpen(Number.isFinite(weddingTime) && Date.now() >= weddingTime)
+  }, [wedding?.date])
 
-  const addFiles = useCallback(
-    (files: FileList | File[]) => {
-      const incoming = Array.from(files);
-      const next: QueuedFile[] = [];
-      for (const file of incoming) {
-        const error = validateFile(file);
-        next.push({
-          id: fileKey(),
-          file,
-          previewUrl: URL.createObjectURL(file),
-          caption: '',
-          moment: defaultMoment,
-          error,
-          status: error ? 'error' : 'queued',
-          progress: 0,
-        });
-      }
-      setQueue((prev) => [...prev, ...next]);
-      setSubmitted(false);
-    },
-    [defaultMoment]
-  );
+  useEffect(() => {
+    return () => queue.forEach((item) => URL.revokeObjectURL(item.previewUrl))
+  }, [queue])
 
-  const handleDrop = useCallback(
-    (e: React.DragEvent<HTMLDivElement>) => {
-      e.preventDefault();
-      setDragActive(false);
-      if (e.dataTransfer.files?.length) {
-        addFiles(e.dataTransfer.files);
-      }
-    },
-    [addFiles]
-  );
+  const addFiles = useCallback((files: FileList | File[]) => {
+    const next: QueuedFile[] = Array.from(files).map((file) => ({
+      id: fileKey(),
+      file,
+      previewUrl: URL.createObjectURL(file),
+      caption: '',
+      moment: defaultMoment,
+      status: 'queued',
+      error: !ALLOWED.has(file.type)
+        ? 'Unsupported file type.'
+        : file.size > MAX_FILE_SIZE
+          ? 'File exceeds the 10 MB limit.'
+          : undefined,
+    }))
+    setQueue((current) => [...current, ...next])
+  }, [defaultMoment])
 
-  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.length) {
-      addFiles(e.target.files);
-    }
-    // Reset so the same file can be selected again later
-    e.target.value = '';
-  };
+  const remove = (id: string) => {
+    setQueue((current) => {
+      const item = current.find((candidate) => candidate.id === id)
+      if (item) URL.revokeObjectURL(item.previewUrl)
+      return current.filter((candidate) => candidate.id !== id)
+    })
+  }
 
-  /* ─── Queue manipulation ─────────────────────────────────────────────── */
+  const patch = (id: string, changes: Partial<QueuedFile>) => {
+    setQueue((current) => current.map((item) => item.id === id ? { ...item, ...changes } : item))
+  }
 
-  const updateFile = (id: string, patch: Partial<QueuedFile>) => {
-    setQueue((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)));
-  };
-
-  const removeFile = (id: string) => {
-    setQueue((prev) => {
-      const target = prev.find((f) => f.id === id);
-      if (target) URL.revokeObjectURL(target.previewUrl);
-      return prev.filter((f) => f.id !== id);
-    });
-  };
-
-  /* ─── Upload ─────────────────────────────────────────────────────────── */
-
-  const uploadOne = async (item: QueuedFile): Promise<boolean> => {
-    updateFile(item.id, { status: 'uploading', progress: 5, error: undefined });
-
-    const form = new FormData();
-    form.append('file', item.file);
-    form.append('caption', item.caption);
-    form.append('moment', item.moment);
+  async function uploadOne(item: QueuedFile): Promise<boolean> {
+    if (!ctx?.slug || item.error) return false
+    patch(item.id, { status: 'uploading', error: undefined })
+    const form = new FormData()
+    form.append('slug', ctx.slug)
+    form.append('file', item.file)
+    form.append('caption', item.caption)
+    form.append('moment', item.moment)
 
     try {
-      // Simulated progress ticks while the request is in flight — gives
-      // the user a sense that the upload is moving.
-      const ticker = setInterval(() => {
-        setQueue((prev) =>
-          prev.map((f) =>
-            f.id === item.id && f.status === 'uploading'
-              ? { ...f, progress: Math.min(90, f.progress + 8) }
-              : f
-          )
-        );
-      }, 250);
-
-      const res = await fetch('/api/media', { method: 'POST', body: form });
-      clearInterval(ticker);
-
-      const data: UploadResponse = await res.json();
-
-      if (!res.ok || !data.success) {
-        updateFile(item.id, {
-          status: 'error',
-          progress: 0,
-          error: data.error ?? `Upload failed (${res.status})`,
-        });
-        return false;
-      }
-
-      updateFile(item.id, { status: 'done', progress: 100 });
-      return true;
-    } catch (err) {
-      updateFile(item.id, {
-        status: 'error',
-        progress: 0,
-        error: err instanceof Error ? err.message : 'Network error.',
-      });
-      return false;
+      const response = await fetch('/api/media', { method: 'POST', body: form })
+      const body = (await response.json().catch(() => null)) as { success?: boolean; error?: string } | null
+      if (!response.ok || !body?.success) throw new Error(body?.error || 'Upload failed.')
+      patch(item.id, { status: 'done' })
+      return true
+    } catch (caught) {
+      patch(item.id, { status: 'error', error: caught instanceof Error ? caught.message : 'Upload failed.' })
+      return false
     }
-  };
+  }
 
-  const handleUploadAll = async () => {
-    const pending = queue.filter(
-      (f) => f.status === 'queued' || f.status === 'error'
-    );
-    if (pending.length === 0) return;
-
-    setSubmitting(true);
-    let ok = 0;
+  const uploadAll = async () => {
+    const pending = queue.filter((item) => item.status !== 'done' && !item.error)
+    if (!pending.length) return
+    setSubmitting(true)
+    let completed = 0
     for (const item of pending) {
-      // Re-validate before sending (cheap safety net)
-      const err = validateFile(item.file);
-      if (err) {
-        updateFile(item.id, { status: 'error', error: err });
-        continue;
-      }
-      const success = await uploadOne(item);
-      if (success) ok += 1;
+      if (await uploadOne(item)) completed += 1
     }
-    setSubmitting(false);
-
-    if (ok === 0) {
-      toast({
-        title: 'Upload failed',
-        description: 'Please check your files and try again.',
-        variant: 'destructive',
-      });
-    } else {
-      setSubmitted(true);
-      toast({
-        title: ok === 1 ? 'Photo shared!' : `${ok} photos shared!`,
-        description: 'Thank you for adding to our memories.',
-      });
-      // Clear completed items after a short delay
-      setTimeout(() => {
-        setQueue((prev) => {
-          prev.forEach((f) => {
-            if (f.status === 'done') URL.revokeObjectURL(f.previewUrl);
-          });
-          return prev.filter((f) => f.status !== 'done');
-        });
-      }, 1500);
+    setSubmitting(false)
+    if (completed > 0) {
+      toast({ title: completed === 1 ? 'Memory shared' : `${completed} memories shared`, description: 'Your upload is attached only to this wedding.' })
+      window.setTimeout(() => {
+        setQueue((current) => current.filter((item) => item.status !== 'done'))
+      }, 1200)
     }
-  };
+  }
 
-  /* ─── Reset to upload more ───────────────────────────────────────────── */
-
-  const handleAddMore = () => {
-    setSubmitted(false);
-  };
-
-  const readyCount = queue.filter(
-    (f) => f.status === 'queued' || f.status === 'error'
-  ).length;
-  const allValid = queue.length > 0 && queue.every((f) => !f.error);
-
-  /* ─── Render ─────────────────────────────────────────────────────────── */
+  const names = coupleNames(wedding)
 
   return (
-    <section
-      id="share"
-     
-      className="wewed-section bg-ivory py-20 md:py-32"
-    >
-      <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
-        {/* Heading */}
-        <motion.div
-          ref={sectionRef}
-          initial={{ opacity: 0, y: 30 }}
-          animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
-          transition={{ duration: 0.8, ease: EASING }}
-          className="mb-10 text-center md:mb-14"
-        >
-          <SectionEyebrow>Your Moments</SectionEyebrow>
-          <div className="mb-4 flex items-center justify-center">
-            <Camera className="h-5 w-5 text-gold" strokeWidth={1.25} />
-          </div>
-          <h2 className="wewed-heading wewed-heading-accent text-3xl font-light text-espresso sm:text-4xl md:text-5xl">
-            Share Your Moments
-          </h2>
-          <p className="mx-auto mt-6 max-w-xl font-sans text-sm leading-relaxed text-espresso/60 sm:text-base">
-            Did you capture a beautiful moment? Share it with us and fellow
-            guests.
+    <section id="share" className="wewed-section bg-ivory py-20 md:py-32">
+      <div ref={sectionRef} className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
+        <motion.div initial={{ opacity: 0, y: 30 }} animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }} transition={{ duration: 0.7 }} className="mb-10 text-center">
+          <SectionEyebrow>Guest Camera Roll</SectionEyebrow>
+          <h2 className="wewed-heading wewed-heading-accent text-4xl text-espresso md:text-5xl">Share a Memory</h2>
+          <p className="mx-auto mt-4 max-w-xl font-sans text-sm leading-relaxed text-muted-foreground">
+            Add photographs or short videos for {names}. Every upload is wedding-scoped and requires a verified wedding identity.
           </p>
         </motion.div>
 
-        {/* Pre-wedding notice (still allows upload for testing) */}
-        {!opened && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={isInView ? { opacity: 1, y: 0 } : {}}
-            transition={{ duration: 0.5, ease: EASING, delay: 0.1 }}
-            className="mb-6 flex items-center justify-center gap-2 rounded-full border border-gold/30 bg-gold/5 px-4 py-2 text-center"
-          >
-            <Sparkles className="size-3.5 text-gold" strokeWidth={1.5} />
-            <span className="font-sans text-[11px] uppercase tracking-[0.18em] text-gold-muted">
-              Photo sharing opens on December 23, 2026
-            </span>
-          </motion.div>
-        )}
-
-        {/* Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
-          transition={{ duration: 0.7, ease: EASING, delay: 0.15 }}
-        >
-          <Card className="overflow-hidden border border-gold/30 bg-champagne shadow-sm">
-            <CardContent className="p-5 sm:p-8">
-              <AnimatePresence mode="wait">
-                {submitted ? (
-                  /* ─── Success state ─── */
-                  <motion.div
-                    key="success"
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    transition={{ duration: 0.4, ease: EASING }}
-                    className="flex flex-col items-center py-8 text-center"
-                  >
-                    <motion.span
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{
-                        type: 'spring',
-                        stiffness: 240,
-                        damping: 18,
-                        delay: 0.05,
-                      }}
-                      className="flex size-16 items-center justify-center rounded-full border border-gold/40 bg-gold/10"
-                    >
-                      <Check className="size-7 text-gold" strokeWidth={2} />
-                    </motion.span>
-                    <h3 className="mt-5 wewed-heading text-2xl font-light text-espresso sm:text-3xl">
-                      Thank you for sharing!
-                    </h3>
-                    <p className="mt-3 max-w-md font-sans text-sm text-espresso/65">
-                      Your moments are now part of our forever. Every photo
-                      helps us relive the magic of December 23, 2026.
-                    </p>
-                    <Button
-                      onClick={handleAddMore}
-                      variant="outline"
-                      className="mt-7 border-gold/40 bg-transparent font-sans text-xs uppercase tracking-[0.15em] text-espresso hover:bg-gold hover:text-espresso"
-                    >
-                      <Camera className="mr-2 size-3.5" />
-                      Share more photos
-                    </Button>
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="uploader"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.25 }}
-                  >
-                    {/* ─── Dropzone ─── */}
-                    <div
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        setDragActive(true);
-                      }}
-                      onDragLeave={() => setDragActive(false)}
-                      onDrop={handleDrop}
-                      onClick={() => fileInputRef.current?.click()}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          fileInputRef.current?.click();
-                        }
-                      }}
-                      className={`group flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-10 text-center transition-all duration-300 sm:py-14 ${
-                        dragActive
-                          ? 'border-gold bg-gold/10'
-                          : 'border-gold/40 bg-white/50 hover:border-gold hover:bg-gold/5'
-                      }`}
-                    >
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm"
-                        multiple
-                        onChange={handleFileInput}
-                        className="sr-only"
-                      />
-                      <motion.span
-                        whileHover={{ scale: 1.05 }}
-                        className="flex size-14 items-center justify-center rounded-full border border-gold/30 bg-gold/10 transition-colors duration-300 group-hover:bg-gold/15 sm:size-16"
-                      >
-                        <Camera
-                          className="size-6 text-gold sm:size-7"
-                          strokeWidth={1.25}
-                        />
-                      </motion.span>
-                      <p className="mt-4 wewed-heading text-lg font-light text-espresso sm:text-xl">
-                        Drag photos here or tap to browse
-                      </p>
-                      <p className="mt-2 font-sans text-[11px] uppercase tracking-[0.18em] text-espresso/45">
-                        JPG · PNG · WEBP · GIF · MP4 · WEBM
-                      </p>
-                      <p className="mt-1 font-sans text-[11px] text-espresso/40">
-                        Max 10 MB per file · Multiple files welcome
-                      </p>
-                    </div>
-
-                    {/* ─── Default moment selector ─── */}
-                    <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <label className="font-sans text-[11px] font-medium uppercase tracking-[0.18em] text-espresso/55">
-                        Default moment
-                      </label>
-                      <Select
-                        value={defaultMoment}
-                        onValueChange={(v) => setDefaultMoment(v as Moment)}
-                      >
-                        <SelectTrigger className="w-full border-gold/30 bg-white/70 font-sans text-sm text-espresso sm:w-56">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {MOMENT_OPTIONS.map((opt) => (
-                            <SelectItem key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* ─── Queue / previews ─── */}
-                    <AnimatePresence>
-                      {queue.length > 0 && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: 'auto' }}
-                          exit={{ opacity: 0, height: 0 }}
-                          transition={{ duration: 0.3, ease: EASING }}
-                          className="mt-6 space-y-3 overflow-hidden"
-                        >
-                          {queue.map((item) => (
-                            <QueueItem
-                              key={item.id}
-                              item={item}
-                              onUpdate={updateFile}
-                              onRemove={removeFile}
-                            />
-                          ))}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-
-                    {/* ─── Submit ─── */}
-                    <div className="mt-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
-                      <p className="order-2 font-sans text-[11px] text-espresso/45 sm:order-1">
-                        {readyCount > 0
-                          ? `${readyCount} photo${readyCount === 1 ? '' : 's'} ready to upload`
-                          : 'Add photos to share with the couple'}
-                      </p>
-                      <Button
-                        onClick={handleUploadAll}
-                        disabled={
-                          submitting ||
-                          readyCount === 0 ||
-                          (queue.length > 0 && !allValid && readyCount === 0)
-                        }
-                        className="order-1 w-full justify-center bg-gold font-sans text-xs uppercase tracking-[0.15em] text-espresso transition-all hover:bg-gold-light disabled:opacity-50 sm:order-2 sm:w-auto"
-                      >
-                        {submitting ? (
-                          <>
-                            <Upload className="mr-2 size-3.5 animate-pulse" />
-                            Uploading…
-                          </>
-                        ) : (
-                          <>
-                            <Upload className="mr-2 size-3.5" />
-                            Upload {readyCount > 0 ? `(${readyCount})` : ''}
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+        {!sharingOpen ? (
+          <Card className="border-gold/25 bg-champagne shadow-sm">
+            <CardContent className="flex flex-col items-center gap-4 py-10 text-center">
+              <span className="flex size-14 items-center justify-center rounded-full bg-gold/10"><Lock className="size-6 text-gold" /></span>
+              <h3 className="wewed-heading text-2xl text-espresso">Guest uploads open on the wedding day</h3>
+              <p className="max-w-lg font-sans text-sm leading-6 text-muted-foreground">
+                {wedding?.date ? `Sharing opens on ${formatWeddingDate(wedding.date)}. Until then, the couple keeps this space prepared for the celebration.` : 'The couple will open guest media sharing when the wedding date is confirmed.'}
+              </p>
             </CardContent>
           </Card>
-        </motion.div>
+        ) : (
+          <Card className="overflow-hidden border-gold/25 bg-champagne shadow-sm">
+            <CardContent className="space-y-5 p-5 sm:p-7">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-sans text-sm font-medium text-espresso">Choose photos or videos</p>
+                  <p className="font-sans text-xs text-muted-foreground">JPG, PNG, WEBP, GIF, MP4 or WEBM · max 10 MB each</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Select value={defaultMoment} onValueChange={(value) => setDefaultMoment(value as Moment)}>
+                    <SelectTrigger className="w-36 border-gold/25 bg-white/70"><SelectValue /></SelectTrigger>
+                    <SelectContent>{MOMENT_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                  <Button type="button" onClick={() => inputRef.current?.click()} className="bg-gold text-espresso hover:bg-gold-light"><Upload className="size-4" />Add files</Button>
+                  <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" multiple className="sr-only" onChange={(event) => { if (event.target.files) addFiles(event.target.files); event.target.value = '' }} />
+                </div>
+              </div>
 
-        {/* Footer monogram */}
-        <motion.div
-          className="mt-10 text-center"
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-        >
-          <div className="wewed-divider mx-auto w-32" />
-          <p className="mt-6 wewed-monogram text-xs tracking-widest">
-            C&amp;K &middot; 23.12.26
-          </p>
-        </motion.div>
+              {queue.length === 0 ? (
+                <button type="button" onClick={() => inputRef.current?.click()} className="flex min-h-48 w-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-gold/35 bg-ivory/55 p-6 text-center transition hover:bg-gold/5">
+                  <Camera className="size-8 text-gold/70" />
+                  <span className="wewed-heading text-xl text-espresso">Add something from your camera roll</span>
+                  <span className="font-sans text-xs text-muted-foreground">Your upload will be attached only to {names}.</span>
+                </button>
+              ) : (
+                <div className="space-y-3">
+                  {queue.map((item) => (
+                    <div key={item.id} className="grid gap-3 rounded-xl border border-gold/20 bg-white/60 p-3 sm:grid-cols-[4rem_1fr_auto] sm:items-center">
+                      <div className="relative flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-espresso">
+                        {item.file.type.startsWith('image/') ? <img src={item.previewUrl} alt="Upload preview" className="size-full object-cover" /> : <Video className="size-6 text-champagne/70" />}
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2"><span className="truncate font-sans text-sm text-espresso">{item.file.name}</span>{item.status === 'done' && <Check className="size-4 text-sage" />}{item.status === 'uploading' && <Loader2 className="size-4 animate-spin text-gold" />}</div>
+                        <div className="grid gap-2 sm:grid-cols-[1fr_9rem]">
+                          <Input value={item.caption} onChange={(event) => patch(item.id, { caption: event.target.value })} placeholder="Optional caption" className="border-gold/20 bg-white/80" />
+                          <Select value={item.moment} onValueChange={(value) => patch(item.id, { moment: value as Moment })}><SelectTrigger className="border-gold/20 bg-white/80"><SelectValue /></SelectTrigger><SelectContent>{MOMENT_OPTIONS.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select>
+                        </div>
+                        {item.error && <p className="font-sans text-xs text-clay">{item.error}</p>}
+                      </div>
+                      <Button type="button" variant="ghost" size="icon" onClick={() => remove(item.id)} aria-label="Remove file"><X className="size-4" /></Button>
+                    </div>
+                  ))}
+                  <div className="flex justify-end"><Button type="button" onClick={() => void uploadAll()} disabled={submitting || queue.every((item) => Boolean(item.error) || item.status === 'done')} className="bg-espresso text-champagne">{submitting ? <Loader2 className="size-4 animate-spin" /> : <ImageIcon className="size-4" />}Share selected</Button></div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </section>
-  );
-}
-
-/* ─── Single queue row ─────────────────────────────────────────────────────── */
-
-function QueueItem({
-  item,
-  onUpdate,
-  onRemove,
-}: {
-  item: QueuedFile;
-  onUpdate: (id: string, patch: Partial<QueuedFile>) => void;
-  onRemove: (id: string) => void;
-}) {
-  const isImage = ALLOWED_IMAGE.has(item.file.type);
-  const isVideo = ALLOWED_VIDEO.has(item.file.type);
-  const Icon = isVideo ? Video : ImageIcon;
-  const statusBadge = (() => {
-    switch (item.status) {
-      case 'uploading':
-        return (
-          <Badge className="border-gold/30 bg-gold/15 font-sans text-[10px] text-gold-muted">
-            Uploading {item.progress}%
-          </Badge>
-        );
-      case 'done':
-        return (
-          <Badge className="border-sage/30 bg-sage/15 font-sans text-[10px] text-sage">
-            <Check className="size-3" />
-            Shared
-          </Badge>
-        );
-      case 'error':
-        return (
-          <Badge className="border-clay/30 bg-clay/15 font-sans text-[10px] text-clay">
-            <AlertCircle className="size-3" />
-            Failed
-          </Badge>
-        );
-      default:
-        return (
-          <Badge
-            variant="outline"
-            className="border-espresso/20 bg-white/60 font-sans text-[10px] text-espresso/55"
-          >
-            Ready
-          </Badge>
-        );
-    }
-  })();
-
-  return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.96 }}
-      transition={{ duration: 0.3, ease: EASING }}
-      className="rounded-xl border border-gold/20 bg-white/70 p-3"
-    >
-      <div className="flex gap-3">
-        {/* Thumbnail */}
-        <div className="relative size-16 shrink-0 overflow-hidden rounded-lg border border-gold/20 bg-espresso sm:size-20">
-          {isImage ? (
-            <img
-              src={item.previewUrl}
-              alt={item.file.name}
-              className="size-full object-cover"
-            />
-          ) : isVideo ? (
-            <video
-              src={item.previewUrl}
-              className="size-full object-cover"
-              muted
-              preload="metadata"
-            />
-          ) : (
-            <div className="flex size-full items-center justify-center">
-              <Icon className="size-6 text-champagne/60" />
-            </div>
-          )}
-          {item.status === 'uploading' && (
-            <div className="absolute inset-0 flex items-center justify-center bg-espresso/40 backdrop-blur-[1px]">
-              <span className="font-sans text-[10px] font-medium text-champagne">
-                {item.progress}%
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Inputs */}
-        <div className="min-w-0 flex-1">
-          <div className="mb-1.5 flex items-center justify-between gap-2">
-            <span className="truncate font-sans text-xs text-espresso/70">
-              {item.file.name}
-            </span>
-            <button
-              type="button"
-              onClick={() => onRemove(item.id)}
-              aria-label="Remove file"
-              className="flex size-6 items-center justify-center rounded-full text-espresso/40 transition-colors hover:bg-clay/10 hover:text-clay"
-            >
-              <X className="size-3.5" />
-            </button>
-          </div>
-          <div className="mb-1 flex items-center gap-2">
-            <span className="font-sans text-[10px] text-espresso/45">
-              {formatBytes(item.file.size)}
-            </span>
-            {statusBadge}
-          </div>
-          <Input
-            value={item.caption}
-            onChange={(e) => onUpdate(item.id, { caption: e.target.value })}
-            placeholder="Add a caption (optional)…"
-            maxLength={120}
-            disabled={item.status === 'uploading' || item.status === 'done'}
-            className="h-8 border-gold/20 bg-white/60 font-sans text-xs placeholder:text-espresso/35 focus:border-gold focus:ring-gold/20"
-          />
-          <div className="mt-2">
-            <Select
-              value={item.moment}
-              onValueChange={(v) => onUpdate(item.id, { moment: v as Moment })}
-              disabled={item.status === 'uploading' || item.status === 'done'}
-            >
-              <SelectTrigger className="h-8 w-full border-gold/20 bg-white/60 font-sans text-xs sm:w-48">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {MOMENT_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          {item.error && (
-            <p className="mt-1.5 font-sans text-[11px] text-clay">
-              {item.error}
-            </p>
-          )}
-          {item.status === 'uploading' && (
-            <Progress
-              value={item.progress}
-              className="mt-2 h-1 bg-gold/15 [&>[data-slot=progress-indicator]]:bg-gold"
-            />
-          )}
-        </div>
-      </div>
-    </motion.div>
-  );
+  )
 }
