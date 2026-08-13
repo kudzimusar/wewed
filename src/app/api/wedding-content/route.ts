@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAdminSession, hasPermission } from '@/lib/admin-gate'
+import { loadWeddingDataBySlug } from '@/lib/wedding-data-server'
 import {
   resolveWeddingAccessForRequest,
   weddingAccessErrorPayload,
@@ -22,126 +23,14 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const wedding = await db.wedding.findUnique({
-      where: { slug },
-      include: {
-        couple: {
-          select: {
-            id: true,
-            slug: true,
-            partner1: true,
-            partner2: true,
-            surname: true,
-            photo: true,
-            subscriptionStatus: true,
-          },
-        },
-        contentItems: true,
-        programmeItems: {
-          orderBy: [{ order: 'asc' }, { time: 'asc' }],
-          select: {
-            id: true,
-            time: true,
-            title: true,
-            description: true,
-            icon: true,
-            duration: true,
-            location: true,
-            displayIcon: true,
-            order: true,
-          },
-        },
-        songs: {
-          orderBy: [{ order: 'asc' }, { title: 'asc' }],
-          select: {
-            id: true,
-            title: true,
-            artist: true,
-            phase: true,
-            moment: true,
-            order: true,
-            votes: true,
-            spotifyUrl: true,
-            appleUrl: true,
-            playedAt: true,
-            notes: true,
-          },
-        },
-      },
-    })
-
-    if (!wedding) {
+    const data = await loadWeddingDataBySlug(slug)
+    if (!data) {
       return noStore(
         NextResponse.json({ success: false, error: 'Wedding not found.' }, { status: 404 }),
       )
     }
 
-    const content: Record<string, Record<string, string>> = {}
-    const contentMeta: Record<string, Record<string, string | null>> = {}
-    const ordered: Record<
-      string,
-      Array<{ field: string; value: string; order: number; metadata: string | null }>
-    > = {}
-
-    for (const row of wedding.contentItems) {
-      if (!content[row.section]) content[row.section] = {}
-      if (!contentMeta[row.section]) contentMeta[row.section] = {}
-      content[row.section][row.field] = row.value
-      contentMeta[row.section][row.field] = row.metadata
-      if (/^([a-z]+)-(\d+)$/.test(row.field)) {
-        if (!ordered[row.section]) ordered[row.section] = []
-        ordered[row.section].push({
-          field: row.field,
-          value: row.value,
-          order: row.order,
-          metadata: row.metadata,
-        })
-      }
-    }
-
-    for (const rows of Object.values(ordered)) {
-      rows.sort((a, b) =>
-        a.order === b.order
-          ? a.field.localeCompare(b.field, undefined, { numeric: true })
-          : a.order - b.order,
-      )
-    }
-
-    return noStore(
-      NextResponse.json({
-        success: true,
-        data: {
-          wedding: {
-            id: wedding.id,
-            slug: wedding.slug,
-            title: wedding.title,
-            monogram: wedding.monogram,
-            tagline: wedding.tagline,
-            date: wedding.date,
-            venue: wedding.venue,
-            venueCity: wedding.venueCity,
-            venueCountry: wedding.venueCountry,
-            venueMapUrl: wedding.venueMapUrl,
-            lifecycle: wedding.lifecycle,
-            privacy: wedding.privacy,
-            canonSealed: wedding.canonSealed,
-            subscriptionTier: wedding.subscriptionTier,
-            theme: {
-              primaryColor: wedding.primaryColor,
-              accentColor: wedding.accentColor,
-              memoryColor: wedding.memoryColor,
-              backgroundColor: wedding.backgroundColor,
-            },
-            couple: wedding.couple,
-          },
-          content,
-          contentMeta,
-          ordered,
-          programmeItems: wedding.programmeItems,
-          songs: wedding.songs,
-        },
-      }),
-    )
+    return noStore(NextResponse.json({ success: true, data }))
   } catch (error) {
     console.error('[WEDDING-CONTENT GET] Error:', error)
     return noStore(
