@@ -44,14 +44,11 @@ function workspaceFor(role: AccountRole | undefined) {
   return { href: '/couple', label: 'Couple workspace' }
 }
 
-export function WorkspaceQuickNavigation() {
-  const pathname = usePathname()
+function PrivateWorkspaceQuickNavigation() {
   const session = usePublicAccountSession()
   const [leaving, setLeaving] = useState<'switch' | 'signout' | null>(null)
 
-  if (!isPrivateWorkspace(pathname) || !session?.authorized || !session.user) {
-    return null
-  }
+  if (!session?.authorized || !session.user) return null
 
   const workspace = workspaceFor(session.user.role)
   const displayName = session.user.displayName?.trim() || session.user.email || 'Wewed account'
@@ -138,4 +135,12 @@ export function WorkspaceQuickNavigation() {
       </div>
     </div>
   )
+}
+
+export function WorkspaceQuickNavigation() {
+  const pathname = usePathname()
+
+  if (!isPrivateWorkspace(pathname)) return null
+
+  return <PrivateWorkspaceQuickNavigation />
 }
