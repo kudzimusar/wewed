@@ -20,6 +20,7 @@ import {
   signInAdmin,
   type DashboardRole,
   type DashboardUser,
+  type DashboardWeddingRole,
 } from '@/lib/admin-auth'
 
 interface DashboardAuthGateProps {
@@ -28,6 +29,7 @@ interface DashboardAuthGateProps {
   onClose: () => void
   children: ReactNode
   allowedRoles?: readonly DashboardRole[]
+  allowedWeddingRoles?: readonly DashboardWeddingRole[]
   wrongRoleMessage?: string
 }
 
@@ -36,8 +38,17 @@ type AuthState = 'checking' | 'signed-out' | 'authorized' | 'wrong-role'
 function roleIsAllowed(
   user: DashboardUser | null | undefined,
   allowedRoles: readonly DashboardRole[] | undefined,
+  allowedWeddingRoles: readonly DashboardWeddingRole[] | undefined,
 ): boolean {
-  return Boolean(user) && (!allowedRoles || allowedRoles.includes(user.role))
+  if (!user) return false
+  if (!allowedRoles && !allowedWeddingRoles) return true
+
+  const globalRoleAllowed = allowedRoles?.includes(user.role) ?? false
+  const weddingRoleAllowed = user.activeWeddingRole
+    ? allowedWeddingRoles?.includes(user.activeWeddingRole) ?? false
+    : false
+
+  return globalRoleAllowed || weddingRoleAllowed
 }
 
 export function DashboardAuthGate({
@@ -46,6 +57,7 @@ export function DashboardAuthGate({
   onClose,
   children,
   allowedRoles,
+  allowedWeddingRoles,
   wrongRoleMessage = 'This page requires a different Wewed workspace. Switch accounts to continue.',
 }: DashboardAuthGateProps) {
   const [authState, setAuthState] = useState<AuthState>('checking')
@@ -67,7 +79,11 @@ export function DashboardAuthGate({
       }
 
       const user = getCachedDashboardUser()
-      setAuthState(roleIsAllowed(user, allowedRoles) ? 'authorized' : 'wrong-role')
+      setAuthState(
+        roleIsAllowed(user, allowedRoles, allowedWeddingRoles)
+          ? 'authorized'
+          : 'wrong-role',
+      )
     }
 
     window.addEventListener(ADMIN_AUTH_EVENT, handleAuthChange)
@@ -79,7 +95,9 @@ export function DashboardAuthGate({
         return
       }
       setAuthState(
-        roleIsAllowed(result.user, allowedRoles) ? 'authorized' : 'wrong-role',
+        roleIsAllowed(result.user, allowedRoles, allowedWeddingRoles)
+          ? 'authorized'
+          : 'wrong-role',
       )
     })
 
@@ -87,7 +105,7 @@ export function DashboardAuthGate({
       cancelled = true
       window.removeEventListener(ADMIN_AUTH_EVENT, handleAuthChange)
     }
-  }, [allowedRoles])
+  }, [allowedRoles, allowedWeddingRoles])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -99,7 +117,9 @@ export function DashboardAuthGate({
     if (result.success && result.user) {
       setPassword('')
       setAuthState(
-        roleIsAllowed(result.user, allowedRoles) ? 'authorized' : 'wrong-role',
+        roleIsAllowed(result.user, allowedRoles, allowedWeddingRoles)
+          ? 'authorized'
+          : 'wrong-role',
       )
     } else {
       setError(result.error || 'Unable to sign in.')
