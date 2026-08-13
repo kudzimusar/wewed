@@ -19,6 +19,10 @@ for (const fragment of requiredInboxFragments) {
   }
 }
 
+if (!layout.includes("export const dynamic = 'force-dynamic'")) {
+  throw new Error('Messages route must render dynamically so authenticated inbox sessions do not reuse a prerendered route shell.')
+}
+
 const forbiddenLayoutFragments = [
   'MessagesNewMessageLauncher',
   'messages-new-message-launcher',
@@ -31,4 +35,4 @@ for (const fragment of forbiddenLayoutFragments) {
   }
 }
 
-console.log('Shared Inbox New Message CTA contract passed.')
+console.log('Shared dynamic Inbox New Message CTA contract passed.')
