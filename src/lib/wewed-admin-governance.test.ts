@@ -89,7 +89,8 @@ describe('admin route isolation and governance source contracts', () => {
     expect(weddingHome).toContain(
       "const isCoupleOwner = accessKind === 'couple_owner' && viewerRole === 'couple'",
     )
-    expect(weddingHome).toContain('{canContribute && <MediaUpload />}')
+    expect(weddingHome).toContain('<MediaUpload canUpload={canContribute} />')
+    expect(weddingHome).toContain('<MemoryCapsule canRecord={canContribute} />')
     expect(weddingHome).toContain('<LiveWall canPost={canContribute} />')
 
     expect(tools).not.toContain('usePathname')
