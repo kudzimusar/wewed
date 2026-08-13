@@ -83,13 +83,15 @@ export async function resolvePrivateWeddingMediaUrl(
   if (!objectPath) return storedUrl
 
   const client = storageClient()
-  if (!client) return null
+  if (!client) throw new Error('Private wedding media storage is not configured.')
 
   const { data, error } = await client.storage
     .from(WEDDING_MEDIA_BUCKET)
     .createSignedUrl(objectPath, SIGNED_URL_TTL_SECONDS)
 
-  if (error || !data?.signedUrl) return null
+  if (error || !data?.signedUrl) {
+    throw new Error(error?.message || 'Unable to sign private wedding media.')
+  }
   return data.signedUrl
 }
 
