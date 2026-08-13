@@ -35,6 +35,7 @@ import { ContributionGallery } from '@/components/wedding/contribution-gallery'
 import { ThemeApplier } from '@/components/wedding/theme-applier'
 import { InvitationRsvpDialog } from '@/components/wedding/invitation-rsvp-dialog'
 import { PlannerMarketplaceInvitation } from '@/components/marketplace/planner-marketplace-invitation'
+import type { WeddingData } from '@/lib/wedding-data'
 import type {
   PublicWeddingAccessKind,
   WeddingViewerRole,
@@ -46,13 +47,15 @@ export function WeddingHome({
   slug,
   accessKind = null,
   viewerRole = null,
+  initialData = null,
 }: {
   slug?: string
   accessKind?: PublicWeddingAccessKind
   viewerRole?: WeddingViewerRole
+  initialData?: WeddingData | null
 }) {
   return (
-    <WeddingDataProvider slug={slug}>
+    <WeddingDataProvider slug={slug} initialData={initialData}>
       <WeddingHomeContent accessKind={accessKind} viewerRole={viewerRole} />
     </WeddingDataProvider>
   )
@@ -105,7 +108,7 @@ function WeddingHomeContent({
       <Navbar accessKind={accessKind} viewerRole={viewerRole} />
       <WeddingPlatformNav slug={slug} />
       <ThemeApplier />
-      <main id="main-content" className="flex-1">
+      <main id="main-content" className="flex-1" data-canonical-template="classic">
         <HeroSection />
         {isCoupleOwner && <PlannerMarketplaceInvitation />}
         {activeLifecycle === 'before' ? (
