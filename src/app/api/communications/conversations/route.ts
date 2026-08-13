@@ -6,6 +6,10 @@ import {
   sendCommunicationMessage,
 } from '@/lib/communications'
 import { maybeCreateVendorMarketplaceConversation } from '@/lib/vendor-marketplace-communications'
+import {
+  normalizeWeddingCommunicationConversations,
+  prepareWeddingScopedConversationCreation,
+} from '@/lib/wedding-communication-roles'
 import { enforceCommunicationRateLimit } from '@/lib/communications-rate-limit'
 import {
   communicationErrorResponse,
@@ -16,7 +20,8 @@ export async function GET(request: NextRequest) {
   try {
     const actor = await requireCommunicationActor(request)
     const conversations = await listCommunicationConversations(actor)
-    return communicationJson({ success: true, data: conversations })
+    const data = await normalizeWeddingCommunicationConversations(actor, conversations)
+    return communicationJson({ success: true, data })
   } catch (error) {
     return communicationErrorResponse(error)
   }
@@ -47,7 +52,11 @@ export async function POST(request: NextRequest) {
     }
 
     const vendorResult = await maybeCreateVendorMarketplaceConversation(actor, body)
-    const result = vendorResult ?? await createCommunicationConversation(actor, body)
+    const prepared = vendorResult
+      ? { actor, input: body }
+      : await prepareWeddingScopedConversationCreation(actor, body)
+    const result = vendorResult
+      ?? await createCommunicationConversation(prepared.actor, prepared.input)
     if (initialMessage && (vendorResult || result.reused)) {
       await sendCommunicationMessage(actor, result.id, { body: initialMessage })
     }
