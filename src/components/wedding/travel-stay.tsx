@@ -35,6 +35,13 @@ function metaString(meta: Record<string, unknown>, key: string, fallback = ''): 
   return typeof meta[key] === 'string' ? String(meta[key]) : fallback
 }
 
+function tipDotClass(color?: string): string {
+  if (color === 'clay') return 'bg-clay'
+  if (color === 'sage') return 'bg-sage'
+  if (color === 'plum') return 'bg-plum'
+  return 'bg-gold'
+}
+
 export function TravelStay() {
   const ctx = useWeddingContextSafe()
   const wedding = ctx?.wedding
@@ -75,11 +82,7 @@ export function TravelStay() {
     'airportNote',
     'Add approximate travel time from the arrival point to the venue.',
   )
-  const shuttle = metaString(
-    travelMeta,
-    'shuttle',
-    'Wedding transport',
-  )
+  const shuttle = metaString(travelMeta, 'shuttle', 'Wedding transport')
   const shuttleNote = metaString(
     travelMeta,
     'shuttleNote',
@@ -117,7 +120,7 @@ export function TravelStay() {
     : '#venue')
 
   return (
-    <section id="travel" className="wewed-section py-20 md:py-32">
+    <section id="travel" data-classic-section="travel-stay" className="wewed-section py-20 md:py-32">
       <div className="mx-auto max-w-6xl px-4">
         <motion.div
           className="mb-16 text-center"
@@ -127,9 +130,7 @@ export function TravelStay() {
           transition={{ duration: 0.7 }}
         >
           <SectionEyebrow>Getting There</SectionEyebrow>
-          <h2 className="wewed-heading wewed-heading-accent text-4xl md:text-5xl text-espresso">
-            {heading}
-          </h2>
+          <h2 className="wewed-heading wewed-heading-accent text-4xl text-espresso md:text-5xl">{heading}</h2>
           <p className="mt-4 font-sans text-muted-foreground">{subtitle}</p>
         </motion.div>
 
@@ -140,32 +141,19 @@ export function TravelStay() {
                 <div className="flex size-14 items-center justify-center rounded-full bg-gold/15">
                   <MapPin className="size-6 text-gold" strokeWidth={1.5} />
                 </div>
-                <CardTitle className="wewed-heading text-2xl text-espresso mt-2">
-                  {travelCard?.value || 'Getting There'}
-                </CardTitle>
+                <CardTitle className="wewed-heading mt-2 text-2xl text-espresso">{travelCard?.value || 'Getting There'}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-5 font-sans text-sm">
-                <div className="space-y-1">
-                  <p className="font-medium text-espresso">{venueName}</p>
-                  <p className="text-muted-foreground">{venueLocation}</p>
-                </div>
+                <div className="space-y-1"><p className="font-medium text-espresso">{venueName}</p><p className="text-muted-foreground">{venueLocation}</p></div>
                 <div className="space-y-2 rounded-lg border border-gold/15 bg-white/50 p-3">
-                  <p className="font-medium text-espresso text-xs uppercase tracking-wider">Directions</p>
-                  <p className="text-muted-foreground leading-relaxed">{directions}</p>
-                  <Button variant="outline" size="sm" className="mt-2 border-gold/30 text-gold hover:bg-gold/10 font-sans" asChild>
-                    <a href={mapUrl} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="size-3.5" /> Get Directions
-                    </a>
+                  <p className="text-xs font-medium uppercase tracking-wider text-espresso">Directions</p>
+                  <p className="leading-relaxed text-muted-foreground">{directions}</p>
+                  <Button variant="outline" size="sm" className="mt-2 border-gold/30 font-sans text-gold hover:bg-gold/10" asChild>
+                    <a href={mapUrl} target="_blank" rel="noopener noreferrer"><ExternalLink className="size-3.5" /> Get Directions</a>
                   </Button>
                 </div>
-                <div className="flex items-start gap-3">
-                  <Plane className="mt-0.5 size-4 shrink-0 text-gold" />
-                  <div><p className="font-medium text-espresso">{airport}</p><p className="text-muted-foreground text-xs">{airportNote}</p></div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <Car className="mt-0.5 size-4 shrink-0 text-gold" />
-                  <div><p className="font-medium text-espresso">{shuttle}</p><p className="text-muted-foreground text-xs">{shuttleNote}</p></div>
-                </div>
+                <div className="flex items-start gap-3"><Plane className="mt-0.5 size-4 shrink-0 text-gold" /><div><p className="font-medium text-espresso">{airport}</p><p className="text-xs text-muted-foreground">{airportNote}</p></div></div>
+                <div className="flex items-start gap-3"><Car className="mt-0.5 size-4 shrink-0 text-gold" /><div><p className="font-medium text-espresso">{shuttle}</p><p className="text-xs text-muted-foreground">{shuttleNote}</p></div></div>
               </CardContent>
             </Card>
           </motion.div>
@@ -173,21 +161,23 @@ export function TravelStay() {
           <motion.div custom={1} variants={cardVariants} initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-50px' }}>
             <Card className="h-full border-gold/20 bg-champagne shadow-md transition-shadow duration-300 hover:shadow-lg">
               <CardHeader className="items-center text-center">
-                <div className="flex size-14 items-center justify-center rounded-full bg-gold/15">
-                  <Hotel className="size-6 text-gold" strokeWidth={1.5} />
-                </div>
-                <CardTitle className="wewed-heading text-2xl text-espresso mt-2">
-                  {stayCard?.value || 'Where to Stay'}
-                </CardTitle>
+                <div className="flex size-14 items-center justify-center rounded-full bg-gold/15"><Hotel className="size-6 text-gold" strokeWidth={1.5} /></div>
+                <CardTitle className="wewed-heading mt-2 text-2xl text-espresso">{stayCard?.value || 'Where to Stay'}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 font-sans text-sm">
                 {hotels.map((hotel, index) => (
                   <div key={`${hotel.name}-${index}`} className="flex items-start justify-between gap-3 rounded-lg border border-gold/15 bg-white/50 p-3 transition-colors hover:bg-white/80">
                     <div className="space-y-0.5">
                       <p className="font-medium text-espresso">{hotel.name}</p>
-                      <p className="text-muted-foreground text-xs">{[hotel.stars, hotel.location].filter(Boolean).join(' · ')}</p>
+                      <p className="text-xs text-muted-foreground">{[hotel.stars, hotel.location].filter(Boolean).join(' · ')}</p>
                     </div>
-                    {hotel.price && <span className="shrink-0 font-medium text-gold">{hotel.price}</span>}
+                    {hotel.price && (
+                      <div className="shrink-0 text-right">
+                        <span className="block text-[10px] uppercase tracking-wide text-muted-foreground">from</span>
+                        <span className="block font-medium text-gold">{hotel.price}</span>
+                        {!/rate|add/i.test(hotel.price) && <span className="block text-[10px] text-muted-foreground">/night</span>}
+                      </div>
+                    )}
                   </div>
                 ))}
                 <p className="pt-2 text-center text-xs text-muted-foreground">{hotelNote}</p>
@@ -198,21 +188,17 @@ export function TravelStay() {
           <motion.div custom={2} variants={cardVariants} initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-50px' }}>
             <Card className="h-full border-gold/20 bg-champagne shadow-md transition-shadow duration-300 hover:shadow-lg">
               <CardHeader className="items-center text-center">
-                <div className="flex size-14 items-center justify-center rounded-full bg-gold/15">
-                  <Info className="size-6 text-gold" strokeWidth={1.5} />
-                </div>
-                <CardTitle className="wewed-heading text-2xl text-espresso mt-2">
-                  {knowCard?.value || 'What to Know'}
-                </CardTitle>
+                <div className="flex size-14 items-center justify-center rounded-full bg-gold/15"><Info className="size-6 text-gold" strokeWidth={1.5} /></div>
+                <CardTitle className="wewed-heading mt-2 text-2xl text-espresso">{knowCard?.value || 'What to Know'}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-5 font-sans text-sm">
                 {tips.map((tip, index) => (
                   <div key={`${tip.label}-${index}`} className="space-y-1.5">
-                    <p className="font-medium text-espresso flex items-center gap-2">
-                      <span className="inline-block size-2 rounded-full bg-gold" />
+                    <p className="flex items-center gap-2 font-medium text-espresso">
+                      <span className={`inline-block size-2 rounded-full ${tipDotClass(tip.color)}`} />
                       {tip.label}
                     </p>
-                    <p className="text-muted-foreground leading-relaxed">{tip.text}</p>
+                    <p className="leading-relaxed text-muted-foreground">{tip.text}</p>
                   </div>
                 ))}
               </CardContent>
