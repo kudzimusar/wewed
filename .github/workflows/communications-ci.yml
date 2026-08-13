@@ -14,6 +14,7 @@ on:
       - 'scripts/communications-rate-limit-postgres-integration.sql'
       - 'scripts/communications-supabase-scheduler.sql'
       - 'scripts/couple-vendor-marketplace-contract.ts'
+      - 'scripts/messages-new-message-cta-contract.ts'
       - 'src/app/messages/**'
       - 'src/app/api/messages/route.ts'
       - 'src/app/api/communications/**'
@@ -30,6 +31,7 @@ on:
       - 'src/lib/whatsapp-cloud-webhook*.ts'
       - 'src/lib/email/resend.ts'
       - 'src/lib/email/resend-webhook.ts'
+      - 'src/components/communications/**'
       - 'src/components/admin/admin-utility-nav.tsx'
       - 'src/components/couple/couple-dashboard.tsx'
       - 'src/components/providers/public-provider-profile.tsx'
@@ -114,6 +116,9 @@ jobs:
 
       - name: Run Couple Vendor marketplace source contract
         run: bun scripts/couple-vendor-marketplace-contract.ts
+
+      - name: Run Messages New Message CTA contract
+        run: bun scripts/messages-new-message-cta-contract.ts
 
       - name: Provide server-only test sentinel
         shell: bash
