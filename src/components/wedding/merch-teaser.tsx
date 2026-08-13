@@ -31,47 +31,6 @@ interface Product {
   badge?: string
 }
 
-const PRODUCTS: Product[] = [
-  {
-    id: 'candle',
-    name: 'Personalised Wedding Candle',
-    price: 24,
-    description: 'Hand-poured soy candle with a personalised wedding monogram. 40-hour burn time.',
-    icon: Flame,
-    gradient: 'from-clay/30 via-gold/15 to-espresso/10',
-    available: true,
-  },
-  {
-    id: 'mug',
-    name: 'Monogram Mug',
-    price: 18,
-    description: 'Ceramic keepsake mug personalised for the active wedding. Dishwasher safe.',
-    icon: Coffee,
-    gradient: 'from-sage/25 via-gold/15 to-espresso/10',
-    available: true,
-  },
-  {
-    id: 'print',
-    name: 'Forever Print',
-    price: 45,
-    description: 'Archival-quality wedding art print designed as a lasting keepsake.',
-    icon: ImageIcon,
-    gradient: 'from-plum/25 via-gold/15 to-espresso/10',
-    available: false,
-    badge: 'Coming Soon',
-  },
-  {
-    id: 'album',
-    name: 'Memory Album',
-    price: 65,
-    description: 'Linen-bound photo album for favourite moments from the wedding.',
-    icon: BookOpen,
-    gradient: 'from-gold/30 via-champagne/20 to-espresso/10',
-    available: false,
-    badge: 'Coming Soon',
-  },
-]
-
 const EASING = [0.22, 1, 0.36, 1] as const
 
 function ProductCard({
@@ -96,15 +55,12 @@ function ProductCard({
       className="h-full"
     >
       <Card className="group h-full overflow-hidden border border-gold/25 bg-champagne shadow-sm transition-all duration-300 hover:-translate-y-1.5 hover:border-gold/50 hover:shadow-xl">
-        <div
-          className={`relative flex aspect-[4/5] items-center justify-center overflow-hidden bg-gradient-to-br ${product.gradient}`}
-        >
+        <div className={`relative flex aspect-[4/5] items-center justify-center overflow-hidden bg-gradient-to-br ${product.gradient}`}>
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 opacity-[0.07]"
             style={{
-              backgroundImage:
-                'radial-gradient(circle at 25% 25%, #1A1410 1px, transparent 1px)',
+              backgroundImage: 'radial-gradient(circle at 25% 25%, #1A1410 1px, transparent 1px)',
               backgroundSize: '18px 18px',
             }}
           />
@@ -133,16 +89,10 @@ function ProductCard({
 
         <CardContent className="flex h-full flex-col p-5 md:p-6">
           <div className="mb-2 flex items-start justify-between gap-3">
-            <h3 className="wewed-heading text-lg leading-snug text-espresso md:text-xl">
-              {product.name}
-            </h3>
-            <span className="shrink-0 font-serif text-2xl text-gold">
-              ${product.price}
-            </span>
+            <h3 className="wewed-heading text-lg leading-snug text-espresso md:text-xl">{product.name}</h3>
+            <span className="shrink-0 font-serif text-2xl text-gold">${product.price}</span>
           </div>
-          <p className="mb-5 text-sm leading-relaxed text-espresso/65">
-            {product.description}
-          </p>
+          <p className="mb-5 text-sm leading-relaxed text-espresso/65">{product.description}</p>
           <div className="mt-auto">
             <Button
               disabled={!product.available}
@@ -163,21 +113,67 @@ export function MerchTeaser() {
   const isInView = useInView(ref, { once: true, margin: '-80px' })
   const ctx = useWeddingContextSafe()
   const wedding = ctx?.wedding
-  const monogramMark = [
-    wedding?.monogram || coupleNames(wedding),
-    compactWeddingDate(wedding?.date),
+  const names = coupleNames(wedding)
+  const compactDate = compactWeddingDate(wedding?.date)
+  const surname = wedding?.couple.surname?.trim() || ''
+  const monogramMark = [wedding?.monogram || names, compactDate].filter(Boolean).join(' · ')
+
+  const heading = ctx?.getContent('merch', 'heading', 'Wewed Keepsakes') ?? 'Wewed Keepsakes'
+  const subtitle = ctx?.getContent('merch', 'subtitle', 'Take a piece of forever with you') ?? 'Take a piece of forever with you'
+  const note = ctx?.getContent(
+    'merch',
+    'note',
+    `Made-to-order keepsakes can carry ${names}' own monogram, date and wedding identity.`,
+  ) ?? `Made-to-order keepsakes can carry ${names}' own monogram, date and wedding identity.`
+
+  const products: Product[] = [
+    {
+      id: 'candle',
+      name: surname ? `“Mr & Mrs ${surname}” Candle` : `${names} Wedding Candle`,
+      price: 24,
+      description: 'Hand-poured soy candle with a gold wedding monogram. 40-hour burn time.',
+      icon: Flame,
+      gradient: 'from-clay/30 via-gold/15 to-espresso/10',
+      available: true,
+    },
+    {
+      id: 'mug',
+      name: 'Monogram Mug',
+      price: 18,
+      description: `Ceramic mug with the ${monogramMark || names} monogram. Dishwasher safe.`,
+      icon: Coffee,
+      gradient: 'from-sage/25 via-gold/15 to-espresso/10',
+      available: true,
+    },
+    {
+      id: 'print',
+      name: 'Forever Print',
+      price: 45,
+      description: `Archival-quality art print celebrating ${names} — an heirloom for the home.`,
+      icon: ImageIcon,
+      gradient: 'from-plum/25 via-gold/15 to-espresso/10',
+      available: false,
+      badge: 'Coming Soon',
+    },
+    {
+      id: 'album',
+      name: 'Memory Album',
+      price: 65,
+      description: 'Linen-bound photo album for sixty favourite moments from the wedding.',
+      icon: BookOpen,
+      gradient: 'from-gold/30 via-champagne/20 to-espresso/10',
+      available: false,
+      badge: 'Coming Soon',
+    },
   ]
-    .filter(Boolean)
-    .join(' · ')
 
   return (
-    <section id="merch" className="wewed-section relative bg-ivory py-20 md:py-32">
+    <section id="merch" data-classic-section="keepsakes" className="wewed-section relative bg-ivory py-20 md:py-32">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 opacity-[0.05]"
         style={{
-          backgroundImage:
-            'radial-gradient(circle at 80% 20%, #BF9B5F 1px, transparent 1px), radial-gradient(circle at 20% 80%, #C0633F 1px, transparent 1px)',
+          backgroundImage: 'radial-gradient(circle at 80% 20%, #BF9B5F 1px, transparent 1px), radial-gradient(circle at 20% 80%, #C0633F 1px, transparent 1px)',
           backgroundSize: '36px 36px',
         }}
       />
@@ -190,28 +186,15 @@ export function MerchTeaser() {
           transition={{ duration: 0.8, ease: EASING }}
           className="mx-auto mb-12 max-w-3xl text-center md:mb-16"
         >
-          <div className="mb-4 flex justify-center">
-            <GoldOrnament className="w-full max-w-[180px]" />
-          </div>
-          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.32em] text-gold-muted">
-            Wewed Keepsakes
-          </p>
-          <h2 className="wewed-heading text-4xl text-espresso md:text-5xl lg:text-6xl">
-            Wedding Keepsakes
-          </h2>
-          <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-espresso/70 md:text-lg">
-            Personalised objects that can carry this wedding&apos;s own identity rather than another couple&apos;s details.
-          </p>
+          <div className="mb-4 flex justify-center"><GoldOrnament className="w-full max-w-[180px]" /></div>
+          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.32em] text-gold-muted">Wewed Keepsakes</p>
+          <h2 className="wewed-heading text-4xl text-espresso md:text-5xl lg:text-6xl">{heading}</h2>
+          <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-espresso/70 md:text-lg">{subtitle}</p>
         </motion.div>
 
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 lg:items-stretch lg:gap-7">
-          {PRODUCTS.map((product, index) => (
-            <ProductCard
-              key={product.id}
-              product={product}
-              index={index}
-              monogramMark={monogramMark}
-            />
+          {products.map((product, index) => (
+            <ProductCard key={product.id} product={product} index={index} monogramMark={monogramMark} />
           ))}
         </div>
 
@@ -223,7 +206,7 @@ export function MerchTeaser() {
         >
           <div className="inline-flex items-center gap-2 rounded-full border border-gold/30 bg-champagne/70 px-5 py-2.5 text-xs text-espresso/70 shadow-sm backdrop-blur-sm md:text-sm">
             <Sparkles className="h-3.5 w-3.5 text-gold" />
-            Keepsakes are personalised only from the active wedding&apos;s own details.
+            {note}
           </div>
         </motion.div>
 
@@ -238,7 +221,7 @@ export function MerchTeaser() {
             className="group rounded-full bg-espresso px-8 py-3 text-sm font-semibold uppercase tracking-[0.12em] text-champagne transition-all hover:bg-plum hover:shadow-lg hover:shadow-plum/20"
           >
             <a href="/vendors?category=Gifts%20%26%20Favours">
-              Browse keepsake providers
+              Browse Keepsakes
               <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
             </a>
           </Button>
