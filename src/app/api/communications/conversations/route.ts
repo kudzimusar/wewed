@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   try {
     const actor = await requireCommunicationActor(request)
     const conversations = await listCommunicationConversations(actor)
-    const data = await normalizeWeddingCommunicationConversations(conversations)
+    const data = await normalizeWeddingCommunicationConversations(actor, conversations)
     return communicationJson({ success: true, data })
   } catch (error) {
     return communicationErrorResponse(error)
