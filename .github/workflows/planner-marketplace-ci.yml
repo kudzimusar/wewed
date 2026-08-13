@@ -61,6 +61,7 @@ jobs:
           src/lib/wedding-guest-proxy.test.ts
           src/lib/digital-invitation-card.test.ts
           src/lib/wedding-data-isolation.test.ts
+          src/lib/canonical-wedding-social-template.test.ts
           src/lib/africa-ready-experience.test.ts
           src/lib/africa-ready-remediation.test.ts
           src/lib/targeted-home-provider-iteration.test.ts
@@ -73,12 +74,13 @@ jobs:
           --exit-code
       - run: bun run build
       - run: bunx playwright install --with-deps chromium
-      - name: Run marketplace, privacy, invitation and wedding-first browser release gate
+      - name: Run marketplace, privacy, invitation, classic wedding and wedding-first browser release gate
         run: >-
           bunx playwright test
           tests/e2e/zz-planner-marketplace.spec.ts
           tests/e2e/zz-planner-marketplace-metadata.spec.ts
           tests/e2e/zz-unified-navigation-privacy.spec.ts
+          tests/e2e/zz-classic-canonical-wedding-template.spec.ts
           tests/e2e/zz-digital-invitation-cards.spec.ts
           tests/e2e/zz-africa-ready-experience.spec.ts
           --project=desktop-chromium
@@ -91,11 +93,11 @@ jobs:
           path: artifacts/invitation-card-samples
           if-no-files-found: ignore
           retention-days: 30
-      - name: Upload marketplace, privacy and experience browser failure evidence
+      - name: Upload marketplace, privacy, experience and classic wedding browser failure evidence
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: marketplace-privacy-experience-browser-release-gate
+          name: marketplace-privacy-experience-classic-wedding-browser-release-gate
           path: |
             playwright-report
             test-results
