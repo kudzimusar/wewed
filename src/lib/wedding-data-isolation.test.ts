@@ -7,6 +7,7 @@ describe('wedding identity isolation', () => {
   test('every wedding slug mounts the same canonical renderer without flagship routing', () => {
     const home = source('src/components/wedding/wedding-home.tsx')
     const provider = source('src/components/wedding/wedding-data-provider.tsx')
+    const page = source('src/app/w/[slug]/page.tsx')
 
     // The provider may retain a flagship marker for migrated fixture/media
     // compatibility, but renderer selection must never depend on it.
@@ -15,7 +16,14 @@ describe('wedding identity isolation', () => {
     expect(home).not.toContain('DataBackedWeddingExperience')
     expect(home).not.toContain('isFlagship')
 
-    expect(home).toContain('<WeddingDataProvider slug={slug}>')
+    // The canonical renderer is seeded with the already-authorized wedding
+    // projection on the server. This prevents a neutral/other-wedding first
+    // paint while preserving the same renderer for every slug.
+    expect(home).toContain('<WeddingDataProvider slug={slug} initialData={initialData}>')
+    expect(home).toContain('initialData?: WeddingData | null')
+    expect(page).toContain('const initialData = await loadWeddingDataBySlug(slug)')
+    expect(page).toContain('initialData={initialData}')
+
     expect(home).toContain('<HeroSection />')
     expect(home).toContain('<OurStory />')
     expect(home).toContain('<VenueSection />')
