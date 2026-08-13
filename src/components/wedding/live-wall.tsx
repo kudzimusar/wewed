@@ -194,7 +194,7 @@ export function LiveWall({ canPost = false }: { canPost?: boolean }) {
 
   const handleSend = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (!draftMsg.trim()) return
+    if (!canPost || !draftMsg.trim()) return
     setSending(true)
     setError(null)
     try {
@@ -308,60 +308,74 @@ export function LiveWall({ canPost = false }: { canPost?: boolean }) {
               </div>
             </CardContent>
 
-            <div className="border-t border-gold/15 bg-white/40 p-3">
-              {canPost ? (
-                <>
-                  <div className="mb-2">
-                    <Input
-                      value={draftName}
-                      onChange={(event) => setDraftName(event.target.value)}
-                      placeholder="Your name (optional)"
-                      className="border-gold/20 bg-white/70 font-sans text-sm placeholder:text-muted-foreground/60 focus:border-gold focus:ring-gold/20"
-                      maxLength={40}
-                    />
-                  </div>
-                  <form onSubmit={(event) => void handleSend(event)} className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <Input
-                      value={draftMsg}
-                      onChange={(event) => setDraftMsg(event.target.value)}
-                      placeholder={isBeforeMode ? 'Leave a note for the couple…' : 'Send a message to the live wall…'}
-                      className="flex-1 border-gold/20 bg-white/70 font-sans text-sm placeholder:text-muted-foreground/60 focus:border-gold focus:ring-gold/20"
-                      maxLength={500}
-                    />
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        onClick={() => void handleApplause()}
-                        variant="outline"
-                        className="border-gold/30 bg-white/60 font-sans text-xs text-gold hover:bg-gold/10 hover:text-gold"
-                        aria-label="Send applause"
-                      >
-                        <motion.span
-                          animate={bursting ? { scale: [1, 1.4, 1], rotate: [0, -10, 10, 0] } : { scale: 1 }}
-                          transition={{ duration: 0.6 }}
-                          className="inline-flex items-center"
-                        >
-                          👏
-                        </motion.span>
-                        <span className="ml-1 hidden sm:inline">Applaud</span>
-                      </Button>
-                      <Button type="submit" disabled={sending || !draftMsg.trim()} className="bg-gold font-sans text-xs text-espresso hover:bg-gold-light">
-                        {sending ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
-                        <span className="ml-1">Send</span>
-                      </Button>
-                    </div>
-                  </form>
-                  <div className="mt-2 flex items-center justify-between">
-                    <p className="font-sans text-[10px] text-muted-foreground">Be kind. Be joyful. Messages stay with this wedding.</p>
-                    <div className="flex items-center gap-1 text-gold-muted"><Heart className="size-3" /><span className="font-sans text-[10px]">{messages.length} live</span></div>
-                  </div>
-                </>
-              ) : (
-                <div className="flex items-center justify-center gap-2 py-2 text-center font-sans text-xs text-muted-foreground">
-                  <Lock className="size-3.5 text-gold" />
-                  Posting is available through a verified personal invitation.
+            <div className="border-t border-gold/15 bg-white/40 p-3" data-testid="classic-live-wall-composer">
+              {!canPost && (
+                <div
+                  data-testid="live-wall-locked-notice"
+                  className="mb-3 flex items-center gap-2 rounded-lg border border-gold/20 bg-gold/5 px-3 py-2 font-sans text-xs text-espresso/60"
+                >
+                  <Lock className="size-3.5 shrink-0 text-gold" />
+                  The wall stays visible, but posting is reserved for a verified wedding invitation or authorised wedding member.
                 </div>
               )}
+
+              <div className="mb-2">
+                <Input
+                  value={draftName}
+                  onChange={(event) => setDraftName(event.target.value)}
+                  placeholder={canPost ? 'Your name (optional)' : 'Guest name — invitation required to post'}
+                  disabled={!canPost}
+                  className="border-gold/20 bg-white/70 font-sans text-sm placeholder:text-muted-foreground/60 focus:border-gold focus:ring-gold/20 disabled:cursor-not-allowed disabled:opacity-70"
+                  maxLength={40}
+                />
+              </div>
+              <form onSubmit={(event) => void handleSend(event)} className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Input
+                  value={draftMsg}
+                  onChange={(event) => setDraftMsg(event.target.value)}
+                  placeholder={canPost
+                    ? isBeforeMode
+                      ? 'Leave a note for the couple…'
+                      : 'Send a message to the live wall…'
+                    : 'A verified guest can leave a note here…'}
+                  disabled={!canPost}
+                  className="flex-1 border-gold/20 bg-white/70 font-sans text-sm placeholder:text-muted-foreground/60 focus:border-gold focus:ring-gold/20 disabled:cursor-not-allowed disabled:opacity-70"
+                  maxLength={500}
+                />
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    onClick={() => void handleApplause()}
+                    variant="outline"
+                    disabled={!canPost}
+                    className="border-gold/30 bg-white/60 font-sans text-xs text-gold hover:bg-gold/10 hover:text-gold"
+                    aria-label="Send applause"
+                  >
+                    <motion.span
+                      animate={bursting ? { scale: [1, 1.4, 1], rotate: [0, -10, 10, 0] } : { scale: 1 }}
+                      transition={{ duration: 0.6 }}
+                      className="inline-flex items-center"
+                    >
+                      👏
+                    </motion.span>
+                    <span className="ml-1 hidden sm:inline">Applaud</span>
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={!canPost || sending || !draftMsg.trim()}
+                    className="bg-gold font-sans text-xs text-espresso hover:bg-gold-light"
+                  >
+                    {sending ? <Loader2 className="size-3.5 animate-spin" /> : canPost ? <Send className="size-3.5" /> : <Lock className="size-3.5" />}
+                    <span className="ml-1">Send</span>
+                  </Button>
+                </div>
+              </form>
+              <div className="mt-2 flex items-center justify-between">
+                <p className="font-sans text-[10px] text-muted-foreground">
+                  {canPost ? 'Be kind. Be joyful. Messages stay with this wedding.' : 'Read-only preview · guest identity is verified server-side before posting.'}
+                </p>
+                <div className="flex items-center gap-1 text-gold-muted"><Heart className="size-3" /><span className="font-sans text-[10px]">{messages.length} live</span></div>
+              </div>
               {error && <p role="alert" className="mt-2 font-sans text-xs text-clay">{error}</p>}
             </div>
           </Card>
