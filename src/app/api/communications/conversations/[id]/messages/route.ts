@@ -4,6 +4,7 @@ import {
   requireCommunicationActor,
   sendCommunicationMessage,
 } from '@/lib/communications'
+import { normalizeWeddingCommunicationMessages } from '@/lib/wedding-communication-roles'
 import {
   enforceCommunicationConversationFanoutLimit,
   enforceCommunicationRateLimit,
@@ -22,7 +23,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const actor = await requireCommunicationActor(request)
     const { id } = await context.params
     const messages = await listCommunicationMessages(actor, id)
-    return communicationJson({ success: true, data: messages })
+    const data = await normalizeWeddingCommunicationMessages(id, messages)
+    return communicationJson({ success: true, data })
   } catch (error) {
     return communicationErrorResponse(error)
   }
