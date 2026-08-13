@@ -126,8 +126,8 @@ function WeddingHomeContent({
             <VendorMarketplace />
             <QrCheckin />
             <PhotoGallery />
-            {canContribute && <MediaUpload />}
-            <MemoryCapsule />
+            <MediaUpload canUpload={canContribute} />
+            <MemoryCapsule canRecord={canContribute} />
             <LiveWall canPost={canContribute} />
             {mounted && <ContributionGallery />}
             <FaqSection />
@@ -141,10 +141,10 @@ function WeddingHomeContent({
           <>
             <AfterSections canPost={canContribute} />
             <PhotoGallery />
-            {canContribute && <MediaUpload />}
+            <MediaUpload canUpload={canContribute} />
             <LiveWall canPost={canContribute} />
             {mounted && <ContributionGallery />}
-            <MemoryCapsule />
+            <MemoryCapsule canRecord={canContribute} />
             <VendorMarketplace />
             <GiftRegistry />
             <FaqSection />
