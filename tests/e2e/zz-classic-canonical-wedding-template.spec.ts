@@ -102,7 +102,7 @@ test('classic premium renderer survives database canonicalization for two isolat
   await expectClassicTemplate(page, {
     partner1: 'Aurora',
     partner2: 'Blake',
-    venue: E2E_WEDDINGS.primary.venue,
+    venue: 'Primary Test Estate',
   })
   const primaryMain = page.locator('#main-content')
   await expect(primaryMain).not.toContainText('Charity')
@@ -114,7 +114,7 @@ test('classic premium renderer survives database canonicalization for two isolat
   await expectClassicTemplate(page, {
     partner1: 'Cedar',
     partner2: 'Drew',
-    venue: E2E_WEDDINGS.secondary.venue,
+    venue: 'Secondary Test Gardens',
   })
   const secondaryMain = page.locator('#main-content')
   await expect(secondaryMain).not.toContainText('Aurora')
