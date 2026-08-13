@@ -36,17 +36,23 @@ jobs:
       - name: Run Admin, Couple, Planner, and guest consistency contract
         run: bun scripts/admin-couple-consistency-contract.ts
 
+      - name: Run compact workspace navigation contract
+        run: bun test src/lib/workspace-quick-navigation.test.ts
+
       - name: Lint changed implementation files
         run: >-
           bunx eslint
           scripts/admin-couple-consistency-contract.ts
           src/app/api/admin/account-identity/route.ts
+          src/app/layout.tsx
           src/app/planner/layout.tsx
           'src/app/w/[slug]/page.tsx'
           src/components/admin/admin-account-identity-review.tsx
           src/components/admin/secure-wewed-admin.tsx
           src/components/couple/couple-dashboard.tsx
+          src/components/navigation/workspace-quick-navigation.tsx
           src/components/wedding/couple-login.tsx
           src/components/wedding/global-wedding-tools.tsx
           src/components/wedding/wedding-home.tsx
           src/lib/wedding-access-kind.ts
+          src/lib/workspace-quick-navigation.test.ts
