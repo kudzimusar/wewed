@@ -166,7 +166,10 @@ export async function normalizeWeddingCommunicationContacts(
   })
 }
 
-async function loadLastMessageSenderIds(conversationIds: string[]) {
+async function loadLastMessageSenderIds(
+  conversationIds: string[],
+  staff: boolean,
+) {
   if (conversationIds.length === 0) return new Map<string, string | null>()
   const rows = await db.$queryRaw<Array<{
     conversationId: string
@@ -178,13 +181,14 @@ async function loadLastMessageSenderIds(conversationIds: string[]) {
     FROM wewed_communications."CommunicationMessage" message
     WHERE message."conversationId" IN (${Prisma.join(conversationIds)})
       AND message."deletedAt" IS NULL
-      AND message."visibility" = 'PARTICIPANTS'
+      AND (message."visibility" = 'PARTICIPANTS' OR ${staff})
     ORDER BY message."conversationId", message."createdAt" DESC, message."id" DESC
   `)
   return new Map(rows.map((row) => [row.conversationId, row.senderUserId]))
 }
 
 export async function normalizeWeddingCommunicationConversations<T extends CommunicationConversationLike>(
+  actor: CommunicationActor,
   conversations: T[],
 ): Promise<T[]> {
   const weddingConversations = conversations.filter((conversation) => conversation.weddingId)
@@ -204,7 +208,10 @@ export async function normalizeWeddingCommunicationConversations<T extends Commu
     const userIds = rows.flatMap((row) => row.participants.map((participant) => participant.userId))
     roleMaps.set(weddingId, await loadWeddingRoleRecords(weddingId, userIds))
   }))
-  const lastSenders = await loadLastMessageSenderIds(weddingConversations.map((row) => row.id))
+  const lastSenders = await loadLastMessageSenderIds(
+    weddingConversations.map((row) => row.id),
+    actor.role === 'admin',
+  )
 
   return conversations.map((conversation) => {
     const weddingId = conversation.weddingId
