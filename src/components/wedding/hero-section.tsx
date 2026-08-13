@@ -172,6 +172,9 @@ export function HeroSection() {
         </motion.div>
 
         <motion.div variants={fadeUp} className="mt-10 sm:mt-14">
+          <p className="wewed-monogram mb-4 text-xs uppercase tracking-[0.2em] text-gold/60">
+            Counting the moments until forever
+          </p>
           <Countdown />
         </motion.div>
       </motion.div>
