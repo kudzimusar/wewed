@@ -139,7 +139,7 @@ function WeddingHomeContent({
           </>
         ) : (
           <>
-            <AfterSections />
+            <AfterSections canPost={canContribute} />
             <PhotoGallery />
             {canContribute && <MediaUpload />}
             <LiveWall canPost={canContribute} />
