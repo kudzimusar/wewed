@@ -82,7 +82,7 @@ function validateFile(file: File): string | undefined {
   return undefined
 }
 
-export function MediaUpload() {
+export function MediaUpload({ canUpload = false }: { canUpload?: boolean }) {
   const ctx = useWeddingContextSafe()
   const wedding = ctx?.wedding
   const names = coupleNames(wedding)
@@ -118,8 +118,11 @@ export function MediaUpload() {
     setSharingOpen(Number.isFinite(weddingTime) && Date.now() >= weddingTime)
   }, [wedding?.date])
 
+  const interactionEnabled = canUpload && sharingOpen
+
   const addFiles = useCallback(
     (files: FileList | File[]) => {
+      if (!interactionEnabled) return
       const next: QueuedFile[] = Array.from(files).map((file) => {
         const error = validateFile(file)
         return {
@@ -136,22 +139,21 @@ export function MediaUpload() {
       setQueue((current) => [...current, ...next])
       setSubmitted(false)
     },
-    [defaultMoment],
+    [defaultMoment, interactionEnabled],
   )
 
   const handleDrop = useCallback(
     (event: React.DragEvent<HTMLDivElement>) => {
       event.preventDefault()
       setDragActive(false)
+      if (!interactionEnabled) return
       if (event.dataTransfer.files?.length) addFiles(event.dataTransfer.files)
     },
-    [addFiles],
+    [addFiles, interactionEnabled],
   )
 
   const updateFile = (id: string, patch: Partial<QueuedFile>) => {
-    setQueue((current) =>
-      current.map((item) => (item.id === id ? { ...item, ...patch } : item)),
-    )
+    setQueue((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)))
   }
 
   const removeFile = (id: string) => {
@@ -163,7 +165,7 @@ export function MediaUpload() {
   }
 
   const uploadOne = async (item: QueuedFile): Promise<boolean> => {
-    if (!ctx?.slug) return false
+    if (!ctx?.slug || !interactionEnabled) return false
     updateFile(item.id, { status: 'uploading', progress: 5, error: undefined })
 
     const form = new FormData()
@@ -205,9 +207,8 @@ export function MediaUpload() {
   }
 
   const handleUploadAll = async () => {
-    const pending = queue.filter(
-      (item) => item.status === 'queued' || item.status === 'error',
-    )
+    if (!interactionEnabled) return
+    const pending = queue.filter((item) => item.status === 'queued' || item.status === 'error')
     if (!pending.length) return
 
     setSubmitting(true)
@@ -247,20 +248,20 @@ export function MediaUpload() {
     }, 1500)
   }
 
-  const readyCount = queue.filter(
-    (item) => item.status === 'queued' || item.status === 'error',
-  ).length
+  const readyCount = queue.filter((item) => item.status === 'queued' || item.status === 'error').length
   const allValid = queue.length > 0 && queue.every((item) => !item.error)
   const footerMark = [wedding?.monogram || names, compactWeddingDate(wedding?.date)]
     .filter(Boolean)
     .join(' · ')
 
+  const lockMessage = !canUpload
+    ? 'This classic guest camera is visible to everyone, but uploads are reserved for invited or authorised wedding contributors.'
+    : wedding?.date
+      ? `Photo sharing opens on ${formatWeddingDate(wedding.date)}.`
+      : 'Photo sharing opens when the wedding date is confirmed.'
+
   return (
-    <section
-      id="share"
-      data-classic-section="media-upload"
-      className="wewed-section bg-ivory py-20 md:py-32"
-    >
+    <section id="share" data-classic-section="media-upload" className="wewed-section bg-ivory py-20 md:py-32">
       <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
         <motion.div
           ref={sectionRef}
@@ -281,18 +282,21 @@ export function MediaUpload() {
           </p>
         </motion.div>
 
-        {!sharingOpen && (
+        {!interactionEnabled && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={isInView ? { opacity: 1, y: 0 } : {}}
             transition={{ duration: 0.5, ease: EASING, delay: 0.1 }}
+            data-testid="media-upload-locked-notice"
             className="mb-6 flex items-center justify-center gap-2 rounded-full border border-gold/30 bg-gold/5 px-4 py-2 text-center"
           >
-            <Sparkles className="size-3.5 text-gold" strokeWidth={1.5} />
-            <span className="font-sans text-[11px] uppercase tracking-[0.18em] text-gold-muted">
-              {wedding?.date
-                ? `Photo sharing opens on ${formatWeddingDate(wedding.date)}`
-                : 'Photo sharing opens when the wedding date is confirmed'}
+            {canUpload ? (
+              <Sparkles className="size-3.5 shrink-0 text-gold" strokeWidth={1.5} />
+            ) : (
+              <Lock className="size-3.5 shrink-0 text-gold" strokeWidth={1.5} />
+            )}
+            <span className="font-sans text-[11px] uppercase tracking-[0.14em] text-gold-muted">
+              {lockMessage}
             </span>
           </motion.div>
         )}
@@ -304,170 +308,218 @@ export function MediaUpload() {
         >
           <Card className="overflow-hidden border border-gold/30 bg-champagne shadow-sm">
             <CardContent className="p-5 sm:p-8">
-              {!sharingOpen ? (
-                <div className="flex flex-col items-center py-10 text-center">
-                  <span className="flex size-16 items-center justify-center rounded-full border border-gold/35 bg-gold/10">
-                    <Lock className="size-7 text-gold" />
-                  </span>
-                  <h3 className="mt-5 wewed-heading text-2xl font-light text-espresso sm:text-3xl">
-                    The guest camera roll is waiting
-                  </h3>
-                  <p className="mt-3 max-w-md font-sans text-sm leading-6 text-espresso/60">
-                    The full classic upload experience opens on the wedding day. Every file remains scoped to this wedding and requires a verified wedding identity.
-                  </p>
-                </div>
-              ) : (
-                <AnimatePresence mode="wait">
-                  {submitted ? (
-                    <motion.div
-                      key="success"
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      transition={{ duration: 0.4, ease: EASING }}
-                      className="flex flex-col items-center py-8 text-center"
+              <AnimatePresence mode="wait">
+                {submitted ? (
+                  <motion.div
+                    key="success"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ duration: 0.4, ease: EASING }}
+                    className="flex flex-col items-center py-8 text-center"
+                  >
+                    <motion.span
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: 'spring', stiffness: 240, damping: 18, delay: 0.05 }}
+                      className="flex size-16 items-center justify-center rounded-full border border-gold/40 bg-gold/10"
                     >
+                      <Check className="size-7 text-gold" strokeWidth={2} />
+                    </motion.span>
+                    <h3 className="mt-5 wewed-heading text-2xl font-light text-espresso sm:text-3xl">
+                      Thank you for sharing!
+                    </h3>
+                    <p className="mt-3 max-w-md font-sans text-sm text-espresso/65">
+                      Your moments are attached to {names}&apos; wedding.
+                    </p>
+                    <Button
+                      onClick={() => setSubmitted(false)}
+                      variant="outline"
+                      className="mt-7 border-gold/40 bg-transparent font-sans text-xs uppercase tracking-[0.15em] text-espresso hover:bg-gold hover:text-espresso"
+                    >
+                      <Camera className="mr-2 size-3.5" />
+                      Share more photos
+                    </Button>
+                  </motion.div>
+                ) : (
+                  <motion.div key="uploader" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                    <div
+                      onDragOver={(event) => {
+                        event.preventDefault()
+                        if (interactionEnabled) setDragActive(true)
+                      }}
+                      onDragLeave={() => setDragActive(false)}
+                      onDrop={handleDrop}
+                      onClick={() => {
+                        if (interactionEnabled) fileInputRef.current?.click()
+                      }}
+                      role="button"
+                      tabIndex={interactionEnabled ? 0 : -1}
+                      aria-disabled={!interactionEnabled}
+                      data-testid="classic-media-dropzone"
+                      onKeyDown={(event) => {
+                        if (!interactionEnabled) return
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          fileInputRef.current?.click()
+                        }
+                      }}
+                      className={`group relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-10 text-center transition-all duration-300 sm:py-14 ${
+                        interactionEnabled ? 'cursor-pointer' : 'cursor-not-allowed'
+                      } ${dragActive ? 'border-gold bg-gold/10' : 'border-gold/40 bg-white/50 hover:border-gold hover:bg-gold/5'}`}
+                    >
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm"
+                        multiple
+                        disabled={!interactionEnabled}
+                        onChange={(event) => {
+                          if (event.target.files?.length) addFiles(event.target.files)
+                          event.target.value = ''
+                        }}
+                        className="sr-only"
+                      />
                       <motion.span
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        transition={{ type: 'spring', stiffness: 240, damping: 18, delay: 0.05 }}
-                        className="flex size-16 items-center justify-center rounded-full border border-gold/40 bg-gold/10"
+                        whileHover={interactionEnabled ? { scale: 1.05 } : undefined}
+                        className="flex size-14 items-center justify-center rounded-full border border-gold/30 bg-gold/10 transition-colors duration-300 group-hover:bg-gold/15 sm:size-16"
                       >
-                        <Check className="size-7 text-gold" strokeWidth={2} />
+                        {interactionEnabled ? (
+                          <Camera className="size-6 text-gold sm:size-7" strokeWidth={1.25} />
+                        ) : (
+                          <Lock className="size-6 text-gold sm:size-7" strokeWidth={1.25} />
+                        )}
                       </motion.span>
-                      <h3 className="mt-5 wewed-heading text-2xl font-light text-espresso sm:text-3xl">
-                        Thank you for sharing!
+                      <h3 className="mt-5 wewed-heading text-xl font-light text-espresso sm:text-2xl">
+                        {interactionEnabled ? 'Drop your memories here' : 'The guest camera is ready'}
                       </h3>
-                      <p className="mt-3 max-w-md font-sans text-sm text-espresso/65">
-                        Your moments are now part of {names}&apos; wedding archive.
+                      <p className="mt-2 max-w-md font-sans text-sm leading-6 text-espresso/55">
+                        {interactionEnabled
+                          ? 'Drag photos or short videos here, or tap to choose files from your device.'
+                          : 'The full upload experience stays visible while access and timing remain protected.'}
+                      </p>
+                      <div className="mt-5 flex flex-wrap justify-center gap-2">
+                        <Badge variant="outline" className="border-gold/25 bg-champagne/70 text-espresso/60">
+                          <ImageIcon className="mr-1 size-3" /> JPG · PNG · WebP · GIF
+                        </Badge>
+                        <Badge variant="outline" className="border-gold/25 bg-champagne/70 text-espresso/60">
+                          <Video className="mr-1 size-3" /> MP4 · WebM
+                        </Badge>
+                        <Badge variant="outline" className="border-gold/25 bg-champagne/70 text-espresso/60">
+                          Max 10 MB
+                        </Badge>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 flex flex-col gap-3 rounded-xl border border-gold/15 bg-white/40 p-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="font-sans text-xs font-semibold uppercase tracking-[0.14em] text-gold-muted">Default moment</p>
+                        <p className="mt-1 font-sans text-xs text-espresso/50">You can change this for each queued file.</p>
+                      </div>
+                      <Select
+                        value={defaultMoment}
+                        onValueChange={(value) => setDefaultMoment(value as Moment)}
+                        disabled={!interactionEnabled}
+                      >
+                        <SelectTrigger className="w-full border-gold/25 bg-champagne sm:w-44" aria-label="Default photo moment">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {MOMENT_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {queue.length > 0 && (
+                      <div className="mt-6 space-y-3" data-testid="media-upload-queue">
+                        {queue.map((item) => (
+                          <div key={item.id} className="overflow-hidden rounded-xl border border-gold/20 bg-white/65">
+                            <div className="flex gap-3 p-3 sm:p-4">
+                              <div className="relative size-20 shrink-0 overflow-hidden rounded-lg border border-gold/15 bg-espresso/5">
+                                {item.file.type.startsWith('image/') ? (
+                                  <img src={item.previewUrl} alt="Selected upload preview" className="size-full object-cover" />
+                                ) : (
+                                  <video src={item.previewUrl} muted className="size-full object-cover" />
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <p className="truncate font-sans text-sm font-medium text-espresso">{item.file.name}</p>
+                                    <p className="font-sans text-[11px] text-espresso/45">{formatBytes(item.file.size)}</p>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => removeFile(item.id)}
+                                    disabled={item.status === 'uploading'}
+                                    aria-label={`Remove ${item.file.name}`}
+                                    className="size-8 shrink-0 text-espresso/45 hover:text-clay"
+                                  >
+                                    <X className="size-4" />
+                                  </Button>
+                                </div>
+
+                                <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_150px]">
+                                  <Input
+                                    value={item.caption}
+                                    onChange={(event) => updateFile(item.id, { caption: event.target.value })}
+                                    placeholder="Add a caption…"
+                                    disabled={item.status === 'uploading'}
+                                    className="border-gold/20 bg-champagne/70"
+                                  />
+                                  <Select
+                                    value={item.moment}
+                                    onValueChange={(value) => updateFile(item.id, { moment: value as Moment })}
+                                    disabled={item.status === 'uploading'}
+                                  >
+                                    <SelectTrigger className="border-gold/20 bg-champagne/70"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                      {MOMENT_OPTIONS.map((option) => (
+                                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                {item.status === 'uploading' && <Progress value={item.progress} className="mt-3 h-1.5" />}
+                                {item.error && (
+                                  <p className="mt-2 flex items-center gap-1.5 font-sans text-xs text-clay">
+                                    <AlertCircle className="size-3.5" /> {item.error}
+                                  </p>
+                                )}
+                                {item.status === 'done' && (
+                                  <p className="mt-2 flex items-center gap-1.5 font-sans text-xs text-sage">
+                                    <Check className="size-3.5" /> Added to this wedding
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="font-sans text-[11px] leading-5 text-espresso/45">
+                        Files are attached to this wedding only and remain subject to the wedding&apos;s contribution permissions.
                       </p>
                       <Button
-                        onClick={() => setSubmitted(false)}
-                        variant="outline"
-                        className="mt-7 border-gold/40 bg-transparent font-sans text-xs uppercase tracking-[0.15em] text-espresso hover:bg-gold hover:text-espresso"
+                        type="button"
+                        onClick={() => void handleUploadAll()}
+                        disabled={!interactionEnabled || submitting || !allValid || readyCount === 0}
+                        className="shrink-0 bg-gold font-sans text-xs uppercase tracking-[0.14em] text-espresso hover:bg-gold-light"
                       >
-                        <Camera className="mr-2 size-3.5" />
-                        Share more photos
+                        <Upload className="size-4" />
+                        {submitting ? 'Uploading…' : readyCount > 0 ? `Upload ${readyCount}` : 'Upload memories'}
                       </Button>
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key="uploader"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.25 }}
-                    >
-                      <div
-                        onDragOver={(event) => {
-                          event.preventDefault()
-                          setDragActive(true)
-                        }}
-                        onDragLeave={() => setDragActive(false)}
-                        onDrop={handleDrop}
-                        onClick={() => fileInputRef.current?.click()}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault()
-                            fileInputRef.current?.click()
-                          }
-                        }}
-                        className={`group flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-10 text-center transition-all duration-300 sm:py-14 ${
-                          dragActive
-                            ? 'border-gold bg-gold/10'
-                            : 'border-gold/40 bg-white/50 hover:border-gold hover:bg-gold/5'
-                        }`}
-                      >
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm"
-                          multiple
-                          onChange={(event) => {
-                            if (event.target.files?.length) addFiles(event.target.files)
-                            event.target.value = ''
-                          }}
-                          className="sr-only"
-                        />
-                        <motion.span
-                          whileHover={{ scale: 1.05 }}
-                          className="flex size-14 items-center justify-center rounded-full border border-gold/30 bg-gold/10 transition-colors duration-300 group-hover:bg-gold/15 sm:size-16"
-                        >
-                          <Camera className="size-6 text-gold sm:size-7" strokeWidth={1.25} />
-                        </motion.span>
-                        <p className="mt-4 wewed-heading text-lg font-light text-espresso sm:text-xl">
-                          Drag photos here or tap to browse
-                        </p>
-                        <p className="mt-2 font-sans text-[11px] uppercase tracking-[0.18em] text-espresso/45">
-                          JPG · PNG · WEBP · GIF · MP4 · WEBM
-                        </p>
-                        <p className="mt-1 font-sans text-[11px] text-espresso/40">
-                          Max 10 MB per file · Multiple files welcome
-                        </p>
-                      </div>
-
-                      <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <label className="font-sans text-[11px] font-medium uppercase tracking-[0.18em] text-espresso/55">
-                          Default moment
-                        </label>
-                        <Select value={defaultMoment} onValueChange={(value) => setDefaultMoment(value as Moment)}>
-                          <SelectTrigger className="w-full border-gold/30 bg-white/70 font-sans text-sm text-espresso sm:w-56">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {MOMENT_OPTIONS.map((option) => (
-                              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <AnimatePresence>
-                        {queue.length > 0 && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            transition={{ duration: 0.3, ease: EASING }}
-                            className="mt-6 space-y-3 overflow-hidden"
-                          >
-                            {queue.map((item) => (
-                              <QueueItem key={item.id} item={item} onUpdate={updateFile} onRemove={removeFile} />
-                            ))}
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-
-                      <div className="mt-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
-                        <p className="order-2 font-sans text-[11px] text-espresso/45 sm:order-1">
-                          {readyCount > 0
-                            ? `${readyCount} file${readyCount === 1 ? '' : 's'} ready to upload`
-                            : `Add photos to share with ${names}`}
-                        </p>
-                        <Button
-                          onClick={() => void handleUploadAll()}
-                          disabled={submitting || readyCount === 0 || (queue.length > 0 && !allValid && readyCount === 0)}
-                          className="order-1 w-full justify-center bg-gold font-sans text-xs uppercase tracking-[0.15em] text-espresso transition-all hover:bg-gold-light disabled:opacity-50 sm:order-2 sm:w-auto"
-                        >
-                          {submitting ? (
-                            <>
-                              <Upload className="mr-2 size-3.5 animate-pulse" />
-                              Uploading…
-                            </>
-                          ) : (
-                            <>
-                              <Upload className="mr-2 size-3.5" />
-                              Upload {readyCount > 0 ? `(${readyCount})` : ''}
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </CardContent>
           </Card>
         </motion.div>
@@ -484,106 +536,5 @@ export function MediaUpload() {
         </motion.div>
       </div>
     </section>
-  )
-}
-
-function QueueItem({
-  item,
-  onUpdate,
-  onRemove,
-}: {
-  item: QueuedFile
-  onUpdate: (id: string, patch: Partial<QueuedFile>) => void
-  onRemove: (id: string) => void
-}) {
-  const isImage = ALLOWED_IMAGE.has(item.file.type)
-  const isVideo = ALLOWED_VIDEO.has(item.file.type)
-  const Icon = isVideo ? Video : ImageIcon
-
-  const statusBadge = (() => {
-    switch (item.status) {
-      case 'uploading':
-        return <Badge className="border-gold/30 bg-gold/15 font-sans text-[10px] text-gold-muted">Uploading {item.progress}%</Badge>
-      case 'done':
-        return <Badge className="border-sage/30 bg-sage/15 font-sans text-[10px] text-sage"><Check className="size-3" />Shared</Badge>
-      case 'error':
-        return <Badge className="border-clay/30 bg-clay/15 font-sans text-[10px] text-clay"><AlertCircle className="size-3" />Failed</Badge>
-      default:
-        return <Badge variant="outline" className="border-espresso/20 bg-white/60 font-sans text-[10px] text-espresso/55">Ready</Badge>
-    }
-  })()
-
-  return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.96 }}
-      transition={{ duration: 0.3, ease: EASING }}
-      className="rounded-xl border border-gold/20 bg-white/70 p-3"
-    >
-      <div className="flex gap-3">
-        <div className="relative size-16 shrink-0 overflow-hidden rounded-lg border border-gold/20 bg-espresso sm:size-20">
-          {isImage ? (
-            <img src={item.previewUrl} alt={item.file.name} className="size-full object-cover" />
-          ) : isVideo ? (
-            <video src={item.previewUrl} className="size-full object-cover" muted preload="metadata" />
-          ) : (
-            <div className="flex size-full items-center justify-center"><Icon className="size-6 text-champagne/60" /></div>
-          )}
-          {item.status === 'uploading' && (
-            <div className="absolute inset-0 flex items-center justify-center bg-espresso/40 backdrop-blur-[1px]">
-              <span className="font-sans text-[10px] font-medium text-champagne">{item.progress}%</span>
-            </div>
-          )}
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <div className="mb-1.5 flex items-center justify-between gap-2">
-            <span className="truncate font-sans text-xs text-espresso/70">{item.file.name}</span>
-            <button
-              type="button"
-              onClick={() => onRemove(item.id)}
-              aria-label="Remove file"
-              className="flex size-6 items-center justify-center rounded-full text-espresso/40 transition-colors hover:bg-clay/10 hover:text-clay"
-            >
-              <X className="size-3.5" />
-            </button>
-          </div>
-          <div className="mb-1 flex items-center gap-2">
-            <span className="font-sans text-[10px] text-espresso/45">{formatBytes(item.file.size)}</span>
-            {statusBadge}
-          </div>
-          <Input
-            value={item.caption}
-            onChange={(event) => onUpdate(item.id, { caption: event.target.value })}
-            placeholder="Add a caption (optional)…"
-            maxLength={120}
-            disabled={item.status === 'uploading' || item.status === 'done'}
-            className="h-8 border-gold/20 bg-white/60 font-sans text-xs placeholder:text-espresso/35 focus:border-gold focus:ring-gold/20"
-          />
-          <div className="mt-2">
-            <Select
-              value={item.moment}
-              onValueChange={(value) => onUpdate(item.id, { moment: value as Moment })}
-              disabled={item.status === 'uploading' || item.status === 'done'}
-            >
-              <SelectTrigger className="h-8 w-full border-gold/20 bg-white/60 font-sans text-xs sm:w-48">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {MOMENT_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          {item.error && <p className="mt-1.5 font-sans text-[11px] text-clay">{item.error}</p>}
-          {item.status === 'uploading' && (
-            <Progress value={item.progress} className="mt-2 h-1 bg-gold/15 [&>[data-slot=progress-indicator]]:bg-gold" />
-          )}
-        </div>
-      </div>
-    </motion.div>
   )
 }
