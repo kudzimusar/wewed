@@ -19,7 +19,9 @@ describe('canonical wedding social template', () => {
     expect(home).toContain('<TheDay />')
     expect(home).toContain('<SongbookEnhanced />')
     expect(home).toContain('<PhotoGallery />')
-    expect(home).toContain('<MemoryCapsule />')
+    expect(home).toContain('<MediaUpload canUpload={canContribute} />')
+    expect(home).toContain('<MemoryCapsule canRecord={canContribute} />')
+    expect(home).toContain('<LiveWall canPost={canContribute} />')
     expect(home).toContain('<VendorMarketplace />')
     expect(home).toContain('<AfterSections canPost={canContribute} />')
   })
@@ -53,7 +55,8 @@ describe('canonical wedding social template', () => {
   })
 
   test('classic high-value presentation and interactions cannot be reduced to generic cards', async () => {
-    const [gallery, capsule, uploader, wall, after, vendors, guests, travel, registry, vision] = await Promise.all([
+    const [hero, gallery, capsule, uploader, wall, after, vendors, guests, travel, registry, vision] = await Promise.all([
+      source('src/components/wedding/hero-section.tsx'),
       source('src/components/wedding/photo-gallery.tsx'),
       source('src/components/wedding/memory-capsule.tsx'),
       source('src/components/wedding/media-upload.tsx'),
@@ -66,6 +69,11 @@ describe('canonical wedding social template', () => {
       source('src/components/wedding/platform-vision.tsx'),
     ])
 
+    expect(hero).toContain("ctx?.getContent('hero', 'imageUrl', '')")
+    expect(hero).toContain('wewed-ken-burns')
+    expect(hero).toContain('wewed-hero-sheen')
+    expect(hero).toContain('Counting the moments until forever')
+
     expect(gallery).toContain('data-classic-section="gallery"')
     expect(gallery).toContain('[column-count:1]')
     expect(gallery).toContain('function Lightbox(')
@@ -76,16 +84,26 @@ describe('canonical wedding social template', () => {
     expect(capsule).toContain('data-classic-section="memory-capsule"')
     expect(capsule).toContain("type CapsuleState = 'idle' | 'recording' | 'preview' | 'sent'")
     expect(capsule).toContain('function ProgressRing(')
+    expect(capsule).toContain('navigator.mediaDevices.getUserMedia')
+    expect(capsule).toContain('new MediaRecorder')
+    expect(capsule).toContain("fetch('/api/media'")
+    expect(capsule).toContain('data-testid="memory-capsule-locked-notice"')
     expect(capsule).toContain('Re-record')
     expect(capsule).toContain('Send to Capsule')
 
     expect(uploader).toContain('data-classic-section="media-upload"')
+    expect(uploader).toContain('canUpload = false')
+    expect(uploader).toContain('const interactionEnabled = canUpload && sharingOpen')
+    expect(uploader).toContain('data-testid="classic-media-dropzone"')
+    expect(uploader).toContain('data-testid="media-upload-locked-notice"')
     expect(uploader).toContain('onDrop={handleDrop}')
     expect(uploader).toContain('multiple')
     expect(uploader).toContain('<Progress')
     expect(uploader).toContain('Default moment')
 
     expect(wall).toContain('data-classic-section="live-wall"')
+    expect(wall).toContain('data-testid="classic-live-wall-composer"')
+    expect(wall).toContain('data-testid="live-wall-locked-notice"')
     expect(wall).toContain('Send applause')
     expect(wall).toContain('<Avatar')
     expect(wall).toContain('canPost')
@@ -117,6 +135,66 @@ describe('canonical wedding social template', () => {
     expect(vision).toContain('data-classic-section="platform-vision"')
     expect(vision).toContain('-bottom-20 -left-20')
     expect(vision).toContain('lg:text-5xl')
+  })
+
+  test('flagship presentation data self-heals without overwriting wedding edits', async () => {
+    const migration = await source('prisma/migrations/20260813103000_complete_classic_presentation_retrofit/migration.sql')
+
+    for (const required of [
+      "'hero', 'imageUrl', '/hero-wedding.png'",
+      "'story', 'familyImageUrl', '/couple-silhouette.png'",
+      "'registry', 'heading', 'With Gratitude'",
+      "'registry', 'card-0'",
+      "'registry', 'card-1'",
+      "'registry', 'card-2'",
+      "'guests', 'party-0'",
+      "'guests', 'party-7'",
+      "'guests', 'guide-0'",
+      "'social', 'telegramUrl'",
+      "'social', 'telegramHandle'",
+      "'gallery', 'previewImage0'",
+      "'gallery', 'previewImage3'",
+      "'memory', 'messageCount', '47'",
+      "'vendors', 'vendor-0'",
+      "'vendors', 'vendor-3'",
+      "'after', 'thankYou'",
+    ]) expect(migration).toContain(required)
+
+    expect(migration).toContain("w.slug = 'charity-and-kudzie'")
+    expect(migration).toContain("delete from \"ProgrammeItem\"")
+    expect(migration).toContain("'UAT-TIMELINE-001 Vendor access and setup'")
+    expect(migration).toContain('on conflict ("weddingId", "section", "field") do nothing')
+    expect(migration).not.toContain('do update set')
+  })
+
+  test('planner control timeline rows are filtered out of the public wedding projection', async () => {
+    const serverData = await source('src/lib/wedding-data-server.ts')
+    expect(serverData).toContain("'UAT-'")
+    expect(serverData).toContain("'TEST-'")
+    expect(serverData).toContain("'[PRIVATE]'")
+    expect(serverData).toContain("'[PLANNER]'")
+    expect(serverData).toContain('.filter((item) => isPublicProgrammeTitle(item.title))')
+  })
+
+  test('wedding media is durable and private in production', async () => {
+    const [route, storage, migration] = await Promise.all([
+      source('src/app/api/media/route.ts'),
+      source('src/lib/wedding-media-storage.ts'),
+      source('prisma/migrations/20260813104000_private_wedding_media_storage/migration.sql'),
+    ])
+
+    expect(storage).toContain("WEDDING_MEDIA_BUCKET = 'wedding-media'")
+    expect(storage).toContain('SUPABASE_SERVICE_ROLE_KEY')
+    expect(storage).toContain('.createSignedUrl(')
+    expect(storage).toContain('.upload(objectPath, bytes')
+    expect(route).toContain('uploadPrivateWeddingMedia')
+    expect(route).toContain("process.env.NODE_ENV !== 'production'")
+    expect(route).toContain("error: 'Wedding media storage is not configured. Upload was not accepted.'")
+    expect(route).toContain('resolvePrivateWeddingMediaUrls')
+    expect(migration).toContain("'wedding-media'")
+    expect(migration).toContain('false,')
+    expect(migration).toContain('10485760')
+    expect(migration).toContain("'video/webm'")
   })
 
   test('guest chrome cannot reveal couple planner admin edit or AI tools', async () => {
@@ -157,9 +235,10 @@ describe('canonical wedding social template', () => {
   })
 
   test('classic contribution surfaces use only wedding-scoped APIs', async () => {
-    const [gallery, uploader, wall, after, songs] = await Promise.all([
+    const [gallery, uploader, capsule, wall, after, songs] = await Promise.all([
       source('src/components/wedding/photo-gallery.tsx'),
       source('src/components/wedding/media-upload.tsx'),
+      source('src/components/wedding/memory-capsule.tsx'),
       source('src/components/wedding/live-wall.tsx'),
       source('src/components/wedding/after-sections.tsx'),
       source('src/components/wedding/songbook.tsx'),
@@ -168,6 +247,8 @@ describe('canonical wedding social template', () => {
     expect(gallery).toContain('/api/media?slug=')
     expect(uploader).toContain("form.append('slug', ctx.slug)")
     expect(uploader).toContain("fetch('/api/media'")
+    expect(capsule).toContain("form.append('slug', ctx.slug)")
+    expect(capsule).toContain("fetch('/api/media'")
     expect(wall).toContain('/api/messages?slug=')
     expect(wall).toContain("slug: ctx.slug")
     expect(after).toContain('/api/messages?slug=')
@@ -194,7 +275,7 @@ describe('canonical wedding social template', () => {
     expect(workflow).not.toContain('completed_migrations" != "$repo_migrations')
   })
 
-  test('classic flagship presentation data is additive and cannot overwrite edits', async () => {
+  test('classic flagship presentation data remains additive in the first recovery too', async () => {
     const migration = await source('prisma/migrations/20260813033000_restore_classic_wedding_presentation_data/migration.sql')
     expect(migration).toContain("w.slug = 'charity-and-kudzie'")
     expect(migration).toContain("'gallery', 'previewImage0'")
