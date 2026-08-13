@@ -55,11 +55,13 @@ const WeddingContext = createContext<WeddingContextValue | null>(null);
 interface WeddingDataProviderProps {
   children: ReactNode;
   slug?: string;
+  initialData?: WeddingData | null;
 }
 
 export function WeddingDataProvider({
   children,
   slug,
+  initialData = null,
 }: WeddingDataProviderProps) {
   const {
     wedding,
@@ -71,10 +73,10 @@ export function WeddingDataProvider({
     loading,
     error,
     refetch,
-  } = useWeddingData(slug);
+  } = useWeddingData(slug, initialData);
 
   const value = useMemo<WeddingContextValue>(() => {
-    const activeSlug = wedding?.slug ?? slug ?? FLAGSHIP_WEDDING_SLUG;
+    const activeSlug = wedding?.slug ?? slug ?? initialData?.wedding.slug ?? FLAGSHIP_WEDDING_SLUG;
     const data: WeddingData | null = wedding
       ? { wedding, content, contentMeta, ordered, programmeItems, songs }
       : null;
@@ -107,6 +109,7 @@ export function WeddingDataProvider({
     error,
     refetch,
     slug,
+    initialData,
   ]);
 
   return (
