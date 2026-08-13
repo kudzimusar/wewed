@@ -115,7 +115,8 @@ function resolveWeddingPermissions(
 
 const GOVERNED_WEDDING_ACCESS = `
   AND (
-    NOT EXISTS (
+    m.role = 'owner'
+    OR NOT EXISTS (
       SELECT 1
       FROM public."BusinessAccountMember" any_bam
       WHERE any_bam."userId" = m."userId"
