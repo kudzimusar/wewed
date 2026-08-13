@@ -6,6 +6,7 @@ export const ADMIN_AUTH_EVENT = 'wewed:dashboard-auth-changed'
 const STORAGE_KEY = 'wewed:dashboard-session'
 
 export type DashboardRole = 'admin' | 'couple' | 'planner' | 'vendor'
+export type DashboardWeddingRole = 'admin' | 'owner' | 'planner' | 'coordinator' | 'viewer'
 
 export interface DashboardUser {
   id: string
@@ -13,6 +14,7 @@ export interface DashboardUser {
   displayName: string | null
   role: DashboardRole
   coupleId: string | null
+  activeWeddingRole?: DashboardWeddingRole | null
 }
 
 interface CachedDashboardSession {
@@ -23,6 +25,7 @@ interface CachedDashboardSession {
 interface AuthResult {
   success: boolean
   user?: DashboardUser
+  activeWedding?: { membershipRole?: DashboardWeddingRole | null } | null
   error?: string
 }
 
@@ -88,6 +91,16 @@ function clearCachedSession(): void {
   notifyAuthState(false)
 }
 
+function withWeddingRole(
+  user: DashboardUser,
+  activeWedding: AuthResult['activeWedding'],
+): DashboardUser {
+  return {
+    ...user,
+    activeWeddingRole: activeWedding?.membershipRole ?? null,
+  }
+}
+
 export async function signInAdmin(
   email: string,
   password: string
@@ -110,8 +123,9 @@ export async function signInAdmin(
       }
     }
 
-    cacheSession(payload.user)
-    return { success: true, user: payload.user }
+    const user = withWeddingRole(payload.user, payload.activeWedding)
+    cacheSession(user)
+    return { success: true, user, activeWedding: payload.activeWedding }
   } catch {
     clearCachedSession()
     return { success: false, error: 'Unable to reach the sign-in service.' }
@@ -129,6 +143,7 @@ export async function refreshAdminSession(): Promise<AuthResult> {
       success?: boolean
       authorized?: boolean
       user?: DashboardUser | null
+      activeWedding?: { membershipRole?: DashboardWeddingRole | null } | null
       expiresAt?: number
       error?: string
     }
@@ -143,8 +158,9 @@ export async function refreshAdminSession(): Promise<AuthResult> {
       return { success: false, error: payload.error || 'Sign in is required.' }
     }
 
-    cacheSession(payload.user, payload.expiresAt)
-    return { success: true, user: payload.user }
+    const user = withWeddingRole(payload.user, payload.activeWedding)
+    cacheSession(user, payload.expiresAt)
+    return { success: true, user, activeWedding: payload.activeWedding }
   } catch {
     clearCachedSession()
     return { success: false, error: 'Unable to verify the current session.' }

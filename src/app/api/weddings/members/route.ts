@@ -27,6 +27,10 @@ interface MemberRow {
   isActive: boolean
 }
 
+interface PlanningBusinessRow {
+  businessAccountId: string
+}
+
 function getServiceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -98,19 +102,136 @@ async function getMembers(weddingId: string) {
         END,
         lower(u.email)
     `,
-    weddingId
+    weddingId,
   )
 }
 
 async function findAuthUserIdByEmail(email: string): Promise<string | null> {
-  const supabase = getServiceClient()
-  const { data, error } = await supabase.auth.admin.listUsers({
-    page: 1,
-    perPage: 1000,
+  const rows = await db.$queryRawUnsafe<Array<{ id: string }>>(
+    `SELECT id::text AS id
+     FROM auth.users
+     WHERE lower(email) = $1
+     LIMIT 1`,
+    email,
+  )
+  return rows[0]?.id ?? null
+}
+
+async function syncUserProfile(input: {
+  email: string
+  name: string | null
+  globalRole: string
+  authUserId?: string | null
+}) {
+  const existingProfile = await db.userProfile.findUnique({
+    where: { email: input.email },
+    select: { id: true },
   })
 
-  if (error) throw error
-  return data.users.find((user) => user.email?.toLowerCase() === email)?.id ?? null
+  if (existingProfile) {
+    await db.userProfile.update({
+      where: { id: existingProfile.id },
+      data: {
+        displayName: input.name || undefined,
+        role: input.globalRole,
+        isBanned: false,
+        bannedAt: null,
+        banReason: null,
+      },
+    })
+    return
+  }
+
+  const authUserId = input.authUserId ?? await findAuthUserIdByEmail(input.email)
+  if (!authUserId) return
+
+  await db.userProfile.upsert({
+    where: { id: authUserId },
+    create: {
+      id: authUserId,
+      email: input.email,
+      displayName: input.name,
+      role: input.globalRole,
+    },
+    update: {
+      email: input.email,
+      displayName: input.name || undefined,
+      role: input.globalRole,
+      isBanned: false,
+      bannedAt: null,
+      banReason: null,
+    },
+  })
+}
+
+async function syncPlannerBusinessLink(input: {
+  membershipId: string
+  userId: string
+  weddingId: string
+  role: MembershipRole
+  status: MembershipStatus
+}) {
+  const linkId = `planner-wedding-${input.membershipId}`
+  const shouldManage =
+    ['planner', 'coordinator'].includes(input.role) && input.status !== 'revoked'
+
+  if (!shouldManage) {
+    await db.$executeRawUnsafe(
+      `DELETE FROM public."BusinessAccountLink" WHERE id = $1`,
+      linkId,
+    )
+    return
+  }
+
+  const businesses = await db.$queryRawUnsafe<PlanningBusinessRow[]>(
+    `
+      SELECT ba.id AS "businessAccountId"
+      FROM public."BusinessAccountMember" bam
+      JOIN public."BusinessAccount" ba
+        ON ba.id = bam."businessAccountId"
+      WHERE bam."userId" = $1
+        AND bam.status = 'active'
+        AND bam.role = 'business_owner'
+        AND ba.type = 'planning_company'
+        AND ba.status = 'active'
+        AND ba."onboardingStatus" = 'complete'
+        AND COALESCE(ba.metadata->>'testData', 'false') <> 'true'
+      ORDER BY CASE WHEN ba."ownerUserId" = $1 THEN 0 ELSE 1 END,
+               ba."createdAt" ASC,
+               ba.id ASC
+      LIMIT 1
+    `,
+    input.userId,
+  )
+
+  const business = businesses[0]
+  if (!business) {
+    await db.$executeRawUnsafe(
+      `DELETE FROM public."BusinessAccountLink" WHERE id = $1`,
+      linkId,
+    )
+    return
+  }
+
+  await db.$executeRawUnsafe(
+    `
+      INSERT INTO public."BusinessAccountLink" (
+        id, "businessAccountId", "entityType", "entityId", relationship, "createdAt"
+      )
+      SELECT $1, $2, 'wedding', $3, 'manages', CURRENT_TIMESTAMP
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM public."BusinessAccountLink" existing
+        WHERE existing."businessAccountId" = $2
+          AND existing."entityType" = 'wedding'
+          AND existing."entityId" = $3
+          AND existing.relationship = 'manages'
+      )
+    `,
+    linkId,
+    business.businessAccountId,
+    input.weddingId,
+  )
 }
 
 export async function GET(request: NextRequest) {
@@ -128,7 +249,7 @@ export async function GET(request: NextRequest) {
     console.error('[weddings/members GET] Error:', error)
     return NextResponse.json(
       { success: false, error: 'Unable to load wedding members.' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
@@ -156,7 +277,7 @@ export async function POST(request: NextRequest) {
     if (!email) {
       return NextResponse.json(
         { success: false, error: 'A valid email is required.' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -167,79 +288,68 @@ export async function POST(request: NextRequest) {
     if (!wedding) {
       return NextResponse.json(
         { success: false, error: 'Wedding not found.' },
-        { status: 404 }
+        { status: 404 },
       )
     }
 
-    const supabase = getServiceClient()
-    let authUserId = await findAuthUserIdByEmail(email)
+    let user = await db.user.findUnique({ where: { email } })
+    let authUserId: string | null = null
     let invitationSent = false
 
-    if (!authUserId) {
-      const redirectTo = process.env.NEXT_PUBLIC_SITE_URL
-        ? `${process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, '')}/`
-        : undefined
-      const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, {
-        data: { display_name: name || undefined, wedding: wedding.title },
-        redirectTo,
-      })
-      if (error || !data.user) throw error ?? new Error('Invitation failed.')
-      authUserId = data.user.id
-      invitationSent = true
-    }
-
-    let user = await db.user.findUnique({ where: { email } })
-    const desiredGlobalRole = role === 'owner' ? 'couple' : 'planner'
-
     if (!user) {
+      authUserId = await findAuthUserIdByEmail(email)
+
+      if (!authUserId) {
+        const supabase = getServiceClient()
+        const redirectTo = process.env.NEXT_PUBLIC_SITE_URL
+          ? `${process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, '')}/`
+          : undefined
+        const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, {
+          data: { display_name: name || undefined, wedding: wedding.title },
+          redirectTo,
+        })
+        if (error || !data.user) throw error ?? new Error('Invitation failed.')
+        authUserId = data.user.id
+        invitationSent = true
+      }
+
+      const desiredGlobalRole = role === 'owner' ? 'couple' : 'planner'
       user = await db.user.create({
         data: {
           id: authUserId,
           email,
           name: name || null,
           role: desiredGlobalRole,
-          coupleId: wedding.coupleId,
+          coupleId: role === 'owner' ? wedding.coupleId : null,
           isActive: true,
         },
       })
-    } else {
-      const nextGlobalRole =
-        user.role === 'admin'
-          ? 'admin'
-          : role === 'owner' || user.role === 'couple'
-            ? 'couple'
-            : 'planner'
 
+      await syncUserProfile({
+        email,
+        name: name || user.name || null,
+        globalRole: user.role,
+        authUserId,
+      })
+    } else {
       user = await db.user.update({
         where: { id: user.id },
         data: {
           name: name || user.name,
-          role: nextGlobalRole,
-          coupleId: user.coupleId ?? wedding.coupleId,
+          coupleId:
+            role === 'owner' && !user.coupleId ? wedding.coupleId : user.coupleId,
           isActive: true,
         },
       })
+
+      await syncUserProfile({
+        email,
+        name: name || user.name || null,
+        globalRole: user.role,
+      })
     }
 
-    await db.userProfile.upsert({
-      where: { id: authUserId },
-      create: {
-        id: authUserId,
-        email,
-        displayName: name || user.name || null,
-        role: user.role,
-      },
-      update: {
-        email,
-        displayName: name || user.name || undefined,
-        role: user.role,
-        isBanned: false,
-        bannedAt: null,
-        banReason: null,
-      },
-    })
-
-    const membershipId = `wm_${randomUUID().replace(/-/g, '')}`
+    const proposedMembershipId = `wm_${randomUUID().replace(/-/g, '')}`
     await db.$executeRawUnsafe(
       `
         INSERT INTO public."WeddingMembership" (
@@ -259,31 +369,40 @@ export async function POST(request: NextRequest) {
             "revokedAt" = NULL,
             "updatedAt" = CURRENT_TIMESTAMP
       `,
-      membershipId,
+      proposedMembershipId,
       user.id,
       access.context.weddingId,
       role,
       permissions,
-      access.context.session.userId
+      access.context.session.userId,
     )
 
     const members = await getMembers(access.context.weddingId)
     const member = members.find((candidate) => candidate.userId === user.id)
+    if (member) {
+      await syncPlannerBusinessLink({
+        membershipId: member.id,
+        userId: member.userId,
+        weddingId: member.weddingId,
+        role: member.role,
+        status: member.status,
+      })
+    }
 
     return NextResponse.json(
       {
         success: true,
         invitationSent,
+        existingAccount: !invitationSent,
         data: member ? serializeMember(member) : null,
       },
-      { status: 201 }
+      { status: 201 },
     )
   } catch (error) {
     console.error('[weddings/members POST] Error:', error)
-    const message = error instanceof Error ? error.message : 'Unable to invite member.'
     return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
+      { success: false, error: 'Unable to invite this team member.' },
+      { status: 500 },
     )
   }
 }
@@ -305,7 +424,7 @@ export async function PATCH(request: NextRequest) {
     if (!membershipId) {
       return NextResponse.json(
         { success: false, error: 'membershipId is required.' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -318,13 +437,13 @@ export async function PATCH(request: NextRequest) {
         LIMIT 1
       `,
       membershipId,
-      access.context.weddingId
+      access.context.weddingId,
     )
     const existing = existingRows[0]
     if (!existing) {
       return NextResponse.json(
         { success: false, error: 'Membership not found.' },
-        { status: 404 }
+        { status: 404 },
       )
     }
 
@@ -344,7 +463,7 @@ export async function PATCH(request: NextRequest) {
     if (!role || !status) {
       return NextResponse.json(
         { success: false, error: 'Invalid role or status.' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -355,7 +474,7 @@ export async function PATCH(request: NextRequest) {
     ) {
       return NextResponse.json(
         { success: false, error: 'You cannot remove your own owner access.' },
-        { status: 409 }
+        { status: 409 },
       )
     }
 
@@ -382,8 +501,24 @@ export async function PATCH(request: NextRequest) {
       access.context.weddingId,
       role,
       status,
-      permissions
+      permissions,
     )
+
+    if (role === 'owner') {
+      const wedding = await db.wedding.findUnique({
+        where: { id: access.context.weddingId },
+        select: { coupleId: true },
+      })
+      if (wedding) {
+        await db.$executeRawUnsafe(
+          `UPDATE public."User"
+           SET "coupleId" = COALESCE("coupleId", $2), "updatedAt" = CURRENT_TIMESTAMP
+           WHERE id = $1`,
+          existing.userId,
+          wedding.coupleId,
+        )
+      }
+    }
 
     if (status === 'revoked') {
       await db.$executeRawUnsafe(
@@ -393,9 +528,17 @@ export async function PATCH(request: NextRequest) {
           WHERE id = $1 AND "currentWeddingId" = $2
         `,
         existing.userId,
-        access.context.weddingId
+        access.context.weddingId,
       )
     }
+
+    await syncPlannerBusinessLink({
+      membershipId,
+      userId: existing.userId,
+      weddingId: access.context.weddingId,
+      role,
+      status,
+    })
 
     const members = await getMembers(access.context.weddingId)
     const member = members.find((candidate) => candidate.id === membershipId)
@@ -405,10 +548,9 @@ export async function PATCH(request: NextRequest) {
     })
   } catch (error) {
     console.error('[weddings/members PATCH] Error:', error)
-    const message = error instanceof Error ? error.message : 'Unable to update member.'
     return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
+      { success: false, error: 'Unable to update this team member.' },
+      { status: 500 },
     )
   }
 }
@@ -425,11 +567,11 @@ export async function DELETE(request: NextRequest) {
     if (!membershipId) {
       return NextResponse.json(
         { success: false, error: 'membershipId is required.' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
-    const existing = await db.$queryRawUnsafe<Array<{ userId: string; role: string }>>(
+    const existing = await db.$queryRawUnsafe<Array<{ userId: string; role: MembershipRole }>>(
       `
         SELECT "userId", role
         FROM public."WeddingMembership"
@@ -437,13 +579,13 @@ export async function DELETE(request: NextRequest) {
         LIMIT 1
       `,
       membershipId,
-      access.context.weddingId
+      access.context.weddingId,
     )
 
     if (!existing[0]) {
       return NextResponse.json(
         { success: false, error: 'Membership not found.' },
-        { status: 404 }
+        { status: 404 },
       )
     }
 
@@ -453,7 +595,7 @@ export async function DELETE(request: NextRequest) {
     ) {
       return NextResponse.json(
         { success: false, error: 'You cannot revoke your own owner access.' },
-        { status: 409 }
+        { status: 409 },
       )
     }
 
@@ -465,7 +607,7 @@ export async function DELETE(request: NextRequest) {
         WHERE id = $1 AND "weddingId" = $2
       `,
       membershipId,
-      access.context.weddingId
+      access.context.weddingId,
     )
 
     await db.$executeRawUnsafe(
@@ -475,15 +617,23 @@ export async function DELETE(request: NextRequest) {
         WHERE id = $1 AND "currentWeddingId" = $2
       `,
       existing[0].userId,
-      access.context.weddingId
+      access.context.weddingId,
     )
+
+    await syncPlannerBusinessLink({
+      membershipId,
+      userId: existing[0].userId,
+      weddingId: access.context.weddingId,
+      role: existing[0].role,
+      status: 'revoked',
+    })
 
     return NextResponse.json({ success: true, data: { membershipId, revoked: true } })
   } catch (error) {
     console.error('[weddings/members DELETE] Error:', error)
     return NextResponse.json(
       { success: false, error: 'Unable to revoke member.' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }

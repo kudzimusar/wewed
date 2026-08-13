@@ -98,6 +98,7 @@ export function WeddingContextControls() {
   const [plannerResults, setPlannerResults] = useState<PlannerDirectoryResult[]>([])
   const [searchingPlanners, setSearchingPlanners] = useState(false)
   const [plannerSearchError, setPlannerSearchError] = useState<string | null>(null)
+  const [selectedPlannerUserId, setSelectedPlannerUserId] = useState<string | null>(null)
 
   const loadSession = useCallback(async () => {
     setLoadingSession(true)
@@ -206,6 +207,8 @@ export function WeddingContextControls() {
       setMembers([])
       setPlannerSearch('')
       setPlannerResults([])
+      setPlannerSearchError(null)
+      setSelectedPlannerUserId(null)
       window.dispatchEvent(
         new CustomEvent('wewed:wedding-switched', {
           detail: { weddingId: payload.activeWedding.id },
@@ -226,6 +229,7 @@ export function WeddingContextControls() {
     const search = plannerSearch.trim()
     setPlannerSearchError(null)
     setPlannerResults([])
+    setSelectedPlannerUserId(null)
     if (search.length < 2) {
       setPlannerSearchError('Enter at least two characters to find a registered planner.')
       return
@@ -266,6 +270,7 @@ export function WeddingContextControls() {
     setPlannerSearch(planner.businessName)
     setPlannerResults([])
     setPlannerSearchError(null)
+    setSelectedPlannerUserId(planner.userId)
   }
 
   async function inviteMember(event: FormEvent<HTMLFormElement>) {
@@ -287,6 +292,8 @@ export function WeddingContextControls() {
       setInvite({ email: '', name: '', role: 'planner' })
       setPlannerSearch('')
       setPlannerResults([])
+      setPlannerSearchError(null)
+      setSelectedPlannerUserId(null)
       await loadMembers()
     } catch (inviteError) {
       setError(
@@ -444,7 +451,12 @@ export function WeddingContextControls() {
                   <Input
                     id="registered-planner-search"
                     value={plannerSearch}
-                    onChange={(event) => setPlannerSearch(event.target.value)}
+                    onChange={(event) => {
+                      setPlannerSearch(event.target.value)
+                      setPlannerResults([])
+                      setPlannerSearchError(null)
+                      setSelectedPlannerUserId(null)
+                    }}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter') {
                         event.preventDefault()
@@ -470,7 +482,13 @@ export function WeddingContextControls() {
                   <p className="mt-2 font-sans text-xs text-clay-light">{plannerSearchError}</p>
                 )}
 
-                {!searchingPlanners && plannerSearch.trim().length >= 2 && plannerResults.length === 0 && !plannerSearchError ? (
+                {selectedPlannerUserId ? (
+                  <p className="mt-2 font-sans text-xs text-sage-light">
+                    Registered planner selected. Review the details below, then invite.
+                  </p>
+                ) : null}
+
+                {!searchingPlanners && plannerSearch.trim().length >= 2 && plannerResults.length === 0 && !plannerSearchError && !selectedPlannerUserId ? (
                   <p className="mt-2 font-sans text-xs text-champagne/45">
                     No unassigned registered planners found for this search.
                   </p>
@@ -507,9 +525,10 @@ export function WeddingContextControls() {
                   type="email"
                   required
                   value={invite.email}
-                  onChange={(event) =>
+                  onChange={(event) => {
                     setInvite((current) => ({ ...current, email: event.target.value }))
-                  }
+                    setSelectedPlannerUserId(null)
+                  }}
                   placeholder="planner@example.com"
                   className="border-gold/25 bg-espresso/60 text-champagne placeholder:text-champagne/30"
                 />
