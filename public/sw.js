@@ -5,15 +5,17 @@
  *  - Navigation requests (HTML pages):  network-first, fallback to cached "/".
  *    This keeps the live countdown / RSVP data fresh when online, but still
  *    serves the app shell offline (critical for flaky venue Wi-Fi).
- *  - Static assets (images, css, js, fonts): cache-first, fallback to network.
- *    Stable assets rarely change and load instantly from cache.
- *  - API requests (/api/*):                network-only.
+ *  - Next.js build assets (JS/CSS):      network-first, fallback to cache.
+ *    App code must not remain pinned to an older deployment while online.
+ *  - Other static assets:                cache-first, fallback to network.
+ *    Stable images and fonts load instantly from cache.
+ *  - API requests (/api/*):              network-only.
  *    Dynamic data (RSVPs, votes, messages) must never be served stale.
  *
- * Bump CACHE_VERSION to invalidate old caches on deploy.
+ * Bump CACHE_VERSION to invalidate old caches when cache semantics change.
  */
 
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const STATIC_CACHE = `wewed-static-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `wewed-runtime-${CACHE_VERSION}`;
 
@@ -78,15 +80,18 @@ function isCacheableMethod(request) {
   return request.method === 'GET';
 }
 
-/** Static-asset requests: images, stylesheets, scripts, fonts, etc. */
+/** Next.js JS/CSS build output must revalidate online. */
+function isNextBuildAsset(request) {
+  const url = new URL(request.url);
+  return url.origin === self.location.origin && url.pathname.startsWith('/_next/static/');
+}
+
+/** Other static-asset requests: images, fonts, etc. */
 function isStaticAsset(request) {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return false;
-  return (
-    url.pathname.startsWith('/_next/static/') ||
-    /\.(?:png|jpe?g|gif|webp|avif|svg|ico|css|js|woff2?|ttf|otf)(?:\?.*)?$/i.test(
-      url.pathname,
-    )
+  return /\.(?:png|jpe?g|gif|webp|avif|svg|ico|css|js|woff2?|ttf|otf)(?:\?.*)?$/i.test(
+    url.pathname,
   );
 }
 
@@ -147,7 +152,28 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 3. Static assets → cache-first, fallback to network (and lazy-cache).
+  // 3. Next.js build assets → network-first so active sessions cannot stay on
+  // an older JS/CSS bundle while online; cached copy remains an offline fallback.
+  if (isNextBuildAsset(request)) {
+    event.respondWith(
+      (async () => {
+        try {
+          const fresh = await fetch(request, { cache: 'no-cache' });
+          if (fresh && fresh.ok && fresh.type === 'basic') {
+            const cache = await caches.open(RUNTIME_CACHE);
+            cache.put(request, fresh.clone()).catch(() => {});
+          }
+          return fresh;
+        } catch (_err) {
+          const cached = await caches.match(request);
+          return cached || Response.error();
+        }
+      })(),
+    );
+    return;
+  }
+
+  // 4. Other static assets → cache-first, fallback to network (and lazy-cache).
   if (isStaticAsset(request)) {
     event.respondWith(
       (async () => {
@@ -169,7 +195,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 4. Everything else (same-origin or cross-origin XHRs) → try network, no cache.
+  // 5. Everything else (same-origin or cross-origin XHRs) → try network, no cache.
   // Fall through to default browser behaviour by not calling respondWith.
 });
 

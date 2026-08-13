@@ -95,8 +95,9 @@ export function usePWAInstall(): UsePWAInstall {
  * Responsibilities:
  *  1. Register `/sw.js` on mount (graceful no-op if SW is unsupported).
  *  2. Toast "Available offline" when the SW first takes control.
- *  3. Capture `beforeinstallprompt` so the install-prompt banner can fire it later.
- *  4. Listen for `appinstalled` to celebrate + clear the deferred prompt.
+ *  3. Reload an already-controlled Wewed tab once when a newer SW takes control.
+ *  4. Capture `beforeinstallprompt` so the install-prompt banner can fire it later.
+ *  5. Listen for `appinstalled` to celebrate + clear the deferred prompt.
  *
  * Renders `null` — no UI.
  */
@@ -107,7 +108,11 @@ export function PWARegister() {
     if (typeof window === 'undefined') return;
     if (!('serviceWorker' in navigator)) return;
 
+    const hadControllerAtMount = !!navigator.serviceWorker.controller;
+    let reloadingForUpdate = false;
     let toastedReady = false;
+    let cancelled = false;
+
     const fireReadyToast = () => {
       if (toastedReady) return;
       toastedReady = true;
@@ -117,22 +122,24 @@ export function PWARegister() {
       });
     };
 
-    let cancelled = false;
+    const onControllerChange = () => {
+      if (cancelled) return;
+
+      if (hadControllerAtMount) {
+        if (reloadingForUpdate) return;
+        reloadingForUpdate = true;
+        window.location.reload();
+        return;
+      }
+
+      fireReadyToast();
+    };
+
+    navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
 
     const register = async () => {
       try {
         const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
-
-        // If a SW is already controlling this page on first load, we've been
-        // here before — don't spam the toast. Only toast on a fresh activation.
-        if (!navigator.serviceWorker.controller) {
-          // First install — wait for the new SW to take control.
-          const onControllerChange = () => {
-            fireReadyToast();
-            navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
-          };
-          navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
-        }
 
         // Update flow: when a new SW finishes installing, ask it to skip waiting.
         reg.addEventListener('updatefound', () => {
@@ -175,6 +182,7 @@ export function PWARegister() {
 
     return () => {
       cancelled = true;
+      navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
       window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt);
       window.removeEventListener('appinstalled', onAppInstalled);
     };
