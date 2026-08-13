@@ -11,7 +11,6 @@ import { useWeddingContextSafe } from '@/components/wedding/wedding-data-provide
 import { compactWeddingDate, coupleNames } from '@/lib/wedding-template-defaults';
 
 type Accent = 'gold' | 'clay' | 'sage';
-
 type RegistryIcon = 'plane' | 'heart' | 'gift';
 
 interface RegistryCard {
@@ -25,6 +24,7 @@ interface RegistryCard {
     raised: number;
     goal?: number;
     progress?: number;
+    detail?: string;
   };
   href: string;
 }
@@ -36,7 +36,7 @@ const STARTER_CARDS: RegistryCard[] = [
     description: 'Replace this with a honeymoon, future-home or experience fund if you would like one.',
     accent: 'gold',
     cta: 'Gift details',
-    meta: { label: 'Example only', raised: 0 },
+    meta: { label: 'Example only', raised: 0, detail: 'Replace this example with your own gifting details.' },
     href: '#rsvp',
   },
   {
@@ -45,7 +45,7 @@ const STARTER_CARDS: RegistryCard[] = [
     description: 'Add an optional charity or community cause that guests may support in your honour.',
     accent: 'clay',
     cta: 'Learn more',
-    meta: { label: 'Example only', raised: 0 },
+    meta: { label: 'Example only', raised: 0, detail: 'This optional card can be removed or replaced.' },
     href: '#rsvp',
   },
   {
@@ -54,24 +54,14 @@ const STARTER_CARDS: RegistryCard[] = [
     description: 'Add your preferred registry provider, shop, wish list or a note that no gifts are needed.',
     accent: 'sage',
     cta: 'Registry details',
-    meta: { label: 'Example only', raised: 0 },
+    meta: { label: 'Available at', raised: 0, detail: 'Add your preferred registry or homeware provider.' },
     href: '#rsvp',
   },
 ];
 
 const ICONS = { plane: Plane, heart: Heart, gift: Gift } as const;
 
-const ACCENT_STYLES: Record<
-  Accent,
-  {
-    iconWrap: string;
-    icon: string;
-    progress: string;
-    button: string;
-    ring: string;
-    amount: string;
-  }
-> = {
+const ACCENT_STYLES: Record<Accent, { iconWrap: string; icon: string; progress: string; button: string; ring: string; amount: string }> = {
   gold: {
     iconWrap: 'bg-gold/10 border-gold/30',
     icon: 'text-gold',
@@ -102,18 +92,12 @@ function asNumber(value: unknown, fallback = 0): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
-function cardFromContent(
-  value: string,
-  metadata: Record<string, unknown>,
-  index: number,
-): RegistryCard {
+function cardFromContent(value: string, metadata: Record<string, unknown>, index: number): RegistryCard {
   const icon = metadata.icon === 'heart' || metadata.icon === 'gift' ? metadata.icon : index === 1 ? 'heart' : index === 2 ? 'gift' : 'plane';
   const accent = metadata.accent === 'clay' || metadata.accent === 'sage' ? metadata.accent : 'gold';
   const goal = asNumber(metadata.goal, 0);
   const raised = asNumber(metadata.raised, 0);
-  const progress = goal > 0
-    ? asNumber(metadata.progress, Math.round((raised / goal) * 100))
-    : undefined;
+  const progress = goal > 0 ? asNumber(metadata.progress, Math.round((raised / goal) * 100)) : undefined;
 
   return {
     icon,
@@ -126,6 +110,7 @@ function cardFromContent(
       raised,
       goal: goal > 0 ? goal : undefined,
       progress,
+      detail: typeof metadata.detail === 'string' ? metadata.detail : undefined,
     },
     href: typeof metadata.href === 'string' ? metadata.href : '#rsvp',
   };
@@ -137,6 +122,7 @@ function RegistryCardItem({ card, index }: { card: RegistryCard; index: number }
   const Icon = ICONS[card.icon];
   const styles = ACCENT_STYLES[card.accent];
   const isExternal = card.href.startsWith('http');
+  const noGoalDetail = card.meta.detail || (card.icon === 'gift' ? 'Curated homeware & timeless pieces' : card.description);
 
   return (
     <motion.div
@@ -175,8 +161,9 @@ function RegistryCardItem({ card, index }: { card: RegistryCard; index: number }
               </div>
             </div>
           ) : (
-            <div className="mb-6 mt-auto">
+            <div className="mb-6 mt-auto space-y-1.5">
               <p className="font-sans text-[11px] font-medium uppercase tracking-wider text-espresso/50">{card.meta.label || 'Wedding registry'}</p>
+              {noGoalDetail && <p className="font-serif text-sm italic leading-relaxed text-espresso/60">{noGoalDetail}</p>}
             </div>
           )}
 
@@ -198,9 +185,7 @@ export function GiftRegistry() {
   const ctx = useWeddingContextSafe();
   const wedding = ctx?.wedding;
   const rows = ctx?.getOrdered('registry', 'card-') ?? [];
-  const cards = rows.length > 0
-    ? rows.map((row, index) => cardFromContent(row.value, row.metadata, index))
-    : STARTER_CARDS;
+  const cards = rows.length > 0 ? rows.map((row, index) => cardFromContent(row.value, row.metadata, index)) : STARTER_CARDS;
   const heading = ctx?.getContent('registry', 'heading', 'With Gratitude') ?? 'With Gratitude';
   const subtitle = ctx?.getContent(
     'registry',
@@ -212,12 +197,10 @@ export function GiftRegistry() {
     'culturalNote',
     'Add any family, cultural or gifting tradition you would like to share. This section is optional.',
   ) ?? 'Add any family, cultural or gifting tradition you would like to share. This section is optional.';
-  const footerMark = [wedding?.monogram || coupleNames(wedding), compactWeddingDate(wedding?.date)]
-    .filter(Boolean)
-    .join(' · ');
+  const footerMark = [wedding?.monogram || coupleNames(wedding), compactWeddingDate(wedding?.date)].filter(Boolean).join(' · ');
 
   return (
-    <section id="registry" className="wewed-section bg-champagne py-20 md:py-32">
+    <section id="registry" data-classic-section="gift-registry" className="wewed-section bg-champagne py-20 md:py-32">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
         <motion.div
           ref={sectionRef}
@@ -231,8 +214,8 @@ export function GiftRegistry() {
           <p className="mx-auto mt-6 max-w-2xl font-sans text-sm tracking-wide text-espresso/60 sm:text-base">{subtitle}</p>
         </motion.div>
 
-        <div className="grid gap-6 md:gap-8 md:grid-cols-3">
-          {cards.map((card, i) => <RegistryCardItem key={`${card.title}-${i}`} card={card} index={i} />)}
+        <div className="grid gap-6 md:grid-cols-3 md:gap-8">
+          {cards.map((card, index) => <RegistryCardItem key={`${card.title}-${index}`} card={card} index={index} />)}
         </div>
 
         <motion.div

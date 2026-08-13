@@ -129,6 +129,19 @@ function sideBadgeLabel(side: BridalPartyMember['side'], partner1: string, partn
   return 'Our Family'
 }
 
+function sideAvatarClass(member: BridalPartyMember): string {
+  if (member.isKid) return 'bg-gold/20 text-gold'
+  if (member.side === 'bride') return 'bg-clay/15 text-clay'
+  if (member.side === 'groom') return 'bg-sage/15 text-sage'
+  return 'bg-gold/20 text-gold'
+}
+
+function sideBadgeClass(member: BridalPartyMember): string {
+  if (member.side === 'bride') return 'border-clay/30 text-clay'
+  if (member.side === 'groom') return 'border-sage/30 text-sage'
+  return 'border-gold/30 text-gold'
+}
+
 export function Guests() {
   const ctx = useWeddingContextSafe()
   const wedding = ctx?.wedding
@@ -173,7 +186,7 @@ export function Guests() {
   }, [party.length])
 
   return (
-    <section id="guests" className="wewed-section py-20 md:py-32">
+    <section id="guests" data-classic-section="wedding-party" className="wewed-section py-20 md:py-32">
       <div className="mx-auto max-w-6xl px-4">
         <motion.div className="mb-16 text-center" initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: '-100px' }} transition={{ duration: 0.7 }}>
           <SectionEyebrow>Who&rsquo;s Who</SectionEyebrow>
@@ -192,32 +205,51 @@ export function Guests() {
                     tabIndex={0}
                     aria-label={`View ${member.name}'s public wedding-party profile`}
                     onClick={() => handleOpen(i)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
                         handleOpen(i)
                       }
                     }}
-                    className="wewed-photo-frame group relative cursor-pointer border-gold/15 bg-champagne text-center outline-none hover:border-gold/40 hover:ring-2 hover:ring-gold/40 focus-visible:ring-2 focus-visible:ring-gold/60"
+                    className={`wewed-photo-frame group relative cursor-pointer text-center outline-none focus-visible:ring-2 focus-visible:ring-gold/60 focus-visible:ring-offset-2 focus-visible:ring-offset-champagne ${
+                      member.isKid
+                        ? 'border-2 border-gold/50 bg-champagne shadow-md hover:border-gold hover:ring-2 hover:ring-gold/40'
+                        : 'border-gold/15 bg-champagne hover:border-gold/40 hover:ring-2 hover:ring-gold/40'
+                    }`}
                   >
                     <CardContent className="flex flex-col items-center gap-3 pb-4 pt-6">
-                      <Avatar className="size-16 shadow-md transition-transform duration-300 group-hover:scale-105">
-                        <AvatarFallback className="wewed-heading bg-gold/15 text-lg text-gold">{member.initials}</AvatarFallback>
+                      <Avatar
+                        className={`size-16 shadow-md transition-transform duration-300 group-hover:scale-105 ${
+                          member.isKid ? 'ring-2 ring-gold/60 ring-offset-2 ring-offset-champagne' : ''
+                        }`}
+                      >
+                        <AvatarFallback className={`wewed-heading text-lg ${sideAvatarClass(member)}`}>
+                          {member.initials}
+                        </AvatarFallback>
                       </Avatar>
+
                       <div className="space-y-1 text-center">
                         <p className="wewed-heading text-lg text-espresso">{member.name}</p>
                         <p className="font-sans text-xs text-muted-foreground">{member.role}</p>
                       </div>
+
                       {member.isKid ? (
                         <Badge className="border-gold/40 bg-gold/15 font-sans text-xs text-gold"><Star className="size-3" />Our Little Stars</Badge>
                       ) : (
-                        <Badge variant="outline" className="border-gold/30 font-sans text-xs text-gold-muted">{sideBadgeLabel(member.side, partner1, partner2)}</Badge>
+                        <Badge variant="outline" className={`font-sans text-xs ${sideBadgeClass(member)}`}>
+                          {sideBadgeLabel(member.side, partner1, partner2)}
+                        </Badge>
                       )}
-                      <span className="mt-1 inline-flex items-center gap-1 font-sans text-[0.65rem] uppercase tracking-[0.15em] text-gold-muted opacity-0 transition-opacity duration-300 group-hover:opacity-100">Learn more<ChevronRight className="size-3" /></span>
+
+                      <span className="mt-1 inline-flex items-center gap-1 font-sans text-[0.65rem] uppercase tracking-[0.15em] text-gold-muted opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+                        Learn more<ChevronRight className="size-3" />
+                      </span>
                     </CardContent>
                   </Card>
                 </TooltipTrigger>
-                <TooltipContent side="top" className="border border-gold/30 bg-espresso text-champagne">Public wedding-party profile</TooltipContent>
+                <TooltipContent side="top" className="border border-gold/30 bg-espresso text-champagne">
+                  Public profile for {member.name}
+                </TooltipContent>
               </Tooltip>
             </motion.div>
           ))}

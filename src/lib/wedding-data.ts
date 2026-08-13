@@ -193,13 +193,24 @@ interface UseWeddingDataResult {
   refetch: () => void;
 }
 
-export function useWeddingData(slug?: string): UseWeddingDataResult {
-  const [data, setData] = useState<WeddingData | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+/**
+ * Client refresh hook for the wedding-site projection.
+ *
+ * `initialData` is deliberately accepted so the server-rendered page can seed
+ * the provider with the authoritative wedding snapshot. This preserves the
+ * premium wedding presentation on the first paint instead of rendering neutral
+ * starter copy and replacing it after hydration.
+ */
+export function useWeddingData(
+  slug?: string,
+  initialData?: WeddingData | null,
+): UseWeddingDataResult {
+  const [data, setData] = useState<WeddingData | null>(initialData ?? null);
+  const [loading, setLoading] = useState<boolean>(!initialData);
   const [error, setError] = useState<string | null>(null);
   const [refetchSignal, setRefetchSignal] = useState<number>(0);
   const [resolvedSlug, setResolvedSlug] = useState<string>(
-    slug ?? FLAGSHIP_WEDDING_SLUG,
+    slug ?? initialData?.wedding.slug ?? FLAGSHIP_WEDDING_SLUG,
   );
 
   useEffect(() => {
@@ -233,6 +244,12 @@ export function useWeddingData(slug?: string): UseWeddingDataResult {
     const controller = new AbortController();
 
     async function load() {
+      // Keep a matching server snapshot visible while revalidating it. If the
+      // slug changes, clear the previous wedding before loading the next one so
+      // identity can never bleed across wedding routes.
+      setData((current) =>
+        current && current.wedding.slug !== resolvedSlug ? null : current,
+      );
       setLoading(true);
       setError(null);
       try {

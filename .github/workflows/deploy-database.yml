@@ -63,24 +63,58 @@ jobs:
       - name: Generate Prisma client
         run: bunx prisma generate --schema prisma/schema.prisma
 
-      - name: Fail closed on unresolved Prisma migration ledger drift
+      - name: Fail closed on failed or divergent Prisma history
         shell: bash
         run: |
-          repo_migrations=$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')
-          completed_migrations=$(psql "$DATABASE_URL" -Atqc \
-            "select count(*) from public._prisma_migrations where finished_at is not null and rolled_back_at is null" \
-            | tr -d '[:space:]')
+          set -euo pipefail
+
           failed_migrations=$(psql "$DATABASE_URL" -Atqc \
             "select count(*) from public._prisma_migrations where finished_at is null and rolled_back_at is null" \
             | tr -d '[:space:]')
 
-          if [[ "$failed_migrations" != "0" || "$completed_migrations" != "$repo_migrations" ]]; then
-            echo "::error::Production Prisma migration history is not reconciled with the repository. Refusing to replay historical migrations."
-            echo "Repository migrations: $repo_migrations"
-            echo "Completed Prisma ledger rows: $completed_migrations"
+          if [[ "$failed_migrations" != "0" ]]; then
+            echo "::error::Production has unresolved Prisma migration ledger rows. Refusing to deploy."
             echo "Unresolved Prisma ledger rows: $failed_migrations"
             exit 1
           fi
+
+          # Every migration already recorded as applied in production must still
+          # exist in the repository with exactly the checksum Prisma recorded.
+          # This rejects missing/rewritten history while intentionally allowing
+          # additional repository migrations to remain pending for migrate deploy.
+          while IFS='|' read -r migration_name recorded_checksum; do
+            [[ -n "$migration_name" ]] || continue
+            migration_file="prisma/migrations/$migration_name/migration.sql"
+
+            if [[ ! -f "$migration_file" ]]; then
+              echo "::error::Applied production migration is missing from the repository: $migration_name"
+              exit 1
+            fi
+
+            repository_checksum=$(sha256sum "$migration_file" | awk '{print $1}')
+            if [[ "$repository_checksum" != "$recorded_checksum" ]]; then
+              echo "::error::Applied production migration checksum differs from repository history: $migration_name"
+              exit 1
+            fi
+          done < <(psql "$DATABASE_URL" -AtF '|' -c \
+            "select migration_name, checksum from public._prisma_migrations where finished_at is not null and rolled_back_at is null order by started_at")
+
+          repo_migrations=$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')
+          completed_migrations=$(psql "$DATABASE_URL" -Atqc \
+            "select count(*) from public._prisma_migrations where finished_at is not null and rolled_back_at is null" \
+            | tr -d '[:space:]')
+
+          if (( completed_migrations > repo_migrations )); then
+            echo "::error::Production contains more applied migrations than this repository checkout. Refusing to deploy."
+            echo "Repository migrations: $repo_migrations"
+            echo "Completed production migrations: $completed_migrations"
+            exit 1
+          fi
+
+          echo "Verified immutable applied history."
+          echo "Repository migrations: $repo_migrations"
+          echo "Completed production migrations: $completed_migrations"
+          echo "Pending repository migrations: $((repo_migrations - completed_migrations))"
 
       - name: Deploy pending migrations
         run: bunx prisma migrate deploy --schema prisma/schema.prisma
