@@ -44,11 +44,13 @@ function roleIsAllowed(
   if (!allowedRoles && !allowedWeddingRoles) return true
 
   const globalRoleAllowed = allowedRoles?.includes(user.role) ?? false
+  const ownerActsAsCouple =
+    user.activeWeddingRole === 'owner' && (allowedRoles?.includes('couple') ?? false)
   const weddingRoleAllowed = user.activeWeddingRole
     ? allowedWeddingRoles?.includes(user.activeWeddingRole) ?? false
     : false
 
-  return globalRoleAllowed || weddingRoleAllowed
+  return globalRoleAllowed || ownerActsAsCouple || weddingRoleAllowed
 }
 
 export function DashboardAuthGate({
