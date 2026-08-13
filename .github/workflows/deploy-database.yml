@@ -1,10 +1,10 @@
-name: Deploy database migrations
+name: Verify production database authority
 
 on:
   workflow_dispatch:
     inputs:
       confirmation:
-        description: Type deploy-wewed to confirm the production migration
+        description: Type verify-wewed to run read-only production authority checks
         required: true
         type: string
 
@@ -12,13 +12,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: production-database-migrations
+  group: production-database-verification
   cancel-in-progress: false
 
 jobs:
-  migrate:
-    name: Deploy Prisma migrations
-    if: ${{ inputs.confirmation == 'deploy-wewed' }}
+  verify:
+    name: Verify Supabase production migration authority
+    if: ${{ inputs.confirmation == 'verify-wewed' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production
@@ -57,40 +57,58 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Validate Prisma schema
+      - name: Validate Prisma application schema
         run: bunx prisma validate --schema prisma/schema.prisma
 
       - name: Generate Prisma client
         run: bunx prisma generate --schema prisma/schema.prisma
 
-      - name: Fail closed on unresolved Prisma migration ledger drift
+      - name: Verify Supabase is the production DDL authority
         shell: bash
         run: |
-          repo_migrations=$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')
-          completed_migrations=$(psql "$DATABASE_URL" -Atqc \
-            "select count(*) from public._prisma_migrations where finished_at is not null and rolled_back_at is null" \
-            | tr -d '[:space:]')
-          failed_migrations=$(psql "$DATABASE_URL" -Atqc \
-            "select count(*) from public._prisma_migrations where finished_at is null and rolled_back_at is null" \
+          authority_rows=$(psql "$DATABASE_URL" -Atqc \
+            "select count(*) from supabase_migrations.schema_migrations where name = 'production_schema_reconciliation'" \
             | tr -d '[:space:]')
 
-          if [[ "$failed_migrations" != "0" || "$completed_migrations" != "$repo_migrations" ]]; then
-            echo "::error::Production Prisma migration history is not reconciled with the repository. Refusing to replay historical migrations."
-            echo "Repository migrations: $repo_migrations"
-            echo "Completed Prisma ledger rows: $completed_migrations"
-            echo "Unresolved Prisma ledger rows: $failed_migrations"
+          if [[ "$authority_rows" != "1" ]]; then
+            echo "::error::Production schema reconciliation is not recorded exactly once in the Supabase migration ledger."
             exit 1
           fi
 
-      - name: Deploy pending migrations
-        run: bunx prisma migrate deploy --schema prisma/schema.prisma
+          unresolved_prisma=$(psql "$DATABASE_URL" -Atqc \
+            "select coalesce(string_agg(migration_name, ',' order by migration_name), '') from public._prisma_migrations where finished_at is null and rolled_back_at is null" \
+            | tr -d '[:space:]')
 
-      - name: Verify migration status
-        run: bunx prisma migrate status --schema prisma/schema.prisma
+          if [[ "$unresolved_prisma" != "20260729131000_normalize_planner_metadata" ]]; then
+            echo "::error::Unexpected Prisma production-ledger state: $unresolved_prisma"
+            echo "Prisma is not the Wewed production DDL executor. Investigate before any schema change."
+            exit 1
+          fi
 
-      - name: Verify deployed schema
-        run: >-
-          bunx prisma migrate diff
-          --from-url "$DATABASE_URL"
-          --to-schema-datamodel prisma/schema.prisma
-          --exit-code
+          guest_delete_guard=$(psql "$DATABASE_URL" -Atqc \
+            "select count(*) from pg_trigger where tgname = 'wewed_delete_guest_contribution_before_guest' and not tgisinternal" \
+            | tr -d '[:space:]')
+          compatibility_functions=$(psql "$DATABASE_URL" -Atqc \
+            "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('sync_vendor_planner_metadata','sync_programme_item_metadata')" \
+            | tr -d '[:space:]')
+          compatibility_triggers=$(psql "$DATABASE_URL" -Atqc \
+            "select count(*) from pg_trigger where tgname in ('sync_vendor_planner_metadata_trigger','sync_programme_item_metadata_trigger') and not tgisinternal" \
+            | tr -d '[:space:]')
+
+          if [[ "$guest_delete_guard" != "1" || "$compatibility_functions" != "2" || "$compatibility_triggers" != "2" ]]; then
+            echo "::error::Production reconciliation objects do not match the reviewed authority contract."
+            exit 1
+          fi
+
+          echo "Supabase migration ledger is the production DDL authority."
+          echo "Historical Prisma production ledger is read-only and intentionally not replayed."
+
+      - name: Assert this workflow cannot mutate production DDL
+        shell: bash
+        run: |
+          workflow_file='.github/workflows/deploy-database.yml'
+          if grep -nE '^[[:space:]]*run:[[:space:]]+(bunx prisma migrate (deploy|resolve)|supabase db push)' "$workflow_file"; then
+            echo "::error::Production database verification workflow contains a DDL execution command."
+            exit 1
+          fi
+          echo "Read-only production database authority verification complete."

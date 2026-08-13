@@ -2,6 +2,7 @@ import 'server-only'
 
 import { randomUUID } from 'node:crypto'
 import { db } from '@/lib/db'
+import { normalizeMailboxEnvironmentValue } from '@/lib/email/mailbox-config'
 
 const RESEND_API_URL = 'https://api.resend.com/emails'
 
@@ -30,8 +31,10 @@ type DeliveryRow = {
 
 function configuredResend() {
   const apiKey = process.env.RESEND_API_KEY?.trim()
-  const from = process.env.WEWED_EMAIL_FROM?.trim()
-  const replyTo = process.env.WEWED_EMAIL_REPLY_TO?.trim()
+  const from = normalizeMailboxEnvironmentValue(process.env.WEWED_EMAIL_FROM, {
+    preserveDisplayName: true,
+  })
+  const replyTo = normalizeMailboxEnvironmentValue(process.env.WEWED_EMAIL_REPLY_TO)
   if (!apiKey || !from || !replyTo) return null
   return { apiKey, from, replyTo }
 }
@@ -80,7 +83,7 @@ async function markNotConfigured(deliveryId: string): Promise<void> {
   await db.$executeRawUnsafe(
     `UPDATE wewed_admin."EmailDelivery"
         SET "status" = 'not_configured',
-            "failureReason" = 'Resend production credentials, sender, or reply-to are not configured.',
+            "failureReason" = 'Resend production credentials, sender, or reply-to are not configured with valid mailbox values.',
             "updatedAt" = CURRENT_TIMESTAMP
       WHERE "id" = $1`,
     deliveryId,

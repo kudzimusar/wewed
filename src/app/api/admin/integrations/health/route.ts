@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { stripeBillingConfiguration } from '@/lib/stripe-billing'
+import { normalizeMailboxEnvironmentValue } from '@/lib/email/mailbox-config'
 import {
   requireWewedAdmin,
   WewedAdminAccessError,
@@ -8,6 +9,8 @@ import {
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+
+type IntegrationHealthStatus = 'inactive' | 'configured' | 'healthy' | 'degraded' | 'failing'
 
 type EmailSummaryRow = {
   total: number
@@ -17,6 +20,7 @@ type EmailSummaryRow = {
   bounced: number
   complained: number
   failed: number
+  suppressed: number
   notConfigured: number
   latestEventAt: Date | null
 }
@@ -29,6 +33,25 @@ type StripeSummaryRow = {
 
 function configured(name: string): boolean {
   return Boolean(process.env[name]?.trim())
+}
+
+function resendStatus(resendReady: boolean, email: EmailSummaryRow): IntegrationHealthStatus {
+  if (!resendReady) return 'inactive'
+  if (email.failed + email.bounced + email.complained + email.suppressed > 0) return 'failing'
+  if (email.delayed > 0 || email.notConfigured > 0) return 'degraded'
+  if (email.total === 0) return 'configured'
+  return 'healthy'
+}
+
+function stripeStatus(input: {
+  enabled: boolean
+  webhookConfigured: boolean
+  processedEvents: number
+}): IntegrationHealthStatus {
+  if (!input.enabled) return 'inactive'
+  if (!input.webhookConfigured) return 'degraded'
+  if (input.processedEvents === 0) return 'configured'
+  return 'healthy'
 }
 
 function errorResponse(error: unknown) {
@@ -60,6 +83,7 @@ export async function GET(request: NextRequest) {
           COUNT(*) FILTER (WHERE status = 'bounced')::int AS bounced,
           COUNT(*) FILTER (WHERE status = 'complained')::int AS complained,
           COUNT(*) FILTER (WHERE status = 'failed')::int AS failed,
+          COUNT(*) FILTER (WHERE status = 'suppressed')::int AS suppressed,
           COUNT(*) FILTER (WHERE status = 'not_configured')::int AS "notConfigured",
           MAX(COALESCE("lastEventAt", "updatedAt", "createdAt")) AS "latestEventAt"
         FROM wewed_admin."EmailDelivery"
@@ -92,6 +116,7 @@ export async function GET(request: NextRequest) {
       bounced: 0,
       complained: 0,
       failed: 0,
+      suppressed: 0,
       notConfigured: 0,
       latestEventAt: null,
     }
@@ -102,13 +127,38 @@ export async function GET(request: NextRequest) {
     }
     const stripeConfiguration = stripeBillingConfiguration()
 
+    const normalizedEmailFrom = normalizeMailboxEnvironmentValue(
+      process.env.WEWED_EMAIL_FROM,
+      { preserveDisplayName: true },
+    )
+    const normalizedEmailReplyTo = normalizeMailboxEnvironmentValue(
+      process.env.WEWED_EMAIL_REPLY_TO,
+    )
     const resendReady =
       configured('RESEND_API_KEY') &&
       configured('RESEND_WEBHOOK_SECRET') &&
-      configured('WEWED_EMAIL_FROM') &&
-      configured('WEWED_EMAIL_REPLY_TO')
-    const telegramReady =
-      configured('TELEGRAM_BOT_TOKEN') && configured('TELEGRAM_WEBHOOK_SECRET')
+      Boolean(normalizedEmailFrom) &&
+      Boolean(normalizedEmailReplyTo)
+    const telegramBotConfigured = configured('TELEGRAM_BOT_TOKEN')
+    const telegramSecretConfigured = configured('TELEGRAM_WEBHOOK_SECRET')
+    const telegramReady = telegramBotConfigured && telegramSecretConfigured
+    const supabaseConfigured =
+      configured('NEXT_PUBLIC_SUPABASE_URL') &&
+      configured('NEXT_PUBLIC_SUPABASE_ANON_KEY') &&
+      configured('SUPABASE_SERVICE_ROLE_KEY')
+
+    const resendHealth = resendStatus(resendReady, email)
+    const stripeHealth = stripeStatus({
+      enabled: stripeConfiguration.enabled,
+      webhookConfigured: stripeConfiguration.webhookConfigured,
+      processedEvents: stripe.total,
+    })
+    const telegramHealth: IntegrationHealthStatus = telegramReady
+      ? 'healthy'
+      : telegramBotConfigured || telegramSecretConfigured
+        ? 'degraded'
+        : 'inactive'
+    const authHealth: IntegrationHealthStatus = supabaseConfigured ? 'healthy' : 'inactive'
 
     return NextResponse.json(
       {
@@ -117,33 +167,30 @@ export async function GET(request: NextRequest) {
         integrations: {
           resend: {
             configured: resendReady,
+            status: resendHealth,
             last24h: email,
-            healthy:
-              resendReady &&
-              email.failed === 0 &&
-              email.bounced === 0 &&
-              email.complained === 0,
+            healthy: resendHealth === 'healthy',
           },
           stripe: {
             mode: stripeConfiguration.mode,
             configured: stripeConfiguration.enabled,
             webhookConfigured: stripeConfiguration.webhookConfigured,
+            status: stripeHealth,
             last24hProcessedEvents: stripe.total,
             latestEventAt: stripe.latestEventAt,
             latestEventType: stripe.latestEventType,
-            healthy:
-              stripeConfiguration.enabled && stripeConfiguration.webhookConfigured,
+            healthy: stripeHealth === 'healthy',
           },
           telegram: {
             configured: telegramReady,
             optional: true,
-            healthy: telegramReady || !configured('TELEGRAM_BOT_TOKEN'),
+            status: telegramHealth,
+            healthy: telegramReady || (!telegramBotConfigured && !telegramSecretConfigured),
           },
           auth: {
-            supabaseConfigured:
-              configured('NEXT_PUBLIC_SUPABASE_URL') &&
-              configured('NEXT_PUBLIC_SUPABASE_ANON_KEY') &&
-              configured('SUPABASE_SERVICE_ROLE_KEY'),
+            supabaseConfigured,
+            status: authHealth,
+            healthy: authHealth === 'healthy',
             recoveryCallback: '/reset-password',
             productionOriginPinned: process.env.NODE_ENV === 'production',
           },

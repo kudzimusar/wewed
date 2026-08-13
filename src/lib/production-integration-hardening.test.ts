@@ -25,11 +25,19 @@ describe('production integration hardening contracts', () => {
     expect(registration).not.toContain('request.nextUrl.origin')
   })
 
-  test('keeps Stripe-hosted return paths on the canonical public origin', () => {
+  test('keeps Production Stripe returns canonical and Preview Stripe returns isolated', () => {
     const billing = source('src/app/api/billing/account/route.ts')
+    const returnOrigin = source('src/lib/billing-return-origin.ts')
 
-    expect(billing).toContain('origin: publicOrigin()')
+    expect(billing).toContain("import { billingReturnOrigin } from '@/lib/billing-return-origin'")
+    expect(billing).toContain('origin: billingReturnOrigin()')
     expect(billing).not.toContain('request.nextUrl.origin')
+    expect(returnOrigin).toContain("process.env.VERCEL_ENV === 'production'")
+    expect(returnOrigin).toContain("process.env.VERCEL_ENV === 'preview'")
+    expect(returnOrigin).toContain('process.env.VERCEL_BRANCH_URL')
+    expect(returnOrigin).toContain('process.env.VERCEL_URL')
+    expect(returnOrigin).toContain('trustedVercelPreviewOrigin')
+    expect(returnOrigin).toContain('return publicOrigin()')
   })
 
   test('keeps Stripe webhook lifecycle signed, environment-scoped and idempotent', () => {
@@ -57,6 +65,39 @@ describe('production integration hardening contracts', () => {
     expect(billing).toContain("return process.env.VERCEL_ENV !== 'production'")
     expect(billing).toContain("optional('STRIPE_TEST_WEBHOOK_SECRET')")
     expect(billing).toContain("optional('STRIPE_WEBHOOK_SECRET')")
+  })
+
+  test('records Resend suppression as a failed terminal state across both audit paths', () => {
+    const resendWebhook = source('src/lib/email/resend-webhook.ts')
+    const health = source('src/app/api/admin/integrations/health/route.ts')
+
+    expect(resendWebhook).toContain("case 'email.suppressed': return { status: 'suppressed', timestampColumn: 'failedAt' }")
+    expect(resendWebhook).toContain("case 'email.suppressed':")
+    expect(health).toContain("COUNT(*) FILTER (WHERE status = 'suppressed')::int AS suppressed")
+    expect(health).toContain('email.failed + email.bounced + email.complained + email.suppressed > 0')
+    expect(health).toContain("if (email.total === 0) return 'configured'")
+  })
+
+  test('keeps Supabase as the sole Production DDL authority', () => {
+    const workflow = source('.github/workflows/deploy-database.yml')
+    const reconciliation = source('prisma/migrations/20260810100000_production_schema_reconciliation/migration.sql')
+    const authority = source('docs/PRODUCTION_DATABASE_AUTHORITY.md')
+
+    expect(workflow).toContain('Verify Supabase production migration authority')
+    expect(workflow).toContain('supabase_migrations.schema_migrations')
+    expect(workflow).not.toContain('bunx prisma migrate deploy')
+    expect(workflow).not.toContain('bunx prisma migrate resolve')
+    expect(reconciliation).toContain('wewed_delete_guest_contribution_before_guest')
+    expect(reconciliation).toContain('ON DELETE RESTRICT')
+    expect(reconciliation).toContain('CREATE OR REPLACE FUNCTION public.sync_vendor_planner_metadata()')
+    expect(reconciliation).toContain('CREATE OR REPLACE FUNCTION public.sync_programme_item_metadata()')
+    expect(reconciliation).toContain('REVOKE ALL ON FUNCTION public.sync_vendor_planner_metadata() FROM PUBLIC')
+    expect(reconciliation).toContain('REVOKE ALL ON FUNCTION public.sync_programme_item_metadata() FROM PUBLIC')
+    expect(workflow).toContain('compatibility_functions')
+    expect(workflow).toContain('compatibility_triggers')
+    expect(authority).toContain('Supabase migration ledger')
+    expect(authority).toContain('compatibility triggers for legacy sentinel/JSON writes')
+    expect(authority).toContain('Do not run `prisma migrate deploy` or `prisma migrate resolve` against Wewed Production.')
   })
 
   test('requires an authenticated Supabase session to accept administrator invitations', () => {
@@ -87,7 +128,7 @@ describe('production integration hardening contracts', () => {
     expect(origin).not.toContain('NEXT_PUBLIC_VERCEL_URL')
   })
 
-  test('does not reintroduce legacy public-domain callbacks in guarded surfaces', () => {
+  test('does not reintroduce legacy public-domain callbacks in guarded canonical surfaces', () => {
     const guarded = [
       source('src/app/forgot-password/page.tsx'),
       source('src/app/api/auth/register/route.ts'),

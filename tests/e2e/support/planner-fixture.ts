@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client'
+import { Prisma, PrismaClient } from '@prisma/client'
 
 export const E2E_USER = {
   id: 'e2e-planner-user',
@@ -32,6 +32,8 @@ export const E2E_WEDDINGS = {
   },
 } as const
 
+type PlannerFixtureDb = PrismaClient | Prisma.TransactionClient
+
 function assertSafeTarget(): void {
   const databaseUrl = process.env.DATABASE_URL?.toLowerCase() ?? ''
   const localDatabase = databaseUrl.includes('localhost') || databaseUrl.includes('127.0.0.1')
@@ -47,7 +49,7 @@ function assertSafeTarget(): void {
   }
 }
 
-async function clearEphemeralDatabase(prisma: PrismaClient): Promise<void> {
+async function clearEphemeralDatabase(prisma: PlannerFixtureDb): Promise<void> {
   await prisma.$executeRawUnsafe(`
     DO $$
     DECLARE table_row record;
@@ -65,7 +67,7 @@ async function clearEphemeralDatabase(prisma: PrismaClient): Promise<void> {
 }
 
 async function seedWedding(
-  prisma: PrismaClient,
+  prisma: PlannerFixtureDb,
   wedding: (typeof E2E_WEDDINGS)[keyof typeof E2E_WEDDINGS],
   secondary: boolean,
 ): Promise<void> {
@@ -196,45 +198,58 @@ async function seedWedding(
   })
 }
 
+async function seedPlannerFixture(prisma: PlannerFixtureDb): Promise<void> {
+  await seedWedding(prisma, E2E_WEDDINGS.primary, false)
+  await seedWedding(prisma, E2E_WEDDINGS.secondary, true)
+
+  await prisma.user.create({
+    data: {
+      id: E2E_USER.id,
+      email: E2E_USER.email,
+      name: E2E_USER.name,
+      role: 'planner',
+      currentWeddingId: E2E_WEDDINGS.primary.id,
+      isActive: true,
+    },
+  })
+
+  await prisma.weddingMembership.createMany({
+    data: [
+      {
+        id: 'e2e-membership-primary',
+        userId: E2E_USER.id,
+        weddingId: E2E_WEDDINGS.primary.id,
+        role: 'planner',
+        status: 'active',
+        acceptedAt: new Date(),
+      },
+      {
+        id: 'e2e-membership-secondary',
+        userId: E2E_USER.id,
+        weddingId: E2E_WEDDINGS.secondary.id,
+        role: 'planner',
+        status: 'active',
+        acceptedAt: new Date(),
+      },
+    ],
+  })
+}
+
 export async function resetPlannerE2EFixture(): Promise<void> {
   assertSafeTarget()
   const prisma = new PrismaClient()
   try {
-    await clearEphemeralDatabase(prisma)
-    await seedWedding(prisma, E2E_WEDDINGS.primary, false)
-    await seedWedding(prisma, E2E_WEDDINGS.secondary, true)
-
-    await prisma.user.create({
-      data: {
-        id: E2E_USER.id,
-        email: E2E_USER.email,
-        name: E2E_USER.name,
-        role: 'planner',
-        currentWeddingId: E2E_WEDDINGS.primary.id,
-        isActive: true,
+    // TRUNCATE takes ACCESS EXCLUSIVE locks. Keeping clear + seed inside one
+    // transaction means any late request from the previous browser test sees
+    // either the complete old fixture or the complete new fixture, never an
+    // empty/partially reseeded planner database.
+    await prisma.$transaction(
+      async (tx) => {
+        await clearEphemeralDatabase(tx)
+        await seedPlannerFixture(tx)
       },
-    })
-
-    await prisma.weddingMembership.createMany({
-      data: [
-        {
-          id: 'e2e-membership-primary',
-          userId: E2E_USER.id,
-          weddingId: E2E_WEDDINGS.primary.id,
-          role: 'planner',
-          status: 'active',
-          acceptedAt: new Date(),
-        },
-        {
-          id: 'e2e-membership-secondary',
-          userId: E2E_USER.id,
-          weddingId: E2E_WEDDINGS.secondary.id,
-          role: 'planner',
-          status: 'active',
-          acceptedAt: new Date(),
-        },
-      ],
-    })
+      { maxWait: 10_000, timeout: 30_000 },
+    )
   } finally {
     await prisma.$disconnect()
   }
