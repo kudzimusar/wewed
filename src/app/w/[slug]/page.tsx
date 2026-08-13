@@ -8,6 +8,7 @@ import {
   verifyAppSessionToken,
 } from '@/lib/app-session'
 import { normalizeInvitationCardStyle } from '@/lib/digital-invitation-card'
+import { loadWeddingDataBySlug } from '@/lib/wedding-data-server'
 import { WEDDING_GUEST_SESSION_COOKIE } from '@/lib/wedding-guest-session'
 import {
   loadWeddingAccessRecord,
@@ -118,6 +119,9 @@ export default async function WeddingPage({
     )
   }
 
+  const initialData = await loadWeddingDataBySlug(slug)
+  if (!initialData) notFound()
+
   const viewerRole: WeddingViewerRole =
     appSession?.activeWeddingId === wedding.id ? appSession.role : null
 
@@ -126,6 +130,7 @@ export default async function WeddingPage({
       slug={slug}
       accessKind={resolution.accessKind}
       viewerRole={viewerRole}
+      initialData={initialData}
     />
   )
 }
