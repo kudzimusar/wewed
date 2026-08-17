@@ -51,3 +51,4 @@ jobs:
           src/lib/planner-worksheet-order.ts
           src/lib/planner-worksheet-ux-regression.test.ts
           src/lib/team-invite.ts
+          tests/e2e/planner-worksheet-ux.spec.ts
