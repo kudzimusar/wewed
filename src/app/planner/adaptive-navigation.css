@@ -1,0 +1,21 @@
+/* WW-ADAPTIVE-NAV-2026-08-18-01
+ * Planner keeps the existing worksheet command-centre implementation as its
+ * behavioural authority, but the old fixed launcher is suppressed while the
+ * workspace provides the new contextual Actions entry point.
+ */
+body:has([data-planner-portal]) [data-testid='planner-worksheet-command-trigger'].fixed {
+  display: none !important;
+}
+
+/* The adaptive workspace owns bottom-edge clearance. Do not reserve the old
+ * floating-dock footprint once the dock is removed from PlannerLayout. */
+body:has([data-planner-portal]) [data-planner-module-scroll='true'] {
+  scroll-padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+@media (max-width: 767px) {
+  [data-planner-adaptive-navigation] a,
+  [data-planner-adaptive-navigation] button {
+    min-height: 2.75rem;
+  }
+}
