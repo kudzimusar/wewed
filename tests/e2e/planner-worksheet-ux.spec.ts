@@ -1,7 +1,7 @@
 import { createHmac } from 'node:crypto'
 import { PrismaClient } from '@prisma/client'
 import type { Page } from '@playwright/test'
-import { E2E_WEDDINGS, expect, openModule, test } from './support/planner-browser'
+import { E2E_WEDDINGS, expect, openModule, openWorksheetActions, test } from './support/planner-browser'
 
 const SESSION_COOKIE = 'wewed_admin_auth'
 const SESSION_SECRET = process.env.WEWED_SESSION_SECRET ?? ''
@@ -27,6 +27,13 @@ function signedSession(input: {
 
 async function useSession(page: Page, input: Parameters<typeof signedSession>[0]) {
   await page.context().addCookies([{ name: SESSION_COOKIE, value: signedSession(input), url: 'http://127.0.0.1:3000', httpOnly: true, sameSite: 'Lax' }])
+}
+
+async function openCommandCenter(page: Page) {
+  await openWorksheetActions(page)
+  const trigger = page.locator('[data-testid="planner-worksheet-command-trigger"]:not(.fixed)')
+  await expect(trigger).toBeVisible()
+  await trigger.click()
 }
 
 test('Planner fixed-dark form controls stay readable under light and dark system themes', async ({ plannerPage: page }) => {
@@ -75,10 +82,7 @@ test('shared worksheet tools print an A4 document and persist presentation order
   expect(created.status()).toBe(201)
 
   await openModule(page, 'checklist')
-
-  const trigger = page.getByTestId('planner-worksheet-command-trigger')
-  await expect(trigger).toBeVisible()
-  await trigger.click()
+  await openCommandCenter(page)
   await expect(page.getByRole('heading', { name: 'Tasks worksheet tools' })).toBeVisible()
 
   const popupPromise = page.waitForEvent('popup')
@@ -127,7 +131,7 @@ test('shared worksheet tools print an A4 document and persist presentation order
 
 test('multi-select exposes safe task actions while excluding financial and timeline bulk overwrites', async ({ plannerPage: page }) => {
   await openModule(page, 'checklist')
-  await page.getByTestId('planner-worksheet-command-trigger').click()
+  await openCommandCenter(page)
   await page.getByRole('button', { name: 'Select & act', exact: true }).click()
   await page.getByRole('button', { name: /Select all in current view/ }).click()
 
@@ -139,7 +143,7 @@ test('multi-select exposes safe task actions while excluding financial and timel
 
   await page.keyboard.press('Escape')
   await openModule(page, 'budget')
-  await page.getByTestId('planner-worksheet-command-trigger').click()
+  await openCommandCenter(page)
   await page.getByRole('button', { name: 'Select & act', exact: true }).click()
   await page.getByRole('button', { name: /Select all in current view/ }).click()
   const budgetActions = page.locator('[data-planner-worksheet-command-center] select').filter({ has: page.locator('option[value="move_top"]') }).first()
