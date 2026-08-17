@@ -31,10 +31,10 @@ describe('WW-PLANNER-UX-2026-08-17-01 release contract', () => {
   })
 
   test('mounts one shared worksheet command centre rather than six page-specific copies', () => {
-    expect(layout).toContain("PlannerWorksheetCommandCenter")
+    expect(layout).toContain('PlannerWorksheetCommandCenter')
     expect(layout).toContain('<PlannerWorksheetCommandCenter />')
-    for (const module of ['tasks', 'budget', 'vendors', 'guests', 'timeline', 'seating']) {
-      expect(commandCenter).toContain(`'${module}'`)
+    for (const worksheet of ['tasks', 'budget', 'vendors', 'guests', 'timeline', 'seating']) {
+      expect(commandCenter).toContain(`'${worksheet}'`)
     }
     expect(commandCenter).toContain('Print · Arrange · Select')
   })
