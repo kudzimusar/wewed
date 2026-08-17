@@ -2,12 +2,14 @@ import type { Metadata, Viewport } from 'next'
 import { Inter, Cormorant_Garamond } from 'next/font/google'
 import './globals.css'
 import './product-remediation.css'
+import './planner-ux.css'
 import { Toaster } from '@/components/ui/toaster'
 import { SkipToContent } from '@/components/wedding/skip-to-content'
 import { StoreRehydrator } from '@/components/wedding/store-rehydrator'
 import { PWARegister } from '@/components/wedding/pwa-register'
 import { ThemeProvider } from '@/components/theme-provider'
 import { WorkspaceQuickNavigation } from '@/components/navigation/workspace-quick-navigation'
+import { PlannerWorksheetCommandCenter } from '@/components/wedding/planner/planner-worksheet-command-center'
 
 const inter = Inter({
   variable: '--font-inter',
@@ -67,6 +69,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <PWARegister />
           <SkipToContent />
           {children}
+          <PlannerWorksheetCommandCenter />
           <WorkspaceQuickNavigation />
           <Toaster />
         </ThemeProvider>
