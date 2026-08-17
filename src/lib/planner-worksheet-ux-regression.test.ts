@@ -96,11 +96,14 @@ describe('WW-PLANNER-UX-2026-08-17-01 release contract', () => {
     expect(invitationTools).toContain('<PlannerTeamInviteManager />')
   })
 
-  test('stores only a SHA-256 team invite token hash and excludes platform-admin invitations', () => {
+  test('stores only a SHA-256 token hash and scopes admin invitations to one wedding/project', () => {
     expect(inviteContract).toContain("randomBytes(32).toString('base64url')")
     expect(inviteContract).toContain("createHash('sha256')")
-    expect(inviteContract).toContain("TEAM_INVITE_ROLES = ['owner', 'planner', 'coordinator', 'viewer']")
-    expect(inviteContract).not.toContain("TEAM_INVITE_ROLES = ['admin'")
+    expect(inviteContract).toContain("TEAM_INVITE_ROLES = ['owner', 'admin', 'planner', 'coordinator', 'viewer']")
+    expect(inviteContract).toContain("if (role === 'admin') return 'Wedding / project admin'")
+    expect(inviteContract).toContain('No platform-wide Wewed administrator authority')
+    expect(teamManager).toContain('Wedding / project admin')
+    expect(teamManager).toContain('Platform administrator access is never available here.')
     expect(inviteApi).toContain('field: tokenHash')
     expect(inviteApi).not.toContain('field: token,')
     expect(inviteApi).toContain('rawLinkShownOnce: true')
