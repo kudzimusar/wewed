@@ -1,4 +1,33 @@
-import { expect, openModule, test } from './support/planner-browser'
+import { createHmac } from 'node:crypto'
+import { PrismaClient } from '@prisma/client'
+import type { Page } from '@playwright/test'
+import { E2E_WEDDINGS, expect, openModule, test } from './support/planner-browser'
+
+const SESSION_COOKIE = 'wewed_admin_auth'
+const SESSION_SECRET = process.env.WEWED_SESSION_SECRET ?? ''
+
+function signedSession(input: {
+  userId: string
+  authUserId: string
+  email: string
+  role: 'couple' | 'planner'
+  coupleId: string | null
+  activeWeddingId: string
+}): string {
+  if (!SESSION_SECRET) throw new Error('WEWED_SESSION_SECRET is required for browser tests.')
+  const payload = {
+    version: 2,
+    ...input,
+    expiresAt: Date.now() + 60 * 60 * 1000,
+  }
+  const encoded = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url')
+  const signature = createHmac('sha256', SESSION_SECRET).update(encoded).digest('base64url')
+  return `${encoded}.${signature}`
+}
+
+async function useSession(page: Page, input: Parameters<typeof signedSession>[0]) {
+  await page.context().addCookies([{ name: SESSION_COOKIE, value: signedSession(input), url: 'http://127.0.0.1:3000', httpOnly: true, sameSite: 'Lax' }])
+}
 
 test('Planner fixed-dark form controls stay readable under light and dark system themes', async ({ plannerPage: page }) => {
   for (const colorScheme of ['light', 'dark'] as const) {
@@ -118,4 +147,109 @@ test('multi-select exposes safe task actions while excluding financial and timel
   await expect(budgetActions.locator('option[value="vendor"]')).toHaveCount(1)
   await expect(budgetActions.locator('option[value="paidAmount"]')).toHaveCount(0)
   await expect(budgetActions.locator('option[value="actualCost"]')).toHaveCount(0)
+})
+
+test('secure QR invitation requires explicit cross-account acceptance and revoked links fail closed', async ({ plannerPage: page }) => {
+  const prisma = new PrismaClient()
+  const owner = {
+    userId: 'e2e-qr-owner',
+    authUserId: 'e2e-qr-owner-auth',
+    email: 'qr.owner@example.test',
+    role: 'couple' as const,
+    coupleId: E2E_WEDDINGS.primary.coupleId,
+    activeWeddingId: E2E_WEDDINGS.primary.id,
+  }
+  const invitee = {
+    userId: 'e2e-qr-invitee',
+    authUserId: 'e2e-qr-invitee-auth',
+    email: 'qr.invitee@example.test',
+    role: 'planner' as const,
+    coupleId: null,
+    activeWeddingId: E2E_WEDDINGS.primary.id,
+  }
+
+  try {
+    await prisma.user.create({
+      data: {
+        id: owner.userId,
+        email: owner.email,
+        name: 'QR Owner',
+        role: owner.role,
+        coupleId: owner.coupleId,
+        currentWeddingId: owner.activeWeddingId,
+        isActive: true,
+      },
+    })
+    await prisma.user.create({
+      data: {
+        id: invitee.userId,
+        email: invitee.email,
+        name: 'QR Invitee',
+        role: invitee.role,
+        currentWeddingId: null,
+        isActive: true,
+      },
+    })
+    await prisma.weddingMembership.create({
+      data: {
+        id: 'e2e-qr-owner-membership',
+        userId: owner.userId,
+        weddingId: E2E_WEDDINGS.primary.id,
+        role: 'owner',
+        status: 'active',
+        acceptedAt: new Date(),
+      },
+    })
+
+    await useSession(page, owner)
+    const createInvite = await page.request.post('/api/weddings/team-invites', {
+      data: { role: 'planner', expiryHours: 24, inviteeEmail: invitee.email, note: 'Cross-account E2E planner invitation' },
+    })
+    expect(createInvite.status()).toBe(201)
+    const createdPayload = (await createInvite.json()) as { data: { id: string; roleLabel: string }; joinUrl: string }
+    expect(createdPayload.data.roleLabel).toBe('Planner')
+    expect(createdPayload.joinUrl).toContain('/join/')
+    const joinPath = new URL(createdPayload.joinUrl).pathname
+
+    await useSession(page, invitee)
+    await page.goto(joinPath)
+    await expect(page.getByRole('heading', { name: E2E_WEDDINGS.primary.title })).toBeVisible()
+    await expect(page.getByText('Planner', { exact: true })).toBeVisible()
+    await expect(page.getByText('Scanning or opening this page does not grant access', { exact: false })).toBeVisible()
+    await page.getByRole('button', { name: 'Accept invitation' }).click()
+    await page.waitForURL(/\/planner\/overview/)
+
+    const inviteeSession = await page.request.get('/api/auth/me')
+    expect(inviteeSession.ok()).toBe(true)
+    const inviteeSessionPayload = (await inviteeSession.json()) as { authorized: boolean; activeWedding?: { id?: string; membershipRole?: string } }
+    expect(inviteeSessionPayload.authorized).toBe(true)
+    expect(inviteeSessionPayload.activeWedding?.id).toBe(E2E_WEDDINGS.primary.id)
+    expect(inviteeSessionPayload.activeWedding?.membershipRole).toBe('planner')
+
+    const replay = await page.request.post(joinPath.replace('/join/', '/api/join/'))
+    expect(replay.status()).toBe(410)
+
+    await useSession(page, owner)
+    const createAdminInvite = await page.request.post('/api/weddings/team-invites', {
+      data: { role: 'admin', expiryHours: 24, inviteeEmail: invitee.email, note: 'Wedding-scoped admin E2E invitation' },
+    })
+    expect(createAdminInvite.status()).toBe(201)
+    const adminPayload = (await createAdminInvite.json()) as { data: { id: string; roleLabel: string }; joinUrl: string }
+    expect(adminPayload.data.roleLabel).toBe('Wedding / project admin')
+    const revoke = await page.request.patch('/api/weddings/team-invites', {
+      data: { inviteId: adminPayload.data.id, action: 'revoke' },
+    })
+    expect(revoke.ok()).toBe(true)
+
+    await useSession(page, invitee)
+    const revokedPath = new URL(adminPayload.joinUrl).pathname
+    await page.goto(revokedPath)
+    await expect(page.getByText('Wedding / project admin', { exact: true })).toBeVisible()
+    await expect(page.getByText('No platform-wide Wewed administrator authority', { exact: true })).toBeVisible()
+    await expect(page.getByText('This invitation is revoked.', { exact: false })).toBeVisible()
+    const revokedAccept = await page.request.post(revokedPath.replace('/join/', '/api/join/'))
+    expect(revokedAccept.status()).toBe(410)
+  } finally {
+    await prisma.$disconnect()
+  }
 })
