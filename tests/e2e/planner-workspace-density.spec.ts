@@ -60,7 +60,8 @@ test('compact planner chrome gives at least four fifths of the usable body to ac
     await page.goto('/planner/timeline#planner-workspace')
     await openModule(page, 'timeline')
 
-    const shell = page.locator('[data-worksheet-recovery-shell]')
+    const shell = page.locator('[data-worksheet-actions-shell]')
+    const recovery = page.locator('[data-worksheet-data-recovery]')
     const moduleScroll = page.locator('[data-planner-module-scroll="true"]')
     const moduleSelector = page.getByLabel('Worksheet module selector')
     const actions = page.locator('#planner-worksheet-actions')
@@ -73,6 +74,7 @@ test('compact planner chrome gives at least four fifths of the usable body to ac
     await expect(activeWedding).toBeVisible()
     await expect(moduleSelector).toBeHidden()
     await expect(actions).toBeHidden()
+    await expect(recovery).toBeHidden()
     await expect(toolsToggle).toHaveAttribute('aria-expanded', 'false')
     await expect(tools).toBeHidden()
 
@@ -106,6 +108,7 @@ test('compact planner chrome gives at least four fifths of the usable body to ac
 
     await openWorksheetActions(page)
     await expect(actions).toBeVisible()
+    await expect(recovery).toBeVisible()
     const expandedWorksheetModule = await moduleScroll.boundingBox()
     expect(expandedWorksheetModule).not.toBeNull()
 
@@ -117,6 +120,7 @@ test('compact planner chrome gives at least four fifths of the usable body to ac
     expect(restoredModule).not.toBeNull()
     expect(restoredModule!.height).toBeGreaterThan(expandedWorksheetModule!.height)
 
+    await openWorksheetActions(page)
     const switchToggle = page.getByTestId('worksheet-tools-toggle')
     await switchToggle.click()
     await expect(switchToggle).toHaveAttribute('aria-expanded', 'true')
