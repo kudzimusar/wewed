@@ -5,6 +5,7 @@ import QRCode from 'qrcode'
 import {
   Copy,
   Loader2,
+  LockKeyhole,
   Printer,
   QrCode,
   RefreshCw,
@@ -35,6 +36,16 @@ interface InviteResponse {
   joinUrl?: string
   error?: string
 }
+
+interface SessionAccessView {
+  authorized?: boolean
+  activeWedding?: {
+    permissions?: string[]
+    membershipRole?: string
+  } | null
+}
+
+type AccessState = 'checking' | 'allowed' | 'denied'
 
 const ROLE_OPTIONS = [
   ['planner', 'Planner'],
@@ -74,6 +85,8 @@ export function PlannerTeamInviteManager() {
   const [invites, setInvites] = useState<TeamInviteView[]>([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
+  const [accessState, setAccessState] = useState<AccessState>('checking')
+  const [membershipRole, setMembershipRole] = useState<string>('team member')
   const [role, setRole] = useState<TeamInviteView['role']>('planner')
   const [expiryHours, setExpiryHours] = useState(24)
   const [inviteeEmail, setInviteeEmail] = useState('')
@@ -84,10 +97,27 @@ export function PlannerTeamInviteManager() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
+      const sessionResponse = await fetch('/api/auth/me', { cache: 'no-store' })
+      const session = (await sessionResponse.json().catch(() => null)) as SessionAccessView | null
+      const permissions = session?.activeWedding?.permissions ?? []
+      const allowed = Boolean(
+        sessionResponse.ok &&
+        session?.authorized &&
+        session.activeWedding &&
+        (permissions.includes('*') || permissions.includes('members.manage')),
+      )
+      setMembershipRole(session?.activeWedding?.membershipRole || 'team member')
+      setAccessState(allowed ? 'allowed' : 'denied')
+      if (!allowed) {
+        setInvites([])
+        return
+      }
+
       const payload = await request<{ data?: TeamInviteView[]; error?: string }>('/api/weddings/team-invites')
       setInvites(payload.data ?? [])
     } catch (error) {
-      toast({ title: 'Team invitations unavailable', description: error instanceof Error ? error.message : undefined, variant: 'destructive' })
+      setAccessState('denied')
+      toast({ title: 'Team invitation status unavailable', description: error instanceof Error ? error.message : undefined, variant: 'destructive' })
     } finally {
       setLoading(false)
     }
@@ -107,6 +137,7 @@ export function PlannerTeamInviteManager() {
   }
 
   async function createInvite() {
+    if (accessState !== 'allowed') return
     setBusy(true)
     try {
       const payload = await request<{ data?: TeamInviteView; joinUrl?: string; error?: string }>('/api/weddings/team-invites', {
@@ -128,6 +159,7 @@ export function PlannerTeamInviteManager() {
   }
 
   async function mutateInvite(invite: TeamInviteView, action: 'revoke' | 'rotate') {
+    if (accessState !== 'allowed') return
     if (action === 'revoke' && !window.confirm(`Revoke the ${invite.roleLabel} invitation? Anyone who has not already accepted it will no longer be able to use the link or QR.`)) return
     setBusy(true)
     try {
@@ -175,7 +207,7 @@ export function PlannerTeamInviteManager() {
       return
     }
     try {
-      await navigator.share({ title: `Join Wewed as ${invite.roleLabel}`, text: `Secure Wewed team invitation. Review the access before accepting.`, url })
+      await navigator.share({ title: `Join Wewed as ${invite.roleLabel}`, text: 'Secure Wewed team invitation. Review the access before accepting.', url })
     } catch {
       // User cancellation is not an error that needs another toast.
     }
@@ -201,6 +233,25 @@ export function PlannerTeamInviteManager() {
     window.setTimeout(() => printWindow.print(), 150)
   }
 
+  if (loading || accessState === 'checking') {
+    return <div className="flex min-h-48 items-center justify-center gap-2 text-espresso/50"><Loader2 className="size-5 animate-spin text-gold" />Checking team-invite authority…</div>
+  }
+
+  if (accessState === 'denied') {
+    return (
+      <section className="rounded-2xl border border-gold/25 bg-white p-6 text-center">
+        <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-gold/10 text-gold"><LockKeyhole className="size-6" /></div>
+        <h3 className="mt-4 font-serif text-2xl">Team access is owner-controlled</h3>
+        <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-espresso/60">
+          Your current <strong>{membershipRole}</strong> role can work in the Planner, but it does not include permission to grant project access. Ask a wedding owner or another authorized team-access manager to create the QR invitation.
+        </p>
+        <p className="mx-auto mt-3 max-w-xl text-xs leading-5 text-espresso/45">
+          This restriction prevents a convenient QR from silently becoming a privilege-escalation path.
+        </p>
+      </section>
+    )
+  }
+
   return (
     <div className="space-y-5" data-planner-team-invites>
       <section className="rounded-2xl border border-gold/20 bg-espresso p-4 text-champagne sm:p-5">
@@ -221,7 +272,7 @@ export function PlannerTeamInviteManager() {
       <section>
         <div className="flex items-center justify-between gap-3"><div><h3 className="font-serif text-xl text-espresso">Team invitation status</h3><p className="text-xs text-espresso/55">Raw join links are not stored. For an older pending invite, rotate it to get a fresh QR/link.</p></div><Button type="button" variant="outline" size="sm" onClick={() => void load()} disabled={loading || busy} className="border-gold/30"><RefreshCw className="size-4" />Refresh</Button></div>
 
-        {loading ? <div className="flex min-h-40 items-center justify-center gap-2 text-espresso/50"><Loader2 className="size-4 animate-spin text-gold" />Loading invitations…</div> : invites.length === 0 ? <div className="mt-4 rounded-xl border border-dashed border-gold/25 p-8 text-center text-sm text-espresso/55">No project team QR invitations have been created for this wedding.</div> : <div className="mt-4 space-y-3">{invites.map((invite) => {
+        {invites.length === 0 ? <div className="mt-4 rounded-xl border border-dashed border-gold/25 p-8 text-center text-sm text-espresso/55">No project team QR invitations have been created for this wedding.</div> : <div className="mt-4 space-y-3">{invites.map((invite) => {
           const freshLink = rawLinks[invite.id]
           const qr = qrImages[invite.id]
           const mutable = invite.status !== 'accepted'
