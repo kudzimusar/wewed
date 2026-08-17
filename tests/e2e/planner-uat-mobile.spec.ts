@@ -28,18 +28,25 @@ test('planner portfolio and client workspace stay navigable at UAT mobile widths
       .toBeGreaterThanOrEqual(100)
 
     await expect(
-      plannerPage.getByRole('link', { name: 'Back to all managed weddings' }),
-    ).toBeVisible()
-    await expect(
       plannerPage.getByRole('combobox', { name: 'Planner workspace section' }),
     ).toBeVisible()
     await expectNoDocumentOverflow(plannerPage)
 
-    await plannerPage.getByRole('link', { name: 'Back to all managed weddings' }).click()
+    const menu = plannerPage.getByTestId('planner-adaptive-menu-trigger')
+    await expect(menu).toBeVisible()
+    await menu.click()
+    const drawer = plannerPage.locator('[data-planner-adaptive-navigation]')
+    const allWeddings = drawer.getByRole('link', { name: 'All weddings', exact: true })
+    await expect(allWeddings).toBeVisible()
+    await allWeddings.click()
+
     await expect(plannerPage).toHaveURL(/\/planner\/portfolio(?:[?#]|$)/)
+    await expect(plannerPage.locator('[data-planner-portfolio-shell]')).toBeVisible()
     await expect(
       plannerPage.getByRole('heading', { name: 'Your wedding command centre' }),
     ).toBeVisible()
+    await expect(plannerPage.getByTestId('planner-adaptive-menu-trigger')).toBeVisible()
+    await expect(plannerPage.getByTestId('workspace-quick-navigation')).toHaveCount(0)
     await expectNoDocumentOverflow(plannerPage)
   }
 })
