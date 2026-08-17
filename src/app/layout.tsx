@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next'
+import { Suspense } from 'react'
 import { Inter, Cormorant_Garamond } from 'next/font/google'
 import './globals.css'
 import './product-remediation.css'
@@ -69,7 +70,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <PWARegister />
           <SkipToContent />
           {children}
-          <PlannerWorksheetCommandCenter />
+          <Suspense fallback={null}>
+            <PlannerWorksheetCommandCenter />
+          </Suspense>
           <WorkspaceQuickNavigation />
           <Toaster />
         </ThemeProvider>
