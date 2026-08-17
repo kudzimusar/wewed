@@ -5,7 +5,7 @@ import { createHash, randomBytes } from 'node:crypto'
 export const TEAM_INVITE_SECTION = 'team_invite'
 export const TEAM_INVITE_VERSION = 1
 export const TEAM_INVITE_EXPIRY_HOURS = [1, 24, 72, 168] as const
-export const TEAM_INVITE_ROLES = ['owner', 'planner', 'coordinator', 'viewer'] as const
+export const TEAM_INVITE_ROLES = ['owner', 'admin', 'planner', 'coordinator', 'viewer'] as const
 
 export type TeamInviteRole = (typeof TEAM_INVITE_ROLES)[number]
 export type TeamInviteStatus = 'pending' | 'accepted' | 'revoked'
@@ -75,6 +75,7 @@ export function parseTeamInviteState(value: string | null | undefined): TeamInvi
 
 export function teamInviteRoleLabel(role: TeamInviteRole): string {
   if (role === 'owner') return 'Owner / partner'
+  if (role === 'admin') return 'Wedding / project admin'
   if (role === 'planner') return 'Planner'
   if (role === 'coordinator') return 'Coordinator'
   return 'Viewer / member'
@@ -85,6 +86,11 @@ export function teamInvitePermissionSummary(role: TeamInviteRole): string[] {
     'Full wedding/project access',
     'Manage planning data and team access',
     'Manage guest, budget, vendor, timeline and seating work',
+  ]
+  if (role === 'admin') return [
+    'Full authority inside this wedding/project only',
+    'Manage project data, planning work and wedding team access',
+    'No platform-wide Wewed administrator authority',
   ]
   if (role === 'planner') return [
     'Edit planner tasks and operational worksheets',
@@ -108,7 +114,9 @@ export function canGrantTeamInviteRole(
   targetRole: TeamInviteRole,
 ): boolean {
   if (inviterRole === 'admin' || inviterRole === 'owner') return true
-  if (inviterRole === 'planner') return targetRole !== 'owner'
+  if (inviterRole === 'planner') {
+    return targetRole === 'planner' || targetRole === 'coordinator' || targetRole === 'viewer'
+  }
   if (inviterRole === 'coordinator') return targetRole === 'coordinator' || targetRole === 'viewer'
   return targetRole === 'viewer'
 }
