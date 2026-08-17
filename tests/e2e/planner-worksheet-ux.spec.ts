@@ -86,7 +86,7 @@ test('shared worksheet tools print an A4 document and persist presentation order
   const printPage = await popupPromise
   await printPage.waitForLoadState('domcontentloaded')
   await expect(printPage.locator('text=Wewed Planner Workspace')).toBeVisible()
-  await expect(printPage.locator('text=Tasks')).toBeVisible()
+  await expect(printPage.locator('.worksheet')).toHaveText('Tasks')
   const pageRule = await printPage.locator('style').textContent()
   expect(pageRule).toContain('@page { size: A4 portrait;')
   expect(pageRule).toContain('thead { display: table-header-group; }')
