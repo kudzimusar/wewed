@@ -158,27 +158,24 @@ test('couple and planner accounts have visible single-source navigation', async 
   await expect(selectedWedding).not.toContainText('Musarurwa')
 
   await page.goto('/planner/tasks')
-  const dock = page.getByRole('navigation', { name: 'Planner account navigation' })
-  await expect(dock).toBeVisible()
-  await expect(dock.getByRole('link', { name: 'Workspace' })).toHaveAttribute(
+  await expect(page.getByRole('navigation', { name: 'Planner account navigation' })).toHaveCount(0)
+  await expect(page.getByTestId('workspace-quick-navigation')).toHaveCount(0)
+  const menu = page.getByTestId('planner-adaptive-menu-trigger')
+  await expect(menu).toBeVisible()
+  await menu.click()
+  const navigation = page.locator('[data-planner-adaptive-navigation]')
+  await expect(navigation).toBeVisible()
+  await expect(navigation.getByRole('link', { name: 'Workspace', exact: true })).toHaveAttribute(
     'aria-current',
     'page',
   )
-  await expect(dock.getByRole('link', { name: 'Wewed' })).not.toHaveAttribute(
+  await expect(navigation.getByRole('link', { name: 'Business', exact: true })).not.toHaveAttribute(
     'aria-current',
     'page',
   )
-  await dock.getByRole('link', { name: 'Business' }).click()
+  await navigation.getByRole('link', { name: 'Business', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Planner marketplace centre' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Planner workspace' })).toBeVisible()
-  await expect(dock.getByRole('link', { name: 'Business' })).toHaveAttribute(
-    'aria-current',
-    'page',
-  )
-  await expect(dock.getByRole('link', { name: 'Workspace' })).not.toHaveAttribute(
-    'aria-current',
-    'page',
-  )
   expect(errors).toEqual([])
 })
 
