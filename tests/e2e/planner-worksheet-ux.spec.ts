@@ -34,6 +34,17 @@ test('Planner fixed-dark form controls stay readable under light and dark system
 })
 
 test('shared worksheet tools print an A4 document and persist presentation order without changing task data', async ({ plannerPage: page }) => {
+  const created = await page.request.post('/api/planner/tasks', {
+    data: {
+      title: 'Ordering gate second task',
+      description: 'Synthetic task created only inside the ephemeral browser-test database.',
+      category: 'venue',
+      status: 'todo',
+      priority: 'medium',
+    },
+  })
+  expect(created.status()).toBe(201)
+
   await openModule(page, 'checklist')
 
   const trigger = page.getByTestId('planner-worksheet-command-trigger')
