@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import QRCode from 'qrcode'
 import {
   Copy,
@@ -17,9 +17,11 @@ import {
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 
+type TeamInviteRole = 'owner' | 'admin' | 'planner' | 'coordinator' | 'viewer'
+
 interface TeamInviteView {
   id: string
-  role: 'owner' | 'planner' | 'coordinator' | 'viewer'
+  role: TeamInviteRole
   roleLabel: string
   permissionSummary: string[]
   status: 'pending' | 'accepted' | 'revoked' | 'expired'
@@ -47,12 +49,13 @@ interface SessionAccessView {
 
 type AccessState = 'checking' | 'allowed' | 'denied'
 
-const ROLE_OPTIONS = [
+const ROLE_OPTIONS: ReadonlyArray<readonly [TeamInviteRole, string]> = [
   ['planner', 'Planner'],
   ['coordinator', 'Coordinator'],
   ['viewer', 'Viewer / member'],
   ['owner', 'Owner / partner'],
-] as const
+  ['admin', 'Wedding / project admin'],
+]
 
 const EXPIRY_OPTIONS = [
   [1, '1 hour'],
@@ -60,6 +63,21 @@ const EXPIRY_OPTIONS = [
   [72, '3 days'],
   [168, '7 days'],
 ] as const
+
+function canGrantRole(membershipRole: string, targetRole: TeamInviteRole): boolean {
+  if (membershipRole === 'admin' || membershipRole === 'owner') return true
+  if (membershipRole === 'planner') {
+    return targetRole === 'planner' || targetRole === 'coordinator' || targetRole === 'viewer'
+  }
+  if (membershipRole === 'coordinator') return targetRole === 'coordinator' || targetRole === 'viewer'
+  return targetRole === 'viewer'
+}
+
+function defaultGrantRole(membershipRole: string): TeamInviteRole {
+  if (membershipRole === 'coordinator') return 'coordinator'
+  if (membershipRole === 'viewer') return 'viewer'
+  return 'planner'
+}
 
 async function request<T extends InviteResponse>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { cache: 'no-store', ...init })
@@ -87,12 +105,17 @@ export function PlannerTeamInviteManager() {
   const [busy, setBusy] = useState(false)
   const [accessState, setAccessState] = useState<AccessState>('checking')
   const [membershipRole, setMembershipRole] = useState<string>('team member')
-  const [role, setRole] = useState<TeamInviteView['role']>('planner')
+  const [role, setRole] = useState<TeamInviteRole>('planner')
   const [expiryHours, setExpiryHours] = useState(24)
   const [inviteeEmail, setInviteeEmail] = useState('')
   const [note, setNote] = useState('')
   const [rawLinks, setRawLinks] = useState<Record<string, string>>({})
   const [qrImages, setQrImages] = useState<Record<string, string>>({})
+
+  const roleOptions = useMemo(
+    () => ROLE_OPTIONS.filter(([value]) => canGrantRole(membershipRole, value)),
+    [membershipRole],
+  )
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -100,14 +123,16 @@ export function PlannerTeamInviteManager() {
       const sessionResponse = await fetch('/api/auth/me', { cache: 'no-store' })
       const session = (await sessionResponse.json().catch(() => null)) as SessionAccessView | null
       const permissions = session?.activeWedding?.permissions ?? []
+      const currentMembershipRole = session?.activeWedding?.membershipRole || 'team member'
       const allowed = Boolean(
         sessionResponse.ok &&
         session?.authorized &&
         session.activeWedding &&
         (permissions.includes('*') || permissions.includes('members.manage')),
       )
-      setMembershipRole(session?.activeWedding?.membershipRole || 'team member')
+      setMembershipRole(currentMembershipRole)
       setAccessState(allowed ? 'allowed' : 'denied')
+      setRole((current) => canGrantRole(currentMembershipRole, current) ? current : defaultGrantRole(currentMembershipRole))
       if (!allowed) {
         setInvites([])
         return
@@ -261,12 +286,12 @@ export function PlannerTeamInviteManager() {
         </div>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          <label className="text-sm text-champagne/75">Role<select value={role} onChange={(event) => setRole(event.target.value as TeamInviteView['role'])} className="mt-2 h-11 w-full rounded-xl border border-gold/30 bg-espresso px-3 text-champagne">{ROLE_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+          <label className="text-sm text-champagne/75">Role<select value={role} onChange={(event) => setRole(event.target.value as TeamInviteRole)} className="mt-2 h-11 w-full rounded-xl border border-gold/30 bg-espresso px-3 text-champagne">{roleOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
           <label className="text-sm text-champagne/75">Link expires<select value={expiryHours} onChange={(event) => setExpiryHours(Number(event.target.value))} className="mt-2 h-11 w-full rounded-xl border border-gold/30 bg-espresso px-3 text-champagne">{EXPIRY_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
           <label className="text-sm text-champagne/75">Invitee email <span className="text-champagne/40">(optional, locks acceptance to that account)</span><input type="email" value={inviteeEmail} onChange={(event) => setInviteeEmail(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-gold/30 bg-espresso px-3 text-champagne placeholder:text-champagne/35" placeholder="person@example.com" /></label>
           <label className="text-sm text-champagne/75">Context note <span className="text-champagne/40">(optional)</span><input value={note} maxLength={240} onChange={(event) => setNote(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-gold/30 bg-espresso px-3 text-champagne placeholder:text-champagne/35" placeholder="e.g. Day-of coordinator" /></label>
         </div>
-        <div className="mt-4 flex flex-wrap items-center gap-3"><Button type="button" disabled={busy} onClick={() => void createInvite()} className="min-h-11 bg-gold text-espresso hover:bg-gold-light">{busy ? <Loader2 className="size-4 animate-spin" /> : <QrCode className="size-4" />}Generate secure QR & link</Button><p className="text-xs leading-5 text-champagne/45">Owner invites require owner-level authority. Platform administrator access is never available here.</p></div>
+        <div className="mt-4 flex flex-wrap items-center gap-3"><Button type="button" disabled={busy} onClick={() => void createInvite()} className="min-h-11 bg-gold text-espresso hover:bg-gold-light">{busy ? <Loader2 className="size-4 animate-spin" /> : <QrCode className="size-4" />}Generate secure QR & link</Button><p className="text-xs leading-5 text-champagne/45">Wedding/project admin is scoped to this wedding only. Platform administrator access is never available here.</p></div>
       </section>
 
       <section>
