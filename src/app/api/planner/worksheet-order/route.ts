@@ -29,8 +29,8 @@ const EDIT_PERMISSION: Record<OrderedPlannerWorksheet, string> = {
 
 const MAX_ORDERED_RECORDS = 5000
 
-async function currentIds(module: OrderedPlannerWorksheet, weddingId: string): Promise<string[]> {
-  if (module === 'tasks') {
+async function currentIds(worksheet: OrderedPlannerWorksheet, weddingId: string): Promise<string[]> {
+  if (worksheet === 'tasks') {
     const rows = await db.plannerTask.findMany({
       where: { weddingId },
       orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
@@ -38,7 +38,7 @@ async function currentIds(module: OrderedPlannerWorksheet, weddingId: string): P
     })
     return rows.map((row) => row.id)
   }
-  if (module === 'budget') {
+  if (worksheet === 'budget') {
     const rows = await db.budgetItem.findMany({
       where: { weddingId },
       orderBy: [{ category: 'asc' }, { createdAt: 'asc' }],
@@ -46,7 +46,7 @@ async function currentIds(module: OrderedPlannerWorksheet, weddingId: string): P
     })
     return rows.map((row) => row.id)
   }
-  if (module === 'vendors') {
+  if (worksheet === 'vendors') {
     const rows = await db.vendor.findMany({
       where: { weddingId },
       orderBy: [{ featured: 'desc' }, { createdAt: 'desc' }],
@@ -54,7 +54,7 @@ async function currentIds(module: OrderedPlannerWorksheet, weddingId: string): P
     })
     return rows.map((row) => row.id)
   }
-  if (module === 'guests') {
+  if (worksheet === 'guests') {
     const rows = await db.guest.findMany({
       where: { weddingId },
       orderBy: [{ side: 'asc' }, { name: 'asc' }],
@@ -62,7 +62,7 @@ async function currentIds(module: OrderedPlannerWorksheet, weddingId: string): P
     })
     return rows.map((row) => row.id)
   }
-  if (module === 'timeline') {
+  if (worksheet === 'timeline') {
     const rows = await db.programmeItem.findMany({
       where: { weddingId },
       orderBy: [{ time: 'asc' }, { order: 'asc' }, { createdAt: 'asc' }],
@@ -78,26 +78,26 @@ async function currentIds(module: OrderedPlannerWorksheet, weddingId: string): P
   return rows.map((row) => row.id)
 }
 
-function moduleFromRequest(request: NextRequest): OrderedPlannerWorksheet | null {
+function worksheetFromRequest(request: NextRequest): OrderedPlannerWorksheet | null {
   const value = new URL(request.url).searchParams.get('module')
   return isOrderedPlannerWorksheet(value) ? value : null
 }
 
 export async function GET(request: NextRequest) {
-  const module = moduleFromRequest(request)
-  if (!module) {
+  const worksheet = worksheetFromRequest(request)
+  if (!worksheet) {
     return NextResponse.json({ success: false, error: 'Unsupported worksheet module.' }, { status: 400 })
   }
 
-  const access = await requireWeddingPermission(request, VIEW_PERMISSION[module])
+  const access = await requireWeddingPermission(request, VIEW_PERMISSION[worksheet])
   if (access.error) return access.error
 
   try {
-    const ids = await currentIds(module, access.context.weddingId)
-    const saved = await readPlannerWorksheetOrder(access.context.weddingId, module)
+    const ids = await currentIds(worksheet, access.context.weddingId)
+    const saved = await readPlannerWorksheetOrder(access.context.weddingId, worksheet)
     return NextResponse.json({
       success: true,
-      module,
+      module: worksheet,
       data: mergePlannerWorksheetOrder(saved, ids),
       customized: saved.length > 0,
     })
@@ -108,12 +108,12 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  const module = moduleFromRequest(request)
-  if (!module) {
+  const worksheet = worksheetFromRequest(request)
+  if (!worksheet) {
     return NextResponse.json({ success: false, error: 'Unsupported worksheet module.' }, { status: 400 })
   }
 
-  const access = await requireWeddingPermission(request, EDIT_PERMISSION[module])
+  const access = await requireWeddingPermission(request, EDIT_PERMISSION[worksheet])
   if (access.error) return access.error
 
   try {
@@ -134,7 +134,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Worksheet order contains duplicate records.' }, { status: 400 })
     }
 
-    const ids = await currentIds(module, access.context.weddingId)
+    const ids = await currentIds(worksheet, access.context.weddingId)
     const current = new Set(ids)
     const foreign = requested.filter((id) => !current.has(id))
     if (foreign.length) {
@@ -146,19 +146,19 @@ export async function PUT(request: NextRequest) {
 
     const normalized = mergePlannerWorksheetOrder(requested, ids)
     const previous = mergePlannerWorksheetOrder(
-      await readPlannerWorksheetOrder(access.context.weddingId, module),
+      await readPlannerWorksheetOrder(access.context.weddingId, worksheet),
       ids,
     )
     await savePlannerWorksheetOrder({
       weddingId: access.context.weddingId,
-      module,
+      module: worksheet,
       order: normalized,
     })
     await db.auditEvent.create({
       data: {
         action: 'planner.worksheet_reorder',
         resourceType: 'planner_worksheet',
-        resourceId: module,
+        resourceId: worksheet,
         beforeValue: JSON.stringify(previous),
         afterValue: JSON.stringify(normalized),
         weddingId: access.context.weddingId,
@@ -166,7 +166,7 @@ export async function PUT(request: NextRequest) {
       },
     })
 
-    return NextResponse.json({ success: true, module, data: normalized })
+    return NextResponse.json({ success: true, module: worksheet, data: normalized })
   } catch (error) {
     console.error('[planner worksheet order PUT] Error:', error)
     return NextResponse.json({ success: false, error: 'Unable to save worksheet order.' }, { status: 500 })
