@@ -120,8 +120,8 @@ test('shared worksheet tools print an A4 document and persist presentation order
 
   await page.keyboard.press('Escape')
   await openModule(page, 'checklist')
-  await expect(page.getByText(firstTitle, { exact: true })).toBeVisible()
-  await expect(page.getByText(secondTitle, { exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: firstTitle, exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: secondTitle, exact: true })).toBeVisible()
 })
 
 test('multi-select exposes safe task actions while excluding financial and timeline bulk overwrites', async ({ plannerPage: page }) => {
