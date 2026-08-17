@@ -39,7 +39,7 @@ function isPrivateWorkspace(pathname: string) {
 function plannerUsesEmbeddedAdaptiveNavigation(pathname: string): boolean {
   return (
     pathname === '/planner' ||
-    /^\/planner\/(overview|tasks|budget|vendors|guests|timeline|seating)(?:\/|$)/.test(pathname)
+    /^\/planner\/(overview|tasks|budget|vendors|guests|timeline|seating|portfolio)(?:\/|$)/.test(pathname)
   )
 }
 
