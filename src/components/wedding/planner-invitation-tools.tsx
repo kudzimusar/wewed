@@ -55,9 +55,12 @@ export function PlannerInvitationTools() {
 
           {mode === 'guest' ? (
             <div className="mt-4">
-              <p className="mb-4 rounded-xl border border-gold/15 bg-white px-4 py-3 text-sm leading-6 text-espresso/60">
-                Use this for wedding guests and RSVP credentials. It does not create Planner, Owner, Coordinator or Viewer access.
-              </p>
+              <div className="mb-4 rounded-xl border border-gold/15 bg-white px-4 py-3">
+                <p className="font-medium text-espresso">Digital wedding cards, RSVP and QR</p>
+                <p className="mt-1 text-sm leading-6 text-espresso/60">
+                  Use this for wedding guests and RSVP credentials. It does not create Planner, Owner, Coordinator or Viewer access.
+                </p>
+              </div>
               <InvitationManager compact />
             </div>
           ) : (
