@@ -46,6 +46,30 @@ test('adaptive Planner navigation keeps primary controls reachable without compe
   }
 })
 
+test('Planner portfolio uses the same adaptive navigation shell without duplicate quick chrome', async ({ plannerPage: page }) => {
+  for (const viewport of VIEWPORTS) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height })
+    await page.goto('/planner/portfolio')
+
+    await expect(page.locator('[data-planner-portfolio-shell]')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'All weddings', exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Your wedding command centre' })).toBeVisible()
+    await expect(page.getByTestId('workspace-quick-navigation')).toHaveCount(0)
+
+    const menu = page.getByTestId('planner-adaptive-menu-trigger')
+    await expect(menu, `${viewport.label}: portfolio adaptive menu trigger`).toBeVisible()
+    await menu.click()
+    const drawer = page.locator('[data-planner-adaptive-navigation]')
+    await expect(drawer).toBeVisible()
+    await expect(drawer.getByRole('link', { name: 'Workspace', exact: true })).toBeVisible()
+    await expect(drawer.getByRole('link', { name: 'Settings', exact: true })).toBeVisible()
+    await expect(drawer.getByRole('link', { name: 'Messages', exact: true })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(drawer).toBeHidden()
+    await expectNoDocumentOverflow(page)
+  }
+})
+
 test('phone Planner uses a worksheet selector rather than requiring the wide worksheet tab row', async ({ plannerPage: page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await openModule(page, 'budget')
