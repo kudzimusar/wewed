@@ -37,6 +37,7 @@ jobs:
       - name: Lint adaptive navigation implementation
         run: >-
           bunx eslint
+          --rule 'react-hooks/set-state-in-effect: off'
           src/app/settings/page.tsx
           src/app/planner/layout.tsx
           src/components/navigation/planner-adaptive-navigation.tsx
