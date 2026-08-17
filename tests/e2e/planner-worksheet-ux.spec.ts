@@ -118,8 +118,9 @@ test('shared worksheet tools print an A4 document and persist presentation order
   expect(payload.data[0]).toBe(secondId)
   expect(payload.data[1]).toBe(firstId)
 
-  await page.keyboard.press('Escape')
-  await openModule(page, 'checklist')
+  const toolsDialog = page.getByRole('dialog', { name: 'Tasks worksheet tools' })
+  await toolsDialog.getByRole('button', { name: 'Close' }).click()
+  await expect(toolsDialog).toBeHidden()
   await expect(page.getByRole('heading', { name: firstTitle, exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: secondTitle, exact: true })).toBeVisible()
 })
