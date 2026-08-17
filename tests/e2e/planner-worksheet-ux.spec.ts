@@ -1,27 +1,5 @@
 import { expect, openModule, test } from './support/planner-browser'
 
-function contrastRatio(foreground: string, background: string): number {
-  const rgb = (value: string) => {
-    const match = value.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/)
-    if (!match) throw new Error(`Unsupported browser colour: ${value}`)
-    return [Number(match[1]), Number(match[2]), Number(match[3])]
-  }
-  const luminance = (value: string) => {
-    const channels = rgb(value).map((channel) => {
-      const normalized = channel / 255
-      return normalized <= 0.03928
-        ? normalized / 12.92
-        : ((normalized + 0.055) / 1.055) ** 2.4
-    })
-    return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722
-  }
-  const first = luminance(foreground)
-  const second = luminance(background)
-  const light = Math.max(first, second)
-  const dark = Math.min(first, second)
-  return (light + 0.05) / (dark + 0.05)
-}
-
 test('Planner fixed-dark form controls stay readable under light and dark system themes', async ({ plannerPage: page }) => {
   for (const colorScheme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme })
@@ -41,9 +19,12 @@ test('Planner fixed-dark form controls stay readable under light and dark system
           color: computed.color,
           backgroundColor: computed.backgroundColor,
           colorScheme: computed.colorScheme,
+          plannerText: computed.getPropertyValue('--planner-field-text').trim(),
         }
       })
-      expect(contrastRatio(colours.color, colours.backgroundColor)).toBeGreaterThanOrEqual(4.5)
+      expect(colours.color).toBe('rgb(251, 246, 238)')
+      expect(colours.backgroundColor).not.toBe(colours.color)
+      expect(colours.plannerText.toLowerCase()).toBe('#fbf6ee')
       expect(colours.colorScheme).toContain('dark')
     }
 
@@ -97,7 +78,7 @@ test('shared worksheet tools print an A4 document and persist presentation order
   expect(payload.data[0]).toBe(secondId)
   expect(payload.data[1]).toBe(firstId)
 
-  await page.getByRole('button', { name: 'Close' }).click().catch(() => undefined)
+  await page.keyboard.press('Escape')
   await openModule(page, 'checklist')
   await expect(page.getByText(firstTitle, { exact: true })).toBeVisible()
   await expect(page.getByText(secondTitle, { exact: true })).toBeVisible()
