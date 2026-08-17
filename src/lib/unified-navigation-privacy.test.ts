@@ -1,65 +1,107 @@
 import { describe, expect, test } from 'bun:test'
-import { readFile } from 'node:fs/promises'
 
-const source = (path: string) => readFile(path, 'utf8')
-
-const privacyMigration = await source('prisma/migrations/20260804002000_default_new_weddings_link_only/migration.sql')
-const schema = await source('prisma/schema.prisma')
-const proxy = await source('src/proxy.ts')
-const guestSessionRoute = await source('src/app/api/weddings/[slug]/guest-session/route.ts')
-const exchangeRoute = await source('src/app/api/weddings/[slug]/guest-exchange/route.ts')
-const access = await source('src/lib/wedding-route-access.ts')
-const weddingApi = await source('src/app/api/weddings/[slug]/route.ts')
-const contentApi = await source('src/app/api/weddings/[slug]/content/route.ts')
-const contentItemApi = await source('src/app/api/weddings/[slug]/content/[id]/route.ts')
-const guestsApi = await source('src/app/api/weddings/[slug]/guests/route.ts')
-const rsvpsApi = await source('src/app/api/weddings/[slug]/rsvps/route.ts')
-const rsvpTokenRoute = await source('src/app/api/weddings/[slug]/rsvp/[token]/route.ts')
-const legacyTokenRoute = await source('src/app/api/weddings/[slug]/guest/token/route.ts')
-const rsvpSection = await source('src/components/wedding/sections/rsvp-section.tsx')
-const checkin = await source('src/components/wedding/planner/checkin-scanner.tsx')
+async function source(path: string): Promise<string> {
+  return Bun.file(path).text()
+}
 
 describe('unified Wewed navigation and wedding privacy', () => {
   test('root is a neutral platform and wedding sites live under slug routes', async () => {
-    const home = await source('src/app/page.tsx')
-    const weddingRoute = await source('src/app/w/[slug]/page.tsx')
-    expect(home).toContain('PublicPlatformShell')
-    expect(home).not.toContain('Charity')
-    expect(weddingRoute).toContain('WeddingSite')
-    expect(weddingRoute).toContain('params')
+    const root = await source('src/app/page.tsx')
+    const rootLayout = await source('src/app/layout.tsx')
+    const weddingPage = await source('src/app/w/[slug]/page.tsx')
+
+    expect(root).toContain('PublicPlatformHome')
+    expect(root).toContain("redirect(`/w/")
+    expect(root).not.toContain('<WeddingHome')
+    expect(rootLayout).toContain('Private Wedding Sites and Planner Marketplace')
+    expect(rootLayout).not.toContain('Charity &')
+    expect(rootLayout).not.toContain('Imba Manor')
+    expect(weddingPage).toContain('resolveWeddingAccessFromTokens')
+    expect(weddingPage).toContain('GuestAccessGateway')
+    expect(weddingPage).toContain('guest-session/exchange')
+    expect(weddingPage).toContain("dynamic = 'force-dynamic'")
   })
 
-  test('new weddings default to invitation-only at the database boundary', () => {
-    expect(privacyMigration).toContain("ALTER COLUMN \"privacy\" SET DEFAULT 'link_only'")
-    expect(privacyMigration).toContain("UPDATE \"Wedding\" SET \"privacy\" = 'link_only'")
-    expect(schema).toContain('@default("link_only")')
+  test('new weddings default to invitation-only at the database boundary', async () => {
+    const migration = await source(
+      'prisma/migrations/20260804002000_default_new_weddings_link_only/migration.sql',
+    )
+
+    expect(migration).toContain('wewed_enforce_new_wedding_link_only')
+    expect(migration).toContain("NEW.privacy := 'link_only'")
+    expect(migration).toContain('BEFORE INSERT ON public."Wedding"')
+    expect(migration).toContain('Public visibility must be selected later')
   })
 
-  test('guest invitations exchange into signed HttpOnly scoped sessions', () => {
-    expect(guestSessionRoute).toContain('guest_session')
-    expect(guestSessionRoute).toContain('httpOnly: true')
-    expect(guestSessionRoute).toContain('sameSite:')
-    expect(guestSessionRoute).toContain('secure:')
-    expect(exchangeRoute).toContain('setWeddingGuestSession')
-    expect(proxy).toContain('/guest-exchange')
-    expect(proxy).toContain('/guest-session')
+  test('guest invitations exchange into signed HttpOnly scoped sessions', async () => {
+    const session = await source('src/lib/wedding-guest-session.ts')
+    const route = await source('src/app/api/weddings/[slug]/guest-session/route.ts')
+    const exchange = await source(
+      'src/app/api/weddings/[slug]/guest-session/exchange/route.ts',
+    )
+    const invitations = await source('src/app/api/planner/guests/invitations/route.ts')
+    const cardContract = await source('src/lib/digital-invitation-card.ts')
+    const legacySharedToken = await source('src/app/api/privacy/verify-token/route.ts')
+
+    expect(session).toContain("WEDDING_GUEST_SESSION_COOKIE = 'wewed_wedding_guest'")
+    expect(session).toContain('httpOnly: true')
+    expect(session).toContain("sameSite: 'lax'")
+    expect(session).toContain('weddingId')
+    expect(session).toContain('guestId')
+    expect(session).toContain('rsvpToken')
+    expect(route).toContain('setWeddingGuestSessionCookie')
+    expect(route).toContain("rsvp.guest.wedding.slug !== slug")
+    expect(route).toContain("rsvp.guest.wedding.privacy === 'private'")
+    expect(exchange).toContain('setWeddingGuestSessionCookie')
+    expect(exchange).toContain('function relativeRedirect')
+    expect(exchange).toContain("Location: location")
+    expect(exchange).toContain("new URLSearchParams({ invitation: '1', card: requestedStyle })")
+    expect(exchange).toContain('`/w/${encodeURIComponent(slug)}?${query.toString()}`')
+    expect(exchange).toContain('normalizeInvitationCardStyle')
+    expect(invitations).toContain('buildDigitalInvitationUrl')
+    expect(cardContract).toContain('`${origin}/w/${encodeURIComponent(weddingSlug)}?${query.toString()}`')
+    expect(invitations).toContain('guest.invitation_rotated')
+    expect(legacySharedToken).toContain('legacy_shared_token_retired')
+    expect(legacySharedToken).toContain('status: 410')
   })
 
-  test('wedding payload APIs fail through the shared access resolver', () => {
-    expect(access).toContain('resolveWeddingRouteAccess')
-    expect(access).toContain('private')
-    expect(access).toContain('link_only')
-    expect(weddingApi).toContain('resolveWeddingRouteAccess')
-    expect(contentApi).toContain('resolveWeddingRouteAccess')
-    expect(contentItemApi).toContain('resolveWeddingRouteAccess')
-    expect(guestsApi).toContain('resolveWeddingRouteAccess')
-    expect(rsvpsApi).toContain('resolveWeddingRouteAccess')
-    expect(rsvpTokenRoute).toContain('resolveWeddingRouteAccess')
+  test('wedding payload APIs fail through the shared access resolver', async () => {
+    const resolver = await source('src/lib/wedding-public-access.ts')
+    const routes = await Promise.all([
+      source('src/app/api/wedding-content/route.ts'),
+      source('src/app/api/wedding/route.ts'),
+      source('src/app/api/songs/route.ts'),
+      source('src/app/api/messages/route.ts'),
+      source('src/app/api/media/route.ts'),
+      source('src/app/api/contributions/public/route.ts'),
+    ])
+
+    expect(resolver).toContain("return 'private'")
+    expect(resolver).toContain("wedding.privacy === 'link_only' && guest")
+    expect(resolver).toContain("wedding.privacy === 'public'")
+    expect(resolver).toContain('session.activeWeddingId !== wedding.id')
+    expect(resolver).toContain('db.weddingMembership.findFirst')
+    expect(resolver).toContain("status: 'active'")
+    expect(resolver).toContain("return 'couple_owner'")
+    expect(resolver).toContain("return 'wedding_member'")
+    for (const route of routes) {
+      expect(route).toContain('resolveWeddingAccessForRequest')
+      expect(route).toContain('weddingAccessErrorPayload')
+    }
   })
 
-  test('RSVP writes and check-in require guest invitation identity', () => {
-    expect(rsvpTokenRoute).toContain("guestId: access.context.guestId")
-    expect(rsvpTokenRoute).toContain("weddingId: access.context.weddingId")
+  test('RSVP writes and check-in require guest invitation identity', async () => {
+    const rsvpRoute = await source('src/app/api/rsvp/route.ts')
+    const legacyTokenRoute = await source('src/app/api/rsvp/[token]/route.ts')
+    const rsvpSection = await source('src/components/wedding/rsvp-section.tsx')
+    const checkin = await source('src/components/wedding/qr-checkin.tsx')
+
+    expect(rsvpRoute).toContain('guest_invitation_required')
+    expect(rsvpRoute).toContain('access.guest.rsvpToken')
+    expect(rsvpRoute).not.toContain('guest.create')
+    expect(legacyTokenRoute).toContain('guest_session_required')
+    expect(legacyTokenRoute).toContain('status: 410')
+    expect(legacyTokenRoute).toContain("requireWeddingPermission(request, 'guests.edit')")
     expect(legacyTokenRoute).toContain('guest: { weddingId: access.context.weddingId }')
     expect(rsvpSection).toContain('/guest-session')
     expect(rsvpSection).toContain('Names and email addresses alone cannot')
@@ -102,7 +144,8 @@ describe('unified Wewed navigation and wedding privacy', () => {
     expect(manager).toContain('QRCode.toDataURL')
     expect(manager).toContain('Copy link')
     expect(manager).toContain('Rotate')
-    expect(plannerTool).toContain('InvitationManager')
-    expect(coupleRoute).toContain('InvitationManager')
+    expect(manager).toContain('CSV')
+    expect(plannerTool).toContain('Invitations & QR')
+    expect(coupleRoute).toContain('CoupleInvitationsCentre')
   })
 })
