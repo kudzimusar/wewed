@@ -113,7 +113,7 @@ describe('unified Wewed navigation and wedding privacy', () => {
   test('every stakeholder has visible navigation from a role home', async () => {
     const publicShell = await source('src/components/public/public-platform-shell.tsx')
     const couple = await source('src/components/couple/couple-dashboard.tsx')
-    const plannerDock = await source('src/components/wedding/planner-account-dock.tsx')
+    const plannerNavigation = await source('src/components/navigation/planner-adaptive-navigation.tsx')
     const plannerPortal = await source('src/components/wedding/planner-portal.tsx')
     const adminNav = await source('src/components/admin/admin-utility-nav.tsx')
     const weddingNav = await source('src/components/wedding/wedding-platform-nav.tsx')
@@ -125,9 +125,10 @@ describe('unified Wewed navigation and wedding privacy', () => {
     for (const href of ['/couple/planners', '/couple/invitations', '/couple/privacy', '/planner']) {
       expect(couple).toContain(href)
     }
-    expect(plannerDock).toContain('/planner/marketplace')
-    expect(plannerPortal).toContain('`/w/${wedding.slug}`')
-    expect(plannerPortal).toContain('Wedding site')
+    expect(plannerNavigation).toContain('/planner/marketplace')
+    expect(plannerNavigation).toContain('`/w/${weddingSlug}`')
+    expect(plannerNavigation).toContain('Wedding site')
+    expect(plannerPortal).toContain('<PlannerAdaptiveNavigation')
     expect(adminNav).toContain('/admin/planner-profiles')
     expect(weddingNav).toContain('/planners')
     expect(weddingNav).toContain('Leave wedding')

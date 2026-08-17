@@ -7,6 +7,7 @@ import {
   ChevronUp,
   FileSpreadsheet,
   LayoutGrid,
+  Printer,
   SlidersHorizontal,
 } from 'lucide-react'
 import { ImportExportBar } from '@/components/wedding/import-export-bar'
@@ -20,6 +21,7 @@ import {
   plannerToolFromPath,
   type PlannerToolSlug,
 } from '@/lib/planner-route-state'
+import { openPlannerWorksheetCommandCenter } from '@/lib/planner-workspace-events'
 
 const WORKSPACE_MODULES: Array<{
   value: WorkspaceTab
@@ -37,11 +39,6 @@ const WORKSPACE_MODULES: Array<{
 
 const MODULE_PICKER_STORAGE_KEY = 'wewed:planner:worksheet-module-picker-open'
 const WORKSHEET_ACTIONS_STORAGE_KEY = 'wewed:planner:worksheet-actions-open'
-
-function plannerLocation(pathname: string, search: URLSearchParams): string {
-  const query = search.toString()
-  return `${pathname}${query ? `?${query}` : ''}`
-}
 
 function readSessionBoolean(key: string): boolean {
   try {
@@ -81,10 +78,6 @@ function usePlannerScrollPersistence(
       savedPosition = 0
     }
 
-    // Data loading and responsive hydration can replace the owned scroll node
-    // after the first successful restore. Keep protecting and reapplying the
-    // saved position during that settling window, but stop when the user starts
-    // an actual scroll gesture so restoration never fights deliberate movement.
     let restored = false
     let restorationActive = savedPosition > 0
     let userInteracted = false
@@ -131,8 +124,6 @@ function usePlannerScrollPersistence(
       userInteracted = true
       restorationActive = false
       restored = true
-      // A gesture may arrive just before the browser updates scrollTop. Preserve
-      // the old target until the following scroll event supplies a real value.
       if (position > 0 || savedPosition === 0) persist(position)
     }
 
@@ -147,8 +138,6 @@ function usePlannerScrollPersistence(
       const position = Math.max(0, current?.scrollTop ?? 0)
       restorationActive = false
       restored = true
-      // If delayed content still has no scroll range, keep the durable target
-      // rather than overwriting it with a transient zero.
       if (position > 0 || savedPosition === 0) persist(position)
     }
 
@@ -246,7 +235,7 @@ export function PlannerWorkspace() {
     })
   }, [activeTab, activeTool, legacyModule, pathname, router, searchParams])
 
-  const collapseRecoveryControls = useCallback(() => {
+  const collapseControls = useCallback(() => {
     setModulePickerOpen(false)
     setWorksheetActionsOpen(false)
     writeSessionBoolean(MODULE_PICKER_STORAGE_KEY, false)
@@ -255,7 +244,7 @@ export function PlannerWorkspace() {
 
   const selectWorkspaceTab = useCallback(
     (tab: WorkspaceTab) => {
-      collapseRecoveryControls()
+      collapseControls()
       const next = new URLSearchParams(searchParams.toString())
       next.delete('module')
       next.delete('panel')
@@ -267,7 +256,7 @@ export function PlannerWorkspace() {
         scroll: false,
       })
     },
-    [collapseRecoveryControls, router, searchParams],
+    [collapseControls, router, searchParams],
   )
 
   const selectWorkspaceTool = useCallback(
@@ -275,7 +264,8 @@ export function PlannerWorkspace() {
       const next = new URLSearchParams(searchParams.toString())
       next.delete('module')
       if (tool === null) {
-        collapseRecoveryControls()
+        setModulePickerOpen(false)
+        writeSessionBoolean(MODULE_PICKER_STORAGE_KEY, false)
         next.delete('panel')
       }
       const query = next.toString()
@@ -284,35 +274,17 @@ export function PlannerWorkspace() {
         { scroll: false },
       )
     },
-    [activeTab, collapseRecoveryControls, router, searchParams],
+    [activeTab, router, searchParams],
   )
-
-  const toggleModulePicker = useCallback(() => {
-    const nextOpen = !modulePickerOpen
-    setModulePickerOpen(nextOpen)
-    writeSessionBoolean(MODULE_PICKER_STORAGE_KEY, nextOpen)
-
-    // Changing worksheets is an infrequent recovery action. Expose the action
-    // row while the picker is open so the expanded state remains complete and
-    // legacy keyboard/browser flows do not strand Template or Import controls.
-    if (nextOpen && !worksheetActionsOpen) {
-      pendingActionsOpen.current = true
-      setWorksheetActionsOpen(true)
-      writeSessionBoolean(WORKSHEET_ACTIONS_STORAGE_KEY, true)
-      const next = new URLSearchParams(window.location.search)
-      next.set('panel', 'worksheet')
-      const query = next.toString()
-      router.replace(`${plannerModulePath(activeTab, activeTool)}${query ? `?${query}` : ''}#planner-workspace`, {
-        scroll: false,
-      })
-    }
-  }, [activeTab, activeTool, modulePickerOpen, router, worksheetActionsOpen])
 
   const toggleWorksheetActions = useCallback(() => {
     const nextOpen = !worksheetActionsOpen
     pendingActionsOpen.current = nextOpen
     setWorksheetActionsOpen(nextOpen)
+    if (!nextOpen) setModulePickerOpen(false)
     writeSessionBoolean(WORKSHEET_ACTIONS_STORAGE_KEY, nextOpen)
+    if (!nextOpen) writeSessionBoolean(MODULE_PICKER_STORAGE_KEY, false)
+
     const next = new URLSearchParams(window.location.search)
     if (nextOpen) next.set('panel', 'worksheet')
     else if (next.get('panel') === 'worksheet') next.delete('panel')
@@ -321,6 +293,12 @@ export function PlannerWorkspace() {
       scroll: false,
     })
   }, [activeTab, activeTool, router, worksheetActionsOpen])
+
+  const toggleModulePicker = useCallback(() => {
+    const nextOpen = !modulePickerOpen
+    setModulePickerOpen(nextOpen)
+    writeSessionBoolean(MODULE_PICKER_STORAGE_KEY, nextOpen)
+  }, [modulePickerOpen])
 
   const handleWorksheetChanged = useCallback(() => {
     setWorkspaceVersion((current) => current + 1)
@@ -334,90 +312,111 @@ export function PlannerWorkspace() {
       data-planner-route={plannerModulePath(activeTab, activeTool)}
     >
       <section
-        data-worksheet-recovery-shell
-        className="shrink-0 border-b border-gold/15 bg-espresso/95 px-3 py-2 sm:px-5"
+        data-worksheet-actions-shell
+        className="shrink-0 border-b border-gold/15 bg-espresso/95 px-3 py-1.5 sm:px-5"
       >
         <div id="planner-worksheet-tools" className="mx-auto w-full max-w-7xl">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex min-h-10 items-center gap-2">
             <div className="mr-auto min-w-0">
               <p className="flex items-center gap-1.5 font-sans text-[10px] font-semibold uppercase tracking-[0.16em] text-gold/70">
                 <FileSpreadsheet className="size-3.5" />
-                Worksheet recovery
+                {activeModule.label}
               </p>
-              <p className="mt-0.5 truncate font-sans text-xs text-champagne/55">
-                <span className="text-gold">{activeModule.label}</span>
-                <span className="hidden sm:inline"> · Keep active records in view; open controls only when needed.</span>
+              <p className="hidden truncate font-sans text-[11px] text-champagne/45 sm:block">
+                Worksheet · open actions only when you need them
               </p>
             </div>
 
             <button
               type="button"
-              data-testid="worksheet-tools-toggle"
-              aria-expanded={modulePickerOpen}
-              aria-controls="planner-worksheet-modules"
-              onClick={toggleModulePicker}
-              className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-gold/20 px-3 font-sans text-xs text-champagne/70 hover:border-gold/35 hover:text-gold"
+              data-testid="worksheet-actions-toggle"
+              aria-expanded={worksheetActionsOpen}
+              aria-controls="planner-worksheet-actions"
+              onClick={toggleWorksheetActions}
+              className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-gold/25 bg-gold/5 px-3 font-sans text-xs font-medium text-gold hover:bg-gold/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60"
             >
-              <LayoutGrid className="size-4" />
-              Switch worksheet
-              {modulePickerOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+              <SlidersHorizontal className="size-4" />
+              Actions
+              {worksheetActionsOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
             </button>
-
-            {activeModule.worksheetKey && (
-              <button
-                type="button"
-                data-testid="worksheet-actions-toggle"
-                aria-expanded={worksheetActionsOpen}
-                aria-controls="planner-worksheet-actions"
-                onClick={toggleWorksheetActions}
-                className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-gold/25 bg-gold/5 px-3 font-sans text-xs text-gold hover:bg-gold/10"
-              >
-                <SlidersHorizontal className="size-4" />
-                Worksheet tools
-                {worksheetActionsOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
-              </button>
-            )}
           </div>
 
           <div
-            id="planner-worksheet-modules"
-            className={`${modulePickerOpen ? 'mt-2 grid' : 'hidden'} grid-cols-2 gap-1 sm:grid-cols-4 lg:grid-cols-7`}
-            aria-label="Worksheet module selector"
+            id="planner-worksheet-actions"
+            className={worksheetActionsOpen ? 'mt-2 block border-t border-gold/10 pt-2' : 'hidden'}
           >
-            {WORKSPACE_MODULES.map((module) => (
-              <button
-                key={module.value}
-                type="button"
-                data-testid={`worksheet-module-${module.worksheetKey ?? 'overview'}`}
-                onClick={() => selectWorkspaceTab(module.value)}
-                aria-pressed={activeTab === module.value}
-                className={`min-h-10 rounded-md border px-2.5 py-1.5 font-sans text-[11px] transition-colors ${
-                  activeTab === module.value
-                    ? 'border-gold/35 bg-gold/12 text-gold'
-                    : 'border-gold/10 text-champagne/55 hover:border-gold/25 hover:text-champagne'
-                }`}
-              >
-                {module.label}
-              </button>
-            ))}
-          </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {activeModule.worksheetKey && (
+                <button
+                  type="button"
+                  data-testid="planner-worksheet-command-trigger"
+                  onClick={openPlannerWorksheetCommandCenter}
+                  className="flex min-h-11 items-center gap-3 rounded-xl border border-gold/25 bg-gold/[0.06] px-3 text-left text-sm font-medium text-gold hover:bg-gold/12"
+                >
+                  <Printer className="size-4 shrink-0" />
+                  <span>
+                    <span className="block">Print / Arrange / Select</span>
+                    <span className="block text-[10px] font-normal text-champagne/45">A4 output and record actions</span>
+                  </span>
+                </button>
+              )}
 
-          <div id="planner-worksheet-actions" className={worksheetActionsOpen ? 'mt-2 block' : 'hidden'}>
-            {activeModule.worksheetKey ? (
-              <ImportExportBar
-                moduleKey={activeModule.worksheetKey}
-                routeTool={activeTool}
-                onRouteToolChange={selectWorkspaceTool}
-                onImportComplete={handleWorksheetChanged}
-                className={activeTool === 'imports'
-                  ? 'max-h-[50dvh] overflow-y-auto overscroll-contain [scrollbar-gutter:stable] sm:max-h-96'
-                  : ''}
-              />
-            ) : (
-              <p className="rounded-lg border border-gold/10 bg-champagne/[0.025] px-3 py-2 font-sans text-xs text-champagne/45">
-                Select a working module to use templates, imports, exports, and recent-import recovery.
-              </p>
-            )}
+              <button
+                type="button"
+                data-testid="worksheet-tools-toggle"
+                aria-expanded={modulePickerOpen}
+                aria-controls="planner-worksheet-modules"
+                onClick={toggleModulePicker}
+                className="flex min-h-11 items-center gap-3 rounded-xl border border-gold/15 px-3 text-left text-sm text-champagne/70 hover:border-gold/30 hover:text-gold"
+              >
+                <LayoutGrid className="size-4 shrink-0" />
+                <span>
+                  <span className="block">Switch worksheet</span>
+                  <span className="block text-[10px] text-champagne/40">Overview, Tasks, Budget and more</span>
+                </span>
+              </button>
+            </div>
+
+            <div
+              id="planner-worksheet-modules"
+              className={`${modulePickerOpen ? 'mt-2 grid' : 'hidden'} grid-cols-2 gap-1 sm:grid-cols-4 lg:grid-cols-7`}
+              aria-label="Worksheet module selector"
+            >
+              {WORKSPACE_MODULES.map((module) => (
+                <button
+                  key={module.value}
+                  type="button"
+                  data-testid={`worksheet-module-${module.worksheetKey ?? 'overview'}`}
+                  onClick={() => selectWorkspaceTab(module.value)}
+                  aria-pressed={activeTab === module.value}
+                  className={`min-h-10 rounded-md border px-2.5 py-1.5 font-sans text-[11px] transition-colors ${
+                    activeTab === module.value
+                      ? 'border-gold/35 bg-gold/12 text-gold'
+                      : 'border-gold/10 text-champagne/55 hover:border-gold/25 hover:text-champagne'
+                  }`}
+                >
+                  {module.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-2" data-worksheet-data-recovery>
+              {activeModule.worksheetKey ? (
+                <ImportExportBar
+                  moduleKey={activeModule.worksheetKey}
+                  routeTool={activeTool}
+                  onRouteToolChange={selectWorkspaceTool}
+                  onImportComplete={handleWorksheetChanged}
+                  className={activeTool === 'imports'
+                    ? 'max-h-[42dvh] overflow-y-auto overscroll-contain [scrollbar-gutter:stable] sm:max-h-96'
+                    : ''}
+                />
+              ) : (
+                <p className="rounded-lg border border-gold/10 bg-champagne/[0.025] px-3 py-2 font-sans text-xs text-champagne/45">
+                  Select a working module to use templates, imports, exports, and recent-import recovery.
+                </p>
+              )}
+            </div>
           </div>
         </div>
       </section>

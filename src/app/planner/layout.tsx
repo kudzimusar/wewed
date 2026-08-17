@@ -1,7 +1,8 @@
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
-import { PlannerAccountDock } from '@/components/wedding/planner-account-dock'
+import { PlannerRouteDialogEscapeGuard } from '@/components/navigation/planner-route-dialog-escape-guard'
 import './planner-responsive.css'
+import './adaptive-navigation.css'
 
 const title = 'Wewed Planner Workspace'
 const description = 'Secure workspace for wedding planners, coordinators, and couples.'
@@ -21,7 +22,7 @@ export default function PlannerLayout({ children }: { children: ReactNode }) {
       <div className="dark min-h-dvh bg-espresso text-champagne" data-planner-theme-scope="dark">
         {children}
       </div>
-      <PlannerAccountDock />
+      <PlannerRouteDialogEscapeGuard />
     </>
   )
 }

@@ -8,15 +8,13 @@ import {
   CalendarDays,
   ChevronDown,
   ChevronUp,
-  ExternalLink,
   LayoutDashboard,
   Loader2,
-  LogOut,
   RefreshCw,
-  ShieldCheck,
   SlidersHorizontal,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { PlannerAdaptiveNavigation } from '@/components/navigation/planner-adaptive-navigation'
 import { PlannerClientProfile } from '@/components/wedding/planner-client-profile'
 import { PlannerCollaborationHub } from '@/components/wedding/planner-collaboration-hub'
 import { PlannerEventCommand } from '@/components/wedding/planner-event-command'
@@ -25,7 +23,6 @@ import { PlannerOperations } from '@/components/wedding/planner-operations'
 import { PlannerReleaseCenter } from '@/components/wedding/planner-release-center'
 import { PlannerWorkspace } from '@/components/wedding/planner-workspace-stage7'
 import { WeddingContextControls } from '@/components/wedding/wedding-context-controls'
-import { logoutAdmin } from '@/lib/admin-auth'
 import { capturePlannerFormBaselines } from '@/lib/planner-draft-guard'
 
 interface PlannerPortalProps {
@@ -157,11 +154,10 @@ function PlannerExperienceNavigation({ showPortfolioLink }: { showPortfolioLink:
           <Link
             href="/planner/portfolio"
             aria-label="Back to all managed weddings"
-            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-gold/25 bg-gold/[0.06] px-2.5 font-sans text-xs font-medium text-gold transition hover:bg-gold/12 sm:px-3"
+            className="hidden h-9 shrink-0 items-center gap-1.5 rounded-lg border border-gold/25 bg-gold/[0.06] px-2.5 font-sans text-xs font-medium text-gold transition hover:bg-gold/12 lg:inline-flex"
           >
             <ArrowLeft className="size-3.5" />
-            <span className="sm:hidden">Portfolio</span>
-            <span className="hidden sm:inline">All weddings</span>
+            All weddings
           </Link>
         )}
 
@@ -250,7 +246,7 @@ function PlannerExperienceNavigation({ showPortfolioLink }: { showPortfolioLink:
 
         @media (max-width: 639px) {
           [data-planner-context-inline] #active-wedding {
-            width: min(42vw, 13rem) !important;
+            width: min(58vw, 15rem) !important;
           }
         }
       `}</style>
@@ -326,11 +322,6 @@ export function PlannerPortal({ onExit }: PlannerPortalProps) {
       .join(' · ')
   }, [wedding])
 
-  function handleLogout() {
-    logoutAdmin()
-    window.setTimeout(() => window.location.reload(), 0)
-  }
-
   return (
     <div
       data-planner-portal
@@ -338,9 +329,14 @@ export function PlannerPortal({ onExit }: PlannerPortalProps) {
     >
       <header className="relative z-[130] flex h-16 shrink-0 items-center justify-between gap-3 border-b border-gold/15 bg-espresso px-3 shadow-lg sm:px-5">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="hidden size-9 shrink-0 items-center justify-center rounded-xl border border-gold/25 bg-gold/10 sm:flex">
-            <ShieldCheck className="size-4 text-gold" />
-          </div>
+          <PlannerAdaptiveNavigation
+            displayName={session?.user?.displayName}
+            email={session?.user?.email}
+            role={wedding?.membershipRole || session?.user?.role}
+            weddingTitle={wedding?.title}
+            weddingSlug={wedding?.slug}
+            showPortfolioLink={session?.user?.role === 'planner'}
+          />
           <div className="min-w-0">
             <p className="font-sans text-[9px] font-semibold uppercase tracking-[0.24em] text-gold/75">
               Wewed Planner Workspace
@@ -368,30 +364,9 @@ export function PlannerPortal({ onExit }: PlannerPortalProps) {
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          <span className="hidden rounded-full border border-gold/20 bg-gold/5 px-2.5 py-1 font-sans text-[10px] uppercase tracking-[0.12em] text-gold xl:inline-flex">
+          <span className="hidden rounded-full border border-gold/20 bg-gold/5 px-2.5 py-1 font-sans text-[10px] uppercase tracking-[0.12em] text-gold md:inline-flex">
             {roleLabel(wedding?.membershipRole || session?.user?.role)}
           </span>
-          <Button
-            asChild
-            variant="outline"
-            size="sm"
-            className="hidden border-gold/25 bg-transparent text-champagne/70 hover:bg-gold/10 hover:text-gold md:inline-flex"
-          >
-            <Link href={wedding ? `/w/${wedding.slug}` : '/'}>
-              <ExternalLink className="size-3.5" />
-              Wedding site
-            </Link>
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleLogout}
-            className="border-gold/25 bg-transparent text-champagne/70 hover:bg-gold/10 hover:text-gold"
-          >
-            <LogOut className="size-3.5" />
-            <span className="hidden sm:inline">Sign out</span>
-          </Button>
           <button
             type="button"
             onClick={onExit}

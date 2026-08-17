@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 
 const navigation = readFileSync('src/components/navigation/workspace-quick-navigation.tsx', 'utf8')
+const portfolio = readFileSync('src/app/planner/portfolio/page.tsx', 'utf8')
 const rootLayout = readFileSync('src/app/layout.tsx', 'utf8')
 
 describe('compact authenticated workspace navigation', () => {
@@ -25,12 +26,20 @@ describe('compact authenticated workspace navigation', () => {
       expect(navigation).toContain(prefix)
     }
     expect(navigation).toContain("pathname === '/vendors/manage'")
-    expect(navigation).toContain('if (!isPrivateWorkspace(pathname)) return null')
+    expect(navigation).toContain('isPrivateWorkspace(pathname)')
+    expect(navigation).toContain('plannerUsesEmbeddedAdaptiveNavigation(pathname)')
     expect(navigation).not.toContain("'/wedding/'")
     expect(navigation).not.toContain("'/guest'")
   })
 
-  test('keeps the persistent footprint icon-only and touch friendly', () => {
+  test('keeps Planner portfolio inside the embedded adaptive navigation contract', () => {
+    expect(navigation).toContain('timeline|seating|portfolio')
+    expect(portfolio).toContain("import { PlannerAdaptiveNavigation } from '@/components/navigation/planner-adaptive-navigation'")
+    expect(portfolio).toContain('<PlannerAdaptiveNavigation role="planner" showPortfolioLink={false} />')
+    expect(portfolio).toContain('data-planner-portfolio-shell')
+  })
+
+  test('keeps the persistent footprint icon-only and touch friendly outside embedded Planner surfaces', () => {
     expect(navigation).toContain('size-9')
     expect(navigation).toContain('aria-label="Go back"')
     expect(navigation).toContain('aria-label="Go forward"')
