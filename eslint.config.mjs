@@ -49,6 +49,14 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     "react-hooks/set-state-in-effect": "off",
   },
 }, {
+  // `module` is the canonical Planner domain term (Tasks, Budget, Guests, etc.)
+  // in this one client-side command centre. There is no CommonJS `module`
+  // assignment here; keep the Next.js guard enabled everywhere else.
+  files: ["src/components/wedding/planner/planner-worksheet-command-center.tsx"],
+  rules: {
+    "@next/next/no-assign-module-variable": "off",
+  },
+}, {
   ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills"]
 }];
 

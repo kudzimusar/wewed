@@ -16,5 +16,12 @@ export const metadata: Metadata = {
 }
 
 export default function PlannerLayout({ children }: { children: ReactNode }) {
-  return <>{children}<PlannerAccountDock /></>
+  return (
+    <>
+      <div className="dark min-h-dvh bg-espresso text-champagne" data-planner-theme-scope="dark">
+        {children}
+      </div>
+      <PlannerAccountDock />
+    </>
+  )
 }

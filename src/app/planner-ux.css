@@ -1,0 +1,92 @@
+/*
+ * Planner worksheet UX contract.
+ * Authority: docs/PLANNER_WORKSHEET_UX_OPERATIONS_PLAN.md
+ * Stamp: WW-PLANNER-UX-2026-08-17-01
+ *
+ * The Planner Portal is intentionally a fixed dark product surface. Its controls
+ * must therefore remain readable independently of the user's global/system theme.
+ */
+
+[data-planner-portal] {
+  --planner-field-bg: #1f1813;
+  --planner-field-bg-disabled: #2b231d;
+  --planner-field-border: rgba(191, 155, 95, 0.34);
+  --planner-field-text: #fbf6ee;
+  --planner-field-muted: rgba(251, 246, 238, 0.54);
+  color-scheme: dark;
+}
+
+[data-planner-portal] :where(input, textarea, select):not([type='checkbox']):not([type='radio']) {
+  color: var(--planner-field-text) !important;
+  -webkit-text-fill-color: var(--planner-field-text) !important;
+  caret-color: var(--planner-field-text) !important;
+  border-color: var(--planner-field-border);
+  color-scheme: dark;
+}
+
+[data-planner-portal] :where(input, textarea):not([type='checkbox']):not([type='radio'])::placeholder {
+  color: var(--planner-field-muted) !important;
+  -webkit-text-fill-color: var(--planner-field-muted) !important;
+  opacity: 1 !important;
+}
+
+[data-planner-portal] select option {
+  background: #1a1410;
+  color: #fbf6ee;
+}
+
+[data-planner-portal] :where(input, textarea, select):disabled {
+  color: rgba(251, 246, 238, 0.58) !important;
+  -webkit-text-fill-color: rgba(251, 246, 238, 0.58) !important;
+  opacity: 1;
+}
+
+/* Chromium/Safari autofill otherwise paints light-theme foregrounds into the
+ * permanently-dark Planner surface. Keep both the fill and text predictable. */
+[data-planner-portal] input:-webkit-autofill,
+[data-planner-portal] input:-webkit-autofill:hover,
+[data-planner-portal] input:-webkit-autofill:focus,
+[data-planner-portal] textarea:-webkit-autofill,
+[data-planner-portal] select:-webkit-autofill {
+  -webkit-text-fill-color: var(--planner-field-text) !important;
+  caret-color: var(--planner-field-text) !important;
+  -webkit-box-shadow: 0 0 0 1000px var(--planner-field-bg) inset !important;
+  box-shadow: 0 0 0 1000px var(--planner-field-bg) inset !important;
+  transition: background-color 9999s ease-out 0s;
+}
+
+[data-planner-portal] input[type='date'],
+[data-planner-portal] input[type='time'],
+[data-planner-portal] input[type='datetime-local'] {
+  color-scheme: dark;
+}
+
+[data-planner-portal] input::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(1.35);
+  opacity: 0.78;
+  cursor: pointer;
+}
+
+/* Shared worksheet command centre follows the same visual contract even though
+ * it is mounted once from the root layout rather than inside a specific module. */
+[data-planner-worksheet-command-center] {
+  color-scheme: dark;
+}
+
+[data-planner-worksheet-command-center] :where(input, textarea, select) {
+  color: #fbf6ee;
+  -webkit-text-fill-color: #fbf6ee;
+  caret-color: #fbf6ee;
+  color-scheme: dark;
+}
+
+[data-planner-worksheet-command-center] :where(input, textarea)::placeholder {
+  color: rgba(251, 246, 238, 0.5);
+  -webkit-text-fill-color: rgba(251, 246, 238, 0.5);
+  opacity: 1;
+}
+
+[data-planner-worksheet-command-center] select option {
+  background: #1a1410;
+  color: #fbf6ee;
+}
