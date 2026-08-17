@@ -41,7 +41,7 @@ test('recent import history scrolls and keeps the oldest rollback action reachab
     await openWorksheetActions(page)
     await page.getByRole('button', { name: /Recent imports/i }).click()
 
-    const historyScroll = page.locator('#planner-worksheet-actions > div.rounded-xl')
+    const historyScroll = page.locator('[data-worksheet-data-recovery] > div.rounded-xl')
     await expect(historyScroll).toBeVisible()
     await expect(historyScroll.getByText('history-8.xlsx', { exact: true })).toBeAttached()
     await expect(historyScroll.getByText('history-1.xlsx', { exact: true })).toBeAttached()
