@@ -36,6 +36,13 @@ function isPrivateWorkspace(pathname: string) {
   )
 }
 
+function plannerUsesEmbeddedAdaptiveNavigation(pathname: string): boolean {
+  return (
+    pathname === '/planner' ||
+    /^\/planner\/(overview|tasks|budget|vendors|guests|timeline|seating)(?:\/|$)/.test(pathname)
+  )
+}
+
 function workspaceFor(role: AccountRole | undefined) {
   if (role === 'admin') return { href: '/admin', label: 'Administration' }
   if (role === 'planner') return { href: '/planner', label: 'Planner workspace' }
@@ -140,7 +147,7 @@ function PrivateWorkspaceQuickNavigation() {
 export function WorkspaceQuickNavigation() {
   const pathname = usePathname()
 
-  if (!isPrivateWorkspace(pathname)) return null
+  if (!isPrivateWorkspace(pathname) || plannerUsesEmbeddedAdaptiveNavigation(pathname)) return null
 
   return <PrivateWorkspaceQuickNavigation />
 }
