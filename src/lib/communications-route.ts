@@ -6,6 +6,7 @@ import {
   CommunicationRateLimitBackendError,
   CommunicationRateLimitError,
 } from '@/lib/communications-rate-limit'
+import { VaultUploadError } from '@/lib/vault/core'
 
 export function communicationJson(
   body: unknown,
@@ -36,6 +37,13 @@ export function communicationErrorResponse(error: unknown): NextResponse {
   }
 
   if (error instanceof CommunicationError) {
+    return communicationJson(
+      { success: false, error: error.message },
+      { status: error.status },
+    )
+  }
+
+  if (error instanceof VaultUploadError) {
     return communicationJson(
       { success: false, error: error.message },
       { status: error.status },

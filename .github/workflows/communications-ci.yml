@@ -12,12 +12,15 @@ on:
       - 'prisma/migrations/**'
       - 'scripts/communications-postgres-integration.sql'
       - 'scripts/communications-rate-limit-postgres-integration.sql'
+      - 'scripts/vault-communications-postgres-integration.sql'
       - 'scripts/communications-supabase-scheduler.sql'
       - 'scripts/couple-vendor-marketplace-contract.ts'
       - 'scripts/messages-new-message-cta-contract.ts'
       - 'src/app/messages/**'
+      - 'src/app/vault/**'
       - 'src/app/api/messages/route.ts'
       - 'src/app/api/communications/**'
+      - 'src/app/api/vault/**'
       - 'src/app/api/providers/enquiries/**'
       - 'src/app/api/cron/communications-deliveries/**'
       - 'src/app/api/internal/communications/**'
@@ -25,6 +28,9 @@ on:
       - 'src/app/api/webhooks/whatsapp/**'
       - 'src/lib/communications*.ts'
       - 'src/lib/communications*.test.ts'
+      - 'src/lib/vault/**'
+      - 'src/lib/vault-phase1.test.ts'
+      - 'src/lib/notebook/attachments.ts'
       - 'src/lib/vendor-marketplace-communications*.ts'
       - 'src/lib/communication-channels*.ts'
       - 'src/lib/communication-channels*.test.ts'
@@ -32,6 +38,7 @@ on:
       - 'src/lib/email/resend.ts'
       - 'src/lib/email/resend-webhook.ts'
       - 'src/components/communications/**'
+      - 'src/components/vault/**'
       - 'src/components/admin/admin-utility-nav.tsx'
       - 'src/components/couple/couple-dashboard.tsx'
       - 'src/components/providers/public-provider-profile.tsx'
@@ -108,11 +115,17 @@ jobs:
       - name: Run communications PostgreSQL contract
         run: psql "postgresql://postgres:postgres@localhost:5432/wewed" -f scripts/communications-postgres-integration.sql
 
+      - name: Run Phase 1 Vault communications PostgreSQL contract
+        run: psql "postgresql://postgres:postgres@localhost:5432/wewed" -f scripts/vault-communications-postgres-integration.sql
+
       - name: Run communications rate-limit PostgreSQL contract
         run: psql "postgresql://postgres:postgres@localhost:5432/wewed" -f scripts/communications-rate-limit-postgres-integration.sql
 
       - name: Run communications policy and client-state tests
         run: bun test src/lib/communications-policy.test.ts src/lib/communications-client-state.test.ts
+
+      - name: Run Phase 1 Vault source/security contracts
+        run: bun test src/lib/vault-phase1.test.ts
 
       - name: Run Couple Vendor marketplace source contract
         run: bun scripts/couple-vendor-marketplace-contract.ts
@@ -162,7 +175,7 @@ jobs:
       - name: Confirm communications domain stays out of public Prisma
         shell: bash
         run: |
-          if grep -nE '^model (CommunicationConversation|CommunicationParticipant|CommunicationMessage|CommunicationDelivery|CommunicationEvent|CommunicationEndpoint|CommunicationPreference|CommunicationProviderEvent)[[:space:]]*\{' prisma/schema.prisma; then
+          if grep -nE '^model (CommunicationConversation|CommunicationParticipant|CommunicationMessage|CommunicationAttachment|CommunicationDelivery|CommunicationEvent|CommunicationEndpoint|CommunicationPreference|CommunicationProviderEvent)[[:space:]]*\{' prisma/schema.prisma; then
             echo "::error::Private communications tables must remain in wewed_communications and must not be modeled in public Prisma."
             exit 1
           fi

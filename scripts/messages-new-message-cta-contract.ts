@@ -1,9 +1,15 @@
 import { readFileSync } from 'node:fs'
 
 const page = readFileSync('src/app/messages/page.tsx', 'utf8')
+const workspace = readFileSync('src/components/communications/messages-workspace.tsx', 'utf8')
+const messagesImplementation = `${page}\n${workspace}`
 const layout = readFileSync('src/app/messages/layout.tsx', 'utf8')
 const pwaRegister = readFileSync('src/components/wedding/pwa-register.tsx', 'utf8')
 const serviceWorker = readFileSync('public/sw.js', 'utf8')
+
+if (!page.includes('MessagesWorkspace')) {
+  throw new Error('Messages route must render the shared MessagesWorkspace implementation.')
+}
 
 const requiredInboxFragments = [
   'data-communications-inbox="true"',
@@ -16,7 +22,7 @@ const requiredInboxFragments = [
 ]
 
 for (const fragment of requiredInboxFragments) {
-  if (!page.includes(fragment)) {
+  if (!messagesImplementation.includes(fragment)) {
     throw new Error(`Missing shared Inbox New Message contract fragment: ${fragment}`)
   }
 }
