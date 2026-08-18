@@ -96,6 +96,12 @@ jobs:
       - name: Run Phase 0 Admin capture authority contract
         run: bun test src/lib/planner-phase0-admin.test.ts
 
+      - name: Run Phase 1 Vault source/security contracts
+        run: bun test src/lib/vault-phase1.test.ts
+
+      - name: Run Phase 1 Vault communications PostgreSQL integrity
+        run: psql "postgresql://postgres:postgres@localhost:5432/wewed" -f scripts/vault-communications-postgres-integration.sql
+
       - name: Run original planner parity contract
         run: bun test src/lib/planner-parity-contract.test.ts
 
