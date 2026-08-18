@@ -47,7 +47,7 @@ describe('planner UAT remediation contracts', () => {
 
     expect(schema).toContain('email          String?')
     expect(schema).toContain('budgetItems BudgetItem[]')
-    expect(schema).toContain('vendor    Vendor? @relation(fields: [vendorId], references: [id], onDelete: SetNull)')
+    expect(schema).toMatch(/vendor\s+Vendor\?\s+@relation\(fields: \[vendorId\], references: \[id\], onDelete: SetNull\)/)
     expect(schema).toContain('@@index([vendorId])')
     expect(migration).toContain('ADD COLUMN "email" TEXT')
     expect(migration).toContain('CONSTRAINT "BudgetItem_vendorId_fkey"')
