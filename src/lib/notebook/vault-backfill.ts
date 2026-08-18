@@ -1,5 +1,6 @@
 import 'server-only'
 
+import type { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { createSupabaseServiceClient } from '@/lib/supabase/service'
 import {
@@ -87,7 +88,7 @@ async function listLegacyWeddingNotebookAttachments(
 }
 
 async function legacyAttachmentStillEligible(
-  tx: Parameters<Parameters<typeof db.$transaction>[0]>[0],
+  tx: Prisma.TransactionClient,
   attachmentId: string,
   weddingId: string,
 ): Promise<boolean> {
