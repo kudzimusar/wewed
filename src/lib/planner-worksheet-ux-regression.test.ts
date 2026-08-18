@@ -3,10 +3,12 @@ import { describe, expect, test } from 'bun:test'
 
 const source = (path: string) => readFileSync(path, 'utf8')
 
-const layout = source('src/app/layout.tsx')
+const rootLayout = source('src/app/layout.tsx')
+const plannerLayout = source('src/app/planner/layout.tsx')
 const plannerCss = source('src/app/planner-ux.css')
 const portal = source('src/components/wedding/planner-portal.tsx')
 const commandCenter = source('src/components/wedding/planner/planner-worksheet-command-center.tsx')
+const stage7 = source('src/components/wedding/planner-workspace-stage7.tsx')
 const documentContract = source('src/lib/planner-document.ts')
 const orderApi = source('src/app/api/planner/worksheet-order/route.ts')
 const orderStore = source('src/lib/planner-worksheet-order.ts')
@@ -20,7 +22,7 @@ const teamManager = source('src/components/wedding/planner/planner-team-invite-m
 describe('WW-PLANNER-UX-2026-08-17-01 release contract', () => {
   test('governs the permanently-dark Planner form surface independent of system theme', () => {
     expect(portal).toContain('data-planner-portal')
-    expect(layout).toContain("import './planner-ux.css'")
+    expect(rootLayout).toContain("import './planner-ux.css'")
     expect(plannerCss).toContain('[data-planner-portal]')
     expect(plannerCss).toContain('-webkit-text-fill-color: var(--planner-field-text) !important;')
     expect(plannerCss).toContain('caret-color: var(--planner-field-text) !important;')
@@ -30,13 +32,16 @@ describe('WW-PLANNER-UX-2026-08-17-01 release contract', () => {
     expect(plannerCss).toContain('::-webkit-calendar-picker-indicator')
   })
 
-  test('mounts one shared worksheet command centre rather than six page-specific copies', () => {
-    expect(layout).toContain('PlannerWorksheetCommandCenter')
-    expect(layout).toContain('<PlannerWorksheetCommandCenter />')
+  test('mounts one shared worksheet command centre in the Planner boundary rather than globally or six page-specific copies', () => {
+    expect(rootLayout).not.toContain('PlannerWorksheetCommandCenter')
+    expect(plannerLayout).toContain('PlannerWorksheetCommandCenter')
+    expect(plannerLayout).toContain('<PlannerWorksheetCommandCenter />')
     for (const worksheet of ['tasks', 'budget', 'vendors', 'guests', 'timeline', 'seating']) {
       expect(commandCenter).toContain(`'${worksheet}'`)
     }
-    expect(commandCenter).toContain('Print · Arrange · Select')
+    expect(commandCenter).toContain('PLANNER_COMMAND_CENTER_OPEN_EVENT')
+    expect(commandCenter).not.toContain('Print · Arrange · Select')
+    expect(stage7).toContain('Print / Arrange / Select')
   })
 
   test('uses one A4 print/save-PDF document contract with paged-media safeguards', () => {
