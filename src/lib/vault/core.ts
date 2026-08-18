@@ -14,6 +14,9 @@ const MIME_TO_EXTENSION: Record<string, string> = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
   'image/webp': 'webp',
+  'image/gif': 'gif',
+  'video/mp4': 'mp4',
+  'video/webm': 'webm',
   'text/plain': 'txt',
   'text/csv': 'csv',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
@@ -25,6 +28,9 @@ const IMMEDIATELY_DISTRIBUTABLE = new Set([
   'image/jpeg',
   'image/png',
   'image/webp',
+  'image/gif',
+  'video/mp4',
+  'video/webm',
   'text/plain',
   'text/csv',
 ])
@@ -128,6 +134,20 @@ function validateContentSignature(mimeType: string, bytes: Uint8Array): void {
     const riff = new TextDecoder('ascii').decode(bytes.slice(0, 4))
     const webp = new TextDecoder('ascii').decode(bytes.slice(8, 12))
     if (riff !== 'RIFF' || webp !== 'WEBP') throw new VaultUploadError('The WebP content signature is invalid.', 415)
+    return
+  }
+  if (mimeType === 'image/gif') {
+    const header = new TextDecoder('ascii').decode(bytes.slice(0, 6))
+    if (header !== 'GIF87a' && header !== 'GIF89a') throw new VaultUploadError('The GIF content signature is invalid.', 415)
+    return
+  }
+  if (mimeType === 'video/mp4') {
+    const box = new TextDecoder('ascii').decode(bytes.slice(4, 8))
+    if (box !== 'ftyp') throw new VaultUploadError('The MP4 container signature is invalid.', 415)
+    return
+  }
+  if (mimeType === 'video/webm') {
+    if (!startsWith(bytes, [0x1a, 0x45, 0xdf, 0xa3])) throw new VaultUploadError('The WebM container signature is invalid.', 415)
     return
   }
   if (mimeType === 'text/plain' || mimeType === 'text/csv') {

@@ -1,30 +1,33 @@
-import { randomUUID } from 'node:crypto'
-import { promises as fs } from 'node:fs'
-import path from 'node:path'
 import { NextRequest, NextResponse } from 'next/server'
+import { readAppSession } from '@/lib/app-session'
 import { db } from '@/lib/db'
+import {
+  getWeddingMediaGovernance,
+  ingestWeddingMedia,
+  mediaGovernanceAllowsAccess,
+  Phase5MediaError,
+} from '@/lib/media/phase5'
+import { VaultUploadError } from '@/lib/vault/core'
 import {
   resolveWeddingAccessForRequest,
   weddingAccessErrorPayload,
   weddingSlugFromRequest,
 } from '@/lib/wedding-public-access'
 
-const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads')
-const MAX_FILE_SIZE = 10 * 1024 * 1024
-const ALLOWED_MIME: Record<string, string> = {
-  'image/jpeg': '.jpg',
-  'image/png': '.png',
-  'image/webp': '.webp',
-  'image/gif': '.gif',
-  'video/mp4': '.mp4',
-  'video/webm': '.webm',
-}
 const MOMENT_VALUES = new Set(['ceremony', 'reception', 'candid', 'preparation', 'group_photo'])
 
 function noStore(response: NextResponse): NextResponse {
   response.headers.set('Cache-Control', 'private, no-store, max-age=0')
   response.headers.set('Vary', 'Cookie')
   return response
+}
+
+function governedError(error: unknown): NextResponse {
+  if (error instanceof Phase5MediaError || error instanceof VaultUploadError) {
+    return noStore(NextResponse.json({ success: false, error: error.message }, { status: error.status }))
+  }
+  console.error('[MEDIA] Error:', error)
+  return noStore(NextResponse.json({ success: false, error: 'Failed to complete the wedding media operation.' }, { status: 500 }))
 }
 
 async function accessForRequest(request: NextRequest, explicit?: string | null) {
@@ -65,22 +68,38 @@ export async function GET(request: NextRequest) {
     if (curated === 'true') where.isCurated = true
     if (curated === 'false') where.isCurated = false
 
-    const media = await db.mediaItem.findMany({
-      where,
-      orderBy: [{ isHero: 'desc' }, { uploadedAt: 'desc' }, { createdAt: 'desc' }],
-      take: limit,
-      skip: offset,
-    })
+    const [media, governance] = await Promise.all([
+      db.mediaItem.findMany({
+        where,
+        orderBy: [{ isHero: 'desc' }, { uploadedAt: 'desc' }, { createdAt: 'desc' }],
+        take: limit,
+        skip: offset,
+      }),
+      getWeddingMediaGovernance(resolved.access.wedding.id),
+    ])
+
+    const visible = media.filter((item) => mediaGovernanceAllowsAccess(governance.get(item.id) ?? null, resolved.access.accessKind))
 
     return noStore(NextResponse.json({
       success: true,
       source: 'database',
-      count: media.length,
-      data: media.map((item) => ({ ...item, uploadedAt: item.uploadedAt?.toISOString() ?? null })),
+      count: visible.length,
+      data: visible.map((item) => {
+        const governed = governance.get(item.id)
+        return {
+          ...item,
+          uploadedAt: item.uploadedAt?.toISOString() ?? null,
+          mediaGovernance: governed ? {
+            provenanceState: governed.provenanceState,
+            publicationState: governed.publicationState,
+            privacyState: governed.privacyState,
+            archiveState: governed.archiveState,
+          } : { provenanceState: 'LEGACY_EXTERNAL' },
+        }
+      }),
     }))
   } catch (error) {
-    console.error('[MEDIA GET] Error:', error)
-    return noStore(NextResponse.json({ success: false, error: 'Failed to load wedding media.' }, { status: 500 }))
+    return governedError(error)
   }
 }
 
@@ -92,56 +111,39 @@ export async function POST(request: NextRequest) {
     if (resolved.error) return resolved.error
 
     if (resolved.access.accessKind === 'public') {
-      return NextResponse.json(
+      return noStore(NextResponse.json(
         { success: false, error: 'Open your personal invitation before uploading wedding media.' },
         { status: 403 },
-      )
+      ))
     }
 
     const file = form.get('file')
     const caption = (form.get('caption') as string | null)?.trim() || null
     const rawMoment = (form.get('moment') as string | null)?.trim() || null
-
     if (!file || !(file instanceof File)) {
-      return NextResponse.json({ success: false, error: 'A file is required.' }, { status: 400 })
-    }
-    if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json({ success: false, error: 'File is too large. Maximum size is 10 MB.' }, { status: 413 })
-    }
-
-    const extension = ALLOWED_MIME[file.type]
-    if (!extension) {
-      return NextResponse.json({ success: false, error: 'Unsupported file type. Allowed: JPG, PNG, WEBP, GIF, MP4 and WEBM.' }, { status: 415 })
+      return noStore(NextResponse.json({ success: false, error: 'A file is required.' }, { status: 400 }))
     }
 
     const moment = rawMoment && MOMENT_VALUES.has(rawMoment) ? rawMoment : 'candid'
-    const type = file.type.startsWith('image/') ? 'photo' : 'video'
-    await fs.mkdir(UPLOAD_DIR, { recursive: true })
-    const filename = `${randomUUID()}${extension}`
-    const publicUrl = `/uploads/${filename}`
-    await fs.writeFile(path.join(UPLOAD_DIR, filename), Buffer.from(await file.arrayBuffer()))
+    const sourceType = resolved.access.accessKind === 'invited_guest'
+      ? 'GUEST'
+      : resolved.access.accessKind === 'couple_owner'
+        ? 'COUPLE'
+        : 'PLANNER'
+    const actorId = resolved.access.guest?.id ?? readAppSession(request)?.userId ?? null
 
-    const media = await db.mediaItem.create({
-      data: {
-        type,
-        url: publicUrl,
-        thumbnailUrl: type === 'video' ? null : publicUrl,
-        caption,
-        moment,
-        isCurated: false,
-        isHero: false,
-        uploaderId: resolved.access.guest?.id ?? null,
-        uploadedAt: new Date(),
-        weddingId: resolved.access.wedding.id,
-      },
+    const media = await ingestWeddingMedia({
+      weddingId: resolved.access.wedding.id,
+      actorId,
+      uploaderId: resolved.access.guest?.id ?? null,
+      sourceType,
+      file,
+      caption,
+      moment,
     })
 
-    return NextResponse.json({
-      success: true,
-      media: { ...media, uploadedAt: media.uploadedAt?.toISOString() ?? null },
-    }, { status: 201 })
+    return noStore(NextResponse.json({ success: true, media }, { status: 201 }))
   } catch (error) {
-    console.error('[MEDIA POST] Error:', error)
-    return NextResponse.json({ success: false, error: 'Failed to upload wedding media.' }, { status: 500 })
+    return governedError(error)
   }
 }
