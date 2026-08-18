@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { readAppSession } from '@/lib/app-session'
 import { isWewedPlatformAdministrator } from '@/lib/business-access'
 import { listAccessibleWeddings } from '@/lib/wedding-access'
+import { notebookActorCanEdit, notebookActorCanRead } from './policy'
 import type { NotebookActor, NotebookNoteRow } from './types'
 
 export async function getNotebookActor(request: NextRequest): Promise<NotebookActor | null> {
@@ -12,9 +13,7 @@ export async function getNotebookActor(request: NextRequest): Promise<NotebookAc
   if (!session) return null
 
   const platformAdmin = await isWewedPlatformAdministrator(session.userId)
-  const weddings = platformAdmin
-    ? []
-    : await listAccessibleWeddings(session.userId, session.role)
+  const weddings = platformAdmin ? [] : await listAccessibleWeddings(session.userId, session.role)
 
   const accessibleWeddingIds = weddings
     .filter((wedding) => wedding.membershipStatus === 'active')
@@ -28,13 +27,7 @@ export async function getNotebookActor(request: NextRequest): Promise<NotebookAc
     )
     .map((wedding) => wedding.id)
 
-  return {
-    session,
-    platformAdmin,
-    weddings,
-    accessibleWeddingIds,
-    editableWeddingIds,
-  }
+  return { session, platformAdmin, weddings, accessibleWeddingIds, editableWeddingIds }
 }
 
 export function actorCanCreateInWedding(actor: NotebookActor, weddingId: string): boolean {
@@ -42,29 +35,11 @@ export function actorCanCreateInWedding(actor: NotebookActor, weddingId: string)
 }
 
 export function actorCanReadNote(actor: NotebookActor, note: NotebookNoteRow): boolean {
-  if (note.ownerUserId === actor.session.userId) return true
-  if (note.shareRole === 'VIEWER' || note.shareRole === 'EDITOR') return true
-
-  if (
-    note.weddingId &&
-    actor.accessibleWeddingIds.includes(note.weddingId) &&
-    (note.visibility === 'WEDDING_TEAM' || note.visibility === 'SHARED')
-  ) {
-    return true
-  }
-
-  return note.visibility === 'ADMIN_INTERNAL' && actor.platformAdmin
+  return notebookActorCanRead(actor, note)
 }
 
 export function actorCanEditNote(actor: NotebookActor, note: NotebookNoteRow): boolean {
-  if (note.ownerUserId === actor.session.userId) return true
-  if (note.shareRole === 'EDITOR') return true
-
-  return Boolean(
-    note.weddingId &&
-      actor.editableWeddingIds.includes(note.weddingId) &&
-      (note.visibility === 'WEDDING_TEAM' || note.visibility === 'SHARED'),
-  )
+  return notebookActorCanEdit(actor, note)
 }
 
 export async function getActorInternalAccountId(actor: NotebookActor): Promise<string | null> {
