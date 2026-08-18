@@ -10,10 +10,15 @@ const adaptiveCss = source('src/app/planner/adaptive-navigation.css')
 const portal = source('src/components/wedding/planner-portal.tsx')
 const adaptiveMenu = source('src/components/navigation/planner-adaptive-navigation.tsx')
 const quickNavigation = source('src/components/navigation/workspace-quick-navigation.tsx')
+const notebookUtility = source('src/components/notebook/notebook-utility-entry.tsx')
+const notebookQuickCapture = source('src/components/notebook/notebook-quick-capture.tsx')
 const commandCenter = source('src/components/wedding/planner/planner-worksheet-command-center.tsx')
 const stage7 = source('src/components/wedding/planner-workspace-stage7.tsx')
+const coreWorkspace = source('src/components/wedding/planner-workspace.tsx')
 const settings = source('src/app/settings/page.tsx')
 const events = source('src/lib/planner-workspace-events.ts')
+const notebookEvents = source('src/lib/notebook-events.ts')
+const browserGate = source('tests/e2e/planner-adaptive-navigation.spec.ts')
 
 describe('WW-ADAPTIVE-NAV-2026-08-18-01 release contract', () => {
   test('keeps the stamped plan authoritative and records the current UAT defect separately', () => {
@@ -23,7 +28,7 @@ describe('WW-ADAPTIVE-NAV-2026-08-18-01 release contract', () => {
     expect(plan).toContain('filter-function defect; no task mutation or data-integrity failure observed')
   })
 
-  test('replaces competing Planner floating navigation with one embedded adaptive menu', () => {
+  test('replaces competing Planner floating navigation with one adaptive Planner menu', () => {
     expect(plannerLayout).not.toContain('PlannerAccountDock')
     expect(plannerLayout).toContain('PlannerRouteDialogEscapeGuard')
     expect(portal).toContain('<PlannerAdaptiveNavigation')
@@ -31,24 +36,47 @@ describe('WW-ADAPTIVE-NAV-2026-08-18-01 release contract', () => {
     expect(adaptiveMenu).toContain('Workspace')
     expect(adaptiveMenu).toContain('Brief')
     expect(adaptiveMenu).toContain('Messages')
+    expect(adaptiveMenu).toContain('Notebook')
     expect(adaptiveMenu).toContain('Settings')
     expect(adaptiveMenu).toContain('Switch account')
     expect(adaptiveMenu).toContain('Sign out')
     expect(quickNavigation).toContain('plannerUsesEmbeddedAdaptiveNavigation')
-    expect(quickNavigation).toContain("pathname === '/planner'")
+    expect(quickNavigation).toContain('PlannerSecondaryAdaptiveNavigation')
+    expect(quickNavigation).toContain("pathname.startsWith('/planner/')")
+    expect(quickNavigation).toContain('return <PlannerSecondaryAdaptiveNavigation />')
   })
 
-  test('keeps worksheet power behind one progressive Actions disclosure including Overview printing', () => {
+  test('keeps Notebook and Quick Note inside the Planner navigation hierarchy instead of fixed Planner pills', () => {
+    expect(notebookUtility).toContain("if (surface === 'planner')")
+    expect(notebookUtility).toContain('data-planner-notebook-host')
+    expect(notebookUtility).toContain('<NotebookQuickCapture surface="planner" showTrigger={false} />')
+    expect(adaptiveMenu).toContain("['/planner/notebook', 'Notebook'")
+    expect(adaptiveMenu).toContain('data-testid="planner-quick-note-menu-action"')
+    expect(adaptiveMenu).toContain('openNotebookQuickCapture')
+    expect(notebookQuickCapture).toContain('showTrigger = true')
+    expect(notebookQuickCapture).toContain('NOTEBOOK_QUICK_CAPTURE_OPEN_EVENT')
+    expect(notebookQuickCapture).toContain('window.addEventListener(NOTEBOOK_QUICK_CAPTURE_OPEN_EVENT')
+    expect(notebookEvents).toContain("wewed:notebook-quick-capture-open")
+    expect(notebookEvents).toContain('window.dispatchEvent(new CustomEvent(NOTEBOOK_QUICK_CAPTURE_OPEN_EVENT))')
+  })
+
+  test('keeps worksheet power behind one progressive Actions disclosure including refresh and Overview printing', () => {
     expect(stage7).toContain('data-testid="worksheet-actions-toggle"')
     expect(stage7).toContain('Actions')
     expect(stage7).toContain('data-testid="planner-worksheet-command-trigger"')
     expect(stage7).toContain("activeTab === 'overview' ? 'Print / Save PDF' : 'Print / Arrange / Select'")
     expect(stage7).toContain('A4 overview working document')
+    expect(stage7).toContain('data-testid="worksheet-refresh-action"')
+    expect(stage7).toContain('Refresh data')
+    expect(stage7).toContain('refreshPlannerWorksheet')
     expect(stage7).toContain('data-testid="worksheet-tools-toggle"')
     expect(stage7).toContain('Switch worksheet')
     expect(stage7).toContain('<ImportExportBar')
     expect(stage7).toContain('data-worksheet-data-recovery')
     expect(stage7).not.toContain('Worksheet recovery')
+    expect(coreWorkspace).toContain('PLANNER_REFRESH_EVENT')
+    expect(coreWorkspace).toContain('window.addEventListener(PLANNER_REFRESH_EVENT')
+    expect(coreWorkspace).not.toContain('<span className="hidden sm:inline">Refresh</span>')
   })
 
   test('retires the fixed worksheet launcher instead of merely hiding it', () => {
@@ -68,6 +96,20 @@ describe('WW-ADAPTIVE-NAV-2026-08-18-01 release contract', () => {
     expect(commandCenter).toContain("pathname === '/planner'")
     expect(commandCenter).toContain('overview|tasks|budget|vendors|guests|timeline|seating')
     expect(commandCenter).not.toContain("pathname.startsWith('/planner/')")
+  })
+
+  test('uses the phone worksheet selector through the complete sub-768 contract', () => {
+    expect(coreWorkspace).toContain('className="h-11 w-full rounded-lg border border-gold/25 bg-espresso px-3 font-sans text-sm text-champagne md:hidden"')
+    expect(coreWorkspace).toContain('className="hidden items-center gap-1 md:flex"')
+    expect(coreWorkspace).not.toContain('text-sm text-champagne sm:hidden')
+    expect(browserGate).toContain('{ width: 320')
+    expect(browserGate).toContain('{ width: 375')
+    expect(browserGate).toContain('{ width: 390')
+    expect(browserGate).toContain('{ width: 768')
+    expect(browserGate).toContain('{ width: 1024')
+    expect(browserGate).toContain('{ width: 1280')
+    expect(browserGate).toContain('{ width: 1440')
+    expect(browserGate).toContain('{ width: 700')
   })
 
   test('provides a real settings home without inventing unsupported persistence', () => {
