@@ -122,7 +122,7 @@ jobs:
         run: bun run build
 
       - name: Install Chromium and system dependencies
-        run: bunx playwright install --with-deps chromium
+        run: bash scripts/install-playwright-chromium-ci.sh
 
       - name: Run Admin closeout browser release gate
         run: bunx playwright test tests/e2e/admin-session-closeout-productivity.spec.ts tests/e2e/admin-command-centre-responsive.spec.ts --project=desktop-chromium --fail-on-flaky-tests
