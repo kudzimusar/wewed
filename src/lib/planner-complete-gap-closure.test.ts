@@ -97,14 +97,23 @@ describe('complete planner gap closure', () => {
   })
 
   test('tasks, budget, guests and seating expose every recorded closure control', async () => {
-    const [tasks, budget, guests, seating, guestApi] = await Promise.all([
+    const [tasks, budget, guests, seating, guestApi, priorityGate] = await Promise.all([
       source('src/components/wedding/planner/modules/planner-tasks-module.tsx'),
       source('src/components/wedding/planner/modules/planner-budget-module.tsx'),
       source('src/components/wedding/planner/modules/planner-guests-module.tsx'),
       source('src/components/wedding/planner/modules/planner-seating-operations-module.tsx'),
       source('src/app/api/planner/guests/[id]/route.ts'),
+      source('tests/e2e/planner-task-priority-filter.spec.ts'),
     ])
     for (const marker of ['Save task', 'Description', 'Priority', 'Due date', 'Assignee', 'role="alert"', 'usePlannerFilterState']) expect(tasks).toContain(marker)
+    expect(tasks).toContain('aria-label="Filter tasks by priority"')
+    expect(tasks).toContain("if (filters.priority !== 'all' && task.priority !== filters.priority) return false")
+    expect(priorityGate).toContain('Task Test 11 filters tasks by priority without changing task data')
+    expect(priorityGate).toContain("await priorityFilter.selectOption('high')")
+    expect(priorityGate).toContain('await expect(page.getByText(mediumTask, { exact: true })).toHaveCount(0)')
+    expect(priorityGate).toContain('await expect(page.getByText(lowTask, { exact: true })).toHaveCount(0)')
+    expect(priorityGate).toContain("toHaveValue('in_progress')")
+    expect(priorityGate).toContain('expect(after.data).toEqual(before.data)')
     for (const marker of ['Search item, vendor, category, or notes', 'All payment states', 'Vendor:', 'border-champagne bg-champagne']) expect(budget).toContain(marker)
     for (const marker of ['Save guest', 'Filter guests by side', 'Filter guests by RSVP', 'onUpdateGuest']) expect(guests).toContain(marker)
     for (const marker of ['Search table, zone, note, or Guest', 'Filter seating by table type', 'Filter seating by assignment', 'Filter seating by capacity', 'Filter seating by occupancy', 'Move selected', 'Print plan']) expect(seating).toContain(marker)
