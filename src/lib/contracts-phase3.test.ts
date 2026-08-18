@@ -40,7 +40,7 @@ describe('Vault/Contracts Phase 3 canonical governance', () => {
   test('does not backdate or infer Phase 2 reviews into acceptance', () => {
     expect(migration).toContain("g.\"role\",\n  'PENDING'")
     expect(migration).not.toContain("g.\"role\",\n  'ACCEPTED'")
-    expect(phase3).toContain('Viewing, payment, or message delivery alone is not acceptance')
+    expect(phase3).toContain('viewing, payment, or message delivery alone is not acceptance')
     expect(reviewPage).toContain('Viewing is not acceptance')
   })
 
