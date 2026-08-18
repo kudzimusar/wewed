@@ -1,188 +1,173 @@
-import { db } from "@/lib/db";
-import { NextRequest, NextResponse } from "next/server";
-import { promises as fs } from "fs";
-import path from "path";
+import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/db'
+import { readAppSession } from '@/lib/app-session'
+import {
+  archiveMediaItem,
+  getMediaGovernance,
+  mediaGovernanceAllowsAccess,
+  Phase5MediaError,
+  updateManagedMediaPresentation,
+  type MediaPrivacyState,
+  type MediaPublicationState,
+} from '@/lib/media/phase5'
+import { resolveWeddingAccessForRequest, weddingAccessErrorPayload } from '@/lib/wedding-public-access'
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const PUBLIC_DIR = path.join(process.cwd(), "public");
-
-const MOMENT_VALUES = new Set([
-  "ceremony",
-  "reception",
-  "candid",
-  "preparation",
-  "group_photo",
-]);
-
-// ─── Types ────────────────────────────────────────────────────────────────────
+const MOMENT_VALUES = new Set(['ceremony', 'reception', 'candid', 'preparation', 'group_photo'])
+const PUBLICATION_VALUES = new Set<MediaPublicationState>(['PRIVATE', 'PUBLISHED', 'UNPUBLISHED'])
+const PRIVACY_VALUES = new Set<MediaPrivacyState>(['PRIVATE', 'WEDDING_MEMBERS', 'INVITED_GUESTS', 'PUBLIC'])
+const RIGHTS_VALUES = new Set(['UNKNOWN', 'DECLARED_AUTHORIZED', 'LICENSED', 'CONSENTED', 'RESTRICTED'])
+const MODERATION_VALUES = new Set(['PENDING', 'APPROVED', 'REJECTED', 'NOT_REQUIRED'])
 
 interface MediaPatch {
-  caption?: string | null;
-  moment?: string | null;
-  isCurated?: boolean;
-  isHero?: boolean;
+  caption?: string | null
+  moment?: string | null
+  isCurated?: boolean
+  isHero?: boolean
+  publicationState?: MediaPublicationState
+  privacyState?: MediaPrivacyState
+  rightsState?: 'UNKNOWN' | 'DECLARED_AUTHORIZED' | 'LICENSED' | 'CONSENTED' | 'RESTRICTED'
+  moderationState?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'NOT_REQUIRED'
 }
 
-// ─── GET /api/media/[id] ──────────────────────────────────────────────────────
-// Fetch a single media item by id.
+function noStore(response: NextResponse): NextResponse {
+  response.headers.set('Cache-Control', 'private, no-store, max-age=0')
+  response.headers.set('Vary', 'Cookie')
+  return response
+}
+
+function errorResponse(error: unknown): NextResponse {
+  if (error instanceof Phase5MediaError) {
+    return noStore(NextResponse.json({ success: false, error: error.message, field: error.field }, { status: error.status }))
+  }
+  console.error('[MEDIA ID] Error:', error)
+  return noStore(NextResponse.json({ success: false, error: 'Failed to complete the wedding media operation.' }, { status: 500 }))
+}
+
+async function resolveMediaAccess(request: NextRequest, id: string) {
+  const media = await db.mediaItem.findUnique({
+    where: { id },
+    include: { wedding: { select: { slug: true } } },
+  })
+  if (!media) {
+    return { media: null, access: null, error: noStore(NextResponse.json({ success: false, error: 'Media not found.' }, { status: 404 })) }
+  }
+  const access = await resolveWeddingAccessForRequest(request, media.wedding.slug)
+  if (!access.allowed || !access.wedding) {
+    return { media: null, access: null, error: noStore(NextResponse.json(weddingAccessErrorPayload(access), { status: access.status })) }
+  }
+  return { media, access, error: null }
+}
 
 export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = await params;
-    if (!id) {
-      return NextResponse.json(
-        { error: "Media id is required." },
-        { status: 400 }
-      );
+    const { id } = await params
+    const resolved = await resolveMediaAccess(request, id)
+    if (resolved.error) return resolved.error
+    const governance = await getMediaGovernance(id)
+    if (!mediaGovernanceAllowsAccess(governance, resolved.access.accessKind)) {
+      return noStore(NextResponse.json({ success: false, error: 'Media is not available for this audience.' }, { status: 404 }))
     }
-
-    const media = await db.mediaItem.findUnique({ where: { id } });
-
-    if (!media) {
-      return NextResponse.json(
-        { error: "Media not found." },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({
+    return noStore(NextResponse.json({
       success: true,
       media: {
-        ...media,
-        uploadedAt: media.uploadedAt?.toISOString() ?? null,
+        ...resolved.media,
+        uploadedAt: resolved.media.uploadedAt?.toISOString() ?? null,
+        mediaGovernance: governance ? {
+          provenanceState: governance.provenanceState,
+          publicationState: governance.publicationState,
+          privacyState: governance.privacyState,
+          rightsState: governance.rightsState,
+          moderationState: governance.moderationState,
+          archiveState: governance.archiveState,
+        } : { provenanceState: 'LEGACY_EXTERNAL' },
       },
-    });
+    }))
   } catch (error) {
-    console.error("[MEDIA ID GET] Error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch media." },
-      { status: 500 }
-    );
+    return errorResponse(error)
   }
 }
-
-// ─── PATCH /api/media/[id] ────────────────────────────────────────────────────
-// Update caption, moment, isCurated, isHero (admin).
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = await params;
-    if (!id) {
-      return NextResponse.json(
-        { error: "Media id is required." },
-        { status: 400 }
-      );
+    const { id } = await params
+    const resolved = await resolveMediaAccess(request, id)
+    if (resolved.error) return resolved.error
+    if (resolved.access.accessKind !== 'couple_owner' && resolved.access.accessKind !== 'wedding_member') {
+      return noStore(NextResponse.json({ success: false, error: 'Only authorized wedding members can manage media presentation.' }, { status: 403 }))
     }
 
-    const body: MediaPatch = await request.json();
-    const updateData: Record<string, unknown> = {};
-
-    if (body.caption !== undefined) {
-      if (body.caption === null) {
-        updateData.caption = null;
-      } else if (typeof body.caption === "string") {
-        updateData.caption = body.caption.trim().slice(0, 500) || null;
-      }
-    }
-
+    const body = await request.json() as MediaPatch
+    const updateData: Record<string, unknown> = {}
+    if (body.caption !== undefined) updateData.caption = body.caption === null ? null : body.caption.trim().slice(0, 500) || null
     if (body.moment !== undefined) {
-      if (body.moment === null || body.moment === "") {
-        updateData.moment = null;
-      } else if (typeof body.moment === "string" && MOMENT_VALUES.has(body.moment)) {
-        updateData.moment = body.moment;
-      } else {
-        return NextResponse.json(
-          { error: `Invalid moment. Allowed: ${[...MOMENT_VALUES].join(", ")}` },
-          { status: 400 }
-        );
-      }
+      if (body.moment === null || body.moment === '') updateData.moment = null
+      else if (MOMENT_VALUES.has(body.moment)) updateData.moment = body.moment
+      else return noStore(NextResponse.json({ success: false, error: `Invalid moment. Allowed: ${[...MOMENT_VALUES].join(', ')}` }, { status: 400 }))
+    }
+    if (typeof body.isCurated === 'boolean') updateData.isCurated = body.isCurated
+    if (typeof body.isHero === 'boolean') updateData.isHero = body.isHero
+
+    if (body.publicationState && !PUBLICATION_VALUES.has(body.publicationState)) {
+      return noStore(NextResponse.json({ success: false, error: 'Invalid publication state.' }, { status: 400 }))
+    }
+    if (body.privacyState && !PRIVACY_VALUES.has(body.privacyState)) {
+      return noStore(NextResponse.json({ success: false, error: 'Invalid media privacy state.' }, { status: 400 }))
+    }
+    if (body.rightsState && !RIGHTS_VALUES.has(body.rightsState)) {
+      return noStore(NextResponse.json({ success: false, error: 'Invalid media rights state.' }, { status: 400 }))
+    }
+    if (body.moderationState && !MODERATION_VALUES.has(body.moderationState)) {
+      return noStore(NextResponse.json({ success: false, error: 'Invalid media moderation state.' }, { status: 400 }))
     }
 
-    if (typeof body.isCurated === "boolean") updateData.isCurated = body.isCurated;
-    if (typeof body.isHero === "boolean") updateData.isHero = body.isHero;
+    const actorId = readAppSession(request)?.userId
+    if (!actorId) return noStore(NextResponse.json({ success: false, error: 'Authenticated actor identity is required.' }, { status: 401 }))
 
-    const existing = await db.mediaItem.findUnique({ where: { id } });
-    if (!existing) {
-      return NextResponse.json(
-        { error: "Media not found." },
-        { status: 404 }
-      );
+    const updated = await db.$transaction(async (tx) => tx.mediaItem.update({ where: { id }, data: updateData }))
+    let governance = await getMediaGovernance(id)
+    if (body.publicationState || body.privacyState || body.rightsState || body.moderationState) {
+      governance = await updateManagedMediaPresentation({
+        mediaItemId: id,
+        weddingId: resolved.access.wedding.id,
+        actorId,
+        publicationState: body.publicationState,
+        privacyState: body.privacyState,
+        rightsState: body.rightsState,
+        moderationState: body.moderationState,
+      })
     }
 
-    const updated = await db.mediaItem.update({
-      where: { id },
-      data: updateData,
-    });
-
-    return NextResponse.json({
+    return noStore(NextResponse.json({
       success: true,
-      media: {
-        ...updated,
-        uploadedAt: updated.uploadedAt?.toISOString() ?? null,
-      },
-    });
+      media: { ...updated, uploadedAt: updated.uploadedAt?.toISOString() ?? null, mediaGovernance: governance },
+    }))
   } catch (error) {
-    console.error("[MEDIA ID PATCH] Error:", error);
-    return NextResponse.json(
-      { error: "Failed to update media." },
-      { status: 500 }
-    );
+    return errorResponse(error)
   }
 }
 
-// ─── DELETE /api/media/[id] ───────────────────────────────────────────────────
-// Delete a media item and remove its file from disk.
-
 export async function DELETE(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = await params;
-    if (!id) {
-      return NextResponse.json(
-        { error: "Media id is required." },
-        { status: 400 }
-      );
+    const { id } = await params
+    const resolved = await resolveMediaAccess(request, id)
+    if (resolved.error) return resolved.error
+    if (resolved.access.accessKind !== 'couple_owner' && resolved.access.accessKind !== 'wedding_member') {
+      return noStore(NextResponse.json({ success: false, error: 'Only authorized wedding members can archive media.' }, { status: 403 }))
     }
-
-    const existing = await db.mediaItem.findUnique({ where: { id } });
-    if (!existing) {
-      return NextResponse.json(
-        { error: "Media not found." },
-        { status: 404 }
-      );
-    }
-
-    // Attempt to delete the file from disk.
-    if (existing.url && existing.url.startsWith("/uploads/")) {
-      const filePath = path.join(PUBLIC_DIR, existing.url);
-      try {
-        await fs.access(filePath);
-        await fs.unlink(filePath);
-      } catch {
-        // File may already be gone — non-fatal.
-      }
-    }
-
-    await db.mediaItem.delete({ where: { id } });
-
-    return NextResponse.json({
-      success: true,
-      deleted: id,
-    });
+    const actorId = readAppSession(request)?.userId
+    if (!actorId) return noStore(NextResponse.json({ success: false, error: 'Authenticated actor identity is required.' }, { status: 401 }))
+    const result = await archiveMediaItem({ mediaItemId: id, weddingId: resolved.access.wedding.id, actorId })
+    return noStore(NextResponse.json({ success: true, ...result }))
   } catch (error) {
-    console.error("[MEDIA ID DELETE] Error:", error);
-    return NextResponse.json(
-      { error: "Failed to delete media." },
-      { status: 500 }
-    );
+    return errorResponse(error)
   }
 }
