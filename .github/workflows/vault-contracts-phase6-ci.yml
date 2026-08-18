@@ -7,9 +7,12 @@ on:
     paths:
       - 'src/lib/contracts/phase6.ts'
       - 'src/lib/contracts-phase6.test.ts'
+      - 'src/lib/vault-contracts-closeout.test.ts'
       - 'src/app/api/planner/contract-intelligence/**'
       - 'src/app/api/admin/contract-intelligence/**'
       - 'src/app/planner/contract-intelligence/**'
+      - 'docs/WEWED_VAULT_CONTRACTS_TRANSACTION_GOVERNANCE_CLOSEOUT.md'
+      - 'agent-ctx/VAULT-CONTRACTS-TRANSACTION-GOVERNANCE-CANON.md'
       - '.github/workflows/vault-contracts-phase6-ci.yml'
   workflow_dispatch:
 
@@ -65,5 +68,7 @@ jobs:
         run: bunx prisma migrate deploy --schema prisma/schema.prisma
       - name: Run Phase 6 source governance contract
         run: bun test src/lib/contracts-phase6.test.ts
+      - name: Run Phase 0-6 closeout regression contract
+        run: bun test src/lib/vault-contracts-closeout.test.ts
       - name: Build exact Phase 6 head
         run: bun run build
