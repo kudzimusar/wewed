@@ -346,20 +346,22 @@ export function PlannerWorkspace() {
             className={worksheetActionsOpen ? 'mt-2 block border-t border-gold/10 pt-2' : 'hidden'}
           >
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {activeModule.worksheetKey && (
-                <button
-                  type="button"
-                  data-testid="planner-worksheet-command-trigger"
-                  onClick={openPlannerWorksheetCommandCenter}
-                  className="flex min-h-11 items-center gap-3 rounded-xl border border-gold/25 bg-gold/[0.06] px-3 text-left text-sm font-medium text-gold hover:bg-gold/12"
-                >
-                  <Printer className="size-4 shrink-0" />
-                  <span>
-                    <span className="block">Print / Arrange / Select</span>
-                    <span className="block text-[10px] font-normal text-champagne/45">A4 output and record actions</span>
+              <button
+                type="button"
+                data-testid="planner-worksheet-command-trigger"
+                onClick={openPlannerWorksheetCommandCenter}
+                className="flex min-h-11 items-center gap-3 rounded-xl border border-gold/25 bg-gold/[0.06] px-3 text-left text-sm font-medium text-gold hover:bg-gold/12"
+              >
+                <Printer className="size-4 shrink-0" />
+                <span>
+                  <span className="block">
+                    {activeTab === 'overview' ? 'Print / Save PDF' : 'Print / Arrange / Select'}
                   </span>
-                </button>
-              )}
+                  <span className="block text-[10px] font-normal text-champagne/45">
+                    {activeTab === 'overview' ? 'A4 overview working document' : 'A4 output and record actions'}
+                  </span>
+                </span>
+              </button>
 
               <button
                 type="button"
