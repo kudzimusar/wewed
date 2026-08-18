@@ -102,6 +102,9 @@ jobs:
       - name: Run Phase 1 Vault communications PostgreSQL integrity
         run: psql "postgresql://postgres:postgres@localhost:5432/wewed" -f scripts/vault-communications-postgres-integration.sql
 
+      - name: Run Phase 2 contract domain PostgreSQL integrity
+        run: psql "postgresql://postgres:postgres@localhost:5432/wewed" -f scripts/phase2-contract-domain-postgres-integration.sql
+
       - name: Run original planner parity contract
         run: bun test src/lib/planner-parity-contract.test.ts
 
