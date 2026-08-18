@@ -4,6 +4,7 @@ import { join } from 'node:path'
 
 const migration = readFileSync('prisma/migrations/20260818203000_phase3_contract_acceptance_amendments/migration.sql', 'utf8')
 const identityMigration = readFileSync('prisma/migrations/20260818204500_phase3_acceptance_identity_hardening/migration.sql', 'utf8')
+const indexMigration = readFileSync('prisma/migrations/20260818211500_phase3_contract_fk_indexes/migration.sql', 'utf8')
 const phase3 = readFileSync('src/lib/contracts/phase3.ts', 'utf8')
 const reviewPage = readFileSync('src/app/contracts/review/[token]/page.tsx', 'utf8')
 const decisionPanel = readFileSync('src/components/contracts/contract-decision-panel.tsx', 'utf8')
@@ -66,6 +67,22 @@ describe('Vault/Contracts Phase 3 canonical governance', () => {
     expect(identityMigration).toContain('party must belong to the contract service engagement and wedding')
     expect(identityMigration).toContain('role must match the governed party role')
     expect(identityMigration).toContain('ContractAcceptance_requirement_identity_fkey')
+  })
+
+  test('covers every Phase 3 foreign-key path reported by the production advisor', () => {
+    for (const indexName of [
+      'ContractAcceptance_contractId_idx',
+      'ContractAcceptance_requirement_contract_version_party_idx',
+      'ContractAcceptance_contractVersion_contract_idx',
+      'ContractAmendment_baseVersion_contract_idx',
+      'ContractAmendment_proposedVersion_contract_idx',
+      'ContractPartyRequirement_contractId_idx',
+      'ContractPartyRequirement_contractVersion_contract_idx',
+      'ContractVersionEffectivity_contract_wedding_idx',
+      'ContractVersionEffectivity_contractVersion_contract_idx',
+    ]) {
+      expect(indexMigration).toContain(`CREATE INDEX "${indexName}"`)
+    }
   })
 
   test('full approval is required before effectivity and creates a Vault Acceptance Certificate', () => {
