@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { logAuditEvent } from '@/lib/audit'
 import { requireVaultWeddingAccess } from '@/lib/vault/access'
 import {
   authorizeVaultObjectDownload,
@@ -17,8 +18,15 @@ export async function GET(request: NextRequest, context: RouteContext) {
     if (!object || object.deletedAt) {
       return vaultJson({ success: false, error: 'Vault file not found.' }, { status: 404 })
     }
-    await requireVaultWeddingAccess(request, { weddingId: object.weddingId })
+    const access = await requireVaultWeddingAccess(request, { weddingId: object.weddingId })
     const signedUrl = await authorizeVaultObjectDownload(object)
+    await logAuditEvent({
+      action: 'vault.object.access_authorized',
+      resourceType: 'VaultObject',
+      resourceId: object.id,
+      weddingId: object.weddingId,
+      actorId: access.actorUserId,
+    })
     return vaultJson({
       success: true,
       data: { signedUrl, filename: object.originalFilename },
