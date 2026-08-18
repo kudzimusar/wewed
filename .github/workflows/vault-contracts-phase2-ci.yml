@@ -71,7 +71,7 @@ jobs:
       - name: Apply clean database migrations
         run: bunx prisma migrate deploy --schema prisma/schema.prisma
       - name: Run Phase 2 PostgreSQL invariants
-        run: psql "$DATABASE_URL" -f scripts/phase2-contract-domain-postgres-integration.sql
+        run: psql "postgresql://postgres:postgres@localhost:5432/wewed" -f scripts/phase2-contract-domain-postgres-integration.sql
       - name: Run Phase 2 source governance contract
         run: bun test src/lib/contracts-phase2.test.ts
       - name: Typecheck and build exact Phase 2 head
