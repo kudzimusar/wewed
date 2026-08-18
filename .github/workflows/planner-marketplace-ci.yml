@@ -82,6 +82,7 @@ jobs:
           tests/e2e/zz-planner-marketplace-metadata.spec.ts
           tests/e2e/zz-unified-navigation-privacy.spec.ts
           tests/e2e/zz-classic-canonical-wedding-template.spec.ts
+          tests/e2e/zz-classic-canonical-wedding-template-mobile.spec.ts
           tests/e2e/zz-digital-invitation-cards.spec.ts
           tests/e2e/zz-africa-ready-experience.spec.ts
           --project=desktop-chromium

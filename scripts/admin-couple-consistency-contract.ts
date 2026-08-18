@@ -37,7 +37,8 @@ const weddingHome = includesAll('src/components/wedding/wedding-home.tsx', [
   '<Navbar accessKind={accessKind} viewerRole={viewerRole} />',
   "const isCoupleOwner = accessKind === 'couple_owner' && viewerRole === 'couple'",
   "const canContribute = accessKind !== 'public' && accessKind !== null",
-  '{canContribute && <MediaUpload />}',
+  '<MediaUpload canUpload={canContribute} />',
+  '<MemoryCapsule canRecord={canContribute} />',
   '<LiveWall canPost={canContribute} />',
   '<GlobalWeddingTools accessKind={accessKind} viewerRole={viewerRole} />',
 ])

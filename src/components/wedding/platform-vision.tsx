@@ -6,6 +6,8 @@ import { Heart, ClipboardList, Shield, ArrowRight, Globe2 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { GoldOrnament } from '@/components/wedding/decorative-elements'
+import { useWeddingContextSafe } from '@/components/wedding/wedding-data-provider'
+import { coupleNames } from '@/lib/wedding-template-defaults'
 
 type PillarId = 'celebrate' | 'plan' | 'preserve'
 
@@ -44,14 +46,6 @@ const PILLARS: Pillar[] = [
     accent: 'plum',
     body: 'Photos, videos, messages, songs and memories can remain attached to the same wedding long after the celebration ends.',
   },
-]
-
-const STATS: Stat[] = [
-  { value: 'Before', label: 'plan and prepare' },
-  { value: 'During', label: 'share the day' },
-  { value: 'After', label: 'preserve memories' },
-  { value: '1', label: 'wedding source of truth' },
-  { value: '∞', label: 'moments worth keeping' },
 ]
 
 const ACCENT_STYLES: Record<
@@ -147,6 +141,18 @@ export function PlatformVision() {
   const isInView = useInView(ref, { once: true, margin: '-80px' })
   const missionRef = useRef(null)
   const missionInView = useInView(missionRef, { once: true, margin: '-80px' })
+  const ctx = useWeddingContextSafe()
+  const names = coupleNames(ctx?.wedding)
+  const partyCount = ctx?.getOrdered('guests', 'party-').length ?? 0
+  const songCount = ctx?.songs.length ?? 0
+  const memoryCount = ctx?.getContent('memory', 'messageCount', '0') ?? '0'
+  const stats: Stat[] = [
+    { value: '1', label: 'wedding story' },
+    { value: String(partyCount), label: 'wedding party profiles' },
+    { value: String(songCount), label: 'songs in the soundtrack' },
+    { value: memoryCount, label: 'messages in the capsule' },
+    { value: '∞', label: 'moments worth keeping' },
+  ]
 
   return (
     <section
@@ -204,7 +210,7 @@ export function PlatformVision() {
             <div className="relative">
               <div className="mb-4 flex items-center gap-2"><div className="h-px w-10 bg-gold/60" /><span className="text-xs font-semibold uppercase tracking-[0.3em] text-gold">Our Mission</span></div>
               <p className="wewed-heading text-2xl leading-relaxed text-champagne md:text-3xl lg:text-4xl lg:leading-relaxed">
-                We believe every love story deserves to be remembered. Wewed is building the <span className="text-gold-light">infrastructure for memory</span>{' '}so each couple can celebrate, plan and preserve their wedding in one governed space.
+                We believe every love story deserves to be remembered. Wewed is building the <span className="text-gold-light">infrastructure for memory</span>{' '}so celebrations like <span className="italic text-clay-light">{names}</span> can be planned privately, shared beautifully and preserved in one governed space.
               </p>
             </div>
           </div>
@@ -217,9 +223,9 @@ export function PlatformVision() {
           className="mx-auto mt-12 max-w-4xl md:mt-16"
         >
           <div className="rounded-2xl border border-gold/20 bg-champagne/5 px-6 py-8 backdrop-blur-sm md:px-10 md:py-10">
-            <p className="mb-7 text-center text-xs font-semibold uppercase tracking-[0.28em] text-gold-muted">One connected wedding lifecycle</p>
+            <p className="mb-7 text-center text-xs font-semibold uppercase tracking-[0.28em] text-gold-muted">This wedding, in numbers</p>
             <div className="grid grid-cols-2 gap-y-8 sm:grid-cols-3 lg:grid-cols-5 lg:gap-y-0">
-              {STATS.map((stat, index) => <StatItem key={stat.label} stat={stat} index={index} />)}
+              {stats.map((stat, index) => <StatItem key={stat.label} stat={stat} index={index} />)}
             </div>
           </div>
         </motion.div>

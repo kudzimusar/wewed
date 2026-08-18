@@ -8,6 +8,25 @@ import type {
 } from '@/lib/wedding-data'
 
 /**
+ * ProgrammeItem is shared with the planner event-day timeline. Planner/test
+ * control rows are useful in the private workspace but must never leak into
+ * the guest-facing wedding programme. These prefixes are therefore reserved
+ * for non-public operational rows until ProgrammeItem gets a dedicated
+ * publication workflow.
+ */
+export const PRIVATE_PROGRAMME_PREFIXES = [
+  'UAT-',
+  'TEST-',
+  '[PRIVATE]',
+  '[PLANNER]',
+] as const
+
+export function isPublicProgrammeTitle(title: string): boolean {
+  const normalized = title.trim().toUpperCase()
+  return !PRIVATE_PROGRAMME_PREFIXES.some((prefix) => normalized.startsWith(prefix))
+}
+
+/**
  * Load the public wedding-site projection directly from PostgreSQL.
  *
  * This is the single read model used by both the server-rendered wedding page
@@ -123,9 +142,9 @@ export async function loadWeddingDataBySlug(slug: string): Promise<WeddingData |
     content,
     contentMeta,
     ordered,
-    programmeItems: wedding.programmeItems.map((item) => ({
-      ...item,
-    })),
+    programmeItems: wedding.programmeItems
+      .filter((item) => isPublicProgrammeTitle(item.title))
+      .map((item) => ({ ...item })),
     songs: wedding.songs.map((song) => ({
       ...song,
       playedAt: song.playedAt ? song.playedAt.toISOString() : null,

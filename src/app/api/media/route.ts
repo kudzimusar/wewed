@@ -8,6 +8,12 @@ import {
   weddingAccessErrorPayload,
   weddingSlugFromRequest,
 } from '@/lib/wedding-public-access'
+import {
+  resolvePrivateWeddingMediaUrl,
+  resolvePrivateWeddingMediaUrls,
+  uploadPrivateWeddingMedia,
+  weddingMediaStorageConfigured,
+} from '@/lib/wedding-media-storage'
 
 const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads')
 const MAX_FILE_SIZE = 10 * 1024 * 1024
@@ -72,11 +78,17 @@ export async function GET(request: NextRequest) {
       skip: offset,
     })
 
+    const serialized = media.map((item) => ({
+      ...item,
+      uploadedAt: item.uploadedAt?.toISOString() ?? null,
+    }))
+    const resolvedMedia = await resolvePrivateWeddingMediaUrls(serialized)
+
     return noStore(NextResponse.json({
       success: true,
       source: 'database',
-      count: media.length,
-      data: media.map((item) => ({ ...item, uploadedAt: item.uploadedAt?.toISOString() ?? null })),
+      count: resolvedMedia.length,
+      data: resolvedMedia,
     }))
   } catch (error) {
     console.error('[MEDIA GET] Error:', error)
@@ -92,10 +104,10 @@ export async function POST(request: NextRequest) {
     if (resolved.error) return resolved.error
 
     if (resolved.access.accessKind === 'public') {
-      return NextResponse.json(
+      return noStore(NextResponse.json(
         { success: false, error: 'Open your personal invitation before uploading wedding media.' },
         { status: 403 },
-      )
+      ))
     }
 
     const file = form.get('file')
@@ -103,45 +115,82 @@ export async function POST(request: NextRequest) {
     const rawMoment = (form.get('moment') as string | null)?.trim() || null
 
     if (!file || !(file instanceof File)) {
-      return NextResponse.json({ success: false, error: 'A file is required.' }, { status: 400 })
+      return noStore(NextResponse.json({ success: false, error: 'A file is required.' }, { status: 400 }))
     }
     if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json({ success: false, error: 'File is too large. Maximum size is 10 MB.' }, { status: 413 })
+      return noStore(NextResponse.json({ success: false, error: 'File is too large. Maximum size is 10 MB.' }, { status: 413 }))
     }
 
     const extension = ALLOWED_MIME[file.type]
     if (!extension) {
-      return NextResponse.json({ success: false, error: 'Unsupported file type. Allowed: JPG, PNG, WEBP, GIF, MP4 and WEBM.' }, { status: 415 })
+      return noStore(NextResponse.json({ success: false, error: 'Unsupported file type. Allowed: JPG, PNG, WEBP, GIF, MP4 and WEBM.' }, { status: 415 }))
     }
 
     const moment = rawMoment && MOMENT_VALUES.has(rawMoment) ? rawMoment : 'candid'
-    const type = file.type.startsWith('image/') ? 'photo' : 'video'
-    await fs.mkdir(UPLOAD_DIR, { recursive: true })
+    const type: 'photo' | 'video' = file.type.startsWith('image/') ? 'photo' : 'video'
     const filename = `${randomUUID()}${extension}`
-    const publicUrl = `/uploads/${filename}`
-    await fs.writeFile(path.join(UPLOAD_DIR, filename), Buffer.from(await file.arrayBuffer()))
+    const bytes = await file.arrayBuffer()
+    let storedUrl: string
 
-    const media = await db.mediaItem.create({
-      data: {
-        type,
-        url: publicUrl,
-        thumbnailUrl: type === 'video' ? null : publicUrl,
-        caption,
-        moment,
-        isCurated: false,
-        isHero: false,
-        uploaderId: resolved.access.guest?.id ?? null,
-        uploadedAt: new Date(),
+    if (weddingMediaStorageConfigured()) {
+      storedUrl = await uploadPrivateWeddingMedia({
         weddingId: resolved.access.wedding.id,
-      },
-    })
+        type,
+        filename,
+        bytes,
+        contentType: file.type,
+      })
+    } else if (process.env.NODE_ENV !== 'production') {
+      const weddingUploadDir = path.join(UPLOAD_DIR, resolved.access.wedding.slug)
+      await fs.mkdir(weddingUploadDir, { recursive: true })
+      await fs.writeFile(path.join(weddingUploadDir, filename), Buffer.from(bytes))
+      storedUrl = `/uploads/${resolved.access.wedding.slug}/${filename}`
+    } else {
+      return noStore(NextResponse.json(
+        {
+          success: false,
+          error: 'Wedding media storage is not configured. Upload was not accepted.',
+        },
+        { status: 503 },
+      ))
+    }
 
-    return NextResponse.json({
-      success: true,
-      media: { ...media, uploadedAt: media.uploadedAt?.toISOString() ?? null },
-    }, { status: 201 })
+    try {
+      const media = await db.mediaItem.create({
+        data: {
+          type,
+          url: storedUrl,
+          thumbnailUrl: type === 'video' ? null : storedUrl,
+          caption,
+          moment,
+          isCurated: false,
+          isHero: false,
+          uploaderId: resolved.access.guest?.id ?? null,
+          uploadedAt: new Date(),
+          weddingId: resolved.access.wedding.id,
+        },
+      })
+
+      const [publicUrl, publicThumbnailUrl] = await Promise.all([
+        resolvePrivateWeddingMediaUrl(media.url),
+        media.thumbnailUrl ? resolvePrivateWeddingMediaUrl(media.thumbnailUrl) : Promise.resolve(null),
+      ])
+
+      return noStore(NextResponse.json({
+        success: true,
+        media: {
+          ...media,
+          url: publicUrl || media.url,
+          thumbnailUrl: media.thumbnailUrl ? publicThumbnailUrl || media.thumbnailUrl : null,
+          uploadedAt: media.uploadedAt?.toISOString() ?? null,
+        },
+      }, { status: 201 }))
+    } catch (error) {
+      console.error('[MEDIA POST] Database/signing error after storage upload:', error)
+      throw error
+    }
   } catch (error) {
     console.error('[MEDIA POST] Error:', error)
-    return NextResponse.json({ success: false, error: 'Failed to upload wedding media.' }, { status: 500 })
+    return noStore(NextResponse.json({ success: false, error: 'Failed to upload wedding media.' }, { status: 500 }))
   }
 }

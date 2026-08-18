@@ -30,7 +30,9 @@ describe('wedding identity isolation', () => {
     expect(home).toContain('<TheDay />')
     expect(home).toContain('<SongbookEnhanced />')
     expect(home).toContain('<PhotoGallery />')
-    expect(home).toContain('<MemoryCapsule />')
+    expect(home).toContain('<MediaUpload canUpload={canContribute} />')
+    expect(home).toContain('<MemoryCapsule canRecord={canContribute} />')
+    expect(home).toContain('<LiveWall canPost={canContribute} />')
     expect(home).toContain(
       '<GlobalWeddingTools accessKind={accessKind} viewerRole={viewerRole} />',
     )
@@ -40,8 +42,6 @@ describe('wedding identity isolation', () => {
       ).length - 1,
     ).toBe(1)
     expect(home).toContain("const canContribute = accessKind !== 'public' && accessKind !== null")
-    expect(home).toContain('{canContribute && <MediaUpload />}')
-    expect(home).toContain('<LiveWall canPost={canContribute} />')
   })
 
   test('the retained legacy reduced renderer is neutral and is not mounted', () => {
