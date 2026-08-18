@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 
 const conversationId = 'phase1-conversation'
 const weddingId = 'phase1-wedding'
@@ -41,8 +41,8 @@ function message(id: string, body: string, attachments: unknown[] = []) {
   }
 }
 
-async function mockMessagesFoundation(page: Parameters<typeof test>[0] extends never ? never : any) {
-  await page.route('**/api/auth/me', async (route: any) => {
+async function mockMessagesFoundation(page: Page) {
+  await page.route('**/api/auth/me', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -57,10 +57,10 @@ async function mockMessagesFoundation(page: Parameters<typeof test>[0] extends n
       }),
     })
   })
-  await page.route('**/api/communications/contacts', async (route: any) => {
+  await page.route('**/api/communications/contacts', async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: [] }) })
   })
-  await page.route('**/api/communications/conversations', async (route: any) => {
+  await page.route('**/api/communications/conversations', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -87,7 +87,7 @@ async function mockMessagesFoundation(page: Parameters<typeof test>[0] extends n
       }),
     })
   })
-  await page.route(`**/api/communications/conversations/${conversationId}/read`, async (route: any) => {
+  await page.route(`**/api/communications/conversations/${conversationId}/read`, async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) })
   })
 }
