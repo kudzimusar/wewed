@@ -90,6 +90,9 @@ jobs:
       - name: Run Phase 0 historical engagement invariants
         run: bun test src/lib/planner-historical-engagement.test.ts
 
+      - name: Run Phase 0 historical engagement PostgreSQL integrity
+        run: bun test src/lib/planner-historical-engagement.integration.test.ts
+
       - name: Run original planner parity contract
         run: bun test src/lib/planner-parity-contract.test.ts
 
