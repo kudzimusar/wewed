@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { consumeAiRateLimit } from '@/lib/ai/rate-limit'
 import { runNotebookAi } from '@/lib/notebook/intelligence'
 import { notebookErrorResponse, requireNotebookActor } from '@/lib/notebook/http'
 import { NOTE_AI_OPERATIONS, NotebookValidationError, type NotebookAiOperation } from '@/lib/notebook/types'
@@ -14,6 +15,19 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const operation = typeof body.operation === 'string' ? body.operation : ''
     if (!NOTE_AI_OPERATIONS.includes(operation as NotebookAiOperation)) {
       throw new NotebookValidationError('Unsupported Notebook AI operation.')
+    }
+    const limit = await consumeAiRateLimit({
+      scope: 'notebook-ai',
+      identity: access.actor.session.userId,
+      maxRequests: 30,
+      windowMs: 10 * 60 * 1000,
+    })
+    if (!limit.ok) {
+      const retryAfter = Math.max(1, Math.ceil((limit.retryAfterMs ?? 60_000) / 1000))
+      return NextResponse.json(
+        { success: false, error: 'Notebook AI rate limit reached. Try again shortly.' },
+        { status: 429, headers: { 'Retry-After': String(retryAfter) } },
+      )
     }
     const data = await runNotebookAi(
       access.actor,
