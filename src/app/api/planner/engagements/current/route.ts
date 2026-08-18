@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
         lifecycleStatus: created.lifecycleStatus,
         vendorId: created.vendorId,
         partyCount: created.parties.length,
-        w ewedPlatformPartyCreated: false,
+        wewedPlatformPartyCreated: false,
       },
     })
     return NextResponse.json({ success: true, data: created }, { status: 201 })
