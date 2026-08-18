@@ -43,7 +43,12 @@ jobs:
           src/components/navigation/planner-adaptive-navigation.tsx
           src/components/navigation/planner-route-dialog-escape-guard.tsx
           src/components/navigation/workspace-quick-navigation.tsx
+          src/components/notebook/notebook-quick-capture.tsx
+          src/components/notebook/notebook-utility-entry.tsx
           src/components/wedding/planner-portal.tsx
+          src/components/wedding/planner-workspace.tsx
           src/components/wedding/planner-workspace-stage7.tsx
+          src/lib/notebook-events.ts
           src/lib/planner-workspace-events.ts
           src/lib/adaptive-workspace-navigation-regression.test.ts
+          tests/e2e/planner-adaptive-navigation.spec.ts

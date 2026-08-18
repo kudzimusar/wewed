@@ -12,6 +12,7 @@ import {
   Repeat2,
   UserRound,
 } from 'lucide-react'
+import { PlannerAdaptiveNavigation } from '@/components/navigation/planner-adaptive-navigation'
 import {
   type AccountRole,
   usePublicAccountSession,
@@ -49,6 +50,26 @@ function workspaceFor(role: AccountRole | undefined) {
   if (role === 'vendor') return { href: '/vendor', label: 'Vendor workspace' }
   if (role === 'provider') return { href: '/vendors/manage', label: 'Provider profile' }
   return { href: '/couple', label: 'Couple workspace' }
+}
+
+function PlannerSecondaryAdaptiveNavigation() {
+  const session = usePublicAccountSession()
+
+  if (!session?.authorized || !session.user) return null
+
+  return (
+    <div
+      data-testid="planner-secondary-adaptive-navigation"
+      className="fixed left-[max(0.75rem,env(safe-area-inset-left))] top-[max(0.75rem,env(safe-area-inset-top))] z-[360] rounded-xl bg-espresso/95 p-1 shadow-xl backdrop-blur"
+    >
+      <PlannerAdaptiveNavigation
+        displayName={session.user.displayName}
+        email={session.user.email}
+        role={session.user.role}
+        showPortfolioLink={session.user.role === 'planner'}
+      />
+    </div>
+  )
 }
 
 function PrivateWorkspaceQuickNavigation() {
@@ -148,6 +169,7 @@ export function WorkspaceQuickNavigation() {
   const pathname = usePathname()
 
   if (!isPrivateWorkspace(pathname) || plannerUsesEmbeddedAdaptiveNavigation(pathname)) return null
+  if (pathname.startsWith('/planner/')) return <PlannerSecondaryAdaptiveNavigation />
 
   return <PrivateWorkspaceQuickNavigation />
 }
