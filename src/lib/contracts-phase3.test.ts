@@ -3,6 +3,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
 const migration = readFileSync('prisma/migrations/20260818203000_phase3_contract_acceptance_amendments/migration.sql', 'utf8')
+const identityMigration = readFileSync('prisma/migrations/20260818204500_phase3_acceptance_identity_hardening/migration.sql', 'utf8')
 const phase3 = readFileSync('src/lib/contracts/phase3.ts', 'utf8')
 const reviewPage = readFileSync('src/app/contracts/review/[token]/page.tsx', 'utf8')
 const decisionPanel = readFileSync('src/components/contracts/contract-decision-panel.tsx', 'utf8')
@@ -42,6 +43,7 @@ describe('Vault/Contracts Phase 3 canonical governance', () => {
     expect(migration).not.toContain("g.\"role\",\n  'ACCEPTED'")
     expect(phase3).toContain('viewing, payment, or message delivery alone is not acceptance')
     expect(reviewPage).toContain('Viewing is not acceptance')
+    expect(reviewPage).toContain('Viewing this page does not create acceptance')
   })
 
   test('acceptance binds exact version fingerprints, identity evidence and declaration version', () => {
@@ -53,6 +55,17 @@ describe('Vault/Contracts Phase 3 canonical governance', () => {
     expect(phase3).toContain("'SECURE_REVIEW_LINK'")
     expect(decisionPanel).toContain('Accept this exact version')
     expect(decisionRoute).toContain('recordContractDecision')
+  })
+
+  test('snapshots accepted party identity and rejects cross-engagement requirement wiring', () => {
+    expect(identityMigration).toContain('partyDisplayName')
+    expect(identityMigration).toContain('partyLegalName')
+    expect(identityMigration).toContain('ContractAcceptance_party_snapshot_guard')
+    expect(identityMigration).toContain('EngagementParty_accepted_identity_guard')
+    expect(identityMigration).toContain('ContractPartyRequirement_contract_party_guard')
+    expect(identityMigration).toContain('party must belong to the contract service engagement and wedding')
+    expect(identityMigration).toContain('role must match the governed party role')
+    expect(identityMigration).toContain('ContractAcceptance_requirement_identity_fkey')
   })
 
   test('full approval is required before effectivity and creates a Vault Acceptance Certificate', () => {

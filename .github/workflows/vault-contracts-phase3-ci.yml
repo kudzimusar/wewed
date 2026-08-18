@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'prisma/migrations/20260818203000_phase3_contract_acceptance_amendments/**'
+      - 'prisma/migrations/20260818204500_phase3_acceptance_identity_hardening/**'
       - 'scripts/phase3-contract-acceptance-postgres-integration.sql'
       - 'src/lib/contracts/**'
       - 'src/lib/contracts-phase3.test.ts'
