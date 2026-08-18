@@ -184,7 +184,7 @@ jobs:
         run: bun run build
 
       - name: Install Chromium and system dependencies
-        run: bunx playwright install --with-deps chromium
+        run: bash scripts/install-playwright-chromium-ci.sh
 
       - name: Run executable planner browser release gate
         run: bunx playwright test --fail-on-flaky-tests
