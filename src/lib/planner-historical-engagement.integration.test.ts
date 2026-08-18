@@ -29,6 +29,16 @@ async function createWeddingFixture(nonce: string, suffix: string) {
   return { couple, wedding }
 }
 
+async function expectDatabaseRejection(operation: () => PromiseLike<unknown>): Promise<void> {
+  let rejected = false
+  try {
+    await operation()
+  } catch {
+    rejected = true
+  }
+  expect(rejected).toBe(true)
+}
+
 describe('Phase 0 paid vendor rescue PostgreSQL integrity', () => {
   test('historical engagement round-trips facts and preserves tenant boundaries', async () => {
     const nonce = randomUUID().replaceAll('-', '').slice(0, 12)
@@ -149,7 +159,7 @@ describe('Phase 0 paid vendor rescue PostgreSQL integrity', () => {
         }),
       })).rejects.toBeInstanceOf(HistoricalEngagementConflictError)
 
-      await expect(db.serviceEngagement.create({
+      await expectDatabaseRejection(() => db.serviceEngagement.create({
         data: {
           weddingId: first.wedding.id,
           vendorId: firstVendor.id,
@@ -158,9 +168,9 @@ describe('Phase 0 paid vendor rescue PostgreSQL integrity', () => {
           serviceCategory: 'Photography',
           currency: 'USD',
         },
-      })).rejects.toBeTruthy()
+      }))
 
-      await expect(db.serviceEngagement.create({
+      await expectDatabaseRejection(() => db.serviceEngagement.create({
         data: {
           weddingId: first.wedding.id,
           vendorId: firstVendor.id,
@@ -169,9 +179,9 @@ describe('Phase 0 paid vendor rescue PostgreSQL integrity', () => {
           serviceCategory: 'Photography',
           currency: 'USD',
         },
-      })).rejects.toBeTruthy()
+      }))
 
-      await expect(db.vendor.delete({ where: { id: firstVendor.id } })).rejects.toBeTruthy()
+      await expectDatabaseRejection(() => db.vendor.delete({ where: { id: firstVendor.id } }))
 
       const vaultObject = await db.vaultObject.create({
         data: {
@@ -202,7 +212,7 @@ describe('Phase 0 paid vendor rescue PostgreSQL integrity', () => {
       })
       expect(vaultLink.weddingId).toBe(first.wedding.id)
 
-      await expect(db.vaultLink.create({
+      await expectDatabaseRejection(() => db.vaultLink.create({
         data: {
           vaultObjectId: vaultObject.id,
           weddingId: second.wedding.id,
@@ -211,7 +221,7 @@ describe('Phase 0 paid vendor rescue PostgreSQL integrity', () => {
           linkRole: 'proof',
           createdById: actor.id,
         },
-      })).rejects.toBeTruthy()
+      }))
     } finally {
       await db.vaultLink.deleteMany({
         where: { weddingId: { in: [first.wedding.id, second.wedding.id] } },
