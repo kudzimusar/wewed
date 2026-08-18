@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
       where: {
         weddingId: access.context.weddingId,
         OR: [
-          { paymentStatus: { in: ['paid', 'deposit'] } },
+          { paymentStatus: { in: ['paid', 'deposit', 'partial', 'partially_paid'] } },
           { budgetItems: { some: { paidAmount: { gt: 0 } } } },
         ],
       },
