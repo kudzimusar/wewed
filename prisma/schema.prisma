@@ -322,6 +322,7 @@ model ServiceEngagement {
   id                         String   @id @default(cuid())
   origin                     String   @default("historical")
   recordMode                 String   @default("record_only")
+  lifecycleStatus            String   @default("historical_capture")
   serviceCategory            String
   serviceDescription         String?
   agreedAmount               Decimal? @db.Decimal(14, 2)
@@ -332,6 +333,7 @@ model ServiceEngagement {
   externalAgreementReference String?
   historicalBasis            String?
   recordedById               String?
+  createdById                String?
 
   weddingId   String
   wedding     Wedding @relation(fields: [weddingId], references: [id], onDelete: Cascade)
@@ -340,12 +342,15 @@ model ServiceEngagement {
 
   budgetItems BudgetItem[]
   payments    EngagementPayment[]
+  parties     EngagementParty[]
+  contracts   Contract[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([id, weddingId])
   @@index([weddingId, origin])
+  @@index([weddingId, lifecycleStatus])
   @@index([vendorId, weddingId])
   @@index([serviceDate])
 }
@@ -420,6 +425,190 @@ model VaultLink {
   @@unique([vaultObjectId, entityType, entityId, linkRole])
   @@index([weddingId, entityType, entityId])
   @@index([entityType, entityId])
+}
+
+model EngagementParty {
+  id                  String @id @default(cuid())
+  serviceEngagementId String
+  weddingId           String
+  partyRole           String
+  partyKind           String
+  displayName         String
+  legalName           String?
+  email               String?
+  phone               String?
+  userId              String?
+  entityId            String?
+  authorityBasis      String?
+  requiredForReview   Boolean @default(true)
+  status              String  @default("active")
+  createdById         String?
+
+  serviceEngagement ServiceEngagement @relation(fields: [serviceEngagementId, weddingId], references: [id, weddingId], onDelete: Cascade)
+  reviewGrants      ContractReviewGrant[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([serviceEngagementId, status, partyRole])
+  @@index([weddingId, partyRole])
+}
+
+model ContractTemplate {
+  id                 String   @id @default(cuid())
+  code               String
+  title              String
+  serviceCategory    String
+  marketCode         String   @default("GLOBAL")
+  jurisdictionCode   String?
+  language           String   @default("en")
+  semanticVersion    String
+  status             String   @default("internal_review")
+  reviewStatus       String   @default("operator_review")
+  effectiveFrom      DateTime?
+  retiredAt          DateTime?
+  summary            String?
+  templateHash       String
+  metadata           String?
+  createdById        String?
+
+  clauses   ContractTemplateClause[]
+  contracts Contract[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([code, semanticVersion, marketCode])
+  @@index([serviceCategory, marketCode, status])
+}
+
+model ContractClause {
+  id           String @id @default(cuid())
+  code         String
+  version      String
+  title        String
+  clauseFamily String
+  body         String @db.Text
+  status       String @default("internal_review")
+  reviewStatus String @default("operator_review")
+  contentHash  String
+  createdById  String?
+
+  templates ContractTemplateClause[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([code, version])
+  @@index([clauseFamily, status])
+}
+
+model ContractTemplateClause {
+  id            String @id @default(cuid())
+  templateId    String
+  clauseId      String
+  position      Int     @default(0)
+  required      Boolean @default(true)
+  configuration String?
+
+  template ContractTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  clause   ContractClause   @relation(fields: [clauseId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@unique([templateId, clauseId])
+  @@index([templateId, position, id])
+}
+
+model Contract {
+  id                   String @id @default(cuid())
+  contractNumber       String @unique
+  serviceEngagementId  String
+  weddingId            String
+  templateId           String
+  status               String @default("DRAFT")
+  currentVersionNumber Int    @default(0)
+  title                String
+  createdById          String?
+  issuedAt             DateTime?
+  closedAt             DateTime?
+
+  serviceEngagement ServiceEngagement @relation(fields: [serviceEngagementId, weddingId], references: [id, weddingId], onDelete: Restrict)
+  template          ContractTemplate  @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  versions          ContractVersion[]
+  reviewGrants      ContractReviewGrant[]
+  events            ContractEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([id, weddingId])
+  @@index([serviceEngagementId, status, createdAt])
+  @@index([weddingId, status, createdAt])
+}
+
+model ContractVersion {
+  id                      String @id @default(cuid())
+  contractId              String
+  weddingId               String
+  versionNumber           Int
+  status                  String @default("DRAFT")
+  templateSemanticVersion String
+  canonicalJson           String @db.Text
+  renderedHtml            String @db.Text
+  contentSha256           String?
+  artifactVaultObjectId   String?
+  artifactSha256          String?
+  issuedAt                DateTime?
+  createdById             String?
+
+  contract     Contract              @relation(fields: [contractId, weddingId], references: [id, weddingId], onDelete: Restrict)
+  reviewGrants ContractReviewGrant[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([contractId, versionNumber])
+  @@unique([id, contractId])
+  @@index([contractId, status, versionNumber])
+  @@index([artifactVaultObjectId])
+}
+
+model ContractReviewGrant {
+  id                  String @id @default(cuid())
+  contractId          String
+  contractVersionId   String
+  engagementPartyId   String?
+  role                String
+  tokenHash           String @unique
+  status              String @default("ACTIVE")
+  expiresAt           DateTime
+  revokedAt           DateTime?
+  lastAccessedAt      DateTime?
+  createdById         String?
+
+  contract          Contract         @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contractVersion   ContractVersion  @relation(fields: [contractVersionId, contractId], references: [id, contractId], onDelete: Cascade)
+  engagementParty   EngagementParty? @relation(fields: [engagementPartyId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([contractVersionId, status, expiresAt])
+}
+
+model ContractEvent {
+  id         String @id @default(cuid())
+  contractId String
+  versionId  String?
+  eventType  String
+  actorId    String?
+  metadata   String?
+
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@index([contractId, createdAt, id])
 }
 
 model SeatingTable {
