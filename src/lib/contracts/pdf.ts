@@ -1,5 +1,7 @@
 import 'server-only'
 
+import QRCode from 'qrcode'
+
 export interface ContractPdfModel {
   contractNumber: string
   title: string
@@ -57,10 +59,36 @@ function line(text: string, size = 10): string {
   return `/${size >= 14 ? 'F2' : 'F1'} ${size} Tf (${escapePdfText(text)}) Tj 0 -14 Td`
 }
 
-function buildPageContent(lines: Array<{ text: string; size?: number }>): string {
+function qrOperations(value: string): string[] {
+  const code = QRCode.create(value, { errorCorrectionLevel: 'M' })
+  const modules = code.modules
+  const quietZone = 2
+  const side = 104
+  const moduleSize = side / (modules.size + quietZone * 2)
+  const originX = 612 - 50 - side
+  const originY = 42
+  const operations = ['q', '0 0 0 rg']
+
+  for (let row = 0; row < modules.size; row += 1) {
+    for (let column = 0; column < modules.size; column += 1) {
+      if (!modules.get(row, column)) continue
+      const x = originX + (column + quietZone) * moduleSize
+      const y = originY + (modules.size - row - 1 + quietZone) * moduleSize
+      operations.push(`${x.toFixed(3)} ${y.toFixed(3)} ${moduleSize.toFixed(3)} ${moduleSize.toFixed(3)} re f`)
+    }
+  }
+  operations.push('Q')
+  return operations
+}
+
+function buildPageContent(
+  lines: Array<{ text: string; size?: number }>,
+  verificationUrl?: string,
+): string {
   const operations = ['BT', '50 792 Td']
   for (const item of lines) operations.push(line(item.text, item.size ?? 10))
   operations.push('ET')
+  if (verificationUrl) operations.push(...qrOperations(verificationUrl))
   return operations.join('\n')
 }
 
@@ -104,6 +132,7 @@ function pageLines(model: ContractPdfModel): Array<{ text: string; size?: number
   for (const wrapped of wrap(`Verification: ${model.verificationUrl}`)) lines.push({ text: wrapped })
   lines.push(
     { text: '' },
+    { text: 'Scan the verification QR printed at the foot of this final page.', size: 9 },
     { text: 'Created and governed through Wewed | wewed.pro', size: 9 },
     { text: 'Viewing this document does not constitute acceptance. Acceptance is a separate governed action.', size: 9 },
   )
@@ -112,7 +141,8 @@ function pageLines(model: ContractPdfModel): Array<{ text: string; size?: number
 
 export function renderContractPdf(model: ContractPdfModel): Uint8Array {
   const allLines = pageLines(model)
-  const maxLinesPerPage = 48
+  // Reserve the lower part of the page so the verification QR never overlaps contract text.
+  const maxLinesPerPage = 42
   const chunks: Array<Array<{ text: string; size?: number }>> = []
   for (let index = 0; index < allLines.length; index += maxLinesPerPage) {
     chunks.push(allLines.slice(index, index + maxLinesPerPage))
@@ -120,19 +150,21 @@ export function renderContractPdf(model: ContractPdfModel): Uint8Array {
 
   const objects: string[] = []
   const pageObjectIds: number[] = []
-  const contentObjectIds: number[] = []
 
   objects[1] = '<< /Type /Catalog /Pages 2 0 R >>'
   objects[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'
   objects[4] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>'
 
   let nextId = 5
-  for (const chunk of chunks) {
+  for (let index = 0; index < chunks.length; index += 1) {
+    const chunk = chunks[index]
     const pageId = nextId++
     const contentId = nextId++
     pageObjectIds.push(pageId)
-    contentObjectIds.push(contentId)
-    const stream = buildPageContent(chunk)
+    const stream = buildPageContent(
+      chunk,
+      index === chunks.length - 1 ? model.verificationUrl : undefined,
+    )
     const streamLength = Buffer.byteLength(stream, 'latin1')
     objects[contentId] = `<< /Length ${streamLength} >>\nstream\n${stream}\nendstream`
     objects[pageId] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${contentId} 0 R >>`
