@@ -9,6 +9,7 @@ on:
       - 'prisma/migrations/20260818181500_phase2_contract_domain/**'
       - 'prisma/migrations/20260818181600_phase2_retire_historical_only_constraints/**'
       - 'prisma/migrations/20260818183000_phase2_contract_template_seed/**'
+      - 'prisma/migrations/20260818184500_phase2_contract_fk_indexes/**'
       - 'scripts/phase2-contract-domain-postgres-integration.sql'
       - 'src/lib/contracts/**'
       - 'src/lib/contracts-phase2.test.ts'

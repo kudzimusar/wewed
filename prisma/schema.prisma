@@ -18,9 +18,9 @@ model Couple {
   userId             String?
   subscriptionStatus String   @default("free")
 
-  weddings   Wedding[]
-  kids       Kid[]
-  users      User[]
+  weddings    Wedding[]
+  kids        Kid[]
+  users       User[]
   userProfile UserProfile?
 
   createdAt DateTime @default(now())
@@ -451,6 +451,7 @@ model EngagementParty {
   updatedAt DateTime @updatedAt
 
   @@index([serviceEngagementId, status, partyRole])
+  @@index([serviceEngagementId, weddingId])
   @@index([weddingId, partyRole])
 }
 
@@ -463,14 +464,14 @@ model ContractTemplate {
   jurisdictionCode   String?
   language           String   @default("en")
   semanticVersion    String
-  status             String   @default("internal_review")
-  reviewStatus       String   @default("operator_review")
-  effectiveFrom      DateTime?
-  retiredAt          DateTime?
-  summary            String?
-  templateHash       String
-  metadata           String?
-  createdById        String?
+  status              String   @default("internal_review")
+  reviewStatus        String   @default("operator_review")
+  effectiveFrom       DateTime?
+  retiredAt           DateTime?
+  summary             String?
+  templateHash        String
+  metadata            String?
+  createdById         String?
 
   clauses   ContractTemplateClause[]
   contracts Contract[]
@@ -518,6 +519,7 @@ model ContractTemplateClause {
 
   @@unique([templateId, clauseId])
   @@index([templateId, position, id])
+  @@index([clauseId])
 }
 
 model Contract {
@@ -544,6 +546,8 @@ model Contract {
 
   @@unique([id, weddingId])
   @@index([serviceEngagementId, status, createdAt])
+  @@index([serviceEngagementId, weddingId])
+  @@index([templateId])
   @@index([weddingId, status, createdAt])
 }
 
@@ -571,6 +575,7 @@ model ContractVersion {
   @@unique([contractId, versionNumber])
   @@unique([id, contractId])
   @@index([contractId, status, versionNumber])
+  @@index([contractId, weddingId])
   @@index([artifactVaultObjectId])
 }
 
@@ -587,13 +592,16 @@ model ContractReviewGrant {
   lastAccessedAt      DateTime?
   createdById         String?
 
-  contract          Contract         @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  contractVersion   ContractVersion  @relation(fields: [contractVersionId, contractId], references: [id, contractId], onDelete: Cascade)
-  engagementParty   EngagementParty? @relation(fields: [engagementPartyId], references: [id], onDelete: SetNull)
+  contract        Contract         @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contractVersion ContractVersion  @relation(fields: [contractVersionId, contractId], references: [id, contractId], onDelete: Cascade)
+  engagementParty EngagementParty? @relation(fields: [engagementPartyId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
 
   @@index([contractVersionId, status, expiresAt])
+  @@index([contractId])
+  @@index([contractVersionId, contractId])
+  @@index([engagementPartyId])
 }
 
 model ContractEvent {
@@ -732,8 +740,8 @@ model ContentSubmission {
 
   reviewedBy String?
   reviewedAt DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model AuditEvent {
