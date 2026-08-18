@@ -66,7 +66,8 @@ Make `/messages` immediately understandable to ordinary users by combining a Gma
 - no participant/permission changes
 - no delivery-status changes
 - no new realtime infrastructure
-- no attachments, reactions, search backend or moderation features
+- no attachments **in this UI-only redesign**; attachment/storage implementation is intentionally governed by `docs/WEWED_VAULT_CONTRACTS_TRANSACTION_GOVERNANCE_PLAN.md`
+- no reactions, search backend or moderation features
 
 ## Qualification
 
