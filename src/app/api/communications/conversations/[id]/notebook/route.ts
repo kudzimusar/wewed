@@ -49,7 +49,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const weddingId = conversation.weddingId && notebookActor.editableWeddingIds.includes(conversation.weddingId)
       ? conversation.weddingId
       : null
-    const visibility = communicationActor.role === 'admin'
+    const visibility = communicationActor.role === 'admin' && notebookActor.platformAdmin
       ? 'ADMIN_INTERNAL'
       : weddingId
         ? 'WEDDING_TEAM'
