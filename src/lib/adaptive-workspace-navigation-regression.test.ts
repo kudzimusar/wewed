@@ -4,11 +4,13 @@ import { describe, expect, test } from 'bun:test'
 const source = (path: string) => readFileSync(path, 'utf8')
 
 const plan = source('docs/ADAPTIVE_WORKSPACE_NAVIGATION_SETTINGS_PLAN.md')
+const rootLayout = source('src/app/layout.tsx')
 const plannerLayout = source('src/app/planner/layout.tsx')
 const adaptiveCss = source('src/app/planner/adaptive-navigation.css')
 const portal = source('src/components/wedding/planner-portal.tsx')
 const adaptiveMenu = source('src/components/navigation/planner-adaptive-navigation.tsx')
 const quickNavigation = source('src/components/navigation/workspace-quick-navigation.tsx')
+const commandCenter = source('src/components/wedding/planner/planner-worksheet-command-center.tsx')
 const stage7 = source('src/components/wedding/planner-workspace-stage7.tsx')
 const settings = source('src/app/settings/page.tsx')
 const events = source('src/lib/planner-workspace-events.ts')
@@ -36,11 +38,12 @@ describe('WW-ADAPTIVE-NAV-2026-08-18-01 release contract', () => {
     expect(quickNavigation).toContain("pathname === '/planner'")
   })
 
-  test('keeps worksheet power behind one progressive Actions disclosure', () => {
+  test('keeps worksheet power behind one progressive Actions disclosure including Overview printing', () => {
     expect(stage7).toContain('data-testid="worksheet-actions-toggle"')
     expect(stage7).toContain('Actions')
     expect(stage7).toContain('data-testid="planner-worksheet-command-trigger"')
-    expect(stage7).toContain('Print / Arrange / Select')
+    expect(stage7).toContain("activeTab === 'overview' ? 'Print / Save PDF' : 'Print / Arrange / Select'")
+    expect(stage7).toContain('A4 overview working document')
     expect(stage7).toContain('data-testid="worksheet-tools-toggle"')
     expect(stage7).toContain('Switch worksheet')
     expect(stage7).toContain('<ImportExportBar')
@@ -48,11 +51,23 @@ describe('WW-ADAPTIVE-NAV-2026-08-18-01 release contract', () => {
     expect(stage7).not.toContain('Worksheet recovery')
   })
 
-  test('retires the old fixed command launcher without rewriting the PR136 command centre', () => {
-    expect(adaptiveCss).toContain("[data-testid='planner-worksheet-command-trigger'].fixed")
-    expect(adaptiveCss).toContain('display: none !important;')
-    expect(events).toContain("'[data-testid=\"planner-worksheet-command-trigger\"].fixed'")
-    expect(events).toContain('existingTrigger.click()')
+  test('retires the fixed worksheet launcher instead of merely hiding it', () => {
+    expect(rootLayout).not.toContain('PlannerWorksheetCommandCenter')
+    expect(plannerLayout).toContain('PlannerWorksheetCommandCenter')
+    expect(commandCenter).toContain('PLANNER_COMMAND_CENTER_OPEN_EVENT')
+    expect(commandCenter).toContain('window.addEventListener(PLANNER_COMMAND_CENTER_OPEN_EVENT')
+    expect(commandCenter).not.toContain('Print · Arrange · Select')
+    expect(commandCenter).not.toContain('bottom-[calc(env(safe-area-inset-bottom)+5.25rem)]')
+    expect(adaptiveCss).not.toContain("[data-testid='planner-worksheet-command-trigger'].fixed")
+    expect(events).toContain('window.dispatchEvent(new CustomEvent(PLANNER_COMMAND_CENTER_OPEN_EVENT))')
+    expect(events).not.toContain('document.querySelector')
+    expect(events).not.toContain('existingTrigger.click()')
+  })
+
+  test('limits the command centre host to Planner workspace routes rather than portfolio or unrelated Planner pages', () => {
+    expect(commandCenter).toContain("pathname === '/planner'")
+    expect(commandCenter).toContain('overview|tasks|budget|vendors|guests|timeline|seating')
+    expect(commandCenter).not.toContain("pathname.startsWith('/planner/')")
   })
 
   test('provides a real settings home without inventing unsupported persistence', () => {

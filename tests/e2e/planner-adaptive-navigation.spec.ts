@@ -21,6 +21,7 @@ test('adaptive Planner navigation keeps primary controls reachable without compe
 
     await expect(page.getByTestId('workspace-quick-navigation')).toHaveCount(0)
     await expect(page.getByLabel('Planner account navigation')).toHaveCount(0)
+    await expect(page.locator('[data-testid="planner-worksheet-command-trigger"].fixed')).toHaveCount(0)
 
     const menu = page.getByTestId('planner-adaptive-menu-trigger')
     await expect(menu, `${viewport.label}: adaptive menu trigger`).toBeVisible()
@@ -35,10 +36,14 @@ test('adaptive Planner navigation keeps primary controls reachable without compe
     await expect(drawer).toBeHidden()
 
     await openWorksheetActions(page)
-    const commandTrigger = page.locator('[data-testid="planner-worksheet-command-trigger"]:not(.fixed)')
+    const commandTrigger = page.getByTestId('planner-worksheet-command-trigger')
     await expect(commandTrigger, `${viewport.label}: contextual Print / Arrange / Select`).toBeVisible()
     await expect(commandTrigger).toContainText('Print / Arrange / Select')
-    await expect(page.locator('[data-testid="planner-worksheet-command-trigger"].fixed')).toBeHidden()
+    await commandTrigger.click()
+    await expect(page.locator('[data-planner-worksheet-command-center]')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Budget worksheet tools' })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.locator('[data-planner-worksheet-command-center]')).toBeHidden()
     await expectNoDocumentOverflow(page)
 
     const actionsToggle = page.getByTestId('worksheet-actions-toggle')
@@ -46,7 +51,30 @@ test('adaptive Planner navigation keeps primary controls reachable without compe
   }
 })
 
-test('Planner portfolio uses the same adaptive navigation shell without duplicate quick chrome', async ({ plannerPage: page }) => {
+test('Overview keeps print access through Actions without a floating launcher', async ({ plannerPage: page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await openModule(page, 'overview')
+  await expect(page.locator('[data-testid="planner-worksheet-command-trigger"].fixed')).toHaveCount(0)
+
+  await openWorksheetActions(page)
+  const commandTrigger = page.getByTestId('planner-worksheet-command-trigger')
+  await expect(commandTrigger).toBeVisible()
+  await expect(commandTrigger).toContainText('Print / Save PDF')
+  await expect(commandTrigger).toContainText('A4 overview working document')
+  await commandTrigger.click()
+
+  const commandCenter = page.locator('[data-planner-worksheet-command-center]')
+  await expect(commandCenter).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Overview worksheet tools' })).toBeVisible()
+  await expect(commandCenter.getByRole('button', { name: 'Print / Save PDF' })).toBeVisible()
+  await expect(commandCenter.getByRole('button', { name: 'Arrange' })).toHaveCount(0)
+  await expect(commandCenter.getByRole('button', { name: 'Select & act' })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect(commandCenter).toBeHidden()
+  await expectNoDocumentOverflow(page)
+})
+
+test('Planner portfolio uses the same adaptive navigation shell without worksheet tools or duplicate quick chrome', async ({ plannerPage: page }) => {
   for (const viewport of VIEWPORTS) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height })
     await page.goto('/planner/portfolio')
@@ -55,6 +83,8 @@ test('Planner portfolio uses the same adaptive navigation shell without duplicat
     await expect(page.getByRole('heading', { name: 'All weddings', exact: true })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Your wedding command centre' })).toBeVisible()
     await expect(page.getByTestId('workspace-quick-navigation')).toHaveCount(0)
+    await expect(page.getByTestId('planner-worksheet-command-trigger')).toHaveCount(0)
+    await expect(page.locator('[data-planner-worksheet-command-center]')).toHaveCount(0)
 
     const menu = page.getByTestId('planner-adaptive-menu-trigger')
     await expect(menu, `${viewport.label}: portfolio adaptive menu trigger`).toBeVisible()

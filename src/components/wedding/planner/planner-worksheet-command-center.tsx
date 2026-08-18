@@ -29,7 +29,6 @@ import {
   Loader2,
   Printer,
   RefreshCw,
-  SlidersHorizontal,
   Trash2,
   X,
 } from 'lucide-react'
@@ -43,6 +42,7 @@ import {
   type PlannerDocumentSummaryItem,
 } from '@/lib/planner-document'
 import { plannerModuleFromPath, type PlannerModuleSlug } from '@/lib/planner-route-state'
+import { PLANNER_COMMAND_CENTER_OPEN_EVENT } from '@/lib/planner-workspace-events'
 
 const RECORD_MODULES = new Set<PlannerModuleSlug>([
   'tasks',
@@ -395,7 +395,9 @@ export function PlannerWorksheetCommandCenter() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const { toast } = useToast()
-  const isPlannerWorksheet = pathname === '/planner' || pathname.startsWith('/planner/')
+  const isPlannerWorksheet =
+    pathname === '/planner' ||
+    /^\/planner\/(overview|tasks|budget|vendors|guests|timeline|seating)(?:\/|$)/.test(pathname)
   const module = plannerModuleFromPath(pathname) as PlannerModuleSlug
   const [open, setOpen] = useState(false)
   const [mode, setMode] = useState<PanelMode>('print')
@@ -461,6 +463,16 @@ export function PlannerWorksheetCommandCenter() {
   useEffect(() => {
     if (open) void load()
   }, [load, open])
+
+  useEffect(() => {
+    if (!isPlannerWorksheet) return
+    const handleOpen = () => {
+      setMode('print')
+      setOpen(true)
+    }
+    window.addEventListener(PLANNER_COMMAND_CENTER_OPEN_EVENT, handleOpen)
+    return () => window.removeEventListener(PLANNER_COMMAND_CENTER_OPEN_EVENT, handleOpen)
+  }, [isPlannerWorksheet])
 
   useEffect(() => {
     setOpen(false)
@@ -723,77 +735,64 @@ export function PlannerWorksheetCommandCenter() {
   if (!isPlannerWorksheet) return null
 
   return (
-    <>
-      <button
-        type="button"
-        onClick={() => { setMode('print'); setOpen(true) }}
-        data-testid="planner-worksheet-command-trigger"
-        className="fixed bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] right-3 z-[355] flex min-h-11 items-center gap-2 rounded-full border border-gold/35 bg-espresso/95 px-4 text-sm font-semibold text-gold shadow-2xl backdrop-blur-xl sm:bottom-4 sm:right-4"
-        aria-label={`Open ${MODULE_LABELS[module]} print, arrange and selection tools`}
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent
+        data-planner-worksheet-command-center
+        className="max-h-[94dvh] w-[96vw] max-w-5xl overflow-hidden border-gold/30 bg-espresso p-0 text-champagne"
       >
-        <SlidersHorizontal className="size-4" />
-        <span className="hidden min-[390px]:inline">Print · Arrange · Select</span>
-      </button>
-
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent
-          data-planner-worksheet-command-center
-          className="max-h-[94dvh] w-[96vw] max-w-5xl overflow-hidden border-gold/30 bg-espresso p-0 text-champagne"
-        >
-          <div className="border-b border-gold/15 px-4 py-4 sm:px-6">
-            <DialogTitle className="font-serif text-2xl text-champagne">{MODULE_LABELS[module]} worksheet tools</DialogTitle>
-            <DialogDescription className="mt-1 text-sm text-champagne/55">
-              Print an A4 working document, arrange presentation order, or select several records for one safe action.
-            </DialogDescription>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {(['print', ...(module === 'overview' ? [] : ['arrange', 'select'])] as PanelMode[]).map((item) => (
-                <Button key={item} type="button" size="sm" variant="outline" onClick={() => setMode(item)} className={mode === item ? 'border-gold bg-gold text-espresso hover:bg-gold-light' : 'border-gold/25 bg-transparent text-champagne/70 hover:bg-gold/10 hover:text-gold'}>
-                  {item === 'print' ? <Printer className="size-4" /> : item === 'arrange' ? <GripVertical className="size-4" /> : <CheckSquare2 className="size-4" />}
-                  {item === 'print' ? 'Print / Save PDF' : item === 'arrange' ? 'Arrange' : 'Select & act'}
-                </Button>
-              ))}
-              <Button type="button" size="sm" variant="ghost" onClick={() => void load()} disabled={loading || busy} className="ml-auto text-champagne/55 hover:text-gold"><RefreshCw className="size-4" />Refresh</Button>
-            </div>
+        <div className="border-b border-gold/15 px-4 py-4 sm:px-6">
+          <DialogTitle className="font-serif text-2xl text-champagne">{MODULE_LABELS[module]} worksheet tools</DialogTitle>
+          <DialogDescription className="mt-1 text-sm text-champagne/55">
+            Print an A4 working document, arrange presentation order, or select several records for one safe action.
+          </DialogDescription>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {(['print', ...(module === 'overview' ? [] : ['arrange', 'select'])] as PanelMode[]).map((item) => (
+              <Button key={item} type="button" size="sm" variant="outline" onClick={() => setMode(item)} className={mode === item ? 'border-gold bg-gold text-espresso hover:bg-gold-light' : 'border-gold/25 bg-transparent text-champagne/70 hover:bg-gold/10 hover:text-gold'}>
+                {item === 'print' ? <Printer className="size-4" /> : item === 'arrange' ? <GripVertical className="size-4" /> : <CheckSquare2 className="size-4" />}
+                {item === 'print' ? 'Print / Save PDF' : item === 'arrange' ? 'Arrange' : 'Select & act'}
+              </Button>
+            ))}
+            <Button type="button" size="sm" variant="ghost" onClick={() => void load()} disabled={loading || busy} className="ml-auto text-champagne/55 hover:text-gold"><RefreshCw className="size-4" />Refresh</Button>
           </div>
+        </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
-            {loading ? <div className="flex min-h-64 items-center justify-center gap-2 text-champagne/55"><Loader2 className="size-5 animate-spin text-gold" />Loading current saved worksheet…</div> : mode === 'print' ? (
-              <div className="space-y-5">
-                <div className="rounded-2xl border border-gold/15 bg-champagne/[0.035] p-4">
-                  <h3 className="font-serif text-xl">A4 working document</h3>
-                  <p className="mt-1 text-sm leading-6 text-champagne/55">The same clean document is used for physical printing and your browser's Save as PDF option. Printing never changes worksheet data.</p>
-                  {module === 'guests' && <label className="mt-4 block max-w-sm text-sm text-champagne/70">Guest document preset<select value={guestPreset} onChange={(event) => setGuestPreset(event.target.value as GuestPrintPreset)} className="mt-2 h-11 w-full rounded-lg border border-gold/25 bg-espresso px-3"><option value="full">Full guest list</option><option value="rsvp">RSVP list</option><option value="catering">Catering / dietary list</option><option value="checkin">Check-in list</option><option value="seating">Seating assignment list</option></select></label>}
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <Button type="button" onClick={() => printRecords('full')} className="bg-gold text-espresso hover:bg-gold-light"><Printer className="size-4" />Print full worksheet</Button>
-                    {module !== 'overview' && <Button type="button" variant="outline" onClick={() => printRecords('current')} className="border-gold/25 bg-transparent text-champagne/75"><Printer className="size-4" />Print current view ({currentView.length})</Button>}
-                    {selectedRecords.length > 0 && <Button type="button" variant="outline" onClick={() => printRecords('selected')} className="border-gold/25 bg-transparent text-gold"><Printer className="size-4" />Print selected ({selectedRecords.length})</Button>}
-                  </div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+          {loading ? <div className="flex min-h-64 items-center justify-center gap-2 text-champagne/55"><Loader2 className="size-5 animate-spin text-gold" />Loading current saved worksheet…</div> : mode === 'print' ? (
+            <div className="space-y-5">
+              <div className="rounded-2xl border border-gold/15 bg-champagne/[0.035] p-4">
+                <h3 className="font-serif text-xl">A4 working document</h3>
+                <p className="mt-1 text-sm leading-6 text-champagne/55">The same clean document is used for physical printing and your browser's Save as PDF option. Printing never changes worksheet data.</p>
+                {module === 'guests' && <label className="mt-4 block max-w-sm text-sm text-champagne/70">Guest document preset<select value={guestPreset} onChange={(event) => setGuestPreset(event.target.value as GuestPrintPreset)} className="mt-2 h-11 w-full rounded-lg border border-gold/25 bg-espresso px-3"><option value="full">Full guest list</option><option value="rsvp">RSVP list</option><option value="catering">Catering / dietary list</option><option value="checkin">Check-in list</option><option value="seating">Seating assignment list</option></select></label>}
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button type="button" onClick={() => printRecords('full')} className="bg-gold text-espresso hover:bg-gold-light"><Printer className="size-4" />Print full worksheet</Button>
+                  {module !== 'overview' && <Button type="button" variant="outline" onClick={() => printRecords('current')} className="border-gold/25 bg-transparent text-champagne/75"><Printer className="size-4" />Print current view ({currentView.length})</Button>}
+                  {selectedRecords.length > 0 && <Button type="button" variant="outline" onClick={() => printRecords('selected')} className="border-gold/25 bg-transparent text-gold"><Printer className="size-4" />Print selected ({selectedRecords.length})</Button>}
                 </div>
-                {module !== 'overview' && <p className="text-xs leading-5 text-champagne/45">Full worksheet uses the saved presentation order. Current view respects the filters currently shown in the Planner URL. Status is always printed as text so the document remains understandable in grayscale.</p>}
               </div>
-            ) : (
-              <div className="space-y-4">
-                {mode === 'arrange' && <div className="rounded-xl border border-gold/20 bg-gold/[0.05] p-3 text-sm text-champagne/65"><strong className="text-gold">Presentation order only.</strong> Reordering does not change budget values, guest data, seating capacity, or timeline clock times. Drag on desktop or use the arrow controls on any device.{hasFilters ? ' Active filters do not hide records here, so saving cannot accidentally scramble unseen items.' : ''}</div>}
-                {mode === 'select' && <div className="flex flex-wrap items-center gap-2 rounded-xl border border-gold/15 bg-champagne/[0.035] p-3"><Button type="button" size="sm" variant="outline" onClick={() => setSelectedIds(new Set(currentView.map((record) => record.id)))} className="border-gold/25 bg-transparent text-champagne/70">Select all in current view ({currentView.length})</Button><Button type="button" size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())} className="text-champagne/55"><X className="size-4" />Clear selection</Button><span className="ml-auto text-sm text-gold">{selectedIds.size} selected</span></div>}
+              {module !== 'overview' && <p className="text-xs leading-5 text-champagne/45">Full worksheet uses the saved presentation order. Current view respects the filters currently shown in the Planner URL. Status is always printed as text so the document remains understandable in grayscale.</p>}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {mode === 'arrange' && <div className="rounded-xl border border-gold/20 bg-gold/[0.05] p-3 text-sm text-champagne/65"><strong className="text-gold">Presentation order only.</strong> Reordering does not change budget values, guest data, seating capacity, or timeline clock times. Drag on desktop or use the arrow controls on any device.{hasFilters ? ' Active filters do not hide records here, so saving cannot accidentally scramble unseen items.' : ''}</div>}
+              {mode === 'select' && <div className="flex flex-wrap items-center gap-2 rounded-xl border border-gold/15 bg-champagne/[0.035] p-3"><Button type="button" size="sm" variant="outline" onClick={() => setSelectedIds(new Set(currentView.map((record) => record.id)))} className="border-gold/25 bg-transparent text-champagne/70">Select all in current view ({currentView.length})</Button><Button type="button" size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())} className="text-champagne/55"><X className="size-4" />Clear selection</Button><span className="ml-auto text-sm text-gold">{selectedIds.size} selected</span></div>}
 
-                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                  <SortableContext items={workingOrder} strategy={verticalListSortingStrategy}>
-                    <div className="space-y-2">
-                      {records.length === 0 ? <div className="rounded-xl border border-dashed border-gold/20 p-10 text-center text-champagne/50">No records in this worksheet yet.</div> : records.map((record) => (
-                        <SortableRecord key={record.id} module={module} record={record} selected={selectedIds.has(record.id)} onToggle={() => toggleSelected(record.id)} onMove={(direction) => moveRecord(record.id, direction)} />
-                      ))}
-                    </div>
-                  </SortableContext>
-                </DndContext>
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={workingOrder} strategy={verticalListSortingStrategy}>
+                  <div className="space-y-2">
+                    {records.length === 0 ? <div className="rounded-xl border border-dashed border-gold/20 p-10 text-center text-champagne/50">No records in this worksheet yet.</div> : records.map((record) => (
+                      <SortableRecord key={record.id} module={module} record={record} selected={selectedIds.has(record.id)} onToggle={() => toggleSelected(record.id)} onMove={(direction) => moveRecord(record.id, direction)} />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
 
-                {mode === 'arrange' && <div className="sticky bottom-0 flex flex-wrap items-center gap-2 rounded-2xl border border-gold/25 bg-espresso/98 p-3 shadow-2xl"><span className="mr-auto text-xs text-champagne/50">{orderChanged ? 'Order changed — save to make it durable.' : 'Saved order is current.'}</span><Button type="button" variant="ghost" disabled={!orderChanged || busy} onClick={() => setWorkingOrder(savedOrder)} className="text-champagne/60">Reset</Button><Button type="button" disabled={!orderChanged || busy} onClick={() => void saveOrder()} className="bg-gold text-espresso hover:bg-gold-light">{busy ? <Loader2 className="size-4 animate-spin" /> : null}Save order</Button></div>}
+              {mode === 'arrange' && <div className="sticky bottom-0 flex flex-wrap items-center gap-2 rounded-2xl border border-gold/25 bg-espresso/98 p-3 shadow-2xl"><span className="mr-auto text-xs text-champagne/50">{orderChanged ? 'Order changed — save to make it durable.' : 'Saved order is current.'}</span><Button type="button" variant="ghost" disabled={!orderChanged || busy} onClick={() => setWorkingOrder(savedOrder)} className="text-champagne/60">Reset</Button><Button type="button" disabled={!orderChanged || busy} onClick={() => void saveOrder()} className="bg-gold text-espresso hover:bg-gold-light">{busy ? <Loader2 className="size-4 animate-spin" /> : null}Save order</Button></div>}
 
-                {mode === 'select' && selectedIds.size > 0 && <div className="sticky bottom-0 rounded-2xl border border-gold/30 bg-espresso/98 p-3 shadow-2xl"><div className="flex flex-wrap items-center gap-2"><span className="mr-auto text-sm text-champagne"><strong className="text-gold">{selectedIds.size}</strong> selected</span><select value={bulkAction} onChange={(event) => { setBulkAction(event.target.value); setBulkValue('') }} className="h-10 min-w-[13rem] rounded-lg border border-gold/25 bg-espresso px-3 text-sm"><option value="">Choose action…</option>{actionOptions().map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>{bulkValueControl()}<Button type="button" disabled={!bulkAction || busy || (!['move_top', 'move_bottom', 'delete'].includes(bulkAction) && bulkValue === '' && !['vendor', 'table', 'assignee', 'location'].includes(bulkAction))} onClick={() => void applyBulkAction()} className="bg-gold text-espresso hover:bg-gold-light">{busy ? <Loader2 className="size-4 animate-spin" /> : bulkAction === 'delete' ? <Trash2 className="size-4" /> : null}Apply</Button><Button type="button" variant="outline" onClick={() => printRecords('selected')} className="border-gold/25 bg-transparent text-gold"><Printer className="size-4" />Print selected</Button></div><p className="mt-2 text-[11px] leading-4 text-champagne/40">Destructive actions describe their consequences before execution. Financial paid/actual values and timeline event times are deliberately excluded from generic bulk overwrite.</p></div>}
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-    </>
+              {mode === 'select' && selectedIds.size > 0 && <div className="sticky bottom-0 rounded-2xl border border-gold/30 bg-espresso/98 p-3 shadow-2xl"><div className="flex flex-wrap items-center gap-2"><span className="mr-auto text-sm text-champagne"><strong className="text-gold">{selectedIds.size}</strong> selected</span><select value={bulkAction} onChange={(event) => { setBulkAction(event.target.value); setBulkValue('') }} className="h-10 min-w-[13rem] rounded-lg border border-gold/25 bg-espresso px-3 text-sm"><option value="">Choose action…</option>{actionOptions().map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>{bulkValueControl()}<Button type="button" disabled={!bulkAction || busy || (!['move_top', 'move_bottom', 'delete'].includes(bulkAction) && bulkValue === '' && !['vendor', 'table', 'assignee', 'location'].includes(bulkAction))} onClick={() => void applyBulkAction()} className="bg-gold text-espresso hover:bg-gold-light">{busy ? <Loader2 className="size-4 animate-spin" /> : bulkAction === 'delete' ? <Trash2 className="size-4" /> : null}Apply</Button><Button type="button" variant="outline" onClick={() => printRecords('selected')} className="border-gold/25 bg-transparent text-gold"><Printer className="size-4" />Print selected</Button></div><p className="mt-2 text-[11px] leading-4 text-champagne/40">Destructive actions describe their consequences before execution. Financial paid/actual values and timeline event times are deliberately excluded from generic bulk overwrite.</p></div>}
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }

@@ -65,7 +65,8 @@ jobs:
           --to-schema-datamodel prisma/schema.prisma
           --exit-code
       - run: bun run build
-      - run: bunx playwright install --with-deps chromium
+      - name: Install Chromium and system dependencies
+        run: bash scripts/install-playwright-chromium-ci.sh
       - run: >-
           bunx playwright test
           tests/e2e/zz-provider-forms-profiles.spec.ts
