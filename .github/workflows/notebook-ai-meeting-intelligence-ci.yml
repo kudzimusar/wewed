@@ -79,17 +79,32 @@ jobs:
           BEGIN
             IF EXISTS (
               SELECT 1
-                FROM information_schema.role_schema_grants
-               WHERE schema_name = 'wewed_notebook'
-                 AND grantee IN ('PUBLIC', 'anon', 'authenticated')
+                FROM pg_namespace n
+                CROSS JOIN LATERAL aclexplode(COALESCE(n.nspacl, acldefault('n', n.nspowner))) acl
+               WHERE n.nspname = 'wewed_notebook'
+                 AND (
+                   acl.grantee = 0
+                   OR acl.grantee IN (
+                     SELECT oid FROM pg_roles WHERE rolname IN ('anon', 'authenticated')
+                   )
+                 )
+                 AND acl.privilege_type IN ('USAGE', 'CREATE')
             ) THEN
               RAISE EXCEPTION 'wewed_notebook schema is exposed to a public application role';
             END IF;
             IF EXISTS (
               SELECT 1
-                FROM information_schema.role_table_grants
-               WHERE table_schema = 'wewed_notebook'
-                 AND grantee IN ('PUBLIC', 'anon', 'authenticated')
+                FROM pg_class c
+                JOIN pg_namespace n ON n.oid = c.relnamespace
+                CROSS JOIN LATERAL aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) acl
+               WHERE n.nspname = 'wewed_notebook'
+                 AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
+                 AND (
+                   acl.grantee = 0
+                   OR acl.grantee IN (
+                     SELECT oid FROM pg_roles WHERE rolname IN ('anon', 'authenticated')
+                   )
+                 )
             ) THEN
               RAISE EXCEPTION 'wewed_notebook table is exposed to a public application role';
             END IF;
