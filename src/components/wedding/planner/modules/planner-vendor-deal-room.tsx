@@ -12,6 +12,7 @@ import {
   Mail,
   MessageSquare,
   RefreshCw,
+  Scale,
   Send,
   ShieldCheck,
   WalletCards,
@@ -21,6 +22,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import type { EngagementBudgetItem } from '@/components/wedding/planner/modules/planner-vendor-engagement-panel'
+import { TransactionGovernancePanel } from '@/components/wedding/planner/modules/transaction-governance-panel'
 import { useToast } from '@/hooks/use-toast'
 
 export interface ManagedEngagementSummary {
@@ -152,7 +154,7 @@ interface ReviewLink {
   expiresAt: string
 }
 
-type Tab = 'overview' | 'contract' | 'payments' | 'documents' | 'messages' | 'tasks' | 'changes'
+type Tab = 'overview' | 'contract' | 'payments' | 'documents' | 'messages' | 'tasks' | 'changes' | 'disputes'
 
 const TABS: Array<{ id: Tab; label: string; icon: typeof ShieldCheck }> = [
   { id: 'overview', label: 'Overview', icon: ShieldCheck },
@@ -162,6 +164,7 @@ const TABS: Array<{ id: Tab; label: string; icon: typeof ShieldCheck }> = [
   { id: 'messages', label: 'Messages', icon: MessageSquare },
   { id: 'tasks', label: 'Tasks', icon: ListChecks },
   { id: 'changes', label: 'Changes', icon: History },
+  { id: 'disputes', label: 'Evidence & disputes', icon: Scale },
 ]
 
 async function governedJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -497,9 +500,8 @@ export function PlannerVendorDealRoom({
               )}
 
               {tab === 'payments' && (
-                <div className="mt-2 space-y-2">
-                  <p className="text-[10px] leading-4 text-champagne/45">Phase 2 reconciles the Service Engagement with existing Budget/payment facts. Contract payment milestones and dispute accounting are introduced in Phase 4.</p>
-                  {room.budgetItems.length === 0 ? <p className="rounded-lg border border-dashed border-gold/15 p-4 text-xs text-champagne/45">No Budget item is linked to this engagement.</p> : room.budgetItems.map((item) => <div key={item.id} className="flex items-center justify-between gap-3 rounded-lg border border-gold/10 p-3 text-xs"><span>{item.description}</span><span className="text-champagne/55">Paid {money(item.paidAmount, item.currency)} / {money(item.actualCost ?? item.estimatedCost, item.currency)}</span></div>)}
+                <div className="mt-2">
+                  <TransactionGovernancePanel engagementId={room.id} mode="payments" />
                 </div>
               )}
 
@@ -525,6 +527,12 @@ export function PlannerVendorDealRoom({
               {tab === 'changes' && (
                 <div className="mt-2 space-y-2">
                   {!contract || contract.events.length === 0 ? <p className="rounded-lg border border-dashed border-gold/15 p-4 text-xs text-champagne/45">No contract events yet.</p> : contract.events.map((event) => <div key={event.id} className="rounded-lg border border-gold/10 p-3"><div className="flex items-center justify-between gap-3"><p className="text-xs text-champagne">{titleCase(event.eventType)}</p><time className="text-[10px] text-champagne/35">{new Date(event.createdAt).toLocaleString()}</time></div></div>)}
+                </div>
+              )}
+
+              {tab === 'disputes' && (
+                <div className="mt-2">
+                  <TransactionGovernancePanel engagementId={room.id} mode="disputes" />
                 </div>
               )}
             </div>
