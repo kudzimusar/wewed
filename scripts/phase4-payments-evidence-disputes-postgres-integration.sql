@@ -138,9 +138,10 @@ BEGIN
       true, NULL, 'phase4-actor', 'FACT_ONLY', 'NONE', 'NOT_HELD_BY_WEWED'
     );
     RAISE EXCEPTION 'Cross-engagement milestone payment unexpectedly succeeded';
-  EXCEPTION WHEN raise_exception THEN
-    IF SQLERRM = 'Cross-engagement milestone payment unexpectedly succeeded' THEN RAISE; END IF;
-  EXCEPTION WHEN foreign_key_violation OR check_violation THEN NULL;
+  EXCEPTION
+    WHEN foreign_key_violation OR check_violation THEN NULL;
+    WHEN raise_exception THEN
+      IF SQLERRM = 'Cross-engagement milestone payment unexpectedly succeeded' THEN RAISE; END IF;
   END;
 END $$;
 
