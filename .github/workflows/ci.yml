@@ -93,6 +93,9 @@ jobs:
       - name: Run Phase 0 historical engagement PostgreSQL integrity
         run: bun test src/lib/planner-historical-engagement.integration.test.ts
 
+      - name: Run Phase 0 Admin capture authority contract
+        run: bun test src/lib/planner-phase0-admin.test.ts
+
       - name: Run original planner parity contract
         run: bun test src/lib/planner-parity-contract.test.ts
 
