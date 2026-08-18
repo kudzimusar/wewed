@@ -129,6 +129,16 @@ export async function PATCH(
       updates.currency = body.currency.toUpperCase()
     }
     if (body.vendorId !== undefined) {
+      if (existing.serviceEngagementId && body.vendorId !== existing.vendorId) {
+        return NextResponse.json(
+          {
+            success: false,
+            code: 'BUDGET_ITEM_GOVERNED_VENDOR_LOCKED',
+            error: 'This Budget item is linked to a historical service engagement. Its vendor link is preserved; update the engagement record rather than reassigning the Budget item.',
+          },
+          { status: 409 },
+        )
+      }
       if (body.vendorId) {
         const vendor = await db.vendor.findFirst({
           where: { id: body.vendorId, weddingId: access.context.weddingId },
@@ -191,12 +201,22 @@ export async function DELETE(
     const { id } = await params
     const existing = await db.budgetItem.findFirst({
       where: { id, weddingId: access.context.weddingId },
-      select: { id: true },
+      select: { id: true, serviceEngagementId: true },
     })
     if (!existing) {
       return NextResponse.json(
         { success: false, error: 'Budget item not found' },
         { status: 404 }
+      )
+    }
+    if (existing.serviceEngagementId) {
+      return NextResponse.json(
+        {
+          success: false,
+          code: 'BUDGET_ITEM_HAS_SERVICE_ENGAGEMENT',
+          error: 'This Budget item is linked to a governed historical service engagement and cannot be deleted. Preserve the record and correct its financial fields if needed.',
+        },
+        { status: 409 },
       )
     }
 
