@@ -62,7 +62,8 @@ describe('Vault/Contracts Phase 4 canonical governance', () => {
   })
 
   test('keeps historical and managed payment facts separate to prevent silent double counting', () => {
-    expect(phase4).toContain("const comparisonPaymentTotal = managedPayments.length > 0 ? managedNet : legacyPaymentTotal")
+    expect(phase4).toContain("const comparisonPaymentTotal = rows.payments.length > 0 ? managedNet : legacyTotal")
+    expect(phase4).toContain("comparisonSource: rows.payments.length > 0 ? 'managed_payment_facts' : 'legacy_engagement_payments'")
     expect(phase4).toContain("code: 'LEGACY_PAYMENT_UNALLOCATED'")
     expect(panel).toContain('Legacy payment facts — shown separately')
   })
@@ -72,7 +73,8 @@ describe('Vault/Contracts Phase 4 canonical governance', () => {
     expect(migration).toContain('Managed payment facts are append-only; record a governed reversal or refund instead')
     expect(migration).toContain('ManagedPaymentRecord_reversesPaymentId_key')
     expect(phase4).toContain('reverseManagedPayment')
-    expect(phase4).toContain("entryType: 'REVERSAL'")
+    expect(phase4).toContain("'REVERSAL',$5,$6,$7")
+    expect(phase4).toContain("'CORRECTION_FACT',false,'Governed reversal of an existing immutable payment fact'")
     expect(panel).toContain('Reverse')
   })
 
