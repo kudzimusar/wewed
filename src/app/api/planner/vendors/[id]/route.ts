@@ -216,12 +216,25 @@ export async function DELETE(
     const { id } = await params
     const existing = await db.vendor.findFirst({
       where: { id, weddingId: access.context.weddingId },
-      select: { id: true },
+      select: {
+        id: true,
+        _count: { select: { serviceEngagements: true } },
+      },
     })
     if (!existing) {
       return NextResponse.json(
         { success: false, error: 'Vendor not found' },
         { status: 404 },
+      )
+    }
+    if (existing._count.serviceEngagements > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          code: 'VENDOR_HAS_SERVICE_ENGAGEMENTS',
+          error: 'This vendor has a governed service engagement and cannot be deleted. Preserve the record and update its operational status instead.',
+        },
+        { status: 409 },
       )
     }
 
