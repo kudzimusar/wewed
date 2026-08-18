@@ -6,6 +6,13 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  PlannerVendorEngagementPanel,
+  type EngagementBudgetItem,
+  type HistoricalEngagementCreateInput,
+  type HistoricalEngagementRow,
+  type PaidVendorRescueRow,
+} from '@/components/wedding/planner/modules/planner-vendor-engagement-panel'
 
 export interface VendorRow {
   id: string
@@ -49,12 +56,18 @@ export interface VendorUpdate {
 
 interface PlannerVendorsModuleProps {
   vendors: VendorRow[]
+  budgetItems: EngagementBudgetItem[]
+  engagements: HistoricalEngagementRow[]
+  rescue: PaidVendorRescueRow[]
   vendorForm: VendorForm
   setVendorForm: Dispatch<SetStateAction<VendorForm>>
   saving: boolean
   onAddVendor: (event: FormEvent<HTMLFormElement>) => void | Promise<void>
   onUpdateVendor: (vendor: VendorRow, updates: VendorUpdate) => void | Promise<void>
   onDeleteVendor: (vendor: VendorRow) => void | Promise<void>
+  onCreateHistoricalEngagement: (input: HistoricalEngagementCreateInput) => Promise<boolean>
+  onUploadEngagementEvidence: (engagementId: string, file: File, linkRole: string) => Promise<boolean>
+  onOpenEngagementEvidence: (vaultObjectId: string) => Promise<void>
 }
 
 const VENDOR_CATEGORIES = [
@@ -90,7 +103,23 @@ function EmptyState({ title, detail }: { title: string; detail: string }) {
   return <div className="rounded-xl border border-dashed border-gold/20 px-5 py-10 text-center"><p className="font-serif text-lg text-champagne">{title}</p><p className="mx-auto mt-2 max-w-lg font-sans text-xs leading-5 text-champagne/50">{detail}</p></div>
 }
 
-export function PlannerVendorsModule({ vendors, vendorForm, setVendorForm, saving, onAddVendor, onUpdateVendor, onDeleteVendor }: PlannerVendorsModuleProps) {
+export function PlannerVendorsModule({
+  vendors,
+  budgetItems,
+  engagements,
+  rescue,
+  vendorForm,
+  setVendorForm,
+  saving,
+  onAddVendor,
+  onUpdateVendor,
+  onDeleteVendor,
+  onCreateHistoricalEngagement,
+  onUploadEngagementEvidence,
+  onOpenEngagementEvidence,
+}: PlannerVendorsModuleProps) {
+  const rescueByVendor = new Map(rescue.map((item) => [item.vendorId, item]))
+
   return (
     <div className="space-y-4">
       <SectionCard className="p-4">
@@ -113,9 +142,18 @@ export function PlannerVendorsModule({ vendors, vendorForm, setVendorForm, savin
         </form>
       </SectionCard>
 
+      {rescue.some((item) => item.flags.paidWithoutEngagement) && (
+        <div className="rounded-xl border border-clay/25 bg-clay/[0.07] px-4 py-3 font-sans text-xs text-clay-light">
+          {rescue.filter((item) => item.flags.paidWithoutEngagement).length} paid vendor{rescue.filter((item) => item.flags.paidWithoutEngagement).length === 1 ? '' : 's'} still need a truthful historical service record. Open that vendor’s Service engagement record below; no past contract acceptance will be invented.
+        </div>
+      )}
+
       <div className="grid gap-3 lg:grid-cols-2">
         {vendors.length === 0 ? <div className="lg:col-span-2"><EmptyState title="No vendors yet" detail="Add suppliers as you source them. Procurement status is kept with the selected wedding." /></div> : vendors.map((vendor) => {
           const rating = vendor.metaRating ?? vendor.rating ?? 0
+          const vendorEngagements = engagements.filter((engagement) => engagement.vendorId === vendor.id)
+          const rescueRow = rescueByVendor.get(vendor.id)
+          const deletionProtected = vendorEngagements.length > 0
           return (
             <SectionCard key={vendor.id} className="p-4">
               <div className="flex items-start justify-between gap-3">
@@ -124,7 +162,7 @@ export function PlannerVendorsModule({ vendors, vendorForm, setVendorForm, savin
                   <p className="font-sans text-xs text-champagne/45">{titleCase(vendor.category)} · {vendor.contact || 'No contact person added'}</p>
                   <div className="mt-2 flex items-center gap-0.5" aria-label={`Vendor rating ${rating} of 5`}>{Array.from({ length: 5 }).map((_, index) => <Star key={index} className={`size-3 ${index < rating ? 'fill-gold text-gold' : 'text-champagne/20'}`} />)}</div>
                 </div>
-                <div className="flex items-center gap-2"><Badge variant="outline" className="border-gold/20 text-gold">{titleCase(vendor.contractStatus)}</Badge><Button type="button" variant="ghost" size="icon" aria-label={`Delete ${vendor.name}`} disabled={saving} onClick={() => { if (window.confirm(`Delete vendor “${vendor.name}”?`)) void onDeleteVendor(vendor) }} className="size-8 text-champagne/40 hover:bg-clay/10 hover:text-clay-light"><Trash2 className="size-4" /></Button></div>
+                <div className="flex items-center gap-2"><Badge variant="outline" className="border-gold/20 text-gold">{titleCase(vendor.contractStatus)}</Badge><Button type="button" variant="ghost" size="icon" aria-label={`Delete ${vendor.name}`} title={deletionProtected ? 'Historical service records are preserved; this vendor cannot be deleted.' : `Delete ${vendor.name}`} disabled={saving || deletionProtected} onClick={() => { if (window.confirm(`Delete vendor “${vendor.name}”?`)) void onDeleteVendor(vendor) }} className="size-8 text-champagne/40 hover:bg-clay/10 hover:text-clay-light disabled:opacity-25"><Trash2 className="size-4" /></Button></div>
               </div>
               <div className="mt-3 flex flex-wrap gap-2 text-xs text-champagne/55">
                 <span>Payment: {titleCase(vendor.paymentStatus)}</span>
@@ -133,6 +171,17 @@ export function PlannerVendorsModule({ vendors, vendorForm, setVendorForm, savin
                 {vendor.website && <a href={vendor.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-gold hover:text-gold-light">Website <ExternalLink className="size-3" /></a>}
               </div>
               {vendor.notes && <p className="mt-2 rounded-lg border border-gold/10 bg-espresso/40 px-3 py-2 font-sans text-xs text-champagne/55">{vendor.notes}</p>}
+
+              <PlannerVendorEngagementPanel
+                vendor={vendor}
+                budgetItems={budgetItems}
+                engagements={vendorEngagements}
+                rescue={rescueRow}
+                saving={saving}
+                onCreate={onCreateHistoricalEngagement}
+                onUploadEvidence={onUploadEngagementEvidence}
+                onOpenEvidence={onOpenEngagementEvidence}
+              />
 
               <details className="mt-3 rounded-xl border border-gold/10 bg-espresso/35">
                 <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 font-sans text-xs text-gold"><Pencil className="size-3.5" /> Edit operational details</summary>
