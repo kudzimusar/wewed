@@ -73,7 +73,8 @@ jobs:
           --to-schema-datamodel prisma/schema.prisma
           --exit-code
       - run: bun run build
-      - run: bunx playwright install --with-deps chromium
+      - name: Install Chromium and system dependencies
+        run: bash scripts/install-playwright-chromium-ci.sh
       - name: Run marketplace, privacy, invitation, classic wedding and wedding-first browser release gate
         run: >-
           bunx playwright test
