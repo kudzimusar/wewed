@@ -2,42 +2,42 @@
 
 BEGIN;
 
-INSERT INTO public."Couple" ("id", "slug", "partner1", "partner2")
-VALUES ('phase2-couple-a', 'phase2-couple-a', 'Phase', 'Two'),
-       ('phase2-couple-b', 'phase2-couple-b', 'Other', 'Wedding');
+INSERT INTO public."Couple" ("id", "slug", "partner1", "partner2", "updatedAt")
+VALUES ('phase2-couple-a', 'phase2-couple-a', 'Phase', 'Two', now()),
+       ('phase2-couple-b', 'phase2-couple-b', 'Other', 'Wedding', now());
 
 INSERT INTO public."Wedding" (
-  "id", "slug", "title", "date", "venue", "venueCity", "venueCountry", "coupleId"
+  "id", "slug", "title", "date", "venue", "venueCity", "venueCountry", "coupleId", "updatedAt"
 ) VALUES
-  ('phase2-wedding-a', 'phase2-wedding-a', 'Phase 2 Wedding', now() + interval '90 days', 'Venue A', 'Harare', 'Zimbabwe', 'phase2-couple-a'),
-  ('phase2-wedding-b', 'phase2-wedding-b', 'Other Wedding', now() + interval '120 days', 'Venue B', 'Bulawayo', 'Zimbabwe', 'phase2-couple-b');
+  ('phase2-wedding-a', 'phase2-wedding-a', 'Phase 2 Wedding', now() + interval '90 days', 'Venue A', 'Harare', 'Zimbabwe', 'phase2-couple-a', now()),
+  ('phase2-wedding-b', 'phase2-wedding-b', 'Other Wedding', now() + interval '120 days', 'Venue B', 'Bulawayo', 'Zimbabwe', 'phase2-couple-b', now());
 
-INSERT INTO public."Vendor" ("id", "name", "category", "weddingId")
-VALUES ('phase2-vendor-a', 'Phase 2 Photography', 'Photography', 'phase2-wedding-a');
+INSERT INTO public."Vendor" ("id", "name", "category", "weddingId", "updatedAt")
+VALUES ('phase2-vendor-a', 'Phase 2 Photography', 'Photography', 'phase2-wedding-a', now());
 
 INSERT INTO public."ServiceEngagement" (
   "id", "origin", "recordMode", "lifecycleStatus", "serviceCategory",
-  "serviceDescription", "agreedAmount", "currency", "weddingId", "vendorId", "createdById"
+  "serviceDescription", "agreedAmount", "currency", "weddingId", "vendorId", "createdById", "updatedAt"
 ) VALUES (
   'phase2-engagement-a', 'current', 'managed_contract', 'draft', 'Photography',
-  'Wedding photography coverage', 3500.00, 'USD', 'phase2-wedding-a', 'phase2-vendor-a', 'phase2-test-actor'
+  'Wedding photography coverage', 3500.00, 'USD', 'phase2-wedding-a', 'phase2-vendor-a', 'phase2-test-actor', now()
 );
 
 INSERT INTO public."EngagementParty" (
-  "id", "serviceEngagementId", "weddingId", "partyRole", "partyKind", "displayName", "requiredForReview"
+  "id", "serviceEngagementId", "weddingId", "partyRole", "partyKind", "displayName", "requiredForReview", "updatedAt"
 ) VALUES
-  ('phase2-party-client', 'phase2-engagement-a', 'phase2-wedding-a', 'CLIENT', 'COUPLE', 'Phase & Two', true),
-  ('phase2-party-planner', 'phase2-engagement-a', 'phase2-wedding-a', 'PLANNER', 'PLANNING_COMPANY', 'Planner Co', true),
-  ('phase2-party-vendor', 'phase2-engagement-a', 'phase2-wedding-a', 'SERVICE_PROVIDER', 'VENDOR', 'Phase 2 Photography', true);
+  ('phase2-party-client', 'phase2-engagement-a', 'phase2-wedding-a', 'CLIENT', 'COUPLE', 'Phase & Two', true, now()),
+  ('phase2-party-planner', 'phase2-engagement-a', 'phase2-wedding-a', 'PLANNER', 'PLANNING_COMPANY', 'Planner Co', true, now()),
+  ('phase2-party-vendor', 'phase2-engagement-a', 'phase2-wedding-a', 'SERVICE_PROVIDER', 'VENDOR', 'Phase 2 Photography', true, now());
 
 DO $$
 BEGIN
   BEGIN
     INSERT INTO public."EngagementParty" (
-      "id", "serviceEngagementId", "weddingId", "partyRole", "partyKind", "displayName"
+      "id", "serviceEngagementId", "weddingId", "partyRole", "partyKind", "displayName", "updatedAt"
     ) VALUES (
       'phase2-party-cross-wedding', 'phase2-engagement-a', 'phase2-wedding-b',
-      'CLIENT', 'COUPLE', 'Wrong wedding'
+      'CLIENT', 'COUPLE', 'Wrong wedding', now()
     );
     RAISE EXCEPTION 'Cross-wedding engagement party insert unexpectedly succeeded';
   EXCEPTION WHEN foreign_key_violation THEN
@@ -46,18 +46,18 @@ BEGIN
 END $$;
 
 INSERT INTO public."ContractClause" (
-  "id", "code", "version", "title", "clauseFamily", "body", "contentHash"
+  "id", "code", "version", "title", "clauseFamily", "body", "contentHash", "updatedAt"
 ) VALUES (
   'phase2-clause-scope', 'COMMON_SCOPE', '1.0.0', 'Scope of service', 'scope',
   'The service provider will deliver the scope recorded in this agreement.',
-  repeat('a', 64)
+  repeat('a', 64), now()
 );
 
 INSERT INTO public."ContractTemplate" (
-  "id", "code", "title", "serviceCategory", "semanticVersion", "templateHash", "status"
+  "id", "code", "title", "serviceCategory", "semanticVersion", "templateHash", "status", "updatedAt"
 ) VALUES (
   'phase2-template-photography', 'WEWED_PHOTOGRAPHY', 'Wewed Standard Photography Agreement',
-  'Photography', '1.0.0', repeat('b', 64), 'internal_review'
+  'Photography', '1.0.0', repeat('b', 64), 'internal_review', now()
 );
 
 INSERT INTO public."ContractTemplateClause" (
@@ -80,20 +80,20 @@ BEGIN
 END $$;
 
 INSERT INTO public."Contract" (
-  "id", "contractNumber", "serviceEngagementId", "weddingId", "templateId", "title", "createdById"
+  "id", "contractNumber", "serviceEngagementId", "weddingId", "templateId", "title", "createdById", "updatedAt"
 ) VALUES (
   'phase2-contract-a', public.next_wewed_contract_number(), 'phase2-engagement-a', 'phase2-wedding-a',
-  'phase2-template-photography', 'Wewed Standard Photography Agreement', 'phase2-test-actor'
+  'phase2-template-photography', 'Wewed Standard Photography Agreement', 'phase2-test-actor', now()
 );
 
 DO $$
 BEGIN
   BEGIN
     INSERT INTO public."Contract" (
-      "id", "contractNumber", "serviceEngagementId", "weddingId", "templateId", "title"
+      "id", "contractNumber", "serviceEngagementId", "weddingId", "templateId", "title", "updatedAt"
     ) VALUES (
       'phase2-contract-cross-wedding', public.next_wewed_contract_number(), 'phase2-engagement-a',
-      'phase2-wedding-b', 'phase2-template-photography', 'Wrong wedding contract'
+      'phase2-wedding-b', 'phase2-template-photography', 'Wrong wedding contract', now()
     );
     RAISE EXCEPTION 'Cross-wedding contract insert unexpectedly succeeded';
   EXCEPTION WHEN foreign_key_violation THEN
@@ -103,10 +103,10 @@ END $$;
 
 INSERT INTO public."ContractVersion" (
   "id", "contractId", "weddingId", "versionNumber", "status", "templateSemanticVersion",
-  "canonicalJson", "renderedHtml", "createdById"
+  "canonicalJson", "renderedHtml", "createdById", "updatedAt"
 ) VALUES (
   'phase2-version-a', 'phase2-contract-a', 'phase2-wedding-a', 1, 'DRAFT', '1.0.0',
-  '{"contractNumber":"phase2"}', '<html><body>Phase 2</body></html>', 'phase2-test-actor'
+  '{"contractNumber":"phase2"}', '<html><body>Phase 2</body></html>', 'phase2-test-actor', now()
 );
 
 UPDATE public."ContractVersion"
@@ -114,14 +114,15 @@ SET "status" = 'ISSUED',
     "contentSha256" = repeat('c', 64),
     "artifactVaultObjectId" = 'phase2-vault-artifact',
     "artifactSha256" = repeat('d', 64),
-    "issuedAt" = now()
+    "issuedAt" = now(),
+    "updatedAt" = now()
 WHERE "id" = 'phase2-version-a';
 
 DO $$
 BEGIN
   BEGIN
     UPDATE public."ContractVersion"
-    SET "canonicalJson" = '{"tampered":true}'
+    SET "canonicalJson" = '{"tampered":true}', "updatedAt" = now()
     WHERE "id" = 'phase2-version-a';
     RAISE EXCEPTION 'Issued contract version content mutation unexpectedly succeeded';
   EXCEPTION WHEN raise_exception THEN
