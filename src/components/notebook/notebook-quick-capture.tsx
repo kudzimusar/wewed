@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { Check, Loader2, NotebookPen, Plus, X } from 'lucide-react'
+import { NOTEBOOK_QUICK_CAPTURE_OPEN_EVENT } from '@/lib/notebook-events'
 
 type Surface = 'planner' | 'admin'
 
@@ -11,7 +12,12 @@ type ContextPayload = {
   weddings: Array<{ id: string; title: string; canEdit: boolean }>
 }
 
-export function NotebookQuickCapture({ surface }: { surface: Surface }) {
+interface NotebookQuickCaptureProps {
+  surface: Surface
+  showTrigger?: boolean
+}
+
+export function NotebookQuickCapture({ surface, showTrigger = true }: NotebookQuickCaptureProps) {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const [context, setContext] = useState<ContextPayload | null>(null)
@@ -21,6 +27,13 @@ export function NotebookQuickCapture({ surface }: { surface: Surface }) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (pathname.includes('/notebook')) return
+    const handleOpen = () => setOpen(true)
+    window.addEventListener(NOTEBOOK_QUICK_CAPTURE_OPEN_EVENT, handleOpen)
+    return () => window.removeEventListener(NOTEBOOK_QUICK_CAPTURE_OPEN_EVENT, handleOpen)
+  }, [pathname])
 
   useEffect(() => {
     if (!open || context) return
@@ -79,16 +92,18 @@ export function NotebookQuickCapture({ surface }: { surface: Surface }) {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="fixed bottom-20 right-4 z-[58] flex min-h-12 items-center gap-2 rounded-full border border-gold/30 bg-espresso px-4 py-3 text-sm font-semibold text-gold shadow-2xl hover:bg-gold/10 md:bottom-6 md:right-6"
-        aria-label="Create Quick Note"
-      >
-        <NotebookPen className="size-4" />
-        <span className="hidden sm:inline">Quick Note</span>
-        <Plus className="size-3.5 sm:hidden" />
-      </button>
+      {showTrigger && (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="fixed bottom-20 right-4 z-[58] flex min-h-12 items-center gap-2 rounded-full border border-gold/30 bg-espresso px-4 py-3 text-sm font-semibold text-gold shadow-2xl hover:bg-gold/10 md:bottom-6 md:right-6"
+          aria-label="Create Quick Note"
+        >
+          <NotebookPen className="size-4" />
+          <span className="hidden sm:inline">Quick Note</span>
+          <Plus className="size-3.5 sm:hidden" />
+        </button>
+      )}
 
       {open && (
         <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/65 p-3 backdrop-blur-sm sm:items-center" role="presentation">
