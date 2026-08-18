@@ -49,10 +49,12 @@ describe('Phase 2 Service Engagement Deal Room and Wewed contract governance', (
 
   test('stores only hashed review tokens and keeps review separate from acceptance', () => {
     const schema = source('prisma/schema.prisma')
+    const reviewGrantModel = schema.match(/model ContractReviewGrant \{([\s\S]*?)\n\}/)?.[1] ?? ''
     const service = source('src/lib/contracts/phase2.ts')
     const reviewPage = source('src/app/contracts/review/[token]/page.tsx')
-    expect(schema).toMatch(/tokenHash\s+String\s+@unique/)
-    expect(schema).not.toMatch(/^\s*token\s+String/m)
+    expect(reviewGrantModel).not.toBe('')
+    expect(reviewGrantModel).toMatch(/tokenHash\s+String\s+@unique/)
+    expect(reviewGrantModel).not.toMatch(/^\s*token\s+String/m)
     expect(service).toContain('tokenHash: sha256(token)')
     expect(service).toContain('canAccept: false')
     expect(service).toContain('acceptanceRecorded: false')
