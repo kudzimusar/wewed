@@ -56,7 +56,7 @@ INSERT INTO public."ContractClause" (
 INSERT INTO public."ContractTemplate" (
   "id", "code", "title", "serviceCategory", "semanticVersion", "templateHash", "status", "updatedAt"
 ) VALUES (
-  'phase2-template-photography', 'WEWED_PHOTOGRAPHY', 'Wewed Standard Photography Agreement',
+  'phase2-template-photography', 'WEWED_PHASE2_TEST_PHOTOGRAPHY', 'Wewed Standard Photography Agreement',
   'Photography', '1.0.0', repeat('b', 64), 'internal_review', now()
 );
 
