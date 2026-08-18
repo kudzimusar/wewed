@@ -57,8 +57,8 @@ VALUES
 INSERT INTO wewed_communications."CommunicationConversation"
   ("id", "kind", "type", "title", "weddingId", "createdByUserId", "status", "createdAt", "updatedAt")
 VALUES
-  ('vault-phase1-conversation-a', 'DIRECT', 'WEDDING', 'A', 'vault-phase1-wedding-a', 'vault-phase1-user-a', 'OPEN', now(), now()),
-  ('vault-phase1-conversation-a2', 'DIRECT', 'WEDDING', 'A2', 'vault-phase1-wedding-a', 'vault-phase1-user-a', 'OPEN', now(), now()),
+  ('vault-phase1-conversation-a', 'DIRECT', 'PLANNER_CLIENT', 'A', 'vault-phase1-wedding-a', 'vault-phase1-user-a', 'OPEN', now(), now()),
+  ('vault-phase1-conversation-a2', 'DIRECT', 'PLANNER_CLIENT', 'A2', 'vault-phase1-wedding-a', 'vault-phase1-user-a', 'OPEN', now(), now()),
   ('vault-phase1-conversation-null', 'DIRECT', 'SUPPORT', 'No wedding', NULL, 'vault-phase1-user-a', 'OPEN', now(), now());
 
 INSERT INTO wewed_communications."CommunicationMessage"
