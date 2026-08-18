@@ -63,6 +63,12 @@ BEGIN
 END;
 $$;
 
+ALTER FUNCTION wewed_communications.enforce_communication_attachment_context()
+  SET search_path TO wewed_communications, public, pg_temp;
+REVOKE ALL PRIVILEGES ON FUNCTION
+  wewed_communications.enforce_communication_attachment_context()
+FROM PUBLIC;
+
 CREATE TRIGGER "CommunicationAttachment_context_guard"
 BEFORE INSERT OR UPDATE ON wewed_communications."CommunicationAttachment"
 FOR EACH ROW EXECUTE FUNCTION wewed_communications.enforce_communication_attachment_context();
@@ -79,7 +85,7 @@ ALTER TABLE wewed_notebook."NotebookAttachment"
 CREATE INDEX IF NOT EXISTS "NotebookAttachment_vaultObjectId_idx"
   ON wewed_notebook."NotebookAttachment" ("vaultObjectId");
 
--- Defense in depth: browser roles never receive direct access to the private attachment table.
+-- Defense in depth: browser roles never receive direct table access or direct trigger-function execution.
 REVOKE ALL PRIVILEGES ON wewed_communications."CommunicationAttachment" FROM PUBLIC;
 DO $phase1_private_roles$
 DECLARE
@@ -88,6 +94,7 @@ BEGIN
   FOREACH role_name IN ARRAY ARRAY['anon', 'authenticated'] LOOP
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = role_name) THEN
       EXECUTE format('REVOKE ALL PRIVILEGES ON wewed_communications."CommunicationAttachment" FROM %I', role_name);
+      EXECUTE format('REVOKE ALL PRIVILEGES ON FUNCTION wewed_communications.enforce_communication_attachment_context() FROM %I', role_name);
     END IF;
   END LOOP;
 END
