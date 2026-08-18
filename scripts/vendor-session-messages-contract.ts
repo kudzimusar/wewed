@@ -18,6 +18,8 @@ const authMe = read('src/app/api/auth/me/route.ts')
 const authSignin = read('src/app/api/auth/signin/route.ts')
 const browserAuth = read('src/lib/admin-auth.ts')
 const messagesPage = read('src/app/messages/page.tsx')
+const messagesWorkspace = read('src/components/communications/messages-workspace.tsx')
+const messagesImplementation = `${messagesPage}\n${messagesWorkspace}`
 const vendorWorkspace = read('src/app/vendor/page.tsx')
 const vendorMarketplace = read('src/app/vendors/page.tsx')
 
@@ -64,22 +66,27 @@ requireText(
 )
 requireText(
   messagesPage,
+  'MessagesWorkspace',
+  'Messages route must render the shared Messages workspace.',
+)
+requireText(
+  messagesImplementation,
   "type DashboardRole = 'admin' | 'couple' | 'planner' | 'vendor'",
   'Messages must recognize Vendor as a first-class participant role.',
 )
 requireText(
-  messagesPage,
+  messagesImplementation,
   "if (role === 'vendor') return '/vendor'",
   'Messages back navigation must return Vendors to the Vendor workspace.',
 )
 requireOrder(
-  messagesPage,
+  messagesImplementation,
   'await loadMe()',
   'await Promise.all([loadContacts(), loadConversations()])',
   'Messages must verify authentication before loading private inbox/contact data.',
 )
 requireText(
-  messagesPage,
+  messagesImplementation,
   'setConversations([])',
   'Messages must clear partial conversation state when initial authentication fails.',
 )
