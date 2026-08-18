@@ -16,7 +16,7 @@ ALTER TABLE public."ServiceEngagement"
       'awaiting_acceptance', 'completed', 'cancelled', 'disputed'
     ));
 
-CREATE INDEX "ServiceEngagement_wedding_lifecycle_idx"
+CREATE INDEX "ServiceEngagement_weddingId_lifecycleStatus_idx"
   ON public."ServiceEngagement" ("weddingId", "lifecycleStatus");
 
 CREATE TABLE public."EngagementParty" (
@@ -35,9 +35,9 @@ CREATE TABLE public."EngagementParty" (
   "requiredForReview" boolean NOT NULL DEFAULT true,
   "status" text NOT NULL DEFAULT 'active',
   "createdById" text,
-  "createdAt" timestamptz NOT NULL DEFAULT now(),
-  "updatedAt" timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT "EngagementParty_engagement_wedding_fkey"
+  "createdAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" timestamp(3) NOT NULL,
+  CONSTRAINT "EngagementParty_serviceEngagementId_weddingId_fkey"
     FOREIGN KEY ("serviceEngagementId", "weddingId")
     REFERENCES public."ServiceEngagement"("id", "weddingId")
     ON DELETE CASCADE ON UPDATE CASCADE,
@@ -51,9 +51,9 @@ CREATE TABLE public."EngagementParty" (
   CONSTRAINT "EngagementParty_status_check"
     CHECK ("status" IN ('active', 'removed', 'replaced'))
 );
-CREATE INDEX "EngagementParty_engagement_idx"
+CREATE INDEX "EngagementParty_serviceEngagementId_status_partyRole_idx"
   ON public."EngagementParty" ("serviceEngagementId", "status", "partyRole");
-CREATE INDEX "EngagementParty_wedding_idx"
+CREATE INDEX "EngagementParty_weddingId_partyRole_idx"
   ON public."EngagementParty" ("weddingId", "partyRole");
 
 CREATE TABLE public."ContractTemplate" (
@@ -67,22 +67,22 @@ CREATE TABLE public."ContractTemplate" (
   "semanticVersion" text NOT NULL,
   "status" text NOT NULL DEFAULT 'internal_review',
   "reviewStatus" text NOT NULL DEFAULT 'operator_review',
-  "effectiveFrom" timestamptz,
-  "retiredAt" timestamptz,
+  "effectiveFrom" timestamp(3),
+  "retiredAt" timestamp(3),
   "summary" text,
   "templateHash" text NOT NULL,
   "metadata" text,
   "createdById" text,
-  "createdAt" timestamptz NOT NULL DEFAULT now(),
-  "updatedAt" timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT "ContractTemplate_identity_key"
+  "createdAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" timestamp(3) NOT NULL,
+  CONSTRAINT "ContractTemplate_code_semanticVersion_marketCode_key"
     UNIQUE ("code", "semanticVersion", "marketCode"),
   CONSTRAINT "ContractTemplate_status_check"
     CHECK ("status" IN ('draft', 'internal_review', 'counsel_approved', 'active', 'retired')),
   CONSTRAINT "ContractTemplate_hash_check"
     CHECK (char_length("templateHash") = 64)
 );
-CREATE INDEX "ContractTemplate_service_status_idx"
+CREATE INDEX "ContractTemplate_serviceCategory_marketCode_status_idx"
   ON public."ContractTemplate" ("serviceCategory", "marketCode", "status");
 
 CREATE TABLE public."ContractClause" (
@@ -96,14 +96,14 @@ CREATE TABLE public."ContractClause" (
   "reviewStatus" text NOT NULL DEFAULT 'operator_review',
   "contentHash" text NOT NULL,
   "createdById" text,
-  "createdAt" timestamptz NOT NULL DEFAULT now(),
-  "updatedAt" timestamptz NOT NULL DEFAULT now(),
+  "createdAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" timestamp(3) NOT NULL,
   CONSTRAINT "ContractClause_code_version_key" UNIQUE ("code", "version"),
   CONSTRAINT "ContractClause_status_check"
     CHECK ("status" IN ('draft', 'internal_review', 'counsel_approved', 'active', 'retired')),
   CONSTRAINT "ContractClause_hash_check" CHECK (char_length("contentHash") = 64)
 );
-CREATE INDEX "ContractClause_family_status_idx"
+CREATE INDEX "ContractClause_clauseFamily_status_idx"
   ON public."ContractClause" ("clauseFamily", "status");
 
 CREATE TABLE public."ContractTemplateClause" (
@@ -113,15 +113,15 @@ CREATE TABLE public."ContractTemplateClause" (
   "position" integer NOT NULL DEFAULT 0,
   "required" boolean NOT NULL DEFAULT true,
   "configuration" text,
-  "createdAt" timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT "ContractTemplateClause_template_fkey"
-    FOREIGN KEY ("templateId") REFERENCES public."ContractTemplate"("id") ON DELETE CASCADE,
-  CONSTRAINT "ContractTemplateClause_clause_fkey"
-    FOREIGN KEY ("clauseId") REFERENCES public."ContractClause"("id") ON DELETE RESTRICT,
-  CONSTRAINT "ContractTemplateClause_template_clause_key" UNIQUE ("templateId", "clauseId"),
+  "createdAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "ContractTemplateClause_templateId_fkey"
+    FOREIGN KEY ("templateId") REFERENCES public."ContractTemplate"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT "ContractTemplateClause_clauseId_fkey"
+    FOREIGN KEY ("clauseId") REFERENCES public."ContractClause"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT "ContractTemplateClause_templateId_clauseId_key" UNIQUE ("templateId", "clauseId"),
   CONSTRAINT "ContractTemplateClause_position_check" CHECK ("position" >= 0)
 );
-CREATE INDEX "ContractTemplateClause_template_position_idx"
+CREATE INDEX "ContractTemplateClause_templateId_position_id_idx"
   ON public."ContractTemplateClause" ("templateId", "position", "id");
 
 CREATE SEQUENCE IF NOT EXISTS public.wewed_contract_number_seq AS bigint START WITH 1 INCREMENT BY 1 NO CYCLE;
@@ -146,17 +146,17 @@ CREATE TABLE public."Contract" (
   "currentVersionNumber" integer NOT NULL DEFAULT 0,
   "title" text NOT NULL,
   "createdById" text,
-  "issuedAt" timestamptz,
-  "closedAt" timestamptz,
-  "createdAt" timestamptz NOT NULL DEFAULT now(),
-  "updatedAt" timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT "Contract_engagement_wedding_fkey"
+  "issuedAt" timestamp(3),
+  "closedAt" timestamp(3),
+  "createdAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" timestamp(3) NOT NULL,
+  CONSTRAINT "Contract_serviceEngagementId_weddingId_fkey"
     FOREIGN KEY ("serviceEngagementId", "weddingId")
     REFERENCES public."ServiceEngagement"("id", "weddingId")
     ON DELETE RESTRICT ON UPDATE CASCADE,
-  CONSTRAINT "Contract_template_fkey"
-    FOREIGN KEY ("templateId") REFERENCES public."ContractTemplate"("id") ON DELETE RESTRICT,
-  CONSTRAINT "Contract_id_wedding_key" UNIQUE ("id", "weddingId"),
+  CONSTRAINT "Contract_templateId_fkey"
+    FOREIGN KEY ("templateId") REFERENCES public."ContractTemplate"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT "Contract_id_weddingId_key" UNIQUE ("id", "weddingId"),
   CONSTRAINT "Contract_version_number_check" CHECK ("currentVersionNumber" >= 0),
   CONSTRAINT "Contract_status_check"
     CHECK ("status" IN (
@@ -165,10 +165,10 @@ CREATE TABLE public."Contract" (
       'CANCELLED', 'DISPUTED', 'VOIDED_BY_GOVERNED_PROCESS'
     ))
 );
-CREATE INDEX "Contract_engagement_status_idx"
-  ON public."Contract" ("serviceEngagementId", "status", "createdAt" DESC);
-CREATE INDEX "Contract_wedding_status_idx"
-  ON public."Contract" ("weddingId", "status", "createdAt" DESC);
+CREATE INDEX "Contract_serviceEngagementId_status_createdAt_idx"
+  ON public."Contract" ("serviceEngagementId", "status", "createdAt");
+CREATE INDEX "Contract_weddingId_status_createdAt_idx"
+  ON public."Contract" ("weddingId", "status", "createdAt");
 
 CREATE TABLE public."ContractVersion" (
   "id" text PRIMARY KEY,
@@ -182,16 +182,16 @@ CREATE TABLE public."ContractVersion" (
   "contentSha256" text,
   "artifactVaultObjectId" text,
   "artifactSha256" text,
-  "issuedAt" timestamptz,
+  "issuedAt" timestamp(3),
   "createdById" text,
-  "createdAt" timestamptz NOT NULL DEFAULT now(),
-  "updatedAt" timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT "ContractVersion_contract_wedding_fkey"
+  "createdAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" timestamp(3) NOT NULL,
+  CONSTRAINT "ContractVersion_contractId_weddingId_fkey"
     FOREIGN KEY ("contractId", "weddingId")
     REFERENCES public."Contract"("id", "weddingId")
     ON DELETE RESTRICT ON UPDATE CASCADE,
-  CONSTRAINT "ContractVersion_contract_version_key" UNIQUE ("contractId", "versionNumber"),
-  CONSTRAINT "ContractVersion_id_contract_key" UNIQUE ("id", "contractId"),
+  CONSTRAINT "ContractVersion_contractId_versionNumber_key" UNIQUE ("contractId", "versionNumber"),
+  CONSTRAINT "ContractVersion_id_contractId_key" UNIQUE ("id", "contractId"),
   CONSTRAINT "ContractVersion_version_check" CHECK ("versionNumber" > 0),
   CONSTRAINT "ContractVersion_status_check"
     CHECK ("status" IN (
@@ -208,10 +208,10 @@ CREATE TABLE public."ContractVersion" (
       ("contentSha256" IS NOT NULL AND "artifactVaultObjectId" IS NOT NULL AND "artifactSha256" IS NOT NULL)
     )
 );
-CREATE INDEX "ContractVersion_contract_status_idx"
-  ON public."ContractVersion" ("contractId", "status", "versionNumber" DESC);
-CREATE INDEX "ContractVersion_artifact_idx"
-  ON public."ContractVersion" ("artifactVaultObjectId") WHERE "artifactVaultObjectId" IS NOT NULL;
+CREATE INDEX "ContractVersion_contractId_status_versionNumber_idx"
+  ON public."ContractVersion" ("contractId", "status", "versionNumber");
+CREATE INDEX "ContractVersion_artifactVaultObjectId_idx"
+  ON public."ContractVersion" ("artifactVaultObjectId");
 
 CREATE TABLE public."ContractReviewGrant" (
   "id" text PRIMARY KEY,
@@ -221,25 +221,25 @@ CREATE TABLE public."ContractReviewGrant" (
   "role" text NOT NULL,
   "tokenHash" text NOT NULL UNIQUE,
   "status" text NOT NULL DEFAULT 'ACTIVE',
-  "expiresAt" timestamptz NOT NULL,
-  "revokedAt" timestamptz,
-  "lastAccessedAt" timestamptz,
+  "expiresAt" timestamp(3) NOT NULL,
+  "revokedAt" timestamp(3),
+  "lastAccessedAt" timestamp(3),
   "createdById" text,
-  "createdAt" timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT "ContractReviewGrant_contract_fkey"
-    FOREIGN KEY ("contractId") REFERENCES public."Contract"("id") ON DELETE CASCADE,
-  CONSTRAINT "ContractReviewGrant_version_contract_fkey"
+  "createdAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "ContractReviewGrant_contractId_fkey"
+    FOREIGN KEY ("contractId") REFERENCES public."Contract"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT "ContractReviewGrant_contractVersionId_contractId_fkey"
     FOREIGN KEY ("contractVersionId", "contractId")
-    REFERENCES public."ContractVersion"("id", "contractId") ON DELETE CASCADE,
-  CONSTRAINT "ContractReviewGrant_party_fkey"
-    FOREIGN KEY ("engagementPartyId") REFERENCES public."EngagementParty"("id") ON DELETE SET NULL,
+    REFERENCES public."ContractVersion"("id", "contractId") ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT "ContractReviewGrant_engagementPartyId_fkey"
+    FOREIGN KEY ("engagementPartyId") REFERENCES public."EngagementParty"("id") ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT "ContractReviewGrant_role_check"
     CHECK ("role" IN ('CLIENT', 'PLANNER', 'SERVICE_PROVIDER', 'AUTHORIZED_REPRESENTATIVE', 'WITNESS')),
   CONSTRAINT "ContractReviewGrant_status_check"
     CHECK ("status" IN ('ACTIVE', 'REVOKED', 'EXPIRED')),
   CONSTRAINT "ContractReviewGrant_token_hash_check" CHECK (char_length("tokenHash") = 64)
 );
-CREATE INDEX "ContractReviewGrant_version_status_idx"
+CREATE INDEX "ContractReviewGrant_contractVersionId_status_expiresAt_idx"
   ON public."ContractReviewGrant" ("contractVersionId", "status", "expiresAt");
 
 CREATE TABLE public."ContractEvent" (
@@ -249,11 +249,11 @@ CREATE TABLE public."ContractEvent" (
   "eventType" text NOT NULL,
   "actorId" text,
   "metadata" text,
-  "createdAt" timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT "ContractEvent_contract_fkey"
-    FOREIGN KEY ("contractId") REFERENCES public."Contract"("id") ON DELETE RESTRICT
+  "createdAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "ContractEvent_contractId_fkey"
+    FOREIGN KEY ("contractId") REFERENCES public."Contract"("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
-CREATE INDEX "ContractEvent_contract_created_idx"
+CREATE INDEX "ContractEvent_contractId_createdAt_id_idx"
   ON public."ContractEvent" ("contractId", "createdAt", "id");
 
 CREATE OR REPLACE FUNCTION public.enforce_issued_contract_version_immutability()
