@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { db } from '@/lib/db'
+import { logAuditEvent } from '@/lib/audit'
 import {
   createVaultLink,
   prepareVaultUpload,
@@ -111,6 +112,20 @@ export async function uploadWeddingVaultObject(input: {
     await removePreparedVaultUpload(prepared)
     throw error
   }
+
+  await logAuditEvent({
+    action: 'vault.object.uploaded',
+    resourceType: 'VaultObject',
+    resourceId: prepared.id,
+    weddingId: input.weddingId,
+    actorId: input.actorId,
+    afterValue: {
+      category,
+      storageState: prepared.storageState,
+      scanState: prepared.scanState,
+      byteSize: prepared.byteSize,
+    },
+  })
 
   return {
     id: prepared.id,
