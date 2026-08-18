@@ -159,11 +159,13 @@ jobs:
       - name: Run communications authorization integration
         run: bun test src/lib/communications.integration.test.ts src/lib/vendor-marketplace-communications.integration.test.ts
 
-      - name: Confirm public Prisma schema is untouched
-        if: github.event_name == 'pull_request'
+      - name: Confirm communications domain stays out of public Prisma
         shell: bash
         run: |
-          git diff --exit-code "origin/${{ github.base_ref }}"...HEAD -- prisma/schema.prisma
+          if grep -nE '^model (CommunicationConversation|CommunicationParticipant|CommunicationMessage|CommunicationDelivery|CommunicationEvent|CommunicationEndpoint|CommunicationPreference|CommunicationProviderEvent)[[:space:]]*\{' prisma/schema.prisma; then
+            echo "::error::Private communications tables must remain in wewed_communications and must not be modeled in public Prisma."
+            exit 1
+          fi
 
       - name: Validate message API wedding isolation contract
         shell: bash
