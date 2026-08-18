@@ -229,7 +229,11 @@ BEGIN
   BEGIN
     UPDATE wewed_contracts."DisputeIssue" SET "findingStatus"='BREACH_CONFIRMED' WHERE id='phase4-issue-a';
     RAISE EXCEPTION 'Wewed dispute finding fiction unexpectedly succeeded';
-  EXCEPTION WHEN check_violation THEN NULL;
+  EXCEPTION
+    WHEN check_violation THEN NULL;
+    WHEN raise_exception THEN
+      IF SQLERRM = 'Wewed dispute finding fiction unexpectedly succeeded' THEN RAISE; END IF;
+      IF SQLERRM <> 'Dispute allegation identity cannot be rewritten' THEN RAISE; END IF;
   END;
 END $$;
 
