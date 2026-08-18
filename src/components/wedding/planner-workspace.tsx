@@ -49,6 +49,7 @@ import {
 } from '@/components/wedding/planner/modules/planner-vendors-module'
 import { useToast } from '@/hooks/use-toast'
 import { normalizePlannerTitle, plannerTitleError } from '@/lib/planner-task-validation'
+import { PLANNER_REFRESH_EVENT } from '@/lib/planner-workspace-events'
 
 export type WorkspaceTab =
   | 'overview'
@@ -321,6 +322,12 @@ export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }
       refreshControllerRef.current?.abort()
       refreshControllerRef.current = null
     }
+  }, [refresh])
+
+  useEffect(() => {
+    const handleRefresh = () => void refresh(true)
+    window.addEventListener(PLANNER_REFRESH_EVENT, handleRefresh)
+    return () => window.removeEventListener(PLANNER_REFRESH_EVENT, handleRefresh)
   }, [refresh])
 
   async function mutate(
@@ -624,13 +631,15 @@ export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-espresso text-champagne">
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gold/15 bg-espresso/95 px-3 py-2 sm:px-5">
+      <div
+        data-planner-workspace-navigation
+        className="flex shrink-0 items-center border-b border-gold/15 bg-espresso/95 px-3 py-2 sm:px-5"
+      >
         <div className="min-w-0 flex-1">
           <label className="sr-only" htmlFor="planner-workspace-section">Planner workspace section</label>
-          <select id="planner-workspace-section" value={activeTab} onChange={(event) => setActiveTab(event.target.value as WorkspaceTab)} className="h-11 w-full rounded-lg border border-gold/25 bg-espresso px-3 font-sans text-sm text-champagne sm:hidden">{TABS.map((tab) => <option key={tab.value} value={tab.value}>{tab.label}</option>)}</select>
-          <nav className="hidden items-center gap-1 sm:flex" aria-label="Planner workspace sections">{TABS.map((tab) => <button key={tab.value} type="button" onClick={() => setActiveTab(tab.value)} className={`inline-flex min-h-10 items-center gap-1.5 rounded-lg border px-3 py-2 font-sans text-[11px] transition-colors ${activeTab === tab.value ? 'border-gold/35 bg-gold/12 text-gold' : 'border-transparent text-champagne/55 hover:border-gold/15 hover:text-champagne'}`}>{tab.icon}{tab.label}</button>)}</nav>
+          <select id="planner-workspace-section" value={activeTab} onChange={(event) => setActiveTab(event.target.value as WorkspaceTab)} className="h-11 w-full rounded-lg border border-gold/25 bg-espresso px-3 font-sans text-sm text-champagne md:hidden">{TABS.map((tab) => <option key={tab.value} value={tab.value}>{tab.label}</option>)}</select>
+          <nav className="hidden items-center gap-1 md:flex" aria-label="Planner workspace sections">{TABS.map((tab) => <button key={tab.value} type="button" onClick={() => setActiveTab(tab.value)} className={`inline-flex min-h-10 items-center gap-1.5 rounded-lg border px-3 py-2 font-sans text-[11px] transition-colors ${activeTab === tab.value ? 'border-gold/35 bg-gold/12 text-gold' : 'border-transparent text-champagne/55 hover:border-gold/15 hover:text-champagne'}`}>{tab.icon}{tab.label}</button>)}</nav>
         </div>
-        <Button type="button" variant="outline" size="sm" onClick={() => void refresh(true)} disabled={loading} className="shrink-0 border-gold/25 bg-transparent text-champagne/65 hover:bg-gold/10 hover:text-gold"><RefreshCw className={`size-3.5 ${loading ? 'animate-spin' : ''}`} /><span className="hidden sm:inline">Refresh</span></Button>
       </div>
 
       <div data-planner-module-scroll="true" className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-6 sm:py-6">

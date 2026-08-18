@@ -8,6 +8,7 @@ import {
   FileSpreadsheet,
   LayoutGrid,
   Printer,
+  RefreshCw,
   SlidersHorizontal,
 } from 'lucide-react'
 import { ImportExportBar } from '@/components/wedding/import-export-bar'
@@ -21,7 +22,10 @@ import {
   plannerToolFromPath,
   type PlannerToolSlug,
 } from '@/lib/planner-route-state'
-import { openPlannerWorksheetCommandCenter } from '@/lib/planner-workspace-events'
+import {
+  openPlannerWorksheetCommandCenter,
+  refreshPlannerWorksheet,
+} from '@/lib/planner-workspace-events'
 
 const WORKSPACE_MODULES: Array<{
   value: WorkspaceTab
@@ -360,6 +364,19 @@ export function PlannerWorkspace() {
                   <span className="block text-[10px] font-normal text-champagne/45">
                     {activeTab === 'overview' ? 'A4 overview working document' : 'A4 output and record actions'}
                   </span>
+                </span>
+              </button>
+
+              <button
+                type="button"
+                data-testid="worksheet-refresh-action"
+                onClick={refreshPlannerWorksheet}
+                className="flex min-h-11 items-center gap-3 rounded-xl border border-gold/15 px-3 text-left text-sm text-champagne/70 hover:border-gold/30 hover:text-gold"
+              >
+                <RefreshCw className="size-4 shrink-0" />
+                <span>
+                  <span className="block">Refresh data</span>
+                  <span className="block text-[10px] text-champagne/40">Reload the selected wedding worksheets</span>
                 </span>
               </button>
 

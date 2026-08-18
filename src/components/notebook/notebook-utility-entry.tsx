@@ -9,6 +9,14 @@ export function NotebookUtilityEntry({ surface }: { surface: 'planner' | 'admin'
   const href = surface === 'planner' ? '/planner/notebook' : '/admin/notebook'
   const onNotebook = pathname.startsWith(href)
 
+  if (surface === 'planner') {
+    return (
+      <div data-planner-notebook-host className="contents">
+        <NotebookQuickCapture surface="planner" showTrigger={false} />
+      </div>
+    )
+  }
+
   return (
     <>
       {!onNotebook && (
@@ -21,7 +29,7 @@ export function NotebookUtilityEntry({ surface }: { surface: 'planner' | 'admin'
           <NotebookPen className="size-4" />
         </a>
       )}
-      <NotebookQuickCapture surface={surface} />
+      <NotebookQuickCapture surface="admin" />
     </>
   )
 }
