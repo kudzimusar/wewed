@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { applySuggestions } from '@/lib/notebook/actions'
 import { notebookErrorResponse, requireNotebookActor } from '@/lib/notebook/http'
+import { setNotebookTags } from '@/lib/notebook/metadata'
 import {
   addLink,
   getNote,
@@ -52,6 +53,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
         },
       )
       return NextResponse.json({ success: true, data: note })
+    }
+    if (action === 'set-tags') {
+      const tags = await setNotebookTags(access.actor, id, body.tags)
+      return NextResponse.json({ success: true, data: { tags } })
     }
     if (action === 'share') {
       let userId = typeof body.userId === 'string' ? body.userId : ''
