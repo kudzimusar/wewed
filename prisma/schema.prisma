@@ -48,11 +48,11 @@ model Wedding {
   invitationCardMessage String?
   rsvpDeadline          DateTime?
 
-  lifecycle       String    @default("before")
-  privacy         String    @default("public")
-  canonSealed     Boolean   @default(false)
-  canonSealedAt   DateTime?
-  subscriptionTier String   @default("free")
+  lifecycle        String    @default("before")
+  privacy          String    @default("public")
+  canonSealed      Boolean   @default(false)
+  canonSealedAt    DateTime?
+  subscriptionTier String    @default("free")
 
   coupleId String
   couple   Couple @relation(fields: [coupleId], references: [id])
@@ -66,6 +66,8 @@ model Wedding {
   programmeItems          ProgrammeItem[]
   plannerTasks            PlannerTask[]
   budgetItems             BudgetItem[]
+  serviceEngagements      ServiceEngagement[]
+  vaultObjects            VaultObject[]
   seatingTables           SeatingTable[]
   importJobs              ImportJob[]
   contentRevisions        ContentRevision[]
@@ -85,18 +87,18 @@ model Wedding {
 }
 
 model Guest {
-  id                  String  @id @default(cuid())
-  name                String
-  email               String?
-  phone               String?
-  role                String  @default("guest")
-  roleDetail          String?
-  side                String?
-  tableNumber         Int?
-  seatingTableId      String?
-  seatingTable        SeatingTable? @relation(fields: [seatingTableId], references: [id])
-  contributionToken   String? @unique
-  contributionStatus  String? @default("none")
+  id                 String  @id @default(cuid())
+  name               String
+  email              String?
+  phone              String?
+  role               String  @default("guest")
+  roleDetail         String?
+  side               String?
+  tableNumber        Int?
+  seatingTableId     String?
+  seatingTable       SeatingTable? @relation(fields: [seatingTableId], references: [id])
+  contributionToken  String? @unique
+  contributionStatus String? @default("none")
 
   weddingId String
   wedding   Wedding @relation(fields: [weddingId], references: [id])
@@ -109,20 +111,20 @@ model Guest {
 }
 
 model RSVP {
-  id             String   @id @default(cuid())
-  token          String   @unique
-  attending      Boolean?
-  mealChoice     String?
-  plusOne        Boolean  @default(false)
-  plusOneName    String?
-  plusOneMeal    String?
-  kidsAttending  Boolean  @default(false)
-  kidsCount      Int      @default(0)
-  songRequests   String?
-  dietaryNotes   String?
-  message        String?
-  checkedIn      Boolean  @default(false)
-  checkedInAt    DateTime?
+  id            String   @id @default(cuid())
+  token         String   @unique
+  attending     Boolean?
+  mealChoice    String?
+  plusOne       Boolean  @default(false)
+  plusOneName   String?
+  plusOneMeal   String?
+  kidsAttending Boolean  @default(false)
+  kidsCount     Int      @default(0)
+  songRequests  String?
+  dietaryNotes  String?
+  message       String?
+  checkedIn     Boolean  @default(false)
+  checkedInAt   DateTime?
 
   guestId String @unique
   guest   Guest  @relation(fields: [guestId], references: [id])
@@ -224,12 +226,15 @@ model Vendor {
   planningRating Float?
   notes          String?
 
-  weddingId   String
-  wedding     Wedding      @relation(fields: [weddingId], references: [id])
-  budgetItems BudgetItem[]
+  weddingId          String
+  wedding            Wedding             @relation(fields: [weddingId], references: [id])
+  budgetItems        BudgetItem[]
+  serviceEngagements ServiceEngagement[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([id, weddingId])
 }
 
 model ProgrammeItem {
@@ -287,26 +292,134 @@ model PlannerTask {
 }
 
 model BudgetItem {
-  id            String   @id @default(cuid())
-  category      String
-  description   String
-  estimatedCost Float
-  actualCost    Float?
-  paidAmount    Float    @default(0)
-  currency      String   @default("USD")
-  vendorId      String?
-  vendorName    String?
-  notes         String?
-  dueDate       DateTime?
+  id                  String   @id @default(cuid())
+  category            String
+  description         String
+  estimatedCost       Float
+  actualCost          Float?
+  paidAmount          Float    @default(0)
+  currency            String   @default("USD")
+  vendorId            String?
+  vendorName          String?
+  notes               String?
+  dueDate             DateTime?
+  serviceEngagementId String?
 
-  weddingId String
-  wedding   Wedding @relation(fields: [weddingId], references: [id])
-  vendor    Vendor? @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  weddingId         String
+  wedding           Wedding            @relation(fields: [weddingId], references: [id])
+  vendor            Vendor?            @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  serviceEngagement ServiceEngagement? @relation(fields: [serviceEngagementId, weddingId], references: [id, weddingId], onDelete: Restrict)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([id, weddingId])
   @@index([vendorId])
+  @@index([serviceEngagementId])
+}
+
+model ServiceEngagement {
+  id                         String   @id @default(cuid())
+  origin                     String   @default("historical")
+  recordMode                 String   @default("record_only")
+  serviceCategory            String
+  serviceDescription         String?
+  agreedAmount               Decimal? @db.Decimal(14, 2)
+  currency                   String   @default("USD")
+  serviceDate                DateTime?
+  serviceLocation            String?
+  externalAgreementStatus    String   @default("unknown")
+  externalAgreementReference String?
+  historicalBasis            String?
+  recordedById               String?
+
+  weddingId   String
+  wedding     Wedding @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  vendorId    String
+  vendor      Vendor  @relation(fields: [vendorId, weddingId], references: [id, weddingId], onDelete: Restrict)
+
+  budgetItems BudgetItem[]
+  payments    EngagementPayment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([id, weddingId])
+  @@index([weddingId, origin])
+  @@index([vendorId, weddingId])
+  @@index([serviceDate])
+}
+
+model EngagementPayment {
+  id                  String   @id @default(cuid())
+  amount              Decimal  @db.Decimal(14, 2)
+  currency            String   @default("USD")
+  paidAt              DateTime?
+  method              String?
+  reference           String?
+  notes               String?
+  recordedById        String?
+  serviceEngagementId String
+  serviceEngagement   ServiceEngagement @relation(fields: [serviceEngagementId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([serviceEngagementId, paidAt])
+  @@index([reference])
+}
+
+model VaultObject {
+  id               String   @id @default(cuid())
+  storageProvider  String
+  objectKey        String   @unique
+  originalFilename String
+  displayName      String
+  mimeType         String
+  extension        String?
+  byteSize         BigInt
+  checksumSha256   String
+  uploaderActorId  String?
+  uploadSource     String
+  storageState     String   @default("registered")
+  scanState        String   @default("pending")
+  retentionClass   String   @default("wedding_record")
+  legalHold        Boolean  @default(false)
+  sensitivity      String   @default("private")
+  publicationState String   @default("private")
+  metadata         String?
+  archivedAt       DateTime?
+  deletedAt        DateTime?
+
+  weddingId String
+  wedding   Wedding @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  links     VaultLink[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([id, weddingId])
+  @@index([weddingId, createdAt])
+  @@index([checksumSha256])
+  @@index([storageState, scanState])
+}
+
+model VaultLink {
+  id            String @id @default(cuid())
+  vaultObjectId String
+  weddingId     String
+  entityType    String
+  entityId      String
+  linkRole      String
+  createdById   String?
+
+  vaultObject VaultObject @relation(fields: [vaultObjectId, weddingId], references: [id, weddingId], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([vaultObjectId, entityType, entityId, linkRole])
+  @@index([weddingId, entityType, entityId])
+  @@index([entityType, entityId])
 }
 
 model SeatingTable {
@@ -324,17 +437,17 @@ model SeatingTable {
 }
 
 model User {
-  id                   String   @id @default(cuid())
-  email                String   @unique
-  name                 String?
-  passwordHash         String?
-  role                 String   @default("viewer")
-  coupleId             String?
-  couple               Couple?  @relation(fields: [coupleId], references: [id])
-  currentWeddingId     String?
-  currentWedding       Wedding? @relation("CurrentWedding", fields: [currentWeddingId], references: [id], onDelete: SetNull)
-  isActive             Boolean  @default(true)
-  lastLoginAt          DateTime?
+  id               String   @id @default(cuid())
+  email            String   @unique
+  name             String?
+  passwordHash     String?
+  role             String   @default("viewer")
+  coupleId         String?
+  couple           Couple?  @relation(fields: [coupleId], references: [id])
+  currentWeddingId String?
+  currentWedding   Wedding? @relation("CurrentWedding", fields: [currentWeddingId], references: [id], onDelete: SetNull)
+  isActive         Boolean  @default(true)
+  lastLoginAt      DateTime?
 
   auditEvents          AuditEvent[]
   contentRevisions     ContentRevision[]
@@ -387,8 +500,8 @@ model ImportJob {
   fieldMapping    String?
   previewData     String?
 
-  weddingId String
-  wedding   Wedding @relation(fields: [weddingId], references: [id])
+  weddingId   String
+  wedding     Wedding @relation(fields: [weddingId], references: [id])
   performedBy String?
 
   createdAt DateTime @default(now())
@@ -431,7 +544,7 @@ model ContentSubmission {
   reviewedBy String?
   reviewedAt DateTime?
   createdAt  DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt  DateTime @updatedAt
 }
 
 model AuditEvent {
@@ -500,27 +613,27 @@ model ThemePreference {
 }
 
 model GuestContribution {
-  id           String @id @default(cuid())
-  guestId      String @unique
-  guest        Guest  @relation(fields: [guestId], references: [id])
-  weddingId    String
-  wedding      Wedding @relation(fields: [weddingId], references: [id])
-  type         String @default("memory")
-  displayName  String
-  relationship String?
-  message      String
-  photoUrl     String?
-  favoriteSong String?
-  privacy      String @default("public")
-  status       String @default("draft")
-  moderatorNotes String?
-  wordCount    Int @default(0)
-  charCount    Int @default(0)
-  editCount    Int @default(0)
+  id              String @id @default(cuid())
+  guestId         String @unique
+  guest           Guest  @relation(fields: [guestId], references: [id])
+  weddingId       String
+  wedding         Wedding @relation(fields: [weddingId], references: [id])
+  type            String @default("memory")
+  displayName     String
+  relationship    String?
+  message         String
+  photoUrl        String?
+  favoriteSong    String?
+  privacy         String @default("public")
+  status          String @default("draft")
+  moderatorNotes  String?
+  wordCount       Int @default(0)
+  charCount       Int @default(0)
+  editCount       Int @default(0)
   revisionHistory String?
-  submittedAt  DateTime?
-  reviewedAt   DateTime?
-  reviewedBy   String?
+  submittedAt     DateTime?
+  reviewedAt      DateTime?
+  reviewedBy      String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
