@@ -15,6 +15,8 @@ import {
   LogOut,
   Menu,
   MessageCircle,
+  NotebookPen,
+  Plus,
   Repeat2,
   Settings,
   Sparkles,
@@ -31,6 +33,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
+import { openNotebookQuickCapture } from '@/lib/notebook-events'
 
 interface PlannerAdaptiveNavigationProps {
   displayName?: string | null
@@ -47,6 +50,7 @@ const GLOBAL_ITEMS = [
   ['/messages', 'Messages', MessageCircle],
   ['/planner/ai-workspace', 'AI', Sparkles],
   ['/planner/marketplace', 'Business', BriefcaseBusiness],
+  ['/planner/notebook', 'Notebook', NotebookPen],
   ['/', 'Wewed', House],
 ] as const
 
@@ -59,6 +63,7 @@ function itemIsActive(pathname: string, href: string): boolean {
         !pathname.startsWith('/planner/marketplace') &&
         !pathname.startsWith('/planner/ai-workspace') &&
         !pathname.startsWith('/planner/wedding-brief') &&
+        !pathname.startsWith('/planner/notebook') &&
         !pathname.startsWith('/planner/portfolio'))
     )
   }
@@ -190,6 +195,19 @@ export function PlannerAdaptiveNavigation({
                     <ExternalLink className="size-4" />
                     Wedding site
                   </Link>
+                </SheetClose>
+              )}
+              {!pathname.includes('/notebook') && (
+                <SheetClose asChild>
+                  <button
+                    type="button"
+                    data-testid="planner-quick-note-menu-action"
+                    onClick={openNotebookQuickCapture}
+                    className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-left text-sm text-champagne/75 hover:bg-gold/10 hover:text-gold"
+                  >
+                    <Plus className="size-4" />
+                    Quick Note
+                  </button>
                 </SheetClose>
               )}
               <SheetClose asChild>
