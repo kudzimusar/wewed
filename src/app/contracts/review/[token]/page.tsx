@@ -32,7 +32,7 @@ export default async function ContractReviewPage({ params }: { params: Promise<{
               </div>
             ) : null}
             <div className="mt-5 rounded-xl border border-[#a8874e]/20 bg-[#fff7e6]/5 p-4 text-sm leading-6 text-[#f3ead8]/75">
-              <strong>Viewing is not acceptance.</strong> Wewed records acceptance only after an explicit party decision against the exact fingerprints below. Payment, message delivery, or opening this page cannot make the contract effective.
+              <strong>Viewing is not acceptance.</strong> Viewing this page does not create acceptance or make the contract effective. Wewed records acceptance only after an explicit party decision against the exact fingerprints below. Payment or message delivery cannot make the contract effective.
             </div>
             <div className="mt-4 grid gap-3 text-xs sm:grid-cols-2">
               <div className="rounded-xl border border-white/10 bg-black/15 p-3"><span className="text-[#f3ead8]/45">Canonical SHA-256</span><p className="mt-1 break-all font-mono">{review.contentSha256 || 'Unavailable'}</p></div>
