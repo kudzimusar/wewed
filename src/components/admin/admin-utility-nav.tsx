@@ -10,6 +10,7 @@ import {
   Menu,
   MessageCircle,
   NotebookPen,
+  Scale,
   ShieldCheck,
   UserRoundCheck,
   UserRoundSearch,
@@ -41,6 +42,12 @@ export function AdminUtilityNav() {
       'Service records',
       FileCheck2,
       pathname.startsWith('/admin/service-engagements'),
+    ],
+    [
+      '/admin/transaction-governance',
+      'Transactions',
+      Scale,
+      pathname.startsWith('/admin/transaction-governance'),
     ],
     [
       '/admin/client-operations',
@@ -154,6 +161,7 @@ export function AdminUtilityNav() {
               <a href="/messages" className="flex min-h-14 items-center gap-2 rounded-xl border border-gold/12 bg-white/[0.025] px-3 text-xs font-semibold text-champagne"><MessageCircle className="size-4 text-gold" />Messages</a>
               <a href="/admin/notebook" className="flex min-h-14 items-center gap-2 rounded-xl border border-gold/12 bg-white/[0.025] px-3 text-xs font-semibold text-champagne"><NotebookPen className="size-4 text-gold" />Notebook</a>
               <a href="/admin/service-engagements" className="flex min-h-14 items-center gap-2 rounded-xl border border-gold/12 bg-white/[0.025] px-3 text-xs font-semibold text-champagne"><FileCheck2 className="size-4 text-gold" />Service records</a>
+              <a href="/admin/transaction-governance" className="flex min-h-14 items-center gap-2 rounded-xl border border-gold/12 bg-white/[0.025] px-3 text-xs font-semibold text-champagne"><Scale className="size-4 text-gold" />Transactions</a>
               <a href="/admin/planner-profiles" className="flex min-h-14 items-center gap-2 rounded-xl border border-gold/12 bg-white/[0.025] px-3 text-xs font-semibold text-champagne"><UserRoundSearch className="size-4 text-gold" />Planner profiles</a>
               <a href="/admin/client-operations" className="flex min-h-14 items-center gap-2 rounded-xl border border-gold/12 bg-white/[0.025] px-3 text-xs font-semibold text-champagne"><Layers3 className="size-4 text-gold" />Client systems</a>
               <a href="/admin/onboarding" className="flex min-h-14 items-center gap-2 rounded-xl border border-gold/12 bg-white/[0.025] px-3 text-xs font-semibold text-champagne"><UserRoundCheck className="size-4 text-gold" />Onboarding</a>
