@@ -7,6 +7,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
+  PlannerVendorDealRoom,
+  type ManagedEngagementSummary,
+} from '@/components/wedding/planner/modules/planner-vendor-deal-room'
+import {
   PlannerVendorEngagementPanel,
   type EngagementBudgetItem,
   type HistoricalEngagementCreateInput,
@@ -110,6 +114,7 @@ async function governanceJson<T>(url: string, init?: RequestInit): Promise<T> {
 export function PlannerVendorsModule({ vendors, vendorForm, setVendorForm, saving, onAddVendor, onUpdateVendor, onDeleteVendor }: PlannerVendorsModuleProps) {
   const { toast } = useToast()
   const [engagements, setEngagements] = useState<HistoricalEngagementRow[]>([])
+  const [managedEngagements, setManagedEngagements] = useState<ManagedEngagementSummary[]>([])
   const [rescue, setRescue] = useState<PaidVendorRescueRow[]>([])
   const [budgetItems, setBudgetItems] = useState<EngagementBudgetItem[]>([])
   const [governanceSaving, setGovernanceSaving] = useState(false)
@@ -118,12 +123,14 @@ export function PlannerVendorsModule({ vendors, vendorForm, setVendorForm, savin
 
   const loadGovernance = useCallback(async () => {
     try {
-      const [engagementPayload, rescuePayload, budgetPayload] = await Promise.all([
+      const [engagementPayload, managedPayload, rescuePayload, budgetPayload] = await Promise.all([
         governanceJson<{ data: HistoricalEngagementRow[] }>('/api/planner/engagements'),
+        governanceJson<{ data: ManagedEngagementSummary[] }>('/api/planner/engagements/current'),
         governanceJson<{ data: PaidVendorRescueRow[] }>('/api/planner/engagements/rescue'),
         governanceJson<{ data: EngagementBudgetItem[] }>('/api/planner/budget'),
       ])
       setEngagements(engagementPayload.data ?? [])
+      setManagedEngagements(managedPayload.data ?? [])
       setRescue(rescuePayload.data ?? [])
       setBudgetItems(budgetPayload.data ?? [])
       setGovernanceError(null)
@@ -195,6 +202,7 @@ export function PlannerVendorsModule({ vendors, vendorForm, setVendorForm, savin
   }
 
   const rescueByVendor = new Map(rescue.map((item) => [item.vendorId, item]))
+  const managedByVendor = new Map(managedEngagements.map((item) => [item.vendorId, item]))
   const missingRecords = rescue.filter((item) => item.flags.paidWithoutEngagement).length
 
   return (
@@ -230,8 +238,9 @@ export function PlannerVendorsModule({ vendors, vendorForm, setVendorForm, savin
         {vendors.length === 0 ? <div className="lg:col-span-2"><EmptyState title="No vendors yet" detail="Add suppliers as you source them. Procurement status is kept with the selected wedding." /></div> : vendors.map((vendor) => {
           const rating = vendor.metaRating ?? vendor.rating ?? 0
           const vendorEngagements = engagements.filter((engagement) => engagement.vendorId === vendor.id)
+          const managedEngagement = managedByVendor.get(vendor.id)
           const rescueRow = rescueByVendor.get(vendor.id)
-          const deletionProtected = vendorEngagements.length > 0
+          const deletionProtected = vendorEngagements.length > 0 || Boolean(managedEngagement)
           return (
             <SectionCard key={vendor.id} className="p-4">
               <div className="flex items-start justify-between gap-3">
@@ -240,7 +249,7 @@ export function PlannerVendorsModule({ vendors, vendorForm, setVendorForm, savin
                   <p className="font-sans text-xs text-champagne/45">{titleCase(vendor.category)} · {vendor.contact || 'No contact person added'}</p>
                   <div className="mt-2 flex items-center gap-0.5" aria-label={`Vendor rating ${rating} of 5`}>{Array.from({ length: 5 }).map((_, index) => <Star key={index} className={`size-3 ${index < rating ? 'fill-gold text-gold' : 'text-champagne/20'}`} />)}</div>
                 </div>
-                <div className="flex items-center gap-2"><Badge variant="outline" className="border-gold/20 text-gold">{titleCase(vendor.contractStatus)}</Badge><Button type="button" variant="ghost" size="icon" aria-label={`Delete ${vendor.name}`} title={deletionProtected ? 'Historical service records are preserved; this vendor cannot be deleted.' : `Delete ${vendor.name}`} disabled={combinedSaving || deletionProtected} onClick={() => { if (window.confirm(`Delete vendor “${vendor.name}”?`)) void onDeleteVendor(vendor) }} className="size-8 text-champagne/40 hover:bg-clay/10 hover:text-clay-light disabled:opacity-25"><Trash2 className="size-4" /></Button></div>
+                <div className="flex items-center gap-2"><Badge variant="outline" className="border-gold/20 text-gold">{titleCase(vendor.contractStatus)}</Badge><Button type="button" variant="ghost" size="icon" aria-label={`Delete ${vendor.name}`} title={deletionProtected ? 'Governed service-engagement records are preserved; this vendor cannot be deleted.' : `Delete ${vendor.name}`} disabled={combinedSaving || deletionProtected} onClick={() => { if (window.confirm(`Delete vendor “${vendor.name}”?`)) void onDeleteVendor(vendor) }} className="size-8 text-champagne/40 hover:bg-clay/10 hover:text-clay-light disabled:opacity-25"><Trash2 className="size-4" /></Button></div>
               </div>
               <div className="mt-3 flex flex-wrap gap-2 text-xs text-champagne/55">
                 <span>Payment: {titleCase(vendor.paymentStatus)}</span>
@@ -249,6 +258,14 @@ export function PlannerVendorsModule({ vendors, vendorForm, setVendorForm, savin
                 {vendor.website && <a href={vendor.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-gold hover:text-gold-light">Website <ExternalLink className="size-3" /></a>}
               </div>
               {vendor.notes && <p className="mt-2 rounded-lg border border-gold/10 bg-espresso/40 px-3 py-2 font-sans text-xs text-champagne/55">{vendor.notes}</p>}
+
+              <PlannerVendorDealRoom
+                vendor={vendor}
+                budgetItems={budgetItems}
+                engagement={managedEngagement}
+                saving={combinedSaving}
+                onRefresh={loadGovernance}
+              />
 
               <PlannerVendorEngagementPanel
                 vendor={vendor}
