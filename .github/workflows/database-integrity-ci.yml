@@ -88,6 +88,9 @@ jobs:
       - name: Run Phase C review-gap PostgreSQL contract
         run: psql "postgresql://postgres:postgres@localhost:5432/wewed" -f scripts/database-integrity-review-gap-postgres.sql
 
+      - name: Run pre-UAT provider security PostgreSQL contract
+        run: psql "postgresql://postgres:postgres@localhost:5432/wewed" -f scripts/pre-uat-security-postgres.sql
+
       - name: Lint changed application and contract files
         run: >-
           bunx eslint

@@ -23,10 +23,16 @@ describe('Phase 1 Vault + communications architecture', () => {
     expect(prisma).not.toMatch(/^model CommunicationAttachment\s*\{/m)
   })
 
-  test('uses private storage, hashes content and fails closed for complex Office files', () => {
+  test('uses private lazy-initialized storage, hashes content and fails closed for complex Office files', () => {
     const core = source('src/lib/vault/core.ts')
     expect(core).toContain("WEWED_VAULT_BUCKET = 'wewed-vault'")
+    expect(core).toContain('async function ensurePrivateVaultBucket()')
+    expect(core).toContain('supabase.storage.listBuckets()')
+    expect(core).toContain('supabase.storage.createBucket(WEWED_VAULT_BUCKET')
     expect(core).toContain('public: false')
+    expect(core).toContain('fileSizeLimit: WEWED_VAULT_MAX_BYTES')
+    expect(core).toContain('if (existing.public)')
+    expect(core).toContain('await ensurePrivateVaultBucket()')
     expect(core).toContain("createHash('sha256')")
     expect(core).toContain("storageState: distributable ? 'stored_private' : 'quarantined'")
     expect(core).toContain("scanState: distributable ? 'content_validated' : 'external_scan_required'")
