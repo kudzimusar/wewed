@@ -735,7 +735,11 @@ export async function rotatePendingPhase3ReviewLinks(input: { weddingId: string;
 export async function getContractGovernanceSummary(input: { weddingId: string; contractId: string }) {
   const contract = await db.contract.findFirst({
     where: { id: input.contractId, weddingId: input.weddingId },
-    include: { versions: { orderBy: { versionNumber: 'asc' } }, serviceEngagement: { include: { parties: true } }, events: { orderBy: [{ createdAt: 'desc' }, { id: 'desc' } }, take: 80 } },
+    include: {
+      versions: { orderBy: { versionNumber: 'asc' } },
+      serviceEngagement: { include: { parties: true } },
+      events: { orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 80 },
+    },
   })
   if (!contract) throw new Phase3ContractError('Contract was not found.', 404)
   const requirements = await db.$queryRawUnsafe<RequirementRow[]>(
