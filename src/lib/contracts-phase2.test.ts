@@ -73,6 +73,29 @@ describe('Phase 2 Service Engagement Deal Room and Wewed contract governance', (
     expect(seed).toContain('WEWED_CATERING')
   })
 
+  test('covers every Phase 2 contract-domain foreign key reported by the production advisor', () => {
+    const migration = source('prisma/migrations/20260818184500_phase2_contract_fk_indexes/migration.sql')
+    const schema = source('prisma/schema.prisma')
+    const expectedIndexes = [
+      'EngagementParty_serviceEngagementId_weddingId_idx',
+      'ContractTemplateClause_clauseId_idx',
+      'Contract_serviceEngagementId_weddingId_idx',
+      'Contract_templateId_idx',
+      'ContractVersion_contractId_weddingId_idx',
+      'ContractReviewGrant_contractId_idx',
+      'ContractReviewGrant_contractVersionId_contractId_idx',
+      'ContractReviewGrant_engagementPartyId_idx',
+    ]
+    for (const indexName of expectedIndexes) expect(migration).toContain(indexName)
+    expect(schema).toContain('@@index([serviceEngagementId, weddingId])')
+    expect(schema).toContain('@@index([clauseId])')
+    expect(schema).toContain('@@index([templateId])')
+    expect(schema).toContain('@@index([contractId, weddingId])')
+    expect(schema).toContain('@@index([contractId])')
+    expect(schema).toContain('@@index([contractVersionId, contractId])')
+    expect(schema).toContain('@@index([engagementPartyId])')
+  })
+
   test('mounts the Deal Room inside Vendors without removing historical paid-vendor rescue', () => {
     const vendors = source('src/components/wedding/planner/modules/planner-vendors-module.tsx')
     const dealRoom = source('src/components/wedding/planner/modules/planner-vendor-deal-room.tsx')
