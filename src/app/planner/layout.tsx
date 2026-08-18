@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Suspense, type ReactNode } from 'react'
 import { PlannerRouteDialogEscapeGuard } from '@/components/navigation/planner-route-dialog-escape-guard'
+import { NotebookUtilityEntry } from '@/components/notebook/notebook-utility-entry'
 import { PlannerWorksheetCommandCenter } from '@/components/wedding/planner/planner-worksheet-command-center'
 import './planner-responsive.css'
 import './adaptive-navigation.css'
@@ -26,6 +27,7 @@ export default function PlannerLayout({ children }: { children: ReactNode }) {
       <Suspense fallback={null}>
         <PlannerWorksheetCommandCenter />
       </Suspense>
+      <NotebookUtilityEntry surface="planner" />
       <PlannerRouteDialogEscapeGuard />
     </>
   )

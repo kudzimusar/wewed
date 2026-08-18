@@ -8,6 +8,7 @@ import {
   Layers3,
   Menu,
   MessageCircle,
+  NotebookPen,
   ShieldCheck,
   UserRoundCheck,
   UserRoundSearch,
@@ -27,6 +28,12 @@ export function AdminUtilityNav() {
       'Messages',
       MessageCircle,
       pathname.startsWith('/messages'),
+    ],
+    [
+      '/admin/notebook',
+      'Notebook',
+      NotebookPen,
+      pathname.startsWith('/admin/notebook'),
     ],
     [
       '/admin/client-operations',
@@ -138,6 +145,7 @@ export function AdminUtilityNav() {
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <a href="/messages" className="flex min-h-14 items-center gap-2 rounded-xl border border-gold/12 bg-white/[0.025] px-3 text-xs font-semibold text-champagne"><MessageCircle className="size-4 text-gold" />Messages</a>
+              <a href="/admin/notebook" className="flex min-h-14 items-center gap-2 rounded-xl border border-gold/12 bg-white/[0.025] px-3 text-xs font-semibold text-champagne"><NotebookPen className="size-4 text-gold" />Notebook</a>
               <a href="/admin/planner-profiles" className="flex min-h-14 items-center gap-2 rounded-xl border border-gold/12 bg-white/[0.025] px-3 text-xs font-semibold text-champagne"><UserRoundSearch className="size-4 text-gold" />Planner profiles</a>
               <a href="/admin/client-operations" className="flex min-h-14 items-center gap-2 rounded-xl border border-gold/12 bg-white/[0.025] px-3 text-xs font-semibold text-champagne"><Layers3 className="size-4 text-gold" />Client systems</a>
               <a href="/admin/onboarding" className="flex min-h-14 items-center gap-2 rounded-xl border border-gold/12 bg-white/[0.025] px-3 text-xs font-semibold text-champagne"><UserRoundCheck className="size-4 text-gold" />Onboarding</a>

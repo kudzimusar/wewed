@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
 import { AdminUtilityNav } from '@/components/admin/admin-utility-nav'
+import { NotebookUtilityEntry } from '@/components/notebook/notebook-utility-entry'
 import './admin-responsive.css'
 
 export const metadata: Metadata = {
@@ -18,6 +19,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     <>
       {children}
       <AdminUtilityNav />
+      <NotebookUtilityEntry surface="admin" />
     </>
   )
 }
