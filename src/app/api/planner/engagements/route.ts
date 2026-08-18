@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logAuditEvent } from '@/lib/audit'
+import { db } from '@/lib/db'
 import {
   createHistoricalEngagement,
   formatHistoricalEngagement,
@@ -18,10 +19,55 @@ export async function GET(request: NextRequest) {
 
   try {
     const engagements = await listHistoricalEngagements(access.context.weddingId)
+    const engagementIds = engagements.map((engagement) => engagement.id)
+    const links = engagementIds.length
+      ? await db.vaultLink.findMany({
+          where: {
+            weddingId: access.context.weddingId,
+            entityType: 'service_engagement',
+            entityId: { in: engagementIds },
+            vaultObject: { deletedAt: null },
+          },
+          include: { vaultObject: true },
+          orderBy: { createdAt: 'desc' },
+        })
+      : []
+    const evidenceByEngagement = new Map<string, Array<{
+      id: string
+      linkRole: string
+      displayName: string
+      originalFilename: string
+      mimeType: string
+      byteSize: number
+      checksumSha256: string
+      storageState: string
+      scanState: string
+      createdAt: string
+    }>>()
+    for (const link of links) {
+      const evidence = evidenceByEngagement.get(link.entityId) ?? []
+      evidence.push({
+        id: link.vaultObject.id,
+        linkRole: link.linkRole,
+        displayName: link.vaultObject.displayName,
+        originalFilename: link.vaultObject.originalFilename,
+        mimeType: link.vaultObject.mimeType,
+        byteSize: Number(link.vaultObject.byteSize),
+        checksumSha256: link.vaultObject.checksumSha256,
+        storageState: link.vaultObject.storageState,
+        scanState: link.vaultObject.scanState,
+        createdAt: link.vaultObject.createdAt.toISOString(),
+      })
+      evidenceByEngagement.set(link.entityId, evidence)
+    }
+
     return NextResponse.json({
       success: true,
       count: engagements.length,
-      data: engagements.map(formatHistoricalEngagement),
+      data: engagements.map((engagement) => ({
+        ...formatHistoricalEngagement(engagement),
+        evidence: evidenceByEngagement.get(engagement.id) ?? [],
+      })),
     })
   } catch (error) {
     console.error('[PLANNER ENGAGEMENTS GET] error:', error)
@@ -64,7 +110,7 @@ export async function POST(request: NextRequest) {
     })
 
     return NextResponse.json(
-      { success: true, data: formatHistoricalEngagement(created) },
+      { success: true, data: { ...formatHistoricalEngagement(created), evidence: [] } },
       { status: 201 },
     )
   } catch (error) {
