@@ -6,6 +6,7 @@ import { createSupabaseServiceClient } from '@/lib/supabase/service'
 import { actorCanEditNote } from './access'
 import { getNote, writeAudit } from './store'
 import {
+  NotebookConflictError,
   NotebookForbiddenError,
   NotebookNotFoundError,
   NotebookValidationError,
@@ -152,7 +153,7 @@ export async function transcribeRecording(actor: NotebookActor, recordingId: str
   const note = await getNote(actor, recording.noteId)
   if (!actorCanEditNote(actor, note)) throw new NotebookForbiddenError()
   if (!['READY', 'FAILED', 'TRANSCRIBED'].includes(recording.status)) {
-    throw new NotebookConflictErrorLike('Recording is already being processed.')
+    throw new NotebookConflictError('Recording is already being processed.')
   }
 
   const endpoint = process.env.WEWED_TRANSCRIPTION_URL?.trim()
@@ -248,8 +249,6 @@ export async function transcribeRecording(actor: NotebookActor, recordingId: str
     return { success: false, preserved: true, code: 'TRANSCRIPTION_FAILED', error: message }
   }
 }
-
-class NotebookConflictErrorLike extends Error {}
 
 export async function getTranscript(actor: NotebookActor, recordingId: string) {
   const recording = await getRecording(actor, recordingId)
