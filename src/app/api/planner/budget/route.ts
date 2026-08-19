@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { contributionDatabaseUnavailable } from '@/lib/contributions'
+import { budgetContributionAllocations, budgetFundingRows } from '@/lib/contributions/store'
 import { requireWeddingPermission } from '@/lib/wedding-access'
 
 const BUDGET_CATEGORIES = [
@@ -104,11 +106,49 @@ export async function GET(request: NextRequest) {
     })
     const totals = summarize(items)
 
+    let fundingRows: Awaited<ReturnType<typeof budgetFundingRows>> = []
+    let contributionAllocations: Awaited<ReturnType<typeof budgetContributionAllocations>> = []
+    try {
+      ;[fundingRows, contributionAllocations] = await Promise.all([
+        budgetFundingRows(access.context.weddingId),
+        budgetContributionAllocations(access.context.weddingId),
+      ])
+    } catch (error) {
+      if (!contributionDatabaseUnavailable(error)) throw error
+      // During an ordered deployment the existing Budget remains usable.
+      // Every existing paid amount therefore stays source-not-recorded until the migration is active.
+    }
+
+    const data = items.map((item) => {
+      const sources = fundingRows.filter((row) => row.budgetItemId === item.id && row.currency === item.currency)
+      const coupleFunded = sources.filter((row) => row.sourceKind === 'COUPLE').reduce((sum, row) => sum + Number(row.amount), 0)
+      const contributorFunded = sources.filter((row) => row.sourceKind === 'CONTRIBUTION').reduce((sum, row) => sum + Number(row.amount), 0)
+      const explicitlyLegacy = sources.filter((row) => row.sourceKind === 'LEGACY_UNATTRIBUTED').reduce((sum, row) => sum + Number(row.amount), 0)
+      const otherAttributed = sources.filter((row) => row.sourceKind === 'OTHER').reduce((sum, row) => sum + Number(row.amount), 0)
+      const attributed = coupleFunded + contributorFunded + explicitlyLegacy + otherAttributed
+      const legacyUnattributed = Math.max(0, item.paidAmount - attributed) + explicitlyLegacy
+      const itemAllocations = contributionAllocations.filter((row) => row.budgetItemId === item.id && row.currency === item.currency)
+      const inKindValue = itemAllocations.filter((row) => row.allocationKind === 'IN_KIND' && ['DELIVERED','COMPLETED'].includes(row.fulfillmentState)).reduce((sum, row) => sum + Number(row.amount), 0)
+      const contributionAllocated = itemAllocations.filter((row) => row.allocationKind === 'CASH').reduce((sum, row) => sum + Number(row.amount), 0)
+      return {
+        ...formatItem(item),
+        funding: { coupleFunded, contributorFunded, legacyUnattributed, otherAttributed, inKindValue, contributionAllocated },
+      }
+    })
+
+    const fundingSummary = data.reduce((sum, item) => ({
+      coupleFunded: sum.coupleFunded + item.funding.coupleFunded,
+      contributorFunded: sum.contributorFunded + item.funding.contributorFunded,
+      legacyUnattributed: sum.legacyUnattributed + item.funding.legacyUnattributed,
+      inKindValue: sum.inKindValue + item.funding.inKindValue,
+    }), { coupleFunded: 0, contributorFunded: 0, legacyUnattributed: 0, inKindValue: 0 })
+
     return NextResponse.json({
       success: true,
       count: items.length,
-      data: items.map(formatItem),
+      data,
       ...totals,
+      fundingSummary,
     })
   } catch (error) {
     console.error('[PLANNER BUDGET GET] error:', error)

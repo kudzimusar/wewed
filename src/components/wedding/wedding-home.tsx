@@ -20,7 +20,7 @@ import { WewedPricingCatalog } from '@/components/public/wewed-pricing-catalog'
 import { PlatformVision } from '@/components/wedding/platform-vision'
 import { MerchTeaser } from '@/components/wedding/merch-teaser'
 import { FaqSection } from '@/components/wedding/faq-section'
-import { GiftRegistry } from '@/components/wedding/gift-registry'
+import { GiftRegistryCampaignBridge } from '@/components/wedding/gift-registry-campaign-bridge'
 import { QrCheckin } from '@/components/wedding/qr-checkin'
 import { MemoryCapsule } from '@/components/wedding/memory-capsule'
 import { LiveWall } from '@/components/wedding/live-wall'
@@ -119,7 +119,7 @@ function WeddingHomeContent({
             <CountdownBanner />
             <RsvpSection />
             <TravelStay />
-            <GiftRegistry />
+            <GiftRegistryCampaignBridge />
             <SongbookEnhanced />
             <IntroductionsBanner />
             <Guests />
@@ -146,7 +146,7 @@ function WeddingHomeContent({
             {mounted && <ContributionGallery />}
             <MemoryCapsule />
             <VendorMarketplace />
-            <GiftRegistry />
+            <GiftRegistryCampaignBridge />
             <FaqSection />
             <ShareSection />
             <TelegramWidget />
