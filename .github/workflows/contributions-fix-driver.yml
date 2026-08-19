@@ -67,3 +67,5 @@ jobs:
           git add -A
           git commit -m "Fix Contributions build and historical payment reconciliation"
           git push origin HEAD:feat/contributions-resource-accounting-20260819
+
+# Triggered after the fix workflow exists on the feature branch.
