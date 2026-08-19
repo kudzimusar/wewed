@@ -21,11 +21,11 @@ on:
       - 'src/components/admin/admin-utility-nav.tsx'
       - 'tests/e2e/planner-contributions.spec.ts'
       - 'tests/e2e/support/planner-browser.ts'
-      - 'scripts/contributions-alignment-driver-v4.py'
+      - 'scripts/contributions-alignment-driver-v5.py'
+      - 'scripts/contributions-alignment-source.py'
       - 'scripts/contributions-second-review-expansion.py'
       - 'scripts/contributions-lifecycle-audit.py'
       - 'scripts/contributions-integrity-permissions.py'
-      - '.github/workflows/contributions-alignment-driver.yml'
       - '.github/workflows/contributions-resource-accounting.yml'
       - 'src/components/wedding/gift-registry-campaign-bridge.tsx'
       - 'src/components/wedding/invitation-gifting-link.tsx'
@@ -74,7 +74,7 @@ jobs:
         with:
           bun-version: 1.3.14
       - name: Apply canonical Planner alignment
-        run: python3 scripts/contributions-alignment-driver-v4.py
+        run: python3 scripts/contributions-alignment-driver-v5.py
       - name: Apply phase-completeness remediation
         run: python3 scripts/contributions-second-review-expansion.py
       - name: Apply lifecycle and audit remediation
@@ -174,7 +174,7 @@ jobs:
           FINAL_WORKFLOW
       - name: Commit qualified second-review remediation
         run: |
-          rm -f scripts/contributions-alignment-driver-v4.py scripts/contributions-second-review-expansion.py scripts/contributions-lifecycle-audit.py scripts/contributions-integrity-permissions.py .github/workflows/contributions-alignment-driver.yml
+          rm -f scripts/contributions-alignment-driver-v5.py scripts/contributions-alignment-source.py scripts/contributions-second-review-expansion.py scripts/contributions-lifecycle-audit.py scripts/contributions-integrity-permissions.py
           git config user.name "Wewed Contributions Review Bot"
           git config user.email "actions@users.noreply.github.com"
           git add -A
