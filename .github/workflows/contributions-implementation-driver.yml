@@ -1,0 +1,105 @@
+name: Contributions Implementation Driver
+
+on:
+  push:
+    branches:
+      - feat/contributions-resource-accounting-20260819
+    paths:
+      - scripts/apply-contributions-workstream.py
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: contributions-implementation-driver
+  cancel-in-progress: false
+
+jobs:
+  apply-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: wewed
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      CI: 'true'
+      WEWED_E2E_MODE: '1'
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/wewed?schema=public
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/wewed?schema=public
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: ci-service-role-key
+      WEWED_SESSION_SECRET: ci-session-secret-not-for-production
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      NEXT_TELEMETRY_DISABLED: 1
+
+    steps:
+      - name: Check out implementation branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feat/contributions-resource-accounting-20260819
+          fetch-depth: 0
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.3.14
+
+      - name: Apply canonical Contributions workstream
+        run: python3 scripts/apply-contributions-workstream.py
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Format and validate Prisma schema
+        run: |
+          bunx prisma format --schema prisma/schema.prisma
+          bunx prisma validate --schema prisma/schema.prisma
+          bunx prisma generate --schema prisma/schema.prisma
+
+      - name: Apply all migrations to clean PostgreSQL
+        run: bunx prisma migrate deploy --schema prisma/schema.prisma
+
+      - name: Verify migration matches schema
+        run: >-
+          bunx prisma migrate diff
+          --from-url "$DATABASE_URL"
+          --to-schema-datamodel prisma/schema.prisma
+          --exit-code
+
+      - name: Run Contributions contracts
+        run: bun test src/lib/contributions.test.ts src/lib/contributions-source-contract.test.ts
+
+      - name: Build application
+        run: bun run build
+
+      - name: Check patch hygiene
+        run: git diff --check
+
+      - name: Commit generated implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "No generated changes to commit."
+            exit 0
+          fi
+          git config user.name "Wewed Contributions Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "Implement Contributions resource accounting phases 1-7"
+          git push origin HEAD:feat/contributions-resource-accounting-20260819
