@@ -30,7 +30,7 @@ on:
       - 'src/app/api/exports/**'
       - 'tests/e2e/planner-contributions.spec.ts'
       - 'tests/e2e/support/planner-browser.ts'
-      - 'scripts/contributions-alignment-driver-v9.py'
+      - 'scripts/contributions-alignment-driver-v10.py'
       - 'scripts/contributions-alignment-source.py'
       - 'scripts/contributions-second-review-expansion.py'
       - 'scripts/contributions-lifecycle-audit.py'
@@ -91,7 +91,7 @@ jobs:
         with:
           bun-version: 1.3.14
       - name: Apply complete stamped-plan remediation
-        run: python3 scripts/contributions-alignment-driver-v9.py
+        run: python3 scripts/contributions-alignment-driver-v10.py
       - run: bun install --frozen-lockfile
       - run: bun add --no-save --exact @playwright/test@1.55.0
       - run: bunx prisma validate --schema prisma/schema.prisma
@@ -204,7 +204,7 @@ jobs:
       - name: Commit qualified second-review remediation
         run: |
           rm -f \
-            scripts/contributions-alignment-driver-v9.py \
+            scripts/contributions-alignment-driver-v10.py \
             scripts/contributions-alignment-source.py \
             scripts/contributions-second-review-expansion.py \
             scripts/contributions-lifecycle-audit.py \
