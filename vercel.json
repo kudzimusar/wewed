@@ -1,5 +1,5 @@
 {
-  "buildCommand": "python3 scripts/contributions-alignment-driver-v11.py && DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:65432/wewed DIRECT_URL=postgresql://postgres:postgres@127.0.0.1:65432/wewed bun test && bun run build",
+  "buildCommand": "echo postgres=$(command -v postgres || true) && echo initdb=$(command -v initdb || true) && echo pg_ctl=$(command -v pg_ctl || true) && echo psql=$(command -v psql || true) && false",
   "crons": [
     {
       "path": "/api/cron/reminders",
