@@ -15,6 +15,11 @@ async function createSavedNote(page: Page, titleText: string) {
   await expect(page.locator('span').filter({ hasText: /^Saved$/ }).first()).toBeVisible({ timeout: 10_000 })
 }
 
+async function openPhoneNoteList(page: Page) {
+  const backToList = page.locator('main button').filter({ has: page.locator('svg.lucide-chevron-left') }).first()
+  if (await backToList.isVisible().catch(() => false)) await backToList.click()
+}
+
 test('Notebook distinguishes Archive from Trash and restores both from visible Recovery', async ({ plannerPage: page }) => {
   test.setTimeout(90_000)
   await page.setViewportSize({ width: 390, height: 844 })
@@ -45,6 +50,9 @@ test('Notebook distinguishes Archive from Trash and restores both from visible R
   await expect(recoverySection.getByText(archivedTitle, { exact: true })).toHaveCount(0)
 
   await page.getByRole('link', { name: 'Back to Notebook' }).click()
+  // On phone Notebook opens a note immediately and intentionally hides the list.
+  // Return to the list before asserting that the restored note is available there.
+  await openPhoneNoteList(page)
   await expect(page.getByText(archivedTitle, { exact: true })).toBeVisible()
 
   const trashedTitle = `Notebook trash recovery ${Date.now()}`
