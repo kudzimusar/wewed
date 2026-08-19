@@ -53,6 +53,16 @@ export function NotebookOperationsClarity({
         trash.setAttribute('aria-label', 'Move note to Trash — recoverable')
       }
 
+      // The compact phone toolbar uses an icon-only chevron to return to the note
+      // list. Give it a stable accessible name so users and automation do not have
+      // to infer its purpose from an SVG glyph.
+      const backToList = document.querySelector<HTMLButtonElement>('main button.lg\\:hidden')
+      if (backToList) {
+        backToList.dataset.notebookBackToList = 'true'
+        backToList.title = 'Back to note list'
+        backToList.setAttribute('aria-label', 'Back to note list')
+      }
+
       const shareInput = document.querySelector<HTMLInputElement>('input[placeholder="Existing Wewed user email"]')
       const sharePanel = shareInput?.parentElement
       if (sharePanel && !sharePanel.querySelector('[data-notebook-clarity-guide="share"]')) {
