@@ -1,5 +1,20 @@
 import { expect, expectNoDocumentOverflow, test } from './support/planner-browser'
 
+async function expectCompactNotebookActionRow(page: Parameters<typeof expectNoDocumentOverflow>[0]) {
+  const checkpoint = page.getByRole('button', { name: /Save checkpoint/ })
+  const trash = page.locator('button[title="Trash"]')
+  await expect(checkpoint).toBeVisible()
+  await expect(trash).toBeVisible()
+
+  const checkpointBox = await checkpoint.boundingBox()
+  const trashBox = await trash.boundingBox()
+  expect(checkpointBox).not.toBeNull()
+  expect(trashBox).not.toBeNull()
+  expect(Math.abs((checkpointBox?.y ?? 0) - (trashBox?.y ?? 0))).toBeLessThan(4)
+  expect(await checkpoint.evaluate((element) => getComputedStyle(element).fontSize)).toBe('0px')
+  await expectNoDocumentOverflow(page)
+}
+
 test('Notebook renders writing, exposes AI guidance, and keeps autosave separate from checkpoints', async ({ plannerPage: page }) => {
   test.setTimeout(90_000)
   await page.setViewportSize({ width: 390, height: 844 })
@@ -29,6 +44,11 @@ test('Notebook renders writing, exposes AI guidance, and keeps autosave separate
   const saveStatus = page.locator('span.mr-1.text-xs.opacity-55').filter({ hasText: /^Saved$/ })
   await expect(saveStatus).toBeVisible({ timeout: 10_000 })
   await expect(page.getByText(/Saved · v\d+/)).toHaveCount(0)
+  await expectCompactNotebookActionRow(page)
+
+  await page.setViewportSize({ width: 320, height: 760 })
+  await expectCompactNotebookActionRow(page)
+  await page.setViewportSize({ width: 390, height: 844 })
 
   await page.getByRole('button', { name: 'Read', exact: true }).click()
   const rendered = page.locator('[data-notebook-rendered-markdown]').first()
@@ -39,6 +59,8 @@ test('Notebook renders writing, exposes AI guidance, and keeps autosave separate
   await expect(rendered.locator('blockquote')).toContainText('Verify the final invoice before payment.')
   await expect(rendered.getByRole('link', { name: 'Vendor site' })).toHaveAttribute('href', 'https://example.com')
   await expect(rendered.getByText('**Approved:**', { exact: true })).toHaveCount(0)
+  expect(await rendered.evaluate((element) => getComputedStyle(element).fontSize)).toBe('14px')
+  expect(await title.evaluate((element) => getComputedStyle(element).fontSize)).toBe('20px')
 
   await page.locator('button[title="AI & suggested actions"]').click()
   const aiGuide = page.locator('[data-notebook-ai-guide]')
