@@ -1,52 +1,12 @@
 import 'server-only'
 
 import { generateAiText } from '@/lib/ai'
+import { extractNotebookRecallTerms, rankNotebookRecallCandidates } from './recall-query'
 import { listNotes, writeAudit } from './store'
 import { NotebookValidationError, type NotebookActor, type NotebookNoteRow } from './types'
 
 const MAX_CONTEXT_CHARS = 120_000
-const MAX_RECALL_TERMS = 8
 const MAX_SOURCES = 20
-
-const RECALL_STOP_WORDS = new Set([
-  'a', 'an', 'and', 'are', 'as', 'at', 'be', 'been', 'but', 'by', 'can', 'could', 'did',
-  'do', 'does', 'for', 'from', 'had', 'has', 'have', 'how', 'i', 'if', 'in', 'is', 'it',
-  'me', 'my', 'of', 'on', 'or', 'our', 'please', 'tell', 'that', 'the', 'their', 'them',
-  'there', 'these', 'they', 'this', 'to', 'us', 'was', 'we', 'were', 'what', 'when', 'where',
-  'which', 'who', 'why', 'will', 'with', 'would', 'you', 'your',
-])
-
-export function extractNotebookRecallTerms(question: string): string[] {
-  const tokens = question
-    .toLowerCase()
-    .normalize('NFKD')
-    .replace(/[^\p{L}\p{N}]+/gu, ' ')
-    .split(/\s+/)
-    .map((token) => token.trim())
-    .filter((token) => token.length >= 2 && !RECALL_STOP_WORDS.has(token))
-
-  return Array.from(new Set(tokens)).slice(0, MAX_RECALL_TERMS)
-}
-
-export function rankNotebookRecallCandidates(
-  notes: NotebookNoteRow[],
-  terms: string[],
-): NotebookNoteRow[] {
-  const scored = notes.map((note) => {
-    const title = note.title.toLowerCase()
-    const body = note.contentText.toLowerCase()
-    const score = terms.reduce((total, term) => {
-      const titleHit = title.includes(term) ? 4 : 0
-      const bodyHit = body.includes(term) ? 1 : 0
-      return total + titleHit + bodyHit
-    }, 0)
-    return { note, score }
-  })
-
-  return scored
-    .sort((a, b) => b.score - a.score || b.note.updatedAt.getTime() - a.note.updatedAt.getTime())
-    .map((entry) => entry.note)
-}
 
 async function recallAuthorizedNotes(
   actor: NotebookActor,
