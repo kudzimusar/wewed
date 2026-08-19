@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { finiteNonNegative } from '@/lib/contributions'
-import { contributionId, getContribution } from '@/lib/contributions/store'
+import { contributionAvailableAmount, finiteNonNegative } from '@/lib/contributions'
+import { contributionAllocatedCash, contributionId, getContribution } from '@/lib/contributions/store'
 import { requireWeddingPermission } from '@/lib/wedding-access'
 
 export async function GET(request: NextRequest) {
@@ -42,26 +42,81 @@ export async function POST(request: NextRequest) {
     if (!budgetItemId || !['COUPLE','CONTRIBUTION','LEGACY_UNATTRIBUTED','OTHER'].includes(sourceKind) || !amount || amount <= 0) {
       return NextResponse.json({ success: false, error: 'Choose a funding source and positive amount.' }, { status: 400 })
     }
-    const budget = await db.budgetItem.findFirst({ where: { id: budgetItemId, weddingId }, select: { id: true, paidAmount: true, currency: true } })
-    if (!budget) return NextResponse.json({ success: false, error: 'Budget item not found.' }, { status: 404 })
-    const totals = await db.$queryRaw<Array<{ total: string }>>`
-      SELECT COALESCE(SUM(amount), 0)::text AS total
-        FROM wewed_contributions.payment_funding_allocations
-       WHERE wedding_id = ${weddingId} AND budget_item_id = ${budgetItemId} AND currency = ${budget.currency}
-    `
-    const already = Number(totals[0]?.total ?? 0)
-    if (already + amount > budget.paidAmount + 0.0001) return NextResponse.json({ success: false, error: 'Funding attribution cannot exceed the amount already marked paid.' }, { status: 409 })
 
-    let contributionIdValue: string | null = null
-    if (sourceKind === 'CONTRIBUTION') {
-      contributionIdValue = String(body.contributionId ?? '') || null
-      if (!contributionIdValue) return NextResponse.json({ success: false, error: 'Choose the contribution that funded this payment.' }, { status: 400 })
-      const contribution = await getContribution(weddingId, contributionIdValue)
-      if (!contribution) return NextResponse.json({ success: false, error: 'Contribution not found.' }, { status: 404 })
-      if (contribution.currency !== budget.currency) return NextResponse.json({ success: false, error: 'Contribution and budget currencies must match.' }, { status: 400 })
+    const contributionIdValue = sourceKind === 'CONTRIBUTION' ? String(body.contributionId ?? '').trim() || null : null
+    if (sourceKind === 'CONTRIBUTION' && !contributionIdValue) {
+      return NextResponse.json({ success: false, error: 'Choose the contribution that funded this payment.' }, { status: 400 })
     }
 
     await db.$transaction(async (tx) => {
+      // Serialize funding edits for this budget item so two browser sessions cannot
+      // both consume the same remaining historical "Paid" amount.
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`budget-funding:${budgetItemId}`}))`
+
+      const budget = await tx.budgetItem.findFirst({ where: { id: budgetItemId, weddingId }, select: { id: true, paidAmount: true, currency: true } })
+      if (!budget) throw new Error('BUDGET_NOT_FOUND')
+
+      const totals = await tx.$queryRaw<Array<{ total: string }>>`
+        SELECT COALESCE(SUM(amount), 0)::text AS total
+          FROM wewed_contributions.payment_funding_allocations
+         WHERE wedding_id = ${weddingId} AND budget_item_id = ${budgetItemId} AND currency = ${budget.currency}
+      `
+      const already = Number(totals[0]?.total ?? 0)
+      if (already + amount > budget.paidAmount + 0.0001) throw new Error('FUNDING_EXCEEDS_PAID')
+
+      if (sourceKind === 'CONTRIBUTION' && contributionIdValue) {
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`contribution-funding:${contributionIdValue}`}))`
+        const contribution = await getContribution(weddingId, contributionIdValue, tx)
+        if (!contribution) throw new Error('CONTRIBUTION_NOT_FOUND')
+        if (contribution.currency !== budget.currency) throw new Error('CURRENCY_MISMATCH')
+        if (!['CASH_TO_COUPLE', 'HONEYMOON_GIFT'].includes(contribution.type) || contribution.fulfillmentState !== 'RECEIVED') {
+          throw new Error('CONTRIBUTION_NOT_AVAILABLE_CASH')
+        }
+
+        const [allocatedAmount, itemAllocationRows, itemFundingRows] = await Promise.all([
+          contributionAllocatedCash(weddingId, contributionIdValue, tx),
+          tx.$queryRaw<Array<{ total: string }>>`
+            SELECT COALESCE(SUM(amount), 0)::text AS total
+              FROM wewed_contributions.contribution_allocations
+             WHERE wedding_id = ${weddingId}
+               AND contribution_id = ${contributionIdValue}
+               AND budget_item_id = ${budgetItemId}
+               AND currency = ${budget.currency}
+               AND allocation_kind = 'CASH'
+          `,
+          tx.$queryRaw<Array<{ total: string }>>`
+            SELECT COALESCE(SUM(amount), 0)::text AS total
+              FROM wewed_contributions.payment_funding_allocations
+             WHERE wedding_id = ${weddingId}
+               AND contribution_id = ${contributionIdValue}
+               AND budget_item_id = ${budgetItemId}
+               AND currency = ${budget.currency}
+               AND source_kind = 'CONTRIBUTION'
+          `,
+        ])
+
+        const available = contributionAvailableAmount({
+          type: contribution.type,
+          amount: contribution.amount,
+          fulfillmentState: contribution.fulfillmentState,
+          allocatedAmount,
+        })
+        const itemAllocated = Number(itemAllocationRows[0]?.total ?? 0)
+        const itemAlreadyFunded = Number(itemFundingRows[0]?.total ?? 0)
+        const reservedRemaining = Math.max(0, itemAllocated - itemAlreadyFunded)
+        const additionalReservation = Math.max(0, amount - reservedRemaining)
+
+        if (additionalReservation > available + 0.0001) throw new Error('CONTRIBUTION_INSUFFICIENT_AVAILABLE')
+        if (additionalReservation > 0) {
+          await tx.$executeRaw`
+            INSERT INTO wewed_contributions.contribution_allocations
+              (id, wedding_id, contribution_id, budget_item_id, amount, currency, allocation_kind, note, created_by_id)
+            VALUES
+              (${contributionId()}, ${weddingId}, ${contributionIdValue}, ${budgetItemId}, ${additionalReservation}, ${budget.currency}, 'CASH', 'Reserved while classifying an existing paid amount', ${actorId})
+          `
+        }
+      }
+
       await tx.$executeRaw`
         INSERT INTO wewed_contributions.payment_funding_allocations
           (id, wedding_id, budget_item_id, contribution_id, source_kind, amount, currency, note, created_by_id, reconciled_at)
@@ -72,6 +127,16 @@ export async function POST(request: NextRequest) {
     })
     return NextResponse.json({ success: true })
   } catch (error) {
+    const code = error instanceof Error ? error.message : ''
+    const known: Record<string, { status: number; error: string }> = {
+      BUDGET_NOT_FOUND: { status: 404, error: 'Budget item not found.' },
+      FUNDING_EXCEEDS_PAID: { status: 409, error: 'Funding attribution cannot exceed the amount already marked paid.' },
+      CONTRIBUTION_NOT_FOUND: { status: 404, error: 'Contribution not found.' },
+      CURRENCY_MISMATCH: { status: 400, error: 'Contribution and budget currencies must match.' },
+      CONTRIBUTION_NOT_AVAILABLE_CASH: { status: 409, error: 'Choose received contribution money. Promises, in-kind help, and direct vendor payments cannot fund this historical paid amount.' },
+      CONTRIBUTION_INSUFFICIENT_AVAILABLE: { status: 409, error: 'That contribution does not have enough uncommitted money remaining for this paid amount.' },
+    }
+    if (known[code]) return NextResponse.json({ success: false, error: known[code].error }, { status: known[code].status })
     console.error('[BUDGET FUNDING POST] error', error)
     return NextResponse.json({ success: false, error: 'Could not save the funding source.' }, { status: 500 })
   }
