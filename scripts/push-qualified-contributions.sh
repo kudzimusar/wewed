@@ -8,6 +8,7 @@ FILES='/tmp/contributions-generated-files.txt'
 } | grep -v '^public/contributions-qualified-' \
   | grep -v '^scripts/export-qualified-contributions.sh$' \
   | grep -v '^scripts/push-qualified-contributions.sh$' \
+  | grep -v '^scripts/print-qualified-contributions.sh$' \
   | sort -u > "$FILES"
 
 if [[ ! -s "$FILES" ]]; then
@@ -22,6 +23,11 @@ while IFS= read -r path; do
 done < "$FILES"
 git diff --cached --check
 git commit -m 'Materialize qualified Contributions product (isolated export)'
+
+if ! git remote get-url origin >/dev/null 2>&1; then
+  git remote add origin https://github.com/kudzimusar/wewed.git
+fi
+printf 'origin=%s\n' "$(git remote get-url origin)"
 git push --force origin HEAD:refs/heads/ci/contributions-generated-materialized
 
 echo 'QUALIFIED GENERATED TREE PUSHED'
