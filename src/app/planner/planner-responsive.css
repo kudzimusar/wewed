@@ -97,6 +97,150 @@
     font-size: 1.35rem;
     line-height: 1.65rem;
   }
+
+  /* Notebook phone-density amendment — WW-NOTEBOOK-DENSITY-2026-08-19-01. */
+  [data-notebook-workspace="planner"] > div[class*="max-w-"] {
+    gap: 0.5rem !important;
+    padding: 0.5rem !important;
+  }
+
+  [data-notebook-workspace="planner"] > div[class*="max-w-"] > header {
+    gap: 0.5rem !important;
+    padding: 0.75rem !important;
+    border-radius: 1rem !important;
+  }
+
+  [data-notebook-workspace="planner"] > div[class*="max-w-"] > header h1 {
+    font-size: 1.125rem !important;
+    line-height: 1.5rem !important;
+  }
+
+  [data-notebook-workspace="planner"] > div[class*="max-w-"] > header p {
+    margin-top: 0.125rem !important;
+    font-size: 0.75rem !important;
+    line-height: 1.125rem !important;
+  }
+
+  [data-notebook-workspace="planner"] > div[class*="max-w-"] > header button {
+    padding: 0.4375rem 0.625rem !important;
+    border-radius: 0.75rem !important;
+    font-size: 0.75rem !important;
+    line-height: 1rem !important;
+  }
+
+  [data-notebook-workspace="planner"] > div[class*="max-w-"] > header button svg {
+    width: 0.875rem !important;
+    height: 0.875rem !important;
+    margin-right: 0.375rem !important;
+  }
+
+  [data-notebook-manage-link] {
+    right: 0.5rem !important;
+    top: 0.5rem !important;
+    max-width: min(10.75rem, calc(100vw - 5rem));
+    overflow: hidden;
+    padding: 0.375rem 0.625rem !important;
+    border-radius: 0.75rem !important;
+    font-size: 0.6875rem !important;
+    line-height: 1rem !important;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  [data-notebook-workspace="planner"] main > div:has(button[title="Trash"]) {
+    gap: 0.375rem !important;
+    padding: 0.5rem !important;
+  }
+
+  [data-notebook-workspace="planner"] main > div:has(button[title="Trash"]) > div:has(> button[title="Trash"]) {
+    width: 100%;
+    margin-left: 0 !important;
+    display: flex;
+    flex-wrap: nowrap !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.125rem !important;
+    min-width: 0;
+  }
+
+  [data-notebook-workspace="planner"] main > div:has(button[title="Trash"]) > div:has(> button[title="Trash"]) > span {
+    margin-right: 0 !important;
+    flex: 0 0 auto;
+    font-size: 0.6875rem !important;
+    line-height: 1rem !important;
+  }
+
+  [data-notebook-workspace="planner"] main > div:has(button[title="Trash"]) > div:has(> button[title="Trash"]) > button {
+    flex: 0 0 auto;
+    padding: 0.375rem !important;
+    border-radius: 0.5rem !important;
+  }
+
+  [data-notebook-workspace="planner"] main button[title^="Save a meaningful history checkpoint"] {
+    width: 2rem;
+    height: 2rem;
+    margin-right: 0 !important;
+    padding: 0.375rem !important;
+    overflow: hidden;
+    font-size: 0 !important;
+    line-height: 0 !important;
+    white-space: nowrap;
+  }
+
+  [data-notebook-workspace="planner"] main button[title^="Save a meaningful history checkpoint"] svg {
+    width: 1rem !important;
+    height: 1rem !important;
+    margin-right: 0 !important;
+  }
+
+  [data-notebook-workspace="planner"] main section[class*="flex-1"] {
+    padding: 0.75rem !important;
+  }
+
+  [data-notebook-workspace="planner"] main section[class*="flex-1"] > input[placeholder="Note title"] {
+    margin-bottom: 0.75rem !important;
+    font-size: 1.25rem !important;
+    line-height: 1.625rem !important;
+  }
+
+  [data-notebook-workspace="planner"] [data-notebook-rendered-markdown] {
+    font-size: 0.875rem !important;
+    line-height: 1.45rem !important;
+  }
+
+  [data-notebook-workspace="planner"] [data-notebook-rendered-markdown] h1 {
+    margin-top: 1rem !important;
+    margin-bottom: 0.5rem !important;
+    font-size: 1.25rem !important;
+    line-height: 1.625rem !important;
+  }
+
+  [data-notebook-workspace="planner"] [data-notebook-rendered-markdown] h2 {
+    margin-top: 0.875rem !important;
+    margin-bottom: 0.375rem !important;
+    font-size: 1.0625rem !important;
+    line-height: 1.4rem !important;
+  }
+
+  [data-notebook-workspace="planner"] [data-notebook-rendered-markdown] h3 {
+    margin-top: 0.75rem !important;
+    margin-bottom: 0.375rem !important;
+    font-size: 0.9375rem !important;
+    line-height: 1.3rem !important;
+  }
+
+  [data-notebook-workspace="planner"] [data-notebook-rendered-markdown] p,
+  [data-notebook-workspace="planner"] [data-notebook-rendered-markdown] ul,
+  [data-notebook-workspace="planner"] [data-notebook-rendered-markdown] ol {
+    margin-top: 0.375rem !important;
+    margin-bottom: 0.375rem !important;
+  }
+}
+
+@media (max-width: 359px) {
+  [data-notebook-workspace="planner"] main > div:has(button[title="Trash"]) > div:has(> button[title="Trash"]) > span {
+    display: none;
+  }
 }
 
 @media (min-width: 640px) and (max-width: 1279px) {
