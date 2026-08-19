@@ -1,6 +1,7 @@
+import type { Page } from '@playwright/test'
 import { expect, expectNoDocumentOverflow, test } from './support/planner-browser'
 
-async function createSavedNote(page: Parameters<Parameters<typeof test>[1]>[0]['plannerPage'], titleText: string) {
+async function createSavedNote(page: Page, titleText: string) {
   const createdResponse = page.waitForResponse(
     (response) => response.url().endsWith('/api/notebook') && response.request().method() === 'POST',
   )
