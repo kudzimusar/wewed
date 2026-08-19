@@ -42,11 +42,12 @@ bunx prisma generate --schema prisma/schema.prisma
 bunx prisma migrate deploy --schema prisma/schema.prisma
 
 printf '\n== Run complete Bun unit/integration regression suite (excluding Playwright E2E specs) ==\n'
-mapfile -t BUN_TEST_FILES < <(find . -type f \( -name '*.test.ts' -o -name '*.test.tsx' -o -name '*.spec.ts' -o -name '*.spec.tsx' \) \
+find . -type f \( -name '*.test.ts' -o -name '*.test.tsx' -o -name '*.spec.ts' -o -name '*.spec.tsx' \) \
   -not -path './node_modules/*' \
   -not -path './.next/*' \
   -not -path './tests/e2e/*' \
-  | sort)
+  | sort > /tmp/wewed-bun-tests.txt
+readarray -t BUN_TEST_FILES < /tmp/wewed-bun-tests.txt
 printf 'Bun test files: %s\n' "${#BUN_TEST_FILES[@]}"
 if [[ ${#BUN_TEST_FILES[@]} -eq 0 ]]; then
   echo 'No Bun unit/integration tests discovered.' >&2
