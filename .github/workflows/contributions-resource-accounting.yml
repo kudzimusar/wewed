@@ -30,7 +30,7 @@ on:
       - 'src/app/api/exports/**'
       - 'tests/e2e/planner-contributions.spec.ts'
       - 'tests/e2e/support/planner-browser.ts'
-      - 'scripts/contributions-alignment-driver-v8.py'
+      - 'scripts/contributions-alignment-driver-v9.py'
       - 'scripts/contributions-alignment-source.py'
       - 'scripts/contributions-second-review-expansion.py'
       - 'scripts/contributions-lifecycle-audit.py'
@@ -42,6 +42,7 @@ on:
       - 'scripts/contributions-phase4-operational-integration.py'
       - 'scripts/contributions-phase5-campaign-governance.py'
       - 'scripts/contributions-phase6-productivity.py'
+      - 'scripts/contributions-wewed-contract-normalization.py'
       - '.github/workflows/contributions-resource-accounting.yml'
   workflow_dispatch:
 
@@ -90,7 +91,7 @@ jobs:
         with:
           bun-version: 1.3.14
       - name: Apply complete stamped-plan remediation
-        run: python3 scripts/contributions-alignment-driver-v8.py
+        run: python3 scripts/contributions-alignment-driver-v9.py
       - run: bun install --frozen-lockfile
       - run: bun add --no-save --exact @playwright/test@1.55.0
       - run: bunx prisma validate --schema prisma/schema.prisma
@@ -203,7 +204,7 @@ jobs:
       - name: Commit qualified second-review remediation
         run: |
           rm -f \
-            scripts/contributions-alignment-driver-v8.py \
+            scripts/contributions-alignment-driver-v9.py \
             scripts/contributions-alignment-source.py \
             scripts/contributions-second-review-expansion.py \
             scripts/contributions-lifecycle-audit.py \
@@ -214,7 +215,8 @@ jobs:
             scripts/contributions-phase2-detail-evidence.py \
             scripts/contributions-phase4-operational-integration.py \
             scripts/contributions-phase5-campaign-governance.py \
-            scripts/contributions-phase6-productivity.py
+            scripts/contributions-phase6-productivity.py \
+            scripts/contributions-wewed-contract-normalization.py
           git config user.name "Wewed Contributions Review Bot"
           git config user.email "actions@users.noreply.github.com"
           git add -A
