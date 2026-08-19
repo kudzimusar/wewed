@@ -25,4 +25,19 @@ for forbidden in replacements:
     if forbidden in text:
         raise SystemExit(f'Stale generated assertion remains: {forbidden}')
 
-print('Generated Contributions source-contract assertions normalized to hardened product.')
+browser = Path('tests/e2e/planner-contributions.spec.ts')
+if not browser.exists():
+    raise SystemExit('Generated Contributions browser spec is missing.')
+
+browser_text = browser.read_text()
+malformed = "getByPlaceholder('Relationship, e.g. Bride's aunt')"
+normalized = 'getByPlaceholder("Relationship, e.g. Bride\'s aunt")'
+count = browser_text.count(malformed)
+if count != 1:
+    raise SystemExit(f'Expected exactly one malformed Contributions browser locator, found {count}.')
+browser_text = browser_text.replace(malformed, normalized, 1)
+browser.write_text(browser_text)
+if malformed in browser_text:
+    raise SystemExit('Malformed Contributions browser locator remains.')
+
+print('Generated Contributions source-contract and browser assertions normalized to hardened product.')
