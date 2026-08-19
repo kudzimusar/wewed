@@ -20,7 +20,10 @@ const store = read('src/lib/notebook/store.ts')
 describe('WW-NOTEBOOK-OPS-2026-08-19-01', () => {
   test('makes Archive and Trash explicitly different and keeps both recoverable', () => {
     expect(clarity).toContain('Archive removes it from the active Notebook list, but does NOT delete it.')
-    expect(clarity).toContain('Move note to Trash — recoverable from Recovery')
+    expect(clarity).toContain("trash.title = 'Trash'")
+    expect(clarity).toContain("trash.setAttribute('aria-label', 'Move note to Trash — recoverable')")
+    expect(clarity).toContain("archive.title = 'Archive'")
+    expect(clarity).toContain("archive.setAttribute('aria-label', 'Archive note — recoverable')")
     expect(plannerPage).toContain('NotebookOperationsClarity')
     expect(plannerManage).toContain('NotebookRecoveryAnchor')
     expect(store).toContain("'NOTE_TRASHED'")
