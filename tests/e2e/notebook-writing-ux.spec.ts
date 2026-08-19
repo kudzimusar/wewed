@@ -26,7 +26,8 @@ test('Notebook renders writing, exposes AI guidance, and keeps autosave separate
     '[Vendor site](https://example.com)',
   ].join('\n'))
 
-  await expect(page.getByText('Saved', { exact: true })).toBeVisible({ timeout: 10_000 })
+  const saveStatus = page.locator('span.mr-1.text-xs.opacity-55').filter({ hasText: /^Saved$/ })
+  await expect(saveStatus).toBeVisible({ timeout: 10_000 })
   await expect(page.getByText(/Saved · v\d+/)).toHaveCount(0)
 
   await page.getByRole('button', { name: 'Read', exact: true }).click()
