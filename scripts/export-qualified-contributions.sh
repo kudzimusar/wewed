@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# This script exports only the generated working-tree delta after v11 materialization.
 EXPORT_ROOT='/tmp/contributions-qualified-export'
 FILES_LIST="$EXPORT_ROOT/files.txt"
 DELETIONS_LIST="$EXPORT_ROOT/deletions.txt"
