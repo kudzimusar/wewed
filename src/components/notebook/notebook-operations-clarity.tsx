@@ -38,14 +38,18 @@ export function NotebookOperationsClarity({
       const archive = document.querySelector<HTMLButtonElement>('button[title="Archive"], button[data-notebook-archive]')
       if (archive) {
         archive.dataset.notebookArchive = 'true'
-        archive.title = 'Archive note — removes it from the active list but keeps it recoverable'
+        // Keep the long-standing title contract because release/browser clients
+        // already target it. The clearer meaning is carried by aria + confirmation.
+        archive.title = 'Archive'
         archive.setAttribute('aria-label', 'Archive note — recoverable')
       }
 
       const trash = document.querySelector<HTMLButtonElement>('button[title="Trash"], button[data-notebook-trash]')
       if (trash) {
         trash.dataset.notebookTrash = 'true'
-        trash.title = 'Move note to Trash — recoverable from Recovery'
+        // Preserve title="Trash" for backwards-compatible automation and UI
+        // integrations; accessible wording explains that Trash is recoverable.
+        trash.title = 'Trash'
         trash.setAttribute('aria-label', 'Move note to Trash — recoverable')
       }
 
