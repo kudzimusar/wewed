@@ -104,12 +104,14 @@ jobs:
                    OR acl.grantee IN (
                      SELECT oid FROM pg_roles WHERE rolname IN ('anon', 'authenticated')
                    )
-                 )
             ) THEN
               RAISE EXCEPTION 'wewed_notebook table is exposed to a public application role';
             END IF;
           END $$;
           SQL
+
+      - name: Prove Notebook share external-delivery database fan-out
+        run: psql "$POSTGRES_TEST_URL" -f scripts/communications-postgres-integration.sql
 
       - name: Run Notebook authorization policy tests
         run: bun test src/lib/notebook/policy.test.ts
