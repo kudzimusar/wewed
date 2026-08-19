@@ -1,5 +1,5 @@
 {
-  "buildCommand": "for v in GITHUB_TOKEN GH_TOKEN VERCEL_GIT_PROVIDER VERCEL_GIT_REPO_OWNER VERCEL_GIT_REPO_SLUG VERCEL_GIT_COMMIT_SHA; do val=\"${!v:-}\"; if [ -n \"$val\" ]; then if [[ \"$v\" == *TOKEN* ]]; then echo \"$v present length=${#val}\"; else echo \"$v=$val\"; fi; else echo \"$v absent\"; fi; done && false",
+  "buildCommand": "echo '== vercel whoami ==' && vercel whoami || true; echo '== vercel project ls ==' && vercel project ls --scope 11-11 || true; false",
   "crons": [
     {
       "path": "/api/cron/reminders",
