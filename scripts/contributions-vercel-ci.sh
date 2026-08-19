@@ -9,7 +9,10 @@ export SUPABASE_SERVICE_ROLE_KEY='ci-service-role-key'
 export WEWED_SESSION_SECRET='ci-session-secret-not-for-production'
 export NEXT_PUBLIC_SITE_URL='http://127.0.0.1:3000'
 export NEXT_TELEMETRY_DISABLED='1'
+# Reproduce GitHub CI rather than Vercel preview semantics. The disposable database
+# below is localhost-only and the E2E fixture still independently enforces that.
 unset VERCEL
+unset VERCEL_ENV
 
 printf '\n== Install disposable PostgreSQL 16 ==\n'
 yum install -y postgresql16 postgresql16-server
@@ -32,6 +35,10 @@ export DIRECT_URL="$DATABASE_URL"
 
 printf '\n== Apply exact Contributions remediation ==\n'
 python3 scripts/contributions-alignment-driver-v11.py
+
+printf '\n== Locate Stage 10 release contract ==\n'
+grep -R -n -F 'Stage 10 executable planner release gate' src tests 2>/dev/null || true
+grep -R -n -F 'worksheet tools and the visible planner module are synchronized by durable routes' src tests 2>/dev/null || true
 
 printf '\n== Install CI-only Playwright package ==\n'
 bun add --no-save --exact @playwright/test@1.55.0
