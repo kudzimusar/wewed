@@ -1,5 +1,5 @@
 {
-  "buildCommand": "for v in BLOB_READ_WRITE_TOKEN BLOB_STORE_ID VERCEL_BLOB_STORE_ID; do val=\"${!v:-}\"; if [ -n \"$val\" ]; then if [[ \"$v\" == *TOKEN* ]]; then echo \"$v present length=${#val}\"; else echo \"$v=$val\"; fi; else echo \"$v absent\"; fi; done; false",
+  "buildCommand": "v=VERCEL_AUTOMATION_BYPASS_SECRET; val=\"${!v:-}\"; if [ -n \"$val\" ]; then echo \"$v present length=${#val}\"; else echo \"$v absent\"; fi; false",
   "crons": [
     {
       "path": "/api/cron/reminders",
