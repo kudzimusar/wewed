@@ -27,6 +27,16 @@ describe('Contributions canonical source contract', () => {
     expect(budget).not.toContain("sourceKind: 'COUPLE', amount: item.paidAmount")
   })
 
+  test('historical paid attribution cannot reuse the same contribution cash twice', () => {
+    const funding = read('src/app/api/planner/budget/funding/route.ts')
+    expect(funding).toContain('contributionAvailableAmount')
+    expect(funding).toContain('contributionAllocatedCash')
+    expect(funding).toContain('reservedRemaining')
+    expect(funding).toContain('additionalReservation')
+    expect(funding).toContain('CONTRIBUTION_INSUFFICIENT_AVAILABLE')
+    expect(funding).toContain('pg_advisory_xact_lock')
+  })
+
   test('Planner UI is responsive and uses plain language', () => {
     const ui = read('src/components/wedding/planner/planner-contributions-workspace.tsx')
     expect(ui).toContain('Record the help, not accounting jargon')
