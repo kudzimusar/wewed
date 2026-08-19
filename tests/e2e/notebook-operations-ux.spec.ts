@@ -16,8 +16,9 @@ async function createSavedNote(page: Page, titleText: string) {
 }
 
 async function openPhoneNoteList(page: Page) {
-  const backToList = page.locator('main button').filter({ has: page.locator('svg.lucide-chevron-left') }).first()
-  if (await backToList.isVisible().catch(() => false)) await backToList.click()
+  const backToList = page.getByRole('button', { name: 'Back to note list' })
+  await expect(backToList).toBeVisible()
+  await backToList.click()
 }
 
 test('Notebook distinguishes Archive from Trash and restores both from visible Recovery', async ({ plannerPage: page }) => {
