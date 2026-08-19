@@ -16,6 +16,8 @@ describe('Contributions canonical source contract', () => {
     expect(route).toContain('tx.engagementPayment.create')
     expect(route).toContain("'CONTRIBUTION'")
     expect(route).toContain('alreadyIncludedInBudgetPaid')
+    expect(route).toContain('PAYMENT_MATCH_AMBIGUOUS')
+    expect(route).toContain('existingFundingRows')
   })
 
   test('legacy paid amount is never silently classified as couple-funded', () => {

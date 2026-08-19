@@ -164,12 +164,30 @@ export function PlannerContributionsWorkspace() {
       <div><h1 className="font-serif text-2xl sm:text-3xl">Who helped make this possible?</h1><p className="mt-1 max-w-2xl text-sm leading-6 text-champagne/55">Record support in everyday language. Wewed keeps “paid” separate from “paid by us” so your budget tells the truth.</p></div>
 
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-        {(workspace?.summaryByCurrency ?? []).length === 0 ? <Panel className="col-span-2 p-4 lg:col-span-4"><p className="text-sm text-champagne/55">No contributions yet. Add the first person, family or organisation that helped.</p></Panel> : workspace!.summaryByCurrency.flatMap((summary) => [
-          ['Money received', summary.cashReceived, 'Cash given to you', CircleDollarSign],
-          ['Paid direct', summary.directVendorPaid, 'Paid straight to a vendor', Store],
-          ['In-kind value', summary.inKindValue, 'Estimated non-cash help', Gift],
-          ['Still available', summary.availableCash, 'Received cash not yet allocated', HandHeart],
-        ].map(([label,value,detail,Icon]) => <Panel key={`${summary.currency}-${label}`} className="p-3 sm:p-4"><div className="flex items-center justify-between text-gold"><p className="text-[9px] uppercase tracking-[0.12em] sm:text-[10px]">{String(label)}</p>{typeof Icon !== 'string' && <Icon className="size-4" />}</div><p className="mt-2 font-serif text-xl sm:text-2xl">{money(Number(value),summary.currency)}</p><p className="mt-1 text-[10px] leading-4 text-champagne/45">{String(detail)} · {summary.currency}</p></Panel>)))}
+        {(workspace?.summaryByCurrency ?? []).length === 0 ? (
+          <Panel className="col-span-2 p-4 lg:col-span-4">
+            <p className="text-sm text-champagne/55">No contributions yet. Add the first person, family or organisation that helped.</p>
+          </Panel>
+        ) : (
+          workspace!.summaryByCurrency.flatMap((summary) => {
+            const cards = [
+              { label: 'Money received', value: summary.cashReceived, detail: 'Cash given to you', Icon: CircleDollarSign },
+              { label: 'Paid direct', value: summary.directVendorPaid, detail: 'Paid straight to a vendor', Icon: Store },
+              { label: 'In-kind value', value: summary.inKindValue, detail: 'Estimated non-cash help', Icon: Gift },
+              { label: 'Still available', value: summary.availableCash, detail: 'Received cash not yet allocated', Icon: HandHeart },
+            ]
+            return cards.map(({ label, value, detail, Icon }) => (
+              <Panel key={`${summary.currency}-${label}`} className="p-3 sm:p-4">
+                <div className="flex items-center justify-between text-gold">
+                  <p className="text-[9px] uppercase tracking-[0.12em] sm:text-[10px]">{label}</p>
+                  <Icon className="size-4" />
+                </div>
+                <p className="mt-2 font-serif text-xl sm:text-2xl">{money(value, summary.currency)}</p>
+                <p className="mt-1 text-[10px] leading-4 text-champagne/45">{detail} · {summary.currency}</p>
+              </Panel>
+            ))
+          })
+        )}
       </div>
       {(workspace?.summaryByCurrency ?? []).some((summary) => summary.pledged > 0) && <Panel className="p-3"><p className="text-xs text-champagne/60"><span className="font-semibold text-gold">Promised, not received:</span> {workspace!.summaryByCurrency.filter((item) => item.pledged > 0).map((item) => money(item.pledged,item.currency)).join(' · ')}. Promises never count as cash received.</p></Panel>}
 

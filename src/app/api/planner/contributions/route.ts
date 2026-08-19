@@ -147,25 +147,65 @@ export async function POST(request: NextRequest) {
       }
 
       if (directPayment && fulfillmentState === 'PAID_DIRECT' && serviceEngagementId && amount && amount > 0) {
-        const payment = await tx.engagementPayment.create({
-          data: {
-            serviceEngagementId,
-            amount,
-            currency,
-            paidAt: fulfilledAt ?? now,
-            method: String(body.paymentMethod ?? '').trim() || null,
-            reference: String(body.paymentReference ?? '').trim() || null,
-            notes: `Contributor-funded payment: ${String(body.title).trim()}`,
-            recordedById: actorId,
-          },
-        })
+        const paymentReference = String(body.paymentReference ?? '').trim() || null
+        const historicalPaidAlreadyRecorded = body.alreadyIncludedInBudgetPaid === true
+        let payment
+
+        if (historicalPaidAlreadyRecorded) {
+          const candidates = await tx.engagementPayment.findMany({
+            where: {
+              serviceEngagementId,
+              currency,
+              amount,
+              ...(paymentReference ? { reference: paymentReference } : {}),
+            },
+            orderBy: [{ paidAt: 'desc' }, { createdAt: 'desc' }],
+          })
+          if (candidates.length > 1) throw new Error('PAYMENT_MATCH_AMBIGUOUS')
+          payment = candidates[0] ?? await tx.engagementPayment.create({
+            data: {
+              serviceEngagementId,
+              amount,
+              currency,
+              paidAt: fulfilledAt ?? now,
+              method: String(body.paymentMethod ?? '').trim() || null,
+              reference: paymentReference,
+              notes: `Historical contributor-funded payment recorded during Contributions reconciliation: ${String(body.title).trim()}`,
+              recordedById: actorId,
+            },
+          })
+        } else {
+          payment = await tx.engagementPayment.create({
+            data: {
+              serviceEngagementId,
+              amount,
+              currency,
+              paidAt: fulfilledAt ?? now,
+              method: String(body.paymentMethod ?? '').trim() || null,
+              reference: paymentReference,
+              notes: `Contributor-funded payment: ${String(body.title).trim()}`,
+              recordedById: actorId,
+            },
+          })
+        }
+
+        const existingFundingRows = await tx.$queryRaw<Array<{ total: string }>>`
+          SELECT COALESCE(SUM(amount), 0)::text AS total
+            FROM wewed_contributions.payment_funding_allocations
+           WHERE wedding_id = ${weddingId}
+             AND payment_id = ${payment.id}
+             AND currency = ${currency}
+        `
+        const existingFunding = Number(existingFundingRows[0]?.total ?? 0)
+        if (existingFunding + amount > Number(payment.amount) + 0.0001) throw new Error('PAYMENT_ALREADY_ATTRIBUTED')
+
         await tx.$executeRaw`
           INSERT INTO wewed_contributions.payment_funding_allocations
             (id, wedding_id, payment_id, budget_item_id, contribution_id, source_kind, amount, currency, created_by_id, reconciled_at)
           VALUES
             (${contributionId()}, ${weddingId}, ${payment.id}, ${budgetItemId}, ${contributionIdValue}, 'CONTRIBUTION', ${amount}, ${currency}, ${actorId}, ${now})
         `
-        if (budgetItemId && body.alreadyIncludedInBudgetPaid !== true) {
+        if (budgetItemId && !historicalPaidAlreadyRecorded) {
           await tx.budgetItem.update({ where: { id: budgetItemId }, data: { paidAmount: { increment: amount } } })
         }
         await tx.$executeRaw`
@@ -204,6 +244,8 @@ export async function POST(request: NextRequest) {
       CURRENCY_MISMATCH: 'The selected records use different currencies. Record them separately or use a governed conversion.',
       BUDGET_ENGAGEMENT_MISMATCH: 'That budget item is linked to a different service engagement.',
       DIRECT_PAYMENT_ENGAGEMENT_REQUIRED: 'A direct vendor payment must be connected to the vendor service engagement.',
+      PAYMENT_MATCH_AMBIGUOUS: 'More than one existing vendor payment matches this historical contribution. Add the exact payment reference or reconcile the payment separately.',
+      PAYMENT_ALREADY_ATTRIBUTED: 'That vendor payment is already fully attributed to a funding source. Review its funding before adding another contributor.',
     }
     if (known[code]) return NextResponse.json({ success: false, error: known[code] }, { status: 400 })
     return responseForDatabaseError(error)
