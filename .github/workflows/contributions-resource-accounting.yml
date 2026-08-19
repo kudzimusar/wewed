@@ -3,7 +3,7 @@ name: Contributions Resource Accounting
 on:
   pull_request:
     paths:
-      - 'prisma/migrations/20260819033000_contributions_resource_accounting/**'
+      - 'prisma/migrations/*contributions*/**'
       - 'src/lib/contributions*'
       - 'src/app/api/planner/contributions/**'
       - 'src/app/api/planner/budget/**'
@@ -23,6 +23,7 @@ on:
       - 'tests/e2e/support/planner-browser.ts'
       - 'scripts/contributions-alignment-driver.py'
       - 'scripts/contributions-second-review-expansion.py'
+      - 'scripts/contributions-lifecycle-audit.py'
       - '.github/workflows/contributions-alignment-driver.yml'
       - '.github/workflows/contributions-resource-accounting.yml'
       - 'src/components/wedding/gift-registry-campaign-bridge.tsx'
@@ -37,7 +38,7 @@ permissions:
 jobs:
   qualify:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 50
     services:
       postgres:
         image: postgres:16-alpine
@@ -75,6 +76,8 @@ jobs:
         run: python3 scripts/contributions-alignment-driver.py
       - name: Apply phase-completeness remediation
         run: python3 scripts/contributions-second-review-expansion.py
+      - name: Apply lifecycle and audit remediation
+        run: python3 scripts/contributions-lifecycle-audit.py
       - run: bun install --frozen-lockfile
       - run: bun add --no-save --exact @playwright/test@1.55.0
       - run: bunx prisma validate --schema prisma/schema.prisma
@@ -93,8 +96,7 @@ jobs:
           on:
             pull_request:
               paths:
-                - 'prisma/migrations/20260819033000_contributions_resource_accounting/**'
-                - 'prisma/migrations/20260819071500_contributions_fk_indexes/**'
+                - 'prisma/migrations/*contributions*/**'
                 - 'src/lib/contributions*'
                 - 'src/app/api/planner/contributions/**'
                 - 'src/app/api/planner/budget/**'
@@ -125,7 +127,7 @@ jobs:
           jobs:
             qualify:
               runs-on: ubuntu-latest
-              timeout-minutes: 45
+              timeout-minutes: 50
               services:
                 postgres:
                   image: postgres:16-alpine
@@ -169,7 +171,7 @@ jobs:
           FINAL_WORKFLOW
       - name: Commit qualified second-review remediation
         run: |
-          rm -f scripts/contributions-alignment-driver.py scripts/contributions-second-review-expansion.py .github/workflows/contributions-alignment-driver.yml
+          rm -f scripts/contributions-alignment-driver.py scripts/contributions-second-review-expansion.py scripts/contributions-lifecycle-audit.py .github/workflows/contributions-alignment-driver.yml
           git config user.name "Wewed Contributions Review Bot"
           git config user.email "actions@users.noreply.github.com"
           git add -A
