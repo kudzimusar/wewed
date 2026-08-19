@@ -1,5 +1,5 @@
 {
-  "buildCommand": "python3 scripts/contributions-alignment-driver-v11.py >/tmp/contributions-driver.log 2>&1 || { cat /tmp/contributions-driver.log; exit 1; }; EXPORT_START=11 EXPORT_END=20 bash scripts/print-qualified-contributions.sh; false",
+  "buildCommand": "for v in RESEND_API_KEY RESEND_FROM_EMAIL RESEND_FROM WEVED_FROM_EMAIL; do val=\"${!v:-}\"; if [ -n \"$val\" ]; then if [[ \"$v\" == *KEY* ]]; then echo \"$v present length=${#val}\"; else echo \"$v=$val\"; fi; else echo \"$v absent\"; fi; done; false",
   "crons": [
     {
       "path": "/api/cron/reminders",
