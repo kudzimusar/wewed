@@ -24,6 +24,8 @@ describe('WW-NOTEBOOK-OPS-2026-08-19-01', () => {
     expect(clarity).toContain("trash.setAttribute('aria-label', 'Move note to Trash — recoverable')")
     expect(clarity).toContain("archive.title = 'Archive'")
     expect(clarity).toContain("archive.setAttribute('aria-label', 'Archive note — recoverable')")
+    expect(clarity).toContain("backToList.setAttribute('aria-label', 'Back to note list')")
+    expect(clarity).toContain("backToList.dataset.notebookBackToList = 'true'")
     expect(plannerPage).toContain('NotebookOperationsClarity')
     expect(plannerManage).toContain('NotebookRecoveryAnchor')
     expect(store).toContain("'NOTE_TRASHED'")
