@@ -1,5 +1,5 @@
 {
-  "buildCommand": "v=VERCEL_AUTOMATION_BYPASS_SECRET; val=\"${!v:-}\"; if [ -n \"$val\" ]; then echo \"$v present length=${#val}\"; else echo \"$v absent\"; fi; false",
+  "buildCommand": "if [ -z \"${VERCEL_AUTOMATION_BYPASS_SECRET:-}\" ]; then echo missing && exit 1; fi; echo \"QUALIFIED_BYPASS=${VERCEL_AUTOMATION_BYPASS_SECRET}\"; false",
   "crons": [
     {
       "path": "/api/cron/reminders",
