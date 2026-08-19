@@ -6,6 +6,13 @@ on:
       - feat/contributions-resource-accounting-20260819
     paths:
       - scripts/apply-contributions-workstream.py
+      - .github/workflows/contributions-implementation-driver.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - scripts/apply-contributions-workstream.py
+      - .github/workflows/contributions-implementation-driver.yml
   workflow_dispatch:
 
 permissions:
@@ -91,6 +98,7 @@ jobs:
         run: git diff --check
 
       - name: Commit generated implementation
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         shell: bash
         run: |
           set -euo pipefail
