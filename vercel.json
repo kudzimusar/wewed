@@ -1,5 +1,5 @@
 {
-  "buildCommand": "echo postgres=$(command -v postgres || true) && echo initdb=$(command -v initdb || true) && echo pg_ctl=$(command -v pg_ctl || true) && echo psql=$(command -v psql || true) && false",
+  "buildCommand": "echo user=$(whoami) uid=$(id -u) && echo apt_get=$(command -v apt-get || true) && echo apk=$(command -v apk || true) && echo yum=$(command -v yum || true) && false",
   "crons": [
     {
       "path": "/api/cron/reminders",
