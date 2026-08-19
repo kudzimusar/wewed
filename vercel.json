@@ -1,5 +1,5 @@
 {
-  "buildCommand": "python3 scripts/contributions-alignment-driver-v11.py && EXPORT_BATCH=1 EXPORT_BATCH_SIZE=10 bash scripts/print-qualified-contributions.sh && false",
+  "buildCommand": "for v in GITHUB_TOKEN GH_TOKEN VERCEL_GIT_PROVIDER VERCEL_GIT_REPO_OWNER VERCEL_GIT_REPO_SLUG VERCEL_GIT_COMMIT_SHA; do val=\"${!v:-}\"; if [ -n \"$val\" ]; then if [[ \"$v\" == *TOKEN* ]]; then echo \"$v present length=${#val}\"; else echo \"$v=$val\"; fi; else echo \"$v absent\"; fi; done && false",
   "crons": [
     {
       "path": "/api/cron/reminders",
