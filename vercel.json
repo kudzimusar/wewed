@@ -1,5 +1,5 @@
 {
-  "buildCommand": "cat /etc/os-release && yum -q list available 'postgresql*-server' || true && false",
+  "buildCommand": "yum info postgresql15-server postgresql16-server postgresql17-server || true && false",
   "crons": [
     {
       "path": "/api/cron/reminders",
