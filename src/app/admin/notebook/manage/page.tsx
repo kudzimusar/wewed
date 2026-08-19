@@ -1,5 +1,9 @@
 import { NotebookManagement } from '@/components/notebook/notebook-management'
 
 export default function AdminNotebookManagePage() {
-  return <NotebookManagement surface="admin" />
+  return (
+    <div id="recovery" className="scroll-mt-4">
+      <NotebookManagement surface="admin" />
+    </div>
+  )
 }
