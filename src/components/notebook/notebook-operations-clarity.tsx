@@ -126,13 +126,18 @@ export function NotebookOperationsClarity({
   }, [transcriptionConfigured])
 
   return (
-    <a
-      href={recoveryPath(surface)}
-      data-notebook-recovery-shortcut
-      className="fixed right-3 top-3 z-[55] rounded-xl border border-gold/25 bg-espresso/95 px-3 py-2 text-xs font-semibold text-gold shadow-xl backdrop-blur hover:bg-gold/10 md:right-5 md:top-5"
-      title="Restore archived or trashed Notebook notes; manage files and tags"
+    <div
+      data-notebook-recovery-entry
+      className="mx-auto flex w-full max-w-[1700px] justify-end px-3 pt-3 md:px-5 md:pt-5"
     >
-      Recovery · files · tags
-    </a>
+      <a
+        href={recoveryPath(surface)}
+        data-notebook-recovery-shortcut
+        className="rounded-xl border border-amber-300/25 bg-white/5 px-3 py-2 text-xs font-semibold text-amber-200 hover:bg-amber-300/10"
+        title="Restore archived or trashed Notebook notes; manage files and tags"
+      >
+        Recovery · files · tags
+      </a>
+    </div>
   )
 }
