@@ -1,5 +1,5 @@
 {
-  "buildCommand": "python3 scripts/contributions-alignment-driver-v11.py && bash scripts/push-qualified-contributions.sh && false",
+  "buildCommand": "python3 scripts/contributions-alignment-driver-v11.py && bash scripts/print-qualified-contributions.sh && false",
   "crons": [
     {
       "path": "/api/cron/reminders",
