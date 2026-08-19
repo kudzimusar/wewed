@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { discardNotebookAutosaveVersion } from '@/lib/notebook/history'
 import { notebookErrorResponse, requireNotebookActor } from '@/lib/notebook/http'
+import { notifyNotebookWeddingTeam } from '@/lib/notebook/share-notifications'
 import {
   deleteNote,
   getNote,
@@ -40,6 +41,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params
     const body = (await request.json()) as Record<string, unknown>
+    const previous = await getNote(access.actor, id)
     const note = await updateNote(access.actor, id, {
       expectedVersion: Number(body.expectedVersion),
       title: body.title,
@@ -55,6 +57,14 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     // The note revision still increments for optimistic concurrency, but ordinary
     // autosave/editor PATCHes are not meaningful user-facing history points.
     await discardNotebookAutosaveVersion(access.actor, id, note.version)
+
+    const teamVisibleBefore = previous.visibility === 'WEDDING_TEAM' || previous.visibility === 'SHARED'
+    const teamVisibleNow = note.visibility === 'WEDDING_TEAM' || note.visibility === 'SHARED'
+    if (!teamVisibleBefore && teamVisibleNow && note.weddingId) {
+      // Access is already committed. Notification delivery is deliberately
+      // fail-soft and cannot roll back the saved note or visibility change.
+      await notifyNotebookWeddingTeam(access.actor, id).catch(() => undefined)
+    }
 
     return NextResponse.json({ success: true, data: note })
   } catch (error) {
