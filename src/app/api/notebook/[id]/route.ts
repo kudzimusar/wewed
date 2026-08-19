@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { discardNotebookAutosaveVersion } from '@/lib/notebook/history'
 import { notebookErrorResponse, requireNotebookActor } from '@/lib/notebook/http'
 import {
   deleteNote,
@@ -50,6 +51,11 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       isPinned: body.isPinned,
       archived: body.archived,
     })
+
+    // The note revision still increments for optimistic concurrency, but ordinary
+    // autosave/editor PATCHes are not meaningful user-facing history points.
+    await discardNotebookAutosaveVersion(access.actor, id, note.version)
+
     return NextResponse.json({ success: true, data: note })
   } catch (error) {
     return notebookErrorResponse(error)

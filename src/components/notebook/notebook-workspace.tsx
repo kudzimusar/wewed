@@ -3,33 +3,33 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Archive,
-  Bot,
   Check,
   ChevronLeft,
   FileClock,
   Link2,
   Loader2,
   Mic,
-  MoreHorizontal,
   NotebookPen,
   Pause,
   Pin,
   Plus,
-  RefreshCw,
   Search,
   Send,
   Share2,
   Sparkles,
   Square,
   Trash2,
-  Undo2,
   Users,
   WandSparkles,
   X,
 } from 'lucide-react'
+import { NotebookMarkdown } from './notebook-markdown'
 
 type Surface = 'planner' | 'admin'
 type SaveState = 'idle' | 'saving' | 'saved' | 'error' | 'conflict'
+type EditorMode = 'read' | 'write'
+
+const MANUAL_CHECKPOINT_MARKER = 'manual-checkpoint-v1'
 
 type Note = {
   id: string
@@ -55,6 +55,7 @@ type Version = {
   source: string
   providerName: string | null
   modelName: string | null
+  promptVersion: string | null
   createdAt: string
 }
 
@@ -128,6 +129,15 @@ function formatWhen(value: string) {
   try { return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) } catch { return value }
 }
 
+function historyLabel(version: Version, createdId: string | null): string {
+  if (version.promptVersion === MANUAL_CHECKPOINT_MARKER) return 'Saved checkpoint'
+  if (version.source === 'AI') return 'AI rewrite accepted'
+  if (version.source === 'RESTORE') return 'Restored note'
+  if (version.source === 'SYSTEM') return 'System update'
+  if (version.id === createdId) return 'Note created'
+  return 'Earlier autosave'
+}
+
 function insertMarkdown(
   textarea: HTMLTextAreaElement | null,
   value: string,
@@ -174,6 +184,7 @@ export function NotebookWorkspace({ surface }: { surface: Surface }) {
   const [linkId, setLinkId] = useState('')
   const [linkLabel, setLinkLabel] = useState('')
   const [rightPanel, setRightPanel] = useState<'ai' | 'history' | 'share' | 'meeting' | 'links' | null>(null)
+  const [editorMode, setEditorMode] = useState<EditorMode>('read')
   const editorRef = useRef<HTMLTextAreaElement | null>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const chunksRef = useRef<Blob[]>([])
@@ -228,6 +239,7 @@ export function NotebookWorkspace({ surface }: { surface: Surface }) {
 
   useEffect(() => {
     if (!selectedId) { setDetail(null); return }
+    setEditorMode('read')
     setLoading(true)
     loadDetail(selectedId).catch((error) => setSaveMessage(error instanceof Error ? error.message : 'Could not open note.')).finally(() => setLoading(false))
   }, [selectedId, loadDetail])
@@ -264,7 +276,7 @@ export function NotebookWorkspace({ surface }: { surface: Surface }) {
         const typed = error as Error & { status?: number; code?: string }
         if (typed.status === 409 || typed.code === 'NOTE_VERSION_CONFLICT') {
           setSaveState('conflict')
-          setSaveMessage('A newer server version exists. Your draft is preserved here; reload when you are ready to reconcile it.')
+          setSaveMessage('A newer server revision exists. Your draft is preserved here; reload when you are ready to reconcile it.')
         } else {
           setSaveState('error')
           setSaveMessage(typed.message)
@@ -299,7 +311,10 @@ export function NotebookWorkspace({ surface }: { surface: Surface }) {
       })
       await loadNotes()
       setSelectedId(created.id)
-      setTimeout(() => editorRef.current?.focus(), 50)
+      setTimeout(() => {
+        setEditorMode('write')
+        editorRef.current?.focus()
+      }, 120)
     } finally { setBusy(null) }
   }
 
@@ -338,7 +353,20 @@ export function NotebookWorkspace({ surface }: { surface: Surface }) {
       }) as Note
       if (updated) await loadDetail(activeNote.id)
       setAiPreview(null)
+      setEditorMode('read')
     } catch (error) { setSaveMessage(error instanceof Error ? error.message : 'Could not apply AI rewrite.') }
+    finally { setBusy(null) }
+  }
+
+  const saveCheckpoint = async () => {
+    if (!activeNote || dirty || saveState === 'saving') return
+    setBusy('checkpoint')
+    try {
+      const result = await mutateAction({ action: 'save-checkpoint', expectedVersion: activeNote.version }) as { checkpointed?: boolean } | null
+      await loadDetail(activeNote.id)
+      setSaveState('saved')
+      setSaveMessage(result?.checkpointed ? 'Checkpoint saved.' : 'This saved draft is already protected in history.')
+    } catch (error) { setSaveMessage(error instanceof Error ? error.message : 'Could not save checkpoint.') }
     finally { setBusy(null) }
   }
 
@@ -423,11 +451,12 @@ export function NotebookWorkspace({ surface }: { surface: Surface }) {
 
   const restore = async (version: number) => {
     if (!activeNote) return
-    if (!window.confirm(`Restore version ${version}? The current note remains in version history.`)) return
+    if (!window.confirm('Restore this saved point? Your current note will remain available through history if it has a checkpoint.')) return
     setBusy(`restore:${version}`)
     try {
       await mutateAction({ action: 'restore-version', version, expectedVersion: activeNote.version })
       await loadDetail(activeNote.id)
+      setEditorMode('read')
     } finally { setBusy(null) }
   }
 
@@ -466,6 +495,15 @@ export function NotebookWorkspace({ surface }: { surface: Surface }) {
   }
 
   const pendingSuggestions = useMemo(() => detail?.suggestions.filter((item) => ['PENDING', 'FAILED'].includes(item.status)) ?? [], [detail])
+  const historyModel = useMemo(() => {
+    const versions = detail?.versions ?? []
+    const oldestUser = [...versions].reverse().find((version) => version.source === 'USER') ?? null
+    return {
+      createdId: oldestUser?.id ?? null,
+      meaningful: versions.filter((version) => version.source !== 'USER' || version.id === oldestUser?.id),
+      legacyAutosaves: versions.filter((version) => version.source === 'USER' && version.id !== oldestUser?.id),
+    }
+  }, [detail])
 
   if (loading && !context) {
     return <div className="flex min-h-[60vh] items-center justify-center"><Loader2 className="size-7 animate-spin" aria-label="Loading Notebook" /></div>
@@ -491,11 +529,11 @@ export function NotebookWorkspace({ surface }: { surface: Surface }) {
             <input value={askQuestion} onChange={(e) => setAskQuestion(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && ask()} placeholder="What did the venue say about generator backup?" className="min-w-0 flex-1 rounded-xl border border-white/15 bg-black/20 px-3 py-2 outline-none focus:border-amber-300/60" />
             <button onClick={ask} disabled={busy === 'ask'} className="rounded-xl bg-amber-300 px-4 py-2 font-medium text-stone-950">{busy === 'ask' ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}</button>
           </div>
-          {askResult && <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3 text-sm"><div className="whitespace-pre-wrap">{askResult.answer}</div>{askResult.sources.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{askResult.sources.map((source) => <button key={source.noteId} onClick={() => setSelectedId(source.noteId)} className="rounded-full border border-white/15 px-2 py-1 text-xs hover:bg-white/10">{source.title}</button>)}</div>}</div>}
+          {askResult && <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3 text-sm"><NotebookMarkdown markdown={askResult.answer} />{askResult.sources.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{askResult.sources.map((source) => <button key={source.noteId} onClick={() => setSelectedId(source.noteId)} className="rounded-full border border-white/15 px-2 py-1 text-xs hover:bg-white/10">{source.title}</button>)}</div>}</div>}
         </section>
       )}
 
-      {saveMessage && <div className={`rounded-xl border px-3 py-2 text-sm ${saveState === 'conflict' || saveState === 'error' ? 'border-red-400/40 bg-red-500/10' : 'border-white/10 bg-white/5'}`}>{saveMessage}{saveState === 'conflict' && activeNote && <button onClick={() => loadDetail(activeNote.id)} className="ml-3 underline">Reload server version</button>}</div>}
+      {saveMessage && <div className={`rounded-xl border px-3 py-2 text-sm ${saveState === 'conflict' || saveState === 'error' ? 'border-red-400/40 bg-red-500/10' : 'border-white/10 bg-white/5'}`}>{saveMessage}{saveState === 'conflict' && activeNote && <button onClick={() => loadDetail(activeNote.id)} className="ml-3 underline">Reload server revision</button>}</div>}
 
       <div className="grid min-h-[720px] flex-1 grid-cols-1 gap-3 lg:grid-cols-[310px_minmax(0,1fr)]">
         <aside className={`${selectedId ? 'hidden lg:flex' : 'flex'} min-h-0 flex-col rounded-2xl border border-white/10 bg-white/5`}>
@@ -528,10 +566,11 @@ export function NotebookWorkspace({ surface }: { surface: Surface }) {
                 {context?.platformAdmin && <option value="ADMIN_INTERNAL">Admin internal</option>}
               </select>
               <div className="ml-auto flex flex-wrap items-center gap-1">
-                <span className="mr-2 text-xs opacity-55">{saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? `Saved · v${activeNote.version}` : saveState === 'conflict' ? 'Conflict' : 'Editing'}</span>
-                <button onClick={() => setRightPanel('ai')} className="rounded-lg p-2 hover:bg-white/10" title="AI"><WandSparkles className="size-4" /></button>
+                <span className="mr-1 text-xs opacity-55">{saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved' : saveState === 'conflict' ? 'Conflict' : 'Editing'}</span>
+                {editable && <button onClick={saveCheckpoint} disabled={dirty || saveState === 'saving' || busy === 'checkpoint'} className="mr-1 rounded-lg border border-amber-300/25 px-2.5 py-1.5 text-xs text-amber-100 hover:bg-amber-300/10 disabled:cursor-not-allowed disabled:opacity-35" title="Save a meaningful history checkpoint after you finish a planning step"><FileClock className="mr-1 inline size-3.5" />{busy === 'checkpoint' ? 'Saving…' : 'Save checkpoint'}</button>}
+                <button onClick={() => setRightPanel('ai')} className="rounded-lg p-2 hover:bg-white/10" title="AI & suggested actions"><WandSparkles className="size-4" /></button>
                 <button onClick={() => setRightPanel('meeting')} className="rounded-lg p-2 hover:bg-white/10" title="Meeting and voice"><Mic className="size-4" /></button>
-                <button onClick={() => setRightPanel('history')} className="rounded-lg p-2 hover:bg-white/10" title="Version history"><FileClock className="size-4" /></button>
+                <button onClick={() => setRightPanel('history')} className="rounded-lg p-2 hover:bg-white/10" title="Saved history"><FileClock className="size-4" /></button>
                 <button onClick={() => setRightPanel('share')} className="rounded-lg p-2 hover:bg-white/10" title="Share"><Share2 className="size-4" /></button>
                 <button onClick={() => setRightPanel('links')} className="rounded-lg p-2 hover:bg-white/10" title="Linked records"><Link2 className="size-4" /></button>
                 <button onClick={async () => { if (!activeNote) return; await jsonFetch(`/api/notebook/${activeNote.id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedVersion: activeNote.version, isPinned: !activeNote.isPinned }) }); await loadDetail(activeNote.id); await loadNotes() }} className="rounded-lg p-2 hover:bg-white/10" title="Pin"><Pin className={`size-4 ${activeNote.isPinned ? 'fill-current text-amber-300' : ''}`} /></button>
@@ -543,42 +582,79 @@ export function NotebookWorkspace({ surface }: { surface: Surface }) {
             <div className="flex min-h-0 flex-1 flex-col xl:flex-row">
               <section className="min-w-0 flex-1 p-4 md:p-6">
                 <input value={title} disabled={!editable} onChange={(e) => { setTitle(e.target.value); markDirty() }} placeholder="Note title" className="mb-4 w-full bg-transparent text-2xl font-semibold outline-none placeholder:opacity-30 md:text-3xl" />
-                <div className="mb-2 flex flex-wrap gap-1 rounded-xl border border-white/10 bg-black/10 p-1.5 text-xs">
-                  <button onClick={() => insertMarkdown(editorRef.current, content, (v) => { setContent(v); markDirty() }, '**')} className="rounded px-2 py-1 hover:bg-white/10"><b>B</b></button>
-                  <button onClick={() => insertMarkdown(editorRef.current, content, (v) => { setContent(v); markDirty() }, '_')} className="rounded px-2 py-1 italic hover:bg-white/10">I</button>
-                  <button onClick={() => insertMarkdown(editorRef.current, content, (v) => { setContent(v); markDirty() }, '## ', '')} className="rounded px-2 py-1 hover:bg-white/10">H2</button>
-                  <button onClick={() => insertMarkdown(editorRef.current, content, (v) => { setContent(v); markDirty() }, '- ', '')} className="rounded px-2 py-1 hover:bg-white/10">• List</button>
-                  <button onClick={() => insertMarkdown(editorRef.current, content, (v) => { setContent(v); markDirty() }, '- [ ] ', '')} className="rounded px-2 py-1 hover:bg-white/10">☐ Task</button>
-                  <button onClick={() => insertMarkdown(editorRef.current, content, (v) => { setContent(v); markDirty() }, '> ', '')} className="rounded px-2 py-1 hover:bg-white/10">Quote</button>
-                  <button onClick={() => insertMarkdown(editorRef.current, content, (v) => { setContent(v); markDirty() }, '[', '](https://)')} className="rounded px-2 py-1 hover:bg-white/10">Link</button>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/10 p-1.5 text-xs">
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => setEditorMode('read')} className={`rounded-lg px-3 py-1.5 ${editorMode === 'read' || !editable ? 'bg-amber-300 text-stone-950' : 'hover:bg-white/10'}`}>Read</button>
+                    {editable && <button onClick={() => { setEditorMode('write'); requestAnimationFrame(() => editorRef.current?.focus()) }} className={`rounded-lg px-3 py-1.5 ${editorMode === 'write' ? 'bg-amber-300 text-stone-950' : 'hover:bg-white/10'}`}>Write</button>}
+                  </div>
+                  {editable && editorMode === 'write' && <div className="flex flex-wrap gap-1">
+                    <button onClick={() => insertMarkdown(editorRef.current, content, (v) => { setContent(v); markDirty() }, '**')} className="rounded px-2 py-1 hover:bg-white/10"><b>B</b></button>
+                    <button onClick={() => insertMarkdown(editorRef.current, content, (v) => { setContent(v); markDirty() }, '_')} className="rounded px-2 py-1 italic hover:bg-white/10">I</button>
+                    <button onClick={() => insertMarkdown(editorRef.current, content, (v) => { setContent(v); markDirty() }, '## ', '')} className="rounded px-2 py-1 hover:bg-white/10">H2</button>
+                    <button onClick={() => insertMarkdown(editorRef.current, content, (v) => { setContent(v); markDirty() }, '- ', '')} className="rounded px-2 py-1 hover:bg-white/10">• List</button>
+                    <button onClick={() => insertMarkdown(editorRef.current, content, (v) => { setContent(v); markDirty() }, '- [ ] ', '')} className="rounded px-2 py-1 hover:bg-white/10">☐ Task</button>
+                    <button onClick={() => insertMarkdown(editorRef.current, content, (v) => { setContent(v); markDirty() }, '> ', '')} className="rounded px-2 py-1 hover:bg-white/10">Quote</button>
+                    <button onClick={() => insertMarkdown(editorRef.current, content, (v) => { setContent(v); markDirty() }, '[', '](https://)')} className="rounded px-2 py-1 hover:bg-white/10">Link</button>
+                  </div>}
                 </div>
-                <textarea ref={editorRef} value={content} disabled={!editable} onChange={(e) => { setContent(e.target.value); markDirty() }} placeholder="Start writing. Use Markdown for headings, lists, checklists, quotes and links…" className="min-h-[520px] w-full resize-none bg-transparent text-[15px] leading-7 outline-none placeholder:opacity-30 disabled:opacity-70 md:min-h-[620px]" />
+                {editorMode === 'read' || !editable ? (
+                  <div className="min-h-[520px] rounded-xl border border-white/5 bg-black/5 p-4 md:min-h-[620px] md:p-5">
+                    {content.trim() ? <NotebookMarkdown markdown={content} /> : <p className="text-sm opacity-45">No content yet. Choose Write to start this note.</p>}
+                  </div>
+                ) : (
+                  <textarea ref={editorRef} value={content} disabled={!editable} onChange={(e) => { setContent(e.target.value); markDirty() }} placeholder="Start writing. Use the toolbar for headings, lists, checklists, quotes and links…" className="min-h-[520px] w-full resize-none bg-transparent text-[15px] leading-7 outline-none placeholder:opacity-30 disabled:opacity-70 md:min-h-[620px]" />
+                )}
               </section>
 
-              {rightPanel && <aside className="w-full border-t border-white/10 bg-black/10 p-4 xl:w-[390px] xl:border-l xl:border-t-0">
-                <div className="mb-4 flex items-center justify-between"><h3 className="font-semibold capitalize">{rightPanel === 'ai' ? 'AI & suggested actions' : rightPanel}</h3><button onClick={() => setRightPanel(null)} className="rounded p-1 hover:bg-white/10"><X className="size-4" /></button></div>
+              {rightPanel && <>
+                <button type="button" aria-label="Close Notebook panel" onClick={() => setRightPanel(null)} className="fixed inset-0 z-[79] bg-black/60 backdrop-blur-[1px] xl:hidden" />
+                <aside className="fixed inset-x-3 bottom-3 top-[5.5rem] z-[80] overflow-y-auto rounded-2xl border border-white/15 bg-stone-950 p-4 shadow-2xl xl:static xl:z-auto xl:w-[420px] xl:rounded-none xl:border-x-0 xl:border-b-0 xl:border-r-0 xl:border-t-0 xl:border-l xl:border-white/10 xl:bg-black/10 xl:shadow-none">
+                  <div className="sticky top-0 z-10 -mx-1 mb-4 flex items-center justify-between rounded-xl bg-stone-950/95 px-1 py-1 backdrop-blur xl:static xl:bg-transparent xl:p-0"><h3 className="font-semibold capitalize">{rightPanel === 'ai' ? 'AI & suggested actions' : rightPanel === 'history' ? 'Saved history' : rightPanel}</h3><button onClick={() => setRightPanel(null)} className="rounded p-2 hover:bg-white/10" aria-label="Close panel"><X className="size-4" /></button></div>
 
-                {rightPanel === 'ai' && <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    {[
-                      ['IMPROVE','Improve'],['GRAMMAR','Grammar'],['SHORTEN','Shorten'],['PROFESSIONAL','Professional'],
-                      ['CHECKLIST','Checklist'],['STRUCTURE_MEETING','Structure meeting'],['ANALYZE_MEETING','Analyze meeting'],['SUGGEST_ACTIONS','Suggest Wewed actions'],
-                    ].map(([operation, label]) => <button key={operation} onClick={() => runAi(operation)} disabled={busy === `ai:${operation}`} className="rounded-xl border border-white/10 px-3 py-2 text-left hover:bg-white/10">{busy === `ai:${operation}` ? <Loader2 className="mr-1 inline size-3 animate-spin" /> : <Sparkles className="mr-1 inline size-3 text-amber-300" />}{label}</button>)}
-                  </div>
-                  {aiPreview && <div className="rounded-xl border border-amber-300/20 bg-amber-300/5 p-3 text-sm">
-                    {aiPreview.previewText ? <><div className="mb-2 text-xs font-semibold uppercase tracking-wide opacity-60">Preview — nothing changed yet</div><div className="max-h-80 overflow-auto whitespace-pre-wrap">{aiPreview.previewText}</div><div className="mt-3 flex gap-2"><button onClick={acceptAiPreview} className="rounded-lg bg-amber-300 px-3 py-2 font-medium text-stone-950"><Check className="mr-1 inline size-4" />Accept rewrite</button><button onClick={() => setAiPreview(null)} className="rounded-lg border border-white/10 px-3 py-2">Cancel</button></div></> : <div className="space-y-2"><p className="whitespace-pre-wrap">{aiPreview.summary || aiPreview.answer || aiPreview.minutes || JSON.stringify(aiPreview, null, 2)}</p>{aiPreview.suggestedTitle && <p className="text-xs opacity-60">Suggested title: {aiPreview.suggestedTitle}</p>}</div>}
+                  {rightPanel === 'ai' && <div className="space-y-4">
+                    <section className="rounded-xl border border-amber-300/25 bg-amber-300/7 p-3 text-sm" data-notebook-ai-guide>
+                      <div className="flex items-start gap-2"><Sparkles className="mt-0.5 size-4 shrink-0 text-amber-300" /><div><p className="font-semibold text-amber-100">Use AI in 3 steps</p><ol className="mt-2 list-decimal space-y-1 pl-4 text-xs leading-5 text-white/70"><li>Write explicit source facts first.</li><li>Choose a rewrite, analysis or governed action suggestion.</li><li>Review the preview/evidence before accepting or applying anything.</li></ol></div></div>
+                      <div className="mt-3 flex flex-wrap gap-1.5 text-[10px] uppercase tracking-wide text-amber-100/80">{['Confirmed','Approved','Proposed','Pending','TBC','Quoted','Paid','Risk'].map((term) => <span key={term} className="rounded-full border border-amber-300/20 px-2 py-1">{term}</span>)}</div>
+                      <p className="mt-3 text-xs leading-5 text-white/55">Tip: distinguish proposals from approvals and quoted costs from paid amounts. AI should organize your evidence, not create facts.</p>
+                    </section>
+
+                    <button onClick={() => runAi('SUGGEST_ACTIONS')} disabled={busy === 'ai:SUGGEST_ACTIONS'} className="w-full rounded-xl border border-amber-300/35 bg-amber-300/10 px-3 py-3 text-left text-sm font-semibold text-amber-100 hover:bg-amber-300/15" data-notebook-suggest-actions>
+                      {busy === 'ai:SUGGEST_ACTIONS' ? <Loader2 className="mr-2 inline size-4 animate-spin" /> : <Sparkles className="mr-2 inline size-4 text-amber-300" />}
+                      Suggest Wewed actions
+                      <span className="mt-1 block text-xs font-normal text-white/55">Turn explicit follow-ups, amounts and times into reviewable Task, Budget, Timeline or communication suggestions.</span>
+                    </button>
+
+                    {pendingSuggestions.length > 0 && <div className="space-y-2"><div className="flex items-center justify-between"><h4 className="text-sm font-medium">Review suggestions</h4><span className="text-xs opacity-50">{selectedSuggestions.size} selected</span></div>{pendingSuggestions.map((suggestion) => <label key={suggestion.id} className="block rounded-xl border border-white/10 p-3 text-sm"><div className="flex gap-2"><input type="checkbox" checked={selectedSuggestions.has(suggestion.id)} onChange={(e) => setSelectedSuggestions((current) => { const next = new Set(current); e.target.checked ? next.add(suggestion.id) : next.delete(suggestion.id); return next })} /><div><div className="font-medium">{suggestion.actionType.replaceAll('_',' ')}</div><div className="mt-1 text-xs opacity-65">{suggestion.rationale || JSON.stringify(suggestion.payload)}</div>{suggestion.evidence && <div className="mt-2 border-l-2 border-amber-300/30 pl-2 text-xs opacity-55">Source: {suggestion.evidence}</div>}{suggestion.failureMessage && <div className="mt-2 text-xs text-red-300">{suggestion.failureMessage}</div>}</div></div></label>)}<button onClick={applySelected} disabled={selectedSuggestions.size === 0 || busy === 'apply-suggestions'} className="w-full rounded-xl bg-amber-300 px-3 py-2 font-semibold text-stone-950">Apply {selectedSuggestions.size} selected change{selectedSuggestions.size === 1 ? '' : 's'}</button></div>}
+
+                    <div>
+                      <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/45">Writing & meeting tools</h4>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        {[
+                          ['IMPROVE','Improve'],['GRAMMAR','Grammar'],['SHORTEN','Shorten'],['PROFESSIONAL','Professional'],
+                          ['CHECKLIST','Checklist'],['STRUCTURE_MEETING','Structure meeting'],['ANALYZE_MEETING','Analyze meeting'],
+                        ].map(([operation, label]) => <button key={operation} onClick={() => runAi(operation)} disabled={busy === `ai:${operation}`} className="rounded-xl border border-white/10 px-3 py-2 text-left hover:bg-white/10">{busy === `ai:${operation}` ? <Loader2 className="mr-1 inline size-3 animate-spin" /> : <Sparkles className="mr-1 inline size-3 text-amber-300" />}{label}</button>)}
+                      </div>
+                    </div>
+
+                    {aiPreview && <div className="rounded-xl border border-amber-300/20 bg-amber-300/5 p-3 text-sm">
+                      {aiPreview.previewText ? <><div className="mb-2 text-xs font-semibold uppercase tracking-wide opacity-60">Preview — nothing changed yet</div><div className="max-h-[46vh] overflow-auto rounded-lg bg-black/10 p-2"><NotebookMarkdown markdown={aiPreview.previewText} /></div><div className="mt-3 flex flex-wrap gap-2"><button onClick={acceptAiPreview} className="rounded-lg bg-amber-300 px-3 py-2 font-medium text-stone-950"><Check className="mr-1 inline size-4" />Accept rewrite</button><button onClick={() => setAiPreview(null)} className="rounded-lg border border-white/10 px-3 py-2">Cancel</button></div></> : <div className="space-y-2"><NotebookMarkdown markdown={String(aiPreview.summary || aiPreview.answer || aiPreview.minutes || JSON.stringify(aiPreview, null, 2))} />{aiPreview.suggestedTitle && <p className="text-xs opacity-60">Suggested title: {aiPreview.suggestedTitle}</p>}</div>}
+                    </div>}
                   </div>}
-                  {pendingSuggestions.length > 0 && <div className="space-y-2"><div className="flex items-center justify-between"><h4 className="text-sm font-medium">Review suggestions</h4><span className="text-xs opacity-50">{selectedSuggestions.size} selected</span></div>{pendingSuggestions.map((suggestion) => <label key={suggestion.id} className="block rounded-xl border border-white/10 p-3 text-sm"><div className="flex gap-2"><input type="checkbox" checked={selectedSuggestions.has(suggestion.id)} onChange={(e) => setSelectedSuggestions((current) => { const next = new Set(current); e.target.checked ? next.add(suggestion.id) : next.delete(suggestion.id); return next })} /><div><div className="font-medium">{suggestion.actionType.replaceAll('_',' ')}</div><div className="mt-1 text-xs opacity-65">{suggestion.rationale || JSON.stringify(suggestion.payload)}</div>{suggestion.evidence && <div className="mt-2 border-l-2 border-amber-300/30 pl-2 text-xs opacity-55">Source: {suggestion.evidence}</div>}{suggestion.failureMessage && <div className="mt-2 text-xs text-red-300">{suggestion.failureMessage}</div>}</div></div></label>)}<button onClick={applySelected} disabled={selectedSuggestions.size === 0 || busy === 'apply-suggestions'} className="w-full rounded-xl bg-amber-300 px-3 py-2 font-semibold text-stone-950">Apply {selectedSuggestions.size} selected change{selectedSuggestions.size === 1 ? '' : 's'}</button></div>}
-                </div>}
 
-                {rightPanel === 'history' && <div className="space-y-2">{detail.versions.map((version) => <div key={version.id} className="rounded-xl border border-white/10 p-3 text-sm"><div className="flex items-center justify-between"><span className="font-medium">Version {version.version}</span><span className="text-xs opacity-50">{version.source}</span></div><div className="mt-1 text-xs opacity-55">{formatWhen(version.createdAt)}{version.modelName ? ` · ${version.modelName}` : ''}</div>{version.version !== activeNote.version && <button onClick={() => restore(version.version)} className="mt-2 text-xs text-amber-200 underline">Restore this version</button>}</div>)}</div>}
+                  {rightPanel === 'history' && <div className="space-y-3">
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs leading-5 text-white/65"><strong className="text-white/85">Autosave protects your working draft continuously.</strong> Use <em>Save checkpoint</em> when you finish a meaningful planning step. AI accepts and restores are also kept automatically.</div>
+                    {historyModel.meaningful.length === 0 && <p className="text-sm opacity-55">No saved history points yet.</p>}
+                    {historyModel.meaningful.map((version) => <div key={version.id} className="rounded-xl border border-white/10 p-3 text-sm"><div className="flex items-center justify-between gap-3"><span className="font-medium">{historyLabel(version, historyModel.createdId)}</span><span className="text-xs opacity-45">{formatWhen(version.createdAt)}</span></div>{version.modelName && <div className="mt-1 text-xs opacity-55">AI model: {version.modelName}</div>}{version.version !== activeNote.version && <button onClick={() => restore(version.version)} className="mt-2 text-xs text-amber-200 underline">Restore this saved point</button>}</div>)}
+                    {historyModel.legacyAutosaves.length > 0 && <details className="rounded-xl border border-white/10 bg-black/10 p-3 text-sm"><summary className="cursor-pointer text-xs text-white/60">Earlier autosave history ({historyModel.legacyAutosaves.length})</summary><p className="mt-2 text-xs leading-5 text-white/45">These are legacy snapshots created before Wewed separated autosave from meaningful checkpoints. They are retained for recovery but no longer accumulate during normal typing.</p><div className="mt-3 max-h-64 space-y-2 overflow-y-auto">{historyModel.legacyAutosaves.map((version) => <div key={version.id} className="flex items-center justify-between gap-3 rounded-lg border border-white/5 p-2"><span className="text-xs opacity-55">{formatWhen(version.createdAt)}</span>{version.version !== activeNote.version && <button onClick={() => restore(version.version)} className="text-xs text-amber-200 underline">Restore</button>}</div>)}</div></details>}
+                  </div>}
 
-                {rightPanel === 'share' && <div className="space-y-3"><p className="text-xs opacity-65">Private notes stay private. Sharing is explicit and can be revoked.</p><input value={shareEmail} onChange={(e) => setShareEmail(e.target.value)} placeholder="Existing Wewed user email" className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm" /><select value={shareRole} onChange={(e) => setShareRole(e.target.value as 'VIEWER'|'EDITOR')} className="w-full rounded-xl border border-white/10 bg-stone-900 px-3 py-2 text-sm"><option value="VIEWER">Can view</option><option value="EDITOR">Can edit</option></select><button onClick={share} className="w-full rounded-xl bg-amber-300 px-3 py-2 font-medium text-stone-950"><Users className="mr-2 inline size-4" />Share</button>{detail.shares.map((item) => <div key={item.userId} className="flex items-center justify-between rounded-xl border border-white/10 p-2 text-xs"><div><div>{item.name || item.email}</div><div className="opacity-50">{item.role}</div></div><button onClick={async () => { await mutateAction({ action: 'revoke-share', userId: item.userId }); await loadDetail(activeNote.id) }} className="rounded p-1 hover:bg-red-500/10"><X className="size-3" /></button></div>)}</div>}
+                  {rightPanel === 'share' && <div className="space-y-3"><p className="text-xs opacity-65">Private notes stay private. Sharing is explicit and can be revoked.</p><input value={shareEmail} onChange={(e) => setShareEmail(e.target.value)} placeholder="Existing Wewed user email" className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm" /><select value={shareRole} onChange={(e) => setShareRole(e.target.value as 'VIEWER'|'EDITOR')} className="w-full rounded-xl border border-white/10 bg-stone-900 px-3 py-2 text-sm"><option value="VIEWER">Can view</option><option value="EDITOR">Can edit</option></select><button onClick={share} className="w-full rounded-xl bg-amber-300 px-3 py-2 font-medium text-stone-950"><Users className="mr-2 inline size-4" />Share</button>{detail.shares.map((item) => <div key={item.userId} className="flex items-center justify-between rounded-xl border border-white/10 p-2 text-xs"><div><div>{item.name || item.email}</div><div className="opacity-50">{item.role}</div></div><button onClick={async () => { await mutateAction({ action: 'revoke-share', userId: item.userId }); await loadDetail(activeNote.id) }} className="rounded p-1 hover:bg-red-500/10"><X className="size-3" /></button></div>)}</div>}
 
-                {rightPanel === 'links' && <div className="space-y-3"><p className="text-xs opacity-65">Link this note to canonical Wewed records. Notebook does not copy or own those records.</p><select value={linkType} onChange={(e) => setLinkType(e.target.value)} className="w-full rounded-xl border border-white/10 bg-stone-900 px-3 py-2 text-sm">{['wedding','task','budget_item','vendor','guest','timeline_item','seating','communication','support_case','business_account','user','quote','booking','payment'].map((type) => <option key={type}>{type}</option>)}</select><input value={linkId} onChange={(e) => setLinkId(e.target.value)} placeholder="Record ID" className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm" /><input value={linkLabel} onChange={(e) => setLinkLabel(e.target.value)} placeholder="Label (optional)" className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm" /><button onClick={addEntityLink} className="w-full rounded-xl bg-amber-300 px-3 py-2 font-medium text-stone-950"><Link2 className="mr-2 inline size-4" />Link record</button>{detail.links.map((link) => <div key={link.id} className="rounded-xl border border-white/10 p-2 text-xs"><div className="font-medium">{link.entityType}: {link.labelSnapshot || link.entityId}</div></div>)}</div>}
+                  {rightPanel === 'links' && <div className="space-y-3"><p className="text-xs opacity-65">Link this note to canonical Wewed records. Notebook does not copy or own those records.</p><select value={linkType} onChange={(e) => setLinkType(e.target.value)} className="w-full rounded-xl border border-white/10 bg-stone-900 px-3 py-2 text-sm">{['wedding','task','budget_item','vendor','guest','timeline_item','seating','communication','support_case','business_account','user','quote','booking','payment'].map((type) => <option key={type}>{type}</option>)}</select><input value={linkId} onChange={(e) => setLinkId(e.target.value)} placeholder="Record ID" className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm" /><input value={linkLabel} onChange={(e) => setLinkLabel(e.target.value)} placeholder="Label (optional)" className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm" /><button onClick={addEntityLink} className="w-full rounded-xl bg-amber-300 px-3 py-2 font-medium text-stone-950"><Link2 className="mr-2 inline size-4" />Link record</button>{detail.links.map((link) => <div key={link.id} className="rounded-xl border border-white/10 p-2 text-xs"><div className="font-medium">{link.entityType}: {link.labelSnapshot || link.entityId}</div></div>)}</div>}
 
-                {rightPanel === 'meeting' && <div className="space-y-4"><div className="rounded-xl border border-white/10 p-3"><label className="flex gap-2 text-xs"><input type="checkbox" checked={recordingConsent} onChange={(e) => setRecordingConsent(e.target.checked)} /><span>I have informed participants that this meeting may be recorded/transcribed and have the required consent.</span></label><div className="mt-3 flex items-center gap-2"><button onClick={startRecording} disabled={!recordingConsent || recordingState !== 'idle'} className="rounded-full bg-red-500 px-4 py-2 text-sm font-medium disabled:opacity-40"><Mic className="mr-2 inline size-4" />Record</button>{(recordingState === 'recording' || recordingState === 'paused') && <><button onClick={togglePause} className="rounded-full border border-white/15 p-2">{recordingState === 'paused' ? <Mic className="size-4" /> : <Pause className="size-4" />}</button><button onClick={stopRecording} className="rounded-full border border-white/15 p-2"><Square className="size-4 fill-current" /></button><span className="font-mono text-sm">{Math.floor(recordingSeconds / 60).toString().padStart(2,'0')}:{(recordingSeconds % 60).toString().padStart(2,'0')}</span></>}{recordingState === 'uploading' && <span className="text-xs"><Loader2 className="mr-1 inline size-3 animate-spin" />Saving recording…</span>}</div></div>{detail.recordings.map((recording) => <div key={recording.id} className="rounded-xl border border-white/10 p-3 text-sm"><div className="flex items-center justify-between"><span>{formatWhen(recording.createdAt)}</span><span className="text-xs opacity-60">{recording.status}</span></div><div className="mt-1 text-xs opacity-50">{Math.round(recording.sizeBytes / 1024)} KB{recording.durationMs ? ` · ${Math.round(recording.durationMs / 1000)}s` : ''}</div>{recording.errorMessage && <div className="mt-2 text-xs text-amber-200">{recording.errorMessage}</div>}<div className="mt-2 flex flex-wrap gap-2"><button onClick={() => transcribe(recording.id)} disabled={busy === `transcribe:${recording.id}`} className="rounded-lg border border-white/10 px-2 py-1 text-xs">{recording.status === 'FAILED' ? 'Retry transcription' : 'Transcribe'}</button>{recording.status === 'TRANSCRIBED' && <button onClick={() => appendTranscript(recording.id)} className="rounded-lg border border-white/10 px-2 py-1 text-xs">Append transcript to note</button>}</div></div>)}</div>}
-              </aside>}
+                  {rightPanel === 'meeting' && <div className="space-y-4"><div className="rounded-xl border border-white/10 p-3"><label className="flex gap-2 text-xs"><input type="checkbox" checked={recordingConsent} onChange={(e) => setRecordingConsent(e.target.checked)} /><span>I have informed participants that this meeting may be recorded/transcribed and have the required consent.</span></label><div className="mt-3 flex items-center gap-2"><button onClick={startRecording} disabled={!recordingConsent || recordingState !== 'idle'} className="rounded-full bg-red-500 px-4 py-2 text-sm font-medium disabled:opacity-40"><Mic className="mr-2 inline size-4" />Record</button>{(recordingState === 'recording' || recordingState === 'paused') && <><button onClick={togglePause} className="rounded-full border border-white/15 p-2">{recordingState === 'paused' ? <Mic className="size-4" /> : <Pause className="size-4" />}</button><button onClick={stopRecording} className="rounded-full border border-white/15 p-2"><Square className="size-4 fill-current" /></button><span className="font-mono text-sm">{Math.floor(recordingSeconds / 60).toString().padStart(2,'0')}:{(recordingSeconds % 60).toString().padStart(2,'0')}</span></>}{recordingState === 'uploading' && <span className="text-xs"><Loader2 className="mr-1 inline size-3 animate-spin" />Saving recording…</span>}</div></div>{detail.recordings.map((recording) => <div key={recording.id} className="rounded-xl border border-white/10 p-3 text-sm"><div className="flex items-center justify-between"><span>{formatWhen(recording.createdAt)}</span><span className="text-xs opacity-60">{recording.status}</span></div><div className="mt-1 text-xs opacity-50">{Math.round(recording.sizeBytes / 1024)} KB{recording.durationMs ? ` · ${Math.round(recording.durationMs / 1000)}s` : ''}</div>{recording.errorMessage && <div className="mt-2 text-xs text-amber-200">{recording.errorMessage}</div>}<div className="mt-2 flex flex-wrap gap-2"><button onClick={() => transcribe(recording.id)} disabled={busy === `transcribe:${recording.id}`} className="rounded-lg border border-white/10 px-2 py-1 text-xs">{recording.status === 'FAILED' ? 'Retry transcription' : 'Transcribe'}</button>{recording.status === 'TRANSCRIBED' && <button onClick={() => appendTranscript(recording.id)} className="rounded-lg border border-white/10 px-2 py-1 text-xs">Append transcript to note</button>}</div></div>)}</div>}
+                </aside>
+              </>}
             </div>
           </>}
         </main>
