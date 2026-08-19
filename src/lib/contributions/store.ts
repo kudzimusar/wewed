@@ -28,6 +28,9 @@ export interface ContributorRow {
   relationship: string | null
   email: string | null
   phone: string | null
+  address: string | null
+  preferredContactMethod: string | null
+  notes: string | null
   publicRecognition: boolean
   anonymousPublic: boolean
   guestId: string | null
@@ -120,6 +123,7 @@ export interface CampaignDbRow {
   externalUrl: string | null
   ctaLabel: string | null
   invitationVisible: boolean
+  showContributorRecognition: boolean
   publicNote: string | null
   publishFrom: Date | null
   publishUntil: Date | null
@@ -137,6 +141,9 @@ export async function listContributors(weddingId: string, client: SqlClient = db
            relationship,
            email,
            phone,
+           address,
+           preferred_contact_method AS "preferredContactMethod",
+           notes,
            public_recognition AS "publicRecognition",
            anonymous_public AS "anonymousPublic",
            guest_id AS "guestId",
@@ -154,7 +161,7 @@ export async function listCampaigns(weddingId: string, client: SqlClient = db): 
            target_amount::text AS "targetAmount", currency, published,
            show_target AS "showTarget", show_raised AS "showRaised",
            external_url AS "externalUrl", cta_label AS "ctaLabel",
-           invitation_visible AS "invitationVisible", public_note AS "publicNote",
+           invitation_visible AS "invitationVisible", show_contributor_recognition AS "showContributorRecognition", public_note AS "publicNote",
            publish_from AS "publishFrom", publish_until AS "publishUntil",
            created_at AS "createdAt", updated_at AS "updatedAt"
       FROM wewed_contributions.campaigns
@@ -188,6 +195,7 @@ function serializeCampaign(row: CampaignDbRow, raised = '0') {
     externalUrl: row.externalUrl,
     ctaLabel: row.ctaLabel,
     invitationVisible: row.invitationVisible,
+    showContributorRecognition: row.showContributorRecognition,
     publicNote: row.publicNote,
     publishFrom: iso(row.publishFrom),
     publishUntil: iso(row.publishUntil),
@@ -268,9 +276,13 @@ export async function loadContributionWorkspace(weddingId: string) {
       note: item.note,
       budgetItem: { id: item.budgetItemId, description: item.budgetDescription, category: item.budgetCategory },
     }))
-    const allocatedAmount = rowAllocations
+    const allocationCash = rowAllocations
       .filter((item) => item.allocationKind === 'CASH')
       .reduce((sum, item) => sum + item.amount, 0)
+    const paymentOnlyCash = funding
+      .filter((item) => item.contributionId === row.id && item.sourceKind === 'CONTRIBUTION' && item.paymentId && !item.budgetItemId)
+      .reduce((sum, item) => sum + Number(item.amount), 0)
+    const allocatedAmount = allocationCash + paymentOnlyCash
     const amount = asNumber(row.amount)
     return {
       id: row.id,
@@ -373,11 +385,14 @@ export async function getContribution(weddingId: string, contributionIdValue: st
 
 export async function contributionAllocatedCash(weddingId: string, contributionIdValue: string, client: SqlClient = db): Promise<number> {
   const rows = await client.$queryRaw<Array<{ total: string }>>`
-    SELECT COALESCE(SUM(amount), 0)::text AS total
-      FROM wewed_contributions.contribution_allocations
-     WHERE wedding_id = ${weddingId}
-       AND contribution_id = ${contributionIdValue}
-       AND allocation_kind = 'CASH'
+    SELECT (
+      COALESCE((SELECT SUM(amount) FROM wewed_contributions.contribution_allocations
+        WHERE wedding_id = ${weddingId} AND contribution_id = ${contributionIdValue} AND allocation_kind = 'CASH'), 0)
+      +
+      COALESCE((SELECT SUM(amount) FROM wewed_contributions.payment_funding_allocations
+        WHERE wedding_id = ${weddingId} AND contribution_id = ${contributionIdValue}
+          AND source_kind = 'CONTRIBUTION' AND payment_id IS NOT NULL AND budget_item_id IS NULL), 0)
+    )::text AS total
   `
   return Number(rows[0]?.total ?? 0)
 }

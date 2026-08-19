@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
       externalUrl: string | null
       ctaLabel: string | null
       invitationVisible: boolean
+      showContributorRecognition: boolean
       publicNote: string | null
       raised: string
     }>>`
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
              camp.target_amount::text AS "targetAmount", camp.currency,
              camp.show_target AS "showTarget", camp.show_raised AS "showRaised",
              camp.external_url AS "externalUrl", camp.cta_label AS "ctaLabel",
-             camp.invitation_visible AS "invitationVisible", camp.public_note AS "publicNote",
+             camp.invitation_visible AS "invitationVisible", camp.show_contributor_recognition AS "showContributorRecognition", camp.public_note AS "publicNote",
              COALESCE(SUM(CASE WHEN c.fulfillment_state IN ('RECEIVED','PAID_DIRECT','COMPLETED') AND c.currency = camp.currency THEN c.amount ELSE 0 END), 0)::text AS raised
         FROM wewed_contributions.campaigns camp
         LEFT JOIN wewed_contributions.wedding_contributions c ON c.campaign_id = camp.id
@@ -49,6 +50,18 @@ export async function GET(request: NextRequest) {
        GROUP BY camp.id
        ORDER BY camp.created_at
     `
+    const recognition = rows.some((row) => row.showContributorRecognition)
+      ? await db.$queryRaw<Array<{ campaignId:string; displayName:string }>>`
+          SELECT DISTINCT c.campaign_id AS "campaignId", p.display_name AS "displayName"
+            FROM wewed_contributions.wedding_contributions c
+            JOIN wewed_contributions.contributors p ON p.id=c.contributor_id AND p.wedding_id=c.wedding_id
+            JOIN wewed_contributions.campaigns camp ON camp.id=c.campaign_id AND camp.wedding_id=c.wedding_id
+           WHERE c.wedding_id=${resolution.wedding.id} AND camp.published=TRUE AND camp.show_contributor_recognition=TRUE
+             AND p.public_recognition=TRUE AND p.anonymous_public=FALSE
+             AND c.fulfillment_state IN ('RECEIVED','DELIVERED','PAID_DIRECT','COMPLETED')
+           ORDER BY p.display_name
+        `
+      : []
     const data = rows.map((row) => ({
       id: row.id,
       type: row.type,
@@ -63,6 +76,7 @@ export async function GET(request: NextRequest) {
       ctaLabel: row.ctaLabel,
       invitationVisible: row.invitationVisible,
       publicNote: row.publicNote,
+      recognition: row.showContributorRecognition ? recognition.filter((item)=>item.campaignId===row.id).map((item)=>item.displayName) : [],
     }))
     return NextResponse.json({ success: true, data })
   } catch (error) {

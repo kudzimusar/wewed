@@ -16,6 +16,7 @@ export const MODULE_LABELS = {
   guests: 'Guests',
   timeline: 'Timeline',
   seating: 'Seating',
+  contributions: 'Contributions',
 } as const
 
 export type ModuleKey = keyof typeof MODULE_LABELS

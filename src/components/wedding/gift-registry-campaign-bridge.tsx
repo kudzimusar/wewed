@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ArrowRight, Gift, Heart, Plane } from 'lucide-react'
+import { ArrowRight, Gift, HandHeart, Heart, Plane } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { GiftRegistry } from '@/components/wedding/gift-registry'
@@ -20,6 +20,7 @@ interface PublicCampaign {
   externalUrl: string | null
   ctaLabel: string | null
   publicNote: string | null
+  recognition?: string[]
 }
 
 function money(value: number, currency: string): string {
@@ -56,7 +57,7 @@ export function GiftRegistryCampaignBridge() {
         </div>
         <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
           {campaigns.map((campaign) => {
-            const Icon = campaign.type === 'CHARITY' ? Heart : campaign.type === 'HOME' ? Gift : Plane
+            const Icon = campaign.type === 'CHARITY' ? Heart : campaign.type === 'HOME' || campaign.type === 'ITEM_EXPERIENCE' ? Gift : campaign.type === 'WEDDING_SUPPORT' ? HandHeart : Plane
             const progress = campaign.targetAmount && campaign.raised !== null ? Math.min(100, Math.round((campaign.raised / campaign.targetAmount) * 100)) : null
             return (
               <article key={campaign.id} className="flex h-full flex-col rounded-2xl border border-gold/25 bg-ivory/70 p-6 shadow-sm">
@@ -68,7 +69,7 @@ export function GiftRegistryCampaignBridge() {
                   {progress !== null && <Progress value={progress} className="h-1.5 bg-gold/15 [&>div]:bg-gold" />}
                   {campaign.showTarget && campaign.targetAmount !== null && <p className="font-sans text-[11px] text-espresso/45">Optional goal: {money(campaign.targetAmount, campaign.currency)}</p>}
                 </div>}
-                {campaign.publicNote && <p className="mt-5 font-serif text-sm italic leading-6 text-espresso/55">{campaign.publicNote}</p>}
+                {campaign.publicNote && <p className="mt-5 font-serif text-sm italic leading-6 text-espresso/55">{campaign.publicNote}</p>}{campaign.recognition?.length ? <p className="mt-4 font-sans text-[11px] leading-5 text-espresso/45">With thanks to {campaign.recognition.join(', ')}.</p> : null}
                 {campaign.externalUrl && <Button asChild variant="outline" className="mt-6 w-full border-gold/30 bg-gold/5 text-espresso hover:bg-gold/15"><a href={campaign.externalUrl} target="_blank" rel="noopener noreferrer">{campaign.ctaLabel || 'View gifting details'}<ArrowRight className="ml-2 size-4" /></a></Button>}
               </article>
             )

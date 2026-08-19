@@ -30,31 +30,18 @@ on:
       - 'src/app/api/exports/**'
       - 'tests/e2e/planner-contributions.spec.ts'
       - 'tests/e2e/support/planner-browser.ts'
-      - 'scripts/contributions-alignment-driver-v11.py'
-      - 'scripts/contributions-alignment-source.py'
-      - 'scripts/contributions-second-review-expansion.py'
-      - 'scripts/contributions-lifecycle-audit.py'
-      - 'scripts/contributions-integrity-permissions.py'
-      - 'scripts/contributions-final-hardening.py'
-      - 'scripts/contributions-final-invariants.py'
-      - 'scripts/contributions-phase1-phase3-financial-truth.py'
-      - 'scripts/contributions-phase2-detail-evidence.py'
-      - 'scripts/contributions-phase4-operational-integration.py'
-      - 'scripts/contributions-phase5-campaign-governance.py'
-      - 'scripts/contributions-phase6-productivity.py'
-      - 'scripts/contributions-wewed-contract-normalization.py'
-      - 'scripts/contributions-generated-test-normalization.py'
       - '.github/workflows/contributions-resource-accounting.yml'
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: contributions-materialize-${{ github.event.pull_request.number }}
-  cancel-in-progress: false
+  group: contributions-resource-accounting-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  materialize-and-qualify:
+  qualify:
     runs-on: ubuntu-latest
     timeout-minutes: 70
     services:
@@ -84,48 +71,9 @@ jobs:
       NEXT_TELEMETRY_DISABLED: 1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
         with:
           bun-version: 1.3.14
-      - name: Preserve the permanent read-only workflow
-        run: git show HEAD^:.github/workflows/contributions-resource-accounting.yml > /tmp/contributions-permanent.yml
-      - name: Materialize complete Contributions product
-        run: python3 scripts/contributions-alignment-driver-v11.py
-      - name: Normalize and assert Stage-7 worksheet selector
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path('src/components/wedding/planner-workspace-stage7.tsx')
-          text = path.read_text()
-          old_module = "  { value: 'contributions', label: 'Contributions' },"
-          durable_module = "  { value: 'contributions', label: 'Contributions', worksheetKey: 'contributions' },"
-          if old_module in text:
-              text = text.replace(old_module, durable_module, 1)
-          if text.count(durable_module) != 1:
-              raise SystemExit('Contributions worksheetKey is missing or ambiguous after generation.')
-
-          bad_selector = "data-testid={`worksheet-module-${module.worksheetKey ?? module.value}`}"
-          durable_selector = "data-testid={`worksheet-module-${module.worksheetKey ?? 'overview'}`}"
-          text = text.replace(bad_selector, durable_selector)
-          lines = text.splitlines(keepends=True)
-          seen = False
-          normalized = []
-          for line in lines:
-              if durable_selector in line:
-                  if seen:
-                      continue
-                  seen = True
-              normalized.append(line)
-          text = ''.join(normalized)
-          if text.count(durable_selector) != 1 or bad_selector in text:
-              raise SystemExit('Stage-7 durable worksheet selector normalization failed.')
-          path.write_text(text)
-          PY
       - run: bun install --frozen-lockfile
       - run: bunx prisma validate --schema prisma/schema.prisma
       - run: bunx prisma generate --schema prisma/schema.prisma
@@ -168,39 +116,3 @@ jobs:
       - name: Run Contributions browser qualification
         run: bunx playwright test tests/e2e/planner-contributions.spec.ts
       - run: git diff --check
-      - name: Verify this qualification still owns the PR head
-        shell: bash
-        run: |
-          git fetch origin "${{ github.event.pull_request.head.ref }}"
-          if [ "$(git rev-parse FETCH_HEAD)" != "${{ github.event.pull_request.head.sha }}" ]; then
-            echo 'PR head moved after this materialization started; refusing to publish stale output.' >&2
-            exit 1
-          fi
-      - name: Restore permanent workflow and remove generators
-        shell: bash
-        run: |
-          cp /tmp/contributions-permanent.yml .github/workflows/contributions-resource-accounting.yml
-          rm -f \
-            scripts/contributions-alignment-driver-v11.py \
-            scripts/contributions-alignment-source.py \
-            scripts/contributions-second-review-expansion.py \
-            scripts/contributions-lifecycle-audit.py \
-            scripts/contributions-integrity-permissions.py \
-            scripts/contributions-final-hardening.py \
-            scripts/contributions-final-invariants.py \
-            scripts/contributions-phase1-phase3-financial-truth.py \
-            scripts/contributions-phase2-detail-evidence.py \
-            scripts/contributions-phase4-operational-integration.py \
-            scripts/contributions-phase5-campaign-governance.py \
-            scripts/contributions-phase6-productivity.py \
-            scripts/contributions-wewed-contract-normalization.py \
-            scripts/contributions-generated-test-normalization.py
-      - name: Commit and publish qualified Contributions product
-        shell: bash
-        run: |
-          git config user.name 'Wewed Contributions Review Bot'
-          git config user.email 'actions@users.noreply.github.com'
-          git add -A
-          git diff --cached --check
-          git commit -m 'Materialize qualified Contributions product'
-          git push origin HEAD:${{ github.event.pull_request.head.ref }}
