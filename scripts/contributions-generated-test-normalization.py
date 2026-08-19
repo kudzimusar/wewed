@@ -20,7 +20,6 @@ for old, new in replacements.items():
     text = text.replace(old, new, 1)
 
 path.write_text(text)
-
 for forbidden in replacements:
     if forbidden in text:
         raise SystemExit(f'Stale generated assertion remains: {forbidden}')
@@ -28,7 +27,6 @@ for forbidden in replacements:
 browser = Path('tests/e2e/planner-contributions.spec.ts')
 if not browser.exists():
     raise SystemExit('Generated Contributions browser spec is missing.')
-
 browser_text = browser.read_text()
 malformed = "getByPlaceholder('Relationship, e.g. Bride's aunt')"
 normalized = 'getByPlaceholder("Relationship, e.g. Bride\'s aunt")'
@@ -46,11 +44,11 @@ if not stage7.exists():
 stage7_text = stage7.read_text()
 selector = "data-testid={`worksheet-module-${module.worksheetKey ?? 'overview'}`}"
 if stage7_text.count(selector) == 0:
-    anchor = '                  key={module.value}\n                  type="button"\n                  onClick={() => selectWorkspaceTab(module.value)}'
-    replacement = '                  key={module.value}\n                  type="button"\n                  data-testid={`worksheet-module-${module.worksheetKey ?? \'overview\'}`}\n                  onClick={() => selectWorkspaceTab(module.value)}'
+    anchor = '                  key={module.value}\n'
+    replacement = anchor + "                  data-testid={`worksheet-module-${module.worksheetKey ?? 'overview'}`}\n"
     count = stage7_text.count(anchor)
     if count != 1:
-        raise SystemExit(f'Expected exactly one Stage 7 module-button anchor, found {count}.')
+        raise SystemExit(f'Expected exactly one generated Stage 7 module key, found {count}.')
     stage7_text = stage7_text.replace(anchor, replacement, 1)
     stage7.write_text(stage7_text)
 if stage7_text.count(selector) != 1:
