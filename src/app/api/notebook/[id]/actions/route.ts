@@ -4,6 +4,7 @@ import { applySuggestions } from '@/lib/notebook/actions'
 import { createNotebookCheckpoint } from '@/lib/notebook/history'
 import { notebookErrorResponse, requireNotebookActor } from '@/lib/notebook/http'
 import { setNotebookTags } from '@/lib/notebook/metadata'
+import { notifyNotebookShare } from '@/lib/notebook/share-notifications'
 import {
   addLink,
   getNote,
@@ -75,7 +76,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
       if (!userId) throw new NotebookValidationError('Choose an existing Wewed user to share with.')
       const role = body.role === 'EDITOR' ? 'EDITOR' : 'VIEWER'
       await upsertShare(access.actor, id, { userId, role })
-      return NextResponse.json({ success: true })
+
+      // Access is authoritative and succeeds independently. Notification is
+      // best-effort through the canonical Wewed communications delivery pipeline.
+      const notification = await notifyNotebookShare(access.actor, id, userId, role)
+      return NextResponse.json({ success: true, data: { shared: true, notification } })
     }
     if (action === 'revoke-share') {
       if (typeof body.userId !== 'string') throw new NotebookValidationError('userId is required.')
