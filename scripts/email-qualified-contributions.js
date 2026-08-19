@@ -1,11 +1,11 @@
 const fs = require('fs')
-const path = require('path')
 
 async function main() {
   const archive = '/tmp/contributions-qualified-product.tar.gz'
   if (!fs.existsSync(archive)) throw new Error(`Missing archive: ${archive}`)
-  const content = fs.readFileSync(archive).toString('base64')
-  const subject = 'Wewed Contributions qualified product transfer 2026-08-19'
+  const archiveBase64 = fs.readFileSync(archive).toString('base64')
+  const textAttachment = Buffer.from(archiveBase64, 'utf8').toString('base64')
+  const subject = 'Wewed Contributions qualified product transfer BASE64 2026-08-19'
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -16,8 +16,8 @@ async function main() {
       from: 'Wewed Qualification <qualification@updates.wewed.pro>',
       to: ['kudzimusar@gmail.com'],
       subject,
-      text: 'Automated one-time transfer of the already-qualified Contributions product tree. Public repository source only; no production data or credentials.',
-      attachments: [{ filename: 'contributions-qualified-product.tar.gz', content }],
+      text: 'One-time Base64 text transfer of the already-qualified Contributions source archive. Decode the attached .b64.txt file to recover the original tar.gz.',
+      attachments: [{ filename: 'contributions-qualified-product.tar.gz.b64.txt', content: textAttachment }],
     }),
   })
   const body = await response.text()
