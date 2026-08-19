@@ -11,6 +11,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { DigitalInvitationCard } from '@/components/wedding/digital-invitation-card'
+import { InvitationGiftingLink } from '@/components/wedding/invitation-gifting-link'
 import { useWeddingContext } from '@/components/wedding/wedding-data-provider'
 import {
   normalizeInvitationCardStyle,
@@ -158,8 +159,9 @@ export function InvitationRsvpDialog() {
             data={cardData}
             style={cardStyle}
             footer={(
-              <div className="flex flex-col justify-center gap-2 sm:flex-row">
+              <div className="flex flex-col justify-center gap-2 sm:flex-row sm:flex-wrap">
                 <Button type="button" variant="outline" onClick={close} className="border-current/30 bg-transparent">Explore wedding site</Button>
+                <InvitationGiftingLink slug={slug} onNavigate={close} />
                 <Button type="button" onClick={() => setView('rsvp')} className="bg-gold text-espresso hover:bg-gold-light">RSVP now</Button>
               </div>
             )}

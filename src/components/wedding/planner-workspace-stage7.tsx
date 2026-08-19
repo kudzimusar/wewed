@@ -398,7 +398,7 @@ export function PlannerWorkspace() {
 
             <div
               id="planner-worksheet-modules"
-              className={`${modulePickerOpen ? 'mt-2 grid' : 'hidden'} grid-cols-2 gap-1 sm:grid-cols-4 lg:grid-cols-7`}
+              className={`${modulePickerOpen ? 'mt-2 grid' : 'hidden'} grid-cols-2 gap-1 sm:grid-cols-4 lg:grid-cols-8`}
               aria-label="Worksheet module selector"
             >
               {WORKSPACE_MODULES.map((module) => (
@@ -417,6 +417,14 @@ export function PlannerWorkspace() {
                   {module.label}
                 </button>
               ))}
+              <button
+                type="button"
+                data-testid="worksheet-module-contributions"
+                onClick={() => router.push('/planner/contributions')}
+                className="min-h-10 rounded-md border border-gold/10 px-2.5 py-1.5 font-sans text-[11px] text-champagne/55 transition-colors hover:border-gold/25 hover:text-champagne"
+              >
+                Contributions
+              </button>
             </div>
 
             <div className="mt-2" data-worksheet-data-recovery>
