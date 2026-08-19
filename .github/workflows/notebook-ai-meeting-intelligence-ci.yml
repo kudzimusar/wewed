@@ -114,6 +114,9 @@ jobs:
       - name: Run Notebook authorization policy tests
         run: bun test src/lib/notebook/policy.test.ts
 
+      - name: Run Notebook writing and AI UX contract
+        run: bun test src/lib/notebook/writing-ux.test.ts
+
       - name: Verify governed-action source contracts
         run: |
           grep -q 'FOR UPDATE' src/lib/notebook/actions.ts
