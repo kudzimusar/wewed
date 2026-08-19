@@ -1,4 +1,5 @@
 {
+  "buildCommand": "bash scripts/contributions-main-baseline-ci.sh",
   "crons": [
     {
       "path": "/api/cron/reminders",
