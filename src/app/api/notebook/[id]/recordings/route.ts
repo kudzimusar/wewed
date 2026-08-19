@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { listRecordings, uploadRecording } from '@/lib/notebook/media'
+import { consumeAiRateLimit } from '@/lib/ai/rate-limit'
+import { listRecordings, transcribeRecording, uploadRecording } from '@/lib/notebook/media'
 import { notebookErrorResponse, requireNotebookActor } from '@/lib/notebook/http'
 import { NotebookValidationError } from '@/lib/notebook/types'
 
@@ -27,7 +28,24 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (!(file instanceof File)) throw new NotebookValidationError('Recording file is required.')
     const durationRaw = form.get('durationMs')
     const durationMs = typeof durationRaw === 'string' ? Number(durationRaw) : null
-    const data = await uploadRecording(access.actor, id, file, durationMs)
+    const uploaded = await uploadRecording(access.actor, id, file, durationMs)
+
+    // Audio is committed first. Automatic transcription is an additive, fail-closed
+    // follow-up: a provider/rate-limit failure never removes the saved recording.
+    if (process.env.WEWED_TRANSCRIPTION_URL?.trim()) {
+      const limit = await consumeAiRateLimit({
+        scope: 'notebook-transcription',
+        identity: access.actor.session.userId,
+        maxRequests: 10,
+        windowMs: 60 * 60 * 1000,
+      })
+      if (limit.ok) {
+        await transcribeRecording(access.actor, uploaded.id)
+      }
+    }
+
+    const recordings = await listRecordings(access.actor, id)
+    const data = recordings.find((recording) => recording.id === uploaded.id) ?? uploaded
     return NextResponse.json({ success: true, data }, { status: 201 })
   } catch (error) {
     return notebookErrorResponse(error)
