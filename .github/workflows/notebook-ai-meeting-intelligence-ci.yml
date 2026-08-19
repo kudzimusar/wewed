@@ -104,6 +104,7 @@ jobs:
                    OR acl.grantee IN (
                      SELECT oid FROM pg_roles WHERE rolname IN ('anon', 'authenticated')
                    )
+                 )
             ) THEN
               RAISE EXCEPTION 'wewed_notebook table is exposed to a public application role';
             END IF;
