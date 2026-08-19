@@ -16,6 +16,10 @@ const askRoute = read('src/app/api/notebook/ask/route.ts')
 const recall = read('src/lib/notebook/recall.ts')
 const notification = read('src/lib/notebook/share-notifications.ts')
 const store = read('src/lib/notebook/store.ts')
+const communicationMigration = read('prisma/migrations/20260809100000_communication_channel_readiness/migration.sql')
+const communicationCron = read('src/app/api/cron/communications-deliveries/route.ts')
+const communicationScheduler = read('scripts/communications-supabase-scheduler.sql')
+const communicationContract = read('scripts/communications-postgres-integration.sql')
 
 describe('WW-NOTEBOOK-OPS-2026-08-19-01', () => {
   test('makes Archive and Trash explicitly different and keeps both recoverable', () => {
@@ -48,6 +52,20 @@ describe('WW-NOTEBOOK-OPS-2026-08-19-01', () => {
     expect(notification).not.toContain('note.contentText')
     expect(clarity).toContain('persistent in-app notification')
     expect(clarity).toContain('Email or WhatsApp delivery')
+  })
+
+  test('proves Wewed communications owns verified preference-aware external share fan-out', () => {
+    expect(communicationMigration).toContain('CREATE FUNCTION wewed_communications."queue_external_deliveries"()')
+    expect(communicationMigration).toContain("endpoint.\"status\" = 'VERIFIED'")
+    expect(communicationMigration).toContain('preference."enabled" = true')
+    expect(communicationMigration).toContain('ON CONFLICT ("messageId", "recipientUserId", "channel") DO NOTHING')
+    expect(communicationMigration).toContain('CREATE TRIGGER "queue_external_deliveries_trigger"')
+    expect(communicationCron).toContain('processQueuedCommunicationDeliveries')
+    expect(communicationCron).toContain('communicationSchedulerAuthorized')
+    expect(communicationScheduler).toContain("'wewed-communications-automatic-dispatch'")
+    expect(communicationScheduler).toContain("'* * * * *'")
+    expect(communicationScheduler).toContain('https://wewed.pro/api/cron/communications-deliveries')
+    expect(communicationContract).toContain('verified enabled email endpoint was not queued exactly once')
   })
 
   test('routes Ask Notebook through authorized natural-language recall', () => {
