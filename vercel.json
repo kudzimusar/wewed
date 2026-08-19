@@ -1,5 +1,5 @@
 {
-  "buildCommand": "python3 scripts/contributions-alignment-driver-v11.py && bash scripts/print-qualified-contributions.sh && false",
+  "buildCommand": "python3 scripts/contributions-alignment-driver-v11.py >/tmp/contributions-driver.log 2>&1 || { cat /tmp/contributions-driver.log; exit 1; }; EXPORT_START=1 EXPORT_END=10 bash scripts/print-qualified-contributions.sh; false",
   "crons": [
     {
       "path": "/api/cron/reminders",
