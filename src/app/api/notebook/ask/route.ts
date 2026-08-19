@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { consumeAiRateLimit } from '@/lib/ai/rate-limit'
-import { askNotebook } from '@/lib/notebook/intelligence'
 import { notebookErrorResponse, requireNotebookActor } from '@/lib/notebook/http'
+import { askNotebookRecall } from '@/lib/notebook/recall'
 import { NotebookValidationError } from '@/lib/notebook/types'
 
 export async function POST(request: NextRequest) {
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
         { status: 429, headers: { 'Retry-After': String(retryAfter) } },
       )
     }
-    const data = await askNotebook(access.actor, question, {
+    const data = await askNotebookRecall(access.actor, question, {
       weddingId: typeof body.weddingId === 'string' ? body.weddingId : null,
       noteType: typeof body.noteType === 'string' ? body.noteType : null,
     })
