@@ -1,5 +1,5 @@
 {
-  "buildCommand": "python3 scripts/contributions-alignment-driver-v11.py && bun test src/lib/contributions.test.ts src/lib/contributions-source-contract.test.ts && bun run build",
+  "buildCommand": "python3 scripts/contributions-alignment-driver-v11.py && DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:65432/wewed DIRECT_URL=postgresql://postgres:postgres@127.0.0.1:65432/wewed bun test && bun run build",
   "crons": [
     {
       "path": "/api/cron/reminders",
