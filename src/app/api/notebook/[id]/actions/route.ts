@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { applySuggestions } from '@/lib/notebook/actions'
+import { createNotebookCheckpoint } from '@/lib/notebook/history'
 import { notebookErrorResponse, requireNotebookActor } from '@/lib/notebook/http'
 import { setNotebookTags } from '@/lib/notebook/metadata'
 import {
@@ -35,6 +36,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (action === 'restore-version') {
       const note = await restoreVersion(access.actor, id, Number(body.version), Number(body.expectedVersion))
       return NextResponse.json({ success: true, data: note })
+    }
+    if (action === 'save-checkpoint') {
+      const checkpoint = await createNotebookCheckpoint(access.actor, id, Number(body.expectedVersion))
+      return NextResponse.json({ success: true, data: checkpoint })
     }
     if (action === 'accept-ai') {
       const note = await updateNote(
