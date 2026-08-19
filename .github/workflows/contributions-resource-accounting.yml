@@ -30,7 +30,7 @@ on:
       - 'src/app/api/exports/**'
       - 'tests/e2e/planner-contributions.spec.ts'
       - 'tests/e2e/support/planner-browser.ts'
-      - 'scripts/contributions-alignment-driver-v7.py'
+      - 'scripts/contributions-alignment-driver-v8.py'
       - 'scripts/contributions-alignment-source.py'
       - 'scripts/contributions-second-review-expansion.py'
       - 'scripts/contributions-lifecycle-audit.py'
@@ -47,6 +47,10 @@ on:
 
 permissions:
   contents: write
+
+concurrency:
+  group: contributions-resource-accounting-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   qualify:
@@ -80,13 +84,13 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
         with:
           bun-version: 1.3.14
       - name: Apply complete stamped-plan remediation
-        run: python3 scripts/contributions-alignment-driver-v7.py
+        run: python3 scripts/contributions-alignment-driver-v8.py
       - run: bun install --frozen-lockfile
       - run: bun add --no-save --exact @playwright/test@1.55.0
       - run: bunx prisma validate --schema prisma/schema.prisma
@@ -99,6 +103,13 @@ jobs:
       - name: Run Contributions browser qualification
         run: bunx playwright test tests/e2e/planner-contributions.spec.ts
       - run: git diff --check
+      - name: Verify this qualification still owns the PR head
+        run: |
+          git fetch origin "${{ github.event.pull_request.head.ref }}"
+          if [ "$(git rev-parse FETCH_HEAD)" != "${{ github.event.pull_request.head.sha }}" ]; then
+            echo "PR head moved after this qualification started; refusing to publish stale remediation."
+            exit 1
+          fi
       - name: Restore permanent Contributions workflow
         run: |
           cat > .github/workflows/contributions-resource-accounting.yml <<'FINAL_WORKFLOW'
@@ -139,6 +150,10 @@ jobs:
 
           permissions:
             contents: read
+
+          concurrency:
+            group: contributions-resource-accounting-${{ github.event.pull_request.number || github.ref }}
+            cancel-in-progress: true
 
           jobs:
             qualify:
@@ -188,7 +203,7 @@ jobs:
       - name: Commit qualified second-review remediation
         run: |
           rm -f \
-            scripts/contributions-alignment-driver-v7.py \
+            scripts/contributions-alignment-driver-v8.py \
             scripts/contributions-alignment-source.py \
             scripts/contributions-second-review-expansion.py \
             scripts/contributions-lifecycle-audit.py \
