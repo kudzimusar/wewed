@@ -40,4 +40,20 @@ browser.write_text(browser_text)
 if malformed in browser_text:
     raise SystemExit('Malformed Contributions browser locator remains.')
 
-print('Generated Contributions source-contract and browser assertions normalized to hardened product.')
+stage7 = Path('src/components/wedding/planner-workspace-stage7.tsx')
+if not stage7.exists():
+    raise SystemExit('Generated Stage 7 Planner shell is missing.')
+stage7_text = stage7.read_text()
+selector = "data-testid={`worksheet-module-${module.worksheetKey ?? 'overview'}`}"
+if stage7_text.count(selector) == 0:
+    anchor = '                  key={module.value}\n                  type="button"\n                  onClick={() => selectWorkspaceTab(module.value)}'
+    replacement = '                  key={module.value}\n                  type="button"\n                  data-testid={`worksheet-module-${module.worksheetKey ?? \'overview\'}`}\n                  onClick={() => selectWorkspaceTab(module.value)}'
+    count = stage7_text.count(anchor)
+    if count != 1:
+        raise SystemExit(f'Expected exactly one Stage 7 module-button anchor, found {count}.')
+    stage7_text = stage7_text.replace(anchor, replacement, 1)
+    stage7.write_text(stage7_text)
+if stage7_text.count(selector) != 1:
+    raise SystemExit(f'Stage 7 worksheet module selector count must be exactly one, found {stage7_text.count(selector)}.')
+
+print('Generated Contributions source/browser assertions normalized and Stage 10 selector preserved.')
