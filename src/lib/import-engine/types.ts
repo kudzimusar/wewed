@@ -19,6 +19,7 @@ export type ModuleKey =
   | 'wedding-party'
   | 'travel'
   | 'media'
+  | 'contributions'
 
 export type FieldType =
   | 'string'

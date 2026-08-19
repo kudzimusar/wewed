@@ -6,6 +6,7 @@ export type PlannerModuleSlug =
   | 'guests'
   | 'timeline'
   | 'seating'
+  | 'contributions'
 
 export type PlannerToolSlug = 'import' | 'imports'
 
@@ -17,6 +18,7 @@ const MODULES = new Set<PlannerModuleSlug>([
   'guests',
   'timeline',
   'seating',
+  'contributions',
 ])
 
 const TOOLS = new Set<PlannerToolSlug>(['import', 'imports'])

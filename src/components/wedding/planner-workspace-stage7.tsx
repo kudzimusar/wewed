@@ -30,11 +30,12 @@ import {
 const WORKSPACE_MODULES: Array<{
   value: WorkspaceTab
   label: string
-  worksheetKey?: 'checklist' | 'budget' | 'vendors' | 'guests' | 'timeline' | 'seating'
+  worksheetKey?: 'checklist' | 'budget' | 'vendors' | 'guests' | 'timeline' | 'seating' | 'contributions'
 }> = [
   { value: 'overview', label: 'Overview' },
   { value: 'tasks', label: 'Tasks', worksheetKey: 'checklist' },
   { value: 'budget', label: 'Budget', worksheetKey: 'budget' },
+  { value: 'contributions', label: 'Contributions', worksheetKey: 'contributions' },
   { value: 'vendors', label: 'Vendors', worksheetKey: 'vendors' },
   { value: 'guests', label: 'Guests', worksheetKey: 'guests' },
   { value: 'timeline', label: 'Timeline', worksheetKey: 'timeline' },
@@ -404,8 +405,8 @@ export function PlannerWorkspace() {
               {WORKSPACE_MODULES.map((module) => (
                 <button
                   key={module.value}
-                  type="button"
                   data-testid={`worksheet-module-${module.worksheetKey ?? 'overview'}`}
+                  type="button"
                   onClick={() => selectWorkspaceTab(module.value)}
                   aria-pressed={activeTab === module.value}
                   className={`min-h-10 rounded-md border px-2.5 py-1.5 font-sans text-[11px] transition-colors ${
@@ -417,14 +418,6 @@ export function PlannerWorkspace() {
                   {module.label}
                 </button>
               ))}
-              <button
-                type="button"
-                data-testid="worksheet-module-contributions"
-                onClick={() => router.push('/planner/contributions')}
-                className="min-h-10 rounded-md border border-gold/10 px-2.5 py-1.5 font-sans text-[11px] text-champagne/55 transition-colors hover:border-gold/25 hover:text-champagne"
-              >
-                Contributions
-              </button>
             </div>
 
             <div className="mt-2" data-worksheet-data-recovery>

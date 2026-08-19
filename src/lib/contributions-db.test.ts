@@ -19,9 +19,9 @@ describe('Contributions database migration', () => {
     const rows = await db.$queryRaw<Array<{ name: string }>>`
       SELECT conname AS name
         FROM pg_constraint
-       WHERE conname IN ('payment_funding_target_chk','payment_funding_contribution_chk','contribution_fulfillment_chk')
+       WHERE conname IN ('payment_funding_target_chk','payment_funding_contribution_chk','contribution_fulfillment_chk','contribution_campaign_type_chk','contributor_kind_chk','contributor_preferred_contact_chk')
        ORDER BY conname
     `
-    expect(rows.map((row) => row.name)).toEqual(['contribution_fulfillment_chk','payment_funding_contribution_chk','payment_funding_target_chk'])
+    expect(rows.map((row) => row.name)).toEqual(['contribution_campaign_type_chk','contribution_fulfillment_chk','contributor_kind_chk','contributor_preferred_contact_chk','payment_funding_contribution_chk','payment_funding_target_chk'])
   })
 })

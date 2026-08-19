@@ -32,6 +32,7 @@
 
 import { db } from '@/lib/db'
 import { normalizePlannerTitle, plannerTitleError } from '@/lib/planner-task-validation'
+import { contributionWorksheetSchema } from './contribution-worksheet-schema'
 import type { FieldDefinition, ModuleSchema } from './types'
 
 // ============================================================
@@ -1054,6 +1055,7 @@ function mediaValidateRow(row: Record<string, string>): string[] {
 // ============================================================
 
 export const MODULE_SCHEMAS: Record<string, ModuleSchema> = {
+  contributions: contributionWorksheetSchema,
   guests: {
     key: 'guests',
     name: 'Guests',

@@ -64,6 +64,7 @@ const VALID_MODULE_LABELS: Record<string, string> = {
   'wedding-party': 'Wedding Party',
   travel: 'Travel',
   media: 'Media',
+  contributions: 'Contributions',
 }
 
 function roleLabel(value?: string): string {

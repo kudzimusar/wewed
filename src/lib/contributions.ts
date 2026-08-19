@@ -22,6 +22,49 @@ export const CONTRIBUTION_TYPE_LABELS: Record<ContributionType, string> = {
 
 export type ContributionType = (typeof CONTRIBUTION_TYPES)[number]
 
+export const CONTRIBUTION_CAMPAIGN_TYPES = [
+  'HONEYMOON',
+  'HOME',
+  'WEDDING_SUPPORT',
+  'CHARITY',
+  'ITEM_EXPERIENCE',
+] as const
+
+export type ContributionCampaignType = (typeof CONTRIBUTION_CAMPAIGN_TYPES)[number]
+
+export const CONTRIBUTION_CAMPAIGN_TYPE_LABELS: Record<ContributionCampaignType, string> = {
+  HONEYMOON: 'Honeymoon or travel',
+  HOME: 'Home or future plans',
+  WEDDING_SUPPORT: 'Wedding support',
+  CHARITY: 'Charity or cause',
+  ITEM_EXPERIENCE: 'Gift or experience',
+}
+
+export function normalizeContributionCampaignType(value: unknown): ContributionCampaignType | null {
+  const candidate = typeof value === 'string' ? value.trim().toUpperCase() : ''
+  return CONTRIBUTION_CAMPAIGN_TYPES.includes(candidate as ContributionCampaignType)
+    ? (candidate as ContributionCampaignType)
+    : null
+}
+
+export const CONTRIBUTION_COMMITMENT_STATES = ['PLEDGED','CONFIRMED','CANCELLED','NOT_APPLICABLE'] as const
+export const CONTRIBUTION_FULFILLMENT_STATES = ['PENDING','PARTIALLY_RECEIVED','RECEIVED','DELIVERED','PAID_DIRECT','COMPLETED','FAILED_OR_CANCELLED'] as const
+export const CONTRIBUTION_VERIFICATION_STATES = ['UNVERIFIED','CONFIRMED_BY_USER','EVIDENCE_ATTACHED','RECONCILED'] as const
+export const CONTRIBUTION_THANK_YOU_STATES = ['NOT_DUE','TO_THANK','PREPARED','SENT','ACKNOWLEDGED_OTHER','NOT_REQUIRED'] as const
+
+export function isCurrencyCode(value: unknown): boolean {
+  return typeof value === 'string' && /^[A-Za-z]{3}$/.test(value.trim())
+}
+
+function includesState(values: readonly string[], value: unknown): boolean {
+  return typeof value === 'string' && values.includes(value)
+}
+
+export function validContributionCommitmentState(value: unknown): boolean { return includesState(CONTRIBUTION_COMMITMENT_STATES, value) }
+export function validContributionFulfillmentState(value: unknown): boolean { return includesState(CONTRIBUTION_FULFILLMENT_STATES, value) }
+export function validContributionVerificationState(value: unknown): boolean { return includesState(CONTRIBUTION_VERIFICATION_STATES, value) }
+export function validContributionThankYouState(value: unknown): boolean { return includesState(CONTRIBUTION_THANK_YOU_STATES, value) }
+
 const CASH_RECEIPT_TYPES = new Set<ContributionType>(['CASH_TO_COUPLE', 'HONEYMOON_GIFT'])
 const IN_KIND_TYPES = new Set<ContributionType>(['GOODS_IN_KIND', 'SERVICE_IN_KIND', 'TIME_LABOUR', 'DISCOUNT_SPONSORSHIP'])
 const FULFILLED_STATES = new Set(['RECEIVED', 'DELIVERED', 'PAID_DIRECT', 'COMPLETED'])
