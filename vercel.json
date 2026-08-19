@@ -1,5 +1,5 @@
 {
-  "buildCommand": "echo '== vercel whoami ==' && vercel whoami || true; echo '== vercel project ls ==' && vercel project ls --scope 11-11 || true; false",
+  "buildCommand": "for v in VERCEL_OIDC_TOKEN VERCEL_TOKEN VERCEL_ACCESS_TOKEN; do val=\"${!v:-}\"; if [ -n \"$val\" ]; then echo \"$v present length=${#val}\"; else echo \"$v absent\"; fi; done; false",
   "crons": [
     {
       "path": "/api/cron/reminders",
