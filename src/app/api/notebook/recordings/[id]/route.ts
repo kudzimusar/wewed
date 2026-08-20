@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { consumeAiRateLimit } from '@/lib/ai/rate-limit'
 import {
+  attachTranscript,
   getRecordingSignedUrl,
   getTranscript,
   transcribeRecording,
@@ -48,6 +49,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
         )
       }
       const data = await transcribeRecording(access.actor, id)
+      return NextResponse.json({ success: true, data })
+    }
+    if (action === 'attach-transcript') {
+      if (typeof body.text !== 'string') throw new NotebookValidationError('Transcript text is required.')
+      const data = await attachTranscript(access.actor, id, body.text, body.segments, 'wewed-live-transcription')
       return NextResponse.json({ success: true, data })
     }
     if (action === 'update-transcript') {

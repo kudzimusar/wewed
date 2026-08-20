@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { consumeAiRateLimit } from '@/lib/ai/rate-limit'
-import { listRecordings, transcribeRecording, uploadRecording } from '@/lib/notebook/media'
+import {
+  directTranscriptionSupportedForRecording,
+  listRecordings,
+  transcribeRecording,
+  uploadRecording,
+} from '@/lib/notebook/media'
 import { notebookErrorResponse, requireNotebookActor } from '@/lib/notebook/http'
-import { notebookTranscriptionConfigured } from '@/lib/notebook/transcription-config'
 import { NotebookValidationError } from '@/lib/notebook/types'
 
 interface RouteContext { params: Promise<{ id: string }> }
@@ -31,18 +35,18 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const durationMs = typeof durationRaw === 'string' ? Number(durationRaw) : null
     const uploaded = await uploadRecording(access.actor, id, file, durationMs)
 
-    // Audio is committed first. Automatic transcription is an additive, fail-closed
-    // follow-up: a provider/rate-limit failure never removes the saved recording.
-    if (notebookTranscriptionConfigured()) {
+    // Audio is committed first. Direct automatic transcription runs only when the
+    // resolved provider accepts the stored recording format/duration. Z.AI meeting
+    // capture uses live WAV chunks instead, so the preserved WebM backup is not sent
+    // to an endpoint that documents only short WAV/MP3 inputs.
+    if (await directTranscriptionSupportedForRecording(access.actor, uploaded.id)) {
       const limit = await consumeAiRateLimit({
         scope: 'notebook-transcription',
         identity: access.actor.session.userId,
         maxRequests: 10,
         windowMs: 60 * 60 * 1000,
       })
-      if (limit.ok) {
-        await transcribeRecording(access.actor, uploaded.id)
-      }
+      if (limit.ok) await transcribeRecording(access.actor, uploaded.id)
     }
 
     const recordings = await listRecordings(access.actor, id)
