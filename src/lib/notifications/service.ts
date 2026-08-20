@@ -16,6 +16,7 @@ import {
 } from '@/lib/notifications/contracts'
 import {
   VENDOR_ALLOWED_CATEGORIES,
+  WEDDING_SCOPED_SOURCE_TYPES,
   isNotificationVisibleToPrincipal,
   isVendorNotificationSourceAuthorized,
   vendorSourceAccessKey,
@@ -119,7 +120,12 @@ async function assertWeddingRecipientAccess(
   sourceId: string | null | undefined,
   category: string,
 ): Promise<void> {
-  if (!weddingId) return
+  if (!weddingId) {
+    if (WEDDING_SCOPED_SOURCE_TYPES.has(sourceType)) {
+      throw new NotificationAccessError('Wedding-scoped notification sources require a wedding id.')
+    }
+    return
+  }
 
   const rows = await db.$queryRawUnsafe<Array<{ allowed: number }>>(
     `
@@ -270,10 +276,10 @@ export async function createNotification(input: CreateNotificationInput): Promis
   throw new Error('Unable to create notification.')
 }
 
-export async function listNotificationsForSession(
+async function visibleNotificationsForSession(
   session: AppSession,
   input: NotificationListFilter = {},
-): Promise<NotificationRecord[]> {
+): Promise<{ notifications: NotificationRecord[]; limit: number }> {
   const principal = effectivePrincipal(session)
   if (!principal) throw new NotificationAccessError('Authenticated user id is required.')
 
@@ -295,10 +301,11 @@ export async function listNotificationsForSession(
   }
   if (filters.unreadOnly) {
     clauses.push('"readAt" IS NULL')
-    clauses.push(`state NOT IN ('resolved', 'cancelled', 'expired')`)
+    clauses.push(`state = 'active'`)
   }
 
-  params.push(filters.limit)
+  // Authorization must be evaluated before the caller-visible limit. Otherwise malformed or
+  // revoked rows could fill the SQL window and crowd valid notifications out of the response.
   const rows = await db.$queryRawUnsafe<NotificationRecord[]>(
     `
       SELECT *
@@ -314,13 +321,12 @@ export async function listNotificationsForSession(
         END,
         COALESCE("scheduledFor", "createdAt") ASC,
         "createdAt" DESC
-      LIMIT $${params.length}
     `,
     ...params,
   )
 
   const accessibleWeddingIds = await accessibleWeddingIdsForSession(session)
-  const visible = rows
+  let visible = rows
     .map(normalizeNotificationRow)
     .filter((notification) =>
       isNotificationVisibleToPrincipal(
@@ -331,17 +337,27 @@ export async function listNotificationsForSession(
       ),
     )
 
-  if (principal.role !== 'vendor') return visible
+  if (principal.role === 'vendor') {
+    const sourceAccessKeys = await vendorSourceAccessKeys(principal.userId)
+    visible = visible.filter((notification) =>
+      isVendorNotificationSourceAuthorized(notification, sourceAccessKeys),
+    )
+  }
 
-  const sourceAccessKeys = await vendorSourceAccessKeys(principal.userId)
-  return visible.filter((notification) =>
-    isVendorNotificationSourceAuthorized(notification, sourceAccessKeys),
-  )
+  return { notifications: visible, limit: filters.limit }
+}
+
+export async function listNotificationsForSession(
+  session: AppSession,
+  input: NotificationListFilter = {},
+): Promise<NotificationRecord[]> {
+  const result = await visibleNotificationsForSession(session, input)
+  return result.notifications.slice(0, result.limit)
 }
 
 export async function unreadNotificationCountForSession(session: AppSession): Promise<number> {
-  const notifications = await listNotificationsForSession(session, { unreadOnly: true, limit: 100 })
-  return notifications.length
+  const result = await visibleNotificationsForSession(session, { unreadOnly: true, limit: 100 })
+  return result.notifications.length
 }
 
 async function requireVisibleNotification(
