@@ -1,5 +1,6 @@
 name: Materialize Notebook Live Transcription
 
+# Branch-scoped one-shot materializer. Remove before merge.
 on:
   push:
     branches:
