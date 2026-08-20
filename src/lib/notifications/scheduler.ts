@@ -179,7 +179,30 @@ async function resolveCompletedSourceNotifications(stats: SchedulerStats) {
     `,
   )
 
-  stats.sourceNotificationsResolved += taskResolved + budgetResolved + engagementResolved
+  const contractReviewExpired = await db.$executeRawUnsafe(
+    `
+      UPDATE public."Notification" n
+      SET state = 'expired',
+          "readAt" = COALESCE(n."readAt", CURRENT_TIMESTAMP),
+          "snoozedUntil" = NULL,
+          "updatedAt" = CURRENT_TIMESTAMP
+      FROM public."ContractReviewGrant" crg
+      JOIN public."ContractVersion" cv
+        ON cv.id = crg."contractVersionId" AND cv."contractId" = crg."contractId"
+      WHERE n."sourceType" = 'contract_review_grant'
+        AND n."sourceId" = crg.id
+        AND (
+          crg.status <> 'ACTIVE'
+          OR crg."revokedAt" IS NOT NULL
+          OR crg."expiresAt" <= CURRENT_TIMESTAMP
+          OR cv.status NOT IN ('ISSUED', 'AWAITING_ACCEPTANCE', 'PARTIALLY_ACCEPTED')
+        )
+        AND n.state NOT IN ('resolved', 'cancelled', 'expired')
+    `,
+  )
+
+  stats.sourceNotificationsResolved +=
+    taskResolved + budgetResolved + engagementResolved + contractReviewExpired
 }
 
 async function seedTaskNotifications(now: Date, stats: SchedulerStats) {
@@ -437,6 +460,74 @@ async function seedEngagementNotifications(now: Date, stats: SchedulerStats) {
   }
 }
 
+async function seedContractReviewExpiryNotifications(now: Date, stats: SchedulerStats) {
+  const horizon = new Date(now.getTime() + 24 * 60 * 60 * 1000)
+  const rows = await db.$queryRawUnsafe<
+    Array<{
+      id: string
+      contractId: string
+      contractVersionId: string
+      weddingId: string
+      contractNumber: string
+      title: string
+      expiresAt: Date
+      userId: string
+      partyRole: string
+    }>
+  >(
+    `
+      SELECT crg.id, crg."contractId", crg."contractVersionId", c."weddingId",
+             c."contractNumber", c.title, crg."expiresAt", ep."userId", ep."partyRole"
+      FROM public."ContractReviewGrant" crg
+      JOIN public."Contract" c ON c.id = crg."contractId"
+      JOIN public."ContractVersion" cv
+        ON cv.id = crg."contractVersionId" AND cv."contractId" = crg."contractId"
+      JOIN public."EngagementParty" ep ON ep.id = crg."engagementPartyId"
+      WHERE crg.status = 'ACTIVE'
+        AND crg."revokedAt" IS NULL
+        AND crg."expiresAt" > $1
+        AND crg."expiresAt" <= $2
+        AND cv.status IN ('ISSUED', 'AWAITING_ACCEPTANCE', 'PARTIALLY_ACCEPTED')
+        AND ep."userId" IS NOT NULL
+        AND ep.status = 'active'
+        AND ep."partyRole" IN ('SERVICE_PROVIDER', 'AUTHORIZED_REPRESENTATIVE')
+      ORDER BY crg."expiresAt" ASC
+      LIMIT 100
+    `,
+    now,
+    horizon,
+  )
+
+  for (const grant of rows) {
+    await createSafely(
+      {
+        recipientUserId: grant.userId,
+        weddingId: grant.weddingId,
+        sourceType: 'contract_review_grant',
+        sourceId: grant.id,
+        eventType: 'contract.review_access_expiring',
+        category: 'contract',
+        severity: 'action_required',
+        title: `Contract review link expires soon: ${grant.title}`,
+        body: `Your authorized Wewed review access for ${grant.contractNumber} expires within 24 hours.`,
+        requiresAction: true,
+        deepLink: '/vendor',
+        actionType: 'review_contract',
+        expiresAt: grant.expiresAt,
+        dedupeKey: `contract-review-grant:${grant.id}:expires-24h`,
+        metadata: {
+          contractId: grant.contractId,
+          contractVersionId: grant.contractVersionId,
+          contractNumber: grant.contractNumber,
+          expiresAt: grant.expiresAt.toISOString(),
+          partyRole: grant.partyRole,
+        },
+      },
+      stats,
+    )
+  }
+}
+
 async function seedAdminDeliveryFailureNotifications(stats: SchedulerStats) {
   const failures = await db.$queryRawUnsafe<
     Array<{ id: string; notificationId: string; channel: string; errorMessage: string | null }>
@@ -512,6 +603,7 @@ export async function runSystemNotificationScheduler(
   await seedBudgetNotifications(now, stats)
   await seedRsvpNotifications(now, stats)
   await seedEngagementNotifications(now, stats)
+  await seedContractReviewExpiryNotifications(now, stats)
   await seedAdminDeliveryFailureNotifications(stats)
 
   return stats
