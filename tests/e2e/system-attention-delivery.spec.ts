@@ -1,10 +1,10 @@
 import { PrismaClient } from '@prisma/client'
 import {
-  E2E_USER,
   E2E_WEDDINGS,
   expect,
   test,
 } from './support/planner-browser'
+import { E2E_USER } from './support/planner-fixture'
 
 const CRON_AUTH = 'Bearer wewed-local-ci-cron-secret'
 
