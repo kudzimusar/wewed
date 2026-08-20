@@ -147,6 +147,25 @@ describe('Stage 10 executable planner release gate', () => {
     }
   })
 
+  test('external notification delivery rechecks recipient authority before queue and transport', async () => {
+    const [router, authorization] = await Promise.all([
+      source('src/lib/notifications/delivery.ts'),
+      source('src/lib/notifications/delivery-authorization.ts'),
+    ])
+
+    expect(router).toContain('isNotificationExternallyDeliverableToRecipient')
+    expect(router.match(/isNotificationExternallyDeliverableToRecipient\(notification\)/g)?.length).toBe(2)
+    expect(router).toContain('AUTHORIZATION_REVOKED')
+    expect(router).toContain('recipient.role AS "recipientRole"')
+    expect(router).toContain('pg_try_advisory_lock')
+    expect(authorization).toContain("ep.\"partyRole\" = 'SERVICE_PROVIDER'")
+    expect(authorization).toContain("ep.\"partyKind\" = 'VENDOR'")
+    expect(authorization).toContain("crg.status = 'ACTIVE'")
+    expect(authorization).toContain('listAccessibleWeddings')
+    expect(authorization).toContain('isNotificationVisibleToPrincipal')
+    expect(authorization).toContain('isVendorNotificationSourceAuthorized')
+  })
+
   test('notification close controls retain an accessible name', async () => {
     const toaster = await source('src/components/ui/toaster.tsx')
     expect(toaster).toContain('<ToastClose aria-label="Close notification" />')
