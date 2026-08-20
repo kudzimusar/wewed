@@ -49,9 +49,12 @@ export async function POST(request: NextRequest) {
     }
 
     await db.$transaction(async (tx) => {
-      // Serialize funding edits for this budget item so two browser sessions cannot
-      // both consume the same remaining historical "Paid" amount.
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`budget-funding:${budgetItemId}`}))`
+      // PostgreSQL advisory locks return SQL type void. Prisma cannot deserialize
+      // a raw void column, so keep the lock in a subquery and expose only an int.
+      await tx.$queryRaw<Array<{ locked: number }>>`
+        SELECT 1::int AS locked
+          FROM (SELECT pg_advisory_xact_lock(hashtext(${`budget-funding:${budgetItemId}`}))) AS lock_row
+      `
 
       const budget = await tx.budgetItem.findFirst({ where: { id: budgetItemId, weddingId }, select: { id: true, paidAmount: true, currency: true } })
       if (!budget) throw new Error('BUDGET_NOT_FOUND')
@@ -66,7 +69,10 @@ export async function POST(request: NextRequest) {
       if (already + amount > budget.paidAmount + 0.0001) throw new Error('FUNDING_EXCEEDS_PAID')
 
       if (sourceKind === 'CONTRIBUTION' && contributionIdValue) {
-        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`contribution-funding:${contributionIdValue}`}))`
+        await tx.$queryRaw<Array<{ locked: number }>>`
+          SELECT 1::int AS locked
+            FROM (SELECT pg_advisory_xact_lock(hashtext(${`contribution-funding:${contributionIdValue}`}))) AS lock_row
+        `
         const contribution = await getContribution(weddingId, contributionIdValue, tx)
         if (!contribution) throw new Error('CONTRIBUTION_NOT_FOUND')
         if (contribution.currency !== budget.currency) throw new Error('CURRENCY_MISMATCH')
