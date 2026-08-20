@@ -113,6 +113,22 @@ describe('notification visibility', () => {
     ).toBe(false)
   })
 
+  it('keeps vendor payment attention disabled until a vendor-payment source contract exists', () => {
+    expect(
+      isNotificationVisibleToPrincipal(
+        {
+          recipientUserId: 'vendor-1',
+          weddingId: 'wedding-1',
+          category: 'payment',
+          sourceType: 'budget_item',
+        },
+        'vendor-1',
+        new Set(['wedding-1']),
+        'vendor',
+      ),
+    ).toBe(false)
+  })
+
   it('allows a vendor engagement notification only when the wedding context is accessible', () => {
     expect(
       isNotificationVisibleToPrincipal(
@@ -126,6 +142,36 @@ describe('notification visibility', () => {
         new Set(['wedding-1']),
         'vendor',
       ),
+    ).toBe(true)
+  })
+
+  it('rejects generic vendor contract attention even inside an accessible wedding', () => {
+    expect(
+      isNotificationVisibleToPrincipal(
+        {
+          recipientUserId: 'vendor-1',
+          weddingId: 'wedding-1',
+          category: 'contract',
+          sourceType: 'contract',
+        },
+        'vendor-1',
+        new Set(['wedding-1']),
+        'vendor',
+      ),
+    ).toBe(false)
+  })
+
+  it('allows only contract-review-grant contract attention for the mapped vendor wedding', () => {
+    const row = {
+      recipientUserId: 'vendor-1',
+      weddingId: 'wedding-1',
+      category: 'contract' as const,
+      sourceType: 'contract_review_grant',
+    }
+
+    expect(isNotificationVisibleToPrincipal(row, 'vendor-1', new Set(), 'vendor')).toBe(false)
+    expect(
+      isNotificationVisibleToPrincipal(row, 'vendor-1', new Set(['wedding-1']), 'vendor'),
     ).toBe(true)
   })
 })
