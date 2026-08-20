@@ -282,24 +282,37 @@ Recipient resolution must be deterministic and testable. Role names are not suff
 
 Channel failures must not delete or invalidate the canonical in-app notification.
 
+### Existing reminder compatibility discovered during baseline review
+
+Wewed already has a Planner-only RSVP reminder flow under `src/app/api/planner/reminders`. It stores email reminder definitions in `ContentRevision` with `section = 'planner_reminder'` and has an existing Resend delivery path. This is **legacy-compatible functionality**, not the new system-wide reminder model.
+
+Rules for this workstream:
+
+- do not delete or break the existing Planner RSVP reminder flow while the shared engine is introduced;
+- do not make `ContentRevision` the system-wide notification database;
+- add the shared engine additively, then introduce an adapter/migration path in Phase 4;
+- existing scheduled RSVP reminders must retain their current behavior until explicitly migrated and regression-tested;
+- the shared communications router may later reuse the existing Resend delivery capability rather than duplicating provider code.
+
 ## 9. Implementation phases and acceptance criteria
 
 ### Phase 0 — Baseline and authoritative plan
 
-**Status:** IN PROGRESS
+**Status:** COMPLETE
 
 - [x] Branch from current `main` after Contributions merge.
 - [x] Establish this document as the authoritative plan.
-- [ ] Record implementation status here after every completed phase.
+- [x] Record implementation status here after every completed phase.
+- [x] Review existing identity/access foundation and legacy Planner reminder implementation before feature code.
 
-**Exit:** plan committed before feature code.
+**Exit:** plan committed before feature code. **PASSED.**
 
 ### Phase 1 — Core notification/reminder data foundation
 
-**Status:** NOT STARTED
+**Status:** IN PROGRESS
 
-- [ ] Add Prisma models/relations/indexes for notifications, reminders, preferences and delivery attempts.
-- [ ] Add migration matching the Prisma model.
+- [ ] Add database/Prisma models, relations and indexes for notifications, reminders, preferences and delivery attempts.
+- [ ] Add migration matching the model.
 - [ ] Add shared TypeScript taxonomy/contracts and validation.
 - [ ] Add authorization-safe notification service primitives.
 - [ ] Add idempotent create/read/mark-read/resolve/snooze primitives.
@@ -343,6 +356,7 @@ Channel failures must not delete or invalidate the canonical in-app notification
 - [ ] source completion cancellation;
 - [ ] overdue/due-soon adapters for tasks and at least one financial/date source;
 - [ ] contract/vendor/RSVP adapters as their source fields permit;
+- [ ] adapt the legacy Planner RSVP reminder flow without breaking existing scheduled reminders;
 - [ ] timezone handling;
 - [ ] idempotent scheduler execution;
 - [ ] audit events.
@@ -449,6 +463,7 @@ Cross-role negative tests are mandatory. Examples:
 
 - additive changes first; no destructive schema changes in the foundation;
 - migrations must be safe for existing production data;
+- existing Planner RSVP reminders must continue to work until a tested adapter/migration replaces their storage path;
 - no external provider is required for core in-app functionality;
 - deterministic templates/fallbacks must exist even when AI is unavailable;
 - notification content must contain the minimum information needed to prompt action;
