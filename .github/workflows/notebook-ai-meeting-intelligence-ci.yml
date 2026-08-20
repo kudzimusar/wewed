@@ -121,7 +121,7 @@ jobs:
         run: bun test src/lib/notebook/writing-ux.test.ts
 
       - name: Run Notebook recovery, sharing, recall and voice contracts
-        run: bun test src/lib/notebook/recall-query.test.ts src/lib/notebook/operations-ux.test.ts
+        run: bun test src/lib/notebook/recall-query.test.ts src/lib/notebook/operations-ux.test.ts src/lib/notebook/transcription-config.test.ts
 
       - name: Verify governed-action source contracts
         run: |
