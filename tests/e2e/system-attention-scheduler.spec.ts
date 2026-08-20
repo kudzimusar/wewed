@@ -68,7 +68,7 @@ test('system reminder scheduler is protected, idempotent, snooze-safe and source
         id: 'scheduler-due-engagement',
         origin: 'current',
         recordMode: 'managed_contract',
-        lifecycleStatus: 'active',
+        lifecycleStatus: 'issued',
         serviceCategory: 'Venue',
         serviceDescription: 'Scheduler vendor service',
         serviceDate: new Date(now + 6 * 60 * 60 * 1000),
