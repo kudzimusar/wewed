@@ -10,6 +10,22 @@ export const VENDOR_ALLOWED_CATEGORIES = new Set([
   'system',
 ])
 
+// These source records are owned by a wedding. Omitting weddingId must never turn
+// wedding-private attention into a recipient-only/global notification.
+export const WEDDING_SCOPED_SOURCE_TYPES = new Set([
+  'planner_task',
+  'budget_item',
+  'service_engagement',
+  'contract',
+  'contract_version',
+  'contract_review_grant',
+  'wedding',
+  'programme_item',
+  'guest',
+  'rsvp',
+  'contribution',
+])
+
 export function vendorSourceAccessKey(sourceType: string, sourceId: string, weddingId: string) {
   return `${sourceType}:${sourceId}:${weddingId}`
 }
@@ -21,6 +37,12 @@ export function isNotificationVisibleToPrincipal(
   role: NotificationPrincipalRole,
 ): boolean {
   if (notification.recipientUserId !== principalUserId) return false
+
+  // Known wedding-owned source records must carry wedding scope. A missing weddingId is
+  // malformed data, not permission to treat the record as global.
+  if (WEDDING_SCOPED_SOURCE_TYPES.has(notification.sourceType) && !notification.weddingId) {
+    return false
+  }
 
   // Admin operational attention is deliberately global/recipient-scoped. Until a source exposes
   // an explicit support authorization contract, a wedding id must never grant an Admin private
@@ -46,21 +68,29 @@ export function isVendorNotificationSourceAuthorized(
   notification: Pick<NotificationRecord, 'weddingId' | 'category' | 'sourceType' | 'sourceId'>,
   sourceAccessKeys: ReadonlySet<string>,
 ): boolean {
-  if (!notification.weddingId) return true
-
   if (notification.category === 'engagement' || notification.sourceType === 'service_engagement') {
-    if (notification.sourceType !== 'service_engagement' || !notification.sourceId) return false
+    if (
+      !notification.weddingId ||
+      notification.sourceType !== 'service_engagement' ||
+      !notification.sourceId
+    ) return false
     return sourceAccessKeys.has(
       vendorSourceAccessKey('service_engagement', notification.sourceId, notification.weddingId),
     )
   }
 
   if (notification.category === 'contract' || notification.sourceType === 'contract_review_grant') {
-    if (notification.sourceType !== 'contract_review_grant' || !notification.sourceId) return false
+    if (
+      !notification.weddingId ||
+      notification.sourceType !== 'contract_review_grant' ||
+      !notification.sourceId
+    ) return false
     return sourceAccessKeys.has(
       vendorSourceAccessKey('contract_review_grant', notification.sourceId, notification.weddingId),
     )
   }
 
+  // Global Vendor account/system/message attention can remain recipient-scoped. Wedding-owned
+  // source types have already been rejected by isNotificationVisibleToPrincipal when scope is absent.
   return true
 }
