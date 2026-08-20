@@ -5,7 +5,10 @@ import {
   effectiveNotificationStateForRead,
   isTerminalNotificationState,
 } from './contracts'
-import { isNotificationVisibleToPrincipal } from './service'
+import {
+  isNotificationVisibleToPrincipal,
+  isVendorNotificationSourceAuthorized,
+} from './service'
 
 describe('notification contracts', () => {
   it('accepts a system-wide notification category and defaults', () => {
@@ -173,5 +176,89 @@ describe('notification visibility', () => {
     expect(
       isNotificationVisibleToPrincipal(row, 'vendor-1', new Set(['wedding-1']), 'vendor'),
     ).toBe(true)
+  })
+})
+
+describe('vendor notification source isolation', () => {
+  const sourceAccessKeys = new Set([
+    'service_engagement:engagement-1:wedding-1',
+    'contract_review_grant:grant-1:wedding-1',
+  ])
+
+  it('allows only the exact vendor engagement source, not another vendor engagement in the same wedding', () => {
+    expect(
+      isVendorNotificationSourceAuthorized(
+        {
+          weddingId: 'wedding-1',
+          category: 'engagement',
+          sourceType: 'service_engagement',
+          sourceId: 'engagement-1',
+        },
+        sourceAccessKeys,
+      ),
+    ).toBe(true)
+
+    expect(
+      isVendorNotificationSourceAuthorized(
+        {
+          weddingId: 'wedding-1',
+          category: 'engagement',
+          sourceType: 'service_engagement',
+          sourceId: 'engagement-2',
+        },
+        sourceAccessKeys,
+      ),
+    ).toBe(false)
+  })
+
+  it('allows only the exact active vendor review grant, not another grant in the same wedding', () => {
+    expect(
+      isVendorNotificationSourceAuthorized(
+        {
+          weddingId: 'wedding-1',
+          category: 'contract',
+          sourceType: 'contract_review_grant',
+          sourceId: 'grant-1',
+        },
+        sourceAccessKeys,
+      ),
+    ).toBe(true)
+
+    expect(
+      isVendorNotificationSourceAuthorized(
+        {
+          weddingId: 'wedding-1',
+          category: 'contract',
+          sourceType: 'contract_review_grant',
+          sourceId: 'grant-2',
+        },
+        sourceAccessKeys,
+      ),
+    ).toBe(false)
+  })
+
+  it('fails closed when an engagement or contract category uses an unexpected source type', () => {
+    expect(
+      isVendorNotificationSourceAuthorized(
+        {
+          weddingId: 'wedding-1',
+          category: 'engagement',
+          sourceType: 'wedding',
+          sourceId: 'wedding-1',
+        },
+        sourceAccessKeys,
+      ),
+    ).toBe(false)
+    expect(
+      isVendorNotificationSourceAuthorized(
+        {
+          weddingId: 'wedding-1',
+          category: 'contract',
+          sourceType: 'contract',
+          sourceId: 'contract-1',
+        },
+        sourceAccessKeys,
+      ),
+    ).toBe(false)
   })
 })
