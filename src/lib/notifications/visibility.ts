@@ -21,6 +21,16 @@ export function isNotificationVisibleToPrincipal(
   role: NotificationPrincipalRole,
 ): boolean {
   if (notification.recipientUserId !== principalUserId) return false
+
+  // Admin operational attention is deliberately global/recipient-scoped. Until a source exposes
+  // an explicit support authorization contract, a wedding id must never grant an Admin private
+  // wedding notification access merely because the global role is Admin.
+  if (role === 'admin') return !notification.weddingId
+
+  // Admin operational records are never projected to non-Admin principals, even if malformed
+  // data accidentally addresses one to that user.
+  if (notification.category === 'admin') return false
+
   if (role === 'vendor') {
     if (notification.category === 'contract') {
       if (notification.sourceType !== 'contract_review_grant') return false
