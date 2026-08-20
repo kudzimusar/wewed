@@ -98,6 +98,7 @@ jobs:
           git add \
             src/lib/contributions.ts \
             src/lib/contributions/store.ts \
+            src/lib/contributions-source-contract.test.ts \
             src/app/api/planner/contributions/[id]/route.ts \
             src/app/api/planner/contributions/[id]/actions/route.ts \
             src/app/api/planner/budget/route.ts \
