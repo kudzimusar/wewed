@@ -9,6 +9,7 @@ import { StoreRehydrator } from '@/components/wedding/store-rehydrator'
 import { PWARegister } from '@/components/wedding/pwa-register'
 import { ThemeProvider } from '@/components/theme-provider'
 import { WorkspaceQuickNavigation } from '@/components/navigation/workspace-quick-navigation'
+import { WorkspaceAttentionWidgetDock } from '@/components/attention/workspace-attention-widget-dock'
 
 const inter = Inter({
   variable: '--font-inter',
@@ -69,6 +70,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <SkipToContent />
           {children}
           <WorkspaceQuickNavigation />
+          <WorkspaceAttentionWidgetDock />
           <Toaster />
         </ThemeProvider>
       </body>
