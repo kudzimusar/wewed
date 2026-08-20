@@ -41,6 +41,40 @@ async function createSafely(
   }
 }
 
+async function resolveSupersededSourceNotifications(input: {
+  recipientUserId: string
+  sourceType: string
+  sourceId: string
+  eventType: string
+  alternateEventType?: string | null
+  keepDedupeKey: string
+}, stats: SchedulerStats) {
+  const count = await db.$executeRawUnsafe(
+    `
+      UPDATE public."Notification" n
+      SET state = 'resolved',
+          "resolvedAt" = COALESCE(n."resolvedAt", CURRENT_TIMESTAMP),
+          "readAt" = COALESCE(n."readAt", CURRENT_TIMESTAMP),
+          "scheduledFor" = NULL,
+          "snoozedUntil" = NULL,
+          "updatedAt" = CURRENT_TIMESTAMP
+      WHERE n."recipientUserId" = $1
+        AND n."sourceType" = $2
+        AND n."sourceId" = $3
+        AND (n."eventType" = $4 OR ($5::text IS NOT NULL AND n."eventType" = $5))
+        AND n."dedupeKey" IS DISTINCT FROM $6
+        AND n.state NOT IN ('resolved', 'cancelled', 'expired')
+    `,
+    input.recipientUserId,
+    input.sourceType,
+    input.sourceId,
+    input.eventType,
+    input.alternateEventType ?? null,
+    input.keepDedupeKey,
+  )
+  stats.sourceNotificationsResolved += count
+}
+
 async function processDueSnoozes(now: Date, limit: number, stats: SchedulerStats) {
   const due = await db.$queryRawUnsafe<ReminderRecord[]>(
     `
@@ -130,21 +164,69 @@ async function processDueSnoozes(now: Date, limit: number, stats: SchedulerStats
   }
 }
 
-async function resolveCompletedSourceNotifications(stats: SchedulerStats) {
+async function resolveStaleSourceNotifications(now: Date, stats: SchedulerStats) {
+  const taskHorizon = new Date(now.getTime() + 24 * 60 * 60 * 1000)
+  const budgetHorizon = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
+  const rsvpHorizon = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+  const engagementHorizon = new Date(now.getTime() + 24 * 60 * 60 * 1000)
+  const contractHorizon = new Date(now.getTime() + 24 * 60 * 60 * 1000)
+
+  const orphaned = await db.$executeRawUnsafe(
+    `
+      UPDATE public."Notification" n
+      SET state = 'resolved',
+          "resolvedAt" = COALESCE(n."resolvedAt", CURRENT_TIMESTAMP),
+          "readAt" = COALESCE(n."readAt", CURRENT_TIMESTAMP),
+          "scheduledFor" = NULL,
+          "snoozedUntil" = NULL,
+          "updatedAt" = CURRENT_TIMESTAMP
+      WHERE n.state NOT IN ('resolved', 'cancelled', 'expired')
+        AND (
+          (n."sourceType" = 'planner_task' AND NOT EXISTS (
+            SELECT 1 FROM public."PlannerTask" t WHERE t.id = n."sourceId"
+          ))
+          OR (n."sourceType" = 'budget_item' AND NOT EXISTS (
+            SELECT 1 FROM public."BudgetItem" b WHERE b.id = n."sourceId"
+          ))
+          OR (n."sourceType" = 'service_engagement' AND NOT EXISTS (
+            SELECT 1 FROM public."ServiceEngagement" se WHERE se.id = n."sourceId"
+          ))
+          OR (n."eventType" = 'rsvp.deadline_approaching' AND NOT EXISTS (
+            SELECT 1 FROM public."Wedding" w WHERE w.id = n."sourceId"
+          ))
+          OR (n."sourceType" = 'contract_review_grant' AND NOT EXISTS (
+            SELECT 1 FROM public."ContractReviewGrant" crg WHERE crg.id = n."sourceId"
+          ))
+        )
+    `,
+  )
+
   const taskResolved = await db.$executeRawUnsafe(
     `
       UPDATE public."Notification" n
       SET state = 'resolved',
           "resolvedAt" = COALESCE(n."resolvedAt", CURRENT_TIMESTAMP),
           "readAt" = COALESCE(n."readAt", CURRENT_TIMESTAMP),
+          "scheduledFor" = NULL,
           "snoozedUntil" = NULL,
           "updatedAt" = CURRENT_TIMESTAMP
       FROM public."PlannerTask" t
       WHERE n."sourceType" = 'planner_task'
         AND n."sourceId" = t.id
-        AND LOWER(t.status) IN ('done', 'completed')
+        AND n."eventType" IN ('task.due_soon', 'task.overdue')
+        AND (
+          LOWER(t.status) IN ('done', 'completed')
+          OR (n."eventType" = 'task.due_soon' AND (
+            t."dueDate" IS NULL OR t."dueDate" < $1 OR t."dueDate" > $2
+          ))
+          OR (n."eventType" = 'task.overdue' AND (
+            t."dueDate" IS NULL OR t."dueDate" >= $1
+          ))
+        )
         AND n.state NOT IN ('resolved', 'cancelled', 'expired')
     `,
+    now,
+    taskHorizon,
   )
 
   const budgetResolved = await db.$executeRawUnsafe(
@@ -153,14 +235,46 @@ async function resolveCompletedSourceNotifications(stats: SchedulerStats) {
       SET state = 'resolved',
           "resolvedAt" = COALESCE(n."resolvedAt", CURRENT_TIMESTAMP),
           "readAt" = COALESCE(n."readAt", CURRENT_TIMESTAMP),
+          "scheduledFor" = NULL,
           "snoozedUntil" = NULL,
           "updatedAt" = CURRENT_TIMESTAMP
       FROM public."BudgetItem" b
       WHERE n."sourceType" = 'budget_item'
         AND n."sourceId" = b.id
-        AND b."paidAmount" >= COALESCE(b."actualCost", b."estimatedCost")
+        AND n."eventType" IN ('payment.due_soon', 'payment.overdue')
+        AND (
+          b."paidAmount" >= COALESCE(b."actualCost", b."estimatedCost")
+          OR (n."eventType" = 'payment.due_soon' AND (
+            b."dueDate" IS NULL OR b."dueDate" < $1 OR b."dueDate" > $2
+          ))
+          OR (n."eventType" = 'payment.overdue' AND (
+            b."dueDate" IS NULL OR b."dueDate" >= $1
+          ))
+        )
         AND n.state NOT IN ('resolved', 'cancelled', 'expired')
     `,
+    now,
+    budgetHorizon,
+  )
+
+  const rsvpResolved = await db.$executeRawUnsafe(
+    `
+      UPDATE public."Notification" n
+      SET state = 'resolved',
+          "resolvedAt" = COALESCE(n."resolvedAt", CURRENT_TIMESTAMP),
+          "readAt" = COALESCE(n."readAt", CURRENT_TIMESTAMP),
+          "scheduledFor" = NULL,
+          "snoozedUntil" = NULL,
+          "updatedAt" = CURRENT_TIMESTAMP
+      FROM public."Wedding" w
+      WHERE n."eventType" = 'rsvp.deadline_approaching'
+        AND n."sourceType" = 'wedding'
+        AND n."sourceId" = w.id
+        AND (w."rsvpDeadline" IS NULL OR w."rsvpDeadline" < $1 OR w."rsvpDeadline" > $2)
+        AND n.state NOT IN ('resolved', 'cancelled', 'expired')
+    `,
+    now,
+    rsvpHorizon,
   )
 
   const engagementResolved = await db.$executeRawUnsafe(
@@ -169,21 +283,35 @@ async function resolveCompletedSourceNotifications(stats: SchedulerStats) {
       SET state = 'resolved',
           "resolvedAt" = COALESCE(n."resolvedAt", CURRENT_TIMESTAMP),
           "readAt" = COALESCE(n."readAt", CURRENT_TIMESTAMP),
+          "scheduledFor" = NULL,
           "snoozedUntil" = NULL,
           "updatedAt" = CURRENT_TIMESTAMP
       FROM public."ServiceEngagement" se
       WHERE n."sourceType" = 'service_engagement'
         AND n."sourceId" = se.id
-        AND LOWER(se."lifecycleStatus") IN ('completed', 'cancelled', 'closed')
+        AND n."eventType" = 'engagement.service_due_soon'
+        AND (
+          se."serviceDate" IS NULL
+          OR se."serviceDate" < $1
+          OR se."serviceDate" > $2
+          OR LOWER(se."lifecycleStatus") IN ('completed', 'cancelled')
+        )
         AND n.state NOT IN ('resolved', 'cancelled', 'expired')
     `,
+    now,
+    engagementHorizon,
   )
 
   const contractReviewExpired = await db.$executeRawUnsafe(
     `
       UPDATE public."Notification" n
-      SET state = 'expired',
+      SET state = CASE WHEN crg."expiresAt" <= $1 THEN 'expired' ELSE 'resolved' END,
+          "resolvedAt" = CASE
+            WHEN crg."expiresAt" <= $1 THEN n."resolvedAt"
+            ELSE COALESCE(n."resolvedAt", CURRENT_TIMESTAMP)
+          END,
           "readAt" = COALESCE(n."readAt", CURRENT_TIMESTAMP),
+          "scheduledFor" = NULL,
           "snoozedUntil" = NULL,
           "updatedAt" = CURRENT_TIMESTAMP
       FROM public."ContractReviewGrant" crg
@@ -191,18 +319,42 @@ async function resolveCompletedSourceNotifications(stats: SchedulerStats) {
         ON cv.id = crg."contractVersionId" AND cv."contractId" = crg."contractId"
       WHERE n."sourceType" = 'contract_review_grant'
         AND n."sourceId" = crg.id
+        AND n."eventType" = 'contract.review_access_expiring'
         AND (
           crg.status <> 'ACTIVE'
           OR crg."revokedAt" IS NOT NULL
-          OR crg."expiresAt" <= CURRENT_TIMESTAMP
+          OR crg."expiresAt" <= $1
+          OR crg."expiresAt" > $2
           OR cv.status NOT IN ('ISSUED', 'AWAITING_ACCEPTANCE', 'PARTIALLY_ACCEPTED')
         )
         AND n.state NOT IN ('resolved', 'cancelled', 'expired')
     `,
+    now,
+    contractHorizon,
   )
 
   stats.sourceNotificationsResolved +=
-    taskResolved + budgetResolved + engagementResolved + contractReviewExpired
+    orphaned + taskResolved + budgetResolved + rsvpResolved + engagementResolved + contractReviewExpired
+}
+
+async function cancelTerminalNotificationReminders() {
+  await db.$executeRawUnsafe(
+    `
+      UPDATE public."Reminder" r
+      SET state = 'cancelled',
+          "cancelledAt" = COALESCE(r."cancelledAt", CURRENT_TIMESTAMP),
+          "updatedAt" = CURRENT_TIMESTAMP
+      WHERE r.state = 'scheduled'
+        AND r."sourceType" = 'notification'
+        AND EXISTS (
+          SELECT 1
+          FROM public."Notification" n
+          WHERE n.id = r."sourceId"
+            AND n."recipientUserId" = r."recipientUserId"
+            AND n.state IN ('resolved', 'cancelled', 'expired', 'dismissed')
+        )
+    `,
+  )
 }
 
 async function seedTaskNotifications(now: Date, stats: SchedulerStats) {
@@ -237,6 +389,15 @@ async function seedTaskNotifications(now: Date, stats: SchedulerStats) {
       : await activePlanningRecipients(task.weddingId)
 
     for (const recipientUserId of recipients) {
+      const dedupeKey = `task:${task.id}:${overdue ? 'overdue' : 'due-24h'}:${task.dueDate.toISOString()}`
+      await resolveSupersededSourceNotifications({
+        recipientUserId,
+        sourceType: 'planner_task',
+        sourceId: task.id,
+        eventType: 'task.due_soon',
+        alternateEventType: 'task.overdue',
+        keepDedupeKey: dedupeKey,
+      }, stats)
       await createSafely(
         {
           recipientUserId,
@@ -253,7 +414,7 @@ async function seedTaskNotifications(now: Date, stats: SchedulerStats) {
           requiresAction: true,
           deepLink: '/planner/tasks',
           actionType: 'open_task',
-          dedupeKey: `task:${task.id}:${overdue ? 'overdue' : 'due-24h'}`,
+          dedupeKey,
           metadata: { dueDate: task.dueDate.toISOString(), priority: task.priority },
         },
         stats,
@@ -297,6 +458,15 @@ async function seedBudgetNotifications(now: Date, stats: SchedulerStats) {
     const recipients = await activePlanningRecipients(item.weddingId)
 
     for (const recipientUserId of recipients) {
+      const dedupeKey = `budget:${item.id}:${overdue ? 'overdue' : 'due-3d'}:${item.dueDate.toISOString()}`
+      await resolveSupersededSourceNotifications({
+        recipientUserId,
+        sourceType: 'budget_item',
+        sourceId: item.id,
+        eventType: 'payment.due_soon',
+        alternateEventType: 'payment.overdue',
+        keepDedupeKey: dedupeKey,
+      }, stats)
       await createSafely(
         {
           recipientUserId,
@@ -313,7 +483,7 @@ async function seedBudgetNotifications(now: Date, stats: SchedulerStats) {
           requiresAction: true,
           deepLink: '/planner/budget',
           actionType: 'open_payment',
-          dedupeKey: `budget:${item.id}:${overdue ? 'overdue' : 'due-3d'}`,
+          dedupeKey,
           metadata: { dueDate: item.dueDate.toISOString(), outstanding, currency: item.currency },
         },
         stats,
@@ -343,6 +513,14 @@ async function seedRsvpNotifications(now: Date, stats: SchedulerStats) {
   for (const wedding of rows) {
     const recipients = await activePlanningRecipients(wedding.id)
     for (const recipientUserId of recipients) {
+      const dedupeKey = `wedding:${wedding.id}:rsvp-7d:${wedding.rsvpDeadline.toISOString()}`
+      await resolveSupersededSourceNotifications({
+        recipientUserId,
+        sourceType: 'wedding',
+        sourceId: wedding.id,
+        eventType: 'rsvp.deadline_approaching',
+        keepDedupeKey: dedupeKey,
+      }, stats)
       await createSafely(
         {
           recipientUserId,
@@ -357,7 +535,7 @@ async function seedRsvpNotifications(now: Date, stats: SchedulerStats) {
           requiresAction: false,
           deepLink: '/planner/guests',
           actionType: 'open_guests',
-          dedupeKey: `wedding:${wedding.id}:rsvp-7d`,
+          dedupeKey,
           metadata: { rsvpDeadline: wedding.rsvpDeadline.toISOString() },
         },
         stats,
@@ -386,7 +564,7 @@ async function seedEngagementNotifications(now: Date, stats: SchedulerStats) {
       WHERE "serviceDate" IS NOT NULL
         AND "serviceDate" >= $1
         AND "serviceDate" <= $2
-        AND LOWER("lifecycleStatus") NOT IN ('completed', 'cancelled', 'closed')
+        AND LOWER("lifecycleStatus") NOT IN ('completed', 'cancelled')
       ORDER BY "serviceDate" ASC
       LIMIT 100
     `,
@@ -398,6 +576,14 @@ async function seedEngagementNotifications(now: Date, stats: SchedulerStats) {
     const label = engagement.serviceDescription || engagement.serviceCategory
     const plannerRecipients = await activePlanningRecipients(engagement.weddingId)
     for (const recipientUserId of plannerRecipients) {
+      const dedupeKey = `engagement:${engagement.id}:service-24h:planning:${engagement.serviceDate.toISOString()}`
+      await resolveSupersededSourceNotifications({
+        recipientUserId,
+        sourceType: 'service_engagement',
+        sourceId: engagement.id,
+        eventType: 'engagement.service_due_soon',
+        keepDedupeKey: dedupeKey,
+      }, stats)
       await createSafely(
         {
           recipientUserId,
@@ -414,7 +600,7 @@ async function seedEngagementNotifications(now: Date, stats: SchedulerStats) {
           requiresAction: false,
           deepLink: '/planner/vendors',
           actionType: 'open_engagement',
-          dedupeKey: `engagement:${engagement.id}:service-24h:planning`,
+          dedupeKey,
           metadata: { serviceDate: engagement.serviceDate.toISOString() },
         },
         stats,
@@ -437,6 +623,14 @@ async function seedEngagementNotifications(now: Date, stats: SchedulerStats) {
     )
 
     for (const recipient of vendorRecipients) {
+      const dedupeKey = `engagement:${engagement.id}:service-24h:vendor:${engagement.serviceDate.toISOString()}`
+      await resolveSupersededSourceNotifications({
+        recipientUserId: recipient.userId,
+        sourceType: 'service_engagement',
+        sourceId: engagement.id,
+        eventType: 'engagement.service_due_soon',
+        keepDedupeKey: dedupeKey,
+      }, stats)
       await createSafely(
         {
           recipientUserId: recipient.userId,
@@ -453,7 +647,7 @@ async function seedEngagementNotifications(now: Date, stats: SchedulerStats) {
           requiresAction: true,
           deepLink: '/vendor',
           actionType: 'open_engagement',
-          dedupeKey: `engagement:${engagement.id}:service-24h:vendor`,
+          dedupeKey,
           metadata: { serviceDate: engagement.serviceDate.toISOString() },
         },
         stats,
@@ -502,6 +696,14 @@ async function seedContractReviewExpiryNotifications(now: Date, stats: Scheduler
   )
 
   for (const grant of rows) {
+    const dedupeKey = `contract-review-grant:${grant.id}:expires-24h:${grant.expiresAt.toISOString()}`
+    await resolveSupersededSourceNotifications({
+      recipientUserId: grant.userId,
+      sourceType: 'contract_review_grant',
+      sourceId: grant.id,
+      eventType: 'contract.review_access_expiring',
+      keepDedupeKey: dedupeKey,
+    }, stats)
     await createSafely(
       {
         recipientUserId: grant.userId,
@@ -517,7 +719,7 @@ async function seedContractReviewExpiryNotifications(now: Date, stats: Scheduler
         deepLink: '/vendor',
         actionType: 'review_contract',
         expiresAt: grant.expiresAt,
-        dedupeKey: `contract-review-grant:${grant.id}:expires-24h`,
+        dedupeKey,
         metadata: {
           contractId: grant.contractId,
           contractVersionId: grant.contractVersionId,
@@ -600,7 +802,8 @@ export async function runSystemNotificationScheduler(
     sourceNotificationsResolved: 0,
   }
 
-  await resolveCompletedSourceNotifications(stats)
+  await resolveStaleSourceNotifications(now, stats)
+  await cancelTerminalNotificationReminders()
   await processDueSnoozes(now, reminderLimit, stats)
   await seedTaskNotifications(now, stats)
   await seedBudgetNotifications(now, stats)
@@ -608,6 +811,7 @@ export async function runSystemNotificationScheduler(
   await seedEngagementNotifications(now, stats)
   await seedContractReviewExpiryNotifications(now, stats)
   await seedAdminDeliveryFailureNotifications(stats)
+  await cancelTerminalNotificationReminders()
 
   return stats
 }
