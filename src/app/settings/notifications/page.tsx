@@ -2,20 +2,18 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { ArrowLeft, BellRing, Loader2, Save } from 'lucide-react'
-
-type DigestMode = 'none' | 'daily' | 'weekly'
+import { ArrowLeft, BellRing, CheckCircle2, Loader2, Save } from 'lucide-react'
 
 interface Preferences {
   scopeKey: string
-  inAppEnabled: boolean
+  inAppEnabled: true
   pushEnabled: boolean
   emailEnabled: boolean
   whatsAppEnabled: boolean
   timezone: string
   quietStart: string | null
   quietEnd: string | null
-  digestMode: DigestMode
+  digestMode: 'none'
 }
 
 const DEFAULTS: Preferences = {
@@ -45,10 +43,18 @@ export default function NotificationSettingsPage() {
           window.location.href = '/sign-in'
           return
         }
-        const payload = (await response.json()) as { success?: boolean; data?: Preferences }
+        const payload = (await response.json()) as {
+          success?: boolean
+          data?: Omit<Preferences, 'inAppEnabled' | 'digestMode'> & {
+            inAppEnabled: boolean
+            digestMode: 'none' | 'daily' | 'weekly'
+          }
+        }
         if (!cancelled && payload.success && payload.data) {
           setForm({
             ...payload.data,
+            inAppEnabled: true,
+            digestMode: 'none',
             timezone: payload.data.timezone === 'UTC'
               ? (Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC')
               : payload.data.timezone,
@@ -87,11 +93,14 @@ export default function NotificationSettingsPage() {
     return <main className="flex min-h-dvh items-center justify-center bg-[#f8f3e9] text-[#2a211b]/45"><Loader2 className="mr-2 size-5 animate-spin" /> Loading notification settings…</main>
   }
 
-  const channels: Array<{ key: keyof Pick<Preferences, 'inAppEnabled' | 'pushEnabled' | 'emailEnabled' | 'whatsAppEnabled'>; title: string; description: string }> = [
-    { key: 'inAppEnabled', title: 'In-app', description: 'Keep Wewed as the canonical notification history.' },
-    { key: 'pushEnabled', title: 'Push', description: 'Browser/PWA push when this device is subscribed.' },
-    { key: 'emailEnabled', title: 'Email', description: 'Use email for notification categories permitted by Wewed routing policy.' },
-    { key: 'whatsAppEnabled', title: 'WhatsApp', description: 'Use WhatsApp only where the workflow and communication consent allow it.' },
+  const channels: Array<{
+    key: keyof Pick<Preferences, 'pushEnabled' | 'emailEnabled' | 'whatsAppEnabled'>
+    title: string
+    description: string
+  }> = [
+    { key: 'pushEnabled', title: 'Push', description: 'Browser/PWA push when a device is subscribed.' },
+    { key: 'emailEnabled', title: 'Email', description: 'Requires a verified email endpoint and enabled Wewed communication consent.' },
+    { key: 'whatsAppEnabled', title: 'WhatsApp', description: 'Requires a verified WhatsApp endpoint, communication consent, and Wewed routing policy.' },
   ]
 
   return (
@@ -106,7 +115,16 @@ export default function NotificationSettingsPage() {
 
         <section className="mt-6 rounded-3xl border border-[#2a211b]/10 bg-white p-6 shadow-sm">
           <h2 className="font-serif text-2xl">Delivery channels</h2>
-          <div className="mt-4 grid gap-3">
+          <div className="mt-4 rounded-2xl border border-[#2a211b]/10 bg-[#f8f3e9]/60 p-4">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-[#8a672f]" />
+              <div>
+                <strong className="block text-sm">In-app — always on</strong>
+                <p className="mt-1 text-xs leading-5 text-[#2a211b]/50">Wewed keeps an in-app notification history as the canonical attention record, even if an external channel fails.</p>
+              </div>
+            </div>
+          </div>
+          <div className="mt-3 grid gap-3">
             {channels.map((channel) => (
               <label key={channel.key} className="flex cursor-pointer items-start gap-3 rounded-2xl border border-[#2a211b]/10 p-4">
                 <input
@@ -118,6 +136,11 @@ export default function NotificationSettingsPage() {
                 <span>
                   <strong className="block text-sm">{channel.title}</strong>
                   <span className="mt-1 block text-xs leading-5 text-[#2a211b]/50">{channel.description}</span>
+                  {channel.key === 'pushEnabled' && (
+                    <Link href="/settings/notifications/push" className="mt-2 inline-flex text-xs font-semibold text-[#725329] underline underline-offset-2">
+                      Manage this device for push
+                    </Link>
+                  )}
                 </span>
               </label>
             ))}
@@ -126,6 +149,7 @@ export default function NotificationSettingsPage() {
 
         <section className="mt-6 rounded-3xl border border-[#2a211b]/10 bg-white p-6 shadow-sm">
           <h2 className="font-serif text-2xl">Time and quiet hours</h2>
+          <p className="mt-2 text-xs leading-5 text-[#2a211b]/50">Use a valid IANA timezone such as Africa/Harare, Europe/London or Asia/Tokyo. Set both quiet-hour times, or leave both blank.</p>
           <div className="mt-4 grid gap-4 sm:grid-cols-3">
             <label className="text-xs font-semibold text-[#2a211b]/60">Timezone
               <input value={form.timezone} onChange={(event) => setForm((current) => ({ ...current, timezone: event.target.value }))} className="mt-1 block min-h-10 w-full rounded-xl border border-[#2a211b]/15 px-3 text-sm" />
@@ -137,13 +161,10 @@ export default function NotificationSettingsPage() {
               <input type="time" value={form.quietEnd || ''} onChange={(event) => setForm((current) => ({ ...current, quietEnd: event.target.value || null }))} className="mt-1 block min-h-10 w-full rounded-xl border border-[#2a211b]/15 px-3 text-sm" />
             </label>
           </div>
-          <label className="mt-4 block text-xs font-semibold text-[#2a211b]/60">Digest
-            <select value={form.digestMode} onChange={(event) => setForm((current) => ({ ...current, digestMode: event.target.value as DigestMode }))} className="mt-1 block min-h-10 w-full rounded-xl border border-[#2a211b]/15 bg-white px-3 text-sm sm:max-w-xs">
-              <option value="none">No digest</option>
-              <option value="daily">Daily digest</option>
-              <option value="weekly">Weekly digest</option>
-            </select>
-          </label>
+          <div className="mt-4 rounded-2xl border border-dashed border-[#2a211b]/15 p-4">
+            <strong className="block text-xs">Digest delivery</strong>
+            <p className="mt-1 text-xs leading-5 text-[#2a211b]/50">Instant delivery policy is active. Daily and weekly digests are intentionally unavailable until Wewed’s digest generator is implemented and certified, so choosing a digest can never silently suppress notifications.</p>
+          </div>
         </section>
 
         <div className="mt-6 flex items-center gap-3">
