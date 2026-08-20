@@ -1,0 +1,97 @@
+import { describe, expect, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
+const root = process.cwd()
+const read = (path: string) => readFileSync(join(root, path), 'utf8')
+
+const standard = read('docs/NOTEBOOK_RECOVERY_SHARING_RECALL_VOICE_STANDARD.md')
+const clarity = read('src/components/notebook/notebook-operations-clarity.tsx')
+const plannerPage = read('src/app/planner/notebook/page.tsx')
+const plannerManage = read('src/app/planner/notebook/manage/page.tsx')
+const actionRoute = read('src/app/api/notebook/[id]/actions/route.ts')
+const noteRoute = read('src/app/api/notebook/[id]/route.ts')
+const recordingRoute = read('src/app/api/notebook/[id]/recordings/route.ts')
+const askRoute = read('src/app/api/notebook/ask/route.ts')
+const recall = read('src/lib/notebook/recall.ts')
+const notification = read('src/lib/notebook/share-notifications.ts')
+const store = read('src/lib/notebook/store.ts')
+const communicationMigration = read('prisma/migrations/20260809100000_communication_channel_readiness/migration.sql')
+const communicationCron = read('src/app/api/cron/communications-deliveries/route.ts')
+const communicationScheduler = read('scripts/communications-supabase-scheduler.sql')
+const communicationContract = read('scripts/communications-postgres-integration.sql')
+
+describe('WW-NOTEBOOK-OPS-2026-08-19-01', () => {
+  test('makes Archive and Trash explicitly different and keeps both recoverable', () => {
+    expect(clarity).toContain('Archive removes it from the active Notebook list, but does NOT delete it.')
+    expect(clarity).toContain("trash.title = 'Trash'")
+    expect(clarity).toContain("trash.setAttribute('aria-label', 'Move note to Trash — recoverable')")
+    expect(clarity).toContain("archive.title = 'Archive'")
+    expect(clarity).toContain("archive.setAttribute('aria-label', 'Archive note — recoverable')")
+    expect(clarity).toContain("backToList.setAttribute('aria-label', 'Back to note list')")
+    expect(clarity).toContain("backToList.dataset.notebookBackToList = 'true'")
+    expect(clarity).toContain('data-notebook-recovery-entry')
+    expect(clarity).not.toContain('className="fixed right-3 top-3')
+    expect(plannerPage).toContain('NotebookOperationsClarity')
+    expect(plannerManage).toContain('NotebookRecoveryAnchor')
+    expect(store).toContain("'NOTE_TRASHED'")
+    expect(store).toContain('restoreDeletedNote')
+    expect(noteRoute).toContain('deleteNote')
+    expect(noteRoute).not.toContain('DELETE FROM wewed_notebook."NotebookNote"')
+  })
+
+  test('grants Notebook share access before fail-soft communications notification', () => {
+    const accessIndex = actionRoute.indexOf('await upsertShare')
+    const notifyIndex = actionRoute.indexOf('await notifyNotebookShare')
+    expect(accessIndex).toBeGreaterThan(-1)
+    expect(notifyIndex).toBeGreaterThan(accessIndex)
+    expect(notification).toContain('createCommunicationConversation')
+    expect(notification).toContain('sendCommunicationMessage')
+    expect(notification).toContain('fail-soft')
+    expect(notification).toContain('note.title')
+    expect(notification).not.toContain('note.contentText')
+    expect(clarity).toContain('persistent in-app notification')
+    expect(clarity).toContain('Email or WhatsApp delivery')
+  })
+
+  test('proves Wewed communications owns verified preference-aware external share fan-out', () => {
+    expect(communicationMigration).toContain('CREATE FUNCTION wewed_communications."queue_external_deliveries"()')
+    expect(communicationMigration).toContain("endpoint.\"status\" = 'VERIFIED'")
+    expect(communicationMigration).toContain('preference."enabled" = true')
+    expect(communicationMigration).toContain('ON CONFLICT ("messageId", "recipientUserId", "channel") DO NOTHING')
+    expect(communicationMigration).toContain('CREATE TRIGGER "queue_external_deliveries_trigger"')
+    expect(communicationCron).toContain('processQueuedCommunicationDeliveries')
+    expect(communicationCron).toContain('communicationSchedulerAuthorized')
+    expect(communicationScheduler).toContain("'wewed-communications-automatic-dispatch'")
+    expect(communicationScheduler).toContain("'* * * * *'")
+    expect(communicationScheduler).toContain('https://wewed.pro/api/cron/communications-deliveries')
+    expect(communicationContract).toContain('verified enabled email endpoint was not queued exactly once')
+  })
+
+  test('routes Ask Notebook through authorized natural-language recall', () => {
+    expect(askRoute).toContain('askNotebookRecall')
+    expect(recall).toContain('extractNotebookRecallTerms')
+    expect(recall).toContain('query: term')
+    expect(recall).toContain('archived: true')
+    expect(recall).toContain('Prefer a directly matching source')
+  })
+
+  test('preserves recording before automatically attempting configured transcription', () => {
+    const uploadIndex = recordingRoute.indexOf('await uploadRecording')
+    const transcribeIndex = recordingRoute.indexOf('await transcribeRecording')
+    expect(uploadIndex).toBeGreaterThan(-1)
+    expect(transcribeIndex).toBeGreaterThan(uploadIndex)
+    expect(recordingRoute).toContain('WEWED_TRANSCRIPTION_URL')
+    expect(recordingRoute).toContain("scope: 'notebook-transcription'")
+    expect(clarity).toContain('Record & transcribe')
+    expect(clarity).toContain('preserve the private audio safely')
+  })
+
+  test('records the operational standard without weakening Notebook or financial authority', () => {
+    expect(standard).toContain('Archive is not Trash.')
+    expect(standard).toContain('Access and delivery are separate.')
+    expect(standard).toContain('Recall searches authorized evidence, not literal questions.')
+    expect(standard).toContain('Meeting capture means record + transcribe.')
+    expect(standard).toContain('No Notebook data cleanup')
+  })
+})

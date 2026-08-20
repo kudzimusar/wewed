@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
       role: access.actor.session.role,
       platformAdmin: access.actor.platformAdmin,
       activeWeddingId: access.actor.session.activeWeddingId,
+      transcriptionConfigured: Boolean(process.env.WEWED_TRANSCRIPTION_URL?.trim()),
       weddings: access.actor.weddings.map((wedding) => ({
         id: wedding.id,
         title: wedding.title,

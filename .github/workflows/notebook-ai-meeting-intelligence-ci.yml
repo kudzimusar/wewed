@@ -111,11 +111,17 @@ jobs:
           END $$;
           SQL
 
+      - name: Prove Notebook share external-delivery database fan-out
+        run: psql "$POSTGRES_TEST_URL" -f scripts/communications-postgres-integration.sql
+
       - name: Run Notebook authorization policy tests
         run: bun test src/lib/notebook/policy.test.ts
 
       - name: Run Notebook writing and AI UX contract
         run: bun test src/lib/notebook/writing-ux.test.ts
+
+      - name: Run Notebook recovery, sharing, recall and voice contracts
+        run: bun test src/lib/notebook/recall-query.test.ts src/lib/notebook/operations-ux.test.ts
 
       - name: Verify governed-action source contracts
         run: |
