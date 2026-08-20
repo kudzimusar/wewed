@@ -13,6 +13,7 @@ import {
   UserRound,
 } from 'lucide-react'
 import { PlannerAdaptiveNavigation } from '@/components/navigation/planner-adaptive-navigation'
+import { NotificationBell } from '@/components/notifications/notification-bell'
 import {
   type AccountRole,
   usePublicAccountSession,
@@ -25,6 +26,9 @@ const PRIVATE_WORKSPACE_PREFIXES = [
   '/vendor',
   '/messages',
   '/billing',
+  '/notifications',
+  '/calendar',
+  '/today',
 ] as const
 
 function isPrivateWorkspace(pathname: string) {
@@ -119,6 +123,8 @@ function PrivateWorkspaceQuickNavigation() {
           <ArrowRight className="size-4" />
         </button>
         <div className="h-5 w-px bg-gold/20" aria-hidden="true" />
+        <NotificationBell className="text-champagne/75 hover:text-gold" />
+        <div className="h-5 w-px bg-gold/20" aria-hidden="true" />
         <details className="group relative">
           <summary
             className="flex size-9 cursor-pointer list-none items-center justify-center rounded-full bg-gold text-espresso transition hover:bg-gold-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-champagne [&::-webkit-details-marker]:hidden"
@@ -138,6 +144,12 @@ function PrivateWorkspaceQuickNavigation() {
               >
                 <LayoutDashboard className="size-4" />
                 {workspace.label}
+              </Link>
+              <Link
+                href="/notifications"
+                className="flex items-center gap-2 rounded-xl border border-gold/20 px-3 py-2.5 text-sm text-champagne/80 hover:bg-gold/10 hover:text-gold"
+              >
+                <NotificationBell className="pointer-events-none min-h-0 min-w-0" showLabel />
               </Link>
               <button
                 type="button"
