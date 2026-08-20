@@ -14,6 +14,14 @@ import {
   type ReminderRecord,
   type SnoozeNotificationInput,
 } from '@/lib/notifications/contracts'
+import {
+  VENDOR_ALLOWED_CATEGORIES,
+  isNotificationVisibleToPrincipal,
+  isVendorNotificationSourceAuthorized,
+  vendorSourceAccessKey,
+} from '@/lib/notifications/visibility'
+
+export { isNotificationVisibleToPrincipal, isVendorNotificationSourceAuthorized } from '@/lib/notifications/visibility'
 
 export class NotificationAccessError extends Error {
   constructor(message = 'Notification access denied.') {
@@ -34,59 +42,6 @@ function effectivePrincipal(session: AppSession): { userId: string; role: Dashbo
   if (!userId) return null
   const role = session.effectiveRole ?? session.role
   return { userId, role }
-}
-
-const VENDOR_ALLOWED_CATEGORIES = new Set([
-  'vendor',
-  'engagement',
-  'message',
-  'communication',
-  'system',
-])
-
-function vendorSourceAccessKey(sourceType: string, sourceId: string, weddingId: string) {
-  return `${sourceType}:${sourceId}:${weddingId}`
-}
-
-export function isNotificationVisibleToPrincipal(
-  notification: Pick<NotificationRecord, 'recipientUserId' | 'weddingId' | 'category' | 'sourceType'>,
-  principalUserId: string,
-  accessibleWeddingIds: ReadonlySet<string>,
-  role: DashboardRole,
-): boolean {
-  if (notification.recipientUserId !== principalUserId) return false
-  if (role === 'vendor') {
-    if (notification.category === 'contract') {
-      if (notification.sourceType !== 'contract_review_grant') return false
-    } else if (!VENDOR_ALLOWED_CATEGORIES.has(notification.category)) {
-      return false
-    }
-  }
-  if (!notification.weddingId) return true
-  return accessibleWeddingIds.has(notification.weddingId)
-}
-
-export function isVendorNotificationSourceAuthorized(
-  notification: Pick<NotificationRecord, 'weddingId' | 'category' | 'sourceType' | 'sourceId'>,
-  sourceAccessKeys: ReadonlySet<string>,
-): boolean {
-  if (!notification.weddingId) return true
-
-  if (notification.category === 'engagement' || notification.sourceType === 'service_engagement') {
-    if (notification.sourceType !== 'service_engagement' || !notification.sourceId) return false
-    return sourceAccessKeys.has(
-      vendorSourceAccessKey('service_engagement', notification.sourceId, notification.weddingId),
-    )
-  }
-
-  if (notification.category === 'contract' || notification.sourceType === 'contract_review_grant') {
-    if (notification.sourceType !== 'contract_review_grant' || !notification.sourceId) return false
-    return sourceAccessKeys.has(
-      vendorSourceAccessKey('contract_review_grant', notification.sourceId, notification.weddingId),
-    )
-  }
-
-  return true
 }
 
 async function vendorSourceAccessKeys(userId: string): Promise<Set<string>> {
