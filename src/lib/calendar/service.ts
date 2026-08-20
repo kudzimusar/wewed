@@ -158,6 +158,8 @@ export async function listCalendarItemsForSession(
         JOIN public."Wedding" w ON w.id = ep."weddingId"
         WHERE ep."userId" = $1
           AND ep.status = 'active'
+          AND ep."partyRole" = 'SERVICE_PROVIDER'
+          AND ep."partyKind" = 'VENDOR'
       `,
       principal.userId,
     )
@@ -439,6 +441,8 @@ export async function listCalendarItemsForSession(
             ON ep."serviceEngagementId" = se.id AND ep."weddingId" = se."weddingId"
           WHERE ep."userId" = $1
             AND ep.status = 'active'
+            AND ep."partyRole" = 'SERVICE_PROVIDER'
+            AND ep."partyKind" = 'VENDOR'
             AND se."weddingId" IN (${placeholders(weddingIds.length, idsOffset)})
             AND se."serviceDate" IS NOT NULL
         `,
@@ -492,6 +496,8 @@ export async function listCalendarItemsForSession(
           JOIN public."EngagementParty" ep ON ep.id = crg."engagementPartyId"
           WHERE ep."userId" = $1
             AND ep.status = 'active'
+            AND ep."partyRole" = 'SERVICE_PROVIDER'
+            AND ep."partyKind" = 'VENDOR'
             AND crg.status = 'ACTIVE'
             AND crg."revokedAt" IS NULL
             AND crg."expiresAt" > CURRENT_TIMESTAMP
