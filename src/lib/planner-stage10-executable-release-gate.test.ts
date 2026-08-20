@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import './notifications/contracts.test'
+import './notifications/delivery-policy.test'
 import './calendar/contracts.test'
 import { plannerLegacyModuleSlug } from './planner-route-state'
 
