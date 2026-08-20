@@ -3,23 +3,19 @@
  *
  * Strategies:
  *  - Navigation requests (HTML pages):  network-first, fallback to cached "/".
- *    This keeps the live countdown / RSVP data fresh when online, but still
- *    serves the app shell offline (critical for flaky venue Wi-Fi).
  *  - Next.js build assets (JS/CSS):      network-first, fallback to cache.
- *    App code must not remain pinned to an older deployment while online.
  *  - Other static assets:                cache-first, fallback to network.
- *    Stable images and fonts load instantly from cache.
  *  - API requests (/api/*):              network-only.
- *    Dynamic data (RSVPs, votes, messages) must never be served stale.
  *
- * Bump CACHE_VERSION to invalidate old caches when cache semantics change.
+ * Push notifications are display-only projections of canonical Wewed notification
+ * records. Opening a push always returns to a Wewed deep link where authorization
+ * is checked again.
  */
 
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 const STATIC_CACHE = `wewed-static-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `wewed-runtime-${CACHE_VERSION}`;
 
-// Assets pre-cached at install time so the app is usable offline immediately.
 const PRECACHE_URLS = [
   '/',
   '/manifest.json',
@@ -28,35 +24,25 @@ const PRECACHE_URLS = [
   '/icon-512.png',
 ];
 
-// ────────────────────────────────────────────────────────────────────────────
-// Install — pre-cache the app shell.
-// ────────────────────────────────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
   event.waitUntil(
     (async () => {
       const cache = await caches.open(STATIC_CACHE);
-      // Use individual put() calls so one missing asset doesn't fail the whole install.
       await Promise.all(
         PRECACHE_URLS.map(async (url) => {
           try {
             const res = await fetch(url, { cache: 'reload' });
-            if (res && res.ok) {
-              await cache.put(url, res.clone());
-            }
+            if (res && res.ok) await cache.put(url, res.clone());
           } catch (_err) {
-            // Asset missing — skip silently, we'll lazy-cache on first fetch.
+            // Missing optional precache assets must not fail installation.
           }
         }),
       );
-      // Activate immediately rather than waiting for old SW to die.
       await self.skipWaiting();
     })(),
   );
 });
 
-// ────────────────────────────────────────────────────────────────────────────
-// Activate — purge old caches from previous versions.
-// ────────────────────────────────────────────────────────────────────────────
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
@@ -71,65 +57,44 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// ────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ────────────────────────────────────────────────────────────────────────────
-
-/** True for same-origin GET requests only. */
 function isCacheableMethod(request) {
   return request.method === 'GET';
 }
 
-/** Next.js JS/CSS build output must revalidate online. */
 function isNextBuildAsset(request) {
   const url = new URL(request.url);
   return url.origin === self.location.origin && url.pathname.startsWith('/_next/static/');
 }
 
-/** Other static-asset requests: images, fonts, etc. */
 function isStaticAsset(request) {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return false;
-  return /\.(?:png|jpe?g|gif|webp|avif|svg|ico|css|js|woff2?|ttf|otf)(?:\?.*)?$/i.test(
-    url.pathname,
-  );
+  return /\.(?:png|jpe?g|gif|webp|avif|svg|ico|css|js|woff2?|ttf|otf)(?:\?.*)?$/i.test(url.pathname);
 }
 
-/** API calls — never cached. */
 function isApiRequest(request) {
   const url = new URL(request.url);
   return url.origin === self.location.origin && url.pathname.startsWith('/api/');
 }
 
 function isNavigationRequest(request) {
-  return (
-    request.mode === 'navigate' ||
-    (request.headers.get('accept') || '').includes('text/html')
-  );
+  return request.mode === 'navigate' || (request.headers.get('accept') || '').includes('text/html');
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// Fetch — route by request type.
-// ────────────────────────────────────────────────────────────────────────────
 self.addEventListener('fetch', (event) => {
   const { request } = event;
-
-  // Only handle GETs; let the browser handle POST/PUT/etc normally.
   if (!isCacheableMethod(request)) return;
 
-  // 1. API → network only.
   if (isApiRequest(request)) {
     event.respondWith(fetch(request));
     return;
   }
 
-  // 2. Navigation (HTML) → network-first, fallback to cache, fallback to "/".
   if (isNavigationRequest(request)) {
     event.respondWith(
       (async () => {
         try {
           const fresh = await fetch(request);
-          // Cache a copy for future offline use.
           const cache = await caches.open(RUNTIME_CACHE);
           cache.put(request, fresh.clone()).catch(() => {});
           return fresh;
@@ -138,22 +103,17 @@ self.addEventListener('fetch', (event) => {
           if (cached) return cached;
           const fallback = await caches.match('/');
           if (fallback) return fallback;
-          return new Response(
-            '<h1>Offline</h1><p>wewed is unavailable until you reconnect.</p>',
-            {
-              status: 503,
-              statusText: 'Offline',
-              headers: { 'Content-Type': 'text/html; charset=utf-8' },
-            },
-          );
+          return new Response('<h1>Offline</h1><p>wewed is unavailable until you reconnect.</p>', {
+            status: 503,
+            statusText: 'Offline',
+            headers: { 'Content-Type': 'text/html; charset=utf-8' },
+          });
         }
       })(),
     );
     return;
   }
 
-  // 3. Next.js build assets → network-first so active sessions cannot stay on
-  // an older JS/CSS bundle while online; cached copy remains an offline fallback.
   if (isNextBuildAsset(request)) {
     event.respondWith(
       (async () => {
@@ -173,7 +133,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 4. Other static assets → cache-first, fallback to network (and lazy-cache).
   if (isStaticAsset(request)) {
     event.respondWith(
       (async () => {
@@ -187,23 +146,71 @@ self.addEventListener('fetch', (event) => {
           }
           return fresh;
         } catch (_err) {
-          // Nothing we can do offline for an uncached asset.
           return Response.error();
         }
       })(),
     );
-    return;
   }
-
-  // 5. Everything else (same-origin or cross-origin XHRs) → try network, no cache.
-  // Fall through to default browser behaviour by not calling respondWith.
 });
 
-// ────────────────────────────────────────────────────────────────────────────
-// Message handler — allows the page to trigger an immediate update.
-// ────────────────────────────────────────────────────────────────────────────
 self.addEventListener('message', (event) => {
-  if (event.data === 'wewed:skip-waiting') {
-    self.skipWaiting();
+  if (event.data === 'wewed:skip-waiting') self.skipWaiting();
+});
+
+function safePushPayload(event) {
+  if (!event.data) return {};
+  try {
+    return event.data.json();
+  } catch (_err) {
+    return { body: event.data.text() };
   }
+}
+
+self.addEventListener('push', (event) => {
+  const payload = safePushPayload(event);
+  const title = typeof payload.title === 'string' && payload.title.trim()
+    ? payload.title.trim()
+    : 'Wewed';
+  const body = typeof payload.body === 'string' ? payload.body : 'You have a new Wewed notification.';
+  const deepLink = typeof payload.deepLink === 'string' && payload.deepLink.startsWith('/')
+    ? payload.deepLink
+    : '/notifications';
+  const tag = typeof payload.tag === 'string' ? payload.tag : undefined;
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      tag,
+      renotify: false,
+      data: {
+        deepLink,
+        notificationId: typeof payload.notificationId === 'string' ? payload.notificationId : null,
+      },
+    }),
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const rawLink = event.notification?.data?.deepLink;
+  const deepLink = typeof rawLink === 'string' && rawLink.startsWith('/') ? rawLink : '/notifications';
+  const destination = new URL(deepLink, self.location.origin).href;
+
+  event.waitUntil(
+    (async () => {
+      const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const client of windows) {
+        if (!('focus' in client)) continue;
+        try {
+          await client.navigate(destination);
+          return client.focus();
+        } catch (_err) {
+          // Try another window or open a fresh Wewed window below.
+        }
+      }
+      return self.clients.openWindow(destination);
+    })(),
+  );
 });
