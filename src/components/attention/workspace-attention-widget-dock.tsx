@@ -27,11 +27,11 @@ export function WorkspaceAttentionWidgetDock() {
 
   return (
     <aside
-      className="fixed bottom-4 right-4 z-[340] hidden w-[22rem] max-w-[calc(100vw-2rem)] xl:block"
+      className="relative z-10 mx-auto hidden w-full max-w-[96rem] justify-end px-4 pb-4 xl:flex"
       aria-label="Wewed Today widget"
       data-testid="workspace-attention-widget-dock"
     >
-      <AttentionSummaryWidget />
+      <AttentionSummaryWidget className="w-[22rem] max-w-full" />
     </aside>
   )
 }
