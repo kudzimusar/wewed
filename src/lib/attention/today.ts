@@ -118,6 +118,10 @@ function sortAttention(items: TodayAttentionItem[]) {
   )
 }
 
+function isDeferredNotification(notification: NotificationRecord) {
+  return notification.state === 'scheduled' || notification.state === 'queued'
+}
+
 export async function buildTodayAttentionModel(
   session: AppSession,
   now = new Date(),
@@ -131,12 +135,18 @@ export async function buildTodayAttentionModel(
     listCalendarItemsForSession(session, { from: todayStart, to: upcomingEnd, limit: 300 }),
   ])
 
-  const activeNotifications = notifications.filter(
+  const currentNotifications = notifications.filter(
     (notification) => !['resolved', 'cancelled', 'expired', 'dismissed'].includes(notification.state),
   )
-  const notificationItems = activeNotifications.map(notificationToAttention)
+  const notificationItems = currentNotifications.map(notificationToAttention)
+  const currentAttentionItems = currentNotifications
+    .filter((notification) => !isDeferredNotification(notification))
+    .map(notificationToAttention)
   const calendarItems = calendar.map(calendarToAttention)
 
+  // Any current notification represents that source in Today, including a snoozed one. This keeps
+  // the canonical Calendar page truthful while allowing snooze to defer the source from Today
+  // instead of reappearing immediately through the Calendar projection.
   const notificationSourceKeys = new Set(
     notificationItems
       .filter((item) => item.sourceId)
@@ -147,8 +157,9 @@ export async function buildTodayAttentionModel(
   )
 
   const all = [...notificationItems, ...dedupedCalendarItems]
+  const actionableNow = [...currentAttentionItems, ...dedupedCalendarItems]
   const needsAction = sortAttention(
-    all.filter(
+    actionableNow.filter(
       (item) =>
         item.requiresAction || item.priority === 'urgent' || item.priority === 'action_required',
     ),
@@ -166,12 +177,14 @@ export async function buildTodayAttentionModel(
     needsAction,
     today,
     upcoming,
-    unreadCount: activeNotifications.filter((notification) => !notification.readAt).length,
+    unreadCount: currentNotifications.filter(
+      (notification) => notification.state === 'active' && !notification.readAt,
+    ).length,
     summary: {
       needsAction: needsAction.length,
       today: today.length,
       upcoming: upcoming.length,
-      urgent: all.filter((item) => item.priority === 'urgent').length,
+      urgent: actionableNow.filter((item) => item.priority === 'urgent').length,
     },
   }
 }
