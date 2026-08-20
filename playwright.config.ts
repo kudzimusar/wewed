@@ -45,5 +45,10 @@ export default defineConfig({
     timeout: 120_000,
     stdout: 'pipe',
     stderr: 'pipe',
+    env: {
+      ...process.env,
+      // Synthetic local-CI secret only. Production CRON_SECRET remains environment-managed.
+      CRON_SECRET: 'wewed-local-ci-cron-secret',
+    },
   },
 })
