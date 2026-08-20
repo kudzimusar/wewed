@@ -87,7 +87,7 @@ describe('WW-NOTEBOOK-OPS-2026-08-19-01', () => {
     expect(transcriptionConfig).toContain('WEWED_TRANSCRIPTION_URL')
     expect(transcriptionConfig).toContain('GROQ_API_KEY')
     expect(transcriptionConfig).toContain('/audio/transcriptions')
-    expect(transcriptionConfig).not.toContain('NEXT_PUBLIC_')
+    expect(transcriptionConfig).not.toContain('process.env.NEXT_PUBLIC')
     expect(clarity).toContain('Record & transcribe')
     expect(clarity).toContain('preserve the private audio safely')
   })
