@@ -145,12 +145,10 @@ function PrivateWorkspaceQuickNavigation() {
                 <LayoutDashboard className="size-4" />
                 {workspace.label}
               </Link>
-              <Link
-                href="/notifications"
-                className="flex items-center gap-2 rounded-xl border border-gold/20 px-3 py-2.5 text-sm text-champagne/80 hover:bg-gold/10 hover:text-gold"
-              >
-                <NotificationBell className="pointer-events-none min-h-0 min-w-0" showLabel />
-              </Link>
+              <NotificationBell
+                showLabel
+                className="min-h-11 justify-start rounded-xl border border-gold/20 px-3 text-champagne/80 hover:text-gold"
+              />
               <button
                 type="button"
                 onClick={() => void endSession('/sign-in')}
