@@ -1,488 +1,384 @@
 # Wewed System Notifications, Calendar, Reminders & Attention Plan
 
-**Status:** Authoritative implementation plan  
+**Status:** AUTHORITATIVE — active implementation record  
 **Branch:** `feature/system-notifications-attention`  
 **Baseline:** `main` at `713e0a59277cdb8629a1a1d2e662c38ada6c3a26`  
-**Rule:** Every implementation change in this workstream must map back to a phase and acceptance criterion in this document. Update this document as phases are completed or scope is deliberately deferred.
+**Rule:** Every change in this workstream must map to this document. A phase is not complete merely because code exists: implementation, exact-head build/test, database rollout and cross-role UAT are recorded separately.
 
-## 1. Product correction and scope
+## 1. Correct product scope
 
-This is a **system-wide Wewed platform capability**, not a Planner-only feature and not a Contributions feature.
+This is a **Wewed-wide platform capability**, not a Planner-only feature and not a Contributions feature.
 
-The first-class audiences are:
+First-class authenticated consumers:
 
-- **Admin** — Wewed operational, support, governance, approval, delivery-failure and escalation attention.
-- **Planner** — portfolio-wide and wedding-specific tasks, meetings, deadlines, vendors, contracts, budgets, communications and wedding-day operations.
-- **Couple** — their wedding tasks, approvals, payments, contracts, RSVP/guest milestones, appointments, communications and wedding-day actions.
-- **Vendor** — assigned engagements, appointments, service dates, documents, contracts, payment milestones, messages, approvals and wedding-day delivery actions.
+- **Admin** — operational, support, governance, delivery-failure and escalation attention.
+- **Planner** — portfolio-wide and wedding-specific tasks, dates, vendors, contracts, budgets, communications and wedding-day operations.
+- **Couple** — their own wedding tasks, approvals, payments, guest/RSVP milestones, appointments, contracts, communications and wedding-day actions.
+- **Vendor** — only their own authorized engagements, service dates, documents/contracts where party authorization is provable, messages and delivery actions.
 
-Other actors such as contributors, guests, invitees and external contacts may receive communications generated from Wewed workflows, but they are not required to have an authenticated Notification Center in the first system release.
+Guests, contributors and other external contacts can later receive communications generated from Wewed workflows, but they do not need an authenticated Notification Center in the core release.
 
-## 2. Core product model
-
-Wewed should use one shared attention architecture:
+## 2. Platform architecture
 
 ```text
-Domain record / system event
-        |
-        v
-Wewed event + date/trigger contract
-        |
-        +-------------------+-------------------+
-        |                   |                   |
-        v                   v                   v
-Unified Calendar      Reminder Scheduler   Notification Rules
-        |                   |                   |
-        +-------------------+-------------------+
-                            |
-                            v
-                    Attention / Notification
-                            |
-        +-------------------+-------------------+
-        |                   |                   |
-        v                   v                   v
- Notification Center      Today              Widgets
-        |                                       |
-        +-------------------+-------------------+
-                            |
-                            v
-                 Push / email / WhatsApp routing
-                     when policy requires it
+Canonical Wewed source record / system event
+                 |
+                 v
+        event + date/trigger contract
+                 |
+       +---------+----------+
+       |                    |
+       v                    v
+Unified Calendar      Reminder Scheduler
+       |                    |
+       +---------+----------+
+                 v
+        Notification / Attention
+                 |
+     +-----------+-----------+
+     |           |           |
+     v           v           v
+Notification   Today      Widgets
+ Center          |           |
+     +-----------+-----------+
+                 |
+                 v
+ Push / email / WhatsApp routing
+ only where policy + consent permit
 ```
 
-### Product boundaries
+### Non-negotiable boundaries
 
-1. **Source modules remain canonical.** A task remains a task; a contract remains a contract; a payment remains a payment. Calendar and notifications point back to source data rather than duplicating business records.
-2. **Calendar and reminders are different.** A due date belongs to the source record. A reminder is a scheduled attention instruction. A notification is the surfaced/delivered result.
-3. **Notifications and communications are different.** Notifications tell a Wewed user that something needs attention. Communications are person-to-person/business messages. A notification may offer a `Message` or `Send reminder` action that uses the communications layer.
-4. **Role visibility is fail-closed.** Notifications must never disclose information the recipient could not access by opening the source record directly.
-5. **One engine, role-specific projections.** Admin, Planner, Couple and Vendor use the same notification/reminder/calendar primitives but receive different source types, filters, actions and escalation policies.
+1. Source modules remain canonical. Calendar/notifications link to tasks, payments, engagements, etc.; they do not create duplicate business records.
+2. A source date, a reminder and a notification are separate concepts.
+3. Notifications and person-to-person communications are separate systems that can invoke one another.
+4. Recipient identity alone is insufficient for wedding data; source/wedding authorization must also pass.
+5. Admin, Planner, Couple and Vendor use one engine but different role-safe projections.
+6. In-app notification history remains canonical even when push/email/WhatsApp delivery fails.
 
-## 3. Shared surfaces
+## 3. Shared product surfaces
 
-### 3.1 Notification Center
+### Notification Center
 
-Every authenticated Admin, Planner, Couple and Vendor should receive a notification inbox with:
+Required capabilities:
 
-- unread/read state;
-- `needs_action`, `upcoming`, `updates`, `messages`, `resolved` grouping;
-- source context and deep link;
-- role/wedding context;
-- priority/severity;
-- mark read/unread;
-- acknowledge/resolve when appropriate;
-- snooze;
-- filters by category, wedding, role context and status;
-- audit-safe lifecycle history.
+- read/unread;
+- needs-action/upcoming/updates/resolved filtering;
+- severity and source context;
+- deep links;
+- acknowledge and resolve;
+- snooze without changing source due dates;
+- unread count/badge;
+- audit/delivery lifecycle later.
 
-### 3.2 Unified Calendar
+### Unified Calendar
 
-The Wewed calendar is a projection of meaningful dated records across the platform. It should support:
+Calendar is a read projection of meaningful dated Wewed records. Sources currently targeted:
 
-- month, week, day and agenda views;
-- wedding-specific and portfolio/all-weddings filtering where authorized;
-- category filters;
-- deep links to canonical records;
-- explicit user-created calendar items where no other domain record exists;
-- relative-to-wedding-date events/templates later;
-- external calendar synchronization later without making Google/Apple/Outlook canonical.
+- PlannerTask due dates;
+- BudgetItem due dates;
+- ServiceEngagement service dates;
+- Wedding RSVP deadline;
+- ProgrammeItem times combined with wedding date;
+- Wedding date;
+- Admin's own scheduled operational/system attention;
+- future contract, appointment, contribution and standalone-calendar adapters where a reliable source contract exists.
 
-Initial calendar-capable sources include:
+External calendar synchronization later must not make Google/Apple/Outlook the source of truth for Wewed business records.
 
-- Planner tasks and assignments;
-- budget/payment due dates;
-- service engagement/service dates;
-- programme/wedding timeline items;
-- contract review/signature/expiry milestones where represented;
-- RSVP deadline;
-- meetings/appointments when represented;
-- future Contributions due/target dates;
-- admin operational deadlines;
-- vendor engagement dates and required actions.
+### Today / Attention
 
-### 3.3 Today / Attention view
+One role-aware daily command surface:
 
-A role-aware command surface should prioritize what matters now rather than merely listing recent notifications.
+- **Admin:** operational/system attention assigned to that Admin.
+- **Planner:** cross-wedding actions and dates from authorized weddings.
+- **Couple:** own wedding actions and dates.
+- **Vendor:** own engagement/service attention only.
 
-- **Admin:** approvals, support/governance exceptions, failed deliveries, urgent operational events.
-- **Planner:** portfolio conflicts, overdue/high-priority tasks, due payments, contracts, vendor confirmations, appointments and wedding-day actions.
-- **Couple:** approvals, tasks, payments, guest/RSVP milestones, meetings and wedding countdown actions.
-- **Vendor:** upcoming service dates, contract/document actions, appointments, payment events, messages and delivery confirmations.
+### Widgets
 
-### 3.4 Widgets
+Web/dashboard widgets consume the exact same Today/Notification/Calendar read model. Native device widgets are deferred until core/PWA adoption warrants native investment.
 
-Widgets consume the same read model as Today/Calendar/Notifications.
+## 4. Taxonomy
 
-**Web/dashboard widgets first:**
+Notification categories:
 
-- Today;
-- Upcoming;
-- Wedding countdown;
-- Tasks/action required;
-- Payments/budget deadlines;
-- Contracts;
-- RSVP/guest milestone;
-- Vendor service schedule;
-- Admin operational alerts.
+`task`, `budget`, `payment`, `vendor`, `engagement`, `contract`, `rsvp`, `guest`, `programme`, `wedding`, `message`, `communication`, `contribution`, `admin`, `system`.
 
-**Device widgets later:** native iOS/Android widgets after PWA/web push adoption validates the need. Do not build separate widget business logic.
+Severity:
 
-## 4. Event and attention taxonomy
+`info`, `normal`, `important`, `action_required`, `urgent`.
 
-### Event classes
+Notification lifecycle:
 
-- `task.*`
-- `budget.*`
-- `payment.*`
-- `vendor.*`
-- `engagement.*`
-- `contract.*`
-- `rsvp.*`
-- `guest.*`
-- `programme.*`
-- `wedding.*`
-- `message.*`
-- `communication.*`
-- `contribution.*`
-- `admin.*`
-- `system.*`
+`scheduled`, `queued`, `active`, `read`, `acknowledged`, `resolved`, `dismissed`, `cancelled`, `expired`, `failed`.
 
-### Severity
+Reminder lifecycle:
 
-- `info`
-- `normal`
-- `important`
-- `action_required`
-- `urgent`
+`scheduled`, `triggered`, `snoozed`, `cancelled`, `completed`, `failed`.
 
-Severity affects ordering, push/escalation policy and visual treatment. It must not be used to bypass authorization or quiet-hour policy except where the user/platform policy explicitly allows urgent exceptions.
+Delivery channels:
 
-### Lifecycle
+`in_app`, `push`, `email`, `whatsapp`.
 
-Notifications should support at least:
-
-`scheduled -> queued -> active -> read -> acknowledged/actioned -> resolved`
-
-with terminal/supporting states:
-
-`dismissed`, `cancelled`, `expired`, `failed`.
-
-Channel delivery attempts are tracked separately from notification state.
-
-## 5. Shared data contract
-
-The foundation should support these concepts without forcing each module to reinvent them:
-
-### Notification
-
-- recipient user;
-- optional wedding scope;
-- actor when applicable;
-- source type/id;
-- event type;
-- category;
-- severity;
-- title/body/metadata;
-- deep-link/action target;
-- requires-action flag;
-- lifecycle state;
-- read/acknowledged/resolved timestamps;
-- deduplication key;
-- expiry;
-- audit timestamps.
-
-### Reminder
-
-- owner/creator;
-- target recipient;
-- source type/id;
-- optional wedding scope;
-- trigger time;
-- recurrence definition later;
-- delivery/surface policy;
-- cancellation condition/state;
-- snooze relationship;
-- timezone;
-- generated notification link.
-
-### Notification preference
-
-- user;
-- category or global scope;
-- in-app/push/email/WhatsApp preference flags;
-- quiet hours/timezone;
-- digest preference later;
-- wedding-specific overrides later.
-
-### Delivery attempt
-
-- notification;
-- channel;
-- provider/message reference when available;
-- queued/sent/delivered/read/failed state;
-- timestamps/error metadata.
-
-### Calendar item
-
-Prefer a **read projection** over canonical source records. Add a persistent calendar record only for explicit standalone events that have no natural source object.
-
-## 6. Authorization and recipient resolution
-
-All reads and writes must be role-aware and source-aware.
+## 5. Authorization contract
 
 ### Admin
 
-- system/admin operational notifications;
-- wedding/user/vendor notifications only where Admin authority permits access;
-- no accidental private-wedding data leakage through notification text.
+Admin receives global operational/system notifications addressed to that Admin. Wedding/private content is not automatically projected into Admin calendar/notifications merely because the user has an Admin role.
 
 ### Planner
 
-- wedding membership/assignment determines scope;
-- portfolio view may combine only weddings the planner is authorized to access;
-- task assignee and wedding membership are both relevant signals.
+Active wedding membership/assignment determines wedding scope. Portfolio aggregation may only combine weddings that remain authorized.
 
 ### Couple
 
-- notifications are restricted to the couple's own wedding(s) and permitted collaboration data;
-- planner/admin internal-only notes must never leak through notification metadata.
+Only their own active wedding membership and permitted collaboration data are projected. Planner/Admin internal-only content must never leak through titles, body or metadata.
 
 ### Vendor
 
-- restricted to engagements/contracts/messages/actions in which the vendor is a party;
-- no visibility of overall couple budget, unrelated vendors, guest private data or planner/admin internal operations.
+Vendor access is source-party based, not "same wedding" based. Current calendar projection requires an active `EngagementParty` link to the `ServiceEngagement`.
 
-Recipient resolution must be deterministic and testable. Role names are not sufficient by themselves; source-record authorization is required.
+**Guardrail:** financial/contract notification delivery to Vendors remains disabled until those source models expose a deterministic Vendor-party authorization path. Do not infer Vendor access from the existence of another engagement in the same wedding.
 
-## 7. Reminder behavior
+## 6. Existing reminder compatibility
 
-- source due date does not change when a notification is snoozed;
-- completion of the source action should resolve/cancel future redundant reminders;
-- reminder creation must be idempotent;
-- repeated jobs must not create duplicate notifications;
-- reminders use the recipient's effective timezone;
-- automated person-to-person messages require explicit policy/consent; default external-message behavior is draft/approve where applicable;
-- recurring reminders and `until condition is complete` are a later phase after one-shot reminders are proven.
+Wewed already has a Planner-only RSVP email reminder flow under `src/app/api/planner/reminders`, stored as `ContentRevision(section='planner_reminder')`, plus the existing Resend delivery path and `/api/cron/reminders` cron.
 
-## 8. Delivery channels
+Rules:
 
-### Phase-one surface
+- preserve it unchanged during the shared-engine rollout;
+- do not turn `ContentRevision` into the system-wide notification database;
+- the new scheduler uses a separate `/api/cron/system-reminders` path and does **not** require Resend;
+- migrate/adapt legacy reminders only after regression coverage proves parity;
+- later communications routing may reuse existing Resend capability rather than duplicating provider code.
 
-- in-app Notification Center;
-- Today/read model;
-- calendar projection.
-
-### Later channels
-
-- Web/PWA push;
-- desktop/browser notification;
-- email;
-- WhatsApp through the existing Wewed communications layer;
-- native push when native apps exist.
-
-Channel failures must not delete or invalidate the canonical in-app notification.
-
-### Existing reminder compatibility discovered during baseline review
-
-Wewed already has a Planner-only RSVP reminder flow under `src/app/api/planner/reminders`. It stores email reminder definitions in `ContentRevision` with `section = 'planner_reminder'` and has an existing Resend delivery path. This is **legacy-compatible functionality**, not the new system-wide reminder model.
-
-Rules for this workstream:
-
-- do not delete or break the existing Planner RSVP reminder flow while the shared engine is introduced;
-- do not make `ContentRevision` the system-wide notification database;
-- add the shared engine additively, then introduce an adapter/migration path in Phase 4;
-- existing scheduled RSVP reminders must retain their current behavior until explicitly migrated and regression-tested;
-- the shared communications router may later reuse the existing Resend delivery capability rather than duplicating provider code.
-
-## 9. Implementation phases and acceptance criteria
+## 7. Implementation phases
 
 ### Phase 0 — Baseline and authoritative plan
 
-**Status:** COMPLETE
+**Status: COMPLETE**
 
-- [x] Branch from current `main` after Contributions merge.
-- [x] Establish this document as the authoritative plan.
-- [x] Record implementation status here after every completed phase.
-- [x] Review existing identity/access foundation and legacy Planner reminder implementation before feature code.
+- [x] Branch from exact current `main` after Contributions merge.
+- [x] Commit this plan before feature code.
+- [x] Review signed AppSession role model and wedding-access layer.
+- [x] Review legacy Planner RSVP reminders and preserve them.
 
-**Exit:** plan committed before feature code. **PASSED.**
+**Exit:** PASSED.
 
-### Phase 1 — Core notification/reminder data foundation
+### Phase 1 — Core notification/reminder foundation
 
-**Status:** IN PROGRESS
+**Status: IMPLEMENTED; EXACT-HEAD TEST + DATABASE UAT PENDING**
 
-- [ ] Add database/Prisma models, relations and indexes for notifications, reminders, preferences and delivery attempts.
-- [ ] Add migration matching the model.
-- [ ] Add shared TypeScript taxonomy/contracts and validation.
-- [ ] Add authorization-safe notification service primitives.
-- [ ] Add idempotent create/read/mark-read/resolve/snooze primitives.
-- [ ] Add tests for dedupe, lifecycle and fail-closed recipient access.
+- [x] Add additive SQL storage for `Notification`, `Reminder`, `NotificationPreference`, `NotificationDeliveryAttempt`.
+- [x] Add safe indexes/FKs/check constraints and per-recipient dedupe keys.
+- [x] Add typed TypeScript contracts and Zod validation.
+- [x] Add authorization-safe notification service primitives.
+- [x] Add idempotent create/read/unread/acknowledge/resolve/snooze primitives.
+- [x] Add lifecycle and fail-closed visibility unit tests.
+- [ ] Apply migrations to an approved test/preview database and run integration tests.
+- [ ] Run exact-head full repository test matrix before declaring the phase closed.
 
-**Exit:** foundation builds/tests without changing existing feature behavior.
+**Storage note:** existing Wewed governed-access code already uses typed raw SQL for authorization-sensitive tables. This foundation follows that pattern rather than blocking on a destructive full Prisma-schema rewrite. Prisma schema parity can be added later if repository schema ownership is standardized; the migrations are the current database contract.
 
 ### Phase 2 — In-app API + Notification Center
 
-**Status:** NOT STARTED
+**Status: IMPLEMENTED; CROSS-ROLE UAT PENDING**
 
-- [ ] Authenticated list endpoint with role-aware filtering.
-- [ ] unread count endpoint/read model.
-- [ ] mark read/unread.
-- [ ] acknowledge/resolve.
-- [ ] snooze/reminder creation.
-- [ ] role-aware Notification Center UI.
-- [ ] bell/unread indicator in authenticated role shells where a stable shell exists.
-
-**Exit:** Admin, Planner, Couple and Vendor can only see their authorized notification records and can manage their own attention state.
+- [x] Authenticated role-aware list API.
+- [x] unread count API.
+- [x] read/unread.
+- [x] acknowledge/resolve.
+- [x] snooze/reminder creation.
+- [x] shared `/notifications` UI.
+- [x] shared bell/unread indicator in authenticated workspace navigation.
+- [x] Planner shell bell.
+- [ ] Admin/Planner/Couple/Vendor UAT against migrated preview data.
 
 ### Phase 3 — Unified Calendar
 
-**Status:** NOT STARTED
+**Status: CORE IMPLEMENTED; EXPANSION + UAT PENDING**
 
-- [ ] shared calendar projection contract;
-- [ ] project existing dated records without copying canonical business data;
-- [ ] support task due dates, budget due dates, engagement service dates, RSVP deadline and programme/wedding timeline dates that can be safely normalized;
-- [ ] role/wedding/portfolio filters;
-- [ ] deep links;
-- [ ] month/week/day/agenda starting with the simplest reliable views;
-- [ ] standalone calendar events only where no source object exists.
+- [x] Shared calendar projection contract.
+- [x] Project canonical records rather than copy them.
+- [x] Task due dates.
+- [x] Budget/payment due dates.
+- [x] Service engagement dates.
+- [x] RSVP deadline.
+- [x] Wedding date.
+- [x] Programme/timeline projection with conservative time parsing.
+- [x] Vendor projection restricted to own active EngagementParty records.
+- [x] Admin projection restricted to own scheduled admin/system attention.
+- [x] category/date/wedding filtering at API layer.
+- [x] source deep links.
+- [x] month and agenda views.
+- [ ] week and day visual views.
+- [ ] standalone calendar event model only if a real no-source-record use case is approved.
+- [ ] contract/appointment/contribution adapters when source fields are proven.
+- [ ] cross-role UAT.
 
-**Exit:** the same source date is not independently edited in two places.
+**Invariant:** the source record remains the only editable due/service/deadline date.
 
 ### Phase 4 — Reminder scheduler and source adapters
 
-**Status:** NOT STARTED
+**Status: CORE IMPLEMENTED; LEGACY ADAPTER + UAT PENDING**
 
-- [ ] one-shot scheduled reminders;
-- [ ] source completion cancellation;
-- [ ] overdue/due-soon adapters for tasks and at least one financial/date source;
-- [ ] contract/vendor/RSVP adapters as their source fields permit;
-- [ ] adapt the legacy Planner RSVP reminder flow without breaking existing scheduled reminders;
-- [ ] timezone handling;
-- [ ] idempotent scheduler execution;
-- [ ] audit events.
-
-**Exit:** repeated scheduler execution cannot spam duplicates and completed items do not keep reminding users.
+- [x] Separate system reminder cron protected by `CRON_SECRET`.
+- [x] one-shot snooze wake-up.
+- [x] conditional scheduler claim to prevent duplicate processing.
+- [x] task due-soon/overdue adapter.
+- [x] financial due/overdue adapter for BudgetItem.
+- [x] RSVP 7-day adapter.
+- [x] ServiceEngagement 24-hour adapter for planning recipients and engagement parties.
+- [x] Admin delivery-failure adapter.
+- [x] task/payment/engagement source completion auto-resolution.
+- [x] dedupe keys on generated notifications.
+- [ ] legacy Planner RSVP adapter/migration (legacy flow intentionally remains intact now).
+- [ ] contract adapter when contract source dates/party access are explicit.
+- [ ] enforce user quiet-hour/timezone policy in channel scheduling.
+- [ ] write scheduler actions into the broader audit-event layer.
+- [ ] integration/UAT proving repeated cron execution does not spam.
 
 ### Phase 5 — Today / role-aware attention dashboards
 
-**Status:** NOT STARTED
+**Status: CORE IMPLEMENTED; UAT PENDING**
 
-- [ ] common attention-ranking model;
-- [ ] Admin Today;
-- [ ] Planner portfolio + wedding Today;
-- [ ] Couple Today;
-- [ ] Vendor Today;
-- [ ] urgency/action-required ordering;
-- [ ] source deep links.
-
-**Exit:** every first-class role has a useful prioritized daily view from the same underlying contracts.
+- [x] common attention-ranking model.
+- [x] Admin Today projection.
+- [x] Planner Today projection.
+- [x] Couple Today projection.
+- [x] Vendor Today projection.
+- [x] urgency/action-required ordering.
+- [x] source deep links.
+- [x] dedupe calendar items when an active notification already represents the same source.
+- [ ] cross-role UAT and prioritization tuning.
 
 ### Phase 6 — Dashboard widgets
 
-**Status:** NOT STARTED
+**Status: CORE IMPLEMENTED; EXPANSION PENDING**
 
-- [ ] reusable widget read models;
-- [ ] Today/Upcoming widget;
-- [ ] role-relevant action widget;
-- [ ] wedding countdown widget where wedding context exists;
-- [ ] no widget-specific duplicate business logic.
-
-**Exit:** dashboard widgets agree with Notification Center/Today counts and source state.
+- [x] reusable Today widget read model.
+- [x] action/today/upcoming counts.
+- [x] role-aware spotlight items.
+- [x] shared desktop workspace widget dock mounted once at root.
+- [x] widget consumes Today API rather than duplicate domain logic.
+- [ ] dedicated wedding-countdown widget.
+- [ ] user-configurable dashboard widget layout.
+- [ ] native iOS/Android widgets deferred to Phase 9.
 
 ### Phase 7 — Push, badges and multi-channel delivery
 
-**Status:** NOT STARTED
+**Status: IN PROGRESS**
 
-- [ ] web/PWA push subscription model;
-- [ ] contextual permission UX;
-- [ ] badges where supported;
-- [ ] push delivery attempts;
-- [ ] communications-router integration for email/WhatsApp policies;
-- [ ] quiet hours and channel preferences;
-- [ ] delivery failure observability.
+- [x] global user notification preference storage/API.
+- [x] channel intent flags, timezone, quiet hours and digest preference UI.
+- [x] provider-neutral `PushSubscription` storage.
+- [x] authenticated per-device subscription API.
+- [x] contextual push permission page (no automatic permission prompt on app load).
+- [x] service-worker `push` and `notificationclick` handling with safe Wewed deep links.
+- [x] installed-app badge synchronization where browser support exists.
+- [ ] encrypted Web Push sender/provider integration.
+- [ ] create/update `NotificationDeliveryAttempt` records during actual push delivery.
+- [ ] channel-router integration with Wewed email/WhatsApp communications.
+- [ ] enforce quiet hours/channel preferences during delivery.
+- [ ] delivery retry/failure policy.
 
-**Exit:** channel failure is observable and does not lose the in-app notification.
+**Important:** checking `pushEnabled` does not itself prove a device is subscribed; device subscription is tracked separately. Push cannot be considered production-ready until the sender and delivery-attempt path exist.
 
-### Phase 8 — Automation, digests and advanced scheduling
+### Phase 8 — Digests and advanced automation
 
-**Status:** NOT STARTED
+**Status: NOT STARTED**
 
-- [ ] recurring reminders;
-- [ ] `repeat until condition complete`;
-- [ ] daily/weekly digests;
-- [ ] notification aggregation to prevent RSVP/message spam;
-- [ ] wedding-relative template reminders;
-- [ ] AI prioritization/drafting only with deterministic fallback;
-- [ ] explicit approval/automation policy for external communications.
+- [ ] recurring reminders.
+- [ ] `repeat until condition complete`.
+- [ ] daily/weekly digest generation and aggregation.
+- [ ] RSVP/message burst aggregation.
+- [ ] wedding-relative template reminders.
+- [ ] deterministic fallback when AI is unavailable.
+- [ ] AI may prioritize/draft but must not silently authorize external communication.
 
-### Phase 9 — External calendar + native widgets/live wedding surfaces
+### Phase 9 — External calendars + native/live widgets
 
-**Status:** NOT STARTED / DEFERRED UNTIL CORE ADOPTION
+**Status: DEFERRED UNTIL CORE ADOPTION**
 
-- [ ] Google/Apple/Outlook sync design;
-- [ ] Wewed remains source of truth for wedding business records;
-- [ ] native widgets if native application strategy warrants it;
-- [ ] live Wedding Day operational surface/Live Activities where platform support warrants it.
+- [ ] Google Calendar synchronization.
+- [ ] Apple/Outlook calendar strategy.
+- [ ] native iOS/Android widgets if native-app strategy warrants it.
+- [ ] Wedding Day live/lock-screen activity concept if platform strategy warrants it.
 
-## 10. Initial source-to-role matrix
+Wewed remains canonical for wedding business records in all cases.
+
+## 8. Initial role/source matrix
 
 | Source | Admin | Planner | Couple | Vendor |
 | --- | --- | --- | --- | --- |
-| Planner task | support/authorized only | yes | assigned/permitted | assigned/permitted only |
-| Budget/payment | governance/support only | yes | yes | own engagement/payment only |
-| Service engagement | governance/support | yes | yes | own engagement |
-| Contract | governance/support | party/manager | party | party |
-| RSVP/guest deadline | support only when authorized | yes | yes | normally no |
-| Programme/timeline | support only when authorized | yes | yes | own service-relevant items later |
-| Message/communication | support boundary | own threads | own threads | own threads |
-| System/admin operations | yes | relevant account/system notices | relevant account/system notices | relevant account/system notices |
-| Contributions | governance/support | yes | yes | only direct-to-vendor/own action where authorized |
+| Task | support only when explicitly authorized | yes | permitted wedding | not enabled until task-party rule exists |
+| Budget/payment | operational/support only | yes | permitted wedding | not enabled until vendor-payment source authorization exists |
+| Service engagement | support only when explicitly authorized | yes | permitted wedding | own active engagement only |
+| Contract | support/governance | party/manager | party | deferred until vendor-party/date authorization is deterministic |
+| RSVP/guest deadline | support only when authorized | yes | yes | no |
+| Programme/timeline | support only when authorized | yes | yes | no general projection; own engagement dates only |
+| Messages/communications | own/support boundary | own threads | own threads | own threads |
+| System/admin operations | own assigned operations | relevant account notices later | relevant account notices later | relevant account notices later |
+| Contributions | support/governance | later adapter | later adapter | only explicit direct-to-vendor action when source authorization exists |
 
-This matrix is a product rule, not an authorization implementation by itself.
+## 9. Mandatory UAT matrix
 
-## 11. UAT matrix
+Test independently as:
 
-Every phase that surfaces data must test at least these four identities independently:
+1. Admin
+2. Planner
+3. Couple
+4. Vendor
 
-1. **Admin**
-2. **Planner**
-3. **Couple**
-4. **Vendor**
+Negative tests are mandatory:
 
-Cross-role negative tests are mandatory. Examples:
+- Vendor cannot see unrelated or overall wedding budget notification/calendar data.
+- Vendor cannot see another Vendor's engagement.
+- Couple cannot see Admin operational notifications.
+- Planner cannot see another Planner's wedding without active authority.
+- Admin does not automatically receive private wedding data merely because role is Admin.
+- one recipient marking read/resolved cannot change another recipient's state.
+- snooze does not mutate the source due date.
+- completion/payment/service closure resolves redundant attention.
+- repeated scheduler execution does not create duplicate notifications.
+- push/channel failure does not remove the in-app notification.
 
-- Vendor cannot see unrelated wedding budget notification.
-- Couple cannot see Admin internal operational notification.
-- Planner cannot see another planner's wedding without membership/authority.
-- Admin support access follows existing authority boundaries rather than receiving all wedding content by default.
-- Marking a notification read by one user cannot mark another recipient's notification read.
-- Snoozing does not change the canonical source due date.
-- Resolving/completing a source cancels redundant future reminders.
+## 10. Engineering guardrails
 
-## 12. Engineering guardrails
+- additive migrations only during foundation;
+- no production migration until exact-head build/test and approved cross-role UAT staging path;
+- preserve legacy RSVP reminder behavior until a tested adapter replaces it;
+- no external provider required for core in-app notification/calendar functionality;
+- minimum necessary information in notification body/metadata;
+- deep-link access is rechecked by the destination source module;
+- scheduler/adapters are idempotent;
+- timestamps stored as timezone-aware database timestamps; user timezone controls rendering/scheduling policy;
+- provider delivery failures are observable rather than silently swallowed once delivery is enabled;
+- no production merge/deployment merely because a preview build is READY.
 
-- additive changes first; no destructive schema changes in the foundation;
-- migrations must be safe for existing production data;
-- existing Planner RSVP reminders must continue to work until a tested adapter/migration replaces their storage path;
-- no external provider is required for core in-app functionality;
-- deterministic templates/fallbacks must exist even when AI is unavailable;
-- notification content must contain the minimum information needed to prompt action;
-- source access is rechecked when opening a deep link;
-- all scheduler/adaptor jobs are idempotent;
-- indexes must support recipient + unread/status + scheduled-time queries;
-- timestamps stored in UTC; render using effective user timezone;
-- production rollout only after exact-head CI and cross-role UAT are green.
+## 11. Implementation log
 
-## 13. Definition of done for the workstream
+- **2026-08-20 — Baseline:** branch created from `main` `713e0a59277cdb8629a1a1d2e662c38ada6c3a26`; plan committed before feature code.
+- **2026-08-20 — Legacy discovery:** existing Planner RSVP/Resend reminder path documented and preserved.
+- **2026-08-20 — Foundation:** additive Notification/Reminder/Preference/DeliveryAttempt migrations, contracts, service, API and isolation tests added.
+- **2026-08-20 — Notification Center:** shared bell, unread count, role-neutral `/notifications`, read/acknowledge/resolve/snooze added.
+- **2026-08-20 — Calendar:** canonical projections plus `/calendar` month/agenda UI added; Vendor and Admin projections hardened separately.
+- **2026-08-20 — Scheduler:** independent `/api/cron/system-reminders` plus task/budget/RSVP/engagement/Admin failure adapters added.
+- **2026-08-20 — Today/widgets:** shared role-aware Today read model/UI and desktop workspace widget added.
+- **2026-08-20 — Push foundation:** preferences, PushSubscription storage/API, contextual enrollment, service-worker push handling and app badging added. Sender/provider delivery remains deliberately incomplete.
+- **Validation:** multiple intermediate Vercel previews have reached READY. The exact final head still requires validation after all changes in this workstream are committed.
+- **Production:** no database migration, merge or production rollout has been performed by this workstream.
 
-The workstream is complete when:
+## 12. Workstream definition of done
 
-- Admin, Planner, Couple and Vendor use one shared notification model;
-- each role has a secure Notification Center;
-- meaningful dated Wewed records can appear in a unified calendar without duplicate sources of truth;
-- users can create/snooze reminders without mutating canonical deadlines;
-- source completion resolves/cancels redundant reminders;
-- Today/widgets consume the same read model and agree on counts/state;
-- push/channel delivery is optional and observable;
-- role isolation, deduplication, lifecycle, calendar projection and scheduler behavior are covered by CI/UAT;
-- this document records final implementation status and any deliberately deferred Phase 8/9 work.
+Core workstream cannot be called done until:
+
+- Admin, Planner, Couple and Vendor have passed positive and negative access UAT;
+- database migrations are proven on the approved non-production/test path before production;
+- exact branch head passes build/tests;
+- Notification Center, Calendar, Today and widget counts/state agree;
+- scheduler dedupe and source auto-resolution are proven with real test records;
+- legacy RSVP reminder behavior is regression-tested;
+- push, if enabled for release, has a real sender + delivery-attempt observability; otherwise it remains explicitly beta/deferred;
+- this document records the exact release head, UAT evidence and any deferred Phase 8/9 items before merge.
