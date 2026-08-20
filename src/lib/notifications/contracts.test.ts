@@ -86,6 +86,38 @@ describe('notification visibility', () => {
     ).toBe(true)
   })
 
+  it('never projects wedding-scoped private attention to Admin merely because the role is Admin', () => {
+    expect(
+      isNotificationVisibleToPrincipal(
+        {
+          recipientUserId: 'admin-1',
+          weddingId: 'wedding-1',
+          category: 'task',
+          sourceType: 'planner_task',
+        },
+        'admin-1',
+        new Set(['wedding-1']),
+        'admin',
+      ),
+    ).toBe(false)
+  })
+
+  it('never projects Admin operational attention to a Couple even if malformed data addresses it to them', () => {
+    expect(
+      isNotificationVisibleToPrincipal(
+        {
+          recipientUserId: 'couple-1',
+          weddingId: null,
+          category: 'admin',
+          sourceType: 'admin_operation',
+        },
+        'couple-1',
+        new Set(['wedding-1']),
+        'couple',
+      ),
+    ).toBe(false)
+  })
+
   it('requires active accessible wedding context for wedding-scoped notifications', () => {
     const row = {
       recipientUserId: 'planner-1',
@@ -98,6 +130,22 @@ describe('notification visibility', () => {
     expect(
       isNotificationVisibleToPrincipal(row, 'planner-1', new Set(['wedding-1']), 'planner'),
     ).toBe(true)
+  })
+
+  it('does not let a Planner see another Planner wedding without active authority', () => {
+    expect(
+      isNotificationVisibleToPrincipal(
+        {
+          recipientUserId: 'planner-1',
+          weddingId: 'wedding-2',
+          category: 'task',
+          sourceType: 'planner_task',
+        },
+        'planner-1',
+        new Set(['wedding-1']),
+        'planner',
+      ),
+    ).toBe(false)
   })
 
   it('does not expose couple/planner budget categories to vendors even inside an accessible wedding', () => {
