@@ -8,7 +8,7 @@ import {
 import {
   isNotificationVisibleToPrincipal,
   isVendorNotificationSourceAuthorized,
-} from './service'
+} from './visibility'
 
 describe('notification contracts', () => {
   it('accepts a system-wide notification category and defaults', () => {
