@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import './notifications/contracts.test'
 import './notifications/visibility-hardening.test'
+import './notifications/preference-contracts.test'
 import './notifications/delivery-policy.test'
 import './calendar/contracts.test'
 import { plannerLegacyModuleSlug } from './planner-route-state'
@@ -103,7 +104,7 @@ describe('Stage 10 executable planner release gate', () => {
     }
   })
 
-  test('the modular browser suites cover all previously unverified release areas', async () => {
+  test('the modular browser suites cover planner and system-attention release areas', async () => {
     const browser = (
       await Promise.all([
         source('tests/e2e/planner-crud.spec.ts'),
@@ -112,6 +113,12 @@ describe('Stage 10 executable planner release gate', () => {
         source('tests/e2e/planner-gap-closure.spec.ts'),
         source('tests/e2e/planner-seating-operations.spec.ts'),
         source('tests/e2e/planner-deep-link-navigation.spec.ts'),
+        source('tests/e2e/system-attention-roles.spec.ts'),
+        source('tests/e2e/system-attention-scheduler.spec.ts'),
+        source('tests/e2e/system-attention-listing.spec.ts'),
+        source('tests/e2e/system-attention-preferences.spec.ts'),
+        source('tests/e2e/system-attention-delivery.spec.ts'),
+        source('tests/e2e/legacy-planner-reminders-regression.spec.ts'),
         source('tests/e2e/support/planner-browser.ts'),
       ])
     ).join('\n')
@@ -143,12 +150,18 @@ describe('Stage 10 executable planner release gate', () => {
       'planner modules, filters, tools, history, and scroll position have durable URLs',
       'planner\\/guests\\/import',
       'data-planner-primary-scroll',
+      'Admin, Planner, Couple and Vendor remain source-isolated',
+      'system reminder scheduler is protected, idempotent, snooze-safe and source-resolving',
+      'notification listing authorizes before limiting and snooze removes current attention',
+      'notification preferences expose only valid production semantics',
+      'notification delivery skips revoked rows, reaches authorized rows',
+      'legacy Planner RSVP email reminders remain CRUD-safe',
     ]) {
       expect(browser).toContain(marker)
     }
   })
 
-  test('external notification delivery rechecks recipient authority before queue and transport', async () => {
+  test('external notification delivery authorizes and applies policy before consuming its batch', async () => {
     const [router, authorization] = await Promise.all([
       source('src/lib/notifications/delivery.ts'),
       source('src/lib/notifications/delivery-authorization.ts'),
@@ -159,12 +172,25 @@ describe('Stage 10 executable planner release gate', () => {
     expect(router).toContain('AUTHORIZATION_REVOKED')
     expect(router).toContain('recipient.role AS "recipientRole"')
     expect(router).toContain('pg_try_advisory_lock')
+    expect(router).toContain('const candidates = await notificationCandidates()')
+    expect(router).toContain('const eligibleChannels = channelDecisions.filter(({ decision }) => decision.eligible)')
+    expect(router).toContain('if (eligibleNotificationCount >= safeLimit) break')
+    expect(router).not.toContain('notificationCandidates(safeLimit)')
     expect(authorization).toContain("ep.\"partyRole\" = 'SERVICE_PROVIDER'")
     expect(authorization).toContain("ep.\"partyKind\" = 'VENDOR'")
     expect(authorization).toContain("crg.status = 'ACTIVE'")
     expect(authorization).toContain('listAccessibleWeddings')
     expect(authorization).toContain('isNotificationVisibleToPrincipal')
     expect(authorization).toContain('isVendorNotificationSourceAuthorized')
+  })
+
+  test('push worker accepts the notification gateway envelope without weakening same-origin links', async () => {
+    const worker = await source('public/sw.js')
+    expect(worker).toContain('pushDisplayPayload')
+    expect(worker).toContain('payload.notification')
+    expect(worker).toContain('safeWewedDeepLink')
+    expect(worker).toContain('parsed.origin !== self.location.origin')
+    expect(worker).toContain('display.deepLink || display.url || payload.deepLink || payload.url')
   })
 
   test('notification close controls retain an accessible name', async () => {
