@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { runSystemNotificationScheduler } from '@/lib/notifications/scheduler'
+import { resolveTerminalSourceNotifications } from '@/lib/notifications/terminal-source-resolution'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -12,7 +13,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const now = new Date()
+    const terminalSourceResolved = await resolveTerminalSourceNotifications()
     const stats = await runSystemNotificationScheduler(now)
+    stats.sourceNotificationsResolved += terminalSourceResolved
     return NextResponse.json({
       success: true,
       checkedAt: now.toISOString(),
