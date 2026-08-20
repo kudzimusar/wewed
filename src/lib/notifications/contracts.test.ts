@@ -54,9 +54,15 @@ describe('notification visibility', () => {
   it('is fail-closed when the record belongs to another recipient', () => {
     expect(
       isNotificationVisibleToPrincipal(
-        { recipientUserId: 'vendor-2', weddingId: null },
+        {
+          recipientUserId: 'vendor-2',
+          weddingId: null,
+          category: 'engagement',
+          sourceType: 'service_engagement',
+        },
         'vendor-1',
         new Set(),
+        'vendor',
       ),
     ).toBe(false)
   })
@@ -64,19 +70,62 @@ describe('notification visibility', () => {
   it('allows a global notification only for its recipient', () => {
     expect(
       isNotificationVisibleToPrincipal(
-        { recipientUserId: 'admin-1', weddingId: null },
+        {
+          recipientUserId: 'admin-1',
+          weddingId: null,
+          category: 'admin',
+          sourceType: 'admin_operation',
+        },
         'admin-1',
         new Set(),
+        'admin',
       ),
     ).toBe(true)
   })
 
   it('requires active accessible wedding context for wedding-scoped notifications', () => {
-    const row = { recipientUserId: 'planner-1', weddingId: 'wedding-1' }
+    const row = {
+      recipientUserId: 'planner-1',
+      weddingId: 'wedding-1',
+      category: 'task' as const,
+      sourceType: 'planner_task',
+    }
 
-    expect(isNotificationVisibleToPrincipal(row, 'planner-1', new Set())).toBe(false)
+    expect(isNotificationVisibleToPrincipal(row, 'planner-1', new Set(), 'planner')).toBe(false)
     expect(
-      isNotificationVisibleToPrincipal(row, 'planner-1', new Set(['wedding-1'])),
+      isNotificationVisibleToPrincipal(row, 'planner-1', new Set(['wedding-1']), 'planner'),
+    ).toBe(true)
+  })
+
+  it('does not expose couple/planner budget categories to vendors even inside an accessible wedding', () => {
+    expect(
+      isNotificationVisibleToPrincipal(
+        {
+          recipientUserId: 'vendor-1',
+          weddingId: 'wedding-1',
+          category: 'budget',
+          sourceType: 'budget_item',
+        },
+        'vendor-1',
+        new Set(['wedding-1']),
+        'vendor',
+      ),
+    ).toBe(false)
+  })
+
+  it('allows a vendor engagement notification only when the wedding context is accessible', () => {
+    expect(
+      isNotificationVisibleToPrincipal(
+        {
+          recipientUserId: 'vendor-1',
+          weddingId: 'wedding-1',
+          category: 'engagement',
+          sourceType: 'service_engagement',
+        },
+        'vendor-1',
+        new Set(['wedding-1']),
+        'vendor',
+      ),
     ).toBe(true)
   })
 })
