@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { contributionId } from '@/lib/contributions/store'
 import { requireWeddingPermission } from '@/lib/wedding-access'
 
 const BUDGET_CATEGORIES = [
@@ -176,12 +177,92 @@ export async function PATCH(
       )
     }
 
-    const updated = await db.budgetItem.update({
-      where: { id: existing.id },
-      data: updates,
+    const actorId = access.context.session.userId
+    const weddingId = access.context.weddingId
+    const updated = await db.$transaction(async (tx) => {
+      if (body.paidAmount !== undefined) {
+        const nextPaid = Math.max(0, body.paidAmount)
+        await tx.$queryRaw<Array<{ locked: number }>>`
+          SELECT 1::int AS locked
+            FROM (SELECT pg_advisory_xact_lock(hashtext(${`budget-funding:${existing.id}`}))) AS lock_row
+        `
+
+        const classifiedRows = await tx.$queryRaw<Array<{ total: string }>>`
+          SELECT COALESCE(SUM(amount), 0)::text AS total
+            FROM wewed_contributions.payment_funding_allocations
+           WHERE wedding_id = ${weddingId}
+             AND budget_item_id = ${existing.id}
+             AND currency = ${existing.currency}
+             AND source_kind <> 'LEGACY_UNATTRIBUTED'
+        `
+        const classified = Number(classifiedRows[0]?.total ?? 0)
+        if (nextPaid + 0.0001 < classified) throw new Error('PAID_BELOW_ATTRIBUTED')
+
+        const targetLegacy = Math.max(0, nextPaid - classified)
+        const legacyRows = await tx.$queryRaw<Array<{ id: string; amount: string }>>`
+          SELECT id, amount::text AS amount
+            FROM wewed_contributions.payment_funding_allocations
+           WHERE wedding_id = ${weddingId}
+             AND budget_item_id = ${existing.id}
+             AND currency = ${existing.currency}
+             AND source_kind = 'LEGACY_UNATTRIBUTED'
+           ORDER BY created_at, id
+           FOR UPDATE
+        `
+
+        let remainingLegacy = targetLegacy
+        for (const row of legacyRows) {
+          const rowAmount = Number(row.amount)
+          if (remainingLegacy <= 0.0001) {
+            await tx.$executeRaw`DELETE FROM wewed_contributions.payment_funding_allocations WHERE id = ${row.id}`
+          } else if (rowAmount <= remainingLegacy + 0.0001) {
+            remainingLegacy = Math.max(0, remainingLegacy - rowAmount)
+          } else {
+            await tx.$executeRaw`
+              UPDATE wewed_contributions.payment_funding_allocations
+                 SET amount = ${remainingLegacy}, updated_at = NOW()
+               WHERE id = ${row.id}
+            `
+            remainingLegacy = 0
+          }
+        }
+
+        if (remainingLegacy > 0.0001) {
+          await tx.$executeRaw`
+            INSERT INTO wewed_contributions.payment_funding_allocations
+              (id, wedding_id, budget_item_id, source_kind, amount, currency, note, created_by_id)
+            VALUES
+              (${contributionId()}, ${weddingId}, ${existing.id}, 'LEGACY_UNATTRIBUTED', ${remainingLegacy}, ${existing.currency}, 'Budget paid amount changed before source was classified; funding source not recorded.', ${actorId})
+          `
+        }
+      }
+
+      const item = await tx.budgetItem.update({
+        where: { id: existing.id },
+        data: updates,
+      })
+      await tx.auditEvent.create({
+        data: {
+          weddingId,
+          action: 'budget.updated',
+          actorId,
+          resourceType: 'BudgetItem',
+          resourceId: existing.id,
+          beforeValue: JSON.stringify({ paidAmount: existing.paidAmount, actualCost: existing.actualCost }),
+          afterValue: JSON.stringify({ paidAmount: item.paidAmount, actualCost: item.actualCost }),
+        },
+      })
+      return item
     })
+
     return NextResponse.json({ success: true, data: formatItem(updated) })
   } catch (error) {
+    if (error instanceof Error && error.message === 'PAID_BELOW_ATTRIBUTED') {
+      return NextResponse.json(
+        { success: false, error: 'Paid amount cannot be reduced below funding that has already been attributed. Reverse or correct the funding attribution first.' },
+        { status: 409 },
+      )
+    }
     console.error('[PLANNER BUDGET PATCH] error:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to update budget item' },
