@@ -25,7 +25,6 @@ const ADMIN: TestPrincipal = {
   coupleId: null,
   activeWeddingId: E2E_WEDDINGS.primary.id,
 }
-
 const COUPLE: TestPrincipal = {
   id: 'attention-couple-user',
   email: 'attention.couple@example.test',
@@ -33,7 +32,6 @@ const COUPLE: TestPrincipal = {
   coupleId: E2E_WEDDINGS.primary.coupleId,
   activeWeddingId: E2E_WEDDINGS.primary.id,
 }
-
 const VENDOR: TestPrincipal = {
   id: 'attention-vendor-user',
   email: 'attention.vendor@example.test',
@@ -41,7 +39,6 @@ const VENDOR: TestPrincipal = {
   coupleId: null,
   activeWeddingId: E2E_WEDDINGS.primary.id,
 }
-
 const OTHER_VENDOR: TestPrincipal = {
   id: 'attention-other-vendor-user',
   email: 'attention.other.vendor@example.test',
@@ -49,7 +46,6 @@ const OTHER_VENDOR: TestPrincipal = {
   coupleId: null,
   activeWeddingId: E2E_WEDDINGS.primary.id,
 }
-
 const PLANNER: TestPrincipal = {
   id: E2E_USER.id,
   email: E2E_USER.email,
@@ -94,10 +90,10 @@ async function getJson(page: Page, path: string): Promise<Record<string, any>> {
   return response.json()
 }
 
-async function patchNotification(page: Page, body: Record<string, unknown>): Promise<Record<string, any>> {
+async function patchNotification(page: Page, body: Record<string, unknown>) {
   const response = await page.request.patch('/api/notifications', { data: body })
   expect(response.ok(), `notification action ${String(body.action)} should succeed`).toBe(true)
-  return response.json()
+  return response.json() as Promise<Record<string, any>>
 }
 
 function todayIds(payload: Record<string, any>): string[] {
@@ -109,10 +105,9 @@ function todayIds(payload: Record<string, any>): string[] {
 }
 
 async function seedAttentionRoleUat(prisma: PrismaClient) {
-  const now = Date.now()
-  const soon = new Date(now + 6 * 60 * 60 * 1000)
-  const grantExpiry = new Date(now + 12 * 60 * 60 * 1000)
-  const adminSchedule = new Date(now + 30 * 60 * 1000)
+  const soon = new Date(Date.now() + 6 * 60 * 60 * 1000)
+  const grantExpiry = new Date(Date.now() + 12 * 60 * 60 * 1000)
+  const adminSchedule = new Date(Date.now() + 30 * 60 * 1000)
 
   await prisma.weddingMembership.update({
     where: {
@@ -149,7 +144,6 @@ async function seedAttentionRoleUat(prisma: PrismaClient) {
     where: { id: E2E_WEDDINGS.primary.coupleId },
     data: { userId: COUPLE.id },
   })
-
   await prisma.weddingMembership.create({
     data: {
       id: 'attention-couple-membership',
@@ -176,7 +170,7 @@ async function seedAttentionRoleUat(prisma: PrismaClient) {
         id: 'attention-engagement-own',
         origin: 'current',
         recordMode: 'managed_contract',
-        lifecycleStatus: 'active',
+        lifecycleStatus: 'issued',
         serviceCategory: 'Venue',
         serviceDescription: 'Own vendor service',
         serviceDate: soon,
@@ -188,7 +182,7 @@ async function seedAttentionRoleUat(prisma: PrismaClient) {
         id: 'attention-engagement-other',
         origin: 'current',
         recordMode: 'managed_contract',
-        lifecycleStatus: 'active',
+        lifecycleStatus: 'issued',
         serviceCategory: 'Florist',
         serviceDescription: 'Other vendor service',
         serviceDate: soon,
@@ -241,7 +235,6 @@ async function seedAttentionRoleUat(prisma: PrismaClient) {
       templateHash: 'a'.repeat(64),
     },
   })
-
   await prisma.contract.createMany({
     data: [
       {
@@ -266,7 +259,6 @@ async function seedAttentionRoleUat(prisma: PrismaClient) {
       },
     ],
   })
-
   await prisma.contractVersion.createMany({
     data: [
       {
@@ -291,7 +283,6 @@ async function seedAttentionRoleUat(prisma: PrismaClient) {
       },
     ],
   })
-
   await prisma.contractReviewGrant.createMany({
     data: [
       {
@@ -317,182 +308,37 @@ async function seedAttentionRoleUat(prisma: PrismaClient) {
     ],
   })
 
-  const commonNotification = {
+  const common = {
     eventType: 'uat.attention',
     severity: 'action_required',
     body: 'Deterministic attention role UAT record.',
     requiresAction: true,
     state: 'active',
   }
-
   await prisma.notification.createMany({
     data: [
-      {
-        id: 'uat-admin-global',
-        recipientUserId: ADMIN.id,
-        sourceType: 'admin_operation',
-        sourceId: 'attention-admin-operation',
-        category: 'admin',
-        title: 'Admin operational attention',
-        scheduledFor: adminSchedule,
-        deepLink: '/admin',
-        dedupeKey: 'uat:admin:global',
-        ...commonNotification,
-      },
-      {
-        id: 'uat-admin-private',
-        recipientUserId: ADMIN.id,
-        weddingId: E2E_WEDDINGS.primary.id,
-        sourceType: 'planner_task',
-        sourceId: `${E2E_WEDDINGS.primary.id}-task`,
-        category: 'admin',
-        title: 'Private wedding data must not reach Admin attention',
-        scheduledFor: adminSchedule,
-        deepLink: '/planner/tasks',
-        dedupeKey: 'uat:admin:private',
-        ...commonNotification,
-      },
-      {
-        id: 'uat-planner-own',
-        recipientUserId: PLANNER.id,
-        weddingId: E2E_WEDDINGS.primary.id,
-        sourceType: 'planner_task',
-        sourceId: `${E2E_WEDDINGS.primary.id}-task`,
-        category: 'task',
-        title: 'Planner own wedding task',
-        deepLink: '/planner/tasks',
-        dedupeKey: 'uat:planner:own',
-        ...commonNotification,
-      },
-      {
-        id: 'uat-planner-secondary',
-        recipientUserId: PLANNER.id,
-        weddingId: E2E_WEDDINGS.secondary.id,
-        sourceType: 'planner_task',
-        sourceId: `${E2E_WEDDINGS.secondary.id}-task`,
-        category: 'task',
-        title: 'Revoked planner wedding task',
-        deepLink: '/planner/tasks',
-        dedupeKey: 'uat:planner:revoked',
-        ...commonNotification,
-      },
-      {
-        id: 'uat-planner-ack',
-        recipientUserId: PLANNER.id,
-        weddingId: E2E_WEDDINGS.primary.id,
-        sourceType: 'planner_task',
-        sourceId: `${E2E_WEDDINGS.primary.id}-task`,
-        category: 'task',
-        title: 'Planner acknowledge lifecycle',
-        dedupeKey: 'uat:planner:ack',
-        ...commonNotification,
-      },
-      {
-        id: 'uat-planner-resolve',
-        recipientUserId: PLANNER.id,
-        weddingId: E2E_WEDDINGS.primary.id,
-        sourceType: 'planner_task',
-        sourceId: `${E2E_WEDDINGS.primary.id}-task`,
-        category: 'task',
-        title: 'Planner resolve lifecycle',
-        dedupeKey: 'uat:planner:resolve',
-        ...commonNotification,
-      },
-      {
-        id: 'uat-planner-snooze',
-        recipientUserId: PLANNER.id,
-        weddingId: E2E_WEDDINGS.primary.id,
-        sourceType: 'planner_task',
-        sourceId: `${E2E_WEDDINGS.primary.id}-task`,
-        category: 'task',
-        title: 'Planner snooze lifecycle',
-        dedupeKey: 'uat:planner:snooze',
-        ...commonNotification,
-      },
-      {
-        id: 'uat-couple-own',
-        recipientUserId: COUPLE.id,
-        weddingId: E2E_WEDDINGS.primary.id,
-        sourceType: 'planner_task',
-        sourceId: `${E2E_WEDDINGS.primary.id}-task`,
-        category: 'task',
-        title: 'Couple own wedding task',
-        deepLink: '/planner/tasks',
-        dedupeKey: 'uat:couple:own',
-        ...commonNotification,
-      },
-      {
-        id: 'uat-couple-admin-malformed',
-        recipientUserId: COUPLE.id,
-        sourceType: 'admin_operation',
-        sourceId: 'attention-admin-operation',
-        category: 'admin',
-        title: 'Admin operation must not reach Couple',
-        dedupeKey: 'uat:couple:admin-malformed',
-        ...commonNotification,
-      },
-      {
-        id: 'uat-vendor-engagement-own',
-        recipientUserId: VENDOR.id,
-        weddingId: E2E_WEDDINGS.primary.id,
-        sourceType: 'service_engagement',
-        sourceId: 'attention-engagement-own',
-        category: 'engagement',
-        title: 'Vendor own engagement',
-        deepLink: '/vendor',
-        dedupeKey: 'uat:vendor:engagement:own',
-        ...commonNotification,
-      },
-      {
-        id: 'uat-vendor-engagement-other',
-        recipientUserId: VENDOR.id,
-        weddingId: E2E_WEDDINGS.primary.id,
-        sourceType: 'service_engagement',
-        sourceId: 'attention-engagement-other',
-        category: 'engagement',
-        title: 'Other vendor engagement must not leak',
-        deepLink: '/vendor',
-        dedupeKey: 'uat:vendor:engagement:other',
-        ...commonNotification,
-      },
-      {
-        id: 'uat-vendor-contract-own',
-        recipientUserId: VENDOR.id,
-        weddingId: E2E_WEDDINGS.primary.id,
-        sourceType: 'contract_review_grant',
-        sourceId: 'attention-grant-own',
-        category: 'contract',
-        title: 'Vendor own contract review grant',
-        deepLink: '/vendor',
-        dedupeKey: 'uat:vendor:grant:own',
-        ...commonNotification,
-      },
-      {
-        id: 'uat-vendor-contract-other',
-        recipientUserId: VENDOR.id,
-        weddingId: E2E_WEDDINGS.primary.id,
-        sourceType: 'contract_review_grant',
-        sourceId: 'attention-grant-other',
-        category: 'contract',
-        title: 'Other vendor contract review grant must not leak',
-        deepLink: '/vendor',
-        dedupeKey: 'uat:vendor:grant:other',
-        ...commonNotification,
-      },
-      {
-        id: 'uat-vendor-budget',
-        recipientUserId: VENDOR.id,
-        weddingId: E2E_WEDDINGS.primary.id,
-        sourceType: 'budget_item',
-        sourceId: `${E2E_WEDDINGS.primary.id}-budget`,
-        category: 'budget',
-        title: 'Wedding budget must not leak to Vendor',
-        deepLink: '/vendor',
-        dedupeKey: 'uat:vendor:budget',
-        ...commonNotification,
-      },
+      { id: 'uat-admin-global', recipientUserId: ADMIN.id, sourceType: 'admin_operation', sourceId: 'attention-admin-operation', category: 'admin', title: 'Admin operational attention', scheduledFor: adminSchedule, deepLink: '/admin', dedupeKey: 'uat:admin:global', ...common },
+      { id: 'uat-admin-private', recipientUserId: ADMIN.id, weddingId: E2E_WEDDINGS.primary.id, sourceType: 'planner_task', sourceId: `${E2E_WEDDINGS.primary.id}-task`, category: 'admin', title: 'Private wedding data must not reach Admin attention', scheduledFor: adminSchedule, deepLink: '/planner/tasks', dedupeKey: 'uat:admin:private', ...common },
+      { id: 'uat-planner-own', recipientUserId: PLANNER.id, weddingId: E2E_WEDDINGS.primary.id, sourceType: 'planner_task', sourceId: `${E2E_WEDDINGS.primary.id}-task`, category: 'task', title: 'Planner own wedding task', deepLink: '/planner/tasks', dedupeKey: 'uat:planner:own', ...common },
+      { id: 'uat-planner-secondary', recipientUserId: PLANNER.id, weddingId: E2E_WEDDINGS.secondary.id, sourceType: 'planner_task', sourceId: `${E2E_WEDDINGS.secondary.id}-task`, category: 'task', title: 'Revoked planner wedding task', deepLink: '/planner/tasks', dedupeKey: 'uat:planner:revoked', ...common },
+      { id: 'uat-planner-ack', recipientUserId: PLANNER.id, weddingId: E2E_WEDDINGS.primary.id, sourceType: 'planner_task', sourceId: `${E2E_WEDDINGS.primary.id}-task`, category: 'task', title: 'Planner acknowledge lifecycle', dedupeKey: 'uat:planner:ack', ...common },
+      { id: 'uat-planner-resolve', recipientUserId: PLANNER.id, weddingId: E2E_WEDDINGS.primary.id, sourceType: 'planner_task', sourceId: `${E2E_WEDDINGS.primary.id}-task`, category: 'task', title: 'Planner resolve lifecycle', dedupeKey: 'uat:planner:resolve', ...common },
+      { id: 'uat-planner-snooze', recipientUserId: PLANNER.id, weddingId: E2E_WEDDINGS.primary.id, sourceType: 'planner_task', sourceId: `${E2E_WEDDINGS.primary.id}-task`, category: 'task', title: 'Planner snooze lifecycle', dedupeKey: 'uat:planner:snooze', ...common },
+      { id: 'uat-couple-own', recipientUserId: COUPLE.id, weddingId: E2E_WEDDINGS.primary.id, sourceType: 'planner_task', sourceId: `${E2E_WEDDINGS.primary.id}-task`, category: 'task', title: 'Couple own wedding task', deepLink: '/planner/tasks', dedupeKey: 'uat:couple:own', ...common },
+      { id: 'uat-couple-admin-malformed', recipientUserId: COUPLE.id, sourceType: 'admin_operation', sourceId: 'attention-admin-operation', category: 'admin', title: 'Admin operation must not reach Couple', dedupeKey: 'uat:couple:admin-malformed', ...common },
+      { id: 'uat-vendor-engagement-own', recipientUserId: VENDOR.id, weddingId: E2E_WEDDINGS.primary.id, sourceType: 'service_engagement', sourceId: 'attention-engagement-own', category: 'engagement', title: 'Vendor own engagement', deepLink: '/vendor', dedupeKey: 'uat:vendor:engagement:own', ...common },
+      { id: 'uat-vendor-engagement-other', recipientUserId: VENDOR.id, weddingId: E2E_WEDDINGS.primary.id, sourceType: 'service_engagement', sourceId: 'attention-engagement-other', category: 'engagement', title: 'Other vendor engagement must not leak', deepLink: '/vendor', dedupeKey: 'uat:vendor:engagement:other', ...common },
+      { id: 'uat-vendor-contract-own', recipientUserId: VENDOR.id, weddingId: E2E_WEDDINGS.primary.id, sourceType: 'contract_review_grant', sourceId: 'attention-grant-own', category: 'contract', title: 'Vendor own contract review grant', deepLink: '/vendor', dedupeKey: 'uat:vendor:grant:own', ...common },
+      { id: 'uat-vendor-contract-other', recipientUserId: VENDOR.id, weddingId: E2E_WEDDINGS.primary.id, sourceType: 'contract_review_grant', sourceId: 'attention-grant-other', category: 'contract', title: 'Other vendor contract review grant must not leak', deepLink: '/vendor', dedupeKey: 'uat:vendor:grant:other', ...common },
+      { id: 'uat-vendor-budget', recipientUserId: VENDOR.id, weddingId: E2E_WEDDINGS.primary.id, sourceType: 'budget_item', sourceId: `${E2E_WEDDINGS.primary.id}-budget`, category: 'budget', title: 'Wedding budget must not leak to Vendor', deepLink: '/vendor', dedupeKey: 'uat:vendor:budget', ...common },
+      { id: 'uat-other-vendor-own', recipientUserId: OTHER_VENDOR.id, weddingId: E2E_WEDDINGS.primary.id, sourceType: 'service_engagement', sourceId: 'attention-engagement-other', category: 'engagement', title: 'Other vendor own engagement', deepLink: '/vendor', dedupeKey: 'uat:other-vendor:own', ...common },
+      { id: 'uat-other-vendor-representative', recipientUserId: OTHER_VENDOR.id, weddingId: E2E_WEDDINGS.primary.id, sourceType: 'service_engagement', sourceId: 'attention-engagement-own', category: 'engagement', title: 'Representative role must not become Vendor authority', deepLink: '/vendor', dedupeKey: 'uat:other-vendor:representative', ...common },
     ],
   })
+}
+
+function ids(payload: Record<string, any>): string[] {
+  return payload.data.map((row: Record<string, any>) => String(row.id))
 }
 
 test('system attention role UAT: Admin, Planner, Couple and Vendor remain source-isolated', async ({ page }) => {
@@ -501,83 +347,70 @@ test('system attention role UAT: Admin, Planner, Couple and Vendor remain source
 
   try {
     await seedAttentionRoleUat(prisma)
-
     const from = encodeURIComponent(new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
     const to = encodeURIComponent(new Date(Date.now() + 730 * 24 * 60 * 60 * 1000).toISOString())
 
     await authenticate(page, ADMIN)
     const adminNotifications = await getJson(page, '/api/notifications?limit=100')
-    const adminNotificationIds = adminNotifications.data.map((row: Record<string, any>) => row.id)
-    expect(adminNotificationIds).toContain('uat-admin-global')
-    expect(adminNotificationIds).not.toContain('uat-admin-private')
-
+    expect(ids(adminNotifications)).toContain('uat-admin-global')
+    expect(ids(adminNotifications)).not.toContain('uat-admin-private')
     const adminCalendar = await getJson(page, `/api/calendar?from=${from}&to=${to}&limit=1000`)
-    const adminCalendarNotificationIds = adminCalendar.data
-      .map((row: Record<string, any>) => row.metadata?.notificationId)
-      .filter(Boolean)
+    const adminCalendarNotificationIds = adminCalendar.data.map((row: Record<string, any>) => row.metadata?.notificationId).filter(Boolean)
     expect(adminCalendarNotificationIds).toContain('uat-admin-global')
     expect(adminCalendarNotificationIds).not.toContain('uat-admin-private')
-
-    const adminToday = await getJson(page, '/api/today')
-    expect(todayIds(adminToday)).toContain('notification:uat-admin-global')
-    expect(todayIds(adminToday)).not.toContain('notification:uat-admin-private')
+    expect(todayIds(await getJson(page, '/api/today'))).toContain('notification:uat-admin-global')
+    expect(todayIds(await getJson(page, '/api/today'))).not.toContain('notification:uat-admin-private')
 
     await authenticate(page, PLANNER)
     const plannerNotifications = await getJson(page, '/api/notifications?limit=100')
-    const plannerNotificationIds = plannerNotifications.data.map((row: Record<string, any>) => row.id)
-    expect(plannerNotificationIds).toContain('uat-planner-own')
-    expect(plannerNotificationIds).not.toContain('uat-planner-secondary')
-
+    expect(ids(plannerNotifications)).toContain('uat-planner-own')
+    expect(ids(plannerNotifications)).not.toContain('uat-planner-secondary')
     const plannerCalendar = await getJson(page, `/api/calendar?from=${from}&to=${to}&limit=1000`)
-    const plannerCalendarIds = plannerCalendar.data.map((row: Record<string, any>) => row.id)
+    const plannerCalendarIds = ids(plannerCalendar)
     expect(plannerCalendarIds).toContain(`task:${E2E_WEDDINGS.primary.id}-task:due`)
     expect(plannerCalendarIds).not.toContain(`task:${E2E_WEDDINGS.secondary.id}-task:due`)
-
-    const plannerToday = await getJson(page, '/api/today')
-    expect(todayIds(plannerToday)).toContain('notification:uat-planner-own')
-    expect(todayIds(plannerToday)).not.toContain('notification:uat-planner-secondary')
+    const plannerTodayIds = todayIds(await getJson(page, '/api/today'))
+    expect(plannerTodayIds).toContain('notification:uat-planner-own')
+    expect(plannerTodayIds).not.toContain('notification:uat-planner-secondary')
 
     await authenticate(page, COUPLE)
     const coupleNotifications = await getJson(page, '/api/notifications?limit=100')
-    const coupleNotificationIds = coupleNotifications.data.map((row: Record<string, any>) => row.id)
-    expect(coupleNotificationIds).toContain('uat-couple-own')
-    expect(coupleNotificationIds).not.toContain('uat-couple-admin-malformed')
-
+    expect(ids(coupleNotifications)).toContain('uat-couple-own')
+    expect(ids(coupleNotifications)).not.toContain('uat-couple-admin-malformed')
     const coupleCalendar = await getJson(page, `/api/calendar?from=${from}&to=${to}&limit=1000`)
-    const coupleCalendarIds = coupleCalendar.data.map((row: Record<string, any>) => row.id)
-    expect(coupleCalendarIds).toContain(`task:${E2E_WEDDINGS.primary.id}-task:due`)
-    expect(coupleCalendarIds).not.toContain(`task:${E2E_WEDDINGS.secondary.id}-task:due`)
-
-    const coupleToday = await getJson(page, '/api/today')
-    expect(todayIds(coupleToday)).toContain('notification:uat-couple-own')
-    expect(todayIds(coupleToday)).not.toContain('notification:uat-couple-admin-malformed')
+    expect(ids(coupleCalendar)).toContain(`task:${E2E_WEDDINGS.primary.id}-task:due`)
+    expect(ids(coupleCalendar)).not.toContain(`task:${E2E_WEDDINGS.secondary.id}-task:due`)
+    const coupleTodayIds = todayIds(await getJson(page, '/api/today'))
+    expect(coupleTodayIds).toContain('notification:uat-couple-own')
+    expect(coupleTodayIds).not.toContain('notification:uat-couple-admin-malformed')
 
     await authenticate(page, VENDOR)
     const vendorNotifications = await getJson(page, '/api/notifications?limit=100')
-    const vendorNotificationIds = vendorNotifications.data.map((row: Record<string, any>) => row.id)
+    const vendorNotificationIds = ids(vendorNotifications)
     expect(vendorNotificationIds).toContain('uat-vendor-engagement-own')
     expect(vendorNotificationIds).toContain('uat-vendor-contract-own')
     expect(vendorNotificationIds).not.toContain('uat-vendor-engagement-other')
     expect(vendorNotificationIds).not.toContain('uat-vendor-contract-other')
     expect(vendorNotificationIds).not.toContain('uat-vendor-budget')
-
     const vendorCalendar = await getJson(page, `/api/calendar?from=${from}&to=${to}&limit=1000`)
-    const vendorCalendarIds = vendorCalendar.data.map((row: Record<string, any>) => row.id)
+    const vendorCalendarIds = ids(vendorCalendar)
     expect(vendorCalendarIds).toContain('engagement:attention-engagement-own:service')
     expect(vendorCalendarIds).toContain('contract-review-grant:attention-grant-own:expires')
     expect(vendorCalendarIds).not.toContain('engagement:attention-engagement-other:service')
     expect(vendorCalendarIds).not.toContain('contract-review-grant:attention-grant-other:expires')
     expect(vendorCalendar.data.some((row: Record<string, any>) => row.category === 'budget')).toBe(false)
-
-    const vendorToday = await getJson(page, '/api/today')
-    const vendorTodayIds = todayIds(vendorToday)
+    const vendorTodayIds = todayIds(await getJson(page, '/api/today'))
     expect(vendorTodayIds).toContain('notification:uat-vendor-engagement-own')
     expect(vendorTodayIds).toContain('notification:uat-vendor-contract-own')
     expect(vendorTodayIds).not.toContain('notification:uat-vendor-engagement-other')
     expect(vendorTodayIds).not.toContain('notification:uat-vendor-contract-other')
     expect(vendorTodayIds).not.toContain('notification:uat-vendor-budget')
 
-    // Notification state is per-recipient, and lifecycle actions never mutate the source task date.
+    await authenticate(page, OTHER_VENDOR)
+    const otherVendorNotifications = await getJson(page, '/api/notifications?limit=100')
+    expect(ids(otherVendorNotifications)).toContain('uat-other-vendor-own')
+    expect(ids(otherVendorNotifications)).not.toContain('uat-other-vendor-representative')
+
     const taskBefore = await prisma.plannerTask.findUniqueOrThrow({
       where: { id: `${E2E_WEDDINGS.primary.id}-task` },
       select: { dueDate: true },
@@ -587,18 +420,10 @@ test('system attention role UAT: Admin, Planner, Couple and Vendor remain source
     const readResult = await patchNotification(page, { id: 'uat-planner-own', action: 'read' })
     expect(readResult.data.state).toBe('read')
     expect(readResult.data.readAt).toBeTruthy()
-
-    const acknowledgeResult = await patchNotification(page, {
-      id: 'uat-planner-ack',
-      action: 'acknowledge',
-    })
+    const acknowledgeResult = await patchNotification(page, { id: 'uat-planner-ack', action: 'acknowledge' })
     expect(acknowledgeResult.data.state).toBe('acknowledged')
     expect(acknowledgeResult.data.acknowledgedAt).toBeTruthy()
-
-    const resolveResult = await patchNotification(page, {
-      id: 'uat-planner-resolve',
-      action: 'resolve',
-    })
+    const resolveResult = await patchNotification(page, { id: 'uat-planner-resolve', action: 'resolve' })
     expect(resolveResult.data.state).toBe('resolved')
     expect(resolveResult.data.resolvedAt).toBeTruthy()
 
@@ -621,9 +446,7 @@ test('system attention role UAT: Admin, Planner, Couple and Vendor remain source
 
     await authenticate(page, COUPLE)
     const coupleAfterPlannerRead = await getJson(page, '/api/notifications?limit=100')
-    const coupleOwn = coupleAfterPlannerRead.data.find(
-      (row: Record<string, any>) => row.id === 'uat-couple-own',
-    )
+    const coupleOwn = coupleAfterPlannerRead.data.find((row: Record<string, any>) => row.id === 'uat-couple-own')
     expect(coupleOwn?.state).toBe('active')
     expect(coupleOwn?.readAt).toBeNull()
   } finally {
