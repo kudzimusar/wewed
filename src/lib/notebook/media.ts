@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { createSupabaseServiceClient } from '@/lib/supabase/service'
 import { actorCanEditNote } from './access'
 import { getNote, writeAudit } from './store'
+import { resolveNotebookTranscriptionConfig } from './transcription-config'
 import {
   NotebookConflictError,
   NotebookForbiddenError,
@@ -156,14 +157,12 @@ export async function transcribeRecording(actor: NotebookActor, recordingId: str
     throw new NotebookConflictError('Recording is already being processed.')
   }
 
-  const endpoint = process.env.WEWED_TRANSCRIPTION_URL?.trim()
-  const apiKey = process.env.WEWED_TRANSCRIPTION_API_KEY?.trim()
-  const model = process.env.WEWED_TRANSCRIPTION_MODEL?.trim() || 'whisper-1'
-  if (!endpoint) {
+  const config = resolveNotebookTranscriptionConfig()
+  if (!config) {
     await db.$executeRawUnsafe(
       `UPDATE wewed_notebook."NotebookRecording"
           SET status='FAILED', "errorCode"='TRANSCRIPTION_NOT_CONFIGURED',
-              "errorMessage"='Recording is preserved. Configure WEWED_TRANSCRIPTION_URL to transcribe it.',
+              "errorMessage"='Recording is preserved. Configure Wewed transcription or the existing Groq server credential to transcribe it.',
               "updatedAt"=CURRENT_TIMESTAMP
         WHERE id=$1`,
       recordingId,
@@ -171,13 +170,14 @@ export async function transcribeRecording(actor: NotebookActor, recordingId: str
     return { success: false, preserved: true, code: 'TRANSCRIPTION_NOT_CONFIGURED' }
   }
 
+  const { endpoint, apiKey, model, provider } = config
   await db.$executeRawUnsafe(
     `UPDATE wewed_notebook."NotebookRecording"
         SET status='TRANSCRIBING', "errorCode"=NULL, "errorMessage"=NULL,
             "transcriptionProvider"=$2, "updatedAt"=CURRENT_TIMESTAMP
       WHERE id=$1`,
     recordingId,
-    new URL(endpoint).hostname,
+    provider,
   )
 
   try {
@@ -220,7 +220,7 @@ export async function transcribeRecording(actor: NotebookActor, recordingId: str
         transcriptText,
         JSON.stringify(segments),
         language,
-        new URL(endpoint).hostname,
+        provider,
         providerJobId,
         actor.session.userId,
       )
@@ -233,7 +233,7 @@ export async function transcribeRecording(actor: NotebookActor, recordingId: str
         providerJobId,
       )
     })
-    await writeAudit(actor, note.id, 'RECORDING_TRANSCRIBED', { recordingId, provider: new URL(endpoint).hostname })
+    await writeAudit(actor, note.id, 'RECORDING_TRANSCRIBED', { recordingId, provider })
     return { success: true, text: transcriptText, segments, language }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Transcription failed.'
