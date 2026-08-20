@@ -429,6 +429,8 @@ async function seedEngagementNotifications(now: Date, stats: SchedulerStats) {
           AND "weddingId" = $2
           AND "userId" IS NOT NULL
           AND status = 'active'
+          AND "partyRole" = 'SERVICE_PROVIDER'
+          AND "partyKind" = 'VENDOR'
       `,
       engagement.id,
       engagement.weddingId,
