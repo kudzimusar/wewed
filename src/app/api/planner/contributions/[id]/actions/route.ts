@@ -70,6 +70,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
       if (contribution.type !== 'DIRECT_VENDOR_PAYMENT') return NextResponse.json({ success: false, error: 'This action is only for direct vendor contributions.' }, { status: 409 })
       const paymentReference = String(body.paymentReference ?? '').trim() || null
       const paymentMethod = String(body.paymentMethod ?? '').trim() || null
+      const requestedAmount = body.amount === undefined || body.amount === '' ? null : finiteNonNegative(body.amount)
+      if (body.amount !== undefined && (requestedAmount === null || requestedAmount <= 0)) return NextResponse.json({ success: false, error: 'Enter the amount the contributor actually paid now.' }, { status: 400 })
       const paidAt = body.paidAt ? new Date(String(body.paidAt)) : new Date()
       if (Number.isNaN(paidAt.getTime())) return NextResponse.json({ success: false, error: 'Use a valid payment date.' }, { status: 400 })
       try {
@@ -83,10 +85,23 @@ export async function POST(request: NextRequest, context: RouteContext) {
           `
           const locked = lockedRows[0]
           if (!locked) throw new Error('DIRECT_NOT_FOUND')
-          if (locked.fulfillmentState !== 'PENDING') throw new Error('DIRECT_ALREADY_FULFILLED')
+          if (!['PENDING','PARTIALLY_RECEIVED'].includes(locked.fulfillmentState)) throw new Error('DIRECT_ALREADY_FULFILLED')
           if (!locked.serviceEngagementId) throw new Error('DIRECT_ENGAGEMENT_REQUIRED')
-          const amount = Number(locked.amount ?? 0)
-          if (!Number.isFinite(amount) || amount <= 0) throw new Error('DIRECT_AMOUNT_REQUIRED')
+          const promisedAmount = Number(locked.amount ?? 0)
+          if (!Number.isFinite(promisedAmount) || promisedAmount <= 0) throw new Error('DIRECT_AMOUNT_REQUIRED')
+          const paidRows = await tx.$queryRaw<Array<{ total: string }>>`
+            SELECT COALESCE(SUM(amount), 0)::text AS total
+              FROM wewed_contributions.payment_funding_allocations
+             WHERE wedding_id = ${weddingId}
+               AND contribution_id = ${id}
+               AND source_kind = 'CONTRIBUTION'
+               AND payment_id IS NOT NULL
+          `
+          const alreadyPaid = Number(paidRows[0]?.total ?? 0)
+          const remainingBefore = Math.max(0, promisedAmount - alreadyPaid)
+          if (remainingBefore <= 0.0001) throw new Error('DIRECT_ALREADY_FULFILLED')
+          const paymentAmount = requestedAmount ?? remainingBefore
+          if (paymentAmount > remainingBefore + 0.0001) throw new Error('DIRECT_OVERPAY')
           const engagement = await tx.serviceEngagement.findFirst({ where: { id: locked.serviceEngagementId, weddingId }, select: { id: true, currency: true, vendorId: true } })
           if (!engagement) throw new Error('DIRECT_ENGAGEMENT_REQUIRED')
           if (engagement.currency !== locked.currency) throw new Error('DIRECT_CURRENCY_MISMATCH')
@@ -102,7 +117,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
           const payment = await tx.engagementPayment.create({
             data: {
               serviceEngagementId: locked.serviceEngagementId,
-              amount,
+              amount: paymentAmount,
               currency: locked.currency,
               paidAt,
               method: paymentMethod,
@@ -115,22 +130,30 @@ export async function POST(request: NextRequest, context: RouteContext) {
             INSERT INTO wewed_contributions.payment_funding_allocations
               (id, wedding_id, payment_id, budget_item_id, contribution_id, source_kind, amount, currency, created_by_id, reconciled_at)
             VALUES
-              (${contributionId()}, ${weddingId}, ${payment.id}, ${budgetItemId}, ${id}, 'CONTRIBUTION', ${amount}, ${locked.currency}, ${actorId}, ${paidAt})
+              (${contributionId()}, ${weddingId}, ${payment.id}, ${budgetItemId}, ${id}, 'CONTRIBUTION', ${paymentAmount}, ${locked.currency}, ${actorId}, ${paidAt})
           `
-          if (budgetItemId) await tx.budgetItem.update({ where: { id: budgetItemId }, data: { paidAmount: { increment: amount } } })
+          if (budgetItemId) await tx.budgetItem.update({ where: { id: budgetItemId }, data: { paidAmount: { increment: paymentAmount } } })
+          const paidToDate = alreadyPaid + paymentAmount
+          const remainingAfter = Math.max(0, promisedAmount - paidToDate)
+          const complete = remainingAfter <= 0.0001
+          const nextFulfillment = complete ? 'PAID_DIRECT' : 'PARTIALLY_RECEIVED'
+          const nextCommitment = complete ? 'CONFIRMED' : 'PLEDGED'
+          const nextVerification = complete ? 'RECONCILED' : 'CONFIRMED_BY_USER'
+          const nextThankYou = complete ? 'TO_THANK' : 'NOT_DUE'
           await tx.$executeRaw`
             UPDATE wewed_contributions.wedding_contributions
-               SET fulfillment_state = 'PAID_DIRECT', commitment_state = 'CONFIRMED', verification_state = 'RECONCILED',
-                   thank_you_state = 'TO_THANK', fulfilled_at = ${paidAt}, updated_at = NOW()
+               SET fulfillment_state = ${nextFulfillment}, commitment_state = ${nextCommitment}, verification_state = ${nextVerification},
+                   thank_you_state = ${nextThankYou}, fulfilled_at = ${complete ? paidAt : null}, updated_at = NOW()
              WHERE id = ${id} AND wedding_id = ${weddingId}
           `
-          await tx.auditEvent.create({ data: { weddingId, action: 'contribution.direct_vendor_paid', actorId, resourceType: 'WeddingContribution', resourceId: id, afterValue: JSON.stringify({ paymentId: payment.id, budgetItemId, serviceEngagementId: locked.serviceEngagementId, amount, currency: locked.currency })} })
-          return { paymentId: payment.id }
+          await tx.auditEvent.create({ data: { weddingId, action: complete ? 'contribution.direct_vendor_paid' : 'contribution.direct_vendor_part_paid', actorId, resourceType: 'WeddingContribution', resourceId: id, afterValue: JSON.stringify({ paymentId: payment.id, budgetItemId, serviceEngagementId: locked.serviceEngagementId, paymentAmount, promisedAmount, paidToDate, remainingAfter, currency: locked.currency })} })
+          return { paymentId: payment.id, paymentAmount, promisedAmount, paidToDate, remainingAmount: remainingAfter, fulfillmentState: nextFulfillment }
         })
         return NextResponse.json({ success: true, data: result })
       } catch (error) {
         const code = error instanceof Error ? error.message : ''
-        if (code === 'DIRECT_ALREADY_FULFILLED') return NextResponse.json({ success: false, error: 'This direct vendor contribution has already been fulfilled.' }, { status: 409 })
+        if (code === 'DIRECT_ALREADY_FULFILLED') return NextResponse.json({ success: false, error: 'This direct vendor promise is already fully paid.' }, { status: 409 })
+        if (code === 'DIRECT_OVERPAY') return NextResponse.json({ success: false, error: 'The payment entered is more than the remaining promised amount.' }, { status: 409 })
         if (code === 'DIRECT_ENGAGEMENT_REQUIRED') return NextResponse.json({ success: false, error: 'A direct vendor pledge needs its service engagement before payment can be recorded.' }, { status: 409 })
         if (code === 'DIRECT_AMOUNT_REQUIRED') return NextResponse.json({ success: false, error: 'A direct vendor pledge needs a positive amount before payment can be recorded.' }, { status: 409 })
         if (code === 'DIRECT_CURRENCY_MISMATCH') return NextResponse.json({ success: false, error: 'The direct vendor contribution and service engagement must use the same currency.' }, { status: 409 })

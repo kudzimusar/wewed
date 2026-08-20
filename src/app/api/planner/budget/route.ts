@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { contributionDatabaseUnavailable } from '@/lib/contributions'
-import { budgetContributionAllocations, budgetFundingRows } from '@/lib/contributions/store'
+import { budgetContributionAllocations, budgetContributionContexts, budgetFundingRows } from '@/lib/contributions/store'
 import { requireWeddingPermission } from '@/lib/wedding-access'
 
 const BUDGET_CATEGORIES = [
@@ -108,10 +108,12 @@ export async function GET(request: NextRequest) {
 
     let fundingRows: Awaited<ReturnType<typeof budgetFundingRows>> = []
     let contributionAllocations: Awaited<ReturnType<typeof budgetContributionAllocations>> = []
+    let contributionContexts: Awaited<ReturnType<typeof budgetContributionContexts>> = []
     try {
-      ;[fundingRows, contributionAllocations] = await Promise.all([
+      ;[fundingRows, contributionAllocations, contributionContexts] = await Promise.all([
         budgetFundingRows(access.context.weddingId),
         budgetContributionAllocations(access.context.weddingId),
+        budgetContributionContexts(access.context.weddingId),
       ])
     } catch (error) {
       if (!contributionDatabaseUnavailable(error)) throw error
@@ -130,9 +132,31 @@ export async function GET(request: NextRequest) {
       const itemAllocations = contributionAllocations.filter((row) => row.budgetItemId === item.id && row.currency === item.currency)
       const inKindValue = itemAllocations.filter((row) => row.allocationKind === 'IN_KIND' && ['DELIVERED','COMPLETED'].includes(row.fulfillmentState)).reduce((sum, row) => sum + Number(row.amount), 0)
       const contributionAllocated = itemAllocations.filter((row) => row.allocationKind === 'CASH').reduce((sum, row) => sum + Number(row.amount), 0)
+      const linkedContributions = Array.from(new Map(
+        contributionContexts
+          .filter((row) => row.budgetItemId === item.id && row.currency === item.currency)
+          .map((row) => {
+            const promisedAmount = Number(row.contributionAmount ?? 0)
+            const paidAmount = Number(row.directPaidAmount ?? 0)
+            return [row.contributionId, {
+              contributionId: row.contributionId,
+              contributorName: row.contributorName,
+              title: row.title,
+              notes: row.notes,
+              type: row.type,
+              commitmentState: row.commitmentState,
+              fulfillmentState: row.fulfillmentState,
+              promisedAmount,
+              paidAmount,
+              remainingAmount: row.type === 'DIRECT_VENDOR_PAYMENT' ? Math.max(0, promisedAmount - paidAmount) : 0,
+              currency: row.currency,
+            }] as const
+          })
+      ).values())
       return {
         ...formatItem(item),
         funding: { coupleFunded, contributorFunded, legacyUnattributed, otherAttributed, inKindValue, contributionAllocated },
+        contributions: linkedContributions,
       }
     })
 

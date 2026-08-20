@@ -104,6 +104,7 @@ export interface ContributionSummaryRow {
   commitmentState: string
   fulfillmentState: string
   allocatedAmount?: number
+  directVendorPaidAmount?: number
 }
 
 export interface CurrencyContributionSummary {
@@ -133,8 +134,13 @@ export function summarizeContributions(rows: ContributionSummaryRow[]): Currency
 
   for (const row of rows) {
     const amount = row.amount ?? 0
+    const directPaid = row.type === 'DIRECT_VENDOR_PAYMENT'
+      ? Math.max(0, row.directVendorPaidAmount ?? (row.fulfillmentState === 'PAID_DIRECT' ? amount : 0))
+      : 0
     if (row.commitmentState === 'PLEDGED' && !isFulfilled(row.fulfillmentState)) {
-      bucket(row.currency).pledged += amount
+      bucket(row.currency).pledged += row.type === 'DIRECT_VENDOR_PAYMENT'
+        ? Math.max(0, amount - directPaid)
+        : amount
     }
     if (row.fulfillmentState === 'RECEIVED' && CASH_RECEIPT_TYPES.has(row.type as ContributionType)) {
       const current = bucket(row.currency)
@@ -146,8 +152,8 @@ export function summarizeContributions(rows: ContributionSummaryRow[]): Currency
         allocatedAmount: row.allocatedAmount ?? 0,
       })
     }
-    if (row.type === 'DIRECT_VENDOR_PAYMENT' && row.fulfillmentState === 'PAID_DIRECT') {
-      bucket(row.currency).directVendorPaid += amount
+    if (row.type === 'DIRECT_VENDOR_PAYMENT' && directPaid > 0) {
+      bucket(row.currency).directVendorPaid += directPaid
     }
     if (IN_KIND_TYPES.has(row.type as ContributionType) && isFulfilled(row.fulfillmentState) && (row.estimatedValue ?? 0) > 0) {
       bucket(row.estimatedValueCurrency ?? row.currency).inKindValue += row.estimatedValue ?? 0

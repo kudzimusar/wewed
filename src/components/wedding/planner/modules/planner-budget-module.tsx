@@ -21,6 +21,7 @@ interface BudgetFunding {
   inKindValue: number
   contributionAllocated: number
 }
+interface BudgetContributionContext { contributionId: string; contributorName: string; title: string; notes: string | null; type: string; commitmentState: string; fulfillmentState: string; promisedAmount: number; paidAmount: number; remainingAmount: number; currency: string }
 interface BudgetRow {
   id: string
   category: string
@@ -34,6 +35,7 @@ interface BudgetRow {
   notes: string | null
   dueDate: string | null
   funding?: BudgetFunding
+  contributions?: BudgetContributionContext[]
 }
 interface BudgetSummary { totalEstimated: number; totalActual: number; totalPaid: number; totalOutstanding: number; currency: string; percentPaid: number }
 interface CategoryBreakdown { category: string; estimated: number; actual: number; paid: number; outstanding: number; count: number }
@@ -75,6 +77,24 @@ function FundingLine({ item }: { item: BudgetRow }) {
   </div>
 }
 
+function ContributionContextLine({ item }: { item: BudgetRow }) {
+  if (!item.contributions?.length) return null
+  return <div className="mt-2 space-y-1.5">{item.contributions.map((contribution) => {
+    const direct = contribution.type === 'DIRECT_VENDOR_PAYMENT'
+    const stateLabel = direct
+      ? contribution.fulfillmentState === 'PAID_DIRECT' ? 'Paid vendor directly'
+        : contribution.fulfillmentState === 'PARTIALLY_RECEIVED' ? 'Part-paid vendor directly'
+          : 'To pay vendor directly'
+      : contribution.fulfillmentState.toLowerCase().replaceAll('_',' ')
+    return <div key={contribution.contributionId} className="rounded-lg border border-gold/10 bg-gold/[0.025] px-2.5 py-2 font-sans text-[10px] leading-4 text-champagne/55">
+      <p><span className="font-semibold text-gold/80">Linked contribution:</span> {contribution.contributorName} · {stateLabel}</p>
+      {direct && <p>Promised {money(contribution.promisedAmount, contribution.currency)} · Paid {money(contribution.paidAmount, contribution.currency)} · Remaining {money(contribution.remainingAmount, contribution.currency)}</p>}
+      {contribution.notes && <p className="text-champagne/45">Note: {contribution.notes}</p>}
+    </div>
+  })}</div>
+}
+
+
 export function PlannerBudgetModule({ budget, budgetSummary, budgetByCategory, budgetForm, setBudgetForm, vendors, saving, onAddBudgetItem, onUpdateBudgetItem, onDeleteBudgetItem }: PlannerBudgetModuleProps) {
   const [filters, setFilters, resetFilters] = usePlannerFilterState('wewed:planner:budget:filters', { search: '', category: 'all', status: 'all' })
   const filteredBudget = useMemo(() => {
@@ -112,7 +132,7 @@ export function PlannerBudgetModule({ budget, budgetSummary, budgetByCategory, b
 
     <SectionCard className="overflow-hidden">
       <div className="grid gap-3 border-b border-gold/10 p-4 lg:grid-cols-[minmax(0,1fr)_14rem_12rem_auto]"><div className="relative"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-champagne/35" /><Input value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Search item, vendor, category, or notes" className="border-gold/20 bg-espresso/70 pl-9" /></div><select aria-label="Filter budget by category" value={filters.category} onChange={(event) => setFilters((current) => ({ ...current, category: event.target.value }))} className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm">{BUDGET_CATEGORIES.map((category) => <option key={category.value} value={category.value}>{category.label}</option>)}</select><select aria-label="Filter budget by payment status" value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))} className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm"><option value="all">All payment states</option><option value="paid">Paid</option><option value="outstanding">Outstanding</option><option value="overdue">Overdue</option></select><Button type="button" variant="outline" onClick={resetFilters} className="border-gold/20 bg-transparent text-champagne/60">Reset</Button></div>
-      <div className="space-y-2 p-4">{budget.length === 0 ? <EmptyState title="No budget items" detail="Add your first estimate or import the wedding budget worksheet." /> : filteredBudget.length === 0 ? <EmptyState title="No budget items in this view" detail="Clear the search or filters to see the remaining costs." /> : filteredBudget.map((item) => { const actual = item.actualCost ?? item.estimatedCost; const outstanding = Math.max(0, actual - item.paidAmount); const isPaid = actual > 0 && item.paidAmount >= actual; return <div key={item.id} className="grid gap-3 rounded-xl border border-gold/10 bg-espresso/45 p-3 lg:grid-cols-[minmax(0,1fr)_8rem_8rem_auto] lg:items-center"><div><div className="flex flex-wrap items-center gap-2"><p className="font-sans text-sm font-medium">{item.description}</p><Badge variant="outline" className="border-champagne bg-champagne text-[10px] font-semibold text-espresso">{categoryLabel(item.category)}</Badge>{item.vendorId && <Badge variant="outline" className="border-sage/40 bg-sage/10 text-[10px] text-sage-light">Vendor linked</Badge>}<Badge variant="outline" className={isPaid ? 'border-sage/50 bg-sage/10 text-sage-light' : 'border-gold/30 bg-espresso text-champagne/80'}>{isPaid ? 'Paid' : `${money(outstanding, item.currency)} outstanding`}</Badge></div>{item.vendorName && <p className="mt-1 font-sans text-xs text-champagne/70">Vendor: {item.vendorName}</p>}<p className="mt-1 text-xs text-champagne/55">Estimated {money(item.estimatedCost, item.currency)} · {dateText(item.dueDate)}</p>{item.notes && <p className="mt-1 font-sans text-xs text-champagne/55">{item.notes}</p>}<FundingLine item={item} /></div><div><Label className="text-[10px]">Actual</Label><Input type="number" min="0" aria-label={`Actual cost for ${item.description}`} defaultValue={item.actualCost ?? ''} onBlur={(event) => void onUpdateBudgetItem(item, 'actualCost', event.target.value)} className="mt-1 h-8 border-gold/20 bg-espresso/70 text-xs" /></div><div><Label className="text-[10px]">Paid</Label><Input type="number" min="0" aria-label={`Paid amount for ${item.description}`} defaultValue={item.paidAmount} onBlur={(event) => void onUpdateBudgetItem(item, 'paidAmount', event.target.value)} className="mt-1 h-8 border-gold/20 bg-espresso/70 text-xs" /></div><Button type="button" variant="ghost" size="icon" aria-label={`Delete ${item.description}`} disabled={saving} onClick={() => { if (window.confirm(`Delete budget item “${item.description}”?`)) void onDeleteBudgetItem(item) }} className="size-9 text-champagne/45 hover:bg-clay/10 hover:text-clay-light"><Trash2 className="size-4" /></Button></div>})}</div>
+      <div className="space-y-2 p-4">{budget.length === 0 ? <EmptyState title="No budget items" detail="Add your first estimate or import the wedding budget worksheet." /> : filteredBudget.length === 0 ? <EmptyState title="No budget items in this view" detail="Clear the search or filters to see the remaining costs." /> : filteredBudget.map((item) => { const actual = item.actualCost ?? item.estimatedCost; const outstanding = Math.max(0, actual - item.paidAmount); const isPaid = actual > 0 && item.paidAmount >= actual; return <div key={item.id} className="grid gap-3 rounded-xl border border-gold/10 bg-espresso/45 p-3 lg:grid-cols-[minmax(0,1fr)_8rem_8rem_auto] lg:items-center"><div><div className="flex flex-wrap items-center gap-2"><p className="font-sans text-sm font-medium">{item.description}</p><Badge variant="outline" className="border-champagne bg-champagne text-[10px] font-semibold text-espresso">{categoryLabel(item.category)}</Badge>{item.vendorId && <Badge variant="outline" className="border-sage/40 bg-sage/10 text-[10px] text-sage-light">Vendor linked</Badge>}<Badge variant="outline" className={isPaid ? 'border-sage/50 bg-sage/10 text-sage-light' : 'border-gold/30 bg-espresso text-champagne/80'}>{isPaid ? 'Paid' : `${money(outstanding, item.currency)} outstanding`}</Badge></div>{item.vendorName && <p className="mt-1 font-sans text-xs text-champagne/70">Vendor: {item.vendorName}</p>}<p className="mt-1 text-xs text-champagne/55">Estimated {money(item.estimatedCost, item.currency)} · {dateText(item.dueDate)}</p>{item.notes && <p className="mt-1 font-sans text-xs text-champagne/55">{item.notes}</p>}<FundingLine item={item} /><ContributionContextLine item={item} /></div><div><Label className="text-[10px]">Actual</Label><Input type="number" min="0" aria-label={`Actual cost for ${item.description}`} defaultValue={item.actualCost ?? ''} onBlur={(event) => void onUpdateBudgetItem(item, 'actualCost', event.target.value)} className="mt-1 h-8 border-gold/20 bg-espresso/70 text-xs" /></div><div><Label className="text-[10px]">Paid</Label><Input type="number" min="0" aria-label={`Paid amount for ${item.description}`} defaultValue={item.paidAmount} onBlur={(event) => void onUpdateBudgetItem(item, 'paidAmount', event.target.value)} className="mt-1 h-8 border-gold/20 bg-espresso/70 text-xs" /></div><Button type="button" variant="ghost" size="icon" aria-label={`Delete ${item.description}`} disabled={saving} onClick={() => { if (window.confirm(`Delete budget item “${item.description}”?`)) void onDeleteBudgetItem(item) }} className="size-9 text-champagne/45 hover:bg-clay/10 hover:text-clay-light"><Trash2 className="size-4" /></Button></div>})}</div>
     </SectionCard>
   </div>
 }

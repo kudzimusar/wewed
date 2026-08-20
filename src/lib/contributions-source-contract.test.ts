@@ -153,10 +153,15 @@ describe('Contributions canonical source contract', () => {
     expect(actions).toContain("action === 'mark-direct-paid'")
     expect(actions).toContain('tx.engagementPayment.create')
     expect(actions).toContain('contribution.direct_vendor_paid')
-    expect(actions).toContain('paidAmount: { increment: amount }')
+    expect(actions).toContain('paidAmount: { increment: paymentAmount }')
+    expect(actions).toContain("const nextFulfillment = complete ? 'PAID_DIRECT' : 'PARTIALLY_RECEIVED'")
+    expect(actions).toContain('const remainingAfter = Math.max(0, promisedAmount - paidToDate)')
     expect(detail).toContain("allocation_kind <> 'DIRECT_PAYMENT'")
     expect(detail).toContain('Record the vendor payment through the direct-payment action')
-    expect(ui).toContain('Record vendor paid')
+    expect(ui).toContain('Record amount paid')
+    expect(ui).toContain('To pay vendor directly')
+    expect(ui).toContain('Part-paid vendor directly')
+    expect(ui).toContain('refreshPlannerWorksheet()')
   })
 
   test('Campaign creation validates target amount and boolean governance fields', () => {
