@@ -13,6 +13,7 @@ import {
   CalendarDays,
   CheckCircle2,
   CircleDollarSign,
+  HandHeart,
   LayoutGrid,
   ListChecks,
   Loader2,
@@ -24,6 +25,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { PlannerBudgetModule } from '@/components/wedding/planner/modules/planner-budget-module'
+import { PlannerContributionsWorkspace } from '@/components/wedding/planner/planner-contributions-workspace'
 import {
   PlannerGuestsModule,
   type GuestForm,
@@ -59,6 +61,7 @@ export type WorkspaceTab =
   | 'guests'
   | 'timeline'
   | 'seating'
+  | 'contributions'
 
 interface TaskRow {
   id: string
@@ -103,10 +106,28 @@ interface CategoryBreakdown {
   count: number
 }
 
+interface ContributionOverviewSummary {
+  currency: string
+  cashReceived: number
+  directVendorPaid: number
+  inKindValue: number
+  pledged: number
+  availableCash: number
+}
+
+interface ContributionOverviewCounts {
+  contributors: number
+  pledged: number
+  overdue: number
+  unverified: number
+  toThank: number
+}
+
 const TABS: Array<{ value: WorkspaceTab; label: string; icon: ReactNode }> = [
   { value: 'overview', label: 'Overview', icon: <CheckCircle2 className="size-3.5" /> },
   { value: 'tasks', label: 'Tasks', icon: <ListChecks className="size-3.5" /> },
   { value: 'budget', label: 'Budget', icon: <CircleDollarSign className="size-3.5" /> },
+  { value: 'contributions', label: 'Contributions', icon: <HandHeart className="size-3.5" /> },
   { value: 'vendors', label: 'Vendors', icon: <Store className="size-3.5" /> },
   { value: 'guests', label: 'Guests', icon: <Users className="size-3.5" /> },
   { value: 'timeline', label: 'Timeline', icon: <CalendarDays className="size-3.5" /> },
@@ -217,6 +238,8 @@ export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }
   const [guests, setGuests] = useState<GuestRow[]>([])
   const [tables, setTables] = useState<SeatingTableRow[]>([])
   const [timeline, setTimeline] = useState<TimelineRow[]>([])
+  const [contributionSummary, setContributionSummary] = useState<ContributionOverviewSummary[]>([])
+  const [contributionCounts, setContributionCounts] = useState<ContributionOverviewCounts>({ contributors: 0, pledged: 0, overdue: 0, unverified: 0, toThank: 0 })
 
   const [taskForm, setTaskForm] = useState({
     title: '',
@@ -255,6 +278,7 @@ export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }
       ['Vendors', api<{ data: VendorRow[] }>('/api/planner/vendors', requestInit)],
       ['Guests', api<{ data: GuestRow[]; tables: SeatingTableRow[] }>('/api/planner/guests', requestInit)],
       ['Timeline', api<{ data: TimelineRow[] }>('/api/planner/timeline', requestInit)],
+      ['Contributions', api<{ summaryByCurrency: ContributionOverviewSummary[]; counts: ContributionOverviewCounts }>('/api/planner/contributions/summary', requestInit)],
     ] as const
 
     try {
@@ -288,6 +312,12 @@ export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }
       if (timelineResult.status === 'fulfilled') {
         setTimeline((timelineResult.value.data ?? []).sort((a, b) => a.order - b.order))
       } else failures.push('Timeline')
+
+      const contributionsResult = results[5]
+      if (contributionsResult.status === 'fulfilled') {
+        setContributionSummary(contributionsResult.value.summaryByCurrency ?? [])
+        setContributionCounts(contributionsResult.value.counts ?? { contributors: 0, pledged: 0, overdue: 0, unverified: 0, toThank: 0 })
+      } else if (!isRequestCancellation(contributionsResult.reason, controller.signal)) { console.warn('[PLANNER WORKSPACE CLIENT] contribution summary refresh failed', contributionsResult.reason) }
 
       results.forEach((result, index) => {
         if (result.status === 'rejected' && !isRequestCancellation(result.reason, controller.signal)) {
@@ -658,6 +688,34 @@ export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }
                   ].map(([label, value, detail]) => <SectionCard key={label} className="p-3 sm:p-4"><p className="font-sans text-[9px] uppercase tracking-[0.12em] text-gold/65 sm:text-[10px] sm:tracking-[0.16em]">{label}</p><p className="mt-1.5 font-serif text-2xl text-champagne sm:mt-2 sm:text-3xl">{value}</p><p className="mt-1 font-sans text-[10px] text-champagne/45 sm:text-xs">{detail}</p></SectionCard>)}
                 </div>
 
+                <div data-testid="planner-contributions-overview">
+                  <SectionCard className="p-4 sm:p-5">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="font-sans text-[10px] font-semibold uppercase tracking-[0.16em] text-gold/70">Contributions & support</p>
+                        <h2 className="mt-1 font-serif text-xl">Who is helping make this possible?</h2>
+                        <p className="mt-1 font-sans text-xs text-champagne/50">{contributionCounts.contributors} contributors · {contributionCounts.pledged} pledged · {contributionCounts.overdue} overdue · {contributionCounts.unverified} unverified · {contributionCounts.toThank} thank-you{contributionCounts.toThank === 1 ? '' : 's'} pending</p>
+                      </div>
+                      <Button type="button" variant="outline" size="sm" onClick={() => setActiveTab('contributions')} className="border-gold/25 bg-transparent text-gold">
+                        <HandHeart className="size-3.5" />Open Contributions
+                      </Button>
+                    </div>
+                    {contributionSummary.length > 0 ? (
+                      <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                        {contributionSummary.map((row) => (
+                          <div key={row.currency} className="rounded-xl border border-gold/10 p-3">
+                            <p className="font-sans text-[10px] font-semibold uppercase tracking-[0.14em] text-gold/65">{row.currency}</p>
+                            <p className="mt-1 font-sans text-xs text-champagne/65">Received {money(row.cashReceived, row.currency)} · Direct vendor {money(row.directVendorPaid, row.currency)}</p>
+                            <p className="mt-1 font-sans text-[11px] text-champagne/45">In-kind {money(row.inKindValue, row.currency)} · Pledged {money(row.pledged, row.currency)} · Available {money(row.availableCash, row.currency)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-4 rounded-xl border border-dashed border-gold/15 p-3 font-sans text-xs text-champagne/45">No contributions recorded yet. Add support only when someone has offered or provided it.</p>
+                    )}
+                  </SectionCard>
+                </div>
+
                 <SectionCard className="p-5">
                   <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-serif text-xl">Planning readiness</h2><p className="mt-1 font-sans text-xs text-champagne/50">This workspace uses only the selected wedding’s saved records. Empty weddings stay empty until a planner adds data, imports a file, or applies a template.</p></div><Badge variant="outline" className="border-gold/25 bg-gold/5 text-gold">{lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : 'Not synced'}</Badge></div>
                   <Progress value={taskStats.percent} className="mt-5 h-2 bg-champagne/10 [&>div]:bg-gold" />
@@ -667,6 +725,7 @@ export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }
             )}
 
             {activeTab === 'tasks' && <PlannerTasksModule tasks={tasks} taskForm={taskForm} setTaskForm={setTaskForm} saving={saving} taskProgressPercent={taskStats.percent} onAddTask={addTask} onUpdateTask={updateTask} onUpdateTaskStatus={updateTaskStatus} onDeleteTask={deleteTask} />}
+            {activeTab === 'contributions' && <PlannerContributionsWorkspace embedded />}
             {activeTab === 'budget' && <PlannerBudgetModule budget={budget} budgetSummary={budgetSummary} budgetByCategory={budgetByCategory} budgetForm={budgetForm} setBudgetForm={setBudgetForm} vendors={vendors} saving={saving} onAddBudgetItem={addBudgetItem} onUpdateBudgetItem={updateBudgetItem} onDeleteBudgetItem={deleteBudgetItem} />}
             {activeTab === 'vendors' && <PlannerVendorsModule vendors={vendors} vendorForm={vendorForm} setVendorForm={setVendorForm} saving={saving} onAddVendor={addVendor} onUpdateVendor={updateVendor} onDeleteVendor={deleteVendor} />}
             {activeTab === 'guests' && <PlannerGuestsModule guests={guests} tables={tables} guestForm={guestForm} setGuestForm={setGuestForm} guestStats={guestStats} saving={saving} onAddGuest={addGuest} onUpdateGuest={updateGuest} onAssignGuestTable={assignGuestTable} onDeleteGuest={deleteGuest} />}

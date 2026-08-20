@@ -48,6 +48,13 @@ export interface VendorForm {
   notes: string
 }
 
+interface VendorFundingSummary {
+  vendorId: string
+  paymentFunding: Array<{ currency:string; paid:number; contributor:number; couple:number; other:number; unattributed:number }>
+  pledgedDirect: Array<{ currency:string; amount:number }>
+  inKind: Array<{ currency:string; amount:number }>
+}
+
 export interface VendorUpdate {
   contact: string | null
   phone: string | null
@@ -117,22 +124,25 @@ export function PlannerVendorsModule({ vendors, vendorForm, setVendorForm, savin
   const [managedEngagements, setManagedEngagements] = useState<ManagedEngagementSummary[]>([])
   const [rescue, setRescue] = useState<PaidVendorRescueRow[]>([])
   const [budgetItems, setBudgetItems] = useState<EngagementBudgetItem[]>([])
+  const [fundingSummary, setFundingSummary] = useState<VendorFundingSummary[]>([])
   const [governanceSaving, setGovernanceSaving] = useState(false)
   const [governanceError, setGovernanceError] = useState<string | null>(null)
   const combinedSaving = saving || governanceSaving
 
   const loadGovernance = useCallback(async () => {
     try {
-      const [engagementPayload, managedPayload, rescuePayload, budgetPayload] = await Promise.all([
+      const [engagementPayload, managedPayload, rescuePayload, budgetPayload, fundingPayload] = await Promise.all([
         governanceJson<{ data: HistoricalEngagementRow[] }>('/api/planner/engagements'),
         governanceJson<{ data: ManagedEngagementSummary[] }>('/api/planner/engagements/current'),
         governanceJson<{ data: PaidVendorRescueRow[] }>('/api/planner/engagements/rescue'),
         governanceJson<{ data: EngagementBudgetItem[] }>('/api/planner/budget'),
+        governanceJson<{ data: VendorFundingSummary[] }>('/api/planner/vendors/funding-summary'),
       ])
       setEngagements(engagementPayload.data ?? [])
       setManagedEngagements(managedPayload.data ?? [])
       setRescue(rescuePayload.data ?? [])
       setBudgetItems(budgetPayload.data ?? [])
+      setFundingSummary(fundingPayload.data ?? [])
       setGovernanceError(null)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Could not refresh vendor service records.'
@@ -241,6 +251,7 @@ export function PlannerVendorsModule({ vendors, vendorForm, setVendorForm, savin
           const managedEngagement = managedByVendor.get(vendor.id)
           const rescueRow = rescueByVendor.get(vendor.id)
           const deletionProtected = vendorEngagements.length > 0 || Boolean(managedEngagement)
+          const vendorFunding = fundingSummary.find((item) => item.vendorId === vendor.id)
           return (
             <SectionCard key={vendor.id} className="p-4">
               <div className="flex items-start justify-between gap-3">
@@ -258,6 +269,7 @@ export function PlannerVendorsModule({ vendors, vendorForm, setVendorForm, savin
                 {vendor.website && <a href={vendor.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-gold hover:text-gold-light">Website <ExternalLink className="size-3" /></a>}
               </div>
               {vendor.notes && <p className="mt-2 rounded-lg border border-gold/10 bg-espresso/40 px-3 py-2 font-sans text-xs text-champagne/55">{vendor.notes}</p>}
+              {vendorFunding && (vendorFunding.paymentFunding.length > 0 || vendorFunding.pledgedDirect.length > 0 || vendorFunding.inKind.length > 0) && <div className="mt-3 rounded-xl border border-gold/12 bg-gold/[0.035] p-3" data-vendor-contribution-funding><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gold">Funding context</p><div className="mt-2 space-y-1 text-xs text-champagne/60">{vendorFunding.paymentFunding.map((row)=><p key={row.currency}>{row.currency}: paid {row.paid.toLocaleString()} · contributor-funded {row.contributor.toLocaleString()} · couple-funded {row.couple.toLocaleString()} · source not recorded {row.unattributed.toLocaleString()}</p>)}{vendorFunding.pledgedDirect.map((row)=><p key={`pledge-${row.currency}`} className="text-gold/80">Promised direct support: {row.currency} {row.amount.toLocaleString()} — not paid yet</p>)}{vendorFunding.inKind.map((row)=><p key={`kind-${row.currency}`}>Delivered in-kind value: {row.currency} {row.amount.toLocaleString()} est.</p>)}</div></div>}
 
               <PlannerVendorDealRoom
                 vendor={vendor}

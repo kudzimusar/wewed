@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { contributionDatabaseUnavailable, contributionAvailableAmount, finiteNonNegative, normalizeCurrency, validateContributionInput } from '@/lib/contributions'
+import { contributionDatabaseUnavailable, contributionAvailableAmount, finiteNonNegative, isCurrencyCode, normalizeCurrency, validContributionCommitmentState, validContributionFulfillmentState, validContributionThankYouState, validContributionVerificationState, validateContributionInput } from '@/lib/contributions'
 import { contributionAllocatedCash, contributionId, getContribution, loadContributionWorkspace } from '@/lib/contributions/store'
-import { requireWeddingPermission } from '@/lib/wedding-access'
+import { contextHasPermission, requireWeddingPermission } from '@/lib/wedding-access'
 
 function responseForDatabaseError(error: unknown) {
   if (contributionDatabaseUnavailable(error)) {
@@ -21,10 +21,10 @@ export async function GET(request: NextRequest) {
       loadContributionWorkspace(weddingId),
       db.budgetItem.findMany({ where: { weddingId }, select: { id: true, description: true, category: true, currency: true, paidAmount: true, actualCost: true, estimatedCost: true, serviceEngagementId: true }, orderBy: [{ category: 'asc' }, { description: 'asc' }] }),
       db.vendor.findMany({ where: { weddingId }, select: { id: true, name: true, category: true }, orderBy: { name: 'asc' } }),
-      db.serviceEngagement.findMany({ where: { weddingId }, select: { id: true, serviceCategory: true, serviceDescription: true, currency: true, vendor: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } }),
+      db.serviceEngagement.findMany({ where: { weddingId }, select: { id: true, serviceCategory: true, serviceDescription: true, currency: true, vendor: { select: { id: true, name: true } }, payments: { select: { id:true, amount:true, currency:true, paidAt:true, reference:true }, orderBy:{ paidAt:'desc' } } }, orderBy: { createdAt: 'desc' } }),
       db.guest.findMany({ where: { weddingId }, select: { id: true, name: true, email: true }, orderBy: { name: 'asc' } }),
     ])
-    return NextResponse.json({ success: true, weddingId, ...workspace, options: { budgetItems, vendors, engagements, guests } })
+    return NextResponse.json({ success: true, weddingId, ...workspace, permissions: { canEdit: contextHasPermission(access.context, 'budget.edit'), canCreateTasks: contextHasPermission(access.context, 'planner.edit') }, options: { budgetItems, vendors, engagements, guests } })
   } catch (error) {
     return responseForDatabaseError(error)
   }
@@ -42,12 +42,18 @@ export async function POST(request: NextRequest) {
     if (validation) return NextResponse.json({ success: false, error: validation }, { status: 400 })
 
     const type = String(body.type)
+    if (body.currency !== undefined && !isCurrencyCode(body.currency)) return NextResponse.json({ success: false, error: 'Use a three-letter currency code such as USD.' }, { status: 400 })
     const currency = normalizeCurrency(body.currency)
     const amount = finiteNonNegative(body.amount)
     const estimatedValue = finiteNonNegative(body.estimatedValue)
     const quantity = finiteNonNegative(body.quantity)
     const commitmentState = String(body.commitmentState ?? 'NOT_APPLICABLE')
     const fulfillmentState = String(body.fulfillmentState ?? 'PENDING')
+    const requestedVerificationState = String(body.verificationState ?? 'UNVERIFIED')
+    const requestedThankYouState = String(body.thankYouState ?? (['RECEIVED', 'DELIVERED', 'PAID_DIRECT', 'COMPLETED'].includes(fulfillmentState) ? 'TO_THANK' : 'NOT_DUE'))
+    if (!validContributionCommitmentState(commitmentState) || !validContributionFulfillmentState(fulfillmentState) || !validContributionVerificationState(requestedVerificationState) || !validContributionThankYouState(requestedThankYouState)) {
+      return NextResponse.json({ success: false, error: 'Choose valid contribution lifecycle states.' }, { status: 400 })
+    }
     const fulfilled = ['RECEIVED', 'DELIVERED', 'PAID_DIRECT', 'COMPLETED'].includes(fulfillmentState)
     const directPayment = type === 'DIRECT_VENDOR_PAYMENT'
     const inKind = ['GOODS_IN_KIND', 'SERVICE_IN_KIND', 'TIME_LABOUR', 'DISCOUNT_SPONSORSHIP'].includes(type)
@@ -71,11 +77,15 @@ export async function POST(request: NextRequest) {
           const guest = await tx.guest.findFirst({ where: { id: guestId, weddingId }, select: { id: true } })
           if (!guest) guestId = null
         }
+        const contributorKindRaw = String(body.contributor?.kind ?? 'individual').trim().toLowerCase()
+        const contributorKind = ['individual', 'family', 'organisation'].includes(contributorKindRaw) ? contributorKindRaw : 'individual'
+        const preferredContactRaw = String(body.contributor?.preferredContactMethod ?? '').trim().toLowerCase()
+        const preferredContactMethod = ['email', 'phone', 'other'].includes(preferredContactRaw) ? preferredContactRaw : null
         await tx.$executeRaw`
           INSERT INTO wewed_contributions.contributors
-            (id, wedding_id, display_name, legal_name, kind, relationship, email, phone, guest_id)
+            (id, wedding_id, display_name, legal_name, kind, relationship, email, phone, address, preferred_contact_method, public_recognition, anonymous_public, notes, guest_id)
           VALUES
-            (${contributorIdValue}, ${weddingId}, ${displayName}, ${String(body.contributor?.legalName ?? '').trim() || null}, ${String(body.contributor?.kind ?? 'individual')}, ${String(body.contributor?.relationship ?? '').trim() || null}, ${String(body.contributor?.email ?? '').trim().toLowerCase() || null}, ${String(body.contributor?.phone ?? '').trim() || null}, ${guestId})
+            (${contributorIdValue}, ${weddingId}, ${displayName}, ${String(body.contributor?.legalName ?? '').trim() || null}, ${contributorKind}, ${String(body.contributor?.relationship ?? '').trim() || null}, ${String(body.contributor?.email ?? '').trim().toLowerCase() || null}, ${String(body.contributor?.phone ?? '').trim() || null}, ${String(body.contributor?.address ?? '').trim() || null}, ${preferredContactMethod}, ${body.contributor?.publicRecognition === true}, ${body.contributor?.anonymousPublic === true}, ${String(body.contributor?.notes ?? '').trim() || null}, ${guestId})
         `
       }
 
@@ -87,9 +97,11 @@ export async function POST(request: NextRequest) {
            LIMIT 1
         `
         if (!rows[0]) throw new Error('CAMPAIGN_SCOPE')
+        if (rows[0].currency !== currency) throw new Error('CAMPAIGN_CURRENCY_MISMATCH')
       }
 
       const vendorId = typeof body.vendorId === 'string' && body.vendorId ? body.vendorId : null
+      let resolvedVendorId = vendorId
       if (vendorId) {
         const vendor = await tx.vendor.findFirst({ where: { id: vendorId, weddingId }, select: { id: true } })
         if (!vendor) throw new Error('VENDOR_SCOPE')
@@ -100,8 +112,10 @@ export async function POST(request: NextRequest) {
         const engagement = await tx.serviceEngagement.findFirst({ where: { id: serviceEngagementId, weddingId }, select: { id: true, currency: true, vendorId: true } })
         if (!engagement) throw new Error('ENGAGEMENT_SCOPE')
         if (directPayment && engagement.currency !== currency) throw new Error('CURRENCY_MISMATCH')
+        if (vendorId && engagement.vendorId !== vendorId) throw new Error('VENDOR_ENGAGEMENT_MISMATCH')
+        if (directPayment) resolvedVendorId = engagement.vendorId
       }
-      if (directPayment && fulfillmentState === 'PAID_DIRECT' && !serviceEngagementId) throw new Error('DIRECT_PAYMENT_ENGAGEMENT_REQUIRED')
+      if (directPayment && !serviceEngagementId) throw new Error('DIRECT_PAYMENT_ENGAGEMENT_REQUIRED')
 
       const budgetItemId = typeof body.budgetItemId === 'string' && body.budgetItemId ? body.budgetItemId : null
       let budgetItem: { id: string; currency: string; paidAmount: number; serviceEngagementId: string | null } | null = null
@@ -114,12 +128,15 @@ export async function POST(request: NextRequest) {
       }
 
       const route = String(body.route ?? (directPayment ? 'DIRECT_TO_VENDOR' : inKind ? 'IN_KIND_TO_COUPLE' : 'TO_COUPLE'))
-      const thankYouState = String(body.thankYouState ?? (fulfilled ? 'TO_THANK' : 'NOT_DUE'))
-      const verificationState = String(body.verificationState ?? 'UNVERIFIED')
+      const thankYouState = requestedThankYouState
+      const verificationState = requestedVerificationState
       const now = new Date()
       const fulfilledAt = body.fulfilledAt ? new Date(body.fulfilledAt) : fulfilled ? now : null
       const pledgedAt = body.pledgedAt ? new Date(body.pledgedAt) : commitmentState === 'PLEDGED' ? now : null
       const expectedAt = body.expectedAt ? new Date(body.expectedAt) : null
+      if (fulfilledAt && Number.isNaN(fulfilledAt.getTime())) throw new Error('INVALID_FULFILLED_DATE')
+      if (pledgedAt && Number.isNaN(pledgedAt.getTime())) throw new Error('INVALID_PLEDGED_DATE')
+      if (expectedAt && Number.isNaN(expectedAt.getTime())) throw new Error('INVALID_EXPECTED_DATE')
 
       await tx.$executeRaw`
         INSERT INTO wewed_contributions.wedding_contributions
@@ -128,7 +145,7 @@ export async function POST(request: NextRequest) {
            quantity, unit, route, commitment_state, fulfillment_state, verification_state,
            thank_you_state, pledged_at, expected_at, fulfilled_at, notes, source, recorded_by_id)
         VALUES
-          (${contributionIdValue}, ${weddingId}, ${contributorIdValue}, ${campaignId}, ${vendorId}, ${serviceEngagementId},
+          (${contributionIdValue}, ${weddingId}, ${contributorIdValue}, ${campaignId}, ${resolvedVendorId}, ${serviceEngagementId},
            ${type}, ${String(body.title).trim()}, ${String(body.description ?? '').trim() || null}, ${amount}, ${currency}, ${estimatedValue}, ${estimatedValue === null ? null : normalizeCurrency(body.estimatedValueCurrency, currency)},
            ${quantity}, ${String(body.unit ?? '').trim() || null}, ${route}, ${commitmentState}, ${fulfillmentState}, ${verificationState},
            ${thankYouState}, ${pledgedAt}, ${expectedAt}, ${fulfilledAt}, ${String(body.notes ?? '').trim() || null}, ${String(body.source ?? 'planner')}, ${actorId})
@@ -144,6 +161,15 @@ export async function POST(request: NextRequest) {
               (${contributionId()}, ${weddingId}, ${contributionIdValue}, ${budgetItemId}, ${allocatedValue}, ${inKind ? normalizeCurrency(body.estimatedValueCurrency, currency) : currency}, ${inKind ? 'IN_KIND' : 'CASH'}, ${actorId})
           `
         }
+      }
+
+      if (budgetItemId && directPayment && amount && amount > 0) {
+        await tx.$executeRaw`
+          INSERT INTO wewed_contributions.contribution_allocations
+            (id, wedding_id, contribution_id, budget_item_id, amount, currency, allocation_kind, created_by_id)
+          VALUES
+            (${contributionId()}, ${weddingId}, ${contributionIdValue}, ${budgetItemId}, ${amount}, ${currency}, 'DIRECT_PAYMENT', ${actorId})
+        `
       }
 
       if (directPayment && fulfillmentState === 'PAID_DIRECT' && serviceEngagementId && amount && amount > 0) {
@@ -218,13 +244,10 @@ export async function POST(request: NextRequest) {
       await tx.auditEvent.create({
         data: {
           weddingId,
-          eventType: 'contribution.created',
-          actorType: 'user',
-          actorId,
-          targetType: 'WeddingContribution',
-          targetId: contributionIdValue,
-          payload: JSON.stringify({ type, route, commitmentState, fulfillmentState, budgetItemId, serviceEngagementId }),
-          severity: 'info',
+          action: 'contribution.created', actorId,
+          resourceType: 'WeddingContribution',
+          resourceId: contributionIdValue,
+          afterValue: JSON.stringify({ type, route, commitmentState, fulfillmentState, budgetItemId, serviceEngagementId }),
         },
       })
     })
@@ -238,12 +261,17 @@ export async function POST(request: NextRequest) {
       CONTRIBUTOR_SCOPE: 'That contributor does not belong to this wedding.',
       CONTRIBUTOR_REQUIRED: 'Choose or add the person who contributed.',
       CAMPAIGN_SCOPE: 'That campaign does not belong to this wedding.',
+      CAMPAIGN_CURRENCY_MISMATCH: 'The contribution currency must match the campaign currency. Record a separate campaign for another currency.',
       VENDOR_SCOPE: 'That vendor does not belong to this wedding.',
+      VENDOR_ENGAGEMENT_MISMATCH: 'That vendor does not match the selected service engagement.',
       ENGAGEMENT_SCOPE: 'That service engagement does not belong to this wedding.',
       BUDGET_SCOPE: 'That budget item does not belong to this wedding.',
       CURRENCY_MISMATCH: 'The selected records use different currencies. Record them separately or use a governed conversion.',
       BUDGET_ENGAGEMENT_MISMATCH: 'That budget item is linked to a different service engagement.',
-      DIRECT_PAYMENT_ENGAGEMENT_REQUIRED: 'A direct vendor payment must be connected to the vendor service engagement.',
+      DIRECT_PAYMENT_ENGAGEMENT_REQUIRED: 'Direct vendor support must be connected to the vendor service engagement from the pledge onward.',
+      INVALID_FULFILLED_DATE: 'Use a valid fulfilled date.',
+      INVALID_PLEDGED_DATE: 'Use a valid pledged date.',
+      INVALID_EXPECTED_DATE: 'Use a valid expected date.',
       PAYMENT_MATCH_AMBIGUOUS: 'More than one existing vendor payment matches this historical contribution. Add the exact payment reference or reconcile the payment separately.',
       PAYMENT_ALREADY_ATTRIBUTED: 'That vendor payment is already fully attributed to a funding source. Review its funding before adding another contributor.',
     }

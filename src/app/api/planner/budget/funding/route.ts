@@ -19,8 +19,8 @@ export async function GET(request: NextRequest) {
     ])
     const data = items.map((item) => {
       const funding = rows.filter((row) => row.budgetItemId === item.id && row.currency === item.currency)
-      const attributed = funding.reduce((sum, row) => sum + Number(row.amount), 0)
-      return { ...item, funding: funding.map((row) => ({ ...row, amount: Number(row.amount) })), unattributed: Math.max(0, item.paidAmount - attributed) }
+      const classified = funding.filter((row) => row.sourceKind !== 'LEGACY_UNATTRIBUTED').reduce((sum, row) => sum + Number(row.amount), 0)
+      return { ...item, funding: funding.map((row) => ({ ...row, amount: Number(row.amount) })), unattributed: Math.max(0, item.paidAmount - classified) }
     })
     return NextResponse.json({ success: true, data })
   } catch (error) {
@@ -60,6 +60,7 @@ export async function POST(request: NextRequest) {
         SELECT COALESCE(SUM(amount), 0)::text AS total
           FROM wewed_contributions.payment_funding_allocations
          WHERE wedding_id = ${weddingId} AND budget_item_id = ${budgetItemId} AND currency = ${budget.currency}
+           AND source_kind <> 'LEGACY_UNATTRIBUTED'
       `
       const already = Number(totals[0]?.total ?? 0)
       if (already + amount > budget.paidAmount + 0.0001) throw new Error('FUNDING_EXCEEDS_PAID')
@@ -117,13 +118,34 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      const legacyRows = await tx.$queryRaw<Array<{ id:string; amount:string }>>`
+        SELECT id, amount::text AS amount
+          FROM wewed_contributions.payment_funding_allocations
+         WHERE wedding_id = ${weddingId} AND budget_item_id = ${budgetItemId}
+           AND currency = ${budget.currency} AND source_kind = 'LEGACY_UNATTRIBUTED'
+         ORDER BY created_at, id
+         FOR UPDATE
+      `
+      let remainingToReplace = amount
+      for (const row of legacyRows) {
+        if (remainingToReplace <= 0) break
+        const legacyAmount = Number(row.amount)
+        if (remainingToReplace + 0.0001 >= legacyAmount) {
+          await tx.$executeRaw`DELETE FROM wewed_contributions.payment_funding_allocations WHERE id = ${row.id}`
+          remainingToReplace -= legacyAmount
+        } else {
+          await tx.$executeRaw`UPDATE wewed_contributions.payment_funding_allocations SET amount = amount - ${remainingToReplace}, updated_at = NOW() WHERE id = ${row.id}`
+          remainingToReplace = 0
+        }
+      }
+
       await tx.$executeRaw`
         INSERT INTO wewed_contributions.payment_funding_allocations
           (id, wedding_id, budget_item_id, contribution_id, source_kind, amount, currency, note, created_by_id, reconciled_at)
         VALUES
           (${contributionId()}, ${weddingId}, ${budgetItemId}, ${contributionIdValue}, ${sourceKind}, ${amount}, ${budget.currency}, ${String(body.note ?? '').trim() || null}, ${actorId}, NOW())
       `
-      await tx.auditEvent.create({ data: { weddingId, eventType: 'budget.funding_attributed', actorType: 'user', actorId, targetType: 'BudgetItem', targetId: budgetItemId, payload: JSON.stringify({ sourceKind, amount, currency: budget.currency, contributionId: contributionIdValue }), severity: 'info' } })
+      await tx.auditEvent.create({ data: { weddingId, action: 'budget.funding_attributed', actorId, resourceType: 'BudgetItem', resourceId: budgetItemId, afterValue: JSON.stringify({ sourceKind, amount, currency: budget.currency, contributionId: contributionIdValue })} })
     })
     return NextResponse.json({ success: true })
   } catch (error) {

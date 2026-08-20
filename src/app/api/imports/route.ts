@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Unknown module. Valid modules: guests, budget, checklist, seating, vendors, timeline, songs, wedding-party, travel, media.',
+          error: 'Unknown module. Valid modules: guests, budget, checklist, seating, vendors, timeline, songs, wedding-party, travel, media, contributions.',
         },
         { status: 400 },
       )
