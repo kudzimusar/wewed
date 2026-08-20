@@ -13,6 +13,7 @@ function urlBase64ToUint8Array(base64String: string) {
 
 export default function PushNotificationSettingsPage() {
   const [supported, setSupported] = useState(false)
+  const [transportConfigured, setTransportConfigured] = useState(false)
   const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>('unsupported')
   const [subscribed, setSubscribed] = useState(false)
   const [working, setWorking] = useState(true)
@@ -28,11 +29,25 @@ export default function PushNotificationSettingsPage() {
       if (cancelled) return
       setSupported(browserSupported)
       setPermission(browserSupported ? Notification.permission : 'unsupported')
-      if (!browserSupported) {
-        setWorking(false)
-        return
-      }
+
       try {
+        const capabilityResponse = await fetch('/api/notifications/capabilities', {
+          credentials: 'same-origin',
+          cache: 'no-store',
+        })
+        if (capabilityResponse.status === 401) {
+          window.location.href = '/sign-in'
+          return
+        }
+        const capabilityPayload = (await capabilityResponse.json()) as {
+          success?: boolean
+          data?: { push?: { transportConfigured?: boolean } }
+        }
+        if (!cancelled) {
+          setTransportConfigured(Boolean(capabilityPayload.success && capabilityPayload.data?.push?.transportConfigured))
+        }
+
+        if (!browserSupported) return
         const registration = await navigator.serviceWorker.ready
         const existing = await registration.pushManager.getSubscription()
         if (!cancelled) setSubscribed(Boolean(existing))
@@ -47,15 +62,24 @@ export default function PushNotificationSettingsPage() {
 
   async function updatePushPreference(enabled: boolean) {
     const response = await fetch('/api/notifications/preferences', { credentials: 'same-origin', cache: 'no-store' })
-    if (!response.ok) return
+    if (!response.ok) throw new Error('Unable to load notification preferences.')
     const payload = (await response.json()) as { success?: boolean; data?: Record<string, unknown> }
-    if (!payload.success || !payload.data) return
-    await fetch('/api/notifications/preferences', {
+    if (!payload.success || !payload.data) throw new Error('Unable to load notification preferences.')
+    const update = await fetch('/api/notifications/preferences', {
       method: 'PUT',
       credentials: 'same-origin',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ ...payload.data, pushEnabled: enabled }),
+      body: JSON.stringify({
+        ...payload.data,
+        inAppEnabled: true,
+        digestMode: 'none',
+        pushEnabled: enabled,
+      }),
     })
+    const updatePayload = (await update.json()) as { success?: boolean; error?: string }
+    if (!update.ok || !updatePayload.success) {
+      throw new Error(updatePayload.error || 'Unable to update push preference.')
+    }
   }
 
   async function enablePush() {
@@ -63,8 +87,9 @@ export default function PushNotificationSettingsPage() {
     setMessage(null)
     try {
       if (!supported) throw new Error('Push notifications are not supported by this browser.')
+      if (!transportConfigured) throw new Error('Wewed push delivery is not configured in this environment yet.')
       const publicKey = process.env.NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY
-      if (!publicKey) throw new Error('Wewed web push is not configured for this environment yet.')
+      if (!publicKey) throw new Error('Wewed web push subscription is not configured in this environment yet.')
 
       const nextPermission = await Notification.requestPermission()
       setPermission(nextPermission)
@@ -104,16 +129,22 @@ export default function PushNotificationSettingsPage() {
     setWorking(true)
     setMessage(null)
     try {
-      const registration = await navigator.serviceWorker.ready
-      const subscription = await registration.pushManager.getSubscription()
-      if (subscription) {
-        await fetch('/api/notifications/push-subscriptions', {
-          method: 'DELETE',
-          credentials: 'same-origin',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ endpoint: subscription.endpoint }),
-        })
-        await subscription.unsubscribe()
+      if (supported) {
+        const registration = await navigator.serviceWorker.ready
+        const subscription = await registration.pushManager.getSubscription()
+        if (subscription) {
+          const disableResponse = await fetch('/api/notifications/push-subscriptions', {
+            method: 'DELETE',
+            credentials: 'same-origin',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ endpoint: subscription.endpoint }),
+          })
+          const disablePayload = (await disableResponse.json()) as { success?: boolean; error?: string }
+          if (!disableResponse.ok || !disablePayload.success) {
+            throw new Error(disablePayload.error || 'Unable to disable this Wewed push subscription.')
+          }
+          await subscription.unsubscribe()
+        }
       }
       await updatePushPreference(false)
       setSubscribed(false)
@@ -140,13 +171,16 @@ export default function PushNotificationSettingsPage() {
               <div>
                 <p className="text-sm font-bold">{working ? 'Checking this device…' : subscribed ? 'Subscribed' : supported ? 'Not subscribed' : 'Push not supported'}</p>
                 <p className="mt-0.5 text-xs text-[#2a211b]/45">Browser permission: {permission}</p>
+                <p className={`mt-1 text-xs font-semibold ${transportConfigured ? 'text-emerald-700' : 'text-amber-700'}`}>
+                  {transportConfigured ? 'Wewed push transport is configured.' : 'Wewed push transport is not configured in this environment.'}
+                </p>
               </div>
             </div>
           </div>
 
           <div className="mt-6 flex flex-wrap gap-2">
             {!subscribed ? (
-              <button type="button" disabled={working || !supported} onClick={() => void enablePush()} className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[#2a211b] px-5 text-sm font-bold text-[#f8f3e9] disabled:opacity-45"><BellRing className="size-4" /> Enable push</button>
+              <button type="button" disabled={working || !supported || !transportConfigured} onClick={() => void enablePush()} className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[#2a211b] px-5 text-sm font-bold text-[#f8f3e9] disabled:opacity-45"><BellRing className="size-4" /> Enable push</button>
             ) : (
               <button type="button" disabled={working} onClick={() => void disablePush()} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[#2a211b]/20 bg-white px-5 text-sm font-bold disabled:opacity-45">Disable on this device</button>
             )}
