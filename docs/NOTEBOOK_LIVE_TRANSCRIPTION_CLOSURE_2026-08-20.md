@@ -14,7 +14,7 @@ Z.AI exposes OpenAI-compatible audio transcription with `glm-asr-2512`, but its 
 ## Final operating design
 
 1. Keep the original browser WebM recording as the canonical private audio evidence in the existing `wewed-notebook` private bucket.
-2. Resolve an explicit Wewed speech-to-text override first; otherwise reuse the configured private Z.AI credential; use Groq only when it is actually configured and Z.AI is absent.
+2. Resolve an explicit Wewed speech-to-text override first; otherwise reuse the configured private Z.AI credential. Generic Groq fallback is eligible only when it is configured **and** Wewed's existing `AI_ALLOW_PRIVATE_FALLBACK=true` policy explicitly permits private-data fallback.
 3. For Z.AI, capture microphone PCM alongside the preserved WebM and encode bounded WAV chunks during the meeting.
 4. Transcribe each short WAV chunk server-side through the authenticated Notebook API. The browser never receives provider credentials.
 5. Assemble chunk results in sequence and attach the combined transcript to the preserved recording after upload.
