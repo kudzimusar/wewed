@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { encodeMonoPcm16Wav, notebookLiveChunkSampleLimit } from '@/lib/notebook/browser-audio'
 
@@ -70,6 +70,7 @@ class LiveNotebookCapture {
   private jobs: Promise<void>[] = []
   private failure: string | null = null
   private finished = false
+  private finishPromise: Promise<LiveResult> | null = null
 
   constructor(noteId: string, stream: MediaStream, originalFetch: typeof window.fetch) {
     this.noteId = noteId
@@ -162,13 +163,8 @@ class LiveNotebookCapture {
   }
 
   finish(): Promise<LiveResult> {
-    if (this.finished) {
-      return Promise.resolve({
-        text: Array.from(this.segments.values()).sort((a, b) => a.sequence - b.sequence).map((segment) => segment.text).join('\n').trim(),
-        segments: Array.from(this.segments.values()).sort((a, b) => a.sequence - b.sequence),
-        failure: this.failure,
-      })
-    }
+    if (this.finishPromise) return this.finishPromise
+
     this.finished = true
     if (this.processor) this.processor.onaudioprocess = null
     this.flush(true)
@@ -182,7 +178,7 @@ class LiveNotebookCapture {
     this.audioContext = null
     if (context) void context.close().catch(() => undefined)
 
-    return Promise.allSettled(this.jobs).then(() => {
+    this.finishPromise = Promise.allSettled(this.jobs).then(() => {
       const segments = Array.from(this.segments.values()).sort((a, b) => a.sequence - b.sequence)
       return {
         text: segments.map((segment) => segment.text).join('\n').trim(),
@@ -190,6 +186,7 @@ class LiveNotebookCapture {
         failure: this.failure,
       }
     })
+    return this.finishPromise
   }
 }
 
@@ -198,7 +195,7 @@ export function NotebookLiveTranscriptionBridge({ mode }: { mode: NotebookTransc
   const pendingRef = useRef(new Map<string, Promise<LiveResult>>())
   const captureRef = useRef<LiveNotebookCapture | null>(null)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (mode !== 'live-chunks') return
     if (typeof window.MediaRecorder === 'undefined') return
 
