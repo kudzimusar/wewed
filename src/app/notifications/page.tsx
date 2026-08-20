@@ -66,13 +66,22 @@ function isResolved(item: NotificationItem) {
   return ['resolved', 'cancelled', 'expired'].includes(item.state)
 }
 
+function isDeferred(item: NotificationItem) {
+  return item.state === 'scheduled' || item.state === 'queued'
+}
+
 function matchesAttentionFilter(item: NotificationItem, filter: AttentionFilter) {
   if (filter === 'all') return true
   if (filter === 'resolved') return isResolved(item)
   if (isResolved(item)) return false
-  if (filter === 'needs_action') return item.requiresAction || item.severity === 'action_required' || item.severity === 'urgent'
-  if (filter === 'upcoming') return item.state === 'scheduled' || Boolean(item.snoozedUntil || item.scheduledFor)
-  return !item.requiresAction && item.state !== 'scheduled'
+  if (filter === 'needs_action') {
+    if (isDeferred(item)) return false
+    return item.requiresAction || item.severity === 'action_required' || item.severity === 'urgent'
+  }
+  if (filter === 'upcoming') {
+    return isDeferred(item) || Boolean(item.snoozedUntil || item.scheduledFor)
+  }
+  return !isDeferred(item) && !item.requiresAction
 }
 
 function formatTimestamp(value: string | null) {
@@ -247,7 +256,8 @@ export default function NotificationCenterPage() {
           <div className="mt-6 grid gap-3">
             {visibleItems.map((item) => {
               const busy = workingId === item.id
-              const unread = !item.readAt && !isResolved(item)
+              const deferred = isDeferred(item)
+              const unread = item.state === 'active' && !item.readAt
               const when = item.snoozedUntil || item.scheduledFor || item.createdAt
               return (
                 <article
@@ -264,9 +274,9 @@ export default function NotificationCenterPage() {
                         <span className={item.severity === 'urgent' || item.severity === 'action_required' ? 'text-amber-300' : 'text-[#f5ead7]/45'}>
                           {severityLabel(item.severity)}
                         </span>
-                        {item.state === 'scheduled' && (
+                        {deferred && (
                           <span className="inline-flex items-center gap-1 rounded-full bg-[#bf9b5f]/10 px-2 py-1 text-[#bf9b5f]">
-                            <Clock3 className="size-3" /> Snoozed
+                            <Clock3 className="size-3" /> {item.snoozedUntil ? 'Snoozed' : 'Scheduled'}
                           </span>
                         )}
                       </div>
@@ -289,16 +299,18 @@ export default function NotificationCenterPage() {
 
                   {!isResolved(item) && (
                     <div className="mt-4 flex flex-wrap gap-2 border-t border-[#bf9b5f]/10 pt-4">
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => void act(item, unread ? 'read' : 'unread')}
-                        className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[#bf9b5f]/20 px-3 text-xs text-[#f5ead7]/65 hover:bg-[#bf9b5f]/10 hover:text-[#bf9b5f] disabled:opacity-50"
-                      >
-                        {unread ? <Check className="size-3.5" /> : <RotateCcw className="size-3.5" />}
-                        {unread ? 'Mark read' : 'Mark unread'}
-                      </button>
-                      {item.requiresAction && item.state !== 'acknowledged' && (
+                      {!deferred && (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void act(item, unread ? 'read' : 'unread')}
+                          className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[#bf9b5f]/20 px-3 text-xs text-[#f5ead7]/65 hover:bg-[#bf9b5f]/10 hover:text-[#bf9b5f] disabled:opacity-50"
+                        >
+                          {unread ? <Check className="size-3.5" /> : <RotateCcw className="size-3.5" />}
+                          {unread ? 'Mark read' : 'Mark unread'}
+                        </button>
+                      )}
+                      {!deferred && item.requiresAction && item.state !== 'acknowledged' && (
                         <button
                           type="button"
                           disabled={busy}
