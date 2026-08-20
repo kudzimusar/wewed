@@ -417,52 +417,117 @@ export async function listCalendarItemsForSession(
         })
       }
     }
-  } else if (include('engagement')) {
-    const idsOffset = 1
-    const rows = await db.$queryRawUnsafe<
-      Array<{
-        id: string
-        weddingId: string
-        serviceCategory: string
-        serviceDescription: string | null
-        serviceDate: Date
-        serviceLocation: string | null
-        lifecycleStatus: string
-      }>
-    >(
-      `
-        SELECT DISTINCT se.id, se."weddingId", se."serviceCategory", se."serviceDescription",
-               se."serviceDate", se."serviceLocation", se."lifecycleStatus"
-        FROM public."ServiceEngagement" se
-        JOIN public."EngagementParty" ep
-          ON ep."serviceEngagementId" = se.id AND ep."weddingId" = se."weddingId"
-        WHERE ep."userId" = $1
-          AND ep.status = 'active'
-          AND se."weddingId" IN (${placeholders(weddingIds.length, idsOffset)})
-          AND se."serviceDate" IS NOT NULL
-      `,
-      principal.userId,
-      ...weddingIds,
-    )
+  } else {
+    if (include('engagement')) {
+      const idsOffset = 1
+      const rows = await db.$queryRawUnsafe<
+        Array<{
+          id: string
+          weddingId: string
+          serviceCategory: string
+          serviceDescription: string | null
+          serviceDate: Date
+          serviceLocation: string | null
+          lifecycleStatus: string
+        }>
+      >(
+        `
+          SELECT DISTINCT se.id, se."weddingId", se."serviceCategory", se."serviceDescription",
+                 se."serviceDate", se."serviceLocation", se."lifecycleStatus"
+          FROM public."ServiceEngagement" se
+          JOIN public."EngagementParty" ep
+            ON ep."serviceEngagementId" = se.id AND ep."weddingId" = se."weddingId"
+          WHERE ep."userId" = $1
+            AND ep.status = 'active'
+            AND se."weddingId" IN (${placeholders(weddingIds.length, idsOffset)})
+            AND se."serviceDate" IS NOT NULL
+        `,
+        principal.userId,
+        ...weddingIds,
+      )
 
-    for (const row of rows) {
-      push({
-        id: `engagement:${row.id}:service`,
-        sourceType: 'service_engagement',
-        sourceId: row.id,
-        weddingId: row.weddingId,
-        weddingTitle: titleByWedding.get(row.weddingId) ?? null,
-        title: row.serviceDescription || row.serviceCategory,
-        description: row.serviceLocation,
-        startAt: row.serviceDate,
-        endAt: null,
-        allDay: false,
-        category: 'engagement',
-        status: row.lifecycleStatus,
-        priority: 'important',
-        deepLink: sourceLink(principal.role, 'engagement'),
-        metadata: { serviceCategory: row.serviceCategory },
-      })
+      for (const row of rows) {
+        push({
+          id: `engagement:${row.id}:service`,
+          sourceType: 'service_engagement',
+          sourceId: row.id,
+          weddingId: row.weddingId,
+          weddingTitle: titleByWedding.get(row.weddingId) ?? null,
+          title: row.serviceDescription || row.serviceCategory,
+          description: row.serviceLocation,
+          startAt: row.serviceDate,
+          endAt: null,
+          allDay: false,
+          category: 'engagement',
+          status: row.lifecycleStatus,
+          priority: 'important',
+          deepLink: sourceLink(principal.role, 'engagement'),
+          metadata: { serviceCategory: row.serviceCategory },
+        })
+      }
+    }
+
+    if (include('contract')) {
+      const idsOffset = 1
+      const rows = await db.$queryRawUnsafe<
+        Array<{
+          id: string
+          contractId: string
+          contractVersionId: string
+          weddingId: string
+          contractNumber: string
+          title: string
+          partyRole: string
+          expiresAt: Date
+          status: string
+        }>
+      >(
+        `
+          SELECT crg.id, crg."contractId", crg."contractVersionId", c."weddingId",
+                 c."contractNumber", c.title, ep."partyRole", crg."expiresAt", crg.status
+          FROM public."ContractReviewGrant" crg
+          JOIN public."Contract" c ON c.id = crg."contractId"
+          JOIN public."ContractVersion" cv
+            ON cv.id = crg."contractVersionId" AND cv."contractId" = crg."contractId"
+          JOIN public."EngagementParty" ep ON ep.id = crg."engagementPartyId"
+          WHERE ep."userId" = $1
+            AND ep.status = 'active'
+            AND crg.status = 'ACTIVE'
+            AND crg."revokedAt" IS NULL
+            AND crg."expiresAt" > CURRENT_TIMESTAMP
+            AND cv.status IN ('ISSUED', 'AWAITING_ACCEPTANCE', 'PARTIALLY_ACCEPTED')
+            AND c."weddingId" IN (${placeholders(weddingIds.length, idsOffset)})
+          ORDER BY crg."expiresAt" ASC
+          LIMIT 100
+        `,
+        principal.userId,
+        ...weddingIds,
+      )
+
+      for (const row of rows) {
+        push({
+          id: `contract-review-grant:${row.id}:expires`,
+          sourceType: 'contract_review_grant',
+          sourceId: row.id,
+          weddingId: row.weddingId,
+          weddingTitle: titleByWedding.get(row.weddingId) ?? null,
+          title: `Contract review link expires: ${row.title}`,
+          description: `Authorized review access for ${row.contractNumber} expires at this time.`,
+          startAt: row.expiresAt,
+          endAt: null,
+          allDay: false,
+          category: 'contract',
+          status: row.status,
+          priority: 'important',
+          deepLink: sourceLink(principal.role, 'contract'),
+          metadata: {
+            contractId: row.contractId,
+            contractVersionId: row.contractVersionId,
+            contractNumber: row.contractNumber,
+            partyRole: row.partyRole,
+          },
+        })
+      }
     }
   }
 
