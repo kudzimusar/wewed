@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
+import { refreshPlannerWorksheet } from '@/lib/planner-workspace-events'
 import { CONTRIBUTION_CAMPAIGN_TYPE_LABELS, CONTRIBUTION_TYPE_LABELS } from '@/lib/contributions'
 
 type ContributionType = keyof typeof CONTRIBUTION_TYPE_LABELS
@@ -93,8 +94,8 @@ export function PlannerContributionsWorkspace({ embedded = false }: { embedded?:
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase()
     return (workspace?.data ?? []).filter((item) => {
-      if (filter === 'pledged' && !(item.commitmentState === 'PLEDGED' && item.fulfillmentState === 'PENDING')) return false
-      if (filter === 'received' && !['RECEIVED','DELIVERED','PAID_DIRECT','COMPLETED'].includes(item.fulfillmentState)) return false
+      if (filter === 'pledged' && !(item.commitmentState === 'PLEDGED' && ['PENDING','PARTIALLY_RECEIVED'].includes(item.fulfillmentState))) return false
+      if (filter === 'received' && !['RECEIVED','DELIVERED','PARTIALLY_RECEIVED','PAID_DIRECT','COMPLETED'].includes(item.fulfillmentState)) return false
       if (filter === 'direct' && item.type !== 'DIRECT_VENDOR_PAYMENT') return false
       if (filter === 'in-kind' && !['GOODS_IN_KIND','SERVICE_IN_KIND','TIME_LABOUR','DISCOUNT_SPONSORSHIP'].includes(item.type)) return false
       if (filter === 'thank' && !['TO_THANK','PREPARED'].includes(item.thankYouState)) return false
@@ -111,6 +112,7 @@ export function PlannerContributionsWorkspace({ embedded = false }: { embedded?:
       const body = await response.json()
       if (!response.ok || body.success === false) throw new Error(body.error || 'The change could not be saved.')
       await load(false)
+      refreshPlannerWorksheet()
       return true
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : 'The change could not be saved.'

@@ -161,6 +161,7 @@ describe('Contributions canonical source contract', () => {
     expect(ui).toContain('Record amount paid')
     expect(ui).toContain('To pay vendor directly')
     expect(ui).toContain('Part-paid vendor directly')
+    expect(ui).toContain('refreshPlannerWorksheet()')
   })
 
   test('Campaign creation validates target amount and boolean governance fields', () => {

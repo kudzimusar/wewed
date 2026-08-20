@@ -38,6 +38,8 @@ describe('Contributions partial-payment UAT accounting', () => {
   test('UI and Budget distinguish promise, paid and remaining', () => {
     expect(workspace).toContain("return 'To pay vendor directly'")
     expect(workspace).toContain('Part-paid vendor directly')
+    expect(workspace).toContain('refreshPlannerWorksheet()')
+    expect(workspace).toContain("['PENDING','PARTIALLY_RECEIVED'].includes(item.fulfillmentState)")
     expect(workspace).toContain('directVendorPaidAmount')
     expect(workspace).toContain('remainingAmount')
     expect(budget).toContain('Linked contribution:')
