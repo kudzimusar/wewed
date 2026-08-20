@@ -490,7 +490,8 @@ async function seedContractReviewExpiryNotifications(now: Date, stats: Scheduler
         AND cv.status IN ('ISSUED', 'AWAITING_ACCEPTANCE', 'PARTIALLY_ACCEPTED')
         AND ep."userId" IS NOT NULL
         AND ep.status = 'active'
-        AND ep."partyRole" IN ('SERVICE_PROVIDER', 'AUTHORIZED_REPRESENTATIVE')
+        AND ep."partyRole" = 'SERVICE_PROVIDER'
+        AND ep."partyKind" = 'VENDOR'
       ORDER BY crg."expiresAt" ASC
       LIMIT 100
     `,
