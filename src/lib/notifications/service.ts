@@ -130,6 +130,34 @@ async function assertWeddingRecipientAccess(
     if (partyRows[0]) return
   }
 
+  if (
+    sourceType === 'contract_review_grant' &&
+    sourceId &&
+    category === 'contract'
+  ) {
+    const grantRows = await db.$queryRawUnsafe<Array<{ allowed: number }>>(
+      `
+        SELECT 1 AS allowed
+        FROM public."ContractReviewGrant" crg
+        JOIN public."Contract" c ON c.id = crg."contractId"
+        JOIN public."EngagementParty" ep ON ep.id = crg."engagementPartyId"
+        WHERE crg.id = $3
+          AND c."weddingId" = $2
+          AND ep."weddingId" = $2
+          AND ep."userId" = $1
+          AND ep.status = 'active'
+          AND crg.status = 'ACTIVE'
+          AND crg."revokedAt" IS NULL
+          AND crg."expiresAt" > CURRENT_TIMESTAMP
+        LIMIT 1
+      `,
+      recipientUserId,
+      weddingId,
+      sourceId,
+    )
+    if (grantRows[0]) return
+  }
+
   throw new NotificationAccessError(
     'The recipient does not have active access to the notification source.',
   )
