@@ -1,10 +1,12 @@
 # Wewed System Notifications, Calendar, Reminders & Attention Plan
 
-**Status:** AUTHORITATIVE — active implementation record  
+**Status:** AUTHORITATIVE — active implementation and certification record  
 **Branch:** `feature/system-notifications-attention`  
+**Qualification PR:** #172 (draft; DO NOT MERGE until this plan records final certification)  
 **Initial baseline:** `main` at `713e0a59277cdb8629a1a1d2e662c38ada6c3a26`  
 **Current reconciliation:** current `main` `657d4a7f3be9e2148167ec4cfcb2ea401c62b73d` was merged into this feature workstream through PR #171; feature reconciliation head `4ac7a410…`.  
-**Rule:** Every change in this workstream must map to this document. A phase is not complete merely because code exists: implementation, exact-head build/test, database rollout and cross-role UAT are recorded separately.
+**Current certification work:** Vendor source-party parity and Stage 10 release-gate repair are in progress after qualification exposed a server-only test import seam.  
+**Rule:** Every change in this workstream must map to this document. A phase is not complete merely because code exists: implementation, exact-head build/test, database qualification and cross-role UAT are recorded separately.
 
 ## 1. Correct product scope
 
@@ -139,9 +141,9 @@ Only their own active wedding membership and permitted collaboration data are pr
 
 ### Vendor
 
-Vendor access is source-party based, not "same wedding" based. Current calendar projection requires an active `EngagementParty` link to the `ServiceEngagement`.
+Vendor access is source-party based, not "same wedding" based. Notification Center, Calendar and Scheduler must all require the same source-party identity: an active `EngagementParty` with `partyRole='SERVICE_PROVIDER'`, `partyKind='VENDOR'`, the mapped Vendor `userId`, and the exact `ServiceEngagement` or review grant being projected.
 
-**Contract authorization decision (2026-08-20):** generic `Contract.issuedAt` and `Contract.closedAt` are lifecycle timestamps, not actionable deadlines, so they must not be invented as reminder dates. The first deterministic Vendor contract path is `ContractReviewGrant.expiresAt`, because a review grant is tied to one `EngagementParty`. A Vendor recipient is valid only when that exact party has a `userId`, the grant is not revoked, and the grant has not already expired at projection time. Business-only parties with no mapped user remain fail-closed.
+**Contract authorization decision (2026-08-20):** generic `Contract.issuedAt` and `Contract.closedAt` are lifecycle timestamps, not actionable deadlines, so they must not be invented as reminder dates. The first deterministic Vendor contract path is `ContractReviewGrant.expiresAt`, because a review grant is tied to one `EngagementParty`. A Vendor recipient is valid only when that exact service-provider Vendor party has a `userId`, the grant is active/not revoked, the version remains reviewable and the grant has not already expired at projection time. Business-only parties with no mapped user remain fail-closed.
 
 **Guardrail:** broader financial/contract notification delivery to Vendors remains disabled until each source exposes its own deterministic Vendor-party authorization path. Do not infer Vendor access from the existence of another engagement in the same wedding.
 
@@ -173,7 +175,7 @@ Rules:
 
 ### Phase 1 — Core notification/reminder foundation
 
-**Status: IMPLEMENTED; EXACT-HEAD TEST + DATABASE UAT PENDING**
+**Status: IMPLEMENTED; DATABASE CONTRACT PROVEN; FINAL EXACT-HEAD CERTIFICATION IN PROGRESS**
 
 - [x] Add additive SQL storage for `Notification`, `Reminder`, `NotificationPreference`, `NotificationDeliveryAttempt`.
 - [x] Add safe indexes/FKs/check constraints and per-recipient dedupe keys.
@@ -181,10 +183,11 @@ Rules:
 - [x] Add authorization-safe notification service primitives.
 - [x] Add idempotent create/read/unread/acknowledge/resolve/snooze primitives.
 - [x] Add lifecycle and fail-closed visibility unit tests.
-- [ ] Apply migrations to an approved test/preview database and run integration tests.
-- [ ] Run exact-head full repository test matrix before declaring the phase closed.
+- [x] Add matching Prisma models/relations so migration/schema parity is enforced by repository CI.
+- [x] Apply migrations to clean PostgreSQL in PR qualification and run the existing database integration suite, including Vendor review-attention and dedupe proof.
+- [ ] Run the full exact-head repository matrix after the final Vendor parity/test-seam commits and record the passing head.
 
-**Storage note:** existing Wewed governed-access code already uses typed raw SQL for authorization-sensitive tables. This foundation follows that pattern rather than blocking on a destructive full Prisma-schema rewrite. Prisma schema parity can be added later if repository schema ownership is standardized; the migrations are the current database contract.
+**Storage note:** authorization-sensitive runtime code may continue using typed raw SQL where appropriate, but the Prisma schema now mirrors the attention tables because the repository's `prisma migrate diff --exit-code` gate requires schema/migration parity.
 
 ### Phase 2 — In-app API + Notification Center
 
@@ -198,11 +201,12 @@ Rules:
 - [x] shared `/notifications` UI.
 - [x] shared bell/unread indicator in authenticated workspace navigation.
 - [x] Planner shell bell.
+- [x] Vendor notification reads re-check exact source-party authorization, not only wedding participation.
 - [ ] Admin/Planner/Couple/Vendor UAT against migrated preview data.
 
 ### Phase 3 — Unified Calendar
 
-**Status: CORE IMPLEMENTED; CONTRACT REVIEW-EXPIRY ADAPTER IN PROGRESS; EXPANSION + UAT PENDING**
+**Status: CORE + CONTRACT REVIEW ADAPTER IMPLEMENTED; FINAL EXACT-HEAD UAT PENDING**
 
 - [x] Shared calendar projection contract.
 - [x] Project canonical records rather than copy them.
@@ -212,14 +216,14 @@ Rules:
 - [x] RSVP deadline.
 - [x] Wedding date.
 - [x] Programme/timeline projection with conservative time parsing.
-- [x] Vendor projection restricted to own active EngagementParty records.
+- [x] Vendor projection restricted to exact active `SERVICE_PROVIDER` / `VENDOR` EngagementParty records.
 - [x] Admin projection restricted to own scheduled admin/system attention.
 - [x] category/date/wedding filtering at API layer.
 - [x] source deep links.
 - [x] month and agenda views.
 - [x] Prove first safe contract date/party source: `ContractReviewGrant.expiresAt` + exact `EngagementParty`.
-- [ ] Project authorized contract review-grant expiry without treating `issuedAt`/`closedAt` as deadlines.
-- [ ] week and day visual views.
+- [x] Project authorized contract review-grant expiry without treating `issuedAt`/`closedAt` as deadlines.
+- [ ] week and day visual views (enhancement; not a core certification blocker while month + agenda cover all events).
 - [ ] standalone calendar event model only if a real no-source-record use case is approved.
 - [ ] appointment/contribution adapters when source fields are proven.
 - [ ] cross-role UAT.
@@ -228,7 +232,7 @@ Rules:
 
 ### Phase 4 — Reminder scheduler and source adapters
 
-**Status: CORE IMPLEMENTED; CONTRACT REVIEW-EXPIRY ADAPTER IN PROGRESS; LEGACY ADAPTER + UAT PENDING**
+**Status: CORE + CONTRACT REVIEW ADAPTER IMPLEMENTED; FINAL EXACT-HEAD UAT PENDING**
 
 - [x] Separate system reminder cron protected by `CRON_SECRET`.
 - [x] one-shot snooze wake-up.
@@ -236,16 +240,16 @@ Rules:
 - [x] task due-soon/overdue adapter.
 - [x] financial due/overdue adapter for BudgetItem.
 - [x] RSVP 7-day adapter.
-- [x] ServiceEngagement 24-hour adapter for planning recipients and engagement parties.
+- [x] ServiceEngagement 24-hour adapter for planning recipients and exact `SERVICE_PROVIDER` / `VENDOR` parties.
 - [x] Admin delivery-failure adapter.
 - [x] task/payment/engagement source completion auto-resolution.
 - [x] dedupe keys on generated notifications.
 - [x] Prove `ContractReviewGrant.expiresAt` as the only current deterministic contract-reminder date with exact engagement-party authorization.
-- [ ] Add contract review-expiry reminder only for the exact mapped Vendor user; keep generic contract notifications fail-closed.
-- [ ] legacy Planner RSVP adapter/migration (legacy flow intentionally remains intact now).
-- [ ] enforce user quiet-hour/timezone policy in channel scheduling.
-- [ ] write scheduler actions into the broader audit-event layer.
-- [ ] integration/UAT proving repeated cron execution does not spam.
+- [x] Add contract review-expiry reminder only for the exact mapped Vendor service-provider user; generic contract notifications remain fail-closed.
+- [ ] legacy Planner RSVP adapter/migration (legacy flow intentionally remains intact; regression parity is the release requirement).
+- [ ] enforce user quiet-hour/timezone policy in external-channel scheduling before external delivery is enabled.
+- [ ] write scheduler actions into the broader audit-event layer (observability enhancement; database notification/delivery records remain authoritative for core release).
+- [ ] integration/UAT proving repeated cron execution does not spam on the final exact head.
 
 ### Phase 5 — Today / role-aware attention dashboards
 
@@ -276,7 +280,7 @@ Rules:
 
 ### Phase 7 — Push, badges and multi-channel delivery
 
-**Status: IN PROGRESS**
+**Status: FOUNDATION IMPLEMENTED; EXTERNAL DELIVERY NOT YET CERTIFIED**
 
 - [x] global user notification preference storage/API.
 - [x] channel intent flags, timezone, quiet hours and digest preference UI.
@@ -291,11 +295,11 @@ Rules:
 - [ ] enforce quiet hours/channel preferences during delivery.
 - [ ] delivery retry/failure policy.
 
-**Important:** checking `pushEnabled` does not itself prove a device is subscribed; device subscription is tracked separately. Push cannot be considered production-ready until the sender and delivery-attempt path exist.
+**Release rule:** in-app Notification Center/Calendar/Today can certify independently. Push/email/WhatsApp must remain visibly disabled/beta unless a real sender/router plus delivery-attempt observability passes its own qualification. Checking `pushEnabled` does not itself prove a device is subscribed.
 
 ### Phase 8 — Digests and advanced automation
 
-**Status: NOT STARTED**
+**Status: DEFERRED FROM CORE CERTIFICATION; NOT STARTED**
 
 - [ ] recurring reminders.
 - [ ] `repeat until condition complete`.
@@ -322,8 +326,8 @@ Wewed remains canonical for wedding business records in all cases.
 | --- | --- | --- | --- | --- |
 | Task | support only when explicitly authorized | yes | permitted wedding | not enabled until task-party rule exists |
 | Budget/payment | operational/support only | yes | permitted wedding | not enabled until vendor-payment source authorization exists |
-| Service engagement | support only when explicitly authorized | yes | permitted wedding | own active engagement only |
-| Contract | support/governance | party/manager | party | only exact active review grant tied to own `EngagementParty.userId`; broader contract delivery remains fail-closed |
+| Service engagement | support only when explicitly authorized | yes | permitted wedding | exact active `SERVICE_PROVIDER`/`VENDOR` engagement only |
+| Contract | support/governance | party/manager | party | only exact active review grant tied to own service-provider `EngagementParty.userId`; broader contract delivery remains fail-closed |
 | RSVP/guest deadline | support only when authorized | yes | yes | no |
 | Programme/timeline | support only when authorized | yes | yes | no general projection; own engagement dates only |
 | Messages/communications | own/support boundary | own threads | own threads | own threads |
@@ -344,6 +348,7 @@ Negative tests are mandatory:
 - Vendor cannot see unrelated or overall wedding budget notification/calendar data.
 - Vendor cannot see another Vendor's engagement.
 - Vendor cannot see another Vendor's contract review grant or a contract merely because both Vendors participate in the same wedding.
+- `AUTHORIZED_REPRESENTATIVE` or other non-`SERVICE_PROVIDER` parties do not inherit Vendor calendar/reminder authority merely because they have a `userId`.
 - Business-only contract review parties with no mapped Vendor user do not produce a Vendor notification recipient.
 - Couple cannot see Admin operational notifications.
 - Planner cannot see another Planner's wedding without active authority.
@@ -368,7 +373,7 @@ Negative tests are mandatory:
 - merge current `main` into this feature workstream whenever material drift would invalidate exact-head/regression assumptions;
 - no production merge/deployment merely because a preview build is READY.
 
-## 11. Implementation log
+## 11. Implementation and certification log
 
 - **2026-08-20 — Baseline:** branch created from `main` `713e0a59277cdb8629a1a1d2e662c38ada6c3a26`; plan committed before feature code.
 - **2026-08-20 — Legacy discovery:** existing Planner RSVP/Resend reminder path documented and preserved.
@@ -379,8 +384,12 @@ Negative tests are mandatory:
 - **2026-08-20 — Today/widgets:** shared role-aware Today read model/UI and desktop workspace widget added.
 - **2026-08-20 — Push foundation:** preferences, PushSubscription storage/API, contextual enrollment, service-worker push handling and app badging added. Sender/provider delivery remains deliberately incomplete.
 - **2026-08-20 — Main reconciliation:** the feature branch had drifted 55 commits behind `main`; PR #171 merged current `main` `657d4a7f3be9e2148167ec4cfcb2ea401c62b73d` into the feature workstream at merge head `4ac7a410…`. This was not a production/main merge.
-- **2026-08-20 — Contract source decision:** schema review proved `ContractReviewGrant.expiresAt` + exact `EngagementParty` as a deterministic Vendor contract-review date/party path. `Contract.issuedAt` and `Contract.closedAt` remain lifecycle timestamps and are not treated as reminder deadlines.
-- **Validation:** multiple intermediate Vercel previews have reached READY. The exact final head still requires validation after all changes in this workstream are committed.
+- **2026-08-20 — Contract source decision:** schema review proved `ContractReviewGrant.expiresAt` + exact service-provider Vendor `EngagementParty` as a deterministic Vendor contract-review date/party path. `Contract.issuedAt` and `Contract.closedAt` remain lifecycle timestamps and are not treated as reminder deadlines.
+- **2026-08-20 — Database qualification:** PR #172 clean PostgreSQL migration application, migration status, Prisma schema diff and Phase 2 contract/Vendor-attention integration all passed before the central gate reached application tests.
+- **2026-08-20 — Prisma parity correction:** qualification correctly rejected attention tables that were migration-only; matching Prisma models and relations were added, and the subsequent clean-PostgreSQL schema-diff gate passed.
+- **2026-08-20 — Vendor exact-source hardening:** Notification reads/creates were narrowed to exact `SERVICE_PROVIDER` + `VENDOR` source parties; Calendar and Scheduler queries were brought to the same party-role/kind rule so same-wedding participation cannot authorize another Vendor's source.
+- **2026-08-20 — Stage 10 qualification repair:** the central CI exposed that a pure visibility test imported a server-only runtime service. Visibility predicates were extracted to `src/lib/notifications/visibility.ts`; runtime and release-gate tests now share the same server-independent authorization contract. Final exact-head rerun is pending.
+- **Validation:** multiple intermediate Vercel previews reached READY. The exact final head still requires validation after all certification changes are committed.
 - **Production:** no database migration, feature-to-main merge or production rollout has been performed by this workstream.
 
 ## 12. Workstream definition of done
@@ -389,9 +398,27 @@ Core workstream cannot be called done until:
 
 - Admin, Planner, Couple and Vendor have passed positive and negative access UAT;
 - database migrations are proven on the approved non-production/test path before production;
-- exact branch head passes build/tests;
+- exact branch head passes the complete mandatory repository build/test matrix with no mandatory skipped failures;
 - Notification Center, Calendar, Today and widget counts/state agree;
 - scheduler dedupe and source auto-resolution are proven with real test records;
 - legacy RSVP reminder behavior is regression-tested;
-- push, if enabled for release, has a real sender + delivery-attempt observability; otherwise it remains explicitly beta/deferred;
-- this document records the exact release head, UAT evidence and any deferred Phase 8/9 items before merge.
+- push, if enabled for release, has a real sender + delivery-attempt observability; otherwise it remains explicitly disabled/beta and is not represented as production-ready;
+- this document records the exact release head, UAT evidence and any deferred Phase 7/8/9 items before merge.
+
+## 13. Final certification protocol
+
+The final candidate is frozen only after all code required for core certification is committed. Certification must then use that exact SHA for:
+
+1. clean PostgreSQL migration deploy + schema diff;
+2. complete repository CI/release matrix;
+3. Vercel preview provenance/READY build;
+4. Admin positive + negative authority UAT;
+5. Planner positive + negative wedding-scope UAT;
+6. Couple positive + negative private/admin boundary UAT;
+7. Vendor exact-engagement + exact-review-grant positive UAT and same-wedding cross-vendor negative UAT;
+8. Notification lifecycle proof: unread/read/acknowledge/resolve/snooze without source-date mutation;
+9. scheduler replay/dedupe and source-completion auto-resolution;
+10. legacy Planner RSVP reminder regression;
+11. independent re-check of the consequential authorization claims before the PR can leave draft state.
+
+A strong preview build cannot compensate for a failed authorization or database gate. A green unit suite cannot compensate for missing cross-role UAT. No production rollout is authorized merely by recording core certification PASS.
