@@ -44,6 +44,10 @@ const VENDOR_ALLOWED_CATEGORIES = new Set([
   'system',
 ])
 
+function vendorSourceAccessKey(sourceType: string, sourceId: string, weddingId: string) {
+  return `${sourceType}:${sourceId}:${weddingId}`
+}
+
 export function isNotificationVisibleToPrincipal(
   notification: Pick<NotificationRecord, 'recipientUserId' | 'weddingId' | 'category' | 'sourceType'>,
   principalUserId: string,
@@ -62,6 +66,68 @@ export function isNotificationVisibleToPrincipal(
   return accessibleWeddingIds.has(notification.weddingId)
 }
 
+export function isVendorNotificationSourceAuthorized(
+  notification: Pick<NotificationRecord, 'weddingId' | 'category' | 'sourceType' | 'sourceId'>,
+  sourceAccessKeys: ReadonlySet<string>,
+): boolean {
+  if (!notification.weddingId) return true
+
+  if (notification.category === 'engagement' || notification.sourceType === 'service_engagement') {
+    if (notification.sourceType !== 'service_engagement' || !notification.sourceId) return false
+    return sourceAccessKeys.has(
+      vendorSourceAccessKey('service_engagement', notification.sourceId, notification.weddingId),
+    )
+  }
+
+  if (notification.category === 'contract' || notification.sourceType === 'contract_review_grant') {
+    if (notification.sourceType !== 'contract_review_grant' || !notification.sourceId) return false
+    return sourceAccessKeys.has(
+      vendorSourceAccessKey('contract_review_grant', notification.sourceId, notification.weddingId),
+    )
+  }
+
+  return true
+}
+
+async function vendorSourceAccessKeys(userId: string): Promise<Set<string>> {
+  const rows = await db.$queryRawUnsafe<
+    Array<{ sourceType: string; sourceId: string; weddingId: string }>
+  >(
+    `
+      SELECT 'service_engagement' AS "sourceType",
+             ep."serviceEngagementId" AS "sourceId",
+             ep."weddingId" AS "weddingId"
+      FROM public."EngagementParty" ep
+      WHERE ep."userId" = $1
+        AND ep.status = 'active'
+        AND ep."partyRole" = 'SERVICE_PROVIDER'
+        AND ep."partyKind" = 'VENDOR'
+
+      UNION ALL
+
+      SELECT 'contract_review_grant' AS "sourceType",
+             crg.id AS "sourceId",
+             c."weddingId" AS "weddingId"
+      FROM public."ContractReviewGrant" crg
+      JOIN public."Contract" c ON c.id = crg."contractId"
+      JOIN public."ContractVersion" cv
+        ON cv.id = crg."contractVersionId" AND cv."contractId" = crg."contractId"
+      JOIN public."EngagementParty" ep ON ep.id = crg."engagementPartyId"
+      WHERE ep."userId" = $1
+        AND ep.status = 'active'
+        AND ep."partyRole" = 'SERVICE_PROVIDER'
+        AND ep."partyKind" = 'VENDOR'
+        AND crg.status = 'ACTIVE'
+        AND crg."revokedAt" IS NULL
+        AND crg."expiresAt" > CURRENT_TIMESTAMP
+        AND cv.status IN ('ISSUED', 'AWAITING_ACCEPTANCE', 'PARTIALLY_ACCEPTED')
+    `,
+    userId,
+  )
+
+  return new Set(rows.map((row) => vendorSourceAccessKey(row.sourceType, row.sourceId, row.weddingId)))
+}
+
 async function accessibleWeddingIdsForSession(session: AppSession): Promise<Set<string>> {
   const principal = effectivePrincipal(session)
   if (!principal) return new Set()
@@ -78,7 +144,10 @@ async function accessibleWeddingIdsForSession(session: AppSession): Promise<Set<
       `
         SELECT DISTINCT "weddingId"
         FROM public."EngagementParty"
-        WHERE "userId" = $1 AND status = 'active'
+        WHERE "userId" = $1
+          AND status = 'active'
+          AND "partyRole" = 'SERVICE_PROVIDER'
+          AND "partyKind" = 'VENDOR'
       `,
       principal.userId,
     )
@@ -125,6 +194,8 @@ async function assertWeddingRecipientAccess(
           AND ep."weddingId" = $2
           AND ep."serviceEngagementId" = $3
           AND ep.status = 'active'
+          AND ep."partyRole" = 'SERVICE_PROVIDER'
+          AND ep."partyKind" = 'VENDOR'
         LIMIT 1
       `,
       recipientUserId,
@@ -144,15 +215,20 @@ async function assertWeddingRecipientAccess(
         SELECT 1 AS allowed
         FROM public."ContractReviewGrant" crg
         JOIN public."Contract" c ON c.id = crg."contractId"
+        JOIN public."ContractVersion" cv
+          ON cv.id = crg."contractVersionId" AND cv."contractId" = crg."contractId"
         JOIN public."EngagementParty" ep ON ep.id = crg."engagementPartyId"
         WHERE crg.id = $3
           AND c."weddingId" = $2
           AND ep."weddingId" = $2
           AND ep."userId" = $1
           AND ep.status = 'active'
+          AND ep."partyRole" = 'SERVICE_PROVIDER'
+          AND ep."partyKind" = 'VENDOR'
           AND crg.status = 'ACTIVE'
           AND crg."revokedAt" IS NULL
           AND crg."expiresAt" > CURRENT_TIMESTAMP
+          AND cv.status IN ('ISSUED', 'AWAITING_ACCEPTANCE', 'PARTIALLY_ACCEPTED')
         LIMIT 1
       `,
       recipientUserId,
@@ -289,7 +365,7 @@ export async function listNotificationsForSession(
   )
 
   const accessibleWeddingIds = await accessibleWeddingIdsForSession(session)
-  return rows
+  const visible = rows
     .map(normalizeNotificationRow)
     .filter((notification) =>
       isNotificationVisibleToPrincipal(
@@ -299,6 +375,13 @@ export async function listNotificationsForSession(
         principal.role,
       ),
     )
+
+  if (principal.role !== 'vendor') return visible
+
+  const sourceAccessKeys = await vendorSourceAccessKeys(principal.userId)
+  return visible.filter((notification) =>
+    isVendorNotificationSourceAuthorized(notification, sourceAccessKeys),
+  )
 }
 
 export async function unreadNotificationCountForSession(session: AppSession): Promise<number> {
@@ -336,6 +419,13 @@ async function requireVisibleNotification(
     )
   ) {
     throw new NotificationAccessError()
+  }
+
+  if (principal.role === 'vendor') {
+    const sourceAccessKeys = await vendorSourceAccessKeys(principal.userId)
+    if (!isVendorNotificationSourceAuthorized(notification, sourceAccessKeys)) {
+      throw new NotificationAccessError()
+    }
   }
 
   return { principalUserId: principal.userId, notification: normalizeNotificationRow(notification) }
