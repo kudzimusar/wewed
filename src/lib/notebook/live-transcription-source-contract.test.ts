@@ -16,15 +16,23 @@ const recordingActionRoute = read('src/app/api/notebook/recordings/[id]/route.ts
 const readinessRoute = read('src/app/api/notebook/transcription-readiness/route.ts')
 
 describe('WW-NOTEBOOK-LIVE-ASR-2026-08-20-01', () => {
-  test('keeps provider credentials server-side and chooses private Z.AI before optional Groq', () => {
+  test('keeps provider credentials server-side and chooses private Z.AI before explicitly permitted fallback', () => {
     expect(config).toContain('ZAI_API_KEY')
     expect(config).toContain('GROQ_API_KEY')
-    expect(config.indexOf('if (zaiApiKey)')).toBeLessThan(config.indexOf('if (groqApiKey)'))
+    expect(config).toContain('AI_ALLOW_PRIVATE_FALLBACK')
+    expect(config.indexOf('if (zaiApiKey)')).toBeLessThan(config.indexOf('if (groqApiKey && allowPrivateFallback)'))
     expect(config).toContain("DEFAULT_ZAI_TRANSCRIPTION_MODEL = 'glm-asr-2512'")
     expect(config).not.toContain('NEXT_PUBLIC_')
     expect(readinessRoute).toContain('requireNotebookActor')
     expect(bridge).not.toContain('ZAI_API_KEY')
     expect(bridge).not.toContain('GROQ_API_KEY')
+  })
+
+  test('installs the recording bridge before Notebook passive effects can load the active note', () => {
+    expect(bridge).toContain("import { useLayoutEffect, useRef } from 'react'")
+    expect(bridge).toContain('useLayoutEffect(() => {')
+    expect(bridge).toContain('window.fetch = async')
+    expect(bridge).toContain('window.MediaRecorder = PatchedMediaRecorder')
   })
 
   test('preserves full meeting audio while long Z.AI capture uses bounded WAV chunks', () => {
