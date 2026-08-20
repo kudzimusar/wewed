@@ -4,13 +4,16 @@ on:
   push:
     branches:
       - fix/contributions-partial-payments-uat-20260820
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: contributions-partial-payment-materialize-${{ github.sha }}
+  group: contributions-partial-payment-materialize-${{ github.event.pull_request.head.sha || github.sha }}
   cancel-in-progress: false
 
 jobs:
@@ -45,7 +48,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Stop when already materialized
         id: materializer
         shell: bash
@@ -86,7 +89,7 @@ jobs:
       - if: steps.materializer.outputs.run == 'true'
         run: git diff --check
       - name: Publish qualified product tree
-        if: steps.materializer.outputs.run == 'true'
+        if: steps.materializer.outputs.run == 'true' && github.event_name == 'pull_request'
         shell: bash
         run: |
           git config user.name 'wewed-uat-materializer'
