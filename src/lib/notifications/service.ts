@@ -36,12 +36,24 @@ function effectivePrincipal(session: AppSession): { userId: string; role: Dashbo
   return { userId, role }
 }
 
+const VENDOR_ALLOWED_CATEGORIES = new Set([
+  'vendor',
+  'engagement',
+  'contract',
+  'payment',
+  'message',
+  'communication',
+  'system',
+])
+
 export function isNotificationVisibleToPrincipal(
-  notification: Pick<NotificationRecord, 'recipientUserId' | 'weddingId'>,
+  notification: Pick<NotificationRecord, 'recipientUserId' | 'weddingId' | 'category' | 'sourceType'>,
   principalUserId: string,
   accessibleWeddingIds: ReadonlySet<string>,
+  role: DashboardRole,
 ): boolean {
   if (notification.recipientUserId !== principalUserId) return false
+  if (role === 'vendor' && !VENDOR_ALLOWED_CATEGORIES.has(notification.category)) return false
   if (!notification.weddingId) return true
   return accessibleWeddingIds.has(notification.weddingId)
 }
@@ -51,16 +63,33 @@ async function accessibleWeddingIdsForSession(session: AppSession): Promise<Set<
   if (!principal) return new Set()
 
   const weddings = await listAccessibleWeddings(principal.userId, principal.role)
-  return new Set(
+  const ids = new Set(
     weddings
       .filter((wedding) => wedding.membershipStatus === 'active')
       .map((wedding) => wedding.id),
   )
+
+  if (principal.role === 'vendor') {
+    const partyRows = await db.$queryRawUnsafe<Array<{ weddingId: string }>>(
+      `
+        SELECT DISTINCT "weddingId"
+        FROM public."EngagementParty"
+        WHERE "userId" = $1 AND status = 'active'
+      `,
+      principal.userId,
+    )
+    for (const row of partyRows) ids.add(row.weddingId)
+  }
+
+  return ids
 }
 
 async function assertWeddingRecipientAccess(
   recipientUserId: string,
   weddingId: string | null | undefined,
+  sourceType: string,
+  sourceId: string | null | undefined,
+  category: string,
 ): Promise<void> {
   if (!weddingId) return
 
@@ -77,11 +106,33 @@ async function assertWeddingRecipientAccess(
     weddingId,
   )
 
-  if (!rows[0]) {
-    throw new NotificationAccessError(
-      'The recipient does not have active access to the notification wedding.',
+  if (rows[0]) return
+
+  if (
+    sourceType === 'service_engagement' &&
+    sourceId &&
+    VENDOR_ALLOWED_CATEGORIES.has(category)
+  ) {
+    const partyRows = await db.$queryRawUnsafe<Array<{ allowed: number }>>(
+      `
+        SELECT 1 AS allowed
+        FROM public."EngagementParty" ep
+        WHERE ep."userId" = $1
+          AND ep."weddingId" = $2
+          AND ep."serviceEngagementId" = $3
+          AND ep.status = 'active'
+        LIMIT 1
+      `,
+      recipientUserId,
+      weddingId,
+      sourceId,
     )
+    if (partyRows[0]) return
   }
+
+  throw new NotificationAccessError(
+    'The recipient does not have active access to the notification source.',
+  )
 }
 
 function normalizeNotificationRow(row: NotificationRecord): NotificationRecord {
@@ -93,7 +144,13 @@ function normalizeNotificationRow(row: NotificationRecord): NotificationRecord {
 
 export async function createNotification(input: CreateNotificationInput): Promise<NotificationRecord> {
   const parsed = createNotificationInputSchema.parse(input)
-  await assertWeddingRecipientAccess(parsed.recipientUserId, parsed.weddingId)
+  await assertWeddingRecipientAccess(
+    parsed.recipientUserId,
+    parsed.weddingId,
+    parsed.sourceType,
+    parsed.sourceId,
+    parsed.category,
+  )
 
   const id = randomUUID()
   const inserted = await db.$queryRawUnsafe<NotificationRecord[]>(
@@ -203,7 +260,12 @@ export async function listNotificationsForSession(
   return rows
     .map(normalizeNotificationRow)
     .filter((notification) =>
-      isNotificationVisibleToPrincipal(notification, principal.userId, accessibleWeddingIds),
+      isNotificationVisibleToPrincipal(
+        notification,
+        principal.userId,
+        accessibleWeddingIds,
+        principal.role,
+      ),
     )
 }
 
@@ -233,7 +295,14 @@ async function requireVisibleNotification(
   if (!notification) throw new NotificationNotFoundError()
 
   const accessibleWeddingIds = await accessibleWeddingIdsForSession(session)
-  if (!isNotificationVisibleToPrincipal(notification, principal.userId, accessibleWeddingIds)) {
+  if (
+    !isNotificationVisibleToPrincipal(
+      notification,
+      principal.userId,
+      accessibleWeddingIds,
+      principal.role,
+    )
+  ) {
     throw new NotificationAccessError()
   }
 
