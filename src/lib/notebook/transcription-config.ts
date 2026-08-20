@@ -23,7 +23,8 @@ type TranscriptionEnvironment = Partial<Record<
   | 'ZAI_API_KEY'
   | 'ZAI_BASE_URL'
   | 'GROQ_API_KEY'
-  | 'GROQ_BASE_URL',
+  | 'GROQ_BASE_URL'
+  | 'AI_ALLOW_PRIVATE_FALLBACK',
   string | undefined
 >>
 
@@ -82,21 +83,25 @@ export function resolveNotebookTranscriptionConfig(
   const explicitApiKey = env.WEWED_TRANSCRIPTION_API_KEY?.trim() || undefined
   const zaiApiKey = env.ZAI_API_KEY?.trim() || undefined
   const groqApiKey = env.GROQ_API_KEY?.trim() || undefined
+  const allowPrivateFallback = env.AI_ALLOW_PRIVATE_FALLBACK?.trim().toLowerCase() === 'true'
 
+  // An explicit speech-to-text endpoint is an intentional Notebook-specific route,
+  // so it is allowed independently of the generic AI fallback policy.
   if (explicitEndpoint) {
     const shape = providerShape(explicitEndpoint)
     const providerApiKey = explicitApiKey ?? (shape === 'zai' ? zaiApiKey : explicitEndpoint.hostname === 'api.groq.com' ? groqApiKey : undefined)
     return buildConfig(explicitEndpoint, providerApiKey, env.WEWED_TRANSCRIPTION_MODEL)
   }
 
-  // Notebook is private wedding data. Reuse Wewed's configured private Z.AI
-  // credential before considering the optional Groq fallback credential.
+  // Notebook contains private wedding material. Prefer Wewed's configured private
+  // Z.AI credential. A generic Groq fallback is permitted only when the existing
+  // private-fallback policy has been explicitly enabled.
   if (zaiApiKey) {
     const endpoint = transcriptionEndpoint(env.ZAI_BASE_URL, DEFAULT_ZAI_TRANSCRIPTION_BASE_URL)
     return buildConfig(endpoint, zaiApiKey, env.WEWED_TRANSCRIPTION_MODEL)
   }
 
-  if (groqApiKey) {
+  if (groqApiKey && allowPrivateFallback) {
     const endpoint = transcriptionEndpoint(env.GROQ_BASE_URL, DEFAULT_GROQ_TRANSCRIPTION_BASE_URL)
     return buildConfig(endpoint, groqApiKey, env.WEWED_TRANSCRIPTION_MODEL)
   }
