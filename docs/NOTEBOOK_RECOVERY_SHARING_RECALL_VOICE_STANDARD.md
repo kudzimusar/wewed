@@ -62,7 +62,7 @@ This remediation adds four operational rules:
 - Keep recording consent explicit.
 - Change the user-facing mental model to **Record & transcribe**.
 - Preserve the complete original audio privately before any transcript becomes authoritative Notebook source material.
-- Resolve an explicit Wewed transcription override first; otherwise use the actually configured private Z.AI route; use Groq only when it is configured and Z.AI is absent.
+- Resolve an explicit Wewed transcription override first; otherwise use the actually configured private Z.AI route. Generic Groq fallback is permitted only when Groq is configured and `AI_ALLOW_PRIVATE_FALLBACK=true` explicitly authorizes private-data fallback.
 - For Z.AI long-meeting capture, encode bounded WAV chunks from the microphone and transcribe them server-side while the original browser WebM recording continues independently.
 - Never expose provider credentials to the browser.
 - Attach the ordered combined transcript only after the original recording has a Wewed recording ID.
