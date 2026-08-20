@@ -15,6 +15,13 @@ interface Principal {
   role: DashboardRole
 }
 
+interface WeddingInfo {
+  id: string
+  title: string
+  date: Date
+  venue: string | null
+}
+
 function effectivePrincipal(session: AppSession): Principal | null {
   const userId = session.effectiveUserId ?? session.userId ?? null
   if (!userId) return null
@@ -55,6 +62,71 @@ function normalizeAllDay(date: Date) {
   return normalized
 }
 
+async function adminCalendarItems(
+  principal: Principal,
+  range: ReturnType<typeof calendarRangeSchema.parse>,
+): Promise<CalendarItem[]> {
+  const items: CalendarItem[] = []
+  const allowed = range.categories ? new Set(range.categories) : null
+
+  if (!allowed || allowed.has('admin') || allowed.has('system')) {
+    const rows = await db.$queryRawUnsafe<
+      Array<{
+        id: string
+        sourceType: string
+        sourceId: string | null
+        category: 'admin' | 'system'
+        title: string
+        body: string
+        state: string
+        severity: string
+        deepLink: string | null
+        scheduledFor: Date | null
+        snoozedUntil: Date | null
+        expiresAt: Date | null
+      }>
+    >(
+      `
+        SELECT id, "sourceType", "sourceId", category, title, body, state, severity,
+               "deepLink", "scheduledFor", "snoozedUntil", "expiresAt"
+        FROM public."Notification"
+        WHERE "recipientUserId" = $1
+          AND category IN ('admin', 'system')
+          AND state NOT IN ('resolved', 'cancelled', 'expired')
+          AND COALESCE("snoozedUntil", "scheduledFor", "expiresAt") IS NOT NULL
+        ORDER BY COALESCE("snoozedUntil", "scheduledFor", "expiresAt") ASC
+        LIMIT 300
+      `,
+      principal.userId,
+    )
+
+    for (const row of rows) {
+      const startAt = row.snoozedUntil ?? row.scheduledFor ?? row.expiresAt
+      if (!startAt) continue
+      const item: CalendarItem = {
+        id: `admin-notification:${row.id}`,
+        sourceType: row.sourceType,
+        sourceId: row.sourceId ?? row.id,
+        weddingId: null,
+        weddingTitle: null,
+        title: row.title,
+        description: row.body,
+        startAt,
+        endAt: null,
+        allDay: false,
+        category: row.category,
+        status: row.state,
+        priority: row.severity,
+        deepLink: row.deepLink || '/notifications',
+        metadata: { notificationId: row.id },
+      }
+      if (isCalendarItemInRange(item, range.from, range.to)) items.push(item)
+    }
+  }
+
+  return items.slice(0, range.limit)
+}
+
 export async function listCalendarItemsForSession(
   session: AppSession,
   input: CalendarRangeInput = {},
@@ -63,13 +135,38 @@ export async function listCalendarItemsForSession(
   if (!principal) return []
 
   const range = calendarRangeSchema.parse(input)
+  if (principal.role === 'admin') return adminCalendarItems(principal, range)
+
+  const weddingMap = new Map<string, WeddingInfo>()
   const accessible = (await listAccessibleWeddings(principal.userId, principal.role)).filter(
     (wedding) => wedding.membershipStatus === 'active',
   )
-  const scoped = range.weddingId
-    ? accessible.filter((wedding) => wedding.id === range.weddingId)
-    : accessible
+  for (const wedding of accessible) {
+    weddingMap.set(wedding.id, {
+      id: wedding.id,
+      title: wedding.title,
+      date: wedding.date,
+      venue: wedding.venue || null,
+    })
+  }
 
+  if (principal.role === 'vendor') {
+    const vendorWeddings = await db.$queryRawUnsafe<WeddingInfo[]>(
+      `
+        SELECT DISTINCT w.id, w.title, w.date, w.venue
+        FROM public."EngagementParty" ep
+        JOIN public."Wedding" w ON w.id = ep."weddingId"
+        WHERE ep."userId" = $1
+          AND ep.status = 'active'
+      `,
+      principal.userId,
+    )
+    for (const wedding of vendorWeddings) weddingMap.set(wedding.id, wedding)
+  }
+
+  const scoped = Array.from(weddingMap.values()).filter(
+    (wedding) => !range.weddingId || wedding.id === range.weddingId,
+  )
   if (scoped.length === 0) return []
 
   const weddingIds = scoped.map((wedding) => wedding.id)
@@ -84,10 +181,6 @@ export async function listCalendarItemsForSession(
     items.push(item)
   }
 
-  // Admin calendar starts fail-closed. Admin operational adapters are separate from wedding
-  // business projections and will be introduced when the source records are explicitly classified.
-  if (principal.role === 'admin') return []
-
   if (principal.role !== 'vendor') {
     if (include('wedding')) {
       for (const wedding of scoped) {
@@ -98,7 +191,7 @@ export async function listCalendarItemsForSession(
           weddingId: wedding.id,
           weddingTitle: wedding.title,
           title: `${wedding.title} — Wedding day`,
-          description: wedding.venue || null,
+          description: wedding.venue,
           startAt: normalizeAllDay(wedding.date),
           endAt: null,
           allDay: true,
@@ -150,10 +243,7 @@ export async function listCalendarItemsForSession(
           status: row.status,
           priority: row.priority,
           deepLink: sourceLink(principal.role, 'task'),
-          metadata: {
-            taskCategory: row.category,
-            assigneeUserId: row.assigneeUserId,
-          },
+          metadata: { taskCategory: row.category, assigneeUserId: row.assigneeUserId },
         })
       }
     }
@@ -203,11 +293,7 @@ export async function listCalendarItemsForSession(
           status: outstanding > 0 ? 'outstanding' : 'paid',
           priority: outstanding > 0 ? 'important' : 'normal',
           deepLink: sourceLink(principal.role, 'budget'),
-          metadata: {
-            budgetCategory: row.category,
-            currency: row.currency,
-            outstanding,
-          },
+          metadata: { budgetCategory: row.category, currency: row.currency, outstanding },
         })
       }
     }
@@ -256,9 +342,7 @@ export async function listCalendarItemsForSession(
     }
 
     if (include('rsvp')) {
-      const rows = await db.$queryRawUnsafe<
-        Array<{ id: string; title: string; rsvpDeadline: Date }>
-      >(
+      const rows = await db.$queryRawUnsafe<Array<{ id: string; title: string; rsvpDeadline: Date }>>(
         `
           SELECT id, title, "rsvpDeadline"
           FROM public."Wedding"
