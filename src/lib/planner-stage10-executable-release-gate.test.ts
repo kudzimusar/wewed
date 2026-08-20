@@ -1,4 +1,6 @@
 import { describe, expect, test } from 'bun:test'
+import './notifications/contracts.test'
+import './calendar/contracts.test'
 import { plannerLegacyModuleSlug } from './planner-route-state'
 
 async function source(path: string): Promise<string> {
