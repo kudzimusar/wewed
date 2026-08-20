@@ -2,7 +2,8 @@
 
 **Status:** AUTHORITATIVE — active implementation record  
 **Branch:** `feature/system-notifications-attention`  
-**Baseline:** `main` at `713e0a59277cdb8629a1a1d2e662c38ada6c3a26`  
+**Initial baseline:** `main` at `713e0a59277cdb8629a1a1d2e662c38ada6c3a26`  
+**Current reconciliation:** current `main` `657d4a7f3be9e2148167ec4cfcb2ea401c62b73d` was merged into this feature workstream through PR #171; feature reconciliation head `4ac7a410…`.  
 **Rule:** Every change in this workstream must map to this document. A phase is not complete merely because code exists: implementation, exact-head build/test, database rollout and cross-role UAT are recorded separately.
 
 ## 1. Correct product scope
@@ -82,7 +83,8 @@ Calendar is a read projection of meaningful dated Wewed records. Sources current
 - ProgrammeItem times combined with wedding date;
 - Wedding date;
 - Admin's own scheduled operational/system attention;
-- future contract, appointment, contribution and standalone-calendar adapters where a reliable source contract exists.
+- contract review-grant expiry where `ContractReviewGrant.expiresAt` and exact `EngagementParty` authorization exist;
+- future appointment, contribution and standalone-calendar adapters where a reliable source contract exists.
 
 External calendar synchronization later must not make Google/Apple/Outlook the source of truth for Wewed business records.
 
@@ -139,7 +141,9 @@ Only their own active wedding membership and permitted collaboration data are pr
 
 Vendor access is source-party based, not "same wedding" based. Current calendar projection requires an active `EngagementParty` link to the `ServiceEngagement`.
 
-**Guardrail:** financial/contract notification delivery to Vendors remains disabled until those source models expose a deterministic Vendor-party authorization path. Do not infer Vendor access from the existence of another engagement in the same wedding.
+**Contract authorization decision (2026-08-20):** generic `Contract.issuedAt` and `Contract.closedAt` are lifecycle timestamps, not actionable deadlines, so they must not be invented as reminder dates. The first deterministic Vendor contract path is `ContractReviewGrant.expiresAt`, because a review grant is tied to one `EngagementParty`. A Vendor recipient is valid only when that exact party has a `userId`, the grant is not revoked, and the grant has not already expired at projection time. Business-only parties with no mapped user remain fail-closed.
+
+**Guardrail:** broader financial/contract notification delivery to Vendors remains disabled until each source exposes its own deterministic Vendor-party authorization path. Do not infer Vendor access from the existence of another engagement in the same wedding.
 
 ## 6. Existing reminder compatibility
 
@@ -163,6 +167,7 @@ Rules:
 - [x] Commit this plan before feature code.
 - [x] Review signed AppSession role model and wedding-access layer.
 - [x] Review legacy Planner RSVP reminders and preserve them.
+- [x] Reconcile later `main` changes into the feature branch before continuing source-adapter expansion (PR #171).
 
 **Exit:** PASSED.
 
@@ -197,7 +202,7 @@ Rules:
 
 ### Phase 3 — Unified Calendar
 
-**Status: CORE IMPLEMENTED; EXPANSION + UAT PENDING**
+**Status: CORE IMPLEMENTED; CONTRACT REVIEW-EXPIRY ADAPTER IN PROGRESS; EXPANSION + UAT PENDING**
 
 - [x] Shared calendar projection contract.
 - [x] Project canonical records rather than copy them.
@@ -212,16 +217,18 @@ Rules:
 - [x] category/date/wedding filtering at API layer.
 - [x] source deep links.
 - [x] month and agenda views.
+- [x] Prove first safe contract date/party source: `ContractReviewGrant.expiresAt` + exact `EngagementParty`.
+- [ ] Project authorized contract review-grant expiry without treating `issuedAt`/`closedAt` as deadlines.
 - [ ] week and day visual views.
 - [ ] standalone calendar event model only if a real no-source-record use case is approved.
-- [ ] contract/appointment/contribution adapters when source fields are proven.
+- [ ] appointment/contribution adapters when source fields are proven.
 - [ ] cross-role UAT.
 
 **Invariant:** the source record remains the only editable due/service/deadline date.
 
 ### Phase 4 — Reminder scheduler and source adapters
 
-**Status: CORE IMPLEMENTED; LEGACY ADAPTER + UAT PENDING**
+**Status: CORE IMPLEMENTED; CONTRACT REVIEW-EXPIRY ADAPTER IN PROGRESS; LEGACY ADAPTER + UAT PENDING**
 
 - [x] Separate system reminder cron protected by `CRON_SECRET`.
 - [x] one-shot snooze wake-up.
@@ -233,8 +240,9 @@ Rules:
 - [x] Admin delivery-failure adapter.
 - [x] task/payment/engagement source completion auto-resolution.
 - [x] dedupe keys on generated notifications.
+- [x] Prove `ContractReviewGrant.expiresAt` as the only current deterministic contract-reminder date with exact engagement-party authorization.
+- [ ] Add contract review-expiry reminder only for the exact mapped Vendor user; keep generic contract notifications fail-closed.
 - [ ] legacy Planner RSVP adapter/migration (legacy flow intentionally remains intact now).
-- [ ] contract adapter when contract source dates/party access are explicit.
 - [ ] enforce user quiet-hour/timezone policy in channel scheduling.
 - [ ] write scheduler actions into the broader audit-event layer.
 - [ ] integration/UAT proving repeated cron execution does not spam.
@@ -315,7 +323,7 @@ Wewed remains canonical for wedding business records in all cases.
 | Task | support only when explicitly authorized | yes | permitted wedding | not enabled until task-party rule exists |
 | Budget/payment | operational/support only | yes | permitted wedding | not enabled until vendor-payment source authorization exists |
 | Service engagement | support only when explicitly authorized | yes | permitted wedding | own active engagement only |
-| Contract | support/governance | party/manager | party | deferred until vendor-party/date authorization is deterministic |
+| Contract | support/governance | party/manager | party | only exact active review grant tied to own `EngagementParty.userId`; broader contract delivery remains fail-closed |
 | RSVP/guest deadline | support only when authorized | yes | yes | no |
 | Programme/timeline | support only when authorized | yes | yes | no general projection; own engagement dates only |
 | Messages/communications | own/support boundary | own threads | own threads | own threads |
@@ -335,6 +343,8 @@ Negative tests are mandatory:
 
 - Vendor cannot see unrelated or overall wedding budget notification/calendar data.
 - Vendor cannot see another Vendor's engagement.
+- Vendor cannot see another Vendor's contract review grant or a contract merely because both Vendors participate in the same wedding.
+- Business-only contract review parties with no mapped Vendor user do not produce a Vendor notification recipient.
 - Couple cannot see Admin operational notifications.
 - Planner cannot see another Planner's wedding without active authority.
 - Admin does not automatically receive private wedding data merely because role is Admin.
@@ -355,6 +365,7 @@ Negative tests are mandatory:
 - scheduler/adapters are idempotent;
 - timestamps stored as timezone-aware database timestamps; user timezone controls rendering/scheduling policy;
 - provider delivery failures are observable rather than silently swallowed once delivery is enabled;
+- merge current `main` into this feature workstream whenever material drift would invalidate exact-head/regression assumptions;
 - no production merge/deployment merely because a preview build is READY.
 
 ## 11. Implementation log
@@ -367,8 +378,10 @@ Negative tests are mandatory:
 - **2026-08-20 — Scheduler:** independent `/api/cron/system-reminders` plus task/budget/RSVP/engagement/Admin failure adapters added.
 - **2026-08-20 — Today/widgets:** shared role-aware Today read model/UI and desktop workspace widget added.
 - **2026-08-20 — Push foundation:** preferences, PushSubscription storage/API, contextual enrollment, service-worker push handling and app badging added. Sender/provider delivery remains deliberately incomplete.
+- **2026-08-20 — Main reconciliation:** the feature branch had drifted 55 commits behind `main`; PR #171 merged current `main` `657d4a7f3be9e2148167ec4cfcb2ea401c62b73d` into the feature workstream at merge head `4ac7a410…`. This was not a production/main merge.
+- **2026-08-20 — Contract source decision:** schema review proved `ContractReviewGrant.expiresAt` + exact `EngagementParty` as a deterministic Vendor contract-review date/party path. `Contract.issuedAt` and `Contract.closedAt` remain lifecycle timestamps and are not treated as reminder deadlines.
 - **Validation:** multiple intermediate Vercel previews have reached READY. The exact final head still requires validation after all changes in this workstream are committed.
-- **Production:** no database migration, merge or production rollout has been performed by this workstream.
+- **Production:** no database migration, feature-to-main merge or production rollout has been performed by this workstream.
 
 ## 12. Workstream definition of done
 
