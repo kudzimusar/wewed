@@ -5,7 +5,10 @@ import { db } from '@/lib/db'
 import { createSupabaseServiceClient } from '@/lib/supabase/service'
 import { actorCanEditNote } from './access'
 import { getNote, writeAudit } from './store'
-import { resolveNotebookTranscriptionConfig } from './transcription-config'
+import {
+  notebookDirectTranscriptionSupported,
+  resolveNotebookTranscriptionConfig,
+} from './transcription-config'
 import {
   NotebookConflictError,
   NotebookForbiddenError,
@@ -16,6 +19,7 @@ import {
 
 const NOTEBOOK_BUCKET = 'wewed-notebook'
 const MAX_RECORDING_BYTES = 100 * 1024 * 1024
+const MAX_LIVE_TRANSCRIPTION_CHUNK_BYTES = 25 * 1024 * 1024
 const RECORDING_MIME = new Set([
   'audio/webm',
   'audio/mp4',
@@ -25,6 +29,7 @@ const RECORDING_MIME = new Set([
   'audio/ogg',
   'video/webm',
 ])
+const LIVE_TRANSCRIPTION_MIME = new Set(['audio/wav', 'audio/x-wav', 'audio/mpeg'])
 
 interface RecordingRow {
   id: string
@@ -149,6 +154,59 @@ export async function getRecordingSignedUrl(
   return data.signedUrl
 }
 
+export async function directTranscriptionSupportedForRecording(
+  actor: NotebookActor,
+  recordingId: string,
+): Promise<boolean> {
+  const recording = await getRecording(actor, recordingId)
+  const config = resolveNotebookTranscriptionConfig()
+  return Boolean(config && notebookDirectTranscriptionSupported(config, recording.mimeType, recording.durationMs))
+}
+
+export async function transcribeNotebookAudioChunk(
+  actor: NotebookActor,
+  noteId: string,
+  file: File,
+  prompt?: string,
+) {
+  const note = await getNote(actor, noteId)
+  if (!actorCanEditNote(actor, note)) throw new NotebookForbiddenError()
+  if (!LIVE_TRANSCRIPTION_MIME.has(file.type)) {
+    throw new NotebookValidationError('Live transcription chunks must be WAV or MP3 audio.')
+  }
+  if (file.size <= 0 || file.size > MAX_LIVE_TRANSCRIPTION_CHUNK_BYTES) {
+    throw new NotebookValidationError('Live transcription chunks must be between 1 byte and 25 MB.')
+  }
+
+  const config = resolveNotebookTranscriptionConfig()
+  if (!config) throw new NotebookValidationError('No private Notebook transcription provider is configured.')
+
+  const form = new FormData()
+  form.set('file', new File([await file.arrayBuffer()], `notebook-live.${extensionForMime(file.type)}`, { type: file.type }))
+  form.set('model', config.model)
+  if (prompt?.trim()) form.set('prompt', prompt.trim().slice(-8_000))
+  if (config.requestShape === 'zai') form.set('stream', 'false')
+  else form.set('response_format', 'verbose_json')
+
+  const response = await fetch(config.endpoint, {
+    method: 'POST',
+    headers: config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : undefined,
+    body: form,
+    signal: AbortSignal.timeout(60_000),
+  })
+  if (!response.ok) throw new Error(`Transcription provider returned HTTP ${response.status}.`)
+  const json = (await response.json()) as Record<string, unknown>
+  const text = typeof json.text === 'string' ? json.text.trim() : ''
+  if (!text) throw new Error('Transcription provider returned no transcript text.')
+  await writeAudit(actor, noteId, 'LIVE_TRANSCRIPTION_CHUNK', { provider: config.provider, bytes: file.size })
+  return {
+    text,
+    provider: config.provider,
+    model: config.model,
+    language: typeof json.language === 'string' ? json.language : null,
+  }
+}
+
 export async function transcribeRecording(actor: NotebookActor, recordingId: string) {
   const recording = await getRecording(actor, recordingId)
   const note = await getNote(actor, recording.noteId)
@@ -162,7 +220,7 @@ export async function transcribeRecording(actor: NotebookActor, recordingId: str
     await db.$executeRawUnsafe(
       `UPDATE wewed_notebook."NotebookRecording"
           SET status='FAILED', "errorCode"='TRANSCRIPTION_NOT_CONFIGURED',
-              "errorMessage"='Recording is preserved. Configure Wewed transcription or the existing Groq server credential to transcribe it.',
+              "errorMessage"='Recording is preserved. No private Notebook transcription provider is configured.',
               "updatedAt"=CURRENT_TIMESTAMP
         WHERE id=$1`,
       recordingId,
@@ -170,7 +228,19 @@ export async function transcribeRecording(actor: NotebookActor, recordingId: str
     return { success: false, preserved: true, code: 'TRANSCRIPTION_NOT_CONFIGURED' }
   }
 
-  const { endpoint, apiKey, model, provider } = config
+  if (!notebookDirectTranscriptionSupported(config, recording.mimeType, recording.durationMs)) {
+    await db.$executeRawUnsafe(
+      `UPDATE wewed_notebook."NotebookRecording"
+          SET status='FAILED', "errorCode"='TRANSCRIPTION_REQUIRES_LIVE_CHUNKS',
+              "errorMessage"='Recording is preserved. This provider transcribes live WAV chunks during recording; start a new Record & transcribe session or attach a corrected transcript.',
+              "updatedAt"=CURRENT_TIMESTAMP
+        WHERE id=$1`,
+      recordingId,
+    )
+    return { success: false, preserved: true, code: 'TRANSCRIPTION_REQUIRES_LIVE_CHUNKS' }
+  }
+
+  const { endpoint, apiKey, model, provider, requestShape } = config
   await db.$executeRawUnsafe(
     `UPDATE wewed_notebook."NotebookRecording"
         SET status='TRANSCRIBING', "errorCode"=NULL, "errorMessage"=NULL,
@@ -188,7 +258,8 @@ export async function transcribeRecording(actor: NotebookActor, recordingId: str
     const form = new FormData()
     form.set('file', new File([downloaded.data], `recording.${extensionForMime(recording.mimeType)}`, { type: recording.mimeType }))
     form.set('model', model)
-    form.set('response_format', 'verbose_json')
+    if (requestShape === 'zai') form.set('stream', 'false')
+    else form.set('response_format', 'verbose_json')
 
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -202,7 +273,7 @@ export async function transcribeRecording(actor: NotebookActor, recordingId: str
     if (!transcriptText) throw new Error('Transcription provider returned no transcript text.')
     const segments = Array.isArray(json.segments) ? json.segments : []
     const language = typeof json.language === 'string' ? json.language : null
-    const providerJobId = typeof json.id === 'string' ? json.id : null
+    const providerJobId = typeof json.id === 'string' ? json.id : typeof json.request_id === 'string' ? json.request_id : null
 
     await db.$transaction(async (tx) => {
       await tx.$executeRawUnsafe(
@@ -227,10 +298,11 @@ export async function transcribeRecording(actor: NotebookActor, recordingId: str
       await tx.$executeRawUnsafe(
         `UPDATE wewed_notebook."NotebookRecording"
             SET status='TRANSCRIBED', "transcriptionJobId"=$2,
-                "errorCode"=NULL, "errorMessage"=NULL, "updatedAt"=CURRENT_TIMESTAMP
+                "transcriptionProvider"=$3, "errorCode"=NULL, "errorMessage"=NULL, "updatedAt"=CURRENT_TIMESTAMP
           WHERE id=$1`,
         recordingId,
         providerJobId,
+        provider,
       )
     })
     await writeAudit(actor, note.id, 'RECORDING_TRANSCRIBED', { recordingId, provider })
@@ -274,12 +346,60 @@ export async function getTranscript(actor: NotebookActor, recordingId: string) {
   return rows[0] ?? null
 }
 
+export async function attachTranscript(
+  actor: NotebookActor,
+  recordingId: string,
+  transcriptText: string,
+  segments?: unknown,
+  provider = 'wewed-live-transcription',
+) {
+  const recording = await getRecording(actor, recordingId)
+  const note = await getNote(actor, recording.noteId)
+  if (!actorCanEditNote(actor, note)) throw new NotebookForbiddenError()
+  const normalized = transcriptText.trim()
+  if (!normalized || normalized.length > 2_000_000) {
+    throw new NotebookValidationError('Transcript must contain between 1 and 2,000,000 characters.')
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe(
+      `INSERT INTO wewed_notebook."NotebookTranscript"
+        (id, "recordingId", "noteId", text, segments, provider, "updatedByUserId")
+       VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7)
+       ON CONFLICT ("recordingId") DO UPDATE SET
+         text=EXCLUDED.text, segments=EXCLUDED.segments, provider=EXCLUDED.provider,
+         revision=wewed_notebook."NotebookTranscript".revision + 1,
+         "updatedByUserId"=EXCLUDED."updatedByUserId", "updatedAt"=CURRENT_TIMESTAMP`,
+      randomUUID(),
+      recordingId,
+      note.id,
+      normalized,
+      JSON.stringify(Array.isArray(segments) ? segments : []),
+      provider,
+      actor.session.userId,
+    )
+    await tx.$executeRawUnsafe(
+      `UPDATE wewed_notebook."NotebookRecording"
+          SET status='TRANSCRIBED', "transcriptionProvider"=$2,
+              "errorCode"=NULL, "errorMessage"=NULL, "updatedAt"=CURRENT_TIMESTAMP
+        WHERE id=$1`,
+      recordingId,
+      provider,
+    )
+  })
+  await writeAudit(actor, note.id, 'TRANSCRIPT_ATTACHED', { recordingId, provider })
+  return getTranscript(actor, recordingId)
+}
+
 export async function updateTranscript(
   actor: NotebookActor,
   recordingId: string,
   transcriptText: string,
   segments?: unknown,
 ) {
+  const existing = await getTranscript(actor, recordingId)
+  if (!existing) return attachTranscript(actor, recordingId, transcriptText, segments, 'manual-transcript')
+
   const recording = await getRecording(actor, recordingId)
   const note = await getNote(actor, recording.noteId)
   if (!actorCanEditNote(actor, note)) throw new NotebookForbiddenError()
