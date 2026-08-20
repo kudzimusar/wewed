@@ -81,6 +81,8 @@ model Wedding {
   comments                Comment[]
   memberships             WeddingMembership[]
   currentForUsers         User[] @relation("CurrentWedding")
+  notifications           Notification[]
+  reminders               Reminder[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -458,7 +460,7 @@ model EngagementParty {
 model ContractTemplate {
   id                 String   @id @default(cuid())
   code               String
-  title              String
+  title               String
   serviceCategory    String
   marketCode         String   @default("GLOBAL")
   jurisdictionCode   String?
@@ -646,17 +648,155 @@ model User {
   isActive         Boolean  @default(true)
   lastLoginAt      DateTime?
 
-  auditEvents          AuditEvent[]
-  contentRevisions     ContentRevision[]
-  contentSubmissions   ContentSubmission[]
-  memberships          WeddingMembership[] @relation("MembershipUser")
-  invitationsSent      WeddingMembership[] @relation("MembershipInviter")
-  assignedPlannerTasks PlannerTask[] @relation("PlannerTaskAssignee")
+  auditEvents             AuditEvent[]
+  contentRevisions        ContentRevision[]
+  contentSubmissions      ContentSubmission[]
+  memberships             WeddingMembership[] @relation("MembershipUser")
+  invitationsSent         WeddingMembership[] @relation("MembershipInviter")
+  assignedPlannerTasks    PlannerTask[] @relation("PlannerTaskAssignee")
+  notificationsReceived   Notification[] @relation("NotificationRecipient")
+  notificationsActed      Notification[] @relation("NotificationActor")
+  remindersOwned          Reminder[] @relation("ReminderOwner")
+  remindersReceived       Reminder[] @relation("ReminderRecipient")
+  notificationPreferences NotificationPreference[]
+  pushSubscriptions       PushSubscription[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([currentWeddingId])
+}
+
+model Notification {
+  id             String  @id
+  recipientUserId String
+  weddingId       String?
+  actorUserId     String?
+  sourceType      String
+  sourceId        String?
+  eventType       String
+  category        String
+  severity        String  @default("normal")
+  title           String
+  body            String
+  metadata        Json?   @db.JsonB
+  deepLink        String?
+  actionType      String?
+  requiresAction  Boolean @default(false)
+  state           String  @default("active")
+  readAt          DateTime? @db.Timestamptz(6)
+  acknowledgedAt  DateTime? @db.Timestamptz(6)
+  resolvedAt      DateTime? @db.Timestamptz(6)
+  scheduledFor    DateTime? @db.Timestamptz(6)
+  snoozedUntil    DateTime? @db.Timestamptz(6)
+  expiresAt       DateTime? @db.Timestamptz(6)
+  dedupeKey       String?
+  createdAt       DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  recipient          User   @relation("NotificationRecipient", fields: [recipientUserId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "Notification_recipientUserId_fkey")
+  wedding            Wedding? @relation(fields: [weddingId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "Notification_weddingId_fkey")
+  actor              User?  @relation("NotificationActor", fields: [actorUserId], references: [id], onDelete: SetNull, onUpdate: Cascade, map: "Notification_actorUserId_fkey")
+  deliveryAttempts   NotificationDeliveryAttempt[]
+  generatedReminders Reminder[] @relation("ReminderGeneratedNotification")
+
+  @@index([recipientUserId, state, createdAt(sort: Desc)], map: "Notification_recipient_state_created_idx")
+  @@index([recipientUserId, readAt, createdAt(sort: Desc)], map: "Notification_recipient_read_created_idx")
+  @@index([weddingId, category, createdAt(sort: Desc)], map: "Notification_wedding_category_idx")
+  @@index([sourceType, sourceId], map: "Notification_source_idx")
+}
+
+model Reminder {
+  id                      String @id
+  ownerUserId             String
+  recipientUserId         String
+  weddingId               String?
+  sourceType              String
+  sourceId                String?
+  triggerAt               DateTime @db.Timestamptz(6)
+  timezone                String @default("UTC")
+  state                   String @default("scheduled")
+  deliveryPolicy          Json? @db.JsonB
+  dedupeKey               String?
+  generatedNotificationId String?
+  snoozedFromReminderId   String?
+  triggeredAt             DateTime? @db.Timestamptz(6)
+  cancelledAt             DateTime? @db.Timestamptz(6)
+  lastError               String?
+  createdAt               DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt               DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  owner                 User @relation("ReminderOwner", fields: [ownerUserId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "Reminder_ownerUserId_fkey")
+  recipient             User @relation("ReminderRecipient", fields: [recipientUserId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "Reminder_recipientUserId_fkey")
+  wedding               Wedding? @relation(fields: [weddingId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "Reminder_weddingId_fkey")
+  generatedNotification Notification? @relation("ReminderGeneratedNotification", fields: [generatedNotificationId], references: [id], onDelete: SetNull, onUpdate: Cascade, map: "Reminder_generatedNotificationId_fkey")
+  snoozedFromReminder   Reminder? @relation("ReminderSnooze", fields: [snoozedFromReminderId], references: [id], onDelete: SetNull, onUpdate: Cascade, map: "Reminder_snoozedFromReminderId_fkey")
+  snoozedReminders      Reminder[] @relation("ReminderSnooze")
+
+  @@index([state, triggerAt], map: "Reminder_schedule_idx")
+  @@index([recipientUserId, state, triggerAt], map: "Reminder_recipient_schedule_idx")
+  @@index([weddingId, state, triggerAt], map: "Reminder_wedding_schedule_idx")
+  @@index([sourceType, sourceId], map: "Reminder_source_idx")
+}
+
+model NotificationPreference {
+  id              String @id
+  userId          String
+  scopeKey        String @default("global")
+  inAppEnabled    Boolean @default(true)
+  pushEnabled     Boolean @default(false)
+  emailEnabled    Boolean @default(false)
+  whatsAppEnabled Boolean @default(false)
+  timezone        String @default("UTC")
+  quietStart      String?
+  quietEnd        String?
+  digestMode      String @default("none")
+  createdAt       DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "NotificationPreference_userId_fkey")
+
+  @@unique([userId, scopeKey], map: "NotificationPreference_user_scope_unique")
+  @@index([userId], map: "NotificationPreference_user_idx")
+}
+
+model NotificationDeliveryAttempt {
+  id             String @id
+  notificationId String
+  channel        String
+  state          String @default("queued")
+  providerRef    String?
+  errorCode      String?
+  errorMessage   String?
+  attemptedAt    DateTime? @db.Timestamptz(6)
+  sentAt         DateTime? @db.Timestamptz(6)
+  deliveredAt    DateTime? @db.Timestamptz(6)
+  readAt         DateTime? @db.Timestamptz(6)
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "NotificationDeliveryAttempt_notificationId_fkey")
+
+  @@index([notificationId, createdAt(sort: Desc)], map: "NotificationDeliveryAttempt_notification_idx")
+  @@index([channel, state, createdAt], map: "NotificationDeliveryAttempt_channel_state_idx")
+}
+
+model PushSubscription {
+  id             String @id
+  userId         String
+  endpoint       String @unique(map: "PushSubscription_endpoint_unique")
+  p256dh         String
+  auth           String
+  expirationTime BigInt?
+  userAgent      String?
+  disabledAt     DateTime? @db.Timestamptz(6)
+  lastSeenAt     DateTime @default(now()) @db.Timestamptz(6)
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "PushSubscription_userId_fkey")
+
+  @@index([userId, disabledAt, lastSeenAt(sort: Desc)], map: "PushSubscription_user_active_idx")
 }
 
 model WeddingMembership {
