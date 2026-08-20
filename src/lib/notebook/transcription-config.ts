@@ -1,5 +1,3 @@
-import 'server-only'
-
 const DEFAULT_GROQ_TRANSCRIPTION_BASE_URL = 'https://api.groq.com/openai/v1'
 const DEFAULT_GROQ_TRANSCRIPTION_MODEL = 'whisper-large-v3-turbo'
 const DEFAULT_OPENAI_TRANSCRIPTION_MODEL = 'whisper-1'
@@ -60,10 +58,9 @@ export function resolveNotebookTranscriptionConfig(
     }
   }
 
-  // Wewed already supports Groq as an AI fallback provider. Reuse that existing
-  // server-only credential for Notebook speech-to-text instead of leaving the
-  // production meeting flow in record-only mode when no dedicated transcription
-  // override has been configured.
+  // This resolver is imported only by server routes/server-rendered Notebook pages.
+  // Keeping the pure environment resolution free of framework sentinels makes it
+  // independently testable while credentials remain non-NEXT_PUBLIC server values.
   if (groqApiKey) {
     const endpoint = groqTranscriptionEndpoint(env)
     return {
