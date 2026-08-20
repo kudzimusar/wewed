@@ -61,9 +61,11 @@ This remediation adds four operational rules:
 - Keep recording consent explicit.
 - Change the user-facing mental model to **Record & transcribe**.
 - Preserve audio privately before transcription.
-- When `WEWED_TRANSCRIPTION_URL` is configured, automatically attempt transcription after upload.
+- Resolve speech-to-text server-side in this order: an explicit `WEWED_TRANSCRIPTION_URL` override first; otherwise the existing server-only Groq credential and `GROQ_BASE_URL` when available.
+- When a provider is resolved, automatically attempt transcription after upload. Groq fallback uses its OpenAI-compatible audio transcription endpoint and defaults to `whisper-large-v3-turbo` unless an intentional `WEWED_TRANSCRIPTION_MODEL` override is supplied.
 - Automatic transcription uses the same rate-limit and fail-closed preservation behavior as manual retry.
 - If provider configuration is absent or transcription fails, the recording remains recoverable and the UI keeps a manual Retry transcription path.
+- No provider credential is exposed to the browser or committed to source control.
 - Do not silently convert transcript statements into approved budget/payment/booking facts.
 - Keep explicit user approval for AI/governed actions.
 
@@ -71,7 +73,7 @@ This remediation adds four operational rules:
 
 Before merge:
 
-1. Focused unit/source contracts cover Archive/Trash clarity, recovery exposure, communications notification fail-soft behavior, natural-language recall ranking and auto-transcription.
+1. Focused unit/source contracts cover Archive/Trash clarity, recovery exposure, communications notification fail-soft behavior, natural-language recall ranking and auto-transcription/provider resolution.
 2. Notebook security/migration/build workflow passes.
 3. Full executable Planner browser release gate passes.
 4. Existing Communications and Notebook regression workflows remain green.
@@ -83,4 +85,4 @@ Before merge:
 - Restore an archived note and a trashed note from visible Recovery.
 - Share a note with an existing Wewed user and verify Viewer/Editor access plus Wewed notification delivery; verify external channel behavior according to that recipient's enabled verified endpoints.
 - Ask a natural-language question such as `What did we decide about chairs?` and verify the Tony budget note is cited when authorized/in scope.
-- Record a short consented meeting sample and verify audio is saved and transcription begins automatically when configured; if unavailable, verify the recording remains preserved with a clear retry state.
+- Record a short consented meeting sample and verify audio is saved and transcription begins automatically when a provider resolves; if unavailable, verify the recording remains preserved with a clear retry state.

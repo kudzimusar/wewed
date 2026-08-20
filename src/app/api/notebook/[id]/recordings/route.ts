@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { consumeAiRateLimit } from '@/lib/ai/rate-limit'
 import { listRecordings, transcribeRecording, uploadRecording } from '@/lib/notebook/media'
 import { notebookErrorResponse, requireNotebookActor } from '@/lib/notebook/http'
+import { notebookTranscriptionConfigured } from '@/lib/notebook/transcription-config'
 import { NotebookValidationError } from '@/lib/notebook/types'
 
 interface RouteContext { params: Promise<{ id: string }> }
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     // Audio is committed first. Automatic transcription is an additive, fail-closed
     // follow-up: a provider/rate-limit failure never removes the saved recording.
-    if (process.env.WEWED_TRANSCRIPTION_URL?.trim()) {
+    if (notebookTranscriptionConfigured()) {
       const limit = await consumeAiRateLimit({
         scope: 'notebook-transcription',
         identity: access.actor.session.userId,
