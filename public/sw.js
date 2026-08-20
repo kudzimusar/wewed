@@ -166,16 +166,42 @@ function safePushPayload(event) {
   }
 }
 
+function pushDisplayPayload(payload) {
+  if (payload && typeof payload.notification === 'object' && payload.notification !== null) {
+    return payload.notification;
+  }
+  return payload && typeof payload === 'object' ? payload : {};
+}
+
+function safeWewedDeepLink(value) {
+  if (typeof value !== 'string' || !value.trim()) return '/notifications';
+  try {
+    const parsed = new URL(value, self.location.origin);
+    if (parsed.origin !== self.location.origin) return '/notifications';
+    return `${parsed.pathname}${parsed.search}${parsed.hash}` || '/notifications';
+  } catch (_err) {
+    return '/notifications';
+  }
+}
+
 self.addEventListener('push', (event) => {
   const payload = safePushPayload(event);
-  const title = typeof payload.title === 'string' && payload.title.trim()
-    ? payload.title.trim()
+  const display = pushDisplayPayload(payload);
+  const title = typeof display.title === 'string' && display.title.trim()
+    ? display.title.trim()
     : 'Wewed';
-  const body = typeof payload.body === 'string' ? payload.body : 'You have a new Wewed notification.';
-  const deepLink = typeof payload.deepLink === 'string' && payload.deepLink.startsWith('/')
-    ? payload.deepLink
-    : '/notifications';
-  const tag = typeof payload.tag === 'string' ? payload.tag : undefined;
+  const body = typeof display.body === 'string' ? display.body : 'You have a new Wewed notification.';
+  const deepLink = safeWewedDeepLink(display.deepLink || display.url || payload.deepLink || payload.url);
+  const tag = typeof display.tag === 'string'
+    ? display.tag
+    : typeof payload.tag === 'string'
+      ? payload.tag
+      : undefined;
+  const notificationId = typeof display.notificationId === 'string'
+    ? display.notificationId
+    : typeof payload.notificationId === 'string'
+      ? payload.notificationId
+      : null;
 
   event.waitUntil(
     self.registration.showNotification(title, {
@@ -186,7 +212,7 @@ self.addEventListener('push', (event) => {
       renotify: false,
       data: {
         deepLink,
-        notificationId: typeof payload.notificationId === 'string' ? payload.notificationId : null,
+        notificationId,
       },
     }),
   );
@@ -194,8 +220,7 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const rawLink = event.notification?.data?.deepLink;
-  const deepLink = typeof rawLink === 'string' && rawLink.startsWith('/') ? rawLink : '/notifications';
+  const deepLink = safeWewedDeepLink(event.notification?.data?.deepLink);
   const destination = new URL(deepLink, self.location.origin).href;
 
   event.waitUntil(
