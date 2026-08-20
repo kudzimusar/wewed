@@ -39,8 +39,12 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (current.type === 'DIRECT_VENDOR_PAYMENT' && body.fulfillmentState !== undefined) {
       return NextResponse.json({ success: false, error: 'Direct vendor fulfillment is controlled by the vendor-payment action so the real EngagementPayment and funding attribution stay atomic.' }, { status: 409 })
     }
-    if (current.type === 'DIRECT_VENDOR_PAYMENT' && current.fulfillmentState === 'PENDING' && (body.amount !== undefined || body.currency !== undefined)) {
-      return NextResponse.json({ success: false, error: 'For a promised direct vendor payment, delete and recreate the pledge to change its amount or currency before payment.' }, { status: 409 })
+    if (current.type === 'DIRECT_VENDOR_PAYMENT' && body.currency !== undefined) {
+      return NextResponse.json({ success: false, error: 'Direct vendor pledge currency is governed by its service engagement. Create a separate correction if the currency itself is wrong.' }, { status: 409 })
+    }
+    if (current.type === 'DIRECT_VENDOR_PAYMENT' && current.fulfillmentState === 'PENDING' && body.amount !== undefined) {
+      const correctedAmount = finiteNonNegative(body.amount)
+      if (correctedAmount === null || correctedAmount <= 0) return NextResponse.json({ success: false, error: 'A promised direct vendor amount must be greater than zero.' }, { status: 400 })
     }
     if (current.type === 'DIRECT_VENDOR_PAYMENT' && current.fulfillmentState !== 'PAID_DIRECT' && body.fulfillmentState === 'PAID_DIRECT') {
       return NextResponse.json({ success: false, error: 'Record the vendor payment through the direct-payment action so Wewed creates the real payment and funding attribution together.' }, { status: 409 })
@@ -79,27 +83,38 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       if (campaignRows[0] && campaignRows[0].currency !== currency) return NextResponse.json({ success: false, error: 'Contribution currency must match its campaign currency.' }, { status: 409 })
     }
 
-    await db.$executeRaw`
-      UPDATE wewed_contributions.wedding_contributions
-         SET title = COALESCE(${title}, title),
-             description = CASE WHEN ${body.description !== undefined} THEN ${description} ELSE description END,
-             notes = CASE WHEN ${body.notes !== undefined} THEN ${notes} ELSE notes END,
-             thank_you_state = COALESCE(${thankYouState}, thank_you_state),
-             verification_state = COALESCE(${verificationState}, verification_state),
-             commitment_state = COALESCE(${commitmentState}, commitment_state),
-             fulfillment_state = COALESCE(${fulfillmentState}, fulfillment_state),
-             amount = CASE WHEN ${body.amount !== undefined} THEN ${amount} ELSE amount END,
-             currency = COALESCE(${currency}, currency),
-             fulfilled_at = CASE WHEN ${body.fulfilledAt !== undefined} THEN ${fulfilledAt} ELSE fulfilled_at END,
-             expected_at = CASE WHEN ${body.expectedAt !== undefined} THEN ${expectedAt} ELSE expected_at END,
-             estimated_value = CASE WHEN ${body.estimatedValue !== undefined} THEN ${estimatedValue} ELSE estimated_value END,
-             estimated_value_currency = CASE WHEN ${body.estimatedValueCurrency !== undefined} THEN ${body.estimatedValueCurrency ? normalizeCurrency(body.estimatedValueCurrency) : null} ELSE estimated_value_currency END,
-             quantity = CASE WHEN ${body.quantity !== undefined} THEN ${quantity} ELSE quantity END,
-             unit = CASE WHEN ${body.unit !== undefined} THEN ${String(body.unit ?? '').trim() || null} ELSE unit END,
-             updated_at = NOW()
-       WHERE id = ${id} AND wedding_id = ${weddingId}
-    `
-    await db.auditEvent.create({ data: { weddingId, action: 'contribution.updated', actorId, resourceType: 'WeddingContribution', resourceId: id, afterValue: JSON.stringify({ fields: Object.keys(body), financiallyLocked })} })
+    await db.$transaction(async (tx) => {
+      await tx.$executeRaw`
+        UPDATE wewed_contributions.wedding_contributions
+           SET title = COALESCE(${title}, title),
+               description = CASE WHEN ${body.description !== undefined} THEN ${description} ELSE description END,
+               notes = CASE WHEN ${body.notes !== undefined} THEN ${notes} ELSE notes END,
+               thank_you_state = COALESCE(${thankYouState}, thank_you_state),
+               verification_state = COALESCE(${verificationState}, verification_state),
+               commitment_state = COALESCE(${commitmentState}, commitment_state),
+               fulfillment_state = COALESCE(${fulfillmentState}, fulfillment_state),
+               amount = CASE WHEN ${body.amount !== undefined} THEN ${amount} ELSE amount END,
+               currency = COALESCE(${currency}, currency),
+               fulfilled_at = CASE WHEN ${body.fulfilledAt !== undefined} THEN ${fulfilledAt} ELSE fulfilled_at END,
+               expected_at = CASE WHEN ${body.expectedAt !== undefined} THEN ${expectedAt} ELSE expected_at END,
+               estimated_value = CASE WHEN ${body.estimatedValue !== undefined} THEN ${estimatedValue} ELSE estimated_value END,
+               estimated_value_currency = CASE WHEN ${body.estimatedValueCurrency !== undefined} THEN ${body.estimatedValueCurrency ? normalizeCurrency(body.estimatedValueCurrency) : null} ELSE estimated_value_currency END,
+               quantity = CASE WHEN ${body.quantity !== undefined} THEN ${quantity} ELSE quantity END,
+               unit = CASE WHEN ${body.unit !== undefined} THEN ${String(body.unit ?? '').trim() || null} ELSE unit END,
+               updated_at = NOW()
+         WHERE id = ${id} AND wedding_id = ${weddingId}
+      `
+      if (current.type === 'DIRECT_VENDOR_PAYMENT' && current.fulfillmentState === 'PENDING' && body.amount !== undefined && amount !== null) {
+        await tx.$executeRaw`
+          UPDATE wewed_contributions.contribution_allocations
+             SET amount = ${amount}
+           WHERE wedding_id = ${weddingId}
+             AND contribution_id = ${id}
+             AND allocation_kind = 'DIRECT_PAYMENT'
+        `
+      }
+      await tx.auditEvent.create({ data: { weddingId, action: 'contribution.updated', actorId, resourceType: 'WeddingContribution', resourceId: id, afterValue: JSON.stringify({ fields: Object.keys(body), financiallyLocked })} })
+    })
     return NextResponse.json({ success: true })
   } catch (error) {
     return dbError(error)

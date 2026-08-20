@@ -284,6 +284,12 @@ export async function loadContributionWorkspace(weddingId: string) {
       .reduce((sum, item) => sum + Number(item.amount), 0)
     const allocatedAmount = allocationCash + paymentOnlyCash
     const amount = asNumber(row.amount)
+    const directVendorPaidAmount = row.type === 'DIRECT_VENDOR_PAYMENT'
+      ? funding.filter((item) => item.contributionId === row.id && item.sourceKind === 'CONTRIBUTION' && item.paymentId).reduce((sum, item) => sum + Number(item.amount), 0)
+      : 0
+    const remainingAmount = row.type === 'DIRECT_VENDOR_PAYMENT'
+      ? Math.max(0, (amount ?? 0) - directVendorPaidAmount)
+      : 0
     return {
       id: row.id,
       weddingId: row.weddingId,
@@ -291,6 +297,8 @@ export async function loadContributionWorkspace(weddingId: string) {
       title: row.title,
       description: row.description,
       amount,
+      directVendorPaidAmount,
+      remainingAmount,
       currency: row.currency,
       estimatedValue: asNumber(row.estimatedValue),
       estimatedValueCurrency: row.estimatedValueCurrency,
@@ -428,5 +436,51 @@ export async function budgetContributionAllocations(weddingId: string) {
       FROM wewed_contributions.contribution_allocations a
       JOIN wewed_contributions.wedding_contributions c ON c.id = a.contribution_id
      WHERE a.wedding_id = ${weddingId}
+  `
+}
+
+
+export async function budgetContributionContexts(weddingId: string) {
+  return db.$queryRaw<Array<{
+    budgetItemId: string
+    contributionId: string
+    allocationKind: string
+    allocationAmount: string
+    currency: string
+    contributorName: string
+    title: string
+    notes: string | null
+    type: string
+    commitmentState: string
+    fulfillmentState: string
+    contributionAmount: string | null
+    directPaidAmount: string
+  }>>`
+    SELECT a.budget_item_id AS "budgetItemId",
+           a.contribution_id AS "contributionId",
+           a.allocation_kind AS "allocationKind",
+           a.amount::text AS "allocationAmount",
+           a.currency,
+           p.display_name AS "contributorName",
+           c.title,
+           c.notes,
+           c.type,
+           c.commitment_state AS "commitmentState",
+           c.fulfillment_state AS "fulfillmentState",
+           c.amount::text AS "contributionAmount",
+           COALESCE((
+             SELECT SUM(f.amount)
+               FROM wewed_contributions.payment_funding_allocations f
+              WHERE f.wedding_id = ${weddingId}
+                AND f.contribution_id = c.id
+                AND f.source_kind = 'CONTRIBUTION'
+                AND f.payment_id IS NOT NULL
+           ), 0)::text AS "directPaidAmount"
+      FROM wewed_contributions.contribution_allocations a
+      JOIN wewed_contributions.wedding_contributions c ON c.id = a.contribution_id
+      JOIN wewed_contributions.contributors p ON p.id = c.contributor_id
+     WHERE a.wedding_id = ${weddingId}
+       AND a.budget_item_id IS NOT NULL
+     ORDER BY a.created_at
   `
 }
