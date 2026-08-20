@@ -91,6 +91,7 @@ async function adminCalendarItems(
                "deepLink", "scheduledFor", "snoozedUntil", "expiresAt"
         FROM public."Notification"
         WHERE "recipientUserId" = $1
+          AND "weddingId" IS NULL
           AND category IN ('admin', 'system')
           AND state NOT IN ('resolved', 'cancelled', 'expired')
           AND COALESCE("snoozedUntil", "scheduledFor", "expiresAt") IS NOT NULL
