@@ -12,6 +12,11 @@ INSERT INTO public."Wedding" (
   ('phase2-wedding-a', 'phase2-wedding-a', 'Phase 2 Wedding', now() + interval '90 days', 'Venue A', 'Harare', 'Zimbabwe', 'phase2-couple-a', now()),
   ('phase2-wedding-b', 'phase2-wedding-b', 'Other Wedding', now() + interval '120 days', 'Venue B', 'Bulawayo', 'Zimbabwe', 'phase2-couple-b', now());
 
+INSERT INTO public."User" ("id", "email", "name", "role", "updatedAt")
+VALUES
+  ('phase2-vendor-user', 'phase2-vendor@wewed.test', 'Phase 2 Vendor', 'vendor', now()),
+  ('phase2-representative-user', 'phase2-representative@wewed.test', 'Phase 2 Representative', 'vendor', now());
+
 INSERT INTO public."Vendor" ("id", "name", "category", "weddingId", "updatedAt")
 VALUES ('phase2-vendor-a', 'Phase 2 Photography', 'Photography', 'phase2-wedding-a', now());
 
@@ -24,11 +29,13 @@ INSERT INTO public."ServiceEngagement" (
 );
 
 INSERT INTO public."EngagementParty" (
-  "id", "serviceEngagementId", "weddingId", "partyRole", "partyKind", "displayName", "requiredForReview", "updatedAt"
+  "id", "serviceEngagementId", "weddingId", "partyRole", "partyKind", "displayName", "userId", "requiredForReview", "updatedAt"
 ) VALUES
-  ('phase2-party-client', 'phase2-engagement-a', 'phase2-wedding-a', 'CLIENT', 'COUPLE', 'Phase & Two', true, now()),
-  ('phase2-party-planner', 'phase2-engagement-a', 'phase2-wedding-a', 'PLANNER', 'PLANNING_COMPANY', 'Planner Co', true, now()),
-  ('phase2-party-vendor', 'phase2-engagement-a', 'phase2-wedding-a', 'SERVICE_PROVIDER', 'VENDOR', 'Phase 2 Photography', true, now());
+  ('phase2-party-client', 'phase2-engagement-a', 'phase2-wedding-a', 'CLIENT', 'COUPLE', 'Phase & Two', NULL, true, now()),
+  ('phase2-party-planner', 'phase2-engagement-a', 'phase2-wedding-a', 'PLANNER', 'PLANNING_COMPANY', 'Planner Co', NULL, true, now()),
+  ('phase2-party-vendor', 'phase2-engagement-a', 'phase2-wedding-a', 'SERVICE_PROVIDER', 'VENDOR', 'Phase 2 Photography', 'phase2-vendor-user', true, now()),
+  ('phase2-party-representative', 'phase2-engagement-a', 'phase2-wedding-a', 'AUTHORIZED_REPRESENTATIVE', 'PERSON', 'Vendor Representative', 'phase2-representative-user', false, now()),
+  ('phase2-party-unmapped-vendor', 'phase2-engagement-a', 'phase2-wedding-a', 'SERVICE_PROVIDER', 'VENDOR', 'Unmapped Vendor', NULL, false, now());
 
 DO $$
 BEGIN
@@ -139,10 +146,19 @@ END $$;
 
 INSERT INTO public."ContractReviewGrant" (
   "id", "contractId", "contractVersionId", "engagementPartyId", "role", "tokenHash", "expiresAt"
-) VALUES (
-  'phase2-grant-a', 'phase2-contract-a', 'phase2-version-a', 'phase2-party-vendor',
-  'SERVICE_PROVIDER', repeat('e', 64), now() + interval '7 days'
-);
+) VALUES
+  (
+    'phase2-grant-a', 'phase2-contract-a', 'phase2-version-a', 'phase2-party-vendor',
+    'SERVICE_PROVIDER', repeat('e', 64), now() + interval '12 hours'
+  ),
+  (
+    'phase2-grant-representative', 'phase2-contract-a', 'phase2-version-a', 'phase2-party-representative',
+    'AUTHORIZED_REPRESENTATIVE', repeat('f', 64), now() + interval '12 hours'
+  ),
+  (
+    'phase2-grant-unmapped', 'phase2-contract-a', 'phase2-version-a', 'phase2-party-unmapped-vendor',
+    'SERVICE_PROVIDER', repeat('1', 64), now() + interval '12 hours'
+  );
 
 DO $$
 DECLARE
@@ -156,6 +172,61 @@ BEGIN
   IF plain_token_column_count <> 0 THEN
     RAISE EXCEPTION 'Contract review grants must not persist plaintext tokens';
   END IF;
+END $$;
+
+DO $$
+DECLARE
+  candidate_count integer;
+  candidate_user text;
+BEGIN
+  SELECT count(*), min(ep."userId")
+  INTO candidate_count, candidate_user
+  FROM public."ContractReviewGrant" crg
+  JOIN public."Contract" c ON c.id = crg."contractId"
+  JOIN public."ContractVersion" cv
+    ON cv.id = crg."contractVersionId" AND cv."contractId" = crg."contractId"
+  JOIN public."EngagementParty" ep ON ep.id = crg."engagementPartyId"
+  WHERE crg.status = 'ACTIVE'
+    AND crg."revokedAt" IS NULL
+    AND crg."expiresAt" > now()
+    AND crg."expiresAt" <= now() + interval '24 hours'
+    AND cv.status IN ('ISSUED', 'AWAITING_ACCEPTANCE', 'PARTIALLY_ACCEPTED')
+    AND ep."userId" IS NOT NULL
+    AND ep.status = 'active'
+    AND ep."partyRole" = 'SERVICE_PROVIDER'
+    AND ep."partyKind" = 'VENDOR';
+
+  IF candidate_count <> 1 OR candidate_user <> 'phase2-vendor-user' THEN
+    RAISE EXCEPTION 'Vendor contract-review attention candidate boundary failed: count %, user %', candidate_count, candidate_user;
+  END IF;
+END $$;
+
+INSERT INTO public."Notification" (
+  "id", "recipientUserId", "weddingId", "sourceType", "sourceId", "eventType", "category",
+  "severity", "title", "body", "requiresAction", "expiresAt", "dedupeKey"
+) VALUES (
+  'phase2-notification-contract-review', 'phase2-vendor-user', 'phase2-wedding-a',
+  'contract_review_grant', 'phase2-grant-a', 'contract.review_access_expiring', 'contract',
+  'action_required', 'Contract review link expires soon', 'Authorized review access expires within 24 hours.',
+  true, now() + interval '12 hours', 'contract-review-grant:phase2-grant-a:expires-24h'
+);
+
+DO $$
+BEGIN
+  BEGIN
+    INSERT INTO public."Notification" (
+      "id", "recipientUserId", "weddingId", "sourceType", "sourceId", "eventType", "category",
+      "severity", "title", "body", "requiresAction", "dedupeKey"
+    ) VALUES (
+      'phase2-notification-contract-review-duplicate', 'phase2-vendor-user', 'phase2-wedding-a',
+      'contract_review_grant', 'phase2-grant-a', 'contract.review_access_expiring', 'contract',
+      'action_required', 'Duplicate', 'Duplicate', true,
+      'contract-review-grant:phase2-grant-a:expires-24h'
+    );
+    RAISE EXCEPTION 'Per-recipient notification dedupe unexpectedly allowed a duplicate';
+  EXCEPTION WHEN unique_violation THEN
+    NULL;
+  END;
 END $$;
 
 INSERT INTO public."ContractEvent" ("id", "contractId", "versionId", "eventType", "actorId", "metadata")
@@ -182,6 +253,7 @@ DO $$
 DECLARE
   issued_count integer;
   grant_count integer;
+  notification_count integer;
 BEGIN
   SELECT count(*) INTO issued_count
   FROM public."ContractVersion"
@@ -191,9 +263,17 @@ BEGIN
   SELECT count(*) INTO grant_count
   FROM public."ContractReviewGrant"
   WHERE "contractVersionId" = 'phase2-version-a' AND char_length("tokenHash") = 64;
-  IF grant_count <> 1 THEN RAISE EXCEPTION 'Hashed review grant invariant failed'; END IF;
+  IF grant_count <> 3 THEN RAISE EXCEPTION 'Hashed review grant invariant failed'; END IF;
+
+  SELECT count(*) INTO notification_count
+  FROM public."Notification"
+  WHERE "recipientUserId" = 'phase2-vendor-user'
+    AND "sourceType" = 'contract_review_grant'
+    AND "sourceId" = 'phase2-grant-a'
+    AND category = 'contract';
+  IF notification_count <> 1 THEN RAISE EXCEPTION 'Contract review attention notification invariant failed'; END IF;
 END $$;
 
 ROLLBACK;
 
-\echo 'Phase 2 contract domain PostgreSQL integration: PASS'
+\echo 'Phase 2 contract domain + vendor review attention PostgreSQL integration: PASS'
