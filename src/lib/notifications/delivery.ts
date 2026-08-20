@@ -5,6 +5,10 @@ import { db } from '@/lib/db'
 import { sendTransactionalEmail } from '@/lib/email/resend'
 import { buildWhatsAppRequest } from '@/lib/communication-channels'
 import {
+  isNotificationExternallyDeliverableToRecipient,
+  type DeliveryAuthorizationCandidate,
+} from '@/lib/notifications/delivery-authorization'
+import {
   notificationExternalDeliveryDecision,
   notificationRetryDelayMs,
   type NotificationExternalChannel,
@@ -13,9 +17,7 @@ import {
 const MAX_ATTEMPTS_PER_CHANNEL = 5
 const NOTIFICATION_DELIVERY_LOOKBACK_HOURS = 24
 
-interface NotificationDeliveryCandidate {
-  id: string
-  recipientUserId: string
+interface NotificationDeliveryCandidate extends DeliveryAuthorizationCandidate {
   title: string
   body: string
   deepLink: string | null
@@ -77,6 +79,7 @@ interface TransportResult {
 export interface NotificationDeliveryStats {
   locked: boolean
   candidates: number
+  authorizationRejected: number
   queued: number
   processed: number
   sent: number
@@ -147,11 +150,14 @@ async function activePushSubscriptions(userId: string): Promise<PushSubscription
 async function notificationCandidates(limit: number): Promise<NotificationDeliveryCandidate[]> {
   return db.$queryRawUnsafe<NotificationDeliveryCandidate[]>(
     `
-      SELECT n.id, n."recipientUserId", n.title, n.body, n."deepLink", n.state,
+      SELECT n.id, n."recipientUserId", recipient.role AS "recipientRole",
+             n."weddingId", n.category, n."sourceType", n."sourceId",
+             n.title, n.body, n."deepLink", n.state,
              n."readAt", n."scheduledFor", n."snoozedUntil", n."expiresAt", n."createdAt",
              preference."emailEnabled", preference."whatsAppEnabled", preference."pushEnabled",
              preference.timezone, preference."quietStart", preference."quietEnd", preference."digestMode"
       FROM public."Notification" n
+      JOIN public."User" recipient ON recipient.id = n."recipientUserId"
       JOIN public."NotificationPreference" preference
         ON preference."userId" = n."recipientUserId" AND preference."scopeKey" = 'global'
       WHERE n.state IN ('active', 'queued')
@@ -476,7 +482,9 @@ async function processQueuedAttempts(limit: number, stats: NotificationDeliveryS
   for (const attempt of attempts) {
     const rows = await db.$queryRawUnsafe<NotificationDeliveryCandidate[]>(
       `
-        SELECT n.id, n."recipientUserId", n.title, n.body, n."deepLink", n.state,
+        SELECT n.id, n."recipientUserId", recipient.role AS "recipientRole",
+               n."weddingId", n.category, n."sourceType", n."sourceId",
+               n.title, n.body, n."deepLink", n.state,
                n."readAt", n."scheduledFor", n."snoozedUntil", n."expiresAt", n."createdAt",
                COALESCE(preference."emailEnabled", false) AS "emailEnabled",
                COALESCE(preference."whatsAppEnabled", false) AS "whatsAppEnabled",
@@ -484,6 +492,7 @@ async function processQueuedAttempts(limit: number, stats: NotificationDeliveryS
                COALESCE(preference.timezone, 'UTC') AS timezone,
                preference."quietStart", preference."quietEnd", COALESCE(preference."digestMode", 'none') AS "digestMode"
         FROM public."Notification" n
+        JOIN public."User" recipient ON recipient.id = n."recipientUserId"
         LEFT JOIN public."NotificationPreference" preference
           ON preference."userId" = n."recipientUserId" AND preference."scopeKey" = 'global'
         WHERE n.id = $1
@@ -494,6 +503,13 @@ async function processQueuedAttempts(limit: number, stats: NotificationDeliveryS
     const notification = rows[0]
     if (!notification) {
       await cancelAttempt(attempt.id, 'NOTIFICATION_MISSING')
+      stats.cancelled += 1
+      continue
+    }
+
+    if (!(await isNotificationExternallyDeliverableToRecipient(notification))) {
+      await cancelAttempt(attempt.id, 'AUTHORIZATION_REVOKED')
+      stats.authorizationRejected += 1
       stats.cancelled += 1
       continue
     }
@@ -562,6 +578,7 @@ export async function runNotificationDeliveryRouter(
   const stats: NotificationDeliveryStats = {
     locked: false,
     candidates: 0,
+    authorizationRejected: 0,
     queued: 0,
     processed: 0,
     sent: 0,
@@ -581,6 +598,11 @@ export async function runNotificationDeliveryRouter(
     stats.candidates = candidates.length
 
     for (const notification of candidates) {
+      if (!(await isNotificationExternallyDeliverableToRecipient(notification))) {
+        stats.authorizationRejected += 1
+        continue
+      }
+
       const channelFlags: Array<[NotificationExternalChannel, boolean]> = [
         ['email', notification.emailEnabled],
         ['whatsapp', notification.whatsAppEnabled],
