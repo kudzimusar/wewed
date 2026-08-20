@@ -147,7 +147,7 @@ async function activePushSubscriptions(userId: string): Promise<PushSubscription
   )
 }
 
-async function notificationCandidates(limit: number): Promise<NotificationDeliveryCandidate[]> {
+async function notificationCandidates(): Promise<NotificationDeliveryCandidate[]> {
   return db.$queryRawUnsafe<NotificationDeliveryCandidate[]>(
     `
       SELECT n.id, n."recipientUserId", recipient.role AS "recipientRole",
@@ -164,6 +164,11 @@ async function notificationCandidates(limit: number): Promise<NotificationDelive
         AND n."readAt" IS NULL
         AND n."createdAt" >= CURRENT_TIMESTAMP - ($1::text || ' hours')::interval
         AND (n."expiresAt" IS NULL OR n."expiresAt" > CURRENT_TIMESTAMP)
+        AND (
+          preference."emailEnabled" = true
+          OR preference."whatsAppEnabled" = true
+          OR preference."pushEnabled" = true
+        )
       ORDER BY
         CASE n.severity
           WHEN 'urgent' THEN 0
@@ -172,10 +177,8 @@ async function notificationCandidates(limit: number): Promise<NotificationDelive
           ELSE 3
         END,
         n."createdAt" ASC
-      LIMIT $2
     `,
     NOTIFICATION_DELIVERY_LOOKBACK_HOURS,
-    limit,
   )
 }
 
@@ -594,8 +597,9 @@ export async function runNotificationDeliveryRouter(
   stats.locked = true
 
   try {
-    const candidates = await notificationCandidates(safeLimit)
+    const candidates = await notificationCandidates()
     stats.candidates = candidates.length
+    let eligibleNotificationCount = 0
 
     for (const notification of candidates) {
       if (!(await isNotificationExternallyDeliverableToRecipient(notification))) {
@@ -608,8 +612,10 @@ export async function runNotificationDeliveryRouter(
         ['whatsapp', notification.whatsAppEnabled],
         ['push', notification.pushEnabled],
       ]
-      for (const [channel, enabled] of channelFlags) {
-        const decision = notificationExternalDeliveryDecision({
+      const channelDecisions = channelFlags.map(([channel, enabled]) => ({
+        channel,
+        enabled,
+        decision: notificationExternalDeliveryDecision({
           channel,
           channelEnabled: enabled,
           digestMode: notification.digestMode,
@@ -622,11 +628,19 @@ export async function runNotificationDeliveryRouter(
           scheduledFor: notification.scheduledFor,
           snoozedUntil: notification.snoozedUntil,
           expiresAt: notification.expiresAt,
-        })
-        if (!decision.eligible) {
-          if (enabled) stats.deferred += 1
-          continue
-        }
+        }),
+      }))
+
+      const eligibleChannels = channelDecisions.filter(({ decision }) => decision.eligible)
+      if (eligibleChannels.length === 0) {
+        stats.deferred += channelDecisions.filter(({ enabled, decision }) => enabled && !decision.eligible).length
+        continue
+      }
+
+      if (eligibleNotificationCount >= safeLimit) break
+      eligibleNotificationCount += 1
+
+      for (const { channel } of eligibleChannels) {
         const history = await attemptHistory(notification.id, channel)
         if (!mayQueueAttempt(history, now)) continue
         if (await insertAttempt(notification.id, channel)) stats.queued += 1
