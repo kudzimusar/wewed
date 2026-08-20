@@ -30,6 +30,7 @@ describe('Notebook transcription provider resolution', () => {
       ZAI_API_KEY: 'zai-key',
       ZAI_BASE_URL: 'https://api.z.ai/api/paas/v4',
       GROQ_API_KEY: 'groq-key',
+      AI_ALLOW_PRIVATE_FALLBACK: 'true',
     })
 
     expect(config).toEqual({
@@ -43,10 +44,17 @@ describe('Notebook transcription provider resolution', () => {
     })
   })
 
-  test('reuses the existing Groq server credential only when the private Z.AI credential is absent', () => {
+  test('uses Groq only when the private fallback policy is explicitly enabled', () => {
+    expect(resolveNotebookTranscriptionConfig({
+      GROQ_API_KEY: 'groq-key',
+      GROQ_BASE_URL: 'https://api.groq.com/openai/v1',
+      AI_ALLOW_PRIVATE_FALLBACK: 'false',
+    })).toBeNull()
+
     const config = resolveNotebookTranscriptionConfig({
       GROQ_API_KEY: 'groq-key',
       GROQ_BASE_URL: 'https://api.groq.com/openai/v1',
+      AI_ALLOW_PRIVATE_FALLBACK: 'true',
     })
 
     expect(config).toEqual({
