@@ -9,6 +9,25 @@ interface NotificationBellProps {
   showLabel?: boolean
 }
 
+interface BadgeNavigator extends Navigator {
+  setAppBadge?: (contents?: number) => Promise<void>
+  clearAppBadge?: () => Promise<void>
+}
+
+async function syncAppBadge(unreadCount: number) {
+  if (typeof navigator === 'undefined') return
+  const badgeNavigator = navigator as BadgeNavigator
+  try {
+    if (unreadCount > 0 && badgeNavigator.setAppBadge) {
+      await badgeNavigator.setAppBadge(unreadCount)
+    } else if (badgeNavigator.clearAppBadge) {
+      await badgeNavigator.clearAppBadge()
+    }
+  } catch {
+    // App badging is optional progressive enhancement.
+  }
+}
+
 export function NotificationBell({ className = '', showLabel = false }: NotificationBellProps) {
   const [authorized, setAuthorized] = useState<boolean | null>(null)
   const [unreadCount, setUnreadCount] = useState(0)
@@ -22,13 +41,16 @@ export function NotificationBell({ className = '', showLabel = false }: Notifica
       if (response.status === 401 || response.status === 403) {
         setAuthorized(false)
         setUnreadCount(0)
+        await syncAppBadge(0)
         return
       }
       if (!response.ok) return
       const payload = (await response.json()) as { success?: boolean; unreadCount?: number }
       if (payload.success) {
+        const count = Math.max(0, Number(payload.unreadCount ?? 0))
         setAuthorized(true)
-        setUnreadCount(Math.max(0, Number(payload.unreadCount ?? 0)))
+        setUnreadCount(count)
+        await syncAppBadge(count)
       }
     } catch {
       // The bell is progressive enhancement; navigation must remain usable if count lookup fails.
