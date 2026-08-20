@@ -39,8 +39,6 @@ function effectivePrincipal(session: AppSession): { userId: string; role: Dashbo
 const VENDOR_ALLOWED_CATEGORIES = new Set([
   'vendor',
   'engagement',
-  'contract',
-  'payment',
   'message',
   'communication',
   'system',
@@ -53,7 +51,13 @@ export function isNotificationVisibleToPrincipal(
   role: DashboardRole,
 ): boolean {
   if (notification.recipientUserId !== principalUserId) return false
-  if (role === 'vendor' && !VENDOR_ALLOWED_CATEGORIES.has(notification.category)) return false
+  if (role === 'vendor') {
+    if (notification.category === 'contract') {
+      if (notification.sourceType !== 'contract_review_grant') return false
+    } else if (!VENDOR_ALLOWED_CATEGORIES.has(notification.category)) {
+      return false
+    }
+  }
   if (!notification.weddingId) return true
   return accessibleWeddingIds.has(notification.weddingId)
 }
