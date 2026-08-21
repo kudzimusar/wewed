@@ -85,7 +85,7 @@ test('planner can discover notification center and every notification page has a
 
   await page.goto('/notifications')
   await expect(page.getByTestId('notification-section-navigation')).toBeVisible()
-  await expect(page.getByTestId('notification-exit-workspace')).toHaveAttribute('href', '/planner')
+  await expect(page.getByTestId('notification-exit-workspace')).toHaveAttribute('href', '/planner/portfolio')
   await expect(page.getByTestId('notification-exit-settings')).toHaveAttribute('href', '/settings')
   await expect(page.getByTestId('notification-open-settings')).toHaveAttribute('href', '/settings/notifications')
 
@@ -93,7 +93,7 @@ test('planner can discover notification center and every notification page has a
   await expect(page).toHaveURL(/\/settings\/notifications$/)
   await expect(page.getByTestId('notification-exit-settings')).toHaveAttribute('href', '/settings')
   await expect(page.getByTestId('notification-open-center')).toHaveAttribute('href', '/notifications')
-  await expect(page.getByTestId('notification-exit-workspace')).toHaveAttribute('href', '/planner')
+  await expect(page.getByTestId('notification-exit-workspace')).toHaveAttribute('href', '/planner/portfolio')
 
   await page.getByTestId('notification-exit-settings').click()
   await expect(page).toHaveURL(/\/settings$/)
@@ -101,8 +101,8 @@ test('planner can discover notification center and every notification page has a
   await page.goto('/settings/notifications/push')
   await expect(page.getByTestId('notification-back-to-settings')).toHaveAttribute('href', '/settings/notifications')
   await expect(page.getByTestId('notification-exit-settings')).toHaveAttribute('href', '/settings')
-  await expect(page.getByTestId('notification-exit-workspace')).toHaveAttribute('href', '/planner')
+  await expect(page.getByTestId('notification-exit-workspace')).toHaveAttribute('href', '/planner/portfolio')
 
   await page.getByTestId('notification-exit-workspace').click()
-  await expect(page).toHaveURL(/\/planner$/)
+  await expect(page).toHaveURL(/\/planner\/portfolio$/)
 })
