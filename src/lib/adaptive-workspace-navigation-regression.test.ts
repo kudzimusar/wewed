@@ -36,6 +36,7 @@ describe('WW-ADAPTIVE-NAV-2026-08-18-01 release contract', () => {
     expect(adaptiveMenu).toContain('Workspace')
     expect(adaptiveMenu).toContain('Brief')
     expect(adaptiveMenu).toContain('Messages')
+    expect(adaptiveMenu).toContain("['/notifications', 'Notifications'")
     expect(adaptiveMenu).toContain('Notebook')
     expect(adaptiveMenu).toContain('Settings')
     expect(adaptiveMenu).toContain('Switch account')
@@ -120,7 +121,9 @@ describe('WW-ADAPTIVE-NAV-2026-08-18-01 release contract', () => {
     expect(settings).toContain('Project & team')
     expect(settings).toContain('Notifications & communication')
     expect(settings).toContain('Privacy & security')
-    expect(settings).toContain('no unsupported notification preference is stored')
+    expect(settings).toContain('href="/notifications"')
+    expect(settings).toContain('href="/settings/notifications"')
+    expect(settings).toContain('In-app notifications remain the canonical record')
   })
 
   test('keeps platform administration separate from project membership', () => {

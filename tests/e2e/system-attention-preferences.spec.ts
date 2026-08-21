@@ -34,8 +34,7 @@ test('notification preferences expose only valid production semantics and push s
         emailEnabled: false,
         whatsAppEnabled: false,
         timezone: 'Africa/Harare',
-        quietStart: '22:00',
-        quietEnd: '07:00',
+        quietStart: '22:00', quietEnd: '07:00',
         digestMode: 'none',
       },
     })
@@ -71,4 +70,20 @@ test('notification preferences expose only valid production semantics and push s
   } finally {
     await prisma.$disconnect()
   }
+})
+
+test('planner can discover notification center and settings and has an explicit way back', async ({ plannerPage: page }) => {
+  await page.goto('/settings')
+  await expect(page.getByRole('heading', { name: 'Notifications & communication' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Open notifications' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Notification settings' })).toBeVisible()
+
+  await page.goto('/planner')
+  await page.getByTestId('planner-adaptive-menu-trigger').click()
+  await expect(page.getByRole('link', { name: 'Notifications', exact: true })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Settings', exact: true })).toBeVisible()
+
+  await page.goto('/notifications')
+  await expect(page.getByRole('button', { name: 'Back to previous page' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Notification settings' })).toBeVisible()
 })
