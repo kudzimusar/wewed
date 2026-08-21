@@ -93,7 +93,13 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: true, data: serializeNotification(notification) })
     }
     if (action === 'unread') {
-      const notification = await setNotificationReadState(session, id, false)
+      let notification = await setNotificationReadState(session, id, false)
+      // Only an ordinary read notification can be intentionally made unread again. Acknowledged,
+      // scheduled and terminal lifecycle states stay read so another device can never make a handled
+      // notification appear new by issuing a stale/unexpected unread action.
+      if (!['active', 'read'].includes(notification.state)) {
+        notification = await setNotificationReadState(session, id, true)
+      }
       return NextResponse.json({ success: true, data: serializeNotification(notification) })
     }
     if (action === 'acknowledge') {
