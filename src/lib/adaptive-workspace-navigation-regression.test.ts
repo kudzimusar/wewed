@@ -16,6 +16,8 @@ const commandCenter = source('src/components/wedding/planner/planner-worksheet-c
 const stage7 = source('src/components/wedding/planner-workspace-stage7.tsx')
 const coreWorkspace = source('src/components/wedding/planner-workspace.tsx')
 const settings = source('src/app/settings/page.tsx')
+const notificationCenter = source('src/app/notifications/page.tsx')
+const notificationRoleDescription = source('src/components/notifications/notification-role-description.tsx')
 const events = source('src/lib/planner-workspace-events.ts')
 const notebookEvents = source('src/lib/notebook-events.ts')
 const browserGate = source('tests/e2e/planner-adaptive-navigation.spec.ts')
@@ -37,6 +39,7 @@ describe('WW-ADAPTIVE-NAV-2026-08-18-01 release contract', () => {
     expect(adaptiveMenu).toContain('Brief')
     expect(adaptiveMenu).toContain('Messages')
     expect(adaptiveMenu).toContain("['/notifications', 'Notifications'")
+    expect(adaptiveMenu).toContain("['/calendar', 'Calendar'")
     expect(adaptiveMenu).toContain('Notebook')
     expect(adaptiveMenu).toContain('Settings')
     expect(adaptiveMenu).toContain('Switch account')
@@ -45,6 +48,16 @@ describe('WW-ADAPTIVE-NAV-2026-08-18-01 release contract', () => {
     expect(quickNavigation).toContain('PlannerSecondaryAdaptiveNavigation')
     expect(quickNavigation).toContain("pathname.startsWith('/planner/')")
     expect(quickNavigation).toContain('return <PlannerSecondaryAdaptiveNavigation />')
+  })
+
+  test('keeps the Notification Center role-specific instead of advertising other stakeholder surfaces', () => {
+    expect(notificationCenter).toContain('<NotificationRoleDescription />')
+    expect(notificationCenter).not.toContain('One secure attention center for Admin, Planner, Couple and Vendor activity')
+    expect(notificationRoleDescription).toContain("planner: 'Your planning reminders, deadlines and actions")
+    expect(notificationRoleDescription).toContain("couple: 'Your wedding reminders, deadlines and actions")
+    expect(notificationRoleDescription).toContain("vendor: 'Your service, contract and delivery reminders")
+    expect(notificationRoleDescription).toContain("admin: 'Your Wewed operational alerts")
+    expect(notificationRoleDescription).toContain('Only activity you are authorized to access appears here.')
   })
 
   test('keeps Notebook and Quick Note inside the Planner navigation hierarchy instead of fixed Planner pills', () => {
