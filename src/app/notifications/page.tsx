@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
+  ArrowLeft,
   Bell,
   CalendarClock,
   Check,
@@ -12,6 +13,7 @@ import {
   Inbox,
   Loader2,
   RotateCcw,
+  Settings,
 } from 'lucide-react'
 
 type NotificationState =
@@ -156,6 +158,15 @@ export default function NotificationCenterPage() {
     [items, filter, category],
   )
 
+  function goBack() {
+    if (typeof window === 'undefined') return
+    if (window.history.length > 1) {
+      window.history.back()
+      return
+    }
+    window.location.href = '/'
+  }
+
   async function act(item: NotificationItem, action: string, extra?: Record<string, unknown>) {
     setWorkingId(item.id)
     setError(null)
@@ -187,6 +198,23 @@ export default function NotificationCenterPage() {
   return (
     <main className="min-h-dvh bg-[#17120f] px-4 pb-20 pt-8 text-[#f5ead7] sm:px-6 lg:px-10">
       <div className="mx-auto max-w-5xl">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3" aria-label="Notification navigation">
+          <button
+            type="button"
+            onClick={goBack}
+            className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-[#bf9b5f]/25 px-3 text-sm font-semibold text-[#f5ead7]/75 transition hover:bg-[#bf9b5f]/10 hover:text-[#bf9b5f]"
+            aria-label="Back to previous page"
+          >
+            <ArrowLeft className="size-4" /> Back
+          </button>
+          <Link
+            href="/settings/notifications"
+            className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-[#bf9b5f]/25 px-3 text-sm font-semibold text-[#f5ead7]/75 transition hover:bg-[#bf9b5f]/10 hover:text-[#bf9b5f]"
+          >
+            <Settings className="size-4" /> Notification settings
+          </Link>
+        </div>
+
         <header className="flex flex-col gap-5 border-b border-[#bf9b5f]/20 pb-6 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#bf9b5f]">
