@@ -3,6 +3,7 @@ import './notifications/contracts.test'
 import './notifications/visibility-hardening.test'
 import './notifications/preference-contracts.test'
 import './notifications/delivery-policy.test'
+import './notifications/web-push.test'
 import './calendar/contracts.test'
 import { plannerLegacyModuleSlug } from './planner-route-state'
 
@@ -118,6 +119,7 @@ describe('Stage 10 executable planner release gate', () => {
         source('tests/e2e/system-attention-listing.spec.ts'),
         source('tests/e2e/system-attention-preferences.spec.ts'),
         source('tests/e2e/system-attention-delivery.spec.ts'),
+        source('tests/e2e/system-attention-multidevice.spec.ts'),
         source('tests/e2e/legacy-planner-reminders-regression.spec.ts'),
         source('tests/e2e/support/planner-browser.ts'),
       ])
@@ -151,20 +153,22 @@ describe('Stage 10 executable planner release gate', () => {
       'planner\\/guests\\/import',
       'data-planner-primary-scroll',
       'Admin, Planner, Couple and Vendor remain source-isolated',
-      'system reminder scheduler is protected, idempotent, snooze-safe and source-resolving',
+      'system reminder scheduler is protected, role-isolated, idempotent, snooze-safe and source-resolving',
       'notification listing authorizes before limiting and snooze removes current attention',
       'notification preferences expose only valid production semantics',
       'notification delivery skips revoked rows, reaches authorized rows',
+      'same-account notification state refreshes across devices and Open records read before redirect',
       'legacy Planner RSVP email reminders remain CRUD-safe',
     ]) {
       expect(browser).toContain(marker)
     }
   })
 
-  test('external notification delivery authorizes and applies policy before consuming its batch', async () => {
-    const [router, authorization] = await Promise.all([
+  test('external notification delivery authorizes, deep-links and applies policy before consuming its batch', async () => {
+    const [router, authorization, push] = await Promise.all([
       source('src/lib/notifications/delivery.ts'),
       source('src/lib/notifications/delivery-authorization.ts'),
+      source('src/lib/notifications/web-push.ts'),
     ])
 
     expect(router).toContain('isNotificationExternallyDeliverableToRecipient')
@@ -176,6 +180,11 @@ describe('Stage 10 executable planner release gate', () => {
     expect(router).toContain('const eligibleChannels = channelDecisions.filter(({ decision }) => decision.eligible)')
     expect(router).toContain('if (eligibleNotificationCount >= safeLimit) break')
     expect(router).not.toContain('notificationCandidates(safeLimit)')
+    expect(router).toContain('/notifications/open/${encodeURIComponent(notificationId)}')
+    expect(router).toContain('buildNotificationWhatsAppActionRequest')
+    expect(router).toContain('sendDirectWebPush')
+    expect(push).toContain("Authorization: vapid t=${signingInput}.${encodeBase64Url(signature)}, k=${config.publicKey}")
+    expect(push).toContain("'Content-Encoding': 'aes128gcm'")
     expect(authorization).toContain("ep.\"partyRole\" = 'SERVICE_PROVIDER'")
     expect(authorization).toContain("ep.\"partyKind\" = 'VENDOR'")
     expect(authorization).toContain("crg.status = 'ACTIVE'")
@@ -184,7 +193,35 @@ describe('Stage 10 executable planner release gate', () => {
     expect(authorization).toContain('isVendorNotificationSourceAuthorized')
   })
 
-  test('push worker accepts the notification gateway envelope without weakening same-origin links', async () => {
+  test('notification lifecycle and channel settings enforce multi-device semantics', async () => {
+    const [center, bell, today, capabilities, email, scheduler, manifest, openRoute] = await Promise.all([
+      source('src/app/notifications/page.tsx'),
+      source('src/components/notifications/notification-bell.tsx'),
+      source('src/lib/attention/today.ts'),
+      source('src/app/api/notifications/capabilities/route.ts'),
+      source('src/lib/email/resend.ts'),
+      source('src/lib/notifications/scheduler.ts'),
+      source('public/manifest.json'),
+      source('src/app/notifications/open/[id]/route.ts'),
+    ])
+
+    expect(center).toContain("window.addEventListener('focus', onFocus)")
+    expect(center).toContain("document.addEventListener('visibilitychange', refreshWhenVisible)")
+    expect(center).toContain('notification-acknowledged-state')
+    expect(center).toContain('/notifications/open/${encodeURIComponent(item.id)}')
+    expect(bell).toContain("window.setInterval(refreshWhenVisible, 10_000)")
+    expect(today).toContain("notification.state !== 'acknowledged'")
+    expect(capabilities).toContain('isTransactionalEmailConfigured')
+    expect(capabilities).toContain('directWebPushConfigured')
+    expect(email).toContain('WEWED_EMAIL_FROM')
+    expect(email).toContain('WEWED_EMAIL_REPLY_TO')
+    expect(scheduler).toContain("LOWER(account.role) = 'planner'")
+    expect(openRoute).toContain('setNotificationReadState(session, notificationId, true)')
+    expect(manifest).toContain('"name": "Wewed"')
+    expect(manifest).not.toContain('Charity & Kudzie')
+  })
+
+  test('push worker accepts the notification envelope without weakening same-origin links', async () => {
     const worker = await source('public/sw.js')
     expect(worker).toContain('pushDisplayPayload')
     expect(worker).toContain('payload.notification')
