@@ -53,7 +53,12 @@ export async function GET() {
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ?? ''
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? ''
-  const cronSecretReady = e2eMode || Boolean(process.env.CRON_SECRET?.trim())
+  const vercelEnvironment = process.env.VERCEL_ENV?.trim()
+  const cronSecretRequired = !e2eMode && (
+    vercelEnvironment === 'production' ||
+    (!vercelEnvironment && process.env.NODE_ENV === 'production')
+  )
+  const cronSecretReady = !cronSecretRequired || Boolean(process.env.CRON_SECRET?.trim())
   const requiredEnvironment = {
     ...environment.requiredEnvironment,
     cronSecret: cronSecretReady,
