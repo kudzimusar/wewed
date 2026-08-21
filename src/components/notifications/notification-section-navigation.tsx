@@ -11,7 +11,7 @@ type NotificationSurface = 'center' | 'settings' | 'push'
 
 function workspaceFor(role: AccountRole) {
   if (role === 'admin') return { href: '/admin', label: 'Administration' }
-  if (role === 'planner') return { href: '/planner', label: 'Planner workspace' }
+  if (role === 'planner') return { href: '/planner/portfolio', label: 'Planner workspace' }
   if (role === 'vendor') return { href: '/vendor', label: 'Vendor workspace' }
   if (role === 'provider') return { href: '/vendors/manage', label: 'Provider profile' }
   return { href: '/couple', label: 'Couple workspace' }
