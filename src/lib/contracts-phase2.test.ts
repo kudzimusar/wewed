@@ -126,4 +126,18 @@ describe('Phase 2 Service Engagement Deal Room and Wewed contract governance', (
     expect(service).toContain('artifactSha256')
     expect(service).toContain('canonicalSha256')
   })
+
+  test('lets nested engagement parties inherit the parent wedding relation', () => {
+    const service = source('src/lib/contracts/phase2.ts')
+    const start = service.indexOf('export async function createManagedServiceEngagement')
+    const end = service.indexOf('export async function listManagedServiceEngagements', start)
+    const create = service.slice(start, end)
+
+    expect(create).toContain('        weddingId: input.weddingId,')
+    expect(create).not.toContain('              weddingId: input.weddingId,')
+    expect(create).toContain("partyRole: 'CLIENT'")
+    expect(create).toContain("partyRole: 'PLANNER'")
+    expect(create).toContain("partyRole: 'SERVICE_PROVIDER'")
+  })
+
 })
