@@ -9,7 +9,7 @@ import {
 
 type NotificationSurface = 'center' | 'settings' | 'push'
 
-function workspaceFor(role: AccountRole | undefined) {
+function workspaceFor(role: AccountRole) {
   if (role === 'admin') return { href: '/admin', label: 'Administration' }
   if (role === 'planner') return { href: '/planner', label: 'Planner workspace' }
   if (role === 'vendor') return { href: '/vendor', label: 'Vendor workspace' }
@@ -19,7 +19,9 @@ function workspaceFor(role: AccountRole | undefined) {
 
 export function NotificationSectionNavigation({ surface }: { surface: NotificationSurface }) {
   const session = usePublicAccountSession()
-  const workspace = workspaceFor(session?.authorized ? session.user?.role : undefined)
+  const workspace = session?.authorized && session.user?.role
+    ? workspaceFor(session.user.role)
+    : { href: '/settings', label: 'Workspace' }
   const dark = surface === 'center'
   const linkClass = dark
     ? 'inline-flex min-h-10 items-center gap-2 rounded-xl border border-[#bf9b5f]/25 px-3 text-sm font-semibold text-[#f5ead7]/75 transition hover:bg-[#bf9b5f]/10 hover:text-[#bf9b5f]'
