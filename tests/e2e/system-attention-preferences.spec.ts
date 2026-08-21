@@ -72,7 +72,7 @@ test('notification preferences expose only valid production semantics and push s
   }
 })
 
-test('planner can discover notification center and settings and has an explicit way back', async ({ plannerPage: page }) => {
+test('planner can discover notification center and every notification page has a deterministic escape', async ({ plannerPage: page }) => {
   await page.goto('/settings')
   await expect(page.getByRole('heading', { name: 'Notifications & communication' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Open notifications' })).toBeVisible()
@@ -84,6 +84,25 @@ test('planner can discover notification center and settings and has an explicit 
   await expect(page.getByRole('link', { name: 'Settings', exact: true })).toBeVisible()
 
   await page.goto('/notifications')
-  await expect(page.getByRole('button', { name: 'Back to previous page' })).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Notification settings' })).toBeVisible()
+  await expect(page.getByTestId('notification-section-navigation')).toBeVisible()
+  await expect(page.getByTestId('notification-exit-workspace')).toHaveAttribute('href', '/planner/portfolio')
+  await expect(page.getByTestId('notification-exit-settings')).toHaveAttribute('href', '/settings')
+  await expect(page.getByTestId('notification-open-settings')).toHaveAttribute('href', '/settings/notifications')
+
+  await page.getByTestId('notification-open-settings').click()
+  await expect(page).toHaveURL(/\/settings\/notifications$/)
+  await expect(page.getByTestId('notification-exit-settings')).toHaveAttribute('href', '/settings')
+  await expect(page.getByTestId('notification-open-center')).toHaveAttribute('href', '/notifications')
+  await expect(page.getByTestId('notification-exit-workspace')).toHaveAttribute('href', '/planner/portfolio')
+
+  await page.getByTestId('notification-exit-settings').click()
+  await expect(page).toHaveURL(/\/settings$/)
+
+  await page.goto('/settings/notifications/push')
+  await expect(page.getByTestId('notification-back-to-settings')).toHaveAttribute('href', '/settings/notifications')
+  await expect(page.getByTestId('notification-exit-settings')).toHaveAttribute('href', '/settings')
+  await expect(page.getByTestId('notification-exit-workspace')).toHaveAttribute('href', '/planner/portfolio')
+
+  await page.getByTestId('notification-exit-workspace').click()
+  await expect(page).toHaveURL(/\/planner\/portfolio$/)
 })

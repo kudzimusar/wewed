@@ -1,8 +1,8 @@
 'use client'
 
-import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { ArrowLeft, BellRing, CheckCircle2, Loader2, Smartphone, XCircle } from 'lucide-react'
+import { BellRing, CheckCircle2, Loader2, Smartphone, XCircle } from 'lucide-react'
+import { NotificationSectionNavigation } from '@/components/notifications/notification-section-navigation'
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
@@ -159,7 +159,7 @@ export default function PushNotificationSettingsPage() {
   return (
     <main className="min-h-dvh bg-[#f8f3e9] px-4 py-8 text-[#2a211b] sm:px-6">
       <div className="mx-auto max-w-2xl">
-        <Link href="/settings/notifications" className="inline-flex items-center gap-2 text-sm font-semibold text-[#725329]"><ArrowLeft className="size-4" /> Notification settings</Link>
+        <NotificationSectionNavigation surface="push" />
         <section className="mt-5 rounded-3xl border border-[#2a211b]/10 bg-white p-6 shadow-sm sm:p-8">
           <div className="flex size-12 items-center justify-center rounded-2xl bg-[#9a7440]/10 text-[#8a672f]"><Smartphone className="size-5" /></div>
           <h1 className="mt-4 font-serif text-4xl">Push on this device</h1>
