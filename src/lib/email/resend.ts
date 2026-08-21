@@ -4,6 +4,8 @@ import { randomUUID } from 'node:crypto'
 import { db } from '@/lib/db'
 
 const RESEND_API_URL = 'https://api.resend.com/emails'
+const EMAIL_ADDRESS_PATTERN = /^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/
+const EMAIL_TOKEN_PATTERN = /[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+/
 
 type EmailTag = { name: string; value: string }
 
@@ -28,12 +30,46 @@ type DeliveryRow = {
   providerEmailId: string | null
 }
 
+function normalizeMailbox(value: string, fallbackName = ''): string | null {
+  const input = value.trim()
+  if (!input) return null
+  if (EMAIL_ADDRESS_PATTERN.test(input)) return input.toLowerCase()
+
+  const bracketed = input.match(/^\s*([^<>]*)<\s*([^<>]+)\s*>\s*$/)
+  if (bracketed) {
+    const address = bracketed[2].trim().toLowerCase()
+    if (!EMAIL_ADDRESS_PATTERN.test(address)) return null
+    const name = bracketed[1].trim().replace(/[<>]/g, '')
+    return name ? `${name} <${address}>` : address
+  }
+
+  // Recover common environment-entry mistakes such as a missing angle bracket around an otherwise
+  // valid mailbox. We still fail closed if no valid address can be extracted.
+  const token = input.match(EMAIL_TOKEN_PATTERN)?.[0]?.toLowerCase()
+  if (!token || !EMAIL_ADDRESS_PATTERN.test(token)) return null
+  const name = input
+    .replace(token, '')
+    .replace(/[<>]/g, '')
+    .trim()
+    .replace(/\s+/g, ' ')
+  const display = name || fallbackName
+  return display ? `${display} <${token}>` : token
+}
+
 function configuredResend() {
   const apiKey = process.env.RESEND_API_KEY?.trim()
-  const from = process.env.WEWED_EMAIL_FROM?.trim()
-  const replyTo = process.env.WEWED_EMAIL_REPLY_TO?.trim()
-  if (!apiKey || !from || !replyTo) return null
+  const fromRaw = process.env.WEWED_EMAIL_FROM?.trim()
+  const replyToRaw = process.env.WEWED_EMAIL_REPLY_TO?.trim()
+  if (!apiKey || !fromRaw || !replyToRaw) return null
+
+  const from = normalizeMailbox(fromRaw, 'Wewed')
+  const replyTo = normalizeMailbox(replyToRaw)
+  if (!from || !replyTo) return null
   return { apiKey, from, replyTo }
+}
+
+export function isTransactionalEmailConfigured(): boolean {
+  return Boolean(configuredResend())
 }
 
 function safeTagPart(value: string, fallback: string): string {
@@ -80,7 +116,7 @@ async function markNotConfigured(deliveryId: string): Promise<void> {
   await db.$executeRawUnsafe(
     `UPDATE wewed_admin."EmailDelivery"
         SET "status" = 'not_configured',
-            "failureReason" = 'Resend production credentials, sender, or reply-to are not configured.',
+            "failureReason" = 'Resend production credentials, sender, or reply-to are not configured with valid mailbox values.',
             "updatedAt" = CURRENT_TIMESTAMP
       WHERE "id" = $1`,
     deliveryId,
