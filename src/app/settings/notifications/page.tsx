@@ -2,7 +2,8 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { ArrowLeft, BellRing, CheckCircle2, Loader2, Save } from 'lucide-react'
+import { BellRing, CheckCircle2, Loader2, Save } from 'lucide-react'
+import { NotificationSectionNavigation } from '@/components/notifications/notification-section-navigation'
 
 interface Preferences {
   scopeKey: string
@@ -155,7 +156,7 @@ export default function NotificationSettingsPage() {
   return (
     <main className="min-h-dvh bg-[#f8f3e9] px-4 py-8 text-[#2a211b] sm:px-6">
       <div className="mx-auto max-w-3xl">
-        <Link href="/notifications" className="inline-flex items-center gap-2 text-sm font-semibold text-[#725329]"><ArrowLeft className="size-4" /> Notifications</Link>
+        <NotificationSectionNavigation surface="settings" />
         <header className="mt-5 rounded-3xl border border-[#2a211b]/10 bg-white p-6 shadow-sm sm:p-8">
           <div className="flex size-11 items-center justify-center rounded-2xl bg-[#9a7440]/10 text-[#8a672f]"><BellRing className="size-5" /></div>
           <h1 className="mt-4 font-serif text-4xl sm:text-5xl">Notification settings</h1>
