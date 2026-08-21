@@ -272,7 +272,6 @@ export async function createManagedServiceEngagement(input: {
         parties: {
           create: [
             {
-              weddingId: input.weddingId,
               partyRole: 'CLIENT',
               partyKind: 'COUPLE',
               displayName: coupleName || wedding.title,
@@ -284,7 +283,6 @@ export async function createManagedServiceEngagement(input: {
               createdById: input.actorId,
             },
             {
-              weddingId: input.weddingId,
               partyRole: 'PLANNER',
               partyKind: 'PERSON',
               displayName: actor.name?.trim() || actor.email,
@@ -296,7 +294,6 @@ export async function createManagedServiceEngagement(input: {
               createdById: input.actorId,
             },
             {
-              weddingId: input.weddingId,
               partyRole: 'SERVICE_PROVIDER',
               partyKind: 'VENDOR',
               displayName: vendor.name,
