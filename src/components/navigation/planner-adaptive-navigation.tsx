@@ -6,6 +6,7 @@ import { useState } from 'react'
 import {
   ArrowLeft,
   ArrowRight,
+  Bell,
   BriefcaseBusiness,
   ClipboardList,
   ExternalLink,
@@ -48,6 +49,7 @@ const GLOBAL_ITEMS = [
   ['/planner', 'Workspace', LayoutDashboard],
   ['/planner/wedding-brief', 'Brief', ClipboardList],
   ['/messages', 'Messages', MessageCircle],
+  ['/notifications', 'Notifications', Bell],
   ['/planner/ai-workspace', 'AI', Sparkles],
   ['/planner/marketplace', 'Business', BriefcaseBusiness],
   ['/planner/notebook', 'Notebook', NotebookPen],
