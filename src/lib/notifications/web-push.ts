@@ -97,7 +97,9 @@ export function isSafeWebPushEndpoint(endpoint: string): boolean {
   try {
     const url = new URL(endpoint)
     if (url.protocol !== 'https:' || url.username || url.password) return false
-    const hostname = url.hostname.toLowerCase()
+    // Node preserves brackets in URL.hostname for IPv6 literals. Normalize them before
+    // isIP()/private-range checks so loopback, ULA and link-local endpoints cannot bypass SSRF guards.
+    const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, '')
     if (!hostname || hostname === 'localhost' || hostname.endsWith('.localhost') || hostname.endsWith('.local')) return false
     const ipVersion = isIP(hostname)
     if (ipVersion === 4 && privateIpv4(hostname)) return false
