@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { readAppSession } from '@/lib/app-session'
 import { db } from '@/lib/db'
+import { isTransactionalEmailConfigured } from '@/lib/email/resend'
+import { directWebPushConfigured } from '@/lib/notifications/web-push'
 
 interface ChannelRow {
   channel: 'EMAIL' | 'WHATSAPP'
@@ -43,25 +45,34 @@ export async function GET(request: NextRequest) {
     )
     const byChannel = new Map(rows.map((row) => [row.channel, row]))
 
-    const emailTransportConfigured = Boolean(
-      process.env.RESEND_API_KEY?.trim() && process.env.RESEND_FROM_EMAIL?.trim(),
-    )
-    const whatsappTransportConfigured = Boolean(
+    const emailTransportConfigured = isTransactionalEmailConfigured()
+    const whatsappCloudConfigured = Boolean(
       process.env.WHATSAPP_CLOUD_ACCESS_TOKEN?.trim() &&
       process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID?.trim() &&
-      process.env.WHATSAPP_CLOUD_GRAPH_VERSION?.trim() &&
-      (
-        process.env.WEWED_WHATSAPP_NOTIFICATION_TEMPLATE?.trim() ||
-        (
-          process.env.WEWED_WHATSAPP_TEST_MODE?.trim().toLowerCase() === 'true' &&
-          process.env.WEWED_WHATSAPP_TEST_TEMPLATE?.trim()
-        )
-      ),
+      process.env.WHATSAPP_CLOUD_GRAPH_VERSION?.trim(),
     )
-    const pushTransportConfigured = Boolean(
+    const whatsappActionTemplateConfigured = Boolean(
+      whatsappCloudConfigured && process.env.WEWED_WHATSAPP_ACTION_TEMPLATE?.trim(),
+    )
+    const whatsappLegacyTemplateConfigured = Boolean(
+      whatsappCloudConfigured && process.env.WEWED_WHATSAPP_NOTIFICATION_TEMPLATE?.trim(),
+    )
+    const whatsappTestConfigured = Boolean(
+      whatsappCloudConfigured &&
+      process.env.WEWED_WHATSAPP_TEST_MODE?.trim().toLowerCase() === 'true' &&
+      process.env.WEWED_WHATSAPP_TEST_TEMPLATE?.trim(),
+    )
+    const whatsappTransportConfigured =
+      whatsappActionTemplateConfigured || whatsappLegacyTemplateConfigured || whatsappTestConfigured
+
+    const directPushConfigured = directWebPushConfigured()
+    const gatewayPushConfigured = Boolean(
       process.env.WEWED_PUSH_GATEWAY_URL?.trim() &&
       process.env.NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY?.trim(),
     )
+    const pushTransportConfigured = directPushConfigured || gatewayPushConfigured
+    const pushMode = directPushConfigured ? 'direct' : gatewayPushConfigured ? 'gateway' : 'none'
+
     const pushSubscriptions = await db.$queryRawUnsafe<Array<{ count: bigint }>>(
       `
         SELECT COUNT(*)::bigint AS count
@@ -89,12 +100,14 @@ export async function GET(request: NextRequest) {
         },
         whatsapp: {
           transportConfigured: whatsappTransportConfigured,
+          exactActionLinkConfigured: whatsappActionTemplateConfigured,
           endpointVerified: whatsapp?.verified ?? false,
           communicationConsentEnabled: whatsapp?.enabled ?? false,
           ready: whatsappTransportConfigured && Boolean(whatsapp?.verified) && Boolean(whatsapp?.enabled),
         },
         push: {
           transportConfigured: pushTransportConfigured,
+          mode: pushMode,
           activeSubscriptionCount: pushSubscriptionCount,
           ready: pushTransportConfigured && pushSubscriptionCount > 0,
         },
