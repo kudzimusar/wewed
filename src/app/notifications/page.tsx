@@ -13,6 +13,7 @@ import {
   Loader2,
   RotateCcw,
 } from 'lucide-react'
+import { NotificationRoleDescription } from '@/components/notifications/notification-role-description'
 import { NotificationSectionNavigation } from '@/components/notifications/notification-section-navigation'
 
 type NotificationState =
@@ -197,9 +198,7 @@ export default function NotificationCenterPage() {
               Wewed attention
             </div>
             <h1 className="mt-2 font-serif text-4xl font-normal sm:text-5xl">Notifications</h1>
-            <p className="mt-2 max-w-2xl text-sm text-[#f5ead7]/55">
-              One secure attention center for Admin, Planner, Couple and Vendor activity. Source records remain authoritative.
-            </p>
+            <NotificationRoleDescription />
           </div>
           <div className="rounded-2xl border border-[#bf9b5f]/20 bg-[#bf9b5f]/5 px-4 py-3 text-sm">
             <span className="font-semibold text-[#bf9b5f]">{unreadCount}</span>{' '}
