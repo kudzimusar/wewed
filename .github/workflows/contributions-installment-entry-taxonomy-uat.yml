@@ -63,6 +63,7 @@ jobs:
       - name: Materialize UAT patch
         if: steps.materializer.outputs.run == 'true'
         run: |
+          python3 scripts/contributions-installment-entry-taxonomy-anchor-fix.py
           python3 scripts/contributions-installment-entry-taxonomy-uat.py
           python3 scripts/contributions-installment-entry-taxonomy-postprocess.py
       - if: steps.materializer.outputs.run == 'true'
@@ -93,7 +94,7 @@ jobs:
         run: |
           git config user.name 'wewed-uat-materializer'
           git config user.email 'actions@users.noreply.github.com'
-          git rm scripts/contributions-installment-entry-taxonomy-uat.py scripts/contributions-installment-entry-taxonomy-postprocess.py
+          git rm scripts/contributions-installment-entry-taxonomy-uat.py scripts/contributions-installment-entry-taxonomy-postprocess.py scripts/contributions-installment-entry-taxonomy-anchor-fix.py
           git add \
             src/app/api/planner/contributions/route.ts \
             src/components/wedding/planner/planner-contributions-workspace.tsx \
