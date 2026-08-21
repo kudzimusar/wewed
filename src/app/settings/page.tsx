@@ -143,7 +143,21 @@ export default function SettingsPage() {
           </div>
 
           <div className={settingsCardClass()}>
-            <div className="flex items-start gap-3"><Bell className="mt-1 size-5 shrink-0 text-gold" /><div><h2 className="font-serif text-xl">Notifications & communication</h2><p className="mt-1 text-sm text-muted-foreground">This is the home for future channel preferences. Current Messages and project communication behaviour is unchanged; no unsupported notification preference is stored by this release.</p></div></div>
+            <div className="flex items-start gap-3">
+              <Bell className="mt-1 size-5 shrink-0 text-gold" />
+              <div className="min-w-0 flex-1">
+                <h2 className="font-serif text-xl">Notifications & communication</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Open your Wewed attention center or configure the delivery channels that are actually available for your account. In-app notifications remain the canonical record.</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button asChild variant="outline" size="sm">
+                    <Link href="/notifications"><Bell className="size-4" />Open notifications</Link>
+                  </Button>
+                  <Button asChild variant="outline" size="sm">
+                    <Link href="/settings/notifications"><SlidersHorizontal className="size-4" />Notification settings</Link>
+                  </Button>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className={settingsCardClass()}>
