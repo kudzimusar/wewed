@@ -65,6 +65,11 @@ export function PlannerContributionsWorkspace({ embedded = false }: { embedded?:
   const [giftingShare, setGiftingShare] = useState<{url:string;qr:string}|null>(null)
   const [aiDraft, setAiDraft] = useState<{kind:'thank'|'task';text:string}|null>(null)
   const [campaignForm, setCampaignForm] = useState({ type: 'HONEYMOON', title: '', description: '', targetAmount: '', currency: 'USD', externalUrl: '' })
+  const [dependencySaving, setDependencySaving] = useState<'budget'|'service'|''>('')
+  const [budgetQuickOpen, setBudgetQuickOpen] = useState(false)
+  const [budgetQuick, setBudgetQuick] = useState({ description:'', category:'miscellaneous', estimatedCost:'', actualCost:'', currency:'USD', dueDate:'' })
+  const [vendorQuickOpen, setVendorQuickOpen] = useState(false)
+  const [vendorQuick, setVendorQuick] = useState({ vendorId:'', vendorName:'', vendorCategory:'other', serviceCategory:'', serviceDescription:'', agreedAmount:'', currency:'USD' })
 
   const load = useCallback(async (spinner = false) => {
     if (spinner) setLoading(true)
@@ -120,10 +125,129 @@ export function PlannerContributionsWorkspace({ embedded = false }: { embedded?:
     } finally { setSaving(false) }
   }
 
+  function dependencyError(message: string) {
+    setError(message)
+    toast({ title: 'Setup needed', description: message, variant: 'destructive' })
+  }
+
+  function openBudgetQuickCreate() {
+    setBudgetQuick((current) => ({
+      ...current,
+      description: current.description || form.title,
+      currency: form.currency || 'USD',
+    }))
+    setBudgetQuickOpen(true)
+  }
+
+  async function createInlineBudgetDependency() {
+    const description = budgetQuick.description.trim()
+    if (!description) return dependencyError('Name the Budget cost before adding it.')
+    const estimatedCost = budgetQuick.estimatedCost.trim() ? Number(budgetQuick.estimatedCost) : 0
+    const actualCost = budgetQuick.actualCost.trim() ? Number(budgetQuick.actualCost) : null
+    if (!Number.isFinite(estimatedCost) || estimatedCost < 0 || (actualCost !== null && (!Number.isFinite(actualCost) || actualCost < 0))) {
+      return dependencyError('Budget amounts must be zero or greater.')
+    }
+
+    setDependencySaving('budget'); setError('')
+    try {
+      const response = await fetch('/api/planner/budget', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          description,
+          category: budgetQuick.category,
+          estimatedCost,
+          actualCost,
+          paidAmount: 0,
+          currency: budgetQuick.currency || form.currency || 'USD',
+          dueDate: budgetQuick.dueDate || null,
+        }),
+      })
+      const body = await response.json()
+      if (!response.ok || body.success === false || !body.data?.id) throw new Error(body.error || 'Could not add the Budget item.')
+      setForm((current) => ({ ...current, budgetItemId: String(body.data.id) }))
+      setBudgetQuickOpen(false)
+      await load(false)
+      refreshPlannerWorksheet()
+      toast({ title: 'Budget item added', description: 'The cost is selected here. Its Paid amount starts at 0.' })
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : 'Could not add the Budget item.'
+      setError(message); toast({ title: 'Could not add Budget item', description: message, variant: 'destructive' })
+    } finally { setDependencySaving('') }
+  }
+
+  function openVendorQuickCreate() {
+    const budget = workspace?.options.budgetItems.find((item) => item.id === form.budgetItemId)
+    setVendorQuick((current) => ({
+      ...current,
+      serviceCategory: current.serviceCategory || budget?.category || '',
+      serviceDescription: current.serviceDescription || form.title,
+      currency: form.currency || 'USD',
+    }))
+    setVendorQuickOpen(true)
+  }
+
+  async function createInlineVendorServiceDependency() {
+    if (!form.budgetItemId) return dependencyError('Choose or add the Budget cost first so Wewed can link the vendor service to the same transaction.')
+    if (!vendorQuick.vendorId && !vendorQuick.vendorName.trim()) return dependencyError('Choose an existing vendor or enter the new vendor name.')
+    if (!vendorQuick.serviceCategory.trim()) return dependencyError('Enter the service category before adding the vendor service.')
+    const agreedAmount = vendorQuick.agreedAmount.trim() ? Number(vendorQuick.agreedAmount) : null
+    if (agreedAmount !== null && (!Number.isFinite(agreedAmount) || agreedAmount < 0)) return dependencyError('The agreed service amount must be zero or greater.')
+
+    setDependencySaving('service'); setError('')
+    let createdVendorId = ''
+    try {
+      let vendorId = vendorQuick.vendorId
+      if (!vendorId) {
+        const vendorResponse = await fetch('/api/planner/vendors', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ name: vendorQuick.vendorName.trim(), category: vendorQuick.vendorCategory, paymentStatus: 'unpaid', contractStatus: 'pending' }),
+        })
+        const vendorBody = await vendorResponse.json()
+        if (!vendorResponse.ok || vendorBody.success === false || !vendorBody.data?.id) throw new Error(vendorBody.error || 'Could not add the vendor.')
+        vendorId = String(vendorBody.data.id)
+        createdVendorId = vendorId
+        setVendorQuick((current) => ({ ...current, vendorId }))
+      }
+
+      const engagementResponse = await fetch('/api/planner/engagements', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          vendorId,
+          serviceCategory: vendorQuick.serviceCategory.trim(),
+          serviceDescription: vendorQuick.serviceDescription.trim() || form.title || null,
+          agreedAmount,
+          currency: vendorQuick.currency || form.currency || 'USD',
+          externalAgreementStatus: 'unknown',
+          budgetItemIds: [form.budgetItemId],
+          payments: [],
+        }),
+      })
+      const engagementBody = await engagementResponse.json()
+      if (!engagementResponse.ok || engagementBody.success === false || !engagementBody.data?.id) throw new Error(engagementBody.error || 'Could not add the vendor service.')
+      setForm((current) => ({ ...current, serviceEngagementId: String(engagementBody.data.id) }))
+      setVendorQuickOpen(false)
+      await load(false)
+      refreshPlannerWorksheet()
+      toast({ title: 'Vendor service added', description: 'The vendor and service are selected here and linked to the same Budget cost.' })
+    } catch (reason) {
+      if (createdVendorId) await load(false)
+      const message = reason instanceof Error ? reason.message : 'Could not add the vendor service.'
+      setError(message); toast({ title: 'Could not add vendor service', description: message, variant: 'destructive' })
+    } finally { setDependencySaving('') }
+  }
+
   async function addContribution(event: React.FormEvent) {
     event.preventDefault()
     const inKind = ['GOODS_IN_KIND','SERVICE_IN_KIND','TIME_LABOUR','DISCOUNT_SPONSORSHIP'].includes(form.type)
     const direct = form.type === 'DIRECT_VENDOR_PAYMENT'
+    if (direct && !form.budgetItemId) {
+      dependencyError('Choose or add the Budget cost in Step 3 before saving this direct vendor contribution.')
+      return
+    }
+    if (direct && !form.serviceEngagementId) {
+      dependencyError('Choose or add the vendor service in Step 3 before saving this direct vendor contribution.')
+      return
+    }
     const fulfillmentState = form.status === 'PROMISED' ? 'PENDING' : direct ? 'PAID_DIRECT' : inKind ? 'DELIVERED' : 'RECEIVED'
     const success = await mutate('/api/planner/contributions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
       contributorId: form.contributorId || undefined,
@@ -346,7 +470,13 @@ export function PlannerContributionsWorkspace({ embedded = false }: { embedded?:
     {addOpen && <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/70 p-2 backdrop-blur-sm sm:items-center"><button aria-label="Close add contribution" className="absolute inset-0" onClick={() => setAddOpen(false)} /><form onSubmit={addContribution} role="dialog" aria-modal="true" aria-label="Add contribution" className="relative z-10 max-h-[92dvh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-gold/25 bg-espresso p-4 shadow-2xl sm:p-5"><div className="flex items-start justify-between"><div><p className="text-[10px] uppercase tracking-[0.16em] text-gold">Add contribution</p><h2 className="mt-1 font-serif text-xl">Record the help, not accounting jargon</h2></div><Button type="button" variant="ghost" size="icon" onClick={() => setAddOpen(false)}><X className="size-4" /></Button></div><div className="mt-5 space-y-5">
       <fieldset><legend className="font-medium">1. Who contributed?</legend><div className="mt-2 grid gap-2 sm:grid-cols-2"><select aria-label="Choose existing contributor" value={form.contributorId} onChange={(e) => setForm((c) => ({...c,contributorId:e.target.value}))} className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm"><option value="">Add someone new</option>{workspace?.contributors.map((person) => <option key={person.id} value={person.id}>{person.displayName}</option>)}</select>{!form.contributorId && <Input required value={form.contributorName} onChange={(e) => setForm((c) => ({...c,contributorName:e.target.value}))} placeholder="Name or organisation" className="border-gold/20 bg-espresso/70" />}{!form.contributorId && <><select aria-label="Contributor type" value={form.contributorKind} onChange={(e) => setForm((c) => ({...c,contributorKind:e.target.value}))} className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm"><option value="individual">Individual</option><option value="family">Family / household</option><option value="organisation">Organisation / sponsor</option></select><Input type="email" value={form.email} onChange={(e) => setForm((c) => ({...c,email:e.target.value}))} placeholder="Email (optional)" className="border-gold/20 bg-espresso/70" /><Input value={form.phone} onChange={(e) => setForm((c) => ({...c,phone:e.target.value}))} placeholder="Phone (optional)" className="border-gold/20 bg-espresso/70" /><Input value={form.relationship} onChange={(e) => setForm((c) => ({...c,relationship:e.target.value}))} placeholder="Relationship, e.g. Bride's aunt" className="border-gold/20 bg-espresso/70" /><Input value={form.address} onChange={(e) => setForm((c) => ({...c,address:e.target.value}))} placeholder="Address (optional)" className="border-gold/20 bg-espresso/70" /><select aria-label="Preferred contributor contact" value={form.preferredContactMethod} onChange={(e) => setForm((c) => ({...c,preferredContactMethod:e.target.value}))} className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm"><option value="">No contact preference</option><option value="email">Email</option><option value="phone">Phone</option><option value="other">Other</option></select><label className="flex items-start gap-2 rounded-lg border border-gold/15 p-3 text-xs text-champagne/60 sm:col-span-2"><Checkbox checked={form.publicRecognition} onCheckedChange={(checked) => setForm((c) => ({...c,publicRecognition:checked===true}))} /><span><strong className="text-champagne/80">Contributor is comfortable being publicly acknowledged.</strong><br/>This is private by default and does not automatically publish their name or amount.</span></label><select value={form.guestId} onChange={(e) => setForm((c) => ({...c,guestId:e.target.value}))} className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm sm:col-span-2"><option value="">Not linked to guest list</option>{workspace?.options.guests.map((guest) => <option key={guest.id} value={guest.id}>{guest.name}</option>)}</select></>}</div></fieldset>
       <fieldset><legend className="font-medium">2. What did they contribute?</legend><div className="mt-2 grid gap-2 sm:grid-cols-2"><select value={form.type} onChange={(e) => setForm((c) => ({...c,type:e.target.value as ContributionType,serviceEngagementId:''}))} className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm">{Object.entries(CONTRIBUTION_TYPE_LABELS).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select><Input required value={form.title} onChange={(e) => setForm((c) => ({...c,title:e.target.value}))} placeholder="What did they help with?" className="border-gold/20 bg-espresso/70" />{['CASH_TO_COUPLE','DIRECT_VENDOR_PAYMENT','HONEYMOON_GIFT'].includes(form.type) ? <Input required inputMode="decimal" value={form.amount} onChange={(e) => setForm((c) => ({...c,amount:e.target.value}))} placeholder="Amount" className="border-gold/20 bg-espresso/70" /> : <Input inputMode="decimal" value={form.estimatedValue} onChange={(e) => setForm((c) => ({...c,estimatedValue:e.target.value}))} placeholder="Estimated value (optional)" className="border-gold/20 bg-espresso/70" />}<Input value={form.currency} maxLength={3} onChange={(e) => setForm((c) => ({...c,currency:e.target.value.toUpperCase()}))} placeholder="USD" className="border-gold/20 bg-espresso/70" />{['GOODS_IN_KIND','SERVICE_IN_KIND','TIME_LABOUR'].includes(form.type) && <><Input inputMode="decimal" value={form.quantity} onChange={(e) => setForm((c) => ({...c,quantity:e.target.value}))} placeholder="Quantity (optional)" className="border-gold/20 bg-espresso/70" /><Input value={form.unit} onChange={(e) => setForm((c) => ({...c,unit:e.target.value}))} placeholder="Unit, e.g. crates, hours" className="border-gold/20 bg-espresso/70" /></>}</div></fieldset>
-      <fieldset><legend className="font-medium">3. Where is it going?</legend><div className="mt-2 grid gap-2 sm:grid-cols-2"><select value={form.budgetItemId} onChange={(e) => { const item=workspace?.options.budgetItems.find((candidate)=>candidate.id===e.target.value); setForm((c)=>({...c,budgetItemId:e.target.value,serviceEngagementId:c.serviceEngagementId || item?.serviceEngagementId || ''})) }} className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm"><option value="">Not allocated yet</option>{workspace?.options.budgetItems.map((item) => <option key={item.id} value={item.id}>{item.description}</option>)}</select>{form.type === 'DIRECT_VENDOR_PAYMENT' && <select required value={form.serviceEngagementId} onChange={(e) => setForm((c) => ({...c,serviceEngagementId:e.target.value}))} className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm"><option value="">Choose vendor service engagement</option>{workspace?.options.engagements.map((item) => <option key={item.id} value={item.id}>{item.vendor.name} — {item.serviceCategory}</option>)}</select>}<select value={form.campaignId} onChange={(e) => setForm((c) => ({...c,campaignId:e.target.value}))} className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm"><option value="">No honeymoon/campaign</option>{workspace?.campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.title}</option>)}</select></div></fieldset>
+      <fieldset><legend className="font-medium">3. Where is it going?</legend><div className="mt-2 grid gap-3 sm:grid-cols-2">
+        <div className="rounded-xl border border-gold/15 p-3 sm:col-span-2"><div className="flex items-center justify-between gap-2"><div><Label>Budget cost</Label><p className="mt-0.5 text-[11px] text-champagne/45">Use the real Budget item. If it does not exist yet, add it here without losing this contribution.</p></div><Button type="button" size="sm" variant="outline" disabled={!canEdit || dependencySaving !== ''} onClick={openBudgetQuickCreate} className="shrink-0 border-gold/20 bg-transparent"><Plus className="size-3.5" />Add budget item here</Button></div><select aria-label="Choose budget item" value={form.budgetItemId} onChange={(e) => { const item=workspace?.options.budgetItems.find((candidate)=>candidate.id===e.target.value); setForm((c)=>({...c,budgetItemId:e.target.value,serviceEngagementId:c.serviceEngagementId || item?.serviceEngagementId || ''})) }} className="mt-2 h-10 w-full rounded-md border border-gold/20 bg-espresso px-3 text-sm"><option value="">Not allocated yet</option>{workspace?.options.budgetItems.map((item) => <option key={item.id} value={item.id}>{item.description}</option>)}</select></div>
+        {budgetQuickOpen && <div className="rounded-xl border border-gold/25 bg-gold/5 p-3 sm:col-span-2"><div className="flex items-center justify-between gap-2"><div><h3 className="text-sm font-medium">Add the missing Budget cost</h3><p className="mt-0.5 text-[11px] text-champagne/50">This creates the normal Planner Budget record. Paid starts at 0; the contribution amount is not copied into Paid.</p></div><Button type="button" size="icon" variant="ghost" onClick={() => setBudgetQuickOpen(false)}><X className="size-4" /></Button></div><div className="mt-3 grid gap-2 sm:grid-cols-2"><Input value={budgetQuick.description} onChange={(e)=>setBudgetQuick((c)=>({...c,description:e.target.value}))} placeholder="Budget cost, e.g. Bridal gown" className="border-gold/20 bg-espresso/70"/><select aria-label="New budget category" value={budgetQuick.category} onChange={(e)=>setBudgetQuick((c)=>({...c,category:e.target.value}))} className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm"><option value="venue">Venue</option><option value="catering">Catering</option><option value="attire">Attire</option><option value="roora">Roora</option><option value="decor">Decor</option><option value="photo_video">Photo / video</option><option value="music">Music</option><option value="transport">Transport</option><option value="stationery">Stationery</option><option value="miscellaneous">Other</option></select><Input inputMode="decimal" value={budgetQuick.estimatedCost} onChange={(e)=>setBudgetQuick((c)=>({...c,estimatedCost:e.target.value}))} placeholder="Estimated cost (optional)" className="border-gold/20 bg-espresso/70"/><Input inputMode="decimal" value={budgetQuick.actualCost} onChange={(e)=>setBudgetQuick((c)=>({...c,actualCost:e.target.value}))} placeholder="Actual/quoted total (optional)" className="border-gold/20 bg-espresso/70"/><Input value={budgetQuick.currency} maxLength={3} onChange={(e)=>setBudgetQuick((c)=>({...c,currency:e.target.value.toUpperCase()}))} placeholder="USD" className="border-gold/20 bg-espresso/70"/><Input type="date" aria-label="New budget due date" value={budgetQuick.dueDate} onChange={(e)=>setBudgetQuick((c)=>({...c,dueDate:e.target.value}))} className="border-gold/20 bg-espresso/70"/></div><Button type="button" disabled={dependencySaving !== '' || !canEdit} onClick={() => void createInlineBudgetDependency()} className="mt-3 bg-gold text-espresso">{dependencySaving === 'budget' ? <Loader2 className="size-4 animate-spin"/> : <Plus className="size-4"/>}Create & use Budget item</Button></div>}
+        {form.type === 'DIRECT_VENDOR_PAYMENT' && <><div className="rounded-xl border border-gold/15 p-3 sm:col-span-2"><div className="flex items-center justify-between gap-2"><div><Label>Vendor service</Label><p className="mt-0.5 text-[11px] text-champagne/45">A direct vendor payment must belong to the real vendor service. Add it here if it is missing.</p></div><Button type="button" size="sm" variant="outline" disabled={!canEdit || dependencySaving !== ''} onClick={openVendorQuickCreate} className="shrink-0 border-gold/20 bg-transparent"><Plus className="size-3.5" />Add vendor / service here</Button></div><select aria-label="Choose vendor service engagement" value={form.serviceEngagementId} onChange={(e) => setForm((c) => ({...c,serviceEngagementId:e.target.value}))} className="mt-2 h-10 w-full rounded-md border border-gold/20 bg-espresso px-3 text-sm"><option value="">Choose vendor service engagement</option>{workspace?.options.engagements.map((item) => <option key={item.id} value={item.id}>{item.vendor.name} — {item.serviceCategory}</option>)}</select>{!form.budgetItemId && <p className="mt-2 text-[11px] text-gold/80">Add or choose the Budget cost first. Wewed will then link the vendor service to that same cost.</p>}</div>
+        {vendorQuickOpen && <div className="rounded-xl border border-gold/25 bg-gold/5 p-3 sm:col-span-2"><div className="flex items-center justify-between gap-2"><div><h3 className="text-sm font-medium">Add the missing vendor service</h3><p className="mt-0.5 text-[11px] text-champagne/50">This creates the normal wedding Vendor and Service Engagement. No payment is created here.</p></div><Button type="button" size="icon" variant="ghost" onClick={() => setVendorQuickOpen(false)}><X className="size-4" /></Button></div><div className="mt-3 grid gap-2 sm:grid-cols-2"><select aria-label="Choose existing vendor for new service" value={vendorQuick.vendorId} onChange={(e)=>setVendorQuick((c)=>({...c,vendorId:e.target.value}))} className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm"><option value="">Add a new wedding vendor</option>{workspace?.options.vendors.map((vendor)=><option key={vendor.id} value={vendor.id}>{vendor.name}</option>)}</select>{!vendorQuick.vendorId && <Input value={vendorQuick.vendorName} onChange={(e)=>setVendorQuick((c)=>({...c,vendorName:e.target.value}))} placeholder="Vendor name" className="border-gold/20 bg-espresso/70"/>}{!vendorQuick.vendorId && <select aria-label="New vendor category" value={vendorQuick.vendorCategory} onChange={(e)=>setVendorQuick((c)=>({...c,vendorCategory:e.target.value}))} className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm"><option value="venue">Venue</option><option value="caterer">Caterer</option><option value="photographer">Photographer</option><option value="videographer">Videographer</option><option value="florist">Florist</option><option value="dj">DJ</option><option value="decor">Decor</option><option value="transport">Transport</option><option value="stationery">Stationery</option><option value="other">Other</option></select>}<Input value={vendorQuick.serviceCategory} onChange={(e)=>setVendorQuick((c)=>({...c,serviceCategory:e.target.value}))} placeholder="Service category, e.g. Bridal attire" className="border-gold/20 bg-espresso/70"/><Input value={vendorQuick.serviceDescription} onChange={(e)=>setVendorQuick((c)=>({...c,serviceDescription:e.target.value}))} placeholder="Service description (optional)" className="border-gold/20 bg-espresso/70"/><Input inputMode="decimal" value={vendorQuick.agreedAmount} onChange={(e)=>setVendorQuick((c)=>({...c,agreedAmount:e.target.value}))} placeholder="Agreed service total (optional)" className="border-gold/20 bg-espresso/70"/><Input value={vendorQuick.currency} maxLength={3} onChange={(e)=>setVendorQuick((c)=>({...c,currency:e.target.value.toUpperCase()}))} placeholder="USD" className="border-gold/20 bg-espresso/70"/></div><Button type="button" disabled={dependencySaving !== '' || !canEdit || !form.budgetItemId} onClick={() => void createInlineVendorServiceDependency()} className="mt-3 bg-gold text-espresso">{dependencySaving === 'service' ? <Loader2 className="size-4 animate-spin"/> : <Store className="size-4"/>}Create & use vendor service</Button></div>}</>}
+        <select aria-label="Choose contribution campaign" value={form.campaignId} onChange={(e) => setForm((c) => ({...c,campaignId:e.target.value}))} className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm sm:col-span-2"><option value="">No honeymoon/campaign</option>{workspace?.campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.title}</option>)}</select>
+      </div></fieldset>
       <fieldset><legend className="font-medium">4. What is the current state?</legend><div className="mt-2 grid gap-2 sm:grid-cols-2"><select value={form.status} onChange={(e) => setForm((c) => ({...c,status:e.target.value}))} className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm"><option value="PROMISED">Promised — not received yet</option><option value="RECEIVED">Received / paid / delivered</option></select>{form.status === 'PROMISED' && <Input type="date" value={form.expectedAt} onChange={(e)=>setForm((c)=>({...c,expectedAt:e.target.value}))} className="border-gold/20 bg-espresso/70" aria-label="Expected contribution date" />}{form.type === 'DIRECT_VENDOR_PAYMENT' && <Input value={form.paymentReference} onChange={(e) => setForm((c) => ({...c,paymentReference:e.target.value}))} placeholder="Payment reference (optional)" className="border-gold/20 bg-espresso/70" />}{form.type === 'DIRECT_VENDOR_PAYMENT' && form.budgetItemId && <label className="flex items-start gap-2 rounded-lg border border-gold/15 p-3 text-xs text-champagne/60 sm:col-span-2"><Checkbox checked={form.alreadyIncludedInBudgetPaid} onCheckedChange={(checked) => setForm((c) => ({...c,alreadyIncludedInBudgetPaid:checked===true}))} /><span><strong className="text-champagne/80">This payment is already included in the Budget “Paid” amount.</strong><br/>Check this for historical payments so Wewed records who funded it without adding the amount again.</span></label>}<Textarea value={form.notes} onChange={(e) => setForm((c) => ({...c,notes:e.target.value}))} placeholder="Optional context" className="border-gold/20 bg-espresso/70 sm:col-span-2" /></div></fieldset>
       <div className="rounded-xl border border-gold/15 bg-gold/5 p-3 text-xs leading-5 text-champagne/60">A promise is never counted as money received. Direct vendor payments remain real vendor payments with the contributor recorded as the funding source. In-kind values stay separate from cash paid.</div><Button disabled={saving} className="w-full bg-gold text-espresso hover:bg-gold-light">{saving ? <Loader2 className="size-4 animate-spin" /> : <HandHeart className="size-4" />}Save contribution</Button>
     </div></form></div>}

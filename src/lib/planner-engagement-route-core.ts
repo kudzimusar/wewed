@@ -37,7 +37,7 @@ export async function createHistoricalEngagement(args: {
   const { weddingId, actorId, input } = args
   const vendor = await db.vendor.findFirst({
     where: { id: input.vendorId, weddingId },
-    select: { id: true },
+    select: { id: true, name: true },
   })
   if (!vendor) {
     throw new HistoricalEngagementConflictError(
@@ -111,7 +111,7 @@ export async function createHistoricalEngagement(args: {
           weddingId,
           serviceEngagementId: null,
         },
-        data: { serviceEngagementId: engagement.id },
+        data: { serviceEngagementId: engagement.id, vendorId: vendor.id, vendorName: vendor.name },
       })
       if (linked.count !== budgetItems.length) {
         throw new HistoricalEngagementConflictError(
