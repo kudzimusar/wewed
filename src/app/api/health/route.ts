@@ -53,6 +53,12 @@ export async function GET() {
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ?? ''
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? ''
+  const cronSecretReady = e2eMode || Boolean(process.env.CRON_SECRET?.trim())
+  const requiredEnvironment = {
+    ...environment.requiredEnvironment,
+    cronSecret: cronSecretReady,
+  }
+  const requiredEnvironmentReady = Object.values(requiredEnvironment).every(Boolean)
   const [database, supabaseAuth] = await Promise.all([
     checkDatabase(),
     e2eMode
@@ -67,7 +73,7 @@ export async function GET() {
     supabaseAuth &&
     environment.siteUrlValid &&
     environment.productionSiteMatches &&
-    environment.requiredEnvironmentReady
+    requiredEnvironmentReady
 
   return NextResponse.json(
     {
@@ -77,7 +83,7 @@ export async function GET() {
         supabaseAuth,
         siteUrlValid: environment.siteUrlValid,
         productionSiteMatches: environment.productionSiteMatches,
-        requiredEnvironment: environment.requiredEnvironment,
+        requiredEnvironment,
         optionalEnvironment: environment.optionalEnvironment,
       },
       timestamp: new Date().toISOString(),
