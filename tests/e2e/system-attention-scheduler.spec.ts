@@ -187,7 +187,11 @@ test('system reminder scheduler is protected, role-isolated, idempotent, snooze-
       select: { recipientUserId: true },
       orderBy: { recipientUserId: 'asc' },
     })
+    // The base E2E Planner and the explicitly added secondary Planner are both active
+    // Planner-role users on the secondary wedding, so an unassigned Planner task should
+    // fan out to both of them while never inferring a Couple audience from owner membership.
     expect(roleIsolatedTaskRecipients).toEqual([
+      { recipientUserId: E2E_USER.id },
       { recipientUserId: 'scheduler-secondary-planner' },
     ])
     expect(await prisma.notification.count({
