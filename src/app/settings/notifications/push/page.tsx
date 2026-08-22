@@ -1,8 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { BellRing, CheckCircle2, Loader2, Smartphone, XCircle } from 'lucide-react'
+import { BellRing, CheckCircle2, Loader2, RefreshCw, Smartphone, XCircle } from 'lucide-react'
 import { NotificationSectionNavigation } from '@/components/notifications/notification-section-navigation'
+
+const SERVICE_WORKER_TIMEOUT_MS = 8_000
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
@@ -24,6 +26,54 @@ function deviceContext() {
   const standalone = window.matchMedia('(display-mode: standalone)').matches ||
     Boolean((navigator as IOSNavigator).standalone)
   return { ios, standalone }
+}
+
+function timeout<T>(promise: Promise<T>, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error(message)), SERVICE_WORKER_TIMEOUT_MS)
+    promise.then(
+      (value) => {
+        window.clearTimeout(timer)
+        resolve(value)
+      },
+      (error) => {
+        window.clearTimeout(timer)
+        reject(error)
+      },
+    )
+  })
+}
+
+async function waitForActivation(registration: ServiceWorkerRegistration): Promise<ServiceWorkerRegistration> {
+  if (registration.active) return registration
+  const worker = registration.installing || registration.waiting
+  if (worker) {
+    await timeout(new Promise<void>((resolve) => {
+      if (worker.state === 'activated') {
+        resolve()
+        return
+      }
+      const onStateChange = () => {
+        if (worker.state === 'activated') {
+          worker.removeEventListener('statechange', onStateChange)
+          resolve()
+        }
+      }
+      worker.addEventListener('statechange', onStateChange)
+    }), 'Wewed could not activate its notification service worker. Reload this page and try again.')
+  }
+  const current = await navigator.serviceWorker.getRegistration('/')
+  if (current?.active) return current
+  return timeout(
+    navigator.serviceWorker.ready,
+    'Wewed could not finish preparing notifications on this device. Reload this page and try again.',
+  )
+}
+
+async function ensureWewedServiceWorker(): Promise<ServiceWorkerRegistration> {
+  const existing = await navigator.serviceWorker.getRegistration('/')
+  const registration = existing || await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+  return waitForActivation(registration)
 }
 
 export default function PushNotificationSettingsPage() {
@@ -60,35 +110,37 @@ export default function PushNotificationSettingsPage() {
     return null
   }, [])
 
-  useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      const context = deviceContext()
-      setIos(context.ios)
-      setStandalone(context.standalone)
+  const inspectDevice = useCallback(async () => {
+    setWorking(true)
+    setMessage(null)
+    const context = deviceContext()
+    setIos(context.ios)
+    setStandalone(context.standalone)
 
-      const browserSupported =
-        'serviceWorker' in navigator &&
-        'PushManager' in window &&
-        'Notification' in window
-      if (cancelled) return
-      setSupported(browserSupported)
-      setPermission(browserSupported ? Notification.permission : 'unsupported')
+    const browserSupported =
+      'serviceWorker' in navigator &&
+      'PushManager' in window &&
+      'Notification' in window
+    setSupported(browserSupported)
+    setPermission(browserSupported ? Notification.permission : 'unsupported')
 
-      try {
-        await loadCapabilities()
-        if (!browserSupported) return
-        const registration = await navigator.serviceWorker.ready
-        const existing = await registration.pushManager.getSubscription()
-        if (!cancelled) setSubscribed(Boolean(existing))
-      } finally {
-        if (!cancelled) setWorking(false)
-      }
-    })()
-    return () => {
-      cancelled = true
+    try {
+      await loadCapabilities()
+      if (!browserSupported) return
+      const registration = await ensureWewedServiceWorker()
+      const existing = await registration.pushManager.getSubscription()
+      setSubscribed(Boolean(existing))
+    } catch (error) {
+      setSubscribed(false)
+      setMessage(error instanceof Error ? error.message : 'Unable to prepare push notifications on this device.')
+    } finally {
+      setWorking(false)
     }
   }, [loadCapabilities])
+
+  useEffect(() => {
+    void inspectDevice()
+  }, [inspectDevice])
 
   async function updatePushPreference(enabled: boolean) {
     const response = await fetch('/api/notifications/preferences', { credentials: 'same-origin', cache: 'no-store' })
@@ -130,7 +182,7 @@ export default function PushNotificationSettingsPage() {
         throw new Error('Notification permission was not granted. You can change this later in browser settings.')
       }
 
-      const registration = await navigator.serviceWorker.ready
+      const registration = await ensureWewedServiceWorker()
       let subscription = await registration.pushManager.getSubscription()
       if (!subscription) {
         subscription = await registration.pushManager.subscribe({
@@ -164,7 +216,7 @@ export default function PushNotificationSettingsPage() {
     setMessage(null)
     try {
       if (supported) {
-        const registration = await navigator.serviceWorker.ready
+        const registration = await ensureWewedServiceWorker()
         const subscription = await registration.pushManager.getSubscription()
         if (subscription) {
           const disableResponse = await fetch('/api/notifications/push-subscriptions', {
@@ -228,6 +280,9 @@ export default function PushNotificationSettingsPage() {
               <button type="button" disabled={working || !supported || !transportConfigured || (ios && !standalone)} onClick={() => void enablePush()} className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[#2a211b] px-5 text-sm font-bold text-[#f8f3e9] disabled:opacity-45"><BellRing className="size-4" /> Enable push</button>
             ) : (
               <button type="button" disabled={working} onClick={() => void disablePush()} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[#2a211b]/20 bg-white px-5 text-sm font-bold disabled:opacity-45">Disable on this device</button>
+            )}
+            {!working && !subscribed && supported && (
+              <button type="button" onClick={() => void inspectDevice()} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[#2a211b]/20 bg-white px-5 text-sm font-bold"><RefreshCw className="size-4" /> Retry device check</button>
             )}
           </div>
 
