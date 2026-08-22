@@ -1,21 +1,22 @@
 import 'server-only'
 
-import { createHash, randomUUID } from 'node:crypto'
 import { db } from '@/lib/db'
-import { createSupabaseServiceClient } from '@/lib/supabase/service'
 import { linkCommercialDocumentGraph } from '@/lib/vault/commercial-documents'
+import {
+  prepareVaultUpload,
+  registerPreparedVaultObject,
+  removePreparedVaultUpload,
+  signedVaultDownload,
+  vaultObjectIsDistributable,
+  VaultUploadError,
+} from '@/lib/vault/core'
 
-const BUCKET = 'wewed-vault'
-const MAX_BYTES = 25 * 1024 * 1024
-
-const FILE_TYPES = {
-  'application/pdf': { extension: 'pdf', signature: 'pdf' },
-  'image/jpeg': { extension: 'jpg', signature: 'jpeg' },
-  'image/png': { extension: 'png', signature: 'png' },
-  'image/webp': { extension: 'webp', signature: 'webp' },
-} as const
-
-type AllowedMime = keyof typeof FILE_TYPES
+const ALLOWED_ENGAGEMENT_DOCUMENT_MIME_TYPES = new Set([
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+])
 
 export const ENGAGEMENT_EVIDENCE_LINK_ROLES = [
   'proof',
@@ -39,45 +40,6 @@ export class VaultEvidenceError extends Error {
   }
 }
 
-async function ensureBucket(): Promise<void> {
-  const client = createSupabaseServiceClient()
-  const { data, error } = await client.storage.listBuckets()
-  if (error) throw new Error(`Vault storage is unavailable: ${error.message}`)
-  if (data.some((bucket) => bucket.name === BUCKET)) return
-
-  const created = await client.storage.createBucket(BUCKET, {
-    public: false,
-    fileSizeLimit: MAX_BYTES,
-    allowedMimeTypes: Object.keys(FILE_TYPES),
-  })
-  if (created.error && !created.error.message.toLowerCase().includes('already exists')) {
-    throw new Error(`Could not create private Wewed Vault storage: ${created.error.message}`)
-  }
-}
-
-function cleanFileName(name: string): string {
-  return name.replace(/[\\/\0]/g, '_').trim().slice(0, 240) || 'document'
-}
-
-function hasExpectedSignature(bytes: Uint8Array, mimeType: AllowedMime): boolean {
-  if (mimeType === 'application/pdf') {
-    return bytes.length >= 5 && new TextDecoder().decode(bytes.slice(0, 5)) === '%PDF-'
-  }
-  if (mimeType === 'image/jpeg') {
-    return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
-  }
-  if (mimeType === 'image/png') {
-    const expected = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
-    return bytes.length >= expected.length && expected.every((value, index) => bytes[index] === value)
-  }
-  if (mimeType === 'image/webp') {
-    return bytes.length >= 12
-      && new TextDecoder().decode(bytes.slice(0, 4)) === 'RIFF'
-      && new TextDecoder().decode(bytes.slice(8, 12)) === 'WEBP'
-  }
-  return false
-}
-
 function validateRole(value: string): EngagementEvidenceLinkRole {
   if (!ENGAGEMENT_EVIDENCE_LINK_ROLES.includes(value as EngagementEvidenceLinkRole)) {
     throw new VaultEvidenceError(
@@ -99,6 +61,16 @@ async function assertEngagementInWedding(weddingId: string, engagementId: string
   }
 }
 
+function legacyCommercialObjectIsDistributable(value: { storageState: string; scanState: string; deletedAt?: Date | null }): boolean {
+  // Pre-convergence Service Engagement uploads used these two equivalent states.
+  // Keep them readable while all new uploads use the canonical Vault state model.
+  return !value.deletedAt && value.storageState === 'stored' && value.scanState === 'signature_validated'
+}
+
+export function engagementDocumentIsDistributable(value: { storageState: string; scanState: string; deletedAt?: Date | null }): boolean {
+  return vaultObjectIsDistributable(value) || legacyCommercialObjectIsDistributable(value)
+}
+
 export async function uploadEngagementEvidence(args: {
   weddingId: string
   actorId: string
@@ -110,69 +82,45 @@ export async function uploadEngagementEvidence(args: {
   const linkRole = validateRole(args.linkRole)
   await assertEngagementInWedding(weddingId, engagementId)
 
-  if (!(file.type in FILE_TYPES)) {
-    throw new VaultEvidenceError('Documents must be PDF, JPEG, PNG, or WebP.', 400, 'file')
-  }
-  if (file.size <= 0 || file.size > MAX_BYTES) {
-    throw new VaultEvidenceError('Document must be between 1 byte and 25 MB.', 400, 'file')
+  if (!ALLOWED_ENGAGEMENT_DOCUMENT_MIME_TYPES.has(file.type)) {
+    throw new VaultEvidenceError('Documents must be PDF, JPEG, PNG, or WebP.', 415, 'file')
   }
 
-  const mimeType = file.type as AllowedMime
-  const bytes = new Uint8Array(await file.arrayBuffer())
-  if (!hasExpectedSignature(bytes, mimeType)) {
-    throw new VaultEvidenceError('File contents do not match the declared file type.', 400, 'file')
+  let prepared
+  try {
+    prepared = await prepareVaultUpload({
+      file,
+      weddingId,
+      actorId,
+      source: 'service_engagement_document',
+      category: 'commercial_document',
+      metadata: {
+        serviceEngagementId: engagementId,
+        documentRole: linkRole,
+      },
+    })
+  } catch (error) {
+    if (error instanceof VaultUploadError) {
+      throw new VaultEvidenceError(error.message, error.status, 'file')
+    }
+    throw error
   }
-
-  await ensureBucket()
-  const client = createSupabaseServiceClient()
-  const id = randomUUID()
-  const extension = FILE_TYPES[mimeType].extension
-  const storageKey = `${weddingId}/service-engagements/${engagementId}/${id}.${extension}`
-  const checksumSha256 = createHash('sha256').update(bytes).digest('hex')
-
-  const uploaded = await client.storage.from(BUCKET).upload(storageKey, bytes, {
-    contentType: mimeType,
-    upsert: false,
-  })
-  if (uploaded.error) throw new Error(`Vault document upload failed: ${uploaded.error.message}`)
 
   try {
-    return await db.$transaction(async (tx) => {
-      const object = await tx.vaultObject.create({
-        data: {
-          id,
-          weddingId,
-          storageProvider: 'supabase',
-          objectKey: storageKey,
-          originalFilename: cleanFileName(file.name),
-          displayName: cleanFileName(file.name),
-          mimeType,
-          extension,
-          byteSize: BigInt(file.size),
-          checksumSha256,
-          uploaderActorId: actorId,
-          uploadSource: 'service_engagement_document',
-          storageState: 'stored',
-          scanState: 'signature_validated',
-          retentionClass: 'wedding_record',
-          legalHold: false,
-          sensitivity: 'private',
-          publicationState: 'private',
-          metadata: JSON.stringify({ storageBucket: BUCKET, serviceEngagementId: engagementId, documentRole: linkRole }),
-        },
-      })
+    await db.$transaction(async (tx) => {
+      await registerPreparedVaultObject(prepared, tx)
       await linkCommercialDocumentGraph({
         tx,
-        vaultObjectId: object.id,
+        vaultObjectId: prepared.id,
         weddingId,
         engagementId,
         linkRole,
         actorId,
       })
-      return object
     })
+    return db.vaultObject.findUniqueOrThrow({ where: { id: prepared.id } })
   } catch (error) {
-    await client.storage.from(BUCKET).remove([storageKey])
+    await removePreparedVaultUpload(prepared)
     throw error
   }
 }
@@ -214,18 +162,26 @@ export async function engagementEvidenceSignedUrl(args: {
       weddingId: args.weddingId,
       vaultObjectId: args.vaultObjectId,
       entityType: 'service_engagement',
-      vaultObject: { deletedAt: null, storageState: 'stored' },
+      vaultObject: { deletedAt: null },
     },
     include: { vaultObject: true },
   })
   if (!link) throw new VaultEvidenceError('Vault document not found.', 404)
+  if (!engagementDocumentIsDistributable(link.vaultObject)) {
+    throw new VaultEvidenceError('This document is not available for secure distribution.', 415)
+  }
 
-  const client = createSupabaseServiceClient()
-  const { data, error } = await client.storage.from(BUCKET).createSignedUrl(
-    link.vaultObject.objectKey,
-    600,
-    { download: link.vaultObject.originalFilename },
-  )
-  if (error || !data?.signedUrl) throw new Error('Could not authorize Vault document download.')
-  return { signedUrl: data.signedUrl, fileName: link.vaultObject.originalFilename }
+  try {
+    const signedUrl = await signedVaultDownload({
+      objectKey: link.vaultObject.objectKey,
+      filename: link.vaultObject.originalFilename,
+      distributable: true,
+    })
+    return { signedUrl, fileName: link.vaultObject.originalFilename }
+  } catch (error) {
+    if (error instanceof VaultUploadError) {
+      throw new VaultEvidenceError(error.message, error.status)
+    }
+    throw error
+  }
 }
