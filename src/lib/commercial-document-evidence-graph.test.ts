@@ -38,7 +38,7 @@ describe('Commercial Document & Evidence Graph', () => {
   })
 
   test('supports current and historical Service Engagement documents through one governed uploader', () => {
-    expect(engagementEvidence).toContain("source: 'service_engagement_document'")
+    expect(engagementEvidence).toContain("uploadSource: 'service_engagement_document'")
     expect(engagementEvidence).toContain("'existing_agreement'")
     expect(engagementEvidence).not.toContain("origin: 'historical'")
     expect(engagementEvidenceRoute).toContain("action: 'service_engagement.document_uploaded'")
