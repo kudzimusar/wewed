@@ -75,7 +75,7 @@ export function DealRoomDocumentUpload({
         <div>
           <p className="text-xs font-medium text-champagne">Attach an existing commercial document</p>
           <p className="mt-1 text-[10px] leading-4 text-champagne/45">
-            Upload the original softcopy once. Wewed stores it privately in Vault and links the same object to this Service Engagement, its Vendor and linked Budget items. If a contributor has actually paid this vendor directly, the permitted evidence projection is linked to that contribution too. A pledge with $0 paid receives no payment-derived document access.
+            Upload the original softcopy once. Wewed stores it privately in Vault and links the same object to this Service Engagement, its Vendor and linked Budget items. If a contributor has actually paid this vendor directly, only payment-scoped invoice/receipt documents are automatically projected to that contribution. Contracts, service evidence and general evidence are not granted merely because money moved. A pledge with $0 paid receives no payment-derived document access.
           </p>
           <p className="mt-1 text-[10px] leading-4 text-champagne/45">
             An uploaded external contract remains an external agreement on record; it is not presented as a Wewed-issued or Wewed-accepted contract.
