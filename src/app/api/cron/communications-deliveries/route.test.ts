@@ -53,7 +53,7 @@ describe('communications scheduler HTTP boundary', () => {
     expect(incorrect.status).toBe(404)
   })
 
-  test('runs the queue worker for the private scheduler credential', async () => {
+  test('runs endpoint and device-backed push workers for the private scheduler credential', async () => {
     await storeCredential('scheduler-secret')
     const response = await POST(new NextRequest(
       'https://wewed.pro/api/cron/communications-deliveries',
@@ -62,7 +62,12 @@ describe('communications scheduler HTTP boundary', () => {
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({
       success: true,
-      data: { processed: 0, deliveries: [] },
+      data: {
+        processed: 0,
+        deliveries: [],
+        endpointDeliveries: { processed: 0, deliveries: [] },
+        pushDeliveries: { processed: 0, deliveries: [] },
+      },
     })
   })
 })
