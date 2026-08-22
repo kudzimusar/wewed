@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { processQueuedCommunicationDeliveries } from '@/lib/communication-channels'
+import { processQueuedCommunicationPushDeliveries } from '@/lib/communication-push-delivery'
 import { communicationSchedulerAuthorized } from '@/lib/communications-scheduler'
 
 export const dynamic = 'force-dynamic'
@@ -22,6 +23,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Not found.' }, { status: 404 })
   }
 
-  const result = await processQueuedCommunicationDeliveries(DEFAULT_BATCH_LIMIT)
-  return NextResponse.json({ success: true, data: result })
+  const [endpointDeliveries, pushDeliveries] = await Promise.all([
+    processQueuedCommunicationDeliveries(DEFAULT_BATCH_LIMIT),
+    processQueuedCommunicationPushDeliveries(DEFAULT_BATCH_LIMIT),
+  ])
+  return NextResponse.json({
+    success: true,
+    data: {
+      processed: endpointDeliveries.processed + pushDeliveries.processed,
+      deliveries: [...endpointDeliveries.deliveries, ...pushDeliveries.deliveries],
+      endpointDeliveries,
+      pushDeliveries,
+    },
+  })
 }
