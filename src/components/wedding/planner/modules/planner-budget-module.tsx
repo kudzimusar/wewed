@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, type Dispatch, type FormEvent, type SetStateAction } from 'react'
-import { Plus, Search, Trash2 } from 'lucide-react'
+import { FileText, Plus, Search, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -22,6 +22,7 @@ interface BudgetFunding {
   contributionAllocated: number
 }
 interface BudgetContributionContext { contributionId: string; contributorName: string; title: string; notes: string | null; type: string; commitmentState: string; fulfillmentState: string; promisedAmount: number; paidAmount: number; remainingAmount: number; currency: string }
+interface BudgetDocument { id: string; linkRole: string; displayName: string; originalFilename: string; mimeType: string; byteSize: number; checksumSha256: string; storageState: string; scanState: string; createdAt: string }
 interface BudgetRow {
   id: string
   category: string
@@ -34,8 +35,10 @@ interface BudgetRow {
   vendorName: string | null
   notes: string | null
   dueDate: string | null
+  serviceEngagementId?: string | null
   funding?: BudgetFunding
   contributions?: BudgetContributionContext[]
+  documents?: BudgetDocument[]
 }
 interface BudgetSummary { totalEstimated: number; totalActual: number; totalPaid: number; totalOutstanding: number; currency: string; percentPaid: number }
 interface CategoryBreakdown { category: string; estimated: number; actual: number; paid: number; outstanding: number; count: number }
@@ -94,6 +97,16 @@ function ContributionContextLine({ item }: { item: BudgetRow }) {
   })}</div>
 }
 
+function DocumentLine({ item, onOpen }: { item: BudgetRow; onOpen: (document: BudgetDocument) => void }) {
+  if (!item.documents?.length) return null
+  return <div className="mt-2 rounded-lg border border-gold/10 bg-champagne/[0.025] px-2.5 py-2">
+    <p className="font-sans text-[10px] font-semibold text-gold/80">Related documents</p>
+    <div className="mt-1.5 flex flex-wrap gap-1.5">
+      {item.documents.map((document) => <button key={document.id} type="button" onClick={() => onOpen(document)} className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-gold/15 px-2 py-1 font-sans text-[10px] text-champagne/60 hover:border-gold/35 hover:text-champagne"><FileText className="size-3 shrink-0 text-gold" /><span className="truncate">{document.displayName}</span><span className="shrink-0 text-champagne/35">· {document.linkRole.replaceAll('_',' ')}</span></button>)}
+    </div>
+    <p className="mt-1 text-[9px] leading-4 text-champagne/35">These are the same governed Vault files linked to the vendor Service Engagement; viewing them does not change payment accounting.</p>
+  </div>
+}
 
 export function PlannerBudgetModule({ budget, budgetSummary, budgetByCategory, budgetForm, setBudgetForm, vendors, saving, onAddBudgetItem, onUpdateBudgetItem, onDeleteBudgetItem }: PlannerBudgetModuleProps) {
   const [filters, setFilters, resetFilters] = usePlannerFilterState('wewed:planner:budget:filters', { search: '', category: 'all', status: 'all' })
@@ -109,9 +122,20 @@ export function PlannerBudgetModule({ budget, budgetSummary, budgetByCategory, b
       if (filters.status === 'paid' && !paid) return false
       if (filters.status === 'outstanding' && outstanding <= 0) return false
       if (filters.status === 'overdue' && !overdue) return false
-      return !query || [item.description, item.vendorName ?? '', item.category, categoryLabel(item.category), item.notes ?? ''].some((value) => value.toLowerCase().includes(query))
+      return !query || [item.description, item.vendorName ?? '', item.category, categoryLabel(item.category), item.notes ?? '', ...(item.documents ?? []).map((document) => document.displayName)].some((value) => value.toLowerCase().includes(query))
     })
   }, [budget, filters])
+
+  async function openDocument(document: BudgetDocument) {
+    try {
+      const response = await fetch(`/api/vault/${document.id}`, { cache: 'no-store' })
+      const body = await response.json()
+      if (!response.ok || body.success === false || !body.data?.signedUrl) throw new Error(body.error || 'Document unavailable.')
+      window.open(body.data.signedUrl, '_blank', 'noopener,noreferrer')
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Document unavailable.')
+    }
+  }
 
   return <div className="space-y-4">
     <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">{[['Estimated', budgetSummary?.totalEstimated ?? 0], ['Actual', budgetSummary?.totalActual ?? 0], ['Paid', budgetSummary?.totalPaid ?? 0], ['Outstanding', budgetSummary?.totalOutstanding ?? 0]].map(([label, value]) => <SectionCard key={String(label)} className="p-3 sm:p-4"><p className="font-sans text-[9px] uppercase tracking-[0.12em] text-gold/75 sm:text-[10px] sm:tracking-[0.16em]">{label}</p><p className="mt-1.5 font-serif text-xl sm:mt-2 sm:text-2xl">{money(Number(value), budgetSummary?.currency)}</p></SectionCard>)}</div>
@@ -131,8 +155,8 @@ export function PlannerBudgetModule({ budget, budgetSummary, budgetByCategory, b
     </form><p className="mt-3 font-sans text-[10px] leading-4 text-champagne/45">Search and select an existing wedding vendor to create a durable link. If the vendor is not in Wewed yet, keep the typed name as a manual external vendor.</p></SectionCard>
 
     <SectionCard className="overflow-hidden">
-      <div className="grid gap-3 border-b border-gold/10 p-4 lg:grid-cols-[minmax(0,1fr)_14rem_12rem_auto]"><div className="relative"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-champagne/35" /><Input value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Search item, vendor, category, or notes" className="border-gold/20 bg-espresso/70 pl-9" /></div><select aria-label="Filter budget by category" value={filters.category} onChange={(event) => setFilters((current) => ({ ...current, category: event.target.value }))} className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm">{BUDGET_CATEGORIES.map((category) => <option key={category.value} value={category.value}>{category.label}</option>)}</select><select aria-label="Filter budget by payment status" value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))} className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm"><option value="all">All payment states</option><option value="paid">Paid</option><option value="outstanding">Outstanding</option><option value="overdue">Overdue</option></select><Button type="button" variant="outline" onClick={resetFilters} className="border-gold/20 bg-transparent text-champagne/60">Reset</Button></div>
-      <div className="space-y-2 p-4">{budget.length === 0 ? <EmptyState title="No budget items" detail="Add your first estimate or import the wedding budget worksheet." /> : filteredBudget.length === 0 ? <EmptyState title="No budget items in this view" detail="Clear the search or filters to see the remaining costs." /> : filteredBudget.map((item) => { const actual = item.actualCost ?? item.estimatedCost; const outstanding = Math.max(0, actual - item.paidAmount); const isPaid = actual > 0 && item.paidAmount >= actual; return <div key={item.id} className="grid gap-3 rounded-xl border border-gold/10 bg-espresso/45 p-3 lg:grid-cols-[minmax(0,1fr)_8rem_8rem_auto] lg:items-center"><div><div className="flex flex-wrap items-center gap-2"><p className="font-sans text-sm font-medium">{item.description}</p><Badge variant="outline" className="border-champagne bg-champagne text-[10px] font-semibold text-espresso">{categoryLabel(item.category)}</Badge>{item.vendorId && <Badge variant="outline" className="border-sage/40 bg-sage/10 text-[10px] text-sage-light">Vendor linked</Badge>}<Badge variant="outline" className={isPaid ? 'border-sage/50 bg-sage/10 text-sage-light' : 'border-gold/30 bg-espresso text-champagne/80'}>{isPaid ? 'Paid' : `${money(outstanding, item.currency)} outstanding`}</Badge></div>{item.vendorName && <p className="mt-1 font-sans text-xs text-champagne/70">Vendor: {item.vendorName}</p>}<p className="mt-1 text-xs text-champagne/55">Estimated {money(item.estimatedCost, item.currency)} · {dateText(item.dueDate)}</p>{item.notes && <p className="mt-1 font-sans text-xs text-champagne/55">{item.notes}</p>}<FundingLine item={item} /><ContributionContextLine item={item} /></div><div><Label className="text-[10px]">Actual</Label><Input type="number" min="0" aria-label={`Actual cost for ${item.description}`} defaultValue={item.actualCost ?? ''} onBlur={(event) => void onUpdateBudgetItem(item, 'actualCost', event.target.value)} className="mt-1 h-8 border-gold/20 bg-espresso/70 text-xs" /></div><div><Label className="text-[10px]">Paid</Label><Input type="number" min="0" aria-label={`Paid amount for ${item.description}`} defaultValue={item.paidAmount} onBlur={(event) => void onUpdateBudgetItem(item, 'paidAmount', event.target.value)} className="mt-1 h-8 border-gold/20 bg-espresso/70 text-xs" /></div><Button type="button" variant="ghost" size="icon" aria-label={`Delete ${item.description}`} disabled={saving} onClick={() => { if (window.confirm(`Delete budget item “${item.description}”?`)) void onDeleteBudgetItem(item) }} className="size-9 text-champagne/45 hover:bg-clay/10 hover:text-clay-light"><Trash2 className="size-4" /></Button></div>})}</div>
+      <div className="grid gap-3 border-b border-gold/10 p-4 lg:grid-cols-[minmax(0,1fr)_14rem_12rem_auto]"><div className="relative"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-champagne/35" /><Input value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Search item, vendor, category, notes or document" className="border-gold/20 bg-espresso/70 pl-9" /></div><select aria-label="Filter budget by category" value={filters.category} onChange={(event) => setFilters((current) => ({ ...current, category: event.target.value }))} className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm">{BUDGET_CATEGORIES.map((category) => <option key={category.value} value={category.value}>{category.label}</option>)}</select><select aria-label="Filter budget by payment status" value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))} className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm"><option value="all">All payment states</option><option value="paid">Paid</option><option value="outstanding">Outstanding</option><option value="overdue">Overdue</option></select><Button type="button" variant="outline" onClick={resetFilters} className="border-gold/20 bg-transparent text-champagne/60">Reset</Button></div>
+      <div className="space-y-2 p-4">{budget.length === 0 ? <EmptyState title="No budget items" detail="Add your first estimate or import the wedding budget worksheet." /> : filteredBudget.length === 0 ? <EmptyState title="No budget items in this view" detail="Clear the search or filters to see the remaining costs." /> : filteredBudget.map((item) => { const actual = item.actualCost ?? item.estimatedCost; const outstanding = Math.max(0, actual - item.paidAmount); const isPaid = actual > 0 && item.paidAmount >= actual; return <div key={item.id} className="grid gap-3 rounded-xl border border-gold/10 bg-espresso/45 p-3 lg:grid-cols-[minmax(0,1fr)_8rem_8rem_auto] lg:items-center"><div><div className="flex flex-wrap items-center gap-2"><p className="font-sans text-sm font-medium">{item.description}</p><Badge variant="outline" className="border-champagne bg-champagne text-[10px] font-semibold text-espresso">{categoryLabel(item.category)}</Badge>{item.vendorId && <Badge variant="outline" className="border-sage/40 bg-sage/10 text-[10px] text-sage-light">Vendor linked</Badge>}<Badge variant="outline" className={isPaid ? 'border-sage/50 bg-sage/10 text-sage-light' : 'border-gold/30 bg-espresso text-champagne/80'}>{isPaid ? 'Paid' : `${money(outstanding, item.currency)} outstanding`}</Badge></div>{item.vendorName && <p className="mt-1 font-sans text-xs text-champagne/70">Vendor: {item.vendorName}</p>}<p className="mt-1 text-xs text-champagne/55">Estimated {money(item.estimatedCost, item.currency)} · {dateText(item.dueDate)}</p>{item.notes && <p className="mt-1 font-sans text-xs text-champagne/55">{item.notes}</p>}<FundingLine item={item} /><ContributionContextLine item={item} /><DocumentLine item={item} onOpen={(document) => void openDocument(document)} /></div><div><Label className="text-[10px]">Actual</Label><Input type="number" min="0" aria-label={`Actual cost for ${item.description}`} defaultValue={item.actualCost ?? ''} onBlur={(event) => void onUpdateBudgetItem(item, 'actualCost', event.target.value)} className="mt-1 h-8 border-gold/20 bg-espresso/70 text-xs" /></div><div><Label className="text-[10px]">Paid</Label><Input type="number" min="0" aria-label={`Paid amount for ${item.description}`} defaultValue={item.paidAmount} onBlur={(event) => void onUpdateBudgetItem(item, 'paidAmount', event.target.value)} className="mt-1 h-8 border-gold/20 bg-espresso/70 text-xs" /></div><Button type="button" variant="ghost" size="icon" aria-label={`Delete ${item.description}`} disabled={saving} onClick={() => { if (window.confirm(`Delete budget item “${item.description}”?`)) void onDeleteBudgetItem(item) }} className="size-9 text-champagne/45 hover:bg-clay/10 hover:text-clay-light"><Trash2 className="size-4" /></Button></div>})}</div>
     </SectionCard>
   </div>
 }
