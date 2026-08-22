@@ -74,6 +74,12 @@ export default function NotificationSettingsPage() {
     const payload = (await response.json()) as { success?: boolean; data?: Capabilities }
     if (payload.success && payload.data) {
       setCapabilities(payload.data)
+      setForm((current) => ({
+        ...current,
+        pushEnabled: current.pushEnabled && payload.data!.push.ready,
+        emailEnabled: current.emailEnabled && payload.data!.email.ready,
+        whatsAppEnabled: current.whatsAppEnabled && payload.data!.whatsapp.ready,
+      }))
       return payload.data
     }
     return null
@@ -104,24 +110,30 @@ export default function NotificationSettingsPage() {
           data?: Capabilities
         }
 
+        if (!cancelled && capabilityPayload.success && capabilityPayload.data) {
+          setCapabilities(capabilityPayload.data)
+        }
         if (!cancelled && preferencePayload.success && preferencePayload.data) {
+          const capability = capabilityPayload.success && capabilityPayload.data
+            ? capabilityPayload.data
+            : EMPTY_CAPABILITIES
           setForm({
             ...preferencePayload.data,
             inAppEnabled: true,
             digestMode: 'none',
+            pushEnabled: Boolean(preferencePayload.data.pushEnabled && capability.push.ready),
+            emailEnabled: Boolean(preferencePayload.data.emailEnabled && capability.email.ready),
+            whatsAppEnabled: Boolean(preferencePayload.data.whatsAppEnabled && capability.whatsapp.ready),
             timezone: preferencePayload.data.timezone === 'UTC'
               ? (Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC')
               : preferencePayload.data.timezone,
           })
         }
-        if (!cancelled && capabilityPayload.success && capabilityPayload.data) {
-          setCapabilities(capabilityPayload.data)
-        }
         if (!cancelled) {
           const verification = new URLSearchParams(window.location.search).get('emailVerification')
           if (verification === 'success') {
-            setEmailMessage('Email verified. Allow email delivery below, then enable Email notifications.')
-            setMessage('Email verified successfully.')
+            setEmailMessage('Account email verified. Allow Email delivery below, then enable Email notifications.')
+            setMessage('Account email verified successfully.')
           }
           if (verification === 'invalid') {
             setEmailMessage('That email verification link is invalid or has expired. Request a new one here.')
@@ -159,18 +171,29 @@ export default function NotificationSettingsPage() {
   async function requestEmailVerification() {
     setChannelAction('email-verification')
     setMessage(null)
-    setEmailMessage('Sending a verification email to your Wewed account address…')
+    setEmailMessage('Sending a verification email to your external Wewed account mailbox…')
     try {
       const response = await fetch('/api/notifications/email-verification', {
         method: 'POST',
         credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ returnTo: '/settings/notifications' }),
       })
-      const payload = (await response.json()) as { success?: boolean; error?: string; data?: { address?: string } }
+      const payload = (await response.json()) as {
+        success?: boolean
+        error?: string
+        data?: { address?: string; message?: string; alreadyVerified?: boolean }
+      }
       if (!response.ok || !payload.success) throw new Error(payload.error || 'Unable to send the verification email.')
-      const address = payload.data?.address?.trim()
-      setEmailMessage(address
-        ? `Verification email sent to ${address}. Open the Wewed verification link within 30 minutes.`
-        : 'Verification email sent. Open the Wewed verification link within 30 minutes.')
+      if (payload.data?.message) {
+        setEmailMessage(payload.data.message)
+      } else {
+        const address = payload.data?.address?.trim()
+        setEmailMessage(address
+          ? `Verification email sent to ${address}. Check that external inbox and spam. It will not appear in Wewed Messages.`
+          : 'Verification email sent to your external account mailbox. Check its inbox and spam; it will not appear in Wewed Messages.')
+      }
+      await refreshCapabilities()
     } catch (error) {
       setEmailMessage(error instanceof Error ? error.message : 'Unable to send the verification email.')
     } finally {
@@ -215,7 +238,7 @@ export default function NotificationSettingsPage() {
     description: string
   }> = [
     { key: 'pushEnabled', capabilityKey: 'push', title: 'Push', description: 'Browser/PWA push to every device you subscribe to Wewed.' },
-    { key: 'emailEnabled', capabilityKey: 'email', title: 'Email', description: 'Requires Wewed email delivery, a verified account email, and communication consent.' },
+    { key: 'emailEnabled', capabilityKey: 'email', title: 'Email', description: 'Requires Wewed email delivery, your verified account email, and communication consent.' },
     { key: 'whatsAppEnabled', capabilityKey: 'whatsapp', title: 'WhatsApp', description: 'Requires a verified WhatsApp endpoint, communication consent, and an approved Wewed notification route.' },
   ]
 
@@ -224,17 +247,17 @@ export default function NotificationSettingsPage() {
     if (capability.ready) {
       if (key === 'push') return `Ready on ${capability.activeSubscriptionCount} subscribed device${capability.activeSubscriptionCount === 1 ? '' : 's'}.`
       if (key === 'whatsapp' && !capability.exactActionLinkConfigured) return 'Ready for delivery. Exact source button awaits the approved Wewed action template.'
-      return 'Ready for delivery'
+      return 'Ready for delivery.'
     }
     if (!capability.transportConfigured) return 'Wewed transport is not configured in this environment.'
-    if (key === 'push') return 'No active push subscription is registered yet. Manage push devices to subscribe this browser.'
-    if (!capability.endpointVerified) return `No verified ${key === 'email' ? 'email' : 'WhatsApp'} endpoint is available.`
+    if (key === 'push') return 'No active push subscription is registered yet. Manage Push devices to subscribe this browser.'
+    if (!capability.endpointVerified) return `No verified ${key === 'email' ? 'account email' : 'WhatsApp'} endpoint is available.`
     if (!capability.communicationConsentEnabled) return 'Communication consent for this channel is disabled.'
     return 'This channel is not ready.'
   }
 
   return (
-    <main className="min-h-dvh bg-[#f8f3e9] px-4 py-8 text-[#2a211b] sm:px-6">
+    <main className="min-h-dvh bg-[#f8f3e9] px-4 py-8 pb-32 text-[#2a211b] sm:px-6 sm:pb-8">
       <div className="mx-auto max-w-3xl">
         <NotificationSectionNavigation surface="settings" />
         <header className="mt-5 rounded-3xl border border-[#2a211b]/10 bg-white p-6 shadow-sm sm:p-8">
@@ -258,18 +281,14 @@ export default function NotificationSettingsPage() {
             {channels.map((channel) => {
               const ready = capabilities[channel.capabilityKey].ready
               const enabled = form[channel.key]
-              const canToggle = ready || enabled
               return (
-                <div key={channel.key} className={`rounded-2xl border border-[#2a211b]/10 p-4 ${canToggle ? '' : 'bg-[#faf7f1]'}`}>
-                  <label className={`flex items-start gap-3 ${canToggle ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}>
+                <div key={channel.key} className={`rounded-2xl border border-[#2a211b]/10 p-4 ${ready ? '' : 'bg-[#faf7f1]'}`}>
+                  <label className={`flex items-start gap-3 ${ready ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}>
                     <input
                       type="checkbox"
-                      checked={enabled}
-                      disabled={!canToggle}
-                      onChange={(event) => {
-                        if (event.target.checked && !ready) return
-                        setForm((current) => ({ ...current, [channel.key]: event.target.checked }))
-                      }}
+                      checked={enabled && ready}
+                      disabled={!ready}
+                      onChange={(event) => setForm((current) => ({ ...current, [channel.key]: event.target.checked }))}
                       className="mt-1 size-4 accent-[#8a672f]"
                     />
                     <span>
@@ -278,10 +297,9 @@ export default function NotificationSettingsPage() {
                       <span className={`mt-1 block text-xs font-semibold ${ready ? 'text-emerald-700' : 'text-amber-700'}`}>{readinessText(channel.capabilityKey)}</span>
                     </span>
                   </label>
-
                   {channel.key === 'pushEnabled' && (
                     <Link href="/settings/notifications/push" className="mt-3 inline-flex text-xs font-semibold text-[#725329] underline underline-offset-2">
-                      Manage push devices
+                      Manage Push devices
                     </Link>
                   )}
                   {channel.key === 'emailEnabled' && capabilities.email.transportConfigured && !capabilities.email.endpointVerified && (
@@ -296,7 +314,7 @@ export default function NotificationSettingsPage() {
                     </button>
                   )}
                   {channel.key === 'emailEnabled' && capabilities.email.endpointVerified && !capabilities.email.communicationConsentEnabled && (
-                    <button type="button" disabled={channelAction !== null} onClick={() => void allowCommunication('EMAIL')} className="mt-3 inline-flex min-h-9 rounded-full border border-[#8a672f]/25 px-3 text-xs font-semibold text-[#725329] disabled:opacity-50">Allow email delivery</button>
+                    <button type="button" disabled={channelAction !== null} onClick={() => void allowCommunication('EMAIL')} className="mt-3 inline-flex min-h-9 rounded-full border border-[#8a672f]/25 px-3 text-xs font-semibold text-[#725329] disabled:opacity-50">Allow Email delivery</button>
                   )}
                   {channel.key === 'emailEnabled' && emailMessage && (
                     <p role="status" className="mt-3 rounded-xl border border-[#8a672f]/15 bg-[#f8f3e9] px-3 py-2 text-xs leading-5 text-[#2a211b]/65">{emailMessage}</p>
