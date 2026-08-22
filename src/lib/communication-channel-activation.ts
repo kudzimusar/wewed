@@ -24,6 +24,10 @@ export interface CommunicationChannelActivation {
   SMS: CommunicationChannelActivationState
   PUSH: CommunicationChannelActivationState & {
     mode: 'direct' | 'gateway' | 'none'
+    directTransportConfigured: boolean
+    gatewayTransportConfigured: boolean
+    messageCanEnable: boolean
+    messageReady: boolean
   }
 }
 
@@ -68,12 +72,17 @@ export async function getCommunicationChannelActivation(
   const [endpointRows, preferenceRows, pushRows] = await Promise.all([
     db.$queryRawUnsafe<EndpointCountRow[]>(
       `
-        SELECT channel, COUNT(*)::bigint AS count
-        FROM wewed_communications."CommunicationEndpoint"
-        WHERE "userId" = $1
-          AND channel IN ('EMAIL', 'WHATSAPP', 'SMS')
-          AND status = 'VERIFIED'
-        GROUP BY channel
+        SELECT endpoint.channel, COUNT(*)::bigint AS count
+        FROM wewed_communications."CommunicationEndpoint" endpoint
+        JOIN public."User" account ON account.id = endpoint."userId"
+        WHERE endpoint."userId" = $1
+          AND endpoint.channel IN ('EMAIL', 'WHATSAPP', 'SMS')
+          AND endpoint.status = 'VERIFIED'
+          AND (
+            endpoint.channel <> 'EMAIL'
+            OR LOWER(endpoint."normalizedAddress") = LOWER(account.email)
+          )
+        GROUP BY endpoint.channel
       `,
       userId,
     ),
@@ -155,6 +164,7 @@ export async function getCommunicationChannelActivation(
     activeDeviceCount: pushCount,
     preferenceEnabled: preferences.get('PUSH') ?? false,
   })
+  const messageCanEnable = directPushConfigured && pushCount > 0
 
   return {
     EMAIL: email,
@@ -166,6 +176,10 @@ export async function getCommunicationChannelActivation(
     PUSH: {
       ...push,
       mode: pushMode,
+      directTransportConfigured: directPushConfigured,
+      gatewayTransportConfigured: gatewayPushConfigured,
+      messageCanEnable,
+      messageReady: messageCanEnable && push.preferenceEnabled,
     },
   }
 }
