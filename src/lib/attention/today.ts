@@ -78,7 +78,7 @@ function notificationToAttention(notification: NotificationRecord): TodayAttenti
     priority: notification.severity,
     when: notification.snoozedUntil ?? notification.scheduledFor ?? notification.createdAt,
     requiresAction: notification.requiresAction,
-    deepLink: notification.deepLink || '/notifications',
+    deepLink: `/notifications/open/${encodeURIComponent(notification.id)}`,
     sourceType: notification.sourceType,
     sourceId: notification.sourceId,
   }
@@ -135,18 +135,24 @@ export async function buildTodayAttentionModel(
     listCalendarItemsForSession(session, { from: todayStart, to: upcomingEnd, limit: 300 }),
   ])
 
-  const currentNotifications = notifications.filter(
+  const unresolvedNotifications = notifications.filter(
     (notification) => !['resolved', 'cancelled', 'expired', 'dismissed'].includes(notification.state),
   )
-  const notificationItems = currentNotifications.map(notificationToAttention)
-  const currentAttentionItems = currentNotifications
+  // Acknowledgement means the alert itself has been handled. Keep it in Notification Center
+  // history, but let the still-open canonical source reappear through Calendar/Today instead of
+  // making the acknowledged alert look new on another device.
+  const attentionNotifications = unresolvedNotifications.filter(
+    (notification) => notification.state !== 'acknowledged',
+  )
+  const notificationItems = attentionNotifications.map(notificationToAttention)
+  const currentAttentionItems = attentionNotifications
     .filter((notification) => !isDeferredNotification(notification))
     .map(notificationToAttention)
   const calendarItems = calendar.map(calendarToAttention)
 
-  // Any current notification represents that source in Today, including a snoozed one. This keeps
-  // the canonical Calendar page truthful while allowing snooze to defer the source from Today
-  // instead of reappearing immediately through the Calendar projection.
+  // Any current, non-acknowledged notification represents that source in Today, including a
+  // snoozed one. Acknowledged notifications intentionally do not suppress Calendar because their
+  // underlying source may still require work.
   const notificationSourceKeys = new Set(
     notificationItems
       .filter((item) => item.sourceId)
@@ -177,7 +183,7 @@ export async function buildTodayAttentionModel(
     needsAction,
     today,
     upcoming,
-    unreadCount: currentNotifications.filter(
+    unreadCount: unresolvedNotifications.filter(
       (notification) => notification.state === 'active' && !notification.readAt,
     ).length,
     summary: {

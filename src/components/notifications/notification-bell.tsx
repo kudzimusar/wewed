@@ -59,9 +59,18 @@ export function NotificationBell({ className = '', showLabel = false }: Notifica
 
   useEffect(() => {
     void refresh()
-    const onFocus = () => void refresh()
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void refresh()
+    }
+    const onFocus = () => refreshWhenVisible()
     window.addEventListener('focus', onFocus)
-    return () => window.removeEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', refreshWhenVisible)
+    const intervalId = window.setInterval(refreshWhenVisible, 10_000)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
+      window.clearInterval(intervalId)
+    }
   }, [refresh])
 
   if (authorized === false) return null
