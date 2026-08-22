@@ -25,9 +25,9 @@ export async function GET(
         { status: error.status },
       )
     }
-    console.error('[PLANNER ENGAGEMENT EVIDENCE GET] error:', error)
+    console.error('[PLANNER ENGAGEMENT DOCUMENT GET] error:', error)
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch engagement evidence' },
+      { success: false, error: 'Failed to fetch service engagement documents' },
       { status: 500 },
     )
   }
@@ -47,7 +47,7 @@ export async function POST(
     const linkRole = String(form.get('linkRole') ?? 'proof')
     if (!(file instanceof File)) {
       return NextResponse.json(
-        { success: false, error: 'A proof document is required.', field: 'file' },
+        { success: false, error: 'A document is required.', field: 'file' },
         { status: 400 },
       )
     }
@@ -61,7 +61,7 @@ export async function POST(
     })
 
     await logAuditEvent({
-      action: 'historical_engagement.evidence_uploaded',
+      action: 'service_engagement.document_uploaded',
       resourceType: 'VaultObject',
       resourceId: object.id,
       weddingId: access.context.weddingId,
@@ -102,9 +102,9 @@ export async function POST(
         { status: error.status },
       )
     }
-    console.error('[PLANNER ENGAGEMENT EVIDENCE POST] error:', error)
+    console.error('[PLANNER ENGAGEMENT DOCUMENT POST] error:', error)
     return NextResponse.json(
-      { success: false, error: 'Failed to upload engagement evidence' },
+      { success: false, error: 'Failed to upload service engagement document' },
       { status: 500 },
     )
   }

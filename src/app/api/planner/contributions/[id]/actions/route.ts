@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { contributionAvailableAmount, finiteNonNegative } from '@/lib/contributions'
 import { contributionAllocatedCash, contributionId, getContribution } from '@/lib/contributions/store'
+import { linkExistingEngagementDocumentsToDirectPayer } from '@/lib/vault/commercial-documents'
 import { contextHasPermission, requireWeddingPermission } from '@/lib/wedding-access'
 
 interface RouteContext { params: Promise<{ id: string }> }
@@ -132,6 +133,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
             VALUES
               (${contributionId()}, ${weddingId}, ${payment.id}, ${budgetItemId}, ${id}, 'CONTRIBUTION', ${paymentAmount}, ${locked.currency}, ${actorId}, ${paidAt})
           `
+          await linkExistingEngagementDocumentsToDirectPayer({
+            tx,
+            weddingId,
+            engagementId: locked.serviceEngagementId,
+            contributionId: id,
+            actorId,
+          })
           if (budgetItemId) await tx.budgetItem.update({ where: { id: budgetItemId }, data: { paidAmount: { increment: paymentAmount } } })
           const paidToDate = alreadyPaid + paymentAmount
           const remainingAfter = Math.max(0, promisedAmount - paidToDate)

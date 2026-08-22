@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Clock3,
   CreditCard,
+  FolderLock,
   Heart,
   KeyRound,
   Loader2,
@@ -30,6 +31,7 @@ interface SessionPayload {
 const links = [
   ['Find a planner', 'Search, save, enquire, appoint and control delegated authority.', '/couple/planners', Search, 'bg-plum/10 text-plum'],
   ['Messages', 'Talk with your planner, wedding team and Wewed support without losing the conversation outside the platform.', '/messages', MessageCircle, 'bg-gold/15 text-gold-muted'],
+  ['Documents & contracts', 'Open private contracts, invoices, receipts and evidence stored once in Wewed Vault and linked to the records they prove.', '/vault', FolderLock, 'bg-gold/15 text-gold-muted'],
   ['Guests & invitations', 'Design wedding cards, create QR links and manage private guest access.', '/couple/invitations', UsersRound, 'bg-clay/10 text-clay'],
   ['Privacy & access', 'Choose public, invitation-only or private visibility for the active wedding.', '/couple/privacy', KeyRound, 'bg-sage/10 text-sage'],
   ['Planning workspace', 'Open tasks, budget, vendors, guests, timeline and seating.', '/planner', Settings2, 'bg-gold/15 text-gold-muted'],

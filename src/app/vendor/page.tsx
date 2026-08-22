@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowRight, MessageCircle, Store, UserRoundCog } from 'lucide-react'
+import { ArrowRight, FolderLock, MessageCircle, Store, UserRoundCog } from 'lucide-react'
 import { DashboardAuthGate } from '@/components/wedding/dashboard-auth-gate'
 
 export default function VendorWorkspacePage() {
@@ -23,7 +23,7 @@ export default function VendorWorkspacePage() {
             <div className="mt-3 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <h1 className="max-w-3xl font-serif text-4xl leading-tight sm:text-6xl">Your business conversations start here.</h1>
-                <p className="mt-4 max-w-2xl text-sm leading-7 text-espresso/60">Respond to planners and couples in Messages, then manage the public profile and marketplace presence for your business.</p>
+                <p className="mt-4 max-w-2xl text-sm leading-7 text-espresso/60">Respond to planners and couples in Messages, review commercial documents for your own Service Engagements, then manage the public profile and marketplace presence for your business.</p>
               </div>
               <Link
                 href="/messages"
@@ -36,12 +36,19 @@ export default function VendorWorkspacePage() {
             </div>
           </div>
 
-          <div className="mt-6 grid gap-5 md:grid-cols-3">
+          <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
             <Link href="/messages" className="group rounded-3xl border-2 border-gold/35 bg-champagne/45 p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
               <MessageCircle className="size-7 text-gold-muted" />
               <h2 className="mt-5 font-serif text-3xl">Messages</h2>
               <p className="mt-3 text-sm leading-6 text-espresso/65">Open your inbox, receive Planner ↔ Vendor enquiries and reply from the same Wewed conversation.</p>
               <span className="mt-6 inline-flex items-center gap-2 text-sm font-bold text-espresso">Open inbox <ArrowRight className="size-4" /></span>
+            </Link>
+
+            <Link href="/vendor/documents" className="group rounded-3xl border border-gold/20 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+              <FolderLock className="size-6 text-gold-muted" />
+              <h2 className="mt-5 font-serif text-3xl">Documents</h2>
+              <p className="mt-3 text-sm leading-6 text-espresso/60">Open private contracts, invoices, receipts and evidence only for Service Engagements where you are the recorded provider.</p>
+              <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-gold-muted">Open documents <ArrowRight className="size-4" /></span>
             </Link>
 
             <Link href="/vendors" className="group rounded-3xl border border-gold/20 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">

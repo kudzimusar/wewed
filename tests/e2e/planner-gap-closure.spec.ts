@@ -88,7 +88,7 @@ test('budget search covers item, vendor, category, notes, status, and persists',
   await page.getByRole('button', { name: 'Add', exact: true }).click()
   await expect(page.getByText(item, { exact: true })).toBeVisible()
 
-  const search = page.getByPlaceholder('Search item, vendor, category, or notes')
+  const search = page.getByPlaceholder('Search item, vendor, category, notes or document')
   await search.fill('Mavambo')
   await expect(page.getByText(item, { exact: true })).toBeVisible()
   await search.fill('centrepieces')
