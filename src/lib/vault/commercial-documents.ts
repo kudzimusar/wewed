@@ -2,6 +2,59 @@ import 'server-only'
 
 import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
+import { createVaultLink } from '@/lib/vault/core'
+
+export const COMMERCIAL_DOCUMENT_LINK_ROLES = [
+  'existing_agreement',
+  'generated_contract',
+  'issued_contract',
+  'amendment',
+  'proposal',
+  'quote',
+  'invoice',
+  'receipt',
+  'payment_proof',
+  'proof',
+  'contribution_proof',
+  'service_evidence',
+  'acceptance_evidence',
+  'dispute_evidence',
+  'evidence',
+  'insurance',
+  'licence',
+  'compliance',
+] as const
+
+/**
+ * Automatic direct-payer projection is deliberately narrower than the overall
+ * commercial document vocabulary. A real payment makes an invoice/receipt
+ * relevant to the payer; it does not make the vendor's contract, generic
+ * evidence, service evidence or dispute material theirs to discover.
+ */
+export const DIRECT_PAYER_AUTO_LINK_ROLES = ['invoice', 'receipt'] as const
+
+/**
+ * A Vendor may discover only known provider-facing commercial roles. Unknown
+ * or dispute-oriented roles fail closed until product/access policy explicitly
+ * admits them.
+ */
+export const VENDOR_VISIBLE_COMMERCIAL_DOCUMENT_ROLES = [
+  'existing_agreement',
+  'generated_contract',
+  'issued_contract',
+  'amendment',
+  'proposal',
+  'quote',
+  'invoice',
+  'receipt',
+  'payment_proof',
+  'proof',
+  'service_evidence',
+  'acceptance_evidence',
+  'insurance',
+  'licence',
+  'compliance',
+] as const
 
 export interface CommercialDocumentSummary {
   id: string
@@ -48,35 +101,8 @@ function documentSummary(link: {
   }
 }
 
-async function upsertLink(args: {
-  tx: Prisma.TransactionClient
-  vaultObjectId: string
-  weddingId: string
-  entityType: string
-  entityId: string
-  linkRole: string
-  actorId: string
-}) {
-  const { tx, vaultObjectId, weddingId, entityType, entityId, linkRole, actorId } = args
-  return tx.vaultLink.upsert({
-    where: {
-      vaultObjectId_entityType_entityId_linkRole: {
-        vaultObjectId,
-        entityType,
-        entityId,
-        linkRole,
-      },
-    },
-    create: {
-      vaultObjectId,
-      weddingId,
-      entityType,
-      entityId,
-      linkRole,
-      createdById: actorId,
-    },
-    update: {},
-  })
+function isDirectPayerAutoLinkRole(linkRole: string): boolean {
+  return (DIRECT_PAYER_AUTO_LINK_ROLES as readonly string[]).includes(linkRole)
 }
 
 /**
@@ -104,7 +130,7 @@ export async function linkCommercialDocumentGraph(args: {
   })
   if (!engagement) throw new Error('Service engagement not found for commercial document linkage.')
 
-  await upsertLink({
+  await createVaultLink({
     tx,
     vaultObjectId,
     weddingId,
@@ -114,7 +140,7 @@ export async function linkCommercialDocumentGraph(args: {
     actorId,
   })
 
-  await upsertLink({
+  await createVaultLink({
     tx,
     vaultObjectId,
     weddingId,
@@ -125,7 +151,7 @@ export async function linkCommercialDocumentGraph(args: {
   })
 
   for (const budgetItem of engagement.budgetItems) {
-    await upsertLink({
+    await createVaultLink({
       tx,
       vaultObjectId,
       weddingId,
@@ -136,35 +162,38 @@ export async function linkCommercialDocumentGraph(args: {
     })
   }
 
-  // Direct-payer visibility is earned only by actual money movement. A pledge
-  // with $0 paid cannot be selected by this query because it has no positive
-  // payment_funding_allocations row tied to a real EngagementPayment.
-  const directPayers = await tx.$queryRaw<DirectPayingContributionRow[]>`
-    SELECT DISTINCT c.id
-      FROM wewed_contributions.wedding_contributions c
-      JOIN wewed_contributions.payment_funding_allocations f
-        ON f.contribution_id = c.id
-       AND f.wedding_id = c.wedding_id
-      JOIN public."EngagementPayment" p
-        ON p.id = f.payment_id
-     WHERE c.wedding_id = ${weddingId}
-       AND c.service_engagement_id = ${engagementId}
-       AND c.type = 'DIRECT_VENDOR_PAYMENT'
-       AND f.source_kind = 'CONTRIBUTION'
-       AND f.amount > 0
-       AND p."serviceEngagementId" = ${engagementId}
-  `
+  let directPayers: DirectPayingContributionRow[] = []
+  if (isDirectPayerAutoLinkRole(linkRole)) {
+    // Direct-payer visibility is earned only by actual money movement and only
+    // for payment-scoped document roles. A pledge with $0 paid cannot be selected
+    // because it has no positive funding allocation tied to a real payment.
+    directPayers = await tx.$queryRaw<DirectPayingContributionRow[]>`
+      SELECT DISTINCT c.id
+        FROM wewed_contributions.wedding_contributions c
+        JOIN wewed_contributions.payment_funding_allocations f
+          ON f.contribution_id = c.id
+         AND f.wedding_id = c.wedding_id
+        JOIN public."EngagementPayment" p
+          ON p.id = f.payment_id
+       WHERE c.wedding_id = ${weddingId}
+         AND c.service_engagement_id = ${engagementId}
+         AND c.type = 'DIRECT_VENDOR_PAYMENT'
+         AND f.source_kind = 'CONTRIBUTION'
+         AND f.amount > 0
+         AND p."serviceEngagementId" = ${engagementId}
+    `
+  }
 
   for (const contribution of directPayers) {
-    await upsertLink({
+    await createVaultLink({
       tx,
       vaultObjectId,
       weddingId,
       entityType: 'WeddingContribution',
       entityId: contribution.id,
       // Existing Contribution evidence UI intentionally uses this projection
-      // role. The Service Engagement/Vendor/Budget links retain the document's
-      // commercial role such as existing_agreement or invoice.
+      // role. The Service Engagement/Vendor/Budget links retain the payment
+      // document's commercial role (invoice or receipt).
       linkRole: 'evidence',
       actorId,
     })
@@ -180,10 +209,10 @@ export async function linkCommercialDocumentGraph(args: {
 
 /**
  * Completes the graph in the opposite event order: when a real direct-vendor
- * payment is recorded after the engagement documents already exist, project the
- * already-authoritative Service Engagement Vault objects into that Contribution.
- * This function is called only from the transaction that creates the positive
- * contributor-funded EngagementPayment allocation.
+ * payment is recorded after the engagement documents already exist, project only
+ * payment-scoped authoritative Service Engagement Vault objects into that
+ * Contribution. Contracts, generic/service/dispute evidence and unknown roles do
+ * not become contributor-visible merely because money moved.
  */
 export async function linkExistingEngagementDocumentsToDirectPayer(args: {
   tx: Prisma.TransactionClient
@@ -198,13 +227,14 @@ export async function linkExistingEngagementDocumentsToDirectPayer(args: {
       weddingId,
       entityType: 'service_engagement',
       entityId: engagementId,
+      linkRole: { in: [...DIRECT_PAYER_AUTO_LINK_ROLES] },
       vaultObject: { deletedAt: null },
     },
     select: { vaultObjectId: true },
   })
 
   for (const document of documents) {
-    await upsertLink({
+    await createVaultLink({
       tx,
       vaultObjectId: document.vaultObjectId,
       weddingId,
@@ -230,6 +260,7 @@ export async function listBudgetCommercialDocuments(args: {
   const links = await db.vaultLink.findMany({
     where: {
       weddingId: args.weddingId,
+      linkRole: { in: [...COMMERCIAL_DOCUMENT_LINK_ROLES] },
       OR: [
         { entityType: 'budget_item', entityId: { in: itemIds } },
         ...(engagementIds.length ? [{ entityType: 'service_engagement', entityId: { in: engagementIds } }] : []),
