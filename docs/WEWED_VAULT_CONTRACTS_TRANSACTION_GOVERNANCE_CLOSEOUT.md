@@ -23,6 +23,16 @@ The implemented sequence is complete through the canonical final phase:
 
 There is **no canonical Phase 7** in this workstream.
 
+## UAT-derived canonical extensions after closeout
+
+Manual UAT may expose missing projections, relationship links or corrections without reopening the completed Phase 0–6 sequence. These are implemented as normal product/regression work and recorded as dated canonical extensions.
+
+The first such extension is:
+
+- `docs/WEWED_COMMERCIAL_DOCUMENT_EVIDENCE_GRAPH_EXTENSION.md` — effective 2026-08-22. It is the authoritative manual for commercial-document linkage, Vendor/Service Engagement/ Budget/Contribution projections, stakeholder document visibility, future document search and the “store once, link everywhere it is factually relevant, authorize by relationship, preserve history” rule.
+
+That extension must be read together with the parent plan. It does not weaken any existing privacy, immutability, audit, historical-truth or legal-boundary requirement.
+
 ## What “implementation complete” means
 
 The merged tree contains the governed Vault, communications attachments, historical paid-vendor rescue, current Service Engagements, branded/versioned contracts, immutable acceptance evidence, amendments, payment/evidence/dispute governance, wedding-media/archive governance and read-only contract intelligence described by the canonical plan.
