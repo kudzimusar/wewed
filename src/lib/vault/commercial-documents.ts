@@ -178,6 +178,46 @@ export async function linkCommercialDocumentGraph(args: {
   }
 }
 
+/**
+ * Completes the graph in the opposite event order: when a real direct-vendor
+ * payment is recorded after the engagement documents already exist, project the
+ * already-authoritative Service Engagement Vault objects into that Contribution.
+ * This function is called only from the transaction that creates the positive
+ * contributor-funded EngagementPayment allocation.
+ */
+export async function linkExistingEngagementDocumentsToDirectPayer(args: {
+  tx: Prisma.TransactionClient
+  weddingId: string
+  engagementId: string
+  contributionId: string
+  actorId: string
+}) {
+  const { tx, weddingId, engagementId, contributionId, actorId } = args
+  const documents = await tx.vaultLink.findMany({
+    where: {
+      weddingId,
+      entityType: 'service_engagement',
+      entityId: engagementId,
+      vaultObject: { deletedAt: null },
+    },
+    select: { vaultObjectId: true },
+  })
+
+  for (const document of documents) {
+    await upsertLink({
+      tx,
+      vaultObjectId: document.vaultObjectId,
+      weddingId,
+      entityType: 'WeddingContribution',
+      entityId: contributionId,
+      linkRole: 'evidence',
+      actorId,
+    })
+  }
+
+  return documents.map((document) => document.vaultObjectId)
+}
+
 export async function listBudgetCommercialDocuments(args: {
   weddingId: string
   budgetItems: Array<{ id: string; serviceEngagementId: string | null }>
