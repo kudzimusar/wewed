@@ -80,7 +80,14 @@ export async function PATCH(request: NextRequest) {
       if (body.enabled) {
         const activation = await getCommunicationChannelActivation(actor.userId)
         const state = activation[channel]
-        if (!state.canEnable) {
+        if (channel === 'PUSH') {
+          if (!activation.PUSH.activeDeviceCount) {
+            throw new CommunicationError('Enable Push on at least one device before turning on Message Push.', 409)
+          }
+          if (!activation.PUSH.directTransportConfigured) {
+            throw new CommunicationError('Direct Wewed Web Push transport is not configured for Message Push.', 409)
+          }
+        } else if (!state.canEnable) {
           throw new CommunicationError(communicationActivationMessage(channel, state), 409)
         }
       }
