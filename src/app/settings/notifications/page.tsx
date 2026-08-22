@@ -63,6 +63,7 @@ export default function NotificationSettingsPage() {
   const [saving, setSaving] = useState(false)
   const [channelAction, setChannelAction] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [emailMessage, setEmailMessage] = useState<string | null>(null)
 
   const refreshCapabilities = useCallback(async () => {
     const response = await fetch('/api/notifications/capabilities', { credentials: 'same-origin', cache: 'no-store' })
@@ -118,8 +119,13 @@ export default function NotificationSettingsPage() {
         }
         if (!cancelled) {
           const verification = new URLSearchParams(window.location.search).get('emailVerification')
-          if (verification === 'success') setMessage('Email verified. You can now enable Email notifications.')
-          if (verification === 'invalid') setMessage('That email verification link is invalid or has expired. Request a new one below.')
+          if (verification === 'success') {
+            setEmailMessage('Email verified. Allow email delivery below, then enable Email notifications.')
+            setMessage('Email verified successfully.')
+          }
+          if (verification === 'invalid') {
+            setEmailMessage('That email verification link is invalid or has expired. Request a new one here.')
+          }
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -153,16 +159,20 @@ export default function NotificationSettingsPage() {
   async function requestEmailVerification() {
     setChannelAction('email-verification')
     setMessage(null)
+    setEmailMessage('Sending a verification email to your Wewed account address…')
     try {
       const response = await fetch('/api/notifications/email-verification', {
         method: 'POST',
         credentials: 'same-origin',
       })
-      const payload = (await response.json()) as { success?: boolean; error?: string }
+      const payload = (await response.json()) as { success?: boolean; error?: string; data?: { address?: string } }
       if (!response.ok || !payload.success) throw new Error(payload.error || 'Unable to send the verification email.')
-      setMessage('Verification email sent. Open the link in that email within 30 minutes.')
+      const address = payload.data?.address?.trim()
+      setEmailMessage(address
+        ? `Verification email sent to ${address}. Open the Wewed verification link within 30 minutes.`
+        : 'Verification email sent. Open the Wewed verification link within 30 minutes.')
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Unable to send the verification email.')
+      setEmailMessage(error instanceof Error ? error.message : 'Unable to send the verification email.')
     } finally {
       setChannelAction(null)
     }
@@ -171,6 +181,7 @@ export default function NotificationSettingsPage() {
   async function allowCommunication(channel: 'EMAIL' | 'WHATSAPP') {
     setChannelAction(`consent-${channel}`)
     setMessage(null)
+    if (channel === 'EMAIL') setEmailMessage('Enabling email delivery consent…')
     try {
       const response = await fetch('/api/communications/channels', {
         method: 'PATCH',
@@ -181,9 +192,13 @@ export default function NotificationSettingsPage() {
       const payload = (await response.json()) as { success?: boolean; error?: string }
       if (!response.ok || !payload.success) throw new Error(payload.error || 'Unable to allow channel delivery.')
       await refreshCapabilities()
-      setMessage(`${channel === 'EMAIL' ? 'Email' : 'WhatsApp'} delivery consent enabled.`)
+      const successText = `${channel === 'EMAIL' ? 'Email' : 'WhatsApp'} delivery consent enabled.`
+      setMessage(successText)
+      if (channel === 'EMAIL') setEmailMessage('Email delivery consent enabled. You can now enable the Email checkbox.')
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Unable to update channel delivery consent.')
+      const text = error instanceof Error ? error.message : 'Unable to update channel delivery consent.'
+      setMessage(text)
+      if (channel === 'EMAIL') setEmailMessage(text)
     } finally {
       setChannelAction(null)
     }
@@ -212,7 +227,7 @@ export default function NotificationSettingsPage() {
       return 'Ready for delivery'
     }
     if (!capability.transportConfigured) return 'Wewed transport is not configured in this environment.'
-    if (key === 'push') return 'No active push subscription is registered yet.'
+    if (key === 'push') return 'No active push subscription is registered yet. Manage push devices to subscribe this browser.'
     if (!capability.endpointVerified) return `No verified ${key === 'email' ? 'email' : 'WhatsApp'} endpoint is available.`
     if (!capability.communicationConsentEnabled) return 'Communication consent for this channel is disabled.'
     return 'This channel is not ready.'
@@ -282,6 +297,9 @@ export default function NotificationSettingsPage() {
                   )}
                   {channel.key === 'emailEnabled' && capabilities.email.endpointVerified && !capabilities.email.communicationConsentEnabled && (
                     <button type="button" disabled={channelAction !== null} onClick={() => void allowCommunication('EMAIL')} className="mt-3 inline-flex min-h-9 rounded-full border border-[#8a672f]/25 px-3 text-xs font-semibold text-[#725329] disabled:opacity-50">Allow email delivery</button>
+                  )}
+                  {channel.key === 'emailEnabled' && emailMessage && (
+                    <p role="status" className="mt-3 rounded-xl border border-[#8a672f]/15 bg-[#f8f3e9] px-3 py-2 text-xs leading-5 text-[#2a211b]/65">{emailMessage}</p>
                   )}
                   {channel.key === 'whatsAppEnabled' && capabilities.whatsapp.endpointVerified && !capabilities.whatsapp.communicationConsentEnabled && (
                     <button type="button" disabled={channelAction !== null} onClick={() => void allowCommunication('WHATSAPP')} className="mt-3 inline-flex min-h-9 rounded-full border border-[#8a672f]/25 px-3 text-xs font-semibold text-[#725329] disabled:opacity-50">Allow WhatsApp delivery</button>
