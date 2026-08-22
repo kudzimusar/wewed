@@ -3,6 +3,7 @@ import 'server-only'
 import { createHash, randomUUID } from 'node:crypto'
 import { db } from '@/lib/db'
 import { createSupabaseServiceClient } from '@/lib/supabase/service'
+import { linkCommercialDocumentGraph } from '@/lib/vault/commercial-documents'
 
 const BUCKET = 'wewed-vault'
 const MAX_BYTES = 25 * 1024 * 1024
@@ -55,7 +56,7 @@ async function ensureBucket(): Promise<void> {
 }
 
 function cleanFileName(name: string): string {
-  return name.replace(/[\\/\0]/g, '_').trim().slice(0, 240) || 'evidence'
+  return name.replace(/[\\/\0]/g, '_').trim().slice(0, 240) || 'document'
 }
 
 function hasExpectedSignature(bytes: Uint8Array, mimeType: AllowedMime): boolean {
@@ -90,11 +91,11 @@ function validateRole(value: string): EngagementEvidenceLinkRole {
 
 async function assertEngagementInWedding(weddingId: string, engagementId: string) {
   const engagement = await db.serviceEngagement.findFirst({
-    where: { id: engagementId, weddingId, origin: 'historical' },
+    where: { id: engagementId, weddingId },
     select: { id: true },
   })
   if (!engagement) {
-    throw new VaultEvidenceError('Historical service engagement not found.', 404)
+    throw new VaultEvidenceError('Service engagement not found.', 404)
   }
 }
 
@@ -110,10 +111,10 @@ export async function uploadEngagementEvidence(args: {
   await assertEngagementInWedding(weddingId, engagementId)
 
   if (!(file.type in FILE_TYPES)) {
-    throw new VaultEvidenceError('Proof documents must be PDF, JPEG, PNG, or WebP.', 400, 'file')
+    throw new VaultEvidenceError('Documents must be PDF, JPEG, PNG, or WebP.', 400, 'file')
   }
   if (file.size <= 0 || file.size > MAX_BYTES) {
-    throw new VaultEvidenceError('Proof document must be between 1 byte and 25 MB.', 400, 'file')
+    throw new VaultEvidenceError('Document must be between 1 byte and 25 MB.', 400, 'file')
   }
 
   const mimeType = file.type as AllowedMime
@@ -133,7 +134,7 @@ export async function uploadEngagementEvidence(args: {
     contentType: mimeType,
     upsert: false,
   })
-  if (uploaded.error) throw new Error(`Vault evidence upload failed: ${uploaded.error.message}`)
+  if (uploaded.error) throw new Error(`Vault document upload failed: ${uploaded.error.message}`)
 
   try {
     return await db.$transaction(async (tx) => {
@@ -150,25 +151,23 @@ export async function uploadEngagementEvidence(args: {
           byteSize: BigInt(file.size),
           checksumSha256,
           uploaderActorId: actorId,
-          uploadSource: 'planner_historical_engagement',
+          uploadSource: 'service_engagement_document',
           storageState: 'stored',
           scanState: 'signature_validated',
           retentionClass: 'wedding_record',
           legalHold: false,
           sensitivity: 'private',
           publicationState: 'private',
-          metadata: JSON.stringify({ storageBucket: BUCKET }),
+          metadata: JSON.stringify({ storageBucket: BUCKET, serviceEngagementId: engagementId, documentRole: linkRole }),
         },
       })
-      await tx.vaultLink.create({
-        data: {
-          vaultObjectId: object.id,
-          weddingId,
-          entityType: 'service_engagement',
-          entityId: engagementId,
-          linkRole,
-          createdById: actorId,
-        },
+      await linkCommercialDocumentGraph({
+        tx,
+        vaultObjectId: object.id,
+        weddingId,
+        engagementId,
+        linkRole,
+        actorId,
       })
       return object
     })
@@ -219,7 +218,7 @@ export async function engagementEvidenceSignedUrl(args: {
     },
     include: { vaultObject: true },
   })
-  if (!link) throw new VaultEvidenceError('Vault evidence not found.', 404)
+  if (!link) throw new VaultEvidenceError('Vault document not found.', 404)
 
   const client = createSupabaseServiceClient()
   const { data, error } = await client.storage.from(BUCKET).createSignedUrl(
@@ -227,6 +226,6 @@ export async function engagementEvidenceSignedUrl(args: {
     600,
     { download: link.vaultObject.originalFilename },
   )
-  if (error || !data?.signedUrl) throw new Error('Could not authorize Vault evidence download.')
+  if (error || !data?.signedUrl) throw new Error('Could not authorize Vault document download.')
   return { signedUrl: data.signedUrl, fileName: link.vaultObject.originalFilename }
 }
