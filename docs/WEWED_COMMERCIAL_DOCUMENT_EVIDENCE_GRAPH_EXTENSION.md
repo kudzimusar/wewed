@@ -56,6 +56,9 @@ The file bytes remain one private `VaultObject`. Business context is expressed t
 10. **Money movement remains independent from document attachment.** Uploading a receipt/contract must not increment Budget Paid, mark a contribution received, or create a payment.
 11. **Evidence must remain traceable.** Upload, link, unlink, access, supersession and legal-hold-sensitive operations are auditable.
 12. **No parallel document stack.** Vendor documents, Budget documents, Contribution evidence, contract artifacts and dispute evidence must converge on Wewed Vault rather than inventing separate storage systems.
+13. **Authenticated role is necessary but not sufficient for private commercial access.** A `vendor` session alone never proves that the session owns a particular provider relationship.
+14. **Unknown document roles fail closed at stakeholder boundaries.** Adding a new `VaultLink.linkRole` does not automatically make it visible to Vendors or Contributors.
+15. **Read/projection actions do not mutate commercial truth.** Search, filter, view and download must not alter payment, contribution, contract, engagement or Budget state.
 
 ## 4. Canonical commercial graph
 
@@ -119,9 +122,15 @@ If a `DIRECT_VENDOR_PAYMENT` contribution has an actual contributor-funded payme
 
 A pending direct-vendor promise with `$0` actually paid is **not** automatically granted this direct-payer document relationship.
 
+**Automatic projection is narrower than payment existence.** A real payment does not grant the contributor the Vendor's whole Service Engagement document set. The default automatic projection allowlist is payment-scoped `invoice` and `receipt` documents. An external/Wewed contract, generic evidence, service evidence, dispute material or any unknown role requires its own explicit governed relationship/grant before a contributor may discover it. Both event orders must obey this rule: document-then-payment and payment-then-document.
+
 ### 6.3 Contracts and versions
 
 Wewed-generated artifacts keep their authoritative `contract` / `contract_version` relationship. Read models may additionally surface them through the parent Service Engagement, Vendor and Budget without cloning the artifact.
+
+### 6.4 Link policy is not storage policy
+
+A document may be linked while temporarily unavailable for download (for example, quarantine/scanning). Stakeholder discovery/download must still enforce the Vault object's distributability state. A relationship link never overrides storage/scan safety.
 
 ## 7. External contract versus Wewed contract
 
@@ -163,6 +172,21 @@ Visibility is relationship-scoped and role-scoped.
 | Other vendors / guests / public visitors | No access unless an explicit governed grant exists |
 
 The system must never infer public visibility from contributor recognition settings, campaign publication, marketplace publication or wedding publication.
+
+### 8.1 Vendor identity hardening
+
+Vendor document access is fail-closed and must prove both **account identity** and **engagement relationship**.
+
+1. The request must carry an authenticated Wewed app session with Vendor role.
+2. The app user must own or be an active member of an active, completed Vendor `BusinessAccount`; role text alone is insufficient.
+3. The Service Engagement must contain an active `SERVICE_PROVIDER` party that resolves to that authenticated user. Explicit `EngagementParty.userId` is preferred.
+4. Legacy/current engagements without a user-id binding may use matching party email only after step 2 has proved an authoritative active Vendor business identity. A bare email match without the business-account proof is forbidden.
+5. The returned `VaultLink` must match both the authorized Service Engagement id and its wedding id.
+6. Only an explicit Vendor-visible document-role allowlist is returned. Unknown, generic dispute-oriented or otherwise unclassified roles fail closed.
+7. The Vault object must be distributable under canonical Vault state rules before download. Legacy `stored` + `signature_validated` objects remain read-compatible only as a migration compatibility case; all new Service Engagement uploads use canonical Vault core states.
+8. The signed URL must be generated from the exact `VaultObject` that passed these checks; do not authorize one link and then re-resolve a different object by broad wedding scope.
+
+This model is intentionally stricter than convenience. If Wewed cannot prove the provider relationship, the correct result is no private document disclosure until the relationship is reconciled.
 
 ## 9. Required product surfaces
 
@@ -223,7 +247,7 @@ Minimum future search keys:
 - upload/issue/effective date;
 - tags and supersession state.
 
-Search results must be authorization-filtered before they are returned. Search indexing must never become a side channel for discovering private document names or parties.
+Search results must be authorization-filtered before they are returned. Search indexing must never become a side channel for discovering private document names or parties. Search/filter state is read-only product state and must not mutate the underlying commercial records.
 
 ## 11. Proof-of-service lifecycle
 
@@ -260,6 +284,9 @@ When UAT finds a document in the wrong place:
 6. Re-run relationship-scoped access checks.
 7. Verify all intended surfaces show the same Vault object id/checksum.
 8. Verify unrelated stakeholders cannot discover or download it.
+9. If correcting Vendor access, fix the authoritative Vendor/BusinessAccount/EngagementParty relationship rather than weakening authorization or adding an email-only bypass.
+10. If correcting Contributor visibility, repair the specific payment/document relationship. Do not bulk-link the whole Service Engagement document set to make a screen look complete.
+11. If an older commercial upload uses legacy Vault states, preserve read compatibility while new writes continue through canonical `prepareVaultUpload` / `registerPreparedVaultObject`; do not create a second upload implementation.
 
 ## 14. Implementation slices after 2026-08-22 UAT
 
@@ -268,17 +295,19 @@ When UAT finds a document in the wrong place:
 - Generalize engagement document upload so both historical and current managed Service Engagements can use the same Vault-backed mechanism.
 - Add `Attach document` / `Attach existing contract` in Deal Room Documents.
 - On attachment, create one Vault object and links to the Service Engagement, Vendor and linked Budget items.
-- When an actual direct contributor-funded vendor payment exists, link/surface the relevant document in that contribution.
+- When an actual direct contributor-funded vendor payment exists, link/surface only permitted payment-scoped documents in that contribution automatically.
 - Surface related documents in Planner Budget rows.
-- Preserve existing Contribution evidence upload while allowing commercial-context documents to appear in direct-payer contribution detail.
+- Preserve existing Contribution evidence upload while allowing permitted commercial-context documents to appear in direct-payer contribution detail.
 - Keep all downloads private and authorized.
 - Add regression coverage proving “one object, many links” and proving upload does not mutate financial state.
+- Route new Service Engagement uploads and signed downloads through the canonical Wewed Vault core rather than a parallel storage/signature implementation.
 
 ### Slice B — stakeholder workspace projection
 
 - Couple: read-only Wedding Documents / commercial-document projection.
 - Vendor: relationship-scoped Service Engagement documents projection and download authorization.
 - Reuse the same Vault objects/links; no copies.
+- Require active Vendor business identity plus active Service Engagement party relationship before disclosure.
 
 ### Slice C — indexed library and search
 
@@ -298,20 +327,25 @@ When UAT finds a document in the wrong place:
 A release implementing Slice A is not complete until the following are demonstrated with real, truthful data:
 
 1. A planner attaches one external contract to a current Service Engagement.
-2. Exactly one new authoritative Vault object is created for the file.
+2. Exactly one new authoritative Vault object is created for the file through the canonical Vault core.
 3. The Deal Room displays and opens that object.
 4. The Vendor/Service Engagement relationship is present.
 5. Linked Budget items show the same document without another upload.
-6. Budget Paid is unchanged by attachment/linking.
+6. Budget Paid is unchanged by attachment/linking, viewing, searching or filtering.
 7. A pending `$0 paid` direct-vendor promise does not gain payment-derived visibility merely because it is pledged.
-8. If a contributor has actually funded a direct vendor payment, the related contribution can show the same permitted document/evidence object.
-9. Contribution promised/paid/remaining amounts are unchanged by document linkage.
-10. Couple/planner access remains wedding-scoped.
-11. Unrelated wedding users cannot open the object.
-12. Vendor access, when enabled, is limited to its own Service Engagement relationship.
-13. Audit records identify upload/link/access actions.
-14. Existing historical engagement evidence still works.
-15. Existing issued Wewed contract artifacts remain immutable and continue to verify normally.
+8. If a contributor has actually funded a direct vendor payment, only the permitted payment-scoped document/evidence object is automatically projected; contracts and generic/service/dispute evidence do not become contributor-visible by implication.
+9. Both event orders pass: attach document then record real payment; record real payment then attach document.
+10. Contribution promised/paid/remaining amounts are unchanged by document linkage.
+11. Couple/planner access remains wedding-scoped.
+12. Unrelated wedding users cannot discover or open the object.
+13. Vendor access proves active Vendor business identity plus active Service Engagement party relationship and is limited to Vendor-visible roles.
+14. A Vendor cannot gain access through role text or bare email match alone.
+15. Audit records identify upload/link/access actions where the existing audit contract requires them.
+16. Existing historical engagement evidence remains readable without creating a duplicate file.
+17. Existing issued Wewed contract artifacts remain immutable and continue to verify normally.
+18. A non-distributable/quarantined object cannot be downloaded merely because a `VaultLink` exists.
+19. Search results do not disclose filenames or relationships outside the caller's authorized scope.
+20. No release qualification result from an older SHA is reused after a hardening source change.
 
 ## 16. Permanent architectural test
 
@@ -320,3 +354,20 @@ Future code changes must preserve this invariant:
 > A commercial document is a governed Vault object whose business meaning is expressed by audited relationships. Product screens are projections of that graph, not separate document stores.
 
 Any implementation that duplicates an attachment merely to make it visible in another Wewed module should be treated as an architectural regression unless a specific retention/legal requirement explicitly mandates a separate immutable artifact.
+
+## 17. Release and correction gate
+
+Commercial-document changes are security-sensitive because they combine private files, stakeholder identity and financial context. The release discipline is therefore:
+
+1. Reconcile current `main`, PR head and changed files before changing the candidate.
+2. Change source only for a demonstrated blocker or an approved requirement; avoid unrelated cleanup that invalidates exact-head evidence.
+3. Every source change creates a new candidate SHA. Prior exact-head CI/preview evidence does not certify the new SHA.
+4. Required accounting, Budget, database, Vault/contracts, Planner/browser, Vendor/provider-security, Couple/Admin and production-integration gates must all complete successfully on the same candidate before merge.
+5. A failing, cancelled, skipped, stale or flaky mandatory gate is not a PASS.
+6. A READY preview is not sufficient unless its deployment provenance corresponds to the certified candidate SHA.
+7. UAT must exercise truthful data. Never invent a payment, acceptance or vendor relationship merely to make a test path executable.
+8. Production data must not be rewritten as part of source qualification. Any authorized UAT data change must be intentional, scoped and separately recorded.
+9. Search/filter/view tests must confirm the underlying records are unchanged.
+10. Do not merge while any privacy, cross-wedding isolation, financial-coherence or immutable-contract invariant remains unproven.
+
+This release gate is part of the correction manual: when a future regression is fixed, the fix is not considered clean merely because its local test passes. The exact corrected candidate must re-establish the cross-product invariants above.
