@@ -72,17 +72,22 @@ function isDeferred(item: NotificationItem) {
   return item.state === 'scheduled' || item.state === 'queued'
 }
 
+function isAcknowledged(item: NotificationItem) {
+  return item.state === 'acknowledged' || Boolean(item.acknowledgedAt)
+}
+
 function matchesAttentionFilter(item: NotificationItem, filter: AttentionFilter) {
   if (filter === 'all') return true
   if (filter === 'resolved') return isResolved(item)
   if (isResolved(item)) return false
   if (filter === 'needs_action') {
-    if (isDeferred(item)) return false
+    if (isDeferred(item) || isAcknowledged(item)) return false
     return item.requiresAction || item.severity === 'action_required' || item.severity === 'urgent'
   }
   if (filter === 'upcoming') {
     return isDeferred(item) || Boolean(item.snoozedUntil || item.scheduledFor)
   }
+  if (isAcknowledged(item)) return true
   return !isDeferred(item) && !item.requiresAction
 }
 
@@ -141,6 +146,18 @@ export default function NotificationCenterPage() {
 
   useEffect(() => {
     void load()
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void load()
+    }
+    const onFocus = () => refreshWhenVisible()
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', refreshWhenVisible)
+    const intervalId = window.setInterval(refreshWhenVisible, 10_000)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
+      window.clearInterval(intervalId)
+    }
   }, [load])
 
   const categories = useMemo(
@@ -259,6 +276,7 @@ export default function NotificationCenterPage() {
             {visibleItems.map((item) => {
               const busy = workingId === item.id
               const deferred = isDeferred(item)
+              const acknowledged = isAcknowledged(item)
               const unread = item.state === 'active' && !item.readAt
               const when = item.snoozedUntil || item.scheduledFor || item.createdAt
               return (
@@ -276,6 +294,11 @@ export default function NotificationCenterPage() {
                         <span className={item.severity === 'urgent' || item.severity === 'action_required' ? 'text-amber-300' : 'text-[#f5ead7]/45'}>
                           {severityLabel(item.severity)}
                         </span>
+                        {acknowledged && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-1 text-emerald-300" data-testid="notification-acknowledged-state">
+                            <CheckCheck className="size-3" /> Acknowledged
+                          </span>
+                        )}
                         {deferred && (
                           <span className="inline-flex items-center gap-1 rounded-full bg-[#bf9b5f]/10 px-2 py-1 text-[#bf9b5f]">
                             <Clock3 className="size-3" /> {item.snoozedUntil ? 'Snoozed' : 'Scheduled'}
@@ -291,8 +314,9 @@ export default function NotificationCenterPage() {
 
                     {item.deepLink && (
                       <Link
-                        href={item.deepLink}
+                        href={`/notifications/open/${encodeURIComponent(item.id)}`}
                         className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-[#bf9b5f] px-3 py-2 text-xs font-bold text-[#17120f] hover:bg-[#d2b578]"
+                        data-testid="notification-open-source"
                       >
                         Open <ChevronRight className="size-3.5" />
                       </Link>
@@ -301,7 +325,7 @@ export default function NotificationCenterPage() {
 
                   {!isResolved(item) && (
                     <div className="mt-4 flex flex-wrap gap-2 border-t border-[#bf9b5f]/10 pt-4">
-                      {!deferred && (
+                      {!deferred && !acknowledged && (
                         <button
                           type="button"
                           disabled={busy}
@@ -312,7 +336,7 @@ export default function NotificationCenterPage() {
                           {unread ? 'Mark read' : 'Mark unread'}
                         </button>
                       )}
-                      {!deferred && item.requiresAction && item.state !== 'acknowledged' && (
+                      {!deferred && item.requiresAction && !acknowledged && (
                         <button
                           type="button"
                           disabled={busy}

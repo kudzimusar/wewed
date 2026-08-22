@@ -18,7 +18,7 @@ async function invokeScheduler(page: import('@playwright/test').Page) {
   return payload as Record<string, number | boolean | string>
 }
 
-test('system reminder scheduler is protected, idempotent, snooze-safe and source-resolving', async ({ page }) => {
+test('system reminder scheduler is protected, role-isolated, idempotent, snooze-safe and source-resolving', async ({ page }) => {
   await resetPlannerE2EFixture()
   const prisma = new PrismaClient()
   const now = Date.now()
@@ -27,12 +27,57 @@ test('system reminder scheduler is protected, idempotent, snooze-safe and source
     const unauthorized = await page.request.get('/api/cron/system-reminders')
     expect(unauthorized.status()).toBe(401)
 
-    await prisma.user.create({
+    await prisma.user.createMany({
+      data: [
+        {
+          id: 'scheduler-vendor-user',
+          email: 'scheduler.vendor@example.test',
+          name: 'Scheduler Vendor',
+          role: 'vendor',
+        },
+        {
+          id: 'scheduler-secondary-planner',
+          email: 'scheduler.planner@example.test',
+          name: 'Scheduler Secondary Planner',
+          role: 'planner',
+        },
+        {
+          id: 'scheduler-secondary-couple',
+          email: 'scheduler.couple@example.test',
+          name: 'Scheduler Secondary Couple',
+          role: 'couple',
+        },
+      ],
+    })
+
+    await prisma.weddingMembership.createMany({
+      data: [
+        {
+          id: 'scheduler-secondary-planner-membership',
+          userId: 'scheduler-secondary-planner',
+          weddingId: E2E_WEDDINGS.secondary.id,
+          role: 'planner',
+          status: 'active',
+        },
+        {
+          id: 'scheduler-secondary-couple-membership',
+          userId: 'scheduler-secondary-couple',
+          weddingId: E2E_WEDDINGS.secondary.id,
+          role: 'owner',
+          status: 'active',
+        },
+      ],
+    })
+
+    await prisma.plannerTask.create({
       data: {
-        id: 'scheduler-vendor-user',
-        email: 'scheduler.vendor@example.test',
-        name: 'Scheduler Vendor',
-        role: 'vendor',
+        id: 'scheduler-unassigned-planner-task',
+        title: 'Unassigned Planner-only task',
+        category: 'operations',
+        status: 'todo',
+        priority: 'high',
+        dueDate: new Date(now + 45 * 60 * 1000),
+        weddingId: E2E_WEDDINGS.secondary.id,
       },
     })
 
@@ -132,6 +177,30 @@ test('system reminder scheduler is protected, idempotent, snooze-safe and source
 
     const first = await invokeScheduler(page)
     expect(Number(first.remindersActivated)).toBeGreaterThanOrEqual(1)
+
+    const roleIsolatedTaskRecipients = await prisma.notification.findMany({
+      where: {
+        sourceType: 'planner_task',
+        sourceId: 'scheduler-unassigned-planner-task',
+        eventType: 'task.due_soon',
+      },
+      select: { recipientUserId: true },
+      orderBy: { recipientUserId: 'asc' },
+    })
+    // The base E2E Planner and the explicitly added secondary Planner are both active
+    // Planner-role users on the secondary wedding, so an unassigned Planner task should
+    // fan out to both of them while never inferring a Couple audience from owner membership.
+    expect(roleIsolatedTaskRecipients).toEqual([
+      { recipientUserId: E2E_USER.id },
+      { recipientUserId: 'scheduler-secondary-planner' },
+    ])
+    expect(await prisma.notification.count({
+      where: {
+        sourceType: 'planner_task',
+        sourceId: 'scheduler-unassigned-planner-task',
+        recipientUserId: 'scheduler-secondary-couple',
+      },
+    })).toBe(0)
 
     const reactivated = await prisma.notification.findUniqueOrThrow({
       where: { id: 'scheduler-due-snooze-notification' },

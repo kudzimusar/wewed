@@ -14,13 +14,39 @@ export interface SchedulerStats {
 async function activePlanningRecipients(weddingId: string): Promise<string[]> {
   const rows = await db.$queryRawUnsafe<Array<{ userId: string }>>(
     `
-      SELECT DISTINCT "userId"
-      FROM public."WeddingMembership"
-      WHERE "weddingId" = $1
-        AND status = 'active'
-        AND role IN ('owner', 'planner', 'coordinator')
+      SELECT DISTINCT membership."userId"
+      FROM public."WeddingMembership" membership
+      JOIN public."User" account
+        ON account.id = membership."userId"
+       AND account."isActive" = true
+       AND LOWER(account.role) = 'planner'
+      WHERE membership."weddingId" = $1
+        AND membership.status = 'active'
+        AND membership.role IN ('owner', 'planner', 'coordinator')
     `,
     weddingId,
+  )
+  return rows.map((row) => row.userId)
+}
+
+async function plannerTaskRecipients(weddingId: string, assigneeUserId: string | null): Promise<string[]> {
+  if (!assigneeUserId) return activePlanningRecipients(weddingId)
+  const rows = await db.$queryRawUnsafe<Array<{ userId: string }>>(
+    `
+      SELECT membership."userId"
+      FROM public."WeddingMembership" membership
+      JOIN public."User" account
+        ON account.id = membership."userId"
+       AND account."isActive" = true
+       AND LOWER(account.role) = 'planner'
+      WHERE membership."weddingId" = $1
+        AND membership."userId" = $2
+        AND membership.status = 'active'
+        AND membership.role IN ('owner', 'planner', 'coordinator')
+      LIMIT 1
+    `,
+    weddingId,
+    assigneeUserId,
   )
   return rows.map((row) => row.userId)
 }
@@ -384,9 +410,7 @@ async function seedTaskNotifications(now: Date, stats: SchedulerStats) {
 
   for (const task of rows) {
     const overdue = task.dueDate.getTime() < now.getTime()
-    const recipients = task.assigneeUserId
-      ? [task.assigneeUserId]
-      : await activePlanningRecipients(task.weddingId)
+    const recipients = await plannerTaskRecipients(task.weddingId, task.assigneeUserId)
 
     for (const recipientUserId of recipients) {
       const dedupeKey = `task:${task.id}:${overdue ? 'overdue' : 'due-24h'}:${task.dueDate.toISOString()}`

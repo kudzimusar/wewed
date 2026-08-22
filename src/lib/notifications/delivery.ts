@@ -4,6 +4,8 @@ import { randomUUID } from 'node:crypto'
 import { db } from '@/lib/db'
 import { sendTransactionalEmail } from '@/lib/email/resend'
 import { buildWhatsAppRequest } from '@/lib/communication-channels'
+import { buildNotificationWhatsAppActionRequest } from '@/lib/notifications/whatsapp'
+import { directWebPushConfigured, sendDirectWebPush } from '@/lib/notifications/web-push'
 import {
   isNotificationExternallyDeliverableToRecipient,
   type DeliveryAuthorizationCandidate,
@@ -92,11 +94,8 @@ function applicationBaseUrl(): string {
   return (process.env.WEWED_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://wewed.pro').replace(/\/$/, '')
 }
 
-function safeNotificationLink(deepLink: string | null): string {
-  const path = deepLink && deepLink.startsWith('/') && !deepLink.startsWith('//')
-    ? deepLink
-    : '/notifications'
-  return `${applicationBaseUrl()}${path}`
+function notificationOpenLink(notificationId: string): string {
+  return `${applicationBaseUrl()}/notifications/open/${encodeURIComponent(notificationId)}`
 }
 
 function escapeHtml(value: string): string {
@@ -242,14 +241,14 @@ async function sendEmail(
   notification: NotificationDeliveryCandidate,
   endpoint: CommunicationEndpointRow,
 ): Promise<TransportResult> {
-  const link = safeNotificationLink(notification.deepLink)
+  const link = notificationOpenLink(notification.id)
   const result = await sendTransactionalEmail({
     idempotencyKey: `notification:${attempt.id}`,
     category: 'notifications',
     to: endpoint.normalizedAddress,
     subject: notification.title,
-    text: `${notification.title}\n\n${notification.body}\n\nOpen Wewed: ${link}`,
-    html: `<p><strong>${escapeHtml(notification.title)}</strong></p><p>${escapeHtml(notification.body).replaceAll('\n', '<br>')}</p><p><a href="${escapeHtml(link)}">Open Wewed</a></p>`,
+    text: `${notification.title}\n\n${notification.body}\n\nOpen this notification in Wewed: ${link}`,
+    html: `<p><strong>${escapeHtml(notification.title)}</strong></p><p>${escapeHtml(notification.body).replaceAll('\n', '<br>')}</p><p><a href="${escapeHtml(link)}">Open this notification in Wewed</a></p>`,
     metadata: {
       notificationId: notification.id,
       notificationDeliveryAttemptId: attempt.id,
@@ -284,9 +283,14 @@ async function sendWhatsApp(
   notification: NotificationDeliveryCandidate,
   endpoint: CommunicationEndpointRow,
 ): Promise<TransportResult> {
-  const link = safeNotificationLink(notification.deepLink)
-  const text = `${notification.title}\n\n${notification.body}\n\nOpen Wewed: ${link}`.slice(0, 4000)
-  const request = buildWhatsAppRequest({
+  const link = notificationOpenLink(notification.id)
+  const actionRequest = buildNotificationWhatsAppActionRequest({
+    normalizedAddress: endpoint.normalizedAddress,
+    notificationId: notification.id,
+    title: notification.title,
+  })
+  const fallbackText = `${notification.title}\n\n${notification.body}\n\nOpen this notification in Wewed: ${link}`.slice(0, 4000)
+  const request = actionRequest ?? buildWhatsAppRequest({
     id: attempt.id,
     messageId: notification.id,
     recipientUserId: notification.recipientUserId,
@@ -295,7 +299,7 @@ async function sendWhatsApp(
     maxAttempts: MAX_ATTEMPTS_PER_CHANNEL,
     address: endpoint.address,
     normalizedAddress: endpoint.normalizedAddress,
-    body: text,
+    body: fallbackText,
     conversationId: notification.id,
     senderName: 'Wewed',
     // System notifications conservatively use an approved template outside a proven service window.
@@ -344,7 +348,7 @@ async function sendWhatsApp(
   }
 }
 
-async function sendPush(
+async function sendPushWithGateway(
   attempt: AttemptRow,
   notification: NotificationDeliveryCandidate,
   subscriptions: PushSubscriptionRow[],
@@ -361,7 +365,7 @@ async function sendPush(
   const gatewayToken = process.env.WEWED_PUSH_GATEWAY_TOKEN?.trim()
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (gatewayToken) headers.Authorization = `Bearer ${gatewayToken}`
-  const link = safeNotificationLink(notification.deepLink)
+  const link = notificationOpenLink(notification.id)
   let sent = 0
   let retriableFailure = false
   const providerRefs: string[] = []
@@ -416,7 +420,7 @@ async function sendPush(
     return {
       ok: true,
       provider: 'push-gateway',
-      providerRef: providerRefs.length ? providerRefs.slice(0, 5).join(',') : undefined,
+      providerRef: providerRefs.length ? providerRefs.slice(0, 5).join(',') : String(sent),
     }
   }
   return {
@@ -425,6 +429,77 @@ async function sendPush(
     retriable: retriableFailure,
     errorCode: retriableFailure ? 'GATEWAY_RETRYABLE_ERROR' : 'NO_ACTIVE_SUBSCRIPTION',
   }
+}
+
+async function sendPushDirect(
+  attempt: AttemptRow,
+  notification: NotificationDeliveryCandidate,
+  subscriptions: PushSubscriptionRow[],
+): Promise<TransportResult> {
+  if (!directWebPushConfigured()) {
+    return {
+      ok: false,
+      provider: 'web-push',
+      unavailable: true,
+      errorCode: 'TRANSPORT_NOT_CONFIGURED',
+    }
+  }
+
+  const link = notificationOpenLink(notification.id)
+  let sent = 0
+  let retriableFailure = false
+  let permanentFailure = false
+
+  for (const subscription of subscriptions) {
+    const result = await sendDirectWebPush(
+      { endpoint: subscription.endpoint, p256dh: subscription.p256dh, auth: subscription.auth },
+      {
+        notification: {
+          title: notification.title,
+          body: notification.body.slice(0, 240),
+          url: link,
+          tag: `wewed-notification-${notification.id}`,
+        },
+        notificationId: notification.id,
+        deliveryAttemptId: attempt.id,
+      },
+    )
+    if (result.ok) {
+      sent += 1
+      continue
+    }
+    if (result.expired) {
+      await db.$executeRawUnsafe(
+        `UPDATE public."PushSubscription" SET "disabledAt" = CURRENT_TIMESTAMP, "updatedAt" = CURRENT_TIMESTAMP WHERE id = $1`,
+        subscription.id,
+      )
+      continue
+    }
+    if (result.retriable) retriableFailure = true
+    else permanentFailure = true
+  }
+
+  if (sent > 0) {
+    return { ok: true, provider: 'web-push', providerRef: String(sent) }
+  }
+  if (retriableFailure) {
+    return { ok: false, provider: 'web-push', retriable: true, errorCode: 'WEB_PUSH_RETRYABLE_ERROR' }
+  }
+  return {
+    ok: false,
+    provider: 'web-push',
+    unavailable: permanentFailure,
+    errorCode: permanentFailure ? 'WEB_PUSH_PERMANENT_ERROR' : 'NO_ACTIVE_SUBSCRIPTION',
+  }
+}
+
+async function sendPush(
+  attempt: AttemptRow,
+  notification: NotificationDeliveryCandidate,
+  subscriptions: PushSubscriptionRow[],
+): Promise<TransportResult> {
+  if (directWebPushConfigured()) return sendPushDirect(attempt, notification, subscriptions)
+  return sendPushWithGateway(attempt, notification, subscriptions)
 }
 
 async function finishAttempt(attempt: AttemptRow, result: TransportResult): Promise<'sent' | 'failed' | 'cancelled'> {
@@ -562,7 +637,12 @@ async function processQueuedAttempts(limit: number, stats: NotificationDeliveryS
       const subscriptions = await activePushSubscriptions(notification.recipientUserId)
       result = subscriptions.length
         ? await sendPush(attempt, notification, subscriptions)
-        : { ok: false, provider: 'push-gateway', unavailable: true, errorCode: 'NO_ACTIVE_SUBSCRIPTION' }
+        : {
+            ok: false,
+            provider: directWebPushConfigured() ? 'web-push' : 'push-gateway',
+            unavailable: true,
+            errorCode: 'NO_ACTIVE_SUBSCRIPTION',
+          }
     }
 
     const finalState = await finishAttempt(attempt, result)
