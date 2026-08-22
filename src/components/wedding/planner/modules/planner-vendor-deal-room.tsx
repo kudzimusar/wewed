@@ -21,6 +21,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { DealRoomDocumentUpload } from '@/components/wedding/planner/modules/deal-room-document-upload'
 import type { EngagementBudgetItem } from '@/components/wedding/planner/modules/planner-vendor-engagement-panel'
 import { TransactionGovernancePanel } from '@/components/wedding/planner/modules/transaction-governance-panel'
 import { useToast } from '@/hooks/use-toast'
@@ -507,7 +508,15 @@ export function PlannerVendorDealRoom({
 
               {tab === 'documents' && (
                 <div className="mt-2 space-y-2">
-                  <p className="text-[10px] leading-4 text-champagne/45">Issued contract artifacts are private Vault objects. Downloads use short-lived authorized URLs; the finalized PDF hash is retained with the contract version.</p>
+                  <p className="text-[10px] leading-4 text-champagne/45">External contracts and commercial evidence can be attached once and projected through the related Vendor, Service Engagement, Budget and eligible direct-paying Contribution records. Wewed-issued contract artifacts remain separate immutable governed versions with retained hashes.</p>
+                  <DealRoomDocumentUpload
+                    engagementId={room.id}
+                    disabled={saving || busy}
+                    onUploaded={async () => {
+                      await loadRoom()
+                      await onRefresh()
+                    }}
+                  />
                   {room.documents.length === 0 ? <p className="rounded-lg border border-dashed border-gold/15 p-4 text-xs text-champagne/45">No Deal Room documents yet.</p> : room.documents.map((document) => <button key={`${document.id}-${document.linkRole}`} type="button" onClick={() => void openVaultObject(document.id)} className="flex w-full items-center justify-between gap-3 rounded-lg border border-gold/10 p-3 text-left hover:border-gold/25"><span className="min-w-0"><span className="block truncate text-xs text-champagne">{document.displayName}</span><span className="block text-[10px] text-champagne/40">{titleCase(document.linkRole)} · {document.mimeType} · {Math.max(1, Math.round(document.byteSize / 1024))} KB</span></span><ExternalLink className="size-3.5 shrink-0 text-gold" /></button>)}
                 </div>
               )}
