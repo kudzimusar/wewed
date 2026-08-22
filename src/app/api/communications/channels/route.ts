@@ -77,12 +77,6 @@ export async function PATCH(request: NextRequest) {
       const channel = requestedChannel(body.channel)
       if (!channel) throw new CommunicationError('Unsupported communication channel.')
       if (typeof body.enabled !== 'boolean') throw new CommunicationError('Preference must be enabled or disabled.')
-      if (channel === 'PUSH') {
-        throw new CommunicationError(
-          'Push delivery is managed from Notification settings and subscribed devices, not Message delivery preferences.',
-          409,
-        )
-      }
       if (body.enabled) {
         const activation = await getCommunicationChannelActivation(actor.userId)
         const state = activation[channel]
