@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { contributionDatabaseUnavailable } from '@/lib/contributions'
 import { budgetContributionAllocations, budgetContributionContexts, budgetFundingRows } from '@/lib/contributions/store'
+import { listBudgetCommercialDocuments } from '@/lib/vault/commercial-documents'
 import { requireWeddingPermission } from '@/lib/wedding-access'
 
 const BUDGET_CATEGORIES = [
@@ -29,6 +30,7 @@ function formatItem(item: {
   vendorName: string | null
   notes: string | null
   dueDate: Date | null
+  serviceEngagementId: string | null
   weddingId: string
   createdAt: Date
   updatedAt: Date
@@ -105,6 +107,10 @@ export async function GET(request: NextRequest) {
       orderBy: [{ category: 'asc' }, { createdAt: 'asc' }],
     })
     const totals = summarize(items)
+    const documentsByBudget = await listBudgetCommercialDocuments({
+      weddingId: access.context.weddingId,
+      budgetItems: items.map((item) => ({ id: item.id, serviceEngagementId: item.serviceEngagementId })),
+    })
 
     let fundingRows: Awaited<ReturnType<typeof budgetFundingRows>> = []
     let contributionAllocations: Awaited<ReturnType<typeof budgetContributionAllocations>> = []
@@ -157,6 +163,7 @@ export async function GET(request: NextRequest) {
         ...formatItem(item),
         funding: { coupleFunded, contributorFunded, legacyUnattributed, otherAttributed, inKindValue, contributionAllocated },
         contributions: linkedContributions,
+        documents: documentsByBudget.get(item.id) ?? [],
       }
     })
 
