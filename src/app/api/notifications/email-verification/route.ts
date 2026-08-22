@@ -58,18 +58,15 @@ function verifyVerificationToken(token: string): VerificationPayload | null {
 }
 
 function applicationBaseUrl(request: NextRequest): string {
-  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim()
-  if (configured) {
-    try {
-      const url = new URL(configured)
-      if (url.protocol === 'https:' || (process.env.WEWED_E2E_MODE === '1' && url.protocol === 'http:')) {
-        return url.origin
-      }
-    } catch {
-      // Fall through to the request origin in local/e2e environments.
-    }
+  // Preserve the origin the authenticated user actually used. This keeps all
+  // notification verification links on wewed.pro and prevents a Vercel alias
+  // or stale NEXT_PUBLIC_SITE_URL value from leaking into outbound email.
+  const origin = request.nextUrl.origin
+  const url = new URL(origin)
+  if (url.protocol === 'https:' || (process.env.WEWED_E2E_MODE === '1' && url.protocol === 'http:')) {
+    return url.origin
   }
-  return request.nextUrl.origin
+  throw new Error('A secure Wewed origin is required for email verification.')
 }
 
 export async function POST(request: NextRequest) {
@@ -93,23 +90,46 @@ export async function POST(request: NextRequest) {
   try {
     await enforceCommunicationRateLimit({ userId, scope: 'channel_mutation' })
     const endpointId = randomUUID()
-    const rows = await db.$queryRawUnsafe<Array<{ id: string }>>(
-      `
-        INSERT INTO wewed_communications."CommunicationEndpoint"
-          (id, "userId", channel, address, "normalizedAddress", status, metadata, "createdAt", "updatedAt")
-        VALUES ($1, $2, 'EMAIL', $3, $4, 'PENDING', '{"source":"account_email_verification"}'::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        ON CONFLICT ("userId", channel, "normalizedAddress") DO UPDATE SET
-          address = EXCLUDED.address,
-          "updatedAt" = CURRENT_TIMESTAMP
-        RETURNING id
-      `,
-      endpointId,
-      userId,
-      session.email.trim(),
-      normalizedEmail,
-    )
-    const endpoint = rows[0]
-    if (!endpoint) throw new Error('Unable to prepare the email endpoint.')
+    const endpoint = await db.$transaction(async (tx) => {
+      // Retire stale pending account-email verification endpoints when the
+      // account mailbox has changed. Existing VERIFIED endpoints remain valid
+      // until the replacement mailbox is actually verified.
+      await tx.$executeRawUnsafe(
+        `
+          UPDATE wewed_communications."CommunicationEndpoint"
+          SET status = 'DISABLED', "updatedAt" = CURRENT_TIMESTAMP
+          WHERE "userId" = $1
+            AND channel = 'EMAIL'
+            AND status = 'PENDING'
+            AND LOWER("normalizedAddress") <> $2
+        `,
+        userId,
+        normalizedEmail,
+      )
+
+      const rows = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+        `
+          INSERT INTO wewed_communications."CommunicationEndpoint"
+            (id, "userId", channel, address, "normalizedAddress", status, metadata, "createdAt", "updatedAt")
+          VALUES ($1, $2, 'EMAIL', $3, $4, 'PENDING', '{"source":"account_email_verification"}'::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          ON CONFLICT ("userId", channel, "normalizedAddress") DO UPDATE SET
+            address = EXCLUDED.address,
+            status = CASE
+              WHEN wewed_communications."CommunicationEndpoint".status = 'VERIFIED' THEN 'VERIFIED'
+              ELSE 'PENDING'
+            END,
+            metadata = EXCLUDED.metadata,
+            "updatedAt" = CURRENT_TIMESTAMP
+          RETURNING id
+        `,
+        endpointId,
+        userId,
+        session.email.trim(),
+        normalizedEmail,
+      )
+      if (!rows[0]) throw new Error('Unable to prepare the email endpoint.')
+      return rows[0]
+    })
 
     await db.$executeRawUnsafe(
       `
@@ -148,7 +168,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    return NextResponse.json({ success: true, data: { sent: true } })
+    return NextResponse.json({ success: true, data: { sent: true, address: normalizedEmail } })
   } catch (error) {
     const status = typeof error === 'object' && error && 'status' in error && typeof error.status === 'number'
       ? error.status
