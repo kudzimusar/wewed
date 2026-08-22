@@ -86,7 +86,7 @@ describe('Commercial Document & Evidence Graph', () => {
     expect(coupleDashboard).toContain('stored once in Wewed Vault')
   })
 
-  test('keeps Vendor document discovery fail-closed, business-authenticated and relationship scoped', () => {
+  test('keeps Vendor document discovery fail-closed, business-authenticated, audited and relationship scoped', () => {
     expect(vendorAccess).toContain('hasActiveVendorBusinessIdentity')
     expect(vendorAccess).toContain("ba.type = 'vendor'")
     expect(vendorAccess).toContain("ba.status = 'active'")
@@ -103,6 +103,8 @@ describe('Commercial Document & Evidence Graph', () => {
     expect(vendorDocumentsRoute).toContain("session.role !== 'vendor'")
     expect(vendorDocumentRoute).toContain('vendorCommercialDocumentAccess')
     expect(vendorDocumentRoute).toContain('signedVaultDownload')
+    expect(vendorDocumentRoute).toContain("action: 'vault.object.vendor_access_authorized'")
+    expect(vendorDocumentRoute).toContain('serviceEngagementId: link.entityId')
     expect(vendorDocumentRoute).not.toContain('engagementEvidenceSignedUrl')
     expect(vendorDocumentsPage).toContain('Relationship-scoped access')
     expect(vendorDocumentsPage).toContain('Search filename, wedding, service or document type')
