@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { logAuditEvent } from '@/lib/audit'
 import { readAppSession } from '@/lib/app-session'
 import { signedVaultDownload } from '@/lib/vault/core'
 import { vendorCommercialDocumentAccess } from '@/lib/vault/vendor-commercial-access'
@@ -31,6 +32,22 @@ export async function GET(
       filename: link.vaultObject.originalFilename,
       distributable: true,
     })
+
+    await logAuditEvent({
+      action: 'vault.object.vendor_access_authorized',
+      resourceType: 'VaultObject',
+      resourceId: link.vaultObject.id,
+      weddingId: link.weddingId,
+      actorId: session.userId,
+      ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || undefined,
+      userAgent: request.headers.get('user-agent') || undefined,
+      afterValue: {
+        serviceEngagementId: link.entityId,
+        linkRole: link.linkRole,
+        accessKind: 'vendor_service_engagement',
+      },
+    })
+
     return privateResponse({
       success: true,
       data: { signedUrl, fileName: link.vaultObject.originalFilename },
