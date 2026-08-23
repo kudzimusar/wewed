@@ -144,7 +144,7 @@ CREATE TABLE wewed_booking."ReferralLink" (
   "isActive" BOOLEAN NOT NULL DEFAULT true,
   "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "expiresAt" TIMESTAMPTZ,
-  CONSTRAINT "ReferralLink_business_fkey" FOREIGN KEY ("businessAccountId") REFERENCES public."BusinessAccount"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT "ReferralLink_business_fkey" FOREIGN KEY ("businessAccountId") REFERENCES wewed_admin."BusinessAccount"("id") ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT "ReferralLink_item_fkey" FOREIGN KEY ("catalogItemId") REFERENCES wewed_booking."ProviderCatalogItem"("id") ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT "ReferralLink_user_fkey" FOREIGN KEY ("createdByUserId") REFERENCES public."User"("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
@@ -193,7 +193,7 @@ CREATE TABLE wewed_booking."Booking" (
   CONSTRAINT "Booking_money_check" CHECK (("subtotalCents" IS NULL OR "subtotalCents" >= 0) AND "feesCents" >= 0 AND ("depositCents" IS NULL OR "depositCents" >= 0) AND ("totalCents" IS NULL OR "totalCents" >= 0)),
   CONSTRAINT "Booking_guest_count_check" CHECK ("guestCount" IS NULL OR "guestCount" >= 0),
   CONSTRAINT "Booking_time_range_check" CHECK ("serviceStart" IS NULL OR "serviceEnd" IS NULL OR "serviceEnd" > "serviceStart"),
-  CONSTRAINT "Booking_business_fkey" FOREIGN KEY ("businessAccountId") REFERENCES public."BusinessAccount"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT "Booking_business_fkey" FOREIGN KEY ("businessAccountId") REFERENCES wewed_admin."BusinessAccount"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT "Booking_offering_fkey" FOREIGN KEY ("offeringId") REFERENCES wewed_admin."ProviderServiceOffering"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT "Booking_wedding_fkey" FOREIGN KEY ("weddingId") REFERENCES public."Wedding"("id") ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT "Booking_customer_fkey" FOREIGN KEY ("customerUserId") REFERENCES public."User"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
