@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarDays, CheckCircle2, Clock3, Loader2, MapPin, ShieldCheck } from 'lucide-react'
+import { CalendarDays, CheckCircle2, Clock3, Loader2, MapPin, ShieldCheck, Truck } from 'lucide-react'
 
 type Media = { id: string; type: 'image' | 'video'; url: string; thumbnailUrl?: string | null; altText?: string; caption?: string | null; variantId?: string | null }
 type Variant = { id: string; name: string; sku: string; optionValues: Record<string, unknown>; priceOverrideCents: number | null; inventoryMode: string }
@@ -25,6 +25,8 @@ export type BookingItem = {
   variants: Variant[]
   media: Media[]
   addOns: unknown[]
+  attributes?: Record<string, unknown>
+  availabilityPolicy?: Record<string, unknown>
 }
 
 type PriceResult = {
@@ -59,6 +61,15 @@ function modeCopy(mode: string) {
   return { button: 'Request booking', helper: 'The vendor will review and confirm this request.' }
 }
 
+function policyString(source: Record<string, unknown> | undefined, keys: string[]) {
+  if (!source) return null
+  for (const key of keys) {
+    const value = source[key]
+    if (typeof value === 'string' && value.trim()) return value.trim()
+  }
+  return null
+}
+
 export function ProviderBookingForm({ providerSlug, providerName, item, referralToken }: { providerSlug: string; providerName: string; item: BookingItem; referralToken?: string | null }) {
   const [variantId, setVariantId] = useState(item.variants[0]?.id || '')
   const [quantity, setQuantity] = useState(Math.max(1, item.minQuantity || 1))
@@ -70,6 +81,12 @@ export function ProviderBookingForm({ providerSlug, providerName, item, referral
   const [pickupTime, setPickupTime] = useState('10:00')
   const [returnDate, setReturnDate] = useState('')
   const [returnTime, setReturnTime] = useState('10:00')
+  const [deliveryDate, setDeliveryDate] = useState('')
+  const [deliveryTime, setDeliveryTime] = useState('08:00')
+  const [setupStartTime, setSetupStartTime] = useState('09:00')
+  const [setupEndTime, setSetupEndTime] = useState('10:00')
+  const [collectionDate, setCollectionDate] = useState('')
+  const [collectionTime, setCollectionTime] = useState('22:00')
   const [location, setLocation] = useState('')
   const [guestCount, setGuestCount] = useState('')
   const [notes, setNotes] = useState('')
@@ -85,8 +102,11 @@ export function ProviderBookingForm({ providerSlug, providerName, item, referral
   const addOns = useMemo(() => (item.addOns || []).filter((raw): raw is AddOn => Boolean(raw && typeof raw === 'object')), [item.addOns])
   const mode = modeCopy(item.bookingMode)
   const rentalLike = ['individual_rental', 'quantity_rental', 'hybrid'].includes(item.bookingArchetype)
+  const deliveryLike = ['quantity_rental', 'capacity', 'transport', 'package', 'hybrid'].includes(item.bookingArchetype)
   const appointmentLike = item.bookingArchetype === 'appointment' || item.requiresFitting
   const eventTimed = ['timed_service', 'event_day_service', 'capacity', 'transport'].includes(item.bookingArchetype)
+  const cancellationPolicy = policyString(item.attributes, ['cancellationPolicy','cancellation_policy']) || policyString(item.availabilityPolicy, ['cancellationPolicy','cancellation_policy'])
+  const refundPolicy = policyString(item.attributes, ['refundPolicy','refund_policy']) || policyString(item.availabilityPolicy, ['refundPolicy','refund_policy'])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -110,11 +130,15 @@ export function ProviderBookingForm({ providerSlug, providerName, item, referral
   const appointmentAt = appointmentLike ? localDateTime(eventDate, appointmentTime) : null
   const pickupAt = rentalLike ? localDateTime(pickupDate || eventDate, pickupTime) : null
   const returnDueAt = rentalLike && returnDate ? localDateTime(returnDate, returnTime) : null
+  const deliveryAt = deliveryLike ? localDateTime(deliveryDate || eventDate, deliveryTime) : null
+  const setupStart = deliveryLike ? localDateTime(deliveryDate || eventDate, setupStartTime) : null
+  const setupEnd = deliveryLike ? localDateTime(deliveryDate || eventDate, setupEndTime) : null
+  const collectionAt = deliveryLike ? localDateTime(collectionDate || eventDate, collectionTime) : null
 
   async function checkLiveAvailability() {
     if (item.bookingMode !== 'instant') return null
-    const startsAt = serviceStart || appointmentAt || pickupAt || (eventDate ? new Date(`${eventDate}T00:00:00`).toISOString() : null)
-    const endsAt = serviceEnd || returnDueAt || (appointmentAt ? new Date(new Date(appointmentAt).getTime() + 60 * 60_000).toISOString() : eventDate ? new Date(`${eventDate}T23:59:59`).toISOString() : null)
+    const startsAt = serviceStart || appointmentAt || pickupAt || deliveryAt || (eventDate ? new Date(`${eventDate}T00:00:00`).toISOString() : null)
+    const endsAt = serviceEnd || returnDueAt || collectionAt || (appointmentAt ? new Date(new Date(appointmentAt).getTime() + 60 * 60_000).toISOString() : eventDate ? new Date(`${eventDate}T23:59:59`).toISOString() : null)
     if (!startsAt || !endsAt) throw new Error('Choose the date and time needed before checking availability.')
     const params = new URLSearchParams({ item: item.slug, startsAt, endsAt, quantity: String(quantity) })
     if (variantId) params.set('variantId', variantId)
@@ -131,13 +155,16 @@ export function ProviderBookingForm({ providerSlug, providerName, item, referral
     try {
       if (!eventDate) throw new Error('Choose the wedding or service date.')
       if (rentalLike && returnDate && new Date(returnDate) < new Date(pickupDate || eventDate)) throw new Error('Return date must be after pickup.')
+      if (deliveryLike && deliveryAt && setupStart && new Date(setupStart) < new Date(deliveryAt)) throw new Error('Setup cannot start before delivery.')
+      if (deliveryLike && setupStart && setupEnd && new Date(setupEnd) <= new Date(setupStart)) throw new Error('Setup end must be after setup start.')
+      if (deliveryLike && setupEnd && collectionAt && new Date(collectionAt) <= new Date(setupEnd)) throw new Error('Collection must be after setup is complete.')
       if (item.bookingMode === 'instant') await checkLiveAvailability()
 
       const draftResponse = await fetch('/api/bookings', {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           itemId: item.id, variantId: variantId || null, quantity, selectedAddOns, eventDate,
-          serviceStart, serviceEnd, appointmentAt, pickupAt, returnDueAt,
+          serviceStart, serviceEnd, appointmentAt, pickupAt, deliveryAt, setupStart, setupEnd, collectionAt, returnDueAt,
           serviceLocation: location || null, guestCount: guestCount ? Number(guestCount) : null,
           notes: notes || null, referralToken: referralToken || null,
         }),
@@ -172,8 +199,8 @@ export function ProviderBookingForm({ providerSlug, providerName, item, referral
         <CheckCircle2 className="h-8 w-8 text-emerald-700" />
         <h2 className="mt-3 text-xl font-semibold text-slate-950">Booking recorded</h2>
         <p className="mt-2 text-sm text-slate-700">Reference <strong>{success.reference}</strong>. Current status: <strong>{success.status?.replaceAll('_', ' ')}</strong>.</p>
-        <p className="mt-2 text-sm text-slate-600">This booking now stays attached to your Wewed wedding. A request is not treated as paid or couple-funded until the relevant payment and contribution records say so.</p>
-        <div className="mt-4 flex flex-wrap gap-2"><Link href="/planner" className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white">Return to Planner</Link><Link href={`/vendors/${encodeURIComponent(providerSlug)}`} className="rounded-xl border bg-white px-4 py-2.5 text-sm font-semibold">Vendor profile</Link></div>
+        <p className="mt-2 text-sm text-slate-600">This booking is now attached to the active Wewed wedding. Booking status does not imply payment or couple funding; My Bookings shows contract, payment, contribution and operational truth separately.</p>
+        <div className="mt-4 flex flex-wrap gap-2"><Link href="/planner/bookings" className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white">Open My Bookings</Link><Link href={`/vendors/${encodeURIComponent(providerSlug)}`} className="rounded-xl border bg-white px-4 py-2.5 text-sm font-semibold">Vendor profile</Link></div>
       </div>
     )
   }
@@ -199,6 +226,7 @@ export function ProviderBookingForm({ providerSlug, providerName, item, referral
             <div className="rounded-xl bg-slate-50 p-3 text-sm"><ShieldCheck className="mb-1 h-4 w-4 text-slate-700" /><strong>Terms</strong><div className="mt-1 text-slate-600">{item.requiresContract ? 'Agreement required before the commercial commitment becomes effective.' : 'Provider booking terms apply.'}</div></div>
             <div className="rounded-xl bg-slate-50 p-3 text-sm"><CalendarDays className="mb-1 h-4 w-4 text-slate-700" /><strong>Availability</strong><div className="mt-1 text-slate-600">{item.bookingMode === 'instant' ? 'Checked against configured live resources.' : 'Confirmed by the vendor after your request.'}</div></div>
           </div>
+          {(cancellationPolicy || refundPolicy) ? <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-slate-700"><strong>Commercial policy</strong>{cancellationPolicy ? <p className="mt-1"><span className="font-medium">Cancellation:</span> {cancellationPolicy}</p> : null}{refundPolicy ? <p className="mt-1"><span className="font-medium">Refund:</span> {refundPolicy}</p> : null}</div> : null}
         </div>
       </div>
 
@@ -209,13 +237,15 @@ export function ProviderBookingForm({ providerSlug, providerName, item, referral
         {item.variants.length > 0 && <label className="mt-5 block text-sm font-medium text-slate-800">Option<select value={variantId} onChange={(event) => setVariantId(event.target.value)} className="mt-1.5 min-h-11 w-full rounded-xl border bg-white px-3"><option value="">Choose an option</option>{item.variants.map((variant) => <option key={variant.id} value={variant.id}>{variant.name}{Object.values(variant.optionValues || {}).length ? ` — ${Object.values(variant.optionValues).join(' / ')}` : ''}</option>)}</select></label>}
 
         <div className="mt-4 grid grid-cols-2 gap-3">
-          <label className="text-sm font-medium text-slate-800">Date<input type="date" value={eventDate} onChange={(event) => { setEventDate(event.target.value); if (!pickupDate) setPickupDate(event.target.value) }} className="mt-1.5 min-h-11 w-full rounded-xl border px-3" /></label>
+          <label className="text-sm font-medium text-slate-800">Date<input type="date" value={eventDate} onChange={(event) => { const value = event.target.value; setEventDate(value); if (!pickupDate) setPickupDate(value); if (!deliveryDate) setDeliveryDate(value); if (!collectionDate) setCollectionDate(value) }} className="mt-1.5 min-h-11 w-full rounded-xl border px-3" /></label>
           <label className="text-sm font-medium text-slate-800">Quantity<input type="number" min={item.minQuantity || 1} max={item.maxQuantity || undefined} value={quantity} onChange={(event) => setQuantity(Math.max(1, Number(event.target.value) || 1))} className="mt-1.5 min-h-11 w-full rounded-xl border px-3" /></label>
         </div>
 
         {eventTimed && <div className="mt-4 grid grid-cols-2 gap-3"><label className="text-sm font-medium text-slate-800">Start time<input type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} className="mt-1.5 min-h-11 w-full rounded-xl border px-3" /></label><label className="text-sm font-medium text-slate-800">Duration (hours)<input type="number" min={1} max={72} value={durationHours} onChange={(event) => setDurationHours(Math.max(1, Number(event.target.value) || 1))} className="mt-1.5 min-h-11 w-full rounded-xl border px-3" /></label></div>}
         {appointmentLike && <label className="mt-4 block text-sm font-medium text-slate-800">Preferred fitting / appointment time<input type="time" value={appointmentTime} onChange={(event) => setAppointmentTime(event.target.value)} className="mt-1.5 min-h-11 w-full rounded-xl border px-3" /></label>}
         {rentalLike && <div className="mt-4 grid grid-cols-2 gap-3"><label className="text-sm font-medium text-slate-800">Pickup<input type="date" value={pickupDate} onChange={(event) => setPickupDate(event.target.value)} className="mt-1.5 min-h-11 w-full rounded-xl border px-3" /><input aria-label="Pickup time" type="time" value={pickupTime} onChange={(event) => setPickupTime(event.target.value)} className="mt-2 min-h-10 w-full rounded-xl border px-3" /></label><label className="text-sm font-medium text-slate-800">Return<input type="date" value={returnDate} onChange={(event) => setReturnDate(event.target.value)} className="mt-1.5 min-h-11 w-full rounded-xl border px-3" /><input aria-label="Return time" type="time" value={returnTime} onChange={(event) => setReturnTime(event.target.value)} className="mt-2 min-h-10 w-full rounded-xl border px-3" /></label></div>}
+
+        {deliveryLike && <fieldset className="mt-5 rounded-xl border bg-slate-50 p-3"><legend className="px-1 text-sm font-semibold text-slate-900"><Truck className="mr-1 inline h-4 w-4" /> Delivery & setup</legend><div className="mt-2 grid grid-cols-2 gap-3"><label className="text-xs font-medium text-slate-700">Delivery date<input type="date" value={deliveryDate} onChange={(event) => setDeliveryDate(event.target.value)} className="mt-1 min-h-10 w-full rounded-lg border bg-white px-2" /></label><label className="text-xs font-medium text-slate-700">Delivery time<input type="time" value={deliveryTime} onChange={(event) => setDeliveryTime(event.target.value)} className="mt-1 min-h-10 w-full rounded-lg border bg-white px-2" /></label><label className="text-xs font-medium text-slate-700">Setup starts<input type="time" value={setupStartTime} onChange={(event) => setSetupStartTime(event.target.value)} className="mt-1 min-h-10 w-full rounded-lg border bg-white px-2" /></label><label className="text-xs font-medium text-slate-700">Setup ends<input type="time" value={setupEndTime} onChange={(event) => setSetupEndTime(event.target.value)} className="mt-1 min-h-10 w-full rounded-lg border bg-white px-2" /></label><label className="text-xs font-medium text-slate-700">Collection date<input type="date" value={collectionDate} onChange={(event) => setCollectionDate(event.target.value)} className="mt-1 min-h-10 w-full rounded-lg border bg-white px-2" /></label><label className="text-xs font-medium text-slate-700">Collection time<input type="time" value={collectionTime} onChange={(event) => setCollectionTime(event.target.value)} className="mt-1 min-h-10 w-full rounded-lg border bg-white px-2" /></label></div><p className="mt-2 text-[11px] leading-4 text-slate-500">Only record times actually agreed or requested. Vendor confirmation may still be required depending on booking mode.</p></fieldset>}
 
         <label className="mt-4 block text-sm font-medium text-slate-800"><MapPin className="mr-1 inline h-4 w-4" /> Service / delivery location<input value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Venue or address" className="mt-1.5 min-h-11 w-full rounded-xl border px-3" /></label>
         <label className="mt-4 block text-sm font-medium text-slate-800">Guest count (if relevant)<input type="number" min={0} value={guestCount} onChange={(event) => setGuestCount(event.target.value)} className="mt-1.5 min-h-11 w-full rounded-xl border px-3" /></label>
@@ -226,7 +256,7 @@ export function ProviderBookingForm({ providerSlug, providerName, item, referral
 
         <div className="mt-5 rounded-xl bg-slate-50 p-4">
           <div className="flex items-center justify-between gap-4"><span className="text-sm text-slate-600">Estimated total</span><strong className="text-base text-slate-950">{price ? money(price.totalCents, price.currency) : money(item.basePriceCents, item.currency)}</strong></div>
-          {price?.depositCents != null && <div className="mt-1 flex justify-between text-xs text-slate-600"><span>Configured deposit</span><span>{money(price.depositCents, price.currency)}</span></div>}
+          {price?.depositCents != null && <div className="mt-1 flex justify-between text-xs text-slate-600"><span>Quoted/configured deposit</span><span>{money(price.depositCents, price.currency)}</span></div>}
           {price?.state === 'quote_required' && <p className="mt-2 text-xs text-slate-500">Wewed has not invented a price. {providerName} will provide a quote for the selected scope.</p>}
         </div>
 
