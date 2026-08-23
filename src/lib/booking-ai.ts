@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { db } from '@/lib/db'
 import { BOOKING_MODES, BookingCommerceError, calculatePrice, createBookingDraft } from '@/lib/booking-commerce'
 import { holdBookingGoverned, submitBookingGoverned } from '@/lib/booking-governance'
+import { applyBookingDraftLogistics } from '@/lib/booking-logistics'
 
 export const AUTO_BOOK_ACTIONS = ['suggest','prepare','hold','request','confirm'] as const
 export type AutoBookAction = (typeof AUTO_BOOK_ACTIONS)[number]
@@ -150,6 +151,10 @@ type ExecutionInput = {
   serviceEnd?: unknown
   appointmentAt?: unknown
   pickupAt?: unknown
+  deliveryAt?: unknown
+  setupStart?: unknown
+  setupEnd?: unknown
+  collectionAt?: unknown
   returnDueAt?: unknown
   serviceLocation?: unknown
   guestCount?: unknown
@@ -310,6 +315,16 @@ export async function executeArchitectBookingAction(input: ExecutionInput) {
     referralToken: input.referralToken,
   })
   const bookingId = String(booking.id)
+  if (input.deliveryAt || input.setupStart || input.setupEnd || input.collectionAt) {
+    booking = await applyBookingDraftLogistics({
+      bookingId,
+      weddingId: input.weddingId,
+      deliveryAt: input.deliveryAt,
+      setupStart: input.setupStart,
+      setupEnd: input.setupEnd,
+      collectionAt: input.collectionAt,
+    })
+  }
 
   if ((input.action === 'hold' || input.action === 'request' || input.action === 'confirm') && catalog.bookingMode === 'instant') {
     booking = await holdBookingGoverned({
