@@ -58,7 +58,7 @@ const EMPTY_CAPABILITIES: Capabilities = {
 
 function Toggle({ checked, disabled, label, onChange }: { checked: boolean; disabled?: boolean; label: string; onChange?: (checked: boolean) => void }) {
   return (
-    <label className={`relative inline-flex shrink-0 items-center ${disabled ? 'opacity-40' : 'cursor-pointer'}`}>
+    <label className={`relative inline-flex h-7 w-12 shrink-0 ${disabled ? 'opacity-40' : 'cursor-pointer'}`}>
       <input
         type="checkbox"
         className="peer sr-only"
@@ -67,9 +67,8 @@ function Toggle({ checked, disabled, label, onChange }: { checked: boolean; disa
         onChange={(event) => onChange?.(event.target.checked)}
         aria-label={label}
       />
-      <span className="flex h-7 w-12 items-center rounded-full border border-[#2a211b]/15 bg-[#2a211b]/10 p-0.5 transition peer-checked:border-[#8a672f] peer-checked:bg-[#bf9b5f] peer-focus-visible:ring-2 peer-focus-visible:ring-[#bf9b5f]/55">
-        <span className="size-5 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5" />
-      </span>
+      <span className="absolute inset-0 rounded-full border border-[#2a211b]/15 bg-[#2a211b]/10 transition peer-checked:border-[#8a672f] peer-checked:bg-[#bf9b5f] peer-focus-visible:ring-2 peer-focus-visible:ring-[#bf9b5f]/55" />
+      <span className="pointer-events-none absolute left-1 top-1 size-5 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5" />
     </label>
   )
 }
@@ -283,11 +282,11 @@ export default function NotificationSettingsPage() {
         </header>
 
         <section className="overflow-hidden rounded-2xl border border-[#2a211b]/10 bg-white shadow-sm" aria-labelledby="delivery-title">
-          <div className="border-b border-[#2a211b]/8 px-3 py-3 sm:px-4">
+          <div className="border-b border-[#2a211b]/10 px-3 py-3 sm:px-4">
             <h2 id="delivery-title" className="text-sm font-semibold">Delivery</h2>
           </div>
 
-          <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-[#2a211b]/8 px-3 py-3 sm:px-4">
+          <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-[#2a211b]/10 px-3 py-3 sm:px-4">
             <div className="flex size-8 items-center justify-center rounded-lg bg-[#bf9b5f]/10 text-[#8a672f]"><CheckCircle2 className="size-4" /></div>
             <div className="min-w-0">
               <p className="text-sm font-semibold">In-app</p>
@@ -301,7 +300,7 @@ export default function NotificationSettingsPage() {
             const ready = capability.ready
             const enabled = form[channel.key]
             return (
-              <div key={channel.key} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-[#2a211b]/8 px-3 py-3 last:border-b-0 sm:px-4">
+              <div key={channel.key} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-[#2a211b]/10 px-3 py-3 last:border-b-0 sm:px-4">
                 <div className="flex size-8 items-center justify-center rounded-lg bg-[#bf9b5f]/10 text-[#8a672f]"><BellRing className="size-4" /></div>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
