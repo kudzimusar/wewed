@@ -24,7 +24,7 @@ describe('WW-PRODUCT-UI-2026-08-23-01 product UI and communications contract', (
     expect(manual).toContain('Branded outbound email manual')
   })
 
-  test('moves persistent account and notification chrome into a compact top menu without covering focus surfaces', () => {
+  test('moves persistent account and notification chrome into a compact top menu without covering focus or already-shelled surfaces', () => {
     expect(quickNavigation).toContain('aria-label="Open Wewed menu"')
     expect(quickNavigation).toContain('showLabel')
     expect(quickNavigation).toContain('href="/settings"')
@@ -35,7 +35,11 @@ describe('WW-PRODUCT-UI-2026-08-23-01 product UI and communications contract', (
     expect(quickNavigation).toContain('top-[max(0.75rem,env(safe-area-inset-top))]')
     expect(quickNavigation).not.toContain('bottom-[calc(env(safe-area-inset-bottom)+5.25rem)]')
     expect(quickNavigation).toContain('usesOwnFocusNavigation(pathname)')
-    expect(quickNavigation).toContain("return pathname === '/messages'")
+    expect(quickNavigation).toContain("pathname === '/messages'")
+    expect(quickNavigation).toContain("pathname === '/vendors/manage'")
+    expect(quickNavigation).toContain('data-testid="workspace-quick-navigation-spacer"')
+    expect(quickNavigation).toContain('max-h-[calc(100dvh-4.5rem-env(safe-area-inset-top))]')
+    expect(quickNavigation).toContain("menuRef.current?.removeAttribute('open')")
   })
 
   test('renders communication delivery as compact operational rows without hiding active phone endpoints', () => {

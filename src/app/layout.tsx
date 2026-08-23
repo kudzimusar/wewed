@@ -68,8 +68,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <StoreRehydrator />
           <PWARegister />
           <SkipToContent />
-          {children}
           <WorkspaceQuickNavigation />
+          {children}
           <WorkspaceAttentionWidgetDock />
           <Toaster />
         </ThemeProvider>
