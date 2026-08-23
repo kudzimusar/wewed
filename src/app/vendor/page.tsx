@@ -25,14 +25,17 @@ export default function VendorWorkspacePage() {
                 <h1 className="max-w-3xl font-serif text-4xl leading-tight sm:text-6xl">Run your Wewed business from one place.</h1>
                 <p className="mt-4 max-w-2xl text-sm leading-7 text-espresso/60">Manage booking requests, catalogue inventory, conversations, commercial documents and your public marketplace profile without losing the relationship between the wedding, service and fulfilment record.</p>
               </div>
-              <Link
-                href="/vendor/bookings"
-                className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-full bg-espresso px-6 py-3 text-sm font-bold text-champagne shadow-sm transition hover:bg-espresso/90"
-              >
-                <CalendarCheck2 className="size-5" />
-                Booking inbox
-                <ArrowRight className="size-4" />
-              </Link>
+              <div className="flex flex-wrap gap-2">
+                <Link href="/messages" className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-full border border-gold/30 bg-white px-6 py-3 text-sm font-bold text-espresso shadow-sm transition hover:bg-champagne/40">
+                  <MessageCircle className="size-5" />
+                  Open Messages
+                </Link>
+                <Link href="/vendor/bookings" className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-full bg-espresso px-6 py-3 text-sm font-bold text-champagne shadow-sm transition hover:bg-espresso/90">
+                  <CalendarCheck2 className="size-5" />
+                  Booking inbox
+                  <ArrowRight className="size-4" />
+                </Link>
+              </div>
             </div>
           </div>
 
@@ -55,7 +58,7 @@ export default function VendorWorkspacePage() {
               <MessageCircle className="size-6 text-gold-muted" />
               <h2 className="mt-5 font-serif text-3xl">Messages</h2>
               <p className="mt-3 text-sm leading-6 text-espresso/60">Open your inbox, receive Planner ↔ Vendor enquiries and keep commercial conversations inside Wewed.</p>
-              <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-gold-muted">Open inbox <ArrowRight className="size-4" /></span>
+              <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-gold-muted">Open Messages <ArrowRight className="size-4" /></span>
             </Link>
 
             <Link href="/vendor/documents" className="group rounded-3xl border border-gold/20 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
