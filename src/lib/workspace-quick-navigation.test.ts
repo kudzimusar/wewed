@@ -40,7 +40,13 @@ describe('compact authenticated workspace navigation', () => {
     expect(portfolio).toContain('data-planner-portfolio-shell')
   })
 
-  test('uses the stamped compact top-shell contract outside embedded Planner surfaces', () => {
+  test('keeps the full-height Messages focus surface free of competing fixed navigation', () => {
+    expect(navigation).toContain('function usesOwnFocusNavigation(pathname: string): boolean')
+    expect(navigation).toContain("return pathname === '/messages'")
+    expect(navigation).toContain('if (usesOwnFocusNavigation(pathname)) return null')
+  })
+
+  test('uses the stamped compact top-shell contract outside embedded and focus surfaces', () => {
     expect(manual).toContain('WW-PRODUCT-UI-2026-08-23-01')
     expect(manual).toContain('no permanent bottom floating Back/Forward/Bell/Account pill')
     expect(navigation).toContain('size-10')

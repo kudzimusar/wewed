@@ -90,7 +90,7 @@ function StatusPill({ tone, children }: { tone: 'ready' | 'pending' | 'muted'; c
   )
 }
 
-function EndpointStatus({ endpoint }: { endpoint: Endpoint }) {
+function EndpointStatusLabel({ endpoint }: { endpoint: Endpoint }) {
   const verified = endpoint.status === 'VERIFIED'
   return (
     <span className="inline-flex items-center gap-1 text-[11px] text-espresso/50">
@@ -112,7 +112,7 @@ function PreferenceToggle({
   onChange: (checked: boolean) => void
 }) {
   return (
-    <label className={`relative inline-flex h-7 w-12 shrink-0 ${disabled ? 'opacity-45' : 'cursor-pointer'}`}>
+    <label className={`relative inline-flex h-11 w-12 shrink-0 ${disabled ? 'opacity-45' : 'cursor-pointer'}`}>
       <input
         type="checkbox"
         checked={checked}
@@ -121,8 +121,8 @@ function PreferenceToggle({
         className="peer sr-only"
         aria-label={label}
       />
-      <span className="absolute inset-0 rounded-full border border-espresso/15 bg-espresso/10 transition peer-checked:border-gold peer-checked:bg-gold peer-focus-visible:ring-2 peer-focus-visible:ring-gold/55 peer-disabled:cursor-not-allowed" />
-      <span className="pointer-events-none absolute left-1 top-1 flex size-5 items-center justify-center rounded-full bg-white text-transparent shadow-sm transition-transform peer-checked:translate-x-5 peer-checked:text-gold">
+      <span className="absolute inset-x-0 top-2 h-7 rounded-full border border-espresso/15 bg-espresso/10 transition peer-checked:border-gold peer-checked:bg-gold peer-focus-visible:ring-2 peer-focus-visible:ring-gold/55 peer-disabled:cursor-not-allowed" />
+      <span className="pointer-events-none absolute left-1 top-3 flex size-5 items-center justify-center rounded-full bg-white text-transparent shadow-sm transition-transform peer-checked:translate-x-5 peer-checked:text-gold">
         <Check className="size-3" />
       </span>
     </label>
@@ -174,6 +174,13 @@ export default function MessageChannelSettingsPage() {
       endpoint.channel === 'EMAIL' && endpoint.normalizedAddress.toLowerCase() === normalized,
     ) ?? null
   }, [accountEmail, endpoints])
+
+  const activePhoneEndpoints = useMemo(
+    () => endpoints.filter((endpoint) =>
+      (endpoint.channel === 'WHATSAPP' || endpoint.channel === 'SMS') && endpoint.status !== 'DISABLED',
+    ),
+    [endpoints],
+  )
 
   function preference(channel: Channel): boolean {
     return preferences.find((entry) => entry.channel === channel)?.enabled ?? false
@@ -287,14 +294,14 @@ export default function MessageChannelSettingsPage() {
   function manualChannelRow(channel: ManualChannel) {
     if (!activation) return null
     const state = activation[channel]
-    const channelEndpoints = endpoints.filter((endpoint) => endpoint.channel === channel && endpoint.status !== 'DISABLED')
+    const channelEndpoints = activePhoneEndpoints.filter((endpoint) => endpoint.channel === channel)
     const primary = channelEndpoints.find((endpoint) => endpoint.status === 'VERIFIED') ?? channelEndpoints[0] ?? null
     const checked = effectiveChecked(channel)
-    const status = state.endpointVerified
-      ? <StatusPill tone="ready">Verified</StatusPill>
-      : state.transportConfigured
-        ? <StatusPill tone="pending">Needs verification</StatusPill>
-        : <StatusPill tone="muted">Unavailable</StatusPill>
+    const status = !state.transportConfigured
+      ? <StatusPill tone="muted">Unavailable</StatusPill>
+      : state.endpointVerified
+        ? <StatusPill tone="ready">Verified</StatusPill>
+        : <StatusPill tone="pending">Needs verification</StatusPill>
 
     return (
       <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-gold/15 px-3 py-3 last:border-b-0 sm:px-4">
@@ -310,17 +317,8 @@ export default function MessageChannelSettingsPage() {
             <p className="max-w-full truncate text-xs text-espresso/55">
               {primary?.address || (channel === 'SMS' ? 'No verified number' : 'No number saved')}
             </p>
-            {primary ? <EndpointStatus endpoint={primary} /> : null}
-            {primary && primary.status !== 'DISABLED' ? (
-              <button
-                type="button"
-                disabled={saving}
-                onClick={() => void disableEndpoint(primary.id)}
-                className="text-[11px] font-semibold text-espresso/55 underline underline-offset-2 hover:text-espresso disabled:opacity-40"
-              >
-                Disable
-              </button>
-            ) : null}
+            {primary ? <EndpointStatusLabel endpoint={primary} /> : null}
+            {channelEndpoints.length > 1 ? <span className="text-[11px] text-espresso/45">+{channelEndpoints.length - 1} more</span> : null}
           </div>
         </div>
         <PreferenceToggle
@@ -334,7 +332,7 @@ export default function MessageChannelSettingsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-ivory px-3 pb-10 pt-16 text-espresso sm:px-6 sm:pt-10">
+    <main className="min-h-screen bg-ivory px-3 pb-10 pt-16 text-espresso sm:px-6">
       <div className="mx-auto max-w-3xl">
         <header className="mb-4 flex items-start gap-3">
           <Link
@@ -381,23 +379,25 @@ export default function MessageChannelSettingsPage() {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-sm font-semibold">Email</p>
-                    {activation.EMAIL.endpointVerified
-                      ? <StatusPill tone="ready">Verified</StatusPill>
-                      : <StatusPill tone="pending">Needs verification</StatusPill>}
+                    {!activation.EMAIL.transportConfigured
+                      ? <StatusPill tone="muted">Unavailable</StatusPill>
+                      : activation.EMAIL.endpointVerified
+                        ? <StatusPill tone="ready">Verified</StatusPill>
+                        : <StatusPill tone="pending">Needs verification</StatusPill>}
                   </div>
                   <p className="mt-0.5 truncate text-xs text-espresso/55">{accountEmail || 'No account email saved'}</p>
-                  {!activation.EMAIL.endpointVerified && accountEmail ? (
+                  {activation.EMAIL.transportConfigured && !activation.EMAIL.endpointVerified && accountEmail ? (
                     <button
                       type="button"
                       onClick={() => void requestEmailVerification()}
                       disabled={verifyingEmail || saving}
-                      className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-espresso underline underline-offset-2 disabled:opacity-40"
+                      className="mt-1 inline-flex min-h-8 items-center gap-1 text-[11px] font-semibold text-espresso underline underline-offset-2 disabled:opacity-40"
                     >
                       {verifyingEmail ? <Loader2 className="size-3 animate-spin" /> : <Mail className="size-3" />}
                       Send verification
                     </button>
                   ) : emailEndpoint ? (
-                    <span className="mt-1 inline-flex"><EndpointStatus endpoint={emailEndpoint} /></span>
+                    <span className="mt-1 inline-flex"><EndpointStatusLabel endpoint={emailEndpoint} /></span>
                   ) : null}
                 </div>
                 <PreferenceToggle
@@ -426,7 +426,7 @@ export default function MessageChannelSettingsPage() {
                     <span>{activation.PUSH.activeDeviceCount} active {activation.PUSH.activeDeviceCount === 1 ? 'device' : 'devices'}</span>
                     <Link
                       href="/settings/notifications/push"
-                      className="inline-flex items-center gap-1 font-semibold text-espresso underline underline-offset-2"
+                      className="inline-flex min-h-8 items-center gap-1 font-semibold text-espresso underline underline-offset-2"
                     >
                       Manage <ExternalLink className="size-3" />
                     </Link>
@@ -458,7 +458,7 @@ export default function MessageChannelSettingsPage() {
               <select
                 value={manualChannel}
                 onChange={(event) => setManualChannel(event.target.value as ManualChannel)}
-                className="min-h-10 rounded-xl border border-gold/20 bg-white px-3 text-sm outline-none focus:border-gold"
+                className="min-h-11 rounded-xl border border-gold/20 bg-white px-3 text-sm outline-none focus:border-gold"
                 aria-label="Phone delivery channel"
               >
                 <option value="WHATSAPP">WhatsApp</option>
@@ -469,17 +469,47 @@ export default function MessageChannelSettingsPage() {
                 onChange={(event) => setAddress(event.target.value)}
                 placeholder="+263…"
                 inputMode="tel"
-                className="min-h-10 min-w-0 rounded-xl border border-gold/20 px-3 text-sm outline-none focus:border-gold"
+                aria-label="Phone number"
+                className="min-h-11 min-w-0 rounded-xl border border-gold/20 px-3 text-sm outline-none focus:border-gold"
               />
               <button
                 type="submit"
                 disabled={saving || !address.trim()}
-                className="inline-flex min-h-10 items-center justify-center rounded-xl bg-espresso px-4 text-sm font-semibold text-champagne disabled:opacity-40"
+                className="inline-flex min-h-11 items-center justify-center rounded-xl bg-espresso px-4 text-sm font-semibold text-champagne disabled:opacity-40"
               >
                 {saving ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
                 Save
               </button>
             </form>
+
+            <div className="mt-4 border-t border-gold/10 pt-3" aria-label="Saved phone numbers">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-espresso/45">Saved numbers</p>
+              {activePhoneEndpoints.length === 0 ? (
+                <p className="mt-2 text-xs text-espresso/50">No active WhatsApp or SMS numbers saved.</p>
+              ) : (
+                <div className="mt-2 divide-y divide-gold/10">
+                  {activePhoneEndpoints.map((endpoint) => (
+                    <div key={endpoint.id} className="flex min-h-11 items-center justify-between gap-3 py-2">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-semibold">{labels[endpoint.channel]}</span>
+                          <EndpointStatusLabel endpoint={endpoint} />
+                        </div>
+                        <p className="mt-0.5 truncate text-xs text-espresso/55">{endpoint.address}</p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={() => void disableEndpoint(endpoint.id)}
+                        className="inline-flex min-h-10 shrink-0 items-center px-2 text-[11px] font-semibold text-espresso/55 underline underline-offset-2 hover:text-espresso disabled:opacity-40"
+                      >
+                        Disable
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </details>
       </div>

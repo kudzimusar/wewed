@@ -24,7 +24,7 @@ describe('WW-PRODUCT-UI-2026-08-23-01 product UI and communications contract', (
     expect(manual).toContain('Branded outbound email manual')
   })
 
-  test('moves persistent account and notification chrome into a compact top menu', () => {
+  test('moves persistent account and notification chrome into a compact top menu without covering focus surfaces', () => {
     expect(quickNavigation).toContain('aria-label="Open Wewed menu"')
     expect(quickNavigation).toContain('showLabel')
     expect(quickNavigation).toContain('href="/settings"')
@@ -34,9 +34,11 @@ describe('WW-PRODUCT-UI-2026-08-23-01 product UI and communications contract', (
     expect(quickNavigation).toContain('window.history.forward()')
     expect(quickNavigation).toContain('top-[max(0.75rem,env(safe-area-inset-top))]')
     expect(quickNavigation).not.toContain('bottom-[calc(env(safe-area-inset-bottom)+5.25rem)]')
+    expect(quickNavigation).toContain('usesOwnFocusNavigation(pathname)')
+    expect(quickNavigation).toContain("return pathname === '/messages'")
   })
 
-  test('renders communication delivery as compact operational rows with advanced phone setup disclosed', () => {
+  test('renders communication delivery as compact operational rows without hiding active phone endpoints', () => {
     expect(messageSettings).toContain('Delivery preferences')
     expect(messageSettings).toContain('Add or change a phone number')
     expect(messageSettings).toContain('<details')
@@ -45,8 +47,19 @@ describe('WW-PRODUCT-UI-2026-08-23-01 product UI and communications contract', (
     expect(messageSettings).toContain('activation.PUSH.activeDeviceCount')
     expect(messageSettings).toContain('href="/settings/notifications/push"')
     expect(messageSettings).toContain('Email verification arrives in your external mailbox')
+    expect(messageSettings).toContain('activePhoneEndpoints')
+    expect(messageSettings).toContain('Saved numbers')
+    expect(messageSettings).toContain('aria-label="Phone number"')
+    expect(messageSettings).toContain('h-11 w-12')
     expect(messageSettings).not.toContain('pb-32')
     expect(messageSettings).not.toContain('Wewed transport is configured.')
+  })
+
+  test('keeps communication channel readiness truthful before offering activation actions', () => {
+    expect(messageSettings).toContain('!state.transportConfigured')
+    expect(messageSettings).toContain('!activation.EMAIL.transportConfigured')
+    expect(messageSettings).toContain('activation.EMAIL.transportConfigured && !activation.EMAIL.endpointVerified && accountEmail')
+    expect(messageSettings).toContain('disabled={saving || (!state.canEnable && !checked)}')
   })
 
   test('keeps notification controls compact while preserving activation truth and consent flows', () => {
@@ -72,21 +85,30 @@ describe('WW-PRODUCT-UI-2026-08-23-01 product UI and communications contract', (
     expect(notifications).not.toContain('rounded-2xl border p-4 transition sm:p-5')
   })
 
-  test('collapses notification section navigation to familiar icon controls', () => {
+  test('keeps notification navigation compact while retaining deterministic escape routes', () => {
     expect(notificationSectionNavigation).toContain('aria-label="Notification settings"')
     expect(notificationSectionNavigation).toContain('aria-label="Back to settings"')
     expect(notificationSectionNavigation).toContain('aria-label="Notifications"')
+    expect(notificationSectionNavigation).toContain('data-testid="notification-exit-workspace"')
+    expect(notificationSectionNavigation).toContain('data-testid="notification-exit-settings"')
+    expect(notificationSectionNavigation).toContain('data-testid="notification-open-settings"')
+    expect(notificationSectionNavigation).toContain('data-testid="notification-open-center"')
+    expect(notificationSectionNavigation).toContain('data-testid="notification-back-to-settings"')
+    expect(notificationSectionNavigation).toContain("if (role === 'planner') return '/planner/portfolio'")
     expect(notificationSectionNavigation).not.toContain('{workspace.label}')
     expect(notificationSectionNavigation).not.toContain('Notification settings</')
   })
 
-  test('makes secure message attachments media-aware without bypassing Vault authorization', () => {
+  test('makes secure message attachments media-aware, null-safe and accessible without bypassing Vault authorization', () => {
     expect(attachmentList).toContain("attachment.mimeType.startsWith('image/')")
     expect(attachmentList).toContain("attachment.mimeType.startsWith('video/')")
     expect(attachmentList).toContain("attachment.mimeType.startsWith('audio/')")
     expect(attachmentList).toContain('/api/communications/attachments/${encodeURIComponent(attachment.id)}')
     expect(attachmentList).toContain('signedUrl')
     expect(attachmentList).toContain("window.open(payload.data.signedUrl, '_blank', 'noopener,noreferrer')")
+    expect(attachmentList).toContain("payload?.error || 'Could not add this file to wedding documents.'")
+    expect(attachmentList).toContain("aria-label={attachment.state === 'available' ? 'Open securely' : 'Quarantined'}")
+    expect(attachmentList).toContain('aria-describedby={attachmentNameId}')
     expect(attachmentList).not.toContain('<img')
   })
 

@@ -92,7 +92,7 @@ export function CommunicationAttachmentList(props: {
         }),
       })
       const payload = await response.json().catch(() => null) as { success?: boolean; error?: string } | null
-      if (!response.ok || !payload?.success) throw new Error(payload.error || 'Could not add this file to wedding documents.')
+      if (!response.ok || !payload?.success) throw new Error(payload?.error || 'Could not add this file to wedding documents.')
     } catch (error) {
       props.onError(error instanceof Error ? error.message : 'Could not add this file to wedding documents.')
     } finally {
@@ -104,44 +104,48 @@ export function CommunicationAttachmentList(props: {
 
   return (
     <div className="mt-2 space-y-1.5" data-communication-attachments="true">
-      {props.attachments.map((attachment) => (
-        <div key={attachment.id} className="rounded-xl border border-current/10 bg-black/[0.035] px-2.5 py-2">
-          <div className="flex items-center gap-2">
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-current/10 bg-white/10">
-              <AttachmentIcon attachment={attachment} />
+      {props.attachments.map((attachment) => {
+        const attachmentNameId = `communication-attachment-${attachment.id}-name`
+        return (
+          <div key={attachment.id} className="rounded-xl border border-current/10 bg-black/[0.035] px-2.5 py-2">
+            <div className="flex items-center gap-2">
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-current/10 bg-white/10">
+                <AttachmentIcon attachment={attachment} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p id={attachmentNameId} className="truncate text-xs font-semibold">{attachment.displayName}</p>
+                <p className="text-[10px] opacity-55">
+                  {mediaLabel(attachment)} · {fileSize(attachment.byteSize)} · {attachment.state === 'available' ? 'Private Vault' : 'Security review'}
+                </p>
+                {attachment.caption ? <p className="mt-0.5 line-clamp-2 whitespace-pre-wrap text-[11px] opacity-70">{attachment.caption}</p> : null}
+              </div>
+              <button
+                type="button"
+                disabled={attachment.state !== 'available' || openingId === attachment.id}
+                onClick={() => void openAttachment(attachment)}
+                className="inline-flex size-8 shrink-0 items-center justify-center rounded-full border border-current/15 disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label={attachment.state === 'available' ? 'Open securely' : 'Quarantined'}
+                aria-describedby={attachmentNameId}
+                title={attachment.state === 'available' ? 'Open securely' : 'Quarantined'}
+              >
+                {openingId === attachment.id ? <Loader2 className="size-3.5 animate-spin" /> : <LockKeyhole className="size-3.5" />}
+              </button>
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-semibold">{attachment.displayName}</p>
-              <p className="text-[10px] opacity-55">
-                {mediaLabel(attachment)} · {fileSize(attachment.byteSize)} · {attachment.state === 'available' ? 'Private Vault' : 'Security review'}
-              </p>
-              {attachment.caption ? <p className="mt-0.5 line-clamp-2 whitespace-pre-wrap text-[11px] opacity-70">{attachment.caption}</p> : null}
-            </div>
-            <button
-              type="button"
-              disabled={attachment.state !== 'available' || openingId === attachment.id}
-              onClick={() => void openAttachment(attachment)}
-              className="inline-flex size-8 shrink-0 items-center justify-center rounded-full border border-current/15 disabled:cursor-not-allowed disabled:opacity-40"
-              aria-label={attachment.state === 'available' ? `Open ${attachment.displayName} securely` : `${attachment.displayName} is quarantined`}
-              title={attachment.state === 'available' ? 'Open securely' : 'Quarantined'}
-            >
-              {openingId === attachment.id ? <Loader2 className="size-3.5 animate-spin" /> : <LockKeyhole className="size-3.5" />}
-            </button>
-          </div>
 
-          {props.weddingId && props.role !== 'vendor' && attachment.state === 'available' ? (
-            <button
-              type="button"
-              disabled={promotingId === attachment.id}
-              onClick={() => void addToWedding(attachment)}
-              className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-semibold underline underline-offset-2 opacity-70 hover:opacity-100 disabled:opacity-40"
-            >
-              {promotingId === attachment.id ? <Loader2 className="size-3 animate-spin" /> : null}
-              Add to wedding documents
-            </button>
-          ) : null}
-        </div>
-      ))}
+            {props.weddingId && props.role !== 'vendor' && attachment.state === 'available' ? (
+              <button
+                type="button"
+                disabled={promotingId === attachment.id}
+                onClick={() => void addToWedding(attachment)}
+                className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-semibold underline underline-offset-2 opacity-70 hover:opacity-100 disabled:opacity-40"
+              >
+                {promotingId === attachment.id ? <Loader2 className="size-3 animate-spin" /> : null}
+                Add to wedding documents
+              </button>
+            ) : null}
+          </div>
+        )
+      })}
     </div>
   )
 }

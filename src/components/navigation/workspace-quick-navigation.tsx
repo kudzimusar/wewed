@@ -50,6 +50,12 @@ function plannerUsesEmbeddedAdaptiveNavigation(pathname: string): boolean {
   )
 }
 
+function usesOwnFocusNavigation(pathname: string): boolean {
+  // Messages is a full-height focus surface with its own workspace/back/thread navigation.
+  // Mounting a second fixed control over that header can intercept the mobile Back-to-inbox target.
+  return pathname === '/messages'
+}
+
 function workspaceFor(role: AccountRole | undefined) {
   if (role === 'admin') return { href: '/admin', label: 'Administration' }
   if (role === 'planner') return { href: '/planner', label: 'Planner workspace' }
@@ -204,6 +210,7 @@ export function WorkspaceQuickNavigation() {
   const pathname = usePathname()
 
   if (!isPrivateWorkspace(pathname) || plannerUsesEmbeddedAdaptiveNavigation(pathname)) return null
+  if (usesOwnFocusNavigation(pathname)) return null
   if (pathname.startsWith('/planner/')) return <PlannerSecondaryAdaptiveNavigation />
 
   return <PrivateWorkspaceQuickNavigation />
