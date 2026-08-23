@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { BookingCommerceError, submitBooking } from '@/lib/booking-commerce'
+import { BookingCommerceError } from '@/lib/booking-commerce'
+import { submitBookingGoverned } from '@/lib/booking-governance'
 import { requireWeddingPermission } from '@/lib/wedding-access'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -7,7 +8,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (access.error) return access.error
   try {
     const { id } = await params
-    const data = await submitBooking({ bookingId: id, weddingId: access.context.weddingId, actorUserId: access.context.session.userId })
+    const data = await submitBookingGoverned({ bookingId: id, weddingId: access.context.weddingId, actorUserId: access.context.session.userId })
     return NextResponse.json({ success: true, data })
   } catch (error) {
     if (error instanceof BookingCommerceError) {
