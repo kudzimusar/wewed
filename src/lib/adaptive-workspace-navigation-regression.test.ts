@@ -4,6 +4,7 @@ import { describe, expect, test } from 'bun:test'
 const source = (path: string) => readFileSync(path, 'utf8')
 
 const plan = source('docs/ADAPTIVE_WORKSPACE_NAVIGATION_SETTINGS_PLAN.md')
+const productManual = source('docs/WEWED_PRODUCT_UI_UX_AND_COMMUNICATIONS_MANUAL.md')
 const rootLayout = source('src/app/layout.tsx')
 const plannerLayout = source('src/app/planner/layout.tsx')
 const adaptiveCss = source('src/app/planner/adaptive-navigation.css')
@@ -28,6 +29,22 @@ describe('WW-ADAPTIVE-NAV-2026-08-18-01 release contract', () => {
     expect(plan).toContain('STAMPED — AUTHORITATIVE IMPLEMENTATION PLAN')
     expect(plan).toContain('Task Test 11 — Priority filter: **FAIL**')
     expect(plan).toContain('filter-function defect; no task mutation or data-integrity failure observed')
+  })
+
+  test('recognizes the newer product UI manual as the authority for compact shared chrome', () => {
+    expect(productManual).toContain('WW-PRODUCT-UI-2026-08-23-01')
+    expect(productManual).toContain('Compact premium utility UI')
+    expect(productManual).toContain('no permanent bottom floating Back/Forward/Bell/Account pill')
+    expect(productManual).toContain('account, notifications, settings, switch account and sign out live inside the menu/account area')
+    expect(quickNavigation).toContain('aria-label="Open Wewed menu"')
+    expect(quickNavigation).toContain('href="/settings"')
+    expect(quickNavigation).toContain('showLabel')
+    expect(quickNavigation).toContain('Switch account')
+    expect(quickNavigation).toContain('Sign out')
+    expect(quickNavigation).toContain('window.history.back()')
+    expect(quickNavigation).toContain('window.history.forward()')
+    expect(quickNavigation).not.toContain('bottom-[calc(env(safe-area-inset-bottom)+5.25rem)]')
+    expect(quickNavigation).not.toContain('rounded-full border border-gold/25 bg-espresso/95 p-1.5')
   })
 
   test('replaces competing Planner floating navigation with one adaptive Planner menu', () => {
