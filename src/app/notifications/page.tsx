@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Bell,
   CalendarClock,
@@ -108,13 +108,13 @@ function severityLabel(severity: NotificationSeverity) {
   return severity.charAt(0).toUpperCase() + severity.slice(1)
 }
 
-function StatePill({ children, tone = 'gold' }: { children: React.ReactNode; tone?: 'gold' | 'green' | 'muted' }) {
+function StatePill({ children, tone = 'gold', testId }: { children: ReactNode; tone?: 'gold' | 'green' | 'muted'; testId?: string }) {
   const classes = tone === 'green'
     ? 'border-emerald-300/20 bg-emerald-300/10 text-emerald-200'
     : tone === 'muted'
       ? 'border-white/10 bg-white/[0.04] text-[#f5ead7]/45'
       : 'border-[#bf9b5f]/25 bg-[#bf9b5f]/10 text-[#d8b978]'
-  return <span className={`inline-flex min-h-5 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${classes}`}>{children}</span>
+  return <span data-testid={testId} className={`inline-flex min-h-5 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${classes}`}>{children}</span>
 }
 
 export default function NotificationCenterPage() {
@@ -217,7 +217,7 @@ export default function NotificationCenterPage() {
       <div className="mx-auto max-w-5xl">
         <NotificationSectionNavigation surface="center" />
 
-        <header className="flex items-end justify-between gap-4 border-b border-[#bf9b5f]/18 pb-4">
+        <header className="flex items-end justify-between gap-4 border-b border-[#bf9b5f]/20 pb-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#bf9b5f]">
               <Bell className="size-3.5" />
@@ -244,7 +244,7 @@ export default function NotificationCenterPage() {
                 className={`min-h-8 whitespace-nowrap rounded-full border px-2.5 text-[11px] font-semibold transition ${
                   filter === item.key
                     ? 'border-[#bf9b5f] bg-[#bf9b5f] text-[#17120f]'
-                    : 'border-[#bf9b5f]/18 text-[#f5ead7]/55 hover:border-[#bf9b5f]/45 hover:text-[#d8b978]'
+                    : 'border-[#bf9b5f]/20 text-[#f5ead7]/55 hover:border-[#bf9b5f]/45 hover:text-[#d8b978]'
                 }`}
               >
                 {item.label}
@@ -256,7 +256,7 @@ export default function NotificationCenterPage() {
             <select
               value={category}
               onChange={(event) => setCategory(event.target.value)}
-              className="min-h-8 rounded-lg border border-[#bf9b5f]/18 bg-[#211915] px-2.5 text-xs text-[#f5ead7] outline-none focus:border-[#bf9b5f]"
+              className="min-h-8 rounded-lg border border-[#bf9b5f]/20 bg-[#211915] px-2.5 text-xs text-[#f5ead7] outline-none focus:border-[#bf9b5f]"
               aria-label="Filter notifications by category"
             >
               <option value="all">All categories</option>
@@ -278,13 +278,13 @@ export default function NotificationCenterPage() {
             <Loader2 className="mr-2 size-5 animate-spin" /> Loading attention…
           </div>
         ) : visibleItems.length === 0 ? (
-          <div className="mt-6 rounded-2xl border border-dashed border-[#bf9b5f]/18 px-4 py-10 text-center">
+          <div className="mt-6 rounded-2xl border border-dashed border-[#bf9b5f]/20 px-4 py-10 text-center">
             <Inbox className="mx-auto size-7 text-[#bf9b5f]/50" />
             <h2 className="mt-2 font-serif text-xl">Nothing here right now</h2>
             <p className="mt-1 text-xs text-[#f5ead7]/40">This view will fill as Wewed events require your attention.</p>
           </div>
         ) : (
-          <div className="mt-4 overflow-hidden rounded-2xl border border-[#bf9b5f]/16 bg-white/[0.015]">
+          <div className="mt-4 overflow-hidden rounded-2xl border border-[#bf9b5f]/15 bg-white/[0.015]">
             {visibleItems.map((item) => {
               const busy = workingId === item.id
               const deferred = isDeferred(item)
@@ -307,7 +307,7 @@ export default function NotificationCenterPage() {
                           {severityLabel(item.severity)}
                         </span>
                         {acknowledged ? (
-                          <StatePill tone="green"><CheckCheck className="size-2.5" /> Acknowledged</StatePill>
+                          <StatePill tone="green" testId="notification-acknowledged-state"><CheckCheck className="size-2.5" /> Acknowledged</StatePill>
                         ) : null}
                         {deferred ? (
                           <StatePill><Clock3 className="size-2.5" /> {item.snoozedUntil ? 'Snoozed' : 'Scheduled'}</StatePill>
@@ -345,7 +345,7 @@ export default function NotificationCenterPage() {
                                 type="button"
                                 disabled={busy}
                                 onClick={() => void act(item, unread ? 'read' : 'unread')}
-                                className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-[#bf9b5f]/16 px-2 text-[10px] text-[#f5ead7]/55 hover:bg-[#bf9b5f]/10 hover:text-[#d8b978] disabled:opacity-50"
+                                className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-[#bf9b5f]/15 px-2 text-[10px] text-[#f5ead7]/55 hover:bg-[#bf9b5f]/10 hover:text-[#d8b978] disabled:opacity-50"
                               >
                                 {unread ? <Check className="size-3" /> : <RotateCcw className="size-3" />}
                                 {unread ? 'Read' : 'Unread'}
@@ -356,7 +356,7 @@ export default function NotificationCenterPage() {
                                 type="button"
                                 disabled={busy}
                                 onClick={() => void act(item, 'acknowledge')}
-                                className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-[#bf9b5f]/16 px-2 text-[10px] text-[#f5ead7]/55 hover:bg-[#bf9b5f]/10 hover:text-[#d8b978] disabled:opacity-50"
+                                className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-[#bf9b5f]/15 px-2 text-[10px] text-[#f5ead7]/55 hover:bg-[#bf9b5f]/10 hover:text-[#d8b978] disabled:opacity-50"
                               >
                                 <CheckCheck className="size-3" /> Acknowledge
                               </button>
@@ -365,7 +365,7 @@ export default function NotificationCenterPage() {
                               type="button"
                               disabled={busy}
                               onClick={() => snoozeTomorrow(item)}
-                              className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-[#bf9b5f]/16 px-2 text-[10px] text-[#f5ead7]/55 hover:bg-[#bf9b5f]/10 hover:text-[#d8b978] disabled:opacity-50"
+                              className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-[#bf9b5f]/15 px-2 text-[10px] text-[#f5ead7]/55 hover:bg-[#bf9b5f]/10 hover:text-[#d8b978] disabled:opacity-50"
                             >
                               <Clock3 className="size-3" /> Tomorrow
                             </button>
@@ -373,7 +373,7 @@ export default function NotificationCenterPage() {
                               type="button"
                               disabled={busy}
                               onClick={() => void act(item, 'resolve')}
-                              className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-[#bf9b5f]/16 px-2 text-[10px] text-[#f5ead7]/55 hover:bg-[#bf9b5f]/10 hover:text-[#d8b978] disabled:opacity-50"
+                              className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-[#bf9b5f]/15 px-2 text-[10px] text-[#f5ead7]/55 hover:bg-[#bf9b5f]/10 hover:text-[#d8b978] disabled:opacity-50"
                             >
                               {busy ? <Loader2 className="size-3 animate-spin" /> : <CheckCheck className="size-3" />}
                               Resolve
