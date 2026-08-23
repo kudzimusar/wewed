@@ -1,8 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { BookingCommerceError, createBookingDraft, listWeddingBookings } from '@/lib/booking-commerce'
+import { db } from '@/lib/db'
 import { requireWeddingPermission } from '@/lib/wedding-access'
 
 export const dynamic = 'force-dynamic'
+
+async function weddingCustomerUserId(weddingId: string) {
+  const rows = await db.$queryRawUnsafe<Array<{ userId: string | null }>>(
+    `SELECT c."userId" AS "userId"
+       FROM public."Wedding" w
+       JOIN public."Couple" c ON c.id=w."coupleId"
+      WHERE w.id=$1 LIMIT 1`,
+    weddingId,
+  )
+  const userId = rows[0]?.userId
+  if (!userId) throw new BookingCommerceError('This wedding does not have a canonical couple customer account.', 409, 'CUSTOMER_RECORD_REQUIRED')
+  return userId
+}
 
 export async function GET(request: NextRequest) {
   const access = await requireWeddingPermission(request, 'vendors.view')
@@ -24,10 +38,11 @@ export async function POST(request: NextRequest) {
     if (typeof body.itemId !== 'string' || !body.itemId.trim()) {
       return NextResponse.json({ success: false, error: 'itemId is required.' }, { status: 400 })
     }
+    const customerUserId = await weddingCustomerUserId(access.context.weddingId)
     const data = await createBookingDraft({
       weddingId: access.context.weddingId,
       actorUserId: access.context.session.userId,
-      customerUserId: access.context.session.userId,
+      customerUserId,
       itemId: body.itemId,
       variantId: typeof body.variantId === 'string' ? body.variantId : null,
       quantity: typeof body.quantity === 'number' ? body.quantity : Number(body.quantity || 1),
