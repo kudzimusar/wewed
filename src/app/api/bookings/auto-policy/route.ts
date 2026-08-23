@@ -28,8 +28,17 @@ export async function PUT(request: NextRequest) {
       maxAction: body.maxAction,
       maxPerBookingCents: body.maxPerBookingCents,
       maxTotalOpenCents: body.maxTotalOpenCents,
+      maxDepositCents: body.maxDepositCents,
       allowedCategories: body.allowedCategories,
+      allowedBookingModes: body.allowedBookingModes,
+      allowedProviderSlugs: body.allowedProviderSlugs,
+      allowedRiskClasses: body.allowedRiskClasses,
+      excludedCatalogItemIds: body.excludedCatalogItemIds,
       allowNonRefundable: body.allowNonRefundable,
+      allowHold: body.allowHold,
+      allowRequestSubmission: body.allowRequestSubmission,
+      allowInstantConfirmation: body.allowInstantConfirmation,
+      expiresAt: body.expiresAt,
       isActive: body.isActive,
     })
     return NextResponse.json({ success: true, data })
