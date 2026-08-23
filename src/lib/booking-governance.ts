@@ -536,7 +536,7 @@ async function ensureBudgetTx(tx: Tx, bookingId: string, weddingId: string) {
   await tx.$executeRawUnsafe(
     `INSERT INTO public."BudgetItem"
      (id,category,description,"estimatedCost","actualCost","paidAmount",currency,"vendorId","vendorName",notes,"serviceEngagementId","weddingId","createdAt","updatedAt")
-     VALUES ($1,$2,$3,$4,0,0,$5,$6,$7,$8,$9,$10,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
+     VALUES ($1,$2,$3,$4,NULL,0,$5,$6,$7,$8,$9,$10,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
     randomUUID(),
     booking.category,
     booking.firstLine,
@@ -635,7 +635,7 @@ export async function holdBookingGoverned(input: { bookingId: string; weddingId:
 }
 
 export async function submitBookingGoverned(input: { bookingId: string; weddingId: string; actorUserId: string }) {
-  let referral: { id: string; next: string } | null = null
+  const referral = { current: null as { id: string; next: string } | null }
   await db.$transaction(async (tx) => {
     const { header, lines } = await bookingForUpdate(tx, input.bookingId, input.weddingId)
     if (!['draft','held'].includes(header.status)) throw new BookingCommerceError('This booking has already been submitted.', 409, 'INVALID_BOOKING_STATE')
@@ -645,7 +645,7 @@ export async function submitBookingGoverned(input: { bookingId: string; weddingI
         `INSERT INTO wewed_booking."BookingEvent" (id,"bookingId","actorUserId","eventType","fromStatus","toStatus",metadata) VALUES ($1,$2,$3,'booking.submitted',$4,'quote_requested','{}'::jsonb)`,
         randomUUID(), header.id, input.actorUserId, header.status,
       )
-      referral = header.referralLinkId ? { id: header.referralLinkId, next: 'booking_requested' } : null
+      referral.current = header.referralLinkId ? { id: header.referralLinkId, next: 'booking_requested' } : null
       return
     }
     if (header.bookingMode !== 'instant') {
@@ -654,7 +654,7 @@ export async function submitBookingGoverned(input: { bookingId: string; weddingI
         `INSERT INTO wewed_booking."BookingEvent" (id,"bookingId","actorUserId","eventType","fromStatus","toStatus",metadata) VALUES ($1,$2,$3,'booking.submitted',$4,'requested','{}'::jsonb)`,
         randomUUID(), header.id, input.actorUserId, header.status,
       )
-      referral = header.referralLinkId ? { id: header.referralLinkId, next: 'booking_requested' } : null
+      referral.current = header.referralLinkId ? { id: header.referralLinkId, next: 'booking_requested' } : null
       return
     }
     if (header.totalCents == null) throw new BookingCommerceError('Instant Book requires a deterministic price.', 409, 'PRICE_REQUIRED')
@@ -671,13 +671,14 @@ export async function submitBookingGoverned(input: { bookingId: string; weddingI
       holds[0].id,
     )
     const next = await markConfirmedTx(tx, header, input.actorUserId, 'booking.confirmed')
-    referral = header.referralLinkId ? { id: header.referralLinkId, next: next === 'confirmed' ? 'booking_confirmed' : 'booking_requested' } : null
+    referral.current = header.referralLinkId ? { id: header.referralLinkId, next: next === 'confirmed' ? 'booking_confirmed' : 'booking_requested' } : null
   })
-  if (referral) {
+  const referralEvent = referral.current
+  if (referralEvent) {
     await db.$executeRawUnsafe(
       `INSERT INTO wewed_booking."ReferralEvent" (id,"referralLinkId","bookingId","userId","eventType",metadata)
        VALUES ($1,$2,$3,$4,$5,'{}'::jsonb)`,
-      randomUUID(), referral.id, input.bookingId, input.actorUserId, referral.next,
+      randomUUID(), referralEvent.id, input.bookingId, input.actorUserId, referralEvent.next,
     )
   }
   return getBookingForWedding(input.bookingId, input.weddingId)
