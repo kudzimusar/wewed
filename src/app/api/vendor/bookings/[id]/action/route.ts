@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { readAppSession } from '@/lib/app-session'
-import { BookingCommerceError, providerBookingAction } from '@/lib/booking-commerce'
+import { BookingCommerceError } from '@/lib/booking-commerce'
+import { providerBookingActionGoverned } from '@/lib/booking-governance'
 
 const ACTIONS = new Set(['approve','decline','preparing','ready','in_progress','return_due','inspection','completed'])
 
@@ -14,7 +15,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const body = await request.json() as Record<string, unknown>
     const action = typeof body.action === 'string' ? body.action : ''
     if (!ACTIONS.has(action)) return NextResponse.json({ success: false, error: 'Unsupported booking action.' }, { status: 400 })
-    const data = await providerBookingAction({ bookingId: id, actorUserId: session.userId, action: action as Action })
+    const data = await providerBookingActionGoverned({ bookingId: id, actorUserId: session.userId, action: action as Action })
     return NextResponse.json({ success: true, data })
   } catch (error) {
     if (error instanceof BookingCommerceError) return NextResponse.json({ success: false, code: error.code, error: error.message }, { status: error.status })
