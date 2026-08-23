@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
-import { BookingCommerceError, holdBooking } from '@/lib/booking-commerce'
+import { BookingCommerceError } from '@/lib/booking-commerce'
+import { holdBookingGoverned } from '@/lib/booking-governance'
 import { requireWeddingPermission } from '@/lib/wedding-access'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -12,7 +13,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const idempotencyKey = typeof body.idempotencyKey === 'string' && body.idempotencyKey.trim()
       ? body.idempotencyKey.trim().slice(0, 200)
       : randomUUID()
-    const data = await holdBooking({ bookingId: id, weddingId: access.context.weddingId, actorUserId: access.context.session.userId, idempotencyKey })
+    const data = await holdBookingGoverned({ bookingId: id, weddingId: access.context.weddingId, actorUserId: access.context.session.userId, idempotencyKey })
     return NextResponse.json({ success: true, data })
   } catch (error) {
     if (error instanceof BookingCommerceError) {
