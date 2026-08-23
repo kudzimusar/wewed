@@ -9,7 +9,9 @@ import {
   LayoutDashboard,
   Loader2,
   LogOut,
+  Menu,
   Repeat2,
+  Settings,
   UserRound,
 } from 'lucide-react'
 import { PlannerAdaptiveNavigation } from '@/components/navigation/planner-adaptive-navigation'
@@ -64,7 +66,7 @@ function PlannerSecondaryAdaptiveNavigation() {
   return (
     <div
       data-testid="planner-secondary-adaptive-navigation"
-      className="fixed left-[max(0.75rem,env(safe-area-inset-left))] top-[max(0.75rem,env(safe-area-inset-top))] z-[360] rounded-xl bg-espresso/95 p-1 shadow-xl backdrop-blur"
+      className="fixed left-[max(0.75rem,env(safe-area-inset-left))] top-[max(0.75rem,env(safe-area-inset-top))] z-[360]"
     >
       <PlannerAdaptiveNavigation
         displayName={session.user.displayName}
@@ -97,63 +99,66 @@ function PrivateWorkspaceQuickNavigation() {
     }
   }
 
+  const compactControl =
+    'inline-flex size-10 items-center justify-center rounded-full border border-gold/20 bg-ivory/95 text-espresso/70 shadow-sm backdrop-blur transition hover:border-gold/45 hover:bg-champagne/45 hover:text-espresso focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60'
+
   return (
-    <div
-      className="fixed bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] left-3 z-[360] sm:bottom-4 sm:left-4"
+    <nav
       data-testid="workspace-quick-navigation"
       aria-label="Workspace navigation controls"
+      className="pointer-events-none fixed inset-x-0 top-0 z-[360] h-0"
     >
-      <div className="flex items-center gap-1 rounded-full border border-gold/25 bg-espresso/95 p-1.5 text-champagne shadow-2xl backdrop-blur-xl">
-        <button
-          type="button"
-          onClick={() => window.history.back()}
-          className="flex size-9 items-center justify-center rounded-full text-champagne/75 transition hover:bg-gold/10 hover:text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/70"
-          aria-label="Go back"
-          title="Back"
-        >
-          <ArrowLeft className="size-4" />
-        </button>
-        <button
-          type="button"
-          onClick={() => window.history.forward()}
-          className="flex size-9 items-center justify-center rounded-full text-champagne/75 transition hover:bg-gold/10 hover:text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/70"
-          aria-label="Go forward"
-          title="Forward"
-        >
-          <ArrowRight className="size-4" />
-        </button>
-        <div className="h-5 w-px bg-gold/20" aria-hidden="true" />
-        <NotificationBell className="text-champagne/75 hover:text-gold" />
-        <div className="h-5 w-px bg-gold/20" aria-hidden="true" />
+      <div className="pointer-events-auto absolute left-[max(0.75rem,env(safe-area-inset-left))] top-[max(0.75rem,env(safe-area-inset-top))] flex items-center gap-1.5">
         <details className="group relative">
           <summary
-            className="flex size-9 cursor-pointer list-none items-center justify-center rounded-full bg-gold text-espresso transition hover:bg-gold-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-champagne [&::-webkit-details-marker]:hidden"
-            aria-label="Open account menu"
-            title="Account"
+            className={`${compactControl} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}
+            aria-label="Open Wewed menu"
+            title="Menu"
           >
-            <UserRound className="size-4" />
+            <Menu className="size-[18px]" />
           </summary>
-          <div className="absolute bottom-12 left-0 w-72 rounded-2xl border border-gold/20 bg-espresso p-4 text-champagne shadow-2xl">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gold">Signed in</p>
-            <p className="mt-2 truncate font-serif text-xl">{displayName}</p>
-            <p className="mt-1 text-xs capitalize text-champagne/55">{session.user.role} account</p>
-            <div className="mt-4 grid gap-2">
+
+          <div className="absolute left-0 top-12 w-[min(19rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-gold/20 bg-espresso text-champagne shadow-2xl">
+            <div className="border-b border-gold/15 px-4 py-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gold">Signed in</p>
+              <div className="mt-2 flex items-center gap-3">
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gold/15 text-gold">
+                  <UserRound className="size-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate font-serif text-lg leading-tight">{displayName}</p>
+                  <p className="mt-0.5 text-[11px] capitalize text-champagne/50">{session.user.role} account</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-1 p-2">
               <Link
                 href={workspace.href}
-                className="flex items-center gap-2 rounded-xl bg-gold px-3 py-2.5 text-sm font-semibold text-espresso"
+                className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium text-champagne/80 hover:bg-gold/10 hover:text-gold"
               >
                 <LayoutDashboard className="size-4" />
                 {workspace.label}
               </Link>
               <NotificationBell
                 showLabel
-                className="min-h-11 justify-start rounded-xl border border-gold/20 px-3 text-champagne/80 hover:text-gold"
+                className="min-h-11 justify-start rounded-xl px-3 text-champagne/80 hover:bg-gold/10 hover:text-gold"
               />
+              <Link
+                href="/settings"
+                className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm text-champagne/80 hover:bg-gold/10 hover:text-gold"
+              >
+                <Settings className="size-4" />
+                Settings
+              </Link>
+            </div>
+
+            <div className="grid gap-1 border-t border-gold/15 p-2">
               <button
                 type="button"
                 onClick={() => void endSession('/sign-in')}
                 disabled={leaving !== null}
-                className="flex items-center gap-2 rounded-xl border border-gold/20 px-3 py-2.5 text-left text-sm text-champagne/80 hover:bg-gold/10 hover:text-gold disabled:opacity-60"
+                className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-left text-sm text-champagne/75 hover:bg-gold/10 hover:text-gold disabled:opacity-60"
               >
                 {leaving === 'switch' ? <Loader2 className="size-4 animate-spin" /> : <Repeat2 className="size-4" />}
                 Switch account
@@ -162,7 +167,7 @@ function PrivateWorkspaceQuickNavigation() {
                 type="button"
                 onClick={() => void endSession('/')}
                 disabled={leaving !== null}
-                className="flex items-center gap-2 rounded-xl border border-gold/20 px-3 py-2.5 text-left text-sm text-champagne/70 hover:bg-gold/10 hover:text-gold disabled:opacity-60"
+                className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-left text-sm text-champagne/65 hover:bg-gold/10 hover:text-gold disabled:opacity-60"
               >
                 {leaving === 'signout' ? <Loader2 className="size-4 animate-spin" /> : <LogOut className="size-4" />}
                 Sign out
@@ -170,8 +175,28 @@ function PrivateWorkspaceQuickNavigation() {
             </div>
           </div>
         </details>
+
+        <button
+          type="button"
+          onClick={() => window.history.back()}
+          className={compactControl}
+          aria-label="Go back"
+          title="Back"
+        >
+          <ArrowLeft className="size-[18px]" />
+        </button>
       </div>
-    </div>
+
+      <button
+        type="button"
+        onClick={() => window.history.forward()}
+        className={`pointer-events-auto absolute right-[max(0.75rem,env(safe-area-inset-right))] top-[max(0.75rem,env(safe-area-inset-top))] ${compactControl}`}
+        aria-label="Go forward"
+        title="Forward"
+      >
+        <ArrowRight className="size-[18px]" />
+      </button>
+    </nav>
   )
 }
 
