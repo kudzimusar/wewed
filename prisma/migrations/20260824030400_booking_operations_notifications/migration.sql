@@ -238,7 +238,7 @@ EXECUTE FUNCTION wewed_booking.notify_booking_status();
 REVOKE ALL ON wewed_booking."BookingTaskLink" FROM PUBLIC;
 REVOKE ALL ON FUNCTION wewed_booking.upsert_booking_task(text,text,text,text,text,timestamp without time zone) FROM PUBLIC;
 REVOKE ALL ON FUNCTION wewed_booking.sync_confirmed_booking_operations() FROM PUBLIC;
-REVOKE ALL ON FUNCTION wewed_booking.insert_booking_notification(text,text,text,text,text,text,text,text,text,text,boolean) FROM PUBLIC;
+REVOKE ALL ON FUNCTION wewed_booking.insert_booking_notification(text,text,text,text,text,text,text,text,text,boolean) FROM PUBLIC;
 REVOKE ALL ON FUNCTION wewed_booking.notify_booking_status() FROM PUBLIC;
 
 DO $booking_ops_roles$
@@ -249,7 +249,7 @@ BEGIN
       EXECUTE format('REVOKE ALL ON wewed_booking."BookingTaskLink" FROM %I',role_name);
       EXECUTE format('REVOKE ALL ON FUNCTION wewed_booking.upsert_booking_task(text,text,text,text,text,timestamp without time zone) FROM %I',role_name);
       EXECUTE format('REVOKE ALL ON FUNCTION wewed_booking.sync_confirmed_booking_operations() FROM %I',role_name);
-      EXECUTE format('REVOKE ALL ON FUNCTION wewed_booking.insert_booking_notification(text,text,text,text,text,text,text,text,text,text,boolean) FROM %I',role_name);
+      EXECUTE format('REVOKE ALL ON FUNCTION wewed_booking.insert_booking_notification(text,text,text,text,text,text,text,text,text,boolean) FROM %I',role_name);
       EXECUTE format('REVOKE ALL ON FUNCTION wewed_booking.notify_booking_status() FROM %I',role_name);
     END IF;
   END LOOP;
