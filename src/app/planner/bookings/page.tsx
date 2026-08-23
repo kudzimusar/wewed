@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, CalendarDays, CheckCircle2, Clock3, Loader2, RefreshCw, Store } from 'lucide-react'
+import { ArrowLeft, CalendarDays, CheckCircle2, Clock3, FileSignature, Loader2, RefreshCw, Store, XCircle } from 'lucide-react'
 
 type BookingLine = { name?: string; quantity?: number; catalogItemId?: string; variantId?: string | null }
 type WeddingBooking = {
@@ -30,23 +30,44 @@ type WeddingBooking = {
   lines: BookingLine[]
 }
 
-function money(value: number | null, currency: string) {
+type Governance = {
+  acceptedQuoteId?: string | null
+  quoteId?: string | null
+  quoteStatus?: string | null
+  quoteCurrency?: string | null
+  quoteSubtotalCents?: number | null
+  quoteFeesCents?: number | null
+  quoteDepositCents?: number | null
+  quoteTotalCents?: number | null
+  quoteNotes?: string | null
+  quoteProposedAt?: string | null
+  contractId?: string | null
+  contractNumber?: string | null
+  contractStatus?: string | null
+  currentVersionNumber?: number | null
+}
+
+function money(value: number | null | undefined, currency: string) {
   if (value == null) return 'Quote pending'
   try { return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(value / 100) }
   catch { return `${currency} ${(value / 100).toFixed(2)}` }
 }
 
-function dateLabel(value: string | null) {
+function dateLabel(value: string | null | undefined) {
   if (!value) return 'Date to be confirmed'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: value.includes('T') ? 'short' : undefined }).format(date)
 }
 
+const cancellable = new Set(['draft','held','requested','quote_requested','quote_proposed','awaiting_vendor','awaiting_terms'])
+
 export default function PlannerBookingsPage() {
   const [bookings, setBookings] = useState<WeddingBooking[]>([])
+  const [governance, setGovernance] = useState<Record<string, Governance>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [busyId, setBusyId] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -56,6 +77,13 @@ export default function PlannerBookingsPage() {
       const payload = await response.json() as { success?: boolean; data?: WeddingBooking[]; error?: string }
       if (!response.ok || !payload.success || !payload.data) throw new Error(payload.error || 'Unable to load bookings.')
       setBookings(payload.data)
+      const governed = payload.data.filter((booking) => ['quote_proposed','awaiting_terms','confirmed'].includes(booking.status) || booking.serviceEngagementId)
+      const results = await Promise.all(governed.map(async (booking) => {
+        const detail = await fetch(`/api/bookings/${encodeURIComponent(booking.id)}/terms`, { credentials: 'include', cache: 'no-store' })
+        const detailPayload = await detail.json().catch(() => ({})) as { success?: boolean; data?: Governance }
+        return [booking.id, detail.ok && detailPayload.success ? detailPayload.data ?? {} : {}] as const
+      }))
+      setGovernance(Object.fromEntries(results))
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to load bookings.')
     } finally {
@@ -66,10 +94,31 @@ export default function PlannerBookingsPage() {
   useEffect(() => { void load() }, [load])
 
   const counts = useMemo(() => ({
-    pending: bookings.filter((booking) => ['draft', 'held', 'requested', 'quote_requested', 'awaiting_vendor', 'awaiting_terms', 'awaiting_deposit'].includes(booking.status)).length,
+    pending: bookings.filter((booking) => ['draft', 'held', 'requested', 'quote_requested', 'quote_proposed', 'awaiting_vendor', 'awaiting_terms', 'awaiting_deposit'].includes(booking.status)).length,
     active: bookings.filter((booking) => ['confirmed', 'preparing', 'ready', 'in_progress', 'return_due', 'inspection'].includes(booking.status)).length,
     completed: bookings.filter((booking) => booking.status === 'completed').length,
   }), [bookings])
+
+  async function postAction(bookingId: string, endpoint: string, body: Record<string, unknown> = {}) {
+    if (busyId) return
+    setBusyId(bookingId)
+    setError('')
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const payload = await response.json() as { success?: boolean; error?: string }
+      if (!response.ok || !payload.success) throw new Error(payload.error || 'Unable to update booking.')
+      await load()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to update booking.')
+    } finally {
+      setBusyId('')
+    }
+  }
 
   return (
     <main className="min-h-dvh bg-espresso px-4 py-8 text-champagne sm:px-6 sm:py-12">
@@ -82,7 +131,7 @@ export default function PlannerBookingsPage() {
         <section className="mt-5 rounded-3xl border border-gold/20 bg-champagne/5 p-6 shadow-sm sm:p-8">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold">Wedding order book</p>
           <h1 className="mt-2 font-serif text-4xl sm:text-6xl">My bookings</h1>
-          <p className="mt-4 max-w-3xl text-sm leading-7 text-champagne/65">Every marketplace booking for the active wedding lives here, whether it was made directly by the couple or managed through the planner workspace. Commercial commitments remain linked to the canonical vendor, Budget and Service Engagement records.</p>
+          <p className="mt-4 max-w-3xl text-sm leading-7 text-champagne/65">Every marketplace booking for the active wedding lives here, whether it was made directly by the couple or managed through the planner workspace. Vendor quotes require explicit acceptance; contract-required services remain pending until the canonical Wewed contract becomes effective; Budget records never imply payment or couple funding.</p>
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-gold/15 bg-black/10 p-4"><div className="text-xs uppercase tracking-[0.16em] text-champagne/45">Pending</div><div className="mt-2 text-3xl font-semibold">{counts.pending}</div></div>
             <div className="rounded-2xl border border-gold/15 bg-black/10 p-4"><div className="text-xs uppercase tracking-[0.16em] text-champagne/45">Active</div><div className="mt-2 text-3xl font-semibold">{counts.active}</div></div>
@@ -97,6 +146,8 @@ export default function PlannerBookingsPage() {
         <div className="mt-6 space-y-4">
           {bookings.map((booking) => {
             const date = booking.serviceStart || booking.appointmentAt || booking.eventDate
+            const terms = governance[booking.id] ?? {}
+            const quoteCurrency = terms.quoteCurrency || booking.currency
             return <article key={booking.id} className="rounded-3xl border border-gold/20 bg-champagne/5 p-5 shadow-sm sm:p-6">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
@@ -113,7 +164,7 @@ export default function PlannerBookingsPage() {
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <Link href={`/vendors/${encodeURIComponent(booking.providerSlug)}`} className="inline-flex min-h-10 items-center rounded-full border border-gold/30 px-4 text-sm font-semibold text-gold">Vendor profile</Link>
-                    {booking.serviceEngagementId ? <Link href="/planner/contracts" className="inline-flex min-h-10 items-center gap-2 rounded-full border border-gold/30 px-4 text-sm font-semibold text-gold"><CheckCircle2 className="size-4" /> Commercial records</Link> : null}
+                    {terms.contractId ? <Link href={`/planner/contracts/${encodeURIComponent(terms.contractId)}/governance`} className="inline-flex min-h-10 items-center gap-2 rounded-full border border-gold/30 px-4 text-sm font-semibold text-gold"><FileSignature className="size-4" /> {terms.contractNumber || 'Governed contract'}</Link> : null}
                   </div>
                 </div>
                 <div className="w-full shrink-0 rounded-2xl border border-gold/15 bg-black/10 p-4 lg:w-64">
@@ -124,6 +175,32 @@ export default function PlannerBookingsPage() {
                   {booking.serviceEngagementId ? <div className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-emerald-300"><CheckCircle2 className="size-4" /> Service Engagement linked</div> : null}
                 </div>
               </div>
+
+              {booking.status === 'quote_proposed' ? <div className="mt-5 rounded-2xl border border-gold/30 bg-champagne/10 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gold">Vendor quote awaiting your decision</p>
+                <div className="mt-3 grid gap-2 text-sm text-champagne/75 sm:grid-cols-2 lg:grid-cols-4">
+                  <div><span className="text-champagne/45">Subtotal</span><div className="font-semibold text-champagne">{money(terms.quoteSubtotalCents, quoteCurrency)}</div></div>
+                  <div><span className="text-champagne/45">Fees</span><div className="font-semibold text-champagne">{money(terms.quoteFeesCents ?? 0, quoteCurrency)}</div></div>
+                  <div><span className="text-champagne/45">Deposit</span><div className="font-semibold text-champagne">{terms.quoteDepositCents == null ? 'None stated' : money(terms.quoteDepositCents, quoteCurrency)}</div></div>
+                  <div><span className="text-champagne/45">Total</span><div className="font-semibold text-champagne">{money(terms.quoteTotalCents, quoteCurrency)}</div></div>
+                </div>
+                {terms.quoteNotes ? <div className="mt-3 rounded-xl bg-black/10 p-3 text-sm text-champagne/70">{terms.quoteNotes}</div> : null}
+                <p className="mt-3 text-xs leading-5 text-champagne/55">Accepting the quote records your commercial acceptance. It does not accept a service contract. If this service requires a contract, Wewed will create the governed draft and the booking will remain unconfirmed until the required parties complete the separate acceptance workflow.</p>
+                <button disabled={busyId === booking.id || !terms.quoteId} onClick={() => void postAction(booking.id, `/api/bookings/${encodeURIComponent(booking.id)}/quote/accept`, { quoteId: terms.quoteId })} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-full bg-champagne px-4 text-sm font-bold text-espresso disabled:opacity-50">{busyId === booking.id ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />} Accept vendor quote</button>
+              </div> : null}
+
+              {booking.status === 'awaiting_terms' ? <div className="mt-5 rounded-2xl border border-amber-300/40 bg-amber-950/20 p-4 text-sm text-amber-100">
+                <div className="flex items-center gap-2 font-semibold"><FileSignature className="size-4" /> Contract effectivity required</div>
+                <p className="mt-2 leading-6">The commercial booking is intentionally not confirmed yet. Complete the governed Wewed contract review/acceptance workflow, then use the check below. Wewed verifies append-only contract effectivity evidence rather than trusting a checkbox.</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {terms.contractId ? <Link href={`/planner/contracts/${encodeURIComponent(terms.contractId)}/governance`} className="inline-flex min-h-10 items-center rounded-full border border-amber-200/40 px-4 font-semibold">Open contract</Link> : null}
+                  <button disabled={busyId === booking.id} onClick={() => void postAction(booking.id, `/api/bookings/${encodeURIComponent(booking.id)}/terms`)} className="inline-flex min-h-10 items-center gap-2 rounded-full bg-champagne px-4 font-bold text-espresso disabled:opacity-50">{busyId === booking.id ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />} Check signed terms</button>
+                </div>
+              </div> : null}
+
+              {cancellable.has(booking.status) ? <div className="mt-5 border-t border-gold/15 pt-4">
+                <button disabled={busyId === booking.id} onClick={() => void postAction(booking.id, `/api/bookings/${encodeURIComponent(booking.id)}/cancel`, { reason: 'Cancelled from wedding order book' })} className="inline-flex min-h-9 items-center gap-2 rounded-full border border-red-300/30 px-3 text-xs font-semibold text-red-200 disabled:opacity-50"><XCircle className="size-4" /> Cancel before governed commitment</button>
+              </div> : null}
             </article>
           })}
         </div>
