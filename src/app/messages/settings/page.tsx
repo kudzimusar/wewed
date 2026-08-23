@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
   ArrowLeft,
@@ -76,7 +76,7 @@ async function readPayload(response: Response) {
   } | null>
 }
 
-function StatusPill({ tone, children }: { tone: 'ready' | 'pending' | 'muted'; children: React.ReactNode }) {
+function StatusPill({ tone, children }: { tone: 'ready' | 'pending' | 'muted'; children: ReactNode }) {
   const classes = tone === 'ready'
     ? 'border-gold/30 bg-gold/10 text-espresso'
     : tone === 'pending'
@@ -112,7 +112,7 @@ function PreferenceToggle({
   onChange: (checked: boolean) => void
 }) {
   return (
-    <label className={`relative inline-flex shrink-0 items-center ${disabled ? 'opacity-45' : 'cursor-pointer'}`}>
+    <label className={`relative inline-flex h-7 w-12 shrink-0 ${disabled ? 'opacity-45' : 'cursor-pointer'}`}>
       <input
         type="checkbox"
         checked={checked}
@@ -121,10 +121,9 @@ function PreferenceToggle({
         className="peer sr-only"
         aria-label={label}
       />
-      <span className="flex h-7 w-12 items-center rounded-full border border-espresso/15 bg-espresso/10 p-0.5 transition peer-checked:border-gold peer-checked:bg-gold peer-focus-visible:ring-2 peer-focus-visible:ring-gold/55 peer-disabled:cursor-not-allowed">
-        <span className="flex size-5 items-center justify-center rounded-full bg-white text-transparent shadow-sm transition-transform peer-checked:translate-x-5 peer-checked:text-gold">
-          <Check className="size-3" />
-        </span>
+      <span className="absolute inset-0 rounded-full border border-espresso/15 bg-espresso/10 transition peer-checked:border-gold peer-checked:bg-gold peer-focus-visible:ring-2 peer-focus-visible:ring-gold/55 peer-disabled:cursor-not-allowed" />
+      <span className="pointer-events-none absolute left-1 top-1 flex size-5 items-center justify-center rounded-full bg-white text-transparent shadow-sm transition-transform peer-checked:translate-x-5 peer-checked:text-gold">
+        <Check className="size-3" />
       </span>
     </label>
   )
@@ -298,7 +297,7 @@ export default function MessageChannelSettingsPage() {
         : <StatusPill tone="muted">Unavailable</StatusPill>
 
     return (
-      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-gold/12 px-3 py-3 last:border-b-0 sm:px-4">
+      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-gold/15 px-3 py-3 last:border-b-0 sm:px-4">
         <div className="flex size-9 items-center justify-center rounded-xl bg-champagne/45 text-espresso">
           <ChannelIcon channel={channel} />
         </div>
@@ -375,7 +374,7 @@ export default function MessageChannelSettingsPage() {
             <p className="px-4 py-8 text-sm text-espresso/55">Channel status is unavailable.</p>
           ) : (
             <div>
-              <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-gold/12 px-3 py-3 sm:px-4">
+              <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-gold/15 px-3 py-3 sm:px-4">
                 <div className="flex size-9 items-center justify-center rounded-xl bg-champagne/45 text-espresso">
                   <ChannelIcon channel="EMAIL" />
                 </div>
@@ -448,12 +447,12 @@ export default function MessageChannelSettingsPage() {
           Email verification arrives in your external mailbox (for example Gmail), not in Wewed Messages.
         </p>
 
-        <details className="group mt-4 overflow-hidden rounded-2xl border border-gold/18 bg-white">
+        <details className="group mt-4 overflow-hidden rounded-2xl border border-gold/20 bg-white">
           <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-3 text-sm font-semibold sm:px-4 [&::-webkit-details-marker]:hidden">
             <span>Add or change a phone number</span>
             <ChevronDown className="size-4 text-espresso/55 transition group-open:rotate-180" />
           </summary>
-          <div className="border-t border-gold/12 px-3 py-3 sm:px-4">
+          <div className="border-t border-gold/15 px-3 py-3 sm:px-4">
             <p className="mb-3 text-xs leading-5 text-espresso/50">WhatsApp and SMS require a verified phone endpoint before delivery can be enabled.</p>
             <form onSubmit={addEndpoint} className="grid gap-2 sm:grid-cols-[150px_minmax(0,1fr)_auto]">
               <select
