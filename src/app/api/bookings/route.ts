@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { BookingCommerceError, createBookingDraft, listWeddingBookings } from '@/lib/booking-commerce'
+import { applyBookingDraftLogistics } from '@/lib/booking-logistics'
 import { db } from '@/lib/db'
 import { requireWeddingPermission } from '@/lib/wedding-access'
 
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'itemId is required.' }, { status: 400 })
     }
     const customerUserId = await weddingCustomerUserId(access.context.weddingId)
-    const data = await createBookingDraft({
+    let data = await createBookingDraft({
       weddingId: access.context.weddingId,
       actorUserId: access.context.session.userId,
       customerUserId,
@@ -58,6 +59,16 @@ export async function POST(request: NextRequest) {
       notes: body.notes,
       referralToken: typeof body.referralToken === 'string' ? body.referralToken : null,
     })
+    if (body.deliveryAt || body.setupStart || body.setupEnd || body.collectionAt) {
+      data = await applyBookingDraftLogistics({
+        bookingId: String(data.id),
+        weddingId: access.context.weddingId,
+        deliveryAt: body.deliveryAt,
+        setupStart: body.setupStart,
+        setupEnd: body.setupEnd,
+        collectionAt: body.collectionAt,
+      })
+    }
     return NextResponse.json({ success: true, data }, { status: 201 })
   } catch (error) {
     if (error instanceof BookingCommerceError) {
