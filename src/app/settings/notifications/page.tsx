@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
-import { BellRing, CheckCircle2, Loader2, MailCheck, Save } from 'lucide-react'
+import { BellRing, CheckCircle2, ExternalLink, Loader2, MailCheck, Save } from 'lucide-react'
 import { NotificationSectionNavigation } from '@/components/notifications/notification-section-navigation'
 
 interface Preferences {
@@ -54,6 +54,23 @@ const EMPTY_CAPABILITIES: Capabilities = {
   email: { transportConfigured: false, endpointVerified: false, communicationConsentEnabled: false, ready: false },
   whatsapp: { transportConfigured: false, endpointVerified: false, communicationConsentEnabled: false, exactActionLinkConfigured: false, ready: false },
   push: { transportConfigured: false, activeSubscriptionCount: 0, mode: 'none', ready: false },
+}
+
+function Toggle({ checked, disabled, label, onChange }: { checked: boolean; disabled?: boolean; label: string; onChange?: (checked: boolean) => void }) {
+  return (
+    <label className={`relative inline-flex h-7 w-12 shrink-0 ${disabled ? 'opacity-40' : 'cursor-pointer'}`}>
+      <input
+        type="checkbox"
+        className="peer sr-only"
+        checked={checked}
+        disabled={disabled}
+        onChange={(event) => onChange?.(event.target.checked)}
+        aria-label={label}
+      />
+      <span className="absolute inset-0 rounded-full border border-[#2a211b]/15 bg-[#2a211b]/10 transition peer-checked:border-[#8a672f] peer-checked:bg-[#bf9b5f] peer-focus-visible:ring-2 peer-focus-visible:ring-[#bf9b5f]/55" />
+      <span className="pointer-events-none absolute left-1 top-1 size-5 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5" />
+    </label>
+  )
 }
 
 export default function NotificationSettingsPage() {
@@ -110,9 +127,7 @@ export default function NotificationSettingsPage() {
           data?: Capabilities
         }
 
-        if (!cancelled && capabilityPayload.success && capabilityPayload.data) {
-          setCapabilities(capabilityPayload.data)
-        }
+        if (!cancelled && capabilityPayload.success && capabilityPayload.data) setCapabilities(capabilityPayload.data)
         if (!cancelled && preferencePayload.success && preferencePayload.data) {
           const capability = capabilityPayload.success && capabilityPayload.data
             ? capabilityPayload.data
@@ -132,20 +147,18 @@ export default function NotificationSettingsPage() {
         if (!cancelled) {
           const verification = new URLSearchParams(window.location.search).get('emailVerification')
           if (verification === 'success') {
-            setEmailMessage('Account email verified. Allow Email delivery below, then enable Email notifications.')
+            setEmailMessage('Account email verified. Allow Email delivery, then enable Email notifications.')
             setMessage('Account email verified successfully.')
           }
           if (verification === 'invalid') {
-            setEmailMessage('That email verification link is invalid or has expired. Request a new one here.')
+            setEmailMessage('That email verification link is invalid or expired. Request a new one here.')
           }
         }
       } finally {
         if (!cancelled) setLoading(false)
       }
     })()
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [])
 
   async function save() {
@@ -231,126 +244,121 @@ export default function NotificationSettingsPage() {
     return <main className="flex min-h-dvh items-center justify-center bg-[#f8f3e9] text-[#2a211b]/45"><Loader2 className="mr-2 size-5 animate-spin" /> Loading notification settings…</main>
   }
 
-  const channels: Array<{
-    key: keyof Pick<Preferences, 'pushEnabled' | 'emailEnabled' | 'whatsAppEnabled'>
-    capabilityKey: keyof Capabilities
-    title: string
-    description: string
-  }> = [
-    { key: 'pushEnabled', capabilityKey: 'push', title: 'Push', description: 'Browser/PWA push to every device you subscribe to Wewed.' },
-    { key: 'emailEnabled', capabilityKey: 'email', title: 'Email', description: 'Requires Wewed email delivery, your verified account email, and communication consent.' },
-    { key: 'whatsAppEnabled', capabilityKey: 'whatsapp', title: 'WhatsApp', description: 'Requires a verified WhatsApp endpoint, communication consent, and an approved Wewed notification route.' },
-  ]
-
   function readinessText(key: keyof Capabilities) {
     const capability = capabilities[key]
     if (capability.ready) {
-      if (key === 'push') return `Ready on ${capability.activeSubscriptionCount} subscribed device${capability.activeSubscriptionCount === 1 ? '' : 's'}.`
-      if (key === 'whatsapp' && !capability.exactActionLinkConfigured) return 'Ready for delivery. Exact source button awaits the approved Wewed action template.'
-      return 'Ready for delivery.'
+      if (key === 'push') return `${capability.activeSubscriptionCount} active ${capability.activeSubscriptionCount === 1 ? 'device' : 'devices'}`
+      if (key === 'whatsapp' && !capability.exactActionLinkConfigured) return 'Ready · source button pending template approval'
+      return 'Ready'
     }
-    if (!capability.transportConfigured) return 'Wewed transport is not configured in this environment.'
-    if (key === 'push') return 'No active push subscription is registered yet. Manage Push devices to subscribe this browser.'
-    if (!capability.endpointVerified) return `No verified ${key === 'email' ? 'account email' : 'WhatsApp'} endpoint is available.`
-    if (!capability.communicationConsentEnabled) return 'Communication consent for this channel is disabled.'
-    return 'This channel is not ready.'
+    if (!capability.transportConfigured) return 'Unavailable'
+    if (key === 'push') return 'No active Push device'
+    if (!capability.endpointVerified) return `Needs ${key === 'email' ? 'email' : 'WhatsApp'} verification`
+    if (!capability.communicationConsentEnabled) return 'Delivery permission required'
+    return 'Not ready'
   }
 
+  const channelRows: Array<{
+    key: keyof Pick<Preferences, 'pushEnabled' | 'emailEnabled' | 'whatsAppEnabled'>
+    capabilityKey: keyof Capabilities
+    title: string
+  }> = [
+    { key: 'pushEnabled', capabilityKey: 'push', title: 'Push' },
+    { key: 'emailEnabled', capabilityKey: 'email', title: 'Email' },
+    { key: 'whatsAppEnabled', capabilityKey: 'whatsapp', title: 'WhatsApp' },
+  ]
+
   return (
-    <main className="min-h-dvh bg-[#f8f3e9] px-4 py-8 pb-32 text-[#2a211b] sm:px-6 sm:pb-8">
+    <main className="min-h-dvh bg-[#f8f3e9] px-3 pb-10 pt-16 text-[#2a211b] sm:px-6 sm:pt-8">
       <div className="mx-auto max-w-3xl">
         <NotificationSectionNavigation surface="settings" />
-        <header className="mt-5 rounded-3xl border border-[#2a211b]/10 bg-white p-6 shadow-sm sm:p-8">
-          <div className="flex size-11 items-center justify-center rounded-2xl bg-[#9a7440]/10 text-[#8a672f]"><BellRing className="size-5" /></div>
-          <h1 className="mt-4 font-serif text-4xl sm:text-5xl">Notification settings</h1>
-          <p className="mt-3 text-sm leading-7 text-[#2a211b]/55">These preferences belong to this Wewed account. You only receive notifications for sources your current role, assignments and permissions authorize.</p>
+
+        <header className="mb-4">
+          <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a672f]">
+            <BellRing className="size-3.5" /> Notifications
+          </div>
+          <h1 className="mt-1 font-serif text-3xl leading-tight sm:text-4xl">Notification settings</h1>
+          <p className="mt-1 max-w-2xl text-sm leading-5 text-[#2a211b]/55">Choose delivery channels and quiet hours for this account.</p>
         </header>
 
-        <section className="mt-6 rounded-3xl border border-[#2a211b]/10 bg-white p-6 shadow-sm">
-          <h2 className="font-serif text-2xl">Delivery channels</h2>
-          <div className="mt-4 rounded-2xl border border-[#2a211b]/10 bg-[#f8f3e9]/60 p-4">
-            <div className="flex items-start gap-3">
-              <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-[#8a672f]" />
-              <div>
-                <strong className="block text-sm">In-app — always on</strong>
-                <p className="mt-1 text-xs leading-5 text-[#2a211b]/50">Wewed keeps one canonical account-level notification history. Opening or acknowledging on one device is reflected on the same account elsewhere.</p>
-              </div>
+        <section className="overflow-hidden rounded-2xl border border-[#2a211b]/10 bg-white shadow-sm" aria-labelledby="delivery-title">
+          <div className="border-b border-[#2a211b]/10 px-3 py-3 sm:px-4">
+            <h2 id="delivery-title" className="text-sm font-semibold">Delivery</h2>
+          </div>
+
+          <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-[#2a211b]/10 px-3 py-3 sm:px-4">
+            <div className="flex size-8 items-center justify-center rounded-lg bg-[#bf9b5f]/10 text-[#8a672f]"><CheckCircle2 className="size-4" /></div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold">In-app</p>
+              <p className="text-xs text-[#2a211b]/50">Canonical Wewed notification history · always on</p>
             </div>
+            <Toggle checked disabled label="In-app notifications are always on" />
           </div>
-          <div className="mt-3 grid gap-3">
-            {channels.map((channel) => {
-              const ready = capabilities[channel.capabilityKey].ready
-              const enabled = form[channel.key]
-              return (
-                <div key={channel.key} className={`rounded-2xl border border-[#2a211b]/10 p-4 ${ready ? '' : 'bg-[#faf7f1]'}`}>
-                  <label className={`flex items-start gap-3 ${ready ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}>
-                    <input
-                      type="checkbox"
-                      checked={enabled && ready}
-                      disabled={!ready}
-                      onChange={(event) => setForm((current) => ({ ...current, [channel.key]: event.target.checked }))}
-                      className="mt-1 size-4 accent-[#8a672f]"
-                    />
-                    <span>
-                      <strong className="block text-sm">{channel.title}</strong>
-                      <span className="mt-1 block text-xs leading-5 text-[#2a211b]/50">{channel.description}</span>
-                      <span className={`mt-1 block text-xs font-semibold ${ready ? 'text-emerald-700' : 'text-amber-700'}`}>{readinessText(channel.capabilityKey)}</span>
-                    </span>
-                  </label>
-                  {channel.key === 'pushEnabled' && (
-                    <Link href="/settings/notifications/push" className="mt-3 inline-flex text-xs font-semibold text-[#725329] underline underline-offset-2">
-                      Manage Push devices
-                    </Link>
-                  )}
-                  {channel.key === 'emailEnabled' && capabilities.email.transportConfigured && !capabilities.email.endpointVerified && (
-                    <button
-                      type="button"
-                      disabled={channelAction !== null}
-                      onClick={() => void requestEmailVerification()}
-                      className="mt-3 inline-flex min-h-9 items-center gap-2 rounded-full border border-[#8a672f]/25 px-3 text-xs font-semibold text-[#725329] disabled:opacity-50"
-                    >
-                      {channelAction === 'email-verification' ? <Loader2 className="size-3.5 animate-spin" /> : <MailCheck className="size-3.5" />}
-                      Verify account email
+
+          {channelRows.map((channel) => {
+            const capability = capabilities[channel.capabilityKey]
+            const ready = capability.ready
+            const enabled = form[channel.key]
+            return (
+              <div key={channel.key} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-[#2a211b]/10 px-3 py-3 last:border-b-0 sm:px-4">
+                <div className="flex size-8 items-center justify-center rounded-lg bg-[#bf9b5f]/10 text-[#8a672f]"><BellRing className="size-4" /></div>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-semibold">{channel.title}</p>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${ready ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{readinessText(channel.capabilityKey)}</span>
+                  </div>
+
+                  {channel.key === 'pushEnabled' ? (
+                    <Link href="/settings/notifications/push" className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-[#725329] underline underline-offset-2">Manage devices <ExternalLink className="size-3" /></Link>
+                  ) : null}
+
+                  {channel.key === 'emailEnabled' && capabilities.email.transportConfigured && !capabilities.email.endpointVerified ? (
+                    <button type="button" disabled={channelAction !== null} onClick={() => void requestEmailVerification()} className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-[#725329] underline underline-offset-2 disabled:opacity-50">
+                      {channelAction === 'email-verification' ? <Loader2 className="size-3 animate-spin" /> : <MailCheck className="size-3" />} Verify account email
                     </button>
-                  )}
-                  {channel.key === 'emailEnabled' && capabilities.email.endpointVerified && !capabilities.email.communicationConsentEnabled && (
-                    <button type="button" disabled={channelAction !== null} onClick={() => void allowCommunication('EMAIL')} className="mt-3 inline-flex min-h-9 rounded-full border border-[#8a672f]/25 px-3 text-xs font-semibold text-[#725329] disabled:opacity-50">Allow Email delivery</button>
-                  )}
-                  {channel.key === 'emailEnabled' && emailMessage && (
-                    <p role="status" className="mt-3 rounded-xl border border-[#8a672f]/15 bg-[#f8f3e9] px-3 py-2 text-xs leading-5 text-[#2a211b]/65">{emailMessage}</p>
-                  )}
-                  {channel.key === 'whatsAppEnabled' && capabilities.whatsapp.endpointVerified && !capabilities.whatsapp.communicationConsentEnabled && (
-                    <button type="button" disabled={channelAction !== null} onClick={() => void allowCommunication('WHATSAPP')} className="mt-3 inline-flex min-h-9 rounded-full border border-[#8a672f]/25 px-3 text-xs font-semibold text-[#725329] disabled:opacity-50">Allow WhatsApp delivery</button>
-                  )}
+                  ) : null}
+
+                  {channel.key === 'emailEnabled' && capabilities.email.endpointVerified && !capabilities.email.communicationConsentEnabled ? (
+                    <button type="button" disabled={channelAction !== null} onClick={() => void allowCommunication('EMAIL')} className="mt-1 text-[11px] font-semibold text-[#725329] underline underline-offset-2 disabled:opacity-50">Allow Email delivery</button>
+                  ) : null}
+
+                  {channel.key === 'whatsAppEnabled' && capabilities.whatsapp.endpointVerified && !capabilities.whatsapp.communicationConsentEnabled ? (
+                    <button type="button" disabled={channelAction !== null} onClick={() => void allowCommunication('WHATSAPP')} className="mt-1 text-[11px] font-semibold text-[#725329] underline underline-offset-2 disabled:opacity-50">Allow WhatsApp delivery</button>
+                  ) : null}
+
+                  {channel.key === 'emailEnabled' && emailMessage ? <p role="status" className="mt-1 text-[11px] leading-4 text-[#2a211b]/55">{emailMessage}</p> : null}
                 </div>
-              )
-            })}
-          </div>
+                <Toggle
+                  checked={Boolean(enabled && ready)}
+                  disabled={!ready}
+                  label={`Enable ${channel.title} notifications`}
+                  onChange={(checked) => setForm((current) => ({ ...current, [channel.key]: checked }))}
+                />
+              </div>
+            )
+          })}
         </section>
 
-        <section className="mt-6 rounded-3xl border border-[#2a211b]/10 bg-white p-6 shadow-sm">
-          <h2 className="font-serif text-2xl">Time and quiet hours</h2>
-          <p className="mt-2 text-xs leading-5 text-[#2a211b]/50">Use a valid IANA timezone such as Africa/Harare, Europe/London or Asia/Tokyo. Set both quiet-hour times, or leave both blank.</p>
-          <div className="mt-4 grid gap-4 sm:grid-cols-3">
-            <label className="text-xs font-semibold text-[#2a211b]/60">Timezone
-              <input value={form.timezone} onChange={(event) => setForm((current) => ({ ...current, timezone: event.target.value }))} className="mt-1 block min-h-10 w-full rounded-xl border border-[#2a211b]/15 px-3 text-sm" />
+        <section className="mt-4 rounded-2xl border border-[#2a211b]/10 bg-white p-3 shadow-sm sm:p-4">
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="min-w-[190px] flex-1 text-[11px] font-semibold text-[#2a211b]/60">Timezone
+              <input value={form.timezone} onChange={(event) => setForm((current) => ({ ...current, timezone: event.target.value }))} className="mt-1 block min-h-10 w-full rounded-xl border border-[#2a211b]/15 px-3 text-sm font-normal" />
             </label>
-            <label className="text-xs font-semibold text-[#2a211b]/60">Quiet from
-              <input type="time" value={form.quietStart || ''} onChange={(event) => setForm((current) => ({ ...current, quietStart: event.target.value || null }))} className="mt-1 block min-h-10 w-full rounded-xl border border-[#2a211b]/15 px-3 text-sm" />
+            <label className="min-w-[130px] flex-1 text-[11px] font-semibold text-[#2a211b]/60">Quiet from
+              <input type="time" value={form.quietStart || ''} onChange={(event) => setForm((current) => ({ ...current, quietStart: event.target.value || null }))} className="mt-1 block min-h-10 w-full rounded-xl border border-[#2a211b]/15 px-3 text-sm font-normal" />
             </label>
-            <label className="text-xs font-semibold text-[#2a211b]/60">Quiet until
-              <input type="time" value={form.quietEnd || ''} onChange={(event) => setForm((current) => ({ ...current, quietEnd: event.target.value || null }))} className="mt-1 block min-h-10 w-full rounded-xl border border-[#2a211b]/15 px-3 text-sm" />
+            <label className="min-w-[130px] flex-1 text-[11px] font-semibold text-[#2a211b]/60">Quiet until
+              <input type="time" value={form.quietEnd || ''} onChange={(event) => setForm((current) => ({ ...current, quietEnd: event.target.value || null }))} className="mt-1 block min-h-10 w-full rounded-xl border border-[#2a211b]/15 px-3 text-sm font-normal" />
             </label>
           </div>
-          <div className="mt-4 rounded-2xl border border-dashed border-[#2a211b]/15 p-4">
-            <strong className="block text-xs">Digest delivery</strong>
-            <p className="mt-1 text-xs leading-5 text-[#2a211b]/50">Instant delivery policy is active. Daily and weekly digests remain unavailable until Wewed’s digest generator is implemented and certified, so choosing a digest can never silently suppress notifications.</p>
-          </div>
+          <p className="mt-2 text-[11px] leading-4 text-[#2a211b]/45">Set both quiet-hour times or leave both blank. Instant delivery remains active; digest mode is not yet available.</p>
         </section>
 
-        <div className="mt-6 flex items-center gap-3">
-          <button type="button" onClick={() => void save()} disabled={saving} className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[#2a211b] px-5 text-sm font-bold text-[#f8f3e9] disabled:opacity-50">{saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />} Save preferences</button>
-          {message && <p className="text-sm text-[#2a211b]/55" role="status">{message}</p>}
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button type="button" onClick={() => void save()} disabled={saving} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-[#2a211b] px-4 text-sm font-bold text-[#f8f3e9] disabled:opacity-50">
+            {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />} Save
+          </button>
+          {message ? <p className="text-xs text-[#2a211b]/55" role="status">{message}</p> : null}
         </div>
       </div>
     </main>

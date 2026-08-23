@@ -1,10 +1,12 @@
 'use client'
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
   ArrowLeft,
+  Check,
   CheckCircle2,
+  ChevronDown,
   ExternalLink,
   Loader2,
   Mail,
@@ -60,10 +62,10 @@ const labels: Record<Channel, string> = {
 }
 
 function ChannelIcon({ channel }: { channel: Channel }) {
-  if (channel === 'EMAIL') return <Mail className="size-5" />
-  if (channel === 'WHATSAPP') return <MessageCircle className="size-5" />
-  if (channel === 'SMS') return <Phone className="size-5" />
-  return <Smartphone className="size-5" />
+  if (channel === 'EMAIL') return <Mail className="size-4" />
+  if (channel === 'WHATSAPP') return <MessageCircle className="size-4" />
+  if (channel === 'SMS') return <Phone className="size-4" />
+  return <Smartphone className="size-4" />
 }
 
 async function readPayload(response: Response) {
@@ -74,14 +76,56 @@ async function readPayload(response: Response) {
   } | null>
 }
 
-function endpointStatus(endpoint: Endpoint) {
+function StatusPill({ tone, children }: { tone: 'ready' | 'pending' | 'muted'; children: ReactNode }) {
+  const classes = tone === 'ready'
+    ? 'border-gold/30 bg-gold/10 text-espresso'
+    : tone === 'pending'
+      ? 'border-clay/25 bg-clay/10 text-clay'
+      : 'border-espresso/10 bg-espresso/[0.04] text-espresso/50'
+
   return (
-    <p className="mt-0.5 inline-flex items-center gap-1 text-xs text-espresso/50">
-      {endpoint.status === 'VERIFIED'
-        ? <CheckCircle2 className="size-3 text-gold" />
-        : <XCircle className="size-3" />}
+    <span className={`inline-flex min-h-6 items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${classes}`}>
+      {children}
+    </span>
+  )
+}
+
+function EndpointStatusLabel({ endpoint }: { endpoint: Endpoint }) {
+  const verified = endpoint.status === 'VERIFIED'
+  return (
+    <span className="inline-flex items-center gap-1 text-[11px] text-espresso/50">
+      {verified ? <CheckCircle2 className="size-3 text-gold" /> : <XCircle className="size-3" />}
       {endpoint.status.toLowerCase()}
-    </p>
+    </span>
+  )
+}
+
+function PreferenceToggle({
+  checked,
+  disabled,
+  label,
+  onChange,
+}: {
+  checked: boolean
+  disabled: boolean
+  label: string
+  onChange: (checked: boolean) => void
+}) {
+  return (
+    <label className={`relative inline-flex h-11 w-12 shrink-0 ${disabled ? 'opacity-45' : 'cursor-pointer'}`}>
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.checked)}
+        className="peer sr-only"
+        aria-label={label}
+      />
+      <span className="absolute inset-x-0 top-2 h-7 rounded-full border border-espresso/15 bg-espresso/10 transition peer-checked:border-gold peer-checked:bg-gold peer-focus-visible:ring-2 peer-focus-visible:ring-gold/55 peer-disabled:cursor-not-allowed" />
+      <span className="pointer-events-none absolute left-1 top-3 flex size-5 items-center justify-center rounded-full bg-white text-transparent shadow-sm transition-transform peer-checked:translate-x-5 peer-checked:text-gold">
+        <Check className="size-3" />
+      </span>
+    </label>
   )
 }
 
@@ -101,19 +145,19 @@ export default function MessageChannelSettingsPage() {
     if (!response.ok || !payload?.success || !payload.data || typeof payload.data !== 'object') {
       throw new Error(payload?.error || 'Unable to load communication channels.')
     }
-    const next = payload.data as ChannelSettingsData
-    setData(next)
+    setData(payload.data as ChannelSettingsData)
   }, [])
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const verification = new URLSearchParams(window.location.search).get('emailVerification')
       if (verification === 'success') {
-        setNotice('Account email verified. You can now allow Email delivery for Wewed messages.')
+        setNotice('Account email verified. Email delivery is ready to use.')
       } else if (verification === 'invalid') {
-        setError('That email verification link is invalid or expired. Send a fresh verification email below.')
+        setError('That verification link is invalid or expired. Send a fresh verification email below.')
       }
     }
+
     void load()
       .catch((loadError) => setError(loadError instanceof Error ? loadError.message : 'Unable to load channels.'))
       .finally(() => setLoading(false))
@@ -131,6 +175,13 @@ export default function MessageChannelSettingsPage() {
     ) ?? null
   }, [accountEmail, endpoints])
 
+  const activePhoneEndpoints = useMemo(
+    () => endpoints.filter((endpoint) =>
+      (endpoint.channel === 'WHATSAPP' || endpoint.channel === 'SMS') && endpoint.status !== 'DISABLED',
+    ),
+    [endpoints],
+  )
+
   function preference(channel: Channel): boolean {
     return preferences.find((entry) => entry.channel === channel)?.enabled ?? false
   }
@@ -146,6 +197,7 @@ export default function MessageChannelSettingsPage() {
     setSaving(true)
     setError(null)
     setNotice(null)
+
     try {
       const response = await fetch('/api/communications/channels', {
         method: 'POST',
@@ -155,7 +207,7 @@ export default function MessageChannelSettingsPage() {
       const payload = await readPayload(response)
       if (!response.ok || !payload?.success) throw new Error(payload?.error || 'Unable to add endpoint.')
       setAddress('')
-      setNotice(`${labels[manualChannel]} endpoint saved. It remains pending until its provider verification succeeds.`)
+      setNotice(`${labels[manualChannel]} number saved. It will become available after verification.`)
       await load()
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Unable to save endpoint.')
@@ -169,6 +221,7 @@ export default function MessageChannelSettingsPage() {
     setVerifyingEmail(true)
     setError(null)
     setNotice(null)
+
     try {
       const response = await fetch('/api/notifications/email-verification', {
         method: 'POST',
@@ -176,9 +229,8 @@ export default function MessageChannelSettingsPage() {
         body: JSON.stringify({ returnTo: '/messages/settings' }),
       })
       const payload = await readPayload(response)
-      if (!response.ok || !payload?.success) {
-        throw new Error(payload?.error || 'Unable to send the verification email.')
-      }
+      if (!response.ok || !payload?.success) throw new Error(payload?.error || 'Unable to send the verification email.')
+
       const result = payload.data && typeof payload.data === 'object'
         ? payload.data as { message?: string; address?: string; alreadyVerified?: boolean }
         : {}
@@ -186,7 +238,7 @@ export default function MessageChannelSettingsPage() {
         result.message ||
         (result.alreadyVerified
           ? 'Your Wewed account email is already verified.'
-          : `Verification email sent to ${result.address || accountEmail}. Check that external inbox and spam. It will not appear in Wewed Messages.`),
+          : `Verification sent to ${result.address || accountEmail}. Check that external inbox and spam.`),
       )
       await load()
     } catch (verificationError) {
@@ -200,6 +252,7 @@ export default function MessageChannelSettingsPage() {
     setSaving(true)
     setError(null)
     setNotice(null)
+
     try {
       const response = await fetch('/api/communications/channels', {
         method: 'PATCH',
@@ -207,10 +260,8 @@ export default function MessageChannelSettingsPage() {
         body: JSON.stringify({ action: 'preference', channel: target, enabled }),
       })
       const payload = await readPayload(response)
-      if (!response.ok || !payload?.success) {
-        throw new Error(payload?.error || 'Unable to update delivery preference.')
-      }
-      setNotice(`${labels[target]} message delivery ${enabled ? 'enabled' : 'disabled'}.`)
+      if (!response.ok || !payload?.success) throw new Error(payload?.error || 'Unable to update delivery preference.')
+      setNotice(`${labels[target]} delivery ${enabled ? 'enabled' : 'disabled'}.`)
       await load()
     } catch (preferenceError) {
       setError(preferenceError instanceof Error ? preferenceError.message : 'Unable to update delivery preference.')
@@ -223,6 +274,7 @@ export default function MessageChannelSettingsPage() {
     setSaving(true)
     setError(null)
     setNotice(null)
+
     try {
       const response = await fetch('/api/communications/channels', {
         method: 'PATCH',
@@ -230,9 +282,7 @@ export default function MessageChannelSettingsPage() {
         body: JSON.stringify({ action: 'disable', endpointId }),
       })
       const payload = await readPayload(response)
-      if (!response.ok || !payload?.success) {
-        throw new Error(payload?.error || 'Unable to disable endpoint.')
-      }
+      if (!response.ok || !payload?.success) throw new Error(payload?.error || 'Unable to disable endpoint.')
       await load()
     } catch (disableError) {
       setError(disableError instanceof Error ? disableError.message : 'Unable to disable endpoint.')
@@ -241,213 +291,227 @@ export default function MessageChannelSettingsPage() {
     }
   }
 
-  function endpointCard(channel: ManualChannel) {
-    const state = activation?.[channel]
-    const channelEndpoints = endpoints.filter((endpoint) => endpoint.channel === channel)
+  function manualChannelRow(channel: ManualChannel) {
+    if (!activation) return null
+    const state = activation[channel]
+    const channelEndpoints = activePhoneEndpoints.filter((endpoint) => endpoint.channel === channel)
+    const primary = channelEndpoints.find((endpoint) => endpoint.status === 'VERIFIED') ?? channelEndpoints[0] ?? null
     const checked = effectiveChecked(channel)
+    const status = !state.transportConfigured
+      ? <StatusPill tone="muted">Unavailable</StatusPill>
+      : state.endpointVerified
+        ? <StatusPill tone="ready">Verified</StatusPill>
+        : <StatusPill tone="pending">Needs verification</StatusPill>
+
     return (
-      <div className="rounded-2xl border border-gold/15 p-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2 font-semibold"><ChannelIcon channel={channel} /> {labels[channel]}</div>
-            <p className="mt-1 text-xs text-espresso/50">
-              {state?.transportConfigured ? 'Wewed transport is configured.' : 'Wewed transport is not configured yet.'}
-            </p>
+      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-gold/15 px-3 py-3 last:border-b-0 sm:px-4">
+        <div className="flex size-9 items-center justify-center rounded-xl bg-champagne/45 text-espresso">
+          <ChannelIcon channel={channel} />
+        </div>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-semibold">{labels[channel]}</p>
+            {status}
           </div>
-          <label className={`inline-flex items-center gap-2 text-sm ${state?.canEnable || checked ? '' : 'text-espresso/40'}`}>
-            <input
-              type="checkbox"
-              checked={checked}
-              disabled={saving || (!state?.canEnable && !checked)}
-              onChange={(event) => void updatePreference(channel, event.target.checked)}
-            />
-            Deliver through {labels[channel]}
-          </label>
+          <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+            <p className="max-w-full truncate text-xs text-espresso/55">
+              {primary?.address || (channel === 'SMS' ? 'No verified number' : 'No number saved')}
+            </p>
+            {primary ? <EndpointStatusLabel endpoint={primary} /> : null}
+            {channelEndpoints.length > 1 ? <span className="text-[11px] text-espresso/45">+{channelEndpoints.length - 1} more</span> : null}
+          </div>
         </div>
-        <div className="mt-3 space-y-2">
-          {channelEndpoints.length === 0
-            ? <p className="text-xs text-espresso/45">No endpoint saved.</p>
-            : channelEndpoints.map((endpoint) => (
-              <div key={endpoint.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-champagne/20 px-3 py-2 text-sm">
-                <div className="min-w-0">
-                  <p className="truncate">{endpoint.address}</p>
-                  {endpointStatus(endpoint)}
-                </div>
-                {endpoint.status !== 'DISABLED' ? (
-                  <button type="button" disabled={saving} onClick={() => void disableEndpoint(endpoint.id)} className="text-xs font-semibold underline underline-offset-2 disabled:opacity-40">Disable</button>
-                ) : null}
-              </div>
-            ))}
-        </div>
-        {!state?.endpointVerified ? (
-          <p className="mt-2 text-xs text-espresso/55">A verified {labels[channel]} endpoint is required before this channel can be enabled.</p>
-        ) : null}
+        <PreferenceToggle
+          checked={checked}
+          disabled={saving || (!state.canEnable && !checked)}
+          label={`Deliver Wewed messages through ${labels[channel]}`}
+          onChange={(enabled) => void updatePreference(channel, enabled)}
+        />
       </div>
     )
   }
 
   return (
-    <main className="min-h-screen bg-ivory px-4 py-8 pb-32 text-espresso sm:px-6 sm:pb-12">
-      <div className="mx-auto max-w-4xl">
-        <header className="mb-6 flex items-center gap-3">
+    <main className="min-h-screen bg-ivory px-3 pb-10 pt-16 text-espresso sm:px-6">
+      <div className="mx-auto max-w-3xl">
+        <header className="mb-4 flex items-start gap-3">
           <Link
             href="/messages"
-            className="inline-flex size-10 items-center justify-center rounded-full border border-gold/25 bg-white hover:border-gold"
+            className="hidden size-9 shrink-0 items-center justify-center rounded-full border border-gold/20 bg-white text-espresso/70 hover:border-gold sm:inline-flex"
             aria-label="Back to messages"
           >
             <ArrowLeft className="size-4" />
           </Link>
-          <div>
-            <h1 className="font-serif text-2xl font-semibold sm:text-3xl">Message delivery channels</h1>
-            <p className="text-sm text-espresso/55">
-              Wewed Messages remains the canonical conversation record. External channels deliver a copy when they are verified, configured and enabled.
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gold">Messages</p>
+            <h1 className="font-serif text-2xl font-semibold leading-tight sm:text-3xl">Delivery channels</h1>
+            <p className="mt-1 max-w-2xl text-sm leading-5 text-espresso/55">
+              Choose where Wewed can send copies of your messages. Wewed Messages remains the conversation record.
             </p>
           </div>
         </header>
 
-        <div className="mb-6 rounded-2xl border border-gold/25 bg-champagne/25 p-4 text-sm leading-6">
-          <strong>Wewed Messages is not your email inbox.</strong> Email verification is sent to your external account mailbox—for example Gmail—and will not appear in the Wewed Messages conversation list.
-        </div>
+        {error ? (
+          <div className="mb-3 rounded-xl border border-clay/25 bg-clay/10 px-3 py-2.5 text-sm" role="alert">{error}</div>
+        ) : null}
+        {notice ? (
+          <div className="mb-3 rounded-xl border border-gold/25 bg-champagne/35 px-3 py-2.5 text-sm" role="status">{notice}</div>
+        ) : null}
 
-        {error ? <div className="mb-4 rounded-2xl border border-clay/30 bg-clay/10 p-4 text-sm" role="alert">{error}</div> : null}
-        {notice ? <div className="mb-4 rounded-2xl border border-gold/25 bg-champagne/30 p-4 text-sm" role="status">{notice}</div> : null}
-
-        <section className="mb-6 rounded-3xl border border-gold/20 bg-white p-5 shadow-sm">
-          <h2 className="font-serif text-xl font-semibold">Add a phone endpoint</h2>
-          <p className="mt-1 text-sm text-espresso/55">
-            WhatsApp and SMS use verified phone endpoints. Email uses your Wewed account email, while Push uses enrolled browser devices.
-          </p>
-          <form onSubmit={addEndpoint} className="mt-4 grid gap-3 sm:grid-cols-[180px_minmax(0,1fr)_auto]">
-            <select
-              value={manualChannel}
-              onChange={(event) => setManualChannel(event.target.value as ManualChannel)}
-              className="rounded-xl border border-gold/20 bg-white px-3 py-2 text-sm"
-              aria-label="Phone delivery channel"
-            >
-              <option value="WHATSAPP">WhatsApp</option>
-              <option value="SMS">SMS</option>
-            </select>
-            <input
-              value={address}
-              onChange={(event) => setAddress(event.target.value)}
-              placeholder="+263…"
-              inputMode="tel"
-              className="min-w-0 rounded-xl border border-gold/20 px-3 py-2 text-sm outline-none focus:border-gold"
-            />
-            <button
-              type="submit"
-              disabled={saving || !address.trim()}
-              className="inline-flex items-center justify-center rounded-xl bg-espresso px-4 py-2 text-sm font-semibold text-champagne disabled:opacity-40"
-            >
-              {saving ? <Loader2 className="mr-2 size-4 animate-spin" /> : null} Save
-            </button>
-          </form>
-        </section>
-
-        <section className="rounded-3xl border border-gold/20 bg-white p-5 shadow-sm">
-          <h2 className="font-serif text-xl font-semibold">Delivery preferences</h2>
-          <p className="mt-1 text-sm text-espresso/55">
-            A checked channel is operational: its destination is verified, its transport is configured and you have allowed delivery. In-app messaging always stays on.
-          </p>
+        <section className="overflow-hidden rounded-2xl border border-gold/20 bg-white shadow-sm" aria-labelledby="delivery-preferences-title">
+          <div className="border-b border-gold/15 px-3 py-3 sm:px-4">
+            <h2 id="delivery-preferences-title" className="text-sm font-semibold">Delivery preferences</h2>
+            <p className="mt-0.5 text-xs text-espresso/50">Verified + available + enabled means the channel is ready.</p>
+          </div>
 
           {loading ? (
-            <div className="flex items-center justify-center p-10 text-sm text-espresso/55"><Loader2 className="mr-2 size-4 animate-spin" /> Loading channels…</div>
+            <div className="flex items-center justify-center gap-2 px-4 py-10 text-sm text-espresso/55">
+              <Loader2 className="size-4 animate-spin" /> Loading channels…
+            </div>
           ) : !data || !activation ? (
-            <p className="p-6 text-sm text-espresso/55">Channel status is unavailable.</p>
+            <p className="px-4 py-8 text-sm text-espresso/55">Channel status is unavailable.</p>
           ) : (
-            <div className="mt-4 space-y-4">
-              <div className="rounded-2xl border border-gold/15 p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2 font-semibold"><ChannelIcon channel="EMAIL" /> Email</div>
-                    <p className="mt-1 break-all text-sm">{accountEmail || 'No account email saved'}</p>
-                    <p className="mt-1 text-xs text-espresso/50">
-                      {activation.EMAIL.endpointVerified ? 'Account email verified.' : 'Account email verification required.'}
-                    </p>
-                  </div>
-                  <label className={`inline-flex items-center gap-2 text-sm ${activation.EMAIL.canEnable || effectiveChecked('EMAIL') ? '' : 'text-espresso/40'}`}>
-                    <input
-                      type="checkbox"
-                      checked={effectiveChecked('EMAIL')}
-                      disabled={saving || (!activation.EMAIL.canEnable && !effectiveChecked('EMAIL'))}
-                      onChange={(event) => void updatePreference('EMAIL', event.target.checked)}
-                    />
-                    Deliver through Email
-                  </label>
+            <div>
+              <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-gold/15 px-3 py-3 sm:px-4">
+                <div className="flex size-9 items-center justify-center rounded-xl bg-champagne/45 text-espresso">
+                  <ChannelIcon channel="EMAIL" />
                 </div>
-
-                <div className="mt-3 rounded-xl bg-champagne/20 px-3 py-3 text-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p>{accountEmail}</p>
-                      {emailEndpoint ? endpointStatus(emailEndpoint) : <p className="mt-0.5 text-xs text-espresso/50">not verified</p>}
-                    </div>
-                    {!activation.EMAIL.endpointVerified ? (
-                      <button
-                        type="button"
-                        onClick={() => void requestEmailVerification()}
-                        disabled={verifyingEmail || !accountEmail}
-                        className="inline-flex items-center rounded-xl bg-espresso px-3 py-2 text-xs font-semibold text-champagne disabled:opacity-40"
-                      >
-                        {verifyingEmail ? <Loader2 className="mr-2 size-3 animate-spin" /> : <Mail className="mr-2 size-3" />}
-                        {emailEndpoint?.status === 'PENDING' ? 'Resend verification email' : 'Verify account email'}
-                      </button>
-                    ) : null}
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-semibold">Email</p>
+                    {!activation.EMAIL.transportConfigured
+                      ? <StatusPill tone="muted">Unavailable</StatusPill>
+                      : activation.EMAIL.endpointVerified
+                        ? <StatusPill tone="ready">Verified</StatusPill>
+                        : <StatusPill tone="pending">Needs verification</StatusPill>}
                   </div>
+                  <p className="mt-0.5 truncate text-xs text-espresso/55">{accountEmail || 'No account email saved'}</p>
+                  {activation.EMAIL.transportConfigured && !activation.EMAIL.endpointVerified && accountEmail ? (
+                    <button
+                      type="button"
+                      onClick={() => void requestEmailVerification()}
+                      disabled={verifyingEmail || saving}
+                      className="mt-1 inline-flex min-h-8 items-center gap-1 text-[11px] font-semibold text-espresso underline underline-offset-2 disabled:opacity-40"
+                    >
+                      {verifyingEmail ? <Loader2 className="size-3 animate-spin" /> : <Mail className="size-3" />}
+                      Send verification
+                    </button>
+                  ) : emailEndpoint ? (
+                    <span className="mt-1 inline-flex"><EndpointStatusLabel endpoint={emailEndpoint} /></span>
+                  ) : null}
                 </div>
-                {!activation.EMAIL.endpointVerified ? (
-                  <p className="mt-2 text-xs text-espresso/55">
-                    Verification is sent to the external mailbox above. Check its inbox and spam folder; the link will not appear in Wewed Messages.
-                  </p>
-                ) : !activation.EMAIL.transportConfigured ? (
-                  <p className="mt-2 text-xs text-clay">Your email is verified, but Wewed Email transport is not currently configured.</p>
-                ) : null}
+                <PreferenceToggle
+                  checked={effectiveChecked('EMAIL')}
+                  disabled={saving || (!activation.EMAIL.canEnable && !effectiveChecked('EMAIL'))}
+                  label="Deliver Wewed messages through Email"
+                  onChange={(enabled) => void updatePreference('EMAIL', enabled)}
+                />
               </div>
 
-              {endpointCard('WHATSAPP')}
-              {endpointCard('SMS')}
+              {manualChannelRow('WHATSAPP')}
+              {manualChannelRow('SMS')}
 
-              <div className="rounded-2xl border border-gold/15 p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2 font-semibold"><ChannelIcon channel="PUSH" /> Push</div>
-                    <p className="mt-1 text-xs text-espresso/50">
-                      {activation.PUSH.activeDeviceCount} active {activation.PUSH.activeDeviceCount === 1 ? 'device' : 'devices'} · {activation.PUSH.mode === 'direct' ? 'direct Wewed Web Push' : activation.PUSH.mode === 'gateway' ? 'Push gateway' : 'transport unavailable'}
-                    </p>
-                  </div>
-                  <label className={`inline-flex items-center gap-2 text-sm ${activation.PUSH.canEnable || effectiveChecked('PUSH') ? '' : 'text-espresso/40'}`}>
-                    <input
-                      type="checkbox"
-                      checked={effectiveChecked('PUSH')}
-                      disabled={saving || (!activation.PUSH.canEnable && !effectiveChecked('PUSH'))}
-                      onChange={(event) => void updatePreference('PUSH', event.target.checked)}
-                    />
-                    Deliver messages through Push
-                  </label>
+              <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-3 py-3 sm:px-4">
+                <div className="flex size-9 items-center justify-center rounded-xl bg-champagne/45 text-espresso">
+                  <ChannelIcon channel="PUSH" />
                 </div>
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-champagne/20 px-3 py-3 text-sm">
-                  <div>
-                    <p className="font-medium">Push is enrolled per browser/device.</p>
-                    <p className="mt-0.5 text-xs text-espresso/50">
-                      Wewed sends one message-delivery event to all of your currently active Push devices.
-                    </p>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-semibold">Push</p>
+                    {activation.PUSH.canEnable
+                      ? <StatusPill tone="ready">Ready</StatusPill>
+                      : <StatusPill tone="muted">Unavailable</StatusPill>}
                   </div>
-                  <Link
-                    href="/settings/notifications/push"
-                    className="inline-flex items-center gap-1 text-xs font-semibold underline underline-offset-2"
-                  >
-                    Manage Push devices <ExternalLink className="size-3" />
-                  </Link>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-espresso/55">
+                    <span>{activation.PUSH.activeDeviceCount} active {activation.PUSH.activeDeviceCount === 1 ? 'device' : 'devices'}</span>
+                    <Link
+                      href="/settings/notifications/push"
+                      className="inline-flex min-h-8 items-center gap-1 font-semibold text-espresso underline underline-offset-2"
+                    >
+                      Manage <ExternalLink className="size-3" />
+                    </Link>
+                  </div>
                 </div>
-                {!activation.PUSH.activeDeviceCount ? (
-                  <p className="mt-2 text-xs text-espresso/55">Enable Push on at least one device before Message Push can be turned on.</p>
-                ) : !activation.PUSH.transportConfigured ? (
-                  <p className="mt-2 text-xs text-clay">Your device is enrolled, but Wewed Push transport is not configured.</p>
-                ) : null}
+                <PreferenceToggle
+                  checked={effectiveChecked('PUSH')}
+                  disabled={saving || (!activation.PUSH.canEnable && !effectiveChecked('PUSH'))}
+                  label="Deliver Wewed messages through Push"
+                  onChange={(enabled) => void updatePreference('PUSH', enabled)}
+                />
               </div>
             </div>
           )}
         </section>
+
+        <p className="mt-3 px-1 text-xs leading-5 text-espresso/50">
+          Email verification arrives in your external mailbox (for example Gmail), not in Wewed Messages.
+        </p>
+
+        <details className="group mt-4 overflow-hidden rounded-2xl border border-gold/20 bg-white">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-3 text-sm font-semibold sm:px-4 [&::-webkit-details-marker]:hidden">
+            <span>Add or change a phone number</span>
+            <ChevronDown className="size-4 text-espresso/55 transition group-open:rotate-180" />
+          </summary>
+          <div className="border-t border-gold/15 px-3 py-3 sm:px-4">
+            <p className="mb-3 text-xs leading-5 text-espresso/50">WhatsApp and SMS require a verified phone endpoint before delivery can be enabled.</p>
+            <form onSubmit={addEndpoint} className="grid gap-2 sm:grid-cols-[150px_minmax(0,1fr)_auto]">
+              <select
+                value={manualChannel}
+                onChange={(event) => setManualChannel(event.target.value as ManualChannel)}
+                className="min-h-11 rounded-xl border border-gold/20 bg-white px-3 text-sm outline-none focus:border-gold"
+                aria-label="Phone delivery channel"
+              >
+                <option value="WHATSAPP">WhatsApp</option>
+                <option value="SMS">SMS</option>
+              </select>
+              <input
+                value={address}
+                onChange={(event) => setAddress(event.target.value)}
+                placeholder="+263…"
+                inputMode="tel"
+                aria-label="Phone number"
+                className="min-h-11 min-w-0 rounded-xl border border-gold/20 px-3 text-sm outline-none focus:border-gold"
+              />
+              <button
+                type="submit"
+                disabled={saving || !address.trim()}
+                className="inline-flex min-h-11 items-center justify-center rounded-xl bg-espresso px-4 text-sm font-semibold text-champagne disabled:opacity-40"
+              >
+                {saving ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+                Save
+              </button>
+            </form>
+
+            <div className="mt-4 border-t border-gold/10 pt-3" aria-label="Saved phone numbers">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-espresso/45">Saved numbers</p>
+              {activePhoneEndpoints.length === 0 ? (
+                <p className="mt-2 text-xs text-espresso/50">No active WhatsApp or SMS numbers saved.</p>
+              ) : (
+                <div className="mt-2 divide-y divide-gold/10">
+                  {activePhoneEndpoints.map((endpoint) => (
+                    <div key={endpoint.id} className="flex min-h-11 items-center justify-between gap-3 py-2">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-semibold">{labels[endpoint.channel]}</span>
+                          <EndpointStatusLabel endpoint={endpoint} />
+                        </div>
+                        <p className="mt-0.5 truncate text-xs text-espresso/55">{endpoint.address}</p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={() => void disableEndpoint(endpoint.id)}
+                        className="inline-flex min-h-10 shrink-0 items-center px-2 text-[11px] font-semibold text-espresso/55 underline underline-offset-2 hover:text-espresso disabled:opacity-40"
+                      >
+                        Disable
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </details>
       </div>
     </main>
   )

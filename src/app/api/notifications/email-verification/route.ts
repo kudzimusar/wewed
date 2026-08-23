@@ -4,6 +4,7 @@ import { readAppSession } from '@/lib/app-session'
 import { db } from '@/lib/db'
 import { enforceCommunicationRateLimit } from '@/lib/communications-rate-limit'
 import { isTransactionalEmailConfigured, sendTransactionalEmail } from '@/lib/email/resend'
+import { renderWewedTransactionalEmail } from '@/lib/email/wewed-template'
 
 const VERIFICATION_TTL_MS = 30 * 60 * 1000
 const CANONICAL_WEWED_ORIGIN = 'https://wewed.pro'
@@ -193,8 +194,31 @@ export async function POST(request: NextRequest) {
       category: 'notification_email_verification',
       to: normalizedEmail,
       subject: 'Verify your email for Wewed notifications',
-      text: `Verify this account email for Wewed external delivery:\n\n${link}\n\nThis link expires in 30 minutes. Open it from your external email inbox (for example Gmail); it will not appear in Wewed Messages.`,
-      html: `<p>Verify this account email for Wewed external delivery.</p><p><a href="${link}">Verify account email</a></p><p>This link expires in 30 minutes. Open it from your external email inbox (for example Gmail); it will not appear in Wewed Messages.</p>`,
+      text: [
+        'Wewed',
+        '',
+        'Verify your Wewed email',
+        '',
+        `Confirm ${normalizedEmail} for external Wewed message and notification delivery.`,
+        '',
+        `Verify account email: ${link}`,
+        '',
+        'This link expires in 30 minutes.',
+        'Open it from your external email inbox (for example Gmail). It will not appear in Wewed Messages.',
+        '',
+        'Wewed — https://wewed.pro',
+      ].join('\n'),
+      html: renderWewedTransactionalEmail({
+        eyebrow: 'Account verification',
+        title: 'Verify your Wewed email',
+        paragraphs: [
+          `Confirm ${normalizedEmail} for external Wewed message and notification delivery.`,
+          'This verification is for your external mailbox. It will not appear as a conversation inside Wewed Messages.',
+        ],
+        ctaLabel: 'Verify account email',
+        ctaHref: link,
+        note: 'This secure verification link expires in 30 minutes. The verification destination should remain on wewed.pro.',
+      }),
       metadata: { endpointId: endpoint.id, userId, returnTo },
     })
     if (!result.ok) {

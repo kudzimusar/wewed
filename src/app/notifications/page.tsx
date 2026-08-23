@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Bell,
   CalendarClock,
@@ -108,6 +108,15 @@ function severityLabel(severity: NotificationSeverity) {
   return severity.charAt(0).toUpperCase() + severity.slice(1)
 }
 
+function StatePill({ children, tone = 'gold', testId }: { children: ReactNode; tone?: 'gold' | 'green' | 'muted'; testId?: string }) {
+  const classes = tone === 'green'
+    ? 'border-emerald-300/20 bg-emerald-300/10 text-emerald-200'
+    : tone === 'muted'
+      ? 'border-white/10 bg-white/[0.04] text-[#f5ead7]/45'
+      : 'border-[#bf9b5f]/25 bg-[#bf9b5f]/10 text-[#d8b978]'
+  return <span data-testid={testId} className={`inline-flex min-h-5 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${classes}`}>{children}</span>
+}
+
 export default function NotificationCenterPage() {
   const [items, setItems] = useState<NotificationItem[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
@@ -204,48 +213,51 @@ export default function NotificationCenterPage() {
   }
 
   return (
-    <main className="min-h-dvh bg-[#17120f] px-4 pb-20 pt-8 text-[#f5ead7] sm:px-6 lg:px-10">
+    <main className="min-h-dvh bg-[#17120f] px-3 pb-12 pt-16 text-[#f5ead7] sm:px-6 sm:pt-8 lg:px-10">
       <div className="mx-auto max-w-5xl">
         <NotificationSectionNavigation surface="center" />
 
-        <header className="flex flex-col gap-5 border-b border-[#bf9b5f]/20 pb-6 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#bf9b5f]">
-              <Bell className="size-4" />
+        <header className="flex items-end justify-between gap-4 border-b border-[#bf9b5f]/20 pb-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#bf9b5f]">
+              <Bell className="size-3.5" />
               Wewed attention
             </div>
-            <h1 className="mt-2 font-serif text-4xl font-normal sm:text-5xl">Notifications</h1>
-            <NotificationRoleDescription />
+            <h1 className="mt-1 font-serif text-3xl font-normal leading-none sm:text-4xl">Notifications</h1>
+            <div className="mt-1.5 max-w-2xl text-xs leading-5 text-[#f5ead7]/50 sm:text-sm">
+              <NotificationRoleDescription />
+            </div>
           </div>
-          <div className="rounded-2xl border border-[#bf9b5f]/20 bg-[#bf9b5f]/5 px-4 py-3 text-sm">
-            <span className="font-semibold text-[#bf9b5f]">{unreadCount}</span>{' '}
-            <span className="text-[#f5ead7]/60">unread</span>
+          <div className="shrink-0 text-right">
+            <p className="text-xl font-semibold text-[#d8b978]">{unreadCount}</p>
+            <p className="text-[10px] uppercase tracking-[0.12em] text-[#f5ead7]/35">unread</p>
           </div>
         </header>
 
-        <section className="mt-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between" aria-label="Notification filters">
-          <div className="flex gap-2 overflow-x-auto pb-1">
+        <section className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between" aria-label="Notification filters">
+          <div className="flex gap-1.5 overflow-x-auto pb-1">
             {FILTERS.map((item) => (
               <button
                 key={item.key}
                 type="button"
                 onClick={() => setFilter(item.key)}
-                className={`whitespace-nowrap rounded-full border px-3 py-2 text-xs font-semibold transition ${
+                className={`min-h-8 whitespace-nowrap rounded-full border px-2.5 text-[11px] font-semibold transition ${
                   filter === item.key
                     ? 'border-[#bf9b5f] bg-[#bf9b5f] text-[#17120f]'
-                    : 'border-[#bf9b5f]/20 text-[#f5ead7]/65 hover:border-[#bf9b5f]/50 hover:text-[#bf9b5f]'
+                    : 'border-[#bf9b5f]/20 text-[#f5ead7]/55 hover:border-[#bf9b5f]/45 hover:text-[#d8b978]'
                 }`}
               >
                 {item.label}
               </button>
             ))}
           </div>
-          <label className="flex items-center gap-2 text-xs text-[#f5ead7]/55">
-            Category
+          <label className="flex items-center justify-between gap-2 text-[11px] text-[#f5ead7]/45 sm:justify-start">
+            <span className="sm:hidden">Category</span>
             <select
               value={category}
               onChange={(event) => setCategory(event.target.value)}
-              className="rounded-lg border border-[#bf9b5f]/20 bg-[#211915] px-3 py-2 text-[#f5ead7] outline-none focus:border-[#bf9b5f]"
+              className="min-h-8 rounded-lg border border-[#bf9b5f]/20 bg-[#211915] px-2.5 text-xs text-[#f5ead7] outline-none focus:border-[#bf9b5f]"
+              aria-label="Filter notifications by category"
             >
               <option value="all">All categories</option>
               {categories.map((value) => (
@@ -256,115 +268,121 @@ export default function NotificationCenterPage() {
         </section>
 
         {error && (
-          <div role="alert" className="mt-5 rounded-xl border border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-100">
+          <div role="alert" className="mt-4 rounded-xl border border-red-400/25 bg-red-400/10 px-3 py-2.5 text-sm text-red-100">
             {error}
           </div>
         )}
 
         {loading ? (
-          <div className="flex min-h-64 items-center justify-center text-[#f5ead7]/45">
+          <div className="flex min-h-52 items-center justify-center text-[#f5ead7]/45">
             <Loader2 className="mr-2 size-5 animate-spin" /> Loading attention…
           </div>
         ) : visibleItems.length === 0 ? (
-          <div className="mt-8 rounded-3xl border border-dashed border-[#bf9b5f]/20 p-10 text-center">
-            <Inbox className="mx-auto size-8 text-[#bf9b5f]/55" />
-            <h2 className="mt-3 font-serif text-2xl">Nothing here right now</h2>
-            <p className="mt-2 text-sm text-[#f5ead7]/45">This view will fill as Wewed events require your attention.</p>
+          <div className="mt-6 rounded-2xl border border-dashed border-[#bf9b5f]/20 px-4 py-10 text-center">
+            <Inbox className="mx-auto size-7 text-[#bf9b5f]/50" />
+            <h2 className="mt-2 font-serif text-xl">Nothing here right now</h2>
+            <p className="mt-1 text-xs text-[#f5ead7]/40">This view will fill as Wewed events require your attention.</p>
           </div>
         ) : (
-          <div className="mt-6 grid gap-3">
+          <div className="mt-4 overflow-hidden rounded-2xl border border-[#bf9b5f]/15 bg-white/[0.015]">
             {visibleItems.map((item) => {
               const busy = workingId === item.id
               const deferred = isDeferred(item)
               const acknowledged = isAcknowledged(item)
               const unread = item.state === 'active' && !item.readAt
               const when = item.snoozedUntil || item.scheduledFor || item.createdAt
+
               return (
                 <article
                   key={item.id}
-                  className={`rounded-2xl border p-4 transition sm:p-5 ${
-                    unread ? 'border-[#bf9b5f]/40 bg-[#bf9b5f]/[0.07]' : 'border-[#bf9b5f]/15 bg-white/[0.02]'
-                  }`}
+                  className={`border-b border-[#bf9b5f]/10 px-3 py-3 last:border-b-0 sm:px-4 ${unread ? 'bg-[#bf9b5f]/[0.055]' : ''}`}
                 >
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex items-start gap-3">
+                    <div className={`mt-1 size-2 shrink-0 rounded-full ${unread ? 'bg-[#bf9b5f]' : 'bg-[#f5ead7]/15'}`} aria-hidden="true" />
                     <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.13em]">
+                      <div className="flex flex-wrap items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.12em]">
                         <span className="text-[#bf9b5f]">{item.category}</span>
-                        <span className="text-[#f5ead7]/25">•</span>
-                        <span className={item.severity === 'urgent' || item.severity === 'action_required' ? 'text-amber-300' : 'text-[#f5ead7]/45'}>
+                        <span className="text-[#f5ead7]/20">•</span>
+                        <span className={item.severity === 'urgent' || item.severity === 'action_required' ? 'text-amber-300' : 'text-[#f5ead7]/40'}>
                           {severityLabel(item.severity)}
                         </span>
-                        {acknowledged && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-1 text-emerald-300" data-testid="notification-acknowledged-state">
-                            <CheckCheck className="size-3" /> Acknowledged
-                          </span>
-                        )}
-                        {deferred && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-[#bf9b5f]/10 px-2 py-1 text-[#bf9b5f]">
-                            <Clock3 className="size-3" /> {item.snoozedUntil ? 'Snoozed' : 'Scheduled'}
-                          </span>
-                        )}
+                        {acknowledged ? (
+                          <StatePill tone="green" testId="notification-acknowledged-state"><CheckCheck className="size-2.5" /> Acknowledged</StatePill>
+                        ) : null}
+                        {deferred ? (
+                          <StatePill><Clock3 className="size-2.5" /> {item.snoozedUntil ? 'Snoozed' : 'Scheduled'}</StatePill>
+                        ) : null}
+                        {isResolved(item) ? <StatePill tone="muted">Resolved</StatePill> : null}
                       </div>
-                      <h2 className="mt-2 font-serif text-2xl leading-tight">{item.title}</h2>
-                      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#f5ead7]/60">{item.body}</p>
-                      <p className="mt-3 flex items-center gap-1.5 text-xs text-[#f5ead7]/35">
-                        <CalendarClock className="size-3.5" /> {formatTimestamp(when)}
-                      </p>
-                    </div>
 
-                    {item.deepLink && (
-                      <Link
-                        href={`/notifications/open/${encodeURIComponent(item.id)}`}
-                        className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-[#bf9b5f] px-3 py-2 text-xs font-bold text-[#17120f] hover:bg-[#d2b578]"
-                        data-testid="notification-open-source"
-                      >
-                        Open <ChevronRight className="size-3.5" />
-                      </Link>
-                    )}
+                      <div className="mt-1 flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <h2 className={`text-[15px] leading-5 sm:text-base ${unread ? 'font-semibold text-[#f8edda]' : 'font-medium text-[#f5ead7]/85'}`}>{item.title}</h2>
+                          <p className="mt-1 max-h-10 overflow-hidden whitespace-pre-wrap text-xs leading-5 text-[#f5ead7]/48 sm:text-sm">{item.body}</p>
+                        </div>
+                        {item.deepLink ? (
+                          <Link
+                            href={`/notifications/open/${encodeURIComponent(item.id)}`}
+                            className="inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-[#bf9b5f]/20 text-[#d8b978] transition hover:bg-[#bf9b5f]/10"
+                            data-testid="notification-open-source"
+                            aria-label={`Open ${item.title}`}
+                            title="Open"
+                          >
+                            <ChevronRight className="size-4" />
+                          </Link>
+                        ) : null}
+                      </div>
+
+                      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                        <p className="inline-flex items-center gap-1 text-[10px] text-[#f5ead7]/30">
+                          <CalendarClock className="size-3" /> {formatTimestamp(when)}
+                        </p>
+
+                        {!isResolved(item) ? (
+                          <div className="flex flex-wrap justify-end gap-1.5">
+                            {!deferred && !acknowledged ? (
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => void act(item, unread ? 'read' : 'unread')}
+                                className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-[#bf9b5f]/15 px-2 text-[10px] text-[#f5ead7]/55 hover:bg-[#bf9b5f]/10 hover:text-[#d8b978] disabled:opacity-50"
+                              >
+                                {unread ? <Check className="size-3" /> : <RotateCcw className="size-3" />}
+                                {unread ? 'Read' : 'Unread'}
+                              </button>
+                            ) : null}
+                            {!deferred && item.requiresAction && !acknowledged ? (
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => void act(item, 'acknowledge')}
+                                className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-[#bf9b5f]/15 px-2 text-[10px] text-[#f5ead7]/55 hover:bg-[#bf9b5f]/10 hover:text-[#d8b978] disabled:opacity-50"
+                              >
+                                <CheckCheck className="size-3" /> Acknowledge
+                              </button>
+                            ) : null}
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => snoozeTomorrow(item)}
+                              className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-[#bf9b5f]/15 px-2 text-[10px] text-[#f5ead7]/55 hover:bg-[#bf9b5f]/10 hover:text-[#d8b978] disabled:opacity-50"
+                            >
+                              <Clock3 className="size-3" /> Tomorrow
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => void act(item, 'resolve')}
+                              className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-[#bf9b5f]/15 px-2 text-[10px] text-[#f5ead7]/55 hover:bg-[#bf9b5f]/10 hover:text-[#d8b978] disabled:opacity-50"
+                            >
+                              {busy ? <Loader2 className="size-3 animate-spin" /> : <CheckCheck className="size-3" />}
+                              Resolve
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
                   </div>
-
-                  {!isResolved(item) && (
-                    <div className="mt-4 flex flex-wrap gap-2 border-t border-[#bf9b5f]/10 pt-4">
-                      {!deferred && !acknowledged && (
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => void act(item, unread ? 'read' : 'unread')}
-                          className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[#bf9b5f]/20 px-3 text-xs text-[#f5ead7]/65 hover:bg-[#bf9b5f]/10 hover:text-[#bf9b5f] disabled:opacity-50"
-                        >
-                          {unread ? <Check className="size-3.5" /> : <RotateCcw className="size-3.5" />}
-                          {unread ? 'Mark read' : 'Mark unread'}
-                        </button>
-                      )}
-                      {!deferred && item.requiresAction && !acknowledged && (
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => void act(item, 'acknowledge')}
-                          className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[#bf9b5f]/20 px-3 text-xs text-[#f5ead7]/65 hover:bg-[#bf9b5f]/10 hover:text-[#bf9b5f] disabled:opacity-50"
-                        >
-                          <CheckCheck className="size-3.5" /> Acknowledge
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => snoozeTomorrow(item)}
-                        className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[#bf9b5f]/20 px-3 text-xs text-[#f5ead7]/65 hover:bg-[#bf9b5f]/10 hover:text-[#bf9b5f] disabled:opacity-50"
-                      >
-                        <Clock3 className="size-3.5" /> Tomorrow 9:00
-                      </button>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => void act(item, 'resolve')}
-                        className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[#bf9b5f]/20 px-3 text-xs text-[#f5ead7]/65 hover:bg-[#bf9b5f]/10 hover:text-[#bf9b5f] disabled:opacity-50"
-                      >
-                        {busy ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCheck className="size-3.5" />}
-                        Resolve
-                      </button>
-                    </div>
-                  )}
                 </article>
               )
             })}
