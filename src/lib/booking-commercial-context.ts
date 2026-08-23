@@ -5,6 +5,14 @@ import { db } from '@/lib/db'
 export type BookingCommercialContext = {
   bookingId: string
   serviceEngagementId: string | null
+  logistics: {
+    pickupAt: Date | null
+    deliveryAt: Date | null
+    setupStart: Date | null
+    setupEnd: Date | null
+    collectionAt: Date | null
+    returnDueAt: Date | null
+  }
   budget: null | {
     id: string
     estimatedCost: number
@@ -63,8 +71,20 @@ export type BookingCommercialContext = {
 }
 
 export async function listWeddingBookingCommercialContext(weddingId: string): Promise<BookingCommercialContext[]> {
-  const bookings = await db.$queryRawUnsafe<Array<{ id: string; serviceEngagementId: string | null }>>(
-    `SELECT id,"serviceEngagementId" FROM wewed_booking."Booking" WHERE "weddingId"=$1 ORDER BY "createdAt" DESC`,
+  const bookings = await db.$queryRawUnsafe<Array<{
+    id: string
+    serviceEngagementId: string | null
+    pickupAt: Date | null
+    deliveryAt: Date | null
+    setupStart: Date | null
+    setupEnd: Date | null
+    collectionAt: Date | null
+    returnDueAt: Date | null
+  }>>(
+    `SELECT id,"serviceEngagementId","pickupAt","deliveryAt","setupStart","setupEnd","collectionAt","returnDueAt"
+       FROM wewed_booking."Booking"
+      WHERE "weddingId"=$1
+      ORDER BY "createdAt" DESC`,
     weddingId,
   )
   if (!bookings.length) return []
@@ -182,6 +202,14 @@ export async function listWeddingBookingCommercialContext(weddingId: string): Pr
     return {
       bookingId: booking.id,
       serviceEngagementId: engagementId,
+      logistics: {
+        pickupAt: booking.pickupAt,
+        deliveryAt: booking.deliveryAt,
+        setupStart: booking.setupStart,
+        setupEnd: booking.setupEnd,
+        collectionAt: booking.collectionAt,
+        returnDueAt: booking.returnDueAt,
+      },
       budget: budget ? {
         id: budget.id,
         estimatedCost: Number(budget.estimatedCost),
