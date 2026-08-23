@@ -12,6 +12,10 @@ BEGIN
     RAISE EXCEPTION 'existing public wedding Message table is missing';
   END IF;
 
+  IF to_regclass('public."PushSubscription"') IS NULL THEN
+    RAISE EXCEPTION 'canonical PushSubscription table is missing';
+  END IF;
+
   IF to_regclass('wewed_communications."CommunicationConversation"') IS NULL OR
      to_regclass('wewed_communications."CommunicationParticipant"') IS NULL OR
      to_regclass('wewed_communications."CommunicationMessage"') IS NULL OR
@@ -80,12 +84,18 @@ VALUES
 INSERT INTO wewed_communications."CommunicationEndpoint"
   ("id", "userId", "channel", "address", "normalizedAddress", "status", "verifiedAt", "metadata", "createdAt", "updatedAt")
 VALUES
-  ('comm-endpoint-planner-email', 'comm-planner-user', 'EMAIL', 'Planner@Example.Test', 'planner@example.test', 'VERIFIED', now(), '{}', now(), now());
+  ('comm-endpoint-planner-email', 'comm-planner-user', 'EMAIL', 'comm-planner@example.test', 'comm-planner@example.test', 'VERIFIED', now(), '{}', now(), now());
+
+INSERT INTO public."PushSubscription"
+  ("id", "userId", "endpoint", "p256dh", "auth", "createdAt", "updatedAt", "lastSeenAt")
+VALUES
+  ('comm-push-subscription', 'comm-planner-user', 'https://push.example.test/device', 'test-p256dh', 'test-auth', now(), now(), now());
 
 INSERT INTO wewed_communications."CommunicationPreference"
   ("id", "userId", "channel", "enabled", "createdAt", "updatedAt")
 VALUES
-  ('comm-pref-planner-email', 'comm-planner-user', 'EMAIL', true, now(), now());
+  ('comm-pref-planner-email', 'comm-planner-user', 'EMAIL', true, now(), now()),
+  ('comm-pref-planner-push', 'comm-planner-user', 'PUSH', true, now(), now());
 
 INSERT INTO wewed_communications."CommunicationMessage"
   ("id", "conversationId", "senderUserId", "messageType", "visibility", "body", "createdAt", "updatedAt")
@@ -113,6 +123,7 @@ DECLARE
   communication_message_count integer;
   public_message_count integer;
   queued_email_count integer;
+  queued_push_count integer;
   event_has_body boolean;
 BEGIN
   SELECT count(*) INTO participant_count
@@ -140,6 +151,18 @@ BEGIN
     RAISE EXCEPTION 'verified enabled email endpoint was not queued exactly once';
   END IF;
 
+  SELECT count(*) INTO queued_push_count
+  FROM wewed_communications."CommunicationDelivery"
+  WHERE "messageId" = 'comm-message'
+    AND "recipientUserId" = 'comm-planner-user'
+    AND "channel" = 'PUSH'
+    AND "status" = 'QUEUED'
+    AND "endpointId" IS NULL
+    AND "metadata" ->> 'subscriptionSource' = 'PushSubscription';
+  IF queued_push_count <> 1 THEN
+    RAISE EXCEPTION 'enabled Message Push was not queued from the active PushSubscription exactly once';
+  END IF;
+
   SELECT count(*) INTO public_message_count
   FROM public."Message"
   WHERE "id" = 'comm-public-message';
@@ -156,8 +179,8 @@ BEGIN
 END
 $$;
 
--- A staff-only message must not fan out to a non-admin external endpoint even if
--- an IN_APP delivery row exists.
+-- A staff-only message must not fan out to a non-admin external endpoint or push
+-- device even if an IN_APP delivery row exists.
 INSERT INTO wewed_communications."CommunicationMessage"
   ("id", "conversationId", "senderUserId", "messageType", "visibility", "body", "createdAt", "updatedAt")
 VALUES

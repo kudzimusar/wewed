@@ -6,6 +6,10 @@ import { enforceCommunicationRateLimit } from '@/lib/communications-rate-limit'
 import { isTransactionalEmailConfigured, sendTransactionalEmail } from '@/lib/email/resend'
 
 const VERIFICATION_TTL_MS = 30 * 60 * 1000
+const CANONICAL_WEWED_ORIGIN = 'https://wewed.pro'
+const ALLOWED_RETURN_TO = new Set(['/settings/notifications', '/messages/settings'])
+
+type VerificationReturnTo = '/settings/notifications' | '/messages/settings'
 
 interface VerificationPayload {
   version: 1
@@ -13,6 +17,13 @@ interface VerificationPayload {
   userId: string
   email: string
   expiresAt: number
+  returnTo?: VerificationReturnTo
+}
+
+function normalizeReturnTo(value: unknown): VerificationReturnTo {
+  return typeof value === 'string' && ALLOWED_RETURN_TO.has(value)
+    ? value as VerificationReturnTo
+    : '/settings/notifications'
 }
 
 function signingSecret(): string | null {
@@ -51,6 +62,7 @@ function verifyVerificationToken(token: string): VerificationPayload | null {
       typeof payload.expiresAt !== 'number' ||
       payload.expiresAt <= Date.now()
     ) return null
+    if (payload.returnTo !== undefined && !ALLOWED_RETURN_TO.has(payload.returnTo)) return null
     return payload as VerificationPayload
   } catch {
     return null
@@ -58,18 +70,24 @@ function verifyVerificationToken(token: string): VerificationPayload | null {
 }
 
 function applicationBaseUrl(request: NextRequest): string {
-  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim()
-  if (configured) {
-    try {
-      const url = new URL(configured)
-      if (url.protocol === 'https:' || (process.env.WEWED_E2E_MODE === '1' && url.protocol === 'http:')) {
-        return url.origin
-      }
-    } catch {
-      // Fall through to the request origin in local/e2e environments.
-    }
-  }
-  return request.nextUrl.origin
+  const origin = request.nextUrl.origin
+  const hostname = request.nextUrl.hostname.toLowerCase()
+
+  // Local browser qualification must remain self-contained. Production email,
+  // however, must never leak a Vercel preview/alias or another host.
+  if (process.env.WEWED_E2E_MODE === '1') return origin
+  if (hostname === 'wewed.pro' || hostname === 'www.wewed.pro') return CANONICAL_WEWED_ORIGIN
+  if (process.env.NODE_ENV === 'production') return CANONICAL_WEWED_ORIGIN
+
+  const url = new URL(origin)
+  if (url.protocol === 'https:' || url.protocol === 'http:') return url.origin
+  throw new Error('A valid Wewed origin is required for email verification.')
+}
+
+function settingsRedirect(request: NextRequest, returnTo: VerificationReturnTo, status: 'success' | 'invalid') {
+  const url = new URL(returnTo, applicationBaseUrl(request))
+  url.searchParams.set('emailVerification', status)
+  return NextResponse.redirect(url, 303)
 }
 
 export async function POST(request: NextRequest) {
@@ -91,25 +109,50 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const body = await request.json().catch(() => ({})) as Record<string, unknown>
+    const returnTo = normalizeReturnTo(body.returnTo)
     await enforceCommunicationRateLimit({ userId, scope: 'channel_mutation' })
     const endpointId = randomUUID()
-    const rows = await db.$queryRawUnsafe<Array<{ id: string }>>(
-      `
-        INSERT INTO wewed_communications."CommunicationEndpoint"
-          (id, "userId", channel, address, "normalizedAddress", status, metadata, "createdAt", "updatedAt")
-        VALUES ($1, $2, 'EMAIL', $3, $4, 'PENDING', '{"source":"account_email_verification"}'::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        ON CONFLICT ("userId", channel, "normalizedAddress") DO UPDATE SET
-          address = EXCLUDED.address,
-          "updatedAt" = CURRENT_TIMESTAMP
-        RETURNING id
-      `,
-      endpointId,
-      userId,
-      session.email.trim(),
-      normalizedEmail,
-    )
-    const endpoint = rows[0]
-    if (!endpoint) throw new Error('Unable to prepare the email endpoint.')
+    const endpoint = await db.$transaction(async (tx) => {
+      // Account email is canonical for email delivery. Retire stale pending
+      // addresses immediately; a verified old address is retired only after
+      // the current account mailbox has itself been verified.
+      await tx.$executeRawUnsafe(
+        `
+          UPDATE wewed_communications."CommunicationEndpoint"
+          SET status = 'DISABLED', "updatedAt" = CURRENT_TIMESTAMP
+          WHERE "userId" = $1
+            AND channel = 'EMAIL'
+            AND status = 'PENDING'
+            AND LOWER("normalizedAddress") <> $2
+        `,
+        userId,
+        normalizedEmail,
+      )
+
+      const rows = await tx.$queryRawUnsafe<Array<{ id: string; status: 'PENDING' | 'VERIFIED' }>>(
+        `
+          INSERT INTO wewed_communications."CommunicationEndpoint"
+            (id, "userId", channel, address, "normalizedAddress", status, metadata, "createdAt", "updatedAt")
+          VALUES ($1, $2, 'EMAIL', $3, $4, 'PENDING', '{"source":"account_email_verification"}'::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          ON CONFLICT ("userId", channel, "normalizedAddress") DO UPDATE SET
+            address = EXCLUDED.address,
+            status = CASE
+              WHEN wewed_communications."CommunicationEndpoint".status = 'VERIFIED' THEN 'VERIFIED'
+              ELSE 'PENDING'
+            END,
+            metadata = EXCLUDED.metadata,
+            "updatedAt" = CURRENT_TIMESTAMP
+          RETURNING id, status
+        `,
+        endpointId,
+        userId,
+        session.email.trim(),
+        normalizedEmail,
+      )
+      if (!rows[0]) throw new Error('Unable to prepare the email endpoint.')
+      return rows[0]
+    })
 
     await db.$executeRawUnsafe(
       `
@@ -122,12 +165,25 @@ export async function POST(request: NextRequest) {
       userId,
     )
 
+    if (endpoint.status === 'VERIFIED') {
+      return NextResponse.json({
+        success: true,
+        data: {
+          sent: false,
+          alreadyVerified: true,
+          address: normalizedEmail,
+          message: 'Your Wewed account email is already verified.',
+        },
+      })
+    }
+
     const token = createVerificationToken({
       version: 1,
       endpointId: endpoint.id,
       userId,
       email: normalizedEmail,
       expiresAt: Date.now() + VERIFICATION_TTL_MS,
+      returnTo,
     })
     if (!token) throw new Error('Email verification signing is unavailable.')
 
@@ -137,9 +193,9 @@ export async function POST(request: NextRequest) {
       category: 'notification_email_verification',
       to: normalizedEmail,
       subject: 'Verify your email for Wewed notifications',
-      text: `Verify this email address for Wewed notifications:\n\n${link}\n\nThis link expires in 30 minutes.`,
-      html: `<p>Verify this email address for Wewed notifications.</p><p><a href="${link}">Verify email</a></p><p>This link expires in 30 minutes.</p>`,
-      metadata: { endpointId: endpoint.id, userId },
+      text: `Verify this account email for Wewed external delivery:\n\n${link}\n\nThis link expires in 30 minutes. Open it from your external email inbox (for example Gmail); it will not appear in Wewed Messages.`,
+      html: `<p>Verify this account email for Wewed external delivery.</p><p><a href="${link}">Verify account email</a></p><p>This link expires in 30 minutes. Open it from your external email inbox (for example Gmail); it will not appear in Wewed Messages.</p>`,
+      metadata: { endpointId: endpoint.id, userId, returnTo },
     })
     if (!result.ok) {
       return NextResponse.json(
@@ -148,7 +204,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    return NextResponse.json({ success: true, data: { sent: true } })
+    return NextResponse.json({
+      success: true,
+      data: {
+        sent: true,
+        alreadyVerified: false,
+        address: normalizedEmail,
+        message: `Verification email sent to ${normalizedEmail}. Check that external inbox and spam. It will not appear in Wewed Messages.`,
+      },
+    })
   } catch (error) {
     const status = typeof error === 'object' && error && 'status' in error && typeof error.status === 'number'
       ? error.status
@@ -161,12 +225,9 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get('token')?.trim() || ''
   const payload = verifyVerificationToken(token)
-  const settingsUrl = new URL('/settings/notifications', request.url)
-  if (!payload) {
-    settingsUrl.searchParams.set('emailVerification', 'invalid')
-    return NextResponse.redirect(settingsUrl, 303)
-  }
+  if (!payload) return settingsRedirect(request, '/settings/notifications', 'invalid')
 
+  const returnTo = normalizeReturnTo(payload.returnTo)
   const rows = await db.$queryRawUnsafe<Array<{ id: string }>>(
     `
       SELECT id
@@ -182,17 +243,19 @@ export async function GET(request: NextRequest) {
     payload.userId,
     payload.email,
   )
-  if (!rows[0]) {
-    settingsUrl.searchParams.set('emailVerification', 'invalid')
-    return NextResponse.redirect(settingsUrl, 303)
-  }
+  if (!rows[0]) return settingsRedirect(request, returnTo, 'invalid')
 
   await db.$transaction(async (tx) => {
+    // Once the canonical account email is verified, every other Email endpoint
+    // is retired so delivery cannot fan out to stale or duplicate mailboxes.
     await tx.$executeRawUnsafe(
       `
         UPDATE wewed_communications."CommunicationEndpoint"
         SET status = 'DISABLED', "verifiedAt" = NULL, "updatedAt" = CURRENT_TIMESTAMP
-        WHERE "userId" = $1 AND channel = 'EMAIL' AND id <> $2 AND status = 'VERIFIED'
+        WHERE "userId" = $1
+          AND channel = 'EMAIL'
+          AND id <> $2
+          AND status IN ('PENDING', 'VERIFIED')
       `,
       payload.userId,
       payload.endpointId,
@@ -208,6 +271,5 @@ export async function GET(request: NextRequest) {
     )
   })
 
-  settingsUrl.searchParams.set('emailVerification', 'success')
-  return NextResponse.redirect(settingsUrl, 303)
+  return settingsRedirect(request, returnTo, 'success')
 }
