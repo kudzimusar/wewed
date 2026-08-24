@@ -85,13 +85,16 @@ jobs:
       - name: Run booking PostgreSQL governance contract
         run: psql "postgresql://postgres:postgres@localhost:5432/wewed" -f scripts/booking-commerce-postgres-contract.sql
 
-      - name: Recreate clean database for concurrency contract
+      - name: Recreate clean database for runtime contracts
         run: |
           dropdb --if-exists -h localhost -U postgres wewed
           createdb -h localhost -U postgres wewed
           bunx prisma migrate deploy --schema prisma/schema.prisma
         env:
           PGPASSWORD: postgres
+
+      - name: Run synthetic gown chair package and add-on UAT
+        run: bun scripts/booking-commerce-synthetic-uat.ts
 
       - name: Run deterministic package and concurrency contract
         run: bun scripts/booking-commerce-concurrency-contract.ts
@@ -111,6 +114,7 @@ jobs:
           src/app/admin/bookings/page.tsx
           src/app/api/admin/bookings/route.ts
           scripts/booking-commerce-concurrency-contract.ts
+          scripts/booking-commerce-synthetic-uat.ts
           scripts/booking-commerce-source-contract.ts
 
       - name: Build production application
