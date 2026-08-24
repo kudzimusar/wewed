@@ -1,0 +1,108 @@
+name: Apply qualified booking production migrations once
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/booking-production-db-once.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: booking-production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: Apply booking migrations to Wewed production
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    env:
+      DATABASE_URL: ${{ secrets.WEWED_DATABASE_URL }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825a76410c181273ba90b1
+
+      - name: Verify Wewed production target
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DATABASE_URL" || { echo "::error::WEWED_DATABASE_URL is not configured"; exit 1; }
+          [[ "$DATABASE_URL" == *"kjigkhjdeymukwradoqu"* ]] || { echo "::error::Wrong Supabase project"; exit 1; }
+          [[ "$DATABASE_URL" == *":5432/"* ]] || { echo "::error::Expected Supabase session pooler on port 5432"; exit 1; }
+
+      - name: Verify booking schema is not partially installed
+        shell: bash
+        run: |
+          set -euo pipefail
+          existing=$(psql "$DATABASE_URL" -Atqc "select count(*) from information_schema.tables where table_schema='wewed_booking'" | tr -d '[:space:]')
+          if [[ "$existing" != "0" ]]; then
+            echo "::error::wewed_booking already contains $existing tables; refusing one-time bootstrap"
+            exit 1
+          fi
+
+      - name: Apply all qualified booking migrations atomically and record Supabase history
+        shell: bash
+        run: |
+          set -euo pipefail
+          migrations=(
+            20260824030000_vendor_booking_commerce_core
+            20260824030100_vendor_booking_commerce_integrity
+            20260824030200_shandy_booking_reference_activation
+            20260824030300_booking_quote_terms_gate
+            20260824030400_booking_operations_notifications
+            20260824030500_booking_history_integrity
+            20260824030600_autobook_policy_full_scope
+            20260824030700_booking_logistics_operations
+            20260824030800_booking_communications_context
+            20260824030900_booking_commercial_lifecycle_packages
+            20260824031000_booking_line_revision_amendments
+            20260824031100_autobook_budget_race_guard
+            20260824031200_booking_merge_review_fixes
+          )
+
+          {
+            echo 'BEGIN;'
+            for migration in "${migrations[@]}"; do
+              file="prisma/migrations/${migration}/migration.sql"
+              version="${migration%%_*}"
+              descriptive="${migration#*_}"
+              ledger_name="${descriptive}_${version}"
+
+              test -f "$file" || { echo "Missing migration file $file" >&2; exit 1; }
+
+              existing=$(psql "$DATABASE_URL" -Atqc "select count(*) from supabase_migrations.schema_migrations where version='${version}'" | tr -d '[:space:]')
+              if [[ "$existing" != "0" ]]; then
+                echo "Supabase migration version ${version} already exists" >&2
+                exit 1
+              fi
+
+              cat "$file"
+              encoded=$(base64 -w0 "$file")
+              printf "\nINSERT INTO supabase_migrations.schema_migrations(version, statements, name, created_by) VALUES ('%s', ARRAY[convert_from(decode('%s','base64'),'UTF8')], '%s', 'github-actions:booking-production-db-20260824');\n" "$version" "$encoded" "$ledger_name"
+            done
+            echo 'COMMIT;'
+          } | psql -v ON_ERROR_STOP=1 "$DATABASE_URL"
+
+      - name: Verify booking production schema and Shandy activation
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          SELECT count(*) AS booking_tables
+          FROM information_schema.tables
+          WHERE table_schema='wewed_booking';
+
+          SELECT i."id", i."slug", i."name", i."bookingArchetype", i."bookingMode", i."status", i."basePriceCents"
+          FROM wewed_booking."ProviderCatalogItem" i
+          JOIN wewed_admin."ProviderServiceOffering" o ON o."id" = i."offeringId"
+          WHERE o."businessAccountId"='business-shandy-weddings-events'
+          ORDER BY i."sortOrder", i."id";
+
+          SELECT count(*) AS booking_migrations_recorded
+          FROM supabase_migrations.schema_migrations
+          WHERE version BETWEEN '20260824030000' AND '20260824031200';
+          SQL
