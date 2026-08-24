@@ -71,6 +71,7 @@ type AllocationInput = {
   state: AllocationState
   holdId: string | null
   expiresAt: Date | null
+  serviceLocation?: string | null
 }
 
 function object(value: unknown): Record<string, unknown> {
@@ -245,6 +246,14 @@ function selectedAddOnsFromOptions(selectedOptions: unknown) {
   return stringArray(object(selectedOptions).addOns)
 }
 
+async function bookingServiceLocation(client: QueryClient, bookingId: string) {
+  const rows = await client.$queryRawUnsafe<Array<{ serviceLocation: string | null }>>(
+    `SELECT "serviceLocation" FROM wewed_booking."Booking" WHERE id=$1 LIMIT 1`,
+    bookingId,
+  )
+  return rows[0]?.serviceLocation ?? null
+}
+
 async function availabilityInternal(client: QueryClient, input: AvailabilityInput, visited: Set<string>, depth: number): Promise<Record<string, unknown>> {
   if (depth > 8 || visited.has(input.itemId)) throw new BookingCommerceError('Package configuration contains a circular dependency.', 409, 'PACKAGE_COMPONENT_CYCLE')
   const nextVisited = new Set(visited)
@@ -354,7 +363,8 @@ async function allocateInternal(input: AllocationInput, visited: Set<string>, de
   const item = await itemPolicy(input.tx, input.catalogItemId)
   await validateVariant(input.tx, item.id, input.variantId)
   const selectedAddOns = selectedAddOnsFromOptions(input.selectedOptions)
-  const policy = await validatePolicyWindow(input.tx, item, input.startsAt, input.endsAt, null)
+  const location = input.serviceLocation === undefined ? await bookingServiceLocation(input.tx, input.bookingId) : input.serviceLocation
+  const policy = await validatePolicyWindow(input.tx, item, input.startsAt, input.endsAt, location)
   if (!policy.allowed) throw new BookingCommerceError(`This booking window violates provider availability policy (${policy.reason}).`, 409, String(policy.reason))
 
   const bufferedStart = new Date(input.startsAt.getTime() - item.bufferBeforeMinutes * 60_000)
@@ -382,6 +392,7 @@ async function allocateInternal(input: AllocationInput, visited: Set<string>, de
       variantId: component.childVariantId,
       quantity: component.quantity * (perItem ? input.quantity : 1),
       selectedOptions: {},
+      serviceLocation: location,
     }, nextVisited, depth + 1)
   }
   return direct.length > 0 || components.length > 0
