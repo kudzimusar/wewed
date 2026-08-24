@@ -19,6 +19,12 @@ body[data-booking-ux='provider'] details > summary {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* The interactive provider redesign does not expose a fake save action while
+   a canonical provider-favourites domain is not yet wired. */
+body:has(#provider-booking-slot) #main-content > section:first-child > div.relative > div:first-child > button:last-child {
+  display: none;
+}
+
 @media (max-width: 640px) {
   body[data-booking-ux='planner'] input,
   body[data-booking-ux='planner'] select,
