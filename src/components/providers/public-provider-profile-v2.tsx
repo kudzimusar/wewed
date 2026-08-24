@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   AlertTriangle, ArrowLeft, ArrowRight, BadgeCheck, CalendarDays, Check, ChevronDown,
-  Clock3, ExternalLink, Globe2, Heart, Loader2, Mail, MapPin, MessageCircle, Phone,
+  Clock3, ExternalLink, Globe2, Loader2, Mail, MapPin, MessageCircle, Phone,
   Send, ShieldCheck, ShoppingBag, Sparkles, Users, X,
 } from 'lucide-react'
 import { ProviderClaimPanel } from '@/components/providers/provider-claim-panel'
@@ -198,13 +198,10 @@ export function PublicProviderProfileV2({ slug }: { slug: string }) {
         {provider.coverImageUrl ? <img src={provider.coverImageUrl} alt="" className="absolute inset-0 size-full object-cover opacity-45" /> : null}
         <div className="absolute inset-0 bg-[linear-gradient(100deg,rgba(18,13,10,.97)_8%,rgba(18,13,10,.84)_48%,rgba(18,13,10,.42)_100%)]" />
         <div className="relative mx-auto max-w-7xl px-4 pb-14 pt-5 sm:px-6 sm:pb-20 lg:px-8">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={() => router.back()} className="inline-flex size-10 items-center justify-center rounded-full border border-white/20 bg-black/20 text-white/85 hover:bg-white/10" aria-label="Go back"><ArrowLeft className="size-4" /></button>
-              <button type="button" onClick={() => window.history.forward()} className="hidden size-10 items-center justify-center rounded-full border border-white/20 bg-black/20 text-white/85 hover:bg-white/10 sm:inline-flex" aria-label="Go forward"><ArrowRight className="size-4" /></button>
-              <Link href="/vendors" className="inline-flex min-h-10 items-center gap-2 rounded-full border border-white/20 bg-black/20 px-4 text-xs font-semibold text-white/85 hover:bg-white/10">Marketplace</Link>
-            </div>
-            <button type="button" className="inline-flex min-h-10 items-center gap-2 rounded-full border border-white/20 bg-black/20 px-4 text-xs font-semibold text-white/85 hover:bg-white/10"><Heart className="size-4" /> Save</button>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => router.back()} className="inline-flex size-10 items-center justify-center rounded-full border border-white/20 bg-black/20 text-white/85 hover:bg-white/10" aria-label="Go back"><ArrowLeft className="size-4" /></button>
+            <button type="button" onClick={() => window.history.forward()} className="hidden size-10 items-center justify-center rounded-full border border-white/20 bg-black/20 text-white/85 hover:bg-white/10 sm:inline-flex" aria-label="Go forward"><ArrowRight className="size-4" /></button>
+            <Link href="/vendors" className="inline-flex min-h-10 items-center gap-2 rounded-full border border-white/20 bg-black/20 px-4 text-xs font-semibold text-white/85 hover:bg-white/10">Marketplace</Link>
           </div>
 
           <div className="mt-14 max-w-4xl sm:mt-20">
