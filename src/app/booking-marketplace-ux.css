@@ -1,5 +1,5 @@
 /* Booking marketplace route safety only.
-   Visual hierarchy now lives in the booking components rather than broad utility-class overrides. */
+   Visual hierarchy lives in the booking components rather than broad utility-class overrides. */
 
 body[data-booking-ux='planner'],
 body[data-booking-ux='vendor'],
@@ -17,12 +17,6 @@ body[data-booking-ux='planner'] details > summary,
 body[data-booking-ux='vendor'] details > summary,
 body[data-booking-ux='provider'] details > summary {
   -webkit-tap-highlight-color: transparent;
-}
-
-/* The interactive provider redesign does not expose a fake save action while
-   a canonical provider-favourites domain is not yet wired. */
-body:has(#provider-booking-slot) #main-content > section:first-child > div.relative > div:first-child > button:last-child {
-  display: none;
 }
 
 @media (max-width: 640px) {
