@@ -151,6 +151,9 @@ function validateServiceArea(item: ItemPolicy, serviceLocation?: string | null) 
 async function validatePolicyWindow(client: QueryClient, item: ItemPolicy, startsAt: Date, endsAt: Date, serviceLocation?: string | null, now = new Date()) {
   if (!(endsAt > startsAt)) throw new BookingCommerceError('End time must be after start time.', 400, 'INVALID_TIME_RANGE')
   const durationMinutes = Math.ceil((endsAt.getTime() - startsAt.getTime()) / 60_000)
+  if (startsAt.getTime() < now.getTime()) {
+    return { allowed: false, reason: 'PAST_BOOKING_WINDOW', durationMinutes }
+  }
   const minNotice = policyNumber(item, item.minNoticeMinutes, 'minNoticeMinutes')
   const horizon = policyNumber(item, item.bookingHorizonDays, 'bookingHorizonDays')
   const minDuration = policyNumber(item, item.minDurationMinutes, 'minDurationMinutes')
