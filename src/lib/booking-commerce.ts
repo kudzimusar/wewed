@@ -17,12 +17,10 @@ export class BookingCommerceError extends Error {
 
 export const BOOKING_MODES = ['instant', 'request', 'quote', 'appointment'] as const
 export const BOOKING_STATUSES = [
-  'draft', 'held', 'requested', 'quote_requested', 'awaiting_vendor', 'awaiting_terms',
+  'draft', 'held', 'requested', 'quote_requested', 'quote_proposed', 'awaiting_vendor', 'awaiting_terms',
   'awaiting_deposit', 'confirmed', 'preparing', 'ready', 'in_progress', 'return_due',
   'inspection', 'completed', 'declined', 'expired', 'cancelled', 'refunded', 'disputed',
 ] as const
-
-type BookingMode = (typeof BOOKING_MODES)[number]
 
 interface CatalogItemRow {
   id: string
@@ -61,16 +59,6 @@ interface VariantRow {
   priceOverrideCents: number | null
   inventoryMode: string
   replacementValueCents: number | null
-}
-
-interface ResourceRow {
-  id: string
-  catalogItemId: string
-  variantId: string | null
-  name: string
-  resourceType: string
-  capacity: number
-  status: string
 }
 
 function object(value: unknown): JsonObject {
@@ -352,70 +340,6 @@ export async function calculatePrice(input: {
   }
 }
 
-export async function checkAvailability(input: {
-  itemId: string
-  variantId?: string | null
-  quantity?: number
-  startsAt: Date
-  endsAt: Date
-}) {
-  const item = await getCatalogItem(input.itemId)
-  await getVariant(item.id, input.variantId ?? null)
-  const quantity = positiveInt(input.quantity)
-  if (!(input.endsAt > input.startsAt)) throw new BookingCommerceError('End time must be after start time.', 400, 'INVALID_TIME_RANGE')
-
-  const bufferedStart = new Date(input.startsAt.getTime() - item.bufferBeforeMinutes * 60_000)
-  const bufferedEnd = new Date(input.endsAt.getTime() + item.bufferAfterMinutes * 60_000)
-  const resources = await db.$queryRawUnsafe<Array<ResourceRow & { allocated: bigint }>>(
-    `SELECT r.id, r."catalogItemId", r."variantId", r.name, r."resourceType", r.capacity, r.status,
-            COALESCE((
-              SELECT sum(a.quantity)
-                FROM wewed_booking."BookingResourceAllocation" a
-               WHERE a."resourceId"=r.id
-                 AND a.state IN ('hold','confirmed')
-                 AND (a.state='confirmed' OR a."expiresAt">CURRENT_TIMESTAMP)
-                 AND a."startsAt"<$4 AND a."endsAt">$3
-            ),0)::bigint AS allocated
-       FROM wewed_booking."BookingResource" r
-      WHERE r."catalogItemId"=$1 AND r.status='active'
-        AND ($2::text IS NULL OR r."variantId"=$2 OR r."variantId" IS NULL)
-        AND NOT EXISTS (
-          SELECT 1 FROM wewed_booking."AvailabilityRule" ar
-           WHERE ar."resourceId"=r.id AND ar."ruleType"='blackout'
-             AND ar."startsAt"<$4 AND ar."endsAt">$3
-        )
-      ORDER BY r.id`,
-    item.id,
-    input.variantId ?? null,
-    bufferedStart,
-    bufferedEnd,
-  )
-
-  if (!resources.length) {
-    return {
-      state: item.bookingMode === 'instant' ? 'unavailable' as const : 'request_only' as const,
-      available: false,
-      availableQuantity: 0,
-      requestedQuantity: quantity,
-      reason: item.bookingMode === 'instant' ? 'NO_CONFIGURED_RESOURCE' : 'VENDOR_CONFIRMATION_REQUIRED',
-      checkedAt: new Date().toISOString(),
-    }
-  }
-
-  const availableQuantity = resources.reduce((sum, resource) => sum + Math.max(0, resource.capacity - Number(resource.allocated)), 0)
-  return {
-    state: availableQuantity >= quantity ? 'available' as const : 'unavailable' as const,
-    available: availableQuantity >= quantity,
-    availableQuantity,
-    requestedQuantity: quantity,
-    reason: availableQuantity >= quantity ? 'AVAILABLE' : 'CAPACITY_EXCEEDED',
-    resourceIds: resources.filter((resource) => resource.capacity > Number(resource.allocated)).map((resource) => resource.id),
-    bufferedStart: bufferedStart.toISOString(),
-    bufferedEnd: bufferedEnd.toISOString(),
-    checkedAt: new Date().toISOString(),
-  }
-}
-
 export async function createBookingDraft(input: {
   weddingId: string
   actorUserId: string
@@ -530,7 +454,7 @@ export async function getBookingForWedding(bookingId: string, weddingId: string)
        FROM wewed_booking."Booking" b
        JOIN wewed_admin."ProviderProfile" p ON p."businessAccountId"=b."businessAccountId"
        JOIN wewed_admin."ProviderServiceOffering" o ON o.id=b."offeringId"
-       LEFT JOIN wewed_booking."BookingLine" l ON l."bookingId"=b.id
+       LEFT JOIN wewed_booking."BookingLine" l ON l."bookingId"=b.id AND l."supersededAt" IS NULL
       WHERE b.id=$1 AND b."weddingId"=$2
       GROUP BY b.id,p.slug,p."displayName",o.category
       LIMIT 1`,
@@ -545,167 +469,16 @@ export async function listWeddingBookings(weddingId: string) {
   return db.$queryRawUnsafe<Array<Record<string, unknown>>>(
     `SELECT b.id,b."publicReference",b."businessAccountId",b."offeringId",b.status,b."bookingMode",b.currency,
             b."totalCents",b."depositCents",b."eventDate",b."serviceStart",b."serviceEnd",b."appointmentAt",
+            b."pickupAt",b."returnDueAt",b."deliveryAt",b."setupStart",b."setupEnd",b."collectionAt",
             b."serviceLocation",b."serviceEngagementId",b."confirmedAt",b."createdAt",b."updatedAt",
             p.slug AS "providerSlug",p."displayName" AS "providerName",o.category,
-            COALESCE((SELECT jsonb_agg(jsonb_build_object('name',l."nameSnapshot",'quantity',l.quantity,'catalogItemId',l."catalogItemId",'variantId',l."variantId") ORDER BY l."createdAt") FROM wewed_booking."BookingLine" l WHERE l."bookingId"=b.id),'[]'::jsonb) AS lines
+            COALESCE((SELECT jsonb_agg(jsonb_build_object('id',l.id,'name',l."nameSnapshot",'quantity',l.quantity,'catalogItemId',l."catalogItemId",'variantId',l."variantId",'selectedOptions',l."selectedOptions") ORDER BY l."createdAt") FROM wewed_booking."BookingLine" l WHERE l."bookingId"=b.id AND l."supersededAt" IS NULL),'[]'::jsonb) AS lines
        FROM wewed_booking."Booking" b
        JOIN wewed_admin."ProviderProfile" p ON p."businessAccountId"=b."businessAccountId"
        JOIN wewed_admin."ProviderServiceOffering" o ON o.id=b."offeringId"
       WHERE b."weddingId"=$1 ORDER BY b."createdAt" DESC`,
     weddingId,
   )
-}
-
-async function bookingWindow(bookingId: string, weddingId: string) {
-  const rows = await db.$queryRawUnsafe<Array<{
-    id: string
-    status: string
-    bookingMode: BookingMode
-    customerUserId: string
-    businessAccountId: string
-    referralLinkId: string | null
-    totalCents: number | null
-    serviceStart: Date | null
-    serviceEnd: Date | null
-    appointmentAt: Date | null
-    pickupAt: Date | null
-    returnDueAt: Date | null
-    eventDate: Date | null
-    catalogItemId: string
-    variantId: string | null
-    quantity: number
-    bufferBeforeMinutes: number
-    bufferAfterMinutes: number
-    holdMinutes: number
-  }>>(
-    `SELECT b.id,b.status,b."bookingMode",b."customerUserId",b."businessAccountId",b."referralLinkId",b."totalCents",
-            b."serviceStart",b."serviceEnd",b."appointmentAt",b."pickupAt",b."returnDueAt",b."eventDate",
-            l."catalogItemId",l."variantId",l.quantity,i."bufferBeforeMinutes",i."bufferAfterMinutes",i."holdMinutes"
-       FROM wewed_booking."Booking" b
-       JOIN wewed_booking."BookingLine" l ON l."bookingId"=b.id
-       JOIN wewed_booking."ProviderCatalogItem" i ON i.id=l."catalogItemId"
-      WHERE b.id=$1 AND b."weddingId"=$2 LIMIT 1`,
-    bookingId,
-    weddingId,
-  )
-  if (!rows[0]) throw new BookingCommerceError('Booking not found.', 404, 'BOOKING_NOT_FOUND')
-  return rows[0]
-}
-
-function resolveWindow(row: Awaited<ReturnType<typeof bookingWindow>>) {
-  const starts = row.serviceStart ?? row.appointmentAt ?? row.pickupAt ?? (row.eventDate ? new Date(`${row.eventDate.toISOString().slice(0, 10)}T00:00:00.000Z`) : null)
-  const ends = row.serviceEnd ?? row.returnDueAt ?? (row.appointmentAt ? new Date(row.appointmentAt.getTime() + 60 * 60_000) : row.eventDate ? new Date(`${row.eventDate.toISOString().slice(0, 10)}T23:59:59.999Z`) : null)
-  if (!starts || !ends || !(ends > starts)) throw new BookingCommerceError('Choose the booking date/time before reserving availability.', 400, 'BOOKING_WINDOW_REQUIRED')
-  return {
-    startsAt: new Date(starts.getTime() - row.bufferBeforeMinutes * 60_000),
-    endsAt: new Date(ends.getTime() + row.bufferAfterMinutes * 60_000),
-  }
-}
-
-export async function holdBooking(input: { bookingId: string; weddingId: string; actorUserId: string; idempotencyKey: string }) {
-  const row = await bookingWindow(input.bookingId, input.weddingId)
-  if (!['draft','held'].includes(row.status)) throw new BookingCommerceError('This booking can no longer be held.', 409, 'INVALID_BOOKING_STATE')
-  if (row.bookingMode !== 'instant') throw new BookingCommerceError('This service requires a vendor request rather than an automatic hold.', 409, 'HOLD_NOT_SUPPORTED')
-  const window = resolveWindow(row)
-  const expiresAt = new Date(Date.now() + row.holdMinutes * 60_000)
-
-  try {
-    await db.$transaction(async (tx) => {
-      const existing = await tx.$queryRawUnsafe<Array<{ id: string; status: string; expiresAt: Date }>>(
-        `SELECT id,status,"expiresAt" FROM wewed_booking."BookingHold" WHERE "idempotencyKey"=$1 LIMIT 1`, input.idempotencyKey,
-      )
-      if (existing[0] && existing[0].status === 'active' && existing[0].expiresAt > new Date()) return
-
-      await tx.$executeRawUnsafe(
-        `UPDATE wewed_booking."BookingHold" SET status='expired',"releasedAt"=CURRENT_TIMESTAMP WHERE "bookingId"=$1 AND status='active' AND "expiresAt"<=CURRENT_TIMESTAMP`,
-        row.id,
-      )
-      await tx.$executeRawUnsafe(
-        `UPDATE wewed_booking."BookingResourceAllocation" SET state='released',"updatedAt"=CURRENT_TIMESTAMP WHERE "bookingId"=$1 AND state='hold' AND "expiresAt"<=CURRENT_TIMESTAMP`,
-        row.id,
-      )
-
-      const resources = await tx.$queryRawUnsafe<ResourceRow[]>(
-        `SELECT id,"catalogItemId","variantId",name,"resourceType",capacity,status
-           FROM wewed_booking."BookingResource"
-          WHERE "catalogItemId"=$1 AND status='active' AND ($2::text IS NULL OR "variantId"=$2 OR "variantId" IS NULL)
-          ORDER BY CASE WHEN "variantId"=$2 THEN 0 ELSE 1 END,id`,
-        row.catalogItemId,
-        row.variantId,
-      )
-      if (!resources.length) throw new BookingCommerceError('No deterministic inventory is configured for Instant Book.', 409, 'NO_BOOKABLE_RESOURCE')
-
-      const holdId = randomUUID()
-      await tx.$executeRawUnsafe(
-        `INSERT INTO wewed_booking."BookingHold" (id,"bookingId","idempotencyKey",status,"expiresAt","createdByUserId") VALUES ($1,$2,$3,'active',$4,$5)`,
-        holdId, row.id, input.idempotencyKey, expiresAt, input.actorUserId,
-      )
-
-      let remaining = row.quantity
-      for (const resource of resources) {
-        if (remaining <= 0) break
-        const quantity = Math.min(resource.capacity, remaining)
-        await tx.$executeRawUnsafe(
-          `INSERT INTO wewed_booking."BookingResourceAllocation" (id,"bookingId","holdId","resourceId",quantity,"startsAt","endsAt",state,"expiresAt","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,'hold',$8,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
-          randomUUID(), row.id, holdId, resource.id, quantity, window.startsAt, window.endsAt, expiresAt,
-        )
-        remaining -= quantity
-      }
-      if (remaining > 0) throw new BookingCommerceError('The requested quantity is no longer available.', 409, 'CAPACITY_EXCEEDED')
-      await tx.$executeRawUnsafe(`UPDATE wewed_booking."Booking" SET status='held' WHERE id=$1`, row.id)
-      await tx.$executeRawUnsafe(
-        `INSERT INTO wewed_booking."BookingEvent" (id,"bookingId","actorUserId","eventType","fromStatus","toStatus",metadata) VALUES ($1,$2,$3,'booking.held',$4,'held',$5::jsonb)`,
-        randomUUID(), row.id, input.actorUserId, row.status, JSON.stringify({ expiresAt: expiresAt.toISOString() }),
-      )
-    })
-  } catch (error) {
-    if (error instanceof BookingCommerceError) throw error
-    const message = error instanceof Error ? error.message : ''
-    if (message.includes('booking_resource_capacity_exceeded')) throw new BookingCommerceError('That availability was just reserved by someone else. Please choose another option.', 409, 'CAPACITY_EXCEEDED')
-    throw error
-  }
-  return getBookingForWedding(row.id, input.weddingId)
-}
-
-export async function submitBooking(input: { bookingId: string; weddingId: string; actorUserId: string }) {
-  const row = await bookingWindow(input.bookingId, input.weddingId)
-  if (!['draft','held'].includes(row.status)) throw new BookingCommerceError('This booking has already been submitted.', 409, 'INVALID_BOOKING_STATE')
-  let next: string
-  if (row.bookingMode === 'instant') {
-    const holds = await db.$queryRawUnsafe<Array<{ id: string }>>(
-      `SELECT id FROM wewed_booking."BookingHold" WHERE "bookingId"=$1 AND status='active' AND "expiresAt">CURRENT_TIMESTAMP LIMIT 1`, row.id,
-    )
-    if (!holds[0]) throw new BookingCommerceError('Your temporary hold expired. Check availability again.', 409, 'HOLD_EXPIRED')
-    if (row.totalCents == null) throw new BookingCommerceError('Instant Book requires a deterministic price.', 409, 'PRICE_REQUIRED')
-    next = 'confirmed'
-  } else if (row.bookingMode === 'quote') {
-    next = 'quote_requested'
-  } else {
-    next = 'requested'
-  }
-
-  await db.$transaction(async (tx) => {
-    await tx.$executeRawUnsafe(
-      `UPDATE wewed_booking."Booking" SET status=$2,"confirmedAt"=CASE WHEN $2='confirmed' THEN CURRENT_TIMESTAMP ELSE "confirmedAt" END WHERE id=$1`,
-      row.id, next,
-    )
-    if (next === 'confirmed') {
-      await tx.$executeRawUnsafe(`UPDATE wewed_booking."BookingHold" SET status='converted' WHERE "bookingId"=$1 AND status='active'`, row.id)
-      await tx.$executeRawUnsafe(`UPDATE wewed_booking."BookingResourceAllocation" SET state='confirmed',"expiresAt"=NULL WHERE "bookingId"=$1 AND state='hold'`, row.id)
-    }
-    await tx.$executeRawUnsafe(
-      `INSERT INTO wewed_booking."BookingEvent" (id,"bookingId","actorUserId","eventType","fromStatus","toStatus",metadata) VALUES ($1,$2,$3,$4,$5,$6,'{}'::jsonb)`,
-      randomUUID(), row.id, input.actorUserId, next === 'confirmed' ? 'booking.confirmed' : 'booking.submitted', row.status, next,
-    )
-    if (row.referralLinkId) {
-      await tx.$executeRawUnsafe(
-        `INSERT INTO wewed_booking."ReferralEvent" (id,"referralLinkId","bookingId","userId","eventType",metadata) VALUES ($1,$2,$3,$4,$5,'{}'::jsonb)`,
-        randomUUID(), row.referralLinkId, row.id, input.actorUserId, next === 'confirmed' ? 'booking_confirmed' : 'booking_requested',
-      )
-    }
-  })
-  if (next === 'confirmed') await ensureBookingEngagement(row.id, input.weddingId, input.actorUserId)
-  return getBookingForWedding(row.id, input.weddingId)
 }
 
 export async function providerBusinessForUser(userId: string) {
@@ -726,9 +499,10 @@ export async function listProviderBookings(userId: string) {
   const business = await providerBusinessForUser(userId)
   const rows = await db.$queryRawUnsafe<Array<Record<string, unknown>>>(
     `SELECT b.id,b."publicReference",b."weddingId",b.status,b."bookingMode",b.currency,b."totalCents",b."depositCents",
-            b."eventDate",b."serviceStart",b."serviceEnd",b."appointmentAt",b."serviceLocation",b."guestCount",b."customerNotes",
+            b."eventDate",b."serviceStart",b."serviceEnd",b."appointmentAt",b."pickupAt",b."returnDueAt",
+            b."deliveryAt",b."setupStart",b."setupEnd",b."collectionAt",b."serviceLocation",b."guestCount",b."customerNotes",
             b."serviceEngagementId",b."createdAt",b."updatedAt",w.title AS "weddingTitle",o.category,
-            COALESCE((SELECT jsonb_agg(jsonb_build_object('name',l."nameSnapshot",'quantity',l.quantity,'catalogItemId',l."catalogItemId",'variantId',l."variantId") ORDER BY l."createdAt") FROM wewed_booking."BookingLine" l WHERE l."bookingId"=b.id),'[]'::jsonb) AS lines
+            COALESCE((SELECT jsonb_agg(jsonb_build_object('id',l.id,'name',l."nameSnapshot",'quantity',l.quantity,'catalogItemId',l."catalogItemId",'variantId',l."variantId",'selectedOptions',l."selectedOptions") ORDER BY l."createdAt") FROM wewed_booking."BookingLine" l WHERE l."bookingId"=b.id AND l."supersededAt" IS NULL),'[]'::jsonb) AS lines
        FROM wewed_booking."Booking" b
        JOIN public."Wedding" w ON w.id=b."weddingId"
        JOIN wewed_admin."ProviderServiceOffering" o ON o.id=b."offeringId"
@@ -736,114 +510,6 @@ export async function listProviderBookings(userId: string) {
     business.businessAccountId,
   )
   return { business, bookings: rows }
-}
-
-export async function providerBookingAction(input: { bookingId: string; actorUserId: string; action: 'approve'|'decline'|'preparing'|'ready'|'in_progress'|'return_due'|'inspection'|'completed' }) {
-  const business = await providerBusinessForUser(input.actorUserId)
-  const rows = await db.$queryRawUnsafe<Array<{ id: string; weddingId: string; status: string; bookingMode: string }>>(
-    `SELECT id,"weddingId",status,"bookingMode" FROM wewed_booking."Booking" WHERE id=$1 AND "businessAccountId"=$2 LIMIT 1`,
-    input.bookingId, business.businessAccountId,
-  )
-  const booking = rows[0]
-  if (!booking) throw new BookingCommerceError('Booking not found.', 404, 'BOOKING_NOT_FOUND')
-  const next = input.action === 'approve' ? 'confirmed' : input.action === 'decline' ? 'declined' : input.action
-  const allowed: Record<string, string[]> = {
-    requested: ['confirmed','declined'],
-    quote_requested: ['confirmed','declined'],
-    awaiting_vendor: ['confirmed','declined'],
-    confirmed: ['preparing','in_progress'],
-    preparing: ['ready','in_progress'],
-    ready: ['in_progress'],
-    in_progress: ['return_due','inspection','completed'],
-    return_due: ['inspection','completed'],
-    inspection: ['completed'],
-  }
-  if (!(allowed[booking.status] ?? []).includes(next)) throw new BookingCommerceError(`Cannot change ${booking.status} booking to ${next}.`, 409, 'INVALID_BOOKING_STATE')
-  await db.$transaction(async (tx) => {
-    await tx.$executeRawUnsafe(
-      `UPDATE wewed_booking."Booking" SET status=$2,"confirmedAt"=CASE WHEN $2='confirmed' THEN COALESCE("confirmedAt",CURRENT_TIMESTAMP) ELSE "confirmedAt" END,"completedAt"=CASE WHEN $2='completed' THEN CURRENT_TIMESTAMP ELSE "completedAt" END WHERE id=$1`,
-      booking.id, next,
-    )
-    await tx.$executeRawUnsafe(
-      `INSERT INTO wewed_booking."BookingEvent" (id,"bookingId","actorUserId","eventType","fromStatus","toStatus",metadata) VALUES ($1,$2,$3,$4,$5,$6,'{}'::jsonb)`,
-      randomUUID(), booking.id, input.actorUserId, `vendor.${input.action}`, booking.status, next,
-    )
-  })
-  if (next === 'confirmed') await ensureBookingEngagement(booking.id, booking.weddingId, input.actorUserId)
-  return getBookingForWedding(booking.id, booking.weddingId)
-}
-
-export async function ensureBookingEngagement(bookingId: string, weddingId: string, actorUserId: string) {
-  const existing = await db.$queryRawUnsafe<Array<{ serviceEngagementId: string | null }>>(
-    `SELECT "serviceEngagementId" FROM wewed_booking."Booking" WHERE id=$1 AND "weddingId"=$2 LIMIT 1`, bookingId, weddingId,
-  )
-  if (existing[0]?.serviceEngagementId) return existing[0].serviceEngagementId
-
-  const rows = await db.$queryRawUnsafe<Array<{
-    businessAccountId: string
-    providerName: string
-    category: string
-    totalCents: number | null
-    currency: string
-    serviceDate: Date | null
-    serviceLocation: string | null
-    customerUserId: string
-    publicReference: string
-    firstLine: string
-    phone: string | null
-    publicEmail: string | null
-    website: string | null
-  }>>(
-    `SELECT b."businessAccountId",p."displayName" AS "providerName",o.category,b."totalCents",b.currency,
-            COALESCE(b."serviceStart",b."appointmentAt",b."eventDate"::timestamp) AS "serviceDate",b."serviceLocation",
-            b."customerUserId",b."publicReference",
-            COALESCE((SELECT l."nameSnapshot" FROM wewed_booking."BookingLine" l WHERE l."bookingId"=b.id ORDER BY l."createdAt" LIMIT 1),o."displayName") AS "firstLine",
-            p.phone,p."publicEmail",p.website
-       FROM wewed_booking."Booking" b
-       JOIN wewed_admin."ProviderProfile" p ON p."businessAccountId"=b."businessAccountId"
-       JOIN wewed_admin."ProviderServiceOffering" o ON o.id=b."offeringId"
-      WHERE b.id=$1 AND b."weddingId"=$2 AND b.status='confirmed' LIMIT 1`,
-    bookingId, weddingId,
-  )
-  const booking = rows[0]
-  if (!booking) throw new BookingCommerceError('Only confirmed bookings can create an engagement.', 409, 'BOOKING_NOT_CONFIRMED')
-
-  return db.$transaction(async (tx) => {
-    const locked = await tx.$queryRawUnsafe<Array<{ serviceEngagementId: string | null }>>(
-      `SELECT "serviceEngagementId" FROM wewed_booking."Booking" WHERE id=$1 AND "weddingId"=$2 FOR UPDATE`, bookingId, weddingId,
-    )
-    if (locked[0]?.serviceEngagementId) return locked[0].serviceEngagementId
-
-    const existingVendor = await tx.$queryRawUnsafe<Array<{ id: string }>>(
-      `SELECT id FROM public."Vendor" WHERE "weddingId"=$1 AND lower(name)=lower($2) ORDER BY "createdAt" LIMIT 1`,
-      weddingId, booking.providerName,
-    )
-    const vendorId = existingVendor[0]?.id ?? randomUUID()
-    if (!existingVendor[0]) {
-      await tx.$executeRawUnsafe(
-        `INSERT INTO public."Vendor" (id,name,category,description,website,phone,contact,email,featured,"contractStatus","paymentStatus","weddingId","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,false,'pending','pending',$9,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
-        vendorId, booking.providerName, booking.category, `Marketplace booking ${booking.publicReference}`, booking.website, booking.phone, booking.phone ?? booking.publicEmail, booking.publicEmail, weddingId,
-      )
-    }
-
-    const engagementId = randomUUID()
-    await tx.$executeRawUnsafe(
-      `INSERT INTO public."ServiceEngagement" (id,origin,"recordMode","serviceCategory","serviceDescription","agreedAmount",currency,"serviceDate","serviceLocation","externalAgreementStatus","historicalBasis","recordedById","createdById","weddingId","vendorId","lifecycleStatus","createdAt","updatedAt") VALUES ($1,'current','managed_contract',$2,$3,$4,$5,$6,$7,'none',NULL,$8,$8,$9,$10,'draft',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
-      engagementId, booking.category, `${booking.firstLine} — ${booking.publicReference}`, booking.totalCents == null ? null : booking.totalCents / 100, booking.currency, booking.serviceDate, booking.serviceLocation, actorUserId, weddingId, vendorId,
-    )
-    if (booking.totalCents != null) {
-      await tx.$executeRawUnsafe(
-        `INSERT INTO public."BudgetItem" (id,category,description,"estimatedCost","actualCost","paidAmount",currency,"vendorId","vendorName",notes,"serviceEngagementId","weddingId","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$4,0,$5,$6,$7,$8,$9,$10,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
-        randomUUID(), booking.category, booking.firstLine, booking.totalCents / 100, booking.currency, vendorId, booking.providerName, `Created from confirmed booking ${booking.publicReference}. Payment and contribution funding remain separate.`, engagementId, weddingId,
-      )
-    }
-    await tx.$executeRawUnsafe(`UPDATE wewed_booking."Booking" SET "serviceEngagementId"=$2 WHERE id=$1`, bookingId, engagementId)
-    await tx.$executeRawUnsafe(
-      `INSERT INTO wewed_booking."BookingEvent" (id,"bookingId","actorUserId","eventType",metadata) VALUES ($1,$2,$3,'booking.engagement_linked',$4::jsonb)`,
-      randomUUID(), bookingId, actorUserId, JSON.stringify({ serviceEngagementId: engagementId }),
-    )
-    return engagementId
-  })
 }
 
 export async function createReferralLink(input: { businessAccountId: string; catalogItemId?: string | null; createdByUserId?: string | null; channel?: string | null; campaign?: string | null }) {
