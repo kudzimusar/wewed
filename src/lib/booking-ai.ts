@@ -184,11 +184,12 @@ export async function executeArchitectBookingAction(input: ExecutionInput) {
     expiresAt: Date | null
     revokedAt: Date | null
     isActive: boolean
+    updatedAt: Date
   }>>(
     `SELECT id,"maxAction","maxPerBookingCents","maxTotalOpenCents","maxDepositCents","allowedCategories",
             "allowedBookingModes","allowedProviderSlugs","allowedRiskClasses","excludedCatalogItemIds",
             "allowNonRefundable","allowHold","allowRequestSubmission","allowInstantConfirmation",
-            "allowContractAcceptance","allowPayment","expiresAt","revokedAt","isActive"
+            "allowContractAcceptance","allowPayment","expiresAt","revokedAt","isActive","updatedAt"
        FROM wewed_booking."AutoBookPolicy"
       WHERE "weddingId"=$1 AND "userId"=$2 LIMIT 1`,
     input.weddingId,
@@ -276,17 +277,6 @@ export async function executeArchitectBookingAction(input: ExecutionInput) {
   if (price.depositCents != null && policy.maxDepositCents != null && price.depositCents > policy.maxDepositCents) {
     throw new BookingCommerceError('This booking exceeds the AutoBook deposit boundary.', 403, 'AUTOBOOK_DEPOSIT_LIMIT')
   }
-  if (price.totalCents != null && policy.maxTotalOpenCents != null) {
-    const totals = await db.$queryRawUnsafe<Array<{ total: bigint }>>(
-      `SELECT COALESCE(SUM("totalCents"),0)::bigint AS total
-         FROM wewed_booking."Booking"
-        WHERE "weddingId"=$1 AND status NOT IN ('completed','declined','expired','cancelled','refunded')`,
-      input.weddingId,
-    )
-    if (Number(totals[0]?.total ?? 0) + price.totalCents > policy.maxTotalOpenCents) {
-      throw new BookingCommerceError('This booking would exceed the AutoBook open-commitment boundary.', 403, 'AUTOBOOK_TOTAL_LIMIT')
-    }
-  }
 
   const customerRows = await db.$queryRawUnsafe<Array<{ userId: string | null }>>(
     `SELECT c."userId" AS "userId" FROM public."Wedding" w JOIN public."Couple" c ON c.id=w."coupleId" WHERE w.id=$1 LIMIT 1`,
@@ -295,26 +285,59 @@ export async function executeArchitectBookingAction(input: ExecutionInput) {
   const customerUserId = customerRows[0]?.userId
   if (!customerUserId) throw new BookingCommerceError('Wedding customer-of-record is unavailable.', 409, 'CUSTOMER_RECORD_REQUIRED')
 
-  let booking = await createBookingDraft({
-    weddingId: input.weddingId,
-    actorUserId: input.actorUserId,
-    customerUserId,
-    itemId: input.itemId,
-    variantId: input.variantId ?? null,
-    quantity: input.quantity,
-    selectedAddOns: input.selectedAddOns,
-    eventDate: input.eventDate,
-    serviceStart: input.serviceStart,
-    serviceEnd: input.serviceEnd,
-    appointmentAt: input.appointmentAt,
-    pickupAt: input.pickupAt,
-    returnDueAt: input.returnDueAt,
-    serviceLocation: input.serviceLocation,
-    guestCount: input.guestCount,
-    notes: input.notes,
-    referralToken: input.referralToken,
-  })
+  const budgetReservationId = randomUUID()
+  const reservationRows = await db.$queryRawUnsafe<Array<{ result: string }>>(
+    `SELECT wewed_booking.reserve_autobook_open_budget($1,$2,$3,$4) AS result`,
+    policy.id,
+    policy.updatedAt,
+    price.totalCents ?? 0,
+    budgetReservationId,
+  )
+  const reservationResult = reservationRows[0]?.result
+  if (reservationResult !== 'reserved') {
+    if (reservationResult === 'total_limit') throw new BookingCommerceError('This booking would exceed the AutoBook open-commitment boundary.', 403, 'AUTOBOOK_TOTAL_LIMIT')
+    if (reservationResult === 'policy_expired') throw new BookingCommerceError('This AutoBook authorization has expired.', 403, 'AUTOBOOK_EXPIRED')
+    if (reservationResult === 'policy_inactive' || reservationResult === 'policy_missing') throw new BookingCommerceError('AutoBook is not enabled for this wedding and user.', 403, 'AUTOBOOK_DISABLED')
+    if (reservationResult === 'policy_changed') throw new BookingCommerceError('AutoBook policy changed while this action was being prepared. Review the current authorization and try again.', 409, 'AUTOBOOK_POLICY_CHANGED')
+    throw new BookingCommerceError('AutoBook authorization could not be reserved safely.', 409, 'AUTOBOOK_RESERVATION_FAILED')
+  }
+
+  let booking
+  try {
+    booking = await createBookingDraft({
+      weddingId: input.weddingId,
+      actorUserId: input.actorUserId,
+      customerUserId,
+      itemId: input.itemId,
+      variantId: input.variantId ?? null,
+      quantity: input.quantity,
+      selectedAddOns: input.selectedAddOns,
+      eventDate: input.eventDate,
+      serviceStart: input.serviceStart,
+      serviceEnd: input.serviceEnd,
+      appointmentAt: input.appointmentAt,
+      pickupAt: input.pickupAt,
+      returnDueAt: input.returnDueAt,
+      serviceLocation: input.serviceLocation,
+      guestCount: input.guestCount,
+      notes: input.notes,
+      referralToken: input.referralToken,
+    })
+  } catch (error) {
+    await db.$queryRawUnsafe(`SELECT wewed_booking.release_autobook_open_budget($1)`, budgetReservationId).catch(() => undefined)
+    throw error
+  }
+
   const bookingId = String(booking.id)
+  const consumedRows = await db.$queryRawUnsafe<Array<{ consumed: boolean }>>(
+    `SELECT wewed_booking.consume_autobook_open_budget($1,$2) AS consumed`,
+    budgetReservationId,
+    bookingId,
+  )
+  if (!consumedRows[0]?.consumed) {
+    throw new BookingCommerceError('The AutoBook authorization reservation could not be attached to the created draft. The draft remains non-final and is counted against open commitments.', 409, 'AUTOBOOK_RESERVATION_ATTACH_FAILED')
+  }
+
   if (input.deliveryAt || input.setupStart || input.setupEnd || input.collectionAt) {
     booking = await applyBookingDraftLogistics({
       bookingId,
@@ -353,6 +376,7 @@ export async function executeArchitectBookingAction(input: ExecutionInput) {
     JSON.stringify({
       action: input.action,
       policyId: policy.id,
+      budgetReservationId,
       maxAction: policy.maxAction,
       bookingMode: catalog.bookingMode,
       providerSlug: catalog.providerSlug,
