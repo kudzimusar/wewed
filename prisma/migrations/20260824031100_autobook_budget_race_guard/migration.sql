@@ -3,6 +3,27 @@
 -- reservation is the authoritative concurrency boundary. A wedding-scoped advisory lock makes
 -- concurrent AI actions account for each other before either action can create a booking draft.
 
+-- Timestamp equality is not a safe optimistic-lock token across PostgreSQL and JavaScript because
+-- PostgreSQL retains microseconds while JavaScript Date retains milliseconds. Use an explicit
+-- monotonic revision that changes for every policy UPDATE instead.
+ALTER TABLE wewed_booking."AutoBookPolicy"
+  ADD COLUMN "revision" BIGINT NOT NULL DEFAULT 1;
+
+CREATE OR REPLACE FUNCTION wewed_booking.bump_autobook_policy_revision()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog, wewed_booking
+AS $$
+BEGIN
+  NEW."revision" := OLD."revision" + 1;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER "AutoBookPolicy_revision_trg"
+BEFORE UPDATE ON wewed_booking."AutoBookPolicy"
+FOR EACH ROW EXECUTE FUNCTION wewed_booking.bump_autobook_policy_revision();
+
 CREATE TABLE wewed_booking."AutoBookBudgetReservation" (
   "id" TEXT PRIMARY KEY,
   "policyId" TEXT NOT NULL,
@@ -37,7 +58,7 @@ CREATE UNIQUE INDEX "AutoBookBudgetReservation_booking_key"
 
 CREATE OR REPLACE FUNCTION wewed_booking.reserve_autobook_open_budget(
   p_policy_id TEXT,
-  p_expected_updated_at TIMESTAMPTZ,
+  p_expected_revision BIGINT,
   p_amount_cents BIGINT,
   p_reservation_id TEXT
 )
@@ -52,7 +73,7 @@ DECLARE
   v_is_active BOOLEAN;
   v_revoked_at TIMESTAMPTZ;
   v_expires_at TIMESTAMPTZ;
-  v_updated_at TIMESTAMPTZ;
+  v_revision BIGINT;
   v_open_total BIGINT;
   v_reserved_total BIGINT;
 BEGIN
@@ -62,8 +83,8 @@ BEGIN
     RETURN 'invalid_amount';
   END IF;
 
-  SELECT p."weddingId",p."userId",p."maxTotalOpenCents",p."isActive",p."revokedAt",p."expiresAt",p."updatedAt"
-    INTO v_wedding_id,v_user_id,v_max_total,v_is_active,v_revoked_at,v_expires_at,v_updated_at
+  SELECT p."weddingId",p."userId",p."maxTotalOpenCents",p."isActive",p."revokedAt",p."expiresAt",p."revision"
+    INTO v_wedding_id,v_user_id,v_max_total,v_is_active,v_revoked_at,v_expires_at,v_revision
     FROM wewed_booking."AutoBookPolicy" p
    WHERE p.id=p_policy_id
    FOR UPDATE;
@@ -71,7 +92,7 @@ BEGIN
   IF v_wedding_id IS NULL THEN RETURN 'policy_missing'; END IF;
   IF NOT v_is_active OR v_revoked_at IS NOT NULL THEN RETURN 'policy_inactive'; END IF;
   IF v_expires_at IS NOT NULL AND v_expires_at <= CURRENT_TIMESTAMP THEN RETURN 'policy_expired'; END IF;
-  IF v_updated_at IS DISTINCT FROM p_expected_updated_at THEN RETURN 'policy_changed'; END IF;
+  IF v_revision IS DISTINCT FROM p_expected_revision THEN RETURN 'policy_changed'; END IF;
 
   -- Serialize every AutoBook budget authorization for the wedding, including different users/policies.
   PERFORM pg_advisory_xact_lock(hashtextextended('autobook-budget:' || v_wedding_id,0));
@@ -150,7 +171,8 @@ END;
 $$;
 
 REVOKE ALL ON TABLE wewed_booking."AutoBookBudgetReservation" FROM PUBLIC;
-REVOKE ALL ON FUNCTION wewed_booking.reserve_autobook_open_budget(TEXT,TIMESTAMPTZ,BIGINT,TEXT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION wewed_booking.bump_autobook_policy_revision() FROM PUBLIC;
+REVOKE ALL ON FUNCTION wewed_booking.reserve_autobook_open_budget(TEXT,BIGINT,BIGINT,TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION wewed_booking.consume_autobook_open_budget(TEXT,TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION wewed_booking.release_autobook_open_budget(TEXT) FROM PUBLIC;
 
@@ -160,7 +182,8 @@ BEGIN
   FOREACH role_name IN ARRAY ARRAY['anon','authenticated'] LOOP
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname=role_name) THEN
       EXECUTE format('REVOKE ALL ON TABLE wewed_booking."AutoBookBudgetReservation" FROM %I',role_name);
-      EXECUTE format('REVOKE ALL ON FUNCTION wewed_booking.reserve_autobook_open_budget(TEXT,TIMESTAMPTZ,BIGINT,TEXT) FROM %I',role_name);
+      EXECUTE format('REVOKE ALL ON FUNCTION wewed_booking.bump_autobook_policy_revision() FROM %I',role_name);
+      EXECUTE format('REVOKE ALL ON FUNCTION wewed_booking.reserve_autobook_open_budget(TEXT,BIGINT,BIGINT,TEXT) FROM %I',role_name);
       EXECUTE format('REVOKE ALL ON FUNCTION wewed_booking.consume_autobook_open_budget(TEXT,TEXT) FROM %I',role_name);
       EXECUTE format('REVOKE ALL ON FUNCTION wewed_booking.release_autobook_open_budget(TEXT) FROM %I',role_name);
     END IF;
