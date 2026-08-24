@@ -294,7 +294,7 @@ export function ProviderBookingShowcaseV2({ slug, fallbackCover }: { slug: strin
           ) : (
             <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {catalog.items.map((item) => {
-                const image = item.media.find((entry) => entry.type === 'image')?.url || gallery[0]?.url || null
+                const image = item.media.find((entry) => entry.type === 'image')?.url || null
                 return (
                   <article key={item.id} className="grid min-h-0 grid-cols-[104px_minmax(0,1fr)] overflow-hidden rounded-xl border border-[#e3d7c5] bg-white shadow-[0_5px_18px_rgba(58,42,25,.05)] sm:grid-cols-[128px_minmax(0,1fr)] md:block">
                     <div className="aspect-square min-h-full overflow-hidden bg-[#eee8de] md:aspect-[16/9] md:min-h-0"><CatalogImage src={image} alt={item.name} /></div>
