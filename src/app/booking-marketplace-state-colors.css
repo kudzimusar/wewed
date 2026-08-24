@@ -1,0 +1,33 @@
+/* Light-theme semantic state colors for the Planner booking workspace. */
+body[data-booking-ux='planner'] main.min-h-dvh [class*='bg-amber-950/20'],
+body[data-booking-ux='planner'] main.min-h-dvh [class*='bg-amber-950/10'] {
+  background: #fff7e8 !important;
+  border-color: #e8c878 !important;
+}
+
+body[data-booking-ux='planner'] main.min-h-dvh [class*='text-amber-100'] {
+  color: #755015 !important;
+}
+
+body[data-booking-ux='planner'] main.min-h-dvh [class*='bg-red-950/30'] {
+  background: #fff1ef !important;
+  border-color: #e7b8b1 !important;
+}
+
+body[data-booking-ux='planner'] main.min-h-dvh [class*='text-red-100'],
+body[data-booking-ux='planner'] main.min-h-dvh [class*='text-red-200'] {
+  color: #9b3028 !important;
+}
+
+body[data-booking-ux='planner'] main.min-h-dvh [class*='bg-emerald-950/20'] {
+  background: #eef9f2 !important;
+  border-color: #b9dcc5 !important;
+}
+
+body[data-booking-ux='planner'] main.min-h-dvh [class*='text-emerald-300'] {
+  color: #267549 !important;
+}
+
+body[data-booking-ux='planner'] main.min-h-dvh [class*='bg-champagne/5'] {
+  border-color: #ece2d4 !important;
+}
