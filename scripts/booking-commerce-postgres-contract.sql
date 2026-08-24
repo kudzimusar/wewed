@@ -31,6 +31,35 @@ BEGIN
   END;
 END $$;
 
+-- A refund removes paid value. Reversing that refund restores it; reversals take the opposite
+-- economic sign of the fact they reference rather than always subtracting.
+BEGIN;
+SET LOCAL session_replication_role = replica;
+INSERT INTO wewed_contracts."PaymentMilestone"
+  (id,"serviceEngagementId","weddingId","bookingId","milestoneType",label,description,amount,currency,status,sequence,"proofRequired","createdById")
+VALUES ('ci-sql-deposit','ci-engagement','ci-wedding','ci-sql-booking','DEPOSIT','CI deposit','Deposit truth contract',50.00,'USD','PLANNED',0,false,'ci-user');
+INSERT INTO wewed_contracts."ManagedPaymentRecord"
+  (id,"serviceEngagementId","weddingId","milestoneId","entryType",amount,currency,"paidAt",source,"proofRequired","proofWaiverReason","recordedById")
+VALUES ('ci-sql-payment','ci-engagement','ci-wedding','ci-sql-deposit','PAYMENT',50.00,'USD',CURRENT_TIMESTAMP,'MANUAL_FACT',false,'CI fixture','ci-user');
+INSERT INTO wewed_contracts."ManagedPaymentRecord"
+  (id,"serviceEngagementId","weddingId","milestoneId","entryType",amount,currency,"paidAt",source,"proofRequired","proofWaiverReason","recordedById")
+VALUES ('ci-sql-refund','ci-engagement','ci-wedding','ci-sql-deposit','REFUND',50.00,'USD',CURRENT_TIMESTAMP,'CORRECTION_FACT',false,'CI fixture','ci-user');
+INSERT INTO wewed_contracts."ManagedPaymentRecord"
+  (id,"serviceEngagementId","weddingId","milestoneId","entryType",amount,currency,"paidAt",source,"proofRequired","proofWaiverReason","reversesPaymentId","recordedById")
+VALUES ('ci-sql-refund-reversal','ci-engagement','ci-wedding','ci-sql-deposit','REVERSAL',50.00,'USD',CURRENT_TIMESTAMP,'CORRECTION_FACT',false,'CI fixture','ci-sql-refund','ci-user');
+COMMIT;
+
+DO $$
+BEGIN
+  IF NOT wewed_booking.booking_deposit_is_satisfied('ci-sql-booking') THEN
+    RAISE EXCEPTION 'refund reversal sign contract failed: reversed refund did not restore deposit satisfaction';
+  END IF;
+  UPDATE wewed_booking."Booking" SET status='confirmed' WHERE id='ci-sql-booking';
+  IF (SELECT status FROM wewed_booking."Booking" WHERE id='ci-sql-booking') <> 'confirmed' THEN
+    RAISE EXCEPTION 'deposit guard failed after valid refund reversal evidence';
+  END IF;
+END $$;
+
 DO $$
 BEGIN
   BEGIN
