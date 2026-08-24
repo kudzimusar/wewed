@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowRight, CalendarCheck2, FolderLock, MessageCircle, PackageOpen, Store, UserRoundCog } from 'lucide-react'
+import { ArrowRight, BarChart3, CalendarCheck2, CalendarRange, FolderLock, MessageCircle, PackageOpen, Store, UserRoundCog } from 'lucide-react'
 import { DashboardAuthGate } from '@/components/wedding/dashboard-auth-gate'
 
 export default function VendorWorkspacePage() {
@@ -23,7 +23,7 @@ export default function VendorWorkspacePage() {
             <div className="mt-3 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <h1 className="max-w-3xl font-serif text-4xl leading-tight sm:text-6xl">Run your Wewed business from one place.</h1>
-                <p className="mt-4 max-w-2xl text-sm leading-7 text-espresso/60">Manage booking requests, catalogue inventory, conversations, commercial documents and your public marketplace profile without losing the relationship between the wedding, service and fulfilment record.</p>
+                <p className="mt-4 max-w-2xl text-sm leading-7 text-espresso/60">Manage booking requests, catalogue inventory, deterministic availability, conversations, commercial documents and your public marketplace profile without losing the relationship between the wedding, service and fulfilment record.</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Link href="/messages" className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-full border border-gold/30 bg-white px-6 py-3 text-sm font-bold text-espresso shadow-sm transition hover:bg-champagne/40">
@@ -43,15 +43,29 @@ export default function VendorWorkspacePage() {
             <Link href="/vendor/bookings" className="group rounded-3xl border-2 border-gold/35 bg-champagne/45 p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
               <CalendarCheck2 className="size-7 text-gold-muted" />
               <h2 className="mt-5 font-serif text-3xl">Bookings</h2>
-              <p className="mt-3 text-sm leading-6 text-espresso/65">Review requests, approve confirmed work and move each booking through preparation, service, return and completion.</p>
+              <p className="mt-3 text-sm leading-6 text-espresso/65">Review requests, quotes, governed commitments and move each booking through preparation, service, return and completion.</p>
               <span className="mt-6 inline-flex items-center gap-2 text-sm font-bold text-espresso">Open booking inbox <ArrowRight className="size-4" /></span>
             </Link>
 
             <Link href="/vendor/catalog" className="group rounded-3xl border border-gold/20 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
               <PackageOpen className="size-6 text-gold-muted" />
               <h2 className="mt-5 font-serif text-3xl">Catalogue</h2>
-              <p className="mt-3 text-sm leading-6 text-espresso/60">Publish services, gown variants, sizes, colours, media, rental inventory, capacity and the availability rules that power online booking.</p>
+              <p className="mt-3 text-sm leading-6 text-espresso/60">Publish services, gown variants, sizes, colours, media, rental inventory and real capacity.</p>
               <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-gold-muted">Manage catalogue <ArrowRight className="size-4" /></span>
+            </Link>
+
+            <Link href="/vendor/availability" className="group rounded-3xl border border-gold/20 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+              <CalendarRange className="size-6 text-gold-muted" />
+              <h2 className="mt-5 font-serif text-3xl">Availability</h2>
+              <p className="mt-3 text-sm leading-6 text-espresso/60">Configure booking horizons, weekly hours, blackouts, capacity overrides, service areas, packages and resource-backed add-ons.</p>
+              <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-gold-muted">Configure supply <ArrowRight className="size-4" /></span>
+            </Link>
+
+            <Link href="/vendor/analytics" className="group rounded-3xl border border-gold/20 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+              <BarChart3 className="size-6 text-gold-muted" />
+              <h2 className="mt-5 font-serif text-3xl">Booking analytics</h2>
+              <p className="mt-3 text-sm leading-6 text-espresso/60">See booking conversion, confirmed value, catalogue performance and referral-link attribution from canonical booking records.</p>
+              <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-gold-muted">Open analytics <ArrowRight className="size-4" /></span>
             </Link>
 
             <Link href="/messages" className="group rounded-3xl border border-gold/20 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
