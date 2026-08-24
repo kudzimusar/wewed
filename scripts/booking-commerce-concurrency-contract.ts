@@ -50,6 +50,13 @@ async function seed() {
         VALUES ($1,$2,$3,$4,$5,'{"addOns":[]}'::jsonb)
       `, lineId, bookingId, itemId, itemId, quantity)
     }
+
+    await tx.$executeRawUnsafe(`
+      INSERT INTO wewed_booking."AutoBookPolicy"
+        (id,"weddingId","userId","maxAction","maxPerBookingCents","maxTotalOpenCents","allowedCategories","allowHold","allowRequestSubmission","allowInstantConfirmation","isActive","approvedAt")
+      VALUES
+        ('ci-autobook-policy','ci-wedding','ci-user','confirm',10000,10000,'[]'::jsonb,true,true,true,true,CURRENT_TIMESTAMP)
+    `)
   })
 }
 
@@ -92,8 +99,27 @@ async function allocationTotal(resourceId: string) {
   return Number(rows[0]?.quantity ?? 0)
 }
 
+async function reserveAutoBookBudget(reservationId: string, updatedAt: Date) {
+  const rows = await db.$queryRawUnsafe<Array<{ result: string }>>(
+    `SELECT wewed_booking.reserve_autobook_open_budget($1,$2,$3,$4) AS result`,
+    'ci-autobook-policy', updatedAt, 6000, reservationId,
+  )
+  return rows[0]?.result
+}
+
 async function main() {
   await seed()
+
+  const past = await checkDeterministicAvailability({
+    itemId: 'ci-gown-item',
+    quantity: 1,
+    startsAt: new Date(Date.now() - 2 * 86_400_000),
+    endsAt: new Date(Date.now() - 86_400_000),
+    serviceLocation: 'Harare',
+  })
+  if (past.available !== false || past.reason !== 'PAST_BOOKING_WINDOW') {
+    throw new Error(`Past-window contract: expected PAST_BOOKING_WINDOW, got ${String(past.reason)}.`)
+  }
 
   const packageTwo = await checkDeterministicAvailability({
     itemId: 'ci-package-item', quantity: 2, startsAt, endsAt, serviceLocation: 'Harare', selectedAddOns: [],
@@ -120,7 +146,30 @@ async function main() {
   const chairsAllocated = await allocationTotal('ci-chair-resource')
   if (chairsAllocated > 10 || chairsAllocated !== 6) throw new Error(`Chair pool concurrency: expected one six-chair allocation within capacity 10, got ${chairsAllocated}.`)
 
-  console.log('Booking commerce concurrency/package contract: PASS')
+  const policyRows = await db.$queryRawUnsafe<Array<{ updatedAt: Date }>>(
+    `SELECT "updatedAt" FROM wewed_booking."AutoBookPolicy" WHERE id='ci-autobook-policy' LIMIT 1`,
+  )
+  const updatedAt = policyRows[0]?.updatedAt
+  if (!updatedAt) throw new Error('AutoBook concurrency contract: policy fixture missing.')
+  const budgetResults = await Promise.all([
+    reserveAutoBookBudget('ci-autobook-reservation-a', updatedAt),
+    reserveAutoBookBudget('ci-autobook-reservation-b', updatedAt),
+  ])
+  const reserved = budgetResults.filter((result) => result === 'reserved').length
+  const blocked = budgetResults.filter((result) => result === 'total_limit').length
+  if (reserved !== 1 || blocked !== 1) {
+    throw new Error(`AutoBook concurrency contract: expected one reservation and one total-limit rejection, got ${JSON.stringify(budgetResults)}.`)
+  }
+  const reservationTotals = await db.$queryRawUnsafe<Array<{ amount: bigint }>>(
+    `SELECT COALESCE(SUM("amountCents"),0)::bigint AS amount
+       FROM wewed_booking."AutoBookBudgetReservation"
+      WHERE "weddingId"='ci-wedding' AND status='active' AND "expiresAt">CURRENT_TIMESTAMP`,
+  )
+  if (Number(reservationTotals[0]?.amount ?? 0) !== 6000) {
+    throw new Error('AutoBook concurrency contract: active reservations exceeded the policy boundary.')
+  }
+
+  console.log('Booking commerce concurrency/package/AutoBook contract: PASS')
 }
 
 main().finally(async () => { await db.$disconnect() })
