@@ -142,11 +142,13 @@ export function ProviderBookingForm({ providerSlug, providerName, item, referral
     if (!startsAt || !endsAt) throw new Error('Choose the date and time needed before checking availability.')
     const params = new URLSearchParams({ item: item.slug, startsAt, endsAt, quantity: String(quantity) })
     if (variantId) params.set('variantId', variantId)
+    if (location.trim()) params.set('location', location.trim())
+    if (selectedAddOns.length) params.set('addOns', selectedAddOns.join(','))
     const response = await fetch(`/api/providers/${encodeURIComponent(providerSlug)}/availability?${params.toString()}`, { cache: 'no-store' })
     const payload = await response.json()
     if (!response.ok || !payload.success) throw new Error(payload.error || 'Unable to check availability.')
     setAvailability(payload.data)
-    if (!payload.data.available) throw new Error('This selection is not currently available for the requested time.')
+    if (!payload.data.available) throw new Error(`This selection is not currently available for the requested time${payload.data.reason ? ` (${String(payload.data.reason).replaceAll('_', ' ').toLowerCase()})` : ''}.`)
     return payload.data as AvailabilityResult
   }
 
@@ -224,7 +226,7 @@ export function ProviderBookingForm({ providerSlug, providerName, item, referral
           {item.description && <p className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-600">{item.description}</p>}
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <div className="rounded-xl bg-slate-50 p-3 text-sm"><ShieldCheck className="mb-1 h-4 w-4 text-slate-700" /><strong>Terms</strong><div className="mt-1 text-slate-600">{item.requiresContract ? 'Agreement required before the commercial commitment becomes effective.' : 'Provider booking terms apply.'}</div></div>
-            <div className="rounded-xl bg-slate-50 p-3 text-sm"><CalendarDays className="mb-1 h-4 w-4 text-slate-700" /><strong>Availability</strong><div className="mt-1 text-slate-600">{item.bookingMode === 'instant' ? 'Checked against configured live resources.' : 'Confirmed by the vendor after your request.'}</div></div>
+            <div className="rounded-xl bg-slate-50 p-3 text-sm"><CalendarDays className="mb-1 h-4 w-4 text-slate-700" /><strong>Availability</strong><div className="mt-1 text-slate-600">{item.bookingMode === 'instant' ? 'Checked against configured live resources, selected add-ons and service area.' : 'Confirmed by the vendor after your request.'}</div></div>
           </div>
           {(cancellationPolicy || refundPolicy) ? <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-slate-700"><strong>Commercial policy</strong>{cancellationPolicy ? <p className="mt-1"><span className="font-medium">Cancellation:</span> {cancellationPolicy}</p> : null}{refundPolicy ? <p className="mt-1"><span className="font-medium">Refund:</span> {refundPolicy}</p> : null}</div> : null}
         </div>
@@ -260,7 +262,7 @@ export function ProviderBookingForm({ providerSlug, providerName, item, referral
           {price?.state === 'quote_required' && <p className="mt-2 text-xs text-slate-500">Wewed has not invented a price. {providerName} will provide a quote for the selected scope.</p>}
         </div>
 
-        {availability && <div className={`mt-3 rounded-xl p-3 text-sm ${availability.available ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}><Clock3 className="mr-1 inline h-4 w-4" /> {availability.available ? `${availability.availableQuantity} available for this window.` : 'This exact selection is not currently available.'}</div>}
+        {availability && <div className={`mt-3 rounded-xl p-3 text-sm ${availability.available ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}><Clock3 className="mr-1 inline h-4 w-4" /> {availability.available ? `${availability.availableQuantity} available for this exact window, location and resource selection.` : 'This exact selection is not currently available.'}</div>}
         {error && <div className="mt-3 rounded-xl bg-red-50 p-3 text-sm text-red-800">{error}{signInRequired && <div className="mt-2"><Link href="/sign-in" className="font-semibold underline">Sign in to continue</Link></div>}</div>}
 
         <button type="button" disabled={busy} onClick={submit} className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white disabled:opacity-60">{busy ? <><Loader2 className="h-4 w-4 animate-spin" /> Processing…</> : mode.button}</button>
