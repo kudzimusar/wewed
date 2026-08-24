@@ -22,7 +22,6 @@ export async function GET(request: NextRequest) {
 
     const size = sizeParam ? parseInt(sizeParam, 10) : 300;
 
-    // Validate size
     if (isNaN(size) || size < 50 || size > 1000) {
       return NextResponse.json(
         { error: "Size must be a number between 50 and 1000" },
@@ -30,13 +29,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Generate QR code as data URL with wedding palette
     const qrDataUrl: string = await QRCode.toDataURL(data, {
       width: size,
       margin: 2,
       color: {
-        dark: "#1A1410",  // Espresso — the dark modules
-        light: "#FBF6EE", // Champagne — the light background
+        dark: "#1A1410",
+        light: "#FBF6EE",
       },
       errorCorrectionLevel: "M",
     });
@@ -44,6 +42,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       qr: qrDataUrl,
+      // Backward-compatible alias for older Wewed consumers. New code should use `qr`.
+      qrCode: qrDataUrl,
       meta: {
         data,
         size,
