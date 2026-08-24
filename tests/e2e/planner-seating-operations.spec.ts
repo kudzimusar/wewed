@@ -104,7 +104,7 @@ test('seating tables expose operational type, zone, green/red status, bulk moves
   )
   await page.getByRole('button', { name: 'Save table' }).click()
   expect((await blockedResponse).status()).toBe(409)
-  await expect(page.getByText(/currently requires 2 planned seats/)).toBeVisible()
+  await expect(page.getByLabel('Notifications (F8)').getByText(/currently requires 2 planned seats/)).toBeVisible()
   await page.getByRole('button', { name: 'Cancel' }).click()
 
   const secondaryIsolation = await page.request.patch('/api/planner/guests', {
