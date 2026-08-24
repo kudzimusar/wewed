@@ -211,7 +211,7 @@ async function ensureVendor(tx: Tx, weddingId: string, facts: ProviderFacts) {
   await tx.$executeRawUnsafe(
     `INSERT INTO public."Vendor"
      (id,name,category,description,website,phone,contact,email,featured,"contractStatus","paymentStatus","weddingId","createdAt","updatedAt")
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,false,'pending','pending',$9,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,false,'pending','unpaid',$9,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
     vendorId,
     facts.providerName,
     facts.category,
