@@ -93,11 +93,21 @@ jobs:
         env:
           PGPASSWORD: postgres
 
+      - name: Install CI-only server boundary shim
+        run: |
+          mkdir -p node_modules/server-only
+          printf '{"name":"server-only","version":"0.0.0-ci","main":"index.js"}\n' > node_modules/server-only/package.json
+          printf 'module.exports = {}\n' > node_modules/server-only/index.js
+
       - name: Run synthetic gown chair package and add-on UAT
         run: bun scripts/booking-commerce-synthetic-uat.ts
 
       - name: Run deterministic package and concurrency contract
         run: bun scripts/booking-commerce-concurrency-contract.ts
+
+      - name: Remove CI-only server boundary shim
+        if: always()
+        run: rm -rf node_modules/server-only
 
       - name: Lint booking release surface
         run: >-
