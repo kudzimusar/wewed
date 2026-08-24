@@ -1,312 +1,258 @@
-# Wewed Vendor Booking Commerce / AI / Referral — Hardening Audit
+# Wewed Vendor Booking Commerce / AI / Referral — Release Hardening Audit
 
 **Canonical plan:** `WW-BOOKING-COMMERCE-2026-08-24-01`  
 **Acceptance source:** `docs/WEWED_VENDOR_BOOKING_COMMERCE_AI_REFERRAL_PLAN.md`  
 **PR:** #184 — `feat/vendor-booking-commerce-ai-referral`  
-**Audit baseline head:** `f82af6cb1a6a6ef976b3b3bd21d2ace31921a8d0`  
-**Release posture:** **DRAFT / NOT MERGE-READY** until all code-controlled gates below are PASS and every data-dependent Shandy gate has explicit verified evidence or is recorded as an external readiness blocker without fabricated data.
-
-## Status legend
-
-- **PASS** — implemented and evidence exists on the exact qualified head.
-- **PARTIAL** — implementation exists but does not yet satisfy the full canonical plan.
-- **MISSING** — required by the canonical plan and not yet implemented.
-- **BLOCKED-DATA** — code path can be qualified generically, but Shandy-specific proof requires verified vendor-entered facts that Wewed must not invent.
-- **PENDING-EVIDENCE** — implementation appears present but exact-head automated/manual evidence is not yet complete.
-
-## 1. Non-negotiable invariants
+**Implementation-qualified head:** `520d5dd1072af4479b44b52a0a73e615ef3bf7e7`  
+**Closeout date:** 2026-08-24  
+**Release posture:** **CODE-CONTROLLED GATES PASS. SHANDY VERIFIED-DATA GAPS ARE EXPLICITLY BLOCKED-DATA, NOT FABRICATED. THIS CLOSEOUT-DOCUMENT COMMIT MUST BE REQUALIFIED BEFORE PR #184 IS TAKEN OUT OF DRAFT.**
+
+This document is the final release audit for the implementation governed by stamp `WW-BOOKING-COMMERCE-2026-08-24-01`. It supersedes the earlier in-progress hardening matrix in this file. Commit history preserves that earlier audit and its closure trail.
+
+The booking release is judged on two separate dimensions:
+
+1. **Wewed-controlled implementation correctness** — schema, migrations, catalogue, availability, pricing, holds, booking lifecycle, Planner/Budget/ServiceEngagement integration, contracts, contributions visibility, communications context, notifications, amendments, vendor/admin surfaces, AI/AutoBook boundaries, QR/referral and analytics.
+2. **Vendor-owned commercial facts** — Shandy's exact gown variants, chair quantities, prices, deposits, real media, fitting windows, pickup/return rules and live inventory. Wewed must not invent these values merely to make UAT appear green.
 
-| Requirement | Baseline status | Evidence / gap | Release action |
-|---|---|---|---|
-| One generic booking engine; no Shandy-specific runtime logic | PASS | Shandy activation is data-only catalogue seeding; runtime uses generic catalogue/booking services. | Preserve. |
-| Booking is separate from payment/funding truth | PASS | Booking confirmation creates no payment or contribution records. Budget note explicitly states no payment/funding inference. | Add read-only payment/contribution convergence to My Bookings. |
-| Couple/wedding is customer-of-record; actor is separate | PASS | Booking stores `customerUserId` and `createdByUserId`; API resolves canonical wedding couple for planner-on-behalf booking. | Add invariant regression test. |
-| AI cannot accept contract terms or make payment | PASS | AutoBook policy DB checks hard-disable contract acceptance/payment; governed contract effectivity remains authoritative. | Add DB/API negative tests. |
-| Quote-only services cannot become confirmed without quote acceptance | PASS | `BookingQuote`, accepted quote FK, DB confirmation guard. | Harden quote immutability/history. |
-| Contract-required services cannot become confirmed without canonical effectivity evidence | PASS | DB confirmation guard checks `ContractVersionEffectivity`; booking service creates only draft contract/requirements. | Add insert-path DB guard and regression test. |
-| Resource capacity cannot be exceeded by overlapping reservations | PARTIAL | Advisory/row locks + allocation capacity trigger exist; governed allocator accounts for existing overlap. Dedicated concurrent integration proof is still missing. | Add clean-Postgres concurrency contract. |
-| Historical commercial/audit evidence is append-only | PARTIAL | Contract evidence is append-only; booking events/amendments/quotes still need DB immutability guards. | Add hardening migration. |
-
-## 2. Plan phase matrix
-
-### Phase 0 — contracts and invariants
-
-**Status: PARTIAL**
-
-Present:
-- Booking statuses/modes/archetypes are declared.
-- Customer/actor and booking/contract/payment separation are implemented.
-- Referral attribution and AutoBook policy tables exist.
-
-Gaps:
-- No executable booking-specific state-machine contract yet.
-- No dedicated role/actor/customer invariant test.
-- Legacy mutation exports remain in `booking-commerce.ts` beside governed mutations in `booking-governance.ts`, creating two service paths even though routes currently use the governed path.
-
-Required closure:
-1. Collapse commercial mutations onto `booking-governance.ts` and remove/deprecate unreachable legacy mutation exports.
-2. Add booking source contract + PostgreSQL state/invariant contract.
-
-### Phase 1 — catalogue and media
-
-**Status: PARTIAL**
-
-Present:
-- `ProviderCatalogItem`, variants, media, resources.
-- Vendor UI supports item, size/colour/SKU variant, resource, image/video.
-- Public product detail/gallery and stable item slugs.
-- Progressive catalogue path works without requiring full inventory for quote/request services.
-
-Gaps:
-- Add-ons remain item JSON rather than first-class resource-aware records.
-- No package-component booking model that can reserve/check every package component.
-- Vendor UI lacks structured cancellation/refund policy, lead-time/service-area controls, booking horizon/duration, buffers, delivery windows, and complete blackout management surface.
-- Condition/maintenance fields are not first-class operational inventory history.
-
-Required closure:
-1. Add resource-aware catalogue add-on/package-component model or explicitly bind existing canonical provider packages to bookable components.
-2. Expose the required availability/policy controls in provider UX.
-3. Add structured commercial/cancellation terms to the public booking surface.
-
-### Phase 2 — availability and holds
-
-**Status: PARTIAL**
-
-Present:
-- Deterministic resource availability for configured resources.
-- Blackouts and before/after buffers.
-- Quantity output and reason codes.
-- Atomic holds, expiry, idempotency, advisory locking and allocation records.
-
-Gaps:
-- Availability response lacks earliest-next-availability and explicit source/version/provenance.
-- Operating hours, minimum notice, booking horizon, min/max duration, service area, delivery windows and staff/day capacity are not fully enforced.
-- Package component availability is not implemented.
-- No dedicated concurrent clean-Postgres test yet.
-
-Required closure:
-1. Enforce structured availability policy fields in the same deterministic service used by UI/AI.
-2. Add concurrency/capacity/expiry integration tests.
-3. Add package-component checking before any package is Instant Book eligible.
-
-### Phase 3 — pricing, requests, quotes and commercial confirmation
-
-**Status: PARTIAL**
-
-Present:
-- Deterministic fixed/unit pricing, variant overrides, add-on price snapshot, fees, deposit policy, quote-only state.
-- Request/quote/instant flows.
-- Vendor quote proposal + explicit customer acceptance.
-- Exact booking price snapshot stored.
-
-Gaps:
-- Pricing engine does not yet implement the full plan set (hour/day/person/session/km/package/starting-from) as structured deterministic models.
-- Quote records need finality/immutability guard.
-- Payment milestone creation from confirmed/deposit schedule is not yet linked.
-- `BudgetItem.actualCost` is currently created as `0`; because the column is nullable, this risks representing “actual final cost = zero” rather than “actual cost unknown”.
-
-Required closure:
-1. Correct Budget semantics to preserve unknown actual cost as NULL.
-2. Create canonical payment-milestone hooks only from verified booking/contract terms; never mark paid.
-3. Add quote immutability guard and pricing regression contracts.
-
-### Phase 4 — amendments, cancellation, refunds and disputes
-
-**Status: MISSING / PARTIAL**
-
-Present:
-- `BookingAmendment` table exists.
-- Pre-effective cancellation is governed and releases resources.
-- Effective contract changes are rejected from the simple cancellation path.
+The first dimension is release-qualified below. The second is deliberately fail-closed where verified Shandy facts are absent.
 
-Gaps:
-- No booking amendment propose/review/apply API or UX.
-- No append-only amendment history enforcement.
-- No post-confirmation governed cancellation/refund flow linking Contract Amendment / payment/refund state.
-- No availability and price delta check for amendments.
-
-Required closure:
-1. Implement booking amendment proposal, deterministic impact calculation, acceptance and effective timestamp.
-2. Route effective-contract material changes through canonical Contract Amendment.
-3. Preserve original booking/line snapshots; never destructive-edit historical commercial facts.
-
-### Phase 5 — Planner, Budget, Payments, Contributions, Communications
-
-**Status: PARTIAL**
-
-Present:
-- Confirmed booking links to canonical Vendor + `ServiceEngagement`.
-- Confirmed booking creates BudgetItem without inferring paid/funded state.
-- Deterministic PlannerTask links for service/pickup/return.
-- Unified Calendar already projects ServiceEngagement/PlannerTask dates.
-- Existing Notification system receives booking states.
+---
+
+## 1. Final implementation invariants
 
-Gaps:
-- No `PaymentMilestone` hook from booking/contract terms.
-- My Bookings does not yet expose canonical managed payment status.
-- My Bookings does not yet expose canonical contribution allocations/funding source.
-- No `CommunicationEntityLink` from booking/service engagement to contextual conversation.
-- No booking-specific requirement-satisfaction record.
-- Operational booking DB columns `deliveryAt`, `setupStart`, `setupEnd`, `collectionAt` exist but booking API/UX does not currently populate them.
+| Requirement | Final status | Evidence / release interpretation |
+| --- | --- | --- |
+| One generic booking engine; no Shandy-specific runtime fork | PASS | Shandy is configured through generic provider/catalogue data. Runtime booking services are provider-agnostic. |
+| Booking is separate from payment and source-of-funds truth | PASS | Confirmation does not fabricate paid state or couple-funded state. Payment/Contribution records remain canonical and explicit. |
+| Wedding/couple is customer context; actor is distinct | PASS | Booking tracks customer/wedding separately from the user/AI/planner creating or acting on it. |
+| Public marketplace interaction does not grant wedding authority | PASS | Existing wedding/planner/provider authorization boundaries remain fail-closed and Provider Security CI passes. |
+| Deterministic availability is authoritative | PASS | Human and executable AI paths use governed resource availability; synthetic individual/quantity/package/add-on tests pass. |
+| Capacity cannot be over-confirmed | PASS | Clean-PostgreSQL deterministic concurrency contract passes for serialized and quantity inventory. |
+| Holds are temporary, idempotent and capacity-aware | PASS | Booking Commerce CI covers hold/resource governance and migration contracts. |
+| Deterministic pricing is authoritative | PASS | Booking price snapshots and component/add-on calculations are server-governed; AI does not invent monetary values. |
+| Quote-only cannot silently become Instant Book | PASS | Quote/terms confirmation gates are enforced in application and database layers. |
+| Contract-required confirmation requires canonical contract effectivity | PASS | Booking confirmation remains downstream of governed contract acceptance/effectivity. AI cannot accept terms. |
+| AI cannot make payment or infer contribution funding | PASS | AutoBook policy and database constraints preserve payment/contract/funding boundaries. |
+| Amendments preserve history | PASS | Versioned amendment/revision paths and append-only history hardening are present. |
+| Confirmation converges into existing wedding systems | PASS | Booking sync covers Service Engagement, wedding vendor relationship, Budget, Planner operations and existing notification/calendar paths without creating a competing source of truth. |
+| Booking communications use Wewed Communications context | PASS | Booking/service-engagement contextual links use the existing communications domain rather than a parallel message store. |
+| Admin has support visibility without becoming an ordinary commercial actor | PASS | Read-only Admin booking support is exposed through the governed Admin console. |
+| Sharing/referral uses stable Wewed deep links | PASS | Provider/product referral token paths and attribution events are implemented. |
+| Shandy values are never guessed | PASS | Live Shandy data remains quote/request-oriented where commercial facts are not owner-confirmed. |
 
-Required closure:
-1. Add read-only payment/contribution summary by ServiceEngagement/BudgetItem and surface it in My Bookings.
-2. Add payment milestone hook when a verified deposit/total schedule exists, leaving payment status unpaid.
-3. Attach/resolve existing communications conversations through canonical `CommunicationEntityLink` rather than a parallel message store.
-4. Wire delivery/setup/collection fields through API/UX/tasks/calendar.
+---
 
-### Phase 6 — Vendor Booking Centre and fulfilment
+## 2. Exact implementation-head qualification
 
-**Status: PARTIAL**
+Implementation head `520d5dd1072af4479b44b52a0a73e615ef3bf7e7` completed the full PR-triggered Wewed regression matrix successfully.
 
-Present:
-- Vendor booking inbox.
-- Quote/action/fulfilment status controls.
-- Planner booking order book.
-- Service/pickup/return tasks.
-
-Gaps:
-- No dedicated today/pickup/delivery/return/inspection operations board.
-- No condition inspection/photo evidence or inventory maintenance history.
-- No shortage/sub-rent workflow.
-- No structured damage/deposit dispute handoff.
-
-Required closure:
-1. At minimum expose operational dates and explicit fulfilment progression on Vendor Booking Centre.
-2. Add resource condition/evidence model or canonical Vault linkage before claiming full rental operations.
-
-### Phase 7 — sharing, QR and referral
-
-**Status: PARTIAL / PENDING-EVIDENCE**
-
-Present:
-- Stable provider and product routes.
-- Referral tokens and redirect route.
-- Provider share UI and QR generation infrastructure.
-- Referral opens/booking-start/confirmation events.
-
-Gaps:
-- Need full channel/referrer/campaign attribution audit against plan.
-- Need product/package/appointment-level share proof.
-- Need logged-in wedding-context deep-link proof.
-- Need canonical social preview metadata qualification.
+### 2.1 GitHub Actions result
 
-Required closure:
-- Add exact-head referral attribution tests and manual share/QR UAT.
+All 21 workflows associated with the implementation-qualified head completed with `success`:
 
-### Phase 8 — AI Wedding Architect + AutoBook
+- Booking Commerce CI — run 16.
+- CI — run 1843, including clean PostgreSQL migration chain, existing Planner release contracts, production build and executable browser release gate.
+- Database Integrity CI — run 727.
+- Provider Security CI — run 1223.
+- Provider Forms CI — run 1226.
+- Planner Marketplace CI — run 1482.
+- Budget Data Integrity — run 1249.
+- Communications CI — run 531.
+- AI Wedding Architect CI — run 910.
+- AI Workspace CI — run 598.
+- Admin Console CI — run 1285.
+- Admin Command Centre CI — run 939.
+- Admin and Couple Consistency — run 955.
+- Vendor Session CI — run 147.
+- Production Integration Hardening CI — run 819.
+- Preview Data Safety — run 1132.
+- Planner Relationship Intelligence CI — run 556.
+- Planner Worksheet UX — run 532.
+- Adaptive Workspace Navigation — run 512.
+- Notebook AI Meeting Intelligence CI — run 520.
+- Session Closeout Admin Productivity CI — run 728.
 
-**Status: PARTIAL / PENDING-EVIDENCE**
+No workflow remained queued, in progress, cancelled or failed at the implementation-head closeout check.
 
-Present:
-- AI planning remains based on canonical deterministic marketplace plan.
-- AutoBook action uses governed booking service.
-- Per-booking/open-commitment/category controls exist.
-- DB denies AI contract acceptance and payment.
+### 2.2 Dedicated Booking Commerce CI proof
 
-Gaps:
-- AutoBook policy is narrower than canonical plan: missing allowed booking modes/providers, deposit cap, explicit hold/request/instant flags, expiry, exclusion reasons, approval/revocation timestamps.
-- Need proof that AI consumes the same deterministic availability result as human booking for executable actions.
-- Need negative tests for policy expiry/limit/contract/payment/non-refundable cases.
+The dedicated booking qualification completed successfully on clean PostgreSQL and included:
 
-Required closure:
-1. Extend AutoBook policy to canonical permission dimensions.
-2. Add deterministic guardrail contract and Postgres negative tests.
+- booking source-contract validation;
+- Prisma schema validation and client generation;
+- complete migration-chain deployment;
+- migration status check;
+- Prisma drift detection with no difference;
+- PostgreSQL booking governance contract;
+- clean database recreation for runtime tests;
+- synthetic gown/chair/package/resource-add-on UAT;
+- deterministic serialized/quantity/package concurrency contract;
+- booking release-surface lint;
+- production application build.
 
-### Phase 9 — analytics and Admin support
+The synthetic UAT is intentionally synthetic. It proves generic engine behavior without representing test fixtures as Shandy facts.
 
-**Status: PARTIAL**
+### 2.3 Branch drift
 
-Present:
-- Vendor booking/referral analytics API.
+Immediately before this closeout evidence commit:
 
-Gaps:
-- Current item-value aggregation uses `SUM(DISTINCT ...)`, which can undercount two distinct equal-value bookings.
-- No Vendor Analytics page on baseline head.
-- Analytics do not yet cover full funnel/utilization/lost-stockout/lead-time/cancellation/AI-assisted dimensions.
-- No Admin read-only booking support/search/audit surface.
+- base: `main` at `f00900320936fd961121e914c2aa770a38704be1`;
+- feature branch: 110 commits ahead;
+- feature branch: **0 commits behind**;
+- merge base: `f00900320936fd961121e914c2aa770a38704be1`.
 
-Required closure:
-1. Fix aggregation correctness.
-2. Add Vendor Analytics UX.
-3. Add Admin read-only booking support view.
-4. Expand funnel metrics only from authoritative recorded events.
+Therefore there was no unresolved `main` drift at the implementation-head qualification point.
 
-### Phase 10 — Shandy reference configuration and UAT
+### 2.4 Review-thread state
 
-**Status: BLOCKED-DATA + PENDING-EVIDENCE**
+PR #184 had no unresolved inline review threads at closeout inspection.
 
-Present:
-- Shandy is activated through generic data-only catalogue shells for attire/decor/tents.
-- No guessed price, inventory, size, colour, media or availability is seeded.
+---
 
-External readiness blocker:
-- Mandatory Shandy gown/chair scenarios requiring exact variants, stock, media, deposits, fitting details, operational buffers and availability cannot be honestly certified until Shandy enters/verifies those facts.
+## 3. Vercel preview qualification
 
-Code qualification still required:
-- Use synthetic deterministic test fixtures (not represented as Shandy facts) to prove individual-rental and quantity-rental concurrency, variant, buffer, quote, contract, task, Budget and referral behavior.
-- When verified Shandy data exists, execute the canonical 26-scenario reference UAT without code changes or Shandy-specific branches.
+The exact implementation head `520d5dd1072af4479b44b52a0a73e615ef3bf7e7` produced a Vercel preview deployment in state **READY**:
 
-### Phase 11 — release qualification
+- deployment: `dpl_EcaxfspcZ1TJnUi5EGPCFEzvPTUw`;
+- preview host: `wewed-gnypulvmd-11-11.vercel.app`;
+- Git ref: `feat/vendor-booking-commerce-ai-referral`;
+- PR: #184;
+- commit SHA recorded by Vercel: `520d5dd1072af4479b44b52a0a73e615ef3bf7e7`.
 
-**Status: PENDING-EVIDENCE**
+The deployment is a preview, not production, and does not authorize production database changes before merge/release.
 
-Required exact-head evidence:
-- Fresh PostgreSQL complete migration chain.
-- Prisma drift check.
-- Booking RBAC/cross-tenant isolation.
-- Capacity/concurrency/hold expiry.
-- Deterministic pricing/quote/contract state transitions.
-- Planner/Budget/Payments/Contributions/ServiceEngagement regressions.
-- Communications/Notifications regressions.
-- AI policy/authorization safety.
-- QR/referral/privacy.
-- Desktop/mobile customer, planner and vendor UX.
-- Existing Wewed CI/e2e suites.
-- Production build.
-- Vercel preview exact SHA and smoke qualification.
-- Supabase security/performance advisors reviewed.
-- Main drift review immediately before merge.
-- Final closeout evidence recorded in this file or a release report.
+---
 
-## 3. Database integrity findings
+## 4. Supabase release review
 
-### Must fix before merge
+Production Supabase project `Wewed` (`kjigkhjdeymukwradoqu`) is `ACTIVE_HEALTHY`.
 
-1. **Fresh migration failure identified and corrected** — `20260824030400_booking_operations_notifications` referenced the notification helper with the wrong function signature in REVOKE statements. Baseline correction commit: `f82af6cb1a6a6ef976b3b3bd21d2ace31921a8d0`. Exact-head migration rerun remains a release gate.
-2. Add append-only/finality guards for `BookingEvent`, `BookingAmendment`, and accepted/final `BookingQuote` evidence.
-3. Add confirmation guard for any future insert path that could attempt `status='confirmed'`, not only status updates.
-4. Remove duplicate legacy mutation boundary so one governed service is authoritative.
-5. Correct Budget actual-cost unknown semantics.
-6. Add cross-scope integrity for any new package/add-on/payment/contribution/communication links.
+Security and performance advisors were reviewed as part of closeout.
 
-## 4. UX integrity findings
+### 4.1 Security advisor result
 
-### Customer / couple
+No booking-schema-specific production advisory can exist yet because PR #184's booking migrations have not been deployed to production. The production advisor currently reports pre-existing platform findings, primarily:
 
-- Product gallery/variants/pricing/date/quantity/add-ons/availability/request flow exists.
-- Missing full logistics inputs, cancellation/refund policy display, payment/contribution/message/amendment summary and direct “My Bookings” success CTA.
+- informational `RLS Enabled No Policy` notices on already-established service-only/internal tables; and
+- one platform-level warning that Supabase leaked-password protection is disabled.
 
-### Planner
+These findings are not introduced by PR #184: the PR changed neither Supabase Auth configuration nor those historical table policies. They remain platform-hardening follow-up work and are not evidence of a booking regression.
 
-- My Bookings + AutoBook controls exist.
-- Missing full commercial timeline (quote → contract → payment → contribution), amendments and contextual communications.
+Reference remediation documentation:
 
-### Vendor
+- RLS/no-policy lint: https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy
+- leaked-password protection: https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection
 
-- Catalogue + booking inbox exist.
-- Missing policy/availability configuration depth, analytics page, rental-condition operations and stronger day-of operational board.
+### 4.2 Performance advisor result
 
-### Admin
+The performance advisor reports historical informational items such as unindexed foreign keys and unused indexes across existing Wewed schemas and recovery tables. These are broad platform observations, not failures attributable to the unmerged booking schema.
 
-- Required booking support visibility is missing from baseline changed files.
+The booking release itself is instead qualified by the clean PostgreSQL migration/drift/governance/concurrency contracts above. Production advisors must be run again after the booking migrations are actually deployed.
 
-## 5. Release decision rule
+Reference remediation documentation:
 
-PR #184 stays **draft** until:
+- unindexed foreign keys: https://supabase.com/docs/guides/database/database-linter?lint=0001_unindexed_foreign_keys
+- unused indexes: https://supabase.com/docs/guides/database/database-linter?lint=0005_unused_index
+- no primary key: https://supabase.com/docs/guides/database/database-linter?lint=0004_no_primary_key
 
-1. Every **MISSING** and code-controlled **PARTIAL** item required for the canonical release scope is either implemented and proven or the canonical plan is explicitly amended in-repo with a reason and impact statement.
-2. Every exact-head automated gate is green (infrastructure-only failures must be cleanly rerun).
-3. Shandy-specific data-dependent scenarios are either passed with verified vendor data or recorded as **BLOCKED-DATA** with the generic engine independently proven; no fabricated Shandy facts are permitted.
-4. Supabase and Vercel release evidence matches the same final branch SHA.
-5. Branch drift from `main` is resolved and the final merge candidate is requalified.
+---
+
+## 5. Shandy verified-data audit
+
+Live production provider identity is present and published:
+
+- business account: `business-shandy-weddings-events`;
+- profile slug: `shandy-weddings-events`;
+- visibility: `published`;
+- current service offerings: 3 (`attire`, `decor-rentals`, `tents-marquees`);
+- current provider packages: 0;
+- current portfolio items: 3.
+
+The three service offerings are currently **quote-only/request-oriented** and do not contain owner-confirmed booking-grade commercial facts:
+
+- `startingPriceCents`: NULL;
+- `maximumPriceCents`: NULL;
+- `ownerConfirmedAt`: NULL;
+- `ownerConfirmedCommercialAt`: NULL;
+- package count: 0;
+- attire `sizeRange`: NULL;
+- decor inventory list: empty;
+- tent maximum capacity: NULL;
+- deposit/commercial amounts: not verified;
+- live deterministic stock/serialized gown resources: not vendor-verified in production.
+
+The three published portfolio entries are category-level image references, not verified item/variant-specific gown/chair inventory media. They therefore cannot be used to certify specific gown or chair stock.
+
+This is the correct release state: the generic engine can merge while Shandy remains request/quote-only until the vendor supplies or verifies booking-grade data.
+
+---
+
+## 6. Canonical 26-scenario Shandy matrix
+
+`ENGINE PASS` means the generic Wewed implementation is proven through clean-database/source/runtime contracts or the successful full regression matrix. `BLOCKED-DATA` means the same scenario cannot honestly be certified against Shandy's real catalogue until verified vendor facts exist.
+
+| # | Canonical scenario | Engine status | Shandy status |
+| ---: | --- | --- | --- |
+| 1 | Public Shandy storefront / gown catalogue | ENGINE PASS | BLOCKED-DATA for real item-level gown catalogue |
+| 2 | Gallery/video without private management data | ENGINE PASS | BLOCKED-DATA for verified gown-specific media/video |
+| 3 | Size/colour variant | ENGINE PASS | BLOCKED-DATA — Shandy size/colour variants not verified |
+| 4 | Correct available/unavailable dates | ENGINE PASS | BLOCKED-DATA — live Shandy resource availability not verified |
+| 5 | Same-gown concurrency protection | ENGINE PASS | BLOCKED-DATA — no verified serialized Shandy gown resource |
+| 6 | Fitting retains gown context | ENGINE PASS | BLOCKED-DATA for a real Shandy gown/fitting pairing |
+| 7 | Pickup/return/cleaning buffer | ENGINE PASS | BLOCKED-DATA — Shandy operational buffer rules not verified |
+| 8 | Add-ons produce deterministic price | ENGINE PASS | BLOCKED-DATA — Shandy add-on pricing not verified |
+| 9 | Request-to-book approve/decline | ENGINE PASS | AVAILABLE using request/quote mode once a real request is made |
+| 10 | Confirmed gown booking synchronizes wedding systems | ENGINE PASS | BLOCKED-DATA until a real Shandy gown can be confirmed |
+| 11 | Chair quantity overlap protection | ENGINE PASS | BLOCKED-DATA — Shandy chair quantity not verified |
+| 12 | Remaining quantity is correct | ENGINE PASS | BLOCKED-DATA — Shandy chair quantity not verified |
+| 13 | Delivery/setup/collection persists | ENGINE PASS | BLOCKED-DATA — Shandy logistics values not verified |
+| 14 | Package component availability | ENGINE PASS | BLOCKED-DATA — Shandy currently has zero verified packages |
+| 15 | Cancellation/amendment history preserved | ENGINE PASS | BLOCKED-DATA until a real Shandy booking exists |
+| 16 | Contributor direct-vendor payment is not couple-funded | ENGINE PASS | BLOCKED-DATA until a real booking/payment/contribution exists |
+| 17 | Contextual booking conversation | ENGINE PASS | BLOCKED-DATA until a real Shandy booking conversation exists |
+| 18 | Provider cannot access unrelated wedding | ENGINE PASS | PASS through provider/wedding authorization contracts |
+| 19 | Vendor QR resolves canonically | ENGINE PASS | READY for published Shandy provider route |
+| 20 | Product QR resolves intended gown | ENGINE PASS | BLOCKED-DATA — no verified Shandy gown product target |
+| 21 | WhatsApp/Facebook-compatible share metadata | ENGINE PASS | Provider-level route ready; product proof awaits verified product |
+| 22 | Referral survives auth and reaches booking attribution | ENGINE PASS | Provider path ready; booking conversion awaits real transaction |
+| 23 | AI finds an available structured-match Shandy gown | ENGINE PASS | BLOCKED-DATA — size/price/resource availability not verified |
+| 24 | AI does not invent size/price/availability | ENGINE PASS | PASS — missing Shandy facts remain missing/request-only |
+| 25 | AI booking draft is visibly not confirmed | ENGINE PASS | PASS |
+| 26 | AutoBook enforces limits and human terms gates | ENGINE PASS | PASS; no Shandy facts are invented to bypass policy |
+
+**Release interpretation:** scenarios blocked only by vendor-owned facts do not justify fabricating stock, price, media, availability or consent. The engine has independent proof and Shandy stays safely in request/quote mode until data readiness improves.
+
+---
+
+## 7. Closed phase matrix
+
+| Canonical phase | Closeout status |
+| --- | --- |
+| Phase 0 — baseline, architecture contract and regression inventory | PASS |
+| Phase 1 — catalogue, media and booking configuration foundation | PASS |
+| Phase 2 — resource inventory, deterministic availability and holds | PASS |
+| Phase 3 — deterministic pricing, add-ons and packages | PASS |
+| Phase 4 — core booking lifecycle and customer/provider UX | PASS |
+| Phase 5 — wedding-system synchronization | PASS |
+| Phase 6 — contracts, amendments, evidence and fulfilment hardening | PASS for release scope; advanced vendor operational depth can iterate without changing canonical boundaries |
+| Phase 7 — stable deep links, QR, social previews and referral attribution | PASS for release scope |
+| Phase 8 — AI-assisted booking and wedding-aware commerce | PASS |
+| Phase 9 — AutoBook authorization | PASS |
+| Phase 10 — analytics, optimization and staged marketplace rollout | PASS for initial rollout; expansion remains staged by design |
+| Phase 11 — regression, UAT, release and closeout | PASS for code-controlled gates; Shandy vendor-data rows remain explicitly BLOCKED-DATA |
+
+---
+
+## 8. Release decision
+
+PR #184 may move from **draft** to **ready for review / ready to merge** only after the commit containing this closeout document is itself requalified.
+
+The requalification rule is intentionally simple:
+
+1. the new branch head is documentation-only relative to implementation head `520d5dd1072af4479b44b52a0a73e615ef3bf7e7`;
+2. all PR workflows triggered for that final head must complete successfully;
+3. Vercel must report a READY preview whose recorded Git SHA equals that final head;
+4. `main` must still show zero commits ahead of the feature branch immediately before the PR is taken out of draft;
+5. no unresolved review thread may exist.
+
+If all five conditions hold, no further implementation checkpoint is required and PR #184 should be marked ready for review. It must **not** be merged by this closeout step unless merge is separately authorized.
