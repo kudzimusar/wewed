@@ -8,6 +8,7 @@ import {
   getBookingForWedding,
   providerBusinessForUser,
 } from '@/lib/booking-commerce'
+import { allocateBookingLineDeterministic } from '@/lib/booking-resource-engine'
 
 type Tx = Prisma.TransactionClient
 
@@ -43,8 +44,7 @@ type BookingLine = {
   variantId: string | null
   quantity: number
   nameSnapshot: string
-  bufferBeforeMinutes: number
-  bufferAfterMinutes: number
+  selectedOptions: unknown
   holdMinutes: number
   requiresContract: boolean
 }
@@ -89,22 +89,19 @@ function escapeHtml(value: unknown): string {
     .replaceAll("'", '&#039;')
 }
 
-function serviceWindow(header: BookingHeader, line: BookingLine) {
+function rawServiceWindow(header: BookingHeader) {
   const eventStart = header.eventDate
     ? new Date(`${header.eventDate.toISOString().slice(0, 10)}T00:00:00.000Z`)
     : null
   const eventEnd = header.eventDate
     ? new Date(`${header.eventDate.toISOString().slice(0, 10)}T23:59:59.999Z`)
     : null
-  const rawStart = header.serviceStart ?? header.appointmentAt ?? header.pickupAt ?? eventStart
-  const rawEnd = header.serviceEnd ?? header.returnDueAt ?? (header.appointmentAt ? new Date(header.appointmentAt.getTime() + 60 * 60_000) : eventEnd)
-  if (!rawStart || !rawEnd || rawEnd <= rawStart) {
+  const startsAt = header.serviceStart ?? header.appointmentAt ?? header.pickupAt ?? eventStart
+  const endsAt = header.serviceEnd ?? header.returnDueAt ?? (header.appointmentAt ? new Date(header.appointmentAt.getTime() + 60 * 60_000) : eventEnd)
+  if (!startsAt || !endsAt || endsAt <= startsAt) {
     throw new BookingCommerceError('Choose the booking date/time before reserving availability.', 400, 'BOOKING_WINDOW_REQUIRED')
   }
-  return {
-    startsAt: new Date(rawStart.getTime() - line.bufferBeforeMinutes * 60_000),
-    endsAt: new Date(rawEnd.getTime() + line.bufferAfterMinutes * 60_000),
-  }
+  return { startsAt, endsAt }
 }
 
 async function bookingForUpdate(tx: Tx, bookingId: string, weddingId?: string): Promise<{ header: BookingHeader; lines: BookingLine[] }> {
@@ -121,8 +118,8 @@ async function bookingForUpdate(tx: Tx, bookingId: string, weddingId?: string): 
   const header = headers[0]
   if (!header) throw new BookingCommerceError('Booking not found.', 404, 'BOOKING_NOT_FOUND')
   const lines = await tx.$queryRawUnsafe<BookingLine[]>(
-    `SELECT l.id,l."catalogItemId",l."variantId",l.quantity,l."nameSnapshot",
-            i."bufferBeforeMinutes",i."bufferAfterMinutes",i."holdMinutes",i."requiresContract"
+    `SELECT l.id,l."catalogItemId",l."variantId",l.quantity,l."nameSnapshot",l."selectedOptions",
+            i."holdMinutes",i."requiresContract"
        FROM wewed_booking."BookingLine" l
        JOIN wewed_booking."ProviderCatalogItem" i ON i.id=l."catalogItemId"
       WHERE l."bookingId"=$1
@@ -148,40 +145,6 @@ async function releaseExpiredHolds(tx: Tx, bookingId: string) {
   )
 }
 
-async function resourceFreeCapacity(
-  tx: Tx,
-  resourceId: string,
-  startsAt: Date,
-  endsAt: Date,
-  excludeBookingId: string,
-): Promise<number> {
-  await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, resourceId)
-  const rows = await tx.$queryRawUnsafe<Array<{ capacity: number; occupied: bigint; blocked: boolean }>>(
-    `SELECT r.capacity,
-            COALESCE((SELECT SUM(a.quantity)::bigint
-                        FROM wewed_booking."BookingResourceAllocation" a
-                       WHERE a."resourceId"=r.id
-                         AND a."bookingId"<>$4
-                         AND a.state IN ('hold','confirmed')
-                         AND (a.state='confirmed' OR a."expiresAt">CURRENT_TIMESTAMP)
-                         AND a."startsAt"<$3 AND a."endsAt">$2),0::bigint) AS occupied,
-            EXISTS(SELECT 1 FROM wewed_booking."AvailabilityRule" ar
-                    WHERE ar."resourceId"=r.id AND ar."ruleType"='blackout'
-                      AND ar."startsAt" IS NOT NULL AND ar."endsAt" IS NOT NULL
-                      AND ar."startsAt"<$3 AND ar."endsAt">$2) AS blocked
-       FROM wewed_booking."BookingResource" r
-      WHERE r.id=$1 AND r.status='active'
-      FOR UPDATE`,
-    resourceId,
-    startsAt,
-    endsAt,
-    excludeBookingId,
-  )
-  const row = rows[0]
-  if (!row || row.blocked) return 0
-  return Math.max(0, row.capacity - Number(row.occupied))
-}
-
 async function allocateLine(
   tx: Tx,
   header: BookingHeader,
@@ -190,50 +153,21 @@ async function allocateLine(
   holdId: string | null,
   expiresAt: Date | null,
 ) {
-  const window = serviceWindow(header, line)
-  const resources = await tx.$queryRawUnsafe<Array<{ id: string; capacity: number }>>(
-    `SELECT id,capacity
-       FROM wewed_booking."BookingResource"
-      WHERE "catalogItemId"=$1 AND status='active'
-        AND ($2::text IS NULL OR "variantId"=$2 OR "variantId" IS NULL)
-      ORDER BY CASE WHEN "variantId"=$2 THEN 0 ELSE 1 END,id`,
-    line.catalogItemId,
-    line.variantId,
-  )
-  if (!resources.length) {
-    if (state === 'hold') {
-      throw new BookingCommerceError('No deterministic inventory is configured for Instant Book.', 409, 'NO_BOOKABLE_RESOURCE')
-    }
-    return false
-  }
-
-  let remaining = line.quantity
-  for (const resource of resources) {
-    if (remaining <= 0) break
-    const free = await resourceFreeCapacity(tx, resource.id, window.startsAt, window.endsAt, header.id)
-    if (free <= 0) continue
-    const quantity = Math.min(free, remaining)
-    await tx.$executeRawUnsafe(
-      `INSERT INTO wewed_booking."BookingResourceAllocation"
-       (id,"bookingId","bookingLineId","holdId","resourceId",quantity,"startsAt","endsAt",state,"expiresAt","createdAt","updatedAt")
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
-      randomUUID(),
-      header.id,
-      line.id,
-      holdId,
-      resource.id,
-      quantity,
-      window.startsAt,
-      window.endsAt,
-      state,
-      expiresAt,
-    )
-    remaining -= quantity
-  }
-  if (remaining > 0) {
-    throw new BookingCommerceError('The requested quantity is no longer available for those dates.', 409, 'CAPACITY_EXCEEDED')
-  }
-  return true
+  const window = rawServiceWindow(header)
+  return allocateBookingLineDeterministic({
+    tx,
+    bookingId: header.id,
+    bookingLineId: line.id,
+    catalogItemId: line.catalogItemId,
+    variantId: line.variantId,
+    quantity: line.quantity,
+    selectedOptions: line.selectedOptions,
+    startsAt: window.startsAt,
+    endsAt: window.endsAt,
+    state,
+    holdId,
+    expiresAt,
+  })
 }
 
 async function reserveConfiguredResources(tx: Tx, header: BookingHeader, lines: BookingLine[]) {
@@ -550,6 +484,87 @@ async function ensureBudgetTx(tx: Tx, bookingId: string, weddingId: string) {
   )
 }
 
+async function ensurePaymentMilestonesTx(tx: Tx, header: BookingHeader, engagementId: string, actorUserId: string) {
+  if (header.totalCents == null) return
+  const scheduleRows = await tx.$queryRawUnsafe<Array<{ availabilityPolicy: unknown; serviceDate: Date | null }>>(
+    `SELECT i."availabilityPolicy",COALESCE(b."serviceStart",b."appointmentAt",b."eventDate"::timestamp) AS "serviceDate"
+       FROM wewed_booking."Booking" b
+       JOIN wewed_booking."BookingLine" l ON l."bookingId"=b.id
+       JOIN wewed_booking."ProviderCatalogItem" i ON i.id=l."catalogItemId"
+      WHERE b.id=$1 ORDER BY l."createdAt" LIMIT 1`,
+    header.id,
+  )
+  const policy = scheduleRows[0]?.availabilityPolicy && typeof scheduleRows[0].availabilityPolicy === 'object' && !Array.isArray(scheduleRows[0].availabilityPolicy)
+    ? scheduleRows[0].availabilityPolicy as Record<string, unknown>
+    : {}
+  const serviceDate = scheduleRows[0]?.serviceDate ?? header.serviceStart ?? header.appointmentAt ?? header.eventDate
+
+  if (header.depositCents != null && header.depositCents > 0) {
+    await tx.$executeRawUnsafe(
+      `INSERT INTO wewed_contracts."PaymentMilestone"
+       (id,"serviceEngagementId","weddingId","bookingId","milestoneType",label,description,amount,currency,"dueAt",status,sequence,"proofRequired","createdById")
+       VALUES ($1,$2,$3,$4,'DEPOSIT','Booking deposit',$5,$6,$7,NULL,'PLANNED',0,true,$8)
+       ON CONFLICT ("bookingId","milestoneType",sequence) WHERE "bookingId" IS NOT NULL DO NOTHING`,
+      randomUUID(), engagementId, header.weddingId, header.id,
+      `Deposit obligation from booking ${header.publicReference}. Payment remains factual evidence in ManagedPaymentRecord.`,
+      header.depositCents / 100, header.currency, actorUserId,
+    )
+  }
+
+  const balanceDueDays = Number(policy.balanceDueDaysBeforeEvent)
+  const deposit = header.depositCents ?? 0
+  const balanceCents = header.totalCents - deposit
+  if (balanceCents > 0 && Number.isInteger(balanceDueDays) && balanceDueDays >= 0 && serviceDate) {
+    const dueAt = new Date(serviceDate.getTime() - balanceDueDays * 86_400_000)
+    await tx.$executeRawUnsafe(
+      `INSERT INTO wewed_contracts."PaymentMilestone"
+       (id,"serviceEngagementId","weddingId","bookingId","milestoneType",label,description,amount,currency,"dueAt",status,sequence,"proofRequired","createdById")
+       VALUES ($1,$2,$3,$4,'PRE_EVENT_BALANCE','Pre-event balance',$5,$6,$7,$8,'PLANNED',1,true,$9)
+       ON CONFLICT ("bookingId","milestoneType",sequence) WHERE "bookingId" IS NOT NULL DO NOTHING`,
+      randomUUID(), engagementId, header.weddingId, header.id,
+      `Balance schedule from verified booking policy for ${header.publicReference}.`,
+      balanceCents / 100, header.currency, dueAt, actorUserId,
+    )
+  }
+}
+
+async function depositSatisfiedTx(tx: Tx, bookingId: string) {
+  const rows = await tx.$queryRawUnsafe<Array<{ satisfied: boolean }>>(
+    `SELECT wewed_booking.booking_deposit_is_satisfied($1) AS satisfied`,
+    bookingId,
+  )
+  return Boolean(rows[0]?.satisfied)
+}
+
+async function confirmOrAwaitDepositTx(tx: Tx, header: BookingHeader, engagementId: string, actorUserId: string, eventType: string, fromStatus: string) {
+  await ensureBudgetTx(tx, header.id, header.weddingId)
+  await ensurePaymentMilestonesTx(tx, header, engagementId, actorUserId)
+
+  if (header.depositCents != null && header.depositCents > 0 && !(await depositSatisfiedTx(tx, header.id))) {
+    await tx.$executeRawUnsafe(`UPDATE wewed_booking."Booking" SET status='awaiting_deposit' WHERE id=$1`, header.id)
+    await tx.$executeRawUnsafe(
+      `INSERT INTO wewed_booking."BookingEvent" (id,"bookingId","actorUserId","eventType","fromStatus","toStatus",metadata)
+       VALUES ($1,$2,$3,'booking.awaiting_deposit',$4,'awaiting_deposit',$5::jsonb)`,
+      randomUUID(), header.id, actorUserId, fromStatus,
+      JSON.stringify({ serviceEngagementId: engagementId, depositCents: header.depositCents, currency: header.currency }),
+    )
+    return 'awaiting_deposit'
+  }
+
+  await tx.$executeRawUnsafe(
+    `UPDATE wewed_booking."Booking"
+        SET status='confirmed',"confirmedAt"=COALESCE("confirmedAt",CURRENT_TIMESTAMP)
+      WHERE id=$1`,
+    header.id,
+  )
+  await tx.$executeRawUnsafe(
+    `INSERT INTO wewed_booking."BookingEvent" (id,"bookingId","actorUserId","eventType","fromStatus","toStatus",metadata)
+     VALUES ($1,$2,$3,$4,$5,'confirmed','{}'::jsonb)`,
+    randomUUID(), header.id, actorUserId, eventType, fromStatus,
+  )
+  return 'confirmed'
+}
+
 async function markConfirmedTx(tx: Tx, header: BookingHeader, actorUserId: string, eventType: string) {
   const requiresContractRows = await tx.$queryRawUnsafe<Array<{ required: boolean }>>(
     `SELECT EXISTS(SELECT 1 FROM wewed_booking."BookingLine" l JOIN wewed_booking."ProviderCatalogItem" i ON i.id=l."catalogItemId" WHERE l."bookingId"=$1 AND i."requiresContract"=true) AS required`,
@@ -580,19 +595,7 @@ async function markConfirmedTx(tx: Tx, header: BookingHeader, actorUserId: strin
       return 'awaiting_terms'
     }
   }
-  await tx.$executeRawUnsafe(
-    `UPDATE wewed_booking."Booking"
-        SET status='confirmed',"confirmedAt"=COALESCE("confirmedAt",CURRENT_TIMESTAMP)
-      WHERE id=$1`,
-    header.id,
-  )
-  await tx.$executeRawUnsafe(
-    `INSERT INTO wewed_booking."BookingEvent" (id,"bookingId","actorUserId","eventType","fromStatus","toStatus",metadata)
-     VALUES ($1,$2,$3,$4,$5,'confirmed','{}'::jsonb)`,
-    randomUUID(), header.id, actorUserId, eventType, header.status,
-  )
-  await ensureBudgetTx(tx, header.id, header.weddingId)
-  return 'confirmed'
+  return confirmOrAwaitDepositTx(tx, header, engagementId, actorUserId, eventType, header.status)
 }
 
 export async function holdBookingGoverned(input: { bookingId: string; weddingId: string; actorUserId: string; idempotencyKey: string }) {
@@ -637,7 +640,7 @@ export async function holdBookingGoverned(input: { bookingId: string; weddingId:
 export async function submitBookingGoverned(input: { bookingId: string; weddingId: string; actorUserId: string }) {
   const referral = { current: null as { id: string; next: string } | null }
   await db.$transaction(async (tx) => {
-    const { header, lines } = await bookingForUpdate(tx, input.bookingId, input.weddingId)
+    const { header } = await bookingForUpdate(tx, input.bookingId, input.weddingId)
     if (!['draft','held'].includes(header.status)) throw new BookingCommerceError('This booking has already been submitted.', 409, 'INVALID_BOOKING_STATE')
     if (header.bookingMode === 'quote') {
       await tx.$executeRawUnsafe(`UPDATE wewed_booking."Booking" SET status='quote_requested' WHERE id=$1`, header.id)
@@ -829,16 +832,31 @@ export async function syncBookingTerms(input: { bookingId: string; weddingId: st
     )
     const terms = effective[0]
     if (!terms) throw new BookingCommerceError('The required Wewed contract is not yet effective. All required parties must complete the governed acceptance workflow first.', 409, 'CONTRACT_NOT_EFFECTIVE')
+    await tx.$executeRawUnsafe(`UPDATE wewed_booking."Booking" SET "termsSatisfiedAt"=$2 WHERE id=$1`, header.id, terms.effectiveAt)
+    const next = await confirmOrAwaitDepositTx(tx, header, header.serviceEngagementId, input.actorUserId, 'booking.contract_effective', 'awaiting_terms')
     await tx.$executeRawUnsafe(
-      `UPDATE wewed_booking."Booking" SET status='confirmed',"confirmedAt"=COALESCE("confirmedAt",CURRENT_TIMESTAMP),"termsSatisfiedAt"=$2 WHERE id=$1`,
-      header.id,
-      terms.effectiveAt,
+      `INSERT INTO wewed_booking."BookingEvent" (id,"bookingId","actorUserId","eventType","fromStatus","toStatus",metadata)
+       VALUES ($1,$2,$3,'booking.contract_effective','awaiting_terms',$4,$5::jsonb)`,
+      randomUUID(), header.id, input.actorUserId, next, JSON.stringify({ contractId: terms.contractId, effectiveAt: terms.effectiveAt.toISOString() }),
     )
+  })
+  return getBookingForWedding(input.bookingId, input.weddingId)
+}
+
+export async function syncBookingDeposit(input: { bookingId: string; weddingId: string; actorUserId: string }) {
+  await db.$transaction(async (tx) => {
+    const { header } = await bookingForUpdate(tx, input.bookingId, input.weddingId)
+    if (header.status !== 'awaiting_deposit' || !header.serviceEngagementId) throw new BookingCommerceError('This booking is not awaiting a recorded deposit.', 409, 'INVALID_BOOKING_STATE')
+    await ensurePaymentMilestonesTx(tx, header, header.serviceEngagementId, input.actorUserId)
+    if (!(await depositSatisfiedTx(tx, header.id))) {
+      throw new BookingCommerceError('The required deposit has not yet been satisfied by factual payment evidence.', 409, 'DEPOSIT_NOT_SATISFIED')
+    }
+    await tx.$executeRawUnsafe(`UPDATE wewed_booking."Booking" SET status='confirmed',"confirmedAt"=COALESCE("confirmedAt",CURRENT_TIMESTAMP) WHERE id=$1`, header.id)
     await ensureBudgetTx(tx, header.id, header.weddingId)
     await tx.$executeRawUnsafe(
       `INSERT INTO wewed_booking."BookingEvent" (id,"bookingId","actorUserId","eventType","fromStatus","toStatus",metadata)
-       VALUES ($1,$2,$3,'booking.contract_effective','awaiting_terms','confirmed',$4::jsonb)`,
-      randomUUID(), header.id, input.actorUserId, JSON.stringify({ contractId: terms.contractId, effectiveAt: terms.effectiveAt.toISOString() }),
+       VALUES ($1,$2,$3,'booking.deposit_satisfied','awaiting_deposit','confirmed',$4::jsonb)`,
+      randomUUID(), header.id, input.actorUserId, JSON.stringify({ depositCents: header.depositCents, currency: header.currency }),
     )
   })
   return getBookingForWedding(input.bookingId, input.weddingId)
@@ -847,10 +865,10 @@ export async function syncBookingTerms(input: { bookingId: string; weddingId: st
 export async function cancelBookingGoverned(input: { bookingId: string; weddingId: string; actorUserId: string; reason?: unknown }) {
   await db.$transaction(async (tx) => {
     const { header } = await bookingForUpdate(tx, input.bookingId, input.weddingId)
-    if (!['draft','held','requested','quote_requested','quote_proposed','awaiting_vendor','awaiting_terms'].includes(header.status)) {
+    if (!['draft','held','requested','quote_requested','quote_proposed','awaiting_vendor','awaiting_terms','awaiting_deposit'].includes(header.status)) {
       throw new BookingCommerceError('This booking has reached a governed commercial state. Use the contract amendment/cancellation process instead of silently cancelling it.', 409, 'GOVERNED_CANCELLATION_REQUIRED')
     }
-    if (header.status === 'awaiting_terms' && header.serviceEngagementId) {
+    if (['awaiting_terms','awaiting_deposit'].includes(header.status) && header.serviceEngagementId) {
       const effective = await tx.$queryRawUnsafe<Array<{ effective: boolean }>>(
         `SELECT EXISTS(SELECT 1 FROM public."Contract" c JOIN wewed_contracts."ContractVersionEffectivity" e ON e."contractId"=c.id WHERE c."serviceEngagementId"=$1 AND c."weddingId"=$2) AS effective`,
         header.serviceEngagementId,
