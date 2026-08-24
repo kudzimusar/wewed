@@ -15,6 +15,8 @@ describe('provider booking UX interaction contract', () => {
     expect(profile).toContain('role="dialog"')
     expect(profile).toContain('Add wedding details')
     expect(profile).toContain('Marketplace')
+    expect(profile).not.toContain('<Heart')
+    expect(profile).not.toContain('> Save</button>')
   })
 
   test('catalogue is mounted into the provider content flow and uses explicit media provenance', () => {
