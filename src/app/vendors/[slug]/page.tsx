@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { PublicProviderProfile } from '@/components/providers/public-provider-profile'
+import { PublicProviderProfileV2 } from '@/components/providers/public-provider-profile-v2'
 import { ProviderBookingShowcaseV2 } from '@/components/providers/provider-booking-showcase-v2'
 import { db } from '@/lib/db'
 
@@ -42,7 +42,7 @@ export default async function ProviderProfilePage({ params }: Props) {
   const profile = await metadataFor(slug)
   return (
     <>
-      <PublicProviderProfile slug={slug} />
+      <PublicProviderProfileV2 slug={slug} />
       <ProviderBookingShowcaseV2 slug={slug} fallbackCover={profile?.coverImageUrl} />
     </>
   )
