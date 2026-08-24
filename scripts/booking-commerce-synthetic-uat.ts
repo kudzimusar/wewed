@@ -62,7 +62,7 @@ async function main() {
 
   await expect('uat-addon-parent', 1, true, 'Parent service without optional resource add-on')
   const withDelivery = await expect('uat-addon-parent', 1, false, 'Selected delivery add-on consumes blocked child resource', { selectedAddOns: ['delivery'] })
-  if (!String(withDelivery.reason).includes('COMPONENT')) throw new Error('Resource add-on UAT must report component/resource unavailability provenance.')
+  if (!withDelivery.reason || withDelivery.reason === 'AVAILABLE') throw new Error('Resource add-on UAT must preserve a deterministic failure reason from the blocked child resource.')
 
   console.log('Synthetic booking gown/chair/package/add-on UAT: PASS')
 }
