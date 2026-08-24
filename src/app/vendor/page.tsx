@@ -61,7 +61,7 @@ export default function VendorWorkspacePage() {
               <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-gold-muted">Configure supply <ArrowRight className="size-4" /></span>
             </Link>
 
-            <Link href="/vendor/analytics" className="group rounded-3xl border border-gold/20 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+            <Link href="/vendor/bookings/analytics" className="group rounded-3xl border border-gold/20 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
               <BarChart3 className="size-6 text-gold-muted" />
               <h2 className="mt-5 font-serif text-3xl">Booking analytics</h2>
               <p className="mt-3 text-sm leading-6 text-espresso/60">See booking conversion, confirmed value, catalogue performance and referral-link attribution from canonical booking records.</p>
