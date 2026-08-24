@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { BookingCommerceError, checkAvailability, getPublicCatalogItem } from '@/lib/booking-commerce'
+import { BookingCommerceError, getPublicCatalogItem } from '@/lib/booking-commerce'
+import { checkDeterministicAvailability } from '@/lib/booking-resource-engine'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,12 +15,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime())) {
       return NextResponse.json({ success: false, error: 'Valid startsAt and endsAt values are required.' }, { status: 400 })
     }
-    const availability = await checkAvailability({
+    const selectedAddOns = (request.nextUrl.searchParams.get('addOns') || '')
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean)
+    const availability = await checkDeterministicAvailability({
       itemId: item.id,
       variantId: request.nextUrl.searchParams.get('variantId'),
       quantity: Number(request.nextUrl.searchParams.get('quantity') || 1),
       startsAt,
       endsAt,
+      serviceLocation: request.nextUrl.searchParams.get('location'),
+      selectedAddOns,
     })
     return NextResponse.json({ success: true, data: availability })
   } catch (error) {
