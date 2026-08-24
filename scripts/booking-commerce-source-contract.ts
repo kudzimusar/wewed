@@ -1,0 +1,52 @@
+import { readFileSync } from 'node:fs'
+
+function read(path: string) { return readFileSync(path, 'utf8') }
+function requireText(source: string, needle: string, message: string) { if (!source.includes(needle)) throw new Error(message) }
+function forbidText(source: string, needle: string, message: string) { if (source.includes(needle)) throw new Error(message) }
+
+const plan = read('docs/WEWED_VENDOR_BOOKING_COMMERCE_AI_REFERRAL_PLAN.md')
+const governance = read('src/lib/booking-governance.ts')
+const resources = read('src/lib/booking-resource-engine.ts')
+const commerce = read('src/lib/booking-commerce.ts')
+const amendments = read('src/lib/booking-amendments.ts')
+const publicForm = read('src/components/providers/provider-booking-form.tsx')
+const lifecyclePanel = read('src/components/booking/booking-lifecycle-panel.tsx')
+const vendorAvailability = read('src/app/vendor/availability/page.tsx')
+const adminBookings = read('src/app/api/admin/bookings/route.ts')
+const adminBookingsPage = read('src/app/admin/bookings/page.tsx')
+const commercialMigration = read('prisma/migrations/20260824030900_booking_commercial_lifecycle_packages/migration.sql')
+const historyMigration = read('prisma/migrations/20260824030500_booking_history_integrity/migration.sql')
+const lineRevisionMigration = read('prisma/migrations/20260824031000_booking_line_revision_amendments/migration.sql')
+const concurrencyContract = read('scripts/booking-commerce-concurrency-contract.ts')
+const postgresContract = read('scripts/booking-commerce-postgres-contract.sql')
+
+requireText(plan, 'WW-BOOKING-COMMERCE-2026-08-24-01', 'Booking implementation must remain tied to the stamped canonical plan.')
+requireText(resources, 'pg_advisory_xact_lock', 'Transactional resource allocation must serialize competing reservations.')
+requireText(resources, 'PACKAGE_COMPONENT_CYCLE', 'Package resource recursion must fail closed on cycles.')
+requireText(resources, 'selectedAddOns', 'Resource engine must evaluate resource-consuming add-ons.')
+requireText(resources, 'serviceLocation', 'Resource engine must evaluate service-area context.')
+requireText(governance, 'awaiting_deposit', 'Governed lifecycle must expose the deposit gate.')
+requireText(governance, 'booking_deposit_is_satisfied', 'Application confirmation must verify canonical deposit evidence.')
+requireText(commercialMigration, 'booking_deposit_not_satisfied', 'Database must independently block confirmation without deposit evidence.')
+requireText(historyMigration, 'booking_events_are_append_only', 'Booking events must be append-only evidence.')
+requireText(lineRevisionMigration, 'booking_line_commercial_snapshot_is_immutable', 'Submitted booking line snapshots must be immutable.')
+requireText(amendments, 'contractAmendmentId', 'Booking amendments must converge with governed contract amendments when required.')
+requireText(amendments, 'supersedesLineId', 'Accepted amendments must create booking-line revisions rather than overwrite history.')
+requireText(publicForm, "params.set('location', location.trim())", 'Public Instant Book pre-check must send service location to the deterministic engine.')
+requireText(publicForm, "params.set('addOns', selectedAddOns.join(','))", 'Public Instant Book pre-check must send selected resource add-ons to the deterministic engine.')
+requireText(lifecyclePanel, '/deposit', 'My Bookings lifecycle UX must expose canonical deposit recheck.')
+requireText(lifecyclePanel, '/amendments', 'My Bookings lifecycle UX must expose append-only amendments.')
+requireText(vendorAvailability, '/availability-rules', 'Vendor UX must expose deterministic availability rules.')
+requireText(vendorAvailability, '/components', 'Vendor UX must expose package/resource component configuration.')
+requireText(adminBookings, "requireWewedAdmin(request, 'admin.support.read')", 'Admin booking support must require governed support-read permission.')
+requireText(adminBookingsPage, 'Read-only commercial support', 'Admin booking UI must remain support-oriented rather than a commercial bypass.')
+requireText(concurrencyContract, 'Serialized gown concurrency', 'Dedicated contract must test serialized-item contention.')
+requireText(concurrencyContract, 'Chair pool concurrency', 'Dedicated contract must test quantity-inventory contention.')
+requireText(concurrencyContract, 'Package contract', 'Dedicated contract must test package component capacity.')
+requireText(postgresContract, 'booking_deposit_not_satisfied', 'PostgreSQL contract must prove database deposit enforcement.')
+
+forbidText(commerce, 'export async function holdBooking(', 'Legacy hold mutation must not remain exported from booking-commerce.')
+forbidText(commerce, 'export async function submitBooking(', 'Legacy submit mutation must not remain exported from booking-commerce.')
+forbidText(commerce, 'export async function providerBookingAction(', 'Legacy provider state mutation must not remain exported from booking-commerce.')
+
+console.log('Booking commerce source contract: PASS')
