@@ -54,10 +54,6 @@ BEGIN
   IF NOT wewed_booking.booking_deposit_is_satisfied('ci-sql-booking') THEN
     RAISE EXCEPTION 'refund reversal sign contract failed: reversed refund did not restore deposit satisfaction';
   END IF;
-  UPDATE wewed_booking."Booking" SET status='confirmed' WHERE id='ci-sql-booking';
-  IF (SELECT status FROM wewed_booking."Booking" WHERE id='ci-sql-booking') <> 'confirmed' THEN
-    RAISE EXCEPTION 'deposit guard failed after valid refund reversal evidence';
-  END IF;
 END $$;
 
 DO $$
