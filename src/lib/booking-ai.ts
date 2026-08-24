@@ -184,12 +184,12 @@ export async function executeArchitectBookingAction(input: ExecutionInput) {
     expiresAt: Date | null
     revokedAt: Date | null
     isActive: boolean
-    updatedAt: Date
+    revision: bigint
   }>>(
     `SELECT id,"maxAction","maxPerBookingCents","maxTotalOpenCents","maxDepositCents","allowedCategories",
             "allowedBookingModes","allowedProviderSlugs","allowedRiskClasses","excludedCatalogItemIds",
             "allowNonRefundable","allowHold","allowRequestSubmission","allowInstantConfirmation",
-            "allowContractAcceptance","allowPayment","expiresAt","revokedAt","isActive","updatedAt"
+            "allowContractAcceptance","allowPayment","expiresAt","revokedAt","isActive","revision"
        FROM wewed_booking."AutoBookPolicy"
       WHERE "weddingId"=$1 AND "userId"=$2 LIMIT 1`,
     input.weddingId,
@@ -289,7 +289,7 @@ export async function executeArchitectBookingAction(input: ExecutionInput) {
   const reservationRows = await db.$queryRawUnsafe<Array<{ result: string }>>(
     `SELECT wewed_booking.reserve_autobook_open_budget($1,$2,$3,$4) AS result`,
     policy.id,
-    policy.updatedAt,
+    policy.revision,
     price.totalCents ?? 0,
     budgetReservationId,
   )
