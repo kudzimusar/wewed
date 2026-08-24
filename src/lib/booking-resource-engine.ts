@@ -54,6 +54,7 @@ type AvailabilityInput = {
   endsAt: Date
   serviceLocation?: string | null
   selectedAddOns?: string[]
+  excludeBookingId?: string | null
   now?: Date
 }
 
@@ -126,7 +127,9 @@ function policyNumber(item: ItemPolicy, columnValue: number | null, key: string)
 }
 
 function validateServiceArea(item: ItemPolicy, serviceLocation?: string | null) {
-  const policy = { ...object(item.availabilityPolicy).serviceArea as Record<string, unknown> | undefined, ...object(item.serviceAreaPolicy) }
+  const availability = object(item.availabilityPolicy)
+  const embedded = object(availability.serviceArea)
+  const policy = { ...embedded, ...object(item.serviceAreaPolicy) }
   const mode = typeof policy.mode === 'string' ? policy.mode : 'none'
   if (mode === 'none') return { allowed: true, reason: 'NOT_CONFIGURED' }
   const required = policy.required === true
@@ -256,7 +259,7 @@ async function availabilityInternal(client: QueryClient, input: AvailabilityInpu
 
   const bufferedStart = new Date(input.startsAt.getTime() - item.bufferBeforeMinutes * 60_000)
   const bufferedEnd = new Date(input.endsAt.getTime() + item.bufferAfterMinutes * 60_000)
-  const direct = await resourceCandidates(client, item, input.variantId ?? null, bufferedStart, bufferedEnd, null)
+  const direct = await resourceCandidates(client, item, input.variantId ?? null, bufferedStart, bufferedEnd, input.excludeBookingId)
   const directQuantity = direct.reduce((sum, entry) => sum + candidateFree(entry), 0)
   const selectedAddOns = input.selectedAddOns ?? []
   const components = await componentsFor(client, item.id, selectedAddOns)
@@ -280,6 +283,7 @@ async function availabilityInternal(client: QueryClient, input: AvailabilityInpu
       endsAt: input.endsAt,
       serviceLocation: input.serviceLocation,
       selectedAddOns: [],
+      excludeBookingId: input.excludeBookingId,
       now: input.now,
     }, nextVisited, depth + 1)
     const childAvailableQuantity = Number(child.availableQuantity ?? 0)
