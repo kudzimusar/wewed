@@ -122,11 +122,11 @@ async function bookingForUpdate(tx: Tx, bookingId: string, weddingId?: string): 
             i."holdMinutes",i."requiresContract"
        FROM wewed_booking."BookingLine" l
        JOIN wewed_booking."ProviderCatalogItem" i ON i.id=l."catalogItemId"
-      WHERE l."bookingId"=$1
+      WHERE l."bookingId"=$1 AND l."supersededAt" IS NULL
       ORDER BY l."createdAt",l.id`,
     bookingId,
   )
-  if (!lines.length) throw new BookingCommerceError('Booking has no service lines.', 409, 'BOOKING_LINES_REQUIRED')
+  if (!lines.length) throw new BookingCommerceError('Booking has no current service lines.', 409, 'BOOKING_LINES_REQUIRED')
   return { header, lines }
 }
 
@@ -186,7 +186,7 @@ async function providerFacts(tx: Tx, bookingId: string, weddingId: string): Prom
     `SELECT b."businessAccountId",p."displayName" AS "providerName",o.category,b."totalCents",b.currency,
             COALESCE(b."serviceStart",b."appointmentAt",b."eventDate"::timestamp) AS "serviceDate",b."serviceLocation",
             b."customerUserId",b."publicReference",
-            COALESCE((SELECT l."nameSnapshot" FROM wewed_booking."BookingLine" l WHERE l."bookingId"=b.id ORDER BY l."createdAt" LIMIT 1),o."displayName") AS "firstLine",
+            COALESCE((SELECT l."nameSnapshot" FROM wewed_booking."BookingLine" l WHERE l."bookingId"=b.id AND l."supersededAt" IS NULL ORDER BY l."createdAt" DESC,l.id DESC LIMIT 1),o."displayName") AS "firstLine",
             p.phone,p."publicEmail",p.website
        FROM wewed_booking."Booking" b
        JOIN wewed_admin."ProviderProfile" p ON p."businessAccountId"=b."businessAccountId"
@@ -451,7 +451,7 @@ async function ensureBudgetTx(tx: Tx, bookingId: string, weddingId: string) {
   }>>(
     `SELECT b."serviceEngagementId",b."totalCents",b.currency,o.category,b."publicReference",
             p."displayName" AS "providerName",se."vendorId",
-            COALESCE((SELECT l."nameSnapshot" FROM wewed_booking."BookingLine" l WHERE l."bookingId"=b.id ORDER BY l."createdAt" LIMIT 1),o."displayName") AS "firstLine"
+            COALESCE((SELECT l."nameSnapshot" FROM wewed_booking."BookingLine" l WHERE l."bookingId"=b.id AND l."supersededAt" IS NULL ORDER BY l."createdAt" DESC,l.id DESC LIMIT 1),o."displayName") AS "firstLine"
        FROM wewed_booking."Booking" b
        JOIN wewed_admin."ProviderServiceOffering" o ON o.id=b."offeringId"
        JOIN wewed_admin."ProviderProfile" p ON p."businessAccountId"=b."businessAccountId"
@@ -489,9 +489,9 @@ async function ensurePaymentMilestonesTx(tx: Tx, header: BookingHeader, engageme
   const scheduleRows = await tx.$queryRawUnsafe<Array<{ availabilityPolicy: unknown; serviceDate: Date | null }>>(
     `SELECT i."availabilityPolicy",COALESCE(b."serviceStart",b."appointmentAt",b."eventDate"::timestamp) AS "serviceDate"
        FROM wewed_booking."Booking" b
-       JOIN wewed_booking."BookingLine" l ON l."bookingId"=b.id
+       JOIN wewed_booking."BookingLine" l ON l."bookingId"=b.id AND l."supersededAt" IS NULL
        JOIN wewed_booking."ProviderCatalogItem" i ON i.id=l."catalogItemId"
-      WHERE b.id=$1 ORDER BY l."createdAt" LIMIT 1`,
+      WHERE b.id=$1 ORDER BY l."createdAt" DESC,l.id DESC LIMIT 1`,
     header.id,
   )
   const policy = scheduleRows[0]?.availabilityPolicy && typeof scheduleRows[0].availabilityPolicy === 'object' && !Array.isArray(scheduleRows[0].availabilityPolicy)
@@ -567,7 +567,7 @@ async function confirmOrAwaitDepositTx(tx: Tx, header: BookingHeader, engagement
 
 async function markConfirmedTx(tx: Tx, header: BookingHeader, actorUserId: string, eventType: string) {
   const requiresContractRows = await tx.$queryRawUnsafe<Array<{ required: boolean }>>(
-    `SELECT EXISTS(SELECT 1 FROM wewed_booking."BookingLine" l JOIN wewed_booking."ProviderCatalogItem" i ON i.id=l."catalogItemId" WHERE l."bookingId"=$1 AND i."requiresContract"=true) AS required`,
+    `SELECT EXISTS(SELECT 1 FROM wewed_booking."BookingLine" l JOIN wewed_booking."ProviderCatalogItem" i ON i.id=l."catalogItemId" WHERE l."bookingId"=$1 AND l."supersededAt" IS NULL AND i."requiresContract"=true) AS required`,
     header.id,
   )
   const requiresContract = Boolean(requiresContractRows[0]?.required)
