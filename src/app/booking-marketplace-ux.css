@@ -1,0 +1,202 @@
+/* Booking marketplace UX hardening.
+   Route-scoped by BookingUxRouteClass so these density and mobile rules do not leak into other workspaces. */
+
+body[data-booking-ux='planner'] main.min-h-dvh,
+body[data-booking-ux='vendor'] main.min-h-dvh {
+  min-height: 100dvh;
+  padding: 1rem;
+}
+
+body[data-booking-ux='planner'] main.min-h-dvh {
+  background: #f7f2ea !important;
+  color: #211a15 !important;
+}
+
+body[data-booking-ux='planner'] main.min-h-dvh [class*='text-champagne'] {
+  color: rgba(33, 26, 21, .68) !important;
+}
+
+body[data-booking-ux='planner'] main.min-h-dvh [class*='text-gold'] {
+  color: #9a7938 !important;
+}
+
+body[data-booking-ux='planner'] main.min-h-dvh [class*='bg-champagne/5'],
+body[data-booking-ux='planner'] main.min-h-dvh [class*='bg-champagne/10'],
+body[data-booking-ux='planner'] main.min-h-dvh [class*='bg-black/10'] {
+  background: #fff !important;
+}
+
+body[data-booking-ux='planner'] main.min-h-dvh [class*='border-gold'] {
+  border-color: #e5dac8 !important;
+}
+
+body[data-booking-ux='planner'] main.min-h-dvh > div,
+body[data-booking-ux='vendor'] main.min-h-dvh > div {
+  max-width: 80rem;
+}
+
+/* Top summary becomes a compact workspace header instead of a large glass card. */
+body[data-booking-ux='planner'] main.min-h-dvh > div > section:first-of-type,
+body[data-booking-ux='vendor'] main.min-h-dvh > div > section:first-of-type {
+  margin-top: .75rem !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: .5rem 0 1rem !important;
+}
+
+body[data-booking-ux='planner'] main.min-h-dvh > div > section:first-of-type h1,
+body[data-booking-ux='vendor'] main.min-h-dvh > div > section:first-of-type h1 {
+  margin-top: .25rem !important;
+  font-size: clamp(2.25rem, 8vw, 4rem) !important;
+  line-height: .98 !important;
+}
+
+body[data-booking-ux='planner'] main.min-h-dvh > div > section:first-of-type p[class*='leading-7'],
+body[data-booking-ux='vendor'] main.min-h-dvh > div > section:first-of-type p[class*='leading-7'] {
+  margin-top: .75rem !important;
+  max-width: 58rem !important;
+  line-height: 1.55 !important;
+}
+
+body[data-booking-ux='planner'] main.min-h-dvh > div > section:first-of-type > div:last-child,
+body[data-booking-ux='vendor'] main.min-h-dvh > div > section:first-of-type > div:last-child {
+  margin-top: 1rem !important;
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .5rem !important;
+}
+
+body[data-booking-ux='planner'] main.min-h-dvh > div > section:first-of-type > div:last-child > div,
+body[data-booking-ux='vendor'] main.min-h-dvh > div > section:first-of-type > div:last-child > div {
+  min-height: 0 !important;
+  border: 1px solid #e8ddcc !important;
+  border-radius: .85rem !important;
+  background: #fff !important;
+  padding: .7rem .8rem !important;
+  box-shadow: none !important;
+}
+
+body[data-booking-ux='planner'] main.min-h-dvh > div > section:first-of-type > div:last-child > div > div:last-child,
+body[data-booking-ux='vendor'] main.min-h-dvh > div > section:first-of-type > div:last-child > div > div:last-child {
+  margin-top: .2rem !important;
+  font-size: 1.5rem !important;
+  line-height: 1 !important;
+}
+
+/* Booking records: solid surfaces, tighter information rhythm, no oversized glass cards. */
+body[data-booking-ux='planner'] main.min-h-dvh > div > div.mt-6,
+body[data-booking-ux='vendor'] main.min-h-dvh > div > div.mt-6 {
+  margin-top: 1rem !important;
+  gap: .75rem !important;
+}
+
+body[data-booking-ux='planner'] main.min-h-dvh > div > div.mt-6 > article,
+body[data-booking-ux='vendor'] main.min-h-dvh > div > div.mt-6 > article {
+  border: 1px solid #e5dac8 !important;
+  border-radius: 1rem !important;
+  background: #fff !important;
+  padding: 1rem !important;
+  box-shadow: 0 8px 28px rgba(44, 31, 18, .05) !important;
+}
+
+body[data-booking-ux='planner'] main.min-h-dvh article h2,
+body[data-booking-ux='vendor'] main.min-h-dvh article h2 {
+  margin-top: .55rem !important;
+  font-size: clamp(1.75rem, 6vw, 2.5rem) !important;
+  line-height: 1 !important;
+}
+
+body[data-booking-ux='planner'] main.min-h-dvh article [class*='rounded-2xl'],
+body[data-booking-ux='vendor'] main.min-h-dvh article [class*='rounded-2xl'] {
+  border-radius: .85rem !important;
+}
+
+body[data-booking-ux='planner'] main.min-h-dvh article [class*='p-4'],
+body[data-booking-ux='vendor'] main.min-h-dvh article [class*='p-4'] {
+  padding: .75rem !important;
+}
+
+body[data-booking-ux='planner'] main.min-h-dvh article [class*='mt-5'],
+body[data-booking-ux='vendor'] main.min-h-dvh article [class*='mt-5'] {
+  margin-top: .85rem !important;
+}
+
+body[data-booking-ux='planner'] main.min-h-dvh article [class*='gap-5'],
+body[data-booking-ux='vendor'] main.min-h-dvh article [class*='gap-5'] {
+  gap: .85rem !important;
+}
+
+body[data-booking-ux='planner'] main.min-h-dvh article section,
+body[data-booking-ux='vendor'] main.min-h-dvh article section {
+  background: #faf7f2 !important;
+  border-color: #e8ddcc !important;
+  box-shadow: none !important;
+}
+
+body[data-booking-ux='planner'] main.min-h-dvh article input,
+body[data-booking-ux='planner'] main.min-h-dvh article textarea,
+body[data-booking-ux='planner'] main.min-h-dvh article select,
+body[data-booking-ux='vendor'] main.min-h-dvh article input,
+body[data-booking-ux='vendor'] main.min-h-dvh article textarea,
+body[data-booking-ux='vendor'] main.min-h-dvh article select {
+  min-height: 2.65rem !important;
+  border-radius: .7rem !important;
+  background: #fff !important;
+}
+
+body[data-booking-ux='planner'] main.min-h-dvh a[class*='rounded-full'],
+body[data-booking-ux='planner'] main.min-h-dvh button[class*='rounded-full'],
+body[data-booking-ux='vendor'] main.min-h-dvh a[class*='rounded-full'],
+body[data-booking-ux='vendor'] main.min-h-dvh button[class*='rounded-full'] {
+  border-radius: .75rem !important;
+}
+
+/* Mobile: one readable column, compact summary, controls stay thumb-friendly. */
+@media (max-width: 640px) {
+  body[data-booking-ux='planner'] main.min-h-dvh,
+  body[data-booking-ux='vendor'] main.min-h-dvh {
+    padding: .75rem !important;
+  }
+
+  body[data-booking-ux='planner'] main.min-h-dvh > div > section:first-of-type > div:last-child,
+  body[data-booking-ux='vendor'] main.min-h-dvh > div > section:first-of-type > div:last-child {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  body[data-booking-ux='planner'] main.min-h-dvh > div > section:first-of-type > div:last-child > div,
+  body[data-booking-ux='vendor'] main.min-h-dvh > div > section:first-of-type > div:last-child > div {
+    padding: .6rem !important;
+  }
+
+  body[data-booking-ux='planner'] main.min-h-dvh > div > section:first-of-type > div:last-child > div > div:first-child,
+  body[data-booking-ux='vendor'] main.min-h-dvh > div > section:first-of-type > div:last-child > div > div:first-child {
+    font-size: .62rem !important;
+    letter-spacing: .08em !important;
+  }
+
+  body[data-booking-ux='planner'] main.min-h-dvh > div > div.mt-6 > article,
+  body[data-booking-ux='vendor'] main.min-h-dvh > div > div.mt-6 > article {
+    padding: .85rem !important;
+  }
+
+  body[data-booking-ux='planner'] main.min-h-dvh article > div:first-child,
+  body[data-booking-ux='vendor'] main.min-h-dvh article > div:first-child {
+    gap: .75rem !important;
+  }
+
+  body[data-booking-ux='planner'] main.min-h-dvh article [class*='grid-cols-2'],
+  body[data-booking-ux='vendor'] main.min-h-dvh article [class*='grid-cols-2'],
+  body[data-booking-ux='planner'] main.min-h-dvh article [class*='grid-cols-4'],
+  body[data-booking-ux='vendor'] main.min-h-dvh article [class*='grid-cols-4'] {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  body[data-booking-ux='planner'] main.min-h-dvh article a,
+  body[data-booking-ux='planner'] main.min-h-dvh article button,
+  body[data-booking-ux='vendor'] main.min-h-dvh article a,
+  body[data-booking-ux='vendor'] main.min-h-dvh article button {
+    min-height: 2.6rem !important;
+  }
+}
