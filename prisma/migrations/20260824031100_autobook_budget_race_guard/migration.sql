@@ -38,7 +38,7 @@ CREATE UNIQUE INDEX "AutoBookBudgetReservation_booking_key"
 CREATE OR REPLACE FUNCTION wewed_booking.reserve_autobook_open_budget(
   p_policy_id TEXT,
   p_expected_updated_at TIMESTAMPTZ,
-  p_amount_cents INTEGER,
+  p_amount_cents BIGINT,
   p_reservation_id TEXT
 )
 RETURNS TEXT
@@ -56,7 +56,9 @@ DECLARE
   v_open_total BIGINT;
   v_reserved_total BIGINT;
 BEGIN
-  IF p_amount_cents IS NULL OR p_amount_cents < 0 THEN
+  -- Prisma binds JavaScript integer parameters as int8/bigint. Keep canonical booking money
+  -- storage in INTEGER cents, but reject anything outside that established storage boundary.
+  IF p_amount_cents IS NULL OR p_amount_cents < 0 OR p_amount_cents > 2147483647 THEN
     RETURN 'invalid_amount';
   END IF;
 
@@ -94,7 +96,7 @@ BEGIN
   INSERT INTO wewed_booking."AutoBookBudgetReservation"
     (id,"policyId","weddingId","userId","amountCents",status,"expiresAt")
   VALUES
-    (p_reservation_id,p_policy_id,v_wedding_id,v_user_id,p_amount_cents,'active',CURRENT_TIMESTAMP + INTERVAL '10 minutes');
+    (p_reservation_id,p_policy_id,v_wedding_id,v_user_id,p_amount_cents::integer,'active',CURRENT_TIMESTAMP + INTERVAL '10 minutes');
 
   RETURN 'reserved';
 END;
@@ -148,7 +150,7 @@ END;
 $$;
 
 REVOKE ALL ON TABLE wewed_booking."AutoBookBudgetReservation" FROM PUBLIC;
-REVOKE ALL ON FUNCTION wewed_booking.reserve_autobook_open_budget(TEXT,TIMESTAMPTZ,INTEGER,TEXT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION wewed_booking.reserve_autobook_open_budget(TEXT,TIMESTAMPTZ,BIGINT,TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION wewed_booking.consume_autobook_open_budget(TEXT,TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION wewed_booking.release_autobook_open_budget(TEXT) FROM PUBLIC;
 
@@ -158,7 +160,7 @@ BEGIN
   FOREACH role_name IN ARRAY ARRAY['anon','authenticated'] LOOP
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname=role_name) THEN
       EXECUTE format('REVOKE ALL ON TABLE wewed_booking."AutoBookBudgetReservation" FROM %I',role_name);
-      EXECUTE format('REVOKE ALL ON FUNCTION wewed_booking.reserve_autobook_open_budget(TEXT,TIMESTAMPTZ,INTEGER,TEXT) FROM %I',role_name);
+      EXECUTE format('REVOKE ALL ON FUNCTION wewed_booking.reserve_autobook_open_budget(TEXT,TIMESTAMPTZ,BIGINT,TEXT) FROM %I',role_name);
       EXECUTE format('REVOKE ALL ON FUNCTION wewed_booking.consume_autobook_open_budget(TEXT,TEXT) FROM %I',role_name);
       EXECUTE format('REVOKE ALL ON FUNCTION wewed_booking.release_autobook_open_budget(TEXT) FROM %I',role_name);
     END IF;
