@@ -99,10 +99,10 @@ async function allocationTotal(resourceId: string) {
   return Number(rows[0]?.quantity ?? 0)
 }
 
-async function reserveAutoBookBudget(reservationId: string, updatedAt: Date) {
+async function reserveAutoBookBudget(reservationId: string, revision: bigint) {
   const rows = await db.$queryRawUnsafe<Array<{ result: string }>>(
     `SELECT wewed_booking.reserve_autobook_open_budget($1,$2,$3,$4) AS result`,
-    'ci-autobook-policy', updatedAt, 6000, reservationId,
+    'ci-autobook-policy', revision, 6000, reservationId,
   )
   return rows[0]?.result
 }
@@ -146,14 +146,14 @@ async function main() {
   const chairsAllocated = await allocationTotal('ci-chair-resource')
   if (chairsAllocated > 10 || chairsAllocated !== 6) throw new Error(`Chair pool concurrency: expected one six-chair allocation within capacity 10, got ${chairsAllocated}.`)
 
-  const policyRows = await db.$queryRawUnsafe<Array<{ updatedAt: Date }>>(
-    `SELECT "updatedAt" FROM wewed_booking."AutoBookPolicy" WHERE id='ci-autobook-policy' LIMIT 1`,
+  const policyRows = await db.$queryRawUnsafe<Array<{ revision: bigint }>>(
+    `SELECT "revision" FROM wewed_booking."AutoBookPolicy" WHERE id='ci-autobook-policy' LIMIT 1`,
   )
-  const updatedAt = policyRows[0]?.updatedAt
-  if (!updatedAt) throw new Error('AutoBook concurrency contract: policy fixture missing.')
+  const revision = policyRows[0]?.revision
+  if (revision == null) throw new Error('AutoBook concurrency contract: policy fixture missing.')
   const budgetResults = await Promise.all([
-    reserveAutoBookBudget('ci-autobook-reservation-a', updatedAt),
-    reserveAutoBookBudget('ci-autobook-reservation-b', updatedAt),
+    reserveAutoBookBudget('ci-autobook-reservation-a', revision),
+    reserveAutoBookBudget('ci-autobook-reservation-b', revision),
   ])
   const reserved = budgetResults.filter((result) => result === 'reserved').length
   const blocked = budgetResults.filter((result) => result === 'total_limit').length
