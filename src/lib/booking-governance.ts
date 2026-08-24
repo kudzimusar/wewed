@@ -33,6 +33,8 @@ type BookingHeader = {
   serviceEnd: Date | null
   appointmentAt: Date | null
   pickupAt: Date | null
+  deliveryAt: Date | null
+  collectionAt: Date | null
   returnDueAt: Date | null
   eventDate: Date | null
   serviceLocation: string | null
@@ -96,8 +98,10 @@ function rawServiceWindow(header: BookingHeader) {
   const eventEnd = header.eventDate
     ? new Date(`${header.eventDate.toISOString().slice(0, 10)}T23:59:59.999Z`)
     : null
-  const startsAt = header.serviceStart ?? header.appointmentAt ?? header.pickupAt ?? eventStart
-  const endsAt = header.serviceEnd ?? header.returnDueAt ?? (header.appointmentAt ? new Date(header.appointmentAt.getTime() + 60 * 60_000) : eventEnd)
+  // Keep governed allocation in exact parity with the public availability pre-check.
+  // Delivery-only packages/transport must reserve delivery -> collection, not the whole event day.
+  const startsAt = header.serviceStart ?? header.appointmentAt ?? header.pickupAt ?? header.deliveryAt ?? eventStart
+  const endsAt = header.serviceEnd ?? header.returnDueAt ?? header.collectionAt ?? (header.appointmentAt ? new Date(header.appointmentAt.getTime() + 60 * 60_000) : eventEnd)
   if (!startsAt || !endsAt || endsAt <= startsAt) {
     throw new BookingCommerceError('Choose the booking date/time before reserving availability.', 400, 'BOOKING_WINDOW_REQUIRED')
   }
@@ -108,7 +112,7 @@ async function bookingForUpdate(tx: Tx, bookingId: string, weddingId?: string): 
   const headers = await tx.$queryRawUnsafe<BookingHeader[]>(
     `SELECT id,"weddingId",status,"bookingMode","businessAccountId","offeringId","customerUserId","createdByUserId",
             "referralLinkId","serviceEngagementId","publicReference",currency,"totalCents","depositCents",
-            "serviceStart","serviceEnd","appointmentAt","pickupAt","returnDueAt","eventDate","serviceLocation"
+            "serviceStart","serviceEnd","appointmentAt","pickupAt","deliveryAt","collectionAt","returnDueAt","eventDate","serviceLocation"
        FROM wewed_booking."Booking"
       WHERE id=$1 AND ($2::text IS NULL OR "weddingId"=$2)
       FOR UPDATE`,
@@ -599,17 +603,24 @@ async function markConfirmedTx(tx: Tx, header: BookingHeader, actorUserId: strin
 }
 
 export async function holdBookingGoverned(input: { bookingId: string; weddingId: string; actorUserId: string; idempotencyKey: string }) {
-  if (!input.idempotencyKey.trim()) throw new BookingCommerceError('A hold idempotency key is required.', 400, 'IDEMPOTENCY_REQUIRED')
+  const idempotencyKey = input.idempotencyKey.trim()
+  if (!idempotencyKey) throw new BookingCommerceError('A hold idempotency key is required.', 400, 'IDEMPOTENCY_REQUIRED')
   await db.$transaction(async (tx) => {
     const { header, lines } = await bookingForUpdate(tx, input.bookingId, input.weddingId)
     if (!['draft','held'].includes(header.status)) throw new BookingCommerceError('This booking can no longer be held.', 409, 'INVALID_BOOKING_STATE')
     if (header.bookingMode !== 'instant') throw new BookingCommerceError('This service requires a vendor request rather than an automatic hold.', 409, 'HOLD_NOT_SUPPORTED')
     await releaseExpiredHolds(tx, header.id)
-    const existing = await tx.$queryRawUnsafe<Array<{ id: string; status: string; expiresAt: Date }>>(
-      `SELECT id,status,"expiresAt" FROM wewed_booking."BookingHold" WHERE "idempotencyKey"=$1 LIMIT 1`,
-      input.idempotencyKey,
+    const existing = await tx.$queryRawUnsafe<Array<{ id: string; bookingId: string; status: string; expiresAt: Date }>>(
+      `SELECT id,"bookingId",status,"expiresAt" FROM wewed_booking."BookingHold" WHERE "idempotencyKey"=$1 LIMIT 1`,
+      idempotencyKey,
     )
-    if (existing[0]?.status === 'active' && existing[0].expiresAt > new Date()) return
+    if (existing[0]) {
+      if (existing[0].bookingId !== header.id) {
+        throw new BookingCommerceError('This hold idempotency key is already bound to another booking.', 409, 'IDEMPOTENCY_KEY_REUSED')
+      }
+      if (existing[0].status === 'active' && existing[0].expiresAt > new Date()) return
+      throw new BookingCommerceError('This hold attempt has already completed or expired. Use a new idempotency key after checking availability again.', 409, 'IDEMPOTENCY_KEY_EXPIRED')
+    }
 
     await tx.$executeRawUnsafe(
       `UPDATE wewed_booking."BookingResourceAllocation" SET state='released',"updatedAt"=CURRENT_TIMESTAMP WHERE "bookingId"=$1 AND state='hold'`,
@@ -624,7 +635,7 @@ export async function holdBookingGoverned(input: { bookingId: string; weddingId:
     const holdId = randomUUID()
     await tx.$executeRawUnsafe(
       `INSERT INTO wewed_booking."BookingHold" (id,"bookingId","idempotencyKey",status,"expiresAt","createdByUserId") VALUES ($1,$2,$3,'active',$4,$5)`,
-      holdId, header.id, input.idempotencyKey.trim(), expiresAt, input.actorUserId,
+      holdId, header.id, idempotencyKey, expiresAt, input.actorUserId,
     )
     for (const line of lines) await allocateLine(tx, header, line, 'hold', holdId, expiresAt)
     await tx.$executeRawUnsafe(`UPDATE wewed_booking."Booking" SET status='held' WHERE id=$1`, header.id)
