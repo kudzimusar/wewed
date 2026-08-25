@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { consumeAiRateLimit } from '@/lib/ai/rate-limit'
 import { runWewedAi, WewedAiPolicyError, WewedAiUnavailableError } from '@/lib/ai/core'
+import { marketplaceAiPricingFacts } from '@/lib/ai/core/marketplace-public-facts'
 import { db } from '@/lib/db'
 
 const MAX_REQUESTS = 8
@@ -68,7 +69,11 @@ export async function POST(request: NextRequest) {
 
   const providerSlug = typeof body.providerSlug === 'string' ? body.providerSlug.trim().toLowerCase() : ''
   const input = typeof body.input === 'string' ? body.input.trim() : ''
-  const outcome = typeof body.outcome === 'string' && OUTCOMES.has(body.outcome) ? body.outcome : 'structure_need'
+  const rawOutcome = typeof body.outcome === 'string' ? body.outcome.trim() : ''
+  if (rawOutcome && !OUTCOMES.has(rawOutcome)) {
+    return NextResponse.json({ success: false, error: 'Unsupported Marketplace Concierge outcome.' }, { status: 400 })
+  }
+  const outcome = rawOutcome || 'structure_need'
   if (!SLUG.test(providerSlug)) return NextResponse.json({ success: false, error: 'A valid provider is required.' }, { status: 400 })
   if (!input || input.length > 4_000) return NextResponse.json({ success: false, error: 'Ask Wewed a question up to 4,000 characters.' }, { status: 400 })
 
@@ -92,6 +97,14 @@ export async function POST(request: NextRequest) {
     )
     const profile = profiles[0]
     if (!profile) return NextResponse.json({ success: false, error: 'Published provider profile not found.' }, { status: 404 })
+
+    const acceptingEnquiries = profile.acceptingEnquiries !== false
+    if (outcome === 'prepare_enquiry' && !acceptingEnquiries) {
+      return NextResponse.json(
+        { success: false, error: 'This provider is not currently accepting enquiries. Wewed can still help you understand or compare the published services.' },
+        { status: 409 },
+      )
+    }
 
     const offerings = await db.$queryRawUnsafe<Array<Record<string, unknown>>>(
       `SELECT id, category, "displayName", description, "startingPriceCents", "maximumPriceCents",
@@ -125,18 +138,16 @@ export async function POST(request: NextRequest) {
         culturalExperience: typeof profile.culturalExperience === 'string' ? profile.culturalExperience : null,
         verificationBadges: list(profile.verificationBadges),
         listingStatus: String(profile.listingStatus || 'claimed'),
-        acceptingEnquiries: profile.acceptingEnquiries !== false,
+        acceptingEnquiries,
       },
       offerings: offerings.map((offering) => ({
         id: String(offering.id),
         category: String(offering.category),
         displayName: String(offering.displayName),
         description: typeof offering.description === 'string' ? offering.description : null,
-        startingPriceCents: typeof offering.startingPriceCents === 'number' ? offering.startingPriceCents : null,
-        maximumPriceCents: typeof offering.maximumPriceCents === 'number' ? offering.maximumPriceCents : null,
+        ...marketplaceAiPricingFacts(offering),
         currency: String(offering.currency || 'USD'),
         pricingModel: typeof offering.pricingModel === 'string' ? offering.pricingModel : null,
-        pricingVisibility: typeof offering.pricingVisibility === 'string' ? offering.pricingVisibility : 'quote_only',
         minimumCapacity: typeof offering.minimumCapacity === 'number' ? offering.minimumCapacity : null,
         maximumCapacity: typeof offering.maximumCapacity === 'number' ? offering.maximumCapacity : null,
         bookingLeadTime: typeof offering.bookingLeadTime === 'string' ? offering.bookingLeadTime : null,
@@ -158,14 +169,23 @@ export async function POST(request: NextRequest) {
         dataProfile: 'public',
         facts,
         allowedTools: ['marketplace.read'],
-        actionBoundary: 'prepare',
+        actionBoundary: acceptingEnquiries ? 'prepare' : 'suggest',
       },
     })
 
-    const { provider: _provider, model: _model, ...publicProvenance } = result.provenance
+    const { modelReleaseId, promptReleaseId, skillVersion, generatedAt } = result.provenance
     return NextResponse.json({
       success: true,
-      result: { ...result, provenance: publicProvenance },
+      result: {
+        traceId: result.traceId,
+        summary: result.summary,
+        facts: result.facts,
+        recommendations: result.recommendations,
+        missingInformation: result.missingInformation,
+        proposedActions: result.proposedActions,
+        warnings: result.warnings,
+        provenance: { modelReleaseId, promptReleaseId, skillVersion, generatedAt },
+      },
     })
   } catch (error) {
     if (error instanceof WewedAiPolicyError) {
