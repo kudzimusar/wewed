@@ -18,7 +18,7 @@ describe('Marketplace Concierge global AI contract', () => {
     const route = source('src/app/api/ai/marketplace/route.ts')
     expect(route).toContain("p.visibility = 'published'")
     expect(route).toContain('ba."onboardingStatus" = \'complete\'')
-    expect(route).toContain('p."listingStatus" NOT IN (\'suspended\', \'removed\')')
+    expect(route).toContain('p."listingStatus" IN (\'claimed\', \'verified\')')
     expect(route).toContain("status = 'published'")
     expect(route).toContain("dataProfile: 'public'")
     expect(route).toContain("allowedTools: ['marketplace.read']")
@@ -32,6 +32,14 @@ describe('Marketplace Concierge global AI contract', () => {
     expect(route).toContain("actionBoundary: acceptingEnquiries ? 'prepare' : 'suggest'")
   })
 
+  test('ordinary public provider responses use the same fail-closed pricing projection', () => {
+    const providerRoute = source('src/app/api/providers/[slug]/route.ts')
+    expect(providerRoute).toContain("from '@/lib/providers/public-pricing'")
+    expect(providerRoute).toContain('marketplacePublicPricingFacts(offering)')
+    expect(providerRoute).not.toContain("startingPriceCents: typeof offering.startingPriceCents")
+    expect(providerRoute).not.toContain("maximumPriceCents: typeof offering.maximumPriceCents")
+  })
+
   test('public response is explicitly allow-listed and cannot leak provider, model or token usage', () => {
     const route = source('src/app/api/ai/marketplace/route.ts')
     expect(route).toContain('const { modelReleaseId, promptReleaseId, skillVersion, generatedAt } = result.provenance')
@@ -41,9 +49,9 @@ describe('Marketplace Concierge global AI contract', () => {
     expect(route).not.toContain('model: result.provenance.model')
   })
 
-  test('provider page cannot mount AI chrome for suspended/removed listings and carries enquiry capability', () => {
+  test('provider page mounts AI chrome only for claimed or verified providers and carries enquiry capability', () => {
     const page = source('src/app/vendors/[slug]/page.tsx')
-    expect(page).toContain('p."listingStatus" NOT IN (\'suspended\',\'removed\')')
+    expect(page).toContain('p."listingStatus" IN (\'claimed\',\'verified\')')
     expect(page).toContain('enquiryEnabled={profile.acceptingEnquiries !== false}')
   })
 
@@ -55,5 +63,14 @@ describe('Marketplace Concierge global AI contract', () => {
     expect(component).toContain("starter.outcome !== 'prepare_enquiry'")
     expect(component).not.toContain("fetch('/api/providers/enquiries'")
     expect(component).not.toContain("fetch('/api/bookings'")
+  })
+
+  test('keeps an executable browser qualification for the Marketplace Concierge surface', () => {
+    const browser = source('tests/e2e/provider-ai-concierge.spec.ts')
+    expect(browser).toContain('Nothing is booked or sent by asking.')
+    expect(browser).toContain('Continue to enquiry')
+    expect(browser).toContain('Quote based')
+    expect(browser).toContain("listingStatus: 'unclaimed'")
+    expect(browser).toContain('@mobile')
   })
 })

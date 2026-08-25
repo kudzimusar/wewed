@@ -25,7 +25,7 @@ async function metadataFor(slug: string) {
       AND ba."onboardingStatus"='complete'
      WHERE p.slug=$1
        AND p.visibility='published'
-       AND p."listingStatus" NOT IN ('suspended','removed')
+       AND p."listingStatus" IN ('claimed','verified')
      LIMIT 1`,
     slug,
   )
