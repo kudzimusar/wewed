@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ArrowRight, Loader2, Sparkles, X } from 'lucide-react'
 
 type ConciergeResult = {
@@ -24,11 +24,10 @@ const STARTERS: Array<{ label: string; outcome: Outcome; prompt: string }> = [
 ]
 
 function openExistingEnquiry() {
-  const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
-  const target = buttons.find((button) => {
-    const label = button.textContent?.trim().toLowerCase()
-    return label === 'ask a question' || label === 'enquire' || label === 'ask'
-  })
+  const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('button:not([disabled])'))
+  const target = buttons.find((button) => button.textContent?.trim().toLowerCase() === 'ask a question')
+    ?? buttons.find((button) => button.textContent?.trim().toLowerCase() === 'enquire')
+    ?? buttons.find((button) => button.textContent?.trim().toLowerCase() === 'ask')
   if (target) {
     target.click()
     return true
@@ -37,17 +36,47 @@ function openExistingEnquiry() {
   return false
 }
 
-export function ProviderAiConcierge({ providerSlug, providerName }: { providerSlug: string; providerName: string }) {
+export function ProviderAiConcierge({
+  providerSlug,
+  providerName,
+  enquiryEnabled,
+}: {
+  providerSlug: string
+  providerName: string
+  enquiryEnabled: boolean
+}) {
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
   const [outcome, setOutcome] = useState<Outcome>('structure_need')
   const [result, setResult] = useState<ConciergeResult | null>(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const starters = enquiryEnabled ? STARTERS : STARTERS.filter((starter) => starter.outcome !== 'prepare_enquiry')
+
+  useEffect(() => {
+    if (!open) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const frame = window.requestAnimationFrame(() => textareaRef.current?.focus())
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.removeEventListener('keydown', onKeyDown)
+      document.body.style.overflow = previousOverflow
+    }
+  }, [open])
 
   async function ask(nextOutcome = outcome, nextInput = input) {
     const question = nextInput.trim()
     if (!question) return
+    if (nextOutcome === 'prepare_enquiry' && !enquiryEnabled) {
+      setError('This provider is not currently accepting enquiries. Ask Wewed to compare or explain the published services instead.')
+      return
+    }
     setBusy(true); setError(''); setResult(null); setOutcome(nextOutcome)
     try {
       const response = await fetch('/api/ai/marketplace', {
@@ -70,12 +99,15 @@ export function ProviderAiConcierge({ providerSlug, providerName }: { providerSl
   }
 
   function continueToEnquiry() {
+    if (!enquiryEnabled) {
+      setError('This provider is not currently accepting enquiries.')
+      return
+    }
+    if (!openExistingEnquiry()) {
+      setError('The enquiry panel could not be opened automatically. Use the Ask or Enquire action on the provider page.')
+      return
+    }
     setOpen(false)
-    window.setTimeout(() => {
-      if (!openExistingEnquiry()) {
-        setError('The enquiry panel could not be opened automatically. Use the Ask or Enquire action on the provider page.')
-      }
-    }, 0)
   }
 
   return (
@@ -102,11 +134,12 @@ export function ProviderAiConcierge({ providerSlug, providerName }: { providerSl
 
           <div className="p-5 sm:p-6">
             <div className="flex flex-wrap gap-2">
-              {STARTERS.map((starter) => <button key={starter.label} type="button" disabled={busy} onClick={() => useStarter(starter)} className="rounded-full border border-[#dbcdbb] bg-white px-3 py-2 text-xs font-semibold text-[#5f5347] hover:border-[#b99452] disabled:opacity-50">{starter.label}</button>)}
+              {starters.map((starter) => <button key={starter.label} type="button" disabled={busy} onClick={() => useStarter(starter)} className="rounded-full border border-[#dbcdbb] bg-white px-3 py-2 text-xs font-semibold text-[#5f5347] hover:border-[#b99452] disabled:opacity-50">{starter.label}</button>)}
             </div>
 
             <div className="mt-4 rounded-2xl border border-[#dfd2c1] bg-white p-3 shadow-sm">
               <textarea
+                ref={textareaRef}
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
                 placeholder="Example: We need around 100 chairs in Harare in December, probably including setup."
@@ -122,6 +155,7 @@ export function ProviderAiConcierge({ providerSlug, providerName }: { providerSl
               </div>
             </div>
 
+            {!enquiryEnabled ? <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-950/80">This provider is not currently accepting enquiries. You can still use Wewed AI to understand and compare the published services.</div> : null}
             {error ? <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{error}</div> : null}
 
             {result ? <div className="mt-5 space-y-4">
@@ -140,7 +174,7 @@ export function ProviderAiConcierge({ providerSlug, providerName }: { providerSl
 
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#e5dacd] pt-4">
                 <span className="text-[10px] text-[#958779]">Wewed AI guidance · {result.provenance.modelReleaseId}</span>
-                <button type="button" onClick={continueToEnquiry} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#b58a3d] px-4 text-xs font-bold text-white hover:bg-[#9f7733]">Continue to enquiry <ArrowRight className="size-4" /></button>
+                {enquiryEnabled ? <button type="button" onClick={continueToEnquiry} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#b58a3d] px-4 text-xs font-bold text-white hover:bg-[#9f7733]">Continue to enquiry <ArrowRight className="size-4" /></button> : null}
               </div>
             </div> : null}
           </div>
