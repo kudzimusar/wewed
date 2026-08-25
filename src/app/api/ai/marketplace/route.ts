@@ -90,13 +90,13 @@ export async function POST(request: NextRequest) {
          ON ba.id = p."businessAccountId"
         AND ba.type IN ('venue', 'vendor')
         AND ba.status = 'active'
-        AND (ba."onboardingStatus" = 'complete' OR p."listingStatus" IN ('unclaimed', 'claim_pending'))
+        AND ba."onboardingStatus" = 'complete'
        WHERE p.slug = $1 AND p.visibility = 'published' AND p."listingStatus" NOT IN ('suspended', 'removed')
        LIMIT 1`,
       providerSlug,
     )
     const profile = profiles[0]
-    if (!profile) return NextResponse.json({ success: false, error: 'Published provider profile not found.' }, { status: 404 })
+    if (!profile) return NextResponse.json({ success: false, error: 'AI-enabled published provider profile not found.' }, { status: 404 })
 
     const acceptingEnquiries = profile.acceptingEnquiries !== false
     if (outcome === 'prepare_enquiry' && !acceptingEnquiries) {
