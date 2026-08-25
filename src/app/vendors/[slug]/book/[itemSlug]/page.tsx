@@ -1,9 +1,10 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ArrowLeft, QrCode } from 'lucide-react'
+import { ArrowLeft, Store } from 'lucide-react'
 import { BookingCommerceError, getPublicCatalogItem } from '@/lib/booking-commerce'
-import { ProviderBookingForm } from '@/components/providers/provider-booking-form'
+import { ProviderBookingFormV2 } from '@/components/providers/provider-booking-form-v2'
+import { ProviderShareQrButton } from '@/components/providers/provider-share-qr-button'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,15 +44,18 @@ export default async function ProviderBookableItemPage({ params, searchParams }:
   const { provider, item } = await load(slug, itemSlug)
   const referralToken = Array.isArray(query.ref) ? query.ref[0] : query.ref || null
   return (
-    <main className="min-h-screen bg-slate-50 pb-14">
-      <div className="border-b bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-4">
-          <Link href={`/vendors/${encodeURIComponent(provider.slug)}`} className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-slate-700"><ArrowLeft className="h-4 w-4" /> {provider.displayName}</Link>
-          <div className="flex items-center gap-2 text-xs font-medium text-slate-500"><QrCode className="h-4 w-4" /> wewed.pro booking</div>
+    <main className="min-h-screen bg-[#f7f2ea] pb-14 text-[#211a15]">
+      <div className="sticky top-0 z-40 border-b border-[#e4d8c8] bg-[#fbf8f3]/96 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
+          <div className="flex min-w-0 items-center gap-2">
+            <Link href={`/vendors/${encodeURIComponent(provider.slug)}`} className="inline-flex size-10 shrink-0 items-center justify-center rounded-full border border-[#ddd0bf] bg-white text-[#55483e]" aria-label={`Back to ${provider.displayName}`}><ArrowLeft className="size-4" /></Link>
+            <div className="min-w-0"><Link href={`/vendors/${encodeURIComponent(provider.slug)}`} className="block truncate text-sm font-bold text-[#32445d]">{provider.displayName}</Link><Link href="/vendors" className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[.08em] text-[#8f7450]"><Store className="size-3" /> Vendor marketplace</Link></div>
+          </div>
+          <ProviderShareQrButton slug={provider.slug} itemSlug={item.slug} compact />
         </div>
       </div>
-      <div className="mx-auto max-w-6xl px-4 py-7">
-        <ProviderBookingForm providerSlug={provider.slug} providerName={provider.displayName} item={item} referralToken={referralToken} />
+      <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
+        <ProviderBookingFormV2 providerSlug={provider.slug} providerName={provider.displayName} item={item} referralToken={referralToken} />
       </div>
     </main>
   )

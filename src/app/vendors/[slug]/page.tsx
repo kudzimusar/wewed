@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
-import { PublicProviderProfile } from '@/components/providers/public-provider-profile'
-import { ProviderBookingShowcase } from '@/components/providers/provider-booking-showcase'
+import { PublicProviderProfileV2 } from '@/components/providers/public-provider-profile-v2'
+import { ProviderBookingShowcaseV2 } from '@/components/providers/provider-booking-showcase-v2'
 import { db } from '@/lib/db'
 
 type Props = { params: Promise<{ slug: string }> }
@@ -42,8 +42,8 @@ export default async function ProviderProfilePage({ params }: Props) {
   const profile = await metadataFor(slug)
   return (
     <>
-      <PublicProviderProfile slug={slug} />
-      <ProviderBookingShowcase slug={slug} fallbackCover={profile?.coverImageUrl} />
+      <PublicProviderProfileV2 slug={slug} />
+      <ProviderBookingShowcaseV2 slug={slug} fallbackCover={profile?.coverImageUrl} />
     </>
   )
 }

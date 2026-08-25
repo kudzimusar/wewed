@@ -1,0 +1,43 @@
+/* Booking marketplace route safety only.
+   Visual hierarchy lives in the booking components rather than broad utility-class overrides. */
+
+body[data-booking-ux='planner'],
+body[data-booking-ux='vendor'],
+body[data-booking-ux='provider'] {
+  overflow-x: hidden;
+}
+
+body[data-booking-ux='planner'] main,
+body[data-booking-ux='vendor'] main,
+body[data-booking-ux='provider'] main {
+  min-width: 0;
+}
+
+body[data-booking-ux='planner'] details > summary,
+body[data-booking-ux='vendor'] details > summary,
+body[data-booking-ux='provider'] details > summary {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 640px) {
+  body[data-booking-ux='planner'] input,
+  body[data-booking-ux='planner'] select,
+  body[data-booking-ux='planner'] textarea,
+  body[data-booking-ux='vendor'] input,
+  body[data-booking-ux='vendor'] select,
+  body[data-booking-ux='vendor'] textarea,
+  body[data-booking-ux='provider'] input,
+  body[data-booking-ux='provider'] select,
+  body[data-booking-ux='provider'] textarea {
+    font-size: 16px;
+  }
+
+  body[data-booking-ux='planner'] button,
+  body[data-booking-ux='planner'] a,
+  body[data-booking-ux='vendor'] button,
+  body[data-booking-ux='vendor'] a,
+  body[data-booking-ux='provider'] button,
+  body[data-booking-ux='provider'] a {
+    touch-action: manipulation;
+  }
+}
