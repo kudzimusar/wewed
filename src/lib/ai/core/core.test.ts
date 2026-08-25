@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import { getWewedAiModelRelease } from './model-release'
-import { runWewedAi, WewedAiPolicyError } from './orchestrator'
+import { parseWewedAiStructuredOutcome, runWewedAi, WewedAiPolicyError } from './orchestrator'
 import { WEWED_AI_SKILLS } from './skill-registry'
 
 const originalEnv = { ...process.env }
@@ -60,6 +60,43 @@ describe('Wewed AI skill registry', () => {
     for (const skill of Object.values(WEWED_AI_SKILLS)) {
       expect(skill.allowedAuthorities).not.toContain('execute')
     }
+  })
+})
+
+describe('Wewed AI post-generation authority enforcement', () => {
+  const modelAction = JSON.stringify({
+    summary: 'Drafted.',
+    proposedActions: [{
+      type: 'communications.send',
+      label: 'Send message now',
+      payload: { recipient: 'vendor', body: 'Hello' },
+    }],
+  })
+
+  test('discards model action payloads for explain, suggest, simulate and draft authority', () => {
+    for (const authority of ['explain', 'suggest', 'simulate', 'draft'] as const) {
+      const parsed = parseWewedAiStructuredOutcome(modelAction, authority)
+      expect(parsed.proposedActions).toEqual([])
+      expect(parsed.warnings.join(' ')).toContain('discarded')
+    }
+  })
+
+  test('accepts only well-formed prepared proposals and forces confirmation', () => {
+    const parsed = parseWewedAiStructuredOutcome(JSON.stringify({
+      summary: 'Prepared.',
+      proposedActions: [
+        { type: 'marketplace.enquiry.prepare', label: 'Review enquiry', payload: { note: 'Draft only' } },
+        { type: '', label: 'Missing type' },
+        { type: 'marketplace.enquiry.prepare', label: '' },
+      ],
+    }), 'prepare')
+
+    expect(parsed.proposedActions).toEqual([{
+      type: 'marketplace.enquiry.prepare',
+      label: 'Review enquiry',
+      payload: { note: 'Draft only' },
+      requiresConfirmation: true,
+    }])
   })
 })
 
