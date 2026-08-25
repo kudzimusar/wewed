@@ -52,6 +52,8 @@ jobs:
       - run: bunx prisma generate --schema prisma/schema.prisma
       - name: Apply all migrations to a clean PostgreSQL database
         run: bunx prisma migrate deploy --schema prisma/schema.prisma
+      - name: Unified Wewed AI Core governance contract
+        run: bun test src/lib/ai/core/core.test.ts src/lib/ai/core/bypass-guard.test.ts src/lib/ai/core/marketplace-contract.test.ts
       - name: Provider commercial calculation-readiness contract
         run: bun test src/lib/provider-commercial.test.ts
       - name: Provider category pricing contract
