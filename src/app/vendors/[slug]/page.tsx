@@ -6,16 +6,26 @@ import { db } from '@/lib/db'
 
 type Props = { params: Promise<{ slug: string }> }
 
+type ProviderMetadata = {
+  displayName: string
+  headline: string | null
+  description: string | null
+  coverImageUrl: string | null
+  acceptingEnquiries: boolean
+}
+
 async function metadataFor(slug: string) {
-  const rows = await db.$queryRawUnsafe<Array<{ displayName: string; headline: string | null; description: string | null; coverImageUrl: string | null }>>(
-    `SELECT p."displayName", p.headline, p.description, p."coverImageUrl"
+  const rows = await db.$queryRawUnsafe<ProviderMetadata[]>(
+    `SELECT p."displayName", p.headline, p.description, p."coverImageUrl", p."acceptingEnquiries"
      FROM public."ProviderProfile" p
      JOIN public."BusinessAccount" ba
        ON ba.id=p."businessAccountId"
       AND ba.type IN ('venue','vendor')
       AND ba.status='active'
       AND ba."onboardingStatus"='complete'
-     WHERE p.slug=$1 AND p.visibility='published'
+     WHERE p.slug=$1
+       AND p.visibility='published'
+       AND p."listingStatus" NOT IN ('suspended','removed')
      LIMIT 1`,
     slug,
   )
@@ -45,7 +55,13 @@ export default async function ProviderProfilePage({ params }: Props) {
     <>
       <PublicProviderProfileV2 slug={slug} />
       <ProviderBookingShowcaseV2 slug={slug} fallbackCover={profile?.coverImageUrl} />
-      {profile ? <ProviderAiConciergeDock providerSlug={slug} providerName={profile.displayName} /> : null}
+      {profile ? (
+        <ProviderAiConciergeDock
+          providerSlug={slug}
+          providerName={profile.displayName}
+          enquiryEnabled={profile.acceptingEnquiries !== false}
+        />
+      ) : null}
     </>
   )
 }
