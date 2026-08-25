@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { PublicProviderProfileV2 } from '@/components/providers/public-provider-profile-v2'
 import { ProviderBookingShowcaseV2 } from '@/components/providers/provider-booking-showcase-v2'
+import { ProviderAiConciergeDock } from '@/components/providers/provider-ai-concierge-dock'
 import { db } from '@/lib/db'
 
 type Props = { params: Promise<{ slug: string }> }
@@ -44,6 +45,7 @@ export default async function ProviderProfilePage({ params }: Props) {
     <>
       <PublicProviderProfileV2 slug={slug} />
       <ProviderBookingShowcaseV2 slug={slug} fallbackCover={profile?.coverImageUrl} />
+      {profile ? <ProviderAiConciergeDock providerSlug={slug} providerName={profile.displayName} /> : null}
     </>
   )
 }
