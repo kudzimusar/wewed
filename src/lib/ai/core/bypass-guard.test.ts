@@ -35,11 +35,20 @@ const CORE_MODEL_FILES = new Set([
   SELF,
 ])
 
+const DIRECT_TRANSPORT_CALLERS = new Set([
+  'src/lib/ai/index.ts',
+  'src/lib/ai/provider-clients.ts',
+  SELF,
+])
+
 const PROVIDER_ENDPOINT_MARKERS = [
   'api.groq.com',
   'generativelanguage.googleapis.com',
   'api.z.ai',
 ]
+
+const MODEL_RELEASE_ENV = /WEWED_AI_(?:DEFAULT|REASONING|FALLBACK)_MODEL/
+const MODEL_OVERRIDE_PROPERTY = /\bmodelOverride\s*:/
 
 describe('Wewed AI bypass freeze', () => {
   test('no new provider HTTP endpoint bypasses appear outside the transport layer', () => {
@@ -60,13 +69,24 @@ describe('Wewed AI bypass freeze', () => {
     }
   })
 
-  test('model override stays inside the router/Core boundary', () => {
+  test('no feature can call the provider transport directly', () => {
+    const violations: string[] = []
+    for (const absolute of sourceFiles(join(process.cwd(), 'src'))) {
+      const path = relative(process.cwd(), absolute).replaceAll('\\', '/')
+      if (DIRECT_TRANSPORT_CALLERS.has(path)) continue
+      const source = readFileSync(absolute, 'utf8')
+      if (source.includes('callAiProvider(')) violations.push(path)
+    }
+    expect(violations).toEqual([])
+  })
+
+  test('model override and global model release configuration stay inside the router/Core boundary', () => {
     const violations: string[] = []
     for (const absolute of sourceFiles(join(process.cwd(), 'src'))) {
       const path = relative(process.cwd(), absolute).replaceAll('\\', '/')
       if (CORE_MODEL_FILES.has(path) || path === 'src/lib/ai/provider-clients.ts') continue
       const source = readFileSync(absolute, 'utf8')
-      if (source.includes('modelOverride:') || source.includes('WEWED_AI_DEFAULT_MODEL')) violations.push(path)
+      if (MODEL_OVERRIDE_PROPERTY.test(source) || MODEL_RELEASE_ENV.test(source)) violations.push(path)
     }
     expect(violations).toEqual([])
   })
