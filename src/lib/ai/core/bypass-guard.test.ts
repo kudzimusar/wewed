@@ -12,6 +12,7 @@ function sourceFiles(root: string): string[] {
   return files
 }
 
+const SELF = 'src/lib/ai/core/bypass-guard.test.ts'
 const TRANSPORT_FILES = new Set([
   'src/lib/ai/config.ts',
   'src/lib/ai/provider-clients.ts',
@@ -23,7 +24,7 @@ const CORE_MODEL_FILES = new Set([
   'src/lib/ai/core/model-release.ts',
   'src/lib/ai/core/orchestrator.ts',
   'src/lib/ai/core/core.test.ts',
-  'src/lib/ai/core/bypass-guard.test.ts',
+  SELF,
 ])
 
 const PROVIDER_ENDPOINT_MARKERS = [
@@ -37,7 +38,7 @@ describe('Wewed AI bypass freeze', () => {
     const violations: string[] = []
     for (const absolute of sourceFiles(join(process.cwd(), 'src'))) {
       const path = relative(process.cwd(), absolute).replaceAll('\\', '/')
-      if (TRANSPORT_FILES.has(path)) continue
+      if (path === SELF || TRANSPORT_FILES.has(path)) continue
       const source = readFileSync(absolute, 'utf8')
       if (PROVIDER_ENDPOINT_MARKERS.some((marker) => source.includes(marker))) violations.push(path)
     }
