@@ -23,6 +23,7 @@ const CORE_MODEL_FILES = new Set([
   'src/lib/ai/core/model-release.ts',
   'src/lib/ai/core/orchestrator.ts',
   'src/lib/ai/core/core.test.ts',
+  'src/lib/ai/core/bypass-guard.test.ts',
 ])
 
 const PROVIDER_ENDPOINT_MARKERS = [
