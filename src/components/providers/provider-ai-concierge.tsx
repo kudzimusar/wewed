@@ -23,6 +23,20 @@ const STARTERS: Array<{ label: string; outcome: Outcome; prompt: string }> = [
   { label: 'Prepare an enquiry', outcome: 'prepare_enquiry', prompt: 'Help me prepare a concise enquiry. Ask only for information that is genuinely missing.' },
 ]
 
+function openExistingEnquiry() {
+  const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
+  const target = buttons.find((button) => {
+    const label = button.textContent?.trim().toLowerCase()
+    return label === 'ask a question' || label === 'enquire' || label === 'ask'
+  })
+  if (target) {
+    target.click()
+    return true
+  }
+  document.getElementById('services')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  return false
+}
+
 export function ProviderAiConcierge({ providerSlug, providerName }: { providerSlug: string; providerName: string }) {
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
@@ -56,10 +70,12 @@ export function ProviderAiConcierge({ providerSlug, providerName }: { providerSl
   }
 
   function continueToEnquiry() {
-    window.dispatchEvent(new CustomEvent('wewed:provider-enquiry-open', {
-      detail: { providerSlug, aiSummary: result?.summary || '' },
-    }))
     setOpen(false)
+    window.setTimeout(() => {
+      if (!openExistingEnquiry()) {
+        setError('The enquiry panel could not be opened automatically. Use the Ask or Enquire action on the provider page.')
+      }
+    }, 0)
   }
 
   return (
@@ -123,7 +139,7 @@ export function ProviderAiConcierge({ providerSlug, providerName }: { providerSl
               {result.warnings.length ? <div className="rounded-xl border border-[#e3d7c7] bg-[#f4eee5] px-4 py-3 text-xs leading-5 text-[#6c6055]">{result.warnings.join(' ')}</div> : null}
 
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#e5dacd] pt-4">
-                <span className="text-[10px] text-[#958779]">AI concept · {result.provenance.modelReleaseId}</span>
+                <span className="text-[10px] text-[#958779]">Wewed AI guidance · {result.provenance.modelReleaseId}</span>
                 <button type="button" onClick={continueToEnquiry} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#b58a3d] px-4 text-xs font-bold text-white hover:bg-[#9f7733]">Continue to enquiry <ArrowRight className="size-4" /></button>
               </div>
             </div> : null}
