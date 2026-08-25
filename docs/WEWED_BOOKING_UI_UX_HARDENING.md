@@ -68,3 +68,17 @@ This document records the interaction problems identified during Shandy booking 
 ### Regression rule
 
 `src/lib/provider-booking-ux-contract.test.ts` must remain in Provider Forms CI so the interaction architecture above cannot silently regress to the original information-dump implementation.
+
+## Continuation after this UI/UX phase
+
+AI is deliberately **not** being implemented as part of this PR's interaction rewrite. The next canonical phase is governed by `docs/WEWED_GLOBAL_AI_CORE_ORCHESTRATION_UX_PLAN.md` (`WW-AI-CORE-UX-2026-08-25-01`).
+
+The sequence is fixed:
+
+1. qualify and visually approve this Provider/Booking UI baseline;
+2. merge PR #185 when exact-head regression gates are clean;
+3. begin the global AI unification work from that merged baseline;
+4. use the redesigned Vendor Marketplace as the first visible proving ground for Marketplace Concierge, intelligent enquiry, Booking Assistant, Vendor Copilot and governed Wewed AI visual concepts;
+5. expand the same AI Core through the rest of Wewed rather than creating vendor-specific AI infrastructure.
+
+The AI phase must preserve the progressive-disclosure and click-oriented UX rules above. AI should reduce form burden and decision friction; it must not reintroduce a permanent information/chat wall.
