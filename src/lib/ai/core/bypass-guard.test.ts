@@ -38,6 +38,7 @@ const CORE_MODEL_FILES = new Set([
 const DIRECT_TRANSPORT_CALLERS = new Set([
   'src/lib/ai/index.ts',
   'src/lib/ai/provider-clients.ts',
+  'src/lib/ai/provider-clients.test.ts',
   SELF,
 ])
 
