@@ -14,10 +14,17 @@ export interface AiGenerateRequest {
   profile: AiDataProfile
   maxOutputTokens?: number
   /**
-   * Force a single provider. Intended for provider diagnostics and tests.
-   * Normal application routes should allow the router to choose.
+   * Force a single provider. Intended for provider diagnostics, tests and the
+   * centrally governed Wewed AI Core model-release resolver. Product features
+   * must not select providers directly.
    */
   provider?: AiProviderName
+  /**
+   * Override the provider's configured model for a centrally versioned Wewed
+   * AI model release. This is a low-level transport escape hatch for the Core,
+   * diagnostics and evaluation only; product features must never set it.
+   */
+  modelOverride?: string
   /**
    * Defaults to true for anonymized requests. Private requests only cross
    * provider boundaries when AI_ALLOW_PRIVATE_FALLBACK=true.
