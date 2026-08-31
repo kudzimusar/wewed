@@ -217,8 +217,10 @@ async function callOpenAiCompatible(
   messages: AiMessage[],
   maxOutputTokens: number,
   timeoutMs: number,
+  modelOverride?: string,
 ): Promise<AiGenerateResult> {
   const config = getProviderConfig(provider)
+  const model = modelOverride?.trim() || config.model
   if (!config.apiKey) {
     throw new AiProviderRequestError({
       provider,
@@ -227,13 +229,13 @@ async function callOpenAiCompatible(
   }
 
   const body: Record<string, unknown> = {
-    model: config.model,
+    model,
     messages,
     max_tokens: maxOutputTokens,
     stream: false,
   }
 
-  if (provider === 'groq' && config.model.startsWith('openai/gpt-oss')) {
+  if (provider === 'groq' && model.startsWith('openai/gpt-oss')) {
     body.reasoning_effort = 'low'
   }
 
@@ -266,7 +268,7 @@ async function callOpenAiCompatible(
   return {
     text,
     provider,
-    model: config.model,
+    model,
     usage: openAiUsage(response.usage),
   }
 }
@@ -299,9 +301,11 @@ async function callGemini(
   messages: AiMessage[],
   maxOutputTokens: number,
   timeoutMs: number,
+  modelOverride?: string,
 ): Promise<AiGenerateResult> {
   const provider: AiProviderName = 'gemini'
   const config = getProviderConfig(provider)
+  const model = modelOverride?.trim() || config.model
   if (!config.apiKey) {
     throw new AiProviderRequestError({
       provider,
@@ -324,7 +328,7 @@ async function callGemini(
 
   const response = await fetchJson<GeminiResponse>(
     provider,
-    `${config.baseUrl}/models/${encodeURIComponent(config.model)}:generateContent`,
+    `${config.baseUrl}/models/${encodeURIComponent(model)}:generateContent`,
     {
       method: 'POST',
       headers: {
@@ -359,7 +363,7 @@ async function callGemini(
   return {
     text,
     provider,
-    model: config.model,
+    model,
     usage: response.usageMetadata
       ? {
           promptTokens: response.usageMetadata.promptTokenCount,
@@ -375,13 +379,14 @@ export async function callAiProvider(
   messages: AiMessage[],
   maxOutputTokens: number,
   timeoutMs: number,
+  modelOverride?: string,
 ): Promise<AiGenerateResult> {
   switch (provider) {
     case 'groq':
-      return callOpenAiCompatible('groq', messages, maxOutputTokens, timeoutMs)
+      return callOpenAiCompatible('groq', messages, maxOutputTokens, timeoutMs, modelOverride)
     case 'gemini':
-      return callGemini(messages, maxOutputTokens, timeoutMs)
+      return callGemini(messages, maxOutputTokens, timeoutMs, modelOverride)
     case 'zai':
-      return callOpenAiCompatible('zai', messages, maxOutputTokens, timeoutMs)
+      return callOpenAiCompatible('zai', messages, maxOutputTokens, timeoutMs, modelOverride)
   }
 }

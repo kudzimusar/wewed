@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { marketplacePublicPricingFacts } from '@/lib/providers/public-pricing'
 
 function list(value: unknown): string[] {
   if (Array.isArray(value)) return value.filter((entry): entry is string => typeof entry === 'string')
@@ -118,11 +119,9 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ sl
           category: String(offering.category),
           displayName: String(offering.displayName),
           description: typeof offering.description === 'string' ? offering.description : null,
-          startingPriceCents: typeof offering.startingPriceCents === 'number' ? offering.startingPriceCents : null,
-          maximumPriceCents: typeof offering.maximumPriceCents === 'number' ? offering.maximumPriceCents : null,
+          ...marketplacePublicPricingFacts(offering),
           currency: String(offering.currency || 'USD'),
           pricingModel: typeof offering.pricingModel === 'string' ? offering.pricingModel : null,
-          pricingVisibility: typeof offering.pricingVisibility === 'string' ? offering.pricingVisibility : 'quote_only',
           priceValidUntil: offering.priceValidUntil ?? null,
           aiReadinessScore: typeof offering.aiReadinessScore === 'number' ? offering.aiReadinessScore : 0,
           aiReadinessStatus: typeof offering.aiReadinessStatus === 'string' ? offering.aiReadinessStatus : 'not_ready',

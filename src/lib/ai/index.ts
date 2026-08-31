@@ -120,6 +120,7 @@ export async function generateAiText(
         messages,
         maxOutputTokens,
         settings.timeoutMs,
+        request.modelOverride,
       )
     } catch (error) {
       const safeMessage =
