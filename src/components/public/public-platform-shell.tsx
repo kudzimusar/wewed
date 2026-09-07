@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import { Children, isValidElement, type ReactNode } from 'react'
-import { HeartHandshake, Menu, Sparkles } from 'lucide-react'
+import { Menu, Sparkles } from 'lucide-react'
 import { PublicAccountActions } from '@/components/public/public-account-actions'
+import { WewedBrand } from '@/components/brand/wewed-brand'
 
 const PRIMARY_LINKS = [
   ['Find a planner', '/planners'],
@@ -110,11 +111,10 @@ export function PublicPlatformShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-ivory text-espresso" data-release="wedding-first-v2">
-      <header className="sticky top-0 z-50 border-b border-gold/20 bg-espresso/95 text-champagne shadow-xl backdrop-blur-xl">
-        <nav className="mx-auto flex min-h-16 max-w-[90rem] items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8" aria-label="Wewed public navigation">
-          <Link href="/" className="group flex items-center gap-2 font-serif text-2xl text-gold" aria-label="Wewed home">
-            <span className="flex size-9 items-center justify-center rounded-full border border-gold/25 bg-gold/10"><HeartHandshake className="size-4" /></span>
-            <span>wewed</span>
+      <header className="sticky top-0 z-50 border-b border-gold/20 bg-[linear-gradient(115deg,rgba(26,20,16,0.985),rgba(38,29,22,0.97))] text-champagne shadow-[0_18px_45px_-30px_rgba(0,0,0,0.8)] backdrop-blur-xl">
+        <nav className="mx-auto flex min-h-[4.6rem] max-w-[90rem] items-center justify-between gap-4 px-4 py-2.5 sm:px-6 lg:px-8" aria-label="Wewed public navigation">
+          <Link href="/" className="group rounded-full pr-2 transition hover:bg-white/[0.035] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold" aria-label="Wewed home">
+            <WewedBrand tone="dark" size="compact" descriptor="Plan · Connect · Celebrate" />
           </Link>
           <div className="hidden items-center gap-1 text-xs xl:flex">
             {PRIMARY_LINKS.map(([label, href]) => <Link key={href} href={href} className="rounded-full px-3 py-2 text-champagne/75 transition hover:bg-gold/10 hover:text-gold">{label}</Link>)}
@@ -122,8 +122,9 @@ export function PublicPlatformShell({ children }: { children: ReactNode }) {
           <div className="flex items-center gap-2">
             <PublicAccountActions />
             <details className="relative xl:hidden">
-              <summary className="flex size-10 cursor-pointer list-none items-center justify-center rounded-full border border-gold/30 text-gold [&::-webkit-details-marker]:hidden" aria-label="Open public navigation"><Menu className="size-4" /></summary>
+              <summary className="flex size-10 cursor-pointer list-none items-center justify-center rounded-full border border-gold/30 text-gold transition hover:bg-gold/10 [&::-webkit-details-marker]:hidden" aria-label="Open public navigation"><Menu className="size-4" /></summary>
               <div className="absolute right-0 top-12 z-50 max-h-[75vh] w-72 overflow-y-auto rounded-2xl border border-gold/20 bg-espresso p-3 shadow-2xl">
+                <div className="mb-2 border-b border-gold/10 px-3 pb-3 pt-1"><WewedBrand tone="dark" size="compact" descriptor="Explore Wewed" /></div>
                 <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-gold">Explore</p>
                 {PRIMARY_LINKS.map(([label, href]) => <Link key={href} href={href} className="block rounded-xl px-3 py-2 text-sm text-champagne/80 hover:bg-gold/10 hover:text-gold">{label}</Link>)}
                 <div className="my-2 border-t border-gold/10" />
@@ -150,12 +151,12 @@ export function PublicPlatformShell({ children }: { children: ReactNode }) {
           </div>
         </section>
       )}
-      <footer className="border-t border-gold/20 bg-espresso text-champagne">
+      <footer className="border-t border-gold/20 bg-[linear-gradient(145deg,#1A1410,#231A14)] text-champagne">
         <div className="mx-auto max-w-[90rem] px-4 py-12 sm:px-6 lg:px-8">
           <div className="flex flex-col justify-between gap-6 border-b border-gold/10 pb-10 md:flex-row md:items-end">
             <div>
-              <p className="flex items-center gap-2 font-serif text-3xl text-gold"><HeartHandshake className="size-5" />wewed</p>
-              <p className="mt-3 max-w-xl text-sm leading-6 text-champagne/60">Private wedding planning, professional support, trusted marketplace guidance and memorable guest experiences in one connected platform.</p>
+              <WewedBrand tone="dark" size="default" descriptor="Plan · Connect · Celebrate" />
+              <p className="mt-4 max-w-xl text-sm leading-6 text-champagne/60">Private wedding planning, professional support, trusted marketplace guidance and memorable guest experiences in one connected platform.</p>
               <p className="mt-4 text-xs text-champagne/50">Made for weddings. Built to bring people together.</p>
               <p className="mt-2 text-xs text-champagne/40">wewed.pro · Privacy-led wedding technology.</p>
             </div>

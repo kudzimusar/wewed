@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter, Cormorant_Garamond } from 'next/font/google'
 import './globals.css'
+import './brand-system.css'
 import './product-remediation.css'
 import './planner-ux.css'
 import './booking-marketplace-ux.css'
@@ -13,6 +14,7 @@ import { ThemeProvider } from '@/components/theme-provider'
 import { WorkspaceQuickNavigation } from '@/components/navigation/workspace-quick-navigation'
 import { WorkspaceAttentionWidgetDock } from '@/components/attention/workspace-attention-widget-dock'
 import { BookingUxRouteClass } from '@/components/booking/booking-ux-route-class'
+import { WorkspaceBrandDock } from '@/components/brand/workspace-brand-dock'
 
 const inter = Inter({
   variable: '--font-inter',
@@ -45,8 +47,8 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: 'Wewed' }],
   icons: {
-    icon: '/icon-192.png',
-    apple: '/icon-512.png',
+    icon: [{ url: '/logo.svg', type: 'image/svg+xml' }],
+    shortcut: [{ url: '/logo.svg', type: 'image/svg+xml' }],
   },
   openGraph: { title, description, type: 'website', url: 'https://wewed.pro' },
   twitter: { card: 'summary', title, description },
@@ -71,6 +73,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <StoreRehydrator />
           <PWARegister />
           <SkipToContent />
+          <WorkspaceBrandDock />
           <WorkspaceQuickNavigation />
           <BookingUxRouteClass />
           {children}
