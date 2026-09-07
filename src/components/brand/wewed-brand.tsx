@@ -2,6 +2,8 @@ import type { CSSProperties } from 'react'
 
 export type WewedBrandTone = 'dark' | 'light'
 
+// These are direct derivatives of the approved master Wewed artwork.
+// Do not redraw the mark or re-typeset the wordmark in UI components.
 const MARK_SRC = '/brand/wewed-mark-master.jpg'
 const WORDMARK_SRC = '/brand/wewed-wordmark-master.jpg'
 
@@ -14,7 +16,7 @@ export function WewedBrandMark({
 }) {
   return (
     <span
-      className={`inline-flex overflow-hidden rounded-[0.65rem] border border-gold/20 bg-white shadow-[0_5px_18px_-10px_rgba(26,20,16,0.7)] ${className}`}
+      className={`inline-flex overflow-hidden rounded-lg bg-white ${className}`}
       data-wewed-brand-source="approved-master"
     >
       <img
@@ -29,16 +31,16 @@ export function WewedBrandMark({
 
 const sizeStyles: Record<'compact' | 'default' | 'hero', CSSProperties> = {
   compact: {
-    '--wewed-brand-mark-h': '2.35rem',
-    '--wewed-brand-word-w': '4.8rem',
+    '--wewed-brand-mark-h': '2.15rem',
+    '--wewed-brand-word-w': '4.7rem',
   } as CSSProperties,
   default: {
-    '--wewed-brand-mark-h': '3rem',
-    '--wewed-brand-word-w': '6rem',
+    '--wewed-brand-mark-h': '2.8rem',
+    '--wewed-brand-word-w': '5.9rem',
   } as CSSProperties,
   hero: {
-    '--wewed-brand-mark-h': '4.5rem',
-    '--wewed-brand-word-w': '8.6rem',
+    '--wewed-brand-mark-h': '4.25rem',
+    '--wewed-brand-word-w': '8.4rem',
   } as CSSProperties,
 }
 
@@ -55,11 +57,11 @@ export function WewedBrand({
   compact?: boolean
   className?: string
 }) {
-  const descriptorColor = tone === 'dark' ? 'text-champagne/58' : 'text-espresso/55'
+  const descriptorColor = tone === 'dark' ? 'text-espresso/60' : 'text-espresso/58'
 
   return (
     <span
-      className={`inline-flex min-w-0 items-center gap-2.5 ${className}`}
+      className={`inline-flex min-w-0 items-center gap-2 rounded-xl border border-gold/20 bg-white px-1.5 py-1 shadow-[0_8px_24px_-15px_rgba(26,20,16,0.72)] ${className}`}
       style={sizeStyles[size]}
       data-wewed-brand="lockup"
       data-wewed-brand-source="approved-master"
@@ -68,20 +70,18 @@ export function WewedBrand({
         className="shrink-0"
         title={compact ? 'Wewed' : ''}
       />
-      <style>{`[data-wewed-brand='lockup'] > [data-wewed-brand-source='approved-master']:first-child { height: var(--wewed-brand-mark-h); width: calc(var(--wewed-brand-mark-h) * 1.414); }`}</style>
+      <style>{`[data-wewed-brand='lockup'] > [data-wewed-brand-source='approved-master']:first-child { height: var(--wewed-brand-mark-h); width: calc(var(--wewed-brand-mark-h) * 1.407); }`}</style>
       {!compact && (
-        <span className="min-w-0">
-          <span className="inline-flex max-w-full overflow-hidden rounded-lg border border-gold/15 bg-white px-1.5 py-0.5 shadow-[0_4px_16px_-11px_rgba(26,20,16,0.72)]">
-            <img
-              src={WORDMARK_SRC}
-              alt="Wewed"
-              className="block h-auto max-w-full object-contain"
-              style={{ width: 'var(--wewed-brand-word-w)' } as CSSProperties}
-              draggable={false}
-            />
-          </span>
+        <span className="min-w-0 pr-1">
+          <img
+            src={WORDMARK_SRC}
+            alt="Wewed"
+            className="block h-auto max-w-full object-contain"
+            style={{ width: 'var(--wewed-brand-word-w)' } as CSSProperties}
+            draggable={false}
+          />
           {descriptor && (
-            <span className={`mt-1 block truncate text-[0.58rem] font-semibold uppercase tracking-[0.17em] ${descriptorColor}`}>
+            <span className={`mt-0.5 block truncate text-[0.55rem] font-semibold uppercase tracking-[0.16em] ${descriptorColor}`}>
               {descriptor}
             </span>
           )}
