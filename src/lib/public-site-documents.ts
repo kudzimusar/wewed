@@ -137,10 +137,11 @@ const companyDocuments: PublicDocument[] = [
   publicInfo('company', 'contact', 'Contact Wewed', 'Where to go for product support, trust and safety reports, account access and business questions.', [
     {
       heading: 'Product and account support',
-      paragraphs: ['For account-specific questions, use the authenticated Wewed experience when possible so the relevant wedding or account context can be identified without publishing private information.'],
+      paragraphs: ['For account-specific questions, use the authenticated Wewed experience when possible so the relevant wedding or account context can be identified without publishing private information. You can also email support@wewed.pro.'],
       links: [
         { label: 'Sign in', href: '/sign-in' },
         { label: 'Help Center', href: '/help' },
+        { label: 'Email support', href: 'mailto:support@wewed.pro' },
       ],
     },
     {
@@ -150,7 +151,13 @@ const companyDocuments: PublicDocument[] = [
     },
     {
       heading: 'Official communications',
-      paragraphs: ['Wewed will not need your password or one-time authentication code to handle a normal support request. Verify that public policy and company information is being accessed through wewed.pro before relying on it. Dedicated legal, privacy and corporate contact details should be published here once formally designated by the Wewed operating entity.'],
+      paragraphs: ['Wewed will not need your password or one-time authentication code to handle a normal support request. Verify that public policy and company information is being accessed through wewed.pro before relying on it. Privacy requests can be sent to privacy@wewed.pro, security reports to security@wewed.pro and legal correspondence to legal@wewed.pro.'],
+      links: [
+        { label: 'Privacy contact', href: 'mailto:privacy@wewed.pro' },
+        { label: 'Security contact', href: 'mailto:security@wewed.pro' },
+        { label: 'Legal contact', href: 'mailto:legal@wewed.pro' },
+        { label: 'Delete an account', href: '/account-deletion' },
+      ],
     },
   ]),
   publicInfo('company', 'careers', 'Careers at Wewed', 'How Wewed will publish legitimate opportunities as the team grows.', [

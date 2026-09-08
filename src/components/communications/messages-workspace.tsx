@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
   ArrowLeft,
+  Ban,
   ChevronLeft,
   CirclePlus,
   Inbox,
@@ -26,6 +27,7 @@ import {
   CommunicationAttachmentList,
   type CommunicationAttachmentView,
 } from '@/components/communications/communication-attachment-list'
+import { ReportContentButton } from '@/components/safety/report-content-button'
 
 type DashboardRole = 'admin' | 'couple' | 'planner' | 'vendor'
 
@@ -50,6 +52,8 @@ interface Conversation {
   lastReadAt: string | null
   unreadCount: number
   participants: Participant[]
+  actorHasBlocked: boolean
+  messagingBlocked: boolean
 }
 
 interface ThreadMessage {
@@ -143,6 +147,7 @@ export function MessagesWorkspace() {
   const [loading, setLoading] = useState(true)
   const [threadLoading, setThreadLoading] = useState(false)
   const [creating, setCreating] = useState(false)
+  const [changingBlock, setChangingBlock] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const messageRequestSequence = useRef(0)
   const selectedIdRef = useRef<string | null>(null)
@@ -157,6 +162,9 @@ export function MessagesWorkspace() {
   )
   const draft = selectedId ? drafts[selectedId] ?? '' : ''
   const latestMessageId = messages[messages.length - 1]?.id ?? null
+  const selectedOther = selected?.kind === 'DIRECT'
+    ? selected.participants.find((participant) => participant.userId !== me?.accessUserId) ?? null
+    : null
 
   const conversationName = useCallback((conversation: Conversation) => {
     if (conversation.title) return conversation.title
@@ -374,6 +382,28 @@ export function MessagesWorkspace() {
     }
   }
 
+  async function changeBlock(block: boolean) {
+    if (!selected || !selectedOther || changingBlock) return
+    if (block && !window.confirm(`Block ${selectedOther.name}? You will no longer be able to message each other. You can undo this later.`)) return
+    setChangingBlock(true)
+    setError(null)
+    try {
+      const response = await fetch(`/api/communications/conversations/${encodeURIComponent(selected.id)}/block`, {
+        method: block ? 'POST' : 'DELETE',
+      })
+      const payload = await readJson<{ success: boolean; data?: { actorHasBlocked: boolean; relationshipBlocked: boolean }; error?: string }>(response)
+      if (!response.ok || !payload.success || !payload.data) throw new Error(payload.error || 'Unable to update this block.')
+      setConversations((current) => current.map((conversation) => conversation.id === selected.id
+        ? { ...conversation, actorHasBlocked: payload.data!.actorHasBlocked, messagingBlocked: payload.data!.relationshipBlocked }
+        : conversation))
+      await loadContacts()
+    } catch (blockError) {
+      setError(blockError instanceof Error ? blockError.message : 'Unable to update this block.')
+    } finally {
+      setChangingBlock(false)
+    }
+  }
+
   function openConversation(conversationId: string) {
     setNewMessageOpen(false)
     setInternalNote(false)
@@ -454,7 +484,7 @@ export function MessagesWorkspace() {
               <>
                 <div className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-gold/10 bg-white px-2.5 sm:px-4">
                   <div className="flex min-w-0 items-center gap-2.5"><button type="button" onClick={closeMobileConversation} className="inline-flex size-10 shrink-0 items-center justify-center rounded-full text-espresso/70 lg:hidden" aria-label="Back to inbox"><ChevronLeft className="size-6" /></button><div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-champagne text-xs font-bold">{selected.kind === 'GROUP' ? <Users className="size-4" /> : initials(conversationName(selected))}</div><div className="min-w-0"><h2 className="truncate text-sm font-extrabold sm:text-base">{conversationName(selected)}</h2><p className="truncate text-[11px] text-espresso/45 sm:text-xs">{selected.participants.length} participant{selected.participants.length === 1 ? '' : 's'} · {selected.type.replaceAll('_', ' ').toLowerCase()}</p></div></div>
-                  <div className="flex items-center gap-2">{selected.weddingId ? <Link href={`/vault${me?.role === 'admin' ? `?weddingId=${encodeURIComponent(selected.weddingId)}` : ''}`} className="hidden rounded-full border border-gold/15 px-2.5 py-1.5 text-[10px] font-semibold text-espresso/55 sm:inline-flex">Vault</Link> : null}{selected.status !== 'OPEN' ? <span className="rounded-full bg-espresso/8 px-2.5 py-1.5 text-[10px] font-bold text-espresso/55">Closed</span> : null}</div>
+                  <div className="flex items-center gap-1">{selectedOther ? <><ReportContentButton subjectType="COMMUNICATION_USER" conversationId={selected.id} targetUserId={selectedOther.userId} label="Report person" className="text-espresso/55" /><button type="button" disabled={changingBlock} onClick={() => void changeBlock(!selected.actorHasBlocked)} className="inline-flex min-h-8 items-center gap-1 rounded-md px-2 text-[10px] font-semibold text-espresso/55 hover:bg-clay/10 disabled:opacity-50"><Ban className="size-3" />{selected.actorHasBlocked ? 'Unblock' : 'Block'}</button></> : null}{selected.weddingId ? <Link href={`/vault${me?.role === 'admin' ? `?weddingId=${encodeURIComponent(selected.weddingId)}` : ''}`} className="hidden rounded-full border border-gold/15 px-2.5 py-1.5 text-[10px] font-semibold text-espresso/55 sm:inline-flex">Vault</Link> : null}{selected.status !== 'OPEN' ? <span className="rounded-full bg-espresso/8 px-2.5 py-1.5 text-[10px] font-bold text-espresso/55">Closed</span> : null}</div>
                 </div>
 
                 <div ref={threadScrollRef} onScroll={trackThreadScroll} data-communications-thread-scroll="true" className="min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain bg-champagne/15 px-3 py-4 sm:px-5 sm:py-5">
@@ -465,14 +495,14 @@ export function MessagesWorkspace() {
                       {staffOnly ? <div className="mb-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-espresso/55"><LockKeyhole className="size-3" />Staff note</div> : !mine && selected.kind === 'GROUP' ? <div className="mb-1 text-[11px] font-bold text-espresso/55">{message.senderName ?? 'Wewed'}</div> : null}
                       <p className="whitespace-pre-wrap break-words leading-relaxed">{message.body}</p>
                       <CommunicationAttachmentList attachments={message.attachments ?? []} weddingId={selected.weddingId} role={me?.role ?? null} onError={setError} />
-                      <p className={`mt-1 text-right text-[10px] ${mine && !staffOnly ? 'text-champagne/55' : 'text-espresso/40'}`}>{messageTimeLabel(message.createdAt)}</p>
+                      <div className={`mt-1 flex items-center gap-1 ${mine ? 'justify-end' : 'justify-between'}`}>{!mine && message.senderUserId ? <ReportContentButton subjectType="COMMUNICATION_MESSAGE" conversationId={selected.id} messageId={message.id} label="Report" className="text-espresso/40" /> : null}<p className={`text-right text-[10px] ${mine && !staffOnly ? 'text-champagne/55' : 'text-espresso/40'}`}>{messageTimeLabel(message.createdAt)}</p></div>
                     </article></div>
                   })}
                   <div ref={threadEndRef} aria-hidden="true" className="h-px" />
                 </div>
 
                 <div className="shrink-0 border-t border-gold/10 bg-white px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2.5 sm:px-4 sm:pb-3">
-                  {selected.status !== 'OPEN' ? <div className="flex min-h-12 items-center justify-center rounded-2xl bg-ivory/60 px-4 py-3 text-center text-sm text-espresso/50">This conversation is closed. You can still read the message history.</div> : (
+                  {selected.status !== 'OPEN' ? <div className="flex min-h-12 items-center justify-center rounded-2xl bg-ivory/60 px-4 py-3 text-center text-sm text-espresso/50">This conversation is closed. You can still read the message history.</div> : selected.messagingBlocked ? <div className="flex min-h-12 items-center justify-center rounded-2xl bg-clay/8 px-4 py-3 text-center text-sm text-espresso/60">Messaging is unavailable for this conversation. You can still read and report earlier messages.</div> : (
                     <>
                       {me?.role === 'admin' ? <label className={`mb-2 inline-flex cursor-pointer items-center gap-2 rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${internalNote ? 'bg-gold/15 text-espresso' : 'text-espresso/48 hover:bg-champagne/35'}`}><input type="checkbox" checked={internalNote} onChange={(event) => setInternalNote(event.target.checked)} className="sr-only" /><LockKeyhole className="size-3.5" />{internalNote ? 'Staff-only note enabled' : 'Add staff-only note'}</label> : null}
                       <CommunicationComposer

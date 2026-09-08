@@ -9,6 +9,7 @@ export type CommunicationRateLimitScope =
   | 'message_send'
   | 'recipient_fanout'
   | 'channel_mutation'
+  | 'safety_report'
 
 interface RateLimitDecisionRow {
   allowed: boolean
@@ -70,6 +71,11 @@ export function communicationRateLimitPolicy(scope: CommunicationRateLimitScope)
     case 'channel_mutation':
       return {
         limit: positiveIntEnv('WEWED_COMMUNICATIONS_CHANNEL_MUTATION_LIMIT_PER_MINUTE', 20, 120),
+        windowSeconds: 60,
+      }
+    case 'safety_report':
+      return {
+        limit: positiveIntEnv('WEWED_SAFETY_REPORT_LIMIT_PER_MINUTE', 10, 60),
         windowSeconds: 60,
       }
   }

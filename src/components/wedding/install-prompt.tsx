@@ -12,12 +12,12 @@ import type { Locale } from '@/lib/i18n';
  *  banner-specific (not part of the global i18n dictionary). */
 const COPY: Record<Locale, { title: string; body: string; cta: string }> = {
   en: {
-    title: 'Install wewed',
+    title: 'Install Wewed',
     body: 'Add to your home screen for the best experience.',
     cta: 'Install',
   },
   sn: {
-    title: 'Isa wewed',
+    title: 'Isa Wewed',
     body: 'Isa pahome screen yako kuti uwane zvakanaka.',
     cta: 'Isa',
   },

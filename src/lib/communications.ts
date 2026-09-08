@@ -52,6 +52,8 @@ interface ConversationRow {
   lastReadAt: Date | null
   unreadCount: bigint | number
   participants: Prisma.JsonValue
+  actorHasBlocked: boolean
+  relationshipBlocked: boolean
 }
 
 interface MessageRow {
@@ -70,6 +72,7 @@ interface MessageRow {
 
 interface MembershipRow {
   conversationId: string
+  kind: 'DIRECT' | 'GROUP'
   type: CommunicationConversationType
   status: 'OPEN' | 'ARCHIVED' | 'CLOSED'
   weddingId: string | null
@@ -187,6 +190,47 @@ function plannerDirectoryMap(rows: PlannerDirectoryRow[]) {
   return new Map(rows.map((row) => [row.userId, row]))
 }
 
+async function excludeBlockedContacts(
+  actorUserId: string,
+  contacts: CommunicationContact[],
+): Promise<CommunicationContact[]> {
+  if (contacts.length === 0) return contacts
+  const contactIds = contacts.map((contact) => contact.id)
+  const rows = await db.$queryRaw<Array<{ userId: string }>>(Prisma.sql`
+    SELECT DISTINCT
+      CASE
+        WHEN block."blockerUserId" = ${actorUserId} THEN block."blockedUserId"
+        ELSE block."blockerUserId"
+      END AS "userId"
+    FROM wewed_safety."UserBlock" block
+    WHERE (
+      block."blockerUserId" = ${actorUserId}
+      AND block."blockedUserId" IN (${Prisma.join(contactIds)})
+    ) OR (
+      block."blockedUserId" = ${actorUserId}
+      AND block."blockerUserId" IN (${Prisma.join(contactIds)})
+    )
+  `)
+  const blocked = new Set(rows.map((row) => row.userId))
+  return contacts.filter((contact) => !blocked.has(contact.id))
+}
+
+async function relationshipIsBlocked(
+  firstUserId: string,
+  secondUserId: string,
+  tx: Prisma.TransactionClient | typeof db = db,
+): Promise<boolean> {
+  const rows = await tx.$queryRaw<Array<{ blocked: boolean }>>(Prisma.sql`
+    SELECT EXISTS (
+      SELECT 1
+      FROM wewed_safety."UserBlock" block
+      WHERE (block."blockerUserId" = ${firstUserId} AND block."blockedUserId" = ${secondUserId})
+         OR (block."blockerUserId" = ${secondUserId} AND block."blockedUserId" = ${firstUserId})
+    ) AS "blocked"
+  `)
+  return rows[0]?.blocked === true
+}
+
 export async function requireCommunicationActor(
   request: NextRequest,
 ): Promise<CommunicationActor> {
@@ -244,7 +288,7 @@ export async function listCommunicationContacts(
       take: 250,
     })
 
-    return users.flatMap((user) => {
+    const contacts = users.flatMap((user) => {
       if (!isDashboardRole(user.role)) return []
       const plannerIdentity = plannersByUserId.get(user.id)
       return [{
@@ -256,6 +300,7 @@ export async function listCommunicationContacts(
         context: 'wewed' as const,
       }]
     })
+    return excludeBlockedContacts(actor.userId, contacts)
   }
 
   const wedding = await db.wedding.findUnique({
@@ -332,10 +377,11 @@ export async function listCommunicationContacts(
     }
   }
 
-  return Array.from(contacts.values()).sort((a, b) => {
+  const sorted = Array.from(contacts.values()).sort((a, b) => {
     if (a.context !== b.context) return a.context === 'wewed' ? 1 : -1
     return a.name.localeCompare(b.name)
   })
+  return excludeBlockedContacts(actor.userId, sorted)
 }
 
 export async function listCommunicationConversations(actor: CommunicationActor) {
@@ -350,6 +396,30 @@ export async function listCommunicationConversations(actor: CommunicationActor) 
       c."status",
       c."createdAt",
       p."lastReadAt",
+      EXISTS (
+        SELECT 1
+        FROM wewed_safety."UserBlock" block
+        JOIN wewed_communications."CommunicationParticipant" other
+          ON other."conversationId" = c."id"
+         AND other."userId" = block."blockedUserId"
+         AND other."userId" <> ${actor.userId}
+         AND other."leftAt" IS NULL
+        WHERE c."kind" = 'DIRECT'
+          AND block."blockerUserId" = ${actor.userId}
+      ) AS "actorHasBlocked",
+      EXISTS (
+        SELECT 1
+        FROM wewed_safety."UserBlock" block
+        JOIN wewed_communications."CommunicationParticipant" other
+          ON other."conversationId" = c."id"
+         AND other."userId" <> ${actor.userId}
+         AND other."leftAt" IS NULL
+         AND (
+           (block."blockerUserId" = ${actor.userId} AND block."blockedUserId" = other."userId")
+           OR (block."blockedUserId" = ${actor.userId} AND block."blockerUserId" = other."userId")
+         )
+        WHERE c."kind" = 'DIRECT'
+      ) AS "relationshipBlocked",
       visible_last."createdAt" AS "lastVisibleMessageAt",
       visible_last."body" AS "lastMessageBody",
       visible_last."senderUserId" AS "lastMessageSenderUserId",
@@ -425,6 +495,8 @@ export async function listCommunicationConversations(actor: CommunicationActor) 
       : row.lastMessageSenderName,
     lastReadAt: row.lastReadAt?.toISOString() ?? null,
     unreadCount: asCount(row.unreadCount),
+    actorHasBlocked: row.actorHasBlocked,
+    messagingBlocked: row.relationshipBlocked,
     participants: asParticipantArray(row.participants).map((participant) => {
       const planner = plannerIdentities.get(participant.userId)
       if (!planner) return participant
@@ -445,6 +517,7 @@ async function requireMembership(
   const rows = await tx.$queryRaw<MembershipRow[]>(Prisma.sql`
     SELECT
       c."id" AS "conversationId",
+      c."kind",
       c."type",
       c."status",
       c."weddingId"
@@ -546,6 +619,115 @@ async function insertEvent(
       ${JSON.stringify(input.metadata ?? {})}::jsonb
     )
   `)
+}
+
+interface DirectConversationSafetyRow {
+  targetUserId: string
+  targetName: string
+  actorHasBlocked: boolean
+  relationshipBlocked: boolean
+}
+
+async function requireDirectConversationSafety(
+  actor: CommunicationActor,
+  conversationId: string,
+  tx: Prisma.TransactionClient | typeof db = db,
+): Promise<DirectConversationSafetyRow> {
+  const rows = await tx.$queryRaw<DirectConversationSafetyRow[]>(Prisma.sql`
+    SELECT
+      target."userId" AS "targetUserId",
+      COALESCE(NULLIF(btrim(target_user."name"), ''), target_user."email") AS "targetName",
+      EXISTS (
+        SELECT 1 FROM wewed_safety."UserBlock" block
+        WHERE block."blockerUserId" = ${actor.userId}
+          AND block."blockedUserId" = target."userId"
+      ) AS "actorHasBlocked",
+      EXISTS (
+        SELECT 1 FROM wewed_safety."UserBlock" block
+        WHERE (block."blockerUserId" = ${actor.userId} AND block."blockedUserId" = target."userId")
+           OR (block."blockedUserId" = ${actor.userId} AND block."blockerUserId" = target."userId")
+      ) AS "relationshipBlocked"
+    FROM wewed_communications."CommunicationParticipant" actor_participant
+    JOIN wewed_communications."CommunicationConversation" conversation
+      ON conversation."id" = actor_participant."conversationId"
+     AND conversation."kind" = 'DIRECT'
+    JOIN wewed_communications."CommunicationParticipant" target
+      ON target."conversationId" = conversation."id"
+     AND target."userId" <> ${actor.userId}
+     AND target."leftAt" IS NULL
+    JOIN public."User" target_user ON target_user."id" = target."userId"
+    WHERE actor_participant."conversationId" = ${conversationId}
+      AND actor_participant."userId" = ${actor.userId}
+      AND actor_participant."leftAt" IS NULL
+  `)
+  if (rows.length !== 1) {
+    throw new CommunicationError('Direct conversation not found.', 404)
+  }
+  return rows[0]
+}
+
+export async function getCommunicationBlockState(
+  actor: CommunicationActor,
+  conversationId: string,
+) {
+  return requireDirectConversationSafety(actor, conversationId)
+}
+
+export async function blockCommunicationParticipant(
+  actor: CommunicationActor,
+  conversationId: string,
+) {
+  return db.$transaction(async (tx) => {
+    const state = await requireDirectConversationSafety(actor, conversationId, tx)
+    await tx.$executeRaw(Prisma.sql`
+      INSERT INTO wewed_safety."UserBlock"
+        ("id", "blockerUserId", "blockedUserId", "createdAt", "updatedAt")
+      VALUES (${randomUUID()}, ${actor.userId}, ${state.targetUserId}, now(), now())
+      ON CONFLICT ("blockerUserId", "blockedUserId")
+      DO UPDATE SET "updatedAt" = now()
+    `)
+    await insertEvent(tx, {
+      conversationId,
+      actorUserId: actor.userId,
+      eventType: 'participant_blocked',
+      metadata: { targetUserId: state.targetUserId },
+    })
+    return {
+      ...state,
+      actorHasBlocked: true,
+      relationshipBlocked: true,
+    }
+  })
+}
+
+export async function unblockCommunicationParticipant(
+  actor: CommunicationActor,
+  conversationId: string,
+) {
+  return db.$transaction(async (tx) => {
+    const state = await requireDirectConversationSafety(actor, conversationId, tx)
+    await tx.$executeRaw(Prisma.sql`
+      DELETE FROM wewed_safety."UserBlock"
+      WHERE "blockerUserId" = ${actor.userId}
+        AND "blockedUserId" = ${state.targetUserId}
+    `)
+    const relationshipBlocked = await relationshipIsBlocked(
+      actor.userId,
+      state.targetUserId,
+      tx,
+    )
+    await insertEvent(tx, {
+      conversationId,
+      actorUserId: actor.userId,
+      eventType: 'participant_unblocked',
+      metadata: { targetUserId: state.targetUserId },
+    })
+    return {
+      ...state,
+      actorHasBlocked: false,
+      relationshipBlocked,
+    }
+  })
 }
 
 async function insertMessage(
@@ -706,6 +888,9 @@ export async function createCommunicationConversation(
 
   const kind = typedTargets.length === 1 ? 'DIRECT' : 'GROUP'
   if (kind === 'DIRECT') {
+    if (await relationshipIsBlocked(actor.userId, typedTargets[0].id)) {
+      throw new CommunicationError('Messaging is unavailable between these accounts.', 403)
+    }
     const reusable = await findReusableDirectConversation({
       actorUserId: actor.userId,
       targetUserId: typedTargets[0].id,
@@ -833,6 +1018,21 @@ export async function sendCommunicationMessage(
     const membership = await requireMembership(actor, conversationId, tx)
     if (membership.status !== 'OPEN') {
       throw new CommunicationError('This conversation is not open for replies.', 409)
+    }
+    if (membership.kind === 'DIRECT') {
+      const recipients = await tx.$queryRaw<Array<{ userId: string }>>(Prisma.sql`
+        SELECT participant."userId"
+        FROM wewed_communications."CommunicationParticipant" participant
+        WHERE participant."conversationId" = ${conversationId}
+          AND participant."userId" <> ${actor.userId}
+          AND participant."leftAt" IS NULL
+      `)
+      if (
+        recipients.length !== 1 ||
+        await relationshipIsBlocked(actor.userId, recipients[0].userId, tx)
+      ) {
+        throw new CommunicationError('Messaging is unavailable between these accounts.', 403)
+      }
     }
     try {
       const messageId = await insertMessage(tx, actor, conversationId, body, internalNote)

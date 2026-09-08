@@ -481,27 +481,3 @@ export function maskAccountReference(reference: string): string {
   if (clean.length <= 4) return `****${clean}`;
   return `****${clean.slice(-4)}`;
 }
-
-/**
- * MVP-only "encryption" — base64 encoding with a prefix marker.
- *
- * ⚠️  THIS IS NOT REAL ENCRYPTION. It only prevents casual
- * shoulder-surfing of account references in the database.
- * Production MUST replace this with AES-256-GCM using a key
- * stored in the platform's KMS / secrets manager.
- *
- * The `wewed:enc:v1:` prefix lets a future migration detect
- * which records use the legacy encoding.
- */
-export function encodeAccountReferenceMVP(plain: string): string {
-  return `wewed:enc:v1:${Buffer.from(plain, "utf-8").toString("base64")}`;
-}
-
-export function decodeAccountReferenceMVP(encoded: string): string {
-  const prefix = "wewed:enc:v1:";
-  if (!encoded.startsWith(prefix)) {
-    // Legacy un-encoded value — return as-is.
-    return encoded;
-  }
-  return Buffer.from(encoded.slice(prefix.length), "base64").toString("utf-8");
-}

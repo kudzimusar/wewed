@@ -9,6 +9,7 @@ import { Toaster } from '@/components/ui/toaster'
 import { SkipToContent } from '@/components/wedding/skip-to-content'
 import { StoreRehydrator } from '@/components/wedding/store-rehydrator'
 import { PWARegister } from '@/components/wedding/pwa-register'
+import { InstallPrompt } from '@/components/wedding/install-prompt'
 import { ThemeProvider } from '@/components/theme-provider'
 import { WorkspaceQuickNavigation } from '@/components/navigation/workspace-quick-navigation'
 import { WorkspaceAttentionWidgetDock } from '@/components/attention/workspace-attention-widget-dock'
@@ -45,8 +46,8 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: 'Wewed' }],
   icons: {
-    icon: '/icon-192.png',
-    apple: '/icon-512.png',
+    icon: '/icons/icon-192.png',
+    apple: '/icons/apple-touch-icon.png',
   },
   openGraph: { title, description, type: 'website', url: 'https://wewed.pro' },
   twitter: { card: 'summary', title, description },
@@ -70,6 +71,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <ThemeProvider>
           <StoreRehydrator />
           <PWARegister />
+          <InstallPrompt />
           <SkipToContent />
           <WorkspaceQuickNavigation />
           <BookingUxRouteClass />

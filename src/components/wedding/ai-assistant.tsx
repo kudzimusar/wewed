@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Heart, MessageCircle, Send, Sparkles, X } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { cn } from '@/lib/utils'
+import { ReportContentButton } from '@/components/safety/report-content-button'
 
 interface ChatSource {
   citation: string
@@ -225,6 +226,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
             </div>
           </div>
         )}
+        {!isUser && message.ts !== 0 ? <div className="mt-2 border-t border-gold/15 pt-1"><ReportContentButton subjectType="AI_OUTPUT" sourceArea="WEDDING_AI" sourceId={String(message.ts)} contentSnapshot={message.content} label="Report AI answer" className="text-espresso/50" /></div> : null}
       </div>
     </motion.div>
   )

@@ -12,6 +12,7 @@ import {
   Palette,
   Repeat2,
   SlidersHorizontal,
+  Trash2,
   UserRound,
   Users,
 } from 'lucide-react'
@@ -167,12 +168,16 @@ export default function SettingsPage() {
 
         <section className={settingsCardClass()}>
           <h2 className="font-serif text-xl">Account actions</h2>
+          <p className="mt-2 text-sm text-muted-foreground">Control your session or request permanent account deletion.</p>
           <div className="mt-4 flex flex-wrap gap-2">
             <Button type="button" variant="outline" disabled={leaving !== null} onClick={() => void endSession('/sign-in')}>
               {leaving === 'switch' ? <Loader2 className="size-4 animate-spin" /> : <Repeat2 className="size-4" />}Switch account
             </Button>
             <Button type="button" variant="ghost" disabled={leaving !== null} onClick={() => void endSession('/')}>
               {leaving === 'signout' ? <Loader2 className="size-4 animate-spin" /> : <LogOut className="size-4" />}Sign out
+            </Button>
+            <Button asChild variant="outline" className="border-red-800/20 text-red-800 hover:bg-red-50 hover:text-red-900">
+              <Link href="/account-deletion"><Trash2 className="size-4" />Delete account</Link>
             </Button>
           </div>
         </section>

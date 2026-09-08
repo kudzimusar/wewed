@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { ArrowRight, Loader2, Sparkles, X } from 'lucide-react'
+import { ReportContentButton } from '@/components/safety/report-content-button'
 
 type ConciergeResult = {
   traceId: string
@@ -92,7 +93,7 @@ export function ProviderAiConcierge({
     } finally { setBusy(false) }
   }
 
-  function useStarter(starter: (typeof STARTERS)[number]) {
+  function applyStarter(starter: (typeof STARTERS)[number]) {
     setInput(starter.prompt)
     setOutcome(starter.outcome)
     void ask(starter.outcome, starter.prompt)
@@ -134,7 +135,7 @@ export function ProviderAiConcierge({
 
           <div className="p-5 sm:p-6">
             <div className="flex flex-wrap gap-2">
-              {starters.map((starter) => <button key={starter.label} type="button" disabled={busy} onClick={() => useStarter(starter)} className="rounded-full border border-[#dbcdbb] bg-white px-3 py-2 text-xs font-semibold text-[#5f5347] hover:border-[#b99452] disabled:opacity-50">{starter.label}</button>)}
+              {starters.map((starter) => <button key={starter.label} type="button" disabled={busy} onClick={() => applyStarter(starter)} className="rounded-full border border-[#dbcdbb] bg-white px-3 py-2 text-xs font-semibold text-[#5f5347] hover:border-[#b99452] disabled:opacity-50">{starter.label}</button>)}
             </div>
 
             <div className="mt-4 rounded-2xl border border-[#dfd2c1] bg-white p-3 shadow-sm">
@@ -173,7 +174,7 @@ export function ProviderAiConcierge({
               {result.warnings.length ? <div className="rounded-xl border border-[#e3d7c7] bg-[#f4eee5] px-4 py-3 text-xs leading-5 text-[#6c6055]">{result.warnings.join(' ')}</div> : null}
 
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#e5dacd] pt-4">
-                <span className="text-[10px] text-[#958779]">Wewed AI guidance · {result.provenance.modelReleaseId}</span>
+                <div><span className="block text-[10px] text-[#958779]">Wewed AI guidance · {result.provenance.modelReleaseId}</span><ReportContentButton subjectType="AI_OUTPUT" sourceArea="MARKETPLACE_AI" sourceId={result.traceId} contentSnapshot={JSON.stringify(result).slice(0, 8000)} label="Report AI answer" className="mt-1 text-[#74685c]" /></div>
                 {enquiryEnabled ? <button type="button" onClick={continueToEnquiry} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#b58a3d] px-4 text-xs font-bold text-white hover:bg-[#9f7733]">Continue to enquiry <ArrowRight className="size-4" /></button> : null}
               </div>
             </div> : null}

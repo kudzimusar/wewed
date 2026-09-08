@@ -1,7 +1,12 @@
+'use client'
+
 import Link from 'next/link'
-import { Children, isValidElement, type ReactNode } from 'react'
+import { Children, isValidElement, useSyncExternalStore, type ReactNode } from 'react'
 import { HeartHandshake, Menu, Sparkles } from 'lucide-react'
 import { PublicAccountActions } from '@/components/public/public-account-actions'
+import {
+  browserUsesGooglePlayDistribution,
+} from '@/lib/google-play-distribution'
 
 const PRIMARY_LINKS = [
   ['Find a planner', '/planners'],
@@ -52,6 +57,7 @@ const FOOTER_GROUPS = [
     links: [
       ['Terms of Service', '/legal/terms'],
       ['Privacy Policy', '/legal/privacy'],
+      ['Delete account', '/account-deletion'],
       ['Cookie Policy', '/legal/cookies'],
       ['Marketplace Terms', '/legal/marketplace'],
       ['Vendor Terms', '/legal/vendor-terms'],
@@ -103,6 +109,15 @@ const FOOTER_GROUPS = [
 ] as const
 
 export function PublicPlatformShell({ children }: { children: ReactNode }) {
+  const googlePlayDistribution = useSyncExternalStore(
+    () => () => {},
+    browserUsesGooglePlayDistribution,
+    () => false,
+  )
+
+  const primaryLinks = googlePlayDistribution
+    ? PRIMARY_LINKS.filter(([, href]) => href !== '/pricing')
+    : PRIMARY_LINKS
   const isHomepage = Children.toArray(children).some((child) => {
     if (!isValidElement<{ 'data-testid'?: string }>(child)) return false
     return child.props['data-testid'] === 'africa-ready-hero'
@@ -117,7 +132,7 @@ export function PublicPlatformShell({ children }: { children: ReactNode }) {
             <span>wewed</span>
           </Link>
           <div className="hidden items-center gap-1 text-xs xl:flex">
-            {PRIMARY_LINKS.map(([label, href]) => <Link key={href} href={href} className="rounded-full px-3 py-2 text-champagne/75 transition hover:bg-gold/10 hover:text-gold">{label}</Link>)}
+            {primaryLinks.map(([label, href]) => <Link key={href} href={href} className="rounded-full px-3 py-2 text-champagne/75 transition hover:bg-gold/10 hover:text-gold">{label}</Link>)}
           </div>
           <div className="flex items-center gap-2">
             <PublicAccountActions />
@@ -125,7 +140,7 @@ export function PublicPlatformShell({ children }: { children: ReactNode }) {
               <summary className="flex size-10 cursor-pointer list-none items-center justify-center rounded-full border border-gold/30 text-gold [&::-webkit-details-marker]:hidden" aria-label="Open public navigation"><Menu className="size-4" /></summary>
               <div className="absolute right-0 top-12 z-50 max-h-[75vh] w-72 overflow-y-auto rounded-2xl border border-gold/20 bg-espresso p-3 shadow-2xl">
                 <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-gold">Explore</p>
-                {PRIMARY_LINKS.map(([label, href]) => <Link key={href} href={href} className="block rounded-xl px-3 py-2 text-sm text-champagne/80 hover:bg-gold/10 hover:text-gold">{label}</Link>)}
+                {primaryLinks.map(([label, href]) => <Link key={href} href={href} className="block rounded-xl px-3 py-2 text-sm text-champagne/80 hover:bg-gold/10 hover:text-gold">{label}</Link>)}
                 <div className="my-2 border-t border-gold/10" />
                 <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-gold">Information centers</p>
                 {CENTER_LINKS.map(([label, href]) => <Link key={href} href={href} className="block rounded-xl px-3 py-2 text-sm text-champagne/80 hover:bg-gold/10 hover:text-gold">{label}</Link>)}
