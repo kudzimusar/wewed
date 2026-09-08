@@ -89,6 +89,9 @@ test('runtime source does not hard-code retired public production domains', () =
 
   for (const root of roots) {
     for (const file of sourceFiles(root)) {
+      // Digital Asset Links must contain the immutable Android package ID.
+      // `pro.wewed.app` is an identifier, not a retired public web origin.
+      if (file.endsWith('/.well-known/assetlinks.json')) continue
       const source = readFileSync(file, 'utf8')
       if (source.includes(LEGACY_DOMAIN) || source.includes(`.${VERCEL_SUFFIX}`)) {
         violations.push(file.replace(`${process.cwd()}/`, ''))
