@@ -16,7 +16,7 @@ BEGIN
 END
 $wewed_safety_roles$;
 
-CREATE TABLE wewed_safety."UserBlock" (
+CREATE TABLE IF NOT EXISTS wewed_safety."UserBlock" (
   "id" text PRIMARY KEY,
   "blockerUserId" text NOT NULL,
   "blockedUserId" text NOT NULL,
@@ -30,7 +30,7 @@ CREATE TABLE wewed_safety."UserBlock" (
   CONSTRAINT "UserBlock_pair_key" UNIQUE ("blockerUserId", "blockedUserId")
 );
 
-CREATE TABLE wewed_safety."SafetyReport" (
+CREATE TABLE IF NOT EXISTS wewed_safety."SafetyReport" (
   "id" text PRIMARY KEY,
   "reporterUserId" text,
   "reporterFingerprint" text,
@@ -66,18 +66,18 @@ CREATE TABLE wewed_safety."SafetyReport" (
   )
 );
 
-CREATE INDEX "UserBlock_blockedUserId_idx"
+CREATE INDEX IF NOT EXISTS "UserBlock_blockedUserId_idx"
   ON wewed_safety."UserBlock" ("blockedUserId", "createdAt" DESC);
-CREATE INDEX "SafetyReport_status_created_idx"
+CREATE INDEX IF NOT EXISTS "SafetyReport_status_created_idx"
   ON wewed_safety."SafetyReport" ("status", "createdAt" DESC);
-CREATE INDEX "SafetyReport_reporter_created_idx"
+CREATE INDEX IF NOT EXISTS "SafetyReport_reporter_created_idx"
   ON wewed_safety."SafetyReport" ("reporterUserId", "createdAt" DESC);
-CREATE INDEX "SafetyReport_fingerprint_created_idx"
+CREATE INDEX IF NOT EXISTS "SafetyReport_fingerprint_created_idx"
   ON wewed_safety."SafetyReport" ("reporterFingerprint", "createdAt" DESC)
   WHERE "reporterFingerprint" IS NOT NULL;
-CREATE INDEX "SafetyReport_target_created_idx"
+CREATE INDEX IF NOT EXISTS "SafetyReport_target_created_idx"
   ON wewed_safety."SafetyReport" ("targetUserId", "createdAt" DESC);
-CREATE INDEX "SafetyReport_message_idx"
+CREATE INDEX IF NOT EXISTS "SafetyReport_message_idx"
   ON wewed_safety."SafetyReport" ("messageId") WHERE "messageId" IS NOT NULL;
 
 REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA wewed_safety FROM PUBLIC;
