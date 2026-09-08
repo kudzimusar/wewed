@@ -95,7 +95,7 @@ export function usePWAInstall(): UsePWAInstall {
  * Responsibilities:
  *  1. Register `/sw.js` on mount (graceful no-op if SW is unsupported).
  *  2. Confirm that a safe offline screen is available when the SW first takes control.
- *  3. Notify when an updated worker takes control without reloading an active form.
+ *  3. Refresh the app when an updated worker takes control.
  *  4. Capture `beforeinstallprompt` so the install-prompt banner can fire it later.
  *  5. Listen for `appinstalled` to celebrate + clear the deferred prompt.
  *
@@ -130,8 +130,9 @@ export function PWARegister() {
         toastedUpdate = true;
         toast({
           title: 'Wewed updated',
-          description: 'Close and reopen the app when convenient to use the latest version.',
+          description: 'Refreshing to use the latest version.',
         });
+        window.location.reload();
         return;
       }
 
