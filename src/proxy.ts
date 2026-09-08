@@ -44,6 +44,18 @@ function requiresDashboardSession(request: NextRequest): boolean {
 }
 
 export function proxy(request: NextRequest) {
+  if (request.nextUrl.pathname.startsWith('/api/royalty')) {
+    return NextResponse.json(
+      { success: false, error: 'This feature is unavailable.' },
+      {
+        status: 404,
+        headers: {
+          'Cache-Control': 'private, no-store, max-age=0',
+        },
+      },
+    )
+  }
+
   if (!requiresDashboardSession(request)) {
     return NextResponse.next()
   }
@@ -76,6 +88,7 @@ export const config = {
     '/api/planner/:path*',
     '/api/rsvp',
     '/api/rsvp/:path*',
+    '/api/royalty/:path*',
     '/api/seed',
     '/api/auth/wedding',
     '/api/weddings/:path*',

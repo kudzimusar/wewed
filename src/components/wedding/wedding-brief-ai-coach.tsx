@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { Loader2, Sparkles } from 'lucide-react'
+import { ReportContentButton } from '@/components/safety/report-content-button'
 
 export function WeddingBriefAiCoach() {
   const [busy, setBusy] = useState(false)
@@ -74,6 +75,9 @@ export function WeddingBriefAiCoach() {
           >
             {guidance}
           </ReactMarkdown>
+          <div className="mt-3 border-t border-gold/10 pt-2">
+            <ReportContentButton subjectType="AI_OUTPUT" sourceArea="WEDDING_AI" contentSnapshot={guidance} label="Report AI answer" className="text-gold" />
+          </div>
         </div>
       )}
     </section>

@@ -60,3 +60,25 @@ export function registrationReceivedEmail(input: {
 
   return { subject, text, html }
 }
+
+export function accountDeletionRequestEmail(input: { reference: string }) {
+  const reference = escapeHtml(input.reference)
+  const subject = 'We received your Wewed account deletion request'
+  const deletionUrl = publicUrl('/account-deletion')
+  const text = [
+    'We received your Wewed account deletion request.',
+    `Reference: ${input.reference}`,
+    '',
+    'We may contact you to verify account ownership or authority over shared wedding records. Verified requests are normally completed within 30 days.',
+    '',
+    `Account deletion information: ${deletionUrl}`,
+  ].join('\n')
+  const html = shell(
+    subject,
+    `<p style="font-size:16px;line-height:1.65;">We received your request to delete a Wewed account.</p>
+     <p style="font-size:15px;line-height:1.65;"><strong>Reference:</strong> ${reference}</p>
+     <p style="font-size:15px;line-height:1.65;">We may contact you to verify account ownership or authority over shared wedding records. Verified requests are normally completed within 30 days.</p>
+     <p style="margin-top:26px;"><a href="${deletionUrl}" style="display:inline-block;padding:12px 18px;border-radius:8px;background:#201f1d;color:#ffffff;text-decoration:none;">View deletion information</a></p>`,
+  )
+  return { subject, text, html }
+}

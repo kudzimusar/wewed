@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { CheckCircle2, Loader2, UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { PROVIDER_CATEGORIES, PROVIDER_CATEGORY_VALUES, SERVICE_AREA_OPTIONS } from '@/lib/provider-catalog'
 import { WEWED_PLANS, isWewedPlanId } from '@/lib/wewed-plans'
+import { browserUsesGooglePlayDistribution } from '@/lib/google-play-distribution'
 
 const roleOptions: Record<string, Array<{ value: string; label: string }>> = {
   planning_company: [
@@ -64,6 +65,7 @@ export function PublicRegistrationForm() {
   const [requestedRole, setRequestedRole] = useState(reservedFlow ? 'business_owner' : roleOptions[initialAccountType]?.[0]?.value || 'viewer')
   const [requestedPlan, setRequestedPlan] = useState(initialPlan)
   const [requestedServices, setRequestedServices] = useState<string[]>(initialServices)
+  const [googlePlayDistribution, setGooglePlayDistribution] = useState(false)
   const [working, setWorking] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<RegistrationSuccess | null>(null)
@@ -73,6 +75,12 @@ export function PublicRegistrationForm() {
     () => accountType === 'venue' ? PROVIDER_CATEGORIES.filter((category) => category.value === 'venue') : PROVIDER_CATEGORIES,
     [accountType],
   )
+
+  useEffect(() => {
+    const usesGooglePlay = browserUsesGooglePlayDistribution()
+    setGooglePlayDistribution(usesGooglePlay)
+    if (usesGooglePlay) setRequestedPlan('free')
+  }, [])
 
   function changeType(value: string) {
     setAccountType(value)
@@ -121,7 +129,7 @@ export function PublicRegistrationForm() {
           notes: form.get('notes'),
           accountType,
           requestedRole,
-          requestedPlan,
+          requestedPlan: googlePlayDistribution ? 'free' : requestedPlan,
           requestedServices: reservedFlow ? [] : isProvider ? requestedServices : [],
           requestedService: reservedFlow ? null : isProvider ? requestedServices[0] : null,
           reservedProfileSlug: reservedFlow ? reservedProfileSlug : null,
@@ -284,13 +292,15 @@ export function PublicRegistrationForm() {
             <label className="text-xs text-champagne/55">Social profile<Input name="socialProfile" type="url" placeholder="https://instagram.com/..." className={`mt-1 ${fieldClass}`} /></label>
           </>}
 
-          {!reservedFlow && <label className="text-xs text-champagne/55">Preferred plan<select value={requestedPlan} onChange={(event) => setRequestedPlan(event.target.value)} className={selectClass}>
+          {!reservedFlow && !googlePlayDistribution && <label className="text-xs text-champagne/55">Preferred plan<select value={requestedPlan} onChange={(event) => setRequestedPlan(event.target.value)} className={selectClass}>
             {WEWED_PLANS.map((plan) => <option key={plan.id} value={plan.id}>{plan.publicName}{plan.id === 'enterprise' ? ' — sales-assisted' : ''}</option>)}
           </select></label>}
 
+          {!reservedFlow && googlePlayDistribution && <div className="rounded-xl border border-gold/20 bg-gold/10 p-4 text-xs leading-5 text-champagne/70 md:col-span-2">Google Play registration starts with free access. Purchases and paid-plan selection are unavailable in this app during testing.</div>}
+
           {!reservedFlow && <textarea name="notes" placeholder="Tell us what you need from Wewed (optional)" maxLength={2000} className="min-h-24 rounded-md border border-gold/25 bg-black/15 px-3 py-2 text-sm text-champagne placeholder:text-champagne/35 md:col-span-2" />}
 
-          <label className="flex items-start gap-3 text-xs leading-5 text-champagne/55 md:col-span-2"><input name="acceptedTerms" type="checkbox" required className="mt-1 accent-[#BF9B5F]" />{reservedFlow ? 'I confirm I am authorized to activate this approved Vendor profile and that the owner information I submit is accurate.' : 'I confirm that the information is accurate and understand that registration creates a pending application, not immediate dashboard, administrative or wedding access.'}</label>
+          <label className="flex items-start gap-3 text-xs leading-5 text-champagne/55 md:col-span-2"><input name="acceptedTerms" type="checkbox" required className="mt-1 accent-[#BF9B5F]" /><span>{reservedFlow ? 'I confirm I am authorized to activate this approved Vendor profile, the owner information is accurate, and I agree to Wewed’s Terms and Content & Community Policy.' : <>I confirm the information is accurate and agree to the <Link href="/legal/terms" target="_blank" className="text-gold underline">Terms of Service</Link>, <Link href="/legal/content-community" target="_blank" className="text-gold underline">Content & Community Policy</Link> and <Link href="/legal/privacy" target="_blank" className="text-gold underline">Privacy Policy</Link>. Registration creates a pending application and does not grant immediate workspace access.</>}</span></label>
 
           {error && <p role="alert" className="rounded-lg border border-red-300/25 bg-red-300/10 px-4 py-3 text-sm text-red-100 md:col-span-2">{error}</p>}
 

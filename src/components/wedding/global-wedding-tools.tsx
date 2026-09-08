@@ -1,6 +1,5 @@
 'use client'
 
-import { PWARegister } from '@/components/wedding/pwa-register'
 import { AdminTrigger } from '@/components/wedding/admin-trigger'
 import { AiTrigger } from '@/components/wedding/ai-trigger'
 import { CoupleLogin } from '@/components/wedding/couple-login'
@@ -34,7 +33,6 @@ export function GlobalWeddingTools({
   return (
     <>
       <StoreRehydrator />
-      <PWARegister />
       <SectionTracker />
       {showOwnerUtilities && <AiTrigger />}
       {isAdmin && <AdminTrigger />}

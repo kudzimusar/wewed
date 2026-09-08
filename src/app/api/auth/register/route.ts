@@ -7,6 +7,10 @@ import { sendTransactionalEmail } from '@/lib/email/resend'
 import { PROVIDER_CATEGORY_VALUES } from '@/lib/provider-catalog'
 import { publicUrl } from '@/lib/public-origin'
 import { createSupabaseServiceClient } from '@/lib/supabase/service'
+import {
+  GOOGLE_PLAY_DISTRIBUTION_COOKIE,
+  isGooglePlayDistributionValue,
+} from '@/lib/google-play-distribution'
 
 export const dynamic = 'force-dynamic'
 
@@ -104,7 +108,9 @@ export async function POST(request: NextRequest) {
     const businessName = text(body.businessName, 160)
     const accountType = text(body.accountType, 40)
     const requestedRole = text(body.requestedRole, 60)
-    const requestedPlan = text(body.requestedPlan, 40) || 'free'
+    const requestedPlan = isGooglePlayDistributionValue(
+      request.cookies.get(GOOGLE_PLAY_DISTRIBUTION_COOKIE)?.value,
+    ) ? 'free' : text(body.requestedPlan, 40) || 'free'
     const country = text(body.country, 120)
     const city = text(body.city, 120)
     const primaryServiceArea = text(body.primaryServiceArea, 160)

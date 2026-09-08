@@ -1,0 +1,61 @@
+{
+  "packageId": "pro.wewed.app",
+  "host": "wewed.pro",
+  "name": "Wewed",
+  "launcherName": "Wewed",
+  "display": "standalone",
+  "themeColor": "#BF9B5F",
+  "themeColorDark": "#000000",
+  "navigationColor": "#000000",
+  "navigationColorDark": "#000000",
+  "navigationDividerColor": "#000000",
+  "navigationDividerColorDark": "#000000",
+  "backgroundColor": "#FBF6EE",
+  "enableNotifications": true,
+  "startUrl": "/app?source=google-play",
+  "iconUrl": "https://wewed.pro/icons/icon-512.png",
+  "maskableIconUrl": "https://wewed.pro/icons/maskable-icon-512.png",
+  "monochromeIconUrl": "https://wewed.pro/icons/notification-badge.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "wewed-upload.jks",
+    "alias": "wewed-upload"
+  },
+  "appVersionName": "1",
+  "appVersionCode": 1,
+  "shortcuts": [
+    {
+      "name": "Notifications",
+      "shortName": "Notifications",
+      "url": "https://wewed.pro/notifications",
+      "chosenIconUrl": "https://wewed.pro/icons/icon-192.png"
+    },
+    {
+      "name": "Calendar",
+      "shortName": "Calendar",
+      "url": "https://wewed.pro/calendar",
+      "chosenIconUrl": "https://wewed.pro/icons/icon-192.png"
+    }
+  ],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://wewed.pro/manifest.json",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://wewed.pro/",
+  "minSdkVersion": 21,
+  "orientation": "any",
+  "fingerprints": [],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "protocolHandlers": [],
+  "fileHandlers": [],
+  "launchHandlerClientMode": "",
+  "displayOverride": [],
+  "appVersion": "1"
+}

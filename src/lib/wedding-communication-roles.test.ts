@@ -29,7 +29,7 @@ describe('wedding-scoped communication roles', () => {
 
     expect(roles).toContain("c.\"type\" = 'PLANNER_CLIENT'")
     expect(roles).toContain("SET \"type\" = 'DIRECT'")
-    expect(roles).toContain("eventType\", \"metadata\")
+    expect(roles).toContain('"eventType", "metadata"')
     expect(roles).toContain('conversation_reclassified')
     expect(roles).toContain("reason: 'shared_wedding_couple_authority'")
     expect(roles).toContain("actor: { ...actor, role: 'couple' }")

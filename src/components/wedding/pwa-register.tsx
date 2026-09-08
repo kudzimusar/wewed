@@ -94,8 +94,8 @@ export function usePWAInstall(): UsePWAInstall {
  *
  * Responsibilities:
  *  1. Register `/sw.js` on mount (graceful no-op if SW is unsupported).
- *  2. Toast "Available offline" when the SW first takes control.
- *  3. Reload an already-controlled Wewed tab once when a newer SW takes control.
+ *  2. Confirm that a safe offline screen is available when the SW first takes control.
+ *  3. Refresh the app when an updated worker takes control.
  *  4. Capture `beforeinstallprompt` so the install-prompt banner can fire it later.
  *  5. Listen for `appinstalled` to celebrate + clear the deferred prompt.
  *
@@ -109,7 +109,7 @@ export function PWARegister() {
     if (!('serviceWorker' in navigator)) return;
 
     const hadControllerAtMount = !!navigator.serviceWorker.controller;
-    let reloadingForUpdate = false;
+    let toastedUpdate = false;
     let toastedReady = false;
     let cancelled = false;
 
@@ -117,8 +117,8 @@ export function PWARegister() {
       if (toastedReady) return;
       toastedReady = true;
       toast({
-        title: 'Available offline',
-        description: 'wewed is ready — programme, songbook & map work without a connection.',
+        title: 'Offline screen ready',
+        description: 'Wewed will show a safe reconnection screen if the network is unavailable.',
       });
     };
 
@@ -126,8 +126,12 @@ export function PWARegister() {
       if (cancelled) return;
 
       if (hadControllerAtMount) {
-        if (reloadingForUpdate) return;
-        reloadingForUpdate = true;
+        if (toastedUpdate) return;
+        toastedUpdate = true;
+        toast({
+          title: 'Wewed updated',
+          description: 'Refreshing to use the latest version.',
+        });
         window.location.reload();
         return;
       }
@@ -175,7 +179,7 @@ export function PWARegister() {
       setDeferredPrompt(null);
       toast({
         title: 'Installed',
-        description: 'wewed is on your home screen — tap to open anytime, even offline.',
+        description: 'Wewed is on your home screen. Online planning features need a connection.',
       });
     };
     window.addEventListener('appinstalled', onAppInstalled);

@@ -2,9 +2,9 @@
  * wewed — service worker
  *
  * Strategies:
- *  - Navigation requests (HTML pages):  network-first, fallback to cached "/".
+ *  - Navigation requests (HTML pages):  network-only, fallback to a public offline page.
  *  - Next.js build assets (JS/CSS):      network-first, fallback to cache.
- *  - Other static assets:                cache-first, fallback to network.
+ *  - Approved public static assets:      cache-first, fallback to network.
  *  - API requests (/api/*):              network-only.
  *
  * Push notifications are display-only projections of canonical Wewed notification
@@ -12,16 +12,18 @@
  * is checked again.
  */
 
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v4';
 const STATIC_CACHE = `wewed-static-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `wewed-runtime-${CACHE_VERSION}`;
 
 const PRECACHE_URLS = [
-  '/',
+  '/offline.html',
   '/manifest.json',
   '/hero-wedding.png',
-  '/icon-192.png',
-  '/icon-512.png',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+  '/icons/maskable-icon-192.png',
+  '/icons/maskable-icon-512.png',
 ];
 
 self.addEventListener('install', (event) => {
@@ -49,7 +51,7 @@ self.addEventListener('activate', (event) => {
       const keys = await caches.keys();
       await Promise.all(
         keys
-          .filter((key) => key !== STATIC_CACHE && key !== RUNTIME_CACHE)
+          .filter((key) => key.startsWith('wewed-') && key !== STATIC_CACHE && key !== RUNTIME_CACHE)
           .map((key) => caches.delete(key)),
       );
       await self.clients.claim();
@@ -66,10 +68,14 @@ function isNextBuildAsset(request) {
   return url.origin === self.location.origin && url.pathname.startsWith('/_next/static/');
 }
 
-function isStaticAsset(request) {
+function isApprovedPublicAsset(request) {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return false;
-  return /\.(?:png|jpe?g|gif|webp|avif|svg|ico|css|js|woff2?|ttf|otf)(?:\?.*)?$/i.test(url.pathname);
+  return url.pathname.startsWith('/icons/') || [
+    '/manifest.json',
+    '/hero-wedding.png',
+    '/offline.html',
+  ].includes(url.pathname);
 }
 
 function isApiRequest(request) {
@@ -94,16 +100,11 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       (async () => {
         try {
-          const fresh = await fetch(request);
-          const cache = await caches.open(RUNTIME_CACHE);
-          cache.put(request, fresh.clone()).catch(() => {});
-          return fresh;
+          return await fetch(request, { cache: 'no-store' });
         } catch (_err) {
-          const cached = await caches.match(request);
-          if (cached) return cached;
-          const fallback = await caches.match('/');
+          const fallback = await caches.match('/offline.html');
           if (fallback) return fallback;
-          return new Response('<h1>Offline</h1><p>wewed is unavailable until you reconnect.</p>', {
+          return new Response('<h1>Offline</h1><p>Wewed is unavailable until you reconnect.</p>', {
             status: 503,
             statusText: 'Offline',
             headers: { 'Content-Type': 'text/html; charset=utf-8' },
@@ -133,7 +134,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  if (isStaticAsset(request)) {
+  if (isApprovedPublicAsset(request)) {
     event.respondWith(
       (async () => {
         const cached = await caches.match(request);
@@ -206,8 +207,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(title, {
       body,
-      icon: '/icon-192.png',
-      badge: '/icon-192.png',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/notification-badge.png',
       tag,
       renotify: false,
       data: {

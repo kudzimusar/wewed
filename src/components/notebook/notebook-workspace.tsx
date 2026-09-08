@@ -24,6 +24,7 @@ import {
   X,
 } from 'lucide-react'
 import { NotebookMarkdown } from './notebook-markdown'
+import { ReportContentButton } from '@/components/safety/report-content-button'
 
 type Surface = 'planner' | 'admin'
 type SaveState = 'idle' | 'saving' | 'saved' | 'error' | 'conflict'
@@ -529,7 +530,7 @@ export function NotebookWorkspace({ surface }: { surface: Surface }) {
             <input value={askQuestion} onChange={(e) => setAskQuestion(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && ask()} placeholder="What did the venue say about generator backup?" className="min-w-0 flex-1 rounded-xl border border-white/15 bg-black/20 px-3 py-2 outline-none focus:border-amber-300/60" />
             <button onClick={ask} disabled={busy === 'ask'} className="rounded-xl bg-amber-300 px-4 py-2 font-medium text-stone-950">{busy === 'ask' ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}</button>
           </div>
-          {askResult && <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3 text-sm"><NotebookMarkdown markdown={askResult.answer} />{askResult.sources.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{askResult.sources.map((source) => <button key={source.noteId} onClick={() => setSelectedId(source.noteId)} className="rounded-full border border-white/15 px-2 py-1 text-xs hover:bg-white/10">{source.title}</button>)}</div>}</div>}
+          {askResult && <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3 text-sm"><NotebookMarkdown markdown={askResult.answer} />{askResult.sources.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{askResult.sources.map((source) => <button key={source.noteId} onClick={() => setSelectedId(source.noteId)} className="rounded-full border border-white/15 px-2 py-1 text-xs hover:bg-white/10">{source.title}</button>)}</div>}<div className="mt-3 border-t border-white/10 pt-2"><ReportContentButton subjectType="AI_OUTPUT" sourceArea="NOTEBOOK_AI" sourceId={selectedId ?? undefined} contentSnapshot={askResult.answer} label="Report AI answer" className="text-amber-200" /></div></div>}
         </section>
       )}
 
@@ -638,6 +639,7 @@ export function NotebookWorkspace({ surface }: { surface: Surface }) {
 
                     {aiPreview && <div className="rounded-xl border border-amber-300/20 bg-amber-300/5 p-3 text-sm">
                       {aiPreview.previewText ? <><div className="mb-2 text-xs font-semibold uppercase tracking-wide opacity-60">Preview — nothing changed yet</div><div className="max-h-[46vh] overflow-auto rounded-lg bg-black/10 p-2"><NotebookMarkdown markdown={aiPreview.previewText} /></div><div className="mt-3 flex flex-wrap gap-2"><button onClick={acceptAiPreview} className="rounded-lg bg-amber-300 px-3 py-2 font-medium text-stone-950"><Check className="mr-1 inline size-4" />Accept rewrite</button><button onClick={() => setAiPreview(null)} className="rounded-lg border border-white/10 px-3 py-2">Cancel</button></div></> : <div className="space-y-2"><NotebookMarkdown markdown={String(aiPreview.summary || aiPreview.answer || aiPreview.minutes || JSON.stringify(aiPreview, null, 2))} />{aiPreview.suggestedTitle && <p className="text-xs opacity-60">Suggested title: {aiPreview.suggestedTitle}</p>}</div>}
+                      <div className="mt-3 border-t border-white/10 pt-2"><ReportContentButton subjectType="AI_OUTPUT" sourceArea="NOTEBOOK_AI" sourceId={selectedId ?? undefined} contentSnapshot={String(aiPreview.previewText || aiPreview.summary || aiPreview.answer || aiPreview.minutes || JSON.stringify(aiPreview, null, 2)).slice(0, 8000)} label="Report AI answer" className="text-amber-200" /></div>
                     </div>}
                   </div>}
 

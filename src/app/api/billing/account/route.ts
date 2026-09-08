@@ -21,6 +21,10 @@ import {
   resolveBillingOfferCode,
   type WewedBillingInterval,
 } from '@/lib/wewed-plans'
+import {
+  GOOGLE_PLAY_DISTRIBUTION_COOKIE,
+  isGooglePlayDistributionValue,
+} from '@/lib/google-play-distribution'
 
 export const dynamic = 'force-dynamic'
 
@@ -264,6 +268,20 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    if (
+      isGooglePlayDistributionValue(
+        request.cookies.get(GOOGLE_PLAY_DISTRIBUTION_COOKIE)?.value,
+      )
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Purchases and external billing are unavailable in the Google Play app.',
+        },
+        { status: 403 },
+      )
+    }
+
     const resolved = await resolveBillingAccount(request)
     const accessError = billingAccessError(resolved)
     if (accessError) return accessError

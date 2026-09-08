@@ -22,6 +22,7 @@ import {
   Users,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ReportContentButton } from '@/components/safety/report-content-button'
 import type {
   AiProductArea,
   PlannerAiOperation,
@@ -770,20 +771,23 @@ function MessageBubble({ message }: { message: ChatMessage }) {
                 ? 'Fallback response'
                 : [message.provider, message.model].filter(Boolean).join(' · ') || 'Wewed AI'}
             </p>
-            <button
-              type="button"
-              onClick={() => void copy()}
-              aria-label={copyState === 'copied' ? 'Copied AI response' : 'Copy AI response'}
-              aria-live="polite"
-              className="inline-flex min-h-8 items-center gap-1 rounded-md px-2 text-[9px] text-gold transition-colors hover:bg-gold/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60"
-            >
-              <Copy className="size-3" />
-              {copyState === 'copied'
-                ? 'Copied'
-                : copyState === 'failed'
-                  ? 'Select text to copy'
-                  : 'Copy'}
-            </button>
+            <div className="flex items-center gap-1">
+              <ReportContentButton subjectType="AI_OUTPUT" sourceArea="WEDDING_AI" sourceId={message.id} contentSnapshot={message.content} label="Report" className="text-gold" />
+              <button
+                type="button"
+                onClick={() => void copy()}
+                aria-label={copyState === 'copied' ? 'Copied AI response' : 'Copy AI response'}
+                aria-live="polite"
+                className="inline-flex min-h-8 items-center gap-1 rounded-md px-2 text-[9px] text-gold transition-colors hover:bg-gold/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60"
+              >
+                <Copy className="size-3" />
+                {copyState === 'copied'
+                  ? 'Copied'
+                  : copyState === 'failed'
+                    ? 'Select text to copy'
+                    : 'Copy'}
+              </button>
+            </div>
           </div>
         )}
       </div>

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { Loader2, Sparkles } from 'lucide-react'
+import { ReportContentButton } from '@/components/safety/report-content-button'
 
 type PriceComponentSummary = {
   label: string
@@ -97,6 +98,9 @@ export function ProviderCommercialAiCoach({
           >
             {guidance}
           </ReactMarkdown>
+          <div className="mt-3 border-t border-gold/10 pt-2">
+            <ReportContentButton subjectType="AI_OUTPUT" sourceArea="PROVIDER_AI" contentSnapshot={guidance} label="Report AI answer" className="text-espresso/55" />
+          </div>
         </div>
       )}
     </div>
