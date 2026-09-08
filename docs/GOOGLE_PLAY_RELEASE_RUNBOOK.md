@@ -16,7 +16,7 @@ Last updated: 8 September 2026.
 - Release: **Wewed Zimbabwe closed test 1**
 - Android version: version name `1`, version code `1`
 - Target SDK: 36
-- Status on 8 September 2026: **13 changes sent to Google for review**. Google Play was running its preliminary automated checks before the review queue.
+- Status on 8 September 2026: **13 changes are in review**. Google Play completed its preliminary automated checks and placed the closed-test submission in the review queue.
 - Tester access: the existing **Beta Testers** email list is assigned to the track and contains 29 accounts.
 - Production-access progress at submission: 0 testers had opted in. Google requires at least 12 opted-in testers to remain in the closed test for at least 14 continuous days before this personal developer account can apply for production access.
 
