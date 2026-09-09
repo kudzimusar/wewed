@@ -63,3 +63,25 @@ jobs:
 
       - name: Run smart invitation link tests
         run: bun test src/lib/invitation-links.test.ts
+
+      - name: Reject TypeScript errors in smart invitation files
+        shell: bash
+        run: |
+          set +e
+          bunx tsc --noEmit --pretty false > /tmp/wewed-tsc.log 2>&1
+          TSC_STATUS=$?
+          set -e
+
+          if [ "$TSC_STATUS" -eq 0 ]; then
+            echo "Repository TypeScript check is clean."
+            exit 0
+          fi
+
+          SMART_ERRORS=$(grep -E '^(src/app/invite/|src/app/app/route\.ts|src/app/api/planner/guests/invitations/route\.ts|src/components/wedding/invitation-app-handoff\.tsx|src/lib/(invitation-links|pending-invitation|personal-invitation-access|reminder-delivery)(\.test)?\.ts)' /tmp/wewed-tsc.log || true)
+          if [ -n "$SMART_ERRORS" ]; then
+            echo "TypeScript errors found in smart invitation files:"
+            echo "$SMART_ERRORS"
+            exit 1
+          fi
+
+          echo "Repository-wide TypeScript has pre-existing errors outside this feature; none are in the smart invitation files."
