@@ -10,6 +10,7 @@ import { requireWeddingPermission } from '@/lib/wedding-access'
 
 const CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'
 const CODE_LENGTH = 10
+const CANONICAL_WEWED_ORIGIN = 'https://wewed.pro'
 
 function privateNoStore(response: NextResponse): NextResponse {
   response.headers.set('Cache-Control', 'private, no-store, max-age=0')
@@ -32,7 +33,7 @@ function generateCode(): string {
 }
 
 async function physicalInvitationPayload(
-  request: NextRequest,
+  _request: NextRequest,
   weddingId: string,
 ) {
   const [wedding, invitedCount, destination] = await Promise.all([
@@ -61,14 +62,13 @@ async function physicalInvitationPayload(
   const code = destination
     ? physicalInvitationCodeFromDestinationId(destination.id)
     : null
-  const origin = request.nextUrl.origin.replace(/\/$/, '')
 
   return {
     wedding: { slug: wedding.slug, title: wedding.title },
     configured: Boolean(destination && code),
     code: code ? formatPhysicalInvitationCode(code) : null,
     rawCode: code,
-    accessUrl: code ? `${origin}/i/${code}` : null,
+    accessUrl: code ? `${CANONICAL_WEWED_ORIGIN}/i/${code}` : null,
     scanCount: destination?.scanCount ?? 0,
     invitedCount,
     createdAt: destination?.createdAt?.toISOString() ?? null,
