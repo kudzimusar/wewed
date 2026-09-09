@@ -13,6 +13,7 @@ on:
       - 'src/lib/invitation-links.test.ts'
       - 'src/lib/pending-invitation.ts'
       - 'src/lib/personal-invitation-access.ts'
+      - 'src/lib/reminder-delivery.ts'
       - 'public/manifest.json'
       - '.github/workflows/smart-invitation-ci.yml'
   push:
@@ -27,6 +28,7 @@ on:
       - 'src/lib/invitation-links.test.ts'
       - 'src/lib/pending-invitation.ts'
       - 'src/lib/personal-invitation-access.ts'
+      - 'src/lib/reminder-delivery.ts'
       - 'public/manifest.json'
       - '.github/workflows/smart-invitation-ci.yml'
   workflow_dispatch:
