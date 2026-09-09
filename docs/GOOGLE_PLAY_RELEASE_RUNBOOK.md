@@ -4,7 +4,7 @@ This document records the Google Play setup for Wewed and the steps needed to op
 
 ## Current release status
 
-Last updated: 8 September 2026.
+Last updated: 9 September 2026.
 
 - App: **Wewed**
 - Package name: `pro.wewed.app`
@@ -12,13 +12,13 @@ Last updated: 8 September 2026.
 - Developer account ID: `8527437585153848574`
 - Release track: **Closed testing - Alpha**
 - Track ID: `4699430816221896412`
-- Test country: **Zimbabwe**
+- Test countries: **Zimbabwe plus 28 English-speaking markets** (including the United States, Canada, United Kingdom, Ireland, Australia, New Zealand, South Africa, Kenya, Nigeria, Ghana, Singapore, and Caribbean markets)
 - Release: **Wewed Zimbabwe closed test 1**
 - Android version: version name `1`, version code `1`
 - Target SDK: 36
-- Status on 8 September 2026: **13 changes are in review**. Google Play completed its preliminary automated checks and placed the closed-test submission in the review queue.
-- Tester access: the existing **Beta Testers** email list is assigned to the track and contains 29 accounts.
-- Production-access progress at submission: 0 testers had opted in. Google requires at least 12 opted-in testers to remain in the closed test for at least 14 continuous days before this personal developer account can apply for production access.
+- Status on 9 September 2026: **country expansion submitted for review**. The original release remains published for Zimbabwe while Google reviews the addition of 28 English-speaking markets.
+- Tester access: the existing **Beta Testers** email list is assigned to the track and contains 31 accounts.
+- Production-access progress on 9 September 2026: **1 tester is currently opted in**. Google requires at least 12 opted-in testers to remain in the closed test for at least 14 continuous days before this personal developer account can apply for production access.
 
 Useful links:
 
