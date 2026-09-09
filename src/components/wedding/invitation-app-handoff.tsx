@@ -24,6 +24,7 @@ export function InvitationAppHandoff({
   weddingSlug: string
   weddingTitle: string
 }) {
+  const [isAndroid, setIsAndroid] = useState<boolean | null>(null)
   const [installed, setInstalled] = useState(false)
   const [checking, setChecking] = useState(true)
 
@@ -45,6 +46,13 @@ export function InvitationAppHandoff({
     const standalone = window.matchMedia('(display-mode: standalone)').matches
     if (standalone) {
       window.location.replace(continueInApp)
+      return
+    }
+
+    const androidClient = /Android/i.test(navigator.userAgent)
+    setIsAndroid(androidClient)
+    if (!androidClient) {
+      setChecking(false)
       return
     }
 
@@ -78,6 +86,16 @@ export function InvitationAppHandoff({
     }
   }, [continueInApp])
 
+  const browserButton = (
+    <a
+      href={continueInBrowser}
+      className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#c6a061] px-5 py-4 font-semibold text-[#21170d] transition hover:bg-[#d5b477]"
+    >
+      <ExternalLink className="size-5" aria-hidden="true" />
+      Open wedding invitation
+    </a>
+  )
+
   return (
     <main className="min-h-screen bg-[#17130f] px-4 py-10 text-[#f8f1e7] sm:px-6">
       <section className="mx-auto max-w-xl rounded-[2rem] border border-[#b89155]/45 bg-[#211b16] p-6 shadow-2xl sm:p-9">
@@ -97,46 +115,54 @@ export function InvitationAppHandoff({
         </p>
 
         <div className="mt-8 space-y-3">
-          {installed ? (
-            <a
-              href={androidIntent}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#c6a061] px-5 py-4 font-semibold text-[#21170d] transition hover:bg-[#d5b477]"
-            >
-              <ExternalLink className="size-5" aria-hidden="true" />
-              Open invitation in Wewed
-            </a>
+          {isAndroid === true ? (
+            <>
+              {installed ? (
+                <a
+                  href={androidIntent}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#c6a061] px-5 py-4 font-semibold text-[#21170d] transition hover:bg-[#d5b477]"
+                >
+                  <ExternalLink className="size-5" aria-hidden="true" />
+                  Open invitation in Wewed
+                </a>
+              ) : (
+                <a
+                  href={PLAY_STORE_URL}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#c6a061] px-5 py-4 font-semibold text-[#21170d] transition hover:bg-[#d5b477]"
+                >
+                  <Download className="size-5" aria-hidden="true" />
+                  Install Wewed & keep my invitation
+                </a>
+              )}
+
+              {!installed && (
+                <a
+                  href={androidIntent}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl border border-[#b89155]/55 px-5 py-4 font-semibold text-[#f8f1e7] transition hover:bg-[#2b231c]"
+                >
+                  <ExternalLink className="size-5" aria-hidden="true" />
+                  Already installed? Open Wewed
+                </a>
+              )}
+
+              <a
+                href={continueInBrowser}
+                className="block w-full rounded-2xl px-5 py-3 text-center text-sm text-[#d6cec5] underline decoration-[#b89155]/60 underline-offset-4 hover:text-white"
+              >
+                Continue to invitation in browser
+              </a>
+            </>
           ) : (
-            <a
-              href={PLAY_STORE_URL}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#c6a061] px-5 py-4 font-semibold text-[#21170d] transition hover:bg-[#d5b477]"
-            >
-              <Download className="size-5" aria-hidden="true" />
-              Install Wewed & keep my invitation
-            </a>
+            browserButton
           )}
-
-          {!installed && (
-            <a
-              href={androidIntent}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-[#b89155]/55 px-5 py-4 font-semibold text-[#f8f1e7] transition hover:bg-[#2b231c]"
-            >
-              <ExternalLink className="size-5" aria-hidden="true" />
-              Already installed? Open Wewed
-            </a>
-          )}
-
-          <a
-            href={continueInBrowser}
-            className="block w-full rounded-2xl px-5 py-3 text-center text-sm text-[#d6cec5] underline decoration-[#b89155]/60 underline-offset-4 hover:text-white"
-          >
-            Continue to invitation in browser
-          </a>
         </div>
 
         <p className="mt-6 text-center text-xs leading-5 text-[#9f958a]">
           {checking
-            ? 'Checking whether Wewed is already installed…'
-            : 'If you install Wewed, launch it from Google Play or tap this invitation link again. Wewed will resume this invitation when browser storage is shared with the app.'}
+            ? 'Preparing the best way to open your invitation…'
+            : isAndroid
+              ? 'If you install Wewed, launch it from Google Play or tap this invitation link again. Wewed will resume this invitation when browser storage is shared with the app.'
+              : 'You can open the complete invitation securely in your browser. Wewed app installation is offered only on supported Android devices.'}
         </p>
       </section>
     </main>
