@@ -11,6 +11,9 @@ import { normalizeInvitationCardStyle } from '@/lib/digital-invitation-card'
 import { loadWeddingDataBySlug } from '@/lib/wedding-data-server'
 import { WEDDING_GUEST_SESSION_COOKIE } from '@/lib/wedding-guest-session'
 import {
+  WEDDING_SHARED_INVITATION_COOKIE,
+} from '@/lib/wedding-shared-invitation-session'
+import {
   loadWeddingAccessRecord,
   resolveWeddingAccessFromTokens,
 } from '@/lib/wedding-public-access'
@@ -33,6 +36,8 @@ async function accessForSlug(slug: string) {
     appSessionToken: cookieStore.get(APP_SESSION_COOKIE)?.value ?? null,
     guestSessionToken:
       cookieStore.get(WEDDING_GUEST_SESSION_COOKIE)?.value ?? null,
+    sharedInvitationSessionToken:
+      cookieStore.get(WEDDING_SHARED_INVITATION_COOKIE)?.value ?? null,
   })
 }
 
@@ -100,11 +105,14 @@ export default async function WeddingPage({
   const appSessionToken = cookieStore.get(APP_SESSION_COOKIE)?.value ?? null
   const guestSessionToken =
     cookieStore.get(WEDDING_GUEST_SESSION_COOKIE)?.value ?? null
+  const sharedInvitationSessionToken =
+    cookieStore.get(WEDDING_SHARED_INVITATION_COOKIE)?.value ?? null
   const [resolution, appSession] = await Promise.all([
     resolveWeddingAccessFromTokens({
       slug,
       appSessionToken,
       guestSessionToken,
+      sharedInvitationSessionToken,
     }),
     Promise.resolve(appSessionToken ? verifyAppSessionToken(appSessionToken) : null),
   ])
