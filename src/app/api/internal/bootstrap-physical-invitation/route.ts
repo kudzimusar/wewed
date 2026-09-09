@@ -18,7 +18,7 @@ function generateCode(): string {
 }
 
 export async function GET() {
-  if (process.env.VERCEL_ENV !== 'preview') {
+  if (process.env.VERCEL_ENV !== 'production') {
     return new NextResponse(null, { status: 404 })
   }
 
@@ -93,6 +93,8 @@ export async function GET() {
     `[print-bootstrap] code=${code} access=https://wewed.pro/i/${code} privacy=${wedding.privacy}`,
   )
 
+  // Never disclose the credential in the response. This route is removed
+  // immediately after the one-time production bootstrap has completed.
   return new NextResponse(null, {
     status: 204,
     headers: { 'Cache-Control': 'private, no-store, max-age=0' },
