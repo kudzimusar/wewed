@@ -58,9 +58,9 @@ export function PlannerInvitationTools() {
             <div className="mt-4">
               <PhysicalInvitationQr />
               <div className="mb-4 rounded-xl border border-gold/15 bg-white px-4 py-3">
-                <p className="font-medium text-espresso">Personal digital wedding cards, RSVP and guest QR</p>
+                <p className="font-medium text-espresso">Digital wedding cards, RSVP and QR</p>
                 <p className="mt-1 text-sm leading-6 text-espresso/60">
-                  Use the guest rows below for personalised digital invitations and RSVP credentials. These remain separate from the shared bulk-print QR above.
+                  Personal guest rows below keep their own RSVP credentials and digital cards. They remain separate from the shared bulk-print QR above.
                 </p>
               </div>
               <InvitationManager compact />
