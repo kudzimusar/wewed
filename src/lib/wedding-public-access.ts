@@ -12,6 +12,11 @@ import {
   verifyWeddingGuestSessionToken,
   type WeddingGuestSession,
 } from '@/lib/wedding-guest-session'
+import {
+  WEDDING_SHARED_INVITATION_COOKIE,
+  verifyWeddingSharedInvitationSessionToken,
+  type WeddingSharedInvitationSession,
+} from '@/lib/wedding-shared-invitation-session'
 
 export type WeddingPrivacy = 'public' | 'link_only' | 'private'
 export type WeddingAccessKind =
@@ -223,10 +228,30 @@ export async function resolveGuestSessionForWedding(
   }
 }
 
+async function resolveSharedInvitationForWedding(
+  wedding: WeddingAccessRecord,
+  session: WeddingSharedInvitationSession | null,
+): Promise<boolean> {
+  if (!session || session.weddingId !== wedding.id) return false
+
+  const destination = await db.qRDestination.findFirst({
+    where: {
+      id: session.destinationId,
+      weddingId: wedding.id,
+      type: 'physical_invitation',
+      isActive: true,
+    },
+    select: { id: true },
+  })
+
+  return Boolean(destination)
+}
+
 export async function resolveWeddingAccessFromTokens(input: {
   slug: string
   appSessionToken?: string | null
   guestSessionToken?: string | null
+  sharedInvitationSessionToken?: string | null
 }): Promise<WeddingAccessResolution> {
   const wedding = await loadWeddingAccessRecord(input.slug)
   if (!wedding) {
@@ -246,10 +271,18 @@ export async function resolveWeddingAccessFromTokens(input: {
   const guestSession = input.guestSessionToken
     ? verifyWeddingGuestSessionToken(input.guestSessionToken)
     : null
+  const sharedInvitationSession = input.sharedInvitationSessionToken
+    ? verifyWeddingSharedInvitationSessionToken(
+        input.sharedInvitationSessionToken,
+      )
+    : null
 
-  const [memberAccessKind, guest] = await Promise.all([
+  const [memberAccessKind, guest, sharedInvitationAllowed] = await Promise.all([
     authenticatedWeddingAccessKind(wedding, appSession),
     resolveGuestSessionForWedding(wedding, guestSession),
+    wedding.privacy === 'link_only'
+      ? resolveSharedInvitationForWedding(wedding, sharedInvitationSession)
+      : Promise.resolve(false),
   ])
 
   if (memberAccessKind) {
@@ -285,6 +318,19 @@ export async function resolveWeddingAccessFromTokens(input: {
     }
   }
 
+  if (wedding.privacy === 'link_only' && sharedInvitationAllowed) {
+    // Bulk-printed cards grant anonymous, read-only wedding-site access. They
+    // deliberately do not create or impersonate a guest RSVP identity.
+    return {
+      wedding,
+      allowed: true,
+      accessKind: 'public',
+      guest: null,
+      status: 200,
+      reason: 'allowed',
+    }
+  }
+
   return {
     wedding,
     allowed: false,
@@ -304,6 +350,8 @@ export async function resolveWeddingAccessForRequest(
     appSessionToken: request.cookies.get(APP_SESSION_COOKIE)?.value ?? null,
     guestSessionToken:
       request.cookies.get(WEDDING_GUEST_SESSION_COOKIE)?.value ?? null,
+    sharedInvitationSessionToken:
+      request.cookies.get(WEDDING_SHARED_INVITATION_COOKIE)?.value ?? null,
   })
 }
 
