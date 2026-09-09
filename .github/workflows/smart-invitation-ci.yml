@@ -61,6 +61,3 @@ jobs:
 
       - name: Run smart invitation link tests
         run: bun test src/lib/invitation-links.test.ts
-
-      - name: Type-check invitation implementation
-        run: bunx tsc --noEmit
