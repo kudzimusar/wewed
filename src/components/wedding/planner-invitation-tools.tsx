@@ -5,6 +5,7 @@ import { QrCode, UserPlus, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { InvitationManager } from '@/components/wedding/invitation-manager'
+import { PhysicalInvitationQr } from '@/components/wedding/physical-invitation-qr'
 import { PlannerTeamInviteManager } from '@/components/wedding/planner/planner-team-invite-manager'
 
 type InvitationMode = 'guest' | 'team'
@@ -29,7 +30,7 @@ export function PlannerInvitationTools() {
         <DialogContent className="max-h-[94vh] w-[96vw] max-w-6xl overflow-y-auto border-gold/30 bg-ivory text-espresso">
           <DialogTitle className="wewed-heading text-3xl">Invitations & secure QR</DialogTitle>
           <DialogDescription>
-            Guest RSVP credentials and project-team access are separate. Choose what you are inviting someone to do before generating a QR.
+            Bulk printed-card access, personal guest RSVP credentials and project-team access are kept separate so one QR never impersonates another guest.
           </DialogDescription>
 
           <div className="mt-2 grid gap-2 rounded-2xl border border-gold/20 bg-white p-2 sm:grid-cols-2">
@@ -55,10 +56,11 @@ export function PlannerInvitationTools() {
 
           {mode === 'guest' ? (
             <div className="mt-4">
+              <PhysicalInvitationQr />
               <div className="mb-4 rounded-xl border border-gold/15 bg-white px-4 py-3">
-                <p className="font-medium text-espresso">Digital wedding cards, RSVP and QR</p>
+                <p className="font-medium text-espresso">Personal digital wedding cards, RSVP and guest QR</p>
                 <p className="mt-1 text-sm leading-6 text-espresso/60">
-                  Use this for wedding guests and RSVP credentials. It does not create Planner, Owner, Coordinator or Viewer access.
+                  Use the guest rows below for personalised digital invitations and RSVP credentials. These remain separate from the shared bulk-print QR above.
                 </p>
               </div>
               <InvitationManager compact />
