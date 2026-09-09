@@ -41,14 +41,14 @@ export function GuestAccessGateway({
     event.preventDefault()
     const value = token.trim()
     if (!value) {
-      setError('Enter the invitation code or open the QR link sent to you.')
+      setError('Enter the invitation code or scan the QR on your invitation.')
       return
     }
 
     setBusy(true)
     setError(null)
     window.location.assign(
-      `/api/weddings/${encodeURIComponent(slug)}/guest-session/exchange?token=${encodeURIComponent(value)}`,
+      `/api/weddings/${encodeURIComponent(slug)}/invitation-access/exchange?code=${encodeURIComponent(value)}`,
     )
   }
 
@@ -73,7 +73,7 @@ export function GuestAccessGateway({
         <p className="mx-auto mt-4 max-w-md text-center text-sm leading-6 text-champagne/65">
           {privacy === 'private'
             ? 'Only the couple can currently view this wedding site. Sign in with the couple account or contact the couple for access.'
-            : 'This wedding is shared only with invited guests. Scan the QR code on your invitation or enter its private invitation code.'}
+            : 'This wedding is shared with invited guests. Normally, scanning the QR on the physical invitation opens it immediately. The printed invitation code below is only a fallback.'}
         </p>
 
         {privacy !== 'private' && (
@@ -93,7 +93,7 @@ export function GuestAccessGateway({
                 disabled={busy}
                 autoComplete="one-time-code"
                 className="border-gold/30 bg-black/10 pl-10 text-champagne placeholder:text-champagne/30"
-                placeholder="Paste the code from your invitation"
+                placeholder="Enter the code printed on your invitation"
               />
             </div>
             {error && (
