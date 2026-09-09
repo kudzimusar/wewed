@@ -54,5 +54,6 @@ jobs:
       - name: Run physical invitation access regression contract
         run: bun test src/lib/physical-invitation-access.test.ts
 
-      - name: Type-check changed application paths
-        run: bunx tsc --noEmit
+      # The repository's standard CI performs the authoritative application
+      # build and browser release gate. This focused workflow only owns the
+      # shared physical-invitation regression contract.
