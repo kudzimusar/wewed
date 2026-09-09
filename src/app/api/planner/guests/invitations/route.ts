@@ -3,9 +3,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import {
   buildDigitalInvitationMessage,
-  buildDigitalInvitationUrl,
   normalizeInvitationCardStyle,
 } from '@/lib/digital-invitation-card'
+import { buildSmartInvitationUrl } from '@/lib/invitation-links'
 import { requireWeddingPermission } from '@/lib/wedding-access'
 
 function csvCell(value: string | null | undefined) {
@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
     const missingTokens = guests.filter((guest) => !guest.rsvp?.token).length
     const data = guests.map((guest) => {
       const invitationUrl = guest.rsvp?.token
-        ? buildDigitalInvitationUrl({
+        ? buildSmartInvitationUrl({
             siteUrl,
             weddingSlug: wedding.slug,
             token: guest.rsvp.token,
