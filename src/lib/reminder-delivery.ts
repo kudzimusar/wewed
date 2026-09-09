@@ -1,8 +1,6 @@
 import { db } from '@/lib/db'
-import {
-  buildDigitalInvitationUrl,
-  normalizeInvitationCardStyle,
-} from '@/lib/digital-invitation-card'
+import { normalizeInvitationCardStyle } from '@/lib/digital-invitation-card'
+import { buildSmartInvitationUrl } from '@/lib/invitation-links'
 import {
   renderReminderTemplate,
   selectReminderRecipients,
@@ -156,7 +154,7 @@ export async function deliverReminder(input: {
 
   const renderFor = (recipient: (typeof recipients)[number]) => {
     const invitationUrl = recipient.token
-      ? buildDigitalInvitationUrl({
+      ? buildSmartInvitationUrl({
           siteUrl,
           weddingSlug: wedding.slug,
           token: recipient.token,
