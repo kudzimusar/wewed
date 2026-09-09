@@ -19,6 +19,8 @@ Last updated: 9 September 2026.
 - Status on 9 September 2026: **country expansion submitted for review**. The original release remains published for Zimbabwe while Google reviews the addition of 28 English-speaking markets.
 - Tester access: the existing **Beta Testers** email list is assigned to the track and contains 31 accounts.
 - Production-access progress on 9 September 2026: **1 tester is currently opted in**. Google requires at least 12 opted-in testers to remain in the closed test for at least 14 continuous days before this personal developer account can apply for production access.
+- Android developer verification: **Wewed is registered** with 3 signing keys. The 30 September 2026 registration warning is satisfied for this app.
+- Payments profile notice: Google is offering optional enrollment in the 15% service-fee program; no action is required for the current Wewed closed test.
 
 Useful links:
 
