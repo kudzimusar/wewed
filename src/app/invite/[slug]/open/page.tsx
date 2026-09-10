@@ -34,6 +34,9 @@ export default async function InvitationOpenPage({ params }: Props) {
     <InvitationAppHandoff
       weddingSlug={slug}
       weddingTitle={wedding.title}
+      deferredInstallEnabled={
+        process.env.ANDROID_DEFERRED_INVITATION_HANDOFF === '1'
+      }
     />
   )
 }
