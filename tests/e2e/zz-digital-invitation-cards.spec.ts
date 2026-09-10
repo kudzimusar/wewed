@@ -86,7 +86,7 @@ test('couples design, save, export and deliver guest-specific digital invitation
 
   await page.getByTestId('invitation-style-editorial').click()
   await page.getByRole('button', { name: 'Save card design' }).click()
-  await expect(page.getByText('Digital invitation design saved.')).toBeVisible()
+  await expect(page.getByText('Invitation experience saved.', { exact: false })).toBeVisible()
 
   const invitations = await page.request.get('/api/planner/guests/invitations')
   expect(invitations.status()).toBe(200)
@@ -160,19 +160,24 @@ test('couples design, save, export and deliver guest-specific digital invitation
     new RegExp(`/w/${E2E_WEDDINGS.primary.slug}\\?invitation=1&card=editorial$`),
   )
   expect(page.url()).not.toContain(E2E_GUEST_INVITATION.token)
-  const deliveredCard = page.getByTestId('digital-invitation-card-editorial')
-  await expect(deliveredCard).toBeVisible()
-  await expect(deliveredCard).toContainText(E2E_WEDDINGS.primary.title)
-  await expect(deliveredCard).toContainText(E2E_WEDDINGS.primary.seededGuest)
-  await expect(deliveredCard).toContainText('Primary Test Estate')
+  const deliveredExperience = page.getByTestId('premium-invitation-experience')
+  await expect(deliveredExperience).toBeVisible()
+  await expect(deliveredExperience).toHaveAttribute('data-invitation-style', 'editorial')
+  await expect(deliveredExperience).toContainText(E2E_WEDDINGS.primary.title)
+  await expect(deliveredExperience).toContainText(E2E_WEDDINGS.primary.seededGuest)
+  await expect(deliveredExperience).toContainText('Primary Test Estate')
   await removeSampleOverlays(page)
-  await deliveredCard.screenshot({
+  await deliveredExperience.screenshot({
     path: `${SAMPLE_DIR}/delivered-editorial-guest-card.png`,
     animations: 'disabled',
   })
 
-  await page.getByRole('button', { name: 'RSVP now' }).click()
-  await expect(page.getByRole('heading', { name: `Reply for ${E2E_WEDDINGS.primary.seededGuest}` })).toBeVisible()
+  await deliveredExperience.getByTestId('invitation-open-button').click()
+  await expect(deliveredExperience).toHaveAttribute('data-motion-state', 'open', { timeout: 4_000 })
+  await deliveredExperience.getByTestId('invitation-continue-button').click()
+  await page.locator('#rsvp').scrollIntoViewIfNeeded()
+  await page.getByRole('button', { name: 'Review my RSVP' }).click()
+  await expect(page.getByRole('heading', { name: 'Your private RSVP' })).toBeVisible()
   await page.getByLabel('Regretfully decline').click()
   await page.getByLabel('Message to the couple').fill('Thank you for including me in your celebration.')
   await page.getByRole('button', { name: 'Save RSVP' }).click()
@@ -182,7 +187,8 @@ test('couples design, save, export and deliver guest-specific digital invitation
     new URL(`/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`, page.url()).toString(),
   )
   expect(guestSession.status()).toBe(200)
-  expect(await guestSession.json()).toMatchObject({
+  const guestSessionPayload = await guestSession.json()
+  expect(guestSessionPayload).toMatchObject({
     wedding: { invitationCardStyle: 'editorial' },
     guest: { id: E2E_GUEST_INVITATION.guestId },
     rsvp: { attending: false },
@@ -200,13 +206,27 @@ test('QR card and RSVP remain contained on mobile @mobile', async ({ page }) => 
   await expect(page).toHaveURL(
     new RegExp(`/w/${E2E_WEDDINGS.primary.slug}\\?invitation=1&card=midnight$`),
   )
-  await expect(page.getByTestId('digital-invitation-card-midnight')).toBeVisible()
-  const overflow = await page.evaluate(() => ({
+  expect(page.url()).not.toContain(E2E_GUEST_INVITATION.token)
+  const experience = page.getByTestId('premium-invitation-experience')
+  await expect(experience).toBeVisible()
+  await expect(experience).toHaveAttribute('data-invitation-style', 'midnight')
+  let overflow = await page.evaluate(() => ({
     width: document.documentElement.scrollWidth,
     viewport: window.innerWidth,
   }))
   expect(overflow.width).toBeLessThanOrEqual(overflow.viewport + 1)
-  await page.getByRole('button', { name: 'RSVP now' }).click()
-  await expect(page.getByRole('heading', { name: /Reply for/ })).toBeVisible()
+
+  await experience.getByTestId('invitation-open-button').click()
+  await expect(experience).toHaveAttribute('data-motion-state', 'open', { timeout: 4_000 })
+  overflow = await page.evaluate(() => ({
+    width: document.documentElement.scrollWidth,
+    viewport: window.innerWidth,
+  }))
+  expect(overflow.width).toBeLessThanOrEqual(overflow.viewport + 1)
+
+  await experience.getByTestId('invitation-continue-button').click()
+  await page.locator('#rsvp').scrollIntoViewIfNeeded()
+  await page.getByRole('button', { name: 'Review my RSVP' }).click()
+  await expect(page.getByRole('heading', { name: 'Your private RSVP' })).toBeVisible()
   expect(errors).toEqual([])
 })
