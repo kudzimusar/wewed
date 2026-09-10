@@ -1,9 +1,11 @@
+import { useNetInfo } from '@react-native-community/netinfo'
 import { useQuery } from '@tanstack/react-query'
 import { router } from 'expo-router'
-import React, { useMemo } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { useSession } from '@/auth/session'
 import { ActionButton, Body, Divider, Eyebrow, Pill, Screen, Surface, Title } from '@/components/core'
+import { readFieldModeSnapshot, savePulseFieldSnapshot, type FieldModeSnapshot } from '@/lib/field-mode'
 import { wewedRequest } from '@/lib/api'
 import type { PlannerBudgetSummary, PlannerTask } from '@/lib/types'
 import { colors, radius, spacing } from '@/theme/tokens'
@@ -23,10 +25,27 @@ function daysTo(date: string) {
 export default function TodayScreen() {
   const { session, token, switchWedding } = useSession()
   const wedding = session?.activeWedding ?? null
+  const netInfo = useNetInfo()
+  const offline = netInfo.isConnected === false
+  const [fieldSnapshot, setFieldSnapshot] = useState<FieldModeSnapshot | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    const userId = session?.user.id
+    const weddingId = wedding?.id
+    if (!userId || !weddingId) {
+      setFieldSnapshot(null)
+      return () => { alive = false }
+    }
+    void readFieldModeSnapshot(userId, weddingId).then((snapshot) => {
+      if (alive) setFieldSnapshot(snapshot)
+    })
+    return () => { alive = false }
+  }, [session?.user.id, wedding?.id])
 
   const pulse = useQuery({
     queryKey: ['mobile-pulse', wedding?.id],
-    enabled: Boolean(token && wedding),
+    enabled: Boolean(token && wedding && !offline),
     queryFn: async (): Promise<PulseData> => {
       const [tasks, budget] = await Promise.all([
         wewedRequest<{ data: PlannerTask[] }>('/api/planner/tasks', { token }),
@@ -36,15 +55,28 @@ export default function TodayScreen() {
     },
   })
 
+  useEffect(() => {
+    const userId = session?.user.id
+    const weddingId = wedding?.id
+    if (!userId || !weddingId || !pulse.data) return
+    void savePulseFieldSnapshot(userId, weddingId, pulse.data)
+      .then(() => readFieldModeSnapshot(userId, weddingId))
+      .then((snapshot) => setFieldSnapshot(snapshot))
+      .catch(() => undefined)
+  }, [pulse.data, session?.user.id, wedding?.id])
+
+  const effectivePulse = pulse.data ?? fieldSnapshot?.pulse ?? null
+  const usingFieldSnapshot = Boolean(!pulse.data && fieldSnapshot?.pulse)
+
   const taskStats = useMemo(() => {
-    const tasks = pulse.data?.tasks ?? []
+    const tasks = effectivePulse?.tasks ?? []
     const now = Date.now()
     return {
       open: tasks.filter((task) => task.status !== 'done').length,
       urgent: tasks.filter((task) => task.status !== 'done' && task.priority === 'high').length,
       overdue: tasks.filter((task) => task.status !== 'done' && task.dueDate && new Date(task.dueDate).getTime() < now).length,
     }
-  }, [pulse.data?.tasks])
+  }, [effectivePulse?.tasks])
 
   const firstName = session?.user.displayName?.trim().split(/\s+/)[0] || 'there'
 
@@ -59,6 +91,24 @@ export default function TodayScreen() {
         <Title>Good to see you, {firstName}.</Title>
         <Body muted>{wedding ? `${wedding.title} · ${wedding.venueCity || wedding.venueCountry || 'Wedding workspace'}` : 'Choose where you want to work today.'}</Body>
       </View>
+
+      {offline ? (
+        <View accessibilityRole="alert" style={styles.fieldBanner}>
+          <View style={styles.flexOne}>
+            <Text style={styles.fieldTitle}>Field Mode · offline</Text>
+            <Text style={styles.fieldText}>{fieldSnapshot ? `Showing the last safe operational snapshot from ${new Date(fieldSnapshot.savedAt).toLocaleString()}.` : 'No local snapshot is available yet. Connect once to prepare this wedding for Field Mode.'}</Text>
+          </View>
+          <Pill tone="clay">Read only</Pill>
+        </View>
+      ) : usingFieldSnapshot ? (
+        <View style={styles.fieldBanner}>
+          <View style={styles.flexOne}>
+            <Text style={styles.fieldTitle}>Using saved wedding snapshot</Text>
+            <Text style={styles.fieldText}>Live refresh is unavailable right now; these operational figures were saved {fieldSnapshot ? new Date(fieldSnapshot.savedAt).toLocaleString() : 'earlier'}.</Text>
+          </View>
+          <Pill tone="gold">Stale</Pill>
+        </View>
+      ) : null}
 
       {!wedding && session?.weddings?.length ? (
         <Surface>
@@ -97,10 +147,10 @@ export default function TodayScreen() {
           </Surface>
 
           <View style={styles.metrics}>
-            <Metric label="Open tasks" value={pulse.isLoading ? '…' : String(taskStats.open)} tone="gold" />
-            <Metric label="High priority" value={pulse.isLoading ? '…' : String(taskStats.urgent)} tone="clay" />
-            <Metric label="Overdue" value={pulse.isLoading ? '…' : String(taskStats.overdue)} tone="plum" />
-            <Metric label="Outstanding" value={pulse.isLoading ? '…' : money(pulse.data?.budget?.totalOutstanding ?? 0, pulse.data?.budget?.currency)} tone="sage" />
+            <Metric label="Open tasks" value={pulse.isLoading && !effectivePulse ? '…' : String(taskStats.open)} tone="gold" />
+            <Metric label="High priority" value={pulse.isLoading && !effectivePulse ? '…' : String(taskStats.urgent)} tone="clay" />
+            <Metric label="Overdue" value={pulse.isLoading && !effectivePulse ? '…' : String(taskStats.overdue)} tone="plum" />
+            <Metric label="Outstanding" value={pulse.isLoading && !effectivePulse ? '…' : money(effectivePulse?.budget?.totalOutstanding ?? 0, effectivePulse?.budget?.currency)} tone="sage" />
           </View>
 
           <Surface>
@@ -112,7 +162,7 @@ export default function TodayScreen() {
               {taskStats.overdue > 0 ? <Pill tone="plum">{taskStats.overdue} overdue</Pill> : <Pill tone="sage">On track</Pill>}
             </View>
             <Divider />
-            {(pulse.data?.tasks ?? []).filter((task) => task.status !== 'done').slice(0, 3).map((task) => (
+            {(effectivePulse?.tasks ?? []).filter((task) => task.status !== 'done').slice(0, 3).map((task) => (
               <View key={task.id} style={styles.attentionRow}>
                 <View style={[styles.priorityMark, { backgroundColor: task.priority === 'high' ? colors.clay : task.priority === 'low' ? colors.sage : colors.gold }]} />
                 <View style={styles.flexOne}>
@@ -122,7 +172,7 @@ export default function TodayScreen() {
               </View>
             ))}
             {!pulse.isLoading && taskStats.open === 0 ? <Body muted>No open tasks are waiting. Use Plan to add the next action.</Body> : null}
-            <ActionButton label="Open planning workspace" onPress={() => router.push('/(tabs)/plan')} variant="secondary" />
+            {offline ? <Body muted>Planning changes are intentionally unavailable in Field Mode. Reconnect before changing wedding records.</Body> : <ActionButton label="Open planning workspace" onPress={() => router.push('/(tabs)/plan')} variant="secondary" />}
           </Surface>
         </>
       ) : null}
@@ -153,6 +203,9 @@ const styles = StyleSheet.create({
   header: { gap: spacing.xs, paddingTop: spacing.sm },
   brandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
   wordmark: { color: colors.espresso, fontFamily: 'serif', fontSize: 18, letterSpacing: 6, fontWeight: '600' },
+  fieldBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, backgroundColor: '#FFF4E8', borderColor: '#E0C497', borderWidth: 1, borderRadius: radius.lg, padding: spacing.md },
+  fieldTitle: { color: colors.espresso, fontSize: 14, fontWeight: '900' },
+  fieldText: { color: colors.inkMuted, fontSize: 12, lineHeight: 18, marginTop: 3 },
   countdownRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   countdown: { color: colors.espresso, fontFamily: 'serif', fontSize: 54, lineHeight: 58 },
   dateBlock: { width: 88, minHeight: 96, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.espresso, borderRadius: radius.lg },
