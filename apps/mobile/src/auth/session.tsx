@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import * as SecureStore from 'expo-secure-store'
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { WewedApiError, wewedRequest } from '@/lib/api'
+import { clearFieldModeSnapshotsForUser } from '@/lib/field-mode'
 import type { MobileSessionPayload } from '@/lib/types'
 
 const SESSION_STORAGE_KEY = 'wewed.native.session.v1'
@@ -86,17 +87,19 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(async () => {
     const currentToken = token
+    const currentUserId = session?.user.id ?? null
     setToken(null)
     setSession(null)
     queryClient.clear()
     await clearToken().catch(() => undefined)
+    if (currentUserId) await clearFieldModeSnapshotsForUser(currentUserId).catch(() => undefined)
     if (currentToken) {
       await wewedRequest('/api/mobile/auth/signout', {
         method: 'POST',
         token: currentToken,
       }).catch(() => undefined)
     }
-  }, [queryClient, token])
+  }, [queryClient, session?.user.id, token])
 
   const refreshSession = useCallback(async () => {
     if (!token) return
