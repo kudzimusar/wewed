@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 
 const root = process.cwd()
 const expectedVersionCode = String(process.env.WEWED_ANDROID_VERSION_CODE ?? '3')
+const localCiE2E = process.env.WEWED_E2E_MODE === '1'
 const gradlePath = resolve(root, 'android/app/build.gradle')
 const manifestPath = resolve(root, 'android/app/src/main/AndroidManifest.xml')
 const gradle = readFileSync(gradlePath, 'utf8')
@@ -56,6 +57,16 @@ const checks = [
     ok: /android:scheme=["']https["']/.test(manifest),
     source: manifest,
     hint: /android:host|android:scheme/,
+  },
+  {
+    name: localCiE2E
+      ? 'local CI build explicitly permits loopback cleartext traffic'
+      : 'release/default build does not permit cleartext traffic',
+    ok: localCiE2E
+      ? /android:usesCleartextTraffic=["']true["']/.test(manifest)
+      : !/android:usesCleartextTraffic=["']true["']/.test(manifest),
+    source: manifest,
+    hint: /usesCleartextTraffic|application/,
   },
 ]
 

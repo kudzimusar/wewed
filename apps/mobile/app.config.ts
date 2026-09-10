@@ -62,6 +62,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     }],
     'expo-notifications',
     './plugins/with-wewed-android-signing',
+    './plugins/with-wewed-local-ci-cleartext',
   ],
   experiments: {
     typedRoutes: true,
