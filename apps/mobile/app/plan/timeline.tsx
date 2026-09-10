@@ -9,17 +9,18 @@ import { WewedApiError, wewedRequest } from '@/lib/api'
 import { colors, radius, spacing } from '@/theme/tokens'
 
 type TimelineItem = FieldTimelineItem
+type LoadedSnapshot = { key: string; snapshot: FieldModeSnapshot | null }
 
 export default function TimelineScreen(){
-  const {token,session}=useSession();const qc=useQueryClient();const netInfo=useNetInfo();const offline=netInfo.isConnected===false;const weddingId=session?.activeWedding?.id;const userId=session?.user.id;const key=['planner-timeline',weddingId]
-  const [time,setTime]=useState('');const [title,setTitle]=useState('');const [duration,setDuration]=useState('');const [location,setLocation]=useState('');const [notes,setNotes]=useState('');const [error,setError]=useState<string|null>(null);const [snapshot,setSnapshot]=useState<FieldModeSnapshot|null>(null)
+  const {token,session}=useSession();const qc=useQueryClient();const netInfo=useNetInfo();const offline=netInfo.isConnected===false;const weddingId=session?.activeWedding?.id??null;const userId=session?.user.id??null;const snapshotKey=userId&&weddingId?`${userId}:${weddingId}`:null;const key=['planner-timeline',weddingId]
+  const [time,setTime]=useState('');const [title,setTitle]=useState('');const [duration,setDuration]=useState('');const [location,setLocation]=useState('');const [notes,setNotes]=useState('');const [error,setError]=useState<string|null>(null);const [loadedSnapshot,setLoadedSnapshot]=useState<LoadedSnapshot|null>(null)
   const query=useQuery({queryKey:key,enabled:Boolean(token&&weddingId&&!offline),queryFn:()=>wewedRequest<{data:TimelineItem[]}>('/api/planner/timeline',{token})})
   const refresh=()=>qc.invalidateQueries({queryKey:key})
 
-  useEffect(()=>{let alive=true;if(!userId||!weddingId){setSnapshot(null);return()=>{alive=false}}void readFieldModeSnapshot(userId,weddingId).then(value=>{if(alive)setSnapshot(value)});return()=>{alive=false}},[userId,weddingId])
-  useEffect(()=>{if(!userId||!weddingId||!query.data?.data)return;void saveTimelineFieldSnapshot(userId,weddingId,query.data.data).then(()=>readFieldModeSnapshot(userId,weddingId)).then(value=>setSnapshot(value)).catch(()=>undefined)},[query.data?.data,userId,weddingId])
+  useEffect(()=>{if(!userId||!weddingId||!snapshotKey)return;let alive=true;void readFieldModeSnapshot(userId,weddingId).then(value=>{if(alive)setLoadedSnapshot({key:snapshotKey,snapshot:value})});return()=>{alive=false}},[userId,weddingId,snapshotKey])
+  useEffect(()=>{if(!userId||!weddingId||!snapshotKey||!query.data?.data)return;void saveTimelineFieldSnapshot(userId,weddingId,query.data.data).then(()=>readFieldModeSnapshot(userId,weddingId)).then(value=>setLoadedSnapshot({key:snapshotKey,snapshot:value})).catch(()=>undefined)},[query.data?.data,userId,weddingId,snapshotKey])
 
-  const items=query.data?.data??snapshot?.timeline??[];const usingSnapshot=!query.data?.data&&Boolean(snapshot?.timeline)
+  const snapshot=loadedSnapshot?.key===snapshotKey?loadedSnapshot.snapshot:null;const items=query.data?.data??snapshot?.timeline??[];const usingSnapshot=!query.data?.data&&Boolean(snapshot?.timeline)
   const add=useMutation({mutationFn:()=>wewedRequest('/api/planner/timeline',{token,method:'POST',body:JSON.stringify({time:time.trim(),title:title.trim(),duration:duration.trim()||undefined,location:location.trim()||undefined,notes:notes.trim()||undefined})}),onSuccess:async()=>{setTime('');setTitle('');setDuration('');setLocation('');setNotes('');setError(null);await refresh()},onError:(cause)=>setError(cause instanceof WewedApiError?cause.message:'Timeline item could not be saved.')})
   const remove=useMutation({mutationFn:(id:string)=>wewedRequest(`/api/planner/timeline/${id}`,{token,method:'DELETE'}),onSuccess:refresh})
 
