@@ -1,4 +1,5 @@
 import { expect, test, E2E_WEDDINGS } from './support/planner-browser'
+import { LOCAL_CI_E2E_PLANNER } from '../../src/lib/e2e-environment'
 
 const SESSION_COOKIE = 'wewed_admin_auth'
 
@@ -11,6 +12,55 @@ function nativeHeaders(sessionToken: string) {
 }
 
 test.describe('@mobile Native bearer transport', () => {
+  test('issues a deterministic local-CI mobile session without Supabase credentials', async ({ plannerPage }) => {
+    await plannerPage.context().clearCookies()
+
+    const rejected = await plannerPage.request.post('/api/mobile/auth/signin', {
+      data: {
+        email: LOCAL_CI_E2E_PLANNER.email,
+        password: `${LOCAL_CI_E2E_PLANNER.password}-wrong`,
+      },
+    })
+    expect(rejected.status()).toBe(401)
+
+    const signIn = await plannerPage.request.post('/api/mobile/auth/signin', {
+      data: {
+        email: LOCAL_CI_E2E_PLANNER.email,
+        password: LOCAL_CI_E2E_PLANNER.password,
+      },
+    })
+    expect(signIn.status()).toBe(200)
+    expect(signIn.headers()['cache-control']).toContain('no-store')
+
+    const signInPayload = await signIn.json()
+    expect(signInPayload).toMatchObject({
+      success: true,
+      sessionTransport: 'bearer',
+      workspace: 'wedding',
+    })
+    expect(typeof signInPayload.sessionToken).toBe('string')
+    expect(signInPayload.sessionToken.length).toBeGreaterThan(40)
+
+    const mobileSession = await plannerPage.request.get('/api/mobile/auth/me', {
+      headers: nativeHeaders(signInPayload.sessionToken),
+    })
+    expect(mobileSession.status()).toBe(200)
+    expect(await mobileSession.json()).toMatchObject({
+      success: true,
+      authorized: true,
+      workspace: 'wedding',
+      user: {
+        role: 'planner',
+        activeWeddingId: E2E_WEDDINGS.primary.id,
+      },
+      activeWedding: {
+        id: E2E_WEDDINGS.primary.id,
+        title: E2E_WEDDINGS.primary.title,
+      },
+    })
+    expect((await plannerPage.context().cookies()).some((cookie) => cookie.name === SESSION_COOKIE)).toBe(false)
+  })
+
   test('authorizes the mobile session and ordinary planner permission boundary without cookies', async ({ plannerPage }) => {
     const context = plannerPage.context()
     const sessionCookie = (await context.cookies()).find((cookie) => cookie.name === SESSION_COOKIE)

@@ -7,6 +7,7 @@ on:
     paths:
       - 'src/lib/app-session.ts'
       - 'src/lib/wedding-access.ts'
+      - 'src/lib/e2e-environment*'
       - 'src/app/api/mobile/auth/**'
       - 'src/app/api/planner/overview/**'
       - 'tests/e2e/native-bearer-transport.spec.ts'
@@ -19,6 +20,7 @@ on:
     paths:
       - 'src/lib/app-session.ts'
       - 'src/lib/wedding-access.ts'
+      - 'src/lib/e2e-environment*'
       - 'src/app/api/mobile/auth/**'
       - 'src/app/api/planner/overview/**'
       - 'tests/e2e/native-bearer-transport.spec.ts'
@@ -78,6 +80,9 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      - name: Verify local CI E2E authority guard
+        run: bun test src/lib/e2e-environment.test.ts
 
       - name: Generate Prisma client and apply migrations
         run: |
