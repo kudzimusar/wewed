@@ -1,3 +1,5 @@
+/// <reference types="bun-types" />
+
 import { afterAll, afterEach, describe, expect, test } from 'bun:test'
 import { randomUUID } from 'node:crypto'
 import { db } from '@/lib/db'
