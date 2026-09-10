@@ -5,6 +5,7 @@ on:
     paths:
       - 'android/**'
       - 'e2e/deferred-invitation.chromium.spec.mjs'
+      - 'e2e/deferred-invitation.playwright.config.mjs'
       - 'prisma/migrations/20260910110000_native_deferred_invitation_handoff/**'
       - 'src/app/api/invitations/install-handoff/**'
       - 'src/app/invite/[slug]/open/**'
@@ -21,6 +22,7 @@ on:
     paths:
       - 'android/**'
       - 'e2e/deferred-invitation.chromium.spec.mjs'
+      - 'e2e/deferred-invitation.playwright.config.mjs'
       - 'prisma/migrations/20260910110000_native_deferred_invitation_handoff/**'
       - 'src/app/api/invitations/install-handoff/**'
       - 'src/app/invite/[slug]/open/**'
@@ -207,7 +209,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          npx playwright test e2e/deferred-invitation.chromium.spec.mjs --reporter=line
+          npx playwright test --config=e2e/deferred-invitation.playwright.config.mjs
           STATUS=$?
           set -e
           if [ "$STATUS" -ne 0 ]; then
