@@ -116,6 +116,10 @@ function WeddingHomeContent({
   const canContribute = accessKind !== 'public' && accessKind !== null
   const showPersonalInvitation = Boolean(invitationMode && invitationCardStyle && accessKind === 'invited_guest' && wedding)
 
+  // Keep the base invitation object stable across the wedding-content revalidation
+  // that runs after hydration. The private guest-session request overlays the guest,
+  // message and RSVP deadline; recreating this object for an equivalent wedding
+  // snapshot can otherwise reset those secure fields back to null.
   const invitationData = useMemo(() => wedding ? {
     title: `${wedding.couple.partner1} & ${wedding.couple.partner2}`,
     monogram: wedding.monogram,
@@ -130,7 +134,19 @@ function WeddingHomeContent({
     primaryColor: wedding.theme.primaryColor,
     accentColor: wedding.theme.accentColor,
     backgroundColor: wedding.theme.backgroundColor,
-  } : null, [wedding])
+  } : null, [
+    wedding?.couple.partner1,
+    wedding?.couple.partner2,
+    wedding?.monogram,
+    wedding?.tagline,
+    wedding?.date,
+    wedding?.venue,
+    wedding?.venueCity,
+    wedding?.venueCountry,
+    wedding?.theme.primaryColor,
+    wedding?.theme.accentColor,
+    wedding?.theme.backgroundColor,
+  ])
 
   return (
     <div className="min-h-screen flex flex-col bg-background" data-personal-invitation={showPersonalInvitation ? '1' : '0'}>
@@ -142,6 +158,7 @@ function WeddingHomeContent({
 
       {showPersonalInvitation && invitationData && invitationCardStyle && (
         <PremiumInvitationExperience
+          key={`${slug}:${invitationCardStyle}`}
           slug={slug}
           data={invitationData}
           style={invitationCardStyle}
