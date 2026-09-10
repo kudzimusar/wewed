@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import {
   createInvitationInstallHandoff,
   InvitationHandoffRateLimitError,
-  isDeferredInvitationHandoffEnabled,
 } from '@/lib/invitation-install-handoff'
 import { readPendingInvitation } from '@/lib/pending-invitation'
 import { resolvePersonalInvitation } from '@/lib/personal-invitation-access'
@@ -42,7 +41,9 @@ async function requestedSource(request: NextRequest): Promise<string> {
 }
 
 export async function POST(request: NextRequest) {
-  if (!isDeferredInvitationHandoffEnabled()) {
+  // Off by default. Enable only after Android versionCode 2+ containing Install
+  // Referrer support is available in the intended Google Play track.
+  if (process.env.ANDROID_DEFERRED_INVITATION_HANDOFF !== '1') {
     return json(
       {
         error: 'deferred_install_unavailable',
