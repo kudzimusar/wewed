@@ -12,6 +12,21 @@ import {
 
 async function expectImportReviewText(dialog: Locator, text: string | RegExp) {
   const mobileCards = dialog.getByTestId('import-review-cards')
+  const tableScroll = dialog.getByTestId('import-review-table-scroll')
+
+  await expect
+    .poll(
+      async () => ({
+        mobile: await mobileCards.isVisible(),
+        table: await tableScroll.isVisible(),
+      }),
+      { message: 'wait for a responsive import review surface to render' },
+    )
+    .toMatchObject({ mobile: true })
+    .catch(async () => {
+      await expect(tableScroll).toBeVisible()
+    })
+
   if (await mobileCards.isVisible()) {
     if (typeof text === 'string') {
       await expect(mobileCards.getByText(text, { exact: true })).toBeVisible()
@@ -21,7 +36,7 @@ async function expectImportReviewText(dialog: Locator, text: string | RegExp) {
     return
   }
 
-  const tableCells = dialog.getByTestId('import-review-table-scroll').getByRole('cell')
+  const tableCells = tableScroll.getByRole('cell')
   if (typeof text === 'string') {
     await expect(tableCells.filter({ hasText: text })).toBeVisible()
   } else {
