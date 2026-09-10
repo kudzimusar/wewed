@@ -95,6 +95,7 @@ export async function POST(request: NextRequest) {
     return json(
       {
         playStoreUrl: handoff.playStoreUrl,
+        appResumePath: handoff.appResumePath,
         expiresAt: handoff.expiresAt.toISOString(),
       },
       201,
@@ -119,7 +120,7 @@ export async function POST(request: NextRequest) {
     return json(
       {
         error: 'handoff_failed',
-        message: 'We could not prepare the secure install handoff. Please try again.',
+        message: 'We could not prepare the secure invitation handoff. Please try again.',
       },
       500,
     )
