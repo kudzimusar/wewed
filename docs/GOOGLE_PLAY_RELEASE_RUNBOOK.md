@@ -18,7 +18,7 @@ Last updated: 10 September 2026.
 - Target SDK: 36
 - Status on 10 September 2026: **country expansion approved and published**. The closed test is active in all 35 targeted regions.
 - Tester access: the existing **Beta Testers** email list is assigned to the track and contains 31 accounts.
-- Production-access progress on 9 September 2026: **1 tester is currently opted in**. Google requires at least 12 opted-in testers to remain in the closed test for at least 14 continuous days before this personal developer account can apply for production access.
+- Production-access progress on 10 September 2026: **1 tester is currently opted in**. Google requires at least 12 opted-in testers to remain in the closed test for at least 14 continuous days before this personal developer account can apply for production access.
 - Android developer verification: **Wewed is registered** with 3 signing keys. The 30 September 2026 registration warning is satisfied for this app.
 - Payments profile notice: Google is offering optional enrollment in the 15% service-fee program; no action is required for the current Wewed closed test.
 
