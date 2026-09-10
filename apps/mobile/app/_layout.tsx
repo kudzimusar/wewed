@@ -22,11 +22,11 @@ export default function RootLayout() {
   }))
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.champagne }}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <SessionProvider>
-            <StatusBar style="dark" backgroundColor={colors.champagne} />
+            <StatusBar style="dark" />
             <Stack
               screenOptions={{
                 headerStyle: { backgroundColor: colors.champagne },
