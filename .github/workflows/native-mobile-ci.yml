@@ -104,7 +104,7 @@ jobs:
           node-version: '22.13.1'
 
       - name: Set up Java 17
-        uses: actions/setup-java@7a445ee88d4e23b52c33bdcf150abe8f8c864c7e
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
         with:
           distribution: temurin
           java-version: '17'
