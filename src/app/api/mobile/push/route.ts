@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     }
     const id = randomUUID()
     const rows = await db.$queryRawUnsafe<Array<{ id: string }>>(
-      `INSERT INTO public."NativePushDevice"
+      `INSERT INTO wewed_mobile."NativePushDevice"
         (id, "userId", platform, "expoPushToken", "deviceId", "appVersion", "buildVersion", "activeWeddingId", enabled, "lastSeenAt", "createdAt", "updatedAt")
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,TRUE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
        ON CONFLICT ("expoPushToken") DO UPDATE SET
@@ -64,7 +64,7 @@ export async function DELETE(request: NextRequest) {
   try {
     const body = z.object({ expoPushToken: z.string().trim().min(16).max(512) }).parse(await request.json())
     const disabled = await db.$executeRawUnsafe(
-      `UPDATE public."NativePushDevice"
+      `UPDATE wewed_mobile."NativePushDevice"
           SET enabled = FALSE, "updatedAt" = CURRENT_TIMESTAMP
         WHERE "userId" = $1 AND "expoPushToken" = $2 AND enabled = TRUE`,
       session.effectiveUserId ?? session.userId,
