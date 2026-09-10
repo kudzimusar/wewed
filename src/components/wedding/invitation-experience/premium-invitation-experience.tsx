@@ -169,6 +169,11 @@ function CentreInvitation({
       <div className={`${compact ? 'my-2 w-10' : 'my-3 w-16'} h-px bg-current opacity-25`} />
       <p className={`${compact ? 'text-[9px]' : 'text-xs sm:text-sm'} font-semibold uppercase tracking-[0.18em]`}>{data.venue}</p>
       {location && <p className={`${compact ? 'mt-1 text-[8px]' : 'mt-2 text-xs'} opacity-60`}>{location}</p>}
+      {data.rsvpDeadline && (
+        <p data-testid="invitation-rsvp-deadline" className={`${compact ? 'mt-2 text-[8px]' : 'mt-3 text-xs'} font-semibold uppercase tracking-[0.14em] opacity-75`}>
+          RSVP by {formatDate(data.rsvpDeadline)}
+        </p>
+      )}
     </div>
   )
 }
@@ -350,6 +355,8 @@ export function PremiumInvitationExperience({
   const [reducedMotion, setReducedMotion] = useState(Boolean(reducedMotionOverride))
   const [resolvedData, setResolvedData] = useState(data)
   const openButtonRef = useRef<HTMLButtonElement | null>(null)
+  const continueButtonRef = useRef<HTMLButtonElement | null>(null)
+  const isOpen = motionState === 'open'
 
   useEffect(() => {
     setResolvedData(data)
@@ -402,7 +409,12 @@ export function PremiumInvitationExperience({
     return () => controller.abort()
   }, [personalizeFromGuestSession, slug])
 
-  const isOpen = motionState === 'open'
+  useEffect(() => {
+    if (!isOpen) return
+    const id = window.setTimeout(() => continueButtonRef.current?.focus(), 0)
+    return () => window.clearTimeout(id)
+  }, [isOpen])
+
   const sceneMaxWidth = previewDevice === 'mobile' ? '390px' : previewDevice === 'desktop' ? '1040px' : '1040px'
   const palette = definition.palette
 
@@ -469,13 +481,14 @@ export function PremiumInvitationExperience({
             />
           )}
 
-          {motionState === 'closed' && (
-            <div className="absolute inset-0 z-40 flex items-end justify-center pb-8 sm:pb-10">
+          {motionState !== 'open' && (
+            <div className={`absolute inset-0 z-40 flex items-end justify-center pb-8 sm:pb-10 ${motionState === 'opening' ? 'sr-only' : ''}`}>
               <Button
                 ref={openButtonRef}
                 type="button"
                 data-testid="invitation-open-button"
                 onClick={openInvitation}
+                aria-disabled={motionState === 'opening'}
                 className="min-h-12 rounded-full border px-6 text-sm font-semibold shadow-2xl backdrop-blur"
                 style={{ background: palette.primary, color: palette.paper, borderColor: palette.accent }}
               >
@@ -493,6 +506,7 @@ export function PremiumInvitationExperience({
         {isOpen && (
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3 text-center">
             <Button
+              ref={continueButtonRef}
               type="button"
               data-testid="invitation-continue-button"
               onClick={continueToDetails}
