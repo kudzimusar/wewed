@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { buildWewedHeaders } from './api'
+import { buildWewedHeaders } from './api-request'
 
 describe('buildWewedHeaders', () => {
   test('adds the native bearer and JSON content type for JSON mutations', () => {

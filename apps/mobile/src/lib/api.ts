@@ -1,5 +1,8 @@
 import Constants from 'expo-constants'
+import { buildWewedHeaders } from '@/lib/api-request'
 import type { ApiErrorPayload } from '@/lib/types'
+
+export { appendNativeFile, type NativeUploadFile } from '@/lib/api-request'
 
 const configuredBase = process.env.EXPO_PUBLIC_WEWED_API_BASE_URL
   ?? (Constants.expoConfig?.extra?.apiBaseUrl as string | undefined)
@@ -24,36 +27,6 @@ export class WewedApiError extends Error {
 interface WewedRequestInit extends Omit<RequestInit, 'headers'> {
   token?: string | null
   headers?: Record<string, string>
-}
-
-export interface NativeUploadFile {
-  uri: string
-  name: string
-  mimeType: string
-}
-
-export function buildWewedHeaders(init: Pick<WewedRequestInit, 'token' | 'headers' | 'body'> = {}): Record<string, string> {
-  const headers: Record<string, string> = {
-    Accept: 'application/json',
-    'x-wewed-client': 'native',
-    ...init.headers,
-  }
-
-  if (init.token) headers.Authorization = `Bearer ${init.token}`
-
-  const hasContentType = Object.keys(headers).some((key) => key.toLowerCase() === 'content-type')
-  const multipartBody = typeof FormData !== 'undefined' && init.body instanceof FormData
-  if (init.body && !multipartBody && !hasContentType) headers['Content-Type'] = 'application/json'
-
-  return headers
-}
-
-export function appendNativeFile(form: FormData, field: string, file: NativeUploadFile): void {
-  form.append(field, {
-    uri: file.uri,
-    name: file.name,
-    type: file.mimeType,
-  } as unknown as Blob)
 }
 
 export async function wewedRequest<T>(path: string, init: WewedRequestInit = {}): Promise<T> {
