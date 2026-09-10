@@ -7,6 +7,7 @@ import {
 } from './support/planner-browser'
 
 const PHYSICAL_INVITATION_CODE = 'CARD100001'
+const RSVP_DEADLINE = new Date('2027-03-01T12:00:00.000Z')
 
 async function enablePersonalInvitationFixture() {
   const prisma = new PrismaClient()
@@ -17,6 +18,7 @@ async function enablePersonalInvitationFixture() {
         privacy: 'link_only',
         invitationCardStyle: 'ivory-floral-gold',
         invitationCardMessage: 'Request the pleasure of your company as we celebrate our marriage.',
+        rsvpDeadline: RSVP_DEADLINE,
       },
     })
   } finally {
@@ -91,12 +93,29 @@ test('personal smart invitation reveals the exact guest without retaining the cr
   await expect(experience).toHaveAttribute('data-invitation-style', 'ivory-floral-gold')
   await expect(experience).toHaveAttribute('data-motion-state', 'closed')
   await expect(experience.getByText(E2E_WEDDINGS.primary.seededGuest, { exact: true })).toBeVisible()
+  await expect(experience.getByTestId('invitation-rsvp-deadline')).toContainText('RSVP by')
 
   await experience.getByTestId('invitation-open-button').click()
   await expect(experience).toHaveAttribute('data-motion-state', 'open', { timeout: 4_000 })
   await expect(experience.getByText('Together with our families', { exact: true })).toBeVisible()
-  await experience.getByTestId('invitation-continue-button').click()
+  const continueButton = experience.getByTestId('invitation-continue-button')
+  await expect(continueButton).toBeFocused()
+  await continueButton.click()
   await expect(page.locator('#wedding-details')).toBeInViewport()
+
+  const invitationPalette = await page.evaluate(() => {
+    const styles = getComputedStyle(document.documentElement)
+    return {
+      gold: styles.getPropertyValue('--color-gold').trim(),
+      clay: styles.getPropertyValue('--color-clay').trim(),
+      champagne: styles.getPropertyValue('--color-champagne').trim(),
+    }
+  })
+  expect(invitationPalette).toEqual({
+    gold: '#b3833f',
+    clay: '#d6b77c',
+    champagne: '#fbf5e9',
+  })
 
   await page.locator('#rsvp').scrollIntoViewIfNeeded()
   await page.getByRole('button', { name: 'Review my RSVP' }).click()
@@ -119,6 +138,7 @@ test('reduced-motion invitation opens from the keyboard without the 3D delay', a
   await expect(openButton).toBeFocused()
   await page.keyboard.press('Enter')
   await expect(experience).toHaveAttribute('data-motion-state', 'open', { timeout: 500 })
+  await expect(experience.getByTestId('invitation-continue-button')).toBeFocused()
   await expect(experience.getByText('Reduced motion preview · invitation opens without 3D movement')).toBeVisible()
 })
 
@@ -133,7 +153,8 @@ test('physical invitation access remains shared and never becomes a personal gue
 
   const guestSession = await page.request.get(`/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`)
   expect(guestSession.status()).toBe(401)
-  await expect(guestSession.json()).resolves.toMatchObject({
+  const guestPayload = await guestSession.json()
+  expect(guestPayload).toMatchObject({
     success: false,
     authorized: false,
   })
