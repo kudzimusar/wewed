@@ -78,6 +78,15 @@ describe('premium digital invitation experience', () => {
     expect(experience).not.toContain('searchParams.get(\'email\')')
   })
 
+  test('pending invitation validation follows the premium registry instead of a legacy three-style allowlist', () => {
+    const pending = source('src/lib/pending-invitation.ts')
+    expect(pending).toContain('INVITATION_CARD_STYLES')
+    expect(pending).toContain('INVITATION_CARD_STYLE_IDS.has(payload.card)')
+    expect(pending).not.toContain("payload.card !== 'botanical'")
+    expect(pending).not.toContain("payload.card !== 'editorial'")
+    expect(pending).not.toContain("payload.card !== 'midnight'")
+  })
+
   test('personal RSVP remains guest-session scoped and physical invitation identity stays separate', () => {
     const premiumRsvp = source(
       'src/components/wedding/invitation-experience/premium-invitation-rsvp-dialog.tsx',
