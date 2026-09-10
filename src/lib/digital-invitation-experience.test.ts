@@ -54,6 +54,18 @@ describe('premium digital invitation experience', () => {
     expect(experience).not.toContain('autoplay')
   })
 
+  test('the physical-card reveal has one semantic invitation and does not leak Ivory styling into other themes', () => {
+    const shell = source(
+      'src/components/wedding/invitation-experience/premium-invitation-experience.tsx',
+    )
+    const experience = source(
+      'src/components/wedding/invitation-experience/ivory-floral-gold-trifold.tsx',
+    )
+    expect(experience).toContain('aria-hidden={!open}')
+    expect(experience).not.toContain('<div className="sr-only">')
+    expect(shell).toContain("style={isIvoryBenchmark ? undefined : { background: palette.primary, color: palette.paper }}")
+  })
+
   test('the engine supports multiple reusable motion families rather than one hard-coded card', () => {
     const motions = new Set(INVITATION_CARD_STYLES.map((style) => style.motion))
     expect(motions.has('tri-fold')).toBe(true)
