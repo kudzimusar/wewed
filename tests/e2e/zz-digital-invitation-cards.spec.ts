@@ -148,6 +148,15 @@ test('couples design, save, export and deliver guest-specific digital invitation
   await page.context().clearCookies()
   await page.goto(guestInvitation.invitationUrl)
   await expect(page).toHaveURL(
+    new RegExp(`/invite/${E2E_WEDDINGS.primary.slug}/open$`),
+  )
+  expect(page.url()).not.toContain(E2E_GUEST_INVITATION.token)
+  expect(page.url()).not.toContain('rsvp=')
+  await expect(
+    page.getByRole('heading', { name: 'Your invitation is ready' }),
+  ).toBeVisible()
+  await page.getByRole('link', { name: 'Open wedding invitation' }).click()
+  await expect(page).toHaveURL(
     new RegExp(`/w/${E2E_WEDDINGS.primary.slug}\\?invitation=1&card=editorial$`),
   )
   expect(page.url()).not.toContain(E2E_GUEST_INVITATION.token)
