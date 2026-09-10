@@ -121,7 +121,7 @@ export default function BookingDetailScreen() {
       ) : (
         <Surface>
           <Text style={styles.sectionTitle}>What happens next</Text>
-          <Body muted>Wewed will surface terms, quote, deposit, vendor action, fulfilment or return steps according to this booking's server-controlled state. Mobile will not label a booking confirmed until the canonical booking record says it is confirmed.</Body>
+          <Body muted>Wewed will surface terms, quote, deposit, vendor action, fulfilment or return steps according to this booking’s server-controlled state. Mobile will not label a booking confirmed until the canonical booking record says it is confirmed.</Body>
         </Surface>
       )}
     </Screen>
