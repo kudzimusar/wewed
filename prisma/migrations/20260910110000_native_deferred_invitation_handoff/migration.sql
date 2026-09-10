@@ -1,8 +1,11 @@
 -- Wewed Phase 2: Native Deferred Invitation Handoff
+-- Server-only ephemeral state belongs outside Prisma's public application schema.
 -- Stores only opaque-token and current-RSVP hashes. No guest name, email, phone,
 -- wedding slug, or raw RSVP credential crosses the Google Play boundary.
 
-CREATE TABLE "InvitationInstallHandoff" (
+CREATE SCHEMA IF NOT EXISTS private;
+
+CREATE TABLE private."InvitationInstallHandoff" (
     "id" TEXT NOT NULL,
     "tokenHash" TEXT NOT NULL,
     "rsvpId" TEXT NOT NULL,
@@ -22,27 +25,27 @@ CREATE TABLE "InvitationInstallHandoff" (
 );
 
 CREATE UNIQUE INDEX "InvitationInstallHandoff_tokenHash_key"
-    ON "InvitationInstallHandoff"("tokenHash");
+    ON private."InvitationInstallHandoff"("tokenHash");
 CREATE INDEX "InvitationInstallHandoff_rsvpId_createdAt_idx"
-    ON "InvitationInstallHandoff"("rsvpId", "createdAt");
+    ON private."InvitationInstallHandoff"("rsvpId", "createdAt");
 CREATE INDEX "InvitationInstallHandoff_expiresAt_idx"
-    ON "InvitationInstallHandoff"("expiresAt");
+    ON private."InvitationInstallHandoff"("expiresAt");
 CREATE INDEX "InvitationInstallHandoff_weddingId_guestId_idx"
-    ON "InvitationInstallHandoff"("weddingId", "guestId");
+    ON private."InvitationInstallHandoff"("weddingId", "guestId");
 CREATE INDEX "InvitationInstallHandoff_usedAt_idx"
-    ON "InvitationInstallHandoff"("usedAt");
+    ON private."InvitationInstallHandoff"("usedAt");
 
-ALTER TABLE "InvitationInstallHandoff"
+ALTER TABLE private."InvitationInstallHandoff"
     ADD CONSTRAINT "InvitationInstallHandoff_rsvpId_fkey"
-    FOREIGN KEY ("rsvpId") REFERENCES "RSVP"("id")
+    FOREIGN KEY ("rsvpId") REFERENCES public."RSVP"("id")
     ON DELETE CASCADE ON UPDATE CASCADE;
 
-ALTER TABLE "InvitationInstallHandoff"
+ALTER TABLE private."InvitationInstallHandoff"
     ADD CONSTRAINT "InvitationInstallHandoff_weddingId_fkey"
-    FOREIGN KEY ("weddingId") REFERENCES "Wedding"("id")
+    FOREIGN KEY ("weddingId") REFERENCES public."Wedding"("id")
     ON DELETE CASCADE ON UPDATE CASCADE;
 
-ALTER TABLE "InvitationInstallHandoff"
+ALTER TABLE private."InvitationInstallHandoff"
     ADD CONSTRAINT "InvitationInstallHandoff_guestId_fkey"
-    FOREIGN KEY ("guestId") REFERENCES "Guest"("id")
+    FOREIGN KEY ("guestId") REFERENCES public."Guest"("id")
     ON DELETE CASCADE ON UPDATE CASCADE;
