@@ -46,6 +46,11 @@ export function RsvpSection() {
   }, [slug])
 
   function openInvitation() {
+    const personalExperience = document.querySelector('[data-personal-invitation="1"]')
+    if (personalExperience) {
+      window.dispatchEvent(new CustomEvent('wewed:open-premium-rsvp'))
+      return
+    }
     const url = new URL(window.location.href)
     url.searchParams.set('invitation', '1')
     url.hash = 'rsvp'

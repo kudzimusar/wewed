@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useWewedStore } from '@/lib/store'
 import { WeddingDataProvider, useWeddingContext } from '@/components/wedding/wedding-data-provider'
 import { Navbar } from '@/components/wedding/navbar'
@@ -34,8 +34,11 @@ import { Footer } from '@/components/wedding/footer'
 import { ContributionGallery } from '@/components/wedding/contribution-gallery'
 import { ThemeApplier } from '@/components/wedding/theme-applier'
 import { InvitationRsvpDialog } from '@/components/wedding/invitation-rsvp-dialog'
+import { PremiumInvitationExperience } from '@/components/wedding/invitation-experience/premium-invitation-experience'
+import { PremiumInvitationRsvpDialog } from '@/components/wedding/invitation-experience/premium-invitation-rsvp-dialog'
 import { PlannerMarketplaceInvitation } from '@/components/marketplace/planner-marketplace-invitation'
 import type { WeddingData } from '@/lib/wedding-data'
+import type { InvitationCardStyle } from '@/lib/digital-invitation-card'
 import type {
   PublicWeddingAccessKind,
   WeddingViewerRole,
@@ -48,15 +51,24 @@ export function WeddingHome({
   accessKind = null,
   viewerRole = null,
   initialData = null,
+  invitationMode = false,
+  invitationCardStyle = null,
 }: {
   slug?: string
   accessKind?: PublicWeddingAccessKind
   viewerRole?: WeddingViewerRole
   initialData?: WeddingData | null
+  invitationMode?: boolean
+  invitationCardStyle?: InvitationCardStyle | null
 }) {
   return (
     <WeddingDataProvider slug={slug} initialData={initialData}>
-      <WeddingHomeContent accessKind={accessKind} viewerRole={viewerRole} />
+      <WeddingHomeContent
+        accessKind={accessKind}
+        viewerRole={viewerRole}
+        invitationMode={invitationMode}
+        invitationCardStyle={invitationCardStyle}
+      />
     </WeddingDataProvider>
   )
 }
@@ -64,9 +76,13 @@ export function WeddingHome({
 function WeddingHomeContent({
   accessKind,
   viewerRole,
+  invitationMode,
+  invitationCardStyle,
 }: {
   accessKind: PublicWeddingAccessKind
   viewerRole: WeddingViewerRole
+  invitationMode: boolean
+  invitationCardStyle: InvitationCardStyle | null
 }) {
   const lifecycle = useWewedStore((state) => state.lifecycle)
   const setLifecycle = useWewedStore((state) => state.setLifecycle)
@@ -98,65 +114,128 @@ function WeddingHomeContent({
   const place = wedding ? [wedding.venue, wedding.venueCity, wedding.venueCountry].filter(Boolean).join(', ') : ''
   const isCoupleOwner = accessKind === 'couple_owner' && viewerRole === 'couple'
   const canContribute = accessKind !== 'public' && accessKind !== null
+  const showPersonalInvitation = Boolean(invitationMode && invitationCardStyle && accessKind === 'invited_guest' && wedding)
+
+  // Derive primitive inputs before memoization so the post-hydration wedding-content
+  // revalidation can replace its object without recreating an equivalent invitation.
+  // That keeps guest-session personalization (guest, message, RSVP deadline) intact.
+  const invitationTitle = wedding ? `${wedding.couple.partner1} & ${wedding.couple.partner2}` : null
+  const invitationMonogram = wedding?.monogram ?? null
+  const invitationTagline = wedding?.tagline ?? null
+  const invitationDate = wedding?.date ?? null
+  const invitationVenue = wedding?.venue ?? null
+  const invitationVenueCity = wedding?.venueCity ?? null
+  const invitationVenueCountry = wedding?.venueCountry ?? null
+  const invitationPrimaryColor = wedding?.theme.primaryColor ?? null
+  const invitationAccentColor = wedding?.theme.accentColor ?? null
+  const invitationBackgroundColor = wedding?.theme.backgroundColor ?? null
+
+  const invitationData = useMemo(() => {
+    if (!invitationTitle || !invitationDate || !invitationVenue || !invitationPrimaryColor || !invitationAccentColor || !invitationBackgroundColor) {
+      return null
+    }
+    return {
+      title: invitationTitle,
+      monogram: invitationMonogram,
+      tagline: invitationTagline,
+      date: invitationDate,
+      venue: invitationVenue,
+      venueCity: invitationVenueCity ?? '',
+      venueCountry: invitationVenueCountry ?? '',
+      guestName: null,
+      message: null,
+      rsvpDeadline: null,
+      primaryColor: invitationPrimaryColor,
+      accentColor: invitationAccentColor,
+      backgroundColor: invitationBackgroundColor,
+    }
+  }, [
+    invitationTitle,
+    invitationMonogram,
+    invitationTagline,
+    invitationDate,
+    invitationVenue,
+    invitationVenueCity,
+    invitationVenueCountry,
+    invitationPrimaryColor,
+    invitationAccentColor,
+    invitationBackgroundColor,
+  ])
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="min-h-screen flex flex-col bg-background" data-personal-invitation={showPersonalInvitation ? '1' : '0'}>
       <div className="wewed-print-header" aria-hidden="true">
         <h1>{names}</h1>
         <p>{date}{place ? ` · ${place}` : ''}</p>
       </div>
-      <Navbar accessKind={accessKind} viewerRole={viewerRole} />
-      <WeddingPlatformNav slug={slug} />
-      <ThemeApplier />
-      <main id="main-content" className="flex-1" data-canonical-template="classic">
-        <HeroSection />
-        {isCoupleOwner && <PlannerMarketplaceInvitation />}
-        {activeLifecycle === 'before' ? (
-          <>
-            <OurStory />
-            <VenueSection />
-            <TheDay />
-            <CountdownBanner />
-            <RsvpSection />
-            <TravelStay />
-            <GiftRegistryCampaignBridge />
-            <SongbookEnhanced />
-            <IntroductionsBanner />
-            <Guests />
-            <VendorMarketplace />
-            <QrCheckin />
-            <PhotoGallery />
-            {canContribute && <MediaUpload />}
-            <MemoryCapsule />
-            <LiveWall canPost={canContribute} />
-            {mounted && <ContributionGallery />}
-            <FaqSection />
-            <ShareSection />
-            <TelegramWidget />
-            <WewedPricingCatalog />
-            <PlatformVision />
-            <MerchTeaser />
-          </>
-        ) : (
-          <>
-            <AfterSections canPost={canContribute} />
-            <PhotoGallery />
-            {canContribute && <MediaUpload />}
-            <LiveWall canPost={canContribute} />
-            {mounted && <ContributionGallery />}
-            <MemoryCapsule />
-            <VendorMarketplace />
-            <GiftRegistryCampaignBridge />
-            <FaqSection />
-            <ShareSection />
-            <TelegramWidget />
-            <WewedPricingCatalog />
-            <PlatformVision />
-            <MerchTeaser />
-          </>
-        )}
-      </main>
-      {mounted && <InvitationRsvpDialog />}
+      <ThemeApplier invitationCardStyle={showPersonalInvitation ? invitationCardStyle : null} />
+
+      {showPersonalInvitation && invitationData && invitationCardStyle && (
+        <PremiumInvitationExperience
+          key={`${slug}:${invitationCardStyle}`}
+          slug={slug}
+          data={invitationData}
+          style={invitationCardStyle}
+          personalizeFromGuestSession
+        />
+      )}
+
+      <div id="wedding-details" className="scroll-mt-4">
+        <Navbar accessKind={accessKind} viewerRole={viewerRole} />
+        <WeddingPlatformNav slug={slug} />
+        <main id="main-content" className="flex-1" data-canonical-template="classic" data-invitation-theme={showPersonalInvitation ? invitationCardStyle ?? undefined : undefined}>
+          <HeroSection />
+          {isCoupleOwner && <PlannerMarketplaceInvitation />}
+          {activeLifecycle === 'before' ? (
+            <>
+              <OurStory />
+              <VenueSection />
+              <TheDay />
+              <CountdownBanner />
+              <RsvpSection />
+              <TravelStay />
+              <GiftRegistryCampaignBridge />
+              <SongbookEnhanced />
+              <IntroductionsBanner />
+              <Guests />
+              <VendorMarketplace />
+              <QrCheckin />
+              <PhotoGallery />
+              {canContribute && <MediaUpload />}
+              <MemoryCapsule />
+              <LiveWall canPost={canContribute} />
+              {mounted && <ContributionGallery />}
+              <FaqSection />
+              <ShareSection />
+              <TelegramWidget />
+              <WewedPricingCatalog />
+              <PlatformVision />
+              <MerchTeaser />
+            </>
+          ) : (
+            <>
+              <AfterSections canPost={canContribute} />
+              <PhotoGallery />
+              {canContribute && <MediaUpload />}
+              <LiveWall canPost={canContribute} />
+              {mounted && <ContributionGallery />}
+              <MemoryCapsule />
+              <VendorMarketplace />
+              <GiftRegistryCampaignBridge />
+              <FaqSection />
+              <ShareSection />
+              <TelegramWidget />
+              <WewedPricingCatalog />
+              <PlatformVision />
+              <MerchTeaser />
+            </>
+          )}
+        </main>
+      </div>
+      {mounted && showPersonalInvitation && invitationCardStyle && (
+        <PremiumInvitationRsvpDialog slug={slug} style={invitationCardStyle} />
+      )}
+      {mounted && !showPersonalInvitation && <InvitationRsvpDialog />}
       <Footer />
       <GlobalWeddingTools accessKind={accessKind} viewerRole={viewerRole} />
       <div className="wewed-print-footer" aria-hidden="true">
