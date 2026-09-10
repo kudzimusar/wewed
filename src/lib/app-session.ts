@@ -9,6 +9,7 @@ export const PLANNER_PORTFOLIO_SESSION_ID = '__wewed_planner_portfolio__'
 export const VENDOR_PORTFOLIO_SESSION_ID = '__wewed_vendor_portfolio__'
 
 export type DashboardRole = 'admin' | 'couple' | 'planner' | 'vendor'
+export type AppSessionSource = 'cookie' | 'bearer' | null
 
 export interface AppSession {
   version: 2
@@ -133,9 +134,30 @@ export function verifyAppSessionToken(token: string): AppSession | null {
   }
 }
 
-export function readAppSession(request: NextRequest): AppSession | null {
+function bearerToken(request: NextRequest): string | null {
+  const authorization = request.headers.get('authorization')?.trim() ?? ''
+  const match = /^Bearer\s+([^\s]+)$/i.exec(authorization)
+  return match?.[1] ?? null
+}
+
+export function readCookieAppSession(request: NextRequest): AppSession | null {
   const token = request.cookies.get(APP_SESSION_COOKIE)?.value
   return token ? verifyAppSessionToken(token) : null
+}
+
+export function readBearerAppSession(request: NextRequest): AppSession | null {
+  const token = bearerToken(request)
+  return token ? verifyAppSessionToken(token) : null
+}
+
+export function readAppSessionSource(request: NextRequest): AppSessionSource {
+  if (readCookieAppSession(request)) return 'cookie'
+  if (readBearerAppSession(request)) return 'bearer'
+  return null
+}
+
+export function readAppSession(request: NextRequest): AppSession | null {
+  return readCookieAppSession(request) ?? readBearerAppSession(request)
 }
 
 export function setAppSessionCookie(

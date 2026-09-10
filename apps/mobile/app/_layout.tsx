@@ -1,0 +1,48 @@
+import 'react-native-gesture-handler'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { Stack } from 'expo-router'
+import { StatusBar } from 'expo-status-bar'
+import React, { useState } from 'react'
+import { GestureHandlerRootView } from 'react-native-gesture-handler'
+import { SafeAreaProvider } from 'react-native-safe-area-context'
+import { SessionProvider } from '@/auth/session'
+import { colors } from '@/theme/tokens'
+
+export default function RootLayout() {
+  const [queryClient] = useState(() => new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: 1,
+        staleTime: 20_000,
+        gcTime: 10 * 60_000,
+        refetchOnReconnect: true,
+      },
+      mutations: { retry: 0 },
+    },
+  }))
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <QueryClientProvider client={queryClient}>
+          <SessionProvider>
+            <StatusBar style="dark" backgroundColor={colors.champagne} />
+            <Stack
+              screenOptions={{
+                headerStyle: { backgroundColor: colors.champagne },
+                headerTintColor: colors.espresso,
+                headerShadowVisible: false,
+                contentStyle: { backgroundColor: colors.champagne },
+              }}
+            >
+              <Stack.Screen name="index" options={{ headerShown: false }} />
+              <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="handoff" options={{ title: 'Open in Wewed', presentation: 'modal' }} />
+            </Stack>
+          </SessionProvider>
+        </QueryClientProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
+  )
+}
