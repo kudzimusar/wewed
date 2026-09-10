@@ -86,8 +86,16 @@ test('public platform, invitation card exchange, API privacy and token rotation 
   const invitationExperience = page.getByTestId('premium-invitation-experience')
   await expect(invitationExperience).toBeVisible()
   await expect(invitationExperience).toHaveAttribute('data-invitation-style', 'botanical')
-  await expect(invitationExperience).toContainText('Aurora')
-  await expect(invitationExperience).toContainText(E2E_WEDDINGS.primary.seededGuest)
+  await expect(invitationExperience).toContainText('Aurora & Blake')
+  await expect(invitationExperience).toContainText('Primary Test Estate')
+
+  const guestSession = await page.request.get(
+    `/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`,
+  )
+  expect(guestSession.status()).toBe(200)
+  expect(await guestSession.json()).toMatchObject({
+    guest: { id: E2E_GUEST_INVITATION.guestId },
+  })
 
   const allowed = await page.request.get(
     `/api/wedding-content?slug=${E2E_WEDDINGS.primary.slug}`,
@@ -125,7 +133,15 @@ test('public platform, invitation card exchange, API privacy and token rotation 
   const rotatedExperience = page.getByTestId('premium-invitation-experience')
   await expect(rotatedExperience).toBeVisible()
   await expect(rotatedExperience).toHaveAttribute('data-invitation-style', 'botanical')
-  await expect(rotatedExperience).toContainText(E2E_WEDDINGS.primary.seededGuest)
+  await expect(rotatedExperience).toContainText('Aurora & Blake')
+
+  const rotatedGuestSession = await page.request.get(
+    `/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`,
+  )
+  expect(rotatedGuestSession.status()).toBe(200)
+  expect(await rotatedGuestSession.json()).toMatchObject({
+    guest: { id: E2E_GUEST_INVITATION.guestId },
+  })
   expect(errors).toEqual([])
 })
 
