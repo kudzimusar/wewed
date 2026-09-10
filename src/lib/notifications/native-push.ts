@@ -30,7 +30,7 @@ async function activeNativeDevices(userId: string): Promise<NativePushDeviceRow[
   try {
     return await db.$queryRawUnsafe<NativePushDeviceRow[]>(
       `SELECT id, "expoPushToken", platform
-         FROM public."NativePushDevice"
+         FROM wewed_mobile."NativePushDevice"
         WHERE "userId" = $1 AND enabled = TRUE
         ORDER BY "lastSeenAt" DESC
         LIMIT $2`,
@@ -49,7 +49,7 @@ async function activeNativeDevices(userId: string): Promise<NativePushDeviceRow[
 
 async function disableNativeDevice(id: string) {
   await db.$executeRawUnsafe(
-    `UPDATE public."NativePushDevice"
+    `UPDATE wewed_mobile."NativePushDevice"
         SET enabled = FALSE, "updatedAt" = CURRENT_TIMESTAMP
       WHERE id = $1`,
     id,
