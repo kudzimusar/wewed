@@ -15,6 +15,9 @@ function relativeRedirect(location: string): NextResponse {
     headers: {
       Location: location,
       'Cache-Control': 'private, no-store, max-age=0',
+      Pragma: 'no-cache',
+      'Referrer-Policy': 'no-referrer',
+      'X-Robots-Tag': 'noindex, nofollow',
       Vary: 'Cookie',
     },
   })
