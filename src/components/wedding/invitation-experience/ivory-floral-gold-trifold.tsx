@@ -229,6 +229,7 @@ export function IvoryFloralGoldTriFold({
 
         <section
           data-testid="invitation-panel-centre"
+          aria-hidden={!open}
           className="absolute inset-[3.2%] overflow-hidden rounded-[.9rem] border border-[#d4bc8c]/55 bg-[#fbf5e9]"
           style={{
             transform: open ? 'translateZ(0)' : 'translateZ(-6px)',
@@ -313,17 +314,6 @@ export function IvoryFloralGoldTriFold({
             </span>
           </button>
         )}
-
-        <div className="sr-only">
-          <p>Together with our families</p>
-          <p>{data.title}</p>
-          <p>{data.message || 'Request the pleasure of your company as we celebrate our marriage.'}</p>
-          <p>{formatDate(data.date)}</p>
-          <p>{data.venue}</p>
-          {[data.venueCity, data.venueCountry].filter(Boolean).length > 0 && (
-            <p>{[data.venueCity, data.venueCountry].filter(Boolean).join(', ')}</p>
-          )}
-        </div>
       </div>
     </div>
   )
