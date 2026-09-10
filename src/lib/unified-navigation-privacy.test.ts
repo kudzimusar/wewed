@@ -61,7 +61,7 @@ describe('unified Wewed navigation and wedding privacy', () => {
     expect(invitations).toContain('buildSmartInvitationUrl')
     expect(invitations).toContain('weddingSlug: wedding.slug')
     expect(invitations).toContain('token: guest.rsvp.token')
-    expect(smartLinks).toContain('`/invite/${encodeURIComponent(input.weddingSlug)}?${query.toString()}`')
+    expect(smartLinks).toContain('`${origin}/invite/${encodeURIComponent(weddingSlug)}?${query.toString()}`')
     expect(invitations).toContain('guest.invitation_rotated')
     expect(legacySharedToken).toContain('legacy_shared_token_retired')
     expect(legacySharedToken).toContain('status: 410')
