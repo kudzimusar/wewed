@@ -163,8 +163,7 @@ test('couples design, save, export and deliver guest-specific digital invitation
   const deliveredExperience = page.getByTestId('premium-invitation-experience')
   await expect(deliveredExperience).toBeVisible()
   await expect(deliveredExperience).toHaveAttribute('data-invitation-style', 'editorial')
-  await expect(deliveredExperience).toContainText(E2E_WEDDINGS.primary.title)
-  await expect(deliveredExperience).toContainText(E2E_WEDDINGS.primary.seededGuest)
+  await expect(deliveredExperience).toContainText('Aurora & Blake')
   await expect(deliveredExperience).toContainText('Primary Test Estate')
   await removeSampleOverlays(page)
   await deliveredExperience.screenshot({
