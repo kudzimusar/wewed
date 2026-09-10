@@ -28,11 +28,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
           { scheme: 'https', host: 'wewed.pro', pathPrefix: '/app' },
           { scheme: 'https', host: 'wewed.pro', pathPrefix: '/invite' },
           { scheme: 'https', host: 'wewed.pro', pathPrefix: '/vendor' },
+          { scheme: 'https', host: 'wewed.pro', pathPrefix: '/vendors' },
           { scheme: 'https', host: 'wewed.pro', pathPrefix: '/booking' },
+          { scheme: 'https', host: 'wewed.pro', pathPrefix: '/bookings' },
           { scheme: 'https', host: 'wewed.pro', pathPrefix: '/planner' },
           { scheme: 'https', host: 'wewed.pro', pathPrefix: '/messages' },
           { scheme: 'https', host: 'wewed.pro', pathPrefix: '/wedding' },
           { scheme: 'https', host: 'wewed.pro', pathPrefix: '/contribute' },
+          { scheme: 'https', host: 'wewed.pro', pathPrefix: '/contracts' },
         ],
       },
     ],
@@ -58,5 +61,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   extra: {
     apiBaseUrl: process.env.EXPO_PUBLIC_WEWED_API_BASE_URL ?? 'https://wewed.pro',
     buildStamp: 'WW-NATIVE-MOBILE-2026-09-10-01',
+    eas: {
+      projectId: process.env.EXPO_PROJECT_ID ?? '',
+    },
   },
 })
