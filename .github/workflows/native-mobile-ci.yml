@@ -8,6 +8,8 @@ on:
       - 'apps/mobile/**'
       - 'src/lib/app-session.ts'
       - 'src/app/api/auth/**'
+      - 'src/app/api/mobile/**'
+      - 'prisma/migrations/20260910053500_native_push_devices/**'
       - '.github/workflows/native-mobile-ci.yml'
       - 'docs/WEWED_NATIVE_MOBILE_COMPLETION_RELEASE_PLAN.md'
   pull_request:
@@ -17,6 +19,8 @@ on:
       - 'apps/mobile/**'
       - 'src/lib/app-session.ts'
       - 'src/app/api/auth/**'
+      - 'src/app/api/mobile/**'
+      - 'prisma/migrations/20260910053500_native_push_devices/**'
       - '.github/workflows/native-mobile-ci.yml'
   workflow_dispatch:
 
@@ -29,7 +33,7 @@ concurrency:
 
 jobs:
   static-and-bundle:
-    name: Expo dependency, type, lint and Android bundle gate
+    name: Expo dependency, unit, type, lint and Android bundle gate
     runs-on: ubuntu-latest
     timeout-minutes: 25
     defaults:
@@ -63,6 +67,9 @@ jobs:
 
       - name: Run Expo Doctor
         run: bunx expo-doctor@latest
+
+      - name: Run native unit tests
+        run: bun run test:unit
 
       - name: Typecheck native app
         run: bun run typecheck
