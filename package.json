@@ -16,7 +16,11 @@
     "db:import:sqlite": "bun scripts/migrate-sqlite-to-postgres.ts",
     "planner:integrity": "bun scripts/planner-integrity-snapshot.ts",
     "ai:test": "bun scripts/test-ai-providers.ts",
-    "ai:unit": "bun test src/lib/ai/workspace-store.test.ts src/lib/ai/chat-contract.test.ts src/lib/ai/remediation.test.ts src/lib/ai/provider-clients.test.ts src/lib/ai/task-due-state.test.ts src/lib/ai/assistant-ui-regressions.test.ts"
+    "ai:unit": "bun test src/lib/ai/workspace-store.test.ts src/lib/ai/chat-contract.test.ts src/lib/ai/remediation.test.ts src/lib/ai/provider-clients.test.ts src/lib/ai/task-due-state.test.ts src/lib/ai/assistant-ui-regressions.test.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:planner": "playwright test tests/e2e/planner*.spec.ts",
+    "test:e2e:planner:desktop": "playwright test tests/e2e/planner*.spec.ts --project=desktop-chromium",
+    "test:e2e:planner:mobile": "playwright test tests/e2e/planner*.spec.ts --project=planner-mobile-390x844"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -95,6 +99,7 @@
     "zustand": "^5.0.6"
   },
   "devDependencies": {
+    "@playwright/test": "1.55.0",
     "@tailwindcss/postcss": "^4",
     "@types/papaparse": "^5.5.2",
     "@types/qrcode": "^1.5.6",
