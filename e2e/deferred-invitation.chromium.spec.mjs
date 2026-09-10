@@ -148,6 +148,14 @@ function handoffFromResumePath(appResumePath) {
   return handoff
 }
 
+function createGate() {
+  let release
+  const promise = new Promise((resolve) => {
+    release = resolve
+  })
+  return { promise, release }
+}
+
 async function requestHandoff(context, source) {
   const response = await context.request.post(
     `${BASE_URL}/api/invitations/install-handoff`,
@@ -275,9 +283,10 @@ for (const client of MOBILE_CLIENTS) {
     let handoffRequests = 0
     let playStoreUrl = null
 
+    const handoffRequestGate = createGate()
     await page.route('**/api/invitations/install-handoff', async (route) => {
       handoffRequests += 1
-      await new Promise((resolve) => setTimeout(resolve, 300))
+      await handoffRequestGate.promise
       await route.continue()
     })
     await page.route('https://play.google.com/**', async (route) => {
@@ -303,8 +312,10 @@ for (const client of MOBILE_CLIENTS) {
     ).toBeVisible()
 
     await installButton.evaluate((element) => element.click())
-    await expect(installButton).toHaveAttribute('aria-busy', 'true')
-    await installButton.evaluate((element) => element.click())
+    const busyInstallButton = page.locator('button[aria-busy="true"]')
+    await expect(busyInstallButton).toBeVisible()
+    await busyInstallButton.evaluate((element) => element.click())
+    handoffRequestGate.release()
 
     await expect.poll(() => handoffRequests, { timeout: 5_000 }).toBe(1)
     await expect.poll(() => playStoreUrl, { timeout: 10_000 }).not.toBeNull()
@@ -390,16 +401,20 @@ test('Chromium mobile: isolated-browser installed-app recovery creates only an o
 
   let apiPayload = null
   let handoffRequests = 0
+  const handoffRequestGate = createGate()
   await page.route('**/api/invitations/install-handoff', async (route) => {
     handoffRequests += 1
+    await handoffRequestGate.promise
     const response = await route.fetch()
     apiPayload = await response.json()
     await route.fulfill({ response })
   })
 
   await openButton.evaluate((element) => element.click())
-  await expect(openButton).toHaveAttribute('aria-busy', 'true')
-  await openButton.evaluate((element) => element.click())
+  const busyOpenButton = page.locator('button[aria-busy="true"]')
+  await expect(busyOpenButton).toBeVisible()
+  await busyOpenButton.evaluate((element) => element.click())
+  handoffRequestGate.release()
   await expect.poll(() => handoffRequests, { timeout: 5_000 }).toBe(1)
   await expect.poll(() => apiPayload, { timeout: 5_000 }).not.toBeNull()
 
