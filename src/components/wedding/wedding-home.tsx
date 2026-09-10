@@ -138,7 +138,7 @@ function WeddingHomeContent({
         <h1>{names}</h1>
         <p>{date}{place ? ` · ${place}` : ''}</p>
       </div>
-      <ThemeApplier />
+      <ThemeApplier invitationCardStyle={showPersonalInvitation ? invitationCardStyle : null} />
 
       {showPersonalInvitation && invitationData && invitationCardStyle && (
         <PremiumInvitationExperience
