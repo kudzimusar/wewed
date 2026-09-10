@@ -18,7 +18,7 @@ function canonicalize(input: string) {
   const normalized = fromCustomScheme(input)
   const url = new URL(normalized, 'https://wewed.pro')
   if (url.hostname !== 'wewed.pro' && url.hostname !== 'www.wewed.pro') {
-    return new URL(`https://wewed.pro${url.pathname}${url.search}${url.hash}`)
+    return new URL('https://wewed.pro/app')
   }
   url.protocol = 'https:'
   url.hostname = 'wewed.pro'
