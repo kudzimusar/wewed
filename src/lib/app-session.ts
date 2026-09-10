@@ -140,6 +140,14 @@ function bearerToken(request: NextRequest): string | null {
   return match?.[1] ?? null
 }
 
+export function readAppSessionToken(request: NextRequest): string | null {
+  const cookieToken = request.cookies.get(APP_SESSION_COOKIE)?.value ?? null
+  if (cookieToken && verifyAppSessionToken(cookieToken)) return cookieToken
+
+  const token = bearerToken(request)
+  return token && verifyAppSessionToken(token) ? token : null
+}
+
 export function readCookieAppSession(request: NextRequest): AppSession | null {
   const token = request.cookies.get(APP_SESSION_COOKIE)?.value
   return token ? verifyAppSessionToken(token) : null

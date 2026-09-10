@@ -3,7 +3,7 @@ import 'server-only'
 import type { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import {
-  APP_SESSION_COOKIE,
+  readAppSessionToken,
   verifyAppSessionToken,
   type AppSession,
 } from '@/lib/app-session'
@@ -347,7 +347,7 @@ export async function resolveWeddingAccessForRequest(
 ): Promise<WeddingAccessResolution> {
   return resolveWeddingAccessFromTokens({
     slug,
-    appSessionToken: request.cookies.get(APP_SESSION_COOKIE)?.value ?? null,
+    appSessionToken: readAppSessionToken(request),
     guestSessionToken:
       request.cookies.get(WEDDING_GUEST_SESSION_COOKIE)?.value ?? null,
     sharedInvitationSessionToken:

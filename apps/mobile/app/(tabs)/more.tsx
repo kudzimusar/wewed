@@ -97,6 +97,7 @@ export default function MoreScreen() {
         {role !== 'vendor' ? <ActionButton label="Planning workspace" variant="secondary" onPress={() => router.push('/(tabs)/plan')} /> : null}
         <ActionButton label="Wewed Messages" variant="secondary" onPress={() => router.push('/(tabs)/messages')} />
         <ActionButton label="Vendor marketplace" variant="secondary" onPress={() => router.push('/(tabs)/marketplace')} />
+        {session.activeWedding && (role === 'couple' || role === 'planner') ? <ActionButton label="Media & documents" variant="secondary" onPress={() => router.push('/media')} /> : null}
         {session.activeWedding && role !== 'vendor' ? <ActionButton label="Governed bookings" variant="secondary" onPress={() => router.push('/bookings')} /> : null}
         {session.activeWedding && role !== 'vendor' ? <ActionButton label="Wewed AI Planner Copilot" variant="secondary" onPress={() => router.push('/ai')} /> : null}
         {role === 'vendor' ? <ActionButton label="Native Vendor Hub" variant="secondary" onPress={() => router.push('/vendor')} /> : null}
