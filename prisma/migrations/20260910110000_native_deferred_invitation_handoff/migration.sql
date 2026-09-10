@@ -34,6 +34,8 @@ CREATE INDEX "InvitationInstallHandoff_weddingId_guestId_idx"
     ON private."InvitationInstallHandoff"("weddingId", "guestId");
 CREATE INDEX "InvitationInstallHandoff_usedAt_idx"
     ON private."InvitationInstallHandoff"("usedAt");
+CREATE INDEX "InvitationInstallHandoff_revokedAt_idx"
+    ON private."InvitationInstallHandoff"("revokedAt");
 
 ALTER TABLE private."InvitationInstallHandoff"
     ADD CONSTRAINT "InvitationInstallHandoff_rsvpId_fkey"
@@ -49,3 +51,24 @@ ALTER TABLE private."InvitationInstallHandoff"
     ADD CONSTRAINT "InvitationInstallHandoff_guestId_fkey"
     FOREIGN KEY ("guestId") REFERENCES public."Guest"("id")
     ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- Opportunistically purge terminal ephemeral records. This avoids requiring a
+-- separate scheduler while ensuring every active installation stream performs
+-- bounded retention maintenance using indexed timestamp columns.
+CREATE OR REPLACE FUNCTION private.cleanup_invitation_install_handoffs()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    DELETE FROM private."InvitationInstallHandoff"
+    WHERE "expiresAt" < NOW() - INTERVAL '7 days'
+       OR ("usedAt" IS NOT NULL AND "usedAt" < NOW() - INTERVAL '7 days')
+       OR ("revokedAt" IS NOT NULL AND "revokedAt" < NOW() - INTERVAL '7 days');
+    RETURN NULL;
+END;
+$$;
+
+CREATE TRIGGER "InvitationInstallHandoff_cleanup_trigger"
+AFTER INSERT ON private."InvitationInstallHandoff"
+FOR EACH STATEMENT
+EXECUTE FUNCTION private.cleanup_invitation_install_handoffs();
