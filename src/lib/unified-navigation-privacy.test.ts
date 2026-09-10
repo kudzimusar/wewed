@@ -40,7 +40,7 @@ describe('unified Wewed navigation and wedding privacy', () => {
       'src/app/api/weddings/[slug]/guest-session/exchange/route.ts',
     )
     const invitations = await source('src/app/api/planner/guests/invitations/route.ts')
-    const cardContract = await source('src/lib/digital-invitation-card.ts')
+    const smartLinks = await source('src/lib/invitation-links.ts')
     const legacySharedToken = await source('src/app/api/privacy/verify-token/route.ts')
 
     expect(session).toContain("WEDDING_GUEST_SESSION_COOKIE = 'wewed_wedding_guest'")
@@ -58,8 +58,10 @@ describe('unified Wewed navigation and wedding privacy', () => {
     expect(exchange).toContain("new URLSearchParams({ invitation: '1', card: requestedStyle })")
     expect(exchange).toContain('`/w/${encodeURIComponent(slug)}?${query.toString()}`')
     expect(exchange).toContain('normalizeInvitationCardStyle')
-    expect(invitations).toContain('buildDigitalInvitationUrl')
-    expect(cardContract).toContain('`${origin}/w/${encodeURIComponent(weddingSlug)}?${query.toString()}`')
+    expect(invitations).toContain('buildSmartInvitationUrl')
+    expect(invitations).toContain('weddingSlug: wedding.slug')
+    expect(invitations).toContain('token: guest.rsvp.token')
+    expect(smartLinks).toContain('`/invite/${encodeURIComponent(input.weddingSlug)}?${query.toString()}`')
     expect(invitations).toContain('guest.invitation_rotated')
     expect(legacySharedToken).toContain('legacy_shared_token_retired')
     expect(legacySharedToken).toContain('status: 410')
