@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, RotateCcw, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { DigitalInvitationCardData } from '@/components/wedding/digital-invitation-card'
+import { IvoryFloralGoldTriFold } from '@/components/wedding/invitation-experience/ivory-floral-gold-trifold'
 import {
   getInvitationCardStyleDefinition,
   type InvitationCardStyle,
@@ -178,92 +179,6 @@ function CentreInvitation({
   )
 }
 
-function IvoryFloralTriFold({
-  data,
-  open,
-  reducedMotion,
-}: {
-  data: DigitalInvitationCardData
-  open: boolean
-  reducedMotion: boolean
-}) {
-  const duration = reducedMotion ? '0ms' : '1350ms'
-  const flagship = data.title.toLowerCase().includes('charity') && data.title.toLowerCase().includes('kudzie')
-  const panelStyle = {
-    background: 'linear-gradient(145deg,#fffaf0 0%,#f7eddb 52%,#fffaf1 100%)',
-    borderColor: '#c7a26988',
-  }
-  return (
-    <div data-testid="invitation-trifold" className="relative mx-auto aspect-[1.43/1] w-full max-w-[980px] [perspective:1800px]">
-      <div className="absolute inset-0 grid grid-cols-3 drop-shadow-[0_22px_34px_rgba(15,10,5,.25)] [transform-style:preserve-3d]">
-        <section
-          data-testid="invitation-panel-left"
-          className="relative z-20 overflow-hidden border bg-[#fbf5e9] p-3 text-center [transform-origin:100%_50%] [transform-style:preserve-3d] sm:p-5"
-          style={{
-            ...panelStyle,
-            color: '#4d4035',
-            transform: open ? 'rotateY(0deg)' : 'rotateY(168deg)',
-            transition: `transform ${duration} cubic-bezier(.2,.75,.2,1), filter ${duration}`,
-            filter: open ? 'brightness(1)' : 'brightness(.72)',
-          }}
-        >
-          <CornerBotanical color="#ad7d3b" side="left" />
-          <div className="relative z-10 flex h-full flex-col items-center justify-center">
-            <p className="text-[7px] font-semibold uppercase tracking-[0.25em] text-[#8e6a37] sm:text-[10px]">Our journey</p>
-            <div className="my-3 h-px w-10 bg-[#b78a4a]/45" />
-            {flagship ? (
-              <>
-                <p className="font-serif text-[9px] sm:text-sm">Psalm 126:3</p>
-                <p className="mt-2 max-w-[13rem] font-serif text-[9px] italic leading-4 sm:text-sm sm:leading-6">The Lord has done great things for us, we are filled with joy.</p>
-              </>
-            ) : (
-              <p className="max-w-[13rem] font-serif text-[9px] italic leading-4 sm:text-sm sm:leading-6">With gratitude for every step that has brought us to this day.</p>
-            )}
-            <p className="mt-4 max-w-[14rem] text-[8px] leading-4 opacity-65 sm:text-xs sm:leading-5">We are grateful for the love, support and encouragement surrounding our celebration.</p>
-          </div>
-        </section>
-
-        <section
-          data-testid="invitation-panel-centre"
-          className="relative z-10 overflow-hidden border-y bg-[#fbf5e9] text-[#463a31]"
-          style={{ ...panelStyle, boxShadow: open ? '0 0 42px rgba(212,175,103,.28)' : 'none', transition: `box-shadow ${duration}` }}
-        >
-          <div aria-hidden="true" className="absolute -left-12 -top-14 size-32 rounded-full border-[12px] border-[#d2b781]/18 sm:size-48" />
-          <div aria-hidden="true" className="absolute -bottom-16 -right-16 size-40 rounded-full border-[16px] border-[#d2b781]/16 sm:size-56" />
-          <CentreInvitation data={data} />
-        </section>
-
-        <section
-          data-testid="invitation-panel-right"
-          className="relative z-20 overflow-hidden border bg-[#fbf5e9] p-3 text-center [transform-origin:0%_50%] [transform-style:preserve-3d] sm:p-5"
-          style={{
-            ...panelStyle,
-            color: '#4d4035',
-            transform: open ? 'rotateY(0deg)' : 'rotateY(-168deg)',
-            transition: `transform ${duration} cubic-bezier(.2,.75,.2,1), filter ${duration}`,
-            filter: open ? 'brightness(1)' : 'brightness(.72)',
-          }}
-        >
-          <CornerBotanical color="#ad7d3b" side="right" />
-          <div className="relative z-10 flex h-full flex-col items-center justify-center">
-            <p className="text-[7px] font-semibold uppercase tracking-[0.22em] text-[#8e6a37] sm:text-[10px]">A brighter tomorrow</p>
-            <div className="my-3 h-px w-10 bg-[#b78a4a]/45" />
-            {flagship ? (
-              <>
-                <p className="font-serif text-[9px] sm:text-sm">Ephesians 5:31</p>
-                <p className="mt-2 max-w-[13rem] font-serif text-[9px] italic leading-4 sm:text-sm sm:leading-6">The two shall become One flesh.</p>
-              </>
-            ) : (
-              <p className="max-w-[13rem] font-serif text-[9px] italic leading-4 sm:text-sm sm:leading-6">A new chapter, written together with love and purpose.</p>
-            )}
-            <p className="mt-4 max-w-[14rem] text-[8px] leading-4 opacity-65 sm:text-xs sm:leading-5">Your presence makes this moment even more meaningful. Thank you for being part of our story.</p>
-          </div>
-        </section>
-      </div>
-    </div>
-  )
-}
-
 function GenericMotionCard({
   data,
   motion,
@@ -357,6 +272,7 @@ export function PremiumInvitationExperience({
   const openButtonRef = useRef<HTMLButtonElement | null>(null)
   const continueButtonRef = useRef<HTMLButtonElement | null>(null)
   const isOpen = motionState === 'open'
+  const isIvoryBenchmark = style === 'ivory-floral-gold'
 
   useEffect(() => {
     setResolvedData(data)
@@ -415,15 +331,19 @@ export function PremiumInvitationExperience({
     return () => window.clearTimeout(id)
   }, [isOpen])
 
-  const sceneMaxWidth = previewDevice === 'mobile' ? '390px' : previewDevice === 'desktop' ? '1040px' : '1040px'
+  const sceneMaxWidth = isIvoryBenchmark
+    ? previewDevice === 'mobile' ? '390px' : '520px'
+    : previewDevice === 'mobile' ? '390px' : previewDevice === 'desktop' ? '1040px' : '1040px'
   const palette = definition.palette
 
   const stageStyle = useMemo(
     () => ({
-      background: `radial-gradient(circle at 50% 35%, ${palette.primary}24, transparent 38%), ${palette.stage}`,
+      background: isIvoryBenchmark
+        ? 'radial-gradient(circle at 50% 30%, #fffaf1 0%, #ede0ce 52%, #d7c4aa 100%)'
+        : `radial-gradient(circle at 50% 35%, ${palette.primary}24, transparent 38%), ${palette.stage}`,
       color: palette.ink,
     }),
-    [palette],
+    [isIvoryBenchmark, palette],
   )
 
   function openInvitation() {
@@ -433,12 +353,19 @@ export function PremiumInvitationExperience({
       return
     }
     setMotionState('opening')
-    window.setTimeout(() => setMotionState('open'), definition.motion === 'tri-fold' ? 1400 : 1150)
+    window.setTimeout(() => setMotionState('open'), definition.motion === 'tri-fold' ? 1500 : 1150)
   }
 
   function replay() {
     setMotionState('closed')
-    window.setTimeout(() => openButtonRef.current?.focus(), 30)
+    window.setTimeout(() => {
+      if (openButtonRef.current) {
+        openButtonRef.current.focus()
+        return
+      }
+      const invitationButton = document.querySelector<HTMLButtonElement>('[data-testid="invitation-open-button"]')
+      invitationButton?.focus()
+    }, 30)
   }
 
   function continueToDetails() {
@@ -455,19 +382,26 @@ export function PremiumInvitationExperience({
       data-invitation-style={style}
       data-motion={definition.motion}
       data-motion-state={motionState}
-      className="relative isolate flex min-h-[min(860px,92svh)] w-full items-center justify-center overflow-hidden px-3 py-8 sm:px-6 sm:py-12"
+      className="relative isolate flex min-h-[min(900px,96svh)] w-full items-center justify-center overflow-hidden px-3 py-6 sm:px-6 sm:py-10"
       style={stageStyle}
       aria-label={`${definition.name} digital wedding invitation`}
     >
       <Atmosphere atmosphere={definition.atmosphere} primary={palette.primary} accent={palette.accent} open={motionState !== 'closed'} />
       <div className="relative z-10 mx-auto w-full" style={{ maxWidth: sceneMaxWidth }}>
-        <div className="mb-5 text-center text-[9px] font-semibold uppercase tracking-[0.28em] text-white/60 sm:text-[10px]">
-          Wewed · Private wedding invitation
-        </div>
+        {!isIvoryBenchmark && (
+          <div className="mb-5 text-center text-[9px] font-semibold uppercase tracking-[0.28em] text-white/60 sm:text-[10px]">
+            Wewed · Private wedding invitation
+          </div>
+        )}
 
         <div className="relative mx-auto w-full" style={{ color: palette.ink }}>
-          {style === 'ivory-floral-gold' ? (
-            <IvoryFloralTriFold data={resolvedData} open={motionState !== 'closed'} reducedMotion={reducedMotion} />
+          {isIvoryBenchmark ? (
+            <IvoryFloralGoldTriFold
+              data={resolvedData}
+              open={motionState !== 'closed'}
+              reducedMotion={reducedMotion}
+              onOpen={openInvitation}
+            />
           ) : (
             <GenericMotionCard
               data={resolvedData}
@@ -481,7 +415,7 @@ export function PremiumInvitationExperience({
             />
           )}
 
-          {motionState !== 'open' && (
+          {!isIvoryBenchmark && motionState !== 'open' && (
             <div className={`absolute inset-0 z-40 flex items-end justify-center pb-8 sm:pb-10 ${motionState === 'opening' ? 'sr-only' : ''}`}>
               <Button
                 ref={openButtonRef}
@@ -504,20 +438,26 @@ export function PremiumInvitationExperience({
         </div>
 
         {isOpen && (
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-3 text-center">
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-3 text-center">
             <Button
               ref={continueButtonRef}
               type="button"
               data-testid="invitation-continue-button"
               onClick={continueToDetails}
-              className="min-h-11 rounded-full px-6"
-              style={{ background: palette.primary, color: palette.paper }}
+              className="min-h-11 rounded-full border border-[#b38a49]/55 bg-[#9a6d28] px-6 text-[#fffaf0] shadow-lg hover:bg-[#80591f]"
             >
               Continue to wedding details
               <ChevronDown className="size-4" aria-hidden="true" />
             </Button>
             {previewMode && (
-              <Button type="button" variant="outline" onClick={replay} className="min-h-11 rounded-full border-white/30 bg-white/10 px-5 text-white hover:bg-white/20 hover:text-white">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={replay}
+                className={isIvoryBenchmark
+                  ? 'min-h-11 rounded-full border-[#8d714f]/35 bg-white/55 px-5 text-[#624b36] hover:bg-white/75 hover:text-[#493627]'
+                  : 'min-h-11 rounded-full border-white/30 bg-white/10 px-5 text-white hover:bg-white/20 hover:text-white'}
+              >
                 <RotateCcw className="size-4" aria-hidden="true" />
                 Replay opening
               </Button>
@@ -525,7 +465,7 @@ export function PremiumInvitationExperience({
           </div>
         )}
 
-        <div className="mt-4 text-center text-[10px] text-white/50">
+        <div className={`mt-4 text-center text-[10px] ${isIvoryBenchmark ? 'text-[#69543f]/70' : 'text-white/50'}`}>
           {reducedMotion ? 'Reduced motion preview · invitation opens without 3D movement' : `${definition.name} · ${formatShortDate(resolvedData.date)}`}
         </div>
       </div>
