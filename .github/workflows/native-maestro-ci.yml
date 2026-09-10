@@ -7,6 +7,7 @@ on:
     paths:
       - 'apps/mobile/**'
       - '.maestro/**'
+      - '.github/scripts/run-native-maestro-android.sh'
       - 'src/app/api/mobile/auth/**'
       - 'src/lib/e2e-environment*'
       - 'tests/e2e/support/planner-fixture.ts'
@@ -17,6 +18,7 @@ on:
     paths:
       - 'apps/mobile/**'
       - '.maestro/**'
+      - '.github/scripts/run-native-maestro-android.sh'
       - 'src/app/api/mobile/auth/**'
       - 'src/lib/e2e-environment*'
       - 'tests/e2e/support/planner-fixture.ts'
@@ -159,38 +161,7 @@ jobs:
           profile: pixel_7_pro
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: |
-            set -eu
-            adb install -r apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
-            adb reverse tcp:3000 tcp:3000
-            adb reverse tcp:8081 tcp:8081
-
-            (
-              cd apps/mobile
-              bunx expo start --localhost --clear > /tmp/wewed-maestro-metro.log 2>&1
-            ) &
-            echo $! > /tmp/wewed-maestro-metro.pid
-
-            for attempt in $(seq 1 90); do
-              if curl -fsS http://127.0.0.1:8081/status | grep -q 'packager-status:running'; then
-                break
-              fi
-              if [ "$attempt" -eq 90 ]; then
-                echo 'Metro did not become ready.'
-                cat /tmp/wewed-maestro-metro.log || true
-                exit 1
-              fi
-              sleep 1
-            done
-
-            maestro test .maestro/native-public-smoke.yaml
-            maestro test \
-              -e WEWED_MAESTRO_EMAIL="$WEWED_MAESTRO_EMAIL" \
-              -e WEWED_MAESTRO_PASSWORD="$WEWED_MAESTRO_PASSWORD" \
-              .maestro/native-authenticated-smoke.yaml
-
-            adb shell am start -W -a android.intent.action.VIEW -d 'wewed://messages' pro.wewed.app
-            adb shell am start -W -a android.intent.action.VIEW -d 'https://wewed.pro/messages' pro.wewed.app
+          script: bash .github/scripts/run-native-maestro-android.sh
 
       - name: Upload Maestro diagnostics
         if: failure()
