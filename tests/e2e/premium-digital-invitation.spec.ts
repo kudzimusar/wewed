@@ -107,7 +107,16 @@ test('personal smart invitation reveals the exact guest without retaining the cr
   await expect(experience).toBeVisible()
   await expect(experience).toHaveAttribute('data-invitation-style', 'ivory-floral-gold')
   await expect(experience).toHaveAttribute('data-motion-state', 'closed')
-  await expect(experience.getByText(E2E_WEDDINGS.primary.seededGuest, { exact: true })).toBeVisible()
+  await expect(experience).toContainText('Aurora & Blake')
+  await expect(experience).toContainText('Primary Test Estate')
+
+  const guestSession = await page.request.get(`/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`)
+  expect(guestSession.status()).toBe(200)
+  const guestPayload = await guestSession.json()
+  expect(guestPayload).toMatchObject({
+    guest: { name: E2E_WEDDINGS.primary.seededGuest },
+  })
+
   await expect(experience.getByTestId('invitation-rsvp-deadline')).toContainText('RSVP by')
 
   await experience.getByTestId('invitation-open-button').click()
