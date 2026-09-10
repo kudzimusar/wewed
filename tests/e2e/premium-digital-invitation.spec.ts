@@ -9,6 +9,14 @@ import {
 const PHYSICAL_INVITATION_CODE = 'CARD100001'
 const RSVP_DEADLINE = new Date('2027-03-01T12:00:00.000Z')
 
+async function openInvitationInBrowser(page: import('@playwright/test').Page) {
+  const browserLink = page.getByRole('link', {
+    name: /^(Open wedding invitation|Continue to invitation in browser)$/,
+  })
+  await expect(browserLink).toBeVisible()
+  await browserLink.click()
+}
+
 async function enablePersonalInvitationFixture() {
   const prisma = new PrismaClient()
   try {
@@ -51,6 +59,13 @@ async function enablePhysicalInvitationFixture() {
 }
 
 test('Planner Card Studio provides a compact premium library and one interactive preview', async ({ plannerPage: page }) => {
+  const toolsDisclosure = page.locator('[data-planner-tools-disclosure]')
+  await expect(toolsDisclosure).toBeVisible()
+  await toolsDisclosure.click()
+  await expect(toolsDisclosure).toHaveAttribute('aria-expanded', 'true')
+  await page.getByRole('button', { name: 'Invitations & QR', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Invitations & secure QR' })).toBeVisible()
+
   const studioHeading = page.getByRole('heading', { name: 'Choose how your invitation comes to life' })
   await expect(studioHeading).toBeVisible()
 
@@ -84,7 +99,7 @@ test('personal smart invitation reveals the exact guest without retaining the cr
   await expect(page).toHaveURL(new RegExp(`/invite/${E2E_WEDDINGS.primary.slug}/open`))
   expect(page.url()).not.toContain(token)
 
-  await page.getByRole('link', { name: 'Continue to invitation in browser' }).click()
+  await openInvitationInBrowser(page)
   await expect(page).toHaveURL(new RegExp(`/w/${E2E_WEDDINGS.primary.slug}\\?`))
   expect(page.url()).not.toContain(token)
 
@@ -130,7 +145,7 @@ test('reduced-motion invitation opens from the keyboard without the 3D delay', a
 
   const token = `${E2E_WEDDINGS.primary.slug}-rsvp-token`
   await page.goto(`/invite/${E2E_WEDDINGS.primary.slug}?rsvp=${encodeURIComponent(token)}&card=ivory-floral-gold`)
-  await page.getByRole('link', { name: 'Continue to invitation in browser' }).click()
+  await openInvitationInBrowser(page)
 
   const experience = page.getByTestId('premium-invitation-experience')
   const openButton = experience.getByTestId('invitation-open-button')
@@ -166,7 +181,7 @@ test('premium invitation remains within a mobile viewport @mobile', async ({ pla
 
   const token = `${E2E_WEDDINGS.primary.slug}-rsvp-token`
   await page.goto(`/invite/${E2E_WEDDINGS.primary.slug}?rsvp=${encodeURIComponent(token)}&card=ivory-floral-gold`)
-  await page.getByRole('link', { name: 'Continue to invitation in browser' }).click()
+  await openInvitationInBrowser(page)
 
   const experience = page.getByTestId('premium-invitation-experience')
   await expect(experience).toBeVisible()
