@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useWewedStore } from '@/lib/store'
 import { WeddingDataProvider, useWeddingContext } from '@/components/wedding/wedding-data-provider'
 import { Navbar } from '@/components/wedding/navbar'
@@ -116,8 +116,8 @@ function WeddingHomeContent({
   const canContribute = accessKind !== 'public' && accessKind !== null
   const showPersonalInvitation = Boolean(invitationMode && invitationCardStyle && accessKind === 'invited_guest' && wedding)
 
-  const invitationData = wedding ? {
-    title: names,
+  const invitationData = useMemo(() => wedding ? {
+    title: `${wedding.couple.partner1} & ${wedding.couple.partner2}`,
     monogram: wedding.monogram,
     tagline: wedding.tagline,
     date: wedding.date,
@@ -130,7 +130,7 @@ function WeddingHomeContent({
     primaryColor: wedding.theme.primaryColor,
     accentColor: wedding.theme.accentColor,
     backgroundColor: wedding.theme.backgroundColor,
-  } : null
+  } : null, [wedding])
 
   return (
     <div className="min-h-screen flex flex-col bg-background" data-personal-invitation={showPersonalInvitation ? '1' : '0'}>
