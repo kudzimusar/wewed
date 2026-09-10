@@ -2,10 +2,17 @@ import 'server-only'
 
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import type { NextRequest, NextResponse } from 'next/server'
-import type { InvitationCardStyle } from '@/lib/digital-invitation-card'
+import {
+  INVITATION_CARD_STYLES,
+  type InvitationCardStyle,
+} from '@/lib/digital-invitation-card'
 
 export const PENDING_INVITATION_COOKIE = 'wewed_pending_invitation'
 export const PENDING_INVITATION_TTL_SECONDS = 24 * 60 * 60
+
+const INVITATION_CARD_STYLE_IDS = new Set<string>(
+  INVITATION_CARD_STYLES.map((style) => style.id),
+)
 
 export interface PendingInvitation {
   version: 1
@@ -99,9 +106,8 @@ export function verifyPendingInvitationToken(
       payload.version !== 1 ||
       typeof payload.weddingSlug !== 'string' ||
       typeof payload.rsvpToken !== 'string' ||
-      (payload.card !== 'botanical' &&
-        payload.card !== 'editorial' &&
-        payload.card !== 'midnight') ||
+      typeof payload.card !== 'string' ||
+      !INVITATION_CARD_STYLE_IDS.has(payload.card) ||
       typeof payload.expiresAt !== 'number' ||
       payload.expiresAt <= Date.now()
     ) {
