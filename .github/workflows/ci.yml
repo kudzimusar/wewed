@@ -62,9 +62,6 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Install pinned browser test runner
-        run: bun add --no-save --exact @playwright/test@1.55.0
-
       - name: Validate Prisma schema
         run: bunx prisma validate --schema prisma/schema.prisma
 
