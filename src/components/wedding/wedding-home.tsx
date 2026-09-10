@@ -200,7 +200,7 @@ function WeddingHomeContent({
           )}
         </main>
       </div>
-      {mounted && <InvitationRsvpDialog />}
+      {mounted && !showPersonalInvitation && <InvitationRsvpDialog />}
       <Footer />
       <GlobalWeddingTools accessKind={accessKind} viewerRole={viewerRole} />
       <div className="wewed-print-footer" aria-hidden="true">
