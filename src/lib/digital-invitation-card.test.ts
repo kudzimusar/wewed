@@ -55,9 +55,11 @@ describe('digital invitation card delivery', () => {
     }
   })
 
-  test('the invitation API produces card URLs, CSV delivery data and audited design updates', () => {
+  test('the invitation API produces secure smart-card URLs, CSV delivery data and audited design updates', () => {
     const route = source('src/app/api/planner/guests/invitations/route.ts')
-    expect(route).toContain('buildDigitalInvitationUrl')
+    expect(route).toContain('buildSmartInvitationUrl')
+    expect(route).toContain('weddingSlug: wedding.slug')
+    expect(route).toContain('token: guest.rsvp.token')
     expect(route).toContain('buildDigitalInvitationMessage')
     expect(route).toContain('Card Style,Digital Invitation URL,Share Message')
     expect(route).toContain("action: 'wedding.invitation_card_updated'")
@@ -84,12 +86,13 @@ describe('digital invitation card delivery', () => {
     expect(proxy).toContain('return privateNoStore(')
   })
 
-  test('RSVP reminder delivery embeds the same secure digital card URL and email CTA', () => {
+  test('RSVP reminder delivery embeds the same secure smart invitation URL and email CTA', () => {
     const delivery = source('src/lib/reminder-delivery.ts')
-    expect(delivery).toContain('buildDigitalInvitationUrl')
+    expect(delivery).toContain('buildSmartInvitationUrl')
     expect(delivery).toContain('digitalInvitationEmailHtml')
     expect(delivery).toContain('Open card &amp; RSVP')
     expect(delivery).toContain('weddingSlug: wedding.slug')
+    expect(delivery).toContain('token: recipient.token')
     expect(delivery).not.toContain('`${siteUrl}/?rsvp=')
   })
 
