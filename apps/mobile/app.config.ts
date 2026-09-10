@@ -1,6 +1,6 @@
 import type { ExpoConfig, ConfigContext } from 'expo/config'
 
-const androidVersionCode = Number.parseInt(process.env.WEWED_ANDROID_VERSION_CODE ?? '2', 10)
+const androidVersionCode = Number.parseInt(process.env.WEWED_ANDROID_VERSION_CODE ?? '3', 10)
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
@@ -14,7 +14,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   assetBundlePatterns: ['**/*'],
   android: {
     package: 'pro.wewed.app',
-    versionCode: Number.isFinite(androidVersionCode) ? androidVersionCode : 2,
+    versionCode: Number.isFinite(androidVersionCode) ? androidVersionCode : 3,
     adaptiveIcon: {
       foregroundImage: '../../android/store_icon.png',
       backgroundColor: '#1A1410',
@@ -54,6 +54,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       cameraPermission: 'Allow Wewed to take photos for wedding planning and vendor workflows.',
     }],
     'expo-notifications',
+    './plugins/with-wewed-android-signing',
   ],
   experiments: {
     typedRoutes: true,

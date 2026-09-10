@@ -33,7 +33,7 @@ jobs:
       CI: 'true'
       EXPO_NO_TELEMETRY: '1'
       EXPO_PUBLIC_WEWED_API_BASE_URL: https://wewed.pro
-      WEWED_ANDROID_VERSION_CODE: '2'
+      WEWED_ANDROID_VERSION_CODE: '3'
       WEWED_APP_VERSION: 2.0.0
       WEWED_MAESTRO_EMAIL: ${{ secrets.WEWED_MAESTRO_EMAIL }}
       WEWED_MAESTRO_PASSWORD: ${{ secrets.WEWED_MAESTRO_PASSWORD }}
@@ -65,6 +65,16 @@ jobs:
       - name: Generate Android project
         working-directory: apps/mobile
         run: bun run prebuild:android
+
+      - name: Verify generated upgrade identity and App Link manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'versionCode 3' apps/mobile/android/app/build.gradle
+          grep -q 'applicationId "pro.wewed.app"' apps/mobile/android/app/build.gradle
+          grep -q 'android:autoVerify="true"' apps/mobile/android/app/src/main/AndroidManifest.xml
+          grep -q 'android:host="wewed.pro"' apps/mobile/android/app/src/main/AndroidManifest.xml
+          grep -q 'android:scheme="https"' apps/mobile/android/app/src/main/AndroidManifest.xml
 
       - name: Compile debug APK
         working-directory: apps/mobile/android
@@ -128,6 +138,7 @@ jobs:
             fi
 
             adb shell am start -W -a android.intent.action.VIEW -d 'wewed://messages' pro.wewed.app
+            adb shell am start -W -a android.intent.action.VIEW -d 'https://wewed.pro/messages' pro.wewed.app
 
       - name: Upload Maestro diagnostics
         if: failure()
