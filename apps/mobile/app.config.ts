@@ -19,7 +19,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       foregroundImage: '../../android/store_icon.png',
       backgroundColor: '#1A1410',
     },
-    edgeToEdgeEnabled: true,
     intentFilters: [
       {
         action: 'VIEW',
