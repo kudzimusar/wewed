@@ -37,6 +37,16 @@ export default defineConfig({
         ...devices['Pixel 5'],
       },
     },
+    {
+      name: 'planner-mobile-390x844',
+      testMatch: /planner.*\.spec\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 390, height: 844 },
+        isMobile: true,
+        hasTouch: true,
+      },
+    },
   ],
   webServer: {
     command: 'bun run start',

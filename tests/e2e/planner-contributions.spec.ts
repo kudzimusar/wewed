@@ -1,8 +1,21 @@
+import type { Page } from '@playwright/test'
 import { expect, test } from './support/planner-browser'
+
+function contributionItem(page: Page, contributor: string) {
+  const workspace = page.getByTestId('planner-contributions-workspace')
+  const mobileCard = workspace.locator('button').filter({ hasText: contributor })
+  const desktopRow = workspace.getByRole('row').filter({ hasText: contributor })
+  return mobileCard.or(desktopRow).filter({ visible: true }).first()
+}
 
 test('Contributions is a first-class Planner module with Overview entry and durable direct route', async ({ plannerPage }) => {
   const navigation = plannerPage.getByRole('navigation', { name: 'Planner workspace sections' })
-  await expect(navigation.getByRole('button', { name: 'Contributions', exact: true })).toBeVisible()
+  const mobileSelector = plannerPage.getByRole('combobox', { name: 'Planner workspace section' })
+  if (await mobileSelector.isVisible()) {
+    await expect(mobileSelector.locator('option[value="contributions"]')).toHaveText('Contributions')
+  } else {
+    await expect(navigation.getByRole('button', { name: 'Contributions', exact: true })).toBeVisible()
+  }
   await expect(plannerPage.getByTestId('planner-contributions-overview')).toBeVisible()
   await plannerPage.getByRole('button', { name: 'Open Contributions', exact: true }).click()
   await expect(plannerPage).toHaveURL(/\/planner\/contributions(?:[?#]|$)/)
@@ -35,7 +48,7 @@ test('Planner can record a contribution and the private contributor profile pers
   await dialog.getByPlaceholder('Amount').fill('125')
   await dialog.getByRole('button', { name: 'Save contribution' }).click()
   await expect(dialog).toBeHidden()
-  await expect(plannerPage.getByText(marker, { exact: true }).first()).toBeVisible()
+  await expect(contributionItem(plannerPage, marker)).toBeVisible()
 
   const payload = await plannerPage.evaluate(async () => {
     const response = await fetch('/api/planner/contributions', { cache: 'no-store' })
@@ -45,7 +58,7 @@ test('Planner can record a contribution and the private contributor profile pers
   expect(contributor).toMatchObject({ kind: 'family', email: 'contribution-uat@example.com', phone: '+263 77 000 0000', address: 'Harare', preferredContactMethod: 'email' })
 
   await plannerPage.reload()
-  await expect(plannerPage.getByText(marker, { exact: true }).first()).toBeVisible()
+  await expect(contributionItem(plannerPage, marker)).toBeVisible()
 })
 
 test('Planner can create a governed non-honeymoon campaign privately', async ({ plannerPage }) => {

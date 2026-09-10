@@ -1,4 +1,5 @@
 import { basename } from 'node:path'
+import type { Locator } from '@playwright/test'
 import * as XLSX from 'xlsx'
 import {
   E2E_WEDDINGS,
@@ -8,6 +9,25 @@ import {
   openWorksheetActions,
   test,
 } from './support/planner-browser'
+
+async function expectImportReviewText(dialog: Locator, text: string | RegExp) {
+  const mobileCards = dialog.getByTestId('import-review-cards')
+  if (await mobileCards.isVisible()) {
+    if (typeof text === 'string') {
+      await expect(mobileCards.getByText(text, { exact: true })).toBeVisible()
+    } else {
+      await expect(mobileCards.getByText(text)).toBeVisible()
+    }
+    return
+  }
+
+  const tableCells = dialog.getByTestId('import-review-table-scroll').getByRole('cell')
+  if (typeof text === 'string') {
+    await expect(tableCells.filter({ hasText: text })).toBeVisible()
+  } else {
+    await expect(tableCells.filter({ hasText: text })).toBeVisible()
+  }
+}
 
 test('downloaded Excel template imports, exports, records history, and rolls back', async ({ plannerPage: page }, testInfo) => {
   const importedTask = 'Excel round-trip task'
@@ -58,7 +78,7 @@ test('downloaded Excel template imports, exports, records history, and rolls bac
   const importFileChooser = await importFileChooserPromise
   await importFileChooser.setFiles(importPath)
   expect((await previewResponse).ok()).toBe(true)
-  await expect(importDialog.getByTestId('import-review-table-scroll').getByRole('cell', { name: importedTask, exact: true })).toBeVisible()
+  await expectImportReviewText(importDialog, importedTask)
   await importDialog.getByRole('button', { name: 'Review import' }).click()
   await importDialog.getByRole('button', { name: 'Import now' }).click()
   await expect(importDialog.getByRole('heading', { name: 'Import completed' })).toBeVisible()
@@ -195,7 +215,7 @@ test('untouched guest template is non-executable and formula cells are rejected 
   const formulaFileChooser = await formulaFileChooserPromise
   await formulaFileChooser.setFiles(formulaPath)
   expect((await formulaPreviewResponse).ok()).toBe(true)
-  await expect(dialog.getByTestId('import-review-table-scroll').getByRole('cell').filter({ hasText: /Formula detected in "First Name"/ })).toBeVisible()
+  await expectImportReviewText(dialog, /Formula detected in "First Name"/)
   await expect(dialog.getByTestId('import-stat-invalid').getByText('1', { exact: true })).toBeVisible()
   await expect(dialog.getByRole('button', { name: 'Review import' })).toBeDisabled()
 })

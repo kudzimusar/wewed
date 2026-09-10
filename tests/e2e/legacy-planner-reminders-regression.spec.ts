@@ -33,7 +33,7 @@ test('legacy Planner RSVP email reminders remain CRUD-safe with preview delivery
   expect(previewPayload.recipientCount).toBe(1)
   expect(previewPayload.recipients[0].subject).toContain('Primary Test Guest')
   const invitationUrl = new URL(previewPayload.recipients[0].invitationUrl)
-  expect(invitationUrl.pathname).toContain('/w/')
+  expect(invitationUrl.pathname).toMatch(/^\/invite\/[^/]+$/)
   expect(invitationUrl.searchParams.get('rsvp')).toBeTruthy()
 
   const updatedResponse = await page.request.patch('/api/planner/reminders', {
