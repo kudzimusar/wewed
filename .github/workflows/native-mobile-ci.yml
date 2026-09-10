@@ -1,0 +1,118 @@
+name: Native Mobile CI
+
+on:
+  push:
+    branches:
+      - feat/native-mobile-platform-20260910
+    paths:
+      - 'apps/mobile/**'
+      - 'src/lib/app-session.ts'
+      - 'src/app/api/auth/**'
+      - '.github/workflows/native-mobile-ci.yml'
+      - 'docs/WEWED_NATIVE_MOBILE_COMPLETION_RELEASE_PLAN.md'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'apps/mobile/**'
+      - 'src/lib/app-session.ts'
+      - 'src/app/api/auth/**'
+      - '.github/workflows/native-mobile-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-mobile-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-and-bundle:
+    name: Expo dependency, type, lint and Android bundle gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: apps/mobile
+    env:
+      CI: 'true'
+      EXPO_NO_TELEMETRY: '1'
+      EXPO_PUBLIC_WEWED_API_BASE_URL: https://wewed.pro
+      WEWED_ANDROID_VERSION_CODE: '2'
+      WEWED_APP_VERSION: 2.0.0
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22.13.1'
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.3.14
+
+      - name: Install native dependencies
+        run: bun install
+
+      - name: Validate Expo dependency alignment
+        run: bun run deps:check
+
+      - name: Run Expo Doctor
+        run: bunx expo-doctor@latest
+
+      - name: Typecheck native app
+        run: bun run typecheck
+
+      - name: Lint native app
+        run: bun run lint
+
+      - name: Bundle Android JavaScript and assets
+        run: bun run export:android
+
+  android-prebuild:
+    name: Android native prebuild and debug compile gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    needs: static-and-bundle
+    defaults:
+      run:
+        working-directory: apps/mobile
+    env:
+      CI: 'true'
+      EXPO_NO_TELEMETRY: '1'
+      EXPO_PUBLIC_WEWED_API_BASE_URL: https://wewed.pro
+      WEWED_ANDROID_VERSION_CODE: '2'
+      WEWED_APP_VERSION: 2.0.0
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22.13.1'
+
+      - name: Set up Java 17
+        uses: actions/setup-java@7a445ee88d4e23b52c33bdcf150abe8f8c864c7e
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.3.14
+
+      - name: Install native dependencies
+        run: bun install
+
+      - name: Generate Android native project
+        run: bun run prebuild:android
+
+      - name: Compile Android debug application
+        run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
+        working-directory: apps/mobile/android

@@ -8,9 +8,13 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
+    "deps:check": "expo install --check",
+    "doctor": "expo-doctor@latest",
     "typecheck": "tsc --noEmit",
     "lint": "expo lint",
-    "prebuild": "expo prebuild"
+    "export:android": "expo export --platform android --output-dir dist-android --clear",
+    "prebuild": "expo prebuild",
+    "prebuild:android": "expo prebuild --platform android --clean --no-install"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.82.0",
