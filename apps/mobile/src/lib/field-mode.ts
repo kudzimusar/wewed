@@ -27,11 +27,12 @@ function key(userId: string, weddingId: string) {
 async function mergeSnapshot(userId: string, weddingId: string, patch: Partial<FieldModeSnapshot>) {
   const current = await readFieldModeSnapshot(userId, weddingId)
   const next: FieldModeSnapshot = {
-    version: 1,
-    userId,
-    weddingId,
-    savedAt: new Date().toISOString(),
-    ...(current ?? {}),
+    ...(current ?? {
+      version: 1 as const,
+      userId,
+      weddingId,
+      savedAt: new Date().toISOString(),
+    }),
     ...patch,
     version: 1,
     userId,
