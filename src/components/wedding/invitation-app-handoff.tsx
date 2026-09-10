@@ -29,9 +29,11 @@ const INSTALL_PREPARATION_TIMEOUT_MS = 20_000
 export function InvitationAppHandoff({
   weddingSlug,
   weddingTitle,
+  deferredInstallEnabled,
 }: {
   weddingSlug: string
   weddingTitle: string
+  deferredInstallEnabled: boolean
 }) {
   const [isAndroid, setIsAndroid] = useState<boolean | null>(null)
   const [installed, setInstalled] = useState(false)
@@ -99,7 +101,7 @@ export function InvitationAppHandoff({
   }, [continueInApp])
 
   async function installAndKeepInvitation() {
-    if (installingRef.current) return
+    if (!deferredInstallEnabled || installingRef.current) return
     installingRef.current = true
     setInstalling(true)
     setInstallError(null)
@@ -190,7 +192,7 @@ export function InvitationAppHandoff({
                   <ExternalLink className="size-5 shrink-0" aria-hidden="true" />
                   Open invitation in Wewed
                 </a>
-              ) : (
+              ) : deferredInstallEnabled ? (
                 <button
                   type="button"
                   onClick={installAndKeepInvitation}
@@ -207,6 +209,14 @@ export function InvitationAppHandoff({
                     ? 'Preparing your invitation…'
                     : 'Install Wewed & open my invitation'}
                 </button>
+              ) : (
+                <a
+                  href={PLAY_STORE_URL}
+                  className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#c6a061] px-5 py-4 text-center font-semibold text-[#21170d] transition hover:bg-[#d5b477] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f8f1e7]"
+                >
+                  <Download className="size-5 shrink-0" aria-hidden="true" />
+                  Install Wewed
+                </a>
               )}
 
               {!installed && (
@@ -246,7 +256,9 @@ export function InvitationAppHandoff({
             : isAndroid
               ? installed
                 ? 'Wewed is already installed. Open it above to continue directly to this invitation.'
-                : 'Your private RSVP details stay with Wewed. Google Play receives only a temporary one-time handoff so the installed app can resume this exact invitation.'
+                : deferredInstallEnabled
+                  ? 'Your private RSVP details stay with Wewed. Google Play receives only a temporary one-time handoff so the installed app can resume this exact invitation.'
+                  : 'Install Wewed from Google Play, then return to this invitation link. Automatic install resume is not enabled for this release yet.'
               : 'You can open the complete invitation securely in your browser. Wewed app installation is offered on supported Android devices.'}
         </p>
       </section>
