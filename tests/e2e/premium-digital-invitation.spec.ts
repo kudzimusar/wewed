@@ -1,0 +1,95 @@
+import { PrismaClient } from '@prisma/client'
+import {
+  E2E_WEDDINGS,
+  expect,
+  expectNoDocumentOverflow,
+  test,
+} from './support/planner-browser'
+
+async function enablePersonalInvitationFixture() {
+  const prisma = new PrismaClient()
+  try {
+    await prisma.wedding.update({
+      where: { id: E2E_WEDDINGS.primary.id },
+      data: {
+        privacy: 'link_only',
+        invitationCardStyle: 'ivory-floral-gold',
+        invitationCardMessage: 'Request the pleasure of your company as we celebrate our marriage.',
+      },
+    })
+  } finally {
+    await prisma.$disconnect()
+  }
+}
+
+test('Planner Card Studio provides a compact premium library and one interactive preview', async ({ plannerPage: page }) => {
+  const studioHeading = page.getByRole('heading', { name: 'Choose how your invitation comes to life' })
+  await expect(studioHeading).toBeVisible()
+
+  const themeButtons = page.locator('[data-testid^="invitation-style-"]')
+  expect(await themeButtons.count()).toBeGreaterThanOrEqual(12)
+
+  await page.getByTestId('invitation-style-ivory-floral-gold').click()
+  const frame = page.getByTestId('invitation-preview-frame')
+  await expect(frame).toHaveAttribute('data-preview-device', 'mobile')
+  await expect(frame.getByTestId('premium-invitation-experience')).toHaveAttribute('data-invitation-style', 'ivory-floral-gold')
+  await expect(frame.getByText('Together with our families', { exact: true })).toBeVisible()
+  await expect(frame.getByText('Together with their families', { exact: true })).toHaveCount(0)
+
+  await frame.getByTestId('invitation-open-button').click()
+  await expect(frame.getByTestId('premium-invitation-experience')).toHaveAttribute('data-motion-state', 'open', { timeout: 4_000 })
+  await expect(frame.getByTestId('invitation-panel-left')).toBeVisible()
+  await expect(frame.getByTestId('invitation-panel-centre')).toBeVisible()
+  await expect(frame.getByTestId('invitation-panel-right')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Desktop', exact: true }).click()
+  await expect(frame).toHaveAttribute('data-preview-device', 'desktop')
+  await expectNoDocumentOverflow(page)
+})
+
+test('personal smart invitation reveals the exact guest without retaining the credential', async ({ plannerPage: page }) => {
+  await enablePersonalInvitationFixture()
+  await page.context().clearCookies()
+
+  const token = `${E2E_WEDDINGS.primary.slug}-rsvp-token`
+  await page.goto(`/invite/${E2E_WEDDINGS.primary.slug}?rsvp=${encodeURIComponent(token)}&card=ivory-floral-gold`)
+  await expect(page).toHaveURL(new RegExp(`/invite/${E2E_WEDDINGS.primary.slug}/open`))
+  expect(page.url()).not.toContain(token)
+
+  await page.getByRole('link', { name: 'Continue to invitation in browser' }).click()
+  await expect(page).toHaveURL(new RegExp(`/w/${E2E_WEDDINGS.primary.slug}\\?`))
+  expect(page.url()).not.toContain(token)
+
+  const experience = page.getByTestId('premium-invitation-experience')
+  await expect(experience).toBeVisible()
+  await expect(experience).toHaveAttribute('data-invitation-style', 'ivory-floral-gold')
+  await expect(experience).toHaveAttribute('data-motion-state', 'closed')
+  await expect(experience.getByText(E2E_WEDDINGS.primary.seededGuest, { exact: true })).toBeVisible()
+
+  await experience.getByTestId('invitation-open-button').click()
+  await expect(experience).toHaveAttribute('data-motion-state', 'open', { timeout: 4_000 })
+  await expect(experience.getByText('Together with our families', { exact: true })).toBeVisible()
+  await experience.getByTestId('invitation-continue-button').click()
+  await expect(page.locator('#wedding-details')).toBeInViewport()
+
+  await page.locator('#rsvp').scrollIntoViewIfNeeded()
+  await page.getByRole('button', { name: 'Review my RSVP' }).click()
+  await expect(page.getByTestId('premium-invitation-rsvp-dialog')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Your private RSVP' })).toBeVisible()
+})
+
+test('premium invitation remains within a mobile viewport @mobile', async ({ plannerPage: page }) => {
+  await enablePersonalInvitationFixture()
+  await page.context().clearCookies()
+
+  const token = `${E2E_WEDDINGS.primary.slug}-rsvp-token`
+  await page.goto(`/invite/${E2E_WEDDINGS.primary.slug}?rsvp=${encodeURIComponent(token)}&card=ivory-floral-gold`)
+  await page.getByRole('link', { name: 'Continue to invitation in browser' }).click()
+
+  const experience = page.getByTestId('premium-invitation-experience')
+  await expect(experience).toBeVisible()
+  await expectNoDocumentOverflow(page)
+  await experience.getByTestId('invitation-open-button').click()
+  await expect(experience).toHaveAttribute('data-motion-state', 'open', { timeout: 4_000 })
+  await expectNoDocumentOverflow(page)
+})
