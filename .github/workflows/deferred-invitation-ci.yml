@@ -6,6 +6,7 @@ on:
       - 'android/**'
       - 'prisma/migrations/20260910110000_native_deferred_invitation_handoff/**'
       - 'src/app/api/invitations/install-handoff/**'
+      - 'src/app/invite/[slug]/open/**'
       - 'src/app/invite/resume/**'
       - 'src/components/wedding/invitation-app-handoff.tsx'
       - 'src/lib/invitation-install-handoff.ts'
@@ -20,6 +21,7 @@ on:
       - 'android/**'
       - 'prisma/migrations/20260910110000_native_deferred_invitation_handoff/**'
       - 'src/app/api/invitations/install-handoff/**'
+      - 'src/app/invite/[slug]/open/**'
       - 'src/app/invite/resume/**'
       - 'src/components/wedding/invitation-app-handoff.tsx'
       - 'src/lib/invitation-install-handoff.ts'
@@ -115,7 +117,7 @@ jobs:
             exit 0
           fi
 
-          DEFERRED_ERRORS=$(grep -E '^(src/app/api/invitations/install-handoff/|src/app/invite/resume/|src/components/wedding/invitation-app-handoff\.tsx|src/lib/invitation-(install-handoff|links)(\.integration\.test|\.test)?\.ts)' /tmp/wewed-tsc.log || true)
+          DEFERRED_ERRORS=$(grep -E '^(src/app/api/invitations/install-handoff/|src/app/invite/\[slug\]/open/|src/app/invite/resume/|src/components/wedding/invitation-app-handoff\.tsx|src/lib/invitation-(install-handoff|links)(\.integration\.test|\.test)?\.ts)' /tmp/wewed-tsc.log || true)
           if [ -n "$DEFERRED_ERRORS" ]; then
             echo "TypeScript errors found in deferred invitation files:"
             echo "$DEFERRED_ERRORS"
@@ -140,14 +142,16 @@ jobs:
           java-version: '17'
           cache: gradle
 
-      - name: Compile Android debug wrapper
+      - name: Compile Android debug and release bundles
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew :app:assembleDebug --no-daemon --stacktrace
+          ./gradlew :app:assembleDebug :app:bundleRelease --no-daemon --stacktrace
 
       - name: Confirm native release identifiers
         run: |
           grep -q "versionCode 2" android/app/build.gradle
+          grep -q "versionName \"2\"" android/app/build.gradle
           grep -q "com.android.installreferrer:installreferrer:2.2" android/app/build.gradle
           grep -q "https://wewed.pro/invite/resume" android/app/src/main/java/pro/wewed/app/InstallReferrerHandoff.java
+          test -f android/app/build/outputs/bundle/release/app-release.aab
