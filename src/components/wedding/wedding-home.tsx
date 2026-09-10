@@ -35,6 +35,7 @@ import { ContributionGallery } from '@/components/wedding/contribution-gallery'
 import { ThemeApplier } from '@/components/wedding/theme-applier'
 import { InvitationRsvpDialog } from '@/components/wedding/invitation-rsvp-dialog'
 import { PremiumInvitationExperience } from '@/components/wedding/invitation-experience/premium-invitation-experience'
+import { PremiumInvitationRsvpDialog } from '@/components/wedding/invitation-experience/premium-invitation-rsvp-dialog'
 import { PlannerMarketplaceInvitation } from '@/components/marketplace/planner-marketplace-invitation'
 import type { WeddingData } from '@/lib/wedding-data'
 import type { InvitationCardStyle } from '@/lib/digital-invitation-card'
@@ -200,6 +201,9 @@ function WeddingHomeContent({
           )}
         </main>
       </div>
+      {mounted && showPersonalInvitation && invitationCardStyle && (
+        <PremiumInvitationRsvpDialog slug={slug} style={invitationCardStyle} />
+      )}
       {mounted && !showPersonalInvitation && <InvitationRsvpDialog />}
       <Footer />
       <GlobalWeddingTools accessKind={accessKind} viewerRole={viewerRole} />
