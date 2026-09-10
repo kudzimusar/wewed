@@ -97,6 +97,8 @@ export default function MoreScreen() {
         <ActionButton label="Planning workspace" variant="secondary" onPress={() => router.push('/(tabs)/plan')} />
         <ActionButton label="Wewed Messages" variant="secondary" onPress={() => router.push('/(tabs)/messages')} />
         <ActionButton label="Vendor marketplace" variant="secondary" onPress={() => router.push('/(tabs)/marketplace')} />
+        {session.activeWedding && role !== 'vendor' ? <ActionButton label="Governed bookings" variant="secondary" onPress={() => router.push('/bookings')} /> : null}
+        {session.activeWedding && role !== 'vendor' ? <ActionButton label="Wewed AI Planner Copilot" variant="secondary" onPress={() => router.push('/ai')} /> : null}
         {(role === 'admin' || role === 'vendor') ? (
           <ActionButton
             label={role === 'admin' ? 'Open full Admin Command Centre' : 'Open full Vendor workspace'}
