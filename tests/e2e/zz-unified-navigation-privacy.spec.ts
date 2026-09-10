@@ -83,9 +83,11 @@ test('public platform, invitation card exchange, API privacy and token rotation 
     new RegExp(`/w/${E2E_WEDDINGS.primary.slug}\\?invitation=1&card=botanical$`),
   )
   expect(page.url()).not.toContain(E2E_GUEST_INVITATION.token)
-  await expect(page.getByRole('heading', { name: 'Your private invitation' })).toBeVisible()
-  await expect(page.getByTestId('digital-invitation-card-botanical')).toBeVisible()
-  await expect(page.getByTestId('digital-invitation-card-botanical')).toContainText('Aurora')
+  const invitationExperience = page.getByTestId('premium-invitation-experience')
+  await expect(invitationExperience).toBeVisible()
+  await expect(invitationExperience).toHaveAttribute('data-invitation-style', 'botanical')
+  await expect(invitationExperience).toContainText('Aurora')
+  await expect(invitationExperience).toContainText(E2E_WEDDINGS.primary.seededGuest)
 
   const allowed = await page.request.get(
     `/api/wedding-content?slug=${E2E_WEDDINGS.primary.slug}`,
@@ -96,14 +98,12 @@ test('public platform, invitation card exchange, API privacy and token rotation 
     data: { wedding: { slug: E2E_WEDDINGS.primary.slug } },
   })
 
-  const invitationDialog = page.getByRole('dialog', {
-    name: 'Your private invitation',
-  })
-  await invitationDialog.getByRole('button', { name: 'RSVP now' }).click()
-  await invitationDialog
-    .locator('form')
-    .getByRole('button', { name: 'Close', exact: true })
-    .click()
+  await page.locator('#rsvp').scrollIntoViewIfNeeded()
+  await page.getByRole('button', { name: 'Review my RSVP' }).click()
+  const invitationDialog = page.getByTestId('premium-invitation-rsvp-dialog')
+  await expect(invitationDialog).toBeVisible()
+  await expect(invitationDialog.getByRole('heading', { name: 'Your private RSVP' })).toBeVisible()
+  await invitationDialog.getByRole('button', { name: 'Close', exact: true }).click()
   await expect(page.getByRole('link', { name: 'Find a planner' }).first()).toBeVisible()
   await expect(page.getByRole('link', { name: 'Powered by Wewed' }).first()).toBeVisible()
 
@@ -122,7 +122,10 @@ test('public platform, invitation card exchange, API privacy and token rotation 
   await expect(page).toHaveURL(
     new RegExp(`/w/${E2E_WEDDINGS.primary.slug}\\?invitation=1&card=botanical$`),
   )
-  await expect(page.getByRole('heading', { name: 'Your private invitation' })).toBeVisible()
+  const rotatedExperience = page.getByTestId('premium-invitation-experience')
+  await expect(rotatedExperience).toBeVisible()
+  await expect(rotatedExperience).toHaveAttribute('data-invitation-style', 'botanical')
+  await expect(rotatedExperience).toContainText(E2E_WEDDINGS.primary.seededGuest)
   expect(errors).toEqual([])
 })
 
