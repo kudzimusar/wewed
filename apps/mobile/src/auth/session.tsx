@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query'
 import * as SecureStore from 'expo-secure-store'
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { WewedApiError, wewedRequest } from '@/lib/api'
@@ -28,6 +29,7 @@ async function clearToken() {
 }
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient()
   const [session, setSession] = useState<MobileSessionPayload | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -56,6 +58,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           await clearToken().catch(() => undefined)
         }
         if (alive) {
+          queryClient.clear()
           setToken(null)
           setSession(null)
         }
@@ -64,11 +67,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       }
     })()
     return () => { alive = false }
-  }, [hydrate])
+  }, [hydrate, queryClient])
 
   const signIn = useCallback(async (email: string, password: string) => {
     setLoading(true)
     try {
+      queryClient.clear()
       const signInPayload = await wewedRequest<MobileSessionPayload>('/api/mobile/auth/signin', {
         method: 'POST',
         body: JSON.stringify({ email, password }),
@@ -78,12 +82,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoading(false)
     }
-  }, [hydrate])
+  }, [hydrate, queryClient])
 
   const signOut = useCallback(async () => {
     const currentToken = token
     setToken(null)
     setSession(null)
+    queryClient.clear()
     await clearToken().catch(() => undefined)
     if (currentToken) {
       await wewedRequest('/api/mobile/auth/signout', {
@@ -91,7 +96,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         token: currentToken,
       }).catch(() => undefined)
     }
-  }, [token])
+  }, [queryClient, token])
 
   const refreshSession = useCallback(async () => {
     if (!token) return
@@ -105,13 +110,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const switchWedding = useCallback(async (weddingId: string) => {
     if (!token) throw new Error('Sign in before switching weddings.')
+    if (session?.activeWedding?.id === weddingId) return
     const payload = await wewedRequest<{ success: true; sessionToken: string }>('/api/mobile/auth/wedding', {
       method: 'POST',
       token,
       body: JSON.stringify({ weddingId }),
     })
+    queryClient.clear()
     await hydrate(payload.sessionToken)
-  }, [hydrate, token])
+  }, [hydrate, queryClient, session?.activeWedding?.id, token])
 
   const value = useMemo<SessionContextValue>(() => ({
     session,
