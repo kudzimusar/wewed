@@ -116,36 +116,50 @@ function WeddingHomeContent({
   const canContribute = accessKind !== 'public' && accessKind !== null
   const showPersonalInvitation = Boolean(invitationMode && invitationCardStyle && accessKind === 'invited_guest' && wedding)
 
-  // Keep the base invitation object stable across the wedding-content revalidation
-  // that runs after hydration. The private guest-session request overlays the guest,
-  // message and RSVP deadline; recreating this object for an equivalent wedding
-  // snapshot can otherwise reset those secure fields back to null.
-  const invitationData = useMemo(() => wedding ? {
-    title: `${wedding.couple.partner1} & ${wedding.couple.partner2}`,
-    monogram: wedding.monogram,
-    tagline: wedding.tagline,
-    date: wedding.date,
-    venue: wedding.venue,
-    venueCity: wedding.venueCity,
-    venueCountry: wedding.venueCountry,
-    guestName: null,
-    message: null,
-    rsvpDeadline: null,
-    primaryColor: wedding.theme.primaryColor,
-    accentColor: wedding.theme.accentColor,
-    backgroundColor: wedding.theme.backgroundColor,
-  } : null, [
-    wedding?.couple.partner1,
-    wedding?.couple.partner2,
-    wedding?.monogram,
-    wedding?.tagline,
-    wedding?.date,
-    wedding?.venue,
-    wedding?.venueCity,
-    wedding?.venueCountry,
-    wedding?.theme.primaryColor,
-    wedding?.theme.accentColor,
-    wedding?.theme.backgroundColor,
+  // Derive primitive inputs before memoization so the post-hydration wedding-content
+  // revalidation can replace its object without recreating an equivalent invitation.
+  // That keeps guest-session personalization (guest, message, RSVP deadline) intact.
+  const invitationTitle = wedding ? `${wedding.couple.partner1} & ${wedding.couple.partner2}` : null
+  const invitationMonogram = wedding?.monogram ?? null
+  const invitationTagline = wedding?.tagline ?? null
+  const invitationDate = wedding?.date ?? null
+  const invitationVenue = wedding?.venue ?? null
+  const invitationVenueCity = wedding?.venueCity ?? null
+  const invitationVenueCountry = wedding?.venueCountry ?? null
+  const invitationPrimaryColor = wedding?.theme.primaryColor ?? null
+  const invitationAccentColor = wedding?.theme.accentColor ?? null
+  const invitationBackgroundColor = wedding?.theme.backgroundColor ?? null
+
+  const invitationData = useMemo(() => {
+    if (!invitationTitle || !invitationDate || !invitationVenue || !invitationPrimaryColor || !invitationAccentColor || !invitationBackgroundColor) {
+      return null
+    }
+    return {
+      title: invitationTitle,
+      monogram: invitationMonogram,
+      tagline: invitationTagline,
+      date: invitationDate,
+      venue: invitationVenue,
+      venueCity: invitationVenueCity ?? '',
+      venueCountry: invitationVenueCountry ?? '',
+      guestName: null,
+      message: null,
+      rsvpDeadline: null,
+      primaryColor: invitationPrimaryColor,
+      accentColor: invitationAccentColor,
+      backgroundColor: invitationBackgroundColor,
+    }
+  }, [
+    invitationTitle,
+    invitationMonogram,
+    invitationTagline,
+    invitationDate,
+    invitationVenue,
+    invitationVenueCity,
+    invitationVenueCountry,
+    invitationPrimaryColor,
+    invitationAccentColor,
+    invitationBackgroundColor,
   ])
 
   return (
