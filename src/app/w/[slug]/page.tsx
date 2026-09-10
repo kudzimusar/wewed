@@ -132,6 +132,8 @@ export default async function WeddingPage({
 
   const viewerRole: WeddingViewerRole =
     appSession?.activeWeddingId === wedding.id ? appSession.role : null
+  const personalInvitationExperience =
+    query.invitation === '1' && resolution.accessKind === 'invited_guest'
 
   return (
     <WeddingHome
@@ -139,6 +141,8 @@ export default async function WeddingPage({
       accessKind={resolution.accessKind}
       viewerRole={viewerRole}
       initialData={initialData}
+      invitationMode={personalInvitationExperience}
+      invitationCardStyle={personalInvitationExperience ? normalizeInvitationCardStyle(query.card) : null}
     />
   )
 }
