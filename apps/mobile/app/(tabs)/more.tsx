@@ -94,11 +94,13 @@ export default function MoreScreen() {
       <Surface>
         <Text style={styles.sectionTitle}>Wewed tools</Text>
         <ActionButton label="Wedding Pulse" variant="secondary" onPress={() => router.push('/(tabs)')} />
-        <ActionButton label="Planning workspace" variant="secondary" onPress={() => router.push('/(tabs)/plan')} />
+        {role !== 'vendor' ? <ActionButton label="Planning workspace" variant="secondary" onPress={() => router.push('/(tabs)/plan')} /> : null}
         <ActionButton label="Wewed Messages" variant="secondary" onPress={() => router.push('/(tabs)/messages')} />
         <ActionButton label="Vendor marketplace" variant="secondary" onPress={() => router.push('/(tabs)/marketplace')} />
         {session.activeWedding && role !== 'vendor' ? <ActionButton label="Governed bookings" variant="secondary" onPress={() => router.push('/bookings')} /> : null}
         {session.activeWedding && role !== 'vendor' ? <ActionButton label="Wewed AI Planner Copilot" variant="secondary" onPress={() => router.push('/ai')} /> : null}
+        {role === 'vendor' ? <ActionButton label="Native Vendor Hub" variant="secondary" onPress={() => router.push('/vendor')} /> : null}
+        <ActionButton label="Notifications on this device" variant="quiet" onPress={() => router.push('/notifications')} />
         {(role === 'admin' || role === 'vendor') ? (
           <ActionButton
             label={role === 'admin' ? 'Open full Admin Command Centre' : 'Open full Vendor workspace'}
