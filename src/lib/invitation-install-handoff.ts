@@ -1,5 +1,3 @@
-import 'server-only'
-
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { db } from '@/lib/db'
 import type { InvitationCardStyle } from '@/lib/digital-invitation-card'
@@ -64,10 +62,6 @@ export class InvitationHandoffRateLimitError extends Error {
     super('Invitation install handoff rate limit exceeded')
     this.name = 'InvitationHandoffRateLimitError'
   }
-}
-
-export function isDeferredInvitationHandoffEnabled(): boolean {
-  return process.env.ANDROID_DEFERRED_INVITATION_HANDOFF !== '0'
 }
 
 function hashSecret(value: string): string {
