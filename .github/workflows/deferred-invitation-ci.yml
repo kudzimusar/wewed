@@ -214,7 +214,7 @@ jobs:
           set -e
           if [ "$STATUS" -ne 0 ]; then
             echo "----- Wewed UAT server log -----"
-            cat /tmp/wewed-deferred-uat-server.log || true
+            perl -pe 's/([?&](?:rsvp|h)=)[^&\s]+/${1}[REDACTED]/g' /tmp/wewed-deferred-uat-server.log || true
             exit "$STATUS"
           fi
 
