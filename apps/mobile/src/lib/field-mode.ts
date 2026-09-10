@@ -34,6 +34,29 @@ function key(userId: string, weddingId: string) {
   return `${FIELD_MODE_PREFIX}:${userId}:${weddingId}`
 }
 
+export function sanitizePulseFieldSnapshot(pulse: NonNullable<FieldModeSnapshot['pulse']>) {
+  return {
+    tasks: pulse.tasks.slice(0, 100).map((task) => ({
+      id: task.id,
+      title: task.title,
+      description: null,
+      category: task.category,
+      status: task.status,
+      priority: task.priority,
+      dueDate: task.dueDate,
+      assignee: task.assignee,
+    })),
+    budget: pulse.budget,
+  }
+}
+
+export function sanitizeTimelineFieldSnapshot(timeline: FieldTimelineItem[]) {
+  return timeline.slice(0, 150).map((item) => ({
+    ...item,
+    notes: '',
+  }))
+}
+
 async function mergeSnapshot(userId: string, weddingId: string, patch: Partial<FieldModeSnapshot>) {
   const current = await readFieldModeSnapshot(userId, weddingId)
   const next: FieldModeSnapshot = {
@@ -55,25 +78,11 @@ async function mergeSnapshot(userId: string, weddingId: string, patch: Partial<F
 
 export async function savePulseFieldSnapshot(userId: string, weddingId: string, pulse: FieldModeSnapshot['pulse']) {
   if (!pulse) return
-  const safeTasks = pulse.tasks.slice(0, 100).map((task) => ({
-    id: task.id,
-    title: task.title,
-    description: null,
-    category: task.category,
-    status: task.status,
-    priority: task.priority,
-    dueDate: task.dueDate,
-    assignee: task.assignee,
-  }))
-  await mergeSnapshot(userId, weddingId, { pulse: { tasks: safeTasks, budget: pulse.budget } })
+  await mergeSnapshot(userId, weddingId, { pulse: sanitizePulseFieldSnapshot(pulse) })
 }
 
 export async function saveTimelineFieldSnapshot(userId: string, weddingId: string, timeline: FieldTimelineItem[]) {
-  const safeTimeline = timeline.slice(0, 150).map((item) => ({
-    ...item,
-    notes: '',
-  }))
-  await mergeSnapshot(userId, weddingId, { timeline: safeTimeline })
+  await mergeSnapshot(userId, weddingId, { timeline: sanitizeTimelineFieldSnapshot(timeline) })
 }
 
 export async function readFieldModeSnapshot(userId: string, weddingId: string): Promise<FieldModeSnapshot | null> {
