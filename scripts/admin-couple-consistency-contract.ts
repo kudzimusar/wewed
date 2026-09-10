@@ -33,7 +33,11 @@ assert.ok(!weddingPage.includes('<WeddingHome slug={slug} />'))
 const weddingHome = includesAll('src/components/wedding/wedding-home.tsx', [
   'accessKind?: PublicWeddingAccessKind',
   'viewerRole?: WeddingViewerRole',
-  '<WeddingHomeContent accessKind={accessKind} viewerRole={viewerRole} />',
+  '<WeddingHomeContent',
+  'accessKind={accessKind}',
+  'viewerRole={viewerRole}',
+  'invitationMode={invitationMode}',
+  'invitationCardStyle={invitationCardStyle}',
   '<Navbar accessKind={accessKind} viewerRole={viewerRole} />',
   "const isCoupleOwner = accessKind === 'couple_owner' && viewerRole === 'couple'",
   "const canContribute = accessKind !== 'public' && accessKind !== null",
