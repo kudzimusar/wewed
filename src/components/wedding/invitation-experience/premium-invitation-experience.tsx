@@ -444,7 +444,10 @@ export function PremiumInvitationExperience({
               type="button"
               data-testid="invitation-continue-button"
               onClick={continueToDetails}
-              className="min-h-11 rounded-full border border-[#b38a49]/55 bg-[#9a6d28] px-6 text-[#fffaf0] shadow-lg hover:bg-[#80591f]"
+              className={isIvoryBenchmark
+                ? 'min-h-11 rounded-full border border-[#b38a49]/55 bg-[#9a6d28] px-6 text-[#fffaf0] shadow-lg hover:bg-[#80591f]'
+                : 'min-h-11 rounded-full px-6'}
+              style={isIvoryBenchmark ? undefined : { background: palette.primary, color: palette.paper }}
             >
               Continue to wedding details
               <ChevronDown className="size-4" aria-hidden="true" />
