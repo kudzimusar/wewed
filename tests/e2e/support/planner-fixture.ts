@@ -37,6 +37,10 @@ export const E2E_WEDDINGS = {
 } as const
 
 function assertSafeTarget(): void {
+  if (process.env.CI !== 'true' || process.env.VERCEL) {
+    throw new Error('Refusing planner E2E fixture reset outside local CI')
+  }
+
   try {
     assertSafeLocalCiE2EEnvironment()
   } catch (error) {
