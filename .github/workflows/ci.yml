@@ -205,7 +205,12 @@ jobs:
         run: bash scripts/install-playwright-chromium-ci.sh
 
       - name: Run executable planner browser release gate
-        run: bunx playwright test --fail-on-flaky-tests
+        run: >-
+          bunx playwright test
+          --project=desktop-chromium
+          --project=mobile-chromium
+          --project=planner-mobile-390x844
+          --fail-on-flaky-tests
 
       - name: Upload browser failure evidence
         if: failure()
