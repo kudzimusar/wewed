@@ -2,6 +2,25 @@ import type { ExpoConfig, ConfigContext } from 'expo/config'
 
 const androidVersionCode = Number.parseInt(process.env.WEWED_ANDROID_VERSION_CODE ?? '3', 10)
 
+const appLinkPaths = [
+  '/app',
+  '/invite',
+  '/vendor',
+  '/vendors',
+  '/booking',
+  '/bookings',
+  '/planner',
+  '/messages',
+  '/wedding',
+  '/contribute',
+  '/contracts',
+] as const
+
+const androidAppLinkData = appLinkPaths.flatMap((pathPrefix) => [
+  { scheme: 'http', host: 'wewed.pro', pathPrefix },
+  { scheme: 'https', host: 'wewed.pro', pathPrefix },
+])
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: 'Wewed',
@@ -24,19 +43,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         action: 'VIEW',
         autoVerify: true,
         category: ['BROWSABLE', 'DEFAULT'],
-        data: [
-          { scheme: 'https', host: 'wewed.pro', pathPrefix: '/app' },
-          { scheme: 'https', host: 'wewed.pro', pathPrefix: '/invite' },
-          { scheme: 'https', host: 'wewed.pro', pathPrefix: '/vendor' },
-          { scheme: 'https', host: 'wewed.pro', pathPrefix: '/vendors' },
-          { scheme: 'https', host: 'wewed.pro', pathPrefix: '/booking' },
-          { scheme: 'https', host: 'wewed.pro', pathPrefix: '/bookings' },
-          { scheme: 'https', host: 'wewed.pro', pathPrefix: '/planner' },
-          { scheme: 'https', host: 'wewed.pro', pathPrefix: '/messages' },
-          { scheme: 'https', host: 'wewed.pro', pathPrefix: '/wedding' },
-          { scheme: 'https', host: 'wewed.pro', pathPrefix: '/contribute' },
-          { scheme: 'https', host: 'wewed.pro', pathPrefix: '/contracts' },
-        ],
+        data: androidAppLinkData,
       },
     ],
   },
