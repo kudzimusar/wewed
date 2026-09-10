@@ -6,12 +6,14 @@ on:
       - main
     paths:
       - 'apps/mobile/**'
+      - 'scripts/build-native-play-aab.sh'
       - '.github/workflows/native-release-aab-ci.yml'
   push:
     branches:
       - main
     paths:
       - 'apps/mobile/**'
+      - 'scripts/build-native-play-aab.sh'
       - '.github/workflows/native-release-aab-ci.yml'
   workflow_dispatch:
     inputs:
@@ -42,6 +44,9 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Validate release-Mac Play build script
+        run: bash -n scripts/build-native-play-aab.sh
 
       - name: Set up Node 22
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
@@ -105,6 +110,9 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Validate release-Mac Play build script
+        run: bash -n scripts/build-native-play-aab.sh
 
       - name: Set up Node 22
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
