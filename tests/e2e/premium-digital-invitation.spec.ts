@@ -6,6 +6,8 @@ import {
   test,
 } from './support/planner-browser'
 
+const PHYSICAL_INVITATION_CODE = 'CARD100001'
+
 async function enablePersonalInvitationFixture() {
   const prisma = new PrismaClient()
   try {
@@ -15,6 +17,30 @@ async function enablePersonalInvitationFixture() {
         privacy: 'link_only',
         invitationCardStyle: 'ivory-floral-gold',
         invitationCardMessage: 'Request the pleasure of your company as we celebrate our marriage.',
+      },
+    })
+  } finally {
+    await prisma.$disconnect()
+  }
+}
+
+async function enablePhysicalInvitationFixture() {
+  const prisma = new PrismaClient()
+  try {
+    await prisma.wedding.update({
+      where: { id: E2E_WEDDINGS.primary.id },
+      data: {
+        privacy: 'link_only',
+        invitationCardStyle: 'ivory-floral-gold',
+      },
+    })
+    await prisma.qRDestination.create({
+      data: {
+        id: `print_${PHYSICAL_INVITATION_CODE}`,
+        label: 'E2E physical invitation',
+        url: `https://wewed.pro/w/${E2E_WEDDINGS.primary.slug}`,
+        type: 'physical_invitation',
+        weddingId: E2E_WEDDINGS.primary.id,
       },
     })
   } finally {
@@ -76,6 +102,41 @@ test('personal smart invitation reveals the exact guest without retaining the cr
   await page.getByRole('button', { name: 'Review my RSVP' }).click()
   await expect(page.getByTestId('premium-invitation-rsvp-dialog')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Your private RSVP' })).toBeVisible()
+})
+
+test('reduced-motion invitation opens from the keyboard without the 3D delay', async ({ plannerPage: page }) => {
+  await enablePersonalInvitationFixture()
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.context().clearCookies()
+
+  const token = `${E2E_WEDDINGS.primary.slug}-rsvp-token`
+  await page.goto(`/invite/${E2E_WEDDINGS.primary.slug}?rsvp=${encodeURIComponent(token)}&card=ivory-floral-gold`)
+  await page.getByRole('link', { name: 'Continue to invitation in browser' }).click()
+
+  const experience = page.getByTestId('premium-invitation-experience')
+  const openButton = experience.getByTestId('invitation-open-button')
+  await openButton.focus()
+  await expect(openButton).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(experience).toHaveAttribute('data-motion-state', 'open', { timeout: 500 })
+  await expect(experience.getByText('Reduced motion preview · invitation opens without 3D movement')).toBeVisible()
+})
+
+test('physical invitation access remains shared and never becomes a personal guest session', async ({ plannerPage: page }) => {
+  await enablePhysicalInvitationFixture()
+  await page.context().clearCookies()
+
+  await page.goto(`/i/${PHYSICAL_INVITATION_CODE}`)
+  await expect(page).toHaveURL(new RegExp(`/w/${E2E_WEDDINGS.primary.slug}\\?source=printed-invitation`))
+  expect(new URL(page.url()).searchParams.has('rsvp')).toBe(false)
+  await expect(page.getByTestId('premium-invitation-experience')).toHaveCount(0)
+
+  const guestSession = await page.request.get(`/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`)
+  expect(guestSession.status()).toBe(401)
+  await expect(guestSession.json()).resolves.toMatchObject({
+    success: false,
+    authorized: false,
+  })
 })
 
 test('premium invitation remains within a mobile viewport @mobile', async ({ plannerPage: page }) => {
