@@ -1,4 +1,6 @@
-CREATE TABLE IF NOT EXISTS public."NativePushDevice" (
+CREATE SCHEMA IF NOT EXISTS wewed_mobile;
+
+CREATE TABLE IF NOT EXISTS wewed_mobile."NativePushDevice" (
   id TEXT PRIMARY KEY,
   "userId" TEXT NOT NULL REFERENCES public."User"(id) ON DELETE CASCADE,
   platform TEXT NOT NULL CHECK (platform IN ('android', 'ios')),
@@ -14,8 +16,8 @@ CREATE TABLE IF NOT EXISTS public."NativePushDevice" (
 );
 
 CREATE INDEX IF NOT EXISTS "NativePushDevice_userId_enabled_idx"
-  ON public."NativePushDevice" ("userId", enabled);
+  ON wewed_mobile."NativePushDevice" ("userId", enabled);
 
 CREATE INDEX IF NOT EXISTS "NativePushDevice_activeWeddingId_idx"
-  ON public."NativePushDevice" ("activeWeddingId")
+  ON wewed_mobile."NativePushDevice" ("activeWeddingId")
   WHERE enabled = TRUE;
