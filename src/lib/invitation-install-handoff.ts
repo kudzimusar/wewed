@@ -2,6 +2,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { db } from '@/lib/db'
 import type { InvitationCardStyle } from '@/lib/digital-invitation-card'
 import {
+  buildInvitationResumePath,
   buildPlayStoreInstallUrl,
   isValidInvitationHandoffSecret,
 } from '@/lib/invitation-links'
@@ -24,6 +25,7 @@ export type InvitationHandoffFailure =
 export interface CreatedInvitationInstallHandoff {
   id: string
   playStoreUrl: string
+  appResumePath: string
   expiresAt: Date
 }
 
@@ -198,6 +200,7 @@ export async function createInvitationInstallHandoff(input: {
   return {
     id,
     playStoreUrl: buildPlayStoreInstallUrl(secret),
+    appResumePath: buildInvitationResumePath(secret),
     expiresAt,
   }
 }
