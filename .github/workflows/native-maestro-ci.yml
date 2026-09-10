@@ -66,16 +66,9 @@ jobs:
         working-directory: apps/mobile
         run: bun run prebuild:android
 
-      - name: Verify generated upgrade identity and App Link manifest
-        shell: bash
-        run: |
-          set -euo pipefail
-          grep -q 'versionCode 3' apps/mobile/android/app/build.gradle
-          grep -q 'applicationId "pro.wewed.app"' apps/mobile/android/app/build.gradle
-          grep -q 'android:autoVerify="true"' apps/mobile/android/app/src/main/AndroidManifest.xml
-          grep -q 'android:host="wewed.pro"' apps/mobile/android/app/src/main/AndroidManifest.xml
-          grep -q 'android:scheme="http"' apps/mobile/android/app/src/main/AndroidManifest.xml
-          grep -q 'android:scheme="https"' apps/mobile/android/app/src/main/AndroidManifest.xml
+      - name: Verify generated upgrade identity, signing guard and App Links
+        working-directory: apps/mobile
+        run: node scripts/verify-generated-android.mjs
 
       - name: Compile debug APK
         working-directory: apps/mobile/android

@@ -67,12 +67,9 @@ jobs:
         working-directory: apps/mobile
         run: bun run prebuild:android
 
-      - name: Confirm upgrade identity and signing guard
-        run: |
-          grep -q 'applicationId "pro.wewed.app"' apps/mobile/android/app/build.gradle
-          grep -q 'versionCode 3' apps/mobile/android/app/build.gradle
-          grep -q 'WEWED_UPLOAD_SIGNING_CONFIG_V1' apps/mobile/android/app/build.gradle
-          grep -q 'WEWED_REQUIRE_RELEASE_SIGNING' apps/mobile/android/app/build.gradle
+      - name: Verify generated upgrade identity, signing guard and App Links
+        working-directory: apps/mobile
+        run: node scripts/verify-generated-android.mjs
 
       - name: Build structural release bundle
         working-directory: apps/mobile/android
@@ -145,15 +142,17 @@ jobs:
         working-directory: apps/mobile
         run: bun run prebuild:android
 
+      - name: Verify generated signed release configuration
+        working-directory: apps/mobile
+        run: node scripts/verify-generated-android.mjs
+
       - name: Build upload-key-signed AAB
         working-directory: apps/mobile/android
         run: ./gradlew :app:bundleRelease --no-daemon --stacktrace
 
-      - name: Verify signed bundle and upgrade identity
+      - name: Verify signed bundle
         run: |
           test -s apps/mobile/android/app/build/outputs/bundle/release/app-release.aab
-          grep -q 'applicationId "pro.wewed.app"' apps/mobile/android/app/build.gradle
-          grep -q 'versionCode 3' apps/mobile/android/app/build.gradle
           jarsigner -verify apps/mobile/android/app/build/outputs/bundle/release/app-release.aab
 
       - name: Upload signed Play candidate
