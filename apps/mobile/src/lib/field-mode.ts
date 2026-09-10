@@ -1,7 +1,17 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import type { PlannerBudgetSummary, PlannerTask, PlannerTimelineItem } from '@/lib/types'
+import type { PlannerBudgetSummary, PlannerTask } from '@/lib/types'
 
 const FIELD_MODE_PREFIX = 'wewed.native.field-mode.v1'
+
+export interface FieldTimelineItem {
+  id: string
+  time: string
+  title: string
+  notes: string
+  duration: string
+  location: string
+  order: number
+}
 
 export interface FieldModeSnapshot {
   version: 1
@@ -12,7 +22,7 @@ export interface FieldModeSnapshot {
     tasks: PlannerTask[]
     budget: PlannerBudgetSummary | null
   }
-  timeline?: PlannerTimelineItem[]
+  timeline?: FieldTimelineItem[]
   counts?: {
     guests?: number
     vendors?: number
@@ -58,11 +68,10 @@ export async function savePulseFieldSnapshot(userId: string, weddingId: string, 
   await mergeSnapshot(userId, weddingId, { pulse: { tasks: safeTasks, budget: pulse.budget } })
 }
 
-export async function saveTimelineFieldSnapshot(userId: string, weddingId: string, timeline: PlannerTimelineItem[]) {
+export async function saveTimelineFieldSnapshot(userId: string, weddingId: string, timeline: FieldTimelineItem[]) {
   const safeTimeline = timeline.slice(0, 150).map((item) => ({
     ...item,
-    description: null,
-    responsible: null,
+    notes: '',
   }))
   await mergeSnapshot(userId, weddingId, { timeline: safeTimeline })
 }
