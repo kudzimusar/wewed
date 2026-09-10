@@ -1,0 +1,142 @@
+name: Native Maestro Android CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'apps/mobile/**'
+      - '.maestro/**'
+      - '.github/workflows/native-maestro-ci.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/mobile/**'
+      - '.maestro/**'
+      - '.github/workflows/native-maestro-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-maestro-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-maestro:
+    name: Compiled Android app Maestro smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      CI: 'true'
+      EXPO_NO_TELEMETRY: '1'
+      EXPO_PUBLIC_WEWED_API_BASE_URL: https://wewed.pro
+      WEWED_ANDROID_VERSION_CODE: '2'
+      WEWED_APP_VERSION: 2.0.0
+      WEWED_MAESTRO_EMAIL: ${{ secrets.WEWED_MAESTRO_EMAIL }}
+      WEWED_MAESTRO_PASSWORD: ${{ secrets.WEWED_MAESTRO_PASSWORD }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22.13.1'
+
+      - name: Set up Java 17
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.3.14
+
+      - name: Install native dependencies
+        working-directory: apps/mobile
+        run: bun install
+
+      - name: Generate Android project
+        working-directory: apps/mobile
+        run: bun run prebuild:android
+
+      - name: Compile debug APK
+        working-directory: apps/mobile/android
+        run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Install pinned Maestro CLI
+        env:
+          MAESTRO_VERSION: '2.7.0'
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+          "$HOME/.maestro/bin/maestro" --version
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run native smoke on Android emulator
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7_pro
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: |
+            set -euo pipefail
+            adb install -r apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+            adb reverse tcp:8081 tcp:8081
+
+            (
+              cd apps/mobile
+              bunx expo start --localhost --clear > /tmp/wewed-maestro-metro.log 2>&1
+            ) &
+            echo $! > /tmp/wewed-maestro-metro.pid
+
+            for attempt in $(seq 1 90); do
+              if curl -fsS http://127.0.0.1:8081/status | grep -q 'packager-status:running'; then
+                break
+              fi
+              if [ "$attempt" -eq 90 ]; then
+                echo 'Metro did not become ready.'
+                cat /tmp/wewed-maestro-metro.log || true
+                exit 1
+              fi
+              sleep 1
+            done
+
+            maestro test .maestro/native-public-smoke.yaml
+
+            if [ -n "${WEWED_MAESTRO_EMAIL:-}" ] && [ -n "${WEWED_MAESTRO_PASSWORD:-}" ]; then
+              maestro test \
+                -e WEWED_MAESTRO_EMAIL="$WEWED_MAESTRO_EMAIL" \
+                -e WEWED_MAESTRO_PASSWORD="$WEWED_MAESTRO_PASSWORD" \
+                .maestro/native-authenticated-smoke.yaml
+            else
+              echo 'Authenticated Maestro smoke not run: WEWED_MAESTRO_EMAIL/WEWED_MAESTRO_PASSWORD secrets are not configured.'
+            fi
+
+            adb shell am start -W -a android.intent.action.VIEW -d 'wewed://messages' pro.wewed.app
+
+      - name: Upload Maestro diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: native-maestro-android-failure
+          path: |
+            ~/.maestro/tests
+            /tmp/wewed-maestro-metro.log
+            native-public-smoke-complete.png
+          if-no-files-found: ignore
+          retention-days: 14
