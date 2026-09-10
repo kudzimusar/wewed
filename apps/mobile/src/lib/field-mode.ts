@@ -1,27 +1,21 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import type { PlannerBudgetSummary, PlannerTask } from '@/lib/types'
+import {
+  sanitizePulseFieldSnapshot,
+  sanitizeTimelineFieldSnapshot,
+  type FieldPulseSnapshot,
+  type FieldTimelineItem,
+} from '@/lib/field-mode-policy'
+
+export type { FieldTimelineItem } from '@/lib/field-mode-policy'
 
 const FIELD_MODE_PREFIX = 'wewed.native.field-mode.v1'
-
-export interface FieldTimelineItem {
-  id: string
-  time: string
-  title: string
-  notes: string
-  duration: string
-  location: string
-  order: number
-}
 
 export interface FieldModeSnapshot {
   version: 1
   userId: string
   weddingId: string
   savedAt: string
-  pulse?: {
-    tasks: PlannerTask[]
-    budget: PlannerBudgetSummary | null
-  }
+  pulse?: FieldPulseSnapshot
   timeline?: FieldTimelineItem[]
   counts?: {
     guests?: number
@@ -32,29 +26,6 @@ export interface FieldModeSnapshot {
 
 function key(userId: string, weddingId: string) {
   return `${FIELD_MODE_PREFIX}:${userId}:${weddingId}`
-}
-
-export function sanitizePulseFieldSnapshot(pulse: NonNullable<FieldModeSnapshot['pulse']>) {
-  return {
-    tasks: pulse.tasks.slice(0, 100).map((task) => ({
-      id: task.id,
-      title: task.title,
-      description: null,
-      category: task.category,
-      status: task.status,
-      priority: task.priority,
-      dueDate: task.dueDate,
-      assignee: task.assignee,
-    })),
-    budget: pulse.budget,
-  }
-}
-
-export function sanitizeTimelineFieldSnapshot(timeline: FieldTimelineItem[]) {
-  return timeline.slice(0, 150).map((item) => ({
-    ...item,
-    notes: '',
-  }))
 }
 
 async function mergeSnapshot(userId: string, weddingId: string, patch: Partial<FieldModeSnapshot>) {
