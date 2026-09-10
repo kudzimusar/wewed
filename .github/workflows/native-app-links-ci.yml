@@ -6,8 +6,7 @@ on:
       - main
     paths:
       - 'apps/mobile/app.config.ts'
-      - 'src/app/.well-known/assetlinks.json/**'
-      - 'src/lib/android-app-links.ts'
+      - 'public/.well-known/assetlinks.json'
       - 'src/lib/android-app-links.test.ts'
       - '.github/workflows/native-app-links-ci.yml'
   push:
@@ -15,8 +14,7 @@ on:
       - main
     paths:
       - 'apps/mobile/app.config.ts'
-      - 'src/app/.well-known/assetlinks.json/**'
-      - 'src/lib/android-app-links.ts'
+      - 'public/.well-known/assetlinks.json'
       - 'src/lib/android-app-links.test.ts'
       - '.github/workflows/native-app-links-ci.yml'
   workflow_dispatch:
@@ -36,7 +34,6 @@ jobs:
     env:
       CI: 'true'
       NEXT_TELEMETRY_DISABLED: '1'
-      WEWED_ANDROID_APP_LINK_SHA256_CERT_FINGERPRINTS: 'AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99'
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -49,7 +46,7 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Test Digital Asset Links payload
+      - name: Validate static Digital Asset Links trust file
         run: bun test src/lib/android-app-links.test.ts
 
       - name: Start local Wewed server
@@ -77,9 +74,15 @@ jobs:
             echo 'Digital Asset Links endpoint must not redirect.'
             exit 1
           fi
-          grep -q '"package_name":"pro.wewed.app"' /tmp/assetlinks.json
-          grep -q '"delegate_permission/common.handle_all_urls"' /tmp/assetlinks.json
-          grep -q 'AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99' /tmp/assetlinks.json
+          node - <<'NODE'
+          const fs = require('node:fs')
+          const expected = JSON.parse(fs.readFileSync('public/.well-known/assetlinks.json', 'utf8'))
+          const served = JSON.parse(fs.readFileSync('/tmp/assetlinks.json', 'utf8'))
+          if (JSON.stringify(served) !== JSON.stringify(expected)) {
+            console.error('Served Digital Asset Links payload differs from the repository trust file.')
+            process.exit(1)
+          }
+          NODE
 
       - name: Stop local Wewed server
         if: always()
