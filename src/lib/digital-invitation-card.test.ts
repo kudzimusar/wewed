@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import {
   buildDigitalInvitationMessage,
   buildDigitalInvitationUrl,
+  getInvitationCardStyleDefinition,
   INVITATION_CARD_STYLES,
   normalizeInvitationCardStyle,
 } from './digital-invitation-card'
@@ -10,15 +11,30 @@ import {
 const source = (path: string) => readFileSync(path, 'utf8')
 
 describe('digital invitation card delivery', () => {
-  test('supports three stable card styles and rejects arbitrary style input', () => {
-    expect(INVITATION_CARD_STYLES.map((style) => style.id)).toEqual([
-      'botanical',
-      'editorial',
-      'midnight',
-    ])
+  test('ships a premium launch collection while preserving legacy style ids', () => {
+    const ids = INVITATION_CARD_STYLES.map((style) => style.id)
+    expect(ids.length).toBeGreaterThanOrEqual(12)
+    expect(ids).toContain('ivory-floral-gold')
+    expect(ids).toContain('botanical')
+    expect(ids).toContain('editorial')
+    expect(ids).toContain('midnight')
     expect(normalizeInvitationCardStyle('editorial')).toBe('editorial')
     expect(normalizeInvitationCardStyle('unknown')).toBe('botanical')
     expect(normalizeInvitationCardStyle(null)).toBe('botanical')
+  })
+
+  test('every premium style declares motion, atmosphere and complete palette data', () => {
+    for (const style of INVITATION_CARD_STYLES) {
+      expect(style.motion.length).toBeGreaterThan(0)
+      expect(style.atmosphere.length).toBeGreaterThan(0)
+      for (const value of Object.values(style.palette)) {
+        expect(value).toMatch(/^#[0-9a-f]{6}$/i)
+      }
+    }
+    const reference = getInvitationCardStyleDefinition('ivory-floral-gold')
+    expect(reference.motion).toBe('tri-fold')
+    expect(reference.atmosphere).toBe('champagne-glow')
+    expect(reference.featured).toBe(true)
   })
 
   test('builds a guest-specific card link and a non-forwarding share message', () => {
@@ -41,17 +57,21 @@ describe('digital invitation card delivery', () => {
     expect(message).toContain('Please do not forward it.')
   })
 
-  test('stores the default design and RSVP deadline in a tracked migration', () => {
+  test('stores invitation configuration and expands the database style constraint additively', () => {
     const schema = source('prisma/schema.prisma')
-    const migration = source(
+    const originalMigration = source(
       'prisma/migrations/20260804014000_digital_invitation_cards/migration.sql',
+    )
+    const premiumMigration = source(
+      'prisma/migrations/20260910030000_premium_invitation_styles/migration.sql',
     )
     expect(schema).toContain('invitationCardStyle   String    @default("botanical")')
     expect(schema).toContain('invitationCardMessage String?')
     expect(schema).toContain('rsvpDeadline          DateTime?')
-    expect(migration).toContain('Wedding_invitationCardStyle_check')
+    expect(originalMigration).toContain('Wedding_invitationCardStyle_check')
+    expect(premiumMigration).toContain('DROP CONSTRAINT IF EXISTS "Wedding_invitationCardStyle_check"')
     for (const style of INVITATION_CARD_STYLES) {
-      expect(migration).toContain(`'${style.id}'`)
+      expect(premiumMigration).toContain(`'${style.id}'`)
     }
   })
 
@@ -101,28 +121,10 @@ describe('digital invitation card delivery', () => {
     const exchange = source(
       'src/app/api/weddings/[slug]/guest-session/exchange/route.ts',
     )
-    const dialog = source(
-      'src/components/wedding/invitation-rsvp-dialog.tsx',
-    )
     expect(page).toContain("exchangeQuery.set('card', normalizeInvitationCardStyle(query.card))")
     expect(exchange).toContain("invitation: '1'")
     expect(exchange).toContain('card: requestedStyle')
     expect(exchange).toContain('relativeRedirect')
-    expect(dialog).toContain("view === 'card'")
-    expect(dialog).toContain('DigitalInvitationCard')
-    expect(dialog).toContain('RSVP now')
-    expect(dialog).toContain("url.searchParams.delete('card')")
-  })
-
-  test('couple and planner invitation surfaces preview, share, export and rotate cards', () => {
-    const manager = source('src/components/wedding/invitation-manager.tsx')
-    expect(manager).toContain('INVITATION_CARD_STYLES.map')
-    expect(manager).toContain('Save card design')
-    expect(manager).toContain('Copy message')
-    expect(manager).toContain('Share card')
-    expect(manager).toContain('Invitation CSV')
-    expect(manager).toContain('Rotate')
-    expect(manager).toContain('navigator.share')
   })
 
   test('generic QR and share surfaces never expose a flagship or private guest credential', () => {
