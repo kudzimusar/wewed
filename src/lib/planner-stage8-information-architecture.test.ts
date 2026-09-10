@@ -97,11 +97,12 @@ describe('Stage 8 planner information architecture', () => {
   })
 
   test('client, operations, invitations, and event command retain their existing APIs', async () => {
-    const [profile, operations, invitations, invitationManager, eventCommand] = await Promise.all([
+    const [profile, operations, invitations, invitationManager, invitationStudio, eventCommand] = await Promise.all([
       source('src/components/wedding/planner-client-profile.tsx'),
       source('src/components/wedding/planner-operations.tsx'),
       source('src/components/wedding/planner-invitation-tools.tsx'),
       source('src/components/wedding/invitation-manager.tsx'),
+      source('src/components/wedding/invitation-experience/premium-invitation-studio.tsx'),
       source('src/components/wedding/planner-event-command.tsx'),
     ])
 
@@ -139,10 +140,18 @@ describe('Stage 8 planner information architecture', () => {
       "method: 'PATCH'",
       "'/api/planner/guests/invitations?format=csv'",
       'Digital wedding cards & RSVP',
-      'Save card design',
+      'async function saveDesign()',
+      'onSave={() => void saveDesign()}',
       'Rotate',
     ]) {
       expect(invitationManager).toContain(marker)
+    }
+    for (const marker of [
+      'onSave: () => void',
+      'onClick={onSave}',
+      'Save card design',
+    ]) {
+      expect(invitationStudio).toContain(marker)
     }
 
     for (const marker of [
