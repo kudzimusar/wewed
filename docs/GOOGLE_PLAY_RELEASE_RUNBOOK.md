@@ -12,11 +12,11 @@ Last updated: 10 September 2026.
 - Developer account ID: `8527437585153848574`
 - Release track: **Closed testing - Alpha**
 - Track ID: `4699430816221896412`
-- Test countries: **Zimbabwe plus 28 English-speaking markets** (including the United States, Canada, United Kingdom, Ireland, Australia, New Zealand, South Africa, Kenya, Nigeria, Ghana, Singapore, and Caribbean markets)
+- Test countries: **Zimbabwe plus 28 English-speaking markets**, with six additional markets submitted for review: India, Indonesia, Japan, Myanmar (Burma), South Korea, and Thailand. Singapore was already included in the original 29-region set.
 - Release: **Wewed Zimbabwe closed test 1**
 - Android version: version name `1`, version code `1`
 - Target SDK: 36
-- Status on 10 September 2026: **country expansion published**. The closed test is active in 29 regions: Zimbabwe plus 28 English-speaking markets.
+- Status on 10 September 2026: **six additional country targets saved and submitted for review**. The closed test remains active in the original 29 regions while Google processes the expansion; approval will bring the target to 35 regions.
 - Tester access: the existing **Beta Testers** email list is assigned to the track and contains 31 accounts.
 - Production-access progress on 9 September 2026: **1 tester is currently opted in**. Google requires at least 12 opted-in testers to remain in the closed test for at least 14 continuous days before this personal developer account can apply for production access.
 - Android developer verification: **Wewed is registered** with 3 signing keys. The 30 September 2026 registration warning is satisfied for this app.
