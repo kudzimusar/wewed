@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import {
   consumeInvitationInstallHandoff,
   createInvitationInstallHandoff,
+  InvitationHandoffRateLimitError,
 } from '@/lib/invitation-install-handoff'
 
 type Fixture = {
@@ -116,6 +117,9 @@ describe('native deferred invitation handoff', () => {
     expect(created.playStoreUrl).not.toContain(fixture.weddingSlug)
     expect(created.playStoreUrl).not.toContain('guest=')
     expect(created.playStoreUrl).not.toContain('email=')
+    expect(created.appResumePath).toBe(`/invite/resume?h=${created.secret}`)
+    expect(created.appResumePath).not.toContain(fixture.rsvpToken)
+    expect(created.appResumePath).not.toContain(fixture.weddingSlug)
 
     const rows = await db.$queryRaw<
       Array<{ tokenHash: string; rsvpTokenHash: string }>
@@ -217,5 +221,29 @@ describe('native deferred invitation handoff', () => {
     expect([first.ok, second.ok].filter(Boolean)).toHaveLength(1)
     const failure = first.ok ? second : first
     expect(failure).toEqual({ ok: false, reason: 'used' })
+  })
+
+  test('rate-limits repeated handoff creation for the same invitation', async () => {
+    const fixture = await createFixture()
+
+    for (let index = 0; index < 5; index += 1) {
+      await createInvitationInstallHandoff({
+        weddingId: fixture.weddingId,
+        guestId: fixture.guestId,
+        rsvpToken: fixture.rsvpToken,
+        card: 'botanical',
+        source: `rate-test-${index}`,
+      })
+    }
+
+    expect(
+      createInvitationInstallHandoff({
+        weddingId: fixture.weddingId,
+        guestId: fixture.guestId,
+        rsvpToken: fixture.rsvpToken,
+        card: 'botanical',
+        source: 'rate-test-overflow',
+      }),
+    ).rejects.toBeInstanceOf(InvitationHandoffRateLimitError)
   })
 })
