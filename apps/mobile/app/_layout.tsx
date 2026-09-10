@@ -7,8 +7,17 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { SessionProvider } from '@/auth/session'
 import { handoffPath } from '@/lib/deep-links'
+import { bootstrapDeferredInvitationFromInstallReferrer } from '@/lib/install-referrer-bootstrap'
 import { notificationUrl } from '@/lib/notifications'
 import { colors } from '@/theme/tokens'
+
+function DeferredInvitationBootstrap() {
+  useEffect(() => {
+    void bootstrapDeferredInvitationFromInstallReferrer()
+  }, [])
+
+  return null
+}
 
 function NotificationRouter() {
   const lastResponse = Notifications.useLastNotificationResponse()
@@ -45,6 +54,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <SessionProvider>
+            <DeferredInvitationBootstrap />
             <NotificationRouter />
             <StatusBar style="dark" />
             <Stack
