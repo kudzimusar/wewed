@@ -1,0 +1,44 @@
+appId: pro.wewed.app
+tags:
+  - android
+  - authenticated-smoke
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Your wedding world, in your hand."
+    timeout: 30000
+- tapOn: "Email"
+- inputText: ${WEWED_MAESTRO_EMAIL}
+- tapOn: "Password"
+- inputText: ${WEWED_MAESTRO_PASSWORD}
+- tapOn: "Sign in to Wewed"
+- extendedWaitUntil:
+    visible: "Wedding pulse"
+    timeout: 30000
+- assertVisible: "Open tasks"
+- assertVisible: "High priority"
+- tapOn: "Plan"
+- extendedWaitUntil:
+    visible: "Planning command centre"
+    timeout: 15000
+- tapOn: "Tasks"
+- extendedWaitUntil:
+    visible: "What happens next?"
+    timeout: 15000
+- assertVisible: "Any priority"
+- tapOn: "High"
+- assertVisible: "High"
+- back
+- tapOn: "Messages"
+- extendedWaitUntil:
+    visible: "Wewed Messages"
+    timeout: 15000
+- tapOn: "Vendors"
+- extendedWaitUntil:
+    visible: "Vendors"
+    timeout: 15000
+- tapOn: "More"
+- extendedWaitUntil:
+    visible: "More"
+    timeout: 15000
