@@ -124,7 +124,7 @@ async function enforceCreationRateLimit(rsvpId: string): Promise<void> {
   const since = new Date(Date.now() - CREATION_WINDOW_MS)
   const rows = await db.$queryRaw<Array<{ count: bigint }>>`
     SELECT COUNT(*)::bigint AS count
-    FROM "InvitationInstallHandoff"
+    FROM private."InvitationInstallHandoff"
     WHERE "rsvpId" = ${rsvpId}
       AND "createdAt" >= ${since}
   `
@@ -181,7 +181,7 @@ export async function createInvitationInstallHandoff(input: {
   const source = (input.source?.trim() || 'install-cta').slice(0, 64)
 
   await db.$executeRaw`
-    INSERT INTO "InvitationInstallHandoff" (
+    INSERT INTO private."InvitationInstallHandoff" (
       "id", "tokenHash", "rsvpId", "rsvpTokenHash", "weddingId", "guestId",
       "card", "source", "ipAddress", "userAgent", "expiresAt"
     ) VALUES (
@@ -252,7 +252,7 @@ export async function consumeInvitationInstallHandoff(input: {
     SELECT
       "id", "tokenHash", "rsvpId", "rsvpTokenHash", "weddingId", "guestId",
       "card", "source", "createdAt", "expiresAt", "usedAt", "revokedAt"
-    FROM "InvitationInstallHandoff"
+    FROM private."InvitationInstallHandoff"
     WHERE "tokenHash" = ${tokenHash}
     LIMIT 1
   `
@@ -319,7 +319,7 @@ export async function consumeInvitationInstallHandoff(input: {
 
   if (!invitationStillValid || !rsvp) {
     await db.$executeRaw`
-      UPDATE "InvitationInstallHandoff"
+      UPDATE private."InvitationInstallHandoff"
       SET "revokedAt" = COALESCE("revokedAt", NOW())
       WHERE "id" = ${handoff.id}
     `
@@ -333,7 +333,7 @@ export async function consumeInvitationInstallHandoff(input: {
   }
 
   const consumed = await db.$executeRaw`
-    UPDATE "InvitationInstallHandoff"
+    UPDATE private."InvitationInstallHandoff"
     SET "usedAt" = NOW()
     WHERE "id" = ${handoff.id}
       AND "usedAt" IS NULL
