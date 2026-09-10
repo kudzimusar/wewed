@@ -15,6 +15,11 @@ interface PulseData {
   budget: PlannerBudgetSummary | null
 }
 
+interface LoadedFieldSnapshot {
+  key: string
+  snapshot: FieldModeSnapshot | null
+}
+
 function daysTo(date: string) {
   const target = new Date(date).getTime()
   const now = new Date()
@@ -25,26 +30,29 @@ function daysTo(date: string) {
 export default function TodayScreen() {
   const { session, token, switchWedding } = useSession()
   const wedding = session?.activeWedding ?? null
+  const userId = session?.user.id ?? null
+  const weddingId = wedding?.id ?? null
+  const snapshotKey = userId && weddingId ? `${userId}:${weddingId}` : null
   const netInfo = useNetInfo()
   const offline = netInfo.isConnected === false
-  const [fieldSnapshot, setFieldSnapshot] = useState<FieldModeSnapshot | null>(null)
+  const [loadedSnapshot, setLoadedSnapshot] = useState<LoadedFieldSnapshot | null>(null)
+  const [todayStart] = useState(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    return today.getTime()
+  })
 
   useEffect(() => {
+    if (!userId || !weddingId || !snapshotKey) return
     let alive = true
-    const userId = session?.user.id
-    const weddingId = wedding?.id
-    if (!userId || !weddingId) {
-      setFieldSnapshot(null)
-      return () => { alive = false }
-    }
     void readFieldModeSnapshot(userId, weddingId).then((snapshot) => {
-      if (alive) setFieldSnapshot(snapshot)
+      if (alive) setLoadedSnapshot({ key: snapshotKey, snapshot })
     })
     return () => { alive = false }
-  }, [session?.user.id, wedding?.id])
+  }, [userId, weddingId, snapshotKey])
 
   const pulse = useQuery({
-    queryKey: ['mobile-pulse', wedding?.id],
+    queryKey: ['mobile-pulse', weddingId],
     enabled: Boolean(token && wedding && !offline),
     queryFn: async (): Promise<PulseData> => {
       const [tasks, budget] = await Promise.all([
@@ -56,27 +64,25 @@ export default function TodayScreen() {
   })
 
   useEffect(() => {
-    const userId = session?.user.id
-    const weddingId = wedding?.id
-    if (!userId || !weddingId || !pulse.data) return
+    if (!userId || !weddingId || !snapshotKey || !pulse.data) return
     void savePulseFieldSnapshot(userId, weddingId, pulse.data)
       .then(() => readFieldModeSnapshot(userId, weddingId))
-      .then((snapshot) => setFieldSnapshot(snapshot))
+      .then((snapshot) => setLoadedSnapshot({ key: snapshotKey, snapshot }))
       .catch(() => undefined)
-  }, [pulse.data, session?.user.id, wedding?.id])
+  }, [pulse.data, userId, weddingId, snapshotKey])
 
+  const fieldSnapshot = loadedSnapshot?.key === snapshotKey ? loadedSnapshot.snapshot : null
   const effectivePulse = pulse.data ?? fieldSnapshot?.pulse ?? null
   const usingFieldSnapshot = Boolean(!pulse.data && fieldSnapshot?.pulse)
 
   const taskStats = useMemo(() => {
     const tasks = effectivePulse?.tasks ?? []
-    const now = Date.now()
     return {
       open: tasks.filter((task) => task.status !== 'done').length,
       urgent: tasks.filter((task) => task.status !== 'done' && task.priority === 'high').length,
-      overdue: tasks.filter((task) => task.status !== 'done' && task.dueDate && new Date(task.dueDate).getTime() < now).length,
+      overdue: tasks.filter((task) => task.status !== 'done' && task.dueDate && new Date(task.dueDate).getTime() < todayStart).length,
     }
-  }, [effectivePulse?.tasks])
+  }, [effectivePulse?.tasks, todayStart])
 
   const firstName = session?.user.displayName?.trim().split(/\s+/)[0] || 'there'
 
