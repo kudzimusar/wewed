@@ -10,6 +10,7 @@
     "web": "expo start --web",
     "deps:check": "expo install --check",
     "doctor": "expo-doctor@latest",
+    "test:unit": "bun test src/lib/deep-links.test.ts",
     "typecheck": "tsc --noEmit",
     "lint": "expo lint",
     "export:android": "expo export --platform android --output-dir dist-android --clear",
