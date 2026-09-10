@@ -52,5 +52,12 @@
   "categories": ["lifestyle", "productivity", "social"],
   "lang": "en-ZW",
   "dir": "ltr",
+  "related_applications": [
+    {
+      "platform": "play",
+      "url": "https://play.google.com/store/apps/details?id=pro.wewed.app",
+      "id": "pro.wewed.app"
+    }
+  ],
   "prefer_related_applications": false
 }

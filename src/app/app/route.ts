@@ -4,6 +4,8 @@ import {
   GOOGLE_PLAY_DISTRIBUTION_COOKIE,
   GOOGLE_PLAY_DISTRIBUTION_VALUE,
 } from '@/lib/google-play-distribution'
+import { buildInvitationContinuePath } from '@/lib/invitation-links'
+import { readPendingInvitation } from '@/lib/pending-invitation'
 
 const WORKSPACE_BY_ROLE = {
   admin: '/admin',
@@ -13,8 +15,16 @@ const WORKSPACE_BY_ROLE = {
 } as const
 
 export function GET(request: NextRequest) {
+  const pendingInvitation = readPendingInvitation(request)
   const session = readAppSession(request)
-  const destination = session ? WORKSPACE_BY_ROLE[session.role] : '/sign-in?from=app'
+  const destination = pendingInvitation
+    ? buildInvitationContinuePath({
+        weddingSlug: pendingInvitation.weddingSlug,
+        source: 'app-launch',
+      })
+    : session
+      ? WORKSPACE_BY_ROLE[session.role]
+      : '/sign-in?from=app'
   const response = NextResponse.redirect(new URL(destination, request.url))
 
   if (request.nextUrl.searchParams.get('source') === GOOGLE_PLAY_DISTRIBUTION_VALUE) {

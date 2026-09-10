@@ -1,0 +1,87 @@
+name: Smart Invitation CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/app/invite/**'
+      - 'src/app/app/route.ts'
+      - 'src/app/api/planner/guests/invitations/route.ts'
+      - 'src/components/wedding/invitation-app-handoff.tsx'
+      - 'src/lib/invitation-links.ts'
+      - 'src/lib/invitation-links.test.ts'
+      - 'src/lib/pending-invitation.ts'
+      - 'src/lib/personal-invitation-access.ts'
+      - 'src/lib/reminder-delivery.ts'
+      - 'public/manifest.json'
+      - '.github/workflows/smart-invitation-ci.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/app/invite/**'
+      - 'src/app/app/route.ts'
+      - 'src/app/api/planner/guests/invitations/route.ts'
+      - 'src/components/wedding/invitation-app-handoff.tsx'
+      - 'src/lib/invitation-links.ts'
+      - 'src/lib/invitation-links.test.ts'
+      - 'src/lib/pending-invitation.ts'
+      - 'src/lib/personal-invitation-access.ts'
+      - 'src/lib/reminder-delivery.ts'
+      - 'public/manifest.json'
+      - '.github/workflows/smart-invitation-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smart-invitation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  invitation-contract:
+    name: Validate smart invitation handoff
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: 'true'
+      WEWED_SESSION_SECRET: ci-session-secret-not-for-production
+      NEXT_TELEMETRY_DISABLED: 1
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run smart invitation link tests
+        run: bun test src/lib/invitation-links.test.ts
+
+      - name: Reject TypeScript errors in smart invitation files
+        shell: bash
+        run: |
+          set +e
+          bunx tsc --noEmit --pretty false > /tmp/wewed-tsc.log 2>&1
+          TSC_STATUS=$?
+          set -e
+
+          if [ "$TSC_STATUS" -eq 0 ]; then
+            echo "Repository TypeScript check is clean."
+            exit 0
+          fi
+
+          SMART_ERRORS=$(grep -E '^(src/app/invite/|src/app/app/route\.ts|src/app/api/planner/guests/invitations/route\.ts|src/components/wedding/invitation-app-handoff\.tsx|src/lib/(invitation-links|pending-invitation|personal-invitation-access|reminder-delivery)(\.test)?\.ts)' /tmp/wewed-tsc.log || true)
+          if [ -n "$SMART_ERRORS" ]; then
+            echo "TypeScript errors found in smart invitation files:"
+            echo "$SMART_ERRORS"
+            exit 1
+          fi
+
+          echo "Repository-wide TypeScript has pre-existing errors outside this feature; none are in the smart invitation files."
