@@ -1,5 +1,12 @@
 import { expect, test } from './support/planner-browser'
 
+async function contributionItem(page: Parameters<typeof test>[0] extends never ? never : any, contributor: string) {
+  const workspace = page.getByTestId('planner-contributions-workspace')
+  const mobileCard = workspace.locator('button').filter({ hasText: contributor }).first()
+  if (await mobileCard.isVisible()) return mobileCard
+  return workspace.getByRole('row').filter({ hasText: contributor }).first()
+}
+
 test('Contributions is a first-class Planner module with Overview entry and durable direct route', async ({ plannerPage }) => {
   const navigation = plannerPage.getByRole('navigation', { name: 'Planner workspace sections' })
   const mobileSelector = plannerPage.getByRole('combobox', { name: 'Planner workspace section' })
@@ -40,7 +47,7 @@ test('Planner can record a contribution and the private contributor profile pers
   await dialog.getByPlaceholder('Amount').fill('125')
   await dialog.getByRole('button', { name: 'Save contribution' }).click()
   await expect(dialog).toBeHidden()
-  await expect(plannerPage.getByRole('button', { name: new RegExp(marker) })).toBeVisible()
+  await expect(await contributionItem(plannerPage, marker)).toBeVisible()
 
   const payload = await plannerPage.evaluate(async () => {
     const response = await fetch('/api/planner/contributions', { cache: 'no-store' })
@@ -50,7 +57,7 @@ test('Planner can record a contribution and the private contributor profile pers
   expect(contributor).toMatchObject({ kind: 'family', email: 'contribution-uat@example.com', phone: '+263 77 000 0000', address: 'Harare', preferredContactMethod: 'email' })
 
   await plannerPage.reload()
-  await expect(plannerPage.getByRole('button', { name: new RegExp(marker) })).toBeVisible()
+  await expect(await contributionItem(plannerPage, marker)).toBeVisible()
 })
 
 test('Planner can create a governed non-honeymoon campaign privately', async ({ plannerPage }) => {
