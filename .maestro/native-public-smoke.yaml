@@ -1,0 +1,27 @@
+appId: pro.wewed.app
+tags:
+  - android
+  - public-smoke
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Your wedding world, in your hand."
+    timeout: 30000
+- assertVisible: "Email"
+- assertVisible: "Password"
+- assertVisible: "Sign in to Wewed"
+- tapOn: "Sign in to Wewed"
+- assertVisible: "Enter your Wewed email and password."
+- openLink:
+    link: "wewed://messages"
+- extendedWaitUntil:
+    visible: "Sign in, then continue."
+    timeout: 15000
+- assertVisible: "Sign in to continue"
+- assertVisible: "Cancel"
+- tapOn: "Cancel"
+- extendedWaitUntil:
+    visible: "Your wedding world, in your hand."
+    timeout: 15000
+- takeScreenshot: native-public-smoke-complete
