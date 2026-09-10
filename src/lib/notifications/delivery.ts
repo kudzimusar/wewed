@@ -534,12 +534,28 @@ async function sendPush(
     }
   }
 
-  const hasAnyTransport = Boolean(subscriptions.length || nativeResult.configured)
+  // Preserve the established web-push result when there is no native device
+  // transport to aggregate. A subscription row is not itself proof that a
+  // push provider is configured, and rewriting TRANSPORT_NOT_CONFIGURED into
+  // a permanent provider failure breaks both diagnostics and retry policy.
+  if (!nativeResult.configured && webResult) {
+    return webResult
+  }
+
+  if (!nativeResult.configured) {
+    return {
+      ok: false,
+      provider: 'push-multi',
+      unavailable: true,
+      errorCode: 'NO_ACTIVE_SUBSCRIPTION',
+    }
+  }
+
   return {
     ok: false,
-    provider: nativeResult.configured ? 'expo-push' : directWebPushConfigured() ? 'web-push' : 'push-gateway',
+    provider: 'expo-push',
     unavailable: true,
-    errorCode: hasAnyTransport || nativeResult.permanentFailure ? 'PUSH_PERMANENT_ERROR' : 'NO_ACTIVE_SUBSCRIPTION',
+    errorCode: nativeResult.permanentFailure || Boolean(webResult) ? 'PUSH_PERMANENT_ERROR' : 'NO_ACTIVE_SUBSCRIPTION',
   }
 }
 
