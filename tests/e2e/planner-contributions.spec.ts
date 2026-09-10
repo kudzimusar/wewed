@@ -1,6 +1,7 @@
+import type { Page } from '@playwright/test'
 import { expect, test } from './support/planner-browser'
 
-async function contributionItem(page: Parameters<typeof test>[0] extends never ? never : any, contributor: string) {
+async function contributionItem(page: Page, contributor: string) {
   const workspace = page.getByTestId('planner-contributions-workspace')
   const mobileCard = workspace.locator('button').filter({ hasText: contributor }).first()
   if (await mobileCard.isVisible()) return mobileCard
