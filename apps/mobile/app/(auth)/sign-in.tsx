@@ -4,6 +4,8 @@ import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-na
 import { useSession } from '@/auth/session'
 import { ActionButton, Body, Eyebrow, Field, Screen, Surface, Title } from '@/components/core'
 import { WewedApiError } from '@/lib/api'
+import { handoffPath, resolveWewedLink } from '@/lib/deep-links'
+import { takePendingLink } from '@/lib/pending-link'
 import { colors, spacing } from '@/theme/tokens'
 
 export default function SignInScreen() {
@@ -21,6 +23,16 @@ export default function SignInScreen() {
     setError(null)
     try {
       await signIn(normalizedEmail, password)
+      const pending = await takePendingLink().catch(() => null)
+      if (pending) {
+        const resolved = resolveWewedLink(pending)
+        if (resolved.nativePath) {
+          router.replace(resolved.nativePath as never)
+          return
+        }
+        router.replace(handoffPath(pending) as never)
+        return
+      }
       router.replace('/(tabs)')
     } catch (cause) {
       setError(cause instanceof WewedApiError ? cause.message : 'Wewed could not sign you in. Please try again.')
@@ -62,7 +74,7 @@ export default function SignInScreen() {
         </Surface>
 
         <View style={styles.footnote}>
-          <Body muted>Your account, wedding permissions and vendor access are the same ones you use on wewed.pro.</Body>
+          <Body muted>Your account, wedding permissions and vendor access are the same ones you use on wewed.pro. Links opened before sign-in are resumed after authentication.</Body>
         </View>
       </Screen>
     </KeyboardAvoidingView>
