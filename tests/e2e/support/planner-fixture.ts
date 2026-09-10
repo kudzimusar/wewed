@@ -37,7 +37,12 @@ export const E2E_WEDDINGS = {
 } as const
 
 function assertSafeTarget(): void {
-  assertSafeLocalCiE2EEnvironment()
+  try {
+    assertSafeLocalCiE2EEnvironment()
+  } catch (error) {
+    const detail = error instanceof Error ? `: ${error.message}` : ''
+    throw new Error(`Refusing planner E2E fixture reset${detail}`)
+  }
 }
 
 async function clearEphemeralDatabase(prisma: PrismaClient): Promise<void> {
