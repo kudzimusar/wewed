@@ -6,6 +6,7 @@ import { sendTransactionalEmail } from '@/lib/email/resend'
 import { buildWhatsAppRequest } from '@/lib/communication-channels'
 import { buildNotificationWhatsAppActionRequest } from '@/lib/notifications/whatsapp'
 import { directWebPushConfigured, sendDirectWebPush } from '@/lib/notifications/web-push'
+import { sendNativePushForUser } from '@/lib/notifications/native-push'
 import {
   isNotificationExternallyDeliverableToRecipient,
   type DeliveryAuthorizationCandidate,
@@ -498,8 +499,48 @@ async function sendPush(
   notification: NotificationDeliveryCandidate,
   subscriptions: PushSubscriptionRow[],
 ): Promise<TransportResult> {
-  if (directWebPushConfigured()) return sendPushDirect(attempt, notification, subscriptions)
-  return sendPushWithGateway(attempt, notification, subscriptions)
+  const webResult = subscriptions.length
+    ? directWebPushConfigured()
+      ? await sendPushDirect(attempt, notification, subscriptions)
+      : await sendPushWithGateway(attempt, notification, subscriptions)
+    : null
+  const nativeResult = await sendNativePushForUser({
+    userId: notification.recipientUserId,
+    notificationId: notification.id,
+    deliveryAttemptId: attempt.id,
+    title: notification.title,
+    body: notification.body,
+    url: notification.deepLink || notificationOpenLink(notification.id),
+  })
+
+  if (webResult?.ok || nativeResult.sent > 0) {
+    const refs = [
+      webResult?.ok ? `${webResult.provider}:${webResult.providerRef ?? 'sent'}` : null,
+      nativeResult.sent > 0 ? `expo:${nativeResult.providerRefs.slice(0, 5).join(',') || nativeResult.sent}` : null,
+    ].filter((value): value is string => Boolean(value))
+    return {
+      ok: true,
+      provider: refs.length > 1 ? 'push-multi' : webResult?.ok ? webResult.provider : 'expo-push',
+      providerRef: refs.join(';'),
+    }
+  }
+
+  if (webResult?.retriable || nativeResult.retriableFailure) {
+    return {
+      ok: false,
+      provider: 'push-multi',
+      retriable: true,
+      errorCode: 'PUSH_RETRYABLE_ERROR',
+    }
+  }
+
+  const hasAnyTransport = Boolean(subscriptions.length || nativeResult.configured)
+  return {
+    ok: false,
+    provider: nativeResult.configured ? 'expo-push' : directWebPushConfigured() ? 'web-push' : 'push-gateway',
+    unavailable: true,
+    errorCode: hasAnyTransport || nativeResult.permanentFailure ? 'PUSH_PERMANENT_ERROR' : 'NO_ACTIVE_SUBSCRIPTION',
+  }
 }
 
 async function finishAttempt(attempt: AttemptRow, result: TransportResult): Promise<'sent' | 'failed' | 'cancelled'> {
@@ -635,14 +676,7 @@ async function processQueuedAttempts(limit: number, stats: NotificationDeliveryS
         : { ok: false, provider: 'meta-whatsapp-cloud', unavailable: true, errorCode: 'NO_VERIFIED_ENDPOINT' }
     } else {
       const subscriptions = await activePushSubscriptions(notification.recipientUserId)
-      result = subscriptions.length
-        ? await sendPush(attempt, notification, subscriptions)
-        : {
-            ok: false,
-            provider: directWebPushConfigured() ? 'web-push' : 'push-gateway',
-            unavailable: true,
-            errorCode: 'NO_ACTIVE_SUBSCRIPTION',
-          }
+      result = await sendPush(attempt, notification, subscriptions)
     }
 
     const finalState = await finishAttempt(attempt, result)
