@@ -111,7 +111,6 @@ jobs:
           fi
           bun test "${BUN_TEST_FILES[@]}"
       - run: bun run build
-      - run: bun add --no-save --exact @playwright/test@1.55.0
       - run: bash scripts/install-playwright-chromium-ci.sh
       - name: Run Contributions browser qualification
         run: bunx playwright test tests/e2e/planner-contributions.spec.ts
