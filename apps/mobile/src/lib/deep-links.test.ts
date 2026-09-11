@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { handoffPath, resolveWewedLink } from './deep-links'
+import { handoffPath, nativeIntentPath, resolveWewedLink } from './deep-links'
 
 describe('resolveWewedLink', () => {
   test('routes authenticated Wewed app links to the native shell', () => {
@@ -58,5 +58,25 @@ describe('resolveWewedLink', () => {
     const path = handoffPath('https://www.wewed.pro/bookings/abc?source=push')
     expect(path.startsWith('/handoff?url=')).toBe(true)
     expect(decodeURIComponent(path.split('=')[1] ?? '')).toBe('https://wewed.pro/bookings/abc?source=push')
+  })
+})
+
+describe('nativeIntentPath', () => {
+  test('keeps a normal Android launcher root at the application root', () => {
+    expect(nativeIntentPath('wewed:///')).toBe('/')
+    expect(nativeIntentPath('https://wewed.pro/')).toBe('/')
+    expect(nativeIntentPath('https://wewed.pro/app')).toBe('/')
+  })
+
+  test('preserves a real authenticated deep link through secure continuation', () => {
+    const path = nativeIntentPath('wewed://messages/conversation-123')
+    expect(path.startsWith('/handoff?url=')).toBe(true)
+    expect(decodeURIComponent(path.split('=')[1] ?? '')).toBe('https://wewed.pro/messages/conversation-123')
+  })
+
+  test('keeps secure web-only routes in the handoff boundary', () => {
+    const path = nativeIntentPath('https://wewed.pro/contracts/review/secret-review-token')
+    expect(path.startsWith('/handoff?url=')).toBe(true)
+    expect(decodeURIComponent(path.split('=')[1] ?? '')).toBe('https://wewed.pro/contracts/review/secret-review-token')
   })
 })
