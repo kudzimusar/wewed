@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { clearPendingInvitationCookie } from '@/lib/pending-invitation'
 import {
   normalizePhysicalInvitationCode,
   physicalInvitationDestinationId,
 } from '@/lib/physical-invitation-code'
+import { clearWeddingGuestSessionCookie } from '@/lib/wedding-guest-session'
 import { setWeddingSharedInvitationCookie } from '@/lib/wedding-shared-invitation-session'
 
 function noStore(response: NextResponse): NextResponse {
@@ -11,10 +13,17 @@ function noStore(response: NextResponse): NextResponse {
   return response
 }
 
+function clearPersonalInvitationContext(response: NextResponse): void {
+  clearPendingInvitationCookie(response)
+  clearWeddingGuestSessionCookie(response)
+}
+
 function invalidInvitation(request: NextRequest): NextResponse {
-  return noStore(
-    NextResponse.redirect(new URL('/guest-access-help?reason=invalid-invitation', request.url)),
+  const response = NextResponse.redirect(
+    new URL('/guest-access-help?reason=invalid-invitation', request.url),
   )
+  clearPersonalInvitationContext(response)
+  return noStore(response)
 }
 
 export async function GET(
@@ -55,6 +64,7 @@ export async function GET(
       request.url,
     ),
   )
+  clearPersonalInvitationContext(response)
   setWeddingSharedInvitationCookie(response, {
     weddingId: destination.weddingId,
     destinationId: destination.id,
