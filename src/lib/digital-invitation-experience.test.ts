@@ -66,7 +66,9 @@ describe('premium digital invitation experience', () => {
     expect(experience).toContain("type: 'text/calendar;charset=utf-8'")
     expect(experience).toContain('https://www.google.com/maps/search/?api=1&query=')
     expect(experience).toContain("document.getElementById('registry')")
-    expect(experience).toContain("document.getElementById('wedding-details')")
+    expect(experience).toContain('Back to Wewed Couple Site')
+    expect(experience).toContain('window.location.assign(window.location.pathname)')
+    expect(experience).not.toContain("document.getElementById('wedding-details')")
   })
 
   test('the preview-only UAT route uses the approved Charity and Kudzie facts without inventing a ceremony time', () => {
