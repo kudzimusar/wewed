@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { resolvePersonalInvitation } from '@/lib/personal-invitation-access'
 import {
+  clearPendingInvitationCookie,
   readPendingInvitation,
   setPendingInvitationCookie,
 } from '@/lib/pending-invitation'
+import { clearWeddingGuestSessionCookie } from '@/lib/wedding-guest-session'
+import { clearWeddingSharedInvitationCookie } from '@/lib/wedding-shared-invitation-session'
 
 interface Params {
   params: Promise<{ slug: string }>
@@ -23,9 +26,18 @@ function relativeRedirect(location: string): NextResponse {
   })
 }
 
+function clearPersonalInvitationContext(response: NextResponse): void {
+  clearPendingInvitationCookie(response)
+  clearWeddingGuestSessionCookie(response)
+}
+
 function redirectToGateway(slug: string, error: string) {
   const query = new URLSearchParams({ accessError: error })
-  return relativeRedirect(`/w/${encodeURIComponent(slug)}?${query.toString()}`)
+  const response = relativeRedirect(
+    `/w/${encodeURIComponent(slug)}?${query.toString()}`,
+  )
+  clearPersonalInvitationContext(response)
+  return response
 }
 
 export async function GET(request: NextRequest, { params }: Params) {
@@ -55,6 +67,8 @@ export async function GET(request: NextRequest, { params }: Params) {
   const response = relativeRedirect(
     `/invite/${encodeURIComponent(slug)}/open`,
   )
+  clearWeddingGuestSessionCookie(response)
+  clearWeddingSharedInvitationCookie(response)
   setPendingInvitationCookie(response, {
     weddingSlug: invitation.weddingSlug,
     rsvpToken: invitation.rsvpToken,
