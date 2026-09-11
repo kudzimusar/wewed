@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { consumeInvitationInstallHandoff } from '@/lib/invitation-install-handoff'
 import { clearPendingInvitationCookie } from '@/lib/pending-invitation'
-import { setWeddingGuestSessionCookie } from '@/lib/wedding-guest-session'
+import {
+  clearWeddingGuestSessionCookie,
+  setWeddingGuestSessionCookie,
+} from '@/lib/wedding-guest-session'
+import { clearWeddingSharedInvitationCookie } from '@/lib/wedding-shared-invitation-session'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,8 +28,11 @@ function hardenedRedirect(location: string, status = 303): NextResponse {
   })
 }
 
-function recoveryRedirect() {
-  return hardenedRedirect('/guest-access-help?reason=invitation-resume')
+function recoveryRedirect(): NextResponse {
+  const response = hardenedRedirect('/guest-access-help?reason=invitation-resume')
+  clearPendingInvitationCookie(response)
+  clearWeddingGuestSessionCookie(response)
+  return response
 }
 
 export async function GET(request: NextRequest) {
@@ -48,6 +55,7 @@ export async function GET(request: NextRequest) {
     `/w/${encodeURIComponent(result.weddingSlug)}?${query.toString()}`,
   )
 
+  clearWeddingSharedInvitationCookie(response)
   setWeddingGuestSessionCookie(response, {
     weddingId: result.weddingId,
     guestId: result.guestId,
