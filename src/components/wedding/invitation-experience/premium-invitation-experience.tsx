@@ -21,6 +21,7 @@ interface GuestSessionPayload {
     tagline: string | null
     date: string
     venue: string
+    venueMapUrl?: string | null
     venueCity: string
     venueCountry: string
     primaryColor: string
@@ -311,6 +312,7 @@ export function PremiumInvitationExperience({
           tagline: payload.wedding!.tagline,
           date: payload.wedding!.date,
           venue: payload.wedding!.venue,
+          venueMapUrl: payload.wedding!.venueMapUrl,
           venueCity: payload.wedding!.venueCity,
           venueCountry: payload.wedding!.venueCountry,
           guestName: payload.guest!.name,
@@ -326,10 +328,10 @@ export function PremiumInvitationExperience({
   }, [personalizeFromGuestSession, slug])
 
   useEffect(() => {
-    if (!isOpen) return
+    if (!isOpen || isIvoryBenchmark) return
     const id = window.setTimeout(() => continueButtonRef.current?.focus(), 0)
     return () => window.clearTimeout(id)
-  }, [isOpen])
+  }, [isOpen, isIvoryBenchmark])
 
   const sceneMaxWidth = isIvoryBenchmark
     ? previewDevice === 'mobile' ? '390px' : '520px'
@@ -353,7 +355,7 @@ export function PremiumInvitationExperience({
       return
     }
     setMotionState('opening')
-    window.setTimeout(() => setMotionState('open'), definition.motion === 'tri-fold' ? 1500 : 1150)
+    window.setTimeout(() => setMotionState('open'), definition.motion === 'tri-fold' ? 1800 : 1150)
   }
 
   function replay() {
@@ -437,7 +439,7 @@ export function PremiumInvitationExperience({
           )}
         </div>
 
-        {isOpen && (
+        {isOpen && !isIvoryBenchmark && (
           <div className="mt-5 flex flex-wrap items-center justify-center gap-3 text-center">
             <Button
               ref={continueButtonRef}
@@ -468,7 +470,7 @@ export function PremiumInvitationExperience({
           </div>
         )}
 
-        <div className={`mt-4 text-center text-[10px] ${isIvoryBenchmark ? 'text-[#69543f]/70' : 'text-white/50'}`}>
+        <div hidden={isIvoryBenchmark && !previewMode} className={`mt-4 text-center text-[10px] ${isIvoryBenchmark ? 'text-[#69543f]/70' : 'text-white/50'}`}>
           {reducedMotion ? 'Reduced motion preview · invitation opens without 3D movement' : `${definition.name} · ${formatShortDate(resolvedData.date)}`}
         </div>
       </div>

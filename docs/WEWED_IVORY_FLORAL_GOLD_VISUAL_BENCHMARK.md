@@ -73,7 +73,7 @@ The release gate for this benchmark must verify:
 
 - closed cover exists and presents the monogram + **A special invitation awaits**;
 - card exposes `data-card-object="physical-stationery"`;
-- paper-grain treatment exists;
+- approved binary artwork and provenance hashes exist;
 - left, centre and right physical panels exist;
 - open action changes the motion state from `closed` to `opening` to `open` under normal motion;
 - reduced motion reaches `open` without the 3D delay;
@@ -81,3 +81,42 @@ The release gate for this benchmark must verify:
 - old side-copy treatments such as **Our journey** / **A brighter tomorrow** are not rendered on this visual benchmark;
 - personal guest-session and RSVP privacy rules remain unchanged;
 - no horizontal overflow occurs on the mobile release viewport.
+
+## Approved pixel artwork candidate — 11 September 2026
+
+The acceptance authority is now the four binary files in
+`public/invitation-art/ivory/reference/`, with SHA-256 hashes and crop coordinates
+in `manifest.json`. CLOSED, OPEN and DETAILS are the original session PNGs.
+OPENING was recovered losslessly as the embedded raster in the session's saved
+`charity_kudzie_opening_view_mobile.pdf`; it is the approved composition in the
+previously exported 1080 × 2340 canvas, rather than the unavailable native PNG.
+
+Run `node scripts/normalize-ivory-artwork.mjs` to reproduce the asset pack. Each
+invitation crop scales uniformly into 1080 × 2340, centred, without stretching.
+Surrounding space uses a sampled ivory colour. Live surfaces remove ink only
+inside explicit text bounds by propagating neighbouring original paper pixels.
+Botanical art is never retraced or generated. Door images are exact halves of
+the cleaned cover. Great Vibes is bundled under its included OFL licence for
+live variable names. The original masters remain available in UAT comparison
+mode; live typography and the physical midpoint require human visual approval.
+
+### Acceptance gate
+
+`tests/e2e/ivory-artwork.spec.ts` captures CLOSED, OPEN, DETAILS and a paused
+1080ms OPENING checkpoint at 320×568, 390×844, 412×915 and 430×932. It checks
+uniform proportions, no horizontal overflow, real image doors, keyboard/reduced
+motion, calendar download, map destination, note dialog, RSVP dispatch and
+conditional registry availability. These tests also run in the normal browser
+release suite. CI retains the visual report on success as well as failure.
+The database-backed `premium-digital-invitation.spec.ts` separately verifies
+secure guest sessions and shared invitation isolation.
+
+A passing functional test is not visual approval. Review every live capture
+against the four immutable reference images before accepting this candidate.
+Do not update a reference or its hash to accommodate a renderer regression.
+Do not merge this branch or PR #200 until the user approves mobile UAT. Full
+pixel-diff baselines should be promoted only from that approved live result.
+
+UAT-only controls: CLOSED, FREEZE / MIDPOINT, FULLY OPENED, INTERACTIVE,
+PLAY OPENING, REFERENCE / LIVE. They are absent from the production renderer.
+The UAT page remains unavailable when VERCEL_ENV is production.

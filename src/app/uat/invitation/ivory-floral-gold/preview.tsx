@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { CheckCircle2, X } from 'lucide-react'
-import { IvoryFloralGoldTriFold } from '@/components/wedding/invitation-experience/ivory-floral-gold-trifold'
+import { IvoryFloralGoldTriFold, type IvoryInvitationView } from '@/components/wedding/invitation-experience/ivory-floral-gold-trifold'
 
 const CHARITY_KUDZIE_UAT_DATA = {
-  title: 'Charity Manyewu & Shadreck Kudzanai Musarurwa',
+  title: 'Charity & Kudzie',
   monogram: 'C · S',
   tagline: 'Your presence will make our day complete.',
   date: '2026-12-23T00:00:00.000Z',
@@ -24,6 +24,11 @@ const CHARITY_KUDZIE_UAT_DATA = {
 
 export function IvoryFloralGoldUatPreview() {
   const [open, setOpen] = useState(false)
+  const [previewView, setPreviewView] = useState<IvoryInvitationView | undefined>()
+  const [reference, setReference] = useState(false)
+  const [reducedMotion, setReducedMotion] = useState(false)
+  const [run, setRun] = useState(0)
+  useEffect(() => { const media=window.matchMedia('(prefers-reduced-motion: reduce)');const sync=()=>setReducedMotion(media.matches);sync();media.addEventListener('change',sync);return()=>media.removeEventListener('change',sync) }, [])
   const [rsvpPreviewOpen, setRsvpPreviewOpen] = useState(false)
 
   useEffect(() => {
@@ -38,16 +43,25 @@ export function IvoryFloralGoldUatPreview() {
       data-personal-invitation="1"
       className="relative flex min-h-svh w-full flex-col items-center gap-10 overflow-x-hidden bg-[radial-gradient(circle_at_50%_24%,#fffaf1_0%,#eee2d0_52%,#d9c6ab_100%)] py-3"
     >
-      <IvoryFloralGoldTriFold
+      <nav aria-label="UAT artwork controls" className="flex max-w-full flex-wrap justify-center gap-2 text-xs text-[#70501f]">
+        {(['closed','opening','open','details'] as const).map(state=><button className="border p-2" key={state} onClick={()=>{setPreviewView(state);setRun(v=>v+1)}}>{state==='opening'?'Freeze / midpoint':state==='open'?'Fully opened':state==='details'?'Interactive':'Closed'}</button>)}
+        <button className="border p-2" onClick={()=>{setPreviewView(undefined);setOpen(true);setRun(v=>v+1)}}>Play opening</button>
+        <button className="border p-2" aria-pressed={reference} onClick={()=>setReference(v=>!v)}>Reference / live</button>
+      </nav>
+      {reference ? <div style={{width:'min(100%,430px,46.153846svh)',aspectRatio:'9/19.5',position:'relative'}}><img alt="Approved artwork reference" src={'/invitation-art/ivory/'+(previewView || 'closed')+'-master.webp'} style={{width:'100%',height:'100%'}} /></div> : <IvoryFloralGoldTriFold
+        key={run}
+        previewView={previewView}
+        freezeOpening={previewView==='opening'}
         data={CHARITY_KUDZIE_UAT_DATA}
         open={open}
-        reducedMotion={false}
-        onOpen={() => setOpen(true)}
+        reducedMotion={reducedMotion}
+        onOpen={() => {setPreviewView(undefined);setOpen(true)}}
         previewMode
-      />
+      />}
 
       <section
         id="registry"
+        data-registry-configured="true"
         data-testid="uat-registry-preview"
         className="mx-auto mb-10 w-[min(92vw,410px)] rounded-[1.3rem] border border-[#b88d50]/35 bg-[#fffaf2]/90 p-6 text-center text-[#604a36] shadow-[0_16px_38px_rgba(77,54,31,.12)]"
       >

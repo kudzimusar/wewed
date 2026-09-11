@@ -15,6 +15,8 @@ const LEGACY_PUBLIC_HOSTS = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  outputFileTracingRoot: process.cwd(),
+  turbopack: { root: process.cwd() },
   typescript: {
     ignoreBuildErrors: true,
   },

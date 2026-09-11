@@ -81,7 +81,7 @@ test('Planner Card Studio provides a compact premium library and one interactive
   await expect(card).toHaveAttribute('data-card-object', 'physical-stationery')
   await expect(card).toHaveAttribute('data-invitation-view', 'closed')
   await expect(experience.getByTestId('invitation-closed-cover')).toContainText('A special invitation awaits')
-  expect(await experience.getByTestId('ivory-paper-grain').count()).toBeGreaterThan(0)
+  await expect(card).toHaveAttribute('data-artwork-engine', 'approved-pixels')
   await expect(experience.getByText('Our journey', { exact: true })).toHaveCount(0)
   await expect(experience.getByText('A brighter tomorrow', { exact: true })).toHaveCount(0)
 
@@ -92,7 +92,7 @@ test('Planner Card Studio provides a compact premium library and one interactive
   await expect(card).toHaveAttribute('data-invitation-view', 'open', { timeout: 4_000 })
   const centrePanel = experience.getByTestId('invitation-panel-centre')
   await expect(centrePanel).toBeVisible()
-  await expect(centrePanel.getByText('Together with our families', { exact: true })).toBeVisible()
+  await expect(centrePanel.locator('[data-artwork="open-surface"]')).toBeVisible()
   await expectNoDocumentOverflow(page)
 
   await page.getByRole('button', { name: 'Desktop', exact: true }).click()
@@ -136,7 +136,7 @@ test('personal smart invitation reveals the exact guest without retaining the cr
   await expect(card).toHaveAttribute('data-invitation-view', 'opening', { timeout: 800 })
   await expect(experience).toHaveAttribute('data-motion-state', 'open', { timeout: 4_000 })
   await expect(card).toHaveAttribute('data-invitation-view', 'open', { timeout: 4_000 })
-  await expect(experience.getByTestId('invitation-panel-centre').getByText('Together with our families', { exact: true })).toBeVisible()
+  await expect(experience.getByTestId('invitation-panel-centre').locator('[data-artwork="open-surface"]')).toBeVisible()
 
   const invitationPalette = await page.evaluate(() => {
     const styles = getComputedStyle(document.documentElement)
@@ -163,6 +163,17 @@ test('personal smart invitation reveals the exact guest without retaining the cr
   await experience.getByTestId('invitation-cta-rsvp').click()
   await expect(page.getByTestId('premium-invitation-rsvp-dialog')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Your private RSVP' })).toBeVisible()
+  await page.getByLabel('Joyfully accept', { exact: true }).check()
+  await page.getByLabel('Message to the couple', { exact: true }).fill('Looking forward to celebrating with you.')
+  await page.getByRole('button', { name: 'Save RSVP', exact: true }).click()
+  await expect(page.getByText('Your RSVP has been saved.')).toBeVisible()
+  const savedSession = await page.request.get(`/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`)
+  expect(await savedSession.json()).toMatchObject({
+    guest: { name: E2E_WEDDINGS.primary.seededGuest },
+    rsvp: { attending: true, message: 'Looking forward to celebrating with you.' },
+  })
+  expect(page.url()).not.toContain(token)
+
 })
 
 test('reduced-motion invitation opens from the keyboard without the 3D delay', async ({ plannerPage: page }) => {
@@ -183,7 +194,7 @@ test('reduced-motion invitation opens from the keyboard without the 3D delay', a
   await expect(experience).toHaveAttribute('data-motion-state', 'open', { timeout: 500 })
   await expect(card).toHaveAttribute('data-invitation-view', 'open', { timeout: 500 })
   await expect(experience.getByTestId('invitation-details-button')).toBeVisible()
-  await expect(experience.getByText('Reduced motion preview · invitation opens without 3D movement')).toBeVisible()
+  await expect(experience.getByTestId('invitation-details-button')).toBeFocused()
 })
 
 test('physical invitation access remains shared and never becomes a personal guest session', async ({ plannerPage: page }) => {
