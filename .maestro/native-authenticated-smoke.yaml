@@ -5,9 +5,12 @@ tags:
 ---
 - launchApp:
     clearState: true
+# The first authenticated launch can also hit a cold Metro cache on a fresh CI
+# runner. Give the native shell enough time to finish bundling before judging
+# the sign-in route; the authenticated journey and its assertions stay intact.
 - extendedWaitUntil:
     visible: "Your wedding world, in your hand."
-    timeout: 30000
+    timeout: 120000
 - tapOn: "Email"
 - inputText: ${WEWED_MAESTRO_EMAIL}
 - tapOn: "Password"
