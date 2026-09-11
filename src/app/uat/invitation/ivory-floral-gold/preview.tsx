@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { CheckCircle2, X } from 'lucide-react'
 import { IvoryFloralGoldTriFold } from '@/components/wedding/invitation-experience/ivory-floral-gold-trifold'
 
 const CHARITY_KUDZIE_UAT_DATA = {
@@ -23,11 +24,19 @@ const CHARITY_KUDZIE_UAT_DATA = {
 
 export function IvoryFloralGoldUatPreview() {
   const [open, setOpen] = useState(false)
+  const [rsvpPreviewOpen, setRsvpPreviewOpen] = useState(false)
+
+  useEffect(() => {
+    const handler = () => setRsvpPreviewOpen(true)
+    window.addEventListener('wewed:open-premium-rsvp', handler)
+    return () => window.removeEventListener('wewed:open-premium-rsvp', handler)
+  }, [])
 
   return (
     <main
       data-testid="ivory-uat-preview"
-      className="flex min-h-svh w-full items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_50%_24%,#fffaf1_0%,#eee2d0_52%,#d9c6ab_100%)] py-3"
+      data-personal-invitation="1"
+      className="relative flex min-h-svh w-full flex-col items-center gap-10 overflow-x-hidden bg-[radial-gradient(circle_at_50%_24%,#fffaf1_0%,#eee2d0_52%,#d9c6ab_100%)] py-3"
     >
       <IvoryFloralGoldTriFold
         data={CHARITY_KUDZIE_UAT_DATA}
@@ -36,6 +45,47 @@ export function IvoryFloralGoldUatPreview() {
         onOpen={() => setOpen(true)}
         previewMode
       />
+
+      <section
+        id="registry"
+        data-testid="uat-registry-preview"
+        className="mx-auto mb-10 w-[min(92vw,410px)] rounded-[1.3rem] border border-[#b88d50]/35 bg-[#fffaf2]/90 p-6 text-center text-[#604a36] shadow-[0_16px_38px_rgba(77,54,31,.12)]"
+      >
+        <p className="text-[9px] font-semibold uppercase tracking-[0.26em] text-[#9a6d28]">UAT contribution destination</p>
+        <h2 className="mt-3 font-serif text-2xl italic text-[#8f672c]">Gift / Contributions</h2>
+        <p className="mt-3 text-xs leading-5 text-[#75604d]">
+          This preview confirms where the invitation CTA lands. Final guest invitations use the wedding&apos;s configured Wewed contribution or registry information and hide this action when nothing is configured.
+        </p>
+      </section>
+
+      {rsvpPreviewOpen && (
+        <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/35 p-3 backdrop-blur-[2px] sm:items-center">
+          <section
+            data-testid="uat-rsvp-preview"
+            className="relative w-full max-w-md rounded-[1.5rem] border border-[#b88d50]/40 bg-[#fffaf2] p-6 text-[#554331] shadow-[0_28px_80px_rgba(41,27,15,.30)]"
+          >
+            <button
+              type="button"
+              aria-label="Close RSVP preview"
+              onClick={() => setRsvpPreviewOpen(false)}
+              className="absolute right-3 top-3 flex size-9 items-center justify-center rounded-full border border-[#b88d50]/35 bg-white/70"
+            >
+              <X className="size-4" />
+            </button>
+            <CheckCircle2 className="size-6 text-[#9a6d28]" />
+            <p className="mt-4 text-[9px] font-semibold uppercase tracking-[0.22em] text-[#9a6d28]">Secure RSVP preview</p>
+            <h2 className="mt-2 font-serif text-3xl italic text-[#8f672c]">Your private RSVP</h2>
+            <p className="mt-3 text-sm leading-6 text-[#75604d]">
+              In the real personal invitation this opens the existing guest-session RSVP form for the invited guest, including attendance, meal choice, plus-one, children, dietary notes and a message to the couple.
+            </p>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <div className="rounded-xl border border-[#b88d50]/30 bg-white/60 px-4 py-3 text-center text-xs">Joyfully accept</div>
+              <div className="rounded-xl border border-[#b88d50]/30 bg-white/60 px-4 py-3 text-center text-xs">Regretfully decline</div>
+            </div>
+            <p className="mt-4 text-[10px] leading-4 text-[#876f5a]">UAT only — this preview does not save an RSVP.</p>
+          </section>
+        </div>
+      )}
     </main>
   )
 }
