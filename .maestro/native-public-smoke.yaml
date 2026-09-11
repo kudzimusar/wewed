@@ -5,9 +5,13 @@ tags:
 ---
 - launchApp:
     clearState: true
+# A fresh GitHub runner has an empty Metro cache. Expo SDK 57 can spend well
+# over 30 seconds compiling the first Android bundle before React renders the
+# sign-in route, so this gate must measure application readiness rather than
+# runner cache warmth. All downstream assertions remain unchanged.
 - extendedWaitUntil:
     visible: "Your wedding world, in your hand."
-    timeout: 30000
+    timeout: 120000
 - assertVisible: "Email"
 - assertVisible: "Password"
 - assertVisible: "Sign in to Wewed"
