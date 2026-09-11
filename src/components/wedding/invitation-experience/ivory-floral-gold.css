@@ -19,11 +19,35 @@
   perspective: 1900px;
   background: #f5ead9;
 }
+.ivory-object::after {
+  content: '';
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  left: -2px;
+  top: -2px;
+  opacity: 0;
+  pointer-events: none;
+  background-image: url('/invitation-art/ivory/details-surface.webp');
+  background-size: 1px 1px;
+}
 .ivory-centre,
 .ivory-details,
 .ivory-cover {
   position: absolute;
   inset: 0;
+}
+.ivory-centre {
+  transition: opacity 160ms ease, visibility 160ms ease;
+}
+.ivory-details {
+  z-index: 3;
+  background: #f5ead9;
+}
+[data-invitation-view='details'] .ivory-centre {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 .ivory-ink {
   position: absolute;
@@ -273,6 +297,13 @@
 
 [data-testid='ivory-uat-preview'] .ivory-stage {
   width: min(100%, 430px, calc((100svh - 130px) * 0.46153846));
+}
+
+.official-invitation-preview .ivory-stage {
+  width: min(100%, 430px, calc((100svh - 24px) * 0.46153846));
+}
+.official-invitation-preview .ivory-replay {
+  display: none !important;
 }
 
 .ivory-date {
