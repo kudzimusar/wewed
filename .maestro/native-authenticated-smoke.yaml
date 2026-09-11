@@ -26,6 +26,19 @@ tags:
 - assertVisible: "Open tasks"
 - assertVisible: "High priority"
 
+# android-emulator-runner intentionally disables system animations for CI. In a
+# debug build Reanimated reports that as a reduced-motion development warning.
+# React Native's warning overlay extends over the bottom tab hit area even though
+# the visible banner sits slightly above it, so dismiss only that dev-only banner
+# before exercising real tab navigation. Production builds do not render LogBox.
+- runFlow:
+    when:
+      visible: "Open debugger to view warnings."
+    commands:
+      - tapOn:
+          point: "93%,92%"
+- assertNotVisible: "Open debugger to view warnings."
+
 # Bottom tabs expose stable native test IDs on the clickable React Navigation
 # buttons. A freshly rendered Android tab can occasionally ignore the first
 # injected tap even after it is present in the accessibility tree, so retry only
