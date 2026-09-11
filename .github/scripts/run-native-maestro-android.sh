@@ -4,6 +4,7 @@ set -euo pipefail
 APK_PATH="apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk"
 METRO_LOG="/tmp/wewed-maestro-metro.log"
 METRO_PID_FILE="/tmp/wewed-maestro-metro.pid"
+METRO_STATUS_URL="http://localhost:8081/status"
 
 if [[ ! -f "$APK_PATH" ]]; then
   echo "Compiled native APK is missing: $APK_PATH" >&2
@@ -33,7 +34,10 @@ trap cleanup EXIT
 
 metro_ready=0
 for attempt in $(seq 1 120); do
-  if curl -fsS http://127.0.0.1:8081/status | grep -q 'packager-status:running'; then
+  # Expo's --localhost path asks Node to listen on the hostname "localhost".
+  # On GitHub Linux that hostname can resolve to IPv6 ::1, so probe the same
+  # hostname rather than assuming an IPv4-only 127.0.0.1 listener.
+  if curl -fsS "$METRO_STATUS_URL" | grep -q 'packager-status:running'; then
     metro_ready=1
     break
   fi
@@ -47,6 +51,10 @@ for attempt in $(seq 1 120); do
   if [[ "$attempt" -eq 120 ]]; then
     echo 'Metro did not become ready.' >&2
     cat "$METRO_LOG" || true
+    echo '--- localhost resolution ---' >&2
+    getent ahosts localhost || true
+    echo '--- listeners on port 8081 ---' >&2
+    ss -ltnp 2>/dev/null | grep ':8081' || true
   fi
   sleep 1
 done
