@@ -15,6 +15,12 @@ adb install -r "$APK_PATH"
 adb reverse tcp:3000 tcp:3000
 adb reverse tcp:8081 tcp:8081
 
+# The Google APIs emulator can occasionally report a background Pixel Launcher
+# ANR while Wewed is the foreground app. Keep background ANR dialogs disabled so
+# unrelated launcher health cannot cover the app under test. Foreground Wewed
+# ANRs remain visible and therefore still fail the smoke journey normally.
+adb shell settings put secure anr_show_background 0 || true
+
 (
   cd apps/mobile
   # Expo SDK 57 treats EXPO_UNSTABLE_HEADLESS as the headless-server switch.
