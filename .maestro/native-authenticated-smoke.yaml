@@ -19,7 +19,10 @@ tags:
 - extendedWaitUntil:
     visible: "Wedding pulse"
     timeout: 30000
-- assertVisible: "Aurora & Blake — E2E Wedding"
+# Wedding Pulse renders the canonical wedding title together with a location
+# suffix (for example " · Harare"). Keep verifying the exact wedding identity
+# while allowing that legitimate presentation suffix in the accessibility text.
+- assertVisible: "Aurora & Blake — E2E Wedding.*"
 - assertVisible: "Open tasks"
 - assertVisible: "High priority"
 
@@ -99,7 +102,7 @@ tags:
 - extendedWaitUntil:
     visible: "Wedding pulse"
     timeout: 30000
-- assertVisible: "Cedar & Drew — Isolation Wedding"
+- assertVisible: "Cedar & Drew — Isolation Wedding.*"
 
 - tapOn: "More"
 - extendedWaitUntil:
@@ -114,4 +117,4 @@ tags:
 - extendedWaitUntil:
     visible: "Wedding pulse"
     timeout: 30000
-- assertVisible: "Aurora & Blake — E2E Wedding"
+- assertVisible: "Aurora & Blake — E2E Wedding.*"
