@@ -1,6 +1,9 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { db } from '@/lib/db'
-import type { InvitationCardStyle } from '@/lib/digital-invitation-card'
+import {
+  normalizeInvitationCardStyle,
+  type InvitationCardStyle,
+} from '@/lib/digital-invitation-card'
 import {
   buildInvitationResumePath,
   buildPlayStoreInstallUrl,
@@ -80,11 +83,6 @@ function configuredTtlSeconds(): number {
     MAX_HANDOFF_TTL_SECONDS,
     Math.max(MIN_HANDOFF_TTL_SECONDS, configured),
   )
-}
-
-function normalizeCard(value: string): InvitationCardStyle {
-  if (value === 'editorial' || value === 'midnight') return value
-  return 'botanical'
 }
 
 async function writeAudit(input: {
@@ -364,6 +362,6 @@ export async function consumeInvitationInstallHandoff(input: {
     weddingSlug: rsvp.guest.wedding.slug,
     guestId: handoff.guestId,
     rsvpToken: rsvp.token,
-    card: normalizeCard(handoff.card),
+    card: normalizeInvitationCardStyle(handoff.card),
   }
 }
