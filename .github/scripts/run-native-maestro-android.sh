@@ -16,10 +16,13 @@ adb reverse tcp:3000 tcp:3000
 adb reverse tcp:8081 tcp:8081
 
 # The Google APIs emulator can occasionally report a background Pixel Launcher
-# ANR while Wewed is the foreground app. Keep background ANR dialogs disabled so
-# unrelated launcher health cannot cover the app under test. Foreground Wewed
-# ANRs remain visible and therefore still fail the smoke journey normally.
+# ANR during cold boot. Disable future background ANR dialogs, then remove only
+# the launcher process and any boot-time system dialog before Wewed is launched.
+# This cleanup runs before Maestro starts Wewed, so a foreground Wewed ANR raised
+# later in the journey remains visible and still fails the smoke test normally.
 adb shell settings put secure anr_show_background 0 || true
+adb shell am force-stop com.google.android.apps.nexuslauncher || true
+adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS >/dev/null 2>&1 || true
 
 (
   cd apps/mobile
