@@ -75,3 +75,20 @@ export function handoffPath(input: string) {
   const resolved = resolveWewedLink(input)
   return `/handoff?url=${encodeURIComponent(resolved.canonicalUrl)}`
 }
+
+/**
+ * Rewrites only external/native system intents. Expo can surface the app's own
+ * root scheme (for example `wewed:///`) when Android performs a normal launcher
+ * start. That is not a deferred destination and must remain the application
+ * root, otherwise a clean launch is incorrectly persisted as a protected
+ * handoff and signed-out users never reach the sign-in screen.
+ */
+export function nativeIntentPath(input: string) {
+  const resolved = resolveWewedLink(input)
+
+  if (resolved.nativePath === '/(tabs)' && !resolved.secureWebOnly) {
+    return '/'
+  }
+
+  return `/handoff?url=${encodeURIComponent(resolved.canonicalUrl)}`
+}
