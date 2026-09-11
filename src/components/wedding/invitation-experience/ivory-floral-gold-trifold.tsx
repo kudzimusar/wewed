@@ -323,8 +323,13 @@ export function IvoryFloralGoldTriFold({
               </div>
             )}
             {hit('note', 'A Note from Us', 72.4, 8, () => noteRef.current?.showModal())}
-            <button type="button" className="ivory-back" onClick={() => setView('open')}>
-              View invitation
+            <button
+              type="button"
+              data-testid="invitation-back-button"
+              className="ivory-back"
+              onClick={() => setView('open')}
+            >
+              Back to invitation
             </button>
             {!previewMode && (
               <button
@@ -387,6 +392,7 @@ export function IvoryFloralGoldTriFold({
       )}
       <dialog
         ref={noteRef}
+        data-testid="invitation-note-dialog"
         className="ivory-note"
         aria-label="A note from us"
         onClose={() =>
