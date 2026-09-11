@@ -5,13 +5,29 @@ import {
   test,
 } from './support/planner-browser'
 
-const PHYSICAL_INVITATION_CODE = 'CARD100001'
 const GUEST_A_ID = `${E2E_WEDDINGS.primary.id}-guest`
 const GUEST_A_TOKEN = `${E2E_WEDDINGS.primary.slug}-rsvp-token`
-const GUEST_B_ID = `${E2E_WEDDINGS.primary.id}-guest-b`
-const GUEST_B_TOKEN = `${E2E_WEDDINGS.primary.slug}-rsvp-token-b`
 
-async function prepareIdentityFixture() {
+type IdentityFixture = {
+  guestBId: string
+  guestBToken: string
+  physicalInvitationCode: string
+}
+
+function identityFixtureForProject(projectName: string): IdentityFixture {
+  const suffix = projectName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'default'
+  let hash = 0
+  for (const character of projectName) hash = (hash * 31 + character.charCodeAt(0)) >>> 0
+  const physicalInvitationCode = `CARD${String(hash % 1_000_000).padStart(6, '0')}`
+
+  return {
+    guestBId: `${E2E_WEDDINGS.primary.id}-guest-b-${suffix}`,
+    guestBToken: `${E2E_WEDDINGS.primary.slug}-rsvp-token-b-${suffix}`,
+    physicalInvitationCode,
+  }
+}
+
+async function prepareIdentityFixture(fixture: IdentityFixture) {
   const prisma = new PrismaClient()
   try {
     await prisma.wedding.update({
@@ -21,32 +37,60 @@ async function prepareIdentityFixture() {
         invitationCardStyle: 'ivory-floral-gold',
       },
     })
-    await prisma.guest.create({
-      data: {
-        id: GUEST_B_ID,
+    await prisma.guest.upsert({
+      where: { id: fixture.guestBId },
+      update: {
         name: 'Second Test Guest',
-        email: 'second.guest@example.test',
-        phone: '+263000001002',
+        email: `second.guest.${fixture.physicalInvitationCode.toLowerCase()}@example.test`,
+        phone: null,
+        role: 'guest',
+        side: 'partner2',
+        weddingId: E2E_WEDDINGS.primary.id,
+      },
+      create: {
+        id: fixture.guestBId,
+        name: 'Second Test Guest',
+        email: `second.guest.${fixture.physicalInvitationCode.toLowerCase()}@example.test`,
+        phone: null,
         role: 'guest',
         side: 'partner2',
         weddingId: E2E_WEDDINGS.primary.id,
       },
     })
-    await prisma.rSVP.create({
-      data: {
-        id: `${E2E_WEDDINGS.primary.id}-rsvp-b`,
-        token: GUEST_B_TOKEN,
+    await prisma.rSVP.upsert({
+      where: { id: `${fixture.guestBId}-rsvp` },
+      update: {
+        token: fixture.guestBToken,
         attending: false,
         plusOne: false,
         kidsAttending: false,
         kidsCount: 0,
         checkedIn: false,
-        guestId: GUEST_B_ID,
+        message: null,
+        guestId: fixture.guestBId,
+      },
+      create: {
+        id: `${fixture.guestBId}-rsvp`,
+        token: fixture.guestBToken,
+        attending: false,
+        plusOne: false,
+        kidsAttending: false,
+        kidsCount: 0,
+        checkedIn: false,
+        guestId: fixture.guestBId,
       },
     })
-    await prisma.qRDestination.create({
-      data: {
-        id: `print_${PHYSICAL_INVITATION_CODE}`,
+    await prisma.qRDestination.upsert({
+      where: { id: `print_${fixture.physicalInvitationCode}` },
+      update: {
+        label: 'Identity isolation physical invitation',
+        url: `https://wewed.pro/w/${E2E_WEDDINGS.primary.slug}`,
+        type: 'physical_invitation',
+        weddingId: E2E_WEDDINGS.primary.id,
+        isActive: true,
+      },
+      create: {
+        id: `print_${fixture.physicalInvitationCode}`,
         label: 'Identity isolation physical invitation',
         url: `https://wewed.pro/w/${E2E_WEDDINGS.primary.slug}`,
         type: 'physical_invitation',
@@ -88,8 +132,9 @@ async function guestSession(page: import('@playwright/test').Page) {
   return { response, payload: await response.json() }
 }
 
-test('same browser cannot carry Guest A identity into Guest B, stale RSVP, invalid invite, or physical QR', async ({ plannerPage: page }) => {
-  await prepareIdentityFixture()
+test('same browser cannot carry Guest A identity into Guest B, stale RSVP, invalid invite, or physical QR', async ({ plannerPage: page }, testInfo) => {
+  const fixture = identityFixtureForProject(testInfo.project.name)
+  await prepareIdentityFixture(fixture)
   await page.context().clearCookies()
 
   await enterPrivateInvitation(page, GUEST_A_TOKEN)
@@ -97,11 +142,11 @@ test('same browser cannot carry Guest A identity into Guest B, stale RSVP, inval
   expect(current.response.status()).toBe(200)
   expect(current.payload).toMatchObject({ guest: { id: GUEST_A_ID } })
 
-  await enterPrivateInvitation(page, GUEST_B_TOKEN)
+  await enterPrivateInvitation(page, fixture.guestBToken)
   current = await guestSession(page)
   expect(current.response.status()).toBe(200)
   expect(current.payload).toMatchObject({
-    guest: { id: GUEST_B_ID, name: 'Second Test Guest' },
+    guest: { id: fixture.guestBId, name: 'Second Test Guest' },
   })
 
   const staleForm = await page.request.put(
@@ -122,7 +167,7 @@ test('same browser cannot carry Guest A identity into Guest B, stale RSVP, inval
 
   current = await guestSession(page)
   expect(current.payload).toMatchObject({
-    guest: { id: GUEST_B_ID },
+    guest: { id: fixture.guestBId },
     rsvp: { attending: false },
   })
 
@@ -130,7 +175,7 @@ test('same browser cannot carry Guest A identity into Guest B, stale RSVP, inval
     `/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`,
     {
       data: {
-        originGuestId: GUEST_B_ID,
+        originGuestId: fixture.guestBId,
         attending: true,
         message: 'Fresh Guest B response.',
       },
@@ -151,11 +196,11 @@ test('same browser cannot carry Guest A identity into Guest B, stale RSVP, inval
   current = await guestSession(page)
   expect(current.response.status()).toBe(401)
 
-  await enterPrivateInvitation(page, GUEST_B_TOKEN)
+  await enterPrivateInvitation(page, fixture.guestBToken)
   current = await guestSession(page)
-  expect(current.payload).toMatchObject({ guest: { id: GUEST_B_ID } })
+  expect(current.payload).toMatchObject({ guest: { id: fixture.guestBId } })
 
-  await page.goto(`/i/${PHYSICAL_INVITATION_CODE}`)
+  await page.goto(`/i/${fixture.physicalInvitationCode}`)
   await expect(page).toHaveURL(
     new RegExp(`/w/${E2E_WEDDINGS.primary.slug}\\?source=printed-invitation`),
   )
