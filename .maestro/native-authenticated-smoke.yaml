@@ -26,10 +26,13 @@ tags:
 - assertVisible: "Open tasks"
 - assertVisible: "High priority"
 
-# Bottom tabs expose explicit accessibility labels and test IDs from the app
-# shell so Maestro always targets the clickable React Navigation button rather
-# than a nested non-clickable text label.
-- tapOn: "Plan tab"
+# Bottom tabs expose stable native test IDs on the clickable React Navigation
+# buttons. A freshly rendered Android tab can occasionally ignore the first
+# injected tap even after it is present in the accessibility tree, so retry only
+# when that tap produces no UI change rather than weakening downstream checks.
+- tapOn:
+    id: "native-tab-plan"
+    retryTapIfNoChange: true
 - extendedWaitUntil:
     visible: "Planning command centre"
     timeout: 15000
@@ -79,19 +82,25 @@ tags:
 - back
 - back
 
-- tapOn: "Messages tab"
+- tapOn:
+    id: "native-tab-messages"
+    retryTapIfNoChange: true
 - extendedWaitUntil:
     visible: "Wewed Messages"
     timeout: 15000
 
-- tapOn: "Vendors tab"
+- tapOn:
+    id: "native-tab-vendors"
+    retryTapIfNoChange: true
 - extendedWaitUntil:
     visible: "Find people who can actually deliver."
     timeout: 15000
 - assertVisible: "Search vendors & venues"
 - assertVisible: "Wedding services"
 
-- tapOn: "More tab"
+- tapOn:
+    id: "native-tab-more"
+    retryTapIfNoChange: true
 - extendedWaitUntil:
     visible: "More"
     timeout: 15000
@@ -107,7 +116,9 @@ tags:
     timeout: 30000
 - assertVisible: "Cedar & Drew — Isolation Wedding.*"
 
-- tapOn: "More tab"
+- tapOn:
+    id: "native-tab-more"
+    retryTapIfNoChange: true
 - extendedWaitUntil:
     visible: "More"
     timeout: 15000
