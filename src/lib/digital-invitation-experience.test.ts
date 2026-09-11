@@ -5,7 +5,7 @@ import { INVITATION_CARD_STYLES } from './digital-invitation-card'
 const source = (path: string) => readFileSync(path, 'utf8')
 
 describe('premium digital invitation experience', () => {
-  test('Card 1 is a premium physical-stationery tri-fold with the approved closed and revealed composition', () => {
+  test('Card 1 is a premium physical-stationery invitation with the approved closed, opened and details composition', () => {
     const shell = source(
       'src/components/wedding/invitation-experience/premium-invitation-experience.tsx',
     )
@@ -19,9 +19,11 @@ describe('premium digital invitation experience', () => {
     expect(experience).toContain('data-testid="invitation-panel-centre"')
     expect(experience).toContain('data-testid="invitation-panel-right"')
     expect(experience).toContain('data-testid="invitation-closed-cover"')
+    expect(experience).toContain('data-testid="invitation-interactive-details"')
     expect(experience).toContain('data-testid="ivory-paper-grain"')
     expect(experience).toContain('A special invitation awaits')
     expect(experience).toContain('Tap to open')
+    expect(experience).toContain('Opening your invitation…')
     expect(experience).toContain('Together with our families')
     expect(experience).toContain('as we celebrate our marriage.')
     expect(experience).toContain('data-testid="invitation-rsvp-deadline"')
@@ -32,7 +34,7 @@ describe('premium digital invitation experience', () => {
     expect(experience).not.toContain('A brighter tomorrow')
   })
 
-  test('motion behaves like a hinged physical card, is focus-safe, and honours reduced motion without video', () => {
+  test('opening behaves like one continuous hinged physical object and settles to a fold-free full invitation', () => {
     const shell = source(
       'src/components/wedding/invitation-experience/premium-invitation-experience.tsx',
     )
@@ -41,27 +43,56 @@ describe('premium digital invitation experience', () => {
     )
     expect(shell).toContain("type MotionState = 'closed' | 'opening' | 'open'")
     expect(shell).toContain("window.matchMedia('(prefers-reduced-motion: reduce)')")
-    expect(shell).toContain('continueButtonRef')
-    expect(shell).toContain('continueButtonRef.current?.focus()')
+    expect(experience).toContain("type IvoryInvitationView = 'closed' | 'opening' | 'open' | 'details'")
     expect(experience).toContain('data-testid="invitation-open-button"')
-    expect(experience).toContain('[perspective:1800px]')
+    expect(experience).toContain('[perspective:1900px]')
     expect(experience).toContain('[transform-origin:100%_50%]')
     expect(experience).toContain('[transform-origin:0%_50%]')
-    expect(experience).toContain("translateX(-30%) rotateY(-52deg)")
-    expect(experience).toContain("translateX(30%) rotateY(52deg)")
-    expect(experience).toContain('shadow-[0_30px_65px_rgba(27,18,10,.38),0_5px_16px_rgba(27,18,10,.22)]')
+    expect(experience).toContain("translateX(-112%) rotateY(-82deg)")
+    expect(experience).toContain("translateX(112%) rotateY(82deg)")
+    expect(experience).toContain("const panelOpacity = isClosed ? 1 : isOpening ? 0.18 : 0")
+    expect(experience).toContain('aspectRatio: \'9 / 19.5\'')
     expect(experience).not.toContain('<video')
     expect(experience).not.toContain('autoplay')
   })
 
-  test('the physical-card reveal has one semantic invitation and does not leak Ivory styling into other themes', () => {
+  test('the interactive invitation surface connects guest actions instead of becoming a decorative dead end', () => {
+    const experience = source(
+      'src/components/wedding/invitation-experience/ivory-floral-gold-trifold.tsx',
+    )
+    expect(experience).toContain('data-testid="invitation-details-button"')
+    expect(experience).toContain('data-testid="invitation-cta-rsvp"')
+    expect(experience).toContain('data-testid="invitation-cta-calendar"')
+    expect(experience).toContain('data-testid="invitation-cta-venue"')
+    expect(experience).toContain('data-testid="invitation-cta-registry"')
+    expect(experience).toContain('data-testid="invitation-cta-note"')
+    expect(experience).toContain("window.dispatchEvent(new CustomEvent('wewed:open-premium-rsvp'))")
+    expect(experience).toContain("type: 'text/calendar;charset=utf-8'")
+    expect(experience).toContain('https://www.google.com/maps/search/?api=1&query=')
+    expect(experience).toContain("document.getElementById('registry')")
+    expect(experience).toContain("document.getElementById('wedding-details')")
+  })
+
+  test('the preview-only UAT route uses the approved Charity and Kudzie facts without inventing a ceremony time', () => {
+    const page = source('src/app/uat/invitation/ivory-floral-gold/page.tsx')
+    const preview = source('src/app/uat/invitation/ivory-floral-gold/preview.tsx')
+    expect(page).toContain("process.env.VERCEL_ENV === 'production'")
+    expect(preview).toContain('Charity Manyewu & Shadreck Kudzanai Musarurwa')
+    expect(preview).toContain('2026-12-23T00:00:00.000Z')
+    expect(preview).toContain('Imba Manor')
+    expect(preview).toContain('1 Worplestone Way')
+    expect(preview).toContain('Glen Lorne, Harare')
+    expect(preview).toContain('Zimbabwe')
+    expect(preview).not.toMatch(/4:00|6:00|18:00|16:00/)
+  })
+
+  test('the physical-card reveal does not leak Ivory styling into other themes', () => {
     const shell = source(
       'src/components/wedding/invitation-experience/premium-invitation-experience.tsx',
     )
     const experience = source(
       'src/components/wedding/invitation-experience/ivory-floral-gold-trifold.tsx',
     )
-    expect(experience).toContain('aria-hidden={!open}')
     expect(experience).not.toContain('<div className="sr-only">')
     expect(shell).toContain("style={isIvoryBenchmark ? undefined : { background: palette.primary, color: palette.paper }}")
   })
