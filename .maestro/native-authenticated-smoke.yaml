@@ -54,8 +54,19 @@ tags:
 - extendedWaitUntil:
     visible: "What happens next?"
     timeout: 15000
+# The Checklist filters intentionally sit below Quick capture on a phone-sized
+# viewport. Navigate to the actual filter controls before asserting them instead
+# of requiring off-screen content to already exist in Android's visible hierarchy.
+- scrollUntilVisible:
+    element:
+      text: "Any priority"
+    direction: DOWN
+    timeout: 15000
 - assertVisible: "Any priority"
 - tapOn: "High"
+# Selecting High must preserve the deterministic high-priority fixture task.
+# This verifies the real checklist result rather than merely matching a chip label.
+- assertVisible: "Primary wedding seeded task"
 - assertVisible: "High"
 - back
 
