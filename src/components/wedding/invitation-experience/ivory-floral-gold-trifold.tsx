@@ -21,6 +21,14 @@ type Props = {
   freezeOpening?: boolean
 }
 const ART = '/invitation-art/ivory/'
+const REQUIRED_ART = [
+  'left-door',
+  'right-door',
+  'open-surface',
+  'details-surface',
+  'paper',
+] as const
+
 function asDate(value: string | Date | null | undefined) {
   if (!value) return null
   const d = new Date(value)
@@ -133,11 +141,45 @@ export function IvoryFloralGoldTriFold({
   const [view, setView] = useState<IvoryInvitationView>('closed')
   const [replay, setReplay] = useState(0)
   const [registryAvailable, setRegistryAvailable] = useState(false)
+  const [artworkReady, setArtworkReady] = useState(false)
   const noteRef = useRef<HTMLDialogElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const pair = names(data.title).map((part) => part.split(/\s+/)[0])
   const weddingDate = asDate(data.date)
   const monogram = data.monogram || pair.map((p) => p[0]).join(' · ')
+
+  useEffect(() => {
+    let cancelled = false
+    const decodeArtwork = (name: (typeof REQUIRED_ART)[number]) =>
+      new Promise<void>((resolve) => {
+        const image = new window.Image()
+        let settled = false
+        const finish = () => {
+          if (settled) return
+          settled = true
+          resolve()
+        }
+        image.onload = finish
+        image.onerror = finish
+        image.src = `${ART}${name}.webp`
+        if (typeof image.decode === 'function') {
+          void image.decode().then(finish).catch(() => {
+            if (image.complete) finish()
+          })
+        } else if (image.complete) {
+          finish()
+        }
+      })
+
+    void Promise.all(REQUIRED_ART.map(decodeArtwork)).then(() => {
+      if (!cancelled) setArtworkReady(true)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   useEffect(() => {
     const sync = () => setRegistryAvailable(document.getElementById('registry')?.dataset.registryConfigured === 'true')
     sync()
@@ -159,11 +201,15 @@ export function IvoryFloralGoldTriFold({
       setView('closed')
       return
     }
+    if (!artworkReady) {
+      setView('closed')
+      return
+    }
     setView(reducedMotion ? 'open' : 'opening')
     if (reducedMotion) return
     const timer = window.setTimeout(() => setView('open'), 1800)
     return () => window.clearTimeout(timer)
-  }, [open, reducedMotion, replay, previewMode, previewView])
+  }, [open, reducedMotion, replay, previewMode, previewView, artworkReady])
   useEffect(() => {
     if (view === 'open')
       stageRef.current
@@ -217,10 +263,22 @@ export function IvoryFloralGoldTriFold({
       data-card-object="physical-stationery"
       data-invitation-view={view}
       data-artwork-engine="approved-pixels"
+      data-artwork-ready={artworkReady ? 'true' : 'false'}
       data-frozen={previewMode && freezeOpening ? 'true' : 'false'}
       className="ivory-stage"
     >
-      <div className="ivory-object">
+      {!artworkReady && (
+        <p role="status" className="sr-only">
+          Preparing your invitation…
+        </p>
+      )}
+      <div
+        className="ivory-object"
+        style={{
+          opacity: artworkReady ? 1 : 0,
+          transition: reducedMotion ? 'none' : 'opacity 180ms ease-out',
+        }}
+      >
         <div
           data-testid="invitation-panel-centre"
           className="ivory-centre"
@@ -330,13 +388,9 @@ export function IvoryFloralGoldTriFold({
               <button
                 type="button"
                 className="ivory-site"
-                onClick={() =>
-                  document.getElementById('wedding-details')?.scrollIntoView({
-                    behavior: reducedMotion ? 'auto' : 'smooth',
-                  })
-                }
+                onClick={() => window.location.assign(window.location.pathname)}
               >
-                Explore wedding site
+                Back to Wewed Couple Site
               </button>
             )}
           </div>
@@ -360,8 +414,9 @@ export function IvoryFloralGoldTriFold({
               <button
                 type="button"
                 data-testid="invitation-open-button"
-                aria-label="Tap to open"
+                aria-label={open && !artworkReady ? 'Preparing invitation' : 'Tap to open'}
                 className="ivory-hit ivory-open"
+                disabled={open && !artworkReady}
                 onClick={onOpen}
               />
             )}
