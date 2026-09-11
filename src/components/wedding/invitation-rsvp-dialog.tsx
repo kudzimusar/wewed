@@ -125,6 +125,7 @@ export function InvitationRsvpDialog() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          originGuestId: data.guest.id,
           attending: form.get('attendance') === 'accept',
           mealChoice: form.get('mealChoice') || null,
           plusOne: form.get('plusOne') === 'on',
