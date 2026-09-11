@@ -26,11 +26,10 @@ tags:
 - assertVisible: "Open tasks"
 - assertVisible: "High priority"
 
-# React Navigation exposes each bottom-tab touch target with accessibility text
-# shaped like "<icon>, <label>" while the nested label itself is non-clickable.
-# Anchor the parent touch-surface matcher so it cannot accidentally match nearby
-# content such as the greeting text "Good to see you, Planner.".
-- tapOn: "^.*, Plan$"
+# Bottom tabs expose explicit accessibility labels and test IDs from the app
+# shell so Maestro always targets the clickable React Navigation button rather
+# than a nested non-clickable text label.
+- tapOn: "Plan tab"
 - extendedWaitUntil:
     visible: "Planning command centre"
     timeout: 15000
@@ -80,19 +79,19 @@ tags:
 - back
 - back
 
-- tapOn: "^.*, Messages$"
+- tapOn: "Messages tab"
 - extendedWaitUntil:
     visible: "Wewed Messages"
     timeout: 15000
 
-- tapOn: "^.*, Vendors$"
+- tapOn: "Vendors tab"
 - extendedWaitUntil:
     visible: "Find people who can actually deliver."
     timeout: 15000
 - assertVisible: "Search vendors & venues"
 - assertVisible: "Wedding services"
 
-- tapOn: "^.*, More$"
+- tapOn: "More tab"
 - extendedWaitUntil:
     visible: "More"
     timeout: 15000
@@ -108,7 +107,7 @@ tags:
     timeout: 30000
 - assertVisible: "Cedar & Drew — Isolation Wedding.*"
 
-- tapOn: "^.*, More$"
+- tapOn: "More tab"
 - extendedWaitUntil:
     visible: "More"
     timeout: 15000
