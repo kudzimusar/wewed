@@ -25,11 +25,51 @@ export default function TabsLayout() {
         tabBarLabelStyle: { fontSize: 11, fontWeight: '700' },
       }}
     >
-      <Tabs.Screen name="index" options={{ title: 'Today', headerShown: false }} />
-      <Tabs.Screen name="plan" options={{ title: 'Plan', headerShown: false }} />
-      <Tabs.Screen name="messages" options={{ title: 'Messages', headerShown: false }} />
-      <Tabs.Screen name="marketplace" options={{ title: 'Vendors', headerShown: false }} />
-      <Tabs.Screen name="more" options={{ title: 'More', headerShown: false }} />
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: 'Today',
+          headerShown: false,
+          tabBarAccessibilityLabel: 'Today tab',
+          tabBarButtonTestID: 'native-tab-today',
+        }}
+      />
+      <Tabs.Screen
+        name="plan"
+        options={{
+          title: 'Plan',
+          headerShown: false,
+          tabBarAccessibilityLabel: 'Plan tab',
+          tabBarButtonTestID: 'native-tab-plan',
+        }}
+      />
+      <Tabs.Screen
+        name="messages"
+        options={{
+          title: 'Messages',
+          headerShown: false,
+          tabBarAccessibilityLabel: 'Messages tab',
+          tabBarButtonTestID: 'native-tab-messages',
+        }}
+      />
+      <Tabs.Screen
+        name="marketplace"
+        options={{
+          title: 'Vendors',
+          headerShown: false,
+          tabBarAccessibilityLabel: 'Vendors tab',
+          tabBarButtonTestID: 'native-tab-vendors',
+        }}
+      />
+      <Tabs.Screen
+        name="more"
+        options={{
+          title: 'More',
+          headerShown: false,
+          tabBarAccessibilityLabel: 'More tab',
+          tabBarButtonTestID: 'native-tab-more',
+        }}
+      />
     </Tabs>
   )
 }
