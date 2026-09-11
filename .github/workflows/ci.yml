@@ -209,6 +209,17 @@ jobs:
           --project=planner-mobile-390x844
           --fail-on-flaky-tests
 
+      - name: Retain Ivory artwork UAT comparisons
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ivory-artwork-uat-comparisons
+          path: |
+            playwright-report
+            public/invitation-art/ivory/reference
+            public/invitation-art/ivory/manifest.json
+          retention-days: 14
+
       - name: Upload browser failure evidence
         if: failure()
         uses: actions/upload-artifact@v4

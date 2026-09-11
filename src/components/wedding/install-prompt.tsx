@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Download, X, Sparkles } from 'lucide-react';
 import { usePWAInstall } from '@/components/wedding/pwa-register';
@@ -48,7 +49,9 @@ export function InstallPrompt() {
     return () => window.clearTimeout(id);
   }, [canInstall]);
 
-  const visible = canInstall && armed && !dismissed && !isInstalled;
+  const pathname = usePathname();
+  const invitationSurface = pathname.startsWith('/uat/invitation/') || (typeof document !== 'undefined' && Boolean(document.querySelector('[data-personal-invitation="1"]')));
+  const visible = !invitationSurface && canInstall && armed && !dismissed && !isInstalled;
 
   const handleInstall = async () => {
     const outcome = await promptInstall();

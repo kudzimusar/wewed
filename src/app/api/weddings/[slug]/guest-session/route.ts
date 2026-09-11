@@ -61,6 +61,7 @@ export async function GET(request: NextRequest, { params }: Params) {
         tagline: wedding.tagline,
         date: wedding.date,
         venue: wedding.venue,
+        venueMapUrl: wedding.venueMapUrl,
         venueCity: wedding.venueCity,
         venueCountry: wedding.venueCountry,
         primaryColor: wedding.primaryColor,
