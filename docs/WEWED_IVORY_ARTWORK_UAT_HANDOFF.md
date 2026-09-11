@@ -15,15 +15,24 @@ in the secure guest flow. Install/offline notices no longer obscure invitations.
 A server/browser punctuation mismatch in the website's default date label was
 fixed after the secure browser test exposed a hydration error.
 
+The mobile finishing pass keeps 9:19.5 as the canonical artwork coordinate
+system but no longer shrinks the whole invitation to fit browser height. The
+stage is width-driven on phones, allowing the long interactive stationery to
+scroll vertically while preserving aspect ratio and percentage-based CTA
+coordinates. The approved artwork assets and 1800ms opening keyframes are
+unchanged. `A Note from Us` is now presented as a centred stationery dialog and
+the details surface uses a deliberate `Back to invitation` control.
+
 ## Validation
 
-- 34 unit/contract tests passed across five files.
-- 10 production-build Playwright tests passed (premium digital invitation plus artwork suite).
-- Mobile sizes: 320×568, 390×844, 412×915, 430×932.
+- 34 unit/contract tests passed across five files on the Work candidate.
+- 10 production-build Playwright tests passed on the Work candidate (premium digital invitation plus artwork suite).
+- Existing mobile sizes: 320×568, 390×844, 412×915, 430×932.
+- Responsive finishing gate additionally covers 375×667 and 393×852 and asserts width fill, canonical aspect ratio, no horizontal overflow, details width, and note containment.
 - Secure tests verify token-free URL, guest identity, RSVP save/readback and physical/shared isolation.
 - `bun run build` passed using the repository CI environment with an isolated local PostgreSQL database and all migrations.
 - `node scripts/check-ivory-types.mjs` passed; full repository TypeScript still reports 208 diagnostics outside this scope.
-- Full cross-product browser release suite is a separate CI gate, not represented by the 10 passing invitation tests.
+- Full cross-product browser release suite is a separate CI gate and must pass on the current responsive-finishing head before merge approval.
 
 ## Visual approval still required
 
@@ -63,6 +72,8 @@ phone. No main-branch merge is authorized.
 - `scripts/check-ivory-types.mjs`
 - `scripts/normalize-ivory-artwork.mjs`
 - `src/app/api/weddings/[slug]/guest-session/route.ts`
+- `src/app/preview/invitation/ivory-floral-gold/page.tsx`
+- `src/app/preview/invitation/ivory-floral-gold/preview.tsx`
 - `src/app/uat/invitation/ivory-floral-gold/preview.tsx`
 - `src/components/wedding/digital-invitation-card.tsx`
 - `src/components/wedding/gift-registry-campaign-bridge.tsx`
@@ -73,11 +84,9 @@ phone. No main-branch merge is authorized.
 - `src/components/wedding/invitation-experience/premium-invitation-experience.tsx`
 - `src/components/wedding/pwa-register.tsx`
 - `src/lib/digital-invitation-experience.test.ts`
-- `src/lib/invitation-art/ivory/closed-0.ts`
-- `src/lib/invitation-art/ivory/closed-1.ts`
-- `src/lib/invitation-art/ivory/closed-2.ts`
 - `src/lib/wedding-date-hydration.test.ts`
 - `src/lib/wedding-public-access.ts`
 - `src/lib/wedding-template-defaults.ts`
 - `tests/e2e/ivory-artwork.spec.ts`
+- `tests/e2e/ivory-invitation-responsive.spec.ts`
 - `tests/e2e/premium-digital-invitation.spec.ts`
