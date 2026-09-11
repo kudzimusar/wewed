@@ -16,6 +16,11 @@ adb reverse tcp:8081 tcp:8081
 
 (
   cd apps/mobile
+  # React Native DevTools is a Chromium desktop process. It is unnecessary for
+  # black-box Maestro qualification and cannot safely launch on a headless
+  # GitHub runner because Chromium's SUID sandbox is unavailable there.
+  # Keep Metro itself in normal CI mode while explicitly suppressing DevTools.
+  export EXPO_NO_DEV_TOOLS=1
   exec bunx expo start --localhost --clear
 ) > "$METRO_LOG" 2>&1 &
 metro_pid=$!
@@ -33,6 +38,13 @@ for attempt in $(seq 1 90); do
     metro_ready=1
     break
   fi
+
+  if ! kill -0 "$metro_pid" 2>/dev/null; then
+    echo 'Metro exited before becoming ready.' >&2
+    cat "$METRO_LOG" || true
+    exit 1
+  fi
+
   if [[ "$attempt" -eq 90 ]]; then
     echo 'Metro did not become ready.' >&2
     cat "$METRO_LOG" || true
