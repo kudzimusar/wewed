@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
   APP_SESSION_COOKIE,
+  readAppSession,
   verifyAppSessionToken,
 } from '@/lib/app-session'
 
 function privateNoStore(response: NextResponse): NextResponse {
   response.headers.set('Cache-Control', 'private, no-store, max-age=0')
-  response.headers.set('Vary', 'Cookie')
+  response.headers.set('Vary', 'Cookie, Authorization')
   return response
 }
 
@@ -60,11 +61,18 @@ export function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
-  const token = request.cookies.get(APP_SESSION_COOKIE)?.value
-  const session = token ? verifyAppSessionToken(token) : null
+  const protectedPlannerPage = isProtectedPlannerPage(request.nextUrl.pathname)
+  const cookieToken = request.cookies.get(APP_SESSION_COOKIE)?.value
+  const cookieSession = cookieToken ? verifyAppSessionToken(cookieToken) : null
+
+  // Browser-only planner pages retain their cookie-oriented sign-in contract.
+  // Protected API routes are transport-neutral: the same signed Wewed session
+  // may arrive through the existing HttpOnly cookie or a native Authorization
+  // Bearer header. Route-level permission checks still remain authoritative.
+  const session = protectedPlannerPage ? cookieSession : readAppSession(request)
 
   if (!session) {
-    if (isProtectedPlannerPage(request.nextUrl.pathname)) {
+    if (protectedPlannerPage) {
       const url = request.nextUrl.clone()
       url.pathname = '/planner'
       url.searchParams.set('signin', 'required')

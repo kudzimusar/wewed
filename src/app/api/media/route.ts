@@ -18,7 +18,7 @@ const MOMENT_VALUES = new Set(['ceremony', 'reception', 'candid', 'preparation',
 
 function noStore(response: NextResponse): NextResponse {
   response.headers.set('Cache-Control', 'private, no-store, max-age=0')
-  response.headers.set('Vary', 'Cookie')
+  response.headers.set('Vary', 'Cookie, Authorization')
   return response
 }
 

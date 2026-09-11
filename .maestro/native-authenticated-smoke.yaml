@@ -1,0 +1,158 @@
+appId: pro.wewed.app
+tags:
+  - android
+  - authenticated-smoke
+---
+- launchApp:
+    clearState: true
+# The first authenticated launch can also hit a cold Metro cache on a fresh CI
+# runner. Give the native shell enough time to finish bundling before judging
+# the sign-in route; the authenticated journey and its assertions stay intact.
+- extendedWaitUntil:
+    visible: "Your wedding world, in your hand."
+    timeout: 120000
+- tapOn: "Email"
+- inputText: ${WEWED_MAESTRO_EMAIL}
+- tapOn: "Password"
+- inputText: ${WEWED_MAESTRO_PASSWORD}
+- tapOn: "Sign in to Wewed"
+- extendedWaitUntil:
+    visible: "Wedding pulse"
+    timeout: 30000
+# Wedding Pulse renders the canonical wedding title together with a location
+# suffix (for example " · Harare"). Keep verifying the exact wedding identity
+# while allowing that legitimate presentation suffix in the accessibility text.
+- assertVisible: "Aurora & Blake — E2E Wedding.*"
+- assertVisible: "Open tasks"
+- assertVisible: "High priority"
+
+# android-emulator-runner intentionally disables system animations for CI. In a
+# debug build Reanimated reports that as a reduced-motion development warning.
+# React Native's warning overlay extends over the bottom tab hit area even though
+# the visible banner sits slightly above it, so dismiss only that dev-only banner
+# before exercising real tab navigation. Production builds do not render LogBox.
+- runFlow:
+    when:
+      visible: "Open debugger to view warnings."
+    commands:
+      - tapOn:
+          point: "93%,92%"
+- assertNotVisible: "Open debugger to view warnings."
+
+# Bottom tabs expose stable native test IDs on the clickable React Navigation
+# buttons. A freshly rendered Android tab can occasionally ignore the first
+# injected tap even after it is present in the accessibility tree, so retry only
+# when that tap produces no UI change rather than weakening downstream checks.
+- tapOn:
+    id: "native-tab-plan"
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible: "Planning command centre"
+    timeout: 15000
+
+- tapOn: "Tasks"
+- extendedWaitUntil:
+    visible: "What happens next?"
+    timeout: 15000
+# The Checklist filters intentionally sit below Quick capture on a phone-sized
+# viewport. Navigate to the actual filter controls before asserting them instead
+# of requiring off-screen content to already exist in Android's visible hierarchy.
+- scrollUntilVisible:
+    element:
+      text: "Any priority"
+    direction: DOWN
+    timeout: 15000
+- assertVisible: "Any priority"
+- tapOn: "High"
+# Selecting High must preserve the deterministic high-priority fixture task.
+# This verifies the real checklist result rather than merely matching a chip label.
+- assertVisible: "Primary wedding seeded task"
+- assertVisible: "High"
+- back
+
+- tapOn: "Guests"
+- extendedWaitUntil:
+    visible: "People, not rows."
+    timeout: 15000
+- assertVisible: "Guests"
+- scrollUntilVisible:
+    element:
+      text: "Seating tables"
+    direction: DOWN
+    timeout: 15000
+- assertVisible: "Seating tables"
+- back
+
+- tapOn: "Budget"
+- extendedWaitUntil:
+    visible: "Know where the money is going."
+    timeout: 15000
+- assertVisible: "Outstanding"
+- scrollUntilVisible:
+    element:
+      text: "Contributions"
+    direction: DOWN
+    timeout: 15000
+- tapOn: "Contributions"
+- extendedWaitUntil:
+    visible: "Give credit where it belongs."
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      text: "Contribution ledger"
+    direction: DOWN
+    timeout: 15000
+- assertVisible: "Contribution ledger"
+- back
+- back
+
+- tapOn:
+    id: "native-tab-messages"
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible: "Wewed Messages"
+    timeout: 15000
+
+- tapOn:
+    id: "native-tab-vendors"
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible: "Find people who can actually deliver."
+    timeout: 15000
+- assertVisible: "Search vendors & venues"
+- assertVisible: "Wedding services"
+
+- tapOn:
+    id: "native-tab-more"
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible: "More"
+    timeout: 15000
+- assertVisible: "Aurora & Blake — E2E Wedding"
+- scrollUntilVisible:
+    element:
+      text: "Cedar & Drew — Isolation Wedding"
+    direction: DOWN
+    timeout: 15000
+- tapOn: "Open"
+- extendedWaitUntil:
+    visible: "Wedding pulse"
+    timeout: 30000
+- assertVisible: "Cedar & Drew — Isolation Wedding.*"
+
+- tapOn:
+    id: "native-tab-more"
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible: "More"
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      text: "Aurora & Blake — E2E Wedding"
+    direction: DOWN
+    timeout: 15000
+- tapOn: "Open"
+- extendedWaitUntil:
+    visible: "Wedding pulse"
+    timeout: 30000
+- assertVisible: "Aurora & Blake — E2E Wedding.*"

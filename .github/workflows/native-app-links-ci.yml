@@ -1,0 +1,92 @@
+name: Native Android App Links CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'apps/mobile/app.config.ts'
+      - 'public/.well-known/assetlinks.json'
+      - 'src/lib/android-app-links.test.ts'
+      - '.github/workflows/native-app-links-ci.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/mobile/app.config.ts'
+      - 'public/.well-known/assetlinks.json'
+      - 'src/lib/android-app-links.test.ts'
+      - '.github/workflows/native-app-links-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-app-links-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  digital-asset-links:
+    name: Validate Wewed Digital Asset Links contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Validate static Digital Asset Links trust file
+        run: bun test src/lib/android-app-links.test.ts
+
+      - name: Start local Wewed server
+        run: |
+          bun run dev > /tmp/wewed-app-links.log 2>&1 &
+          echo $! > /tmp/wewed-app-links.pid
+          for attempt in $(seq 1 90); do
+            STATUS=$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/.well-known/assetlinks.json || true)
+            if [ "$STATUS" = '200' ]; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/wewed-app-links.log || true
+          exit 1
+
+      - name: Verify exact HTTP association contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          STATUS=$(curl --max-redirs 0 -sS -D /tmp/assetlinks.headers -o /tmp/assetlinks.json -w '%{http_code}' http://127.0.0.1:3000/.well-known/assetlinks.json)
+          test "$STATUS" = '200'
+          grep -qi '^content-type: application/json' /tmp/assetlinks.headers
+          if grep -qi '^location:' /tmp/assetlinks.headers; then
+            echo 'Digital Asset Links endpoint must not redirect.'
+            exit 1
+          fi
+          node - <<'NODE'
+          const fs = require('node:fs')
+          const expected = JSON.parse(fs.readFileSync('public/.well-known/assetlinks.json', 'utf8'))
+          const served = JSON.parse(fs.readFileSync('/tmp/assetlinks.json', 'utf8'))
+          if (JSON.stringify(served) !== JSON.stringify(expected)) {
+            console.error('Served Digital Asset Links payload differs from the repository trust file.')
+            process.exit(1)
+          }
+          NODE
+
+      - name: Stop local Wewed server
+        if: always()
+        run: |
+          if [ -f /tmp/wewed-app-links.pid ]; then
+            kill "$(cat /tmp/wewed-app-links.pid)" || true
+          fi

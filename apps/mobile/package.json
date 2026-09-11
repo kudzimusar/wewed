@@ -1,0 +1,53 @@
+{
+  "name": "@wewed/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "deps:check": "expo install --check",
+    "doctor": "expo-doctor@latest",
+    "test:unit": "bun test src/lib/deep-links.test.ts src/lib/api.test.ts src/lib/install-referrer.test.ts src/lib/field-mode-policy.test.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "expo lint",
+    "export:android": "expo export --platform android --output-dir dist-android --clear",
+    "prebuild": "expo prebuild",
+    "prebuild:android": "expo prebuild --platform android --clean --no-install"
+  },
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/netinfo": "12.0.1",
+    "@tanstack/react-query": "^5.82.0",
+    "expo": "~57.0.10",
+    "expo-application": "~57.0.2",
+    "expo-constants": "~57.0.9",
+    "expo-document-picker": "~57.0.1",
+    "expo-haptics": "~57.0.2",
+    "expo-image-picker": "~57.0.16",
+    "expo-linking": "~57.0.5",
+    "expo-notifications": "~57.0.17",
+    "expo-router": "~57.0.10",
+    "expo-secure-store": "~57.0.1",
+    "expo-sharing": "~57.0.18",
+    "expo-splash-screen": "~57.0.5",
+    "expo-status-bar": "~57.0.1",
+    "expo-web-browser": "~57.0.2",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-gesture-handler": "~2.32.0",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0",
+    "react-native-web": "~0.21.0"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "bun-types": "1.3.14",
+    "eslint": "^9.39.5",
+    "eslint-config-expo": "~57.0.2",
+    "typescript": "~6.0.3"
+  }
+}

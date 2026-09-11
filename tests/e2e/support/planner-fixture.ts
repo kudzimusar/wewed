@@ -1,10 +1,14 @@
 import { PrismaClient } from '@prisma/client'
+import {
+  LOCAL_CI_E2E_PLANNER,
+  assertSafeLocalCiE2EEnvironment,
+} from '../../../src/lib/e2e-environment'
 
 export const E2E_USER = {
-  id: 'e2e-planner-user',
-  authUserId: 'e2e-supabase-auth-user',
-  email: 'planner.e2e@example.test',
-  name: 'Planner E2E',
+  id: LOCAL_CI_E2E_PLANNER.id,
+  authUserId: LOCAL_CI_E2E_PLANNER.authUserId,
+  email: LOCAL_CI_E2E_PLANNER.email,
+  name: LOCAL_CI_E2E_PLANNER.name,
 } as const
 
 export const E2E_WEDDINGS = {
@@ -33,17 +37,15 @@ export const E2E_WEDDINGS = {
 } as const
 
 function assertSafeTarget(): void {
-  const databaseUrl = process.env.DATABASE_URL?.toLowerCase() ?? ''
-  const localDatabase = databaseUrl.includes('localhost') || databaseUrl.includes('127.0.0.1')
-  if (
-    process.env.WEWED_E2E_MODE !== '1' ||
-    process.env.CI !== 'true' ||
-    process.env.VERCEL ||
-    !localDatabase
-  ) {
-    throw new Error(
-      'Refusing planner E2E fixture reset outside explicit CI mode on a local PostgreSQL database.',
-    )
+  if (process.env.CI !== 'true' || process.env.VERCEL) {
+    throw new Error('Refusing planner E2E fixture reset outside local CI')
+  }
+
+  try {
+    assertSafeLocalCiE2EEnvironment()
+  } catch (error) {
+    const detail = error instanceof Error ? `: ${error.message}` : ''
+    throw new Error(`Refusing planner E2E fixture reset${detail}`)
   }
 }
 
