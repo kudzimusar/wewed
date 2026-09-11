@@ -154,6 +154,33 @@ export async function PUT(request: NextRequest, { params }: Params) {
     )
   }
 
+  const originGuestId =
+    typeof body.originGuestId === 'string' ? body.originGuestId.trim() : ''
+  if (!originGuestId) {
+    return noStore(
+      NextResponse.json(
+        {
+          success: false,
+          error: 'This RSVP form is missing its guest binding. Reload the invitation and try again.',
+          code: 'STALE_GUEST_CONTEXT',
+        },
+        { status: 409 },
+      ),
+    )
+  }
+  if (originGuestId !== guest.id) {
+    return noStore(
+      NextResponse.json(
+        {
+          success: false,
+          error: 'Your invitation session changed while this RSVP form was open. Reload the current invitation before saving.',
+          code: 'STALE_GUEST_CONTEXT',
+        },
+        { status: 409 },
+      ),
+    )
+  }
+
   const data: Record<string, unknown> = {}
   for (const field of ['attending', 'mealChoice', 'plusOne', 'plusOneName', 'plusOneMeal', 'kidsAttending', 'kidsCount', 'dietaryNotes', 'message'] as const) {
     if (body[field] !== undefined) data[field] = body[field]
