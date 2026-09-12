@@ -1,13 +1,19 @@
 /// <reference types="bun-types" />
 
-import { afterAll, describe, expect, test } from 'bun:test'
+import { afterAll, describe, expect, mock, test } from 'bun:test'
 import { randomUUID } from 'node:crypto'
 import { db } from '@/lib/db'
-import {
+import { isValidPhysicalInvitationHandoff } from '@/lib/invitation-links'
+
+// Keep the production module protected by Next.js' server-only marker while
+// allowing Bun's standalone integration runner to exercise the crypto + DB
+// contract outside the Next.js module resolver.
+mock.module('server-only', () => ({}))
+
+const {
   consumePhysicalInvitationInstallHandoff,
   createPhysicalInvitationInstallHandoff,
-} from '@/lib/physical-invitation-install-handoff'
-import { isValidPhysicalInvitationHandoff } from '@/lib/invitation-links'
+} = await import('@/lib/physical-invitation-install-handoff')
 
 function physicalToken(playStoreUrl: string) {
   const referrer = new URL(playStoreUrl).searchParams.get('referrer')
