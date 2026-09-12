@@ -1,3 +1,4 @@
+import { previewWeddingMutationBlocked } from '@/lib/preview-write-safety'
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { db } from '@/lib/db'
 import {
@@ -93,6 +94,7 @@ async function writeAudit(input: {
   userAgent?: string | null
   details?: Record<string, string | number | boolean | null>
 }): Promise<void> {
+  if (process.env.VERCEL_ENV === 'preview' && (!input.weddingId || previewWeddingMutationBlocked(input.weddingId))) return
   try {
     await db.auditEvent.create({
       data: {
@@ -156,6 +158,7 @@ export async function createInvitationInstallHandoff(input: {
   ipAddress?: string | null
   userAgent?: string | null
 }): Promise<CreatedInvitationInstallHandoff> {
+  if (previewWeddingMutationBlocked(input.weddingId)) throw new Error('PREVIEW_WRITE_BLOCKED')
   const rsvp = await db.rSVP.findUnique({
     where: { token: input.rsvpToken },
     select: { id: true, guestId: true },
@@ -261,6 +264,8 @@ export async function consumeInvitationInstallHandoff(input: {
       userAgent: input.userAgent,
     })
   }
+
+  if (previewWeddingMutationBlocked(handoff.weddingId)) return { ok: false, reason: 'invalid' }
 
   if (handoff.usedAt) {
     return failedResult('used', {

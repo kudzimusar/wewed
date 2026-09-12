@@ -49,10 +49,12 @@ def twaManifest = [
 ]
 
 android {
+    buildFeatures { buildConfig true }
     compileSdkVersion 36
     namespace "pro.wewed.app"
     defaultConfig {
         applicationId "pro.wewed.app"
+        buildConfigField "boolean", "UAT", "false"
         minSdkVersion 21
         targetSdkVersion 36
         versionCode 2
@@ -100,6 +102,17 @@ android {
     }
 
     buildTypes {
+        uat {
+            initWith debug
+            matchingFallbacks = ['debug']
+            buildConfigField "boolean", "UAT", "true"
+            resValue "string", "appName", "Wewed UAT"
+            resValue "string", "launcherName", "Wewed UAT"
+            resValue "string", "hostName", "wewed-pr202-uat.vercel.app"
+            resValue "string", "launchUrl", "https://wewed-pr202-uat.vercel.app/app?source=android-uat"
+            resValue "string", "webManifestUrl", "https://wewed-pr202-uat.vercel.app/manifest.json"
+            resValue "string", "fullScopeUrl", "https://wewed-pr202-uat.vercel.app/"
+        }
         release {
             minifyEnabled true
             if (hasUploadSigning) {

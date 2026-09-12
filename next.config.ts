@@ -42,6 +42,13 @@ const nextConfig: NextConfig = {
     "socket.io-client",
     "sharp",
   ],
+  async rewrites() {
+    return {
+      beforeFiles: process.env.VERCEL_ENV === "preview" && process.env.WEWED_UAT_ANDROID_SHA256
+        ? [{ source: "/.well-known/assetlinks.json", has: [{ type: "host" as const, value: "wewed-pr202-uat.vercel.app" }], destination: "/api/uat/assetlinks" }]
+        : [],
+    };
+  },
   async redirects() {
     if (process.env.VERCEL_ENV !== "production") {
       return [];

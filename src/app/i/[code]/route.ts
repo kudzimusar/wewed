@@ -1,3 +1,4 @@
+import { previewWeddingMutationBlocked } from '@/lib/preview-write-safety'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { clearPendingInvitationCookie } from '@/lib/pending-invitation'
@@ -53,7 +54,7 @@ export async function GET(
     return invalidInvitation(request)
   }
 
-  await db.qRDestination.update({
+  if (!previewWeddingMutationBlocked(destination.weddingId)) await db.qRDestination.update({
     where: { id: destination.id },
     data: { scanCount: { increment: 1 } },
   })

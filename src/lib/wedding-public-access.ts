@@ -1,4 +1,5 @@
 import 'server-only'
+import { shouldBlockPreviewWrite, PREVIEW_WRITE_BLOCK_MESSAGE } from '@/lib/preview-write-safety'
 
 import type { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
@@ -72,8 +73,8 @@ export interface WeddingAccessResolution {
   allowed: boolean
   accessKind: WeddingAccessKind | null
   guest: WeddingGuestIdentity | null
-  status: 200 | 401 | 403 | 404
-  reason: 'allowed' | 'access_required' | 'private' | 'not_found'
+  status: 200 | 401 | 403 | 404 | 423
+  reason: 'allowed' | 'access_required' | 'private' | 'not_found' | 'preview_write_blocked'
 }
 
 function normalizePrivacy(value: string | null | undefined): WeddingPrivacy {
@@ -348,7 +349,7 @@ export async function resolveWeddingAccessForRequest(
   request: NextRequest,
   slug: string,
 ): Promise<WeddingAccessResolution> {
-  return resolveWeddingAccessFromTokens({
+  const resolution = await resolveWeddingAccessFromTokens({
     slug,
     appSessionToken: request.cookies.get(APP_SESSION_COOKIE)?.value ?? null,
     guestSessionToken:
@@ -356,11 +357,16 @@ export async function resolveWeddingAccessForRequest(
     sharedInvitationSessionToken:
       request.cookies.get(WEDDING_SHARED_INVITATION_COOKIE)?.value ?? null,
   })
+  if (resolution.wedding && shouldBlockPreviewWrite({ method: request.method, weddingId: resolution.wedding.id })) {
+    return { ...resolution, allowed: false, status: 423, reason: 'preview_write_blocked' }
+  }
+  return resolution
 }
 
 export function weddingAccessErrorPayload(
   resolution: WeddingAccessResolution,
 ): Record<string, unknown> {
+  if (resolution.reason === 'preview_write_blocked') return { success: false, code: 'PREVIEW_WRITE_BLOCKED', error: PREVIEW_WRITE_BLOCK_MESSAGE }
   return {
     success: false,
     code:

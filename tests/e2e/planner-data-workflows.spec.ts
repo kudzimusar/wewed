@@ -11,22 +11,12 @@ import {
 } from './support/planner-browser'
 
 async function expectImportReviewText(dialog: Locator, text: string | RegExp) {
-  const mobileCards = dialog.getByTestId('import-review-cards')
-  if (await mobileCards.isVisible()) {
-    if (typeof text === 'string') {
-      await expect(mobileCards.getByText(text, { exact: true })).toBeVisible()
-    } else {
-      await expect(mobileCards.getByText(text)).toBeVisible()
-    }
-    return
-  }
-
-  const tableCells = dialog.getByTestId('import-review-table-scroll').getByRole('cell')
-  if (typeof text === 'string') {
-    await expect(tableCells.filter({ hasText: text })).toBeVisible()
-  } else {
-    await expect(tableCells.filter({ hasText: text })).toBeVisible()
-  }
+  // The response can arrive before React mounts either responsive review.
+  // Retry against whichever rendered representation is visible, without making
+  // a one-time isVisible() decision during that gap.
+  const cards = dialog.getByTestId('import-review-cards').getByText(text, { exact: typeof text === 'string' })
+  const cells = dialog.getByTestId('import-review-table-scroll').getByRole('cell').filter({ hasText: text })
+  await expect(cards.or(cells).filter({ visible: true })).toBeVisible()
 }
 
 test('downloaded Excel template imports, exports, records history, and rolls back', async ({ plannerPage: page }, testInfo) => {

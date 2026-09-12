@@ -1,3 +1,4 @@
+import { previewWriteError } from '@/lib/preview-write-response'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { normalizeInvitationCardStyle } from '@/lib/digital-invitation-card'
@@ -147,6 +148,9 @@ export async function PUT(request: NextRequest, { params }: Params) {
     )
   }
 
+  const blocked = previewWriteError(wedding.id)
+  if (blocked) return blocked
+
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
   if (!body) {
     return noStore(
@@ -215,6 +219,9 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       NextResponse.json({ success: false, error: 'Guest access is not active.' }, { status: 401 }),
     )
   }
+
+  const blocked = previewWriteError(wedding.id)
+  if (blocked) return blocked
 
   const updated = await db.rSVP.update({
     where: { token: guest.rsvpToken },

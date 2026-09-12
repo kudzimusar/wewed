@@ -1,3 +1,4 @@
+import { previewWeddingMutationBlocked } from '@/lib/preview-write-safety'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import {
@@ -47,7 +48,7 @@ export async function GET(request: NextRequest, { params }: Params) {
     })
 
     if (destination && destination.wedding.privacy !== 'private') {
-      await db.qRDestination.update({
+      if (!previewWeddingMutationBlocked(destination.weddingId)) await db.qRDestination.update({
         where: { id: destination.id },
         data: { scanCount: { increment: 1 } },
       })

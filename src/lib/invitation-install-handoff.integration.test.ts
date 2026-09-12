@@ -163,6 +163,28 @@ describe('native deferred invitation handoff', () => {
     expect(replay).toEqual({ ok: false, reason: 'used' })
   })
 
+  test('preview cannot create or consume another wedding handoff or write its audit', async () => {
+    const fixture = await createFixture()
+    const created = await makeHandoff(fixture)
+    const previousEnvironment = process.env.VERCEL_ENV
+    const previousWedding = process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID
+    try {
+      process.env.VERCEL_ENV = 'preview'
+      process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID = 'different-uat-wedding'
+      const before = await db.auditEvent.count({ where: { weddingId: fixture.weddingId } })
+      await expect(makeHandoff(fixture)).rejects.toThrow('PREVIEW_WRITE_BLOCKED')
+      expect(await consumeInvitationInstallHandoff({ secret: created.secret })).toEqual({ ok: false, reason: 'invalid' })
+      expect(await db.auditEvent.count({ where: { weddingId: fixture.weddingId } })).toBe(before)
+      process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID = fixture.weddingId
+      expect((await consumeInvitationInstallHandoff({ secret: created.secret })).ok).toBe(true)
+    } finally {
+      if (previousEnvironment === undefined) delete process.env.VERCEL_ENV
+      else process.env.VERCEL_ENV = previousEnvironment
+      if (previousWedding === undefined) delete process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID
+      else process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID = previousWedding
+    }
+  })
+
   test('rejects an expired handoff', async () => {
     const fixture = await createFixture()
     const created = await makeHandoff(fixture)
