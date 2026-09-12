@@ -146,6 +146,9 @@ export default async function WeddingPage({
     const physicalInvitationStyle = isDedicatedPreviewWedding
       ? 'ivory-floral-gold'
       : normalizeInvitationCardStyle(wedding.invitationCardStyle)
+    const deferredInstallEnabled =
+      isDedicatedPreviewWedding ||
+      process.env.ANDROID_DEFERRED_INVITATION_HANDOFF === '1'
 
     return (
       <PhysicalInvitationEntry
@@ -153,9 +156,7 @@ export default async function WeddingPage({
         weddingTitle={`${wedding.partner1} & ${wedding.partner2}`}
         style={physicalInvitationStyle}
         allowNameOnlyClaim={isDedicatedPreviewWedding}
-        deferredInstallEnabled={
-          process.env.ANDROID_DEFERRED_INVITATION_HANDOFF === '1'
-        }
+        deferredInstallEnabled={deferredInstallEnabled}
         invitation={{
           title: `${wedding.partner1} & ${wedding.partner2}`,
           monogram: wedding.monogram,
