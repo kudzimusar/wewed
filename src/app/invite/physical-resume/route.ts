@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
+import {
+  clearAndroidInvitationAppCookie,
+  setAndroidInvitationAppCookie,
+} from '@/lib/android-invitation-app-session'
 import { clearPendingInvitationCookie } from '@/lib/pending-invitation'
 import { consumePhysicalInvitationInstallHandoff } from '@/lib/physical-invitation-install-handoff'
 import { clearWeddingGuestSessionCookie } from '@/lib/wedding-guest-session'
@@ -27,6 +31,7 @@ function recovery() {
   clearPendingInvitationCookie(response)
   clearWeddingGuestSessionCookie(response)
   clearWeddingSharedInvitationCookie(response)
+  clearAndroidInvitationAppCookie(response)
   return response
 }
 
@@ -45,6 +50,10 @@ export async function GET(request: NextRequest) {
   clearPendingInvitationCookie(response)
   clearWeddingGuestSessionCookie(response)
   setWeddingSharedInvitationCookie(response, {
+    weddingId: result.weddingId,
+    destinationId: result.destinationId,
+  })
+  setAndroidInvitationAppCookie(response, {
     weddingId: result.weddingId,
     destinationId: result.destinationId,
   })
