@@ -1,6 +1,7 @@
 import { previewWeddingMutationBlocked } from '@/lib/preview-write-safety'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { normalizeInvitationCardStyle } from '@/lib/digital-invitation-card'
 import { clearPendingInvitationCookie } from '@/lib/pending-invitation'
 import {
   normalizePhysicalInvitationCode,
@@ -59,12 +60,20 @@ export async function GET(
     data: { scanCount: { increment: 1 } },
   })
 
-  const response = NextResponse.redirect(
-    new URL(
-      `/w/${encodeURIComponent(destination.wedding.slug)}?source=printed-invitation`,
-      request.url,
-    ),
+  const destinationUrl = new URL(
+    `/w/${encodeURIComponent(destination.wedding.slug)}`,
+    request.url,
   )
+  destinationUrl.searchParams.set('source', 'printed-invitation')
+  const requestedCard = request.nextUrl.searchParams.get('card')?.trim()
+  if (requestedCard) {
+    destinationUrl.searchParams.set(
+      'card',
+      normalizeInvitationCardStyle(requestedCard),
+    )
+  }
+
+  const response = NextResponse.redirect(destinationUrl)
   clearPersonalInvitationContext(response)
   setWeddingSharedInvitationCookie(response, {
     weddingId: destination.weddingId,
