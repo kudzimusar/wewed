@@ -12,6 +12,7 @@ import { normalizeInvitationCardStyle } from '@/lib/digital-invitation-card'
 import { loadWeddingDataBySlug } from '@/lib/wedding-data-server'
 import { WEDDING_GUEST_SESSION_COOKIE } from '@/lib/wedding-guest-session'
 import {
+  verifyWeddingSharedInvitationSessionToken,
   WEDDING_SHARED_INVITATION_COOKIE,
 } from '@/lib/wedding-shared-invitation-session'
 import {
@@ -109,6 +110,9 @@ export default async function WeddingPage({
     cookieStore.get(WEDDING_GUEST_SESSION_COOKIE)?.value ?? null
   const sharedInvitationSessionToken =
     cookieStore.get(WEDDING_SHARED_INVITATION_COOKIE)?.value ?? null
+  const sharedInvitationSession = sharedInvitationSessionToken
+    ? verifyWeddingSharedInvitationSessionToken(sharedInvitationSessionToken)
+    : null
   const [resolution, appSession] = await Promise.all([
     resolveWeddingAccessFromTokens({
       slug,
@@ -132,8 +136,8 @@ export default async function WeddingPage({
   const physicalInvitationClaim =
     query.source === 'printed-invitation' &&
     wedding.privacy === 'link_only' &&
-    resolution.accessKind === 'public' &&
-    !resolution.guest
+    !resolution.guest &&
+    sharedInvitationSession?.weddingId === wedding.id
 
   if (physicalInvitationClaim) {
     const allowNameOnlyClaim =
