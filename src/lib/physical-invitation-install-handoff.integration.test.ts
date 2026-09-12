@@ -7,19 +7,24 @@ import {
   consumePhysicalInvitationInstallHandoff,
   createPhysicalInvitationInstallHandoff,
 } from '@/lib/physical-invitation-install-handoff'
+import { isValidPhysicalInvitationHandoff } from '@/lib/invitation-links'
 
-function physicalSecret(playStoreUrl: string) {
+function physicalToken(playStoreUrl: string) {
   const referrer = new URL(playStoreUrl).searchParams.get('referrer')
   if (!referrer) throw new Error('missing referrer')
-  const secret = new URLSearchParams(referrer).get('physical_handoff')
-  if (!secret) throw new Error('missing physical_handoff')
-  return secret
+  const token = new URLSearchParams(referrer).get('physical_handoff')
+  if (!token) throw new Error('missing physical_handoff')
+  return token
 }
 
 async function fixture() {
   const suffix = randomUUID().replaceAll('-', '')
   const couple = await db.couple.create({
-    data: { slug: `physical-handoff-couple-${suffix}`, partner1: 'Physical', partner2: 'Invite' },
+    data: {
+      slug: `physical-handoff-couple-${suffix}`,
+      partner1: 'Physical',
+      partner2: 'Invite',
+    },
   })
   const wedding = await db.wedding.create({
     data: {
@@ -46,7 +51,6 @@ async function fixture() {
 }
 
 async function cleanup(input: Awaited<ReturnType<typeof fixture>>) {
-  await db.$executeRaw`DELETE FROM private."PhysicalInvitationInstallHandoff" WHERE "weddingId" = ${input.wedding.id}`
   await db.qRDestination.deleteMany({ where: { id: input.destination.id } })
   await db.wedding.deleteMany({ where: { id: input.wedding.id } })
   await db.couple.deleteMany({ where: { id: input.couple.id } })
@@ -55,38 +59,38 @@ async function cleanup(input: Awaited<ReturnType<typeof fixture>>) {
 afterAll(async () => { await db.$disconnect() })
 
 describe('physical invitation deferred Android handoff', () => {
-  test('Play receives only an opaque one-time physical handoff and resume restores shared invitation context', async () => {
+  test('Play receives only an opaque encrypted physical handoff and resume restores shared context', async () => {
     const input = await fixture()
     try {
       const created = await createPhysicalInvitationInstallHandoff({
         destinationId: input.destination.id,
         weddingId: input.wedding.id,
         card: 'ivory-floral-gold',
-        source: 'integration-test',
       })
-      const secret = physicalSecret(created.playStoreUrl)
-      expect(secret).toHaveLength(43)
-      expect(created.playStoreUrl).not.toContain(input.wedding.slug)
-      expect(created.playStoreUrl).not.toContain(input.wedding.id)
-      expect(created.playStoreUrl).not.toContain(input.destination.id)
-      expect(created.playStoreUrl).not.toContain('rsvp')
-      expect(created.appResumePath).toBe(`/invite/physical-resume?h=${secret}`)
+      const token = physicalToken(created.playStoreUrl)
+      expect(isValidPhysicalInvitationHandoff(token)).toBe(true)
+      expect(token.startsWith('p1.')).toBe(true)
 
-      const first = await consumePhysicalInvitationInstallHandoff(secret)
-      expect(first).toMatchObject({
+      const visiblePlayData = decodeURIComponent(created.playStoreUrl)
+      expect(visiblePlayData).not.toContain(input.wedding.slug)
+      expect(visiblePlayData).not.toContain(input.wedding.id)
+      expect(visiblePlayData).not.toContain(input.destination.id)
+      expect(visiblePlayData).not.toContain('rsvp')
+      expect(created.appResumePath).toBe(`/invite/physical-resume?h=${encodeURIComponent(token)}`)
+
+      expect(await consumePhysicalInvitationInstallHandoff(token)).toMatchObject({
         ok: true,
         weddingId: input.wedding.id,
         weddingSlug: input.wedding.slug,
         destinationId: input.destination.id,
         card: 'ivory-floral-gold',
       })
-      expect(await consumePhysicalInvitationInstallHandoff(secret)).toEqual({ ok: false, reason: 'used' })
     } finally {
       await cleanup(input)
     }
   })
 
-  test('revokes the handoff if the printed invitation is disabled before first app launch', async () => {
+  test('rejects a tampered encrypted physical handoff', async () => {
     const input = await fixture()
     try {
       const created = await createPhysicalInvitationInstallHandoff({
@@ -94,38 +98,37 @@ describe('physical invitation deferred Android handoff', () => {
         weddingId: input.wedding.id,
         card: 'ivory-floral-gold',
       })
-      const secret = physicalSecret(created.playStoreUrl)
-      await db.qRDestination.update({ where: { id: input.destination.id }, data: { isActive: false } })
-      expect(await consumePhysicalInvitationInstallHandoff(secret)).toEqual({ ok: false, reason: 'revoked' })
+      const token = physicalToken(created.playStoreUrl)
+      const last = token.at(-1) || 'A'
+      const replacement = last === 'A' ? 'B' : 'A'
+      const tampered = `${token.slice(0, -1)}${replacement}`
+      expect(await consumePhysicalInvitationInstallHandoff(tampered)).toEqual({
+        ok: false,
+        reason: 'invalid',
+      })
     } finally {
       await cleanup(input)
     }
   })
 
-  test('preview cannot create or consume a physical handoff for another wedding', async () => {
+  test('revokes the handoff if the printed invitation is disabled before app reveal', async () => {
     const input = await fixture()
-    const oldEnv = process.env.VERCEL_ENV
-    const oldWritable = process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID
     try {
       const created = await createPhysicalInvitationInstallHandoff({
         destinationId: input.destination.id,
         weddingId: input.wedding.id,
         card: 'ivory-floral-gold',
       })
-      const secret = physicalSecret(created.playStoreUrl)
-      process.env.VERCEL_ENV = 'preview'
-      process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID = 'another-wedding'
-      await expect(createPhysicalInvitationInstallHandoff({
-        destinationId: input.destination.id,
-        weddingId: input.wedding.id,
-        card: 'ivory-floral-gold',
-      })).rejects.toThrow('PREVIEW_WRITE_BLOCKED')
-      expect(await consumePhysicalInvitationInstallHandoff(secret)).toEqual({ ok: false, reason: 'invalid' })
+      const token = physicalToken(created.playStoreUrl)
+      await db.qRDestination.update({
+        where: { id: input.destination.id },
+        data: { isActive: false },
+      })
+      expect(await consumePhysicalInvitationInstallHandoff(token)).toEqual({
+        ok: false,
+        reason: 'revoked',
+      })
     } finally {
-      if (oldEnv === undefined) delete process.env.VERCEL_ENV
-      else process.env.VERCEL_ENV = oldEnv
-      if (oldWritable === undefined) delete process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID
-      else process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID = oldWritable
       await cleanup(input)
     }
   })
