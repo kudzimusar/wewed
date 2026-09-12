@@ -93,6 +93,12 @@ describe('bulk physical invitation access', () => {
     )
     expect(proxy).toContain("if (pathname.startsWith('/api/weddings/')) return true")
 
+    expect(claim).toContain('function sameOriginRequest(request: NextRequest): boolean')
+    expect(claim).toContain("request.headers.get('origin')")
+    expect(claim).toContain("request.headers.get('x-forwarded-host')")
+    expect(claim).toContain("request.headers.get('x-forwarded-proto')")
+    expect(claim).toContain("request.headers.get('host')")
+    expect(claim).toContain('if (!sameOriginRequest(request)) return genericFailure(403)')
     expect(claim).toContain('WEDDING_SHARED_INVITATION_COOKIE')
     expect(claim).toContain('verifyWeddingSharedInvitationSessionToken')
     expect(claim).toContain("type: 'physical_invitation'")
