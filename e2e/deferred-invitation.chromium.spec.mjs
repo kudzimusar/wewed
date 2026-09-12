@@ -284,6 +284,9 @@ test('Chrome Android: printed QR installs Wewed, restores shared invitation, cla
   await expect(browserPage.getByTestId('physical-invitation-android-gate')).toBeVisible()
   await expect(browserPage.getByTestId('premium-invitation-experience')).toHaveCount(0)
   await expect(browserPage.getByRole('heading', { name: 'Find my RSVP' })).toHaveCount(0)
+  const browserCookies = await browserContext.cookies(BASE_URL)
+  expect(browserCookies.some((cookie) => cookie.name === 'wewed_wedding_shared_invitation')).toBe(true)
+  expect(browserCookies.some((cookie) => cookie.name === 'wewed_wedding_guest')).toBe(false)
 
   const playStoreUrl = await capturePlayNavigation(
     browserPage,
@@ -321,10 +324,40 @@ test('Chrome Android: printed QR installs Wewed, restores shared invitation, cla
   await experience.getByTestId('invitation-cta-rsvp').click()
   await appPage.getByLabel('Full name').fill(fixture.guestName)
   await appPage.getByLabel(/^Email or phone/).fill(fixture.guestEmail)
-  await appPage.getByRole('button', { name: 'Continue to my digital invitation' }).click()
 
-  await expect(appPage).toHaveURL(new RegExp(`/w/${fixture.weddingSlug}\\?`))
-  expect(new URL(appPage.url()).searchParams.get('invitation')).toBe('1')
+  const claimPath = `/api/weddings/${fixture.weddingSlug}/physical-invitation/claim`
+  const claimResponsePromise = appPage.waitForResponse((response) => {
+    try {
+      return (
+        response.request().method() === 'POST' &&
+        new URL(response.url()).pathname === claimPath
+      )
+    } catch {
+      return false
+    }
+  })
+  await appPage.getByRole('button', { name: 'Continue to my digital invitation' }).click()
+  const claimResponse = await claimResponsePromise
+  expect(claimResponse.status()).toBe(200)
+  const claimPayload = await claimResponse.json()
+  expect(claimPayload.success).toBe(true)
+  expect(typeof claimPayload.redirect).toBe('string')
+  const claimRedirect = new URL(claimPayload.redirect, BASE_URL)
+  expect(claimRedirect.pathname).toBe(`/w/${fixture.weddingSlug}`)
+  expect(claimRedirect.searchParams.get('invitation')).toBe('1')
+  expect(claimRedirect.searchParams.get('card')).toBe('ivory-floral-gold')
+  expect(claimRedirect.searchParams.get('source')).toBe('printed-invitation')
+  expect(claimRedirect.searchParams.has('rsvp')).toBe(false)
+  expect(claimRedirect.searchParams.has('h')).toBe(false)
+
+  await expect.poll(
+    () => new URL(appPage.url()).searchParams.get('invitation'),
+    { timeout: 10_000 },
+  ).toBe('1')
+  const claimedUrl = new URL(appPage.url())
+  expect(claimedUrl.pathname).toBe(`/w/${fixture.weddingSlug}`)
+  expect(claimedUrl.searchParams.get('card')).toBe('ivory-floral-gold')
+  expect(claimedUrl.searchParams.get('source')).toBe('printed-invitation')
   const cookiesAfterClaim = await appContext.cookies(BASE_URL)
   expect(cookiesAfterClaim.some((cookie) => cookie.name === 'wewed_wedding_shared_invitation')).toBe(false)
   expect(cookiesAfterClaim.some((cookie) => cookie.name === 'wewed_wedding_guest')).toBe(true)
