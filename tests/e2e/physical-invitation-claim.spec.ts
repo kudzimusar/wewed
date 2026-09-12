@@ -47,11 +47,14 @@ async function guestSession(page: import('@playwright/test').Page) {
   return { response, payload: await response.json() }
 }
 
-test('printed invitation shows the approved Ivory experience before secure claim, then preserves it through RSVP', async ({ plannerPage: page }) => {
+test('plain printed invitation selects approved Ivory, requires secure claim, then preserves Ivory through RSVP', async ({ plannerPage: page }) => {
   await enablePhysicalClaimFixture()
   await page.context().clearCookies()
 
-  await page.goto(`/i/${PHYSICAL_INVITATION_CODE}?card=${IVORY_STYLE}`)
+  // A real printed QR contains only /i/<code>. The browser test must not rely
+  // on a manually supplied ?card= override, otherwise a persisted-style
+  // regression could silently fall back to Garden Romance.
+  await page.goto(`/i/${PHYSICAL_INVITATION_CODE}`)
   await expect(page).toHaveURL(
     new RegExp(
       `/w/${E2E_WEDDINGS.primary.slug}\\?source=printed-invitation&card=${IVORY_STYLE}`,
@@ -71,6 +74,8 @@ test('printed invitation shows the approved Ivory experience before secure claim
     'data-artwork-engine',
     'approved-pixels',
   )
+  await expect(anonymousCard.locator('[data-artwork="left-door"]')).toHaveCount(1)
+  await expect(anonymousCard.locator('[data-artwork="right-door"]')).toHaveCount(1)
   await expect(anonymousCard).toHaveAttribute('data-artwork-ready', 'true', {
     timeout: 5_000,
   })
@@ -81,6 +86,7 @@ test('printed invitation shows the approved Ivory experience before secure claim
   await expect(anonymousCard).toHaveAttribute('data-invitation-view', 'open', {
     timeout: 3_000,
   })
+  await expect(anonymousCard.locator('[data-artwork="open-surface"]')).toHaveCount(1)
   await anonymousExperience.getByTestId('invitation-details-button').click()
   await expect(anonymousCard).toHaveAttribute('data-invitation-view', 'details')
   await anonymousExperience.getByTestId('invitation-cta-rsvp').click()
@@ -160,7 +166,9 @@ test('printed invitation shows the approved Ivory experience before secure claim
     },
   })
 
-  await page.goto(`/i/${PHYSICAL_INVITATION_CODE}?card=${IVORY_STYLE}`)
+  // Reopening the same plain physical QR must clear the personal guest again
+  // while still returning to the approved Ivory experience.
+  await page.goto(`/i/${PHYSICAL_INVITATION_CODE}`)
   await expect(page.getByTestId('physical-invitation-claim')).toBeVisible()
   await expect(page.getByTestId('premium-invitation-experience')).toHaveAttribute(
     'data-invitation-style',
