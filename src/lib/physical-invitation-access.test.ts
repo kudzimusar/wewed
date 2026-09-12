@@ -37,6 +37,24 @@ describe('bulk physical invitation access', () => {
     expect(route).not.toContain('setWeddingGuestSessionCookie')
   })
 
+  test('physical invitation style stays server-authoritative through QR and secure claim', () => {
+    const route = source('src/app/i/[code]/route.ts')
+    const claim = source(
+      'src/app/api/weddings/[slug]/physical-invitation/claim/route.ts',
+    )
+
+    expect(route).not.toContain("request.nextUrl.searchParams.get('card')")
+    expect(route).toContain(
+      'normalizeInvitationCardStyle(destination.wedding.invitationCardStyle)',
+    )
+
+    expect(claim).not.toContain('body?.card')
+    expect(claim).toContain(
+      'normalizeInvitationCardStyle(wedding.invitationCardStyle)',
+    )
+    expect(claim).toContain('card: selectedCard')
+  })
+
   test('shared-card access stays read-only instead of impersonating a guest', () => {
     const access = source('src/lib/wedding-public-access.ts')
     expect(access).toContain('sharedInvitationAllowed')
