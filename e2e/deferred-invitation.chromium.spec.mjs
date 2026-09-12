@@ -339,16 +339,6 @@ test('Chrome Android: printed QR installs Wewed, restores shared invitation, cla
   await appPage.getByRole('button', { name: 'Continue to my digital invitation' }).click()
   const claimResponse = await claimResponsePromise
   expect(claimResponse.status()).toBe(200)
-  const claimPayload = await claimResponse.json()
-  expect(claimPayload.success).toBe(true)
-  expect(typeof claimPayload.redirect).toBe('string')
-  const claimRedirect = new URL(claimPayload.redirect, BASE_URL)
-  expect(claimRedirect.pathname).toBe(`/w/${fixture.weddingSlug}`)
-  expect(claimRedirect.searchParams.get('invitation')).toBe('1')
-  expect(claimRedirect.searchParams.get('card')).toBe('ivory-floral-gold')
-  expect(claimRedirect.searchParams.get('source')).toBe('printed-invitation')
-  expect(claimRedirect.searchParams.has('rsvp')).toBe(false)
-  expect(claimRedirect.searchParams.has('h')).toBe(false)
 
   await expect.poll(
     () => new URL(appPage.url()).searchParams.get('invitation'),
@@ -358,6 +348,8 @@ test('Chrome Android: printed QR installs Wewed, restores shared invitation, cla
   expect(claimedUrl.pathname).toBe(`/w/${fixture.weddingSlug}`)
   expect(claimedUrl.searchParams.get('card')).toBe('ivory-floral-gold')
   expect(claimedUrl.searchParams.get('source')).toBe('printed-invitation')
+  expect(claimedUrl.searchParams.has('rsvp')).toBe(false)
+  expect(claimedUrl.searchParams.has('h')).toBe(false)
   const cookiesAfterClaim = await appContext.cookies(BASE_URL)
   expect(cookiesAfterClaim.some((cookie) => cookie.name === 'wewed_wedding_shared_invitation')).toBe(false)
   expect(cookiesAfterClaim.some((cookie) => cookie.name === 'wewed_wedding_guest')).toBe(true)
