@@ -32,6 +32,7 @@ function recoveryRedirect(): NextResponse {
   const response = hardenedRedirect('/guest-access-help?reason=invitation-resume')
   clearPendingInvitationCookie(response)
   clearWeddingGuestSessionCookie(response)
+  clearWeddingSharedInvitationCookie(response)
   return response
 }
 
