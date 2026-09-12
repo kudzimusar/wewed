@@ -1,46 +1,90 @@
-import { createHash, randomBytes, randomUUID } from 'node:crypto'
+import 'server-only'
+
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  randomBytes,
+} from 'node:crypto'
 import { db } from '@/lib/db'
-import { normalizeInvitationCardStyle, type InvitationCardStyle } from '@/lib/digital-invitation-card'
-import { buildPhysicalInvitationResumePath, buildPhysicalPlayStoreInstallUrl, isValidInvitationHandoffSecret } from '@/lib/invitation-links'
-import { previewWeddingMutationBlocked } from '@/lib/preview-write-safety'
+import {
+  normalizeInvitationCardStyle,
+  type InvitationCardStyle,
+} from '@/lib/digital-invitation-card'
+import {
+  buildPhysicalInvitationResumePath,
+  buildPhysicalPlayStoreInstallUrl,
+  isValidPhysicalInvitationHandoff,
+} from '@/lib/invitation-links'
 
 const HANDOFF_TTL_SECONDS = 24 * 60 * 60
-const CREATION_WINDOW_MS = 10 * 60 * 1000
-const MAX_CREATIONS_PER_WINDOW = 5
+const TOKEN_PREFIX = 'p1.'
+const IV_BYTES = 12
+const TAG_BYTES = 16
 
-interface PhysicalHandoffRow {
-  id: string
-  tokenHash: string
-  destinationId: string
+interface PhysicalInvitationHandoffPayload {
+  version: 1
   weddingId: string
-  card: string
-  source: string
-  expiresAt: Date
-  usedAt: Date | null
-  revokedAt: Date | null
+  destinationId: string
+  card: InvitationCardStyle
+  expiresAt: number
 }
 
-export class PhysicalInvitationHandoffRateLimitError extends Error {
-  constructor() {
-    super('Physical invitation install handoff rate limit exceeded')
-    this.name = 'PhysicalInvitationHandoffRateLimitError'
+function encryptionKey(): Buffer {
+  const secret =
+    process.env.WEWED_SESSION_SECRET?.trim() ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
+  if (!secret) {
+    throw new Error('[wewed] Missing invitation handoff encryption secret.')
   }
+  return createHash('sha256')
+    .update(`wewed:physical-invitation-install:v1\0${secret}`, 'utf8')
+    .digest()
 }
 
-function hash(value: string) {
-  return createHash('sha256').update(value, 'utf8').digest('hex')
+function encrypt(payload: PhysicalInvitationHandoffPayload): string {
+  const iv = randomBytes(IV_BYTES)
+  const cipher = createCipheriv('aes-256-gcm', encryptionKey(), iv)
+  const plaintext = Buffer.from(JSON.stringify(payload), 'utf8')
+  const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()])
+  const tag = cipher.getAuthTag()
+  return `${TOKEN_PREFIX}${Buffer.concat([iv, tag, ciphertext]).toString('base64url')}`
 }
 
-async function enforceRateLimit(destinationId: string) {
-  const since = new Date(Date.now() - CREATION_WINDOW_MS)
-  const rows = await db.$queryRaw<Array<{ count: bigint }>>`
-    SELECT COUNT(*)::bigint AS count
-    FROM private."PhysicalInvitationInstallHandoff"
-    WHERE "destinationId" = ${destinationId}
-      AND "createdAt" >= ${since}
-  `
-  if (Number(rows[0]?.count ?? 0) >= MAX_CREATIONS_PER_WINDOW) {
-    throw new PhysicalInvitationHandoffRateLimitError()
+function decrypt(token: string): PhysicalInvitationHandoffPayload | null {
+  if (!isValidPhysicalInvitationHandoff(token)) return null
+  try {
+    const packed = Buffer.from(token.slice(TOKEN_PREFIX.length), 'base64url')
+    if (packed.length <= IV_BYTES + TAG_BYTES) return null
+    const iv = packed.subarray(0, IV_BYTES)
+    const tag = packed.subarray(IV_BYTES, IV_BYTES + TAG_BYTES)
+    const ciphertext = packed.subarray(IV_BYTES + TAG_BYTES)
+    const decipher = createDecipheriv('aes-256-gcm', encryptionKey(), iv)
+    decipher.setAuthTag(tag)
+    const plaintext = Buffer.concat([
+      decipher.update(ciphertext),
+      decipher.final(),
+    ]).toString('utf8')
+    const payload = JSON.parse(plaintext) as Partial<PhysicalInvitationHandoffPayload>
+    if (
+      payload.version !== 1 ||
+      typeof payload.weddingId !== 'string' ||
+      typeof payload.destinationId !== 'string' ||
+      typeof payload.card !== 'string' ||
+      typeof payload.expiresAt !== 'number' ||
+      payload.expiresAt <= Date.now()
+    ) {
+      return null
+    }
+    return {
+      version: 1,
+      weddingId: payload.weddingId,
+      destinationId: payload.destinationId,
+      card: normalizeInvitationCardStyle(payload.card),
+      expiresAt: payload.expiresAt,
+    }
+  } catch {
+    return null
   }
 }
 
@@ -48,51 +92,26 @@ export async function createPhysicalInvitationInstallHandoff(input: {
   destinationId: string
   weddingId: string
   card: InvitationCardStyle
-  source?: string | null
-  ipAddress?: string | null
-  userAgent?: string | null
 }) {
-  if (previewWeddingMutationBlocked(input.weddingId)) throw new Error('PREVIEW_WRITE_BLOCKED')
-  await enforceRateLimit(input.destinationId)
-
-  const id = randomUUID()
-  const secret = randomBytes(32).toString('base64url')
-  const expiresAt = new Date(Date.now() + HANDOFF_TTL_SECONDS * 1000)
-  const source = (input.source?.trim() || 'physical-android-install').slice(0, 64)
-
-  await db.$executeRaw`
-    INSERT INTO private."PhysicalInvitationInstallHandoff" (
-      "id", "tokenHash", "destinationId", "weddingId", "card", "source",
-      "ipAddress", "userAgent", "expiresAt"
-    ) VALUES (
-      ${id}, ${hash(secret)}, ${input.destinationId}, ${input.weddingId}, ${input.card}, ${source},
-      ${input.ipAddress?.slice(0, 128) || null}, ${input.userAgent?.slice(0, 512) || null}, ${expiresAt}
-    )
-  `
+  const expiresAt = Date.now() + HANDOFF_TTL_SECONDS * 1000
+  const token = encrypt({
+    version: 1,
+    weddingId: input.weddingId,
+    destinationId: input.destinationId,
+    card: input.card,
+    expiresAt,
+  })
 
   return {
-    id,
-    playStoreUrl: buildPhysicalPlayStoreInstallUrl(secret),
-    appResumePath: buildPhysicalInvitationResumePath(secret),
-    expiresAt,
+    playStoreUrl: buildPhysicalPlayStoreInstallUrl(token),
+    appResumePath: buildPhysicalInvitationResumePath(token),
+    expiresAt: new Date(expiresAt),
   }
 }
 
-export async function consumePhysicalInvitationInstallHandoff(secret: string) {
-  if (!isValidInvitationHandoffSecret(secret)) return { ok: false as const, reason: 'invalid' as const }
-
-  const rows = await db.$queryRaw<PhysicalHandoffRow[]>`
-    SELECT "id", "tokenHash", "destinationId", "weddingId", "card", "source", "expiresAt", "usedAt", "revokedAt"
-    FROM private."PhysicalInvitationInstallHandoff"
-    WHERE "tokenHash" = ${hash(secret)}
-    LIMIT 1
-  `
-  const handoff = rows[0]
+export async function consumePhysicalInvitationInstallHandoff(token: string) {
+  const handoff = decrypt(token)
   if (!handoff) return { ok: false as const, reason: 'invalid' as const }
-  if (handoff.usedAt) return { ok: false as const, reason: 'used' as const }
-  if (handoff.revokedAt) return { ok: false as const, reason: 'revoked' as const }
-  if (handoff.expiresAt.getTime() <= Date.now()) return { ok: false as const, reason: 'expired' as const }
-  if (previewWeddingMutationBlocked(handoff.weddingId)) return { ok: false as const, reason: 'invalid' as const }
 
   const destination = await db.qRDestination.findFirst({
     where: {
@@ -104,28 +123,19 @@ export async function consumePhysicalInvitationInstallHandoff(secret: string) {
     select: {
       id: true,
       weddingId: true,
-      wedding: { select: { slug: true, privacy: true, invitationCardStyle: true } },
+      wedding: {
+        select: {
+          slug: true,
+          privacy: true,
+          invitationCardStyle: true,
+        },
+      },
     },
   })
 
   if (!destination || destination.wedding.privacy === 'private') {
-    await db.$executeRaw`
-      UPDATE private."PhysicalInvitationInstallHandoff"
-      SET "revokedAt" = COALESCE("revokedAt", NOW())
-      WHERE "id" = ${handoff.id}
-    `
     return { ok: false as const, reason: 'revoked' as const }
   }
-
-  const consumed = await db.$executeRaw`
-    UPDATE private."PhysicalInvitationInstallHandoff"
-    SET "usedAt" = NOW()
-    WHERE "id" = ${handoff.id}
-      AND "usedAt" IS NULL
-      AND "revokedAt" IS NULL
-      AND "expiresAt" > NOW()
-  `
-  if (Number(consumed) !== 1) return { ok: false as const, reason: 'used' as const }
 
   return {
     ok: true as const,
