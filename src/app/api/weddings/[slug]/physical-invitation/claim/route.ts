@@ -33,6 +33,40 @@ function normalizePhone(value: string): string {
   return value.replace(/\D/g, '')
 }
 
+function firstForwardedValue(value: string | null): string | null {
+  return value?.split(',')[0]?.trim() || null
+}
+
+function normalizeProtocol(value: string): string {
+  return value.trim().replace(/:$/, '').toLowerCase()
+}
+
+function sameOriginRequest(request: NextRequest): boolean {
+  const origin = request.headers.get('origin')
+  if (!origin) return true
+
+  try {
+    const parsedOrigin = new URL(origin)
+    const effectiveHost =
+      firstForwardedValue(request.headers.get('x-forwarded-host')) ||
+      request.headers.get('host')?.trim() ||
+      request.nextUrl.host
+    const effectiveProtocol =
+      firstForwardedValue(request.headers.get('x-forwarded-proto')) ||
+      request.nextUrl.protocol
+
+    if (!effectiveHost || !effectiveProtocol) return false
+
+    return (
+      parsedOrigin.host.toLowerCase() === effectiveHost.toLowerCase() &&
+      normalizeProtocol(parsedOrigin.protocol) ===
+        normalizeProtocol(effectiveProtocol)
+    )
+  } catch {
+    return false
+  }
+}
+
 function genericFailure(status = 401): NextResponse {
   return noStore(
     NextResponse.json(
@@ -52,8 +86,7 @@ async function delayedFailure(status = 401): Promise<NextResponse> {
 }
 
 export async function POST(request: NextRequest, { params }: Params) {
-  const origin = request.headers.get('origin')
-  if (origin && origin !== request.nextUrl.origin) return genericFailure(403)
+  if (!sameOriginRequest(request)) return genericFailure(403)
 
   const { slug } = await params
   const body = (await request.json().catch(() => null)) as ClaimPayload | null
