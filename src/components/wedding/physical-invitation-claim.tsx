@@ -1,13 +1,11 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Loader2, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  DigitalInvitationCard,
-  type DigitalInvitationCardData,
-} from '@/components/wedding/digital-invitation-card'
+import type { DigitalInvitationCardData } from '@/components/wedding/digital-invitation-card'
+import { PremiumInvitationExperience } from '@/components/wedding/invitation-experience/premium-invitation-experience'
 import type { InvitationCardStyle } from '@/lib/digital-invitation-card'
 
 export function PhysicalInvitationClaim({
@@ -25,6 +23,18 @@ export function PhysicalInvitationClaim({
   const [contact, setContact] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const claimSectionRef = useRef<HTMLElement | null>(null)
+  const nameInputRef = useRef<HTMLInputElement | null>(null)
+
+  useEffect(() => {
+    const openClaim = () => {
+      claimSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      window.setTimeout(() => nameInputRef.current?.focus(), 250)
+    }
+
+    window.addEventListener('wewed:open-premium-rsvp', openClaim)
+    return () => window.removeEventListener('wewed:open-premium-rsvp', openClaim)
+  }, [])
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -38,7 +48,11 @@ export function PhysicalInvitationClaim({
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: name.trim(), contact: contact.trim() }),
+          body: JSON.stringify({
+            name: name.trim(),
+            contact: contact.trim(),
+            card: style,
+          }),
         },
       )
       const payload = (await response.json().catch(() => null)) as
@@ -64,12 +78,18 @@ export function PhysicalInvitationClaim({
   return (
     <main
       data-testid="physical-invitation-claim"
-      className="min-h-screen bg-ivory px-4 py-10 sm:py-14"
+      className="min-h-screen bg-ivory px-4 py-8 sm:py-12"
     >
-      <div className="mx-auto grid w-full max-w-6xl gap-8 lg:grid-cols-[1.05fr_.95fr] lg:items-center">
-        <DigitalInvitationCard data={invitation} style={style} />
+      <div className="mx-auto grid w-full max-w-7xl gap-8 lg:grid-cols-[minmax(0,1.08fr)_minmax(22rem,.92fr)] lg:items-center">
+        <div className="min-w-0 overflow-hidden rounded-[2rem] border border-gold/15 shadow-2xl">
+          <PremiumInvitationExperience data={invitation} style={style} />
+        </div>
 
-        <section className="rounded-3xl border border-gold/25 bg-champagne p-6 shadow-xl sm:p-8">
+        <section
+          ref={claimSectionRef}
+          data-testid="physical-invitation-rsvp-claim"
+          className="rounded-3xl border border-gold/25 bg-champagne p-6 shadow-xl sm:p-8"
+        >
           <div className="flex size-12 items-center justify-center rounded-full border border-gold/30 bg-gold/10">
             <ShieldCheck className="size-5 text-gold" />
           </div>
@@ -80,7 +100,7 @@ export function PhysicalInvitationClaim({
             Find my RSVP
           </h1>
           <p className="mt-4 text-sm leading-6 text-espresso/65">
-            Your printed invitation opens the wedding, but RSVP changes must be attached to the correct invited guest. Enter the details the couple or planner used for your guest record.
+            Your printed invitation opens the same digital invitation experience. Before an RSVP can be changed, Wewed must attach it to the correct invited guest. Enter the details the couple or planner used for your guest record.
           </p>
 
           <form onSubmit={submit} className="mt-7 space-y-4">
@@ -92,6 +112,7 @@ export function PhysicalInvitationClaim({
                 Full name
               </label>
               <Input
+                ref={nameInputRef}
                 id="physical-invitation-name"
                 name="name"
                 autoComplete="name"
