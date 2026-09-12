@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { notFound, redirect } from 'next/navigation'
 import { WeddingHome } from '@/components/wedding/wedding-home'
 import { GuestAccessGateway } from '@/components/wedding/guest-access-gateway'
+import { PhysicalInvitationClaim } from '@/components/wedding/physical-invitation-claim'
 import {
   APP_SESSION_COOKIE,
   verifyAppSessionToken,
@@ -26,6 +27,7 @@ interface WeddingPageProps {
     invitation?: string
     card?: string
     accessError?: string
+    source?: string
   }>
 }
 
@@ -123,6 +125,41 @@ export default async function WeddingPage({
         slug={slug}
         privacy={wedding.privacy}
         accessError={query.accessError ?? null}
+      />
+    )
+  }
+
+  const physicalInvitationClaim =
+    query.source === 'printed-invitation' &&
+    wedding.privacy === 'link_only' &&
+    resolution.accessKind === 'public' &&
+    !resolution.guest
+
+  if (physicalInvitationClaim) {
+    const allowNameOnlyClaim =
+      process.env.VERCEL_ENV === 'preview' &&
+      process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID === wedding.id
+
+    return (
+      <PhysicalInvitationClaim
+        slug={slug}
+        style={normalizeInvitationCardStyle(wedding.invitationCardStyle)}
+        allowNameOnlyClaim={allowNameOnlyClaim}
+        invitation={{
+          title: `${wedding.partner1} & ${wedding.partner2}`,
+          monogram: wedding.monogram,
+          tagline: wedding.tagline,
+          date: wedding.date,
+          venue: wedding.venue,
+          venueMapUrl: wedding.venueMapUrl,
+          venueCity: wedding.venueCity,
+          venueCountry: wedding.venueCountry,
+          message: wedding.invitationCardMessage,
+          rsvpDeadline: wedding.rsvpDeadline,
+          primaryColor: wedding.primaryColor,
+          accentColor: wedding.accentColor,
+          backgroundColor: wedding.backgroundColor,
+        }}
       />
     )
   }
