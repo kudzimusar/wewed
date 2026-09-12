@@ -6,6 +6,7 @@ import {
 } from './support/planner-browser'
 
 const PHYSICAL_INVITATION_CODE = 'CARD200002'
+const IVORY_STYLE = 'ivory-floral-gold'
 
 async function enablePhysicalClaimFixture() {
   const prisma = new PrismaClient()
@@ -14,14 +15,14 @@ async function enablePhysicalClaimFixture() {
       where: { id: E2E_WEDDINGS.primary.id },
       data: {
         privacy: 'link_only',
-        invitationCardStyle: 'ivory-floral-gold',
+        invitationCardStyle: IVORY_STYLE,
       },
     })
     await prisma.qRDestination.upsert({
       where: { id: `print_${PHYSICAL_INVITATION_CODE}` },
       update: {
         label: 'Physical claim browser test',
-        url: `https://wewed.pro/w/${E2E_WEDDINGS.primary.slug}`,
+        url: `https://wewed.pro/w/${E2E_WEDDINGS.primary.slug}?card=${IVORY_STYLE}`,
         type: 'physical_invitation',
         weddingId: E2E_WEDDINGS.primary.id,
         isActive: true,
@@ -29,7 +30,7 @@ async function enablePhysicalClaimFixture() {
       create: {
         id: `print_${PHYSICAL_INVITATION_CODE}`,
         label: 'Physical claim browser test',
-        url: `https://wewed.pro/w/${E2E_WEDDINGS.primary.slug}`,
+        url: `https://wewed.pro/w/${E2E_WEDDINGS.primary.slug}?card=${IVORY_STYLE}`,
         type: 'physical_invitation',
         weddingId: E2E_WEDDINGS.primary.id,
       },
@@ -46,17 +47,44 @@ async function guestSession(page: import('@playwright/test').Page) {
   return { response, payload: await response.json() }
 }
 
-test('printed invitation must claim a guest before RSVP, then continues through the personal digital invitation', async ({ plannerPage: page }) => {
+test('printed invitation shows the approved Ivory experience before secure claim, then preserves it through RSVP', async ({ plannerPage: page }) => {
   await enablePhysicalClaimFixture()
   await page.context().clearCookies()
 
-  await page.goto(`/i/${PHYSICAL_INVITATION_CODE}`)
+  await page.goto(`/i/${PHYSICAL_INVITATION_CODE}?card=${IVORY_STYLE}`)
   await expect(page).toHaveURL(
-    new RegExp(`/w/${E2E_WEDDINGS.primary.slug}\\?source=printed-invitation`),
+    new RegExp(
+      `/w/${E2E_WEDDINGS.primary.slug}\\?source=printed-invitation&card=${IVORY_STYLE}`,
+    ),
   )
   await expect(page.getByTestId('physical-invitation-claim')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Find my RSVP' })).toBeVisible()
-  await expect(page.getByTestId('premium-invitation-experience')).toHaveCount(0)
+
+  const anonymousExperience = page.getByTestId('premium-invitation-experience')
+  const anonymousCard = anonymousExperience.getByTestId('invitation-trifold')
+  await expect(anonymousExperience).toBeVisible()
+  await expect(anonymousExperience).toHaveAttribute(
+    'data-invitation-style',
+    IVORY_STYLE,
+  )
+  await expect(anonymousCard).toHaveAttribute(
+    'data-artwork-engine',
+    'approved-pixels',
+  )
+  await expect(anonymousCard).toHaveAttribute('data-artwork-ready', 'true', {
+    timeout: 5_000,
+  })
+  await anonymousExperience.getByTestId('invitation-open-button').click()
+  await expect(anonymousCard).toHaveAttribute('data-invitation-view', 'opening', {
+    timeout: 800,
+  })
+  await expect(anonymousCard).toHaveAttribute('data-invitation-view', 'open', {
+    timeout: 3_000,
+  })
+  await anonymousExperience.getByTestId('invitation-details-button').click()
+  await expect(anonymousCard).toHaveAttribute('data-invitation-view', 'details')
+  await anonymousExperience.getByTestId('invitation-cta-rsvp').click()
+  await expect(page.getByLabel('Full name')).toBeFocused()
 
   let current = await guestSession(page)
   expect(current.response.status()).toBe(401)
@@ -84,7 +112,7 @@ test('printed invitation must claim a guest before RSVP, then continues through 
   await page.getByRole('button', { name: 'Continue to my digital invitation' }).click()
   await expect(page).toHaveURL(
     new RegExp(
-      `/w/${E2E_WEDDINGS.primary.slug}\\?.*invitation=1.*source=printed-invitation`,
+      `/w/${E2E_WEDDINGS.primary.slug}\\?.*invitation=1.*card=${IVORY_STYLE}.*source=printed-invitation`,
     ),
   )
   expect(page.url()).not.toContain(`${E2E_WEDDINGS.primary.slug}-rsvp-token`)
@@ -94,8 +122,9 @@ test('printed invitation must claim a guest before RSVP, then continues through 
   await expect(experience).toBeVisible()
   await expect(experience).toHaveAttribute(
     'data-invitation-style',
-    'ivory-floral-gold',
+    IVORY_STYLE,
   )
+  await expect(card).toHaveAttribute('data-artwork-engine', 'approved-pixels')
 
   current = await guestSession(page)
   expect(current.response.status()).toBe(200)
@@ -106,6 +135,7 @@ test('printed invitation must claim a guest before RSVP, then continues through 
     },
   })
 
+  await expect(card).toHaveAttribute('data-artwork-ready', 'true', { timeout: 5_000 })
   await experience.getByTestId('invitation-open-button').click()
   await expect(card).toHaveAttribute('data-invitation-view', 'open', {
     timeout: 4_000,
@@ -130,8 +160,12 @@ test('printed invitation must claim a guest before RSVP, then continues through 
     },
   })
 
-  await page.goto(`/i/${PHYSICAL_INVITATION_CODE}`)
+  await page.goto(`/i/${PHYSICAL_INVITATION_CODE}?card=${IVORY_STYLE}`)
   await expect(page.getByTestId('physical-invitation-claim')).toBeVisible()
+  await expect(page.getByTestId('premium-invitation-experience')).toHaveAttribute(
+    'data-invitation-style',
+    IVORY_STYLE,
+  )
   current = await guestSession(page)
   expect(current.response.status()).toBe(401)
   expect(current.payload).toMatchObject({ success: false, authorized: false })
