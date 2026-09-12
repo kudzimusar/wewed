@@ -179,10 +179,11 @@ test('plain printed invitation selects approved Ivory, requires secure claim, th
   expect(current.payload).toMatchObject({ success: false, authorized: false })
 })
 
-test('physical invitation ignores tampered card query and claim payload', async ({ plannerPage: page }) => {
+test('physical invitation ignores tampered card query, destination URL, and claim payload', async ({ plannerPage: page }) => {
   await enablePhysicalClaimFixture()
   await page.context().clearCookies()
 
+  // Entry-route tampering cannot override the configured wedding card.
   await page.goto(`/i/${PHYSICAL_INVITATION_CODE}?card=midnight`)
   await expect(page).toHaveURL(
     new RegExp(
@@ -194,6 +195,19 @@ test('physical invitation ignores tampered card query and claim payload', async 
     IVORY_STYLE,
   )
 
+  // The signed shared physical session must not make a manually edited
+  // destination URL authoritative either.
+  await page.goto(
+    `/w/${E2E_WEDDINGS.primary.slug}?source=printed-invitation&card=midnight`,
+  )
+  await expect(page.getByTestId('physical-invitation-claim')).toBeVisible()
+  await expect(page.getByTestId('premium-invitation-experience')).toHaveAttribute(
+    'data-invitation-style',
+    IVORY_STYLE,
+  )
+
+  // Nor may a forged claim payload choose a different design after identity
+  // resolution. The server returns the persisted/configured card.
   const claim = await page.request.post(
     `/api/weddings/${E2E_WEDDINGS.primary.slug}/physical-invitation/claim`,
     {
