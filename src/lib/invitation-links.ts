@@ -4,6 +4,7 @@ export const ANDROID_PACKAGE = 'pro.wewed.app'
 export const PLAY_STORE_URL = `https://play.google.com/store/apps/details?id=${ANDROID_PACKAGE}`
 
 const INVITATION_HANDOFF_PATTERN = /^[A-Za-z0-9_-]{43}$/
+const PHYSICAL_INVITATION_HANDOFF_PATTERN = /^p1\.[A-Za-z0-9_-]{80,512}$/
 
 export function buildSmartInvitationUrl({
   siteUrl,
@@ -37,6 +38,10 @@ export function isValidInvitationHandoffSecret(secret: string): boolean {
   return INVITATION_HANDOFF_PATTERN.test(secret)
 }
 
+export function isValidPhysicalInvitationHandoff(secret: string): boolean {
+  return PHYSICAL_INVITATION_HANDOFF_PATTERN.test(secret)
+}
+
 export function buildPlayStoreInstallUrl(handoff: string): string {
   if (!isValidInvitationHandoffSecret(handoff)) {
     throw new Error('Invalid invitation install handoff')
@@ -47,7 +52,7 @@ export function buildPlayStoreInstallUrl(handoff: string): string {
 }
 
 export function buildPhysicalPlayStoreInstallUrl(handoff: string): string {
-  if (!isValidInvitationHandoffSecret(handoff)) {
+  if (!isValidPhysicalInvitationHandoff(handoff)) {
     throw new Error('Invalid physical invitation install handoff')
   }
 
@@ -63,7 +68,7 @@ export function buildInvitationResumePath(handoff: string): string {
 }
 
 export function buildPhysicalInvitationResumePath(handoff: string): string {
-  if (!isValidInvitationHandoffSecret(handoff)) {
+  if (!isValidPhysicalInvitationHandoff(handoff)) {
     throw new Error('Invalid physical invitation install handoff')
   }
   return `/invite/physical-resume?${new URLSearchParams({ h: handoff }).toString()}`
