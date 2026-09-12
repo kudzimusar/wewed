@@ -44,8 +44,9 @@ describe('bulk physical invitation access', () => {
     expect(route).toContain('clearAllInvitationContext(response)')
   })
 
-  test('physical invitation style stays server-authoritative through QR and secure claim', () => {
+  test('physical invitation style stays server-authoritative through QR, destination, and secure claim', () => {
     const route = source('src/app/i/[code]/route.ts')
+    const page = source('src/app/w/[slug]/page.tsx')
     const claim = source(
       'src/app/api/weddings/[slug]/physical-invitation/claim/route.ts',
     )
@@ -53,6 +54,14 @@ describe('bulk physical invitation access', () => {
     expect(route).not.toContain("request.nextUrl.searchParams.get('card')")
     expect(route).toContain(
       'normalizeInvitationCardStyle(destination.wedding.invitationCardStyle)',
+    )
+
+    expect(page).toContain('const physicalInvitationStyle = isDedicatedPreviewWedding')
+    expect(page).toContain(
+      'normalizeInvitationCardStyle(wedding.invitationCardStyle)',
+    )
+    expect(page).not.toContain(
+      'normalizeInvitationCardStyle(query.card || wedding.invitationCardStyle)',
     )
 
     expect(claim).not.toContain('body?.card')
