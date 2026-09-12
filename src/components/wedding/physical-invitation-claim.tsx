@@ -47,6 +47,8 @@ export function PhysicalInvitationClaim({
         `/api/weddings/${encodeURIComponent(slug)}/physical-invitation/claim`,
         {
           method: 'POST',
+          credentials: 'same-origin',
+          cache: 'no-store',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             name: name.trim(),
