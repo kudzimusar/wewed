@@ -55,6 +55,17 @@ describe('bulk physical invitation access', () => {
     expect(claim).toContain('card: selectedCard')
   })
 
+  test('failed private and deferred transitions clear shared physical context', () => {
+    const privateRoute = source('src/app/invite/[slug]/route.ts')
+    const continueRoute = source('src/app/invite/[slug]/continue/route.ts')
+    const resumeRoute = source('src/app/invite/resume/route.ts')
+
+    expect(privateRoute).toContain('clearWeddingSharedInvitationCookie(response)')
+    expect(continueRoute).toContain('clearWeddingSharedInvitationCookie(response)')
+    expect(resumeRoute).toContain('clearWeddingSharedInvitationCookie(response)')
+    expect(resumeRoute).toContain('function recoveryRedirect(): NextResponse')
+  })
+
   test('shared-card access stays read-only instead of impersonating a guest', () => {
     const access = source('src/lib/wedding-public-access.ts')
     expect(access).toContain('sharedInvitationAllowed')
