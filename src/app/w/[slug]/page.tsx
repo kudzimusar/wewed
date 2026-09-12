@@ -3,7 +3,7 @@ import { cookies } from 'next/headers'
 import { notFound, redirect } from 'next/navigation'
 import { WeddingHome } from '@/components/wedding/wedding-home'
 import { GuestAccessGateway } from '@/components/wedding/guest-access-gateway'
-import { PhysicalInvitationClaim } from '@/components/wedding/physical-invitation-claim'
+import { PhysicalInvitationEntry } from '@/components/wedding/physical-invitation-entry'
 import {
   APP_SESSION_COOKIE,
   verifyAppSessionToken,
@@ -143,18 +143,19 @@ export default async function WeddingPage({
     const isDedicatedPreviewWedding =
       process.env.VERCEL_ENV === 'preview' &&
       process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID === wedding.id
-    // Once a physical invitation has established its signed shared session,
-    // its presentation remains tied to the wedding's configured card style.
-    // A manually edited destination URL must not be able to change it.
     const physicalInvitationStyle = isDedicatedPreviewWedding
       ? 'ivory-floral-gold'
       : normalizeInvitationCardStyle(wedding.invitationCardStyle)
 
     return (
-      <PhysicalInvitationClaim
+      <PhysicalInvitationEntry
         slug={slug}
+        weddingTitle={`${wedding.partner1} & ${wedding.partner2}`}
         style={physicalInvitationStyle}
         allowNameOnlyClaim={isDedicatedPreviewWedding}
+        deferredInstallEnabled={
+          process.env.ANDROID_DEFERRED_INVITATION_HANDOFF === '1'
+        }
         invitation={{
           title: `${wedding.partner1} & ${wedding.partner2}`,
           monogram: wedding.monogram,
