@@ -16,6 +16,16 @@ function isGuestWeddingSessionRoute(pathname: string): boolean {
   )
 }
 
+function isPhysicalInvitationClaimRoute(
+  pathname: string,
+  method: string,
+): boolean {
+  return (
+    method === 'POST' &&
+    /^\/api\/weddings\/[^/]+\/physical-invitation\/claim$/.test(pathname)
+  )
+}
+
 function isProtectedPlannerPage(pathname: string): boolean {
   return pathname === '/planner/ai-workspace' || pathname === '/planner/wedding-brief'
 }
@@ -29,9 +39,12 @@ function requiresDashboardSession(request: NextRequest): boolean {
   if (pathname === '/api/seed') return true
   if (pathname === '/api/auth/wedding') return true
 
-  // Invitation QR exchange and guest-session self-service authenticate with
-  // the signed wedding guest cookie, not the dashboard application cookie.
+  // Invitation exchange, guest-session self-service and the physical RSVP
+  // claim authenticate with signed invitation/guest cookies inside their own
+  // route handlers. Keep this allow-list exact: every other /api/weddings/*
+  // route remains dashboard-session protected.
   if (isGuestWeddingSessionRoute(pathname)) return false
+  if (isPhysicalInvitationClaimRoute(pathname, request.method)) return false
   if (pathname.startsWith('/api/weddings/')) return true
 
   if (pathname === '/api/rsvp' && request.method === 'GET') return true
