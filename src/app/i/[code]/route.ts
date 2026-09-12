@@ -14,9 +14,18 @@ import {
   setWeddingSharedInvitationCookie,
 } from '@/lib/wedding-shared-invitation-session'
 
-function noStore(response: NextResponse): NextResponse {
-  response.headers.set('Cache-Control', 'private, no-store, max-age=0')
-  return response
+function relativeRedirect(location: string): NextResponse {
+  return new NextResponse(null, {
+    status: 303,
+    headers: {
+      Location: location,
+      'Cache-Control': 'private, no-store, max-age=0',
+      Pragma: 'no-cache',
+      'Referrer-Policy': 'no-referrer',
+      'X-Robots-Tag': 'noindex, nofollow',
+      Vary: 'Cookie',
+    },
+  })
 }
 
 function clearPersonalInvitationContext(response: NextResponse): void {
@@ -30,23 +39,23 @@ function clearAllInvitationContext(response: NextResponse): void {
   clearWeddingSharedInvitationCookie(response)
 }
 
-function invalidInvitation(request: NextRequest): NextResponse {
-  const response = NextResponse.redirect(
-    new URL('/guest-access-help?reason=invalid-invitation', request.url),
+function invalidInvitation(): NextResponse {
+  const response = relativeRedirect(
+    '/guest-access-help?reason=invalid-invitation',
   )
   clearAllInvitationContext(response)
-  return noStore(response)
+  return response
 }
 
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ code: string }> },
 ) {
   const { code: rawCode } = await params
   const code = normalizePhysicalInvitationCode(rawCode)
   const destinationId = physicalInvitationDestinationId(code)
 
-  if (!code || !destinationId) return invalidInvitation(request)
+  if (!code || !destinationId) return invalidInvitation()
 
   const destination = await db.qRDestination.findFirst({
     where: {
@@ -68,7 +77,7 @@ export async function GET(
   })
 
   if (!destination || destination.wedding.privacy === 'private') {
-    return invalidInvitation(request)
+    return invalidInvitation()
   }
 
   if (!previewWeddingMutationBlocked(destination.weddingId)) {
@@ -78,21 +87,20 @@ export async function GET(
     })
   }
 
-  const destinationUrl = new URL(
-    `/w/${encodeURIComponent(destination.wedding.slug)}`,
-    request.url,
-  )
-  destinationUrl.searchParams.set('source', 'printed-invitation')
-
   const isDedicatedPreviewWedding =
     process.env.VERCEL_ENV === 'preview' &&
     process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID === destination.weddingId
   const selectedCard = isDedicatedPreviewWedding
     ? 'ivory-floral-gold'
     : normalizeInvitationCardStyle(destination.wedding.invitationCardStyle)
-  destinationUrl.searchParams.set('card', selectedCard)
+  const query = new URLSearchParams({
+    source: 'printed-invitation',
+    card: selectedCard,
+  })
+  const response = relativeRedirect(
+    `/w/${encodeURIComponent(destination.wedding.slug)}?${query.toString()}`,
+  )
 
-  const response = NextResponse.redirect(destinationUrl)
   // Every fresh printed-QR scan returns to the Android entry gate. Only the
   // dedicated app-resume route may mint app reveal authority again.
   clearPersonalInvitationContext(response)
@@ -101,5 +109,5 @@ export async function GET(
     destinationId: destination.id,
   })
 
-  return noStore(response)
+  return response
 }
