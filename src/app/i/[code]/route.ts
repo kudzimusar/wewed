@@ -47,7 +47,13 @@ export async function GET(
     select: {
       id: true,
       weddingId: true,
-      wedding: { select: { slug: true, privacy: true } },
+      wedding: {
+        select: {
+          slug: true,
+          privacy: true,
+          invitationCardStyle: true,
+        },
+      },
     },
   })
 
@@ -55,23 +61,29 @@ export async function GET(
     return invalidInvitation(request)
   }
 
-  if (!previewWeddingMutationBlocked(destination.weddingId)) await db.qRDestination.update({
-    where: { id: destination.id },
-    data: { scanCount: { increment: 1 } },
-  })
+  if (!previewWeddingMutationBlocked(destination.weddingId)) {
+    await db.qRDestination.update({
+      where: { id: destination.id },
+      data: { scanCount: { increment: 1 } },
+    })
+  }
 
   const destinationUrl = new URL(
     `/w/${encodeURIComponent(destination.wedding.slug)}`,
     request.url,
   )
   destinationUrl.searchParams.set('source', 'printed-invitation')
+
   const requestedCard = request.nextUrl.searchParams.get('card')?.trim()
-  if (requestedCard) {
-    destinationUrl.searchParams.set(
-      'card',
-      normalizeInvitationCardStyle(requestedCard),
-    )
-  }
+  const isDedicatedPreviewWedding =
+    process.env.VERCEL_ENV === 'preview' &&
+    process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID === destination.weddingId
+  const selectedCard = isDedicatedPreviewWedding
+    ? 'ivory-floral-gold'
+    : normalizeInvitationCardStyle(
+        requestedCard || destination.wedding.invitationCardStyle,
+      )
+  destinationUrl.searchParams.set('card', selectedCard)
 
   const response = NextResponse.redirect(destinationUrl)
   clearPersonalInvitationContext(response)
