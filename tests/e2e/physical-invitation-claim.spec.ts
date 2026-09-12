@@ -178,3 +178,42 @@ test('plain printed invitation selects approved Ivory, requires secure claim, th
   expect(current.response.status()).toBe(401)
   expect(current.payload).toMatchObject({ success: false, authorized: false })
 })
+
+test('physical invitation ignores tampered card query and claim payload', async ({ plannerPage: page }) => {
+  await enablePhysicalClaimFixture()
+  await page.context().clearCookies()
+
+  await page.goto(`/i/${PHYSICAL_INVITATION_CODE}?card=midnight`)
+  await expect(page).toHaveURL(
+    new RegExp(
+      `/w/${E2E_WEDDINGS.primary.slug}\\?source=printed-invitation&card=${IVORY_STYLE}`,
+    ),
+  )
+  await expect(page.getByTestId('premium-invitation-experience')).toHaveAttribute(
+    'data-invitation-style',
+    IVORY_STYLE,
+  )
+
+  const claim = await page.request.post(
+    `/api/weddings/${E2E_WEDDINGS.primary.slug}/physical-invitation/claim`,
+    {
+      data: {
+        name: E2E_WEDDINGS.primary.seededGuest,
+        contact: 'primary.guest@example.test',
+        card: 'midnight',
+      },
+    },
+  )
+  expect(claim.status()).toBe(200)
+  const payload = await claim.json()
+  expect(payload).toMatchObject({ success: true })
+  expect(payload.redirect).toContain(`card=${IVORY_STYLE}`)
+  expect(payload.redirect).not.toContain('card=midnight')
+  expect(payload.redirect).not.toContain(`${E2E_WEDDINGS.primary.slug}-rsvp-token`)
+
+  const current = await guestSession(page)
+  expect(current.response.status()).toBe(200)
+  expect(current.payload).toMatchObject({
+    guest: { id: `${E2E_WEDDINGS.primary.id}-guest` },
+  })
+})
