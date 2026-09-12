@@ -5,6 +5,10 @@ import { WeddingHome } from '@/components/wedding/wedding-home'
 import { GuestAccessGateway } from '@/components/wedding/guest-access-gateway'
 import { PhysicalInvitationEntry } from '@/components/wedding/physical-invitation-entry'
 import {
+  ANDROID_INVITATION_APP_COOKIE,
+  verifyAndroidInvitationAppSession,
+} from '@/lib/android-invitation-app-session'
+import {
   APP_SESSION_COOKIE,
   verifyAppSessionToken,
 } from '@/lib/app-session'
@@ -113,6 +117,12 @@ export default async function WeddingPage({
   const sharedInvitationSession = sharedInvitationSessionToken
     ? verifyWeddingSharedInvitationSessionToken(sharedInvitationSessionToken)
     : null
+  const androidInvitationAppToken =
+    cookieStore.get(ANDROID_INVITATION_APP_COOKIE)?.value ?? null
+  const androidInvitationAppSession = androidInvitationAppToken
+    ? verifyAndroidInvitationAppSession(androidInvitationAppToken)
+    : null
+
   const [resolution, appSession] = await Promise.all([
     resolveWeddingAccessFromTokens({
       slug,
@@ -149,6 +159,9 @@ export default async function WeddingPage({
     const deferredInstallEnabled =
       isDedicatedPreviewWedding ||
       process.env.ANDROID_DEFERRED_INVITATION_HANDOFF === '1'
+    const insideWewed =
+      androidInvitationAppSession?.weddingId === wedding.id &&
+      androidInvitationAppSession.destinationId === sharedInvitationSession?.destinationId
 
     return (
       <PhysicalInvitationEntry
@@ -157,6 +170,7 @@ export default async function WeddingPage({
         style={physicalInvitationStyle}
         allowNameOnlyClaim={isDedicatedPreviewWedding}
         deferredInstallEnabled={deferredInstallEnabled}
+        insideWewed={insideWewed}
         invitation={{
           title: `${wedding.partner1} & ${wedding.partner2}`,
           monogram: wedding.monogram,
