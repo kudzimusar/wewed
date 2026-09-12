@@ -7,7 +7,7 @@ import java.util.regex.Pattern;
 final class InstallReferrerHandoff {
     private static final Pattern HANDOFF_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{43}$");
     private static final String RESUME_URL = BuildConfig.UAT
-            ? "https://wewed-pr202-uat.vercel.app/invite/resume"
+            ? "https://uat.wewed.pro/invite/resume"
             : "https://wewed.pro/invite/resume";
 
     private InstallReferrerHandoff() {}

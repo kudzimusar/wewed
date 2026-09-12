@@ -108,10 +108,10 @@ android {
             buildConfigField "boolean", "UAT", "true"
             resValue "string", "appName", "Wewed UAT"
             resValue "string", "launcherName", "Wewed UAT"
-            resValue "string", "hostName", "wewed-pr202-uat.vercel.app"
-            resValue "string", "launchUrl", "https://wewed-pr202-uat.vercel.app/app?source=android-uat"
-            resValue "string", "webManifestUrl", "https://wewed-pr202-uat.vercel.app/manifest.json"
-            resValue "string", "fullScopeUrl", "https://wewed-pr202-uat.vercel.app/"
+            resValue "string", "hostName", "uat.wewed.pro"
+            resValue "string", "launchUrl", "https://uat.wewed.pro/app?source=android-uat"
+            resValue "string", "webManifestUrl", "https://uat.wewed.pro/manifest.json"
+            resValue "string", "fullScopeUrl", "https://uat.wewed.pro/"
         }
         release {
             minifyEnabled true

@@ -12,7 +12,7 @@ Set `WEWED_PREVIEW_WRITABLE_WEDDING_ID=wewed-pr202-uat-20260912` for this previe
 
 ## Android UAT
 
-`:app:assembleUat` builds a debug-signed `pro.wewed.app` test APK associated with `wewed-pr202-uat.vercel.app`. Its launch, manifest, scope, shortcuts and referrer resume route use that host. Use a dedicated test device; this APK is not a Google Play release and may conflict with an installed production app of the same package.
+`:app:assembleUat` builds a debug-signed `pro.wewed.app` test APK associated with `uat.wewed.pro`. Its launch, manifest, scope, shortcuts and referrer resume route use that host. Use a dedicated test device; this APK is not a Google Play release and may conflict with an installed production app of the same package.
 
 The stable alias must point to the verified candidate deployment. Set the actual APK signing certificate as `WEWED_UAT_ANDROID_SHA256` on this preview branch. Only this host's assetlinks request is rewritten on preview; production retains its existing association file.
 

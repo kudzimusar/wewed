@@ -45,7 +45,7 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return {
       beforeFiles: process.env.VERCEL_ENV === "preview" && process.env.WEWED_UAT_ANDROID_SHA256
-        ? [{ source: "/.well-known/assetlinks.json", has: [{ type: "host" as const, value: "wewed-pr202-uat.vercel.app" }], destination: "/api/uat/assetlinks" }]
+        ? [{ source: "/.well-known/assetlinks.json", has: [{ type: "host" as const, value: "uat.wewed.pro" }], destination: "/api/uat/assetlinks" }]
         : [],
     };
   },
