@@ -7,6 +7,11 @@ import {
 
 const GUEST_A_ID = `${E2E_WEDDINGS.primary.id}-guest`
 const GUEST_A_TOKEN = `${E2E_WEDDINGS.primary.slug}-rsvp-token`
+const INVITATION_COOKIE_NAMES = new Set([
+  'wewed_pending_invitation',
+  'wewed_wedding_guest',
+  'wewed_wedding_shared_invitation',
+])
 
 type IdentityFixture = {
   guestBId: string
@@ -132,6 +137,17 @@ async function guestSession(page: import('@playwright/test').Page) {
   return { response, payload: await response.json() }
 }
 
+async function invitationCookieNames(
+  page: import('@playwright/test').Page,
+): Promise<Set<string>> {
+  const cookies = await page.context().cookies()
+  return new Set(
+    cookies
+      .map((cookie) => cookie.name)
+      .filter((name) => INVITATION_COOKIE_NAMES.has(name)),
+  )
+}
+
 test('same browser cannot carry Guest A identity into Guest B, stale RSVP, invalid invite, or physical QR', async ({ plannerPage: page }, testInfo) => {
   const fixture = identityFixtureForProject(testInfo.project.name)
   await prepareIdentityFixture(fixture)
@@ -210,6 +226,35 @@ test('same browser cannot carry Guest A identity into Guest B, stale RSVP, inval
     success: false,
     authorized: false,
   })
+})
+
+test('failed private and deferred transitions clear every invitation identity family', async ({ plannerPage: page }, testInfo) => {
+  const fixture = identityFixtureForProject(`fail-closed-${testInfo.project.name}`)
+  await prepareIdentityFixture(fixture)
+  await page.context().clearCookies()
+
+  await page.goto(`/i/${fixture.physicalInvitationCode}`)
+  let cookies = await invitationCookieNames(page)
+  expect(cookies.has('wewed_wedding_shared_invitation')).toBe(true)
+  expect(cookies.has('wewed_wedding_guest')).toBe(false)
+
+  await page.goto(
+    `/invite/${E2E_WEDDINGS.primary.slug}?rsvp=${encodeURIComponent('invalid-personal-token')}`,
+  )
+  await expect(page).toHaveURL(
+    new RegExp(`/w/${E2E_WEDDINGS.primary.slug}\\?accessError=invalid`),
+  )
+  cookies = await invitationCookieNames(page)
+  expect(cookies.size).toBe(0)
+
+  await page.goto(`/i/${fixture.physicalInvitationCode}`)
+  cookies = await invitationCookieNames(page)
+  expect(cookies.has('wewed_wedding_shared_invitation')).toBe(true)
+
+  await page.goto('/invite/resume?h=not-a-valid-handoff-secret')
+  await expect(page).toHaveURL(/\/guest-access-help\?reason=invitation-resume/)
+  cookies = await invitationCookieNames(page)
+  expect(cookies.size).toBe(0)
 })
 
 test('Ivory waits for approved artwork readiness before starting the 1.8 second opening', async ({ plannerPage: page }) => {
