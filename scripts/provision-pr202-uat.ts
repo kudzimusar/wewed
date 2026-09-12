@@ -14,12 +14,21 @@ try {
   const result = await db.$transaction(async (tx) => {
     const existing = await tx.wedding.findUnique({ where: { id: weddingId } })
     if (existing && (existing.slug !== slug || existing.title !== 'Wewed PR 202 — Synthetic UAT' || existing.coupleId !== weddingId + '-couple')) throw new Error('Fixture identity mismatch')
-    const wedding = existing ?? await tx.wedding.create({ data: {
-      id: weddingId, slug, title: 'Wewed PR 202 — Synthetic UAT',
-      date: new Date('2027-04-24T12:00:00Z'), venue: 'Synthetic UAT Venue', venueCity: 'Test City', venueCountry: 'Test Country',
-      privacy: 'link_only', invitationCardStyle: 'botanical', monogram: 'AB',
-      couple: { create: { id: weddingId + '-couple', slug: weddingId + '-couple', partner1: 'UAT Partner One', partner2: 'UAT Partner Two' } },
-    } })
+    const wedding = existing
+      ? await tx.wedding.update({
+          where: { id: weddingId },
+          data: {
+            privacy: 'link_only',
+            invitationCardStyle: 'ivory-floral-gold',
+            monogram: 'AB',
+          },
+        })
+      : await tx.wedding.create({ data: {
+          id: weddingId, slug, title: 'Wewed PR 202 — Synthetic UAT',
+          date: new Date('2027-04-24T12:00:00Z'), venue: 'Synthetic UAT Venue', venueCity: 'Test City', venueCountry: 'Test Country',
+          privacy: 'link_only', invitationCardStyle: 'ivory-floral-gold', monogram: 'AB',
+          couple: { create: { id: weddingId + '-couple', slug: weddingId + '-couple', partner1: 'UAT Partner One', partner2: 'UAT Partner Two' } },
+        } })
     for (const label of ['A', 'B']) {
       const id = `${weddingId}-guest-${label.toLowerCase()}`
       const guest = await tx.guest.findUnique({ where: { id }, include: { rsvp: true } })
@@ -29,8 +38,18 @@ try {
     const id = 'print_UAT2020912'
     const qr = await tx.qRDestination.findUnique({ where: { id } })
     if (qr && qr.weddingId !== weddingId) throw new Error('Physical fixture mismatch')
-    if (!qr) await tx.qRDestination.create({ data: { id, weddingId, label: 'PR 202 synthetic UAT physical invitation', type: 'physical_invitation', url: `/w/${slug}`, isActive: true } })
-    return { id: wedding.id, slug: wedding.slug, title: wedding.title, guests: 2, physicalCode: 'UAT2020912' }
+    const qrData = {
+      label: 'PR 202 synthetic UAT physical invitation',
+      type: 'physical_invitation',
+      url: `/w/${slug}?card=ivory-floral-gold`,
+      isActive: true,
+    }
+    if (qr) {
+      await tx.qRDestination.update({ where: { id }, data: qrData })
+    } else {
+      await tx.qRDestination.create({ data: { id, weddingId, ...qrData } })
+    }
+    return { id: wedding.id, slug: wedding.slug, title: wedding.title, invitationCardStyle: wedding.invitationCardStyle, guests: 2, physicalCode: 'UAT2020912' }
   })
   console.log('PR202_UAT_FIXTURE', JSON.stringify(result))
 } finally { await db.$disconnect() }
