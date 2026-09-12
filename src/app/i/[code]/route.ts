@@ -74,15 +74,17 @@ export async function GET(
   )
   destinationUrl.searchParams.set('source', 'printed-invitation')
 
-  const requestedCard = request.nextUrl.searchParams.get('card')?.trim()
+  // The printed QR selects the wedding's configured invitation style. Do not
+  // let a user-supplied query string override the planner/couple's choice.
+  // The dedicated preview wedding remains pinned to the approved Ivory UAT
+  // benchmark until the shared preview database receives the premium-style
+  // persistence migration.
   const isDedicatedPreviewWedding =
     process.env.VERCEL_ENV === 'preview' &&
     process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID === destination.weddingId
   const selectedCard = isDedicatedPreviewWedding
     ? 'ivory-floral-gold'
-    : normalizeInvitationCardStyle(
-        requestedCard || destination.wedding.invitationCardStyle,
-      )
+    : normalizeInvitationCardStyle(destination.wedding.invitationCardStyle)
   destinationUrl.searchParams.set('card', selectedCard)
 
   const response = NextResponse.redirect(destinationUrl)
