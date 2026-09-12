@@ -140,18 +140,18 @@ export default async function WeddingPage({
     sharedInvitationSession?.weddingId === wedding.id
 
   if (physicalInvitationClaim) {
-    const allowNameOnlyClaim =
+    const isDedicatedPreviewWedding =
       process.env.VERCEL_ENV === 'preview' &&
       process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID === wedding.id
-    const physicalInvitationStyle = normalizeInvitationCardStyle(
-      query.card || wedding.invitationCardStyle,
-    )
+    const physicalInvitationStyle = isDedicatedPreviewWedding
+      ? 'ivory-floral-gold'
+      : normalizeInvitationCardStyle(query.card || wedding.invitationCardStyle)
 
     return (
       <PhysicalInvitationClaim
         slug={slug}
         style={physicalInvitationStyle}
-        allowNameOnlyClaim={allowNameOnlyClaim}
+        allowNameOnlyClaim={isDedicatedPreviewWedding}
         invitation={{
           title: `${wedding.partner1} & ${wedding.partner2}`,
           monogram: wedding.monogram,
