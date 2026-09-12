@@ -143,9 +143,12 @@ export default async function WeddingPage({
     const isDedicatedPreviewWedding =
       process.env.VERCEL_ENV === 'preview' &&
       process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID === wedding.id
+    // Once a physical invitation has established its signed shared session,
+    // its presentation remains tied to the wedding's configured card style.
+    // A manually edited destination URL must not be able to change it.
     const physicalInvitationStyle = isDedicatedPreviewWedding
       ? 'ivory-floral-gold'
-      : normalizeInvitationCardStyle(query.card || wedding.invitationCardStyle)
+      : normalizeInvitationCardStyle(wedding.invitationCardStyle)
 
     return (
       <PhysicalInvitationClaim
