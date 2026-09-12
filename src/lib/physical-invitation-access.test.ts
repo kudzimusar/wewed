@@ -26,12 +26,14 @@ describe('bulk physical invitation access', () => {
     ).toBe('K7M4P9XDT2')
   })
 
-  test('QR route grants anonymous shared access and records opens', () => {
+  test('QR route grants anonymous shared access, preserves card style, and records opens', () => {
     const route = source('src/app/i/[code]/route.ts')
     expect(route).toContain("type: 'physical_invitation'")
     expect(route).toContain('scanCount: { increment: 1 }')
     expect(route).toContain('setWeddingSharedInvitationCookie')
-    expect(route).toContain('?source=printed-invitation')
+    expect(route).toContain("destinationUrl.searchParams.set('source', 'printed-invitation')")
+    expect(route).toContain("destinationUrl.searchParams.set('card', selectedCard)")
+    expect(route).toContain("? 'ivory-floral-gold'")
     expect(route).not.toContain('setWeddingGuestSessionCookie')
   })
 
