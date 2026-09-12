@@ -143,11 +143,14 @@ export default async function WeddingPage({
     const allowNameOnlyClaim =
       process.env.VERCEL_ENV === 'preview' &&
       process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID === wedding.id
+    const physicalInvitationStyle = normalizeInvitationCardStyle(
+      query.card || wedding.invitationCardStyle,
+    )
 
     return (
       <PhysicalInvitationClaim
         slug={slug}
-        style={normalizeInvitationCardStyle(wedding.invitationCardStyle)}
+        style={physicalInvitationStyle}
         allowNameOnlyClaim={allowNameOnlyClaim}
         invitation={{
           title: `${wedding.partner1} & ${wedding.partner2}`,
