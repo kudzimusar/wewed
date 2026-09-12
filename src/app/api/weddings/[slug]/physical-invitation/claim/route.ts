@@ -17,6 +17,7 @@ interface Params {
 interface ClaimPayload {
   name?: unknown
   contact?: unknown
+  card?: unknown
 }
 
 function noStore(response: NextResponse): NextResponse {
@@ -59,6 +60,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   const body = (await request.json().catch(() => null)) as ClaimPayload | null
   const name = normalizedText(body?.name)
   const contact = normalizedText(body?.contact)
+  const requestedCard = normalizedText(body?.card)
   if (!name) return genericFailure(400)
 
   const sharedToken =
@@ -135,7 +137,9 @@ export async function POST(request: NextRequest, { params }: Params) {
   const guest = matched[0]
   const query = new URLSearchParams({
     invitation: '1',
-    card: normalizeInvitationCardStyle(wedding.invitationCardStyle),
+    card: normalizeInvitationCardStyle(
+      requestedCard || wedding.invitationCardStyle,
+    ),
     source: 'printed-invitation',
   })
   const response = NextResponse.json({
