@@ -26,9 +26,10 @@ function relativeRedirect(location: string): NextResponse {
   })
 }
 
-function clearPersonalInvitationContext(response: NextResponse): void {
+function clearInvitationContext(response: NextResponse): void {
   clearPendingInvitationCookie(response)
   clearWeddingGuestSessionCookie(response)
+  clearWeddingSharedInvitationCookie(response)
 }
 
 function redirectToGateway(slug: string, error: string) {
@@ -36,7 +37,7 @@ function redirectToGateway(slug: string, error: string) {
   const response = relativeRedirect(
     `/w/${encodeURIComponent(slug)}?${query.toString()}`,
   )
-  clearPersonalInvitationContext(response)
+  clearInvitationContext(response)
   return response
 }
 
