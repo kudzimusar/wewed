@@ -37,6 +37,13 @@ describe('bulk physical invitation access', () => {
     expect(route).not.toContain('setWeddingGuestSessionCookie')
   })
 
+  test('invalid physical invitations clear all invitation identity families', () => {
+    const route = source('src/app/i/[code]/route.ts')
+    expect(route).toContain('function clearAllInvitationContext(response: NextResponse)')
+    expect(route).toContain('clearWeddingSharedInvitationCookie(response)')
+    expect(route).toContain('clearAllInvitationContext(response)')
+  })
+
   test('physical invitation style stays server-authoritative through QR and secure claim', () => {
     const route = source('src/app/i/[code]/route.ts')
     const claim = source(
