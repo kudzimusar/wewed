@@ -8,6 +8,7 @@ import {
   clearWeddingGuestSessionCookie,
   setWeddingGuestSessionCookie,
 } from '@/lib/wedding-guest-session'
+import { clearWeddingSharedInvitationCookie } from '@/lib/wedding-shared-invitation-session'
 
 interface Params {
   params: Promise<{ slug: string }>
@@ -33,6 +34,7 @@ function failedExchange(slug: string, error: string): NextResponse {
   const response = redirectToGateway(slug, error)
   clearPendingInvitationCookie(response)
   clearWeddingGuestSessionCookie(response)
+  clearWeddingSharedInvitationCookie(response)
   return response
 }
 
@@ -58,6 +60,7 @@ export async function GET(request: NextRequest, { params }: Params) {
   const response = relativeRedirect(
     `/w/${encodeURIComponent(slug)}?${query.toString()}`,
   )
+  clearWeddingSharedInvitationCookie(response)
   setWeddingGuestSessionCookie(response, {
     weddingId: invitation.weddingId,
     guestId: invitation.guestId,
