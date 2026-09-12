@@ -38,6 +38,8 @@ async function fixture() {
       title: 'Physical Deferred Invitation Wedding',
       date: new Date('2031-04-24T12:00:00.000Z'),
       venue: 'Test Venue',
+      venueCity: 'Test City',
+      venueCountry: 'Test Country',
       privacy: 'link_only',
       invitationCardStyle: 'ivory-floral-gold',
       coupleId: couple.id,
