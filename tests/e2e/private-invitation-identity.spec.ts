@@ -228,7 +228,7 @@ test('same browser cannot carry Guest A identity into Guest B, stale RSVP, inval
   })
 })
 
-test('failed private and deferred transitions clear every invitation identity family', async ({ plannerPage: page }, testInfo) => {
+test('failed private, physical, and deferred transitions clear every invitation identity family', async ({ plannerPage: page }, testInfo) => {
   const fixture = identityFixtureForProject(`fail-closed-${testInfo.project.name}`)
   await prepareIdentityFixture(fixture)
   await page.context().clearCookies()
@@ -237,6 +237,15 @@ test('failed private and deferred transitions clear every invitation identity fa
   let cookies = await invitationCookieNames(page)
   expect(cookies.has('wewed_wedding_shared_invitation')).toBe(true)
   expect(cookies.has('wewed_wedding_guest')).toBe(false)
+
+  await page.goto('/i/NOTAREALCARD')
+  await expect(page).toHaveURL(/\/guest-access-help\?reason=invalid-invitation/)
+  cookies = await invitationCookieNames(page)
+  expect(cookies.size).toBe(0)
+
+  await page.goto(`/i/${fixture.physicalInvitationCode}`)
+  cookies = await invitationCookieNames(page)
+  expect(cookies.has('wewed_wedding_shared_invitation')).toBe(true)
 
   await page.goto(
     `/invite/${E2E_WEDDINGS.primary.slug}?rsvp=${encodeURIComponent('invalid-personal-token')}`,
