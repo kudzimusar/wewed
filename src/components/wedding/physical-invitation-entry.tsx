@@ -27,6 +27,7 @@ export function PhysicalInvitationEntry({
   style,
   allowNameOnlyClaim = false,
   deferredInstallEnabled,
+  insideWewed = false,
 }: {
   slug: string
   weddingTitle: string
@@ -34,15 +35,18 @@ export function PhysicalInvitationEntry({
   style: InvitationCardStyle
   allowNameOnlyClaim?: boolean
   deferredInstallEnabled: boolean
+  insideWewed?: boolean
 }) {
-  const [mode, setMode] = useState<'checking' | 'app' | 'android-web' | 'web'>('checking')
+  const [mode, setMode] = useState<'checking' | 'app' | 'android-web' | 'web'>(
+    insideWewed ? 'app' : 'checking',
+  )
   const [installed, setInstalled] = useState(false)
   const [preparing, setPreparing] = useState<'install' | 'open' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const preparingRef = useRef(false)
 
   useEffect(() => {
-    if (window.matchMedia('(display-mode: standalone)').matches) {
+    if (insideWewed) {
       setMode('app')
       return
     }
@@ -69,7 +73,7 @@ export function PhysicalInvitationEntry({
       })
       .catch(() => undefined)
     return () => { cancelled = true }
-  }, [])
+  }, [insideWewed])
 
   async function prepare(action: 'install' | 'open') {
     if (!deferredInstallEnabled || preparingRef.current) return null
