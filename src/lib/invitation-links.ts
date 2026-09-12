@@ -46,9 +46,25 @@ export function buildPlayStoreInstallUrl(handoff: string): string {
   return `${PLAY_STORE_URL}&referrer=${encodeURIComponent(referrer)}`
 }
 
+export function buildPhysicalPlayStoreInstallUrl(handoff: string): string {
+  if (!isValidInvitationHandoffSecret(handoff)) {
+    throw new Error('Invalid physical invitation install handoff')
+  }
+
+  const referrer = new URLSearchParams({ physical_handoff: handoff }).toString()
+  return `${PLAY_STORE_URL}&referrer=${encodeURIComponent(referrer)}`
+}
+
 export function buildInvitationResumePath(handoff: string): string {
   if (!isValidInvitationHandoffSecret(handoff)) {
     throw new Error('Invalid invitation install handoff')
   }
   return `/invite/resume?${new URLSearchParams({ h: handoff }).toString()}`
+}
+
+export function buildPhysicalInvitationResumePath(handoff: string): string {
+  if (!isValidInvitationHandoffSecret(handoff)) {
+    throw new Error('Invalid physical invitation install handoff')
+  }
+  return `/invite/physical-resume?${new URLSearchParams({ h: handoff }).toString()}`
 }
