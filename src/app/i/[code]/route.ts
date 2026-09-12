@@ -8,7 +8,10 @@ import {
   physicalInvitationDestinationId,
 } from '@/lib/physical-invitation-code'
 import { clearWeddingGuestSessionCookie } from '@/lib/wedding-guest-session'
-import { setWeddingSharedInvitationCookie } from '@/lib/wedding-shared-invitation-session'
+import {
+  clearWeddingSharedInvitationCookie,
+  setWeddingSharedInvitationCookie,
+} from '@/lib/wedding-shared-invitation-session'
 
 function noStore(response: NextResponse): NextResponse {
   response.headers.set('Cache-Control', 'private, no-store, max-age=0')
@@ -20,11 +23,16 @@ function clearPersonalInvitationContext(response: NextResponse): void {
   clearWeddingGuestSessionCookie(response)
 }
 
+function clearAllInvitationContext(response: NextResponse): void {
+  clearPersonalInvitationContext(response)
+  clearWeddingSharedInvitationCookie(response)
+}
+
 function invalidInvitation(request: NextRequest): NextResponse {
   const response = NextResponse.redirect(
     new URL('/guest-access-help?reason=invalid-invitation', request.url),
   )
-  clearPersonalInvitationContext(response)
+  clearAllInvitationContext(response)
   return noStore(response)
 }
 
