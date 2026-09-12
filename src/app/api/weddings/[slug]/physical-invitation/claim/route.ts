@@ -17,7 +17,6 @@ interface Params {
 interface ClaimPayload {
   name?: unknown
   contact?: unknown
-  card?: unknown
 }
 
 function noStore(response: NextResponse): NextResponse {
@@ -60,7 +59,6 @@ export async function POST(request: NextRequest, { params }: Params) {
   const body = (await request.json().catch(() => null)) as ClaimPayload | null
   const name = normalizedText(body?.name)
   const contact = normalizedText(body?.contact)
-  const requestedCard = normalizedText(body?.card)
   if (!name) return genericFailure(400)
 
   const sharedToken =
@@ -135,11 +133,15 @@ export async function POST(request: NextRequest, { params }: Params) {
   if (matched.length !== 1 || !matched[0].rsvp) return delayedFailure()
 
   const guest = matched[0]
+  const isDedicatedPreviewWedding =
+    process.env.VERCEL_ENV === 'preview' &&
+    process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID === wedding.id
+  const selectedCard = isDedicatedPreviewWedding
+    ? 'ivory-floral-gold'
+    : normalizeInvitationCardStyle(wedding.invitationCardStyle)
   const query = new URLSearchParams({
     invitation: '1',
-    card: normalizeInvitationCardStyle(
-      requestedCard || wedding.invitationCardStyle,
-    ),
+    card: selectedCard,
     source: 'printed-invitation',
   })
   const response = NextResponse.json({
