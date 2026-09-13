@@ -143,8 +143,10 @@ export default async function WeddingPage({
     )
   }
 
+  // A valid shared physical-invitation session remains an invitation context even
+  // after source/card query parameters have been stripped. This prevents a guest
+  // from becoming stranded on the Couple Site before claiming their RSVP identity.
   const physicalInvitationClaim =
-    query.source === 'printed-invitation' &&
     wedding.privacy === 'link_only' &&
     !resolution.guest &&
     sharedInvitationSession?.weddingId === wedding.id
@@ -197,6 +199,10 @@ export default async function WeddingPage({
     appSession?.activeWeddingId === wedding.id ? appSession.role : null
   const personalInvitationExperience =
     query.invitation === '1' && resolution.accessKind === 'invited_guest'
+  const personalInvitationCardStyle =
+    resolution.accessKind === 'invited_guest'
+      ? normalizeInvitationCardStyle(query.card || wedding.invitationCardStyle)
+      : null
 
   return (
     <WeddingHome
@@ -205,7 +211,7 @@ export default async function WeddingPage({
       viewerRole={viewerRole}
       initialData={initialData}
       invitationMode={personalInvitationExperience}
-      invitationCardStyle={personalInvitationExperience ? normalizeInvitationCardStyle(query.card) : null}
+      invitationCardStyle={personalInvitationCardStyle}
     />
   )
 }
