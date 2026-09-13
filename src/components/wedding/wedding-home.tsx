@@ -151,8 +151,10 @@ function WeddingHomeContent({
     const rememberImmediateCoupleSiteTransition = (event: MouseEvent) => {
       const target = event.target
       if (!(target instanceof Element) || !target.closest('.ivory-site')) return
+      // Store only the one-shot suppression marker here. Do not change React state
+      // during the capture phase: Ivory's own button handler still needs to run and
+      // navigate to the token-free Couple Site URL. The next page load consumes it.
       window.sessionStorage.setItem(invitationSkipKey, '1')
-      setInvitationVisible(false)
     }
 
     document.addEventListener('click', rememberImmediateCoupleSiteTransition, true)
