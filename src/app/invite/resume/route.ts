@@ -5,6 +5,11 @@ import {
   clearWeddingGuestSessionCookie,
   setWeddingGuestSessionCookie,
 } from '@/lib/wedding-guest-session'
+import {
+  mergeWeddingGuestPortfolio,
+  readWeddingGuestPortfolio,
+  setWeddingGuestPortfolioCookie,
+} from '@/lib/wedding-guest-portfolio'
 import { clearWeddingSharedInvitationCookie } from '@/lib/wedding-shared-invitation-session'
 
 export const dynamic = 'force-dynamic'
@@ -62,6 +67,15 @@ export async function GET(request: NextRequest) {
     guestId: result.guestId,
     rsvpToken: result.rsvpToken,
   })
+  setWeddingGuestPortfolioCookie(
+    response,
+    mergeWeddingGuestPortfolio(readWeddingGuestPortfolio(request), {
+      weddingId: result.weddingId,
+      weddingSlug: result.weddingSlug,
+      guestId: result.guestId,
+      invitationCardStyle: result.card,
+    }),
+  )
   clearPendingInvitationCookie(response)
   return response
 }
