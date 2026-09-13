@@ -55,13 +55,15 @@ describe('multi-wedding guest portfolio contract', () => {
     }
   })
 
-  test('leaving a wedding removes only that wedding from the portfolio', () => {
+  test('leaving a wedding removes only that wedding from the portfolio and applies cookies to the final response', () => {
     const guestSession = source('src/app/api/weddings/[slug]/guest-session/route.ts')
     const portfolio = source('src/lib/wedding-guest-portfolio.ts')
 
     expect(guestSession).toContain('removeWeddingGuestPortfolioEntry')
     expect(portfolio).toContain(".filter((entry) => entry.weddingId !== weddingId)")
-    expect(guestSession).toContain("nextPortfolio.activeWeddingId ? '/app' : '/'")
+    expect(guestSession).toContain("nextPortfolio?.activeWeddingId ? '/app' : '/'")
+    expect(guestSession).toContain('clearWeddingGuestSessionCookie(response)')
+    expect(guestSession).toContain('if (nextPortfolio) setWeddingGuestPortfolioCookie(response, nextPortfolio)')
   })
 })
 
