@@ -70,3 +70,28 @@ describe('preview write safety', () => {
     expect(source).toContain("'x-wewed-preview-write-blocked': 'true'")
   })
 })
+
+import { previewWriteError } from '@/lib/preview-write-response'
+import { previewWeddingMutationBlocked } from '@/lib/preview-write-safety'
+
+test('guest mutation response permits only the configured wedding and fails closed', async () => {
+  const previousEnvironment = process.env.VERCEL_ENV
+  const previousWedding = process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID
+  try {
+    process.env.VERCEL_ENV = 'preview'
+    process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID = UAT_WEDDING_ID
+    expect(previewWriteError(UAT_WEDDING_ID)).toBeNull()
+    const blocked = previewWriteError(LIVE_WEDDING_ID)!
+    expect(blocked.status).toBe(423)
+    expect(blocked.headers.get('x-wewed-preview-write-blocked')).toBe('true')
+    expect(await blocked.json()).toMatchObject({ success: false, code: 'PREVIEW_WRITE_BLOCKED' })
+    expect(previewWeddingMutationBlocked(LIVE_WEDDING_ID)).toBe(true)
+    delete process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID
+    expect(previewWriteError(UAT_WEDDING_ID)?.status).toBe(423)
+  } finally {
+    if (previousEnvironment === undefined) delete process.env.VERCEL_ENV
+    else process.env.VERCEL_ENV = previousEnvironment
+    if (previousWedding === undefined) delete process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID
+    else process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID = previousWedding
+  }
+})

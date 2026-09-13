@@ -82,6 +82,7 @@ export function PremiumInvitationRsvpDialog({
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          originGuestId: data.guest.id,
           attending: form.get('attendance') === 'accept',
           mealChoice: form.get('mealChoice') || null,
           plusOne: form.get('plusOne') === 'on',
@@ -170,7 +171,7 @@ export function PremiumInvitationRsvpDialog({
             <div className="space-y-2"><Label htmlFor="premium-invite-message">Message to the couple</Label><Textarea id="premium-invite-message" name="message" defaultValue={data.rsvp.message || ''} /></div>
 
             <div className="flex flex-wrap justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>Close</Button>
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>Close RSVP</Button>
               <Button disabled={saving} style={{ background: theme.palette.primary, color: theme.palette.paper }}>
                 {saving ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
                 Save RSVP

@@ -27,3 +27,8 @@ export function shouldBlockPreviewWrite({
 
 export const PREVIEW_WRITE_BLOCK_MESSAGE =
   'This preview is read-only because it shares live wedding data. Use production for approved edits or configure a dedicated preview wedding.'
+
+/** Use for actual writes, including counters or token consumption behind GET. */
+export function previewWeddingMutationBlocked(weddingId: string): boolean {
+  return shouldBlockPreviewWrite({ method: 'POST', weddingId })
+}

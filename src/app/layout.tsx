@@ -10,6 +10,7 @@ import { SkipToContent } from '@/components/wedding/skip-to-content'
 import { StoreRehydrator } from '@/components/wedding/store-rehydrator'
 import { PWARegister } from '@/components/wedding/pwa-register'
 import { InstallPrompt } from '@/components/wedding/install-prompt'
+import { InvitationContributionNavigator } from '@/components/wedding/invitation-contribution-navigator'
 import { ThemeProvider } from '@/components/theme-provider'
 import { WorkspaceQuickNavigation } from '@/components/navigation/workspace-quick-navigation'
 import { WorkspaceAttentionWidgetDock } from '@/components/attention/workspace-attention-widget-dock'
@@ -72,6 +73,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <StoreRehydrator />
           <PWARegister />
           <InstallPrompt />
+          <InvitationContributionNavigator />
           <SkipToContent />
           <WorkspaceQuickNavigation />
           <BookingUxRouteClass />

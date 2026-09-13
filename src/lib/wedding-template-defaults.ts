@@ -120,10 +120,16 @@ export function formatWeddingDate(
   if (!value) return ''
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return ''
-  return new Intl.DateTimeFormat(
-    'en-GB',
-    options ?? { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' },
-  ).format(date)
+  if (options) return new Intl.DateTimeFormat('en-GB', options).format(date)
+  // ICU versions differ in punctuation. Build the default label from explicit
+  // parts so SSR and the guest's browser hydrate the same wedding date.
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
+  }).formatToParts(date)
+  return ['weekday', 'day', 'month', 'year']
+    .map((type) => parts.find((part) => part.type === type)?.value ?? '')
+    .join(' ')
+
 }
 
 export function compactWeddingDate(value: string | null | undefined): string {

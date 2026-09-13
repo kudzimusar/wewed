@@ -1,3 +1,4 @@
+import { previewWriteError } from '@/lib/preview-write-response'
 import { NextRequest, NextResponse } from 'next/server'
 import {
   createInvitationInstallHandoff,
@@ -80,6 +81,9 @@ export async function POST(request: NextRequest) {
       410,
     )
   }
+
+  const blocked = previewWriteError(invitation.weddingId)
+  if (blocked) return blocked
 
   try {
     const handoff = await createInvitationInstallHandoff({

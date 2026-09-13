@@ -4,7 +4,11 @@ import {
   clearPendingInvitationCookie,
   readPendingInvitation,
 } from '@/lib/pending-invitation'
-import { setWeddingGuestSessionCookie } from '@/lib/wedding-guest-session'
+import {
+  clearWeddingGuestSessionCookie,
+  setWeddingGuestSessionCookie,
+} from '@/lib/wedding-guest-session'
+import { clearWeddingSharedInvitationCookie } from '@/lib/wedding-shared-invitation-session'
 
 interface Params {
   params: Promise<{ slug: string }>
@@ -26,12 +30,20 @@ function redirectToGateway(slug: string, error: string) {
   return relativeRedirect(`/w/${encodeURIComponent(slug)}?${query.toString()}`)
 }
 
+function failedExchange(slug: string, error: string): NextResponse {
+  const response = redirectToGateway(slug, error)
+  clearPendingInvitationCookie(response)
+  clearWeddingGuestSessionCookie(response)
+  clearWeddingSharedInvitationCookie(response)
+  return response
+}
+
 export async function GET(request: NextRequest, { params }: Params) {
   const { slug } = await params
   const pending = readPendingInvitation(request)
 
   if (!pending || pending.weddingSlug !== slug) {
-    return redirectToGateway(slug, 'missing')
+    return failedExchange(slug, 'missing')
   }
 
   const invitation = await resolvePersonalInvitation({
@@ -41,15 +53,14 @@ export async function GET(request: NextRequest, { params }: Params) {
   })
 
   if (!invitation) {
-    const response = redirectToGateway(slug, 'invalid')
-    clearPendingInvitationCookie(response)
-    return response
+    return failedExchange(slug, 'invalid')
   }
 
   const query = new URLSearchParams({ invitation: '1', card: invitation.card })
   const response = relativeRedirect(
     `/w/${encodeURIComponent(slug)}?${query.toString()}`,
   )
+  clearWeddingSharedInvitationCookie(response)
   setWeddingGuestSessionCookie(response, {
     weddingId: invitation.weddingId,
     guestId: invitation.guestId,

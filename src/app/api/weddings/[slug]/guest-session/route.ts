@@ -1,3 +1,4 @@
+import { previewWriteError } from '@/lib/preview-write-response'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { normalizeInvitationCardStyle } from '@/lib/digital-invitation-card'
@@ -61,6 +62,7 @@ export async function GET(request: NextRequest, { params }: Params) {
         tagline: wedding.tagline,
         date: wedding.date,
         venue: wedding.venue,
+        venueMapUrl: wedding.venueMapUrl,
         venueCity: wedding.venueCity,
         venueCountry: wedding.venueCountry,
         primaryColor: wedding.primaryColor,
@@ -146,10 +148,40 @@ export async function PUT(request: NextRequest, { params }: Params) {
     )
   }
 
+  const blocked = previewWriteError(wedding.id)
+  if (blocked) return blocked
+
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
   if (!body) {
     return noStore(
       NextResponse.json({ success: false, error: 'Invalid JSON body.' }, { status: 400 }),
+    )
+  }
+
+  const originGuestId =
+    typeof body.originGuestId === 'string' ? body.originGuestId.trim() : ''
+  if (!originGuestId) {
+    return noStore(
+      NextResponse.json(
+        {
+          success: false,
+          error: 'This RSVP form is missing its guest binding. Reload the invitation and try again.',
+          code: 'STALE_GUEST_CONTEXT',
+        },
+        { status: 409 },
+      ),
+    )
+  }
+  if (originGuestId !== guest.id) {
+    return noStore(
+      NextResponse.json(
+        {
+          success: false,
+          error: 'Your invitation session changed while this RSVP form was open. Reload the current invitation before saving.',
+          code: 'STALE_GUEST_CONTEXT',
+        },
+        { status: 409 },
+      ),
     )
   }
 
@@ -187,6 +219,9 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       NextResponse.json({ success: false, error: 'Guest access is not active.' }, { status: 401 }),
     )
   }
+
+  const blocked = previewWriteError(wedding.id)
+  if (blocked) return blocked
 
   const updated = await db.rSVP.update({
     where: { token: guest.rsvpToken },

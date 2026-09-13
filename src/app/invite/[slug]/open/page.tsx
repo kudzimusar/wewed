@@ -23,20 +23,24 @@ export default async function InvitationOpenPage({ params }: Props) {
 
   const wedding = await db.wedding.findUnique({
     where: { slug },
-    select: { title: true },
+    select: { id: true, title: true },
   })
 
   if (!wedding) {
     redirect('/guest-access-help?reason=invalid-invitation')
   }
 
+  const dedicatedUat =
+    process.env.VERCEL_ENV === 'preview' &&
+    process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID === wedding.id
+  const deferredInstallEnabled =
+    dedicatedUat || process.env.ANDROID_DEFERRED_INVITATION_HANDOFF === '1'
+
   return (
     <InvitationAppHandoff
       weddingSlug={slug}
       weddingTitle={wedding.title}
-      deferredInstallEnabled={
-        process.env.ANDROID_DEFERRED_INVITATION_HANDOFF === '1'
-      }
+      deferredInstallEnabled={deferredInstallEnabled}
     />
   )
 }

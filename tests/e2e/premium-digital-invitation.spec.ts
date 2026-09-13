@@ -75,15 +75,25 @@ test('Planner Card Studio provides a compact premium library and one interactive
   await page.getByTestId('invitation-style-ivory-floral-gold').click()
   const frame = page.getByTestId('invitation-preview-frame')
   await expect(frame).toHaveAttribute('data-preview-device', 'mobile')
-  await expect(frame.getByTestId('premium-invitation-experience')).toHaveAttribute('data-invitation-style', 'ivory-floral-gold')
-  await expect(frame.getByText('Together with our families', { exact: true })).toBeVisible()
-  await expect(frame.getByText('Together with their families', { exact: true })).toHaveCount(0)
+  const experience = frame.getByTestId('premium-invitation-experience')
+  await expect(experience).toHaveAttribute('data-invitation-style', 'ivory-floral-gold')
+  const card = experience.getByTestId('invitation-trifold')
+  await expect(card).toHaveAttribute('data-card-object', 'physical-stationery')
+  await expect(card).toHaveAttribute('data-invitation-view', 'closed')
+  await expect(experience.getByTestId('invitation-closed-cover')).toContainText('A special invitation awaits')
+  await expect(card).toHaveAttribute('data-artwork-engine', 'approved-pixels')
+  await expect(experience.getByText('Our journey', { exact: true })).toHaveCount(0)
+  await expect(experience.getByText('A brighter tomorrow', { exact: true })).toHaveCount(0)
 
-  await frame.getByTestId('invitation-open-button').click()
-  await expect(frame.getByTestId('premium-invitation-experience')).toHaveAttribute('data-motion-state', 'open', { timeout: 4_000 })
-  await expect(frame.getByTestId('invitation-panel-left')).toBeVisible()
-  await expect(frame.getByTestId('invitation-panel-centre')).toBeVisible()
-  await expect(frame.getByTestId('invitation-panel-right')).toBeVisible()
+  await experience.getByTestId('invitation-open-button').click()
+  await expect(card).toHaveAttribute('data-invitation-view', 'opening', { timeout: 800 })
+  await expect(experience.getByText('Opening your invitation…', { exact: true })).toBeVisible()
+  await expect(experience).toHaveAttribute('data-motion-state', 'open', { timeout: 4_000 })
+  await expect(card).toHaveAttribute('data-invitation-view', 'open', { timeout: 4_000 })
+  const centrePanel = experience.getByTestId('invitation-panel-centre')
+  await expect(centrePanel).toBeVisible()
+  await expect(centrePanel.locator('[data-artwork="open-surface"]')).toBeVisible()
+  await expectNoDocumentOverflow(page)
 
   await page.getByRole('button', { name: 'Desktop', exact: true }).click()
   await expect(frame).toHaveAttribute('data-preview-device', 'desktop')
@@ -104,9 +114,12 @@ test('personal smart invitation reveals the exact guest without retaining the cr
   expect(page.url()).not.toContain(token)
 
   const experience = page.getByTestId('premium-invitation-experience')
+  const card = experience.getByTestId('invitation-trifold')
   await expect(experience).toBeVisible()
   await expect(experience).toHaveAttribute('data-invitation-style', 'ivory-floral-gold')
   await expect(experience).toHaveAttribute('data-motion-state', 'closed')
+  await expect(card).toHaveAttribute('data-invitation-view', 'closed')
+  await expect(experience.getByTestId('invitation-closed-cover')).toContainText('A special invitation awaits')
   await expect(experience).toContainText('Aurora & Blake')
   await expect(experience).toContainText('Primary Test Estate')
 
@@ -120,12 +133,10 @@ test('personal smart invitation reveals the exact guest without retaining the cr
   await expect(experience.getByTestId('invitation-rsvp-deadline')).toContainText('RSVP by')
 
   await experience.getByTestId('invitation-open-button').click()
+  await expect(card).toHaveAttribute('data-invitation-view', 'opening', { timeout: 800 })
   await expect(experience).toHaveAttribute('data-motion-state', 'open', { timeout: 4_000 })
-  await expect(experience.getByText('Together with our families', { exact: true })).toBeVisible()
-  const continueButton = experience.getByTestId('invitation-continue-button')
-  await expect(continueButton).toBeFocused()
-  await continueButton.click()
-  await expect(page.locator('#wedding-details')).toBeInViewport()
+  await expect(card).toHaveAttribute('data-invitation-view', 'open', { timeout: 4_000 })
+  await expect(experience.getByTestId('invitation-panel-centre').locator('[data-artwork="open-surface"]')).toBeVisible()
 
   const invitationPalette = await page.evaluate(() => {
     const styles = getComputedStyle(document.documentElement)
@@ -141,10 +152,28 @@ test('personal smart invitation reveals the exact guest without retaining the cr
     champagne: '#fbf5e9',
   })
 
-  await page.locator('#rsvp').scrollIntoViewIfNeeded()
-  await page.getByRole('button', { name: 'Review my RSVP' }).click()
+  await experience.getByTestId('invitation-details-button').click()
+  await expect(card).toHaveAttribute('data-invitation-view', 'details')
+  await expect(experience.getByTestId('invitation-interactive-details')).toBeVisible()
+  await expect(experience.getByTestId('invitation-cta-rsvp')).toBeVisible()
+  await expect(experience.getByTestId('invitation-cta-calendar')).toBeVisible()
+  await expect(experience.getByTestId('invitation-cta-venue')).toBeVisible()
+  await expect(experience.getByTestId('invitation-cta-note')).toBeVisible()
+
+  await experience.getByTestId('invitation-cta-rsvp').click()
   await expect(page.getByTestId('premium-invitation-rsvp-dialog')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Your private RSVP' })).toBeVisible()
+  await page.getByLabel('Joyfully accept', { exact: true }).check()
+  await page.getByLabel('Message to the couple', { exact: true }).fill('Looking forward to celebrating with you.')
+  await page.getByRole('button', { name: 'Save RSVP', exact: true }).click()
+  await expect(page.getByText('Your RSVP has been saved.')).toBeVisible()
+  const savedSession = await page.request.get(`/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`)
+  expect(await savedSession.json()).toMatchObject({
+    guest: { name: E2E_WEDDINGS.primary.seededGuest },
+    rsvp: { attending: true, message: 'Looking forward to celebrating with you.' },
+  })
+  expect(page.url()).not.toContain(token)
+
 })
 
 test('reduced-motion invitation opens from the keyboard without the 3D delay', async ({ plannerPage: page }) => {
@@ -157,13 +186,15 @@ test('reduced-motion invitation opens from the keyboard without the 3D delay', a
   await openInvitationInBrowser(page)
 
   const experience = page.getByTestId('premium-invitation-experience')
+  const card = experience.getByTestId('invitation-trifold')
   const openButton = experience.getByTestId('invitation-open-button')
   await openButton.focus()
   await expect(openButton).toBeFocused()
   await page.keyboard.press('Enter')
   await expect(experience).toHaveAttribute('data-motion-state', 'open', { timeout: 500 })
-  await expect(experience.getByTestId('invitation-continue-button')).toBeFocused()
-  await expect(experience.getByText('Reduced motion preview · invitation opens without 3D movement')).toBeVisible()
+  await expect(card).toHaveAttribute('data-invitation-view', 'open', { timeout: 500 })
+  await expect(experience.getByTestId('invitation-details-button')).toBeVisible()
+  await expect(experience.getByTestId('invitation-details-button')).toBeFocused()
 })
 
 test('physical invitation access remains shared and never becomes a personal guest session', async ({ plannerPage: page }) => {
@@ -193,9 +224,14 @@ test('premium invitation remains within a mobile viewport @mobile', async ({ pla
   await openInvitationInBrowser(page)
 
   const experience = page.getByTestId('premium-invitation-experience')
+  const card = experience.getByTestId('invitation-trifold')
   await expect(experience).toBeVisible()
   await expectNoDocumentOverflow(page)
   await experience.getByTestId('invitation-open-button').click()
   await expect(experience).toHaveAttribute('data-motion-state', 'open', { timeout: 4_000 })
+  await expect(card).toHaveAttribute('data-invitation-view', 'open', { timeout: 4_000 })
+  await expectNoDocumentOverflow(page)
+  await experience.getByTestId('invitation-details-button').click()
+  await expect(card).toHaveAttribute('data-invitation-view', 'details')
   await expectNoDocumentOverflow(page)
 })

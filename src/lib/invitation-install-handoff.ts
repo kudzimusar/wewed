@@ -1,6 +1,10 @@
+import { previewWeddingMutationBlocked } from '@/lib/preview-write-safety'
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { db } from '@/lib/db'
-import type { InvitationCardStyle } from '@/lib/digital-invitation-card'
+import {
+  normalizeInvitationCardStyle,
+  type InvitationCardStyle,
+} from '@/lib/digital-invitation-card'
 import {
   buildInvitationResumePath,
   buildPlayStoreInstallUrl,
@@ -82,11 +86,6 @@ function configuredTtlSeconds(): number {
   )
 }
 
-function normalizeCard(value: string): InvitationCardStyle {
-  if (value === 'editorial' || value === 'midnight') return value
-  return 'botanical'
-}
-
 async function writeAudit(input: {
   action: string
   resourceId?: string | null
@@ -95,6 +94,7 @@ async function writeAudit(input: {
   userAgent?: string | null
   details?: Record<string, string | number | boolean | null>
 }): Promise<void> {
+  if (process.env.VERCEL_ENV === 'preview' && (!input.weddingId || previewWeddingMutationBlocked(input.weddingId))) return
   try {
     await db.auditEvent.create({
       data: {
@@ -158,6 +158,7 @@ export async function createInvitationInstallHandoff(input: {
   ipAddress?: string | null
   userAgent?: string | null
 }): Promise<CreatedInvitationInstallHandoff> {
+  if (previewWeddingMutationBlocked(input.weddingId)) throw new Error('PREVIEW_WRITE_BLOCKED')
   const rsvp = await db.rSVP.findUnique({
     where: { token: input.rsvpToken },
     select: { id: true, guestId: true },
@@ -264,6 +265,8 @@ export async function consumeInvitationInstallHandoff(input: {
     })
   }
 
+  if (previewWeddingMutationBlocked(handoff.weddingId)) return { ok: false, reason: 'invalid' }
+
   if (handoff.usedAt) {
     return failedResult('used', {
       action: 'invitation_handoff_reused',
@@ -364,6 +367,6 @@ export async function consumeInvitationInstallHandoff(input: {
     weddingSlug: rsvp.guest.wedding.slug,
     guestId: handoff.guestId,
     rsvpToken: rsvp.token,
-    card: normalizeCard(handoff.card),
+    card: normalizeInvitationCardStyle(handoff.card),
   }
 }

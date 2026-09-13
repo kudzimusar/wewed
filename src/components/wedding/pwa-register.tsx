@@ -114,7 +114,7 @@ export function PWARegister() {
     let cancelled = false;
 
     const fireReadyToast = () => {
-      if (toastedReady) return;
+      if (toastedReady || window.location.pathname.startsWith('/uat/invitation/') || new URLSearchParams(window.location.search).get('invitation') === '1') return;
       toastedReady = true;
       toast({
         title: 'Offline screen ready',

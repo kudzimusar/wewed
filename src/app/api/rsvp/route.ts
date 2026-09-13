@@ -1,3 +1,4 @@
+import { previewWriteError } from '@/lib/preview-write-response'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireWeddingPermission } from '@/lib/wedding-access'
@@ -69,6 +70,9 @@ export async function POST(request: NextRequest) {
         { status: 403 },
       )
     }
+
+    const blocked = previewWriteError(access.wedding.id)
+    if (blocked) return blocked
 
     const attending =
       typeof body.attending === 'boolean'
