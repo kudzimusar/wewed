@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type MouseEvent } from 'react'
 import { Loader2, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -36,6 +36,19 @@ export function PhysicalInvitationClaim({
     window.addEventListener('wewed:open-premium-rsvp', openClaim)
     return () => window.removeEventListener('wewed:open-premium-rsvp', openClaim)
   }, [])
+
+  function handleInvitationClickCapture(event: MouseEvent<HTMLDivElement>) {
+    const target = event.target
+    if (!(target instanceof Element) || !target.closest('.ivory-site')) return
+
+    // A physical invitation can grant read-only Couple Site access before the guest
+    // identifies their RSVP. Keep the signed shared invitation session intact, but
+    // explicitly request the Couple Site presentation instead of letting the clean
+    // wedding URL be interpreted as another invitation entry.
+    event.preventDefault()
+    event.stopPropagation()
+    window.location.assign(`/w/${encodeURIComponent(slug)}?site=1`)
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -86,7 +99,10 @@ export function PhysicalInvitationClaim({
       <div className="mx-auto grid w-full max-w-7xl gap-8 lg:grid-cols-[minmax(0,1.08fr)_minmax(22rem,.92fr)] lg:items-center">
         <div className="min-w-0 space-y-4">
           <InvitationCountdown date={invitation.date} />
-          <div className="overflow-hidden rounded-[2rem] border border-gold/15 shadow-2xl">
+          <div
+            className="overflow-hidden rounded-[2rem] border border-gold/15 shadow-2xl"
+            onClickCapture={handleInvitationClickCapture}
+          >
             <PremiumInvitationExperience data={invitation} style={style} />
           </div>
         </div>
