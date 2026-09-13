@@ -47,7 +47,7 @@ async function guestSession(page: import('@playwright/test').Page) {
   return { response, payload: await response.json() }
 }
 
-test('physical invitation reaches Couple Site before RSVP claim and mobile My Wedding returns to Ivory', async ({ plannerPage: page }) => {
+test('physical invitation is full bleed, reaches Couple Site before RSVP claim, and mobile My Wedding returns to Ivory', async ({ plannerPage: page }) => {
   await enablePhysicalCoupleSiteFixture()
   await page.context().clearCookies()
   await page.setViewportSize({ width: 390, height: 844 })
@@ -59,6 +59,12 @@ test('physical invitation reaches Couple Site before RSVP claim and mobile My We
   const card = experience.getByTestId('invitation-trifold')
   await expect(experience).toHaveAttribute('data-invitation-style', IVORY_STYLE)
   await expect(card).toHaveAttribute('data-artwork-ready', 'true', { timeout: 5_000 })
+
+  const mobileCardBox = await card.boundingBox()
+  expect(mobileCardBox).not.toBeNull()
+  expect(mobileCardBox!.x).toBeLessThanOrEqual(1)
+  expect(mobileCardBox!.width).toBeGreaterThanOrEqual(389)
+  expect(Math.abs(mobileCardBox!.width / mobileCardBox!.height - 9 / 19.5)).toBeLessThan(0.01)
 
   await experience.getByTestId('invitation-open-button').click()
   await expect(card).toHaveAttribute('data-invitation-view', 'open', {
@@ -72,10 +78,23 @@ test('physical invitation reaches Couple Site before RSVP claim and mobile My We
   await expect(page.getByTestId('physical-invitation-claim')).toHaveCount(0)
   await expect(page.locator('#main-content')).toBeVisible()
   await expect(page.getByTestId('wedding-top-nav')).toBeVisible()
+  await expect(page.getByTestId('mobile-wedding-top-nav')).toBeVisible()
+  await expect(page.getByTestId('mobile-wedding-identity')).toBeVisible()
+  await expect(page.getByTestId('mobile-wedding-share')).toBeVisible()
   await expect(page.getByTestId('mobile-wedding-bottom-nav')).toBeVisible()
   await expect(page.locator('nav[aria-label="Wewed platform links"]')).toHaveCount(0)
   await expect(page.getByText('Powered by Wewed', { exact: true })).toHaveCount(0)
   await expect(page.getByTestId('view-invitation-button')).toHaveCount(0)
+
+  await page.getByTestId('mobile-nav-more').click()
+  const drawer = page.getByTestId('mobile-wedding-more-drawer')
+  await expect(drawer).toBeVisible()
+  const drawerBox = await drawer.boundingBox()
+  expect(drawerBox).not.toBeNull()
+  expect(drawerBox!.width).toBeLessThanOrEqual(330)
+  expect(drawerBox!.x).toBeGreaterThanOrEqual(60)
+  await page.keyboard.press('Escape')
+  await expect(drawer).toBeHidden()
 
   const myWedding = page.getByTestId('my-wedding-nav-cta')
   await expect(myWedding).toBeVisible({ timeout: 5_000 })
