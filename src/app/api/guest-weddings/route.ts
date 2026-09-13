@@ -36,7 +36,6 @@ async function validatedGuestWedding(input: {
     },
     select: {
       id: true,
-      name: true,
       rsvp: { select: { token: true } },
       wedding: {
         select: {
@@ -75,7 +74,6 @@ export async function GET(request: NextRequest) {
         coupleNames: `${record.wedding.couple.partner1} & ${record.wedding.couple.partner2}`,
         date: record.wedding.date.toISOString(),
         monogram: record.wedding.monogram,
-        guestName: record.name,
         invitationCardStyle: normalizeInvitationCardStyle(
           entry.invitationCardStyle || record.wedding.invitationCardStyle,
         ),
