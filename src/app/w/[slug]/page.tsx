@@ -33,6 +33,7 @@ interface WeddingPageProps {
     card?: string
     accessError?: string
     source?: string
+    site?: string
   }>
 }
 
@@ -143,21 +144,24 @@ export default async function WeddingPage({
     )
   }
 
-  // A valid shared physical-invitation session remains an invitation context even
-  // after source/card query parameters have been stripped. This prevents a guest
-  // from becoming stranded on the Couple Site before claiming their RSVP identity.
-  const physicalInvitationClaim =
+  const physicalInvitationContext =
     wedding.privacy === 'link_only' &&
     !resolution.guest &&
     sharedInvitationSession?.weddingId === wedding.id
-
-  if (physicalInvitationClaim) {
-    const isDedicatedPreviewWedding =
-      process.env.VERCEL_ENV === 'preview' &&
-      process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID === wedding.id
-    const physicalInvitationStyle = isDedicatedPreviewWedding
+  const sharedPhysicalCoupleSite =
+    physicalInvitationContext && query.site === '1'
+  const physicalInvitationClaim =
+    physicalInvitationContext && !sharedPhysicalCoupleSite
+  const isDedicatedPreviewWedding =
+    process.env.VERCEL_ENV === 'preview' &&
+    process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID === wedding.id
+  const physicalInvitationStyle = physicalInvitationContext
+    ? isDedicatedPreviewWedding
       ? 'ivory-floral-gold'
       : normalizeInvitationCardStyle(wedding.invitationCardStyle)
+    : null
+
+  if (physicalInvitationClaim && physicalInvitationStyle) {
     const deferredInstallEnabled =
       isDedicatedPreviewWedding ||
       process.env.ANDROID_DEFERRED_INVITATION_HANDOFF === '1'
@@ -212,6 +216,9 @@ export default async function WeddingPage({
       initialData={initialData}
       invitationMode={personalInvitationExperience}
       invitationCardStyle={personalInvitationCardStyle}
+      sharedPhysicalInvitationCardStyle={
+        sharedPhysicalCoupleSite ? physicalInvitationStyle : null
+      }
     />
   )
 }
