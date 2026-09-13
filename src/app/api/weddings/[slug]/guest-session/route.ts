@@ -260,26 +260,19 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 export async function DELETE(request: NextRequest, { params }: Params) {
   const { slug } = await params
   const wedding = await loadWeddingAccessRecord(slug)
-  const response = NextResponse.json({ success: true, next: '/' })
+  const nextPortfolio = wedding
+    ? removeWeddingGuestPortfolioEntry(
+        readWeddingGuestPortfolio(request),
+        wedding.id,
+      )
+    : null
+  const response = NextResponse.json({
+    success: true,
+    next: nextPortfolio?.activeWeddingId ? '/app' : '/',
+  })
+
   clearWeddingGuestSessionCookie(response)
+  if (nextPortfolio) setWeddingGuestPortfolioCookie(response, nextPortfolio)
 
-  if (!wedding) return noStore(response)
-
-  const nextPortfolio = removeWeddingGuestPortfolioEntry(
-    readWeddingGuestPortfolio(request),
-    wedding.id,
-  )
-  setWeddingGuestPortfolioCookie(response, nextPortfolio)
-
-  return noStore(
-    NextResponse.json(
-      {
-        success: true,
-        next: nextPortfolio.activeWeddingId ? '/app' : '/',
-      },
-      {
-        headers: response.headers,
-      },
-    ),
-  )
+  return noStore(response)
 }
