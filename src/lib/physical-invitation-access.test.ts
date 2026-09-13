@@ -62,10 +62,21 @@ describe('bulk physical invitation access', () => {
     )
 
     expect(page).toContain('const physicalInvitationStyle = isDedicatedPreviewWedding')
-    expect(page).toContain(
+    const physicalStyleStart = page.indexOf('const physicalInvitationStyle =')
+    const physicalStyleEnd = page.indexOf('const deferredInstallEnabled =', physicalStyleStart)
+    expect(physicalStyleStart).toBeGreaterThanOrEqual(0)
+    expect(physicalStyleEnd).toBeGreaterThan(physicalStyleStart)
+    const physicalStyleBlock = page.slice(physicalStyleStart, physicalStyleEnd)
+    expect(physicalStyleBlock).toContain(
       'normalizeInvitationCardStyle(wedding.invitationCardStyle)',
     )
-    expect(page).not.toContain(
+    expect(physicalStyleBlock).not.toContain('query.card')
+
+    // Personal invited-guest re-entry may legitimately recover the chosen style
+    // from its own URL before falling back to the persisted wedding style. That
+    // must remain separate from the physical/shared invitation authority above.
+    expect(page).toContain('const personalInvitationCardStyle =')
+    expect(page).toContain(
       'normalizeInvitationCardStyle(query.card || wedding.invitationCardStyle)',
     )
 
