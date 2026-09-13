@@ -61,7 +61,9 @@ describe('bulk physical invitation access', () => {
       'normalizeInvitationCardStyle(destination.wedding.invitationCardStyle)',
     )
 
-    expect(page).toContain('const physicalInvitationStyle = isDedicatedPreviewWedding')
+    expect(page).toContain('const physicalInvitationStyle = physicalInvitationContext')
+    expect(page).toContain('const sharedPhysicalCoupleSite =')
+    expect(page).toContain("physicalInvitationContext && query.site === '1'")
     const physicalStyleStart = page.indexOf('const physicalInvitationStyle =')
     const physicalStyleEnd = page.indexOf('const deferredInstallEnabled =', physicalStyleStart)
     expect(physicalStyleStart).toBeGreaterThanOrEqual(0)
