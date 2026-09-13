@@ -16,7 +16,7 @@ async function enablePersonalInvitationFixture() {
   }
 }
 
-test('RSVP returns to the same Couple Site, can reopen the invitation, and welcomes the guest again on re-entry', async ({ plannerPage: page }) => {
+test('RSVP returns to the same Couple Site, My Wedding reopens Ivory, and re-entry welcomes the guest again', async ({ plannerPage: page }) => {
   await enablePersonalInvitationFixture()
   await page.context().clearCookies()
 
@@ -58,7 +58,7 @@ test('RSVP returns to the same Couple Site, can reopen the invitation, and welco
   await page.getByLabel('Joyfully accept', { exact: true }).check()
   await page
     .getByLabel('Message to the couple', { exact: true })
-    .fill('Same-wedding Couple Site continuation verified.')
+    .fill('My Wedding continuation verified.')
   await page.getByRole('button', { name: 'Save RSVP', exact: true }).click()
   await expect(page.getByText('Your RSVP has been saved.')).toBeVisible()
   await rsvpDialog.getByRole('button', { name: 'Close RSVP', exact: true }).click()
@@ -74,16 +74,34 @@ test('RSVP returns to the same Couple Site, can reopen the invitation, and welco
   await expect(page.getByTestId('premium-invitation-experience')).toHaveCount(0)
   await expect(page.locator('main#main-content')).toBeVisible()
 
-  const reopen = page.getByTestId('view-invitation-button')
-  await expect(reopen).toBeVisible()
-  await reopen.click()
+  const myWedding = page.getByTestId('my-wedding-nav-cta')
+  await expect(myWedding).toBeVisible()
+  await expect(myWedding).toHaveText('My Wedding')
+  await expect(myWedding).toHaveAttribute(
+    'href',
+    `/w/${E2E_WEDDINGS.primary.slug}?invitation=1&card=ivory-floral-gold`,
+  )
+  await myWedding.click()
+
+  await expect(page).toHaveURL(
+    new RegExp(`/w/${E2E_WEDDINGS.primary.slug}\\?invitation=1&card=ivory-floral-gold$`),
+  )
   await expect(page.getByTestId('premium-invitation-experience')).toBeVisible()
+  await expect(page.getByTestId('premium-invitation-experience')).toHaveAttribute(
+    'data-invitation-style',
+    'ivory-floral-gold',
+  )
   await expect(page.getByTestId('invitation-countdown')).toBeVisible()
+  expect(page.url()).not.toContain(token)
 
   // A fresh wedding entry (reload/app relaunch/browser return) welcomes the same
   // authorized guest with the invitation again without restoring any raw token.
   await page.goto(`/w/${E2E_WEDDINGS.primary.slug}`)
   await expect(page.getByTestId('premium-invitation-experience')).toBeVisible()
+  await expect(page.getByTestId('premium-invitation-experience')).toHaveAttribute(
+    'data-invitation-style',
+    'ivory-floral-gold',
+  )
   await expect(page.getByTestId('invitation-countdown')).toBeVisible()
   expect(page.url()).not.toContain(token)
 
@@ -92,13 +110,17 @@ test('RSVP returns to the same Couple Site, can reopen the invitation, and welco
   )
   expect(guestSession.status()).toBe(200)
   expect(await guestSession.json()).toMatchObject({
+    wedding: {
+      slug: E2E_WEDDINGS.primary.slug,
+      invitationCardStyle: 'ivory-floral-gold',
+    },
     guest: {
       id: `${E2E_WEDDINGS.primary.id}-guest`,
       name: E2E_WEDDINGS.primary.seededGuest,
     },
     rsvp: {
       attending: true,
-      message: 'Same-wedding Couple Site continuation verified.',
+      message: 'My Wedding continuation verified.',
     },
   })
 })
