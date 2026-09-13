@@ -126,27 +126,26 @@ function WeddingHomeContent({
   const invitationSkipKey = slug ? `wewed:skip-invitation-once:${slug}` : null
 
   useEffect(() => {
-    if (!invitationAvailable || !invitationSkipKey) {
-      setInvitationVisible(false)
-      return
+    let nextVisible = false
+
+    if (invitationAvailable && invitationSkipKey) {
+      if (invitationMode) {
+        nextVisible = true
+      } else {
+        const skipOnce = window.sessionStorage.getItem(invitationSkipKey) === '1'
+        if (skipOnce) {
+          window.sessionStorage.removeItem(invitationSkipKey)
+        } else {
+          // A full wedding-site entry with an existing invited-guest session is a fresh
+          // welcome. Internal scrolling/navigation does not remount this page, while a
+          // reload, browser return, or app relaunch presents the invitation again.
+          nextVisible = true
+        }
+      }
     }
 
-    if (invitationMode) {
-      setInvitationVisible(true)
-      return
-    }
-
-    const skipOnce = window.sessionStorage.getItem(invitationSkipKey) === '1'
-    if (skipOnce) {
-      window.sessionStorage.removeItem(invitationSkipKey)
-      setInvitationVisible(false)
-      return
-    }
-
-    // A full wedding-site entry with an existing invited-guest session is a fresh
-    // welcome. Internal scrolling/navigation does not remount this page, while a
-    // reload, browser return, or app relaunch presents the invitation again.
-    setInvitationVisible(true)
+    const id = window.setTimeout(() => setInvitationVisible(nextVisible), 0)
+    return () => window.clearTimeout(id)
   }, [invitationAvailable, invitationMode, invitationSkipKey])
 
   useEffect(() => {
