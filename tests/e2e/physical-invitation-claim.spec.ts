@@ -89,6 +89,8 @@ test('plain printed invitation selects approved Ivory, requires secure claim, th
   await expect(anonymousCard.locator('[data-artwork="open-surface"]')).toHaveCount(1)
   await anonymousExperience.getByTestId('invitation-details-button').click()
   await expect(anonymousCard).toHaveAttribute('data-invitation-view', 'details')
+  await expect(anonymousExperience.getByTestId('invitation-cta-registry')).toBeVisible()
+  await expect(anonymousCard.locator('.ivory-unconfigured')).toHaveCount(0)
   await anonymousExperience.getByTestId('invitation-cta-rsvp').click()
   await expect(page.getByLabel('Full name')).toBeFocused()
 
@@ -148,6 +150,8 @@ test('plain printed invitation selects approved Ivory, requires secure claim, th
   })
   await experience.getByTestId('invitation-details-button').click()
   await expect(card).toHaveAttribute('data-invitation-view', 'details')
+  await expect(experience.getByTestId('invitation-cta-registry')).toBeVisible()
+  await expect(card.locator('.ivory-unconfigured')).toHaveCount(0)
   await experience.getByTestId('invitation-cta-rsvp').click()
   await expect(page.getByTestId('premium-invitation-rsvp-dialog')).toBeVisible()
   await page.getByLabel('Joyfully accept', { exact: true }).check()
@@ -175,6 +179,32 @@ test('plain printed invitation selects approved Ivory, requires secure claim, th
     IVORY_STYLE,
   )
   current = await guestSession(page)
+  expect(current.response.status()).toBe(401)
+  expect(current.payload).toMatchObject({ success: false, authorized: false })
+})
+
+test('physical Ivory contributions are always visible and open the Couple Site registry without creating guest identity', async ({ plannerPage: page }) => {
+  await enablePhysicalClaimFixture()
+  await page.context().clearCookies()
+
+  await page.goto(`/i/${PHYSICAL_INVITATION_CODE}`)
+  const experience = page.getByTestId('premium-invitation-experience')
+  const card = experience.getByTestId('invitation-trifold')
+  await expect(card).toHaveAttribute('data-artwork-ready', 'true', { timeout: 5_000 })
+  await experience.getByTestId('invitation-open-button').click()
+  await expect(card).toHaveAttribute('data-invitation-view', 'open', { timeout: 4_000 })
+  await experience.getByTestId('invitation-details-button').click()
+  await expect(card).toHaveAttribute('data-invitation-view', 'details')
+  await expect(experience.getByTestId('invitation-cta-registry')).toBeVisible()
+  await expect(card.locator('.ivory-unconfigured')).toHaveCount(0)
+
+  await experience.getByTestId('invitation-cta-registry').click()
+  await expect(page).toHaveURL(
+    new RegExp(`/w/${E2E_WEDDINGS.primary.slug}\\?site=1#registry$`),
+  )
+  await expect(page.locator('#registry')).toBeVisible()
+
+  const current = await guestSession(page)
   expect(current.response.status()).toBe(401)
   expect(current.payload).toMatchObject({ success: false, authorized: false })
 })
