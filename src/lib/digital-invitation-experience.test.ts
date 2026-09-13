@@ -56,6 +56,10 @@ describe('premium digital invitation experience', () => {
     const experience = source(
       'src/components/wedding/invitation-experience/ivory-floral-gold-trifold.tsx',
     )
+    const contributions = source(
+      'src/components/wedding/invitation-contribution-navigator.tsx',
+    )
+    const layout = source('src/app/layout.tsx')
     expect(experience).toContain('data-testid="invitation-details-button"')
     expect(experience).toContain("hit('rsvp'")
     expect(experience).toContain("hit('calendar'")
@@ -63,9 +67,15 @@ describe('premium digital invitation experience', () => {
     expect(experience).toContain("hit('registry'")
     expect(experience).toContain("hit('note'")
     expect(experience).toContain("window.dispatchEvent(new CustomEvent('wewed:open-premium-rsvp'))")
+    expect(experience).toContain("window.dispatchEvent(new CustomEvent('wewed:open-contributions'))")
     expect(experience).toContain("type: 'text/calendar;charset=utf-8'")
     expect(experience).toContain('https://www.google.com/maps/search/?api=1&query=')
-    expect(experience).toContain("document.getElementById('registry')")
+    expect(experience).not.toContain('ivory-unconfigured')
+    expect(experience).not.toContain('registryAvailable')
+    expect(contributions).toContain('?site=1#registry')
+    expect(contributions).toContain('wewed:skip-invitation-once:')
+    expect(contributions).toContain('#registry')
+    expect(layout).toContain('<InvitationContributionNavigator />')
     expect(experience).toContain('Back to Wewed Couple Site')
     expect(experience).toContain('window.location.assign(window.location.pathname)')
     expect(experience).not.toContain("document.getElementById('wedding-details')")
