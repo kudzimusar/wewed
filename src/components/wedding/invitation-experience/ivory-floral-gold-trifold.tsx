@@ -26,7 +26,6 @@ const REQUIRED_ART = [
   'right-door',
   'open-surface',
   'details-surface',
-  'paper',
 ] as const
 
 function asDate(value: string | Date | null | undefined) {
@@ -140,7 +139,6 @@ export function IvoryFloralGoldTriFold({
 }: Props) {
   const [view, setView] = useState<IvoryInvitationView>('closed')
   const [replay, setReplay] = useState(0)
-  const [registryAvailable, setRegistryAvailable] = useState(false)
   const [artworkReady, setArtworkReady] = useState(false)
   const noteRef = useRef<HTMLDialogElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
@@ -180,18 +178,6 @@ export function IvoryFloralGoldTriFold({
     }
   }, [])
 
-  useEffect(() => {
-    const sync = () => setRegistryAvailable(document.getElementById('registry')?.dataset.registryConfigured === 'true')
-    sync()
-    const observer = new MutationObserver(sync)
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ['id', 'data-registry-configured'],
-    })
-    return () => observer.disconnect()
-  }, [])
   useEffect(() => {
     if (previewMode && previewView) {
       setView(previewView)
@@ -369,16 +355,8 @@ export function IvoryFloralGoldTriFold({
             )}
             {hit('calendar', 'Add to Calendar', 44.2, 7.3, () => buildCalendarFile(data))}
             {hit('venue', 'Venue Location', 53.2, 8.4, undefined, mapUrl)}
-            {registryAvailable ? (
-              hit('registry', 'Gift / Contributions', 63.4, 7.3, () =>
-                document.getElementById('registry')?.scrollIntoView({
-                  behavior: reducedMotion ? 'auto' : 'smooth',
-                }),
-              )
-            ) : (
-              <div className="ivory-unconfigured">
-                <Art name="paper" />
-              </div>
+            {hit('registry', 'Gift / Contributions', 63.4, 7.3, () =>
+              window.dispatchEvent(new CustomEvent('wewed:open-contributions')),
             )}
             {hit('note', 'A Note from Us', 72.4, 8, () => noteRef.current?.showModal())}
             <button type="button" className="ivory-back" onClick={() => setView('open')}>
