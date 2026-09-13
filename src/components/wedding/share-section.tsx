@@ -57,8 +57,10 @@ export function ShareSection() {
 
   const shareUrl = useMemo(() => `${origin}/w/${encodeURIComponent(slug)}`, [origin, slug])
   const defaultMessage = useMemo(
-    () => [`Celebrate with ${names}.`, date, venue, shareUrl].filter(Boolean).join('\n'),
-    [date, names, shareUrl, venue],
+    () => privateWedding
+      ? [`Visit ${names}'s wedding website.`, shareUrl].filter(Boolean).join('\n')
+      : [`Celebrate with ${names}.`, date, venue, shareUrl].filter(Boolean).join('\n'),
+    [date, names, privateWedding, shareUrl, venue],
   )
   const [message, setMessage] = useState(defaultMessage)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
@@ -80,8 +82,8 @@ export function ShareSection() {
 
   const handleNativeShare = useCallback(async () => {
     const result = await share({ title: `${names} | Wewed`, text: message, url: shareUrl })
-    if (result === 'shared') toast({ title: 'Shared' })
-    if (result === 'copied') toast({ title: 'Link copied' })
+    if (result === 'shared') toast({ title: 'Website shared' })
+    if (result === 'copied') toast({ title: 'Website link copied' })
     if (result === 'failed') toast({ title: 'Share failed', variant: 'destructive' })
   }, [message, names, share, shareUrl, toast])
 
@@ -104,8 +106,8 @@ export function ShareSection() {
         <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: '-80px' }} className="text-center">
           <p className="wewed-monogram mb-3 font-sans text-xs uppercase tracking-[0.32em]">Wedding sharing</p>
           <h2 id="share-wedding-heading" className="wewed-heading text-4xl text-espresso sm:text-5xl lg:text-6xl">
-            {privateWedding ? 'Your Invitation Is Private' : 'Spread the Love'}
-            <SectionInfo text={privateWedding ? 'Private wedding access is guest-specific. Never forward a personal invitation or QR.' : 'This wedding is public, so its public site link and QR may be shared.'} />
+            {privateWedding ? 'Share the Website, Not the Invitation' : 'Spread the Love'}
+            <SectionInfo text={privateWedding ? 'The couple website may be shared. Guest invitation links, RSVP credentials and guest QR codes remain personal and invitation-only.' : 'This wedding is public, so its public site link and QR may be shared.'} />
           </h2>
           <GoldOrnament className="mx-auto mt-6 w-full max-w-[16rem]" height={20} />
         </motion.div>
@@ -113,10 +115,23 @@ export function ShareSection() {
         {privateWedding ? (
           <Card className="mx-auto mt-12 max-w-3xl rounded-3xl border-gold/30 bg-white/80 p-7 text-center shadow-lg sm:p-10" data-testid="private-share-guard">
             <ShieldCheck className="mx-auto size-12 text-gold-muted" />
-            <h3 className="mt-5 font-serif text-3xl text-espresso">Keep your personal invitation private</h3>
+            <h3 className="mt-5 font-serif text-3xl text-espresso">The wedding website is safe to share</h3>
             <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-espresso/65">
-              Personal wedding links and QR codes can be tied to one invited guest and their RSVP. Please do not forward them. If another person needs access, ask the couple or planner to invite them separately.
+              Sharing this website does not invite another person and does not grant RSVP access. Every invited guest keeps their own invitation and unique QR. Never forward a personal invitation link, RSVP credential or guest QR code.
             </p>
+            <div className="mt-6 flex flex-wrap justify-center gap-3">
+              <Button type="button" onClick={() => void handleNativeShare()}>
+                <Share2 className="size-4" />Share Website
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => window.open(buildWhatsAppUrl(defaultMessage), '_blank', 'noopener,noreferrer')}
+              >
+                <Share2 className="size-4" />WhatsApp Website
+              </Button>
+            </div>
+            <p className="mx-auto mt-5 max-w-xl break-all font-mono text-xs text-espresso/45">{shareUrl}</p>
           </Card>
         ) : (
           <Card className="mt-12 overflow-hidden rounded-3xl border-gold/40 bg-white/80 p-0 shadow-[0_20px_60px_-30px_rgba(191,155,95,0.45)] backdrop-blur">
