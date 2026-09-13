@@ -8,6 +8,12 @@ import {
   setWeddingGuestSessionCookie,
 } from '@/lib/wedding-guest-session'
 import {
+  mergeWeddingGuestPortfolio,
+  readWeddingGuestPortfolio,
+  removeWeddingGuestPortfolioEntry,
+  setWeddingGuestPortfolioCookie,
+} from '@/lib/wedding-guest-portfolio'
+import {
   loadWeddingAccessRecord,
   resolveGuestSessionForWedding,
 } from '@/lib/wedding-public-access'
@@ -110,7 +116,16 @@ export async function POST(request: NextRequest, { params }: Params) {
     where: { token },
     include: {
       guest: {
-        include: { wedding: { select: { id: true, slug: true, privacy: true } } },
+        include: {
+          wedding: {
+            select: {
+              id: true,
+              slug: true,
+              privacy: true,
+              invitationCardStyle: true,
+            },
+          },
+        },
       },
     },
   })
@@ -125,6 +140,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     )
   }
 
+  const card = normalizeInvitationCardStyle(rsvp.guest.wedding.invitationCardStyle)
   const response = NextResponse.json({
     success: true,
     authorized: true,
@@ -136,6 +152,15 @@ export async function POST(request: NextRequest, { params }: Params) {
     guestId: rsvp.guest.id,
     rsvpToken: rsvp.token,
   })
+  setWeddingGuestPortfolioCookie(
+    response,
+    mergeWeddingGuestPortfolio(readWeddingGuestPortfolio(request), {
+      weddingId: rsvp.guest.wedding.id,
+      weddingSlug: rsvp.guest.wedding.slug,
+      guestId: rsvp.guest.id,
+      invitationCardStyle: card,
+    }),
+  )
   return noStore(response)
 }
 
@@ -232,8 +257,29 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   return noStore(NextResponse.json({ success: true, rsvp: updated }))
 }
 
-export async function DELETE(_request: NextRequest) {
-  const response = NextResponse.json({ success: true })
+export async function DELETE(request: NextRequest, { params }: Params) {
+  const { slug } = await params
+  const wedding = await loadWeddingAccessRecord(slug)
+  const response = NextResponse.json({ success: true, next: '/' })
   clearWeddingGuestSessionCookie(response)
-  return noStore(response)
+
+  if (!wedding) return noStore(response)
+
+  const nextPortfolio = removeWeddingGuestPortfolioEntry(
+    readWeddingGuestPortfolio(request),
+    wedding.id,
+  )
+  setWeddingGuestPortfolioCookie(response, nextPortfolio)
+
+  return noStore(
+    NextResponse.json(
+      {
+        success: true,
+        next: nextPortfolio.activeWeddingId ? '/app' : '/',
+      },
+      {
+        headers: response.headers,
+      },
+    ),
+  )
 }
