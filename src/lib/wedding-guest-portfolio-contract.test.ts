@@ -26,6 +26,7 @@ describe('multi-wedding guest portfolio contract', () => {
     expect(api).toContain("portfolio.entries.find((entry) => entry.weddingId === weddingId)")
     expect(api).toContain('setWeddingGuestSessionCookie(response')
     expect(api).toContain('setWeddingGuestPortfolioCookie(response, activated)')
+    expect(api).not.toContain('guestName:')
     expect(api).not.toContain('guestName=')
     expect(api).not.toContain('rsvpToken=')
   })
