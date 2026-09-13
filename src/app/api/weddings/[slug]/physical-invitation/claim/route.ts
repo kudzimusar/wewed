@@ -5,6 +5,11 @@ import {
   setWeddingGuestSessionCookie,
 } from '@/lib/wedding-guest-session'
 import {
+  mergeWeddingGuestPortfolio,
+  readWeddingGuestPortfolio,
+  setWeddingGuestPortfolioCookie,
+} from '@/lib/wedding-guest-portfolio'
+import {
   clearWeddingSharedInvitationCookie,
   verifyWeddingSharedInvitationSessionToken,
   WEDDING_SHARED_INVITATION_COOKIE,
@@ -187,6 +192,15 @@ export async function POST(request: NextRequest, { params }: Params) {
     guestId: guest.id,
     rsvpToken: guest.rsvp.token,
   })
+  setWeddingGuestPortfolioCookie(
+    response,
+    mergeWeddingGuestPortfolio(readWeddingGuestPortfolio(request), {
+      weddingId: wedding.id,
+      weddingSlug: wedding.slug,
+      guestId: guest.id,
+      invitationCardStyle: selectedCard,
+    }),
+  )
   clearWeddingSharedInvitationCookie(response)
   return noStore(response)
 }
