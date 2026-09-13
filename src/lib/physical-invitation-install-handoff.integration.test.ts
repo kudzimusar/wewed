@@ -15,12 +15,36 @@ const {
   createPhysicalInvitationInstallHandoff,
 } = await import('@/lib/physical-invitation-install-handoff')
 
+const BASE64URL_ALPHABET =
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
+
 function physicalToken(playStoreUrl: string) {
   const referrer = new URL(playStoreUrl).searchParams.get('referrer')
   if (!referrer) throw new Error('missing referrer')
   const token = new URLSearchParams(referrer).get('physical_handoff')
   if (!token) throw new Error('missing physical_handoff')
   return token
+}
+
+function nonCanonicalEquivalent(token: string): string | null {
+  const prefix = 'p1.'
+  const encoded = token.slice(prefix.length)
+  const remainder = encoded.length % 4
+  const unusedBits = remainder === 2 ? 4 : remainder === 3 ? 2 : 0
+  if (!unusedBits) return null
+
+  const last = encoded.at(-1)
+  if (!last) return null
+  const value = BASE64URL_ALPHABET.indexOf(last)
+  if (value < 0) return null
+
+  const mask = (1 << unusedBits) - 1
+  const significant = value & ~mask
+  const alternateLowBits = (value & mask) === 0 ? 1 : 0
+  const replacement = BASE64URL_ALPHABET[significant | alternateLowBits]
+  if (!replacement || replacement === last) return null
+
+  return `${prefix}${encoded.slice(0, -1)}${replacement}`
 }
 
 async function fixture() {
@@ -111,6 +135,32 @@ describe('physical invitation deferred Android handoff', () => {
       const replacement = last === 'A' ? 'B' : 'A'
       const tampered = `${token.slice(0, -1)}${replacement}`
       expect(await consumePhysicalInvitationInstallHandoff(tampered)).toEqual({
+        ok: false,
+        reason: 'invalid',
+      })
+    } finally {
+      await cleanup(input)
+    }
+  })
+
+  test('rejects a noncanonical base64url alias even when it decodes to identical encrypted bytes', async () => {
+    const input = await fixture()
+    try {
+      const created = await createPhysicalInvitationInstallHandoff({
+        destinationId: input.destination.id,
+        weddingId: input.wedding.id,
+        card: 'ivory-floral-gold',
+      })
+      const token = physicalToken(created.playStoreUrl)
+      const alias = nonCanonicalEquivalent(token)
+      expect(alias).not.toBeNull()
+      if (!alias) throw new Error('fixture token unexpectedly has no base64url alias')
+
+      const canonicalBytes = Buffer.from(token.slice(3), 'base64url')
+      const aliasBytes = Buffer.from(alias.slice(3), 'base64url')
+      expect(aliasBytes.equals(canonicalBytes)).toBe(true)
+      expect(alias).not.toBe(token)
+      expect(await consumePhysicalInvitationInstallHandoff(alias)).toEqual({
         ok: false,
         reason: 'invalid',
       })
