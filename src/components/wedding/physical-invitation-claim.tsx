@@ -5,6 +5,7 @@ import { Loader2, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { DigitalInvitationCardData } from '@/components/wedding/digital-invitation-card'
+import { InvitationCountdown } from '@/components/wedding/invitation-countdown'
 import { PremiumInvitationExperience } from '@/components/wedding/invitation-experience/premium-invitation-experience'
 import type { InvitationCardStyle } from '@/lib/digital-invitation-card'
 
@@ -83,8 +84,11 @@ export function PhysicalInvitationClaim({
       className="min-h-screen bg-ivory px-4 py-8 sm:py-12"
     >
       <div className="mx-auto grid w-full max-w-7xl gap-8 lg:grid-cols-[minmax(0,1.08fr)_minmax(22rem,.92fr)] lg:items-center">
-        <div className="min-w-0 overflow-hidden rounded-[2rem] border border-gold/15 shadow-2xl">
-          <PremiumInvitationExperience data={invitation} style={style} />
+        <div className="min-w-0 space-y-4">
+          <InvitationCountdown date={invitation.date} />
+          <div className="overflow-hidden rounded-[2rem] border border-gold/15 shadow-2xl">
+            <PremiumInvitationExperience data={invitation} style={style} />
+          </div>
         </div>
 
         <section
