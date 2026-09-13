@@ -16,7 +16,7 @@ async function enablePersonalInvitationFixture() {
   }
 }
 
-test('RSVP returns to the same token-free Couple Site with guest identity intact', async ({ plannerPage: page }) => {
+test('RSVP returns to the same Couple Site, can reopen the invitation, and welcomes the guest again on re-entry', async ({ plannerPage: page }) => {
   await enablePersonalInvitationFixture()
   await page.context().clearCookies()
 
@@ -41,6 +41,7 @@ test('RSVP returns to the same token-free Couple Site with guest identity intact
     'data-invitation-style',
     'ivory-floral-gold',
   )
+  await expect(page.getByTestId('invitation-countdown')).toBeVisible()
   await expect(card).toHaveAttribute('data-artwork-ready', 'true', {
     timeout: 5_000,
   })
@@ -52,15 +53,16 @@ test('RSVP returns to the same token-free Couple Site with guest identity intact
   await expect(card).toHaveAttribute('data-invitation-view', 'details')
 
   await experience.getByTestId('invitation-cta-rsvp').click()
-  await expect(page.getByTestId('premium-invitation-rsvp-dialog')).toBeVisible()
+  const rsvpDialog = page.getByTestId('premium-invitation-rsvp-dialog')
+  await expect(rsvpDialog).toBeVisible()
   await page.getByLabel('Joyfully accept', { exact: true }).check()
   await page
     .getByLabel('Message to the couple', { exact: true })
     .fill('Same-wedding Couple Site continuation verified.')
   await page.getByRole('button', { name: 'Save RSVP', exact: true }).click()
   await expect(page.getByText('Your RSVP has been saved.')).toBeVisible()
-  await page.getByRole('button', { name: 'Close', exact: true }).click()
-  await expect(page.getByTestId('premium-invitation-rsvp-dialog')).toBeHidden()
+  await rsvpDialog.getByRole('button', { name: 'Close RSVP', exact: true }).click()
+  await expect(rsvpDialog).toBeHidden()
 
   await page.getByRole('button', { name: 'Back to Wewed Couple Site' }).click()
   await expect(page).toHaveURL(new RegExp(`/w/${E2E_WEDDINGS.primary.slug}$`))
@@ -71,6 +73,19 @@ test('RSVP returns to the same token-free Couple Site with guest identity intact
   expect(page.url()).not.toContain(token)
   await expect(page.getByTestId('premium-invitation-experience')).toHaveCount(0)
   await expect(page.locator('main#main-content')).toBeVisible()
+
+  const reopen = page.getByTestId('view-invitation-button')
+  await expect(reopen).toBeVisible()
+  await reopen.click()
+  await expect(page.getByTestId('premium-invitation-experience')).toBeVisible()
+  await expect(page.getByTestId('invitation-countdown')).toBeVisible()
+
+  // A fresh wedding entry (reload/app relaunch/browser return) welcomes the same
+  // authorized guest with the invitation again without restoring any raw token.
+  await page.goto(`/w/${E2E_WEDDINGS.primary.slug}`)
+  await expect(page.getByTestId('premium-invitation-experience')).toBeVisible()
+  await expect(page.getByTestId('invitation-countdown')).toBeVisible()
+  expect(page.url()).not.toContain(token)
 
   const guestSession = await page.request.get(
     `/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`,
