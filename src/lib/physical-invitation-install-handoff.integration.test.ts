@@ -47,7 +47,7 @@ function nonCanonicalEquivalent(token: string): string | null {
   return `${prefix}${encoded.slice(0, -1)}${replacement}`
 }
 
-async function fixture() {
+async function fixture(destinationIdExtra = '') {
   const suffix = randomUUID().replaceAll('-', '')
   const couple = await db.couple.create({
     data: {
@@ -71,7 +71,7 @@ async function fixture() {
   })
   const destination = await db.qRDestination.create({
     data: {
-      id: `print_${suffix.slice(0, 18)}`,
+      id: `print_${suffix.slice(0, 18)}${destinationIdExtra}`,
       label: 'Physical install handoff test',
       url: `/w/${wedding.slug}`,
       type: 'physical_invitation',
@@ -144,7 +144,9 @@ describe('physical invitation deferred Android handoff', () => {
   })
 
   test('rejects a noncanonical base64url alias even when it decodes to identical encrypted bytes', async () => {
-    const input = await fixture()
+    // One extra payload byte forces the packed ciphertext length off the
+    // 3-byte boundary, guaranteeing unused bits in the final base64url symbol.
+    const input = await fixture('x')
     try {
       const created = await createPhysicalInvitationInstallHandoff({
         destinationId: input.destination.id,
