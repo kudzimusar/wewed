@@ -13,33 +13,71 @@ export function WeddingPlatformNav({ slug }: { slug: string }) {
     const controller = new AbortController()
     setMyWeddingHref(null)
 
-    void fetch(`/api/weddings/${encodeURIComponent(slug)}/guest-session`, {
-      method: 'GET',
-      credentials: 'same-origin',
-      cache: 'no-store',
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) return null
-        return (await response.json().catch(() => null)) as {
-          authorized?: unknown
-          wedding?: { invitationCardStyle?: unknown }
-        } | null
-      })
-      .then((payload) => {
-        if (controller.signal.aborted || payload?.authorized !== true) return
-        const style =
-          typeof payload.wedding?.invitationCardStyle === 'string'
-            ? payload.wedding.invitationCardStyle.trim()
-            : ''
-        if (!style) return
-        const query = new URLSearchParams({ invitation: '1', card: style })
-        setMyWeddingHref(`/w/${encodeURIComponent(slug)}?${query.toString()}`)
-      })
-      .catch(() => {
-        // Guest navigation remains usable if session discovery is temporarily unavailable.
-      })
+    async function discoverInvitation() {
+      try {
+        const guestResponse = await fetch(
+          `/api/weddings/${encodeURIComponent(slug)}/guest-session`,
+          {
+            method: 'GET',
+            credentials: 'same-origin',
+            cache: 'no-store',
+            signal: controller.signal,
+          },
+        )
+        const guestPayload = guestResponse.ok
+          ? ((await guestResponse.json().catch(() => null)) as {
+              authorized?: unknown
+              wedding?: { invitationCardStyle?: unknown }
+            } | null)
+          : null
 
+        if (controller.signal.aborted) return
+        if (guestPayload?.authorized === true) {
+          const style =
+            typeof guestPayload.wedding?.invitationCardStyle === 'string'
+              ? guestPayload.wedding.invitationCardStyle.trim()
+              : ''
+          if (!style) return
+          const query = new URLSearchParams({ invitation: '1', card: style })
+          setMyWeddingHref(`/w/${encodeURIComponent(slug)}?${query.toString()}`)
+          return
+        }
+
+        const sharedResponse = await fetch(
+          `/api/weddings/${encodeURIComponent(slug)}/shared-invitation-session`,
+          {
+            method: 'GET',
+            credentials: 'same-origin',
+            cache: 'no-store',
+            signal: controller.signal,
+          },
+        )
+        if (!sharedResponse.ok || controller.signal.aborted) return
+        const sharedPayload = (await sharedResponse.json().catch(() => null)) as
+          | { authorized?: unknown }
+          | null
+        if (sharedPayload?.authorized !== true) return
+
+        // A valid physical-invitation session grants anonymous, read-only Couple
+        // Site access. Returning to the clean wedding URL intentionally reopens the
+        // invitation without creating or impersonating a guest RSVP identity.
+        setMyWeddingHref(`/w/${encodeURIComponent(slug)}`)
+
+        const current = new URL(window.location.href)
+        if (
+          current.pathname === `/w/${encodeURIComponent(slug)}` &&
+          current.searchParams.get('site') === '1'
+        ) {
+          current.searchParams.delete('site')
+          const clean = `${current.pathname}${current.search}${current.hash}`
+          window.history.replaceState(window.history.state, '', clean)
+        }
+      } catch {
+        // Guest navigation remains usable if invitation discovery is unavailable.
+      }
+    }
+
+    void discoverInvitation()
     return () => controller.abort()
   }, [slug])
 
