@@ -16,7 +16,7 @@ async function enablePersonalInvitationFixture() {
   }
 }
 
-test('mobile Couple Site uses top plus bottom app nav, My Wedding reopens Ivory, and re-entry welcomes the guest again', async ({ plannerPage: page }) => {
+test('mobile Couple Site uses premium app chrome, full-bleed Ivory, My Wedding round-trip, and guest re-entry', async ({ plannerPage: page }) => {
   await enablePersonalInvitationFixture()
   await page.context().clearCookies()
   await page.setViewportSize({ width: 390, height: 844 })
@@ -47,6 +47,13 @@ test('mobile Couple Site uses top plus bottom app nav, My Wedding reopens Ivory,
   await expect(card).toHaveAttribute('data-artwork-ready', 'true', {
     timeout: 5_000,
   })
+
+  const mobileCardBox = await card.boundingBox()
+  expect(mobileCardBox).not.toBeNull()
+  expect(mobileCardBox!.x).toBeLessThanOrEqual(1)
+  expect(mobileCardBox!.width).toBeGreaterThanOrEqual(389)
+  expect(Math.abs(mobileCardBox!.width / mobileCardBox!.height - 9 / 19.5)).toBeLessThan(0.01)
+
   await experience.getByTestId('invitation-open-button').click()
   await expect(card).toHaveAttribute('data-invitation-view', 'open', {
     timeout: 4_000,
@@ -76,10 +83,27 @@ test('mobile Couple Site uses top plus bottom app nav, My Wedding reopens Ivory,
   await expect(page.getByTestId('premium-invitation-experience')).toHaveCount(0)
   await expect(page.locator('main#main-content')).toBeVisible()
   await expect(page.getByTestId('wedding-top-nav')).toBeVisible()
+  await expect(page.getByTestId('mobile-wedding-top-nav')).toBeVisible()
+  await expect(page.getByTestId('mobile-wedding-identity')).toBeVisible()
+  await expect(page.getByTestId('mobile-wedding-couple-names')).toBeVisible()
+  await expect(page.getByTestId('mobile-wedding-share')).toBeVisible()
   await expect(page.getByTestId('mobile-wedding-bottom-nav')).toBeVisible()
+  await expect(page.getByTestId('mobile-nav-home')).toHaveText('Home')
   await expect(page.locator('nav[aria-label="Wewed platform links"]')).toHaveCount(0)
   await expect(page.getByText('Powered by Wewed', { exact: true })).toHaveCount(0)
   await expect(page.getByTestId('view-invitation-button')).toHaveCount(0)
+
+  await page.getByTestId('mobile-nav-more').click()
+  const drawer = page.getByTestId('mobile-wedding-more-drawer')
+  await expect(drawer).toBeVisible()
+  await expect(drawer.getByText('Explore the wedding', { exact: true })).toBeVisible()
+  await expect(drawer.getByText('Find a Planner', { exact: true })).toBeVisible()
+  const drawerBox = await drawer.boundingBox()
+  expect(drawerBox).not.toBeNull()
+  expect(drawerBox!.width).toBeLessThanOrEqual(330)
+  expect(drawerBox!.x).toBeGreaterThanOrEqual(60)
+  await page.keyboard.press('Escape')
+  await expect(drawer).toBeHidden()
 
   const myWedding = page.getByTestId('my-wedding-nav-cta')
   await expect(myWedding).toBeVisible()
