@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   CalendarCheck,
+  Check,
+  ChevronDown,
   CircleHelp,
   Heart,
   Home,
@@ -60,6 +62,15 @@ const MOBILE_DRAWER_NAV = [
   { key: 'nav.guests', href: '#guests' },
   { key: 'nav.faq', href: '#faq' },
 ] as const;
+
+interface GuestWeddingSummary {
+  weddingId: string;
+  slug: string;
+  coupleNames: string;
+  date: string;
+  monogram: string | null;
+  invitationCardStyle: string;
+}
 
 function fallbackInitials(partner1?: string, partner2?: string): string {
   return [partner1?.trim()?.[0], partner2?.trim()?.[0]]
@@ -118,6 +129,8 @@ export function Navbar({
   const [leaving, setLeaving] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [activeSection, setActiveSection] = useState<string>('');
+  const [guestWeddings, setGuestWeddings] = useState<GuestWeddingSummary[]>([]);
+  const [switchingWedding, setSwitchingWedding] = useState<string | null>(null);
   const t = useT();
   useLocale();
 
@@ -139,6 +152,7 @@ export function Navbar({
   const weddingDate = mobileWeddingDate(wedding?.date);
   const isCoupleOwner = accessKind === 'couple_owner' && viewerRole === 'couple';
   const showAdminLogout = viewerRole === 'admin';
+  const canSwitchWedding = accessKind === 'invited_guest' && guestWeddings.length > 1;
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 50);
@@ -158,6 +172,31 @@ export function Navbar({
       window.history.replaceState(window.history.state, '', clean);
     }
   }, [accessKind, showMyWedding, slug]);
+
+  useEffect(() => {
+    if (accessKind !== 'invited_guest') {
+      setGuestWeddings([]);
+      return;
+    }
+
+    let active = true;
+    void fetch('/api/guest-weddings', { cache: 'no-store' })
+      .then(async (response) => {
+        if (!response.ok) return null;
+        return response.json() as Promise<{ weddings?: GuestWeddingSummary[] }>;
+      })
+      .then((payload) => {
+        if (!active || !payload) return;
+        setGuestWeddings(Array.isArray(payload.weddings) ? payload.weddings : []);
+      })
+      .catch(() => {
+        if (active) setGuestWeddings([]);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [accessKind, slug]);
 
   useEffect(() => {
     const allLinks = [...PRIMARY_NAV, ...SECONDARY_NAV];
@@ -210,17 +249,20 @@ export function Navbar({
   };
 
   const handleShare = async () => {
+    // The share surface is intentionally wedding-scoped, never guest-scoped. Do not
+    // copy the current URL because invitation/card/session query state can be personal.
+    const websiteUrl = `${window.location.origin}/w/${encodeURIComponent(slug)}`;
     const shareData = {
       title: `${coupleNames} Wedding`,
       text: weddingDate ? `${coupleNames} · ${weddingDate}` : coupleNames,
-      url: window.location.href,
+      url: websiteUrl,
     };
     try {
       if (navigator.share) {
         await navigator.share(shareData);
         return;
       }
-      await navigator.clipboard.writeText(window.location.href);
+      await navigator.clipboard.writeText(websiteUrl);
       setShareCopied(true);
       window.setTimeout(() => setShareCopied(false), 2_000);
     } catch (error) {
@@ -228,14 +270,36 @@ export function Navbar({
     }
   };
 
+  const switchWedding = async (weddingId: string) => {
+    if (switchingWedding) return;
+    setSwitchingWedding(weddingId);
+    try {
+      const response = await fetch('/api/guest-weddings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ weddingId }),
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | { destination?: string }
+        | null;
+      if (!response.ok || !payload?.destination) return;
+      window.location.assign(payload.destination);
+    } finally {
+      setSwitchingWedding(null);
+    }
+  };
+
   const leaveWedding = async () => {
     setLeaving(true);
+    let next = '/';
     try {
-      await fetch(`/api/weddings/${encodeURIComponent(slug)}/guest-session`, {
+      const response = await fetch(`/api/weddings/${encodeURIComponent(slug)}/guest-session`, {
         method: 'DELETE',
       });
+      const payload = (await response.json().catch(() => null)) as { next?: string } | null;
+      if (response.ok && payload?.next) next = payload.next;
     } finally {
-      window.location.href = '/';
+      window.location.href = next;
     }
   };
 
@@ -276,6 +340,36 @@ export function Navbar({
     </>
   );
 
+  const mobileIdentity = (
+    <button
+      type="button"
+      data-testid="mobile-wedding-identity"
+      onClick={canSwitchWedding ? undefined : () => handleNavClick('#home')}
+      aria-label={canSwitchWedding ? 'Switch wedding' : 'Go to wedding home'}
+      className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-1.5 py-1 text-left text-espresso transition hover:bg-white/15"
+    >
+      <span className="flex size-11 shrink-0 items-center justify-center rounded-full border border-espresso/20 bg-espresso font-serif text-sm tracking-[0.12em] text-gold shadow-sm">
+        {identityMonogram}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span
+          data-testid="mobile-wedding-couple-names"
+          className="block truncate font-serif text-[17px] font-medium leading-tight tracking-[0.025em] text-espresso"
+        >
+          {coupleNames}
+        </span>
+        {weddingDate && (
+          <span className="mt-0.5 block text-[8px] font-bold uppercase tracking-[0.22em] text-espresso/65">
+            {weddingDate}
+          </span>
+        )}
+      </span>
+      {canSwitchWedding && (
+        <ChevronDown className="h-4 w-4 shrink-0 text-espresso/70" aria-hidden="true" />
+      )}
+    </button>
+  );
+
   return (
     <>
       <motion.header
@@ -285,53 +379,71 @@ export function Navbar({
         data-testid="wedding-top-nav"
         className={`fixed left-0 right-0 top-0 z-50 pt-[env(safe-area-inset-top)] transition-all duration-500 lg:pt-0 ${
           scrolled
-            ? 'bg-espresso/95 shadow-lg backdrop-blur-xl'
-            : 'bg-gradient-to-b from-espresso/75 via-espresso/30 to-transparent backdrop-blur-[2px]'
+            ? 'bg-[#dec37e] shadow-lg backdrop-blur-xl lg:bg-espresso/95'
+            : 'bg-[#ead8a9] shadow-sm backdrop-blur-md lg:bg-gradient-to-b lg:from-espresso/75 lg:via-espresso/30 lg:to-transparent lg:shadow-none lg:backdrop-blur-[2px]'
         }`}
       >
-        <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-3 sm:px-6 lg:px-8" aria-label="Wedding navigation">
+        <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-2.5 sm:px-6 lg:px-8" aria-label="Wedding navigation">
           <div
             data-testid="mobile-wedding-top-nav"
-            className="flex w-full items-center justify-between lg:hidden"
+            className="flex w-full items-center gap-1.5 lg:hidden"
           >
-            <button
-              type="button"
-              data-testid="mobile-wedding-identity"
-              onClick={() => handleNavClick('#home')}
-              aria-label="Go to wedding home"
-              className="flex size-11 shrink-0 items-center justify-center rounded-full border border-gold/45 bg-espresso/55 font-serif text-sm tracking-[0.12em] text-gold shadow-sm backdrop-blur-md"
-            >
-              {identityMonogram}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleNavClick('#home')}
-              className="min-w-0 flex-1 px-3 text-center"
-              aria-label={`${coupleNames} wedding home`}
-            >
-              <span
-                data-testid="mobile-wedding-couple-names"
-                className="block truncate font-serif text-[17px] font-light leading-tight tracking-[0.025em] text-champagne"
-              >
-                {coupleNames}
-              </span>
-              {weddingDate && (
-                <span className="mt-0.5 block text-[8px] font-semibold uppercase tracking-[0.22em] text-gold/85">
-                  {weddingDate}
-                </span>
-              )}
-            </button>
+            {canSwitchWedding ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>{mobileIdentity}</DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  sideOffset={8}
+                  className="w-[min(86vw,340px)] border-espresso/15 bg-[#f5e7c4] p-2 text-espresso shadow-2xl"
+                >
+                  <DropdownMenuLabel className="px-2 pb-1 pt-1 text-[9px] font-bold uppercase tracking-[0.2em] text-espresso/55">
+                    My Weddings
+                  </DropdownMenuLabel>
+                  {guestWeddings.map((item) => {
+                    const current = item.slug === slug;
+                    const itemDate = mobileWeddingDate(item.date);
+                    return (
+                      <DropdownMenuItem
+                        key={item.weddingId}
+                        disabled={Boolean(switchingWedding)}
+                        onClick={() => {
+                          if (!current) void switchWedding(item.weddingId);
+                        }}
+                        className="min-h-14 cursor-pointer rounded-xl px-3 py-2 focus:bg-espresso/10 focus:text-espresso"
+                      >
+                        <div className="flex w-full items-center gap-3">
+                          <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-espresso font-serif text-xs tracking-[0.08em] text-gold">
+                            {item.monogram || item.coupleNames.split(/\s*&\s*/).map((name) => name[0]).join('')}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate font-serif text-base">{item.coupleNames}</p>
+                            <p className="text-[8px] font-semibold uppercase tracking-[0.17em] text-espresso/55">
+                              {itemDate}
+                            </p>
+                          </div>
+                          {current && <Check className="h-4 w-4 shrink-0 text-espresso" aria-hidden="true" />}
+                        </div>
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              mobileIdentity
+            )}
 
             <button
               type="button"
               data-testid="mobile-wedding-share"
               onClick={() => void handleShare()}
-              aria-label={shareCopied ? 'Wedding link copied' : 'Share wedding'}
-              title={shareCopied ? 'Link copied' : 'Share wedding'}
-              className="flex size-11 shrink-0 items-center justify-center rounded-full border border-gold/30 bg-espresso/45 text-champagne shadow-sm backdrop-blur-md transition hover:border-gold/60 hover:bg-gold/10 hover:text-gold"
+              aria-label={shareCopied ? 'Wedding website link copied' : 'Share Website'}
+              title={shareCopied ? 'Website link copied' : 'Share Website'}
+              className="flex h-11 w-[72px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-espresso/20 bg-white/25 text-espresso shadow-sm transition hover:bg-white/40"
             >
-              <Share2 className="h-[18px] w-[18px]" aria-hidden="true" />
+              <Share2 className="h-4 w-4" aria-hidden="true" />
+              <span className="text-[8px] font-bold uppercase leading-none tracking-[0.08em]">
+                {shareCopied ? 'Copied' : 'Share Website'}
+              </span>
             </button>
           </div>
 
