@@ -2,7 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Menu, MoreVertical, LogOut } from 'lucide-react';
+import {
+  CalendarCheck,
+  CircleHelp,
+  Heart,
+  Home,
+  LogOut,
+  MoreHorizontal,
+  MoreVertical,
+  Search,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import {
@@ -61,15 +70,22 @@ function fallbackMonogram(
 }
 
 export function Navbar({
+  slug,
   accessKind = null,
   viewerRole = null,
+  showMyWedding = false,
+  onMyWedding,
 }: {
+  slug: string;
   accessKind?: PublicWeddingAccessKind;
   viewerRole?: WeddingViewerRole;
+  showMyWedding?: boolean;
+  onMyWedding?: () => void;
 }) {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const [activeSection, setActiveSection] = useState<string>('');
   const t = useT();
   useLocale();
@@ -92,6 +108,19 @@ export function Navbar({
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  useEffect(() => {
+    if (accessKind !== 'public' || !showMyWedding) return;
+    const current = new URL(window.location.href);
+    if (
+      current.pathname === `/w/${encodeURIComponent(slug)}` &&
+      current.searchParams.get('site') === '1'
+    ) {
+      current.searchParams.delete('site');
+      const clean = `${current.pathname}${current.search}${current.hash}`;
+      window.history.replaceState(window.history.state, '', clean);
+    }
+  }, [accessKind, showMyWedding, slug]);
 
   useEffect(() => {
     const allLinks = [...PRIMARY_NAV, ...SECONDARY_NAV];
@@ -138,19 +167,73 @@ export function Navbar({
     if (el) el.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const handleMyWedding = () => {
+    setMobileOpen(false);
+    onMyWedding?.();
+  };
+
+  const leaveWedding = async () => {
+    setLeaving(true);
+    try {
+      await fetch(`/api/weddings/${encodeURIComponent(slug)}/guest-session`, {
+        method: 'DELETE',
+      });
+    } finally {
+      window.location.href = '/';
+    }
+  };
+
+  const platformMenuItems = (
+    <>
+      {showMyWedding && (
+        <DropdownMenuItem
+          onClick={handleMyWedding}
+          className="cursor-pointer focus:bg-gold/10 focus:text-gold"
+          data-testid="desktop-my-wedding-menu-cta"
+        >
+          <Heart className="mr-2 h-4 w-4 text-gold/70" />
+          <span className="font-sans text-xs uppercase tracking-[0.15em]">My Wedding</span>
+        </DropdownMenuItem>
+      )}
+      <DropdownMenuItem asChild className="cursor-pointer focus:bg-gold/10 focus:text-gold">
+        <a href="/planners">
+          <Search className="mr-2 h-4 w-4 text-gold/70" />
+          <span className="font-sans text-xs uppercase tracking-[0.15em]">Find a Planner</span>
+        </a>
+      </DropdownMenuItem>
+      <DropdownMenuItem asChild className="cursor-pointer focus:bg-gold/10 focus:text-gold">
+        <a href="/guest-access-help">
+          <CircleHelp className="mr-2 h-4 w-4 text-gold/70" />
+          <span className="font-sans text-xs uppercase tracking-[0.15em]">Guest Help</span>
+        </a>
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        onClick={() => void leaveWedding()}
+        disabled={leaving}
+        className="cursor-pointer focus:bg-gold/10 focus:text-gold"
+      >
+        <LogOut className="mr-2 h-4 w-4 text-gold/70" />
+        <span className="font-sans text-xs uppercase tracking-[0.15em]">
+          {leaving ? 'Leaving…' : 'Leave Wedding'}
+        </span>
+      </DropdownMenuItem>
+    </>
+  );
+
   return (
     <>
       <motion.header
         initial={{ y: -100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.8, ease: 'easeOut' }}
+        data-testid="wedding-top-nav"
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
           scrolled
             ? 'bg-espresso/95 shadow-lg backdrop-blur-md'
             : 'bg-gradient-to-b from-espresso/70 to-transparent backdrop-blur-sm'
         }`}
       >
-        <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8" aria-label="Wedding navigation">
           <div className="flex flex-col">
             <a
               href="#home"
@@ -194,16 +277,16 @@ export function Navbar({
 
           <div className="flex items-center gap-2">
             {isCoupleOwner && (
-              <div className="hidden md:block">
+              <div className="hidden lg:block">
                 <PlannerTrigger />
               </div>
             )}
 
-            <div className="hidden sm:flex items-center">
+            <div className="hidden lg:flex items-center">
               <BeforeAfterToggle />
             </div>
 
-            <div className="hidden sm:block">
+            <div className="hidden lg:block">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -218,9 +301,9 @@ export function Navbar({
                 <DropdownMenuContent
                   align="end"
                   sideOffset={8}
-                  className="w-56 border-gold/20 bg-espresso/98 text-champagne backdrop-blur-lg"
+                  className="w-60 border-gold/20 bg-espresso/98 text-champagne backdrop-blur-lg"
                 >
-                  <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gold/70">Explore</DropdownMenuLabel>
+                  <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gold/70">Wedding</DropdownMenuLabel>
                   {SECONDARY_NAV.map((link) => (
                     <DropdownMenuItem
                       key={link.href}
@@ -240,6 +323,10 @@ export function Navbar({
                     </DropdownMenuItem>
                   )}
 
+                  <DropdownMenuSeparator className="bg-gold/20" />
+                  <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gold/70">Wewed</DropdownMenuLabel>
+                  {platformMenuItems}
+
                   {showAdminLogout && (
                     <>
                       <DropdownMenuSeparator className="bg-gold/20" />
@@ -248,7 +335,7 @@ export function Navbar({
                         className="cursor-pointer focus:bg-gold/10 focus:text-gold"
                       >
                         <LogOut className="mr-2 h-4 w-4 text-gold/70" />
-                        <span className="font-sans text-xs uppercase tracking-[0.15em]">Logout</span>
+                        <span className="font-sans text-xs uppercase tracking-[0.15em]">Admin Logout</span>
                       </DropdownMenuItem>
                     </>
                   )}
@@ -262,23 +349,57 @@ export function Navbar({
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-champagne hover:bg-transparent hover:text-gold lg:hidden"
-              onClick={() => setMobileOpen(true)}
-              aria-label="Open navigation menu"
-            >
-              <Menu className="h-5 w-5" />
-            </Button>
           </div>
         </nav>
       </motion.header>
 
+      <nav
+        data-testid="mobile-wedding-bottom-nav"
+        aria-label="Wedding app navigation"
+        className="fixed inset-x-0 bottom-0 z-[70] border-t border-gold/20 bg-espresso/95 px-2 pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1.5 shadow-[0_-10px_30px_rgba(0,0,0,0.18)] backdrop-blur-xl lg:hidden"
+      >
+        <div className="mx-auto flex max-w-lg items-stretch justify-around gap-1">
+          <button
+            type="button"
+            onClick={() => handleNavClick('#home')}
+            className="flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-semibold text-champagne/80 transition hover:bg-gold/10 hover:text-gold"
+          >
+            <Home className="h-5 w-5" aria-hidden="true" />
+            <span>Wedding</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleNavClick('#rsvp')}
+            className="flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-semibold text-champagne/80 transition hover:bg-gold/10 hover:text-gold"
+          >
+            <CalendarCheck className="h-5 w-5" aria-hidden="true" />
+            <span>RSVP</span>
+          </button>
+          {showMyWedding && (
+            <button
+              type="button"
+              data-testid="my-wedding-nav-cta"
+              onClick={handleMyWedding}
+              className="flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl bg-gold/10 px-1 text-[10px] font-semibold text-gold transition hover:bg-gold/15"
+            >
+              <Heart className="h-5 w-5" aria-hidden="true" />
+              <span>My Wedding</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setMobileOpen(true)}
+            className="flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-semibold text-champagne/80 transition hover:bg-gold/10 hover:text-gold"
+          >
+            <MoreHorizontal className="h-5 w-5" aria-hidden="true" />
+            <span>More</span>
+          </button>
+        </div>
+      </nav>
+
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent side="right" className="border-gold/20 bg-espresso/98 backdrop-blur-lg">
-          <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
+        <SheetContent side="right" className="border-gold/20 bg-espresso/98 pb-[max(1.5rem,env(safe-area-inset-bottom))] backdrop-blur-lg">
+          <SheetTitle className="sr-only">Wedding menu</SheetTitle>
           <div className="flex flex-col items-center gap-1 pt-8">
             <p className="wewed-monogram mb-6 text-sm">{monogram}</p>
 
@@ -300,16 +421,45 @@ export function Navbar({
                   }`}
                 >
                   {t(link.key)}
-                  {isActive && (
-                    <span
-                      className="absolute left-1/2 top-1/2 h-8 w-px -translate-y-1/2 bg-gold/40"
-                      aria-hidden="true"
-                      style={{ left: 'calc(50% - 2.5rem)' }}
-                    />
-                  )}
                 </motion.a>
               );
             })}
+
+            <div className="my-4 h-px w-24 bg-gold/20" />
+
+            {showMyWedding && (
+              <button
+                type="button"
+                onClick={handleMyWedding}
+                className="inline-flex w-full items-center justify-center gap-2 py-3 font-sans text-xs font-semibold uppercase tracking-[0.16em] text-gold"
+              >
+                <Heart className="h-4 w-4" aria-hidden="true" />
+                My Wedding
+              </button>
+            )}
+            <a
+              href="/planners"
+              className="inline-flex w-full items-center justify-center gap-2 py-3 font-sans text-xs font-semibold uppercase tracking-[0.16em] text-champagne hover:text-gold"
+            >
+              <Search className="h-4 w-4" aria-hidden="true" />
+              Find a Planner
+            </a>
+            <a
+              href="/guest-access-help"
+              className="inline-flex w-full items-center justify-center gap-2 py-3 font-sans text-xs font-semibold uppercase tracking-[0.16em] text-champagne hover:text-gold"
+            >
+              <CircleHelp className="h-4 w-4" aria-hidden="true" />
+              Guest Help
+            </a>
+            <button
+              type="button"
+              onClick={() => void leaveWedding()}
+              disabled={leaving}
+              className="inline-flex w-full items-center justify-center gap-2 py-3 font-sans text-xs font-semibold uppercase tracking-[0.16em] text-champagne/70 hover:text-gold disabled:opacity-50"
+            >
+              <LogOut className="h-4 w-4" aria-hidden="true" />
+              {leaving ? 'Leaving…' : 'Leave Wedding'}
+            </button>
 
             {isCoupleOwner && <div className="mt-6"><PlannerTrigger /></div>}
             {isCoupleOwner && <div className="mt-4"><QrGatewayTrigger onOpen={() => { setMobileOpen(false); setQrOpen(true); }} /></div>}
@@ -328,7 +478,7 @@ export function Navbar({
                 className="mt-4 text-champagne/70 hover:text-gold"
               >
                 <LogOut className="mr-2 h-3.5 w-3.5" />
-                Logout
+                Admin Logout
               </Button>
             )}
           </div>

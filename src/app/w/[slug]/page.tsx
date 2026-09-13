@@ -216,6 +216,7 @@ export default async function WeddingPage({
       initialData={initialData}
       invitationMode={personalInvitationExperience}
       invitationCardStyle={personalInvitationCardStyle}
+      sharedPhysicalInvitation={sharedPhysicalCoupleSite}
     />
   )
 }

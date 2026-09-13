@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { useWewedStore } from '@/lib/store'
 import { WeddingDataProvider, useWeddingContext } from '@/components/wedding/wedding-data-provider'
 import { Navbar } from '@/components/wedding/navbar'
-import { WeddingPlatformNav } from '@/components/wedding/wedding-platform-nav'
 import { GlobalWeddingTools } from '@/components/wedding/global-wedding-tools'
 import { HeroSection } from '@/components/wedding/hero-section'
 import { CountdownBanner } from '@/components/wedding/countdown-banner'
@@ -54,6 +53,7 @@ export function WeddingHome({
   initialData = null,
   invitationMode = false,
   invitationCardStyle = null,
+  sharedPhysicalInvitation = false,
 }: {
   slug?: string
   accessKind?: PublicWeddingAccessKind
@@ -61,6 +61,7 @@ export function WeddingHome({
   initialData?: WeddingData | null
   invitationMode?: boolean
   invitationCardStyle?: InvitationCardStyle | null
+  sharedPhysicalInvitation?: boolean
 }) {
   return (
     <WeddingDataProvider slug={slug} initialData={initialData}>
@@ -69,6 +70,7 @@ export function WeddingHome({
         viewerRole={viewerRole}
         invitationMode={invitationMode}
         invitationCardStyle={invitationCardStyle}
+        sharedPhysicalInvitation={sharedPhysicalInvitation}
       />
     </WeddingDataProvider>
   )
@@ -79,11 +81,13 @@ function WeddingHomeContent({
   viewerRole,
   invitationMode,
   invitationCardStyle,
+  sharedPhysicalInvitation,
 }: {
   accessKind: PublicWeddingAccessKind
   viewerRole: WeddingViewerRole
   invitationMode: boolean
   invitationCardStyle: InvitationCardStyle | null
+  sharedPhysicalInvitation: boolean
 }) {
   const lifecycle = useWewedStore((state) => state.lifecycle)
   const setLifecycle = useWewedStore((state) => state.setLifecycle)
@@ -218,9 +222,19 @@ function WeddingHomeContent({
   }
 
   function reopenInvitation() {
-    setInvitationVisible(true)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    if (invitationAvailable) {
+      setInvitationVisible(true)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
+
+    if (sharedPhysicalInvitation && slug) {
+      window.location.assign(`/w/${encodeURIComponent(slug)}`)
+    }
   }
+
+  const showWeddingChrome = !showPersonalInvitation
+  const showMyWedding = invitationAvailable || sharedPhysicalInvitation
 
   return (
     <div className="min-h-screen flex flex-col bg-background" data-personal-invitation={showPersonalInvitation ? '1' : '0'}>
@@ -247,8 +261,15 @@ function WeddingHomeContent({
       )}
 
       <div id="wedding-details" className="scroll-mt-4">
-        <Navbar accessKind={accessKind} viewerRole={viewerRole} />
-        <WeddingPlatformNav slug={slug} />
+        {showWeddingChrome && (
+          <Navbar
+            slug={slug}
+            accessKind={accessKind}
+            viewerRole={viewerRole}
+            showMyWedding={showMyWedding}
+            onMyWedding={reopenInvitation}
+          />
+        )}
         <main id="main-content" className="flex-1" data-canonical-template="classic" data-invitation-theme={showPersonalInvitation ? invitationCardStyle ?? undefined : undefined}>
           <HeroSection />
           {isCoupleOwner && <PlannerMarketplaceInvitation />}
@@ -299,22 +320,14 @@ function WeddingHomeContent({
         </main>
       </div>
 
-      {invitationAvailable && !showPersonalInvitation && invitationCardStyle && (
-        <button
-          type="button"
-          data-testid="view-invitation-button"
-          onClick={reopenInvitation}
-          className="print:hidden fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-[80] min-h-12 -translate-x-1/2 rounded-full border border-[#b89155]/55 bg-[#211b16] px-5 py-3 text-sm font-semibold text-[#f8f1e7] shadow-2xl backdrop-blur transition hover:bg-[#2a2119] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c8a56b]"
-        >
-          View invitation
-        </button>
-      )}
-
       {mounted && invitationAvailable && invitationCardStyle && (
         <PremiumInvitationRsvpDialog slug={slug} style={invitationCardStyle} />
       )}
       {mounted && !invitationAvailable && <InvitationRsvpDialog />}
       <Footer />
+      {showWeddingChrome && (
+        <div className="h-[calc(4.5rem+env(safe-area-inset-bottom))] lg:hidden" aria-hidden="true" />
+      )}
       <GlobalWeddingTools accessKind={accessKind} viewerRole={viewerRole} />
       <div className="wewed-print-footer" aria-hidden="true">
         Printed from wewed.pro/w/{slug} · {names} · {date}

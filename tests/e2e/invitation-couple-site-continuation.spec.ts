@@ -16,9 +16,10 @@ async function enablePersonalInvitationFixture() {
   }
 }
 
-test('RSVP returns to the same Couple Site, My Wedding reopens Ivory, and re-entry welcomes the guest again', async ({ plannerPage: page }) => {
+test('mobile Couple Site uses top plus bottom app nav, My Wedding reopens Ivory, and re-entry welcomes the guest again', async ({ plannerPage: page }) => {
   await enablePersonalInvitationFixture()
   await page.context().clearCookies()
+  await page.setViewportSize({ width: 390, height: 844 })
 
   const token = `${E2E_WEDDINGS.primary.slug}-rsvp-token`
   await page.goto(
@@ -42,6 +43,7 @@ test('RSVP returns to the same Couple Site, My Wedding reopens Ivory, and re-ent
     'ivory-floral-gold',
   )
   await expect(page.getByTestId('invitation-countdown')).toBeVisible()
+  await expect(page.getByTestId('mobile-wedding-bottom-nav')).toHaveCount(0)
   await expect(card).toHaveAttribute('data-artwork-ready', 'true', {
     timeout: 5_000,
   })
@@ -73,20 +75,20 @@ test('RSVP returns to the same Couple Site, My Wedding reopens Ivory, and re-ent
   expect(page.url()).not.toContain(token)
   await expect(page.getByTestId('premium-invitation-experience')).toHaveCount(0)
   await expect(page.locator('main#main-content')).toBeVisible()
+  await expect(page.getByTestId('wedding-top-nav')).toBeVisible()
+  await expect(page.getByTestId('mobile-wedding-bottom-nav')).toBeVisible()
+  await expect(page.locator('nav[aria-label="Wewed platform links"]')).toHaveCount(0)
+  await expect(page.getByText('Powered by Wewed', { exact: true })).toHaveCount(0)
+  await expect(page.getByTestId('view-invitation-button')).toHaveCount(0)
 
   const myWedding = page.getByTestId('my-wedding-nav-cta')
   await expect(myWedding).toBeVisible()
   await expect(myWedding).toHaveText('My Wedding')
-  await expect(myWedding).toHaveAttribute(
-    'href',
-    `/w/${E2E_WEDDINGS.primary.slug}?invitation=1&card=ivory-floral-gold`,
-  )
   await myWedding.click()
 
-  await expect(page).toHaveURL(
-    new RegExp(`/w/${E2E_WEDDINGS.primary.slug}\\?invitation=1&card=ivory-floral-gold$`),
-  )
+  await expect(page).toHaveURL(new RegExp(`/w/${E2E_WEDDINGS.primary.slug}$`))
   await expect(page.getByTestId('premium-invitation-experience')).toBeVisible()
+  await expect(page.getByTestId('mobile-wedding-bottom-nav')).toHaveCount(0)
   await expect(page.getByTestId('premium-invitation-experience')).toHaveAttribute(
     'data-invitation-style',
     'ivory-floral-gold',
