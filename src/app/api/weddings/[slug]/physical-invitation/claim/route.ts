@@ -168,9 +168,12 @@ export async function POST(request: NextRequest, { params }: Params) {
     return emailMatches || phoneMatches
   })
 
-  if (matched.length !== 1 || !matched[0].rsvp) return delayedFailure()
+  if (matched.length !== 1) return delayedFailure()
 
   const guest = matched[0]
+  const rsvpToken = guest?.rsvp?.token
+  if (!guest || !rsvpToken) return delayedFailure()
+
   const isDedicatedPreviewWedding =
     process.env.VERCEL_ENV === 'preview' &&
     process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID === wedding.id
@@ -190,7 +193,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   setWeddingGuestSessionCookie(response, {
     weddingId: wedding.id,
     guestId: guest.id,
-    rsvpToken: guest.rsvp.token,
+    rsvpToken,
   })
   setWeddingGuestPortfolioCookie(
     response,
