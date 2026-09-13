@@ -1,0 +1,28 @@
+/* Mobile guest experience rules that should not alter approved invitation artwork geometry. */
+
+@media (max-width: 540px) {
+  [data-testid='premium-invitation-experience'][data-invitation-style='ivory-floral-gold'] {
+    min-height: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+    background: #f5ead9 !important;
+  }
+
+  [data-testid='premium-invitation-experience'][data-invitation-style='ivory-floral-gold'] .ivory-stage {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+  }
+
+  [data-testid='premium-invitation-experience'][data-invitation-style='ivory-floral-gold'] .ivory-object {
+    box-shadow: none !important;
+  }
+
+  [data-testid='premium-invitation-experience'][data-invitation-style='ivory-floral-gold'] > .relative.z-10.mx-auto.w-full {
+    max-width: none !important;
+    margin-inline: 0 !important;
+  }
+}
