@@ -25,4 +25,29 @@
     max-width: none !important;
     margin-inline: 0 !important;
   }
+
+  /* Printed-card entry used to add another 16px page gutter and rounded frame.
+     On mobile the phone itself is the invitation frame; keep only the countdown
+     and RSVP claim form inset while the approved Ivory artwork runs edge-to-edge. */
+  [data-testid='physical-invitation-claim'] {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  [data-testid='physical-invitation-claim'] [data-testid='invitation-countdown'] {
+    margin-left: 1rem;
+    margin-right: 1rem;
+  }
+
+  [data-testid='physical-invitation-claim'] div:has(> [data-testid='premium-invitation-experience']) {
+    overflow: visible !important;
+    border-width: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  [data-testid='physical-invitation-claim'] [data-testid='physical-invitation-rsvp-claim'] {
+    margin-left: 1rem;
+    margin-right: 1rem;
+  }
 }
