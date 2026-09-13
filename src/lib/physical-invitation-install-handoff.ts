@@ -54,8 +54,16 @@ function encrypt(payload: PhysicalInvitationHandoffPayload): string {
 function decrypt(token: string): PhysicalInvitationHandoffPayload | null {
   if (!isValidPhysicalInvitationHandoff(token)) return null
   try {
-    const packed = Buffer.from(token.slice(TOKEN_PREFIX.length), 'base64url')
+    const encoded = token.slice(TOKEN_PREFIX.length)
+    const packed = Buffer.from(encoded, 'base64url')
+
+    // Node's base64url decoder is intentionally permissive about unused bits
+    // in the final character. Reject alternate textual encodings that decode to
+    // the same ciphertext so the handoff has one canonical representation and
+    // any URL/referrer mutation fails closed before AES-GCM verification.
+    if (packed.toString('base64url') !== encoded) return null
     if (packed.length <= IV_BYTES + TAG_BYTES) return null
+
     const iv = packed.subarray(0, IV_BYTES)
     const tag = packed.subarray(IV_BYTES, IV_BYTES + TAG_BYTES)
     const ciphertext = packed.subarray(IV_BYTES + TAG_BYTES)
