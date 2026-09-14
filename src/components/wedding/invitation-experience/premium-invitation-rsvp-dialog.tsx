@@ -94,22 +94,34 @@ export function PremiumInvitationRsvpDialog({
     setError(null)
     const form = new FormData(event.currentTarget)
     const accepting = attendance === 'accept'
+    const rsvpUpdate: Record<string, unknown> = {
+      originGuestId: data.guest.id,
+      attending: accepting,
+      plusOne: accepting ? plusOne : false,
+      kidsAttending: accepting ? kidsAttending : false,
+      message: form.get('message') || null,
+    }
+
+    // Progressive disclosure must never become destructive persistence. Fields
+    // hidden because the guest declines, removes a plus-one, or removes children
+    // are omitted so the server's partial-update contract preserves prior details.
+    if (accepting) {
+      rsvpUpdate.mealChoice = form.get('mealChoice') || null
+      rsvpUpdate.dietaryNotes = form.get('dietaryNotes') || null
+      if (plusOne) {
+        rsvpUpdate.plusOneName = form.get('plusOneName') || null
+        rsvpUpdate.plusOneMeal = form.get('plusOneMeal') || null
+      }
+      if (kidsAttending) {
+        rsvpUpdate.kidsCount = kidsCount
+      }
+    }
+
     try {
       const response = await fetch(`/api/weddings/${encodeURIComponent(slug)}/guest-session`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          originGuestId: data.guest.id,
-          attending: accepting,
-          mealChoice: accepting ? form.get('mealChoice') || null : null,
-          plusOne: accepting ? plusOne : false,
-          plusOneName: accepting && plusOne ? form.get('plusOneName') || null : null,
-          plusOneMeal: accepting && plusOne ? form.get('plusOneMeal') || null : null,
-          kidsAttending: accepting ? kidsAttending : false,
-          kidsCount: accepting && kidsAttending ? kidsCount : 0,
-          dietaryNotes: accepting ? form.get('dietaryNotes') || null : null,
-          message: form.get('message') || null,
-        }),
+        body: JSON.stringify(rsvpUpdate),
       })
       const payload = await response.json()
       if (!response.ok || !payload.success) throw new Error(payload.error || 'Unable to save RSVP.')
