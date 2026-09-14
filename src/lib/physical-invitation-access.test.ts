@@ -75,11 +75,16 @@ describe('bulk physical invitation access', () => {
     expect(physicalStyleBlock).not.toContain('query.card')
 
     // Personal invited-guest re-entry may legitimately recover the chosen style
-    // from its own URL before falling back to the persisted wedding style. That
-    // must remain separate from the physical/shared invitation authority above.
+    // from its own URL or its signed, wedding-and-guest-scoped portfolio entry before
+    // falling back to the persisted wedding style. That remains separate from the
+    // anonymous physical/shared invitation authority above.
+    expect(page).toContain('const portfolioInvitationCardStyle = resolution.guest')
+    expect(page).toContain('entry.weddingId === wedding.id')
+    expect(page).toContain('entry.weddingSlug === wedding.slug')
+    expect(page).toContain('entry.guestId === resolution.guest?.id')
     expect(page).toContain('const personalInvitationCardStyle =')
     expect(page).toContain(
-      'normalizeInvitationCardStyle(query.card || wedding.invitationCardStyle)',
+      'query.card || portfolioInvitationCardStyle || wedding.invitationCardStyle',
     )
 
     expect(claim).not.toContain('body?.card')
