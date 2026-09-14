@@ -117,7 +117,7 @@ test('public platform, invitation card exchange, API privacy and token rotation 
   const invitationDialog = page.getByTestId('premium-invitation-rsvp-dialog')
   await expect(invitationDialog).toBeVisible()
   await expect(invitationDialog.getByRole('heading', { name: 'Your private RSVP' })).toBeVisible()
-  await invitationDialog.locator('form').getByRole('button', { name: 'Close', exact: true }).click()
+  await invitationDialog.locator('form').getByRole('button', { name: 'Close RSVP', exact: true }).click()
   await expect(page.locator('nav[aria-label="Wedding footer links"]')).toHaveCount(0)
   await expect(page.getByText('Powered by Wewed', { exact: true })).toHaveCount(0)
 
