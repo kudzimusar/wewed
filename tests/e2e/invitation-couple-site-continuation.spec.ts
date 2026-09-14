@@ -217,7 +217,7 @@ test('mobile Couple Site uses premium app chrome, full-bleed Ivory, My Wedding r
   // still reopen that guest's original Ivory invitation rather than the new default.
   await setWeddingInvitationStyle('botanical')
 
-  await page.getByRole('button', { name: 'Back to Wewed Couple Site' }).click()
+  await page.getByRole('button', { name: 'Visit Couple Website' }).click()
   await expect(page).toHaveURL(new RegExp(`/w/${E2E_WEDDINGS.primary.slug}$`))
 
   const returnedUrl = new URL(page.url())
