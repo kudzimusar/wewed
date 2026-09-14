@@ -16,6 +16,7 @@ import {
 } from '@/lib/digital-invitation-card'
 
 interface InvitationData {
+  wedding: { childrenPolicy: 'welcome' | 'adults_only' }
   guest: { id: string; name: string; email: string | null; tableNumber: number | null }
   rsvp: {
     attending: boolean | null
@@ -63,11 +64,18 @@ export function PremiumInvitationRsvpDialog({
       if (!response.ok || !payload.success) {
         throw new Error(payload.error || 'Invitation access is not active.')
       }
-      const nextData = { guest: payload.guest, rsvp: payload.rsvp } as InvitationData
+      const childrenPolicy = payload.wedding?.childrenPolicy === 'adults_only' ? 'adults_only' : 'welcome'
+      const nextData = {
+        wedding: { childrenPolicy },
+        guest: payload.guest,
+        rsvp: payload.rsvp,
+      } as InvitationData
       setData(nextData)
       setAttendance(nextData.rsvp.attending === false ? 'decline' : 'accept')
       setPlusOne(Boolean(nextData.rsvp.plusOne))
-      setKidsAttending(Boolean(nextData.rsvp.kidsAttending))
+      setKidsAttending(
+        childrenPolicy === 'adults_only' ? false : Boolean(nextData.rsvp.kidsAttending),
+      )
       setKidsCount(Math.max(0, Number(nextData.rsvp.kidsCount) || 0))
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Invitation access is not active.')
@@ -91,20 +99,23 @@ export function PremiumInvitationRsvpDialog({
     event.preventDefault()
     if (!data) return
     setSaving(true)
+    setSaved(false)
     setError(null)
     const form = new FormData(event.currentTarget)
     const accepting = attendance === 'accept'
+    const adultsOnly = data.wedding.childrenPolicy === 'adults_only'
     const rsvpUpdate: Record<string, unknown> = {
       originGuestId: data.guest.id,
       attending: accepting,
       plusOne: accepting ? plusOne : false,
-      kidsAttending: accepting ? kidsAttending : false,
+      kidsAttending: accepting && !adultsOnly ? kidsAttending : false,
       message: form.get('message') || null,
     }
 
     // Progressive disclosure must never become destructive persistence. Fields
-    // hidden because the guest declines, removes a plus-one, or removes children
-    // are omitted so the server's partial-update contract preserves prior details.
+    // hidden because the guest declines, removes a plus-one, removes children,
+    // or is subject to an adults-only policy are omitted so prior details remain
+    // available if the participation state or wedding policy later changes.
     if (accepting) {
       rsvpUpdate.mealChoice = form.get('mealChoice') || null
       rsvpUpdate.dietaryNotes = form.get('dietaryNotes') || null
@@ -112,7 +123,7 @@ export function PremiumInvitationRsvpDialog({
         rsvpUpdate.plusOneName = form.get('plusOneName') || null
         rsvpUpdate.plusOneMeal = form.get('plusOneMeal') || null
       }
-      if (kidsAttending) {
+      if (!adultsOnly && kidsAttending) {
         rsvpUpdate.kidsCount = kidsCount
       }
     }
@@ -144,6 +155,7 @@ export function PremiumInvitationRsvpDialog({
     background: `${theme.palette.paper}e8`,
     color: theme.palette.ink,
   }
+  const adultsOnly = data?.wedding.childrenPolicy === 'adults_only'
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -175,7 +187,7 @@ export function PremiumInvitationRsvpDialog({
           </div>
         )}
 
-        {error && (
+        {error && !data && (
           <div
             role="alert"
             className="mx-6 mb-5 rounded-2xl border px-4 py-3 text-sm sm:mx-8"
@@ -186,17 +198,13 @@ export function PremiumInvitationRsvpDialog({
         )}
 
         {data && !loading && (
-          <form onSubmit={submit} className="space-y-6 px-6 pb-0 sm:px-8">
-            {saved && (
-              <div
-                className="flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm"
-                style={{ borderColor: `${theme.palette.primary}66`, background: selectedSurface }}
-              >
-                <CheckCircle2 className="size-4" aria-hidden="true" />
-                Your RSVP has been saved.
-              </div>
-            )}
-
+          <form
+            onSubmit={submit}
+            onChange={() => {
+              if (saved) setSaved(false)
+            }}
+            className="space-y-6 px-6 pb-0 sm:px-8"
+          >
             <div
               className="rounded-2xl border px-5 py-4"
               style={{ borderColor: cardBorder, background: softSurface }}
@@ -218,7 +226,10 @@ export function PremiumInvitationRsvpDialog({
               <RadioGroup
                 name="attendance"
                 value={attendance}
-                onValueChange={(value) => setAttendance(value as AttendanceChoice)}
+                onValueChange={(value) => {
+                  setSaved(false)
+                  setAttendance(value as AttendanceChoice)
+                }}
                 required
                 className="grid gap-3 sm:grid-cols-2"
               >
@@ -292,7 +303,10 @@ export function PremiumInvitationRsvpDialog({
                       id="premium-invite-plus-one"
                       aria-label="I am bringing a plus-one"
                       checked={plusOne}
-                      onCheckedChange={(value) => setPlusOne(value === true)}
+                      onCheckedChange={(value) => {
+                        setSaved(false)
+                        setPlusOne(value === true)
+                      }}
                       className="!size-6 rounded-md border-2 shadow-none"
                       style={{
                         borderColor: theme.palette.primary,
@@ -337,67 +351,87 @@ export function PremiumInvitationRsvpDialog({
                   )}
                 </section>
 
-                <section
-                  className="rounded-2xl border p-4"
-                  style={{ borderColor: cardBorder, background: kidsAttending ? selectedSurface : `${theme.palette.paper}a8` }}
-                >
-                  <div className="flex min-h-10 items-center gap-3">
-                    <Checkbox
-                      name="kidsAttending"
-                      id="premium-invite-kids"
-                      aria-label="Children are attending"
-                      checked={kidsAttending}
-                      onCheckedChange={(value) => {
-                        const checked = value === true
-                        setKidsAttending(checked)
-                        if (checked) {
-                          setKidsCount((current) => Math.max(1, current))
-                        }
-                      }}
-                      className="!size-6 rounded-md border-2 shadow-none"
-                      style={{
-                        borderColor: theme.palette.primary,
-                        background: kidsAttending ? theme.palette.primary : theme.palette.paper,
-                        color: theme.palette.paper,
-                      }}
-                    />
-                    <Label htmlFor="premium-invite-kids" className="cursor-pointer text-base font-semibold">
-                      Children are attending
-                    </Label>
-                  </div>
-
-                  {kidsAttending && (
-                    <div data-testid="premium-rsvp-kids-stepper" className="mt-4 flex items-center justify-between rounded-xl border px-3 py-2" style={controlStyle}>
-                      <span className="text-sm font-medium">Number of children</span>
-                      <div className="flex items-center gap-3">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          aria-label="Remove one child"
-                          className="size-9 rounded-full"
-                          onClick={() => setKidsCount((current) => Math.max(1, current - 1))}
-                        >
-                          <Minus className="size-4" />
-                        </Button>
-                        <output className="min-w-6 text-center font-serif text-xl" aria-live="polite">
-                          {kidsCount}
-                        </output>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          aria-label="Add one child"
-                          className="size-9 rounded-full"
-                          onClick={() => setKidsCount((current) => Math.min(20, current + 1))}
-                        >
-                          <Plus className="size-4" />
-                        </Button>
-                        <input type="hidden" name="kidsCount" value={kidsCount} />
-                      </div>
+                {adultsOnly ? (
+                  <section
+                    data-testid="premium-rsvp-adults-only-note"
+                    className="rounded-2xl border px-5 py-4 text-center"
+                    style={{ borderColor: `${theme.palette.primary}66`, background: selectedSurface }}
+                  >
+                    <p className="text-sm font-semibold">Adults-only celebration</p>
+                    <p className="mt-1 text-sm leading-6" style={{ color: theme.palette.muted }}>
+                      With love, we kindly ask that this be an adults-only celebration.
+                    </p>
+                  </section>
+                ) : (
+                  <section
+                    className="rounded-2xl border p-4"
+                    style={{ borderColor: cardBorder, background: kidsAttending ? selectedSurface : `${theme.palette.paper}a8` }}
+                  >
+                    <div className="flex min-h-10 items-center gap-3">
+                      <Checkbox
+                        name="kidsAttending"
+                        id="premium-invite-kids"
+                        aria-label="Children are attending"
+                        checked={kidsAttending}
+                        onCheckedChange={(value) => {
+                          setSaved(false)
+                          const checked = value === true
+                          setKidsAttending(checked)
+                          if (checked) {
+                            setKidsCount((current) => Math.max(1, current))
+                          }
+                        }}
+                        className="!size-6 rounded-md border-2 shadow-none"
+                        style={{
+                          borderColor: theme.palette.primary,
+                          background: kidsAttending ? theme.palette.primary : theme.palette.paper,
+                          color: theme.palette.paper,
+                        }}
+                      />
+                      <Label htmlFor="premium-invite-kids" className="cursor-pointer text-base font-semibold">
+                        Children are attending
+                      </Label>
                     </div>
-                  )}
-                </section>
+
+                    {kidsAttending && (
+                      <div data-testid="premium-rsvp-kids-stepper" className="mt-4 flex items-center justify-between rounded-xl border px-3 py-2" style={controlStyle}>
+                        <span className="text-sm font-medium">Number of children</span>
+                        <div className="flex items-center gap-3">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            aria-label="Remove one child"
+                            className="size-9 rounded-full"
+                            onClick={() => {
+                              setSaved(false)
+                              setKidsCount((current) => Math.max(1, current - 1))
+                            }}
+                          >
+                            <Minus className="size-4" />
+                          </Button>
+                          <output className="min-w-6 text-center font-serif text-xl" aria-live="polite">
+                            {kidsCount}
+                          </output>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            aria-label="Add one child"
+                            className="size-9 rounded-full"
+                            onClick={() => {
+                              setSaved(false)
+                              setKidsCount((current) => Math.min(20, current + 1))
+                            }}
+                          >
+                            <Plus className="size-4" />
+                          </Button>
+                          <input type="hidden" name="kidsCount" value={kidsCount} />
+                        </div>
+                      </div>
+                    )}
+                  </section>
+                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="premium-invite-dietary" className="text-sm font-semibold">
@@ -432,30 +466,60 @@ export function PremiumInvitationRsvpDialog({
             </div>
 
             <div
-              className="sticky bottom-0 z-10 -mx-6 mt-7 flex flex-col-reverse gap-2 border-t px-6 py-4 backdrop-blur-md sm:-mx-8 sm:flex-row sm:justify-end sm:px-8"
+              className="sticky bottom-0 z-10 -mx-6 mt-7 border-t px-6 py-4 backdrop-blur-md sm:-mx-8 sm:px-8"
               style={{
                 borderColor: cardBorder,
                 background: `${theme.palette.paper}f2`,
                 boxShadow: '0 -12px 28px rgba(69, 47, 23, 0.08)',
               }}
             >
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setOpen(false)}
-                className="h-11 rounded-full px-6"
-                style={{ borderColor: cardBorder, background: `${theme.palette.paper}cc` }}
-              >
-                Close RSVP
-              </Button>
-              <Button
-                disabled={saving}
-                className="h-11 rounded-full px-7 font-semibold shadow-lg"
-                style={{ background: theme.palette.primary, color: theme.palette.paper }}
-              >
-                {saving ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-                Save RSVP
-              </Button>
+              {error && (
+                <div
+                  data-testid="premium-rsvp-save-error"
+                  role="alert"
+                  className="mb-3 rounded-xl border px-4 py-2.5 text-sm"
+                  style={{ borderColor: `${theme.palette.primary}66`, background: softSurface }}
+                >
+                  {error}
+                </div>
+              )}
+              {saved && (
+                <div
+                  data-testid="premium-rsvp-save-status"
+                  role="status"
+                  className="mb-3 flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium"
+                  style={{ borderColor: `${theme.palette.primary}66`, background: selectedSurface }}
+                >
+                  <CheckCircle2 className="size-4" aria-hidden="true" />
+                  Your RSVP has been saved.
+                </div>
+              )}
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setOpen(false)}
+                  className="h-11 rounded-full px-6"
+                  style={{ borderColor: cardBorder, background: `${theme.palette.paper}cc` }}
+                >
+                  Close RSVP
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={saving}
+                  className="h-11 rounded-full px-7 font-semibold shadow-lg"
+                  style={{ background: theme.palette.primary, color: theme.palette.paper }}
+                >
+                  {saving ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : saved ? (
+                    <CheckCircle2 className="size-4" />
+                  ) : (
+                    <Check className="size-4" />
+                  )}
+                  {saving ? 'Saving…' : saved ? 'Saved' : 'Save RSVP'}
+                </Button>
+              </div>
             </div>
           </form>
         )}
