@@ -254,6 +254,7 @@ export function PremiumInvitationRsvpDialog({
                   <Select name="mealChoice" defaultValue={data.rsvp.mealChoice || undefined}>
                     <SelectTrigger
                       id="premium-invite-meal"
+                      aria-label="Meal preference"
                       className="h-12 rounded-xl border px-4 shadow-none focus:ring-2"
                       style={controlStyle}
                     >
@@ -391,6 +392,7 @@ export function PremiumInvitationRsvpDialog({
                   <Textarea
                     id="premium-invite-dietary"
                     name="dietaryNotes"
+                    aria-label="Dietary notes"
                     defaultValue={data.rsvp.dietaryNotes || ''}
                     placeholder="Allergies or dietary needs"
                     className="min-h-24 rounded-xl border p-3 shadow-none"
@@ -407,6 +409,7 @@ export function PremiumInvitationRsvpDialog({
               <Textarea
                 id="premium-invite-message"
                 name="message"
+                aria-label="Message to the couple"
                 defaultValue={data.rsvp.message || ''}
                 placeholder="Share a note with the couple"
                 className="min-h-28 rounded-xl border p-3 shadow-none"
