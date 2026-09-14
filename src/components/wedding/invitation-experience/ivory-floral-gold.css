@@ -124,7 +124,9 @@
 }
 
 .ivory-guest {
+  gap: 0.25cqw;
   font-size: 2.2cqw;
+  line-height: 1.4;
 }
 
 .ivory-monogram {
@@ -342,11 +344,22 @@
   }
 }
 
-.ivory-back,
-.ivory-site {
+.ivory-footer-actions {
   position: absolute;
+  left: 50%;
   bottom: 1.35%;
   z-index: 7;
+  display: flex;
+  width: 94%;
+  transform: translateX(-50%);
+  align-items: center;
+  justify-content: center;
+  gap: 1.4cqw;
+}
+
+.ivory-back,
+.ivory-site {
+  position: static;
   min-height: 30px;
   border: 1px solid rgba(155, 111, 48, 0.42);
   border-radius: 999px;
@@ -357,16 +370,8 @@
   font-size: clamp(10px, 2.55cqw, 12px);
   line-height: 1.1;
   text-decoration: none;
+  white-space: nowrap;
   backdrop-filter: blur(4px);
-}
-
-.ivory-back {
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-.ivory-site {
-  right: 3%;
 }
 
 .ivory-back:focus-visible,
