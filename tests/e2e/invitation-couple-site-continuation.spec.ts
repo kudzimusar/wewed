@@ -99,19 +99,78 @@ test('mobile Couple Site uses premium app chrome, full-bleed Ivory, My Wedding r
 
   await rsvpDialog.getByLabel('I am bringing a plus-one', { exact: true }).check()
   await expect(rsvpDialog.getByTestId('premium-rsvp-plus-one-details')).toBeVisible()
+  await rsvpDialog.locator('#premium-invite-plus-one-name').fill('RSVP Companion')
+  await rsvpDialog.locator('#premium-invite-plus-one-meal').fill('Vegetarian')
+
   await rsvpDialog.getByLabel('Children are attending', { exact: true }).check()
   await expect(rsvpDialog.getByTestId('premium-rsvp-kids-stepper')).toBeVisible()
   await rsvpDialog.getByRole('button', { name: 'Add one child', exact: true }).click()
+  await rsvpDialog.getByLabel('Dietary notes', { exact: true }).fill('No shellfish')
+
+  const acceptedSave = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PUT' &&
+      response.url().includes(`/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`),
+  )
+  await rsvpDialog.getByRole('button', { name: 'Save RSVP', exact: true }).click()
+  expect((await acceptedSave).status()).toBe(200)
+
+  const acceptedSession = await page.request.get(
+    `/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`,
+  )
+  expect(await acceptedSession.json()).toMatchObject({
+    rsvp: {
+      attending: true,
+      plusOne: true,
+      plusOneName: 'RSVP Companion',
+      plusOneMeal: 'Vegetarian',
+      kidsAttending: true,
+      kidsCount: 2,
+      dietaryNotes: 'No shellfish',
+    },
+  })
 
   await rsvpDialog.getByLabel('Regretfully decline', { exact: true }).check()
   await expect(rsvpDialog.getByTestId('premium-rsvp-attending-fields')).toHaveCount(0)
+  const declinedSave = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PUT' &&
+      response.url().includes(`/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`),
+  )
+  await rsvpDialog.getByRole('button', { name: 'Save RSVP', exact: true }).click()
+  expect((await declinedSave).status()).toBe(200)
+
+  const declinedSession = await page.request.get(
+    `/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`,
+  )
+  expect(await declinedSession.json()).toMatchObject({
+    rsvp: {
+      attending: false,
+      plusOne: false,
+      plusOneName: 'RSVP Companion',
+      plusOneMeal: 'Vegetarian',
+      kidsAttending: false,
+      kidsCount: 2,
+      dietaryNotes: 'No shellfish',
+    },
+  })
+
   await rsvpDialog.getByLabel('Joyfully accept', { exact: true }).check()
   await expect(rsvpDialog.getByTestId('premium-rsvp-attending-fields')).toBeVisible()
+  await expect(rsvpDialog.locator('#premium-invite-plus-one-name')).toHaveValue('RSVP Companion')
+  await expect(rsvpDialog.locator('#premium-invite-plus-one-meal')).toHaveValue('Vegetarian')
+  await expect(rsvpDialog.getByLabel('Dietary notes', { exact: true })).toHaveValue('No shellfish')
 
   await page
     .getByLabel('Message to the couple', { exact: true })
     .fill('My Wedding continuation verified.')
+  const finalSave = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PUT' &&
+      response.url().includes(`/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`),
+  )
   await page.getByRole('button', { name: 'Save RSVP', exact: true }).click()
+  expect((await finalSave).status()).toBe(200)
   await expect(page.getByText('Your RSVP has been saved.')).toBeVisible()
   await rsvpDialog.getByRole('button', { name: 'Close RSVP', exact: true }).click()
   await expect(rsvpDialog).toBeHidden()
@@ -196,6 +255,12 @@ test('mobile Couple Site uses premium app chrome, full-bleed Ivory, My Wedding r
     },
     rsvp: {
       attending: true,
+      plusOne: true,
+      plusOneName: 'RSVP Companion',
+      plusOneMeal: 'Vegetarian',
+      kidsAttending: true,
+      kidsCount: 2,
+      dietaryNotes: 'No shellfish',
       message: 'My Wedding continuation verified.',
     },
   })
