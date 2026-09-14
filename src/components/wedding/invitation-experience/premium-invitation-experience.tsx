@@ -307,7 +307,8 @@ export function PremiumInvitationExperience({
         if (!payload?.success || !payload.wedding || !payload.guest) return
         setResolvedData((current) => ({
           ...current,
-          title: payload.wedding!.title,
+          // The server wedding title may be operational metadata. The invitation
+          // already carries the couple display identity from WeddingHome, so keep it.
           monogram: payload.wedding!.monogram,
           tagline: payload.wedding!.tagline,
           date: payload.wedding!.date,
