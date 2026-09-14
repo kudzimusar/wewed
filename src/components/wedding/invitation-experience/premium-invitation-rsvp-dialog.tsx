@@ -62,7 +62,8 @@ export function PremiumInvitationRsvpDialog({
   }
 
   useEffect(() => {
-    const handler = () => {
+    const handler = (event: Event) => {
+      event.preventDefault()
       setSaved(false)
       setOpen(true)
       void load()
