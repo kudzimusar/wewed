@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client'
+import type { Page } from '@playwright/test'
 import { E2E_WEDDINGS, expect, test } from './support/planner-browser'
 
 async function configureInvitation(childrenPolicy: 'welcome' | 'adults_only') {
@@ -33,7 +34,7 @@ async function configureInvitation(childrenPolicy: 'welcome' | 'adults_only') {
   }
 }
 
-async function openIvory(page: Parameters<Parameters<typeof test>[1]>[0]['plannerPage']) {
+async function openIvory(page: Page) {
   const token = `${E2E_WEDDINGS.primary.slug}-rsvp-token`
   await page.goto(
     `/invite/${E2E_WEDDINGS.primary.slug}?rsvp=${encodeURIComponent(token)}&card=ivory-floral-gold`,
