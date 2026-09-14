@@ -66,11 +66,11 @@ test('authenticated planner members receive canonical wedding navigation without
   await expect(weddingSurface).toContainText('Aurora')
   await expect(weddingSurface).toContainText('Blake')
 
-  const navigationToggle = page.getByRole('button', { name: 'Open navigation menu' })
+  const navigationToggle = page.getByTestId('mobile-nav-more')
   await expect(navigationToggle).toBeVisible()
   await navigationToggle.click()
 
-  const navigationDialog = page.getByRole('dialog')
+  const navigationDialog = page.getByTestId('mobile-wedding-more-drawer')
   await expect(navigationDialog).toBeVisible()
   await expect(navigationDialog.locator('a[href="#story"]')).toBeVisible()
 
