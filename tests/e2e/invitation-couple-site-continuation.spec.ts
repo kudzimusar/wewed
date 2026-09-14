@@ -20,6 +20,20 @@ async function enablePersonalInvitationFixture() {
   }
 }
 
+async function setWeddingInvitationStyle(
+  invitationCardStyle: 'ivory-floral-gold' | 'garden-romance',
+) {
+  const prisma = new PrismaClient()
+  try {
+    await prisma.wedding.update({
+      where: { id: E2E_WEDDINGS.primary.id },
+      data: { invitationCardStyle },
+    })
+  } finally {
+    await prisma.$disconnect()
+  }
+}
+
 test('mobile Couple Site uses premium app chrome, full-bleed Ivory, My Wedding round-trip, and guest re-entry', async ({ plannerPage: page }) => {
   await enablePersonalInvitationFixture()
   await page.context().clearCookies()
@@ -82,6 +96,11 @@ test('mobile Couple Site uses premium app chrome, full-bleed Ivory, My Wedding r
   await rsvpDialog.getByRole('button', { name: 'Close RSVP', exact: true }).click()
   await expect(rsvpDialog).toBeHidden()
 
+  // The invitation the guest actually received is portfolio state. If the wedding's
+  // current default style changes later, a clean Couple Site URL and My Wedding must
+  // still reopen that guest's original Ivory invitation rather than the new default.
+  await setWeddingInvitationStyle('garden-romance')
+
   await page.getByRole('button', { name: 'Back to Wewed Couple Site' }).click()
   await expect(page).toHaveURL(new RegExp(`/w/${E2E_WEDDINGS.primary.slug}$`))
 
@@ -129,8 +148,8 @@ test('mobile Couple Site uses premium app chrome, full-bleed Ivory, My Wedding r
   await expect(page.getByTestId('invitation-countdown')).toBeVisible()
   expect(page.url()).not.toContain(token)
 
-  // A fresh wedding entry (reload/app relaunch/browser return) welcomes the same
-  // authorized guest with the invitation again without restoring any raw token.
+  // A fresh clean wedding entry must also restore the guest's portfolio card style,
+  // not the wedding's later/default Garden Romance setting.
   await page.goto(`/w/${E2E_WEDDINGS.primary.slug}`)
   await expect(page.getByTestId('premium-invitation-experience')).toBeVisible()
   await expect(page.getByTestId('premium-invitation-experience')).toHaveAttribute(
@@ -139,6 +158,8 @@ test('mobile Couple Site uses premium app chrome, full-bleed Ivory, My Wedding r
   )
   await expect(page.getByTestId('invitation-countdown')).toBeVisible()
   expect(page.url()).not.toContain(token)
+
+  await setWeddingInvitationStyle('ivory-floral-gold')
 
   const guestSession = await page.request.get(
     `/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`,
