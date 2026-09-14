@@ -130,6 +130,42 @@ test('mobile Couple Site uses premium app chrome, full-bleed Ivory, My Wedding r
     },
   })
 
+  // Hiding progressive sections must change the participation flags without
+  // erasing the saved subordinate details or the saved child count.
+  await rsvpDialog.getByLabel('I am bringing a plus-one', { exact: true }).uncheck()
+  await rsvpDialog.getByLabel('Children are attending', { exact: true }).uncheck()
+  await expect(rsvpDialog.getByTestId('premium-rsvp-plus-one-details')).toHaveCount(0)
+  await expect(rsvpDialog.getByTestId('premium-rsvp-kids-stepper')).toHaveCount(0)
+
+  const hiddenSave = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PUT' &&
+      response.url().includes(`/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`),
+  )
+  await rsvpDialog.getByRole('button', { name: 'Save RSVP', exact: true }).click()
+  expect((await hiddenSave).status()).toBe(200)
+
+  const hiddenSession = await page.request.get(
+    `/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`,
+  )
+  expect(await hiddenSession.json()).toMatchObject({
+    rsvp: {
+      attending: true,
+      plusOne: false,
+      plusOneName: 'RSVP Companion',
+      plusOneMeal: 'Vegetarian',
+      kidsAttending: false,
+      kidsCount: 2,
+      dietaryNotes: 'No shellfish',
+    },
+  })
+
+  await rsvpDialog.getByLabel('I am bringing a plus-one', { exact: true }).check()
+  await rsvpDialog.getByLabel('Children are attending', { exact: true }).check()
+  await expect(rsvpDialog.locator('#premium-invite-plus-one-name')).toHaveValue('RSVP Companion')
+  await expect(rsvpDialog.locator('#premium-invite-plus-one-meal')).toHaveValue('Vegetarian')
+  await expect(rsvpDialog.getByTestId('premium-rsvp-kids-stepper').locator('output')).toHaveText('2')
+
   await rsvpDialog.getByLabel('Regretfully decline', { exact: true }).check()
   await expect(rsvpDialog.getByTestId('premium-rsvp-attending-fields')).toHaveCount(0)
   const declinedSave = page.waitForResponse(
@@ -160,6 +196,7 @@ test('mobile Couple Site uses premium app chrome, full-bleed Ivory, My Wedding r
   await expect(rsvpDialog.locator('#premium-invite-plus-one-name')).toHaveValue('RSVP Companion')
   await expect(rsvpDialog.locator('#premium-invite-plus-one-meal')).toHaveValue('Vegetarian')
   await expect(rsvpDialog.getByLabel('Dietary notes', { exact: true })).toHaveValue('No shellfish')
+  await expect(rsvpDialog.getByTestId('premium-rsvp-kids-stepper').locator('output')).toHaveText('2')
 
   await page
     .getByLabel('Message to the couple', { exact: true })
