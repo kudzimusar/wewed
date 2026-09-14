@@ -217,6 +217,20 @@ export function IvoryFloralGoldTriFold({
   function showDetails() {
     setView('details')
   }
+  function visitCoupleWebsite(anchor = '') {
+    if (previewMode || typeof window === 'undefined') return
+    const path = window.location.pathname
+    const match = path.match(/^\/w\/([^/]+)/)
+    if (match?.[1]) {
+      try {
+        const slug = decodeURIComponent(match[1])
+        window.sessionStorage.setItem(`wewed:skip-invitation-once:${slug}`, '1')
+      } catch {
+        // The pathname itself is still the safe same-wedding fallback.
+      }
+    }
+    window.location.assign(`${path}${anchor}`)
+  }
   function hit(
     id: string,
     label: string,
@@ -313,11 +327,15 @@ export function IvoryFloralGoldTriFold({
             <span>{data.venueAddress}</span>
             <span>{[data.venueCity, data.venueCountry].filter(Boolean).join(', ')}</span>
           </Region>
-          <Region box={[28, 79, 44, 8]} className="ivory-tagline">
+          <Region box={[28, 79, 44, 4.2]} className="ivory-tagline">
             {data.tagline || ''}
           </Region>
-          <Region box={[22, 87, 56, 4]} className="ivory-guest">
-            {data.guestName && <span>Especially for {data.guestName}</span>}
+          <Region box={[22, 83.3, 56, 4.2]} className="ivory-guest">
+            {data.guestName && (
+              <span data-testid="invitation-guest-personalization">
+                Especially for {data.guestName}
+              </span>
+            )}
             {data.rsvpDeadline && (
               <span data-testid="invitation-rsvp-deadline">
                 RSVP by {formatDate(data.rsvpDeadline)}
@@ -326,7 +344,7 @@ export function IvoryFloralGoldTriFold({
           </Region>
           <button
             data-testid="invitation-details-button"
-            aria-label="Wedding details"
+            aria-label="View wedding details"
             className="ivory-hit ivory-read"
             onClick={showDetails}
           >
@@ -356,21 +374,23 @@ export function IvoryFloralGoldTriFold({
             {hit('calendar', 'Add to Calendar', 44.2, 7.3, () => buildCalendarFile(data))}
             {hit('venue', 'Venue Location', 53.2, 8.4, undefined, mapUrl)}
             {hit('registry', 'Gift / Contributions', 63.4, 7.3, () =>
-              window.dispatchEvent(new CustomEvent('wewed:open-contributions')),
+              visitCoupleWebsite('#registry'),
             )}
             {hit('note', 'A Note from Us', 72.4, 8, () => noteRef.current?.showModal())}
-            <button type="button" className="ivory-back" onClick={() => setView('open')}>
-              View invitation
-            </button>
-            {!previewMode && (
-              <button
-                type="button"
-                className="ivory-site"
-                onClick={() => window.location.assign(window.location.pathname)}
-              >
-                Back to Wewed Couple Site
+            <div data-testid="invitation-footer-actions" className="ivory-footer-actions">
+              <button type="button" className="ivory-back" onClick={() => setView('open')}>
+                View invitation
               </button>
-            )}
+              {!previewMode && (
+                <button
+                  type="button"
+                  className="ivory-site"
+                  onClick={() => visitCoupleWebsite()}
+                >
+                  Visit Couple Website
+                </button>
+              )}
+            </div>
           </div>
         )}
         {(view === 'closed' || opening) && (
