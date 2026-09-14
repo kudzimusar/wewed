@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client'
+import type { InvitationCardStyle } from '../../src/lib/digital-invitation-card'
 import { E2E_WEDDINGS, expect, test } from './support/planner-browser'
 
 async function enablePersonalInvitationFixture() {
@@ -20,9 +21,7 @@ async function enablePersonalInvitationFixture() {
   }
 }
 
-async function setWeddingInvitationStyle(
-  invitationCardStyle: 'ivory-floral-gold' | 'garden-romance',
-) {
+async function setWeddingInvitationStyle(invitationCardStyle: InvitationCardStyle) {
   const prisma = new PrismaClient()
   try {
     await prisma.wedding.update({
@@ -120,7 +119,7 @@ test('mobile Couple Site uses premium app chrome, full-bleed Ivory, My Wedding r
   // The invitation the guest actually received is portfolio state. If the wedding's
   // current default style changes later, a clean Couple Site URL and My Wedding must
   // still reopen that guest's original Ivory invitation rather than the new default.
-  await setWeddingInvitationStyle('garden-romance')
+  await setWeddingInvitationStyle('botanical')
 
   await page.getByRole('button', { name: 'Back to Wewed Couple Site' }).click()
   await expect(page).toHaveURL(new RegExp(`/w/${E2E_WEDDINGS.primary.slug}$`))
