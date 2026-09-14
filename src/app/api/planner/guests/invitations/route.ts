@@ -213,12 +213,16 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    const childrenPolicy = normalizeChildrenPolicy(body.childrenPolicy)
-    if (body.childrenPolicy !== undefined && body.childrenPolicy !== childrenPolicy) {
-      return privateJson(
-        { success: false, error: 'Choose a supported children policy.' },
-        400,
-      )
+    let requestedChildrenPolicy: ChildrenPolicy | null = null
+    if (body.childrenPolicy !== undefined) {
+      const normalized = normalizeChildrenPolicy(body.childrenPolicy)
+      if (body.childrenPolicy !== normalized) {
+        return privateJson(
+          { success: false, error: 'Choose a supported children policy.' },
+          400,
+        )
+      }
+      requestedChildrenPolicy = normalized
     }
 
     const message = typeof body.message === 'string' ? body.message.trim() : ''
@@ -270,6 +274,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const beforeChildrenPolicy = normalizeChildrenPolicy(beforeChildrenPolicyRow?.value)
+    const childrenPolicy = requestedChildrenPolicy ?? beforeChildrenPolicy
     const wedding = await db.$transaction(async (tx) => {
       const updated = await tx.wedding.update({
         where: { id: access.context.weddingId },
