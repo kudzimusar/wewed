@@ -30,17 +30,15 @@ function noStore(response: NextResponse): NextResponse {
 
 async function currentGuest(request: NextRequest, slug: string) {
   const wedding = await loadWeddingAccessRecord(slug)
-  if (!wedding) return { wedding: null, guest: null }
-  const guest = await resolveGuestSessionForWedding(
-    wedding,
-    readWeddingGuestSession(request),
-  )
-  return { wedding, guest }
+  if (!wedding) return { wedding: null, guest: null, session: null }
+  const session = readWeddingGuestSession(request)
+  const guest = await resolveGuestSessionForWedding(wedding, session)
+  return { wedding, guest, session }
 }
 
 export async function GET(request: NextRequest, { params }: Params) {
   const { slug } = await params
-  const { wedding, guest } = await currentGuest(request, slug)
+  const { wedding, guest, session } = await currentGuest(request, slug)
 
   if (!wedding) {
     return noStore(
@@ -52,7 +50,12 @@ export async function GET(request: NextRequest, { params }: Params) {
       { success: false, authorized: false, error: 'Guest access is not active.' },
       { status: 401 },
     )
-    clearWeddingGuestSessionCookie(response)
+    // A valid guest cookie for another wedding must survive a scoped 401 from
+    // this wedding. Otherwise a stale/background request from Wedding A can
+    // erase the newly activated Wedding B session immediately after switching.
+    if (session?.weddingId === wedding.id) {
+      clearWeddingGuestSessionCookie(response)
+    }
     return noStore(response)
   }
 
