@@ -165,6 +165,8 @@ test('couples design, save, export and deliver guest-specific digital invitation
   await expect(deliveredExperience).toHaveAttribute('data-invitation-style', 'editorial')
   await expect(deliveredExperience).toContainText('Aurora & Blake')
   await expect(deliveredExperience).toContainText('Primary Test Estate')
+  await expect(page.locator('main#main-content')).toHaveCount(0)
+  await expect(page.locator('footer')).toHaveCount(0)
   await removeSampleOverlays(page)
   await deliveredExperience.screenshot({
     path: `${SAMPLE_DIR}/delivered-editorial-guest-card.png`,
@@ -174,6 +176,7 @@ test('couples design, save, export and deliver guest-specific digital invitation
   await deliveredExperience.getByTestId('invitation-open-button').click()
   await expect(deliveredExperience).toHaveAttribute('data-motion-state', 'open', { timeout: 4_000 })
   await deliveredExperience.getByTestId('invitation-continue-button').click()
+  await expect(page.locator('main#main-content')).toBeVisible()
   await page.locator('#rsvp').scrollIntoViewIfNeeded()
   await page.getByRole('button', { name: 'Review my RSVP' }).click()
   await expect(page.getByRole('heading', { name: 'Your private RSVP' })).toBeVisible()

@@ -88,6 +88,8 @@ test('public platform, invitation card exchange, API privacy and token rotation 
   await expect(invitationExperience).toHaveAttribute('data-invitation-style', 'botanical')
   await expect(invitationExperience).toContainText('Aurora & Blake')
   await expect(invitationExperience).toContainText('Primary Test Estate')
+  await expect(page.locator('main#main-content')).toHaveCount(0)
+  await expect(page.locator('footer')).toHaveCount(0)
 
   const guestSession = await page.request.get(
     `/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`,
@@ -106,14 +108,18 @@ test('public platform, invitation card exchange, API privacy and token rotation 
     data: { wedding: { slug: E2E_WEDDINGS.primary.slug } },
   })
 
+  await invitationExperience.getByTestId('invitation-open-button').click()
+  await expect(invitationExperience).toHaveAttribute('data-motion-state', 'open', { timeout: 4_000 })
+  await invitationExperience.getByTestId('invitation-continue-button').click()
+  await expect(page.locator('main#main-content')).toBeVisible()
   await page.locator('#rsvp').scrollIntoViewIfNeeded()
   await page.getByRole('button', { name: 'Review my RSVP' }).click()
   const invitationDialog = page.getByTestId('premium-invitation-rsvp-dialog')
   await expect(invitationDialog).toBeVisible()
   await expect(invitationDialog.getByRole('heading', { name: 'Your private RSVP' })).toBeVisible()
   await invitationDialog.locator('form').getByRole('button', { name: 'Close', exact: true }).click()
-  await expect(page.getByRole('link', { name: 'Find a planner' }).first()).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Powered by Wewed' }).first()).toBeVisible()
+  await expect(page.locator('nav[aria-label="Wedding footer links"]')).toHaveCount(0)
+  await expect(page.getByText('Powered by Wewed', { exact: true })).toHaveCount(0)
 
   const rotated = await rotateUnifiedGuestToken()
   const revoked = await page.request.get(
@@ -164,6 +170,7 @@ test('couple and planner accounts have visible single-source navigation', async 
     page,
     appToken(E2E_USER, 'planner', E2E_WEDDINGS.secondary.id),
   )
+  await page.setViewportSize({ width: 1440, height: 1600 })
   await page.goto(`/w/${E2E_WEDDINGS.secondary.slug}`)
   await expect(page.getByRole('heading', { name: 'Open your invitation' })).toHaveCount(0)
   const selectedWedding = page.locator('#main-content')
@@ -175,6 +182,12 @@ test('couple and planner accounts have visible single-source navigation', async 
   await expect(selectedWedding).not.toContainText('Imba Manor')
   await expect(selectedWedding).not.toContainText('23 · 12 · 26')
   await expect(selectedWedding).not.toContainText('Musarurwa')
+
+  await page.evaluate(() => window.scrollTo(0, 640))
+  const sectionTracker = page.locator('[aria-live="polite"]')
+  await expect(sectionTracker).toContainText('Cedar & Drew')
+  await expect(sectionTracker).not.toContainText('Charity & Kudzie')
+  await expect(sectionTracker).not.toContainText('Imba Manor')
 
   await page.goto('/planner/tasks')
   await expect(page.getByRole('navigation', { name: 'Planner account navigation' })).toHaveCount(0)

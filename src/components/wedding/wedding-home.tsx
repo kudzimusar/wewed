@@ -259,8 +259,8 @@ function WeddingHomeContent({
         </>
       )}
 
-      <div id="wedding-details" className="scroll-mt-4">
-        {showWeddingChrome && (
+      {showWeddingChrome && (
+        <div id="wedding-details" className="scroll-mt-4">
           <Navbar
             slug={slug}
             accessKind={accessKind}
@@ -268,62 +268,62 @@ function WeddingHomeContent({
             showMyWedding={showMyWedding}
             onMyWedding={reopenInvitation}
           />
-        )}
-        <main id="main-content" className="flex-1" data-canonical-template="classic" data-invitation-theme={showPersonalInvitation ? invitationCardStyle ?? undefined : undefined}>
-          <HeroSection />
-          {isCoupleOwner && <PlannerMarketplaceInvitation />}
-          {activeLifecycle === 'before' ? (
-            <>
-              <OurStory />
-              <VenueSection />
-              <TheDay />
-              <CountdownBanner />
-              <RsvpSection />
-              <TravelStay />
-              <GiftRegistryCampaignBridge />
-              <SongbookEnhanced />
-              <IntroductionsBanner />
-              <Guests />
-              <VendorMarketplace />
-              <QrCheckin />
-              <PhotoGallery />
-              {canContribute && <MediaUpload />}
-              <MemoryCapsule />
-              <LiveWall canPost={canContribute} />
-              {mounted && <ContributionGallery />}
-              <FaqSection />
-              <ShareSection />
-              <TelegramWidget />
-              <WewedPricingCatalog />
-              <PlatformVision />
-              <MerchTeaser />
-            </>
-          ) : (
-            <>
-              <AfterSections canPost={canContribute} />
-              <PhotoGallery />
-              {canContribute && <MediaUpload />}
-              <LiveWall canPost={canContribute} />
-              {mounted && <ContributionGallery />}
-              <MemoryCapsule />
-              <VendorMarketplace />
-              <GiftRegistryCampaignBridge />
-              <FaqSection />
-              <ShareSection />
-              <TelegramWidget />
-              <WewedPricingCatalog />
-              <PlatformVision />
-              <MerchTeaser />
-            </>
-          )}
-        </main>
-      </div>
+          <main id="main-content" className="flex-1" data-canonical-template="classic" data-invitation-theme={showPersonalInvitation ? invitationCardStyle ?? undefined : undefined}>
+            <HeroSection />
+            {isCoupleOwner && <PlannerMarketplaceInvitation />}
+            {activeLifecycle === 'before' ? (
+              <>
+                <OurStory />
+                <VenueSection />
+                <TheDay />
+                <CountdownBanner />
+                <RsvpSection />
+                <TravelStay />
+                <GiftRegistryCampaignBridge />
+                <SongbookEnhanced />
+                <IntroductionsBanner />
+                <Guests />
+                <VendorMarketplace />
+                <QrCheckin />
+                <PhotoGallery />
+                {canContribute && <MediaUpload />}
+                <MemoryCapsule />
+                <LiveWall canPost={canContribute} />
+                {mounted && <ContributionGallery />}
+                <FaqSection />
+                <ShareSection />
+                <TelegramWidget />
+                <WewedPricingCatalog />
+                <PlatformVision />
+                <MerchTeaser />
+              </>
+            ) : (
+              <>
+                <AfterSections canPost={canContribute} />
+                <PhotoGallery />
+                {canContribute && <MediaUpload />}
+                <LiveWall canPost={canContribute} />
+                {mounted && <ContributionGallery />}
+                <MemoryCapsule />
+                <VendorMarketplace />
+                <GiftRegistryCampaignBridge />
+                <FaqSection />
+                <ShareSection />
+                <TelegramWidget />
+                <WewedPricingCatalog />
+                <PlatformVision />
+                <MerchTeaser />
+              </>
+            )}
+          </main>
+        </div>
+      )}
 
       {mounted && invitationAvailable && invitationCardStyle && (
         <PremiumInvitationRsvpDialog slug={slug} style={invitationCardStyle} />
       )}
       {mounted && !invitationAvailable && <InvitationRsvpDialog />}
-      <Footer />
+      {!showMyWedding && <Footer />}
       {showWeddingChrome && (
         <div className="h-[calc(4.5rem+env(safe-area-inset-bottom))] lg:hidden" aria-hidden="true" />
       )}

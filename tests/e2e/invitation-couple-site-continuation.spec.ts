@@ -44,6 +44,8 @@ test('mobile Couple Site uses premium app chrome, full-bleed Ivory, My Wedding r
   )
   await expect(page.getByTestId('invitation-countdown')).toBeVisible()
   await expect(page.getByTestId('mobile-wedding-bottom-nav')).toHaveCount(0)
+  await expect(page.locator('main#main-content')).toHaveCount(0)
+  await expect(page.locator('footer')).toHaveCount(0)
   await expect(card).toHaveAttribute('data-artwork-ready', 'true', {
     timeout: 5_000,
   })
