@@ -204,7 +204,8 @@ test('physical invitation access remains shared and never becomes a personal gue
   await page.goto(`/i/${PHYSICAL_INVITATION_CODE}`)
   await expect(page).toHaveURL(new RegExp(`/w/${E2E_WEDDINGS.primary.slug}\\?source=printed-invitation`))
   expect(new URL(page.url()).searchParams.has('rsvp')).toBe(false)
-  await expect(page.getByTestId('premium-invitation-experience')).toHaveCount(0)
+  await expect(page.getByTestId('premium-invitation-experience')).toBeVisible()
+  await expect(page.getByTestId('physical-invitation-claim')).toBeVisible()
 
   const guestSession = await page.request.get(`/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`)
   expect(guestSession.status()).toBe(401)
@@ -215,23 +216,17 @@ test('physical invitation access remains shared and never becomes a personal gue
   })
 })
 
-test('premium invitation remains within a mobile viewport @mobile', async ({ plannerPage: page }) => {
+test('Android mobile gate remains within the viewport and keeps Ivory concealed @mobile', async ({ plannerPage: page }) => {
   await enablePersonalInvitationFixture()
   await page.context().clearCookies()
 
   const token = `${E2E_WEDDINGS.primary.slug}-rsvp-token`
   await page.goto(`/invite/${E2E_WEDDINGS.primary.slug}?rsvp=${encodeURIComponent(token)}&card=ivory-floral-gold`)
-  await openInvitationInBrowser(page)
+  await expect(page).toHaveURL(new RegExp(`/invite/${E2E_WEDDINGS.primary.slug}/open`))
+  expect(page.url()).not.toContain(token)
 
-  const experience = page.getByTestId('premium-invitation-experience')
-  const card = experience.getByTestId('invitation-trifold')
-  await expect(experience).toBeVisible()
-  await expectNoDocumentOverflow(page)
-  await experience.getByTestId('invitation-open-button').click()
-  await expect(experience).toHaveAttribute('data-motion-state', 'open', { timeout: 4_000 })
-  await expect(card).toHaveAttribute('data-invitation-view', 'open', { timeout: 4_000 })
-  await expectNoDocumentOverflow(page)
-  await experience.getByTestId('invitation-details-button').click()
-  await expect(card).toHaveAttribute('data-invitation-view', 'details')
+  await expect(page.getByTestId('personal-invitation-android-gate')).toBeVisible()
+  await expect(page.getByTestId('premium-invitation-experience')).toHaveCount(0)
+  await expect(page.getByRole('link', { name: /^(Open wedding invitation|Continue to invitation in browser)$/ })).toHaveCount(0)
   await expectNoDocumentOverflow(page)
 })
