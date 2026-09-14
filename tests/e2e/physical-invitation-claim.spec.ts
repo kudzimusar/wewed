@@ -110,9 +110,11 @@ test('plain printed invitation selects approved Ivory, requires secure claim, th
   await page.getByLabel('Full name').fill(E2E_WEDDINGS.primary.seededGuest)
   await page.getByLabel('Email or phone').fill('wrong-contact@example.test')
   await page.getByRole('button', { name: 'Continue to my digital invitation' }).click()
-  await expect(page.getByRole('alert')).toContainText(
-    'We could not match those details to this invitation.',
-  )
+  await expect(
+    page.getByRole('alert').filter({
+      hasText: 'We could not match those details to this invitation.',
+    }),
+  ).toContainText('We could not match those details to this invitation.')
   current = await guestSession(page)
   expect(current.response.status()).toBe(401)
 
