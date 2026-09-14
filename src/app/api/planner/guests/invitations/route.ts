@@ -8,6 +8,12 @@ import {
 import { buildSmartInvitationUrl } from '@/lib/invitation-links'
 import { requireWeddingPermission } from '@/lib/wedding-access'
 
+type ChildrenPolicy = 'welcome' | 'adults_only'
+
+function normalizeChildrenPolicy(value: unknown): ChildrenPolicy {
+  return value === 'adults_only' ? 'adults_only' : 'welcome'
+}
+
 function csvCell(value: string | null | undefined) {
   return `"${(value ?? '').replaceAll('"', '""')}"`
 }
@@ -49,7 +55,7 @@ export async function GET(request: NextRequest) {
   if (access.error) return privateNoStore(access.error)
 
   try {
-    const [wedding, guests] = await Promise.all([
+    const [wedding, guests, childrenPolicyRow] = await Promise.all([
       db.wedding.findUnique({
         where: { id: access.context.weddingId },
         select: invitationWeddingSelect(),
@@ -59,6 +65,16 @@ export async function GET(request: NextRequest) {
         include: { rsvp: { select: { token: true, attending: true, checkedIn: true } } },
         orderBy: { name: 'asc' },
       }),
+      db.weddingContent.findUnique({
+        where: {
+          weddingId_section_field: {
+            weddingId: access.context.weddingId,
+            section: 'rsvp',
+            field: 'childrenPolicy',
+          },
+        },
+        select: { value: true },
+      }),
     ])
 
     if (!wedding) {
@@ -66,6 +82,7 @@ export async function GET(request: NextRequest) {
     }
 
     const style = normalizeInvitationCardStyle(wedding.invitationCardStyle)
+    const childrenPolicy = normalizeChildrenPolicy(childrenPolicyRow?.value)
     const siteUrl = request.nextUrl.origin.replace(/\/$/, '')
     const missingTokens = guests.filter((guest) => !guest.rsvp?.token).length
     const data = guests.map((guest) => {
@@ -131,7 +148,7 @@ export async function GET(request: NextRequest) {
 
     return privateJson({
       success: true,
-      wedding: { ...wedding, invitationCardStyle: style },
+      wedding: { ...wedding, invitationCardStyle: style, childrenPolicy },
       count: data.length,
       missingTokens,
       data,
@@ -182,6 +199,7 @@ export async function PUT(request: NextRequest) {
       style?: unknown
       message?: unknown
       rsvpDeadline?: unknown
+      childrenPolicy?: unknown
     } | null
     if (!body) {
       return privateJson({ success: false, error: 'Invalid JSON body.' }, 400)
@@ -191,6 +209,14 @@ export async function PUT(request: NextRequest) {
     if (body.style !== style) {
       return privateJson(
         { success: false, error: 'Choose a supported invitation card style.' },
+        400,
+      )
+    }
+
+    const childrenPolicy = normalizeChildrenPolicy(body.childrenPolicy)
+    if (body.childrenPolicy !== undefined && body.childrenPolicy !== childrenPolicy) {
+      return privateJson(
+        { success: false, error: 'Choose a supported children policy.' },
         400,
       )
     }
@@ -211,16 +237,28 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    const before = await db.wedding.findUnique({
-      where: { id: access.context.weddingId },
-      select: {
-        id: true,
-        date: true,
-        invitationCardStyle: true,
-        invitationCardMessage: true,
-        rsvpDeadline: true,
-      },
-    })
+    const [before, beforeChildrenPolicyRow] = await Promise.all([
+      db.wedding.findUnique({
+        where: { id: access.context.weddingId },
+        select: {
+          id: true,
+          date: true,
+          invitationCardStyle: true,
+          invitationCardMessage: true,
+          rsvpDeadline: true,
+        },
+      }),
+      db.weddingContent.findUnique({
+        where: {
+          weddingId_section_field: {
+            weddingId: access.context.weddingId,
+            section: 'rsvp',
+            field: 'childrenPolicy',
+          },
+        },
+        select: { value: true },
+      }),
+    ])
     if (!before) {
       return privateJson({ success: false, error: 'Wedding not found.' }, 404)
     }
@@ -231,6 +269,7 @@ export async function PUT(request: NextRequest) {
       )
     }
 
+    const beforeChildrenPolicy = normalizeChildrenPolicy(beforeChildrenPolicyRow?.value)
     const wedding = await db.$transaction(async (tx) => {
       const updated = await tx.wedding.update({
         where: { id: access.context.weddingId },
@@ -241,6 +280,23 @@ export async function PUT(request: NextRequest) {
         },
         select: invitationWeddingSelect(),
       })
+      await tx.weddingContent.upsert({
+        where: {
+          weddingId_section_field: {
+            weddingId: access.context.weddingId,
+            section: 'rsvp',
+            field: 'childrenPolicy',
+          },
+        },
+        update: { value: childrenPolicy },
+        create: {
+          weddingId: access.context.weddingId,
+          section: 'rsvp',
+          field: 'childrenPolicy',
+          value: childrenPolicy,
+          order: 0,
+        },
+      })
       await tx.auditEvent.create({
         data: {
           action: 'wedding.invitation_card_updated',
@@ -250,8 +306,14 @@ export async function PUT(request: NextRequest) {
             style: before.invitationCardStyle,
             message: before.invitationCardMessage,
             rsvpDeadline: before.rsvpDeadline,
+            childrenPolicy: beforeChildrenPolicy,
           }),
-          afterValue: JSON.stringify({ style, message: message || null, rsvpDeadline }),
+          afterValue: JSON.stringify({
+            style,
+            message: message || null,
+            rsvpDeadline,
+            childrenPolicy,
+          }),
           weddingId: before.id,
           actorId: access.context.session.userId,
         },
@@ -261,7 +323,7 @@ export async function PUT(request: NextRequest) {
 
     return privateJson({
       success: true,
-      wedding: { ...wedding, invitationCardStyle: style },
+      wedding: { ...wedding, invitationCardStyle: style, childrenPolicy },
     })
   } catch (error) {
     console.error('[guest invitations PUT] Error:', error)
