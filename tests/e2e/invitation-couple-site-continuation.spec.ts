@@ -7,6 +7,10 @@ async function enablePersonalInvitationFixture() {
     await prisma.wedding.update({
       where: { id: E2E_WEDDINGS.primary.id },
       data: {
+        // Deliberately keep the internal wedding record title different from the
+        // couple display identity so guest-session personalization cannot replace
+        // "Aurora & Blake" with operational metadata.
+        title: 'Internal invitation qualification record',
         privacy: 'link_only',
         invitationCardStyle: 'ivory-floral-gold',
       },
@@ -60,6 +64,9 @@ test('mobile Couple Site uses premium app chrome, full-bleed Ivory, My Wedding r
   await expect(card).toHaveAttribute('data-invitation-view', 'open', {
     timeout: 4_000,
   })
+  await expect(experience).toContainText('Aurora')
+  await expect(experience).toContainText('Blake')
+  await expect(experience).not.toContainText('Internal invitation qualification record')
   await experience.getByTestId('invitation-details-button').click()
   await expect(card).toHaveAttribute('data-invitation-view', 'details')
 
