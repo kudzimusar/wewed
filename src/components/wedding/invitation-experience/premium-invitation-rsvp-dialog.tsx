@@ -229,6 +229,7 @@ export function PremiumInvitationRsvpDialog({
                       <RadioGroupItem
                         value={value}
                         id={`premium-invite-${value}`}
+                        aria-label={title}
                         className="!size-5 shrink-0 border-2 shadow-none"
                         style={{ borderColor: theme.palette.primary, color: theme.palette.primary }}
                       />
@@ -276,6 +277,7 @@ export function PremiumInvitationRsvpDialog({
                     <Checkbox
                       name="plusOne"
                       id="premium-invite-plus-one"
+                      aria-label="I am bringing a plus-one"
                       checked={plusOne}
                       onCheckedChange={(value) => setPlusOne(value === true)}
                       className="!size-6 rounded-md border-2 shadow-none"
@@ -330,6 +332,7 @@ export function PremiumInvitationRsvpDialog({
                     <Checkbox
                       name="kidsAttending"
                       id="premium-invite-kids"
+                      aria-label="Children are attending"
                       checked={kidsAttending}
                       onCheckedChange={(value) => {
                         const checked = value === true
