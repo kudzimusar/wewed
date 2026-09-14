@@ -350,7 +350,9 @@ export function PremiumInvitationRsvpDialog({
                       onCheckedChange={(value) => {
                         const checked = value === true
                         setKidsAttending(checked)
-                        setKidsCount((current) => (checked ? Math.max(1, current) : 0))
+                        if (checked) {
+                          setKidsCount((current) => Math.max(1, current))
+                        }
                       }}
                       className="!size-6 rounded-md border-2 shadow-none"
                       style={{
