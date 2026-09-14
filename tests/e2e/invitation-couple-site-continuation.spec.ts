@@ -81,13 +81,34 @@ test('mobile Couple Site uses premium app chrome, full-bleed Ivory, My Wedding r
   await expect(experience).toContainText('Aurora')
   await expect(experience).toContainText('Blake')
   await expect(experience).not.toContainText('Internal invitation qualification record')
-  await experience.getByTestId('invitation-details-button').click()
+
+  const detailsButton = experience.getByTestId('invitation-details-button')
+  await expect(detailsButton).toBeVisible()
+  const detailsCue = await detailsButton.locator('span').evaluate((node) =>
+    window.getComputedStyle(node, '::before').content,
+  )
+  expect(detailsCue).toContain('View wedding details')
+
+  await detailsButton.click()
   await expect(card).toHaveAttribute('data-invitation-view', 'details')
 
   await experience.getByTestId('invitation-cta-rsvp').click()
   const rsvpDialog = page.getByTestId('premium-invitation-rsvp-dialog')
   await expect(rsvpDialog).toBeVisible()
-  await page.getByLabel('Joyfully accept', { exact: true }).check()
+  await expect(rsvpDialog.getByTestId('premium-rsvp-plus-one-details')).toHaveCount(0)
+  await expect(rsvpDialog.getByTestId('premium-rsvp-kids-stepper')).toHaveCount(0)
+
+  await rsvpDialog.getByLabel('I am bringing a plus-one', { exact: true }).check()
+  await expect(rsvpDialog.getByTestId('premium-rsvp-plus-one-details')).toBeVisible()
+  await rsvpDialog.getByLabel('Children are attending', { exact: true }).check()
+  await expect(rsvpDialog.getByTestId('premium-rsvp-kids-stepper')).toBeVisible()
+  await rsvpDialog.getByRole('button', { name: 'Add one child', exact: true }).click()
+
+  await rsvpDialog.getByLabel('Regretfully decline', { exact: true }).check()
+  await expect(rsvpDialog.getByTestId('premium-rsvp-attending-fields')).toHaveCount(0)
+  await rsvpDialog.getByLabel('Joyfully accept', { exact: true }).check()
+  await expect(rsvpDialog.getByTestId('premium-rsvp-attending-fields')).toBeVisible()
+
   await page
     .getByLabel('Message to the couple', { exact: true })
     .fill('My Wedding continuation verified.')
