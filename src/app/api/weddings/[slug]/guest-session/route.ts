@@ -22,6 +22,8 @@ interface Params {
   params: Promise<{ slug: string }>
 }
 
+type ChildrenPolicy = 'welcome' | 'adults_only'
+
 function noStore(response: NextResponse): NextResponse {
   response.headers.set('Cache-Control', 'no-store, max-age=0')
   response.headers.set('Vary', 'Cookie')
@@ -34,6 +36,20 @@ async function currentGuest(request: NextRequest, slug: string) {
   const session = readWeddingGuestSession(request)
   const guest = await resolveGuestSessionForWedding(wedding, session)
   return { wedding, guest, session }
+}
+
+async function loadChildrenPolicy(weddingId: string): Promise<ChildrenPolicy> {
+  const row = await db.weddingContent.findUnique({
+    where: {
+      weddingId_section_field: {
+        weddingId,
+        section: 'rsvp',
+        field: 'childrenPolicy',
+      },
+    },
+    select: { value: true },
+  })
+  return row?.value.trim().toLowerCase() === 'adults_only' ? 'adults_only' : 'welcome'
 }
 
 export async function GET(request: NextRequest, { params }: Params) {
@@ -59,6 +75,8 @@ export async function GET(request: NextRequest, { params }: Params) {
     return noStore(response)
   }
 
+  const childrenPolicy = await loadChildrenPolicy(wedding.id)
+
   return noStore(
     NextResponse.json({
       success: true,
@@ -80,6 +98,7 @@ export async function GET(request: NextRequest, { params }: Params) {
         invitationCardStyle: normalizeInvitationCardStyle(wedding.invitationCardStyle),
         invitationCardMessage: wedding.invitationCardMessage,
         rsvpDeadline: wedding.rsvpDeadline,
+        childrenPolicy,
       },
       guest: {
         id: guest.id,
@@ -93,7 +112,7 @@ export async function GET(request: NextRequest, { params }: Params) {
         plusOne: guest.plusOne,
         plusOneName: guest.plusOneName,
         plusOneMeal: guest.plusOneMeal,
-        kidsAttending: guest.kidsAttending,
+        kidsAttending: childrenPolicy === 'adults_only' ? false : guest.kidsAttending,
         kidsCount: guest.kidsCount,
         dietaryNotes: guest.dietaryNotes,
         message: guest.message,
@@ -213,9 +232,34 @@ export async function PUT(request: NextRequest, { params }: Params) {
     )
   }
 
+  const childrenPolicy = await loadChildrenPolicy(wedding.id)
+  const requestedKidsCount =
+    typeof body.kidsCount === 'number' && Number.isFinite(body.kidsCount) ? body.kidsCount : 0
+  if (
+    childrenPolicy === 'adults_only' &&
+    (body.kidsAttending === true || requestedKidsCount > 0)
+  ) {
+    return noStore(
+      NextResponse.json(
+        {
+          success: false,
+          error: 'This celebration is configured as adults only.',
+          code: 'CHILDREN_NOT_ALLOWED',
+        },
+        { status: 400 },
+      ),
+    )
+  }
+
   const data: Record<string, unknown> = {}
   for (const field of ['attending', 'mealChoice', 'plusOne', 'plusOneName', 'plusOneMeal', 'kidsAttending', 'kidsCount', 'dietaryNotes', 'message'] as const) {
     if (body[field] !== undefined) data[field] = body[field]
+  }
+  if (childrenPolicy === 'adults_only') {
+    // Applying the policy must not erase the previously recorded child count;
+    // it only makes the current attendance state authoritative and adults-only.
+    data.kidsAttending = false
+    delete data.kidsCount
   }
 
   const updated = await db.rSVP.update({
