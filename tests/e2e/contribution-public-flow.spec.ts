@@ -82,7 +82,7 @@ async function seedPublicContributionFlow() {
       INSERT INTO wewed_contributions.campaigns
         (id,wedding_id,type,title,currency,published,enabled,sort_order,accepted_types,invitation_visible)
       VALUES
-        (${SECONDARY_CAMPAIGN_ID},${E2E_WEDDINGS.secondary.id},'OTHER','Secondary wedding private campaign','USD',TRUE,TRUE,0,'["CASH_TO_COUPLE"]'::jsonb,TRUE)
+        (${SECONDARY_CAMPAIGN_ID},${E2E_WEDDINGS.secondary.id},'ITEM_EXPERIENCE','Secondary wedding private campaign','USD',TRUE,TRUE,0,'["CASH_TO_COUPLE"]'::jsonb,TRUE)
     `
   } finally {
     await prisma.$disconnect()
