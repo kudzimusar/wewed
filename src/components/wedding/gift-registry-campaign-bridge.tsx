@@ -4,8 +4,10 @@ import { useEffect, useState } from 'react'
 import { ArrowRight, Gift, HandHeart, Heart, Plane } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
+import { GuestContributionPledgeForm } from '@/components/wedding/guest-contribution-pledge-form'
 import { GiftRegistry } from '@/components/wedding/gift-registry'
 import { useWeddingContextSafe } from '@/components/wedding/wedding-data-provider'
+import type { ContributionType } from '@/lib/contributions'
 
 interface PublicCampaign {
   id: string
@@ -20,7 +22,16 @@ interface PublicCampaign {
   externalUrl: string | null
   ctaLabel: string | null
   publicNote: string | null
+  acceptedTypes: ContributionType[]
+  budgetLinked: boolean
+  vendorServiceLinked: boolean
   recognition?: string[]
+}
+
+interface PublicContributionPayload {
+  acceptingContributions: boolean
+  disabledMessage: string | null
+  campaigns: PublicCampaign[]
 }
 
 function money(value: number, currency: string): string {
@@ -31,7 +42,7 @@ function money(value: number, currency: string): string {
 export function GiftRegistryCampaignBridge() {
   const context = useWeddingContextSafe()
   const slug = context?.wedding?.slug
-  const [campaigns, setCampaigns] = useState<PublicCampaign[] | null>(null)
+  const [payload, setPayload] = useState<PublicContributionPayload | null>(null)
 
   useEffect(() => {
     if (!slug) return
@@ -39,9 +50,16 @@ export function GiftRegistryCampaignBridge() {
     void fetch(`/api/contribution-campaigns/public?weddingSlug=${encodeURIComponent(slug)}`, { cache: 'no-store' })
       .then(async (response) => {
         const body = await response.json()
-        if (!cancelled) setCampaigns(Array.isArray(body.data) && body.data.length ? body.data : [])
+        if (cancelled) return
+        setPayload({
+          acceptingContributions: body.acceptingContributions !== false,
+          disabledMessage: typeof body.disabledMessage === 'string' && body.disabledMessage.trim() ? body.disabledMessage.trim() : null,
+          campaigns: Array.isArray(body.data) ? body.data : [],
+        })
       })
-      .catch(() => { if (!cancelled) setCampaigns([]) })
+      .catch(() => {
+        if (!cancelled) setPayload({ acceptingContributions: false, disabledMessage: 'Contribution information is temporarily unavailable.', campaigns: [] })
+      })
     return () => { cancelled = true }
   }, [slug])
 
@@ -61,9 +79,6 @@ export function GiftRegistryCampaignBridge() {
 
     if (current.hash !== '#registry') return
 
-    // The bridge can replace the fallback registry with configured campaigns after
-    // hydration. Re-assert the hash landing after each bridge state settles so the
-    // contribution CTA is deterministic on every mobile viewport and entry path.
     const frame = window.requestAnimationFrame(() => {
       document.getElementById('registry')?.scrollIntoView({
         behavior: 'auto',
@@ -71,9 +86,33 @@ export function GiftRegistryCampaignBridge() {
       })
     })
     return () => window.cancelAnimationFrame(frame)
-  }, [campaigns])
+  }, [payload])
 
-  if (!campaigns || campaigns.length === 0) return <GiftRegistry />
+  if (!payload) {
+    return (
+      <section id="registry" data-registry-configured="loading" className="wewed-section bg-champagne py-20 md:py-32">
+        <div className="mx-auto max-w-2xl px-4 text-center font-sans text-sm text-espresso/50">Loading contribution options…</div>
+      </section>
+    )
+  }
+
+  if (!payload.acceptingContributions) {
+    return (
+      <section id="registry" data-registry-configured="disabled" data-testid="contributions-disabled-state" className="wewed-section bg-champagne py-20 md:py-32">
+        <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
+          <p className="font-sans text-[10px] uppercase tracking-[0.24em] text-gold-muted">With appreciation</p>
+          <h2 className="wewed-heading wewed-heading-accent mt-3 text-3xl font-light text-espresso sm:text-4xl">With Gratitude</h2>
+          <div className="mx-auto mt-8 max-w-2xl rounded-2xl border border-gold/20 bg-ivory/65 px-6 py-8">
+            <Gift className="mx-auto size-7 text-gold-muted" strokeWidth={1.25} />
+            <p className="mt-3 font-serif text-xl font-light text-espresso">The couple is not accepting contributions at the moment.</p>
+            <p className="mt-2 font-sans text-sm leading-6 text-espresso/60">{payload.disabledMessage || 'Your presence and good wishes are more than enough.'}</p>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (payload.campaigns.length === 0) return <GiftRegistry />
 
   return (
     <section id="registry" data-registry-configured="true" className="wewed-section bg-champagne py-20 md:py-32">
@@ -84,11 +123,11 @@ export function GiftRegistryCampaignBridge() {
           <p className="mx-auto mt-5 max-w-2xl font-sans text-sm leading-6 text-espresso/60">Your presence is the greatest gift. The information below is only here for anyone who has already been wondering how they might contribute.</p>
         </div>
         <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-          {campaigns.map((campaign) => {
+          {payload.campaigns.map((campaign) => {
             const Icon = campaign.type === 'CHARITY' ? Heart : campaign.type === 'HOME' || campaign.type === 'ITEM_EXPERIENCE' ? Gift : campaign.type === 'WEDDING_SUPPORT' ? HandHeart : Plane
             const progress = campaign.targetAmount && campaign.raised !== null ? Math.min(100, Math.round((campaign.raised / campaign.targetAmount) * 100)) : null
             return (
-              <article key={campaign.id} className="flex h-full flex-col rounded-2xl border border-gold/25 bg-ivory/70 p-6 shadow-sm">
+              <article key={campaign.id} data-testid={`contribution-campaign-${campaign.id}`} className="flex h-full flex-col rounded-2xl border border-gold/25 bg-ivory/70 p-6 shadow-sm">
                 <span className="flex size-12 items-center justify-center rounded-full border border-gold/25 bg-gold/10"><Icon className="size-5 text-gold-muted" /></span>
                 <h3 className="mt-5 font-serif text-2xl font-light text-espresso">{campaign.title}</h3>
                 {campaign.description && <p className="mt-3 font-sans text-sm leading-6 text-espresso/65">{campaign.description}</p>}
@@ -97,8 +136,16 @@ export function GiftRegistryCampaignBridge() {
                   {progress !== null && <Progress value={progress} className="h-1.5 bg-gold/15 [&>div]:bg-gold" />}
                   {campaign.showTarget && campaign.targetAmount !== null && <p className="font-sans text-[11px] text-espresso/45">Optional goal: {money(campaign.targetAmount, campaign.currency)}</p>}
                 </div>}
-                {campaign.publicNote && <p className="mt-5 font-serif text-sm italic leading-6 text-espresso/55">{campaign.publicNote}</p>}{campaign.recognition?.length ? <p className="mt-4 font-sans text-[11px] leading-5 text-espresso/45">With thanks to {campaign.recognition.join(', ')}.</p> : null}
-                {campaign.externalUrl && <Button asChild variant="outline" className="mt-6 w-full border-gold/30 bg-gold/5 text-espresso hover:bg-gold/15"><a href={campaign.externalUrl} target="_blank" rel="noopener noreferrer">{campaign.ctaLabel || 'View gifting details'}<ArrowRight className="ml-2 size-4" /></a></Button>}
+                {campaign.publicNote && <p className="mt-5 font-serif text-sm italic leading-6 text-espresso/55">{campaign.publicNote}</p>}
+                {campaign.recognition?.length ? <p className="mt-4 font-sans text-[11px] leading-5 text-espresso/45">With thanks to {campaign.recognition.join(', ')}.</p> : null}
+                {slug && campaign.acceptedTypes.length > 0 && (
+                  <GuestContributionPledgeForm
+                    slug={slug}
+                    campaign={{ id: campaign.id, title: campaign.title, currency: campaign.currency, acceptedTypes: campaign.acceptedTypes }}
+                  />
+                )}
+                {campaign.externalUrl && <Button asChild variant="outline" className="mt-3 w-full border-gold/30 bg-gold/5 text-espresso hover:bg-gold/15"><a href={campaign.externalUrl} target="_blank" rel="noopener noreferrer">{campaign.ctaLabel || 'View external gifting details'}<ArrowRight className="ml-2 size-4" /></a></Button>}
+                {(campaign.budgetLinked || campaign.vendorServiceLinked) && <p className="mt-3 font-sans text-[10px] leading-4 text-espresso/40">This option is connected to the couple&apos;s Planner so the funding source can be tracked without treating it as money paid by the couple.</p>}
               </article>
             )
           })}
