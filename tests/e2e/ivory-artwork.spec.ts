@@ -41,7 +41,7 @@ for (const [width, height] of [
     })
     await expect(card.getByTestId('invitation-panel-left')).toHaveCount(0)
     await capture('open')
-    await card.getByRole('button', { name: 'Wedding details', exact: true }).click()
+    await card.getByRole('button', { name: 'View wedding details' }).click()
     await expect(card).toHaveAttribute('data-invitation-view', 'details')
     await capture('details')
     const current = await card.boundingBox()
