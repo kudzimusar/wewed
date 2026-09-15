@@ -49,7 +49,53 @@ try {
     } else {
       await tx.qRDestination.create({ data: { id, weddingId, ...qrData } })
     }
-    return { id: wedding.id, slug: wedding.slug, title: wedding.title, invitationCardStyle: wedding.invitationCardStyle, guests: 2, physicalCode: 'UAT2020912' }
+
+    const vendorId = `${weddingId}-vendor-photo`
+    const engagementId = `${weddingId}-engagement-photo`
+    const honeymoonBudgetId = `${weddingId}-budget-honeymoon`
+    const photoBudgetId = `${weddingId}-budget-photo`
+    await tx.vendor.upsert({
+      where: { id: vendorId },
+      update: { name: 'UAT Photography Vendor', category: 'photographer' },
+      create: { id: vendorId, weddingId, name: 'UAT Photography Vendor', category: 'photographer' },
+    })
+    await tx.serviceEngagement.upsert({
+      where: { id: engagementId },
+      update: { serviceCategory: 'Photography', serviceDescription: 'Synthetic UAT photography service', currency: 'USD', vendorId },
+      create: { id: engagementId, weddingId, vendorId, serviceCategory: 'Photography', serviceDescription: 'Synthetic UAT photography service', agreedAmount: 1200, currency: 'USD', origin: 'uat_fixture', recordMode: 'record_only', lifecycleStatus: 'planned' },
+    })
+    await tx.budgetItem.upsert({
+      where: { id: honeymoonBudgetId },
+      update: { category: 'honeymoon', description: 'UAT Honeymoon Adventures', estimatedCost: 2500, currency: 'USD', paidAmount: 0 },
+      create: { id: honeymoonBudgetId, weddingId, category: 'honeymoon', description: 'UAT Honeymoon Adventures', estimatedCost: 2500, currency: 'USD', paidAmount: 0 },
+    })
+    await tx.budgetItem.upsert({
+      where: { id: photoBudgetId },
+      update: { category: 'photo_video', description: 'UAT Photography', estimatedCost: 1200, actualCost: 1200, currency: 'USD', paidAmount: 0, vendorId, vendorName: 'UAT Photography Vendor', serviceEngagementId: engagementId },
+      create: { id: photoBudgetId, weddingId, category: 'photo_video', description: 'UAT Photography', estimatedCost: 1200, actualCost: 1200, currency: 'USD', paidAmount: 0, vendorId, vendorName: 'UAT Photography Vendor', serviceEngagementId: engagementId },
+    })
+
+    await tx.$executeRaw`
+      INSERT INTO wewed_contributions.wedding_settings (wedding_id, accepting_contributions, disabled_message)
+      VALUES (${weddingId}, TRUE, 'Your presence and good wishes are more than enough.')
+      ON CONFLICT (wedding_id) DO UPDATE SET accepting_contributions=TRUE, disabled_message=EXCLUDED.disabled_message, updated_at=NOW()
+    `
+    await tx.$executeRaw`
+      INSERT INTO wewed_contributions.campaigns
+        (id,wedding_id,type,title,description,target_amount,currency,published,show_target,show_raised,invitation_visible,show_contributor_recognition,public_note,enabled,sort_order,accepted_types,budget_item_id,service_engagement_id)
+      VALUES
+        (${weddingId + '-campaign-honeymoon'},${weddingId},'HONEYMOON','Honeymoon Adventures','Optional support for the couple''s future adventures.',2500,'USD',TRUE,TRUE,TRUE,TRUE,TRUE,'Choose only what feels meaningful to you.',TRUE,0,'["CASH_TO_COUPLE","HONEYMOON_GIFT"]'::jsonb,${honeymoonBudgetId},NULL)
+      ON CONFLICT (id) DO UPDATE SET title=EXCLUDED.title,description=EXCLUDED.description,target_amount=EXCLUDED.target_amount,currency=EXCLUDED.currency,published=TRUE,show_target=TRUE,show_raised=TRUE,invitation_visible=TRUE,show_contributor_recognition=TRUE,public_note=EXCLUDED.public_note,enabled=TRUE,sort_order=0,accepted_types=EXCLUDED.accepted_types,budget_item_id=EXCLUDED.budget_item_id,service_engagement_id=NULL,updated_at=NOW()
+    `
+    await tx.$executeRaw`
+      INSERT INTO wewed_contributions.campaigns
+        (id,wedding_id,type,title,description,target_amount,currency,published,show_target,show_raised,invitation_visible,show_contributor_recognition,public_note,enabled,sort_order,accepted_types,budget_item_id,service_engagement_id)
+      VALUES
+        (${weddingId + '-campaign-photo'},${weddingId},'WEDDING_SUPPORT','Photography Support','Guests may choose to pay part of the photography service directly.',1200,'USD',TRUE,TRUE,TRUE,TRUE,FALSE,'This option is linked to the real Planner vendor service.',TRUE,1,'["DIRECT_VENDOR_PAYMENT"]'::jsonb,${photoBudgetId},${engagementId})
+      ON CONFLICT (id) DO UPDATE SET title=EXCLUDED.title,description=EXCLUDED.description,target_amount=EXCLUDED.target_amount,currency=EXCLUDED.currency,published=TRUE,show_target=TRUE,show_raised=TRUE,invitation_visible=TRUE,show_contributor_recognition=FALSE,public_note=EXCLUDED.public_note,enabled=TRUE,sort_order=1,accepted_types=EXCLUDED.accepted_types,budget_item_id=EXCLUDED.budget_item_id,service_engagement_id=EXCLUDED.service_engagement_id,updated_at=NOW()
+    `
+
+    return { id: wedding.id, slug: wedding.slug, title: wedding.title, invitationCardStyle: wedding.invitationCardStyle, guests: 2, physicalCode: 'UAT2020912', contributionCampaigns: 2 }
   })
   console.log('PR202_UAT_FIXTURE', JSON.stringify(result))
 } finally { await db.$disconnect() }
