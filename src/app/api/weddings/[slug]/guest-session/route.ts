@@ -233,12 +233,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
   }
 
   const childrenPolicy = await loadChildrenPolicy(wedding.id)
-  const requestedKidsCount =
-    typeof body.kidsCount === 'number' && Number.isFinite(body.kidsCount) ? body.kidsCount : 0
-  if (
-    childrenPolicy === 'adults_only' &&
-    (body.kidsAttending === true || requestedKidsCount > 0)
-  ) {
+  if (childrenPolicy === 'adults_only' && body.kidsAttending === true) {
     return noStore(
       NextResponse.json(
         {
@@ -256,8 +251,8 @@ export async function PUT(request: NextRequest, { params }: Params) {
     if (body[field] !== undefined) data[field] = body[field]
   }
   if (childrenPolicy === 'adults_only') {
-    // Applying the policy must not erase the previously recorded child count;
-    // it only makes the current attendance state authoritative and adults-only.
+    // Cached/older clients may still submit the guest's historical child count.
+    // Adults-only makes current attendance false, but never destroys that history.
     data.kidsAttending = false
     delete data.kidsCount
   }
