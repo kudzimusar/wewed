@@ -49,9 +49,9 @@ async function seedPublicContributionFlow() {
         serviceDescription: 'Contribution direct-payment E2E service',
         agreedAmount: 800,
         currency: 'USD',
-        origin: 'e2e',
+        origin: 'current',
         recordMode: 'record_only',
-        lifecycleStatus: 'planned',
+        lifecycleStatus: 'draft',
       },
     })
     await prisma.budgetItem.update({ where: { id: DIRECT_BUDGET_ID }, data: { serviceEngagementId: ENGAGEMENT_ID } })
@@ -127,7 +127,14 @@ test('Planner governance controls acceptance, creation, publication and determin
   const honeymoonCard = panel.locator('[data-testid^="governance-campaign-"]').filter({ hasText: 'Later honeymoon choice' })
   await expect(honeymoonCard).toBeVisible()
 
-  await honeymoonCard.getByRole('button', { name: 'Move Later honeymoon choice up' }).click()
+  const [reorderResponse] = await Promise.all([
+    page.waitForResponse((response) =>
+      response.url().endsWith('/api/planner/contribution-governance') &&
+      response.request().method() === 'PATCH',
+    ),
+    honeymoonCard.getByRole('button', { name: 'Move Later honeymoon choice up' }).click(),
+  ])
+  expect(reorderResponse.status()).toBe(200)
   const ordered = await page.request.get('/api/planner/contribution-governance')
   const orderedBody = await ordered.json() as { campaigns: Array<{ title: string; sortOrder: number }> }
   expect(orderedBody.campaigns.map((campaign) => campaign.title)).toEqual([
