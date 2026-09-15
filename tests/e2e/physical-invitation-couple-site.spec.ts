@@ -73,7 +73,7 @@ test('physical invitation is full bleed, reaches Couple Site before RSVP claim, 
   await experience.getByTestId('invitation-details-button').click()
   await expect(card).toHaveAttribute('data-invitation-view', 'details')
 
-  await page.getByRole('button', { name: 'Back to Wewed Couple Site' }).click()
+  await page.getByRole('button', { name: 'Visit Couple Website' }).click()
 
   await expect(page.getByTestId('physical-invitation-claim')).toHaveCount(0)
   await expect(page.locator('#main-content')).toBeVisible()
