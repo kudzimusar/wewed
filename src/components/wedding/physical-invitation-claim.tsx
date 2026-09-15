@@ -39,15 +39,22 @@ export function PhysicalInvitationClaim({
 
   function handleInvitationClickCapture(event: MouseEvent<HTMLDivElement>) {
     const target = event.target
-    if (!(target instanceof Element) || !target.closest('.ivory-site')) return
+    if (!(target instanceof Element)) return
+
+    const coupleSiteButton = target.closest('.ivory-site')
+    const registryButton = target.closest('[data-testid="invitation-cta-registry"]')
+    if (!coupleSiteButton && !registryButton) return
 
     // A physical invitation can grant read-only Couple Site access before the guest
     // identifies their RSVP. Keep the signed shared invitation session intact, but
     // explicitly request the Couple Site presentation instead of letting the clean
-    // wedding URL be interpreted as another invitation entry.
+    // wedding URL be interpreted as another invitation entry. Registry navigation
+    // keeps the same anonymous authority and lands directly on #registry.
     event.preventDefault()
     event.stopPropagation()
-    window.location.assign(`/w/${encodeURIComponent(slug)}?site=1`)
+    window.location.assign(
+      `/w/${encodeURIComponent(slug)}?site=1${registryButton ? '#registry' : ''}`,
+    )
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
