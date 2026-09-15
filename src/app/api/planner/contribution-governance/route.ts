@@ -81,6 +81,20 @@ export async function PATCH(request: NextRequest) {
       })
       return NextResponse.json({success:true,...await governance(weddingId)})
     }
+    if(body.scope==='reorder'){
+      const campaignIds=Array.isArray(body.campaignIds)?body.campaignIds.map((value)=>String(value).trim()).filter(Boolean):[]
+      if(campaignIds.length===0||new Set(campaignIds).size!==campaignIds.length) return NextResponse.json({success:false,error:'Provide each campaign exactly once in the desired order.'},{status:400})
+      const existing=await db.$queryRaw<Array<{id:string}>>`SELECT id FROM wewed_contributions.campaigns WHERE wedding_id=${weddingId}`
+      const existingIds=new Set(existing.map((row)=>row.id))
+      if(campaignIds.length!==existingIds.size||campaignIds.some((id)=>!existingIds.has(id))) return NextResponse.json({success:false,error:'Campaign order must include every contribution choice for this wedding.'},{status:400})
+      await db.$transaction(async(tx)=>{
+        for(let index=0; index<campaignIds.length; index+=1){
+          await tx.$executeRaw`UPDATE wewed_contributions.campaigns SET sort_order=${index},updated_at=NOW() WHERE id=${campaignIds[index]} AND wedding_id=${weddingId}`
+        }
+        await tx.auditEvent.create({data:{weddingId,action:'contribution_campaign.reordered',actorId,resourceType:'ContributionCampaign',resourceId:weddingId,afterValue:JSON.stringify({campaignIds})}})
+      })
+      return NextResponse.json({success:true,...await governance(weddingId)})
+    }
     const id=String(body.id??'').trim(); if(!id)return NextResponse.json({success:false,error:'Campaign id is required.'},{status:400})
     const existing=await db.$queryRaw<Array<{id:string;currency:string}>>`SELECT id,currency FROM wewed_contributions.campaigns WHERE id=${id} AND wedding_id=${weddingId} LIMIT 1`
     if(!existing[0])return NextResponse.json({success:false,error:'Campaign not found.'},{status:404})
