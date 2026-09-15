@@ -102,56 +102,98 @@ test('Ivory final UAT refinements keep guest copy clear, actions centered, save 
   await expect(page.locator('#registry')).toBeVisible()
 })
 
-test('adults-only RSVP policy is polite in the UI and authoritative on save', async ({ plannerPage: page }) => {
-  await configureInvitation('adults_only')
-  await page.context().clearCookies()
-  await page.setViewportSize({ width: 390, height: 844 })
+test('adults-only RSVP policy is polite, authoritative, and preserves historical child data', async ({ plannerPage: page }) => {
+  const prisma = new PrismaClient()
+  try {
+    await configureInvitation('adults_only')
+    await prisma.rSVP.update({
+      where: { id: `${E2E_WEDDINGS.primary.id}-rsvp` },
+      data: { kidsAttending: true, kidsCount: 2 },
+    })
 
-  const { experience } = await openIvory(page)
-  await experience.getByTestId('invitation-details-button').click()
-  await experience.getByTestId('invitation-cta-rsvp').click()
+    await page.context().clearCookies()
+    await page.setViewportSize({ width: 390, height: 844 })
 
-  const dialog = page.getByTestId('premium-invitation-rsvp-dialog')
-  await expect(dialog.getByTestId('premium-rsvp-adults-only-note')).toContainText(
-    'With love, we kindly ask that this be an adults-only celebration.',
-  )
-  await expect(dialog.getByLabel('Children are attending', { exact: true })).toHaveCount(0)
+    const { experience } = await openIvory(page)
+    await experience.getByTestId('invitation-details-button').click()
+    await experience.getByTestId('invitation-cta-rsvp').click()
 
-  const guestSession = await page.request.get(
-    `/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`,
-  )
-  expect(guestSession.status()).toBe(200)
-  const payload = await guestSession.json()
-  expect(payload).toMatchObject({
-    wedding: { childrenPolicy: 'adults_only' },
-    rsvp: { kidsAttending: false },
-  })
+    const dialog = page.getByTestId('premium-invitation-rsvp-dialog')
+    await expect(dialog.getByTestId('premium-rsvp-adults-only-note')).toContainText(
+      'With love, we kindly ask that this be an adults-only celebration.',
+    )
+    await expect(dialog.getByLabel('Children are attending', { exact: true })).toHaveCount(0)
 
-  const rejected = await page.request.put(
-    `/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`,
-    {
-      data: {
-        originGuestId: payload.guest.id,
-        attending: true,
-        kidsAttending: true,
-        kidsCount: 2,
+    const guestSession = await page.request.get(
+      `/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`,
+    )
+    expect(guestSession.status()).toBe(200)
+    const payload = await guestSession.json()
+    expect(payload).toMatchObject({
+      wedding: { childrenPolicy: 'adults_only' },
+      rsvp: { kidsAttending: false, kidsCount: 2 },
+    })
+
+    const rejected = await page.request.put(
+      `/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`,
+      {
+        data: {
+          originGuestId: payload.guest.id,
+          attending: true,
+          kidsAttending: true,
+          kidsCount: 2,
+        },
       },
-    },
-  )
-  expect(rejected.status()).toBe(400)
-  expect(await rejected.json()).toMatchObject({
-    success: false,
-    code: 'CHILDREN_NOT_ALLOWED',
-  })
+    )
+    expect(rejected.status()).toBe(400)
+    expect(await rejected.json()).toMatchObject({
+      success: false,
+      code: 'CHILDREN_NOT_ALLOWED',
+    })
 
-  const saveResponse = page.waitForResponse(
-    (response) =>
-      response.request().method() === 'PUT' &&
-      response.url().includes(`/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`),
-  )
-  await dialog.getByRole('button', { name: 'Save RSVP', exact: true }).click()
-  expect((await saveResponse).status()).toBe(200)
-  await expect(dialog.getByTestId('premium-rsvp-save-status')).toBeVisible()
+    const staleCachedClient = await page.request.put(
+      `/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`,
+      {
+        data: {
+          originGuestId: payload.guest.id,
+          attending: true,
+          kidsAttending: false,
+          kidsCount: 2,
+        },
+      },
+    )
+    expect(staleCachedClient.status()).toBe(200)
+    expect(await staleCachedClient.json()).toMatchObject({
+      success: true,
+      rsvp: { kidsAttending: false, kidsCount: 2 },
+    })
 
-  await configureInvitation('welcome')
+    const afterCachedSave = await prisma.rSVP.findUnique({
+      where: { id: `${E2E_WEDDINGS.primary.id}-rsvp` },
+      select: { kidsAttending: true, kidsCount: true },
+    })
+    expect(afterCachedSave).toEqual({ kidsAttending: false, kidsCount: 2 })
+
+    const saveResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PUT' &&
+        response.url().includes(`/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`),
+    )
+    await dialog.getByRole('button', { name: 'Save RSVP', exact: true }).click()
+    expect((await saveResponse).status()).toBe(200)
+    await expect(dialog.getByTestId('premium-rsvp-save-status')).toBeVisible()
+
+    await configureInvitation('welcome')
+    const restored = await page.request.get(
+      `/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`,
+    )
+    expect(restored.status()).toBe(200)
+    expect(await restored.json()).toMatchObject({
+      wedding: { childrenPolicy: 'welcome' },
+      rsvp: { kidsAttending: false, kidsCount: 2 },
+    })
+  } finally {
+    await configureInvitation('welcome').catch(() => undefined)
+    await prisma.$disconnect()
+  }
 })
