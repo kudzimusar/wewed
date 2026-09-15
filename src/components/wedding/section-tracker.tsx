@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useWeddingContextSafe } from '@/components/wedding/wedding-data-provider'
+import { coupleNames } from '@/lib/wedding-template-defaults'
 
 /**
  * SectionTracker — a small floating chip showing the current section name.
@@ -28,11 +30,11 @@ import { motion, AnimatePresence } from 'framer-motion'
  *  - Only tracks sections that exist in the DOM at mount time.
  */
 
-// Static map of section IDs to human-readable labels.
-// This avoids modifying any section component (zero hydration risk) and
-// keeps all tracker logic self-contained.
-const SECTION_LABELS: Record<string, string> = {
-  home: 'Charity & Kudzie',
+// Stable labels for generic sections. Wedding-specific labels are derived from
+// the active context below, so the tracker cannot carry another wedding's
+// identity into this page.
+const DEFAULT_SECTION_LABELS: Record<string, string> = {
+  home: 'Our Wedding',
   story: 'Our Story',
   venue: 'The Venue',
   theday: 'The Day',
@@ -48,7 +50,7 @@ const SECTION_LABELS: Record<string, string> = {
   gallery: 'Gallery',
   share: 'Share Your Moments',
   capsule: 'Memory Time Capsule',
-  livewall: 'Live from Imba Manor',
+  livewall: 'Live from the celebration',
   faq: 'Questions & Answers',
   'share-wedding': 'Spread the Love',
   pricing: 'Your Forever, Preserved',
@@ -57,12 +59,23 @@ const SECTION_LABELS: Record<string, string> = {
 const HERO_HEIGHT_PX = 600 // Below this, show the tracker
 
 export function SectionTracker() {
-  const [activeLabel, setActiveLabel] = useState<string | null>(null)
+  const context = useWeddingContextSafe()
+  const [activeSectionId, setActiveSectionId] = useState<string | null>(null)
   const [showTracker, setShowTracker] = useState(false)
   const [reducedMotion, setReducedMotion] = useState(false)
   const [progressPercent, setProgressPercent] = useState(0)
   const visibleRef = useRef<Map<string, number>>(new Map())
   const rafRef = useRef<number>(0)
+  const sectionLabels = useMemo(() => {
+    const venue = context?.wedding?.venue?.trim()
+
+    return {
+      ...DEFAULT_SECTION_LABELS,
+      home: coupleNames(context?.wedding),
+      livewall: venue ? `Live from ${venue}` : DEFAULT_SECTION_LABELS.livewall,
+    }
+  }, [context?.wedding])
+  const activeLabel = activeSectionId ? sectionLabels[activeSectionId] ?? null : null
 
   // Set up reduced-motion listener.
   useEffect(() => {
@@ -84,15 +97,15 @@ export function SectionTracker() {
     let bestId = ''
     let bestRatio = 0
     visible.forEach((ratio, id) => {
-      if (ratio > bestRatio && SECTION_LABELS[id]) {
+      if (ratio > bestRatio && sectionLabels[id]) {
         bestRatio = ratio
         bestId = id
       }
     })
     if (bestId) {
-      setActiveLabel((prev) => (prev !== SECTION_LABELS[bestId] ? SECTION_LABELS[bestId] : prev))
+      setActiveSectionId((previous) => (previous !== bestId ? bestId : previous))
     }
-  }, [])
+  }, [sectionLabels])
 
   // Track scroll position to toggle tracker visibility + reading progress.
   useEffect(() => {
@@ -125,7 +138,7 @@ export function SectionTracker() {
   // Observe each known section for visibility ratio.
   useEffect(() => {
     // Find all sections that have both an ID and a label in our map.
-    const sectionIds = Object.keys(SECTION_LABELS)
+    const sectionIds = Object.keys(sectionLabels)
     const sections = sectionIds
       .map((id) => document.getElementById(id))
       .filter((el): el is HTMLElement => el !== null)
@@ -152,7 +165,7 @@ export function SectionTracker() {
     )
     sections.forEach((el) => observer.observe(el))
     return () => observer.disconnect()
-  }, [pickActive])
+  }, [pickActive, sectionLabels])
 
   return (
     <div

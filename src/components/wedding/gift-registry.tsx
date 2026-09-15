@@ -26,38 +26,8 @@ interface RegistryCard {
     progress?: number;
     detail?: string;
   };
-  href: string;
+  href: string | null;
 }
-
-const STARTER_CARDS: RegistryCard[] = [
-  {
-    icon: 'plane',
-    title: 'Example Honeymoon Fund',
-    description: 'Replace this with a honeymoon, future-home or experience fund if you would like one.',
-    accent: 'gold',
-    cta: 'Gift details',
-    meta: { label: 'Example only', raised: 0, detail: 'Replace this example with your own gifting details.' },
-    href: '#rsvp',
-  },
-  {
-    icon: 'heart',
-    title: 'Example Cause We Love',
-    description: 'Add an optional charity or community cause that guests may support in your honour.',
-    accent: 'clay',
-    cta: 'Learn more',
-    meta: { label: 'Example only', raised: 0, detail: 'This optional card can be removed or replaced.' },
-    href: '#rsvp',
-  },
-  {
-    icon: 'gift',
-    title: 'Example Home Registry',
-    description: 'Add your preferred registry provider, shop, wish list or a note that no gifts are needed.',
-    accent: 'sage',
-    cta: 'Registry details',
-    meta: { label: 'Available at', raised: 0, detail: 'Add your preferred registry or homeware provider.' },
-    href: '#rsvp',
-  },
-];
 
 const ICONS = { plane: Plane, heart: Heart, gift: Gift } as const;
 
@@ -98,6 +68,9 @@ function cardFromContent(value: string, metadata: Record<string, unknown>, index
   const goal = asNumber(metadata.goal, 0);
   const raised = asNumber(metadata.raised, 0);
   const progress = goal > 0 ? asNumber(metadata.progress, Math.round((raised / goal) * 100)) : undefined;
+  const href = typeof metadata.href === 'string' && metadata.href.trim() && metadata.href !== '#rsvp'
+    ? metadata.href.trim()
+    : null;
 
   return {
     icon,
@@ -112,7 +85,7 @@ function cardFromContent(value: string, metadata: Record<string, unknown>, index
       progress,
       detail: typeof metadata.detail === 'string' ? metadata.detail : undefined,
     },
-    href: typeof metadata.href === 'string' ? metadata.href : '#rsvp',
+    href,
   };
 }
 
@@ -121,7 +94,7 @@ function RegistryCardItem({ card, index }: { card: RegistryCard; index: number }
   const isInView = useInView(ref, { once: true, margin: '-50px' });
   const Icon = ICONS[card.icon];
   const styles = ACCENT_STYLES[card.accent];
-  const isExternal = card.href.startsWith('http');
+  const isExternal = Boolean(card.href?.startsWith('http'));
   const noGoalDetail = card.meta.detail || (card.icon === 'gift' ? 'Curated homeware & timeless pieces' : card.description);
 
   return (
@@ -167,12 +140,14 @@ function RegistryCardItem({ card, index }: { card: RegistryCard; index: number }
             </div>
           )}
 
-          <Button asChild variant="outline" className={`w-full justify-center border font-sans text-xs uppercase tracking-[0.15em] transition-all duration-300 ${styles.button}`}>
-            <a href={card.href} {...(isExternal ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
-              {card.cta}
-              <ArrowRight className="ml-2 h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-            </a>
-          </Button>
+          {card.href && (
+            <Button asChild variant="outline" className={`w-full justify-center border font-sans text-xs uppercase tracking-[0.15em] transition-all duration-300 ${styles.button}`}>
+              <a href={card.href} {...(isExternal ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
+                {card.cta}
+                <ArrowRight className="ml-2 h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+              </a>
+            </Button>
+          )}
         </CardContent>
       </Card>
     </motion.div>
@@ -185,7 +160,7 @@ export function GiftRegistry() {
   const ctx = useWeddingContextSafe();
   const wedding = ctx?.wedding;
   const rows = ctx?.getOrdered('registry', 'card-') ?? [];
-  const cards = rows.length > 0 ? rows.map((row, index) => cardFromContent(row.value, row.metadata, index)) : STARTER_CARDS;
+  const cards = rows.map((row, index) => cardFromContent(row.value, row.metadata, index));
   const heading = ctx?.getContent('registry', 'heading', 'With Gratitude') ?? 'With Gratitude';
   const subtitle = ctx?.getContent(
     'registry',
@@ -200,7 +175,7 @@ export function GiftRegistry() {
   const footerMark = [wedding?.monogram || coupleNames(wedding), compactWeddingDate(wedding?.date)].filter(Boolean).join(' · ');
 
   return (
-    <section id="registry" data-classic-section="gift-registry" className="wewed-section bg-champagne py-20 md:py-32">
+    <section id="registry" data-registry-configured={rows.length > 0 ? 'true' : 'false'} data-classic-section="gift-registry" className="wewed-section bg-champagne py-20 md:py-32">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
         <motion.div
           ref={sectionRef}
@@ -214,9 +189,17 @@ export function GiftRegistry() {
           <p className="mx-auto mt-6 max-w-2xl font-sans text-sm tracking-wide text-espresso/60 sm:text-base">{subtitle}</p>
         </motion.div>
 
-        <div className="grid gap-6 md:grid-cols-3 md:gap-8">
-          {cards.map((card, index) => <RegistryCardItem key={`${card.title}-${index}`} card={card} index={index} />)}
-        </div>
+        {cards.length > 0 ? (
+          <div className="grid gap-6 md:grid-cols-3 md:gap-8">
+            {cards.map((card, index) => <RegistryCardItem key={`${card.title}-${index}`} card={card} index={index} />)}
+          </div>
+        ) : (
+          <div data-testid="registry-empty-state" className="mx-auto max-w-2xl rounded-2xl border border-gold/20 bg-ivory/60 px-6 py-8 text-center">
+            <Gift className="mx-auto size-7 text-gold-muted" strokeWidth={1.25} />
+            <h3 className="mt-3 font-serif text-xl font-light text-espresso">No contribution options have been published yet.</h3>
+            <p className="mt-2 font-sans text-sm leading-6 text-espresso/60">There is nothing you need to do here. If the couple chooses to share gifting or contribution information later, it will appear in this section.</p>
+          </div>
+        )}
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}

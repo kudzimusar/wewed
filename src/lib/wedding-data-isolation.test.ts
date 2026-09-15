@@ -8,6 +8,7 @@ describe('wedding identity isolation', () => {
     const home = source('src/components/wedding/wedding-home.tsx')
     const provider = source('src/components/wedding/wedding-data-provider.tsx')
     const page = source('src/app/w/[slug]/page.tsx')
+    const tracker = source('src/components/wedding/section-tracker.tsx')
 
     // The provider may retain a flagship marker for migrated fixture/media
     // compatibility, but renderer selection must never depend on it.
@@ -42,6 +43,11 @@ describe('wedding identity isolation', () => {
     expect(home).toContain("const canContribute = accessKind !== 'public' && accessKind !== null")
     expect(home).toContain('{canContribute && <MediaUpload />}')
     expect(home).toContain('<LiveWall canPost={canContribute} />')
+    expect(tracker).toContain('useWeddingContextSafe')
+    expect(tracker).toContain('coupleNames(context?.wedding)')
+    expect(tracker).toContain('activeSectionId')
+    expect(tracker).not.toContain("home: 'Charity & Kudzie'")
+    expect(tracker).not.toContain("livewall: 'Live from Imba Manor'")
   })
 
   test('the retained legacy reduced renderer is neutral and is not mounted', () => {

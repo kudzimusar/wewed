@@ -1,33 +1,24 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Download, ExternalLink, LoaderCircle, Smartphone } from 'lucide-react'
 import {
   ANDROID_PACKAGE,
   buildInvitationContinuePath,
   isValidInvitationHandoffSecret,
-  PLAY_STORE_URL,
 } from '@/lib/invitation-links'
 
-type RelatedApplication = {
-  id?: string
-  platform?: string
-  url?: string
-}
-
+type RelatedApplication = { id?: string; platform?: string; url?: string }
 type NavigatorWithRelatedApps = Navigator & {
   getInstalledRelatedApps?: () => Promise<RelatedApplication[]>
 }
-
 type InstallHandoffResponse = {
   playStoreUrl?: unknown
   appResumePath?: unknown
   expiresAt?: unknown
   message?: unknown
 }
-
 type PreparingAction = 'install' | 'open-app'
-
 const INSTALL_PREPARATION_TIMEOUT_MS = 20_000
 
 export function InvitationAppHandoff({
@@ -45,24 +36,11 @@ export function InvitationAppHandoff({
   const [preparing, setPreparing] = useState<PreparingAction | null>(null)
   const [handoffError, setHandoffError] = useState<string | null>(null)
   const preparingRef = useRef(false)
-
-  const continueInBrowser = useMemo(
-    () => buildInvitationContinuePath({ weddingSlug, source: 'browser' }),
-    [weddingSlug],
-  )
-  const continueInApp = useMemo(
-    () => buildInvitationContinuePath({ weddingSlug, source: 'app' }),
-    [weddingSlug],
-  )
-  const legacyAndroidIntent = useMemo(() => {
-    const path = continueInApp.replace(/^\//, '')
-    const fallback = encodeURIComponent(PLAY_STORE_URL)
-    return `intent://wewed.pro/${path}#Intent;scheme=https;package=${ANDROID_PACKAGE};S.browser_fallback_url=${fallback};end`
-  }, [continueInApp])
+  const continueInBrowser = buildInvitationContinuePath({ weddingSlug, source: 'browser' })
+  const continueInApp = buildInvitationContinuePath({ weddingSlug, source: 'app' })
 
   useEffect(() => {
-    const standalone = window.matchMedia('(display-mode: standalone)').matches
-    if (standalone) {
+    if (window.matchMedia('(display-mode: standalone)').matches) {
       window.location.replace(continueInApp)
       return
     }
@@ -74,16 +52,15 @@ export function InvitationAppHandoff({
       return
     }
 
-    const navigatorWithApps = navigator as NavigatorWithRelatedApps
-    const getInstalledRelatedApps = navigatorWithApps.getInstalledRelatedApps
-    if (typeof getInstalledRelatedApps !== 'function') {
+    const nav = navigator as NavigatorWithRelatedApps
+    const fn = nav.getInstalledRelatedApps
+    if (typeof fn !== 'function') {
       setChecking(false)
       return
     }
 
     let cancelled = false
-    void getInstalledRelatedApps
-      .call(navigatorWithApps)
+    void fn.call(nav)
       .then((apps) => {
         if (cancelled) return
         setInstalled(
@@ -98,10 +75,7 @@ export function InvitationAppHandoff({
       .finally(() => {
         if (!cancelled) setChecking(false)
       })
-
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [continueInApp])
 
   function resetPreparation() {
@@ -109,21 +83,13 @@ export function InvitationAppHandoff({
     setPreparing(null)
   }
 
-  async function requestSecureHandoff(
-    action: PreparingAction,
-    source: string,
-  ): Promise<{ playStoreUrl: string; appResumePath: string } | null> {
+  async function requestSecureHandoff(action: PreparingAction, source: string) {
     if (!deferredInstallEnabled || preparingRef.current) return null
     preparingRef.current = true
     setPreparing(action)
     setHandoffError(null)
-
     const controller = new AbortController()
-    const timeout = window.setTimeout(
-      () => controller.abort(),
-      INSTALL_PREPARATION_TIMEOUT_MS,
-    )
-
+    const timeout = window.setTimeout(() => controller.abort(), INSTALL_PREPARATION_TIMEOUT_MS)
     try {
       const response = await fetch('/api/invitations/install-handoff', {
         method: 'POST',
@@ -134,213 +100,108 @@ export function InvitationAppHandoff({
         signal: controller.signal,
       })
       const data = (await response.json().catch(() => ({}))) as InstallHandoffResponse
-
       if (
         !response.ok ||
         typeof data.playStoreUrl !== 'string' ||
-        !data.playStoreUrl.startsWith(
-          'https://play.google.com/store/apps/details?id=pro.wewed.app&referrer=',
-        ) ||
+        !data.playStoreUrl.startsWith(`https://play.google.com/store/apps/details?id=${ANDROID_PACKAGE}&referrer=`) ||
         typeof data.appResumePath !== 'string'
       ) {
-        throw new Error(
-          typeof data.message === 'string' ? data.message : 'handoff unavailable',
-        )
+        throw new Error(typeof data.message === 'string' ? data.message : 'handoff unavailable')
       }
-
       const resumeUrl = new URL(data.appResumePath, 'https://wewed.pro')
       const handoff = resumeUrl.searchParams.get('h') || ''
       if (
-        resumeUrl.origin !== 'https://wewed.pro' ||
         resumeUrl.pathname !== '/invite/resume' ||
         !isValidInvitationHandoffSecret(handoff) ||
         resumeUrl.searchParams.has('rsvp')
       ) {
         throw new Error('invalid handoff response')
       }
-
-      return {
-        playStoreUrl: data.playStoreUrl,
-        appResumePath: `${resumeUrl.pathname}${resumeUrl.search}`,
-      }
+      return { playStoreUrl: data.playStoreUrl, appResumePath: `${resumeUrl.pathname}${resumeUrl.search}` }
     } catch (error) {
-      const timedOut =
-        error instanceof DOMException && error.name === 'AbortError'
+      const timedOut = error instanceof DOMException && error.name === 'AbortError'
       setHandoffError(
         timedOut
           ? 'The connection took too long. Check your internet connection and try again.'
-          : 'We could not securely prepare your invitation. Try again, or open the invitation in your browser.',
+          : 'We could not securely prepare your invitation. Please try again.',
       )
-      resetPreparation()
       return null
     } finally {
       window.clearTimeout(timeout)
+      resetPreparation()
     }
   }
 
   async function installAndKeepInvitation() {
     const handoff = await requestSecureHandoff('install', 'android-install-cta')
-    if (!handoff) return
-
-    // A top-level navigation is deliberate here. It lets WhatsApp/Facebook hand the
-    // guest to Google Play while only the opaque Wewed handoff crosses installation.
-    window.location.assign(handoff.playStoreUrl)
-    window.setTimeout(resetPreparation, 2500)
+    if (handoff) window.location.assign(handoff.playStoreUrl)
   }
 
   async function openInstalledWewed() {
-    const handoff = await requestSecureHandoff(
-      'open-app',
-      'android-installed-app-fallback',
-    )
+    const handoff = await requestSecureHandoff('open-app', 'android-installed-app')
     if (!handoff) return
-
     const target = handoff.appResumePath.replace(/^\//, '')
-    const fallback = encodeURIComponent(
-      new URL(continueInBrowser, window.location.href).toString(),
-    )
-    const intent = `intent://wewed.pro/${target}#Intent;scheme=https;package=${ANDROID_PACKAGE};S.browser_fallback_url=${fallback};end`
-
-    // This path is specifically for in-app browsers that intercepted the original
-    // verified App Link. It opens Wewed with the one-time handoff and needs no cookie
-    // sharing between WhatsApp/Facebook and Chrome/TWA.
-    window.location.assign(intent)
-    window.setTimeout(resetPreparation, 2500)
+    const fallback = encodeURIComponent(window.location.href)
+    window.location.assign(`intent://wewed.pro/${target}#Intent;scheme=https;package=${ANDROID_PACKAGE};S.browser_fallback_url=${fallback};end`)
   }
 
-  const browserButton = (
-    <a
-      href={continueInBrowser}
-      className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#c6a061] px-5 py-4 text-center font-semibold text-[#21170d] transition hover:bg-[#d5b477] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f8f1e7]"
-    >
-      <ExternalLink className="size-5 shrink-0" aria-hidden="true" />
-      Open wedding invitation
-    </a>
-  )
-
-  const secureOpenButton = (
-    <button
-      type="button"
-      onClick={openInstalledWewed}
-      disabled={preparing !== null}
-      aria-busy={preparing === 'open-app'}
-      className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-[#b89155]/55 px-5 py-4 text-center font-semibold text-[#f8f1e7] transition hover:bg-[#2b231c] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f8f1e7] disabled:cursor-wait disabled:opacity-70"
-    >
-      {preparing === 'open-app' ? (
-        <LoaderCircle className="size-5 shrink-0 animate-spin" aria-hidden="true" />
-      ) : (
-        <ExternalLink className="size-5 shrink-0" aria-hidden="true" />
-      )}
-      {preparing === 'open-app' ? 'Opening Wewed…' : 'Open invitation in Wewed'}
-    </button>
-  )
+  if (isAndroid === false && !checking) {
+    return (
+      <main className="min-h-screen bg-[#17130f] px-4 py-8 text-[#f8f1e7] sm:px-6 sm:py-10">
+        <section className="mx-auto max-w-xl rounded-[2rem] border border-[#b89155]/45 bg-[#211b16] p-5 shadow-2xl sm:p-9">
+          <p className="text-center text-xs font-semibold uppercase tracking-[0.24em] text-[#c8a56b]">Wewed · Private invitation</p>
+          <h1 className="mt-4 text-center font-serif text-4xl leading-tight sm:text-5xl">Your invitation is ready</h1>
+          <p className="mx-auto mt-4 max-w-md text-center text-sm leading-6 text-[#d6cec5]">Open {weddingTitle} securely in your browser.</p>
+          <a href={continueInBrowser} className="mt-8 flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#c6a061] px-5 py-4 text-center font-semibold text-[#21170d]">
+            <ExternalLink className="size-5" /> Open wedding invitation
+          </a>
+        </section>
+      </main>
+    )
+  }
 
   return (
-    <main className="min-h-screen bg-[#17130f] px-4 py-8 text-[#f8f1e7] sm:px-6 sm:py-10">
+    <main data-testid="personal-invitation-android-gate" className="min-h-screen bg-[#17130f] px-4 py-8 text-[#f8f1e7] sm:px-6 sm:py-10">
       <section className="mx-auto max-w-xl rounded-[2rem] border border-[#b89155]/45 bg-[#211b16] p-5 shadow-2xl sm:p-9">
         <div className="mx-auto flex size-16 items-center justify-center rounded-full border border-[#b89155]/45 bg-[#2a2119] text-[#d8b477]">
-          <Smartphone className="size-7" aria-hidden="true" />
+          <Smartphone className="size-7" />
         </div>
-
-        <p className="mt-7 text-center text-xs font-semibold uppercase tracking-[0.24em] text-[#c8a56b]">
-          Wewed · Private invitation
-        </p>
-        <h1 className="mt-4 text-center font-serif text-4xl leading-tight sm:text-5xl">
-          Your invitation is ready
-        </h1>
+        <p className="mt-7 text-center text-xs font-semibold uppercase tracking-[0.24em] text-[#c8a56b]">Wewed · Private invitation</p>
+        <h1 className="mt-4 text-center font-serif text-4xl leading-tight sm:text-5xl">Your invitation is waiting in Wewed</h1>
         <p className="mx-auto mt-4 max-w-md text-center text-sm leading-6 text-[#d6cec5] sm:text-base">
-          Open {weddingTitle} in Wewed. Your private invitation has already been
-          recognised, so you will not need to paste a code again.
+          Open {weddingTitle} in Wewed to reveal your private invitation and RSVP. Your invitation identity is already recognised.
         </p>
 
         <div className="mt-8 space-y-3">
-          {isAndroid === true ? (
-            <>
-              {installed ? (
-                deferredInstallEnabled ? (
-                  secureOpenButton
-                ) : (
-                  <a
-                    href={legacyAndroidIntent}
-                    className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#c6a061] px-5 py-4 text-center font-semibold text-[#21170d] transition hover:bg-[#d5b477] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f8f1e7]"
-                  >
-                    <ExternalLink className="size-5 shrink-0" aria-hidden="true" />
-                    Open invitation in Wewed
-                  </a>
-                )
-              ) : deferredInstallEnabled ? (
-                <button
-                  type="button"
-                  onClick={installAndKeepInvitation}
-                  disabled={preparing !== null}
-                  aria-busy={preparing === 'install'}
-                  className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#c6a061] px-5 py-4 text-center font-semibold text-[#21170d] transition hover:bg-[#d5b477] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f8f1e7] disabled:cursor-wait disabled:opacity-70"
-                >
-                  {preparing === 'install' ? (
-                    <LoaderCircle className="size-5 shrink-0 animate-spin" aria-hidden="true" />
-                  ) : (
-                    <Download className="size-5 shrink-0" aria-hidden="true" />
-                  )}
-                  {preparing === 'install'
-                    ? 'Preparing your invitation…'
-                    : 'Install Wewed & open my invitation'}
-                </button>
-              ) : (
-                <a
-                  href={PLAY_STORE_URL}
-                  className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#c6a061] px-5 py-4 text-center font-semibold text-[#21170d] transition hover:bg-[#d5b477] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f8f1e7]"
-                >
-                  <Download className="size-5 shrink-0" aria-hidden="true" />
-                  Install Wewed
-                </a>
-              )}
-
-              {!installed &&
-                (deferredInstallEnabled ? (
-                  secureOpenButton
-                ) : (
-                  <a
-                    href={legacyAndroidIntent}
-                    className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-[#b89155]/55 px-5 py-4 text-center font-semibold text-[#f8f1e7] transition hover:bg-[#2b231c] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f8f1e7]"
-                  >
-                    <ExternalLink className="size-5 shrink-0" aria-hidden="true" />
-                    Already installed? Open Wewed
-                  </a>
-                ))}
-
-              {handoffError && (
-                <div
-                  role="alert"
-                  className="rounded-2xl border border-[#c97866]/50 bg-[#3a201c] px-4 py-3 text-sm leading-6 text-[#f3d8d1]"
-                >
-                  {handoffError}
-                </div>
-              )}
-
-              <a
-                href={continueInBrowser}
-                className="block min-h-12 w-full rounded-2xl px-5 py-3 text-center text-sm text-[#d6cec5] underline decoration-[#b89155]/60 underline-offset-4 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f8f1e7]"
-              >
-                Continue to invitation in browser
-              </a>
-            </>
+          {checking ? (
+            <div className="flex min-h-14 items-center justify-center gap-2 rounded-2xl border border-[#b89155]/45 text-[#d6cec5]">
+              <LoaderCircle className="size-5 animate-spin" /> Checking Wewed…
+            </div>
+          ) : !deferredInstallEnabled ? (
+            <p role="alert" className="rounded-2xl border border-[#c97866]/50 bg-[#3a201c] px-4 py-3 text-sm leading-6 text-[#f3d8d1]">
+              Secure Android invitation resume is not enabled on this build. The invitation stays locked rather than falling back to the browser.
+            </p>
+          ) : installed ? (
+            <button type="button" onClick={openInstalledWewed} disabled={preparing !== null} className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#c6a061] px-5 py-4 font-semibold text-[#21170d] disabled:opacity-60">
+              {preparing === 'open-app' ? <LoaderCircle className="size-5 animate-spin" /> : <ExternalLink className="size-5" />}
+              {preparing === 'open-app' ? 'Opening Wewed…' : 'Open invitation in Wewed'}
+            </button>
           ) : (
-            browserButton
+            <>
+              <button type="button" onClick={installAndKeepInvitation} disabled={preparing !== null} className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#c6a061] px-5 py-4 font-semibold text-[#21170d] disabled:opacity-60">
+                {preparing === 'install' ? <LoaderCircle className="size-5 animate-spin" /> : <Download className="size-5" />}
+                {preparing === 'install' ? 'Preparing your invitation…' : 'Install Wewed & reveal my invitation'}
+              </button>
+              <button type="button" onClick={openInstalledWewed} disabled={preparing !== null} className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-[#b89155]/55 px-5 py-4 font-semibold text-[#f8f1e7] disabled:opacity-60">
+                <ExternalLink className="size-5" /> Already installed? Open Wewed
+              </button>
+            </>
           )}
+          {handoffError && <p role="alert" className="rounded-2xl border border-[#c97866]/50 bg-[#3a201c] px-4 py-3 text-sm leading-6 text-[#f3d8d1]">{handoffError}</p>}
         </div>
 
-        <p className="mt-6 text-center text-xs leading-5 text-[#9f958a]" aria-live="polite">
-          {checking
-            ? 'Checking the safest way to open your invitation…'
-            : isAndroid
-              ? installed
-                ? deferredInstallEnabled
-                  ? 'Wewed is already installed. A temporary one-time handoff opens this invitation even when the original link was intercepted by an in-app browser.'
-                  : 'Wewed is already installed. Open it above to continue directly to this invitation.'
-                : deferredInstallEnabled
-                  ? 'Your private RSVP details stay with Wewed. Google Play receives only a temporary one-time handoff so the installed app can resume this exact invitation.'
-                  : 'Install Wewed from Google Play, then return to this invitation link. Automatic install resume is not enabled for this release yet.'
-              : 'You can open the complete invitation securely in your browser. Wewed app installation is offered on supported Android devices.'}
+        <p className="mt-6 text-center text-xs leading-5 text-[#9f958a]">
+          On Android the invitation is revealed only inside Wewed. Google Play receives only a temporary one-time handoff, never the RSVP token or guest details.
         </p>
       </section>
     </main>

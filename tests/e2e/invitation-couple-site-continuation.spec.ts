@@ -1,0 +1,304 @@
+import { PrismaClient } from '@prisma/client'
+import type { InvitationCardStyle } from '../../src/lib/digital-invitation-card'
+import { E2E_WEDDINGS, expect, test } from './support/planner-browser'
+
+async function enablePersonalInvitationFixture() {
+  const prisma = new PrismaClient()
+  try {
+    await prisma.wedding.update({
+      where: { id: E2E_WEDDINGS.primary.id },
+      data: {
+        // Deliberately keep the internal wedding record title different from the
+        // couple display identity so guest-session personalization cannot replace
+        // "Aurora & Blake" with operational metadata.
+        title: 'Internal invitation qualification record',
+        privacy: 'link_only',
+        invitationCardStyle: 'ivory-floral-gold',
+      },
+    })
+  } finally {
+    await prisma.$disconnect()
+  }
+}
+
+async function setWeddingInvitationStyle(invitationCardStyle: InvitationCardStyle) {
+  const prisma = new PrismaClient()
+  try {
+    await prisma.wedding.update({
+      where: { id: E2E_WEDDINGS.primary.id },
+      data: { invitationCardStyle },
+    })
+  } finally {
+    await prisma.$disconnect()
+  }
+}
+
+test('mobile Couple Site uses premium app chrome, full-bleed Ivory, My Wedding round-trip, and guest re-entry', async ({ plannerPage: page }) => {
+  await enablePersonalInvitationFixture()
+  await page.context().clearCookies()
+  await page.setViewportSize({ width: 390, height: 844 })
+
+  const token = `${E2E_WEDDINGS.primary.slug}-rsvp-token`
+  await page.goto(
+    `/invite/${E2E_WEDDINGS.primary.slug}?rsvp=${encodeURIComponent(token)}&card=ivory-floral-gold`,
+  )
+  await expect(page).toHaveURL(
+    new RegExp(`/invite/${E2E_WEDDINGS.primary.slug}/open`),
+  )
+  expect(page.url()).not.toContain(token)
+
+  const browserLink = page.getByRole('link', {
+    name: /^(Open wedding invitation|Continue to invitation in browser)$/,
+  })
+  await expect(browserLink).toBeVisible()
+  await browserLink.click()
+
+  const experience = page.getByTestId('premium-invitation-experience')
+  const card = experience.getByTestId('invitation-trifold')
+  await expect(experience).toHaveAttribute(
+    'data-invitation-style',
+    'ivory-floral-gold',
+  )
+  await expect(page.getByTestId('invitation-countdown')).toBeVisible()
+  await expect(page.getByTestId('mobile-wedding-bottom-nav')).toHaveCount(0)
+  await expect(page.locator('main#main-content')).toHaveCount(0)
+  await expect(page.locator('footer')).toHaveCount(0)
+  await expect(card).toHaveAttribute('data-artwork-ready', 'true', {
+    timeout: 5_000,
+  })
+
+  const mobileCardBox = await card.boundingBox()
+  expect(mobileCardBox).not.toBeNull()
+  expect(mobileCardBox!.x).toBeLessThanOrEqual(1)
+  expect(mobileCardBox!.width).toBeGreaterThanOrEqual(389)
+  expect(Math.abs(mobileCardBox!.width / mobileCardBox!.height - 9 / 19.5)).toBeLessThan(0.01)
+
+  await experience.getByTestId('invitation-open-button').click()
+  await expect(card).toHaveAttribute('data-invitation-view', 'open', {
+    timeout: 4_000,
+  })
+  await expect(experience).toContainText('Aurora')
+  await expect(experience).toContainText('Blake')
+  await expect(experience).not.toContainText('Internal invitation qualification record')
+
+  const detailsButton = experience.getByTestId('invitation-details-button')
+  await expect(detailsButton).toBeVisible()
+  const detailsCue = await detailsButton.locator('span').evaluate((node) =>
+    window.getComputedStyle(node, '::before').content,
+  )
+  expect(detailsCue).toContain('View wedding details')
+
+  await detailsButton.click()
+  await expect(card).toHaveAttribute('data-invitation-view', 'details')
+
+  await experience.getByTestId('invitation-cta-rsvp').click()
+  const rsvpDialog = page.getByTestId('premium-invitation-rsvp-dialog')
+  await expect(rsvpDialog).toBeVisible()
+  await expect(rsvpDialog.getByTestId('premium-rsvp-plus-one-details')).toHaveCount(0)
+  await expect(rsvpDialog.getByTestId('premium-rsvp-kids-stepper')).toHaveCount(0)
+
+  await rsvpDialog.getByLabel('I am bringing a plus-one', { exact: true }).check()
+  await expect(rsvpDialog.getByTestId('premium-rsvp-plus-one-details')).toBeVisible()
+  await rsvpDialog.locator('#premium-invite-plus-one-name').fill('RSVP Companion')
+  await rsvpDialog.locator('#premium-invite-plus-one-meal').fill('Vegetarian')
+
+  await rsvpDialog.getByLabel('Children are attending', { exact: true }).check()
+  await expect(rsvpDialog.getByTestId('premium-rsvp-kids-stepper')).toBeVisible()
+  await rsvpDialog.getByRole('button', { name: 'Add one child', exact: true }).click()
+  await rsvpDialog.getByLabel('Dietary notes', { exact: true }).fill('No shellfish')
+
+  const acceptedSave = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PUT' &&
+      response.url().includes(`/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`),
+  )
+  await rsvpDialog.getByRole('button', { name: 'Save RSVP', exact: true }).click()
+  expect((await acceptedSave).status()).toBe(200)
+
+  const acceptedSession = await page.request.get(
+    `/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`,
+  )
+  expect(await acceptedSession.json()).toMatchObject({
+    rsvp: {
+      attending: true,
+      plusOne: true,
+      plusOneName: 'RSVP Companion',
+      plusOneMeal: 'Vegetarian',
+      kidsAttending: true,
+      kidsCount: 2,
+      dietaryNotes: 'No shellfish',
+    },
+  })
+
+  // Hiding progressive sections must change the participation flags without
+  // erasing the saved subordinate details or the saved child count.
+  await rsvpDialog.getByLabel('I am bringing a plus-one', { exact: true }).uncheck()
+  await rsvpDialog.getByLabel('Children are attending', { exact: true }).uncheck()
+  await expect(rsvpDialog.getByTestId('premium-rsvp-plus-one-details')).toHaveCount(0)
+  await expect(rsvpDialog.getByTestId('premium-rsvp-kids-stepper')).toHaveCount(0)
+
+  const hiddenSave = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PUT' &&
+      response.url().includes(`/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`),
+  )
+  await rsvpDialog.getByRole('button', { name: 'Save RSVP', exact: true }).click()
+  expect((await hiddenSave).status()).toBe(200)
+
+  const hiddenSession = await page.request.get(
+    `/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`,
+  )
+  expect(await hiddenSession.json()).toMatchObject({
+    rsvp: {
+      attending: true,
+      plusOne: false,
+      plusOneName: 'RSVP Companion',
+      plusOneMeal: 'Vegetarian',
+      kidsAttending: false,
+      kidsCount: 2,
+      dietaryNotes: 'No shellfish',
+    },
+  })
+
+  await rsvpDialog.getByLabel('I am bringing a plus-one', { exact: true }).check()
+  await rsvpDialog.getByLabel('Children are attending', { exact: true }).check()
+  await expect(rsvpDialog.locator('#premium-invite-plus-one-name')).toHaveValue('RSVP Companion')
+  await expect(rsvpDialog.locator('#premium-invite-plus-one-meal')).toHaveValue('Vegetarian')
+  await expect(rsvpDialog.getByTestId('premium-rsvp-kids-stepper').locator('output')).toHaveText('2')
+
+  await rsvpDialog.getByLabel('Regretfully decline', { exact: true }).check()
+  await expect(rsvpDialog.getByTestId('premium-rsvp-attending-fields')).toHaveCount(0)
+  const declinedSave = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PUT' &&
+      response.url().includes(`/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`),
+  )
+  await rsvpDialog.getByRole('button', { name: 'Save RSVP', exact: true }).click()
+  expect((await declinedSave).status()).toBe(200)
+
+  const declinedSession = await page.request.get(
+    `/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`,
+  )
+  expect(await declinedSession.json()).toMatchObject({
+    rsvp: {
+      attending: false,
+      plusOne: false,
+      plusOneName: 'RSVP Companion',
+      plusOneMeal: 'Vegetarian',
+      kidsAttending: false,
+      kidsCount: 2,
+      dietaryNotes: 'No shellfish',
+    },
+  })
+
+  await rsvpDialog.getByLabel('Joyfully accept', { exact: true }).check()
+  await expect(rsvpDialog.getByTestId('premium-rsvp-attending-fields')).toBeVisible()
+  await expect(rsvpDialog.locator('#premium-invite-plus-one-name')).toHaveValue('RSVP Companion')
+  await expect(rsvpDialog.locator('#premium-invite-plus-one-meal')).toHaveValue('Vegetarian')
+  await expect(rsvpDialog.getByLabel('Dietary notes', { exact: true })).toHaveValue('No shellfish')
+  await expect(rsvpDialog.getByTestId('premium-rsvp-kids-stepper').locator('output')).toHaveText('2')
+
+  await page
+    .getByLabel('Message to the couple', { exact: true })
+    .fill('My Wedding continuation verified.')
+  const finalSave = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PUT' &&
+      response.url().includes(`/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`),
+  )
+  await page.getByRole('button', { name: 'Save RSVP', exact: true }).click()
+  expect((await finalSave).status()).toBe(200)
+  await expect(page.getByText('Your RSVP has been saved.')).toBeVisible()
+  await rsvpDialog.getByRole('button', { name: 'Close RSVP', exact: true }).click()
+  await expect(rsvpDialog).toBeHidden()
+
+  // The invitation the guest actually received is portfolio state. If the wedding's
+  // current default style changes later, a clean Couple Site URL and My Wedding must
+  // still reopen that guest's original Ivory invitation rather than the new default.
+  await setWeddingInvitationStyle('botanical')
+
+  await page.getByRole('button', { name: 'Visit Couple Website' }).click()
+  await expect(page).toHaveURL(new RegExp(`/w/${E2E_WEDDINGS.primary.slug}$`))
+
+  const returnedUrl = new URL(page.url())
+  expect(returnedUrl.pathname).toBe(`/w/${E2E_WEDDINGS.primary.slug}`)
+  expect(returnedUrl.search).toBe('')
+  expect(page.url()).not.toContain(token)
+  await expect(page.getByTestId('premium-invitation-experience')).toHaveCount(0)
+  await expect(page.locator('main#main-content')).toBeVisible()
+  await expect(page.getByTestId('wedding-top-nav')).toBeVisible()
+  await expect(page.getByTestId('mobile-wedding-top-nav')).toBeVisible()
+  await expect(page.getByTestId('mobile-wedding-identity')).toBeVisible()
+  await expect(page.getByTestId('mobile-wedding-couple-names')).toBeVisible()
+  await expect(page.getByTestId('mobile-wedding-share')).toBeVisible()
+  await expect(page.getByTestId('mobile-wedding-bottom-nav')).toBeVisible()
+  await expect(page.getByTestId('mobile-nav-home')).toHaveText('Home')
+  await expect(page.locator('nav[aria-label="Wewed platform links"]')).toHaveCount(0)
+  await expect(page.getByText('Powered by Wewed', { exact: true })).toHaveCount(0)
+  await expect(page.getByTestId('view-invitation-button')).toHaveCount(0)
+
+  await page.getByTestId('mobile-nav-more').click()
+  const drawer = page.getByTestId('mobile-wedding-more-drawer')
+  await expect(drawer).toBeVisible()
+  await expect(drawer.getByText('Explore the wedding', { exact: true })).toBeVisible()
+  await expect(drawer.getByText('Find a Planner', { exact: true })).toBeVisible()
+  const drawerBox = await drawer.boundingBox()
+  expect(drawerBox).not.toBeNull()
+  expect(drawerBox!.width).toBeLessThanOrEqual(330)
+  expect(drawerBox!.x).toBeGreaterThanOrEqual(60)
+  await page.keyboard.press('Escape')
+  await expect(drawer).toBeHidden()
+
+  const myWedding = page.getByTestId('my-wedding-nav-cta')
+  await expect(myWedding).toBeVisible()
+  await expect(myWedding).toHaveText('My Wedding')
+  await myWedding.click()
+
+  await expect(page).toHaveURL(new RegExp(`/w/${E2E_WEDDINGS.primary.slug}$`))
+  await expect(page.getByTestId('premium-invitation-experience')).toBeVisible()
+  await expect(page.getByTestId('mobile-wedding-bottom-nav')).toHaveCount(0)
+  await expect(page.getByTestId('premium-invitation-experience')).toHaveAttribute(
+    'data-invitation-style',
+    'ivory-floral-gold',
+  )
+  await expect(page.getByTestId('invitation-countdown')).toBeVisible()
+  expect(page.url()).not.toContain(token)
+
+  // A fresh clean wedding entry must also restore the guest's portfolio card style,
+  // not the wedding's later/default Garden Romance setting.
+  await page.goto(`/w/${E2E_WEDDINGS.primary.slug}`)
+  await expect(page.getByTestId('premium-invitation-experience')).toBeVisible()
+  await expect(page.getByTestId('premium-invitation-experience')).toHaveAttribute(
+    'data-invitation-style',
+    'ivory-floral-gold',
+  )
+  await expect(page.getByTestId('invitation-countdown')).toBeVisible()
+  expect(page.url()).not.toContain(token)
+
+  await setWeddingInvitationStyle('ivory-floral-gold')
+
+  const guestSession = await page.request.get(
+    `/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`,
+  )
+  expect(guestSession.status()).toBe(200)
+  expect(await guestSession.json()).toMatchObject({
+    wedding: {
+      slug: E2E_WEDDINGS.primary.slug,
+      invitationCardStyle: 'ivory-floral-gold',
+    },
+    guest: {
+      id: `${E2E_WEDDINGS.primary.id}-guest`,
+      name: E2E_WEDDINGS.primary.seededGuest,
+    },
+    rsvp: {
+      attending: true,
+      plusOne: true,
+      plusOneName: 'RSVP Companion',
+      plusOneMeal: 'Vegetarian',
+      kidsAttending: true,
+      kidsCount: 2,
+      dietaryNotes: 'No shellfish',
+      message: 'My Wedding continuation verified.',
+    },
+  })
+})

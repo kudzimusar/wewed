@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { normalizeInvitationCardStyle } from '@/lib/digital-invitation-card'
 import { setWeddingGuestSessionCookie } from '@/lib/wedding-guest-session'
+import {
+  mergeWeddingGuestPortfolio,
+  readWeddingGuestPortfolio,
+  setWeddingGuestPortfolioCookie,
+} from '@/lib/wedding-guest-portfolio'
 
 interface Params {
   params: Promise<{ slug: string }>
@@ -70,6 +75,15 @@ export async function GET(request: NextRequest, { params }: Params) {
     guestId: rsvp.guest.id,
     rsvpToken: rsvp.token,
   })
+  setWeddingGuestPortfolioCookie(
+    response,
+    mergeWeddingGuestPortfolio(readWeddingGuestPortfolio(request), {
+      weddingId: rsvp.guest.wedding.id,
+      weddingSlug: rsvp.guest.wedding.slug,
+      guestId: rsvp.guest.id,
+      invitationCardStyle: requestedStyle,
+    }),
+  )
   response.headers.set('Vary', 'Cookie')
   return response
 }

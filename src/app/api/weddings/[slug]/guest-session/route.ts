@@ -1,3 +1,4 @@
+import { previewWriteError } from '@/lib/preview-write-response'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { normalizeInvitationCardStyle } from '@/lib/digital-invitation-card'
@@ -7,6 +8,12 @@ import {
   setWeddingGuestSessionCookie,
 } from '@/lib/wedding-guest-session'
 import {
+  mergeWeddingGuestPortfolio,
+  readWeddingGuestPortfolio,
+  removeWeddingGuestPortfolioEntry,
+  setWeddingGuestPortfolioCookie,
+} from '@/lib/wedding-guest-portfolio'
+import {
   loadWeddingAccessRecord,
   resolveGuestSessionForWedding,
 } from '@/lib/wedding-public-access'
@@ -14,6 +21,8 @@ import {
 interface Params {
   params: Promise<{ slug: string }>
 }
+
+type ChildrenPolicy = 'welcome' | 'adults_only'
 
 function noStore(response: NextResponse): NextResponse {
   response.headers.set('Cache-Control', 'no-store, max-age=0')
@@ -23,17 +32,29 @@ function noStore(response: NextResponse): NextResponse {
 
 async function currentGuest(request: NextRequest, slug: string) {
   const wedding = await loadWeddingAccessRecord(slug)
-  if (!wedding) return { wedding: null, guest: null }
-  const guest = await resolveGuestSessionForWedding(
-    wedding,
-    readWeddingGuestSession(request),
-  )
-  return { wedding, guest }
+  if (!wedding) return { wedding: null, guest: null, session: null }
+  const session = readWeddingGuestSession(request)
+  const guest = await resolveGuestSessionForWedding(wedding, session)
+  return { wedding, guest, session }
+}
+
+async function loadChildrenPolicy(weddingId: string): Promise<ChildrenPolicy> {
+  const row = await db.weddingContent.findUnique({
+    where: {
+      weddingId_section_field: {
+        weddingId,
+        section: 'rsvp',
+        field: 'childrenPolicy',
+      },
+    },
+    select: { value: true },
+  })
+  return row?.value.trim().toLowerCase() === 'adults_only' ? 'adults_only' : 'welcome'
 }
 
 export async function GET(request: NextRequest, { params }: Params) {
   const { slug } = await params
-  const { wedding, guest } = await currentGuest(request, slug)
+  const { wedding, guest, session } = await currentGuest(request, slug)
 
   if (!wedding) {
     return noStore(
@@ -45,9 +66,16 @@ export async function GET(request: NextRequest, { params }: Params) {
       { success: false, authorized: false, error: 'Guest access is not active.' },
       { status: 401 },
     )
-    clearWeddingGuestSessionCookie(response)
+    // A valid guest cookie for another wedding must survive a scoped 401 from
+    // this wedding. Otherwise a stale/background request from Wedding A can
+    // erase the newly activated Wedding B session immediately after switching.
+    if (session?.weddingId === wedding.id) {
+      clearWeddingGuestSessionCookie(response)
+    }
     return noStore(response)
   }
+
+  const childrenPolicy = await loadChildrenPolicy(wedding.id)
 
   return noStore(
     NextResponse.json({
@@ -61,6 +89,7 @@ export async function GET(request: NextRequest, { params }: Params) {
         tagline: wedding.tagline,
         date: wedding.date,
         venue: wedding.venue,
+        venueMapUrl: wedding.venueMapUrl,
         venueCity: wedding.venueCity,
         venueCountry: wedding.venueCountry,
         primaryColor: wedding.primaryColor,
@@ -69,6 +98,7 @@ export async function GET(request: NextRequest, { params }: Params) {
         invitationCardStyle: normalizeInvitationCardStyle(wedding.invitationCardStyle),
         invitationCardMessage: wedding.invitationCardMessage,
         rsvpDeadline: wedding.rsvpDeadline,
+        childrenPolicy,
       },
       guest: {
         id: guest.id,
@@ -82,7 +112,7 @@ export async function GET(request: NextRequest, { params }: Params) {
         plusOne: guest.plusOne,
         plusOneName: guest.plusOneName,
         plusOneMeal: guest.plusOneMeal,
-        kidsAttending: guest.kidsAttending,
+        kidsAttending: childrenPolicy === 'adults_only' ? false : guest.kidsAttending,
         kidsCount: guest.kidsCount,
         dietaryNotes: guest.dietaryNotes,
         message: guest.message,
@@ -108,7 +138,16 @@ export async function POST(request: NextRequest, { params }: Params) {
     where: { token },
     include: {
       guest: {
-        include: { wedding: { select: { id: true, slug: true, privacy: true } } },
+        include: {
+          wedding: {
+            select: {
+              id: true,
+              slug: true,
+              privacy: true,
+              invitationCardStyle: true,
+            },
+          },
+        },
       },
     },
   })
@@ -123,6 +162,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     )
   }
 
+  const card = normalizeInvitationCardStyle(rsvp.guest.wedding.invitationCardStyle)
   const response = NextResponse.json({
     success: true,
     authorized: true,
@@ -134,6 +174,15 @@ export async function POST(request: NextRequest, { params }: Params) {
     guestId: rsvp.guest.id,
     rsvpToken: rsvp.token,
   })
+  setWeddingGuestPortfolioCookie(
+    response,
+    mergeWeddingGuestPortfolio(readWeddingGuestPortfolio(request), {
+      weddingId: rsvp.guest.wedding.id,
+      weddingSlug: rsvp.guest.wedding.slug,
+      guestId: rsvp.guest.id,
+      invitationCardStyle: card,
+    }),
+  )
   return noStore(response)
 }
 
@@ -146,6 +195,9 @@ export async function PUT(request: NextRequest, { params }: Params) {
     )
   }
 
+  const blocked = previewWriteError(wedding.id)
+  if (blocked) return blocked
+
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
   if (!body) {
     return noStore(
@@ -153,9 +205,56 @@ export async function PUT(request: NextRequest, { params }: Params) {
     )
   }
 
+  const originGuestId =
+    typeof body.originGuestId === 'string' ? body.originGuestId.trim() : ''
+  if (!originGuestId) {
+    return noStore(
+      NextResponse.json(
+        {
+          success: false,
+          error: 'This RSVP form is missing its guest binding. Reload the invitation and try again.',
+          code: 'STALE_GUEST_CONTEXT',
+        },
+        { status: 409 },
+      ),
+    )
+  }
+  if (originGuestId !== guest.id) {
+    return noStore(
+      NextResponse.json(
+        {
+          success: false,
+          error: 'Your invitation session changed while this RSVP form was open. Reload the current invitation before saving.',
+          code: 'STALE_GUEST_CONTEXT',
+        },
+        { status: 409 },
+      ),
+    )
+  }
+
+  const childrenPolicy = await loadChildrenPolicy(wedding.id)
+  if (childrenPolicy === 'adults_only' && body.kidsAttending === true) {
+    return noStore(
+      NextResponse.json(
+        {
+          success: false,
+          error: 'This celebration is configured as adults only.',
+          code: 'CHILDREN_NOT_ALLOWED',
+        },
+        { status: 400 },
+      ),
+    )
+  }
+
   const data: Record<string, unknown> = {}
   for (const field of ['attending', 'mealChoice', 'plusOne', 'plusOneName', 'plusOneMeal', 'kidsAttending', 'kidsCount', 'dietaryNotes', 'message'] as const) {
     if (body[field] !== undefined) data[field] = body[field]
+  }
+  if (childrenPolicy === 'adults_only') {
+    // Cached/older clients may still submit the guest's historical child count.
+    // Adults-only makes current attendance false, but never destroys that history.
+    data.kidsAttending = false
+    delete data.kidsCount
   }
 
   const updated = await db.rSVP.update({
@@ -188,6 +287,9 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     )
   }
 
+  const blocked = previewWriteError(wedding.id)
+  if (blocked) return blocked
+
   const updated = await db.rSVP.update({
     where: { token: guest.rsvpToken },
     data: { checkedIn: true, checkedInAt: guest.checkedInAt ?? new Date() },
@@ -197,8 +299,22 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   return noStore(NextResponse.json({ success: true, rsvp: updated }))
 }
 
-export async function DELETE(_request: NextRequest) {
-  const response = NextResponse.json({ success: true })
+export async function DELETE(request: NextRequest, { params }: Params) {
+  const { slug } = await params
+  const wedding = await loadWeddingAccessRecord(slug)
+  const nextPortfolio = wedding
+    ? removeWeddingGuestPortfolioEntry(
+        readWeddingGuestPortfolio(request),
+        wedding.id,
+      )
+    : null
+  const response = NextResponse.json({
+    success: true,
+    next: nextPortfolio?.activeWeddingId ? '/app' : '/',
+  })
+
   clearWeddingGuestSessionCookie(response)
+  if (nextPortfolio) setWeddingGuestPortfolioCookie(response, nextPortfolio)
+
   return noStore(response)
 }

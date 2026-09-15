@@ -4,10 +4,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { useWewedStore } from '@/lib/store'
 import { WeddingDataProvider, useWeddingContext } from '@/components/wedding/wedding-data-provider'
 import { Navbar } from '@/components/wedding/navbar'
-import { WeddingPlatformNav } from '@/components/wedding/wedding-platform-nav'
 import { GlobalWeddingTools } from '@/components/wedding/global-wedding-tools'
 import { HeroSection } from '@/components/wedding/hero-section'
 import { CountdownBanner } from '@/components/wedding/countdown-banner'
+import { InvitationCountdown } from '@/components/wedding/invitation-countdown'
 import { OurStory } from '@/components/wedding/our-story'
 import { VenueSection } from '@/components/wedding/venue-section'
 import { TheDay } from '@/components/wedding/the-day'
@@ -53,6 +53,7 @@ export function WeddingHome({
   initialData = null,
   invitationMode = false,
   invitationCardStyle = null,
+  sharedPhysicalInvitation = false,
 }: {
   slug?: string
   accessKind?: PublicWeddingAccessKind
@@ -60,6 +61,7 @@ export function WeddingHome({
   initialData?: WeddingData | null
   invitationMode?: boolean
   invitationCardStyle?: InvitationCardStyle | null
+  sharedPhysicalInvitation?: boolean
 }) {
   return (
     <WeddingDataProvider slug={slug} initialData={initialData}>
@@ -68,6 +70,7 @@ export function WeddingHome({
         viewerRole={viewerRole}
         invitationMode={invitationMode}
         invitationCardStyle={invitationCardStyle}
+        sharedPhysicalInvitation={sharedPhysicalInvitation}
       />
     </WeddingDataProvider>
   )
@@ -78,15 +81,18 @@ function WeddingHomeContent({
   viewerRole,
   invitationMode,
   invitationCardStyle,
+  sharedPhysicalInvitation,
 }: {
   accessKind: PublicWeddingAccessKind
   viewerRole: WeddingViewerRole
   invitationMode: boolean
   invitationCardStyle: InvitationCardStyle | null
+  sharedPhysicalInvitation: boolean
 }) {
   const lifecycle = useWewedStore((state) => state.lifecycle)
   const setLifecycle = useWewedStore((state) => state.setLifecycle)
   const [mounted, setMounted] = useState(false)
+  const [invitationVisible, setInvitationVisible] = useState(invitationMode)
   const { wedding, slug } = useWeddingContext()
 
   useEffect(() => {
@@ -114,7 +120,78 @@ function WeddingHomeContent({
   const place = wedding ? [wedding.venue, wedding.venueCity, wedding.venueCountry].filter(Boolean).join(', ') : ''
   const isCoupleOwner = accessKind === 'couple_owner' && viewerRole === 'couple'
   const canContribute = accessKind !== 'public' && accessKind !== null
-  const showPersonalInvitation = Boolean(invitationMode && invitationCardStyle && accessKind === 'invited_guest' && wedding)
+  const invitationAvailable = Boolean(
+    invitationCardStyle && accessKind === 'invited_guest' && wedding,
+  )
+  const invitationSkipKey = slug ? `wewed:skip-invitation-once:${slug}` : null
+
+  useEffect(() => {
+    let nextVisible = false
+
+    if (invitationAvailable && invitationSkipKey) {
+      if (invitationMode) {
+        nextVisible = true
+      } else {
+        const skipOnce = window.sessionStorage.getItem(invitationSkipKey) === '1'
+        if (skipOnce) {
+          window.sessionStorage.removeItem(invitationSkipKey)
+        } else {
+          // A full wedding-site entry with an existing invited-guest session is a fresh
+          // welcome. Internal scrolling/navigation does not remount this page, while a
+          // reload, browser return, or app relaunch presents the invitation again.
+          nextVisible = true
+        }
+      }
+    }
+
+    const id = window.setTimeout(() => setInvitationVisible(nextVisible), 0)
+    return () => window.clearTimeout(id)
+  }, [invitationAvailable, invitationMode, invitationSkipKey])
+
+  useEffect(() => {
+    if (!invitationSkipKey) return
+
+    const handleImmediateCoupleSiteTransition = (event: MouseEvent) => {
+      const target = event.target
+      if (!(target instanceof Element)) return
+
+      const siteButton = target.closest('.ivory-site')
+      const registryButton = target.closest('[data-testid="invitation-cta-registry"]')
+      if (!siteButton && !registryButton) return
+
+      // Keep the invitation-to-site transition entirely inside this mounted wedding
+      // page. A same-document assignment such as /w/{slug}#registry is a browser
+      // no-op when that hash is already present, which can leave Ivory visible even
+      // though the guest tapped Gift / Contributions. Capture the intent before the
+      // card handler runs, hide Ivory, clean invitation query state, then scroll only
+      // after React has rendered the Couple Website sections.
+      event.preventDefault()
+      event.stopPropagation()
+      window.sessionStorage.removeItem(invitationSkipKey)
+
+      const anchor = registryButton ? '#registry' : ''
+      const targetId = registryButton ? 'registry' : 'wedding-details'
+      const cleanPath = `${window.location.pathname}${anchor}`
+
+      setInvitationVisible(false)
+      window.history.replaceState(window.history.state, '', cleanPath)
+
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          document.getElementById(targetId)?.scrollIntoView({
+            behavior: 'auto',
+            block: 'start',
+          })
+        })
+      })
+    }
+
+    document.addEventListener('click', handleImmediateCoupleSiteTransition, true)
+    return () =>
+      document.removeEventListener('click', handleImmediateCoupleSiteTransition, true)
+  }, [invitationSkipKey])
+
+  const showPersonalInvitation = Boolean(invitationAvailable && invitationVisible)
 
   // Derive primitive inputs before memoization so the post-hydration wedding-content
   // revalidation can replace its object without recreating an equivalent invitation.
@@ -162,6 +239,28 @@ function WeddingHomeContent({
     invitationBackgroundColor,
   ])
 
+  function continueToCoupleSite() {
+    setInvitationVisible(false)
+    window.requestAnimationFrame(() => {
+      document.getElementById('wedding-details')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }
+
+  function reopenInvitation() {
+    if (invitationAvailable) {
+      setInvitationVisible(true)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
+
+    if (sharedPhysicalInvitation && slug) {
+      window.location.assign(`/w/${encodeURIComponent(slug)}`)
+    }
+  }
+
+  const showWeddingChrome = !showPersonalInvitation
+  const showMyWedding = invitationAvailable || sharedPhysicalInvitation
+
   return (
     <div className="min-h-screen flex flex-col bg-background" data-personal-invitation={showPersonalInvitation ? '1' : '0'}>
       <div className="wewed-print-header" aria-hidden="true">
@@ -171,72 +270,89 @@ function WeddingHomeContent({
       <ThemeApplier invitationCardStyle={showPersonalInvitation ? invitationCardStyle : null} />
 
       {showPersonalInvitation && invitationData && invitationCardStyle && (
-        <PremiumInvitationExperience
-          key={`${slug}:${invitationCardStyle}`}
-          slug={slug}
-          data={invitationData}
-          style={invitationCardStyle}
-          personalizeFromGuestSession
-        />
+        <>
+          <div className="bg-[#17130f] px-4 pt-4 sm:pt-6">
+            <InvitationCountdown date={invitationData.date} />
+          </div>
+          <PremiumInvitationExperience
+            key={`${slug}:${invitationCardStyle}`}
+            slug={slug}
+            data={invitationData}
+            style={invitationCardStyle}
+            personalizeFromGuestSession
+            onContinue={continueToCoupleSite}
+          />
+        </>
       )}
 
-      <div id="wedding-details" className="scroll-mt-4">
-        <Navbar accessKind={accessKind} viewerRole={viewerRole} />
-        <WeddingPlatformNav slug={slug} />
-        <main id="main-content" className="flex-1" data-canonical-template="classic" data-invitation-theme={showPersonalInvitation ? invitationCardStyle ?? undefined : undefined}>
-          <HeroSection />
-          {isCoupleOwner && <PlannerMarketplaceInvitation />}
-          {activeLifecycle === 'before' ? (
-            <>
-              <OurStory />
-              <VenueSection />
-              <TheDay />
-              <CountdownBanner />
-              <RsvpSection />
-              <TravelStay />
-              <GiftRegistryCampaignBridge />
-              <SongbookEnhanced />
-              <IntroductionsBanner />
-              <Guests />
-              <VendorMarketplace />
-              <QrCheckin />
-              <PhotoGallery />
-              {canContribute && <MediaUpload />}
-              <MemoryCapsule />
-              <LiveWall canPost={canContribute} />
-              {mounted && <ContributionGallery />}
-              <FaqSection />
-              <ShareSection />
-              <TelegramWidget />
-              <WewedPricingCatalog />
-              <PlatformVision />
-              <MerchTeaser />
-            </>
-          ) : (
-            <>
-              <AfterSections canPost={canContribute} />
-              <PhotoGallery />
-              {canContribute && <MediaUpload />}
-              <LiveWall canPost={canContribute} />
-              {mounted && <ContributionGallery />}
-              <MemoryCapsule />
-              <VendorMarketplace />
-              <GiftRegistryCampaignBridge />
-              <FaqSection />
-              <ShareSection />
-              <TelegramWidget />
-              <WewedPricingCatalog />
-              <PlatformVision />
-              <MerchTeaser />
-            </>
-          )}
-        </main>
-      </div>
-      {mounted && showPersonalInvitation && invitationCardStyle && (
+      {showWeddingChrome && (
+        <div id="wedding-details" className="scroll-mt-4">
+          <Navbar
+            slug={slug}
+            accessKind={accessKind}
+            viewerRole={viewerRole}
+            showMyWedding={showMyWedding}
+            onMyWedding={reopenInvitation}
+          />
+          <main id="main-content" className="flex-1" data-canonical-template="classic" data-invitation-theme={showPersonalInvitation ? invitationCardStyle ?? undefined : undefined}>
+            <HeroSection />
+            {isCoupleOwner && <PlannerMarketplaceInvitation />}
+            {activeLifecycle === 'before' ? (
+              <>
+                <OurStory />
+                <VenueSection />
+                <TheDay />
+                <CountdownBanner />
+                <RsvpSection />
+                <TravelStay />
+                <GiftRegistryCampaignBridge />
+                <SongbookEnhanced />
+                <IntroductionsBanner />
+                <Guests />
+                <VendorMarketplace />
+                <QrCheckin />
+                <PhotoGallery />
+                {canContribute && <MediaUpload />}
+                <MemoryCapsule />
+                <LiveWall canPost={canContribute} />
+                {mounted && <ContributionGallery />}
+                <FaqSection />
+                <ShareSection />
+                <TelegramWidget />
+                <WewedPricingCatalog />
+                <PlatformVision />
+                <MerchTeaser />
+              </>
+            ) : (
+              <>
+                <AfterSections canPost={canContribute} />
+                <PhotoGallery />
+                {canContribute && <MediaUpload />}
+                <LiveWall canPost={canContribute} />
+                {mounted && <ContributionGallery />}
+                <MemoryCapsule />
+                <VendorMarketplace />
+                <GiftRegistryCampaignBridge />
+                <FaqSection />
+                <ShareSection />
+                <TelegramWidget />
+                <WewedPricingCatalog />
+                <PlatformVision />
+                <MerchTeaser />
+              </>
+            )}
+          </main>
+        </div>
+      )}
+
+      {mounted && invitationAvailable && invitationCardStyle && (
         <PremiumInvitationRsvpDialog slug={slug} style={invitationCardStyle} />
       )}
-      {mounted && !showPersonalInvitation && <InvitationRsvpDialog />}
-      <Footer />
+      {mounted && !invitationAvailable && <InvitationRsvpDialog />}
+      {!showMyWedding && <Footer />}
+      {showWeddingChrome && (
+        <div className="h-[calc(4.5rem+env(safe-area-inset-bottom))] lg:hidden" aria-hidden="true" />
+      )}
       <GlobalWeddingTools accessKind={accessKind} viewerRole={viewerRole} />
       <div className="wewed-print-footer" aria-hidden="true">
         Printed from wewed.pro/w/{slug} · {names} · {date}

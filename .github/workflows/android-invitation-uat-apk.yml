@@ -1,0 +1,54 @@
+name: Android Invitation UAT APK
+
+on:
+  pull_request:
+    paths:
+      - 'android/**'
+      - 'src/app/api/invitations/**'
+      - 'src/app/invite/**'
+      - 'src/components/wedding/invitation-app-handoff.tsx'
+      - 'src/components/wedding/physical-invitation-entry.tsx'
+      - 'src/lib/invitation-links.ts'
+      - '.github/workflows/android-invitation-uat-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-invitation-uat-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-uat-apk:
+    name: Build Wewed UAT Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - name: Build UAT APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleUat --no-daemon --stacktrace
+      - name: Verify UAT binary contract
+        run: |
+          test -f android/app/build/outputs/apk/uat/app-uat.apk
+          grep -q 'buildConfigField "boolean", "UAT", "true"' android/app/build.gradle
+          grep -q 'https://uat.wewed.pro/invite/resume' android/app/src/main/java/pro/wewed/app/InstallReferrerHandoff.java
+          grep -q 'https://uat.wewed.pro/invite/physical-resume' android/app/src/main/java/pro/wewed/app/InstallReferrerHandoff.java
+          grep -q 'physical_handoff' android/app/src/main/java/pro/wewed/app/InstallReferrerHandoff.java
+      - name: Upload installable UAT APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: wewed-uat-invitation-apk
+          path: android/app/build/outputs/apk/uat/app-uat.apk
+          if-no-files-found: error
+          retention-days: 14

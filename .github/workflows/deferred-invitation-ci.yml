@@ -7,12 +7,18 @@ on:
       - 'e2e/deferred-invitation.chromium.spec.mjs'
       - 'e2e/deferred-invitation.playwright.config.mjs'
       - 'prisma/migrations/20260910110000_native_deferred_invitation_handoff/**'
+      - 'prisma/migrations/20260912223000_physical_invitation_install_handoff/**'
       - 'src/app/api/invitations/install-handoff/**'
+      - 'src/app/api/invitations/physical-install-handoff/**'
       - 'src/app/invite/[slug]/open/**'
       - 'src/app/invite/resume/**'
+      - 'src/app/invite/physical-resume/**'
       - 'src/components/wedding/invitation-app-handoff.tsx'
+      - 'src/components/wedding/physical-invitation-entry.tsx'
       - 'src/lib/invitation-install-handoff.ts'
       - 'src/lib/invitation-install-handoff.integration.test.ts'
+      - 'src/lib/physical-invitation-install-handoff.ts'
+      - 'src/lib/physical-invitation-install-handoff.integration.test.ts'
       - 'src/lib/invitation-links.ts'
       - 'src/lib/invitation-links.test.ts'
       - '.github/workflows/deferred-invitation-ci.yml'
@@ -24,12 +30,18 @@ on:
       - 'e2e/deferred-invitation.chromium.spec.mjs'
       - 'e2e/deferred-invitation.playwright.config.mjs'
       - 'prisma/migrations/20260910110000_native_deferred_invitation_handoff/**'
+      - 'prisma/migrations/20260912223000_physical_invitation_install_handoff/**'
       - 'src/app/api/invitations/install-handoff/**'
+      - 'src/app/api/invitations/physical-install-handoff/**'
       - 'src/app/invite/[slug]/open/**'
       - 'src/app/invite/resume/**'
+      - 'src/app/invite/physical-resume/**'
       - 'src/components/wedding/invitation-app-handoff.tsx'
+      - 'src/components/wedding/physical-invitation-entry.tsx'
       - 'src/lib/invitation-install-handoff.ts'
       - 'src/lib/invitation-install-handoff.integration.test.ts'
+      - 'src/lib/physical-invitation-install-handoff.ts'
+      - 'src/lib/physical-invitation-install-handoff.integration.test.ts'
       - 'src/lib/invitation-links.ts'
       - 'src/lib/invitation-links.test.ts'
       - '.github/workflows/deferred-invitation-ci.yml'
@@ -47,7 +59,6 @@ jobs:
     name: Validate deferred invitation server contract
     runs-on: ubuntu-latest
     timeout-minutes: 20
-
     services:
       postgres:
         image: postgres:16-alpine
@@ -55,14 +66,12 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: wewed
-        ports:
-          - 5432:5432
+        ports: ['5432:5432']
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
     env:
       CI: 'true'
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/wewed?schema=public
@@ -74,40 +83,31 @@ jobs:
       NEXT_TELEMETRY_DISABLED: 1
       ANDROID_DEFERRED_INVITATION_HANDOFF: '1'
       WEWED_INVITATION_HANDOFF_TTL_SECONDS: '86400'
-
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
         with:
           bun-version: 1.3.14
-
       - name: Install dependencies
         run: bun install --frozen-lockfile
-
       - name: Validate and generate Prisma client
         run: |
           bunx prisma validate --schema prisma/schema.prisma
           bunx prisma generate --schema prisma/schema.prisma
-
       - name: Apply migrations to clean PostgreSQL
         run: bunx prisma migrate deploy --schema prisma/schema.prisma
-
       - name: Confirm public Prisma schema has no migration drift
         run: >-
           bunx prisma migrate diff
           --from-url "$DATABASE_URL"
           --to-schema-datamodel prisma/schema.prisma
           --exit-code
-
       - name: Run invitation link privacy tests
         run: bun test src/lib/invitation-links.test.ts
-
       - name: Run deferred handoff PostgreSQL integration tests
-        run: bun test src/lib/invitation-install-handoff.integration.test.ts
-
+        run: bun test src/lib/invitation-install-handoff.integration.test.ts src/lib/physical-invitation-install-handoff.integration.test.ts
       - name: Reject TypeScript errors in deferred invitation files
         shell: bash
         run: |
@@ -115,26 +115,15 @@ jobs:
           bunx tsc --noEmit --pretty false > /tmp/wewed-tsc.log 2>&1
           TSC_STATUS=$?
           set -e
-
-          if [ "$TSC_STATUS" -eq 0 ]; then
-            echo "Repository TypeScript check is clean."
-            exit 0
-          fi
-
-          DEFERRED_ERRORS=$(grep -E '^(src/app/api/invitations/install-handoff/|src/app/invite/\[slug\]/open/|src/app/invite/resume/|src/components/wedding/invitation-app-handoff\.tsx|src/lib/invitation-(install-handoff|links)(\.integration\.test|\.test)?\.ts)' /tmp/wewed-tsc.log || true)
-          if [ -n "$DEFERRED_ERRORS" ]; then
-            echo "TypeScript errors found in deferred invitation files:"
-            echo "$DEFERRED_ERRORS"
-            exit 1
-          fi
-
-          echo "Repository-wide TypeScript has pre-existing errors outside this feature; none are in deferred invitation files."
+          if [ "$TSC_STATUS" -eq 0 ]; then exit 0; fi
+          DEFERRED_ERRORS=$(grep -E '^(src/app/api/invitations/(install-handoff|physical-install-handoff)/|src/app/invite/(\[slug\]/open|resume|physical-resume)/|src/components/wedding/(invitation-app-handoff|physical-invitation-entry)\.tsx|src/lib/(invitation-install-handoff|physical-invitation-install-handoff|invitation-links)(\.integration\.test|\.test)?\.ts)' /tmp/wewed-tsc.log || true)
+          if [ -n "$DEFERRED_ERRORS" ]; then echo "$DEFERRED_ERRORS"; exit 1; fi
+          echo "No deferred invitation TypeScript errors."
 
   chromium-mobile-uat:
     name: Playwright Chromium mobile invitation UAT
     runs-on: ubuntu-latest
     timeout-minutes: 30
-
     services:
       postgres:
         image: postgres:16-alpine
@@ -142,14 +131,12 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: wewed
-        ports:
-          - 5432:5432
+        ports: ['5432:5432']
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
     env:
       CI: 'true'
       WEWED_E2E_MODE: '1'
@@ -164,30 +151,23 @@ jobs:
       ANDROID_DEFERRED_INVITATION_HANDOFF: '1'
       WEWED_INVITATION_HANDOFF_TTL_SECONDS: '86400'
       WEWED_UAT_BASE_URL: http://127.0.0.1:3000
-
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
         with:
           bun-version: 1.3.14
-
       - name: Install application dependencies
         run: bun install --frozen-lockfile
-
       - name: Install pinned Playwright test runner
         run: bun add --no-save --exact @playwright/test@1.55.0
-
       - name: Install Chromium and system dependencies
         run: npx playwright install --with-deps chromium
-
       - name: Generate Prisma client and apply migrations
         run: |
           bunx prisma generate --schema prisma/schema.prisma
           bunx prisma migrate deploy --schema prisma/schema.prisma
-
       - name: Start Wewed test server
         shell: bash
         run: |
@@ -195,16 +175,11 @@ jobs:
           echo $! > /tmp/wewed-deferred-uat-server.pid
           for attempt in $(seq 1 90); do
             STATUS=$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/manifest.json || true)
-            if [ "$STATUS" != "000" ]; then
-              echo "Wewed test server ready with HTTP $STATUS"
-              exit 0
-            fi
+            if [ "$STATUS" != "000" ]; then exit 0; fi
             sleep 1
           done
-          echo "Wewed test server did not become ready"
           cat /tmp/wewed-deferred-uat-server.log || true
           exit 1
-
       - name: Run Playwright Chromium mobile UAT
         shell: bash
         run: |
@@ -213,44 +188,38 @@ jobs:
           STATUS=$?
           set -e
           if [ "$STATUS" -ne 0 ]; then
-            echo "----- Wewed UAT server log -----"
             perl -pe 's/([?&](?:rsvp|h)=)[^&\s]+/${1}[REDACTED]/g' /tmp/wewed-deferred-uat-server.log || true
             exit "$STATUS"
           fi
-
       - name: Stop Wewed test server
         if: always()
         run: |
-          if [ -f /tmp/wewed-deferred-uat-server.pid ]; then
-            kill "$(cat /tmp/wewed-deferred-uat-server.pid)" || true
-          fi
+          if [ -f /tmp/wewed-deferred-uat-server.pid ]; then kill "$(cat /tmp/wewed-deferred-uat-server.pid)" || true; fi
 
   android-wrapper:
     name: Compile Android TWA Install Referrer wrapper
     runs-on: ubuntu-latest
     timeout-minutes: 20
-
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
           cache: gradle
-
       - name: Compile Android debug and release bundles
         working-directory: android
         run: |
           chmod +x gradlew
           ./gradlew :app:assembleDebug :app:bundleRelease --no-daemon --stacktrace
-
       - name: Confirm native release identifiers
         run: |
           grep -q "versionCode 2" android/app/build.gradle
           grep -q "versionName \"2\"" android/app/build.gradle
           grep -q "com.android.installreferrer:installreferrer:2.2" android/app/build.gradle
           grep -q "https://wewed.pro/invite/resume" android/app/src/main/java/pro/wewed/app/InstallReferrerHandoff.java
+          grep -q "https://wewed.pro/invite/physical-resume" android/app/src/main/java/pro/wewed/app/InstallReferrerHandoff.java
+          grep -q "physical_handoff" android/app/src/main/java/pro/wewed/app/InstallReferrerHandoff.java
           test -f android/app/build/outputs/bundle/release/app-release.aab
