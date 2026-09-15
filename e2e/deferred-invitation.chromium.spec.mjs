@@ -368,7 +368,7 @@ test('Chrome Android: printed QR installs Wewed, restores shared invitation, cla
   expect(saved?.message).toBe('Android install journey qualified.')
 
   await appPage.getByRole('button', { name: 'Close', exact: true }).click()
-  await appPage.getByRole('button', { name: 'Back to Wewed Couple Site', exact: true }).click()
+  await appPage.getByRole('button', { name: 'Visit Couple Website', exact: true }).click()
   await expect(appPage).toHaveURL(`${BASE_URL}/w/${fixture.weddingSlug}`)
   await expect(appPage.getByTestId('premium-invitation-experience')).toHaveCount(0)
 
