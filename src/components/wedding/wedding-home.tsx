@@ -151,18 +151,44 @@ function WeddingHomeContent({
   useEffect(() => {
     if (!invitationSkipKey) return
 
-    const rememberImmediateCoupleSiteTransition = (event: MouseEvent) => {
+    const handleImmediateCoupleSiteTransition = (event: MouseEvent) => {
       const target = event.target
-      if (!(target instanceof Element) || !target.closest('.ivory-site')) return
-      // Store only the one-shot suppression marker here. Do not change React state
-      // during the capture phase: Ivory's own button handler still needs to run and
-      // navigate to the token-free Couple Site URL. The next page load consumes it.
-      window.sessionStorage.setItem(invitationSkipKey, '1')
+      if (!(target instanceof Element)) return
+
+      const siteButton = target.closest('.ivory-site')
+      const registryButton = target.closest('[data-testid="invitation-cta-registry"]')
+      if (!siteButton && !registryButton) return
+
+      // Keep the invitation-to-site transition entirely inside this mounted wedding
+      // page. A same-document assignment such as /w/{slug}#registry is a browser
+      // no-op when that hash is already present, which can leave Ivory visible even
+      // though the guest tapped Gift / Contributions. Capture the intent before the
+      // card handler runs, hide Ivory, clean invitation query state, then scroll only
+      // after React has rendered the Couple Website sections.
+      event.preventDefault()
+      event.stopPropagation()
+      window.sessionStorage.removeItem(invitationSkipKey)
+
+      const anchor = registryButton ? '#registry' : ''
+      const targetId = registryButton ? 'registry' : 'wedding-details'
+      const cleanPath = `${window.location.pathname}${anchor}`
+
+      setInvitationVisible(false)
+      window.history.replaceState(window.history.state, '', cleanPath)
+
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          document.getElementById(targetId)?.scrollIntoView({
+            behavior: 'auto',
+            block: 'start',
+          })
+        })
+      })
     }
 
-    document.addEventListener('click', rememberImmediateCoupleSiteTransition, true)
+    document.addEventListener('click', handleImmediateCoupleSiteTransition, true)
     return () =>
-      document.removeEventListener('click', rememberImmediateCoupleSiteTransition, true)
+      document.removeEventListener('click', handleImmediateCoupleSiteTransition, true)
   }, [invitationSkipKey])
 
   const showPersonalInvitation = Boolean(invitationAvailable && invitationVisible)
