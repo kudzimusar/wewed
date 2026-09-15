@@ -61,7 +61,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         const allocatedValue=IN_KIND_TYPES.has(type)?estimatedValue:amount
         if((allocatedValue??0)>0)await tx.$executeRaw`INSERT INTO wewed_contributions.contribution_allocations (id,wedding_id,contribution_id,budget_item_id,amount,currency,allocation_kind,note) VALUES (${contributionId()},${weddingId},${contributionIdValue},${campaign.budgetItemId},${allocatedValue},${currency},${type==='DIRECT_VENDOR_PAYMENT'?'DIRECT_PAYMENT':IN_KIND_TYPES.has(type)?'IN_KIND':'CASH'},'Guest pledge destination configured by campaign')`
       }
-      await tx.auditEvent.create({data:{weddingId,action:'contribution.guest_pledged',actorId:guestId??null,resourceType:'WeddingContribution',resourceId:contributionIdValue,afterValue:JSON.stringify({campaignId:id,type,recognition,budgetItemId:campaign.budgetItemId,serviceEngagementId:campaign.serviceEngagementId})}})
+      await tx.auditEvent.create({data:{weddingId,action:'contribution.guest_pledged',actorId:null,resourceType:'WeddingContribution',resourceId:contributionIdValue,afterValue:JSON.stringify({campaignId:id,type,recognition,budgetItemId:campaign.budgetItemId,serviceEngagementId:campaign.serviceEngagementId,actorKind:guestId?'wedding_guest':'public_contributor',guestId,contributorId:contributorIdValue})}})
     })
     return NextResponse.json({success:true,data:{id:contributionIdValue,status:'PLEDGED',message:'Thank you. Your contribution has been shared with the couple and their planner.'}},{status:201})
   } catch(error){console.error('[PUBLIC CONTRIBUTION PLEDGE]',error);return NextResponse.json({success:false,error:'We could not record your contribution right now. Please try again.'},{status:500})}
