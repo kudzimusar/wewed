@@ -2,13 +2,11 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
 const BRANCH = 'feature/private-invitation-android-delivery-20260912'
-const WEDDING_ID = 'wewed-pr202-uat-20260912'
 
 export async function GET() {
   if (
     process.env.VERCEL_ENV !== 'preview' ||
-    process.env.VERCEL_GIT_COMMIT_REF !== BRANCH ||
-    process.env.WEWED_UAT_PROVISION !== WEDDING_ID
+    process.env.VERCEL_GIT_COMMIT_REF !== BRANCH
   ) {
     return NextResponse.json({ success: false }, { status: 404 })
   }
