@@ -118,6 +118,15 @@ export function ContributionGovernancePanel() {
     await mutate('PATCH', { id, ...patch })
   }
 
+  async function moveCampaign(index: number, direction: -1 | 1) {
+    if (!data) return
+    const swapIndex = index + direction
+    if (swapIndex < 0 || swapIndex >= data.campaigns.length) return
+    const reordered = [...data.campaigns]
+    ;[reordered[index], reordered[swapIndex]] = [reordered[swapIndex], reordered[index]]
+    await mutate('PATCH', { scope: 'reorder', campaignIds: reordered.map((campaign) => campaign.id) })
+  }
+
   function toggleCreateType(type: ContributionType, checked: boolean) {
     setCreate((current) => ({
       ...current,
@@ -148,7 +157,7 @@ export function ContributionGovernancePanel() {
       </div>
 
       <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
-        <Input value={disabledMessage} onChange={(event) => setDisabledMessage(event.target.value)} placeholder="Message shown when contributions are off" className="border-gold/20 bg-espresso/70" />
+        <Input aria-label="Disabled contributions message" value={disabledMessage} onChange={(event) => setDisabledMessage(event.target.value)} placeholder="Message shown when contributions are off" className="border-gold/20 bg-espresso/70" />
         <Button type="button" variant="outline" disabled={busy} onClick={() => void saveMaster(data.settings.acceptingContributions)} className="border-gold/20 bg-transparent"><Save className="size-4" />Save message</Button>
       </div>
       {error && <p role="alert" className="mt-3 rounded-lg border border-clay/30 bg-clay/10 px-3 py-2 text-xs text-clay-light">{error}</p>}
@@ -159,8 +168,8 @@ export function ContributionGovernancePanel() {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div><p className="font-medium">{campaign.title}</p><p className="mt-0.5 text-[11px] text-champagne/45">{campaign.currency} · {campaign.enabled ? 'Enabled' : 'Disabled'} · {campaign.published ? 'Published' : 'Private'}</p></div>
               <div className="flex flex-wrap gap-2">
-                <Button type="button" size="sm" variant="outline" disabled={busy || index === 0} onClick={() => void patchCampaign(campaign.id, { sortOrder: data.campaigns[index - 1]?.sortOrder ?? index - 1 })} className="border-gold/20 bg-transparent"><ChevronUp className="size-3.5" />Up</Button>
-                <Button type="button" size="sm" variant="outline" disabled={busy || index === data.campaigns.length - 1} onClick={() => void patchCampaign(campaign.id, { sortOrder: data.campaigns[index + 1]?.sortOrder ?? index + 1 })} className="border-gold/20 bg-transparent"><ChevronDown className="size-3.5" />Down</Button>
+                <Button aria-label={`Move ${campaign.title} up`} type="button" size="sm" variant="outline" disabled={busy || index === 0} onClick={() => void moveCampaign(index, -1)} className="border-gold/20 bg-transparent"><ChevronUp className="size-3.5" />Up</Button>
+                <Button aria-label={`Move ${campaign.title} down`} type="button" size="sm" variant="outline" disabled={busy || index === data.campaigns.length - 1} onClick={() => void moveCampaign(index, 1)} className="border-gold/20 bg-transparent"><ChevronDown className="size-3.5" />Down</Button>
                 <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void patchCampaign(campaign.id, { enabled: !campaign.enabled })} className="border-gold/20 bg-transparent">{campaign.enabled ? 'Disable' : 'Enable'}</Button>
                 <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void patchCampaign(campaign.id, { published: !campaign.published })} className="border-gold/20 bg-transparent">{campaign.published ? 'Unpublish' : 'Publish'}</Button>
               </div>
@@ -177,8 +186,8 @@ export function ContributionGovernancePanel() {
                 </div>
               </div>
               <div className="space-y-3">
-                <div><Label>Budget item</Label><select value={campaign.budgetItemId ?? ''} onChange={(event) => void patchCampaign(campaign.id, { budgetItemId: event.target.value || null })} className="mt-1 h-10 w-full rounded-md border border-gold/20 bg-espresso px-3 text-sm"><option value="">Not linked</option>{data.options.budgetItems.map((item) => <option key={item.id} value={item.id}>{item.description} · {item.currency}</option>)}</select></div>
-                <div><Label>Vendor service for direct payment</Label><select value={campaign.serviceEngagementId ?? ''} onChange={(event) => void patchCampaign(campaign.id, { serviceEngagementId: event.target.value || null })} className="mt-1 h-10 w-full rounded-md border border-gold/20 bg-espresso px-3 text-sm"><option value="">Not linked</option>{data.options.engagements.map((item) => <option key={item.id} value={item.id}>{item.vendor.name} — {item.serviceCategory} · {item.currency}</option>)}</select></div>
+                <div><Label htmlFor={`campaign-budget-${campaign.id}`}>Budget item</Label><select id={`campaign-budget-${campaign.id}`} value={campaign.budgetItemId ?? ''} onChange={(event) => void patchCampaign(campaign.id, { budgetItemId: event.target.value || null })} className="mt-1 h-10 w-full rounded-md border border-gold/20 bg-espresso px-3 text-sm"><option value="">Not linked</option>{data.options.budgetItems.map((item) => <option key={item.id} value={item.id}>{item.description} · {item.currency}</option>)}</select></div>
+                <div><Label htmlFor={`campaign-service-${campaign.id}`}>Vendor service for direct payment</Label><select id={`campaign-service-${campaign.id}`} value={campaign.serviceEngagementId ?? ''} onChange={(event) => void patchCampaign(campaign.id, { serviceEngagementId: event.target.value || null })} className="mt-1 h-10 w-full rounded-md border border-gold/20 bg-espresso px-3 text-sm"><option value="">Not linked</option>{data.options.engagements.map((item) => <option key={item.id} value={item.id}>{item.vendor.name} — {item.serviceCategory} · {item.currency}</option>)}</select></div>
                 <label className="flex items-start gap-2 rounded-lg border border-gold/10 p-3 text-xs"><Checkbox checked={campaign.invitationVisible} onCheckedChange={(value) => void patchCampaign(campaign.id, { invitationVisible: value === true })} /><span>Show this choice from the invitation/Couple Website contribution entry.</span></label>
                 <label className="flex items-start gap-2 rounded-lg border border-gold/10 p-3 text-xs"><Checkbox checked={campaign.showContributorRecognition} onCheckedChange={(value) => void patchCampaign(campaign.id, { showContributorRecognition: value === true })} /><span>Show names only for contributors who explicitly chose public recognition.</span></label>
               </div>
@@ -190,13 +199,13 @@ export function ContributionGovernancePanel() {
       <form onSubmit={createCampaign} className="mt-5 rounded-xl border border-gold/20 bg-gold/[0.035] p-4">
         <div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gold">Add contribution choice</p><p className="mt-1 text-xs text-champagne/50">New choices start private. Publish only after the purpose and accepted contribution methods are ready.</p></div>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <select value={create.type} onChange={(event) => setCreate((current) => ({ ...current, type: event.target.value }))} className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm">{Object.entries(CONTRIBUTION_CAMPAIGN_TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
-          <Input required value={create.title} onChange={(event) => setCreate((current) => ({ ...current, title: event.target.value }))} placeholder="Purpose, e.g. Honeymoon adventures" className="border-gold/20 bg-espresso/70" />
-          <Textarea value={create.description} onChange={(event) => setCreate((current) => ({ ...current, description: event.target.value }))} placeholder="Optional explanation for guests" className="sm:col-span-2 border-gold/20 bg-espresso/70" />
-          <Input value={create.currency} maxLength={3} onChange={(event) => setCreate((current) => ({ ...current, currency: event.target.value.toUpperCase() }))} placeholder="USD" className="border-gold/20 bg-espresso/70" />
-          <Input inputMode="decimal" value={create.targetAmount} onChange={(event) => setCreate((current) => ({ ...current, targetAmount: event.target.value }))} placeholder="Optional target" className="border-gold/20 bg-espresso/70" />
-          <select value={create.budgetItemId} onChange={(event) => setCreate((current) => ({ ...current, budgetItemId: event.target.value }))} className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm"><option value="">No Budget link yet</option>{data.options.budgetItems.map((item) => <option key={item.id} value={item.id}>{item.description}</option>)}</select>
-          <select value={create.serviceEngagementId} onChange={(event) => setCreate((current) => ({ ...current, serviceEngagementId: event.target.value }))} className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm"><option value="">No vendor service link</option>{data.options.engagements.map((item) => <option key={item.id} value={item.id}>{item.vendor.name} — {item.serviceCategory}</option>)}</select>
+          <label className="sr-only" htmlFor="new-contribution-campaign-type">Contribution choice type</label><select id="new-contribution-campaign-type" value={create.type} onChange={(event) => setCreate((current) => ({ ...current, type: event.target.value }))} className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm">{Object.entries(CONTRIBUTION_CAMPAIGN_TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+          <Input aria-label="Contribution choice title" required value={create.title} onChange={(event) => setCreate((current) => ({ ...current, title: event.target.value }))} placeholder="Purpose, e.g. Honeymoon adventures" className="border-gold/20 bg-espresso/70" />
+          <Textarea aria-label="Contribution choice description" value={create.description} onChange={(event) => setCreate((current) => ({ ...current, description: event.target.value }))} placeholder="Optional explanation for guests" className="sm:col-span-2 border-gold/20 bg-espresso/70" />
+          <Input aria-label="Contribution choice currency" value={create.currency} maxLength={3} onChange={(event) => setCreate((current) => ({ ...current, currency: event.target.value.toUpperCase() }))} placeholder="USD" className="border-gold/20 bg-espresso/70" />
+          <Input aria-label="Contribution choice target" inputMode="decimal" value={create.targetAmount} onChange={(event) => setCreate((current) => ({ ...current, targetAmount: event.target.value }))} placeholder="Optional target" className="border-gold/20 bg-espresso/70" />
+          <label className="sr-only" htmlFor="new-contribution-budget">Budget item</label><select id="new-contribution-budget" value={create.budgetItemId} onChange={(event) => setCreate((current) => ({ ...current, budgetItemId: event.target.value }))} className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm"><option value="">No Budget link yet</option>{data.options.budgetItems.map((item) => <option key={item.id} value={item.id}>{item.description}</option>)}</select>
+          <label className="sr-only" htmlFor="new-contribution-service">Vendor service</label><select id="new-contribution-service" value={create.serviceEngagementId} onChange={(event) => setCreate((current) => ({ ...current, serviceEngagementId: event.target.value }))} className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm"><option value="">No vendor service link</option>{data.options.engagements.map((item) => <option key={item.id} value={item.id}>{item.vendor.name} — {item.serviceCategory}</option>)}</select>
         </div>
         <fieldset className="mt-4"><legend className="text-xs font-medium">Guests may contribute by</legend><div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{CONTRIBUTION_TYPES.map((type) => <label key={type} className="flex items-start gap-2 rounded-lg border border-gold/10 p-2 text-xs"><Checkbox checked={create.acceptedTypes.includes(type)} onCheckedChange={(value) => toggleCreateType(type, value === true)} /><span>{CONTRIBUTION_TYPE_LABELS[type]}</span></label>)}</div></fieldset>
         <Button type="submit" disabled={busy || !create.title.trim() || create.acceptedTypes.length === 0} className="mt-4 bg-gold text-espresso hover:bg-gold-light">{busy ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}Create private choice</Button>
