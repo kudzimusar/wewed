@@ -202,7 +202,7 @@ test('physical Ivory contributions are always visible and open the Couple Site r
 
   await experience.getByTestId('invitation-cta-registry').click()
   await expect(page).toHaveURL(
-    new RegExp(`/w/${E2E_WEDDINGS.primary.slug}\\?site=1#registry$`),
+    new RegExp(`/w/${E2E_WEDDINGS.primary.slug}#registry$`),
   )
   await expect(page.locator('#registry')).toBeVisible()
 
