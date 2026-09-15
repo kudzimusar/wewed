@@ -179,7 +179,7 @@ test('Guest pledge reaches Planner and Budget/vendor accounting without fabricat
   await expect(form).toBeVisible()
   await form.getByLabel('How would you like to contribute?').selectOption('CASH_TO_COUPLE')
   await form.getByLabel('Amount (USD)').fill('125')
-  await form.getByLabel('Your name').fill('Primary Test Guest')
+  await form.getByRole('textbox', { name: 'Your name', exact: true }).fill('Primary Test Guest')
   await form.getByLabel('Email').fill('primary.guest@example.test')
   await form.getByLabel('Public thanks').check()
   await form.getByLabel('Note to the couple or planner').fill('Guest pledge E2E')
