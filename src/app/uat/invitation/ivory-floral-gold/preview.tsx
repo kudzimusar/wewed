@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type MouseEvent } from 'react'
 import { CheckCircle2, X } from 'lucide-react'
 import { IvoryFloralGoldTriFold, type IvoryInvitationView } from '@/components/wedding/invitation-experience/ivory-floral-gold-trifold'
 
@@ -37,10 +37,27 @@ export function IvoryFloralGoldUatPreview() {
     return () => window.removeEventListener('wewed:open-premium-rsvp', handler)
   }, [])
 
+  function handlePreviewClickCapture(event: MouseEvent<HTMLElement>) {
+    const target = event.target
+    if (!(target instanceof Element)) return
+    if (!target.closest('[data-testid="invitation-cta-registry"]')) return
+
+    // Preview mode intentionally does not navigate away from the artwork harness.
+    // Mirror the production contribution destination locally so viewport UAT still
+    // exercises the actual CTA and proves that its destination is discoverable.
+    window.requestAnimationFrame(() => {
+      document.getElementById('registry')?.scrollIntoView({
+        behavior: 'auto',
+        block: 'start',
+      })
+    })
+  }
+
   return (
     <main
       data-testid="ivory-uat-preview"
       data-personal-invitation="1"
+      onClickCapture={handlePreviewClickCapture}
       className="relative flex min-h-svh w-full flex-col items-center gap-10 overflow-x-hidden bg-[radial-gradient(circle_at_50%_24%,#fffaf1_0%,#eee2d0_52%,#d9c6ab_100%)] py-3"
     >
       <nav aria-label="UAT artwork controls" className="flex max-w-full flex-wrap justify-center gap-2 text-xs text-[#70501f]">
