@@ -45,6 +45,34 @@ export function GiftRegistryCampaignBridge() {
     return () => { cancelled = true }
   }, [slug])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const current = new URL(window.location.href)
+    if (current.searchParams.get('site') === '1') {
+      current.searchParams.delete('site')
+      const search = current.searchParams.toString()
+      window.history.replaceState(
+        window.history.state,
+        '',
+        `${current.pathname}${search ? `?${search}` : ''}${current.hash}`,
+      )
+    }
+
+    if (current.hash !== '#registry') return
+
+    // The bridge can replace the fallback registry with configured campaigns after
+    // hydration. Re-assert the hash landing after each bridge state settles so the
+    // contribution CTA is deterministic on every mobile viewport and entry path.
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById('registry')?.scrollIntoView({
+        behavior: 'auto',
+        block: 'start',
+      })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [campaigns])
+
   if (!campaigns || campaigns.length === 0) return <GiftRegistry />
 
   return (
