@@ -16,12 +16,12 @@ on:
       version_code:
         description: 'Google Play versionCode. Must be greater than every existing pro.wewed.app versionCode.'
         required: true
-        default: '3'
+        default: '4'
         type: string
       version_name:
         description: 'Base Android versionName; -uat is appended to the Play UAT variant.'
         required: true
-        default: '3'
+        default: '2.0.1'
         type: string
       play_track:
         description: 'Existing Google Play closed-testing track id (normally alpha).'
@@ -42,8 +42,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  WEWED_ANDROID_VERSION_CODE: ${{ github.event_name == 'workflow_dispatch' && inputs.version_code || '3' }}
-  WEWED_ANDROID_VERSION_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.version_name || '3' }}
+  WEWED_ANDROID_VERSION_CODE: ${{ github.event_name == 'workflow_dispatch' && inputs.version_code || '4' }}
+  WEWED_ANDROID_VERSION_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.version_name || '2.0.1' }}
 
 jobs:
   bundle-contract:
@@ -71,10 +71,13 @@ jobs:
           grep -q 'applicationId "pro.wewed.app"' android/app/build.gradle
           grep -q 'uatPlay {' android/app/build.gradle
           grep -q 'initWith release' android/app/build.gradle
+          grep -q 'variantBuilder.minSdk = 24' android/app/build.gradle
           grep -q 'buildConfigField "boolean", "UAT", "true"' android/app/build.gradle
           grep -q 'https://uat.wewed.pro/app?source=google-play-uat' android/app/build.gradle
           grep -q 'https://uat.wewed.pro/invite/resume' android/app/src/main/java/pro/wewed/app/InstallReferrerHandoff.java
           grep -q 'https://uat.wewed.pro/invite/physical-resume' android/app/src/main/java/pro/wewed/app/InstallReferrerHandoff.java
+          UAT_MIN_SDK_MANIFEST="$(find android/app/build/intermediates -type f -name AndroidManifest.xml -path '*uatPlay*' -print0 | xargs -0 -r grep -l 'android:minSdkVersion="24"' | head -n 1 || true)"
+          test -n "$UAT_MIN_SDK_MANIFEST"
           unzip -t android/app/build/outputs/bundle/uatPlay/app-uatPlay.aab >/dev/null
       - name: Upload unsigned contract AAB
         uses: actions/upload-artifact@v4
