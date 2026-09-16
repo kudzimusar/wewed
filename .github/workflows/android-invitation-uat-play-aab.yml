@@ -16,12 +16,12 @@ on:
       version_code:
         description: 'Google Play versionCode. Must be greater than every existing pro.wewed.app versionCode.'
         required: true
-        default: '4'
+        default: '5'
         type: string
       version_name:
         description: 'Base Android versionName; -uat is appended to the Play UAT variant.'
         required: true
-        default: '2.0.1'
+        default: '2.0.2'
         type: string
       play_track:
         description: 'Existing Google Play closed-testing track id (normally alpha).'
@@ -42,8 +42,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  WEWED_ANDROID_VERSION_CODE: ${{ github.event_name == 'workflow_dispatch' && inputs.version_code || '4' }}
-  WEWED_ANDROID_VERSION_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.version_name || '2.0.1' }}
+  WEWED_ANDROID_VERSION_CODE: ${{ github.event_name == 'workflow_dispatch' && inputs.version_code || '5' }}
+  WEWED_ANDROID_VERSION_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.version_name || '2.0.2' }}
 
 jobs:
   bundle-contract:
