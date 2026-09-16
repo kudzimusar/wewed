@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Download, ExternalLink, LoaderCircle, Smartphone } from 'lucide-react'
+import { ExternalLink, LoaderCircle, Smartphone } from 'lucide-react'
 import type { DigitalInvitationCardData } from '@/components/wedding/digital-invitation-card'
 import { PhysicalInvitationClaim } from '@/components/wedding/physical-invitation-claim'
 import type { InvitationCardStyle } from '@/lib/digital-invitation-card'
@@ -18,6 +18,18 @@ type HandoffResponse = {
   playStoreUrl?: unknown
   appResumePath?: unknown
   message?: unknown
+}
+type EntryMode = 'checking' | 'app' | 'android-web' | 'ios-web' | 'web'
+
+const GOOGLE_PLAY_BADGE = 'https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png'
+const APP_STORE_BADGE = 'https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg'
+const APPLE_MOBILE_RE = /iPad|iPhone|iPod/i
+
+function isAppleMobileClient() {
+  return (
+    APPLE_MOBILE_RE.test(navigator.userAgent) ||
+    (/Macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1)
+  )
 }
 
 export function PhysicalInvitationEntry({
@@ -37,9 +49,7 @@ export function PhysicalInvitationEntry({
   deferredInstallEnabled: boolean
   insideWewed?: boolean
 }) {
-  const [mode, setMode] = useState<'checking' | 'app' | 'android-web' | 'web'>(
-    insideWewed ? 'app' : 'checking',
-  )
+  const [mode, setMode] = useState<EntryMode>(insideWewed ? 'app' : 'checking')
   const [installed, setInstalled] = useState(false)
   const [preparing, setPreparing] = useState<'install' | 'open' | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -50,12 +60,16 @@ export function PhysicalInvitationEntry({
       setMode('app')
       return
     }
-    if (!/Android/i.test(navigator.userAgent)) {
+    if (/Android/i.test(navigator.userAgent)) {
+      setMode('android-web')
+    } else if (isAppleMobileClient()) {
+      setMode('ios-web')
+      return
+    } else {
       setMode('web')
       return
     }
 
-    setMode('android-web')
     const nav = navigator as NavigatorWithRelatedApps
     const fn = nav.getInstalledRelatedApps
     if (typeof fn !== 'function') return
@@ -125,7 +139,7 @@ export function PhysicalInvitationEntry({
     }
   }
 
-  async function install() {
+  async function downloadFromGooglePlay() {
     const handoff = await prepare('install')
     if (handoff) window.location.assign(handoff.playStoreUrl)
   }
@@ -151,26 +165,63 @@ export function PhysicalInvitationEntry({
     )
   }
 
+  if (mode === 'ios-web') {
+    return (
+      <main
+        data-testid="physical-invitation-ios-gate"
+        className="min-h-screen bg-[#17130f] px-4 py-7 text-[#f8f1e7] sm:px-6 sm:py-10"
+      >
+        <section className="mx-auto max-w-md rounded-[1.75rem] border border-[#b89155]/45 bg-[#211b16] p-5 text-center shadow-2xl sm:p-8">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#c8a56b]">Wewed · Printed invitation</p>
+          <h1 className="mt-3 font-serif text-3xl leading-tight">Your invitation is ready</h1>
+          <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-[#d6cec5]">
+            Wewed for iPhone is coming soon. For now, continue {weddingTitle} securely in your browser.
+          </p>
+
+          <p className="mt-6 text-xs font-semibold uppercase tracking-[0.2em] text-[#d8b477]">Coming Soon</p>
+          <button
+            type="button"
+            onClick={() => setMode('web')}
+            aria-label="App Store coming soon — continue invitation in browser"
+            className="mx-auto mt-2 flex min-h-16 w-full items-center justify-center rounded-2xl border border-white/10 bg-black px-4 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#d8b477]"
+          >
+            <img src={APP_STORE_BADGE} alt="Download on the App Store" width={196} height={66} className="h-12 w-auto max-w-full" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('web')}
+            className="mt-3 min-h-12 w-full rounded-2xl bg-[#c6a061] px-5 py-3 font-semibold text-[#21170d]"
+          >
+            Continue in browser
+          </button>
+          <p className="mt-4 text-xs leading-5 text-[#9f958a]">
+            Wewed keeps the printed invitation connected to this wedding while you continue in the browser.
+          </p>
+        </section>
+      </main>
+    )
+  }
+
   return (
     <main
       data-testid="physical-invitation-android-gate"
-      className="min-h-screen bg-[#17130f] px-4 py-8 text-[#f8f1e7] sm:px-6 sm:py-10"
+      className="min-h-screen bg-[#17130f] px-4 py-7 text-[#f8f1e7] sm:px-6 sm:py-10"
     >
-      <section className="mx-auto max-w-xl rounded-[2rem] border border-[#b89155]/45 bg-[#211b16] p-5 shadow-2xl sm:p-9">
-        <div className="mx-auto flex size-16 items-center justify-center rounded-full border border-[#b89155]/45 bg-[#2a2119] text-[#d8b477]">
-          <Smartphone className="size-7" aria-hidden="true" />
+      <section className="mx-auto max-w-md rounded-[1.75rem] border border-[#b89155]/45 bg-[#211b16] p-5 text-center shadow-2xl sm:p-8">
+        <div className="mx-auto flex size-14 items-center justify-center rounded-full border border-[#b89155]/45 bg-[#2a2119] text-[#d8b477]">
+          <Smartphone className="size-6" aria-hidden="true" />
         </div>
-        <p className="mt-7 text-center text-xs font-semibold uppercase tracking-[0.24em] text-[#c8a56b]">
+        <p className="mt-5 text-xs font-semibold uppercase tracking-[0.24em] text-[#c8a56b]">
           Wewed · Printed invitation
         </p>
-        <h1 className="mt-4 text-center font-serif text-4xl leading-tight sm:text-5xl">
+        <h1 className="mt-3 font-serif text-3xl leading-tight">
           Your invitation is waiting in Wewed
         </h1>
-        <p className="mx-auto mt-4 max-w-md text-center text-sm leading-6 text-[#d6cec5] sm:text-base">
-          Open {weddingTitle} in Wewed to reveal the digital invitation, RSVP securely and continue to the couple&apos;s wedding site.
+        <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-[#d6cec5]">
+          Download Wewed from Google Play to reveal {weddingTitle}, RSVP securely and continue to the couple&apos;s wedding site.
         </p>
 
-        <div className="mt-8 space-y-3">
+        <div className="mt-6 space-y-3">
           {mode === 'checking' ? (
             <div className="flex min-h-14 items-center justify-center gap-2 rounded-2xl border border-[#b89155]/45 text-[#d6cec5]">
               <LoaderCircle className="size-5 animate-spin" /> Checking Wewed…
@@ -188,12 +239,16 @@ export function PhysicalInvitationEntry({
           ) : (
             <button
               type="button"
-              onClick={install}
+              onClick={downloadFromGooglePlay}
               disabled={preparing !== null || !deferredInstallEnabled}
-              className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#c6a061] px-5 py-4 font-semibold text-[#21170d] disabled:opacity-60"
+              aria-label="Get Wewed on Google Play and reveal my invitation"
+              className="mx-auto flex min-h-16 w-full items-center justify-center rounded-2xl border border-white/10 bg-black px-3 py-1.5 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {preparing === 'install' ? <LoaderCircle className="size-5 animate-spin" /> : <Download className="size-5" />}
-              {preparing === 'install' ? 'Preparing your invitation…' : 'Install Wewed & reveal my invitation'}
+              {preparing === 'install' ? (
+                <span className="flex items-center gap-2 text-sm font-semibold"><LoaderCircle className="size-5 animate-spin" /> Preparing your invitation…</span>
+              ) : (
+                <img src={GOOGLE_PLAY_BADGE} alt="Get it on Google Play" width={646} height={192} className="h-16 w-auto max-w-full object-contain" />
+              )}
             </button>
           )}
 
@@ -202,15 +257,15 @@ export function PhysicalInvitationEntry({
               type="button"
               onClick={openApp}
               disabled={preparing !== null}
-              className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-[#b89155]/55 px-5 py-4 font-semibold text-[#f8f1e7] disabled:opacity-60"
+              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-[#b89155]/55 px-5 py-3 font-semibold text-[#f8f1e7] disabled:opacity-60"
             >
-              <ExternalLink className="size-5" /> Already installed? Open Wewed
+              <ExternalLink className="size-5" /> Already downloaded? Open Wewed
             </button>
           )}
 
           {!deferredInstallEnabled && mode === 'android-web' && (
             <p role="alert" className="rounded-2xl border border-[#c97866]/50 bg-[#3a201c] px-4 py-3 text-sm leading-6 text-[#f3d8d1]">
-              Secure install resume is not enabled on this build yet. This invitation will stay locked until the Android handoff is enabled.
+              Secure invitation download handoff is being prepared for this UAT build. Your private invitation remains locked until it is enabled.
             </p>
           )}
           {error && (
@@ -220,8 +275,8 @@ export function PhysicalInvitationEntry({
           )}
         </div>
 
-        <p className="mt-6 text-center text-xs leading-5 text-[#9f958a]">
-          The floral invitation is revealed only after Wewed opens. Google Play receives only a short-lived encrypted handoff; no guest name or RSVP token is placed in the install referrer.
+        <p className="mt-5 text-center text-xs leading-5 text-[#9f958a]">
+          The floral invitation is revealed only after Wewed opens. Google Play receives only a short-lived encrypted handoff; no guest name or RSVP token is placed in the download referrer.
         </p>
       </section>
     </main>
