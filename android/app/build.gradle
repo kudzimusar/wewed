@@ -26,8 +26,8 @@ def uploadKeyAlias = System.getenv('WEWED_UPLOAD_KEY_ALIAS')
 def uploadKeyPassword = System.getenv('WEWED_UPLOAD_KEY_PASSWORD')
 def hasUploadSigning = uploadStorePath && uploadStorePassword && uploadKeyAlias && uploadKeyPassword
 
-def androidVersionCode = (System.getenv('WEWED_ANDROID_VERSION_CODE') ?: '2').toInteger()
-def androidVersionName = System.getenv('WEWED_ANDROID_VERSION_NAME') ?: '2'
+def uatPlayVersionCode = (System.getenv('WEWED_ANDROID_VERSION_CODE') ?: '3').toInteger()
+def uatPlayVersionName = System.getenv('WEWED_ANDROID_VERSION_NAME') ?: '3'
 
 def twaManifest = [
     applicationId: 'pro.wewed.app',
@@ -60,8 +60,8 @@ android {
         buildConfigField "boolean", "UAT", "false"
         minSdkVersion 21
         targetSdkVersion 36
-        versionCode androidVersionCode
-        versionName androidVersionName
+        versionCode 2
+        versionName "2"
 
         resValue "string", "appName", twaManifest.name
         resValue "string", "launcherName", twaManifest.launcherName
@@ -126,7 +126,6 @@ android {
             initWith release
             matchingFallbacks = ['release']
             buildConfigField "boolean", "UAT", "true"
-            versionNameSuffix "-uat"
             resValue "string", "appName", "Wewed UAT"
             resValue "string", "launcherName", "Wewed UAT"
             resValue "string", "hostName", "uat.wewed.pro"
@@ -146,6 +145,15 @@ android {
 
     lintOptions {
         checkReleaseBuilds false
+    }
+}
+
+androidComponents {
+    onVariants(selector().withBuildType('uatPlay')) { variant ->
+        variant.outputs.each { output ->
+            output.versionCode.set(uatPlayVersionCode)
+            output.versionName.set("${uatPlayVersionName}-uat")
+        }
     }
 }
 
