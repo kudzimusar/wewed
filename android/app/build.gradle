@@ -149,6 +149,11 @@ android {
 }
 
 androidComponents {
+    beforeVariants(selector().withBuildType('uatPlay')) { variantBuilder ->
+        // Google Play automatic protection requires API 24+. Keep production
+        // compatibility at API 21 and raise only the closed-testing Play UAT AAB.
+        variantBuilder.minSdk = 24
+    }
     onVariants(selector().withBuildType('uatPlay')) { variant ->
         variant.outputs.each { output ->
             output.versionCode.set(uatPlayVersionCode)
