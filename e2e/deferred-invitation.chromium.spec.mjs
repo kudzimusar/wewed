@@ -7,6 +7,8 @@ const BASE_URL = process.env.WEWED_UAT_BASE_URL ?? 'http://127.0.0.1:3000'
 const MOBILE_VIEWPORT = { width: 390, height: 844 }
 const ANDROID_UA =
   'Mozilla/5.0 (Linux; Android 14; Pixel 7 Build/UQ1A.240205.002) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36'
+const IOS_UA =
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'
 
 const MOBILE_CLIENTS = [
   {
@@ -240,7 +242,7 @@ for (const client of MOBILE_CLIENTS) {
 
     const playStoreUrl = await capturePlayNavigation(
       page,
-      'Install Wewed & reveal my invitation',
+      'Get Wewed on Google Play and reveal my invitation',
     )
     const handoff = personalHandoffFromPlayUrl(playStoreUrl)
     expect(decodeURIComponent(playStoreUrl)).not.toContain(fixture.rsvpToken)
@@ -262,6 +264,47 @@ for (const client of MOBILE_CLIENTS) {
   })
 }
 
+test('iPhone: personal invitation shows App Store coming soon and continues in the browser', async ({ browser }) => {
+  const fixture = await createFixture('iPhone personal')
+  const context = await browser.newContext({ viewport: MOBILE_VIEWPORT, userAgent: IOS_UA, locale: 'en-ZW' })
+  const page = await context.newPage()
+  const shareUrl = `${BASE_URL}/invite/${encodeURIComponent(fixture.weddingSlug)}?rsvp=${encodeURIComponent(fixture.rsvpToken)}&card=ivory-floral-gold`
+  await page.goto(shareUrl, { waitUntil: 'domcontentloaded' })
+
+  await expect(page).toHaveURL(`${BASE_URL}/invite/${encodeURIComponent(fixture.weddingSlug)}/open`)
+  await expect(page.getByTestId('personal-invitation-ios-gate')).toBeVisible()
+  await expect(page.getByText('Coming Soon', { exact: true })).toBeVisible()
+  await expect(page.getByRole('img', { name: 'Download on the App Store' })).toBeVisible()
+  await expect(page.getByTestId('premium-invitation-experience')).toHaveCount(0)
+  expect(page.url()).not.toContain(fixture.rsvpToken)
+
+  await page.getByRole('button', { name: /App Store coming soon/i }).click()
+  await expect.poll(() => new URL(page.url()).pathname, { timeout: 10_000 }).toBe(`/w/${fixture.weddingSlug}`)
+  const finalUrl = new URL(page.url())
+  expect(finalUrl.searchParams.get('invitation')).toBe('1')
+  expect(finalUrl.searchParams.get('card')).toBe('ivory-floral-gold')
+  expect(finalUrl.searchParams.has('rsvp')).toBe(false)
+  await expectIvoryRevealed(page)
+  await context.close()
+})
+
+test('iPhone: printed QR shows App Store coming soon and continues to browser claim', async ({ browser }) => {
+  const fixture = await createFixture('iPhone physical', { physical: true })
+  const context = await browser.newContext({ viewport: MOBILE_VIEWPORT, userAgent: IOS_UA, locale: 'en-ZW' })
+  const page = await context.newPage()
+  await page.goto(`${BASE_URL}/i/${fixture.physicalCode}`, { waitUntil: 'domcontentloaded' })
+
+  await expect(page.getByTestId('physical-invitation-ios-gate')).toBeVisible()
+  await expect(page.getByText('Coming Soon', { exact: true })).toBeVisible()
+  await expect(page.getByRole('img', { name: 'Download on the App Store' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Find my RSVP' })).toHaveCount(0)
+
+  await page.getByRole('button', { name: /App Store coming soon/i }).click()
+  await expect(page.getByRole('heading', { name: 'Find my RSVP' })).toBeVisible()
+  await expect(page.getByTestId('physical-invitation-ios-gate')).toHaveCount(0)
+  await context.close()
+})
+
 test('Chrome Android: installed Wewed is offered directly and Ivory remains hidden in browser', async ({ browser }) => {
   const fixture = await createFixture('Installed Wewed')
   const context = await androidContext(browser, ANDROID_UA, { installed: true })
@@ -269,7 +312,7 @@ test('Chrome Android: installed Wewed is offered directly and Ivory remains hidd
   await page.goto(`${BASE_URL}/invite/${fixture.weddingSlug}?rsvp=${fixture.rsvpToken}&card=ivory-floral-gold`)
   await expect(page.getByRole('button', { name: 'Open invitation in Wewed' })).toBeVisible()
   await expect(page.getByTestId('premium-invitation-experience')).toHaveCount(0)
-  await expect(page.getByRole('button', { name: /install wewed/i })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /get wewed on google play/i })).toHaveCount(0)
   await context.close()
 })
 
@@ -290,7 +333,7 @@ test('Chrome Android: printed QR installs Wewed, restores shared invitation, cla
 
   const playStoreUrl = await capturePlayNavigation(
     browserPage,
-    'Install Wewed & reveal my invitation',
+    'Get Wewed on Google Play and reveal my invitation',
   )
   const physicalHandoff = physicalHandoffFromPlayUrl(playStoreUrl)
   const visiblePlayUrl = decodeURIComponent(playStoreUrl)
