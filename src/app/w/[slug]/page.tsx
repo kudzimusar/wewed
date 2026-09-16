@@ -16,10 +16,6 @@ import { normalizeInvitationCardStyle } from '@/lib/digital-invitation-card'
 import { loadWeddingDataBySlug } from '@/lib/wedding-data-server'
 import { WEDDING_GUEST_SESSION_COOKIE } from '@/lib/wedding-guest-session'
 import {
-  verifyWeddingGuestPortfolioToken,
-  WEDDING_GUEST_PORTFOLIO_COOKIE,
-} from '@/lib/wedding-guest-portfolio'
-import {
   verifyWeddingSharedInvitationSessionToken,
   WEDDING_SHARED_INVITATION_COOKIE,
 } from '@/lib/wedding-shared-invitation-session'
@@ -105,9 +101,6 @@ export default async function WeddingPage({
   const invitationToken = query.rsvp?.trim()
   if (invitationToken) {
     const exchangeQuery = new URLSearchParams({ token: invitationToken })
-    if (query.card) {
-      exchangeQuery.set('card', normalizeInvitationCardStyle(query.card))
-    }
     redirect(
       `/api/weddings/${encodeURIComponent(slug)}/guest-session/exchange?${exchangeQuery.toString()}`,
     )
@@ -117,11 +110,6 @@ export default async function WeddingPage({
   const appSessionToken = cookieStore.get(APP_SESSION_COOKIE)?.value ?? null
   const guestSessionToken =
     cookieStore.get(WEDDING_GUEST_SESSION_COOKIE)?.value ?? null
-  const guestPortfolioToken =
-    cookieStore.get(WEDDING_GUEST_PORTFOLIO_COOKIE)?.value ?? null
-  const guestPortfolio = guestPortfolioToken
-    ? verifyWeddingGuestPortfolioToken(guestPortfolioToken)
-    : null
   const sharedInvitationSessionToken =
     cookieStore.get(WEDDING_SHARED_INVITATION_COOKIE)?.value ?? null
   const sharedInvitationSession = sharedInvitationSessionToken
@@ -212,19 +200,9 @@ export default async function WeddingPage({
     appSession?.activeWeddingId === wedding.id ? appSession.role : null
   const personalInvitationExperience =
     query.invitation === '1' && resolution.accessKind === 'invited_guest'
-  const portfolioInvitationCardStyle = resolution.guest
-    ? guestPortfolio?.entries.find(
-        (entry) =>
-          entry.weddingId === wedding.id &&
-          entry.weddingSlug === wedding.slug &&
-          entry.guestId === resolution.guest?.id,
-      )?.invitationCardStyle ?? null
-    : null
   const personalInvitationCardStyle =
     resolution.accessKind === 'invited_guest'
-      ? normalizeInvitationCardStyle(
-          query.card || portfolioInvitationCardStyle || wedding.invitationCardStyle,
-        )
+      ? normalizeInvitationCardStyle(wedding.invitationCardStyle)
       : null
 
   return (
