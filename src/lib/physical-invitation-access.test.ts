@@ -49,9 +49,12 @@ describe('bulk physical invitation access', () => {
     expect(route).toContain('clearAndroidInvitationAppCookie(response)')
   })
 
-  test('physical invitation style stays server-authoritative through QR, destination, and secure claim', () => {
+  test('invitation style stays server-authoritative through QR, personal guest re-entry, destination, and secure claim', () => {
     const route = source('src/app/i/[code]/route.ts')
     const page = source('src/app/w/[slug]/page.tsx')
+    const exchange = source(
+      'src/app/api/weddings/[slug]/guest-session/exchange/route.ts',
+    )
     const claim = source(
       'src/app/api/weddings/[slug]/physical-invitation/claim/route.ts',
     )
@@ -74,18 +77,18 @@ describe('bulk physical invitation access', () => {
     )
     expect(physicalStyleBlock).not.toContain('query.card')
 
-    // Personal invited-guest re-entry may legitimately recover the chosen style
-    // from its own URL or its signed, wedding-and-guest-scoped portfolio entry before
-    // falling back to the persisted wedding style. That remains separate from the
-    // anonymous physical/shared invitation authority above.
-    expect(page).toContain('const portfolioInvitationCardStyle = resolution.guest')
-    expect(page).toContain('entry.weddingId === wedding.id')
-    expect(page).toContain('entry.weddingSlug === wedding.slug')
-    expect(page).toContain('entry.guestId === resolution.guest?.id')
+    // Personal guest URLs are access credentials, not design selectors. The
+    // current saved wedding style must win over stale URL or portfolio values.
     expect(page).toContain('const personalInvitationCardStyle =')
     expect(page).toContain(
+      'normalizeInvitationCardStyle(wedding.invitationCardStyle)',
+    )
+    expect(page).not.toContain(
       'query.card || portfolioInvitationCardStyle || wedding.invitationCardStyle',
     )
+    expect(exchange).not.toContain("searchParams.get('card')")
+    expect(exchange).toContain('rsvp.guest.wedding.invitationCardStyle')
+    expect(exchange).toContain('card: invitationStyle')
 
     expect(claim).not.toContain('body?.card')
     expect(claim).toContain(
