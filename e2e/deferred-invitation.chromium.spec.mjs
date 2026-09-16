@@ -184,6 +184,11 @@ function physicalHandoffFromPlayUrl(playStoreUrl) {
 async function capturePlayNavigation(page, buttonName) {
   let playStoreUrl = null
   await page.route('https://play.google.com/**', async (route) => {
+    const requestUrl = new URL(route.request().url())
+    if (requestUrl.pathname !== '/store/apps/details') {
+      await route.continue()
+      return
+    }
     playStoreUrl = route.request().url()
     await route.fulfill({
       status: 200,
