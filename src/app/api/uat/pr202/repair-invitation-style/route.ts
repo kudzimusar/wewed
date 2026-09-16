@@ -6,9 +6,34 @@ const WEDDING_ID = 'wewed-pr202-uat-20260912'
 const WEDDING_TITLE = 'Wewed PR 202 — Synthetic UAT'
 const REQUIRED_STYLE = 'ivory-floral-gold'
 
+const PREMIUM_STYLE_CONSTRAINT_SQL = `
+ALTER TABLE "Wedding"
+  DROP CONSTRAINT IF EXISTS "Wedding_invitationCardStyle_check";
+
+ALTER TABLE "Wedding"
+  ADD CONSTRAINT "Wedding_invitationCardStyle_check"
+  CHECK (
+    "invitationCardStyle" IN (
+      'ivory-floral-gold',
+      'botanical',
+      'editorial',
+      'midnight',
+      'royal-emerald',
+      'classic-white',
+      'blush-romance',
+      'african-luxe',
+      'black-tie',
+      'watercolour-garden',
+      'sunset-terracotta',
+      'celestial'
+    )
+  );
+`
+
 /**
  * Temporary PR #202 preview-only fixture repair.
- * Updates only the synthetic UAT wedding's persisted invitation style.
+ * Applies the repository's existing premium invitation style constraint and
+ * updates only the synthetic UAT wedding's persisted invitation style.
  */
 export async function GET() {
   if (
@@ -34,6 +59,8 @@ export async function GET() {
     )
   }
 
+  await db.$executeRawUnsafe(PREMIUM_STYLE_CONSTRAINT_SQL)
+
   const after = await db.wedding.update({
     where: { id: WEDDING_ID },
     data: { invitationCardStyle: REQUIRED_STYLE },
@@ -44,5 +71,6 @@ export async function GET() {
     success: true,
     before: { invitationCardStyle: before.invitationCardStyle },
     after: { invitationCardStyle: after.invitationCardStyle },
+    premiumStyleConstraintApplied: true,
   })
 }
