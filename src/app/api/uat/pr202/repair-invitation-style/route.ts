@@ -6,10 +6,12 @@ const WEDDING_ID = 'wewed-pr202-uat-20260912'
 const WEDDING_TITLE = 'Wewed PR 202 — Synthetic UAT'
 const REQUIRED_STYLE = 'ivory-floral-gold'
 
-const PREMIUM_STYLE_CONSTRAINT_SQL = `
+const DROP_OLD_STYLE_CONSTRAINT_SQL = `
 ALTER TABLE "Wedding"
-  DROP CONSTRAINT IF EXISTS "Wedding_invitationCardStyle_check";
+  DROP CONSTRAINT IF EXISTS "Wedding_invitationCardStyle_check"
+`
 
+const ADD_PREMIUM_STYLE_CONSTRAINT_SQL = `
 ALTER TABLE "Wedding"
   ADD CONSTRAINT "Wedding_invitationCardStyle_check"
   CHECK (
@@ -27,7 +29,7 @@ ALTER TABLE "Wedding"
       'sunset-terracotta',
       'celestial'
     )
-  );
+  )
 `
 
 /**
@@ -59,7 +61,10 @@ export async function GET() {
     )
   }
 
-  await db.$executeRawUnsafe(PREMIUM_STYLE_CONSTRAINT_SQL)
+  await db.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe(DROP_OLD_STYLE_CONSTRAINT_SQL)
+    await tx.$executeRawUnsafe(ADD_PREMIUM_STYLE_CONSTRAINT_SQL)
+  })
 
   const after = await db.wedding.update({
     where: { id: WEDDING_ID },
