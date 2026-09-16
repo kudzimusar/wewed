@@ -26,8 +26,8 @@ def uploadKeyAlias = System.getenv('WEWED_UPLOAD_KEY_ALIAS')
 def uploadKeyPassword = System.getenv('WEWED_UPLOAD_KEY_PASSWORD')
 def hasUploadSigning = uploadStorePath && uploadStorePassword && uploadKeyAlias && uploadKeyPassword
 
-def androidVersionCode = (System.getenv('WEWED_ANDROID_VERSION_CODE') ?: '3').toInteger()
-def androidVersionName = System.getenv('WEWED_ANDROID_VERSION_NAME') ?: '3'
+def androidVersionCode = (System.getenv('WEWED_ANDROID_VERSION_CODE') ?: '2').toInteger()
+def androidVersionName = System.getenv('WEWED_ANDROID_VERSION_NAME') ?: '2'
 
 def twaManifest = [
     applicationId: 'pro.wewed.app',
@@ -165,7 +165,6 @@ task generateShorcutsFile {
     xmlMarkup
         .'shortcuts'('xmlns:android': 'http://schemas.android.com/apk/res/android') {
             twaManifest.shortcuts.eachWithIndex { s, i ->
-                assert s.name != null
                 'shortcut'(
                         'android:shortcutId': 'shortcut' + i,
                         'android:enabled': 'true',
