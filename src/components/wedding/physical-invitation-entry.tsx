@@ -183,7 +183,7 @@ export function PhysicalInvitationEntry({
             type="button"
             onClick={() => setMode('web')}
             aria-label="App Store coming soon — continue invitation in browser"
-            className="mx-auto mt-2 flex min-h-16 w-full items-center justify-center rounded-2xl border border-white/10 bg-black px-4 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#d8b477]"
+            className="mx-auto mt-2 inline-flex items-center justify-center rounded-lg bg-transparent p-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#d8b477]"
           >
             <img src={APP_STORE_BADGE} alt="Download on the App Store" width={196} height={66} className="h-12 w-auto max-w-full" />
           </button>
@@ -242,10 +242,10 @@ export function PhysicalInvitationEntry({
               onClick={downloadFromGooglePlay}
               disabled={preparing !== null || !deferredInstallEnabled}
               aria-label="Get Wewed on Google Play and reveal my invitation"
-              className="mx-auto flex min-h-16 w-full items-center justify-center rounded-2xl border border-white/10 bg-black px-3 py-1.5 disabled:cursor-not-allowed disabled:opacity-60"
+              className="mx-auto inline-flex min-h-16 items-center justify-center rounded-lg bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#d8b477]"
             >
               {preparing === 'install' ? (
-                <span className="flex items-center gap-2 text-sm font-semibold"><LoaderCircle className="size-5 animate-spin" /> Preparing your invitation…</span>
+                <span className="flex items-center gap-2 px-3 text-sm font-semibold"><LoaderCircle className="size-5 animate-spin" /> Preparing your invitation…</span>
               ) : (
                 <img src={GOOGLE_PLAY_BADGE} alt="Get it on Google Play" width={646} height={192} className="h-16 w-auto max-w-full object-contain" />
               )}
