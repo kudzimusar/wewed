@@ -2,7 +2,10 @@ import { defineConfig } from '@playwright/test'
 
 export default defineConfig({
   testDir: '.',
-  testMatch: 'deferred-invitation.chromium.spec.mjs',
+  testMatch: [
+    'deferred-invitation.chromium.spec.mjs',
+    'deferred-invitation-guest-switch.chromium.spec.mjs',
+  ],
   timeout: 30_000,
   expect: { timeout: 10_000 },
   fullyParallel: false,
