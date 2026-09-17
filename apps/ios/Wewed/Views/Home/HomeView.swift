@@ -2,6 +2,7 @@ import SwiftUI
 
 public struct HomeView: View {
     @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var session: SessionStore
     @State private var wedding: Wedding? = nil
     @State private var announcements: [WeddingAnnouncement] = []
     @State private var isLoading: Bool = true

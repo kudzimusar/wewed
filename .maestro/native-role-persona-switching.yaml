@@ -1,0 +1,43 @@
+appId: pro.wewed.app
+---
+- launchApp:
+    clearState: true
+
+- assertVisible: "WEWED"
+- tapOn: "Sign In"
+- assertVisible: "Tariro & Shadreck"
+- tapOn: "Switch"
+- waitForAnimationToEnd
+
+# Check personas in picker
+- assertVisible: "Switch Persona"
+- assertVisible: "Kudzi Musarurwa"
+- assertVisible: "Chiedza Nyoni"
+- assertVisible: "Kudzi Visuals"
+- assertVisible: "Crown Sound Crew"
+- assertVisible: "Gate A Usher"
+- assertVisible: "Jane Doe"
+- scrollUntilVisible:
+    element: "Global Ops Admin"
+    direction: DOWN
+- assertVisible: "Global Ops Admin"
+
+# Switch to Professional Planner
+- scrollUntilVisible:
+    element: "Kudzi Musarurwa"
+    direction: UP
+- tapOn: "Kudzi Musarurwa"
+- assertVisible: "Kudzi Musarurwa"
+- assertVisible: "Professional Planner"
+
+# Switch to Gate Usher
+- tapOn: "Switch"
+- tapOn: "Gate A Usher"
+- assertVisible: "Gate A Usher"
+- assertVisible: "Gate Usher"
+
+# Switch back to Couple
+- tapOn: "Switch"
+- tapOn: "Tariro & Shadreck"
+- assertVisible: "Tariro & Shadreck"
+- assertVisible: "Couple"
