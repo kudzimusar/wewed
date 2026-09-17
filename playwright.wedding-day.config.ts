@@ -56,7 +56,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `bunx prisma migrate deploy --schema prisma && bunx next dev -p ${port}`,
+    command: `bunx prisma migrate deploy --schema prisma/schema.prisma && bunx next dev -p ${port}`,
     url: baseURL,
     reuseExistingServer: false,
     timeout: 180_000,
