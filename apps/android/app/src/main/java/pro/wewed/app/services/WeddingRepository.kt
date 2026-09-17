@@ -16,6 +16,12 @@ interface WeddingRepository {
     suspend fun searchGuests(query: String): List<Guest>
     suspend fun checkInGuest(qrPayload: String, count: Int, usherId: String): CheckInVerificationResult
     suspend fun getAuditRecords(): List<CheckInAuditRecord>
+    suspend fun getVendors(): List<VendorPresence>
+    suspend fun updateVendorState(id: String, state: VendorPresenceState): VendorPresence
+    suspend fun getAnnouncements(): List<WeddingAnnouncement>
+    suspend fun postAnnouncement(title: String, message: String, urgency: AnnouncementUrgency): WeddingAnnouncement
+    suspend fun resolveInvitation(weddingSlug: String, token: String): InvitationContext
+    suspend fun confirmRsvp(weddingSlug: String, token: String, attending: Boolean): WeddingPass
 }
 
 class FixtureWeddingRepository : WeddingRepository {
@@ -215,4 +221,58 @@ class FixtureWeddingRepository : WeddingRepository {
             gateMessage = gateMsg
         )
     }
+
+    private val vendors = mutableListOf(
+        VendorPresence("v1", "Shandy Events", "Décor & Florals", "Main Marquee", VendorPresenceState.ARRIVED, "11:00"),
+        VendorPresence("v2", "Kudzi Visuals", "Photography & Drone", "Chapel & Gardens", VendorPresenceState.EN_ROUTE, "12:30"),
+        VendorPresence("v3", "Crown Sound Zimbabwe", "Sound & Audio", "Grand Ballroom", VendorPresenceState.SERVICE_ACTIVE, "10:00")
+    )
+
+    private val announcements = mutableListOf(
+        WeddingAnnouncement("a1", "Welcome Drinks", "Welcome iced tea and mint water are now being served at the Manor Gardens.", AnnouncementUrgency.INFO),
+        WeddingAnnouncement("a2", "Ceremony Seating", "All guests please make your way to the Chapel on the Hill. Doors open at 13:15.", AnnouncementUrgency.ACTION)
+    )
+
+    override suspend fun getVendors(): List<VendorPresence> = mutex.withLock {
+        vendors.toList()
+    }
+
+    override suspend fun updateVendorState(id: String, state: VendorPresenceState): VendorPresence = mutex.withLock {
+        val index = vendors.indexOfFirst { it.id == id }
+        if (index == -1) throw NoSuchElementException("Vendor not found")
+        val updated = vendors[index].copy(state = state, lastUpdatedMillis = System.currentTimeMillis())
+        vendors[index] = updated
+        updated
+    }
+
+    override suspend fun getAnnouncements(): List<WeddingAnnouncement> = mutex.withLock {
+        announcements.toList()
+    }
+
+    override suspend fun postAnnouncement(title: String, message: String, urgency: AnnouncementUrgency): WeddingAnnouncement = mutex.withLock {
+        val ann = WeddingAnnouncement(title = title, message = message, urgency = urgency)
+        announcements.add(0, ann)
+        ann
+    }
+
+    override suspend fun resolveInvitation(weddingSlug: String, token: String): InvitationContext = mutex.withLock {
+        InvitationContext(
+            weddingSlug = weddingSlug,
+            guestToken = token,
+            coupleNames = wedding.coupleNames,
+            guestName = "Jane & Michael Doe",
+            householdName = "Doe Household",
+            partySize = 2,
+            weddingDate = "Saturday, 24 October 2026",
+            venueName = wedding.venueName,
+            venueCity = "${wedding.city}, ${wedding.country}",
+            cardStyle = "ivory-floral-gold",
+            isConfirmed = false
+        )
+    }
+
+    override suspend fun confirmRsvp(weddingSlug: String, token: String, attending: Boolean): WeddingPass = mutex.withLock {
+        pass
+    }
 }
+

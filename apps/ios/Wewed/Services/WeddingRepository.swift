@@ -11,6 +11,12 @@ public protocol WeddingRepositoryProtocol: Sendable {
     func checkInGuest(qrPayload: String, count: Int, usherId: String) async throws -> CheckInVerificationResult
     func searchGuests(query: String) async throws -> [Guest]
     func getAuditRecords() async throws -> [CheckInAuditRecord]
+    func getVendors() async throws -> [VendorPresence]
+    func updateVendorState(id: String, state: VendorPresenceState) async throws -> VendorPresence
+    func getAnnouncements() async throws -> [WeddingAnnouncement]
+    func postAnnouncement(title: String, message: String, urgency: AnnouncementUrgency) async throws -> WeddingAnnouncement
+    func resolveInvitation(weddingSlug: String, token: String) async throws -> InvitationContext
+    func confirmRsvp(weddingSlug: String, token: String, attending: Bool) async throws -> WeddingPass
 }
 
 public actor FixtureWeddingRepository: WeddingRepositoryProtocol {
@@ -226,4 +232,61 @@ public actor FixtureWeddingRepository: WeddingRepositoryProtocol {
             gateMessage: gateMsg
         )
     }
+
+    private var vendors: [VendorPresence] = [
+        VendorPresence(id: "v1", vendorName: "Shandy Events", serviceCategory: "Décor & Florals", serviceArea: "Main Marquee", state: .arrived, expectedTime: "11:00"),
+        VendorPresence(id: "v2", vendorName: "Kudzi Visuals", serviceCategory: "Photography & Drone", serviceArea: "Chapel & Gardens", state: .enRoute, expectedTime: "12:30"),
+        VendorPresence(id: "v3", vendorName: "Crown Sound Zimbabwe", serviceCategory: "Sound & Audio", serviceArea: "Grand Ballroom", state: .serviceActive, expectedTime: "10:00")
+    ]
+
+    private var announcements: [WeddingAnnouncement] = [
+        WeddingAnnouncement(id: "a1", title: "Welcome Drinks", message: "Welcome iced tea and mint water are now being served at the Manor Gardens.", urgency: .info, timestamp: Date()),
+        WeddingAnnouncement(id: "a2", title: "Ceremony Seating", message: "All guests please make your way to the Chapel on the Hill. Doors open at 13:15.", urgency: .action, timestamp: Date())
+    ]
+
+    public func getVendors() async throws -> [VendorPresence] {
+        return vendors
+    }
+
+    public func updateVendorState(id: String, state: VendorPresenceState) async throws -> VendorPresence {
+        guard let index = vendors.firstIndex(where: { $0.id == id }) else {
+            throw NSError(domain: "WeddingRepository", code: 404, userInfo: [NSLocalizedDescriptionKey: "Vendor not found"])
+        }
+        var updated = vendors[index]
+        updated.state = state
+        updated.lastUpdated = Date()
+        vendors[index] = updated
+        return updated
+    }
+
+    public func getAnnouncements() async throws -> [WeddingAnnouncement] {
+        return announcements
+    }
+
+    public func postAnnouncement(title: String, message: String, urgency: AnnouncementUrgency) async throws -> WeddingAnnouncement {
+        let ann = WeddingAnnouncement(title: title, message: message, urgency: urgency, timestamp: Date())
+        announcements.insert(ann, at: 0)
+        return ann
+    }
+
+    public func resolveInvitation(weddingSlug: String, token: String) async throws -> InvitationContext {
+        return InvitationContext(
+            weddingSlug: weddingSlug,
+            guestToken: token,
+            coupleNames: wedding.coupleNames,
+            guestName: "Jane & Michael Doe",
+            householdName: "Doe Household",
+            partySize: 2,
+            weddingDate: "Saturday, 24 October 2026",
+            venueName: wedding.venueName,
+            venueCity: "\(wedding.city), \(wedding.country)",
+            cardStyle: "ivory-floral-gold",
+            isConfirmed: false
+        )
+    }
+
+    public func confirmRsvp(weddingSlug: String, token: String, attending: Bool) async throws -> WeddingPass {
+        return pass
+    }
 }
+

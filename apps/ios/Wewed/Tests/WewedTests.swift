@@ -249,5 +249,87 @@ final class WewedTests: XCTestCase {
             XCTAssertEqual(remaining.count, 0)
         }
     }
+
+    func testIvoryInvitationResolutionAndRsvpLifecycle() async throws {
+        let repo = FixtureWeddingRepository()
+        let slug = "tariro-shadreck-2026"
+        let token = "tok_jane_doe_2026"
+
+        // 1. Resolve invitation
+        let invitation = try await repo.resolveInvitation(weddingSlug: slug, token: token)
+        XCTAssertEqual(invitation.weddingSlug, slug)
+        XCTAssertEqual(invitation.guestName, "Jane & Michael Doe")
+        XCTAssertEqual(invitation.householdName, "Doe Household")
+        XCTAssertEqual(invitation.partySize, 2)
+        XCTAssertEqual(invitation.cardStyle, "ivory-floral-gold")
+        XCTAssertFalse(invitation.isConfirmed)
+
+        // 2. Confirm RSVP
+        let pass = try await repo.confirmRsvp(weddingSlug: slug, token: token, attending: true)
+        XCTAssertEqual(pass.guestName, "Jane & Michael Doe")
+        XCTAssertEqual(pass.partySize, 2)
+        XCTAssertEqual(pass.tableNumber, 8)
+    }
+
+    func testVendorPresenceLifecycle() async throws {
+        let repo = FixtureWeddingRepository()
+
+        // 1. Initial list
+        let initialVendors = try await repo.getVendors()
+        XCTAssertEqual(initialVendors.count, 3)
+        let decor = initialVendors.first { $0.vendorName == "Shandy Events" }
+        XCTAssertNotNil(decor)
+        XCTAssertEqual(decor?.state, .arrived)
+
+        // 2. Update status
+        let updated = try await repo.updateVendorState(id: "v1", state: .serviceActive)
+        XCTAssertEqual(updated.state, .serviceActive)
+
+        // 3. Verify persistence
+        let reloaded = try await repo.getVendors()
+        let reloadedDecor = reloaded.first { $0.id == "v1" }
+        XCTAssertEqual(reloadedDecor?.state, .serviceActive)
+    }
+
+    func testWeddingAnnouncementsBroadcast() async throws {
+        let repo = FixtureWeddingRepository()
+
+        let initial = try await repo.getAnnouncements()
+        XCTAssertEqual(initial.count, 2)
+
+        let posted = try await repo.postAnnouncement(
+            title: "Photo Call",
+            message: "Bridal party kindly gather at the fountain.",
+            urgency: .action
+        )
+        XCTAssertEqual(posted.title, "Photo Call")
+        XCTAssertEqual(posted.urgency, .action)
+
+        let updated = try await repo.getAnnouncements()
+        XCTAssertEqual(updated.count, 3)
+        XCTAssertEqual(updated.first?.title, "Photo Call")
+    }
+
+    func testDeepLinkInvitationUriParsing() {
+        let urlString = "wewed://invite?wedding=tariro-shadreck-2026&token=tok_test_123&card=ivory-floral-gold"
+        guard let url = URL(string: urlString),
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            XCTFail("Failed to construct URLComponents")
+            return
+        }
+
+        XCTAssertEqual(components.scheme, "wewed")
+        XCTAssertEqual(components.host, "invite")
+
+        let queryItems = components.queryItems ?? []
+        let wedding = queryItems.first(where: { $0.name == "wedding" })?.value
+        let token = queryItems.first(where: { $0.name == "token" })?.value
+        let card = queryItems.first(where: { $0.name == "card" })?.value
+
+        XCTAssertEqual(wedding, "tariro-shadreck-2026")
+        XCTAssertEqual(token, "tok_test_123")
+        XCTAssertEqual(card, "ivory-floral-gold")
+    }
 }
+
 
