@@ -121,7 +121,8 @@ export default async function WeddingPage({
     ? verifyAndroidInvitationAppSession(androidInvitationAppToken)
     : null
 
-  const [resolution, appSession] = await Promise.all([
+  const explicitInvitationRequested = query.invitation === '1'
+  const [resolution, appSession, guestInvitationResolution] = await Promise.all([
     resolveWeddingAccessFromTokens({
       slug,
       appSessionToken,
@@ -129,6 +130,14 @@ export default async function WeddingPage({
       sharedInvitationSessionToken,
     }),
     Promise.resolve(appSessionToken ? verifyAppSessionToken(appSessionToken) : null),
+    explicitInvitationRequested
+      ? resolveWeddingAccessFromTokens({
+          slug,
+          appSessionToken: null,
+          guestSessionToken,
+          sharedInvitationSessionToken: null,
+        })
+      : Promise.resolve(null),
   ])
 
   if (!resolution.allowed) {
@@ -198,12 +207,19 @@ export default async function WeddingPage({
 
   const viewerRole: WeddingViewerRole =
     appSession?.activeWeddingId === wedding.id ? appSession.role : null
-  const personalInvitationExperience =
-    query.invitation === '1' && resolution.accessKind === 'invited_guest'
+  const explicitGuestInvitation = Boolean(
+    explicitInvitationRequested &&
+      guestInvitationResolution?.allowed &&
+      guestInvitationResolution.accessKind === 'invited_guest' &&
+      guestInvitationResolution.guest,
+  )
+  const personalInvitationExperience = explicitGuestInvitation
   const personalInvitationCardStyle =
-    resolution.accessKind === 'invited_guest'
+    explicitGuestInvitation || resolution.accessKind === 'invited_guest'
       ? normalizeInvitationCardStyle(wedding.invitationCardStyle)
       : null
+  const invitationGuestName =
+    guestInvitationResolution?.guest?.name ?? resolution.guest?.name ?? null
 
   return (
     <WeddingHome
@@ -213,6 +229,11 @@ export default async function WeddingPage({
       initialData={initialData}
       invitationMode={personalInvitationExperience}
       invitationCardStyle={personalInvitationCardStyle}
+      invitationGuestPresentation={explicitGuestInvitation}
+      invitationGuestName={invitationGuestName}
+      invitationArrivalMode={
+        query.source === 'android-app' && personalInvitationExperience
+      }
       sharedPhysicalInvitation={sharedPhysicalCoupleSite}
     />
   )
