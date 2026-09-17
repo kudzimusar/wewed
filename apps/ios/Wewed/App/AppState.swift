@@ -28,8 +28,18 @@ public final class AppState: ObservableObject, @unchecked Sendable {
     @Published public var lastSyncTime: Date? = nil
 
     public let repository: WeddingRepositoryProtocol
+    /// Nil by default. Isolated integration builds/tests may inject a manifest-backed runtime.
+    public let weddingDayGate: WeddingDayGateOperations?
 
-    public init(repository: WeddingRepositoryProtocol = FixtureWeddingRepository()) {
-        self.repository = repository
+    public init(
+        repository: WeddingRepositoryProtocol = FixtureWeddingRepository(),
+        weddingDayGate: WeddingDayGateOperations? = nil
+    ) {
+        self.weddingDayGate = weddingDayGate
+        if let weddingDayGate {
+            self.repository = WeddingDayGateAwareRepository(base: repository, gate: weddingDayGate)
+        } else {
+            self.repository = repository
+        }
     }
 }

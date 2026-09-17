@@ -24,7 +24,7 @@
 | Feature ID | Domain | Feature Description | Web/PWA Route | Supported Roles | iOS Native | Android Native | Maestro E2E | Parity Status |
 |---|---|---|---|---|:---:|:---:|:---:|:---:|
 | `PASS-01` | Wedding Pass | Dynamic Digital Pass (Monogram, Date, Table) | `/pass/[token]` | Guest, Couple | Native SwiftUI Card | Native Compose Card | PASS | In Parity |
-| `PASS-02` | Wedding Pass | Cryptographic HMAC-SHA256 QR Credential | `/pass/[token]` | Guest | CoreImage / Vision | ZXing / ML Kit | PASS | In Parity |
+| `PASS-02` | Wedding Pass | WW2 Asymmetric ECDSA P-256 / SHA-256 QR Credential (WW1 HMAC legacy compat) | `/pass/[token]` | Guest | CryptoKit P-256 / SHA-256 | Java Security ECDSA / SHA-256 | PASS | In Parity |
 | `PASS-03` | Wedding Pass | Save Pass to Camera Roll / Offline PNG | `/pass/[token]` | Guest | ImageRenderer (Photos) | Canvas Bitmap (Gallery) | PASS | In Parity |
 | `PASS-04` | Wedding Pass | Usher Fast Camera Scanner (<100ms) | `/checkin` | Usher, Planner, Couple | AVFoundation + Vision | CameraX + Google ML Kit | PASS | In Parity |
 | `PASS-05` | Wedding Pass | Offline Guest Manifest Verification (AES-GCM) | `/checkin` | Usher, Planner | SwiftData Local Cache | Room Local Cache | PASS | In Parity |

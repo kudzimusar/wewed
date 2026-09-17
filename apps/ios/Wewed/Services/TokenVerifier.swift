@@ -62,28 +62,65 @@ public enum TokenVerifier {
                 return .failure(.unauthorizedEvent)
             }
 
-            guard let pubData = dataFromHex(rawPublicKeyHex) else {
+            guard let pubData = dataFromHex(rawPublicKeyHex),
+                  let publicKey = try? P256.Signing.PublicKey(x963Representation: pubData) else {
                 return .failure(.invalidKey)
             }
+            return verify(parsed: parsed, publicKey: publicKey)
+        }
+    }
 
-            guard let publicKey = try? P256.Signing.PublicKey(x963Representation: pubData) else {
+    /// DER/SPKI variant used by the signed Wedding Day manifest. This matches Android's key contract.
+    public static func verifyAsymmetric(
+        token: String,
+        publicKeyDerBase64: String,
+        requiredEventBit: UInt8 = 0x04
+    ) -> Result<ParsedQRToken, TokenVerificationError> {
+        switch parse(token: token) {
+        case .failure(let error):
+            return .failure(error)
+        case .success(let parsed):
+            if (parsed.eventBitmask & requiredEventBit) == 0 {
+                return .failure(.unauthorizedEvent)
+            }
+            guard let der = Data(base64Encoded: publicKeyDerBase64),
+                  let publicKey = try? P256.Signing.PublicKey(derRepresentation: der) else {
                 return .failure(.invalidKey)
             }
+            return verify(parsed: parsed, publicKey: publicKey)
+        }
+    }
 
-            let payload = "\(parsed.version).\(parsed.weddingShortId).\(parsed.passSerial).\(String(format: "%02x", parsed.eventBitmask)).\(parsed.nonce)"
-            guard let sigData = dataFromHex(parsed.signature) else {
-                return .failure(.invalidFormat)
-            }
+    /// Verifies a raw IEEE-P1363 P-256 signature over an arbitrary canonical payload.
+    /// Used to authenticate the root-signed offline manifest before it is cached.
+    public static func verifyP1363(
+        payload: String,
+        signatureHex: String,
+        publicKeyDerBase64: String
+    ) -> Bool {
+        guard let der = Data(base64Encoded: publicKeyDerBase64),
+              let publicKey = try? P256.Signing.PublicKey(derRepresentation: der),
+              let signatureData = dataFromHex(signatureHex),
+              let signature = try? P256.Signing.ECDSASignature(rawRepresentation: signatureData) else {
+            return false
+        }
+        return publicKey.isValidSignature(signature, for: Data(payload.utf8))
+    }
 
-            guard let ecdsaSignature = try? P256.Signing.ECDSASignature(rawRepresentation: sigData) else {
-                return .failure(.signatureMismatch)
-            }
+    private static func verify(
+        parsed: ParsedQRToken,
+        publicKey: P256.Signing.PublicKey
+    ) -> Result<ParsedQRToken, TokenVerificationError> {
+        let payload = "\(parsed.version).\(parsed.weddingShortId).\(parsed.passSerial).\(String(format: "%02x", parsed.eventBitmask)).\(parsed.nonce)"
+        guard let sigData = dataFromHex(parsed.signature),
+              let ecdsaSignature = try? P256.Signing.ECDSASignature(rawRepresentation: sigData) else {
+            return .failure(.signatureMismatch)
+        }
 
-            if publicKey.isValidSignature(ecdsaSignature, for: Data(payload.utf8)) {
-                return .success(parsed)
-            } else {
-                return .failure(.signatureMismatch)
-            }
+        if publicKey.isValidSignature(ecdsaSignature, for: Data(payload.utf8)) {
+            return .success(parsed)
+        } else {
+            return .failure(.signatureMismatch)
         }
     }
 

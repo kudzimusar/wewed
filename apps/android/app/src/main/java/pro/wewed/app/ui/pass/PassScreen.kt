@@ -93,7 +93,7 @@ fun PassScreen(appViewModel: AppViewModel, onOpenScanner: () -> Unit) {
                                 color = Color.Gray
                             )
 
-                            Divider(modifier = Modifier.padding(vertical = WewedSpacing.sm))
+                            HorizontalDivider(modifier = Modifier.padding(vertical = WewedSpacing.sm))
 
                             Text(p.guestName, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                             Text("Party of ${p.partySize}", fontSize = 14.sp, color = Color.Gray)

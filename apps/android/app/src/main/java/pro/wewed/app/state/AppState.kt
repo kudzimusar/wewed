@@ -4,6 +4,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import pro.wewed.app.services.FixtureWeddingRepository
+import pro.wewed.app.services.WeddingDayGateAwareRepository
+import pro.wewed.app.services.WeddingDayGateOperations
 import pro.wewed.app.services.WeddingRepository
 
 enum class AppTab(val title: String) {
@@ -15,8 +17,15 @@ enum class AppTab(val title: String) {
 }
 
 class AppViewModel(
-    val repository: WeddingRepository = FixtureWeddingRepository()
+    baseRepository: WeddingRepository = FixtureWeddingRepository(),
+    val weddingDayGate: WeddingDayGateOperations? = null
 ) {
+    val repository: WeddingRepository = if (weddingDayGate != null) {
+        WeddingDayGateAwareRepository(baseRepository, weddingDayGate)
+    } else {
+        baseRepository
+    }
+
     private val _selectedTab = MutableStateFlow(AppTab.HOME)
     val selectedTab: StateFlow<AppTab> = _selectedTab.asStateFlow()
 

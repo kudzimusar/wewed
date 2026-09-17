@@ -12,8 +12,19 @@ public struct UsherScannerView: View {
 
     private let tokenJane = "WW1.wedts26.WWJD0824.0e.66f001ab.3f9a7c2b4d1e809f"
     private let tokenMusarurwa = "WW1.wedts26.WWMF0104.0e.77a002bc.5a8c9e1f2b3d4e6a"
+    private let onDone: (() -> Void)?
 
-    public init() {}
+    public init(onDone: (() -> Void)? = nil) {
+        self.onDone = onDone
+    }
+
+    private func closeScanner() {
+        if let onDone {
+            onDone()
+        } else {
+            dismiss()
+        }
+    }
 
     public var body: some View {
         NavigationStack {
@@ -34,7 +45,10 @@ public struct UsherScannerView: View {
             #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
+                    Button("Done") {
+                        closeScanner()
+                    }
+                    .accessibilityIdentifier("gate-scanner-done")
                 }
             }
             .sheet(isPresented: $showingAuditSheet) {
@@ -47,12 +61,32 @@ public struct UsherScannerView: View {
     }
 
     private var viewfinderHeader: some View {
-        ZStack {
+        ZStack(alignment: .topLeading) {
             CameraBarcodeScannerView { scannedToken in
                 performScan(token: scannedToken)
             }
 
             VStack {
+                HStack {
+                    Button {
+                        closeScanner()
+                    } label: {
+                        Label("Exit Scanner", systemImage: "xmark")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Color.black.opacity(0.6))
+                            .foregroundColor(.white)
+                            .cornerRadius(WewedRadius.pill)
+                    }
+                    .accessibilityIdentifier("gate-scanner-exit")
+
+                    Spacer()
+                }
+                .padding(.top, WewedSpacing.sm)
+                .padding(.leading, WewedSpacing.base)
+
                 Spacer()
 
 
@@ -235,7 +269,7 @@ public struct UsherScannerView: View {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.secondary)
                 TextField("Search by guest or household name...", text: $manualSearchQuery)
-                    .onChange(of: manualSearchQuery) { query in
+                    .onChange(of: manualSearchQuery) { _, query in
                         search(query: query)
                     }
             }
