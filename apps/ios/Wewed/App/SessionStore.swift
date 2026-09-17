@@ -6,6 +6,8 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
     @Published public var currentUserRole: String? = nil
     @Published public var currentUserName: String? = nil
     @Published public var weddingId: String = "wed_tariro_shadreck_2026"
+    /// Guest pass token resolved after RSVP confirmation. Nil in fixture/anonymous mode.
+    @Published public var passToken: String? = nil
 
     private let storage: SecureStorageProtocol
     private let tokenKey = "wewed_session_token"

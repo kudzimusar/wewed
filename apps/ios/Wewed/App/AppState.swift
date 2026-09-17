@@ -30,16 +30,35 @@ public final class AppState: ObservableObject, @unchecked Sendable {
     public let repository: WeddingRepositoryProtocol
     /// Nil by default. Isolated integration builds/tests may inject a manifest-backed runtime.
     public let weddingDayGate: WeddingDayGateOperations?
+    /// Active guest pass token injected by AppComposition; nil means fixture/anonymous mode.
+    public let activePassToken: String?
+    /// When true, UI surfaces may render simulation/demo controls (fixture & isolated modes only).
+    public let showDemoSimulations: Bool
 
     public init(
         repository: WeddingRepositoryProtocol = FixtureWeddingRepository(),
-        weddingDayGate: WeddingDayGateOperations? = nil
+        weddingDayGate: WeddingDayGateOperations? = nil,
+        activePassToken: String? = nil,
+        showDemoSimulations: Bool = true
     ) {
         self.weddingDayGate = weddingDayGate
+        self.activePassToken = activePassToken
+        self.showDemoSimulations = showDemoSimulations
         if let weddingDayGate {
             self.repository = WeddingDayGateAwareRepository(base: repository, gate: weddingDayGate)
         } else {
             self.repository = repository
         }
     }
+
+    /// Convenience initializer from a fully composed AppComposition.
+    public convenience init(composition: AppComposition, activePassToken: String? = nil) {
+        self.init(
+            repository: composition.repository,
+            weddingDayGate: composition.gate,
+            activePassToken: activePassToken,
+            showDemoSimulations: composition.showDemoSimulations
+        )
+    }
 }
+

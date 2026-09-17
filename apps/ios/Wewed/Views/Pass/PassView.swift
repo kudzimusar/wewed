@@ -141,7 +141,8 @@ public struct PassView: View {
             }
             .task {
                 do {
-                    pass = try await appState.repository.getWeddingPass(token: "w1-j8doe-7x9")
+                    let token = session.passToken ?? appState.activePassToken ?? ""
+                    pass = try await appState.repository.getWeddingPass(token: token)
                     isLoading = false
                 } catch {
                     isLoading = false

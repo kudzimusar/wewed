@@ -144,30 +144,32 @@ fun UsherScannerScreen(appViewModel: AppViewModel, onClose: () -> Unit) {
 
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        // Simulation triggers
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(
-                                onClick = {
-                                    scope.launch {
-                                        scanResult = appViewModel.repository.checkInGuest(tokenJane, checkInCount, "usher_android_gate1")
-                                        refreshAudit()
-                                    }
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.2f))
-                            ) {
-                                Text("Scan Jane (x2)", color = Color.White, fontSize = 11.sp)
-                            }
+                        // Simulation triggers — only visible in fixture/isolated modes
+                        if (appViewModel.showDemoSimulations) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(
+                                    onClick = {
+                                        scope.launch {
+                                            scanResult = appViewModel.repository.checkInGuest(tokenJane, checkInCount, "usher_android_gate1")
+                                            refreshAudit()
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.2f))
+                                ) {
+                                    Text("Scan Jane (x2)", color = Color.White, fontSize = 11.sp)
+                                }
 
-                            Button(
-                                onClick = {
-                                    scope.launch {
-                                        scanResult = appViewModel.repository.checkInGuest(tokenMusarurwa, checkInCount, "usher_android_gate1")
-                                        refreshAudit()
-                                    }
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = WewedColors.Gold)
-                            ) {
-                                Text("Scan Musarurwa (x4)", color = Color.Black, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
+                                Button(
+                                    onClick = {
+                                        scope.launch {
+                                            scanResult = appViewModel.repository.checkInGuest(tokenMusarurwa, checkInCount, "usher_android_gate1")
+                                            refreshAudit()
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = WewedColors.Gold)
+                                ) {
+                                    Text("Scan Musarurwa (x4)", color = Color.Black, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
+                                }
                             }
                         }
                     }

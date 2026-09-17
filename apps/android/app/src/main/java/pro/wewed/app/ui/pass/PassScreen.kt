@@ -30,7 +30,8 @@ fun PassScreen(appViewModel: AppViewModel, onOpenScanner: () -> Unit) {
     var isLoading by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
-        pass = appViewModel.repository.getWeddingPass("w1-j8doe-7x9")
+        val token = appViewModel.activePassToken ?: ""
+        pass = appViewModel.repository.getWeddingPass(token)
         isLoading = false
     }
 

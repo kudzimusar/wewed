@@ -35,6 +35,7 @@ class SessionViewModel(
     }
 
     fun login(email: String, role: String = "couple") {
+        @Suppress("UNUSED_VARIABLE") val _email = email  // retained for future server auth integration
         val dummyToken = "token_${UUID.randomUUID()}"
         storage.save(tokenKey, dummyToken)
         _isAuthenticated.value = true

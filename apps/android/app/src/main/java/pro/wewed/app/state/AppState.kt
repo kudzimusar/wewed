@@ -18,7 +18,11 @@ enum class AppTab(val title: String) {
 
 class AppViewModel(
     baseRepository: WeddingRepository = FixtureWeddingRepository(),
-    val weddingDayGate: WeddingDayGateOperations? = null
+    val weddingDayGate: WeddingDayGateOperations? = null,
+    /** Active guest pass token resolved after RSVP; null in fixture/anonymous mode. */
+    val activePassToken: String? = null,
+    /** When true, UI may show simulation/demo controls (fixture & isolated modes only). */
+    val showDemoSimulations: Boolean = true
 ) {
     val repository: WeddingRepository = if (weddingDayGate != null) {
         WeddingDayGateAwareRepository(baseRepository, weddingDayGate)
@@ -35,4 +39,16 @@ class AppViewModel(
     fun selectTab(tab: AppTab) {
         _selectedTab.value = tab
     }
+
+    companion object {
+        /** Convenience factory that reads all configuration from an [AppComposition]. */
+        fun from(composition: AppComposition, activePassToken: String? = null): AppViewModel =
+            AppViewModel(
+                baseRepository = composition.repository,
+                weddingDayGate = composition.gate,
+                activePassToken = activePassToken,
+                showDemoSimulations = composition.showDemoSimulations
+            )
+    }
 }
+

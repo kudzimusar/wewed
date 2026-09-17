@@ -102,34 +102,36 @@ public struct UsherScannerView: View {
                 }
                 .padding(.bottom, 8)
 
-                HStack(spacing: 10) {
-                    Button {
-                        performScan(token: tokenJane)
-                    } label: {
-                        Text("Scan Jane (x2)")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(Color.white.opacity(0.2))
-                            .foregroundColor(.white)
-                            .cornerRadius(WewedRadius.pill)
-                    }
+                if appState.showDemoSimulations {
+                    HStack(spacing: 10) {
+                        Button {
+                            performScan(token: tokenJane)
+                        } label: {
+                            Text("Scan Jane (x2)")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Color.white.opacity(0.2))
+                                .foregroundColor(.white)
+                                .cornerRadius(WewedRadius.pill)
+                        }
 
-                    Button {
-                        performScan(token: tokenMusarurwa)
-                    } label: {
-                        Text("Scan Musarurwa (x4)")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(WewedColors.gold)
-                            .foregroundColor(.black)
-                            .cornerRadius(WewedRadius.pill)
+                        Button {
+                            performScan(token: tokenMusarurwa)
+                        } label: {
+                            Text("Scan Musarurwa (x4)")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(WewedColors.gold)
+                                .foregroundColor(.black)
+                                .cornerRadius(WewedRadius.pill)
+                        }
                     }
+                    .padding(.bottom, WewedSpacing.base)
                 }
-                .padding(.bottom, WewedSpacing.base)
             }
         }
         .frame(height: 310)
