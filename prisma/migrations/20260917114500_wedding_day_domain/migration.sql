@@ -108,8 +108,7 @@ CREATE INDEX "WeddingPassCredential_passKeyId_idx"
 CREATE UNIQUE INDEX "WeddingCheckIn_weddingId_eventKey_guestId_attendeeKey_key"
     ON "WeddingCheckIn"("weddingId", "eventKey", "guestId", "attendeeKey");
 CREATE UNIQUE INDEX "WeddingCheckIn_weddingId_clientEventId_key"
-    ON "WeddingCheckIn"("weddingId", "clientEventId")
-    WHERE "clientEventId" IS NOT NULL;
+    ON "WeddingCheckIn"("weddingId", "clientEventId");
 CREATE INDEX "WeddingCheckIn_weddingId_eventKey_admittedAt_idx"
     ON "WeddingCheckIn"("weddingId", "eventKey", "admittedAt");
 CREATE INDEX "WeddingCheckIn_guestId_idx" ON "WeddingCheckIn"("guestId");
