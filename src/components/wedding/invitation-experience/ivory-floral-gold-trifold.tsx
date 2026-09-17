@@ -382,13 +382,25 @@ export function IvoryFloralGoldTriFold({
                 View invitation
               </button>
               {!previewMode && (
-                <button
-                  type="button"
-                  className="ivory-site"
-                  onClick={() => visitCoupleWebsite()}
-                >
-                  Visit Couple Website
-                </button>
+                <>
+                  <button
+                    type="button"
+                    data-testid="invitation-cta-pass"
+                    className="ivory-back"
+                    onClick={() =>
+                      window.dispatchEvent(new CustomEvent('wewed:open-guest-pass'))
+                    }
+                  >
+                    Guest Pass
+                  </button>
+                  <button
+                    type="button"
+                    className="ivory-site"
+                    onClick={() => visitCoupleWebsite()}
+                  >
+                    Visit Couple Website
+                  </button>
+                </>
               )}
             </div>
           </div>
