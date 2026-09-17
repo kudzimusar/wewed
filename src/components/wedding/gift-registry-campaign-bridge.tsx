@@ -48,7 +48,7 @@ export function GiftRegistryCampaignBridge() {
   if (!campaigns || campaigns.length === 0) return <GiftRegistry />
 
   return (
-    <section id="registry" className="wewed-section bg-champagne py-20 md:py-32">
+    <section id="registry" data-registry-configured="true" className="wewed-section bg-champagne py-20 md:py-32">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
         <div className="mb-12 text-center md:mb-16">
           <p className="font-sans text-[10px] uppercase tracking-[0.24em] text-gold-muted">With appreciation</p>
