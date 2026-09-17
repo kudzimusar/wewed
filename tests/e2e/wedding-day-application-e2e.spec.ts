@@ -136,7 +136,7 @@ test.describe.serial('Wedding Day real isolated Wewed application', () => {
         venueCountry: 'Zimbabwe',
         invitationCardStyle: 'ivory-floral-gold',
         invitationCardMessage: 'Together with our families, we invite you to celebrate with us.',
-        privacy: 'unlisted',
+        privacy: 'link_only',
         coupleId: couple.id,
       },
     })
