@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   repair:
-    name: Repair partial Prisma migration and deploy pending migrations
+    name: Repair Prisma migration history and deploy pending migrations
     if: ${{ inputs.confirmation == 'repair-normalize-planner-metadata' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -26,7 +26,8 @@ jobs:
     env:
       DATABASE_URL: ${{ secrets.WEWED_DATABASE_URL }}
       DIRECT_URL: ${{ secrets.WEWED_DATABASE_URL }}
-      FAILED_MIGRATION: 20260729131000_normalize_planner_metadata
+      PLANNER_METADATA_MIGRATION: 20260729131000_normalize_planner_metadata
+      TASK_ASSIGNEE_MIGRATION: 20260729134500_normalize_task_assignee
       HANDOFF_MIGRATION: 20260910110000_native_deferred_invitation_handoff
 
     steps:
@@ -63,241 +64,103 @@ jobs:
           bunx prisma validate --schema prisma/schema.prisma
           bunx prisma generate --schema prisma/schema.prisma
 
-      - name: Fail closed unless the observed partial migration state matches exactly
+      - name: Fail closed unless current migration state matches the known recovery point
         shell: bash
         run: |
           set -euo pipefail
 
-          mapfile -t unresolved < <(psql "$DATABASE_URL" -AtF '|' -c \
-            "select migration_name, applied_steps_count from public._prisma_migrations where finished_at is null and rolled_back_at is null order by started_at")
-
-          if (( ${#unresolved[@]} != 1 )); then
-            echo "::error::Expected exactly one unresolved Prisma migration, found ${#unresolved[@]}."
-            printf '%s\n' "${unresolved[@]}"
-            exit 1
-          fi
-
-          IFS='|' read -r migration_name applied_steps <<< "${unresolved[0]}"
-          if [[ "$migration_name" != "$FAILED_MIGRATION" || "$applied_steps" != "0" ]]; then
-            echo "::error::Unexpected unresolved migration state: $migration_name applied_steps=$applied_steps"
-            exit 1
-          fi
-
-          migration_file="prisma/migrations/$FAILED_MIGRATION/migration.sql"
-          test -f "$migration_file" || {
-            echo "::error::Failed migration file is missing from main: $migration_file"
+          unresolved=$(psql "$DATABASE_URL" -AtF '|' -c \
+            "select migration_name || '|' || applied_steps_count from public._prisma_migrations where finished_at is null and rolled_back_at is null order by started_at")
+          unresolved_count=$(printf '%s\n' "$unresolved" | sed '/^$/d' | wc -l | tr -d ' ')
+          [[ "$unresolved_count" == "1" ]] || {
+            echo "::error::Expected exactly one unresolved migration at recovery point; found $unresolved_count"
+            printf '%s\n' "$unresolved"
             exit 1
           }
 
+          IFS='|' read -r migration_name applied_steps <<< "$unresolved"
+          [[ "$migration_name" == "$TASK_ASSIGNEE_MIGRATION" ]] || {
+            echo "::error::Unexpected unresolved migration: $migration_name"
+            exit 1
+          }
+          [[ "$applied_steps" == "0" ]] || {
+            echo "::error::Unexpected applied_steps_count for $TASK_ASSIGNEE_MIGRATION: $applied_steps"
+            exit 1
+          }
+
+          planner_finished=$(psql "$DATABASE_URL" -Atqc \
+            "select count(*) from public._prisma_migrations where migration_name='$PLANNER_METADATA_MIGRATION' and finished_at is not null and rolled_back_at is null")
+          [[ "$planner_finished" == "1" ]] || {
+            echo "::error::$PLANNER_METADATA_MIGRATION is not recorded as applied. Refusing chained repair."
+            exit 1
+          }
+
+          migration_file="prisma/migrations/$TASK_ASSIGNEE_MIGRATION/migration.sql"
+          test -f "$migration_file" || { echo "::error::Missing migration file: $migration_file"; exit 1; }
           recorded_checksum=$(psql "$DATABASE_URL" -Atqc \
-            "select checksum from public._prisma_migrations where migration_name = '$FAILED_MIGRATION' and finished_at is null and rolled_back_at is null")
+            "select checksum from public._prisma_migrations where migration_name='$TASK_ASSIGNEE_MIGRATION' and finished_at is null and rolled_back_at is null")
           repository_checksum=$(sha256sum "$migration_file" | awk '{print $1}')
-          if [[ "$recorded_checksum" != "$repository_checksum" ]]; then
-            echo "::error::Failed migration checksum does not match immutable repository history."
+          [[ "$recorded_checksum" == "$repository_checksum" ]] || {
+            echo "::error::Task-assignee migration checksum differs from immutable repository history."
             exit 1
-          fi
+          }
 
-          columns=$(psql "$DATABASE_URL" -Atqc \
-            "select count(*) from information_schema.columns where table_schema='public' and ((table_name='Vendor' and column_name in ('contact','contractStatus','paymentStatus','planningRating','notes')) or (table_name='ProgrammeItem' and column_name in ('duration','location','displayIcon')))")
-          if [[ "$columns" != "8" ]]; then
-            echo "::error::Expected all 8 normalized planner columns to already exist; found $columns. Refusing repair."
-            exit 1
-          fi
-
-          echo "Guard passed: exact known partial migration state confirmed."
-
-      - name: Complete the missing migration effects transactionally
+      - name: Verify task assignee migration is already fully present in schema
         shell: bash
         run: |
           set -euo pipefail
-          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
-          BEGIN;
 
-          -- Re-run the original vendor backfill. Existing normalized values win.
-          DO $$
-          DECLARE
-            vendor_row RECORD;
-            metadata JSONB;
-            raw_metadata TEXT;
-            rating_value DOUBLE PRECISION;
-          BEGIN
-            FOR vendor_row IN
-              SELECT "id", "description"
-              FROM public."Vendor"
-              WHERE "description" LIKE '__wewed_meta__:%'
-            LOOP
-              raw_metadata := split_part(substring(vendor_row."description" FROM 16), '|||', 1);
-              BEGIN
-                metadata := raw_metadata::JSONB;
-              EXCEPTION WHEN OTHERS THEN
-                CONTINUE;
-              END;
+          column_count=$(psql "$DATABASE_URL" -Atqc \
+            "select count(*) from information_schema.columns where table_schema='public' and table_name='PlannerTask' and column_name='assigneeUserId'")
+          index_count=$(psql "$DATABASE_URL" -Atqc \
+            "select count(*) from pg_indexes where schemaname='public' and tablename='PlannerTask' and indexname='PlannerTask_assigneeUserId_idx'")
+          fk_count=$(psql "$DATABASE_URL" -Atqc \
+            "select count(*) from pg_constraint where conname='PlannerTask_assigneeUserId_fkey' and conrelid='public.\"PlannerTask\"'::regclass")
+          function_count=$(psql "$DATABASE_URL" -Atqc \
+            "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='preserve_planner_task_text_assignee'")
+          trigger_count=$(psql "$DATABASE_URL" -Atqc \
+            "select count(*) from pg_trigger where not tgisinternal and tgrelid='public.\"PlannerTask\"'::regclass and tgname='preserve_planner_task_text_assignee_trigger'")
 
-              rating_value := NULL;
-              BEGIN
-                IF metadata ? 'rating' AND jsonb_typeof(metadata->'rating') = 'number' THEN
-                  rating_value := (metadata->>'rating')::DOUBLE PRECISION;
-                END IF;
-              EXCEPTION WHEN OTHERS THEN
-                rating_value := NULL;
-              END;
+          [[ "$column_count" == "1" ]] || { echo "::error::PlannerTask.assigneeUserId is missing"; exit 1; }
+          [[ "$index_count" == "1" ]] || { echo "::error::PlannerTask_assigneeUserId_idx is missing"; exit 1; }
+          [[ "$fk_count" == "1" ]] || { echo "::error::PlannerTask_assigneeUserId_fkey is missing"; exit 1; }
+          [[ "$function_count" == "1" ]] || { echo "::error::preserve_planner_task_text_assignee() is missing"; exit 1; }
+          [[ "$trigger_count" == "1" ]] || { echo "::error::preserve_planner_task_text_assignee_trigger is missing"; exit 1; }
 
-              UPDATE public."Vendor"
-              SET
-                "contact" = COALESCE(NULLIF(trim(metadata->>'contact'), ''), "contact"),
-                "contractStatus" = CASE
-                  WHEN metadata->>'contractStatus' IN ('signed', 'pending', 'negotiating', 'declined')
-                    THEN metadata->>'contractStatus'
-                  ELSE "contractStatus"
-                END,
-                "paymentStatus" = CASE
-                  WHEN metadata->>'paymentStatus' IN ('paid', 'deposit', 'unpaid')
-                    THEN metadata->>'paymentStatus'
-                  ELSE "paymentStatus"
-                END,
-                "planningRating" = CASE
-                  WHEN rating_value BETWEEN 0 AND 5 THEN rating_value
-                  ELSE "planningRating"
-                END,
-                "notes" = COALESCE(NULLIF(trim(metadata->>'notes'), ''), "notes")
-              WHERE "id" = vendor_row."id";
-            END LOOP;
-          END $$;
+          invalid_fk_rows=$(psql "$DATABASE_URL" -Atqc \
+            "select count(*) from public.\"PlannerTask\" t left join public.\"User\" u on u.id=t.\"assigneeUserId\" where t.\"assigneeUserId\" is not null and u.id is null")
+          [[ "$invalid_fk_rows" == "0" ]] || {
+            echo "::error::PlannerTask has $invalid_fk_rows assigneeUserId values without matching User rows."
+            exit 1
+          }
 
-          -- Re-run the original programme-item backfill. Existing normalized values win.
-          DO $$
-          DECLARE
-            programme_row RECORD;
-            metadata JSONB;
-          BEGIN
-            FOR programme_row IN
-              SELECT "id", "icon"
-              FROM public."ProgrammeItem"
-              WHERE "icon" LIKE '{%'
-            LOOP
-              BEGIN
-                metadata := programme_row."icon"::JSONB;
-              EXCEPTION WHEN OTHERS THEN
-                CONTINUE;
-              END;
+          echo "All task-assignee migration effects are already present and internally consistent."
 
-              UPDATE public."ProgrammeItem"
-              SET
-                "duration" = COALESCE(NULLIF(trim(metadata->>'d'), ''), "duration"),
-                "location" = COALESCE(NULLIF(trim(metadata->>'l'), ''), "location"),
-                "displayIcon" = COALESCE(NULLIF(trim(metadata->>'i'), ''), "displayIcon")
-              WHERE "id" = programme_row."id";
-            END LOOP;
-          END $$;
+      - name: Resolve fully-present task assignee migration as applied
+        run: bunx prisma migrate resolve --applied "$TASK_ASSIGNEE_MIGRATION" --schema prisma/schema.prisma
 
-          CREATE OR REPLACE FUNCTION public."sync_vendor_planner_metadata"()
-          RETURNS TRIGGER
-          LANGUAGE plpgsql
-          AS $$
-          DECLARE
-            metadata JSONB;
-            raw_metadata TEXT;
-            rating_value DOUBLE PRECISION;
-          BEGIN
-            IF NEW."description" IS NULL OR NEW."description" NOT LIKE '__wewed_meta__:%' THEN
-              RETURN NEW;
-            END IF;
-
-            raw_metadata := split_part(substring(NEW."description" FROM 16), '|||', 1);
-            BEGIN
-              metadata := raw_metadata::JSONB;
-            EXCEPTION WHEN OTHERS THEN
-              RETURN NEW;
-            END;
-
-            NEW."contact" := COALESCE(NULLIF(trim(metadata->>'contact'), ''), NEW."contact");
-            IF metadata->>'contractStatus' IN ('signed', 'pending', 'negotiating', 'declined') THEN
-              NEW."contractStatus" := metadata->>'contractStatus';
-            END IF;
-            IF metadata->>'paymentStatus' IN ('paid', 'deposit', 'unpaid') THEN
-              NEW."paymentStatus" := metadata->>'paymentStatus';
-            END IF;
-            NEW."notes" := COALESCE(NULLIF(trim(metadata->>'notes'), ''), NEW."notes");
-
-            BEGIN
-              IF metadata ? 'rating' AND jsonb_typeof(metadata->'rating') = 'number' THEN
-                rating_value := (metadata->>'rating')::DOUBLE PRECISION;
-                IF rating_value BETWEEN 0 AND 5 THEN
-                  NEW."planningRating" := rating_value;
-                END IF;
-              END IF;
-            EXCEPTION WHEN OTHERS THEN
-              NULL;
-            END;
-
-            RETURN NEW;
-          END $$;
-
-          CREATE OR REPLACE FUNCTION public."sync_programme_item_metadata"()
-          RETURNS TRIGGER
-          LANGUAGE plpgsql
-          AS $$
-          DECLARE
-            metadata JSONB;
-          BEGIN
-            IF NEW."icon" IS NULL OR NEW."icon" NOT LIKE '{%' THEN
-              RETURN NEW;
-            END IF;
-
-            BEGIN
-              metadata := NEW."icon"::JSONB;
-            EXCEPTION WHEN OTHERS THEN
-              RETURN NEW;
-            END;
-
-            NEW."duration" := COALESCE(NULLIF(trim(metadata->>'d'), ''), NEW."duration");
-            NEW."location" := COALESCE(NULLIF(trim(metadata->>'l'), ''), NEW."location");
-            NEW."displayIcon" := COALESCE(NULLIF(trim(metadata->>'i'), ''), NEW."displayIcon");
-            RETURN NEW;
-          END $$;
-
-          DROP TRIGGER IF EXISTS "sync_vendor_planner_metadata_trigger" ON public."Vendor";
-          CREATE TRIGGER "sync_vendor_planner_metadata_trigger"
-          BEFORE INSERT OR UPDATE OF "description" ON public."Vendor"
-          FOR EACH ROW
-          EXECUTE FUNCTION public."sync_vendor_planner_metadata"();
-
-          DROP TRIGGER IF EXISTS "sync_programme_item_metadata_trigger" ON public."ProgrammeItem";
-          CREATE TRIGGER "sync_programme_item_metadata_trigger"
-          BEFORE INSERT OR UPDATE OF "icon" ON public."ProgrammeItem"
-          FOR EACH ROW
-          EXECUTE FUNCTION public."sync_programme_item_metadata"();
-
-          COMMIT;
-          SQL
-
-      - name: Verify the completed migration effects before touching Prisma history
-        shell: bash
-        run: |
-          set -euo pipefail
-          functions=$(psql "$DATABASE_URL" -Atqc \
-            "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('sync_vendor_planner_metadata','sync_programme_item_metadata')")
-          triggers=$(psql "$DATABASE_URL" -Atqc \
-            "select count(*) from pg_trigger t join pg_class c on c.oid=t.tgrelid join pg_namespace n on n.oid=c.relnamespace where not t.tgisinternal and n.nspname='public' and t.tgname in ('sync_vendor_planner_metadata_trigger','sync_programme_item_metadata_trigger')")
-          [[ "$functions" == "2" ]] || { echo "::error::Expected 2 planner metadata functions, found $functions"; exit 1; }
-          [[ "$triggers" == "2" ]] || { echo "::error::Expected 2 planner metadata triggers, found $triggers"; exit 1; }
-          echo "Completed migration effects verified."
-
-      - name: Resolve the manually completed failed migration as applied
-        run: bunx prisma migrate resolve --applied "$FAILED_MIGRATION" --schema prisma/schema.prisma
-
-      - name: Verify immutable applied migration history
+      - name: Verify no unresolved migration rows remain before deploy
         shell: bash
         run: |
           set -euo pipefail
           unresolved=$(psql "$DATABASE_URL" -Atqc \
             "select count(*) from public._prisma_migrations where finished_at is null and rolled_back_at is null")
-          [[ "$unresolved" == "0" ]] || { echo "::error::Unresolved Prisma migration rows remain: $unresolved"; exit 1; }
+          [[ "$unresolved" == "0" ]] || {
+            echo "::error::Unresolved Prisma rows remain after recovery: $unresolved"
+            exit 1
+          }
 
+      - name: Verify immutable applied migration history
+        shell: bash
+        run: |
+          set -euo pipefail
           while IFS='|' read -r migration_name recorded_checksum; do
             [[ -n "$migration_name" ]] || continue
             migration_file="prisma/migrations/$migration_name/migration.sql"
-            [[ -f "$migration_file" ]] || { echo "::error::Applied migration missing from repository: $migration_name"; exit 1; }
+            [[ -f "$migration_file" ]] || {
+              echo "::error::Applied migration missing from repository: $migration_name"
+              exit 1
+            }
             repository_checksum=$(sha256sum "$migration_file" | awk '{print $1}')
             [[ "$repository_checksum" == "$recorded_checksum" ]] || {
               echo "::error::Applied migration checksum differs from repository: $migration_name"
@@ -336,4 +199,4 @@ jobs:
             exit 1
           }
 
-          echo "Database repair complete. Deferred invitation handoff schema is live."
+          echo "Database migration history repaired. Deferred invitation handoff schema is live."
