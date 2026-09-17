@@ -236,7 +236,7 @@ public struct UsherScannerView: View {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.secondary)
                 TextField("Search by guest or household name...", text: $manualSearchQuery)
-                    .onChange(of: manualSearchQuery) { query in
+                    .onChange(of: manualSearchQuery) { _, query in
                         search(query: query)
                     }
             }

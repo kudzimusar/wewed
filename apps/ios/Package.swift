@@ -22,7 +22,8 @@ let package = Package(
         .executableTarget(
             name: "WewedApp",
             dependencies: ["WewedKit"],
-            path: "Wewed/AppTarget"
+            path: "Wewed/AppTarget",
+            exclude: ["Info.plist"]
         ),
         .testTarget(
             name: "WewedTests",
