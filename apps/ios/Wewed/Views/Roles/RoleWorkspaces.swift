@@ -41,6 +41,7 @@ public struct PlannerShellView: View {
 public struct CoordinatorShellView: View {
     @EnvironmentObject private var session: SessionStore
     @State private var selectedTab: Int = 0
+    @State private var showingScanner: Bool = false
 
     public init() {}
 
@@ -64,13 +65,28 @@ public struct CoordinatorShellView: View {
                 }
                 .tag(2)
 
+            Color.clear
+                .tabItem {
+                    Label("Gate Scanner", systemImage: "qrcode.viewfinder")
+                }
+                .tag(3)
+
             MessagesInboxView()
                 .tabItem {
                     Label("Radio & Inbox", systemImage: "antenna.radiowaves.left.and.right")
                 }
-                .tag(3)
+                .tag(4)
         }
         .tint(WewedColors.gold)
+        .onChange(of: selectedTab) { oldVal, newVal in
+            if newVal == 3 {
+                showingScanner = true
+                selectedTab = oldVal
+            }
+        }
+        .sheet(isPresented: $showingScanner) {
+            UsherScannerView()
+        }
     }
 }
 

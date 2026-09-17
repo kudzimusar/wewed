@@ -356,8 +356,35 @@ fun MasterCalendarScreen(onBack: (() -> Unit)? = null) {
 }
 
 // 7. Settings Screen (SETT-01)
+private enum class SettingsSubRoute {
+    MAIN,
+    ACCOUNT_PRIVACY,
+    NOTIFICATIONS,
+    EVENT_CONTEXT
+}
+
 @Composable
 fun SettingsScreen(sessionViewModel: SessionViewModel, onBack: (() -> Unit)? = null) {
+    var subRoute by remember { mutableStateOf(SettingsSubRoute.MAIN) }
+
+    when (subRoute) {
+        SettingsSubRoute.ACCOUNT_PRIVACY -> {
+            AccountPrivacyScreen(onBack = { subRoute = SettingsSubRoute.MAIN })
+            return
+        }
+        SettingsSubRoute.NOTIFICATIONS -> {
+            NotificationsCenterScreen(onBack = { subRoute = SettingsSubRoute.MAIN })
+            return
+        }
+        SettingsSubRoute.EVENT_CONTEXT -> {
+            WeddingContextSwitcherScreen(onBack = { subRoute = SettingsSubRoute.MAIN })
+            return
+        }
+        SettingsSubRoute.MAIN -> {
+            // Render main settings list
+        }
+    }
+
     val userName by sessionViewModel.currentUserName.collectAsState()
     val role by sessionViewModel.currentRole.collectAsState()
     val displayName = userName ?: "Active User"
@@ -391,13 +418,15 @@ fun SettingsScreen(sessionViewModel: SessionViewModel, onBack: (() -> Unit)? = n
             }
 
             val options = listOf(
-                Pair("Account & Privacy Controls", Icons.Default.Shield),
-                Pair("Notification Preferences", Icons.Default.Notifications),
-                Pair("Event & Workspace Context", Icons.Default.Sync)
+                Triple("Account & Privacy Controls", Icons.Default.Shield, SettingsSubRoute.ACCOUNT_PRIVACY),
+                Triple("Notification Preferences", Icons.Default.Notifications, SettingsSubRoute.NOTIFICATIONS),
+                Triple("Event & Workspace Context", Icons.Default.Sync, SettingsSubRoute.EVENT_CONTEXT)
             )
-            items(options) { (title, icon) ->
+            items(options) { (title, icon, targetRoute) ->
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { subRoute = targetRoute },
                     shape = RoundedCornerShape(WewedRadius.md),
                     colors = CardDefaults.cardColors(containerColor = Color.White)
                 ) {
