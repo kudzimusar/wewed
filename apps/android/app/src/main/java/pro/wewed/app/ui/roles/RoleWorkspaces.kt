@@ -26,6 +26,7 @@ import pro.wewed.app.ui.live.LiveWallScreen
 import pro.wewed.app.ui.pass.PassScreen
 import pro.wewed.app.ui.pass.UsherScannerScreen
 import pro.wewed.app.ui.planner.*
+import pro.wewed.app.ui.shared.*
 import pro.wewed.app.ui.vendor.VendorPresenceScreen
 
 // MARK: - Planner Shell
@@ -66,14 +67,14 @@ fun PlannerShell(
                 NavigationBarItem(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
-                    icon = { Icon(Icons.Default.Event, contentDescription = "Inquiries") },
-                    label = { Text("Inquiries") }
+                    icon = { Icon(Icons.Default.Email, contentDescription = "Messages") },
+                    label = { Text("Messages") }
                 )
                 NavigationBarItem(
                     selected = selectedTab == 3,
                     onClick = { selectedTab = 3 },
-                    icon = { Icon(Icons.Default.EditNote, contentDescription = "Notebook") },
-                    label = { Text("Notebook") }
+                    icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
+                    label = { Text("Settings") }
                 )
             }
         }
@@ -82,8 +83,8 @@ fun PlannerShell(
             when (selectedTab) {
                 0 -> PortfolioDestination(onBack = { selectedTab = 1 })
                 1 -> PlannerScreen(appViewModel = appViewModel)
-                2 -> BookingsDestination(onBack = { selectedTab = 1 })
-                3 -> NotebookDestination(onBack = { selectedTab = 1 })
+                2 -> MessagesInboxScreen()
+                3 -> SettingsScreen(sessionViewModel = sessionViewModel)
             }
         }
     }
@@ -149,7 +150,7 @@ fun CoordinatorShell(
             when (selectedTab) {
                 0 -> TimelineDestination(appViewModel = appViewModel, onBack = {})
                 1 -> OperationsDestination(onBack = {})
-                2 -> EventCommandDestination(onBack = {})
+                2 -> MessagesInboxScreen()
             }
         }
     }
@@ -187,14 +188,14 @@ fun VendorShell(
                 NavigationBarItem(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Default.CalendarMonth, contentDescription = "Schedule") },
-                    label = { Text("Schedule") }
+                    icon = { Icon(Icons.Default.Description, contentDescription = "Catalog & Vault") },
+                    label = { Text("Catalog & Vault") }
                 )
                 NavigationBarItem(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
-                    icon = { Icon(Icons.Default.Description, contentDescription = "Documents") },
-                    label = { Text("Documents") }
+                    icon = { Icon(Icons.Default.Email, contentDescription = "Crew Inbox") },
+                    label = { Text("Crew Inbox") }
                 )
             }
         }
@@ -202,8 +203,8 @@ fun VendorShell(
         Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             when (selectedTab) {
                 0 -> VendorPresenceScreen(appViewModel = appViewModel, onClose = {})
-                1 -> TimelineDestination(appViewModel = appViewModel, onBack = {})
-                2 -> ContractGovernanceDestination(onBack = {})
+                1 -> VendorCatalogScreen()
+                2 -> MessagesInboxScreen()
             }
         }
     }
@@ -325,20 +326,20 @@ fun GuestShell(
                 NavigationBarItem(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Default.Schedule, contentDescription = "Schedule") },
-                    label = { Text("Schedule") }
+                    icon = { Icon(Icons.Default.Forum, contentDescription = "Live Wall") },
+                    label = { Text("Live Wall") }
                 )
                 NavigationBarItem(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
-                    icon = { Icon(Icons.Default.CardGiftcard, contentDescription = "Registry") },
-                    label = { Text("Registry") }
+                    icon = { Icon(Icons.Default.Email, contentDescription = "Messages") },
+                    label = { Text("Messages") }
                 )
                 NavigationBarItem(
                     selected = selectedTab == 3,
                     onClick = { selectedTab = 3 },
-                    icon = { Icon(Icons.Default.Forum, contentDescription = "Live Wall") },
-                    label = { Text("Live Wall") }
+                    icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
+                    label = { Text("Settings") }
                 )
             }
         }
@@ -346,9 +347,9 @@ fun GuestShell(
         Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             when (selectedTab) {
                 0 -> PassScreen(appViewModel = appViewModel, onOpenScanner = {})
-                1 -> TimelineDestination(appViewModel = appViewModel, onBack = {})
-                2 -> ContributionsDestination(onBack = {})
-                3 -> LiveWallScreen()
+                1 -> LiveWallScreen()
+                2 -> MessagesInboxScreen()
+                3 -> SettingsScreen(sessionViewModel = sessionViewModel)
             }
         }
     }
@@ -386,14 +387,20 @@ fun AdminShell(
                 NavigationBarItem(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Default.Favorite, contentDescription = "Weddings") },
-                    label = { Text("Weddings") }
+                    icon = { Icon(Icons.Default.Shield, contentDescription = "Governance") },
+                    label = { Text("Governance") }
                 )
                 NavigationBarItem(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
-                    icon = { Icon(Icons.Default.Shield, contentDescription = "Audits") },
-                    label = { Text("Audits") }
+                    icon = { Icon(Icons.Default.Public, contentDescription = "Live Wall") },
+                    label = { Text("Live Wall") }
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 3,
+                    onClick = { selectedTab = 3 },
+                    icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
+                    label = { Text("Settings") }
                 )
             }
         }
@@ -401,8 +408,9 @@ fun AdminShell(
         Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             when (selectedTab) {
                 0 -> AdminHealthScreen()
-                1 -> PortfolioDestination(onBack = {})
-                2 -> ContractIntelligenceDestination(onBack = {})
+                1 -> AdminGovernanceScreen()
+                2 -> LiveWallScreen()
+                3 -> SettingsScreen(sessionViewModel = sessionViewModel)
             }
         }
     }

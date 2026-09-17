@@ -21,11 +21,17 @@ public struct PlannerShellView: View {
                 }
                 .tag(1)
 
-            LiveWallView()
+            MessagesInboxView()
                 .tabItem {
-                    Label("Operations", systemImage: "sparkles")
+                    Label("Messages", systemImage: "tray.full.fill")
                 }
                 .tag(2)
+
+            SettingsView()
+                .tabItem {
+                    Label("Settings", systemImage: "gearshape.fill")
+                }
+                .tag(3)
         }
         .tint(WewedColors.gold)
     }
@@ -46,17 +52,23 @@ public struct CoordinatorShellView: View {
                 }
                 .tag(0)
 
+            PlannerOperationsView()
+                .tabItem {
+                    Label("Operations", systemImage: "bolt.fill")
+                }
+                .tag(1)
+
             PlannerVendorsView()
                 .tabItem {
                     Label("Vendor Readiness", systemImage: "person.crop.rectangle.stack.fill")
                 }
-                .tag(1)
-
-            LiveWallView()
-                .tabItem {
-                    Label("Broadcast & Audio", systemImage: "antenna.radiowaves.left.and.right")
-                }
                 .tag(2)
+
+            MessagesInboxView()
+                .tabItem {
+                    Label("Radio & Inbox", systemImage: "antenna.radiowaves.left.and.right")
+                }
+                .tag(3)
         }
         .tint(WewedColors.gold)
     }
@@ -77,11 +89,17 @@ public struct VendorShellView: View {
                 }
                 .tag(0)
 
-            LiveWallView()
+            VendorCatalogView()
                 .tabItem {
-                    Label("Crew Live Feed", systemImage: "sparkles")
+                    Label("Catalog & Vault", systemImage: "doc.text.fill")
                 }
                 .tag(1)
+
+            MessagesInboxView()
+                .tabItem {
+                    Label("Crew Inbox", systemImage: "tray.fill")
+                }
+                .tag(2)
         }
         .tint(WewedColors.gold)
     }
@@ -107,6 +125,12 @@ public struct UsherShellView: View {
                     Label("Roster & Seating", systemImage: "person.text.rectangle.fill")
                 }
                 .tag(1)
+
+            MessagesInboxView()
+                .tabItem {
+                    Label("Dispatch Messages", systemImage: "tray.fill")
+                }
+                .tag(2)
         }
         .tint(WewedColors.gold)
     }
@@ -132,6 +156,18 @@ public struct GuestShellView: View {
                     Label("Moments & Live Wall", systemImage: "photo.on.rectangle.angled")
                 }
                 .tag(1)
+
+            MessagesInboxView()
+                .tabItem {
+                    Label("Messages", systemImage: "tray.fill")
+                }
+                .tag(2)
+
+            SettingsView()
+                .tabItem {
+                    Label("Settings", systemImage: "gearshape.fill")
+                }
+                .tag(3)
         }
         .tint(WewedColors.gold)
     }
@@ -152,13 +188,24 @@ public struct AdminShellView: View {
                 }
                 .tag(0)
 
+            AdminGovernanceView()
+                .tabItem {
+                    Label("Governance Audit", systemImage: "lock.shield.fill")
+                }
+                .tag(1)
+
             LiveWallView()
                 .tabItem {
                     Label("Global Live Stream", systemImage: "globe.americas.fill")
                 }
-                .tag(1)
+                .tag(2)
+
+            SettingsView()
+                .tabItem {
+                    Label("System Settings", systemImage: "gearshape.fill")
+                }
+                .tag(3)
         }
         .tint(WewedColors.gold)
     }
 }
-
