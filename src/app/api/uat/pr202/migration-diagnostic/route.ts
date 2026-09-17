@@ -25,31 +25,26 @@ type ConstraintRow = { table_name: string; constraint_name: string; constraint_t
 type TriggerRow = { table_name: string; trigger_name: string }
 type FunctionRow = { function_name: string }
 type GrantRow = { schema_name: string; grantee: string; grant_count: bigint }
+type SchemaObjectRow = { schema_name: string; object_name: string; object_type: string }
 
 export async function GET() {
   if (process.env.VERCEL_ENV !== 'preview' || process.env.VERCEL_GIT_COMMIT_REF !== BRANCH) {
     return NextResponse.json({ success: false }, { status: 404 })
   }
 
-  const [unresolved, ledger, relations, indexes, constraints, triggers, functions, grants] = await Promise.all([
+  const [
+    allLedger,
+    relations,
+    indexes,
+    constraints,
+    triggers,
+    functions,
+    grants,
+    schemaObjects,
+  ] = await Promise.all([
     db.$queryRaw<MigrationRow[]>`
       SELECT migration_name, started_at, finished_at, rolled_back_at, applied_steps_count
       FROM public._prisma_migrations
-      WHERE finished_at IS NULL AND rolled_back_at IS NULL
-      ORDER BY started_at ASC
-    `,
-    db.$queryRaw<MigrationRow[]>`
-      SELECT migration_name, started_at, finished_at, rolled_back_at, applied_steps_count
-      FROM public._prisma_migrations
-      WHERE migration_name IN (
-        '20260730173000_wewed_business_admin_console',
-        '20260730174500_wewed_business_admin_console_rls',
-        '20260730175500_move_business_console_to_private_schema',
-        '20260730224000_harden_wewed_data_pipeline',
-        '20260731173000_repair_planner_blockers',
-        '20260731214500_complete_planner_gap_closure',
-        '20260801065000_fix_governance_trigger_record_returns'
-      )
       ORDER BY migration_name
     `,
     db.$queryRaw<RelationRow[]>`
@@ -118,22 +113,48 @@ export async function GET() {
       GROUP BY table_schema, grantee
       ORDER BY table_schema, grantee
     `,
+    db.$queryRaw<SchemaObjectRow[]>`
+      SELECT n.nspname AS schema_name, c.relname AS object_name,
+        CASE c.relkind
+          WHEN 'r' THEN 'table'
+          WHEN 'v' THEN 'view'
+          WHEN 'm' THEN 'materialized_view'
+          WHEN 'S' THEN 'sequence'
+          ELSE c.relkind::text
+        END AS object_type
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname IN ('private','wewed_planner','wewed_admin')
+      ORDER BY n.nspname, c.relname
+    `,
   ])
+
+  const ledger = allLedger.map((row) => ({
+    migrationName: row.migration_name,
+    state: row.rolled_back_at
+      ? 'rolled_back'
+      : row.finished_at
+        ? 'finished'
+        : 'unresolved',
+    appliedStepsCount: row.applied_steps_count,
+    startedAt: row.started_at,
+    finishedAt: row.finished_at,
+  }))
 
   return NextResponse.json({
     success: true,
-    unresolved: unresolved.map((row) => ({
-      migrationName: row.migration_name,
-      appliedStepsCount: row.applied_steps_count,
-    })),
+    ledger,
+    unresolved: ledger.filter((row) => row.state === 'unresolved'),
+    ledgerSummary: {
+      totalRows: ledger.length,
+      finished: ledger.filter((row) => row.state === 'finished').length,
+      unresolved: ledger.filter((row) => row.state === 'unresolved').length,
+      rolledBack: ledger.filter((row) => row.state === 'rolled_back').length,
+      firstRecorded: ledger.at(0)?.migrationName ?? null,
+      lastRecorded: ledger.at(-1)?.migrationName ?? null,
+    },
     businessConsole: {
       expectedTables: BUSINESS_TABLES,
-      ledger: ledger.map((row) => ({
-        migrationName: row.migration_name,
-        finished: Boolean(row.finished_at),
-        rolledBack: Boolean(row.rolled_back_at),
-        appliedStepsCount: row.applied_steps_count,
-      })),
       relations,
       indexes,
       constraints,
@@ -145,5 +166,6 @@ export async function GET() {
         grantCount: Number(row.grant_count),
       })),
     },
+    schemaObjects,
   })
 }
