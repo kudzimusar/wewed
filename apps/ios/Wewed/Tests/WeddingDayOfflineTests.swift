@@ -52,7 +52,8 @@ final class WeddingDayOfflineTests: XCTestCase {
 
         try await store.markCheckInSynced(id: pending[0].id)
         store = OfflineManifestStore(storageDirectory: dir, deviceId: "ios-gate-a")
-        XCTAssertTrue(await store.getPendingCheckIns(weddingId: weddingId).isEmpty)
+        let remainingPending = await store.getPendingCheckIns(weddingId: weddingId)
+        XCTAssertTrue(remainingPending.isEmpty)
     }
 
     func testRevokedCredentialIsRejectedOffline() async throws {
@@ -83,7 +84,8 @@ final class WeddingDayOfflineTests: XCTestCase {
             usherId: "usher-1"
         )
         XCTAssertEqual(result.status, .invalidPass)
-        XCTAssertTrue(await store.getPendingCheckIns(weddingId: "wedding-1").isEmpty)
+        let pending = await store.getPendingCheckIns(weddingId: "wedding-1")
+        XCTAssertTrue(pending.isEmpty)
     }
 
     func testVerifiedTrustAndRotatedKeysSurviveRestart() async throws {
@@ -120,14 +122,10 @@ final class WeddingDayOfflineTests: XCTestCase {
         )
 
         trustStore = WeddingDayManifestTrustStore(storageDirectory: dir)
-        XCTAssertEqual(
-            await trustStore.signingKey(weddingId: "wedding-1", keyId: "key-v2")?.publicKeyDerBase64,
-            "new-key"
-        )
-        XCTAssertEqual(
-            await trustStore.signingKey(weddingId: "wedding-1", keyId: "key-v1")?.publicKeyDerBase64,
-            "old-key"
-        )
+        let activeKey = await trustStore.signingKey(weddingId: "wedding-1", keyId: "key-v2")
+        let retiredKey = await trustStore.signingKey(weddingId: "wedding-1", keyId: "key-v1")
+        XCTAssertEqual(activeKey?.publicKeyDerBase64, "new-key")
+        XCTAssertEqual(retiredKey?.publicKeyDerBase64, "old-key")
     }
 
     func testP1363VerifierAcceptsCanonicalPayloadAndRejectsTampering() {
