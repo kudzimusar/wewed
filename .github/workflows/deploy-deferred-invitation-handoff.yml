@@ -1,0 +1,229 @@
+name: Deploy deferred invitation handoff
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type deploy-deferred-invitation-handoff to confirm the isolated additive database deploy
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy and verify deferred invitation handoff
+    if: ${{ inputs.confirmation == 'deploy-deferred-invitation-handoff' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+
+    env:
+      DATABASE_URL: ${{ secrets.WEWED_DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.WEWED_DATABASE_URL }}
+      HANDOFF_MIGRATION: 20260910110000_native_deferred_invitation_handoff
+      KNOWN_HISTORICAL_DRIFT: 20260730173000_wewed_business_admin_console
+
+    steps:
+      - name: Check out main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.3.14
+
+      - name: Verify Wewed database target
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DATABASE_URL" || {
+            echo "::error::WEWED_DATABASE_URL is not configured"
+            exit 1
+          }
+          [[ "$DATABASE_URL" == *"kjigkhjdeymukwradoqu"* ]] || {
+            echo "::error::The database URL is not for the Wewed Supabase project"
+            exit 1
+          }
+          [[ "$DATABASE_URL" == *":5432/"* ]] || {
+            echo "::error::Use the Supabase session pooler on port 5432"
+            exit 1
+          }
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Validate immutable handoff migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration_file="prisma/migrations/$HANDOFF_MIGRATION/migration.sql"
+          test -f "$migration_file" || {
+            echo "::error::Missing handoff migration: $migration_file"
+            exit 1
+          }
+
+          # The handoff migration must remain isolated and additive: one private table,
+          # its supporting function/trigger, indexes, and foreign keys only.
+          grep -Fq 'CREATE TABLE private."InvitationInstallHandoff"' "$migration_file" || {
+            echo "::error::Unexpected handoff migration contents"
+            exit 1
+          }
+          grep -Fq 'cleanup_invitation_install_handoffs' "$migration_file" || {
+            echo "::error::Handoff cleanup function is missing"
+            exit 1
+          }
+          if grep -Eiq 'DROP[[:space:]]+TABLE|TRUNCATE|DELETE[[:space:]]+FROM[[:space:]]+public\.|ALTER[[:space:]]+TABLE[[:space:]]+public\.' "$migration_file"; then
+            echo "::error::Handoff migration contains an unexpected destructive/public-schema operation"
+            exit 1
+          fi
+
+      - name: Record but do not modify known historical Prisma drift
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t unresolved < <(psql "$DATABASE_URL" -AtF '|' -c \
+            "select migration_name, applied_steps_count from public._prisma_migrations where finished_at is null and rolled_back_at is null order by started_at")
+
+          if (( ${#unresolved[@]} > 1 )); then
+            echo "::error::More than one unresolved historical migration exists. Refusing isolated deploy."
+            printf '%s\n' "${unresolved[@]}"
+            exit 1
+          fi
+
+          if (( ${#unresolved[@]} == 1 )); then
+            IFS='|' read -r migration_name applied_steps <<< "${unresolved[0]}"
+            [[ "$migration_name" == "$KNOWN_HISTORICAL_DRIFT" && "$applied_steps" == "0" ]] || {
+              echo "::error::Unexpected unresolved migration state: $migration_name applied_steps=$applied_steps"
+              exit 1
+            }
+            echo "Known historical ledger drift retained without modification: $migration_name"
+          else
+            echo "No unresolved Prisma rows are present."
+          fi
+
+      - name: Verify handoff is not partially installed
+        id: preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          table_exists=$(psql "$DATABASE_URL" -Atqc \
+            "select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='private' and c.relname='InvitationInstallHandoff' and c.relkind='r'")
+          ledger_finished=$(psql "$DATABASE_URL" -Atqc \
+            "select count(*) from public._prisma_migrations where migration_name='$HANDOFF_MIGRATION' and finished_at is not null and rolled_back_at is null")
+
+          if [[ "$table_exists" == "0" && "$ledger_finished" == "0" ]]; then
+            echo "needs_apply=1" >> "$GITHUB_OUTPUT"
+            echo "Handoff schema is absent and ready for isolated deployment."
+            exit 0
+          fi
+
+          if [[ "$table_exists" == "1" ]]; then
+            echo "needs_apply=0" >> "$GITHUB_OUTPUT"
+            echo "Handoff table already exists; workflow will verify it before reconciling the ledger."
+            exit 0
+          fi
+
+          echo "::error::Unexpected handoff state: table_exists=$table_exists ledger_finished=$ledger_finished"
+          exit 1
+
+      - name: Apply exact handoff migration SQL
+        if: steps.preflight.outputs.needs_apply == '1'
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
+            -f "prisma/migrations/$HANDOFF_MIGRATION/migration.sql"
+
+      - name: Lock down private handoff schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          REVOKE ALL ON SCHEMA private FROM PUBLIC;
+          REVOKE ALL ON ALL TABLES IN SCHEMA private FROM PUBLIC;
+          REVOKE ALL ON ALL FUNCTIONS IN SCHEMA private FROM PUBLIC;
+          DO $roles$
+          DECLARE
+            role_name text;
+          BEGIN
+            FOREACH role_name IN ARRAY ARRAY['anon', 'authenticated'] LOOP
+              IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = role_name) THEN
+                EXECUTE format('REVOKE ALL ON SCHEMA private FROM %I', role_name);
+                EXECUTE format('REVOKE ALL ON ALL TABLES IN SCHEMA private FROM %I', role_name);
+                EXECUTE format('REVOKE ALL ON ALL FUNCTIONS IN SCHEMA private FROM %I', role_name);
+              END IF;
+            END LOOP;
+          END
+          $roles$;
+          SQL
+
+      - name: Verify exact handoff schema contract
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          table_count=$(psql "$DATABASE_URL" -Atqc \
+            "select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='private' and c.relname='InvitationInstallHandoff' and c.relkind='r'")
+          [[ "$table_count" == "1" ]] || { echo "::error::InvitationInstallHandoff table is missing"; exit 1; }
+
+          column_count=$(psql "$DATABASE_URL" -Atqc \
+            "select count(*) from information_schema.columns where table_schema='private' and table_name='InvitationInstallHandoff' and column_name in ('id','tokenHash','rsvpId','rsvpTokenHash','weddingId','guestId','card','source','ipAddress','userAgent','createdAt','expiresAt','usedAt','revokedAt')")
+          [[ "$column_count" == "14" ]] || { echo "::error::Expected 14 handoff columns, found $column_count"; exit 1; }
+
+          fk_count=$(psql "$DATABASE_URL" -Atqc \
+            "select count(*) from pg_constraint where conrelid='private.\"InvitationInstallHandoff\"'::regclass and contype='f' and conname in ('InvitationInstallHandoff_rsvpId_fkey','InvitationInstallHandoff_weddingId_fkey','InvitationInstallHandoff_guestId_fkey')")
+          [[ "$fk_count" == "3" ]] || { echo "::error::Expected 3 handoff foreign keys, found $fk_count"; exit 1; }
+
+          index_count=$(psql "$DATABASE_URL" -Atqc \
+            "select count(*) from pg_indexes where schemaname='private' and tablename='InvitationInstallHandoff' and indexname in ('InvitationInstallHandoff_pkey','InvitationInstallHandoff_tokenHash_key','InvitationInstallHandoff_rsvpId_createdAt_idx','InvitationInstallHandoff_expiresAt_idx','InvitationInstallHandoff_weddingId_guestId_idx','InvitationInstallHandoff_usedAt_idx','InvitationInstallHandoff_revokedAt_idx')")
+          [[ "$index_count" == "7" ]] || { echo "::error::Expected 7 handoff indexes, found $index_count"; exit 1; }
+
+          function_count=$(psql "$DATABASE_URL" -Atqc \
+            "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='private' and p.proname='cleanup_invitation_install_handoffs'")
+          [[ "$function_count" == "1" ]] || { echo "::error::Handoff cleanup function is missing"; exit 1; }
+
+          trigger_count=$(psql "$DATABASE_URL" -Atqc \
+            "select count(*) from pg_trigger where not tgisinternal and tgrelid='private.\"InvitationInstallHandoff\"'::regclass and tgname='InvitationInstallHandoff_cleanup_trigger'")
+          [[ "$trigger_count" == "1" ]] || { echo "::error::Handoff cleanup trigger is missing"; exit 1; }
+
+          exposed_grants=$(psql "$DATABASE_URL" -Atqc \
+            "select count(*) from information_schema.role_table_grants where table_schema='private' and table_name='InvitationInstallHandoff' and grantee in ('PUBLIC','anon','authenticated')")
+          [[ "$exposed_grants" == "0" ]] || { echo "::error::Private handoff table has browser/public grants"; exit 1; }
+
+          echo "Deferred invitation handoff schema verified."
+
+      - name: Record handoff migration as applied if needed
+        shell: bash
+        run: |
+          set -euo pipefail
+          ledger_finished=$(psql "$DATABASE_URL" -Atqc \
+            "select count(*) from public._prisma_migrations where migration_name='$HANDOFF_MIGRATION' and finished_at is not null and rolled_back_at is null")
+          if [[ "$ledger_finished" == "0" ]]; then
+            bunx prisma migrate resolve --applied "$HANDOFF_MIGRATION" --schema prisma/schema.prisma
+          fi
+
+      - name: Final verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          table_name=$(psql "$DATABASE_URL" -Atqc "select to_regclass('private.\"InvitationInstallHandoff\"')")
+          [[ "$table_name" == 'private."InvitationInstallHandoff"' ]] || {
+            echo "::error::Deferred invitation handoff table is not live"
+            exit 1
+          }
+
+          handoff_finished=$(psql "$DATABASE_URL" -Atqc \
+            "select count(*) from public._prisma_migrations where migration_name='$HANDOFF_MIGRATION' and finished_at is not null and rolled_back_at is null")
+          [[ "$handoff_finished" == "1" ]] || {
+            echo "::error::Handoff migration is not recorded as applied"
+            exit 1
+          }
+
+          echo "Deferred invitation handoff deployment PASS."
+          echo "Historical Prisma baseline drift was deliberately left untouched by this isolated deployment."
