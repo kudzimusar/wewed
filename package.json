@@ -23,7 +23,8 @@
     "test:e2e": "playwright test",
     "test:e2e:planner": "playwright test tests/e2e/planner*.spec.ts",
     "test:e2e:planner:desktop": "playwright test tests/e2e/planner*.spec.ts --project=desktop-chromium",
-    "test:e2e:planner:mobile": "playwright test tests/e2e/planner*.spec.ts --project=planner-mobile-390x844"
+    "test:e2e:planner:mobile": "playwright test tests/e2e/planner*.spec.ts --project=planner-mobile-390x844",
+    "test:e2e:wedding-day:real": "playwright test --config=playwright.wedding-day.config.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
