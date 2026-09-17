@@ -5,6 +5,7 @@ on:
     paths:
       - 'android/**'
       - 'e2e/deferred-invitation.chromium.spec.mjs'
+      - 'e2e/deferred-invitation-guest-switch.chromium.spec.mjs'
       - 'e2e/deferred-invitation.playwright.config.mjs'
       - 'prisma/migrations/20260910110000_native_deferred_invitation_handoff/**'
       - 'prisma/migrations/20260912223000_physical_invitation_install_handoff/**'
@@ -28,6 +29,7 @@ on:
     paths:
       - 'android/**'
       - 'e2e/deferred-invitation.chromium.spec.mjs'
+      - 'e2e/deferred-invitation-guest-switch.chromium.spec.mjs'
       - 'e2e/deferred-invitation.playwright.config.mjs'
       - 'prisma/migrations/20260910110000_native_deferred_invitation_handoff/**'
       - 'prisma/migrations/20260912223000_physical_invitation_install_handoff/**'
