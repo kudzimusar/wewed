@@ -142,32 +142,43 @@ This document constitutes the canonical architectural register defining how the 
 
 ---
 
-## Isolated Implementation Status — 17 September 2026
+## Isolated Qualification Status — 17 September 2026
 
-The current work remains intentionally confined to `native-mobile/integration`; it is **not merged, deployed, or connected to the protected running build**.
+The current work remains strictly isolated on `native-mobile/integration` in `/Users/shadreckmusarurwa/Project AI/wewed-native-mobile`; it is **not merged, deployed, or connected to the protected active Wewed baseline or production database**.
 
-### Proven in source / isolated contract
-- Additive Wedding Day Prisma domain and migration boundary.
-- Ivory invitation → persistent RSVP → stable WW2 Wedding Pass vertical slice.
-- Person-level partial/full/duplicate-safe check-in and Planner attendance projection.
-- Wedding/service-scoped Vendor presence and server-side RBAC.
-- Persistent Wedding Day announcements.
-- Root-signed manifest v2 with guest mapping, household attendee keys, current check-in state and key rotation metadata.
-- iOS + Android P-256/P1363 verification paths.
-- iOS + Android durable attendee-level offline queue and restart persistence.
-- iOS + Android verified manifest trust persistence and idempotent offline-sync client contract.
-- Stable iOS Gate Scanner dismissal identifier `gate-scanner-done`; Maestro uses the stable ID and retains the optional Android `Close` fallback.
+### Status Classification
 
-### Qualification still requiring an execution-capable local/CI environment
-- `swift test` against the exact current branch head.
-- Android `testDebugUnitTest` against the exact current branch head.
-- Real isolated Chromium E2E against `wewed_wedding_day_test` after applying the isolated migration/environment.
-- Native Maestro journeys on iOS and Android simulators/emulators.
+| Capability / Surface | Status | Verification Summary |
+|---|---|---|
+| Real Isolated Chromium E2E (`wedding-day-application-e2e.spec.ts`) | **TESTED** | 6/6 passed (37.0s) against real Next.js dev server, real Next API routes, and isolated database `wewed_wedding_day_test` |
+| Mock/Contract Acceptance Suite (`reference-pass-verification` & `wedding-day-e2e-journey`) | **TESTED** | 17/17 passed (3.1s) under mobile Chromium emulation |
+| iOS Swift Native Unit & Offline Suite (`swift test`) | **TESTED** | 24/24 passed (0.058s) covering WW2 P-256 CryptoKit, DER parsing, offline manifest store, attendee queues, trust persistence |
+| Android Kotlin Native Unit & Offline Suite (`./gradlew testDebugUnitTest`) | **TESTED** | 24/24 passed (0.39s) covering NIST P-256 ECDSA, attendee-level offline queue, crash/restart survival, key rotation |
+| Native Maestro Android Smoke (`.maestro/native-wedding-journey.yaml`) | **TESTED** | 30/30 steps passed on Android emulator (`emulator-5554` / Pixel_8) with `gate-scanner-done` optional iOS preservation and `Close` Android fallback |
+| Native Maestro iOS Journey | **DEFERRED** | Swift Package Manager architecture boundary (`Package.swift` builds `WewedKit` & `WewedApp`); Xcode `.app` bundle archive and simulator runner deferred |
+| Production Secure Storage (Keychain / EncryptedSharedPreferences) | **DEFERRED** | Durable disk/file persistence verified; hardware-backed secure storage remains post-qualification production hardening |
+| Background OS WorkManager / BGTaskScheduler Sync | **DEFERRED** | Deterministic foreground reconciliation service verified; OS background worker registration remains post-qualification hardening |
+| Controlled Migration to Production Baseline | **INTEGRATION-REQUIRED** | Requires separate project-owner authorization; migrations must NEVER be run against production/UAT without explicit authority |
 
-### Baseline protection
-- Production/shared database modified: **NO**.
-- Protected running Wewed workspace modified: **NO**.
-- `main` merged: **NO**.
-- Production deployed/connected: **NO**.
-- Android release baseline intentionally changed: **NO**.
-- Ivory production baseline intentionally changed: **NO**.
+### Verified Qualification Evidence
+1. **Real Application Playwright E2E**: 6/6 passed.
+   - Ivory reveal flow verified: `closed` → user clicks "Open invitation" → `open` transition → user clicks "Review my RSVP" in `#rsvp` → `premium-invitation-rsvp-dialog` opens.
+   - RSVP submission persists attendance, plus-one, children count, and issues signed WW2 token.
+   - Same WW2 token and pass serial re-read across fresh browser context sessions.
+   - Person-level partial household admission, duplicate scan idempotency, and capacity limiting verified.
+   - Service-scoped vendor presence verified: `ASSIGNED` → `EN_ROUTE` → `ARRIVED_ON_SITE` → `SERVICE_ACTIVE` → `COMPLETED`.
+   - Persistent announcements created by Planner operational API and displayed on guest pass.
+   - Server-side RBAC verified: guest blocked from planner and check-in APIs, cross-vendor mutation rejected with 403.
+   - WW2 token tampering rejected and root-signed offline manifest verified.
+2. **Mock / Contract Playwright Suite**: 17/17 passed.
+3. **iOS Swift Package Test Suite**: 24/24 passed (`WewedTests` 20/20, `WeddingDayOfflineTests` 4/4).
+4. **Android Unit & Offline Test Suite**: 24/24 passed (`WewedTests` 20/20, `WeddingDayOfflineTest` 4/4).
+5. **Android Native Maestro Journey**: 30/30 actions and assertions passed on running emulator.
+
+### Baseline Protection Confirmation
+- Protected active Wewed build modified: **NO** (`/Users/shadreckmusarurwa/Project AI/wewed` untouched).
+- Production modified: **NO**.
+- Production database modified: **NO**.
+- Shared UAT database modified: **NO**.
+- Merged into main: **NO**.
+- Production deployment performed: **NO**.

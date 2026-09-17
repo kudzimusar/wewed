@@ -317,7 +317,13 @@ test.describe.serial('Wedding Day real isolated Wewed application', () => {
 
   test('Ivory invitation persists RSVP and provisions the same signed WW2 pass across browser sessions', async ({ page, browser }) => {
     await openInvitation(page, state)
-    await page.evaluate(() => window.dispatchEvent(new Event('wewed:open-premium-rsvp')))
+    const experience = page.getByTestId('premium-invitation-experience')
+    await expect(experience).toBeVisible()
+    await expect(experience).toHaveAttribute('data-motion-state', 'closed')
+    await experience.getByRole('button', { name: 'Open invitation' }).click()
+    await expect(experience).toHaveAttribute('data-motion-state', 'open', { timeout: 5_000 })
+    await page.locator('#rsvp').scrollIntoViewIfNeeded()
+    await page.getByRole('button', { name: 'Review my RSVP' }).click()
     const dialog = page.getByTestId('premium-invitation-rsvp-dialog')
     await expect(dialog).toBeVisible()
     await page.getByLabel('Joyfully accept').click()

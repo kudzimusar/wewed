@@ -38,11 +38,12 @@ appId: pro.wewed.app
 - tapOn:
     id: "gate-scanner-done"
     optional: true
+    retryTapIfNoChange: true
 - tapOn:
     text: "Close"
     optional: true
-- waitForAnimationToEnd:
-    timeout: 4000
+- waitForAnimationToEnd
+- assertNotVisible: "Gate Scanner"
 
 # 6. Live Wall & Celebratory Interactivity
 - tapOn: "Live"
