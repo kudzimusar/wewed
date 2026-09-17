@@ -36,7 +36,7 @@ appId: pro.wewed.app
 - tapOn: "Scan Jane (x2)"
 - assertVisible: "Admitted — Full Party"
 - tapOn:
-    point: "12%,13%"
+    id: "gate-scanner-done"
     optional: true
 - tapOn:
     text: "Close"
