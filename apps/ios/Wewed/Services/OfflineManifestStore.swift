@@ -11,6 +11,14 @@ public struct GuestManifestItem: Codable, Identifiable, Equatable, Sendable {
     public let eventBitmask: Int
     public let isVip: Bool
     public let dietaryRequirements: String?
+    /// Manifest v2 fields. Optional so previously persisted manifests remain readable.
+    public let signingKeyId: String?
+    public let nonce: String?
+    public let attendeeKeys: [String]?
+    public var checkedInAttendeeKeys: [String]?
+    public let eligible: Bool?
+    public let expiresAt: String?
+    public let revokedAt: String?
 
     public init(
         id: String,
@@ -21,7 +29,14 @@ public struct GuestManifestItem: Codable, Identifiable, Equatable, Sendable {
         tableAssignment: String? = nil,
         eventBitmask: Int = 3,
         isVip: Bool = false,
-        dietaryRequirements: String? = nil
+        dietaryRequirements: String? = nil,
+        signingKeyId: String? = nil,
+        nonce: String? = nil,
+        attendeeKeys: [String]? = nil,
+        checkedInAttendeeKeys: [String]? = nil,
+        eligible: Bool? = nil,
+        expiresAt: String? = nil,
+        revokedAt: String? = nil
     ) {
         self.id = id
         self.serial = serial
@@ -32,6 +47,13 @@ public struct GuestManifestItem: Codable, Identifiable, Equatable, Sendable {
         self.eventBitmask = eventBitmask
         self.isVip = isVip
         self.dietaryRequirements = dietaryRequirements
+        self.signingKeyId = signingKeyId
+        self.nonce = nonce
+        self.attendeeKeys = attendeeKeys
+        self.checkedInAttendeeKeys = checkedInAttendeeKeys
+        self.eligible = eligible
+        self.expiresAt = expiresAt
+        self.revokedAt = revokedAt
     }
 }
 
@@ -45,6 +67,9 @@ public struct QueuedCheckIn: Codable, Identifiable, Equatable, Sendable {
     public let timestamp: Date
     public let usherId: String
     public var synced: Bool
+    /// Exact server attendee keys admitted by this local event. Optional for backwards-compatible decoding.
+    public let attendeeKeys: [String]?
+    public let deviceId: String?
 
     public init(
         id: String = UUID().uuidString,
@@ -54,7 +79,9 @@ public struct QueuedCheckIn: Codable, Identifiable, Equatable, Sendable {
         count: Int,
         timestamp: Date = Date(),
         usherId: String,
-        synced: Bool = false
+        synced: Bool = false,
+        attendeeKeys: [String]? = nil,
+        deviceId: String? = nil
     ) {
         self.id = id
         self.weddingId = weddingId
@@ -64,6 +91,8 @@ public struct QueuedCheckIn: Codable, Identifiable, Equatable, Sendable {
         self.timestamp = timestamp
         self.usherId = usherId
         self.synced = synced
+        self.attendeeKeys = attendeeKeys
+        self.deviceId = deviceId
     }
 }
 
@@ -85,8 +114,9 @@ public actor OfflineManifestStore: OfflineManifestStoreProtocol {
     private var manifests: [String: [String: GuestManifestItem]] = [:] // weddingId -> [serial: item]
     private var syncQueues: [String: [QueuedCheckIn]] = [:]           // weddingId -> [queuedCheckIns]
     private let fileURL: URL?
+    private let deviceId: String
 
-    public init(storageDirectory: URL? = nil) {
+    public init(storageDirectory: URL? = nil, deviceId: String = "ios-wedding-day") {
         let url: URL?
         if let dir = storageDirectory {
             url = dir.appendingPathComponent("wewed_offline_manifest.json")
@@ -95,6 +125,7 @@ public actor OfflineManifestStore: OfflineManifestStoreProtocol {
             url = paths.first?.appendingPathComponent("wewed_offline_manifest.json")
         }
         self.fileURL = url
+        self.deviceId = deviceId
 
         if let url = url, FileManager.default.fileExists(atPath: url.path),
            let data = try? Data(contentsOf: url) {
@@ -133,8 +164,25 @@ public actor OfflineManifestStore: OfflineManifestStoreProtocol {
         return manifests[weddingId]?[serial]
     }
 
+    private func effectiveAttendeeKeys(for item: GuestManifestItem) -> [String] {
+        if let keys = item.attendeeKeys, !keys.isEmpty {
+            return keys
+        }
+        guard item.partySize > 1 else { return ["primary"] }
+        return ["primary"] + (2...item.partySize).map { "member-\($0)" }
+    }
+
+    private func existingCheckedInKeys(for item: GuestManifestItem, allKeys: [String]) -> [String] {
+        if let keys = item.checkedInAttendeeKeys {
+            return keys.filter { allKeys.contains($0) }
+        }
+        return Array(allKeys.prefix(max(0, min(item.checkedInCount, allKeys.count))))
+    }
+
     public func recordOfflineCheckIn(weddingId: String, serial: String, count: Int, usherId: String) async throws -> CheckInVerificationResult {
-        guard var weddingMap = manifests[weddingId], var item = weddingMap[serial] else {
+        guard count > 0,
+              var weddingMap = manifests[weddingId],
+              var item = weddingMap[serial] else {
             return CheckInVerificationResult(
                 status: .invalidPass,
                 guestName: "Unknown Guest",
@@ -147,21 +195,40 @@ public actor OfflineManifestStore: OfflineManifestStoreProtocol {
             )
         }
 
-        let newTotal = item.checkedInCount + count
-        if newTotal > item.partySize {
+        if item.eligible == false || item.revokedAt != nil {
             return CheckInVerificationResult(
-                status: .capacityExceeded,
+                status: .invalidPass,
                 guestName: item.guestName,
                 householdName: nil,
                 partySize: item.partySize,
                 checkedInCount: item.checkedInCount,
                 tableNumber: nil,
                 tableName: item.tableAssignment,
-                message: "Party size limit exceeded: \(newTotal)/\(item.partySize) checked in"
+                message: "Pass is not eligible for admission"
             )
         }
 
-        item.checkedInCount = newTotal
+        let allKeys = effectiveAttendeeKeys(for: item)
+        var checkedInKeys = existingCheckedInKeys(for: item, allKeys: allKeys)
+        let checkedInSet = Set(checkedInKeys)
+        let remainingKeys = allKeys.filter { !checkedInSet.contains($0) }
+        guard count <= remainingKeys.count else {
+            return CheckInVerificationResult(
+                status: .capacityExceeded,
+                guestName: item.guestName,
+                householdName: nil,
+                partySize: item.partySize,
+                checkedInCount: checkedInKeys.count,
+                tableNumber: nil,
+                tableName: item.tableAssignment,
+                message: "Party size limit exceeded: \(checkedInKeys.count + count)/\(item.partySize) checked in"
+            )
+        }
+
+        let admittedKeys = Array(remainingKeys.prefix(count))
+        checkedInKeys.append(contentsOf: admittedKeys)
+        item.checkedInCount = checkedInKeys.count
+        item.checkedInAttendeeKeys = checkedInKeys
         weddingMap[serial] = item
         manifests[weddingId] = weddingMap
 
@@ -169,8 +236,10 @@ public actor OfflineManifestStore: OfflineManifestStoreProtocol {
             weddingId: weddingId,
             passSerial: serial,
             guestId: item.id,
-            count: count,
-            usherId: usherId
+            count: admittedKeys.count,
+            usherId: usherId,
+            attendeeKeys: admittedKeys,
+            deviceId: deviceId
         )
 
         var queue = syncQueues[weddingId] ?? []
@@ -215,7 +284,6 @@ public actor OfflineManifestStore: OfflineManifestStoreProtocol {
     }
 
     private func persistState() throws {
-        // State persistence can write to local JSON / encrypted store
         guard let url = fileURL else { return }
         struct ManifestSnapshot: Codable {
             let manifests: [String: [String: GuestManifestItem]]
