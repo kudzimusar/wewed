@@ -5,8 +5,8 @@ public enum AppTab: String, CaseIterable, Identifiable, Sendable {
     case home = "Home"
     case plan = "Plan"
     case guests = "Guests"
-    case pass = "Wedding Pass"
-    case live = "Live Wall"
+    case pass = "Pass"
+    case live = "Live"
 
     public var id: String { rawValue }
 

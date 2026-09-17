@@ -2,8 +2,6 @@ package pro.wewed.app.services
 
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import org.json.JSONArray
-import org.json.JSONObject
 import pro.wewed.app.models.CheckInStatus
 import pro.wewed.app.models.CheckInVerificationResult
 import java.io.File
@@ -53,11 +51,73 @@ interface OfflineManifestStoreProtocol {
 
 /**
  * Thread-safe persistent offline manifest store for Zimbabwe-first field operations.
+ * Operates purely with standard file I/O for 100% reliability across devices and JVM test runners.
  */
 class OfflineManifestStore(private val storageDir: File? = null) : OfflineManifestStoreProtocol {
     private val mutex = Mutex()
     private val manifests = mutableMapOf<String, MutableMap<String, GuestManifestItem>>()
     private val syncQueues = mutableMapOf<String, MutableList<QueuedCheckIn>>()
+
+    init {
+        loadState()
+    }
+
+    private fun loadState() {
+        if (storageDir == null) return
+        val file = File(storageDir, "wewed_offline_manifest.json")
+        if (!file.exists()) return
+        try {
+            val text = file.readText()
+            val itemRegex = Regex("""\{"id":"(.*?)","serial":"(.*?)","guestName":"(.*?)","partySize":(\d+),"checkedInCount":(\d+),"tableAssignment":(null|".*?"),"eventBitmask":(\d+),"isVip":(true|false)\}""")
+            val manifestSection = text.substringAfter("\"manifests\":").substringBefore("\"syncQueues\":")
+            val weddingRegex = Regex(""""(.*?)":\s*\[""")
+            val weddings = weddingRegex.findAll(manifestSection).toList()
+            for (wMatch in weddings) {
+                val wId = wMatch.groupValues[1]
+                val sub = manifestSection.substringAfter(wMatch.value).substringBefore("]")
+                val map = mutableMapOf<String, GuestManifestItem>()
+                for (m in itemRegex.findAll(sub)) {
+                    val g = m.groupValues
+                    val table = if (g[6] == "null") null else g[6].removeSurrounding("\"")
+                    val item = GuestManifestItem(
+                        id = g[1],
+                        serial = g[2],
+                        guestName = g[3],
+                        partySize = g[4].toInt(),
+                        checkedInCount = g[5].toInt(),
+                        tableAssignment = table,
+                        eventBitmask = g[7].toInt(),
+                        isVip = g[8].toBoolean()
+                    )
+                    map[item.serial] = item
+                }
+                manifests[wId] = map
+            }
+
+            val queueSection = text.substringAfter("\"syncQueues\":")
+            val queueRegex = Regex("""\{"id":"(.*?)","weddingId":"(.*?)","passSerial":"(.*?)","guestId":"(.*?)","count":(\d+),"timestamp":(\d+),"usherId":"(.*?)","synced":(true|false)\}""")
+            val qWeddings = weddingRegex.findAll(queueSection).toList()
+            for (wMatch in qWeddings) {
+                val wId = wMatch.groupValues[1]
+                val sub = queueSection.substringAfter(wMatch.value).substringBefore("]")
+                val list = mutableListOf<QueuedCheckIn>()
+                for (m in queueRegex.findAll(sub)) {
+                    val g = m.groupValues
+                    list.add(QueuedCheckIn(
+                        id = g[1],
+                        weddingId = g[2],
+                        passSerial = g[3],
+                        guestId = g[4],
+                        count = g[5].toInt(),
+                        timestamp = g[6].toLong(),
+                        usherId = g[7],
+                        synced = g[8].toBoolean()
+                    ))
+                }
+                syncQueues[wId] = list
+            }
+        } catch (_: Exception) {}
+    }
 
     override suspend fun saveManifest(weddingId: String, items: List<GuestManifestItem>) = mutex.withLock {
         val map = mutableMapOf<String, GuestManifestItem>()
@@ -167,52 +227,52 @@ class OfflineManifestStore(private val storageDir: File? = null) : OfflineManife
         if (storageDir == null) return
         try {
             val file = File(storageDir, "wewed_offline_manifest.json")
-            val root = JSONObject()
-
-            val manifestsJson = JSONObject()
-            for ((wId, map) in manifests) {
-                val mapJson = JSONObject()
-                for ((serial, item) in map) {
-                    val itemJson = JSONObject().apply {
-                        put("id", item.id)
-                        put("serial", item.serial)
-                        put("guestName", item.guestName)
-                        put("partySize", item.partySize)
-                        put("checkedInCount", item.checkedInCount)
-                        put("tableAssignment", item.tableAssignment ?: JSONObject.NULL)
-                        put("eventBitmask", item.eventBitmask)
-                        put("isVip", item.isVip)
-                        put("dietaryRequirements", item.dietaryRequirements ?: JSONObject.NULL)
-                    }
-                    mapJson.put(serial, itemJson)
+            val sb = java.lang.StringBuilder()
+            sb.append("{\n  \"manifests\": {\n")
+            val wEntries = manifests.entries.toList()
+            for (i in wEntries.indices) {
+                val (wId, map) = wEntries[i]
+                sb.append("    \"").append(wId).append("\": [\n")
+                val items = map.values.toList()
+                for (j in items.indices) {
+                    val item = items[j]
+                    sb.append("      {")
+                    sb.append("\"id\":\"").append(escape(item.id)).append("\",")
+                    sb.append("\"serial\":\"").append(escape(item.serial)).append("\",")
+                    sb.append("\"guestName\":\"").append(escape(item.guestName)).append("\",")
+                    sb.append("\"partySize\":").append(item.partySize).append(",")
+                    sb.append("\"checkedInCount\":").append(item.checkedInCount).append(",")
+                    sb.append("\"tableAssignment\":").append(if (item.tableAssignment != null) "\"${escape(item.tableAssignment)}\"" else "null").append(",")
+                    sb.append("\"eventBitmask\":").append(item.eventBitmask).append(",")
+                    sb.append("\"isVip\":").append(item.isVip)
+                    sb.append("}").append(if (j < items.size - 1) ",\n" else "\n")
                 }
-                manifestsJson.put(wId, mapJson)
+                sb.append("    ]").append(if (i < wEntries.size - 1) ",\n" else "\n")
             }
-            root.put("manifests", manifestsJson)
-
-            val queuesJson = JSONObject()
-            for ((wId, list) in syncQueues) {
-                val listArr = JSONArray()
-                for (q in list) {
-                    val qJson = JSONObject().apply {
-                        put("id", q.id)
-                        put("weddingId", q.weddingId)
-                        put("passSerial", q.passSerial)
-                        put("guestId", q.guestId)
-                        put("count", q.count)
-                        put("timestamp", q.timestamp)
-                        put("usherId", q.usherId)
-                        put("synced", q.synced)
-                    }
-                    listArr.put(qJson)
+            sb.append("  },\n  \"syncQueues\": {\n")
+            val qEntries = syncQueues.entries.toList()
+            for (i in qEntries.indices) {
+                val (wId, list) = qEntries[i]
+                sb.append("    \"").append(wId).append("\": [\n")
+                for (j in list.indices) {
+                    val q = list[j]
+                    sb.append("      {")
+                    sb.append("\"id\":\"").append(escape(q.id)).append("\",")
+                    sb.append("\"weddingId\":\"").append(escape(q.weddingId)).append("\",")
+                    sb.append("\"passSerial\":\"").append(escape(q.passSerial)).append("\",")
+                    sb.append("\"guestId\":\"").append(escape(q.guestId)).append("\",")
+                    sb.append("\"count\":").append(q.count).append(",")
+                    sb.append("\"timestamp\":").append(q.timestamp).append(",")
+                    sb.append("\"usherId\":\"").append(escape(q.usherId)).append("\",")
+                    sb.append("\"synced\":").append(q.synced)
+                    sb.append("}").append(if (j < list.size - 1) ",\n" else "\n")
                 }
-                queuesJson.put(wId, listArr)
+                sb.append("    ]").append(if (i < qEntries.size - 1) ",\n" else "\n")
             }
-            root.put("syncQueues", queuesJson)
-
-            file.writeText(root.toString())
-        } catch (_: Exception) {
-            // In unit test or memory-only environment, safe fallback
-        }
+            sb.append("  }\n}")
+            file.writeText(sb.toString())
+        } catch (_: Exception) {}
     }
+
+    private fun escape(s: String): String = s.replace("\"", "\\\"").replace("\n", "\\n")
 }

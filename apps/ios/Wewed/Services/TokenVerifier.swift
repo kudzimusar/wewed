@@ -15,6 +15,7 @@ public enum TokenVerificationError: Error, Equatable, Sendable {
     case unsupportedVersion
     case signatureMismatch
     case unauthorizedEvent
+    case invalidKey
 }
 
 public enum TokenVerifier {
@@ -25,7 +26,7 @@ public enum TokenVerifier {
         }
 
         let version = String(parts[0])
-        guard version == "WW1" else {
+        guard version == "WW1" || version == "WW2" else {
             return .failure(.unsupportedVersion)
         }
 
@@ -47,17 +48,55 @@ public enum TokenVerifier {
         ))
     }
 
+    /// Asymmetric ECDSA (NIST P-256 / SHA-256) signature verification (WW2 Canonical Standard)
+    public static func verifyAsymmetric(
+        token: String,
+        rawPublicKeyHex: String,
+        requiredEventBit: UInt8 = 0x04
+    ) -> Result<ParsedQRToken, TokenVerificationError> {
+        switch parse(token: token) {
+        case .failure(let error):
+            return .failure(error)
+        case .success(let parsed):
+            if (parsed.eventBitmask & requiredEventBit) == 0 {
+                return .failure(.unauthorizedEvent)
+            }
+
+            guard let pubData = dataFromHex(rawPublicKeyHex) else {
+                return .failure(.invalidKey)
+            }
+
+            guard let publicKey = try? P256.Signing.PublicKey(x963Representation: pubData) else {
+                return .failure(.invalidKey)
+            }
+
+            let payload = "\(parsed.version).\(parsed.weddingShortId).\(parsed.passSerial).\(String(format: "%02x", parsed.eventBitmask)).\(parsed.nonce)"
+            guard let sigData = dataFromHex(parsed.signature) else {
+                return .failure(.invalidFormat)
+            }
+
+            guard let ecdsaSignature = try? P256.Signing.ECDSASignature(rawRepresentation: sigData) else {
+                return .failure(.signatureMismatch)
+            }
+
+            if publicKey.isValidSignature(ecdsaSignature, for: Data(payload.utf8)) {
+                return .success(parsed)
+            } else {
+                return .failure(.signatureMismatch)
+            }
+        }
+    }
+
+    /// Legacy symmetric HMAC-SHA256 verifier (WW1)
     public static func verify(token: String, secretKey: String, requiredEventBit: UInt8 = 0x04) -> Result<ParsedQRToken, TokenVerificationError> {
         switch parse(token: token) {
         case .failure(let error):
             return .failure(error)
         case .success(let parsed):
-            // 1. Verify Event Bitmask
             if (parsed.eventBitmask & requiredEventBit) == 0 {
                 return .failure(.unauthorizedEvent)
             }
 
-            // 2. Compute HMAC-SHA256
             let payloadPrefix = "\(parsed.version).\(parsed.weddingShortId).\(parsed.passSerial).\(String(format: "%02x", parsed.eventBitmask)).\(parsed.nonce)"
             let key = SymmetricKey(data: Data(secretKey.utf8))
             let signatureData = HMAC<SHA256>.authenticationCode(for: Data(payloadPrefix.utf8), using: key)
@@ -70,5 +109,19 @@ public enum TokenVerifier {
                 return .failure(.signatureMismatch)
             }
         }
+    }
+
+    private static func dataFromHex(_ hex: String) -> Data? {
+        let clean = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard clean.count % 2 == 0 else { return nil }
+        var data = Data(capacity: clean.count / 2)
+        var index = clean.startIndex
+        for _ in 0..<(clean.count / 2) {
+            let nextIndex = clean.index(index, offsetBy: 2)
+            guard let byte = UInt8(clean[index..<nextIndex], radix: 16) else { return nil }
+            data.append(byte)
+            index = nextIndex
+        }
+        return data
     }
 }

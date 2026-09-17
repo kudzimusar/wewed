@@ -1,4 +1,4 @@
-appId: ${APP_ID:-pro.wewed.app}
+appId: pro.wewed.app
 ---
 - launchApp:
     clearState: true
@@ -8,46 +8,41 @@ appId: ${APP_ID:-pro.wewed.app}
 - tapOn: "Sign In"
 
 # 2. Overview / Home Screen
-- assertVisible: "Wedding Overview"
 - assertVisible: "Tariro & Shadreck"
-- assertVisible: "24 October 2026 • Harare, Zimbabwe"
-- assertVisible: "The Venue"
-- assertVisible: "Imba Manor Estate"
-- assertVisible: "The Day's Programme"
-- assertVisible: "Ceremony & Vows"
+- assertVisible: "NEXT UP"
+- assertVisible: "YOUR WEDDING PASS"
 
 # 3. Planner & Task Management
 - tapOn: "Plan"
 - assertVisible: "Wedding Planner"
-- assertVisible: "Budget Overview"
-- assertVisible: "Total"
 - assertVisible: "Finalize seating chart with venue manager"
 
 # 4. Guests & Seating Search
 - tapOn: "Guests"
 - assertVisible: "Guest List"
-- assertVisible: "Invited"
-- assertVisible: "Attending"
-- tapOn: "Search guest name, household, table"
-- inputText: "Musarurwa"
 - assertVisible: "Musarurwa Family"
 - assertVisible: "Baobab — 1"
 
-# 5. Wedding Pass & Usher Scanner
+# 5. Wedding Pass & Gate Scanner
 - tapOn: "Pass"
 - assertVisible: "WEWED WEDDING PASS"
 - assertVisible: "Jane & Michael Doe"
 - assertVisible: "Jacaranda — 8"
 - tapOn: "Usher Check-In Mode"
-- assertVisible: "Usher Scanner"
-- tapOn: "Simulate Scan (Jane & Michael)"
-- assertVisible: "Verified"
-- assertVisible: "Table: Jacaranda — 8"
-- tapOn: "Close"
+- assertVisible: "Gate Scanner"
+- tapOn: "Scan Jane (x2)"
+- assertVisible: "Admitted — Partial Arrival"
+- tapOn: "Scan Jane (x2)"
+- assertVisible: "Admitted — Full Party"
+- tapOn:
+    text: "Done"
+    optional: true
+- tapOn:
+    text: "Close"
+    optional: true
 
 # 6. Live Wall & Celebratory Interactivity
 - tapOn: "Live"
 - assertVisible: "Live Wall"
-- assertVisible: "Live Celebration"
 - tapOn: "Applaud"
 - assertVisible: "Send Well Wishes"

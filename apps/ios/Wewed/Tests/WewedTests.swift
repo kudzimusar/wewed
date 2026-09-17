@@ -330,6 +330,93 @@ final class WewedTests: XCTestCase {
         XCTAssertEqual(token, "tok_test_123")
         XCTAssertEqual(card, "ivory-floral-gold")
     }
+
+    func testAsymmetricECDSAVerification() {
+        let pubHex = "043d2178d1d53662565131b57913079288516d25bac99b0b6e7c5738071d9e26b0b67ab662ad380d88a158063008819b0da560ec1a1591b314e8654cfe99d1d235"
+        let validToken = "WW2.wedts26.WWJD0824.0e.66f001ab.8d4ba7eca9ef156da73f31e98456a9eaae676f66e4e33d4afaeb5f36cc5f4e06d612a90d0519d343346872759e675437934043ba97fec6a763b7ae3430d6ab30"
+
+        // 1. Valid signature
+        let res = TokenVerifier.verifyAsymmetric(token: validToken, rawPublicKeyHex: pubHex, requiredEventBit: 0x04)
+        switch res {
+        case .success(let parsed):
+            XCTAssertEqual(parsed.version, "WW2")
+            XCTAssertEqual(parsed.weddingShortId, "wedts26")
+            XCTAssertEqual(parsed.passSerial, "WWJD0824")
+            XCTAssertEqual(parsed.eventBitmask, 0x0E)
+        case .failure(let err):
+            XCTFail("ECDSA verification failed: \(err)")
+        }
+
+        // 2. Tampered token payload
+        let tamperedToken = "WW2.wedts26.TAMPERED.0e.66f001ab.8d4ba7eca9ef156da73f31e98456a9eaae676f66e4e33d4afaeb5f36cc5f4e06d612a90d0519d343346872759e675437934043ba97fec6a763b7ae3430d6ab30"
+        let tamperedRes = TokenVerifier.verifyAsymmetric(token: tamperedToken, rawPublicKeyHex: pubHex)
+        XCTAssertEqual(tamperedRes, .failure(.signatureMismatch))
+
+        // 3. Unauthorized event
+        let unauthRes = TokenVerifier.verifyAsymmetric(token: validToken, rawPublicKeyHex: pubHex, requiredEventBit: 0x20)
+        XCTAssertEqual(unauthRes, .failure(.unauthorizedEvent))
+
+        // 4. Invalid key
+        let badKeyRes = TokenVerifier.verifyAsymmetric(token: validToken, rawPublicKeyHex: "001122")
+        XCTAssertEqual(badKeyRes, .failure(.invalidKey))
+    }
+
+    func testOfflinePersistenceAndSyncLifecycle() async throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let weddingId = "wedts26"
+        let initialItems = [
+            GuestManifestItem(id: "g1", serial: "WWJD0824", guestName: "Jane & Michael Doe", partySize: 2),
+            GuestManifestItem(id: "g2", serial: "WWMF0104", guestName: "Musarurwa Family", partySize: 4)
+        ]
+
+        // 1. Manifest downloaded & saved to persistent disk
+        var store = OfflineManifestStore(storageDirectory: tempDir)
+        try await store.saveManifest(weddingId: weddingId, items: initialItems)
+
+        // 2. Network disabled & App terminated/restarted (New store instance initialized from same storage dir)
+        store = OfflineManifestStore(storageDirectory: tempDir)
+
+        // 3. Manifest still available after app restart
+        let loaded = await store.getManifest(weddingId: weddingId)
+        XCTAssertEqual(loaded.count, 2)
+        XCTAssertEqual(loaded.first(where: { $0.serial == "WWJD0824" })?.guestName, "Jane & Michael Doe")
+
+        // 4. Guest 1 scanned offline (Admit 2 of 2)
+        let res1 = try await store.recordOfflineCheckIn(weddingId: weddingId, serial: "WWJD0824", count: 2, usherId: "gate_usher_1")
+        XCTAssertEqual(res1.status, .validPass)
+        XCTAssertEqual(res1.checkedInCount, 2)
+
+        // 5. Audit queued locally
+        var pending = await store.getPendingCheckIns(weddingId: weddingId)
+        XCTAssertEqual(pending.count, 1)
+        XCTAssertEqual(pending[0].passSerial, "WWJD0824")
+        XCTAssertEqual(pending[0].count, 2)
+        XCTAssertFalse(pending[0].synced)
+
+        // 6. Guest 2 scanned offline (Partial arrival: admit 2 of 4)
+        let res2 = try await store.recordOfflineCheckIn(weddingId: weddingId, serial: "WWMF0104", count: 2, usherId: "gate_usher_1")
+        XCTAssertEqual(res2.status, .validPass)
+        XCTAssertEqual(res2.checkedInCount, 2)
+
+        // App restart simulation while offline (crashed / battery died)
+        store = OfflineManifestStore(storageDirectory: tempDir)
+        pending = await store.getPendingCheckIns(weddingId: weddingId)
+        XCTAssertEqual(pending.count, 2) // Both queued records survived crash/restart!
+
+        // 7. Connectivity restored -> queued records synchronize
+        for rec in pending {
+            try await store.markCheckInSynced(id: rec.id)
+        }
+        let remainingPending = await store.getPendingCheckIns(weddingId: weddingId)
+        XCTAssertEqual(remainingPending.count, 0)
+
+        // 8. Duplicates / conflicts reconciled: Duplicate attempt rejected
+        let dupRes = try await store.recordOfflineCheckIn(weddingId: weddingId, serial: "WWJD0824", count: 1, usherId: "gate_usher_2")
+        XCTAssertEqual(dupRes.status, .capacityExceeded)
+    }
 }
 
 

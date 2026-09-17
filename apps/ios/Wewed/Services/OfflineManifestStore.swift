@@ -87,11 +87,31 @@ public actor OfflineManifestStore: OfflineManifestStoreProtocol {
     private let fileURL: URL?
 
     public init(storageDirectory: URL? = nil) {
+        let url: URL?
         if let dir = storageDirectory {
-            self.fileURL = dir.appendingPathComponent("wewed_offline_manifest.json")
+            url = dir.appendingPathComponent("wewed_offline_manifest.json")
         } else {
             let paths = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
-            self.fileURL = paths.first?.appendingPathComponent("wewed_offline_manifest.json")
+            url = paths.first?.appendingPathComponent("wewed_offline_manifest.json")
+        }
+        self.fileURL = url
+
+        if let url = url, FileManager.default.fileExists(atPath: url.path),
+           let data = try? Data(contentsOf: url) {
+            struct ManifestSnapshot: Codable {
+                let manifests: [String: [String: GuestManifestItem]]
+                let syncQueues: [String: [QueuedCheckIn]]
+            }
+            if let snapshot = try? JSONDecoder().decode(ManifestSnapshot.self, from: data) {
+                self.manifests = snapshot.manifests
+                self.syncQueues = snapshot.syncQueues
+            } else {
+                self.manifests = [:]
+                self.syncQueues = [:]
+            }
+        } else {
+            self.manifests = [:]
+            self.syncQueues = [:]
         }
     }
 

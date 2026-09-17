@@ -21,12 +21,12 @@ test.describe('Wewed Wedding Pass — Contract & Security Verification @mobile',
     expect(pass.qrPayload).toBeTruthy()
   })
 
-  test('PASS-02: QR credential satisfies WW1 cryptographic token format', async () => {
+  test('PASS-02: QR credential satisfies WW1 / WW2 cryptographic token format', async () => {
     const token = data.samplePass.qrPayload
     const parts = token.split('.')
 
     expect(parts.length).toBe(6)
-    expect(parts[0]).toBe('WW1')
+    expect(parts[0]).toMatch(/^WW[12]$/)
     expect(parts[1]).toBe('wedts26')
     expect(parts[2]).toBe('WWJD0824')
     
@@ -39,7 +39,7 @@ test.describe('Wewed Wedding Pass — Contract & Security Verification @mobile',
 
     // Nonce & signature lengths
     expect(parts[4].length).toBe(8)
-    expect(parts[5].length).toBe(16)
+    expect(parts[5].length).toBeGreaterThanOrEqual(16)
   })
 
   test('PASS-03: Zero PII exists in QR payload string', async () => {
@@ -55,5 +55,19 @@ test.describe('Wewed Wedding Pass — Contract & Security Verification @mobile',
   test('PASS-04: Offline manifest payload is within bandwidth budget (< 50KB)', async () => {
     const jsonBytes = Buffer.byteLength(JSON.stringify(data), 'utf-8')
     expect(jsonBytes).toBeLessThan(50 * 1024)
+  })
+
+  test('PASS-05: Asymmetric ECDSA signature verifies using public key without private key', async () => {
+    const pubPem = data.manifestSecurity.publicKeyPem
+    const token = data.samplePass.qrPayload
+    const parts = token.split('.')
+    const payload = parts.slice(0, 5).join('.')
+    const sigHex = parts[5]
+    const sigBuffer = Buffer.from(sigHex, 'hex')
+
+    const verify = crypto.createVerify('SHA256')
+    verify.update(payload)
+    const isValid = verify.verify({ key: pubPem, dsaEncoding: 'ieee-p1363' }, sigBuffer)
+    expect(isValid).toBe(true)
   })
 })

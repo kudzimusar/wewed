@@ -155,6 +155,13 @@
       "passSerial": "WW-TC-0302"
     }
   ],
+  "manifestSecurity": {
+    "algorithm": "SHA256withECDSA",
+    "curve": "prime256v1",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEPSF40dU2YlZRMbV5EweSiFFtJbrJ\nmwtufFc4Bx2eJrC2erZirTgNiKFYBjAIgZsNpWDsGhWRsxToZUz+mdHSNQ==\n-----END PUBLIC KEY-----\n",
+    "publicKeyDerBase64": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEPSF40dU2YlZRMbV5EweSiFFtJbrJmwtufFc4Bx2eJrC2erZirTgNiKFYBjAIgZsNpWDsGhWRsxToZUz+mdHSNQ==",
+    "rawPublicKeyHex": "043d2178d1d53662565131b57913079288516d25bac99b0b6e7c5738071d9e26b0b67ab662ad380d88a158063008819b0da560ec1a1591b314e8654cfe99d1d235"
+  },
   "samplePass": {
     "token": "w1-j8doe-7x9",
     "weddingId": "wed_tariro_shadreck_2026",
@@ -163,11 +170,12 @@
     "venueName": "Imba Manor Estate",
     "venueAddress": "Glen Lorne, Harare",
     "guestName": "Jane & Michael Doe",
+    "householdName": "Doe Household",
     "partySize": 2,
     "tableNumber": 8,
     "tableName": "Jacaranda — 8",
     "seatNumber": "Seats 3 & 4",
     "currentStage": "ATTENDING",
-    "qrPayload": "WW1.wedts26.WWJD0824.0e.66f001ab.3f9a7c2b4d1e809f"
+    "qrPayload": "WW2.wedts26.WWJD0824.0e.66f001ab.8d4ba7eca9ef156da73f31e98456a9eaae676f66e4e33d4afaeb5f36cc5f4e06d612a90d0519d343346872759e675437934043ba97fec6a763b7ae3430d6ab30"
   }
 }

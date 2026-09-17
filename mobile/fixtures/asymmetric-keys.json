@@ -1,0 +1,34 @@
+{
+  "curve": "prime256v1 / NIST P-256 / secp256r1",
+  "algorithm": "SHA256withECDSA",
+  "signatureEncoding": "IEEE-P1363 (r || s, 64 bytes = 128 hex chars)",
+  "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEPSF40dU2YlZRMbV5EweSiFFtJbrJ\nmwtufFc4Bx2eJrC2erZirTgNiKFYBjAIgZsNpWDsGhWRsxToZUz+mdHSNQ==\n-----END PUBLIC KEY-----\n",
+  "publicKeyDerBase64": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEPSF40dU2YlZRMbV5EweSiFFtJbrJmwtufFc4Bx2eJrC2erZirTgNiKFYBjAIgZsNpWDsGhWRsxToZUz+mdHSNQ==",
+  "rawPublicKeyHex": "043d2178d1d53662565131b57913079288516d25bac99b0b6e7c5738071d9e26b0b67ab662ad380d88a158063008819b0da560ec1a1591b314e8654cfe99d1d235",
+  "passes": [
+    {
+      "guestName": "Jane & Michael Doe",
+      "passSerial": "WWJD0824",
+      "partySize": 2,
+      "payload": "WW2.wedts26.WWJD0824.0e.66f001ab",
+      "signatureHex": "8d4ba7eca9ef156da73f31e98456a9eaae676f66e4e33d4afaeb5f36cc5f4e06d612a90d0519d343346872759e675437934043ba97fec6a763b7ae3430d6ab30",
+      "token": "WW2.wedts26.WWJD0824.0e.66f001ab.8d4ba7eca9ef156da73f31e98456a9eaae676f66e4e33d4afaeb5f36cc5f4e06d612a90d0519d343346872759e675437934043ba97fec6a763b7ae3430d6ab30"
+    },
+    {
+      "guestName": "Musarurwa Family",
+      "passSerial": "WWMF0104",
+      "partySize": 4,
+      "payload": "WW2.wedts26.WWMF0104.0e.77a002bc",
+      "signatureHex": "896d24908f17062bc2158205e255698156398a24fdd91eeb834ff7120f25eb4dff2bcd4bb0fc168747ddb5942f2da75228f79a3104f5d746a8e8bea1a11eef88",
+      "token": "WW2.wedts26.WWMF0104.0e.77a002bc.896d24908f17062bc2158205e255698156398a24fdd91eeb834ff7120f25eb4dff2bcd4bb0fc168747ddb5942f2da75228f79a3104f5d746a8e8bea1a11eef88"
+    },
+    {
+      "guestName": "Sarah Moyo",
+      "passSerial": "WWSM0801",
+      "partySize": 1,
+      "payload": "WW2.wedts26.WWSM0801.0e.88b003cd",
+      "signatureHex": "437f1d481e8145bf601e075c93747532a077f01d319ea5f23b136b0fe4ceba756c3a9868b6f08115d56f131feecd5fafee75337373b82e8a10dbc74851baba9b",
+      "token": "WW2.wedts26.WWSM0801.0e.88b003cd.437f1d481e8145bf601e075c93747532a077f01d319ea5f23b136b0fe4ceba756c3a9868b6f08115d56f131feecd5fafee75337373b82e8a10dbc74851baba9b"
+    }
+  ]
+}

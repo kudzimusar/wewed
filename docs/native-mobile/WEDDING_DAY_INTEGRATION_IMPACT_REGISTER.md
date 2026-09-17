@@ -127,3 +127,20 @@ This document constitutes the canonical architectural register defining how the 
   - Successful QR scan: Medium double impact (`.success`).
   - Duplicate / Invalid pass scan: Heavy warning vibration (`.error`).
 - **Timely Alerts**: Local notification scheduled 1 hour before ceremony start with directions and pass shortcut.
+
+### 14. Planner ↔ Vendor Task Annotation Architecture (Non-Destructive Linkage)
+- **Design Principle**: Non-destructive annotation and suggestive completion. Vendor arrival events never silently mutate, overwrite, or auto-complete Planner tasks unless explicitly approved by the planner.
+- **Correlation Mechanism**:
+  - Tasks can optionally declare a vendor category (`DECOR`, `CATERING`, `SOUND_DJ`, `PHOTOGRAPHY`, `OFFICIANT`) or specific `vendorId`.
+  - When a vendor reports a status transition (e.g. `ARRIVED_ON_SITE` or `SERVICE_ACTIVE`):
+    1. **Contextual Badge**: Related planner tasks display a real-time presence chip: e.g. `[Vendor On-Site • 11:15 AM]`.
+    2. **Suggested Action**: A non-blocking completion suggestion appears on the task row: `"Vendor arrived at 11:15 AM. Mark 'Confirm Florist Setup' as completed? [Accept] [Dismiss]"`.
+    3. **Activity Audit Trail**: A timestamped annotation is appended to the task history log (`"Status ARRIVED_ON_SITE reported by Tariro Florals at 11:15:22 CAT"`).
+- **Planner Agency**:
+  - The wedding planner retains full operational authority. Tasks remain in their current state until the planner taps to confirm completion or dismisses the suggestion.
+  - Zero schema destruction: existing `PlannerTask` fields (`id`, `title`, `dueDate`, `completed`, `category`) remain intact and backwards-compatible with existing PWA/web contracts.
+- **Cross-Platform Parity**:
+  - **iOS (SwiftUI)**: Renders vendor presence indicator icon with haptic notification when the assigned vendor arrives.
+  - **Android (Compose)**: Displays interactive chip on matching task cards with quick-confirm action.
+  - **Offline Resilience**: If vendor status reports arrive via local mesh or delayed offline manifest sync, task annotations reconcile idempotently without race conditions.
+
