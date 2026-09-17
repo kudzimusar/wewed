@@ -35,7 +35,11 @@ public final class AppState: ObservableObject, @unchecked Sendable {
         repository: WeddingRepositoryProtocol = FixtureWeddingRepository(),
         weddingDayGate: WeddingDayGateOperations? = nil
     ) {
-        self.repository = repository
         self.weddingDayGate = weddingDayGate
+        if let weddingDayGate {
+            self.repository = WeddingDayGateAwareRepository(base: repository, gate: weddingDayGate)
+        } else {
+            self.repository = repository
+        }
     }
 }
