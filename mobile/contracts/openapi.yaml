@@ -1,0 +1,484 @@
+openapi: 3.1.0
+info:
+  title: Wewed Canonical Mobile API
+  version: 1.0.0
+  description: Authoritative contract for Wewed iOS (Swift) and Android (Kotlin) native clients.
+servers:
+  - url: https://wewed.pro/api
+    description: Production API
+  - url: http://localhost:8080/api
+    description: Isolated Mobile Sandbox
+
+paths:
+  /auth/login:
+    post:
+      summary: Couple or Admin Login
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /wedding/{weddingId}:
+    get:
+      summary: Fetch Wedding Details
+      operationId: getWedding
+      parameters:
+        - name: weddingId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Wedding details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Wedding'
+
+  /wedding/{weddingId}/tasks:
+    get:
+      summary: List Planner Tasks
+      operationId: getTasks
+      parameters:
+        - name: weddingId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PlannerTask'
+    post:
+      summary: Create Planner Task
+      operationId: createTask
+      parameters:
+        - name: weddingId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaskRequest'
+      responses:
+        '201':
+          description: Task created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlannerTask'
+
+  /wedding/{weddingId}/tasks/{taskId}:
+    patch:
+      summary: Update Task Status
+      operationId: updateTask
+      parameters:
+        - name: weddingId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTaskRequest'
+      responses:
+        '200':
+          description: Task updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlannerTask'
+
+  /wedding/{weddingId}/guests:
+    get:
+      summary: List Guests
+      operationId: getGuests
+      parameters:
+        - name: weddingId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of guests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Guest'
+
+  /wedding/{weddingId}/budget:
+    get:
+      summary: Get Budget Overview
+      operationId: getBudget
+      parameters:
+        - name: weddingId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Budget overview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BudgetSummary'
+
+  /pass/{token}:
+    get:
+      summary: Resolve Wewed Wedding Pass (Zero-Auth Guest View)
+      operationId: getWeddingPass
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Wedding Pass payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeddingPass'
+
+  /checkin/verify:
+    post:
+      summary: Verify and Check In Guest via QR or Manual Search
+      operationId: checkInGuest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckInRequest'
+      responses:
+        '200':
+          description: Check in result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckInResult'
+
+  /checkin/manifest/{weddingId}:
+    get:
+      summary: Download Encrypted Offline Guest Manifest for Ushers
+      operationId: getOfflineManifest
+      parameters:
+        - name: weddingId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Encrypted manifest payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfflineManifest'
+
+components:
+  schemas:
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+
+    AuthResponse:
+      type: object
+      required: [token, user]
+      properties:
+        token:
+          type: string
+        user:
+          $ref: '#/components/schemas/UserProfile'
+
+    UserProfile:
+      type: object
+      required: [id, email, name, role]
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+          enum: [couple, planner, usher, admin, guest]
+        weddingId:
+          type: string
+
+    Wedding:
+      type: object
+      required: [id, coupleNames, date, venueName]
+      properties:
+        id:
+          type: string
+        coupleNames:
+          type: string
+        date:
+          type: string
+          format: date-time
+        venueName:
+          type: string
+        venueAddress:
+          type: string
+        city:
+          type: string
+        country:
+          type: string
+        lifecycle:
+          type: string
+          enum: [before, day_of, after]
+        programme:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProgrammeItem'
+
+    ProgrammeItem:
+      type: object
+      required: [id, title, time, location]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        time:
+          type: string
+        location:
+          type: string
+        description:
+          type: string
+
+    PlannerTask:
+      type: object
+      required: [id, title, status, priority, category]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+          enum: [todo, in_progress, done]
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+        category:
+          type: string
+        dueDate:
+          type: string
+
+    CreateTaskRequest:
+      type: object
+      required: [title, priority, category]
+      properties:
+        title:
+          type: string
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+        category:
+          type: string
+        dueDate:
+          type: string
+
+    UpdateTaskRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        status:
+          type: string
+          enum: [todo, in_progress, done]
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+
+    Guest:
+      type: object
+      required: [id, name, partySize, rsvpStatus]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        householdName:
+          type: string
+        partySize:
+          type: integer
+        side:
+          type: string
+        rsvpStatus:
+          type: string
+          enum: [attending, declined, pending]
+        tableNumber:
+          type: integer
+        tableName:
+          type: string
+        checkedIn:
+          type: boolean
+        checkedInCount:
+          type: integer
+
+    BudgetSummary:
+      type: object
+      required: [totalBudget, totalAllocated, totalPaid]
+      properties:
+        currency:
+          type: string
+          default: USD
+        totalBudget:
+          type: number
+        totalAllocated:
+          type: number
+        totalPaid:
+          type: number
+        categories:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              allocated:
+                type: number
+              spent:
+                type: number
+
+    WeddingPass:
+      type: object
+      required: [token, coupleNames, weddingDate, guestName, partySize, qrPayload]
+      properties:
+        token:
+          type: string
+        weddingId:
+          type: string
+        coupleNames:
+          type: string
+        weddingDate:
+          type: string
+        venueName:
+          type: string
+        venueAddress:
+          type: string
+        guestName:
+          type: string
+        partySize:
+          type: integer
+        tableNumber:
+          type: integer
+        tableName:
+          type: string
+        seatNumber:
+          type: string
+        currentStage:
+          type: string
+          enum: [INVITATION, ATTENDING, PRE_WEDDING, MORNING, CHECKED_IN, AFTER]
+        qrPayload:
+          type: string
+
+    CheckInRequest:
+      type: object
+      required: [weddingId, checkInCount, usherId]
+      properties:
+        weddingId:
+          type: string
+        qrPayload:
+          type: string
+        guestId:
+          type: string
+        checkInCount:
+          type: integer
+        usherId:
+          type: string
+        scannedAt:
+          type: string
+          format: date-time
+
+    CheckInResult:
+      type: object
+      required: [status, guestName, partySize, checkedInCount]
+      properties:
+        status:
+          type: string
+          enum: [SUCCESS, ALREADY_CHECKED_IN, INVALID_PASS, CAPACITY_EXCEEDED]
+        guestName:
+          type: string
+        partySize:
+          type: integer
+        checkedInCount:
+          type: integer
+        tableNumber:
+          type: integer
+        tableName:
+          type: string
+        message:
+          type: string
+
+    OfflineManifest:
+      type: object
+      required: [weddingId, generatedAt, hmacKey, guests]
+      properties:
+        weddingId:
+          type: string
+        generatedAt:
+          type: string
+        hmacKey:
+          type: string
+        guests:
+          type: array
+          items:
+            $ref: '#/components/schemas/Guest'
+
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string

@@ -56,6 +56,8 @@ export default function PlanHub() {
 
       <Surface>
         <Text style={styles.sectionTitle}>Wedding operations</Text>
+        <HubRow label="Check-In Scanner" detail="Scan passes, verify households, offline entrance queue" onPress={() => router.push('/plan/checkin')} />
+        <HubRow label="Live Attendance" detail="Real-time arrivals, ceremony vs reception gauges" onPress={() => router.push('/plan/attendance')} />
         <HubRow label="Contributions" detail="Cash, direct vendor payments and in-kind support" onPress={() => router.push('/plan/contributions')} />
         <HubRow label="Timeline" detail={`${summary.data?.timeline.length ?? 0} event-day items`} onPress={() => router.push('/plan/timeline')} />
         <HubRow label="Seating" detail="Tables, capacity and guest placement" onPress={() => router.push('/plan/guests')} />

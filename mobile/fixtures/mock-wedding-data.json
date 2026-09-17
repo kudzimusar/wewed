@@ -1,0 +1,173 @@
+{
+  "wedding": {
+    "id": "wed_tariro_shadreck_2026",
+    "coupleNames": "Tariro & Shadreck",
+    "date": "2026-10-24T14:00:00Z",
+    "venueName": "Imba Manor Estate",
+    "venueAddress": "Glen Lorne, Harare",
+    "city": "Harare",
+    "country": "Zimbabwe",
+    "lifecycle": "before",
+    "programme": [
+      {
+        "id": "prog_1",
+        "title": "Guest Arrival & Welcome Refreshments",
+        "time": "13:15",
+        "location": "Manor Gardens",
+        "description": "Guests are welcomed with iced tea and acoustic strings."
+      },
+      {
+        "id": "prog_2",
+        "title": "Ceremony & Vows",
+        "time": "14:00",
+        "location": "Chapel on the Hill",
+        "description": "Exchange of vows and signing of the marriage register."
+      },
+      {
+        "id": "prog_3",
+        "title": "Cocktail Hour & Bridal Portraits",
+        "time": "15:30",
+        "location": "Pavilion Terrace",
+        "description": "Canapés, signature cocktails, and live jazz."
+      },
+      {
+        "id": "prog_4",
+        "title": "Grand Reception & Dinner",
+        "time": "17:30",
+        "location": "The Grand Ballroom",
+        "description": "Entrance of bridal party, traditional dance, 3-course dinner, and speeches."
+      },
+      {
+        "id": "prog_5",
+        "title": "After Party & Sparkler Send-Off",
+        "time": "21:30",
+        "location": "The Courtyard",
+        "description": "Live DJ, late-night snacks, and celebratory sparklers."
+      }
+    ]
+  },
+  "tasks": [
+    {
+      "id": "task_1",
+      "title": "Finalize seating chart with venue manager",
+      "status": "in_progress",
+      "priority": "urgent",
+      "category": "Venue & Seating",
+      "dueDate": "2026-10-15"
+    },
+    {
+      "id": "task_2",
+      "title": "Order printed QR cardstock passes for elders",
+      "status": "todo",
+      "priority": "high",
+      "category": "Invitations",
+      "dueDate": "2026-10-10"
+    },
+    {
+      "id": "task_3",
+      "title": "Confirm shuttle pickups at Meikles Hotel",
+      "status": "todo",
+      "priority": "medium",
+      "category": "Logistics",
+      "dueDate": "2026-10-18"
+    },
+    {
+      "id": "task_4",
+      "title": "Sample 3-tier red velvet and lemon drizzle cake",
+      "status": "done",
+      "priority": "high",
+      "category": "Catering",
+      "dueDate": "2026-09-20"
+    },
+    {
+      "id": "task_5",
+      "title": "Finalize Songbook playlist with DJ",
+      "status": "done",
+      "priority": "low",
+      "category": "Entertainment",
+      "dueDate": "2026-09-25"
+    }
+  ],
+  "budget": {
+    "currency": "USD",
+    "totalBudget": 35000,
+    "totalAllocated": 32400,
+    "totalPaid": 24800,
+    "categories": [
+      { "name": "Venue & Decor", "allocated": 12000, "spent": 10500 },
+      { "name": "Catering & Bar", "allocated": 9500, "spent": 7200 },
+      { "name": "Photography & Video", "allocated": 4200, "spent": 3500 },
+      { "name": "Attire & Rings", "allocated": 3800, "spent": 2100 },
+      { "name": "Music & Sound", "allocated": 2900, "spent": 1500 }
+    ]
+  },
+  "guests": [
+    {
+      "id": "gst_1",
+      "name": "Jane & Michael Doe",
+      "householdName": "Doe Household",
+      "partySize": 2,
+      "side": "Bride",
+      "rsvpStatus": "attending",
+      "tableNumber": 8,
+      "tableName": "Jacaranda — 8",
+      "checkedIn": false,
+      "checkedInCount": 0,
+      "passSerial": "WW-JD-0824"
+    },
+    {
+      "id": "gst_2",
+      "name": "Musarurwa Family",
+      "householdName": "Musarurwa Household",
+      "partySize": 4,
+      "side": "Groom",
+      "rsvpStatus": "attending",
+      "tableNumber": 1,
+      "tableName": "Baobab — 1",
+      "checkedIn": false,
+      "checkedInCount": 0,
+      "passSerial": "WW-MF-0104"
+    },
+    {
+      "id": "gst_3",
+      "name": "Sarah Moyo",
+      "householdName": "Sarah Moyo",
+      "partySize": 1,
+      "side": "Bride",
+      "rsvpStatus": "attending",
+      "tableNumber": 8,
+      "tableName": "Jacaranda — 8",
+      "checkedIn": true,
+      "checkedInCount": 1,
+      "passSerial": "WW-SM-0801"
+    },
+    {
+      "id": "gst_4",
+      "name": "Tendai Chikore",
+      "householdName": "Chikore Household",
+      "partySize": 2,
+      "side": "Groom",
+      "rsvpStatus": "pending",
+      "tableNumber": 3,
+      "tableName": "Acacia — 3",
+      "checkedIn": false,
+      "checkedInCount": 0,
+      "passSerial": "WW-TC-0302"
+    }
+  ],
+  "samplePass": {
+    "token": "w1-j8doe-7x9",
+    "weddingId": "wed_tariro_shadreck_2026",
+    "coupleNames": "Tariro & Shadreck",
+    "weddingDate": "2026-10-24T14:00:00Z",
+    "venueName": "Imba Manor Estate",
+    "venueAddress": "Glen Lorne, Harare",
+    "guestName": "Jane & Michael Doe",
+    "partySize": 2,
+    "tableNumber": 8,
+    "tableName": "Jacaranda — 8",
+    "seatNumber": "Seats 3 & 4",
+    "currentStage": "ATTENDING",
+    "qrPayload": "WW1.wedts26.WWJD0824.0e.66f001ab.3f9a7c2b4d1e809f"
+  }
+}

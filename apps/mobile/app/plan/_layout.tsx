@@ -19,6 +19,8 @@ export default function PlanLayout() {
       <Stack.Screen name="vendors" options={{ title: 'Wedding Vendors' }} />
       <Stack.Screen name="contributions" options={{ title: 'Contributions' }} />
       <Stack.Screen name="timeline" options={{ title: 'Timeline' }} />
+      <Stack.Screen name="checkin" options={{ title: 'Check-In Scanner' }} />
+      <Stack.Screen name="attendance" options={{ title: 'Live Attendance' }} />
     </Stack>
   )
 }
