@@ -75,9 +75,10 @@ public struct AppComposition: Sendable {
         weddingId: String,
         trustedRootPublicKeyDerBase64: String,
         trustedRootKeyId: String? = nil,
-        base: WeddingRepositoryProtocol = FixtureWeddingRepository(),
+        base: WeddingRepositoryProtocol,
         storageDirectory: URL? = nil
     ) -> AppComposition {
+        precondition(!(base is FixtureWeddingRepository), "Production composition requires an authoritative non-fixture repository.")
         let server = ServerBackedWeddingDayOperations(baseURL: baseURL, bearerToken: bearerToken, weddingId: weddingId)
         let storeDir = storageDirectory ?? (FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first ?? FileManager.default.temporaryDirectory)
         let offlineStore = OfflineManifestStore(storageDirectory: storeDir)

@@ -144,17 +144,18 @@ This document constitutes the canonical architectural register defining how the 
 
 ## Isolated Qualification Status — 17 September 2026
 
-The current work remains strictly isolated on `native-mobile/integration` in `/Users/shadreckmusarurwa/Project AI/wewed-native-mobile`; it is **not merged, deployed, or connected to the protected active Wewed baseline or production database**.
+The current work is integrated on candidate branch `native-mobile/wedding-day-ivory-integration-prep` in `/Users/shadreckmusarurwa/Project AI/wewed-native-mobile`; it is **not merged, deployed, or connected to the protected active Wewed baseline or production database**.
 
 ### Status Classification
 
 | Capability / Surface | Status | Verification Summary |
 |---|---|---|
-| Real Isolated Chromium E2E (`wedding-day-application-e2e.spec.ts`) | **TESTED** | 6/6 passed (37.0s) against real Next.js dev server, real Next API routes, and isolated database `wewed_wedding_day_test` |
-| Mock/Contract Acceptance Suite (`reference-pass-verification` & `wedding-day-e2e-journey`) | **TESTED** | 17/17 passed (3.1s) under mobile Chromium emulation |
-| iOS Swift Native Unit & Offline Suite (`swift test`) | **TESTED** | 24/24 passed (0.058s) covering WW2 P-256 CryptoKit, DER parsing, offline manifest store, attendee queues, trust persistence |
-| Android Kotlin Native Unit & Offline Suite (`./gradlew testDebugUnitTest`) | **TESTED** | 24/24 passed (0.39s) covering NIST P-256 ECDSA, attendee-level offline queue, crash/restart survival, key rotation |
-| Native Maestro Android Smoke (`.maestro/native-wedding-journey.yaml`) | **TESTED** | 30/30 steps passed on Android emulator (`emulator-5554` / Pixel_8) with `gate-scanner-done` optional iOS preservation and `Close` Android fallback |
+| Real Isolated Chromium E2E (`wedding-day-application-e2e.spec.ts`) | **TESTED** | 6/6 passed (20.5s) against real Next.js server, real Next API routes, and isolated database `wewed_wedding_day_test` |
+| Mock/Contract Acceptance Suite (`reference-pass-verification` & `wedding-day-e2e-journey`) | **TESTED** | 17/17 passed (2.8s) under mobile Chromium emulation |
+| Active Wewed Baseline AI/Unit Suite (`bun run ai:unit`) | **TESTED** | 31/31 passed (0.45s) preserving all protected baseline workspace contracts |
+| iOS Swift Native Unit & Offline Suite (`swift test`) | **TESTED** | 27/27 passed (0.018s) covering WW2 P-256 CryptoKit, DER parsing, offline manifest store, attendee queues, trust persistence, and AppComposition modes |
+| Android Kotlin Native Unit & Offline Suite (`./gradlew testDebugUnitTest`) | **TESTED** | 28/28 passed (0.47s) covering NIST P-256 ECDSA, attendee-level offline queue, crash/restart survival, key rotation, and AppComposition modes |
+| Native Maestro Android Smoke (`.maestro/native-wedding-journey.yaml`) | **TESTED** | All 30 steps passed on Android emulator (`emulator-5554` / Pixel_8) with `gate-scanner-done` optional iOS preservation and `Close` Android fallback |
 | Native Maestro iOS Journey | **DEFERRED** | Swift Package Manager architecture boundary (`Package.swift` builds `WewedKit` & `WewedApp`); Xcode `.app` bundle archive and simulator runner deferred |
 | Production Secure Storage (Keychain / EncryptedSharedPreferences) | **DEFERRED** | Durable disk/file persistence verified; hardware-backed secure storage remains post-qualification production hardening |
 | Background OS WorkManager / BGTaskScheduler Sync | **DEFERRED** | Deterministic foreground reconciliation service verified; OS background worker registration remains post-qualification hardening |
@@ -171,9 +172,10 @@ The current work remains strictly isolated on `native-mobile/integration` in `/U
    - Server-side RBAC verified: guest blocked from planner and check-in APIs, cross-vendor mutation rejected with 403.
    - WW2 token tampering rejected and root-signed offline manifest verified.
 2. **Mock / Contract Playwright Suite**: 17/17 passed.
-3. **iOS Swift Package Test Suite**: 24/24 passed (`WewedTests` 20/20, `WeddingDayOfflineTests` 4/4).
-4. **Android Unit & Offline Test Suite**: 24/24 passed (`WewedTests` 20/20, `WeddingDayOfflineTest` 4/4).
-5. **Android Native Maestro Journey**: 30/30 actions and assertions passed on running emulator.
+3. **Active Baseline Test Suite**: 31/31 passed.
+4. **iOS Swift Package Test Suite**: 27/27 passed (`WewedTests` 20/20, `WeddingDayOfflineTests` 4/4, `CompositionTests` 3/3).
+5. **Android Unit & Offline Test Suite**: 28/28 passed (`WewedTests` 20/20, `WeddingDayOfflineTest` 4/4, `CompositionTest` 4/4).
+6. **Android Native Maestro Journey**: 30/30 actions and assertions passed on running emulator.
 
 ### Baseline Protection Confirmation
 - Protected active Wewed build modified: **NO** (`/Users/shadreckmusarurwa/Project AI/wewed` untouched).

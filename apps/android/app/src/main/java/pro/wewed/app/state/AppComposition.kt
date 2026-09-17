@@ -97,9 +97,12 @@ data class AppComposition(
             weddingId: String,
             trustedRootPublicKeyDerBase64: String,
             trustedRootKeyId: String? = null,
-            base: WeddingRepository = FixtureWeddingRepository(),
+            base: WeddingRepository,
             storageDir: File
         ): AppComposition {
+            require(base !is FixtureWeddingRepository) {
+                "Production composition requires an authoritative non-fixture repository."
+            }
             val transport = UrlConnectionWeddingDayTransport(baseUrl)
             val server = ServerBackedWeddingDayOperations(transport, bearerToken, weddingId)
             val offlineStore = OfflineManifestStore(storageDir)

@@ -114,8 +114,26 @@ export function verifyWeddingGuestSessionToken(
 export function readWeddingGuestSession(
   request: NextRequest,
 ): WeddingGuestSession | null {
-  const token = request.cookies.get(WEDDING_GUEST_SESSION_COOKIE)?.value
-  return token ? verifyWeddingGuestSessionToken(token) : null
+  const cookieToken = request.cookies.get(WEDDING_GUEST_SESSION_COOKIE)?.value
+  if (cookieToken) {
+    const session = verifyWeddingGuestSessionToken(cookieToken)
+    if (session) return session
+  }
+
+  const authHeader = request.headers.get('authorization')
+  if (authHeader?.startsWith('Bearer ')) {
+    const bearerToken = authHeader.slice(7).trim()
+    const session = verifyWeddingGuestSessionToken(bearerToken)
+    if (session) return session
+  }
+
+  const headerToken = request.headers.get('x-wedding-guest-session')?.trim()
+  if (headerToken) {
+    const session = verifyWeddingGuestSessionToken(headerToken)
+    if (session) return session
+  }
+
+  return null
 }
 
 export function setWeddingGuestSessionCookie(
