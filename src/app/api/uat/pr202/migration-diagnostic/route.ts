@@ -24,6 +24,10 @@ type FunctionRow = {
   function_name: string
 }
 
+type NamedRow = {
+  name: string
+}
+
 export async function GET() {
   if (
     process.env.VERCEL_ENV !== 'preview' ||
@@ -32,7 +36,17 @@ export async function GET() {
     return NextResponse.json({ success: false }, { status: 404 })
   }
 
-  const [rows, columns, triggers, functions] = await Promise.all([
+  const [
+    rows,
+    columns,
+    triggers,
+    functions,
+    taskColumns,
+    taskIndexes,
+    taskConstraints,
+    taskTriggers,
+    taskFunctions,
+  ] = await Promise.all([
     db.$queryRaw<MigrationLedgerRow[]>`
       SELECT
         migration_name,
@@ -81,6 +95,40 @@ export async function GET() {
         )
       ORDER BY p.proname
     `,
+    db.$queryRaw<ColumnRow[]>`
+      SELECT table_name, column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'PlannerTask'
+        AND column_name = 'assigneeUserId'
+    `,
+    db.$queryRaw<NamedRow[]>`
+      SELECT indexname AS name
+      FROM pg_indexes
+      WHERE schemaname = 'public'
+        AND tablename = 'PlannerTask'
+        AND indexname = 'PlannerTask_assigneeUserId_idx'
+    `,
+    db.$queryRaw<NamedRow[]>`
+      SELECT conname AS name
+      FROM pg_constraint
+      WHERE conname = 'PlannerTask_assigneeUserId_fkey'
+        AND conrelid = 'public."PlannerTask"'::regclass
+    `,
+    db.$queryRaw<NamedRow[]>`
+      SELECT tgname AS name
+      FROM pg_trigger
+      WHERE NOT tgisinternal
+        AND tgrelid = 'public."PlannerTask"'::regclass
+        AND tgname = 'preserve_planner_task_text_assignee_trigger'
+    `,
+    db.$queryRaw<NamedRow[]>`
+      SELECT p.proname AS name
+      FROM pg_proc p
+      JOIN pg_namespace n ON n.oid = p.pronamespace
+      WHERE n.nspname = 'public'
+        AND p.proname = 'preserve_planner_task_text_assignee'
+    `,
   ])
 
   return NextResponse.json({
@@ -91,9 +139,18 @@ export async function GET() {
       appliedStepsCount: row.applied_steps_count,
     })),
     effects: {
-      columns,
-      triggers: triggers.map((row) => row.trigger_name),
-      functions: functions.map((row) => row.function_name),
+      plannerMetadata: {
+        columns,
+        triggers: triggers.map((row) => row.trigger_name),
+        functions: functions.map((row) => row.function_name),
+      },
+      taskAssignee: {
+        columns: taskColumns,
+        indexes: taskIndexes.map((row) => row.name),
+        constraints: taskConstraints.map((row) => row.name),
+        triggers: taskTriggers.map((row) => row.name),
+        functions: taskFunctions.map((row) => row.name),
+      },
     },
   })
 }
