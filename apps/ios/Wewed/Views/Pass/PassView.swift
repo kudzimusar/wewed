@@ -135,7 +135,9 @@ public struct PassView: View {
             .background(WewedColors.ivory)
             .navigationTitle("Wedding Pass")
             .sheet(isPresented: $showingScanner) {
-                UsherScannerView()
+                UsherScannerView {
+                    showingScanner = false
+                }
             }
             .task {
                 do {

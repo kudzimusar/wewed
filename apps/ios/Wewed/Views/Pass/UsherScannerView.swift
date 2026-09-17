@@ -12,8 +12,11 @@ public struct UsherScannerView: View {
 
     private let tokenJane = "WW1.wedts26.WWJD0824.0e.66f001ab.3f9a7c2b4d1e809f"
     private let tokenMusarurwa = "WW1.wedts26.WWMF0104.0e.77a002bc.5a8c9e1f2b3d4e6a"
+    private let onDone: (() -> Void)?
 
-    public init() {}
+    public init(onDone: (() -> Void)? = nil) {
+        self.onDone = onDone
+    }
 
     public var body: some View {
         NavigationStack {
@@ -34,8 +37,14 @@ public struct UsherScannerView: View {
             #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
-                        .accessibilityIdentifier("gate-scanner-done")
+                    Button("Done") {
+                        if let onDone {
+                            onDone()
+                        } else {
+                            dismiss()
+                        }
+                    }
+                    .accessibilityIdentifier("gate-scanner-done")
                 }
             }
             .sheet(isPresented: $showingAuditSheet) {
