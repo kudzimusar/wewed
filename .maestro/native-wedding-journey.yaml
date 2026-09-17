@@ -28,6 +28,7 @@ appId: pro.wewed.app
 - assertVisible: "WEWED WEDDING PASS"
 - assertVisible: "Jane & Michael Doe"
 - assertVisible: "Jacaranda — 8"
+- scroll
 - tapOn: "Usher Check-In Mode"
 - assertVisible: "Gate Scanner"
 - tapOn: "Scan Jane (x2)"
@@ -35,11 +36,13 @@ appId: pro.wewed.app
 - tapOn: "Scan Jane (x2)"
 - assertVisible: "Admitted — Full Party"
 - tapOn:
-    text: "Done"
+    point: "12%,13%"
     optional: true
 - tapOn:
     text: "Close"
     optional: true
+- waitForAnimationToEnd:
+    timeout: 4000
 
 # 6. Live Wall & Celebratory Interactivity
 - tapOn: "Live"
