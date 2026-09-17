@@ -75,6 +75,16 @@ jobs:
           if [[ "$failed_migrations" != "0" ]]; then
             echo "::error::Production has unresolved Prisma migration ledger rows. Refusing to deploy."
             echo "Unresolved Prisma ledger rows: $failed_migrations"
+            echo "::group::Unresolved Prisma migration details"
+            while IFS='|' read -r migration_name started_at applied_steps_count; do
+              [[ -n "$migration_name" ]] || continue
+              echo "Migration: $migration_name"
+              echo "Started at: $started_at"
+              echo "Applied steps: $applied_steps_count"
+              echo "::error title=Unresolved Prisma migration::$migration_name | started=$started_at | applied_steps=$applied_steps_count"
+            done < <(psql "$DATABASE_URL" -AtF '|' -c \
+              "select migration_name, started_at, applied_steps_count from public._prisma_migrations where finished_at is null and rolled_back_at is null order by started_at")
+            echo "::endgroup::"
             exit 1
           fi
 
