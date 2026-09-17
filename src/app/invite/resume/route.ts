@@ -56,6 +56,7 @@ export async function GET(request: NextRequest) {
   const query = new URLSearchParams({
     invitation: '1',
     card: result.card,
+    source: 'android-app',
   })
   const response = hardenedRedirect(
     `/w/${encodeURIComponent(result.weddingSlug)}?${query.toString()}`,
