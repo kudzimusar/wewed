@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { consumeInvitationInstallHandoff } from '@/lib/invitation-install-handoff'
 import { clearPendingInvitationCookie } from '@/lib/pending-invitation'
@@ -53,10 +54,17 @@ export async function GET(request: NextRequest) {
     return recoveryRedirect()
   }
 
+  // Every successful Android handoff gets a fresh, non-sensitive navigation nonce.
+  // Guest A and Guest B can legitimately resolve to the same wedding URL. Without a
+  // changing URL, Chrome/TWA may simply foreground the already-mounted invitation and
+  // preserve Guest A's open RSVP/client state after Guest B has become authoritative.
+  // This opaque nonce forces a real navigation/re-render while carrying no guest ID,
+  // RSVP token, or handoff credential.
   const query = new URLSearchParams({
     invitation: '1',
     card: result.card,
     source: 'android-app',
+    entry: randomUUID(),
   })
   const response = hardenedRedirect(
     `/w/${encodeURIComponent(result.weddingSlug)}?${query.toString()}`,
