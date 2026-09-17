@@ -35,6 +35,7 @@ public struct UsherScannerView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
+                        .accessibilityIdentifier("gate-scanner-done")
                 }
             }
             .sheet(isPresented: $showingAuditSheet) {
