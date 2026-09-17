@@ -1,0 +1,115 @@
+name: Wedding Day Isolated Qualification
+
+on:
+  push:
+    branches:
+      - native-mobile/integration
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wedding-day-isolated-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web-e2e:
+    name: Real isolated Chromium E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      CI: 'true'
+      NEXT_TELEMETRY_DISABLED: '1'
+      WEDDING_DAY_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/wewed_wedding_day_test?schema=public
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/wewed_wedding_day_test?schema=public
+      DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/wewed_wedding_day_test?schema=public
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: isolated-ci-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: isolated-ci-service-role-key
+
+    steps:
+      - name: Check out isolated branch
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Create isolated Wedding Day database
+        run: PGPASSWORD=postgres psql -h 127.0.0.1 -U postgres -d postgres -c 'CREATE DATABASE wewed_wedding_day_test;'
+
+      - name: Validate primary Prisma schema
+        run: bunx prisma validate --schema prisma/schema.prisma
+
+      - name: Generate Prisma client
+        run: bunx prisma generate --schema prisma/schema.prisma
+
+      - name: Install Chromium
+        run: bunx playwright install --with-deps chromium
+
+      - name: Run real Wedding Day Chromium E2E
+        run: bun run test:e2e:wedding-day:real
+
+      - name: Upload browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wedding-day-browser-evidence
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
+  ios-unit:
+    name: iOS Swift unit suite
+    runs-on: macos-14
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out isolated branch
+        uses: actions/checkout@v4
+
+      - name: Run Swift tests
+        working-directory: apps/ios
+        run: swift test
+
+  android-unit:
+    name: Android debug unit suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out isolated branch
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Run Android debug unit tests
+        working-directory: apps/android
+        run: ./gradlew testDebugUnitTest --stacktrace
