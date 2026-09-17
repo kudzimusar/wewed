@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import {
-  requireWeddingDayOperator,
-  signedWeddingDayManifest,
-} from '@/lib/wedding-day'
+import { requireWeddingDayOperator } from '@/lib/wedding-day'
+import { signedNativeWeddingDayManifest } from '@/lib/wedding-day-manifest'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +19,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const data = await signedWeddingDayManifest(actor.weddingId)
+    const data = await signedNativeWeddingDayManifest(actor.weddingId)
     return NextResponse.json(
       { success: true, data },
       { headers: { 'Cache-Control': 'private, no-store' } },
