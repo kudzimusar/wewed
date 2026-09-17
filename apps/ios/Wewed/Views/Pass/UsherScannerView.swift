@@ -18,6 +18,14 @@ public struct UsherScannerView: View {
         self.onDone = onDone
     }
 
+    private func closeScanner() {
+        if let onDone {
+            onDone()
+        } else {
+            dismiss()
+        }
+    }
+
     public var body: some View {
         NavigationStack {
             ScrollView {
@@ -38,11 +46,7 @@ public struct UsherScannerView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") {
-                        if let onDone {
-                            onDone()
-                        } else {
-                            dismiss()
-                        }
+                        closeScanner()
                     }
                     .accessibilityIdentifier("gate-scanner-done")
                 }
@@ -57,12 +61,32 @@ public struct UsherScannerView: View {
     }
 
     private var viewfinderHeader: some View {
-        ZStack {
+        ZStack(alignment: .topLeading) {
             CameraBarcodeScannerView { scannedToken in
                 performScan(token: scannedToken)
             }
 
             VStack {
+                HStack {
+                    Button {
+                        closeScanner()
+                    } label: {
+                        Label("Exit Scanner", systemImage: "xmark")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Color.black.opacity(0.6))
+                            .foregroundColor(.white)
+                            .cornerRadius(WewedRadius.pill)
+                    }
+                    .accessibilityIdentifier("gate-scanner-exit")
+
+                    Spacer()
+                }
+                .padding(.top, WewedSpacing.sm)
+                .padding(.leading, WewedSpacing.base)
+
                 Spacer()
 
 
