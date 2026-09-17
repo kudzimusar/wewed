@@ -36,6 +36,7 @@ import { ThemeApplier } from '@/components/wedding/theme-applier'
 import { InvitationRsvpDialog } from '@/components/wedding/invitation-rsvp-dialog'
 import { PremiumInvitationExperience } from '@/components/wedding/invitation-experience/premium-invitation-experience'
 import { PremiumInvitationRsvpDialog } from '@/components/wedding/invitation-experience/premium-invitation-rsvp-dialog'
+import { WeddingGuestPassDialog } from '@/components/wedding/invitation-experience/wedding-guest-pass-dialog'
 import { PlannerMarketplaceInvitation } from '@/components/marketplace/planner-marketplace-invitation'
 import type { WeddingData } from '@/lib/wedding-data'
 import type { InvitationCardStyle } from '@/lib/digital-invitation-card'
@@ -53,6 +54,9 @@ export function WeddingHome({
   initialData = null,
   invitationMode = false,
   invitationCardStyle = null,
+  invitationGuestPresentation = false,
+  invitationGuestName = null,
+  invitationArrivalMode = false,
   sharedPhysicalInvitation = false,
 }: {
   slug?: string
@@ -61,6 +65,9 @@ export function WeddingHome({
   initialData?: WeddingData | null
   invitationMode?: boolean
   invitationCardStyle?: InvitationCardStyle | null
+  invitationGuestPresentation?: boolean
+  invitationGuestName?: string | null
+  invitationArrivalMode?: boolean
   sharedPhysicalInvitation?: boolean
 }) {
   return (
@@ -70,6 +77,9 @@ export function WeddingHome({
         viewerRole={viewerRole}
         invitationMode={invitationMode}
         invitationCardStyle={invitationCardStyle}
+        invitationGuestPresentation={invitationGuestPresentation}
+        invitationGuestName={invitationGuestName}
+        invitationArrivalMode={invitationArrivalMode}
         sharedPhysicalInvitation={sharedPhysicalInvitation}
       />
     </WeddingDataProvider>
@@ -81,18 +91,25 @@ function WeddingHomeContent({
   viewerRole,
   invitationMode,
   invitationCardStyle,
+  invitationGuestPresentation,
+  invitationGuestName,
+  invitationArrivalMode,
   sharedPhysicalInvitation,
 }: {
   accessKind: PublicWeddingAccessKind
   viewerRole: WeddingViewerRole
   invitationMode: boolean
   invitationCardStyle: InvitationCardStyle | null
+  invitationGuestPresentation: boolean
+  invitationGuestName: string | null
+  invitationArrivalMode: boolean
   sharedPhysicalInvitation: boolean
 }) {
   const lifecycle = useWewedStore((state) => state.lifecycle)
   const setLifecycle = useWewedStore((state) => state.setLifecycle)
   const [mounted, setMounted] = useState(false)
   const [invitationVisible, setInvitationVisible] = useState(invitationMode)
+  const [arrivalVisible, setArrivalVisible] = useState(invitationArrivalMode)
   const { wedding, slug } = useWeddingContext()
 
   useEffect(() => {
@@ -120,8 +137,10 @@ function WeddingHomeContent({
   const place = wedding ? [wedding.venue, wedding.venueCity, wedding.venueCountry].filter(Boolean).join(', ') : ''
   const isCoupleOwner = accessKind === 'couple_owner' && viewerRole === 'couple'
   const canContribute = accessKind !== 'public' && accessKind !== null
+  const guestInvitationPresentation =
+    accessKind === 'invited_guest' || invitationGuestPresentation
   const invitationAvailable = Boolean(
-    invitationCardStyle && accessKind === 'invited_guest' && wedding,
+    invitationCardStyle && guestInvitationPresentation && wedding,
   )
   const invitationSkipKey = slug ? `wewed:skip-invitation-once:${slug}` : null
 
@@ -147,6 +166,18 @@ function WeddingHomeContent({
     const id = window.setTimeout(() => setInvitationVisible(nextVisible), 0)
     return () => window.clearTimeout(id)
   }, [invitationAvailable, invitationMode, invitationSkipKey])
+
+  useEffect(() => {
+    if (!invitationArrivalMode || !invitationAvailable || !invitationVisible) {
+      setArrivalVisible(false)
+      return
+    }
+
+    setArrivalVisible(true)
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const id = window.setTimeout(() => setArrivalVisible(false), reducedMotion ? 450 : 1550)
+    return () => window.clearTimeout(id)
+  }, [invitationArrivalMode, invitationAvailable, invitationVisible])
 
   useEffect(() => {
     if (!invitationSkipKey) return
@@ -219,7 +250,7 @@ function WeddingHomeContent({
       venue: invitationVenue,
       venueCity: invitationVenueCity ?? '',
       venueCountry: invitationVenueCountry ?? '',
-      guestName: null,
+      guestName: invitationGuestName,
       message: null,
       rsvpDeadline: null,
       primaryColor: invitationPrimaryColor,
@@ -234,6 +265,7 @@ function WeddingHomeContent({
     invitationVenue,
     invitationVenueCity,
     invitationVenueCountry,
+    invitationGuestName,
     invitationPrimaryColor,
     invitationAccentColor,
     invitationBackgroundColor,
@@ -268,6 +300,23 @@ function WeddingHomeContent({
         <p>{date}{place ? ` · ${place}` : ''}</p>
       </div>
       <ThemeApplier invitationCardStyle={showPersonalInvitation ? invitationCardStyle : null} />
+
+      {showPersonalInvitation && arrivalVisible && (
+        <div
+          data-testid="invitation-arrival-sequence"
+          className="wewed-invitation-arrival"
+          role="status"
+          aria-label="Opening your Wewed invitation"
+        >
+          <div className="wewed-invitation-arrival-orbit" aria-hidden="true">
+            <div className="wewed-invitation-arrival-mark">W</div>
+          </div>
+          <p className="wewed-invitation-arrival-brand">WEWED</p>
+          <p className="wewed-invitation-arrival-payoff">
+            Everything for a beautifully planned wedding.
+          </p>
+        </div>
+      )}
 
       {showPersonalInvitation && invitationData && invitationCardStyle && (
         <>
@@ -346,7 +395,10 @@ function WeddingHomeContent({
       )}
 
       {mounted && invitationAvailable && invitationCardStyle && (
-        <PremiumInvitationRsvpDialog slug={slug} style={invitationCardStyle} />
+        <>
+          <PremiumInvitationRsvpDialog slug={slug} style={invitationCardStyle} />
+          <WeddingGuestPassDialog slug={slug} />
+        </>
       )}
       {mounted && !invitationAvailable && <InvitationRsvpDialog />}
       {!showMyWedding && <Footer />}
