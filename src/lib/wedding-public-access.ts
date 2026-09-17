@@ -33,6 +33,7 @@ export interface WeddingAccessRecord {
   tagline: string | null
   date: Date
   venue: string
+  venueMapUrl?: string | null
   venueCity: string
   venueCountry: string
   primaryColor: string
@@ -113,6 +114,7 @@ export async function loadWeddingAccessRecord(
       tagline: true,
       date: true,
       venue: true,
+      venueMapUrl: true,
       venueCity: true,
       venueCountry: true,
       primaryColor: true,
@@ -137,6 +139,7 @@ export async function loadWeddingAccessRecord(
     tagline: wedding.tagline,
     date: wedding.date,
     venue: wedding.venue,
+    venueMapUrl: wedding.venueMapUrl,
     venueCity: wedding.venueCity,
     venueCountry: wedding.venueCountry,
     primaryColor: wedding.primaryColor,

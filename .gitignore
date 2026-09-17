@@ -72,7 +72,6 @@ tool-results/
 # Z.AI workspace runtime files (keep the .sh scripts, ignore runtime output)
 .zscripts/dev.pid
 .zscripts/*.log
-
 # Native Mobile Build Artifacts
 apps/android/.gradle/
 apps/android/build/
@@ -82,3 +81,8 @@ apps/ios/.build/
 apps/ios/DerivedData/
 apps/ios/*.xcodeproj/xcuserdata/
 apps/ios/*.xcworkspace/xcuserdata/
+
+# Browser validation artifacts
+/test-results/
+/playwright-report/
+
