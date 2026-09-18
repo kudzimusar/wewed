@@ -42,7 +42,7 @@ public enum NativeRepositoryFactory {
         case .shadow:
             return NativeRepositoryBundle(
                 wedding: ShadowReferenceWeddingRepository(),
-                planner: FixturePlannerDashboardRepository(),
+                planner: ShadowReferencePlannerRepository(),
                 environment: .shadow,
                 baseURL: baseURL
             )
