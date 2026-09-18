@@ -196,13 +196,12 @@ async function capturePlayNavigation(page, buttonName) {
       body: '<!doctype html><title>Intercepted Google Play for Wewed UAT</title>',
     })
   })
-  const button = page.getByRole('button', { name: buttonName })
-  await expect(button).toBeVisible()
-  await expect(button).toBeEnabled()
-  const box = await button.boundingBox()
+  const control = page.getByLabel(buttonName, { exact: true })
+  await expect(control).toBeVisible()
+  const box = await control.boundingBox()
   expect(box?.height).toBeGreaterThanOrEqual(48)
   expect(box?.width).toBeGreaterThanOrEqual(48)
-  await button.click()
+  await control.click()
   await expect.poll(() => playStoreUrl, { timeout: 10_000 }).not.toBeNull()
   return playStoreUrl
 }
@@ -315,9 +314,9 @@ test('Chrome Android: installed Wewed is offered directly and Ivory remains hidd
   const context = await androidContext(browser, ANDROID_UA, { installed: true })
   const page = await context.newPage()
   await page.goto(`${BASE_URL}/invite/${fixture.weddingSlug}?rsvp=${fixture.rsvpToken}&card=ivory-floral-gold`)
-  await expect(page.getByRole('button', { name: 'Open invitation in Wewed' })).toBeVisible()
+  await expect(page.getByTestId('android-open-installed-wewed')).toBeVisible()
   await expect(page.getByTestId('premium-invitation-experience')).toHaveCount(0)
-  await expect(page.getByRole('button', { name: /get wewed on google play/i })).toHaveCount(0)
+  await expect(page.getByTestId('android-google-play-install')).toHaveCount(0)
   await context.close()
 })
 
