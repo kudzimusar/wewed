@@ -1,0 +1,271 @@
+import SwiftUI
+
+public struct WeddingReferencePlannerView: View {
+    @EnvironmentObject private var appState: AppState
+    @State private var dashboard: PlannerDashboardSnapshot?
+    @State private var tasks: [PlannerTask] = []
+    @State private var selectedSection: PlannerReferenceSection = .overview
+    @State private var isLoading = true
+
+    public init() {}
+
+    public var body: some View {
+        NavigationStack {
+            ZStack {
+                WeddingFloralBackground()
+
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        header
+                        sectionPicker
+
+                        if isLoading {
+                            ProgressView("Loading planner…")
+                                .frame(maxWidth: .infinity)
+                                .padding(.top, 80)
+                        } else {
+                            switch selectedSection {
+                            case .overview:
+                                overview
+                            case .tasks:
+                                PlannerTasksView()
+                                    .frame(minHeight: 520)
+                            case .budget:
+                                ShadowPlannerBudgetView()
+                                    .frame(minHeight: 520)
+                            case .vendors:
+                                ShadowPlannerVendorsView()
+                                    .frame(minHeight: 520)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.top, 12)
+                    .padding(.bottom, 24)
+                }
+            }
+            .toolbar(.hidden, for: .navigationBar)
+            .task { await load() }
+        }
+        .accessibilityIdentifier("reference-planner-root")
+    }
+
+    private var header: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Wedding Planner")
+                    .font(.system(size: 28, weight: .semibold, design: .serif))
+                    .foregroundStyle(WeddingIdentityPalette.ink)
+                Text("Plan with clarity. Celebrate with confidence.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(WeddingIdentityPalette.muted)
+            }
+            Spacer()
+            WeddingMonogram(names: dashboard?.coupleNames ?? "C & K", size: 33)
+        }
+    }
+
+    private var sectionPicker: some View {
+        HStack(spacing: 7) {
+            ForEach(PlannerReferenceSection.allCases) { section in
+                Button {
+                    selectedSection = section
+                } label: {
+                    Text(section.title)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(selectedSection == section ? .white : WeddingIdentityPalette.muted)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(selectedSection == section ? WeddingIdentityPalette.forest : WeddingIdentityPalette.ivorySoft)
+                        .clipShape(Capsule())
+                        .overlay(
+                            Capsule()
+                                .stroke(WeddingIdentityPalette.hairline, lineWidth: selectedSection == section ? 0 : 1)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var overview: some View {
+        if let dashboard {
+            WeddingSectionCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Planning Progress")
+                                .font(.system(size: 16, weight: .semibold, design: .serif))
+                                .foregroundStyle(WeddingIdentityPalette.ink)
+                            Text(dashboard.taskCompletionLabel + " tasks complete")
+                                .font(.system(size: 12))
+                                .foregroundStyle(WeddingIdentityPalette.muted)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .foregroundStyle(WeddingIdentityPalette.muted)
+                    }
+                    ProgressView(value: completionRatio)
+                        .tint(WeddingIdentityPalette.forest)
+                }
+            }
+
+            VStack(spacing: 8) {
+                plannerRow(title: "Tasks", subtitle: taskSubtitle, icon: "checklist") {
+                    selectedSection = .tasks
+                }
+                plannerRow(title: "Budget", subtitle: moduleSubtitle("budget"), icon: "wallet.pass") {
+                    selectedSection = .budget
+                }
+                plannerRow(title: "Vendors", subtitle: moduleSubtitle("vendors"), icon: "storefront") {
+                    selectedSection = .vendors
+                }
+
+                NavigationLink {
+                    ShadowPlannerSeatingView()
+                } label: {
+                    referenceRow(title: "Seating", subtitle: moduleSubtitle("seating"), icon: "table.furniture")
+                }
+                .buttonStyle(.plain)
+
+                NavigationLink {
+                    ShadowPlannerTimelineView()
+                } label: {
+                    referenceRow(title: "Timeline", subtitle: moduleSubtitle("timeline"), icon: "calendar")
+                }
+                .buttonStyle(.plain)
+
+                NavigationLink {
+                    ReferenceDocumentsEmptyState()
+                } label: {
+                    referenceRow(title: "Documents", subtitle: "Contracts, notes, files", icon: "doc.text")
+                }
+                .buttonStyle(.plain)
+            }
+        } else {
+            ContentUnavailableView(
+                "Planner unavailable",
+                systemImage: "exclamationmark.triangle",
+                description: Text("The planner repository did not return a dashboard.")
+            )
+        }
+    }
+
+    private func plannerRow(
+        title: String,
+        subtitle: String,
+        icon: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            referenceRow(title: title, subtitle: subtitle, icon: icon)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func referenceRow(title: String, subtitle: String, icon: String) -> some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(WeddingIdentityPalette.champagne.opacity(0.14))
+                    .frame(width: 42, height: 42)
+                Image(systemName: icon)
+                    .foregroundStyle(WeddingIdentityPalette.champagneDeep)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 15, weight: .semibold, design: .serif))
+                    .foregroundStyle(WeddingIdentityPalette.ink)
+                Text(subtitle)
+                    .font(.system(size: 12))
+                    .foregroundStyle(WeddingIdentityPalette.muted)
+            }
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundStyle(WeddingIdentityPalette.muted)
+        }
+        .padding(14)
+        .background(WeddingIdentityPalette.ivorySoft)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(WeddingIdentityPalette.hairline, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    private var completionRatio: Double {
+        guard !tasks.isEmpty else { return 0 }
+        return Double(tasks.filter { $0.status == .done }.count) / Double(tasks.count)
+    }
+
+    private var taskSubtitle: String {
+        "\(tasks.filter { $0.status != .done }.count) remaining"
+    }
+
+    private func moduleSubtitle(_ id: String) -> String {
+        guard let module = dashboard?.modules.first(where: { $0.id == id }) else {
+            return "No data recorded"
+        }
+        if let attention = module.attention, !attention.isEmpty {
+            return "\(module.value) • \(attention)"
+        }
+        return module.value
+    }
+
+    private func load() async {
+        do {
+            async let d = appState.plannerRepository.getDashboard()
+            async let t = appState.repository.getTasks()
+            dashboard = try await d
+            tasks = try await t
+        } catch {
+            dashboard = nil
+        }
+        isLoading = false
+    }
+}
+
+private enum PlannerReferenceSection: String, CaseIterable, Identifiable {
+    case overview
+    case tasks
+    case budget
+    case vendors
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .overview: return "Overview"
+        case .tasks: return "Tasks"
+        case .budget: return "Budget"
+        case .vendors: return "Vendors"
+        }
+    }
+}
+
+private struct ReferenceDocumentsEmptyState: View {
+    var body: some View {
+        ZStack {
+            WeddingFloralBackground()
+            VStack(spacing: 12) {
+                Image(systemName: "doc.text")
+                    .font(.system(size: 36))
+                    .foregroundStyle(WeddingIdentityPalette.champagneDeep)
+                Text("Documents")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                Text("No contracts recorded for this wedding.")
+                    .font(.subheadline)
+                    .foregroundStyle(WeddingIdentityPalette.muted)
+            }
+            .padding(30)
+        }
+        .navigationTitle("Documents")
+    }
+}
