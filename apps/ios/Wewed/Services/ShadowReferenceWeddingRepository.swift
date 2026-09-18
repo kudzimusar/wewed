@@ -18,6 +18,9 @@ public actor ShadowReferenceWeddingRepository: WeddingRepositoryProtocol {
     private var announcements: [WeddingAnnouncement]
 
     private let primaryPassSerial = "SHDWGSTA01"
+    private let attendingToken = "shadow-attending-guest"
+    private let pendingToken = "shadow-pending-guest"
+    private let declinedToken = "shadow-declined-guest"
 
     public init() {
         wedding = Wedding(
@@ -101,7 +104,17 @@ public actor ShadowReferenceWeddingRepository: WeddingRepositoryProtocol {
         return tasks[index]
     }
 
-    public func getWeddingPass(token: String) async throws -> WeddingPass { makePrimaryPass() }
+    public func getWeddingPass(token: String) async throws -> WeddingPass {
+        let guest = try guestForToken(token)
+        guard guest.rsvpStatus == .attending else {
+            throw NSError(
+                domain: "ShadowReferenceWeddingRepository",
+                code: 403,
+                userInfo: [NSLocalizedDescriptionKey: "Wedding Pass is available only to attending guests in Shadow."]
+            )
+        }
+        return makePass(for: guest)
+    }
 
     public func searchGuests(query: String) async throws -> [Guest] {
         let normalized = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
