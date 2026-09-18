@@ -167,7 +167,7 @@ fun RootScreen(
 }
 
 @Composable
-private fun ReferenceNavItem(
+private fun RowScope.ReferenceNavItem(
     selected: Boolean,
     label: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
