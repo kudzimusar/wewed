@@ -5,8 +5,11 @@ public struct WeddingReferencePassView: View {
     @State private var pass: WeddingPass?
     @State private var showingScanner = false
     @State private var isLoading = true
+    private let providedPass: WeddingPass?
 
-    public init() {}
+    public init(pass: WeddingPass? = nil) {
+        self.providedPass = pass
+    }
 
     public var body: some View {
         NavigationStack {
@@ -51,7 +54,7 @@ public struct WeddingReferencePassView: View {
                     showingScanner = false
                 }
             }
-            .task { await loadPass() }
+            .task { await preparePass() }
         }
         .accessibilityIdentifier("pass-root")
     }
@@ -156,6 +159,15 @@ public struct WeddingReferencePassView: View {
         .clipShape(RoundedRectangle(cornerRadius: 22))
         .shadow(color: Color.black.opacity(0.06), radius: 14, x: 0, y: 5)
         .accessibilityIdentifier("wedding-pass-card")
+    }
+
+    private func preparePass() async {
+        if let providedPass {
+            pass = providedPass
+            isLoading = false
+            return
+        }
+        await loadPass()
     }
 
     private func loadPass() async {
