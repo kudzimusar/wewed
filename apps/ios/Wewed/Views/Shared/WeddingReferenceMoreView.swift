@@ -23,29 +23,29 @@ public struct WeddingReferenceMoreView: View {
                         } else if let wedding {
                             weddingCard(wedding)
 
-                            menuLink(title: "Our Story", subtitle: "Photos, videos and milestones", icon: "photo.on.rectangle.angled") {
+                            menuLink(title: "Our Story", subtitle: "Photos, videos and milestones", icon: "photo.on.rectangle.angled", identifier: "more-story") {
                                 ReferenceEmptyFeatureView(
                                     title: "Our Story",
                                     message: "No story or media records are available in this Shadow wedding yet."
                                 )
                             }
 
-                            menuLink(title: "Gallery", subtitle: "Wedding photos and inspiration", icon: "photo.stack") {
+                            menuLink(title: "Gallery", subtitle: "Wedding photos and inspiration", icon: "photo.stack", identifier: "more-gallery") {
                                 ReferenceEmptyFeatureView(
                                     title: "Gallery",
                                     message: "No gallery media is available in this Shadow wedding yet."
                                 )
                             }
 
-                            menuLink(title: "Honeymoon", subtitle: "Contributions and plans", icon: "airplane.departure") {
+                            menuLink(title: "Honeymoon", subtitle: "Contributions and plans", icon: "airplane.departure", identifier: "more-honeymoon") {
                                 ShadowPlannerContributionsView()
                             }
 
-                            menuLink(title: "Settings", subtitle: "App preferences", icon: "gearshape") {
+                            menuLink(title: "Settings", subtitle: "App preferences", icon: "gearshape", identifier: "more-settings") {
                                 SettingsView()
                             }
 
-                            menuLink(title: "Help & Support", subtitle: "Get in touch", icon: "questionmark.circle") {
+                            menuLink(title: "Help & Support", subtitle: "Get in touch", icon: "questionmark.circle", identifier: "more-support") {
                                 ReferenceEmptyFeatureView(
                                     title: "Help & Support",
                                     message: "Support contact configuration is not part of this Shadow wedding dataset."
@@ -63,7 +63,7 @@ public struct WeddingReferenceMoreView: View {
             #endif
             .task { await load() }
         }
-        .accessibilityIdentifier("reference-more-root")
+        .accessibilityIdentifier("more-root")
     }
 
     private var header: some View {
@@ -107,12 +107,14 @@ public struct WeddingReferenceMoreView: View {
                 .stroke(WeddingIdentityPalette.hairline, lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: 16))
+        .accessibilityIdentifier("more-wedding-profile")
     }
 
     private func menuLink<Destination: View>(
         title: String,
         subtitle: String,
         icon: String,
+        identifier: String? = nil,
         @ViewBuilder destination: () -> Destination
     ) -> some View {
         NavigationLink(destination: destination()) {
@@ -150,6 +152,7 @@ public struct WeddingReferenceMoreView: View {
             .clipShape(RoundedRectangle(cornerRadius: 15))
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier ?? "more-\(title.lowercased().replacingOccurrences(of: " ", with: "-"))")
     }
 
     private func load() async {
