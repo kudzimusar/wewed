@@ -18,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
@@ -105,7 +106,8 @@ fun PlannerScreen(appViewModel: AppViewModel) {
                 Icon(Icons.Default.Add, contentDescription = "Add Task")
             }
         },
-        containerColor = WewedColors.Ivory
+        containerColor = WewedColors.Ivory,
+        modifier = Modifier.testTag("planner-root")
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier
@@ -128,7 +130,7 @@ fun PlannerScreen(appViewModel: AppViewModel) {
                         row.forEach { module ->
                             PlanningModuleCard(
                                 module = module,
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier.weight(1f).testTag("planner-module-${module.id}"),
                                 onClick = { activeModule = module.id }
                             )
                         }
