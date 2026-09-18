@@ -17,7 +17,10 @@ let package = Package(
             name: "WewedKit",
             dependencies: [],
             path: "Wewed",
-            exclude: ["AppTarget", "Tests"]
+            exclude: ["AppTarget", "Tests"],
+            resources: [
+                .process("Resources")
+            ]
         ),
         .executableTarget(
             name: "WewedApp",
