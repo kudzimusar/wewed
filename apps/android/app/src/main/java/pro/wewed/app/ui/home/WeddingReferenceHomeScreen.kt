@@ -141,15 +141,6 @@ fun WeddingReferenceHomeScreen(appViewModel: AppViewModel) {
                     Spacer(modifier = Modifier.height(12.dp))
                 }
             }
-
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                "“Two hearts, one beautiful tomorrow.”",
-                fontFamily = FontFamily.Serif,
-                fontStyle = FontStyle.Italic,
-                fontSize = 15.sp,
-                color = Color.White.copy(alpha = 0.92f)
-            )
         }
     }
 }
@@ -260,6 +251,15 @@ private fun ReferenceHero(
                     ReferenceCountdownTile(c.seconds, "Secs", Modifier.weight(1f))
                 }
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                "“Two hearts, one beautiful tomorrow.”",
+                fontFamily = FontFamily.Serif,
+                fontStyle = FontStyle.Italic,
+                fontSize = 15.sp,
+                color = Color.White.copy(alpha = 0.92f)
+            )
         }
     }
 }
