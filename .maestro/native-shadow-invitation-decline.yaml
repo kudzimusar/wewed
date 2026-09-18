@@ -9,41 +9,26 @@ appId: pro.wewed.app
 - assertVisible: "WEWED"
 - tapOn: "Sign In"
 
-# 2. Open Invitation
+# 2. Open the invitation from Home
+- assertVisible:
+    id: "home-root"
 - tapOn:
     id: "home-open-invitation"
-    optional: true
-- tapOn:
-    text: "Open Ivory Invitation"
-    optional: true
-- tapOn:
-    text: "More"
-    optional: true
-- tapOn:
-    text: "Open Ivory Invitation"
-    optional: true
-- tapOn:
-    text: "Ivory Invitation"
-    optional: true
 
-# 3. Open Envelope
-- assertVisible: "A PERSONAL INVITATION FOR"
-- tapOn:
-    id: "ivory-invitation-open"
-    optional: true
-- tapOn:
-    text: "Open Invitation"
-    optional: true
+# 3. Splash -> Ivory Floral Gold invitation
+- assertVisible:
+    id: "guest-journey-splash"
+- extendedWaitUntil:
+    visible:
+      id: "ivory-invitation-root"
+    timeout: 5000
 
 # 4. Decline RSVP
-- scroll
 - tapOn:
     id: "ivory-rsvp-decline"
-    optional: true
-- tapOn:
-    text: "Decline with Regret"
-    optional: true
 
-# 5. Confirm response recorded without pass
+# 5. Confirm declined journey and no pass issuance
+- assertVisible:
+    id: "guest-journey-declined"
 - assertVisible: "Thank you for responding"
 - assertVisible: "Return to Wedding"
