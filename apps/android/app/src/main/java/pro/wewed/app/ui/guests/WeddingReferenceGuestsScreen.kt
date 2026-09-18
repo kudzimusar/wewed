@@ -3,7 +3,9 @@ package pro.wewed.app.ui.guests
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -66,15 +68,24 @@ fun WeddingReferenceGuestsScreen(appViewModel: AppViewModel) {
             .background(WeddingIdentityPalette.Ivory)
             .testTag("guests-root")
     ) {
+        WeddingOrnamentBackdrop(
+            modifier = Modifier.matchParentSize(),
+            alpha = 0.05f
+        )
+
         Column(
             modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Top
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                WeddingHeaderOrnament(
+                    modifier = Modifier.align(Alignment.TopEnd).offset(x = 8.dp, y = (-12).dp)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
                     Text(
                         "Guests",
                         color = WeddingIdentityPalette.Ink,
@@ -88,7 +99,8 @@ fun WeddingReferenceGuestsScreen(appViewModel: AppViewModel) {
                         fontSize = 12.sp
                     )
                 }
-                WeddingMonogram("C & K", sizeSp = 32)
+                    WeddingMonogram("C & K", sizeSp = 32, modifier = Modifier.padding(end = 8.dp))
+                }
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -130,7 +142,12 @@ fun WeddingReferenceGuestsScreen(appViewModel: AppViewModel) {
                 }
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(7.dp)
+            ) {
                 ReferenceGuestFilter.entries.forEach { filter ->
                     val count = when (filter) {
                         ReferenceGuestFilter.ALL -> guests.size
