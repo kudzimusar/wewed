@@ -1,6 +1,8 @@
 package pro.wewed.app.state
 
 import pro.wewed.app.models.NativeDataEnvironment
+import pro.wewed.app.services.PrivateRealShadowWeddingRepository
+import java.io.File
 
 data class NativeLaunchConfiguration(
     val environment: NativeDataEnvironment,
@@ -14,7 +16,15 @@ data class NativeLaunchConfiguration(
                 "shadow" -> NativeDataEnvironment.SHADOW
                 "production_read_verify", "production-read-verify" -> NativeDataEnvironment.PRODUCTION_READ_VERIFY
                 "production" -> NativeDataEnvironment.PRODUCTION
-                else -> NativeDataEnvironment.FIXTURE
+                "fixture" -> NativeDataEnvironment.FIXTURE
+                else -> {
+                    val privatePath = PrivateRealShadowWeddingRepository.defaultSnapshotPath()
+                    if (File(privatePath).exists()) {
+                        NativeDataEnvironment.PRIVATE_REAL_SHADOW
+                    } else {
+                        NativeDataEnvironment.SANITIZED_SHADOW
+                    }
+                }
             }
             return NativeLaunchConfiguration(environment = environment, baseUrl = shadowBaseUrl)
         }
