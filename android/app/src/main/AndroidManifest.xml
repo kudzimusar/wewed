@@ -154,6 +154,19 @@
                 />
             </intent-filter>
 
+            <!-- Package-targeted invitation bridge. Chrome carries only the opaque,
+                 one-time handoff; LauncherActivity maps it to the environment-safe
+                 HTTPS resume endpoint before launching the TWA. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data
+                    android:scheme="wewed"
+                    android:host="invite"
+                    android:path="/resume" />
+            </intent-filter>
+
 
 
 
