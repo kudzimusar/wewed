@@ -44,7 +44,7 @@ public struct IvoryInvitationView: View {
                     .padding(.bottom, 30)
                 }
             }
-            .toolbar(.hidden, for: .navigationBar)
+            #if os(iOS)\n            .toolbar(.hidden, for: .navigationBar)\n            #endif
             .overlay(alignment: .topLeading) {
                 if allowsClose {
                     Button {
