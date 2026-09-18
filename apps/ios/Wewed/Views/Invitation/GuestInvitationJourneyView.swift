@@ -29,6 +29,10 @@ public struct GuestInvitationJourneyView: View {
                     withAnimation(.easeInOut(duration: 0.35)) {
                         stage = .confirmedAttending
                     }
+                } onRsvpDeclined: {
+                    withAnimation(.easeInOut(duration: 0.35)) {
+                        stage = .declined
+                    }
                 }
             case .confirmedAttending:
                 PassView()
