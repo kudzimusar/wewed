@@ -2,34 +2,49 @@ appId: pro.wewed.app
 ---
 - launchApp:
     clearState: true
+    arguments:
+      wewed_native_env: "shadow"
 
-# 1. Authentication Check
+# 1. Authentication
 - assertVisible: "WEWED"
 - tapOn: "Sign In"
 
-# 2. Overview / Home Screen
-- assertVisible: "Charity & Kudzie"
-- assertVisible: "NEXT UP"
-- scroll
-- assertVisible: "YOUR WEDDING PASS"
+# 2. Home
+- assertVisible:
+    id: "home-root"
+- assertVisible: "Continue Planning"
 
-# 3. Planner & Task Management
+# 3. Planner
 - tapOn: "Plan"
-- assertVisible: "Wedding Planner"
-- scroll
-- assertVisible: "Book Imba Manor"
+- assertVisible:
+    id: "planner-root"
+- assertVisible:
+    id: "planner-module-tasks"
+- assertVisible:
+    id: "planner-module-seating"
+- assertVisible:
+    id: "planner-module-timeline"
 
-# 4. Guests & Seating Search
+# 4. Guests
 - tapOn: "Guests"
-- assertVisible: "Guest List"
-- assertVisible: "Table 5 — Friends"
+- assertVisible:
+    id: "guests-root"
+- assertVisible:
+    id: "guests-search"
 
 # 5. Wedding Pass & Gate Scanner
 - tapOn: "Pass"
-- assertVisible: "WEWED WEDDING PASS"
-- scroll
-- tapOn: "Usher Check-In Mode"
+- assertVisible:
+    id: "pass-root"
+- assertVisible:
+    id: "wedding-pass-card"
+- tapOn:
+    id: "pass-open-scanner"
 - assertVisible: "Gate Scanner"
+- tapOn:
+    id: "gate-scanner-done"
+    optional: true
+    retryTapIfNoChange: true
 - tapOn:
     id: "gate-scanner-exit"
     optional: true
@@ -40,8 +55,10 @@ appId: pro.wewed.app
 - waitForAnimationToEnd
 - assertNotVisible: "Gate Scanner"
 
-# 6. Live Wall & Celebratory Interactivity
-- tapOn: "Live"
-- assertVisible: "Live Wall"
-- tapOn: "Applaud"
-- assertVisible: "Send Well Wishes"
+# 6. More
+- tapOn: "More"
+- assertVisible:
+    id: "more-root"
+- assertVisible: "Our Story"
+- assertVisible: "Gallery"
+- assertVisible: "Honeymoon"
