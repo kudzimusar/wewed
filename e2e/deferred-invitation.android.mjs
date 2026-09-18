@@ -155,7 +155,11 @@ async function prepareGate(browserPage, fixture, token, handoffPostCount) {
 }
 
 async function clickPreparedGate(prepared, handoffPostCount) {
-  await prepared.link.click()
+  // An intent:// click deliberately leaves the source Chrome page and hands
+  // navigation to Android/Wewed. Do not wait for the source page's scheduled
+  // navigation to settle; that wait can time out even after Android has
+  // successfully delivered the intent and /invite/resume has already run.
+  await prepared.link.click({ noWaitAfter: true })
   await sleep(750)
   assert.equal(
     handoffPostCount(),
@@ -385,6 +389,20 @@ async function run() {
       'one prepared handoff must be created per explicit guest switch',
     )
   } finally {
+    if (device) {
+      try {
+        const logs = String(
+          await device.shell('logcat -d -s WewedInvitation:I WewedInvitation:W *:S'),
+        )
+        if (logs.trim()) {
+          console.log('checkpoint_log_begin')
+          console.log(logs.trim())
+          console.log('checkpoint_log_end')
+        }
+      } catch {
+        // The emulator runner may already be tearing the device down.
+      }
+    }
     await browserContext?.close().catch(() => undefined)
     await device?.close().catch(() => undefined)
     await cleanupFixture(fixture)
