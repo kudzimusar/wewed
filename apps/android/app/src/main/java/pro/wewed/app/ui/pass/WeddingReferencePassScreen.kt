@@ -115,7 +115,7 @@ fun WeddingReferencePassScreen(
                         )
                         IconButton(
                             onClick = onOpenScanner,
-                            modifier = Modifier.align(Alignment.CenterEnd).testTag("pass-header-scanner")
+                            modifier = Modifier.align(Alignment.CenterEnd).testTag("pass-open-scanner")
                         ) {
                             Icon(
                                 Icons.Default.QrCodeScanner,
@@ -243,19 +243,6 @@ fun WeddingReferencePassScreen(
                                 )
                             }
                         }
-                    }
-
-                    Button(
-                        onClick = onOpenScanner,
-                        modifier = Modifier.fillMaxWidth().height(50.dp).testTag("pass-open-scanner"),
-                        shape = RoundedCornerShape(13.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = WeddingIdentityPalette.Forest
-                        )
-                    ) {
-                        Icon(Icons.Default.CameraAlt, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Usher Check-In Mode", fontWeight = FontWeight.SemiBold)
                     }
 
                     Spacer(modifier = Modifier.height(18.dp))
