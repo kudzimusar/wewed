@@ -104,23 +104,18 @@ public struct WeddingReferencePassView: View {
                 ZStack {
                     RoundedRectangle(cornerRadius: 14)
                         .fill(.white)
-                        .frame(width: 170, height: 170)
-                    Image(systemName: "qrcode")
-                        .resizable()
-                        .interpolation(.none)
-                        .scaledToFit()
-                        .frame(width: 126, height: 126)
-                        .foregroundStyle(WeddingIdentityPalette.ink)
+                        .frame(width: 174, height: 174)
+                    WeddingQRCodeView(payload: pass.qrPayload, size: 146)
                 }
 
                 Text("Scan at venue")
                     .font(.system(size: 11))
                     .foregroundStyle(WeddingIdentityPalette.muted)
 
-                Text(pass.token)
-                    .font(.system(size: 9, design: .monospaced))
+                Text("WEWED VERIFIED PASS")
+                    .font(.system(size: 9, weight: .semibold))
+                    .tracking(1.3)
                     .foregroundStyle(WeddingIdentityPalette.muted)
-                    .lineLimit(1)
 
                 if let table = pass.tableName {
                     Label(table, systemImage: "table.furniture")
