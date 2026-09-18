@@ -12,7 +12,7 @@ public struct WeddingReferenceGuestsView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                WeddingFloralBackground()
+                WeddingFloralBackground(opacity: 0.055)
 
                 VStack(spacing: 12) {
                     header
@@ -57,8 +57,12 @@ public struct WeddingReferenceGuestsView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 3) {
+        ZStack(alignment: .topTrailing) {
+            WeddingHeaderOrnament()
+                .offset(x: 8, y: -12)
+
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 3) {
                 Text("Guests")
                     .font(.system(size: 28, weight: .semibold, design: .serif))
                     .foregroundStyle(WeddingIdentityPalette.ink)
@@ -66,8 +70,10 @@ public struct WeddingReferenceGuestsView: View {
                     .font(.system(size: 12))
                     .foregroundStyle(WeddingIdentityPalette.muted)
             }
-            Spacer()
-            WeddingMonogram(names: "C & K", size: 32)
+                Spacer()
+                WeddingMonogram(names: "C & K", size: 32)
+                    .padding(.trailing, 8)
+            }
         }
     }
 
