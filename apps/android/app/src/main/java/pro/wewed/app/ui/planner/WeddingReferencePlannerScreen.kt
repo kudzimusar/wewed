@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -73,6 +74,7 @@ fun WeddingReferencePlannerScreen(appViewModel: AppViewModel) {
         modifier = Modifier
             .fillMaxSize()
             .background(WeddingIdentityPalette.Ivory)
+            .testTag("planner-root")
     ) {
         if (loading) {
             CircularProgressIndicator(
@@ -85,7 +87,7 @@ fun WeddingReferencePlannerScreen(appViewModel: AppViewModel) {
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().testTag("planner-identity-card"),
                     verticalAlignment = Alignment.Top
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
@@ -199,42 +201,48 @@ fun WeddingReferencePlannerScreen(appViewModel: AppViewModel) {
                                 ReferencePlannerRow(
                                     title = "Tasks",
                                     subtitle = "${tasks.count { it.status != TaskStatus.DONE }} remaining",
-                                    icon = Icons.Default.Checklist
+                                    icon = Icons.Default.Checklist,
+                                    identifier = "planner-module-tasks"
                                 ) { selectedSection = ReferencePlannerSection.TASKS }
                             }
                             item {
                                 ReferencePlannerRow(
                                     title = "Budget",
                                     subtitle = moduleSubtitle(snap, "budget"),
-                                    icon = Icons.Default.AccountBalanceWallet
+                                    icon = Icons.Default.AccountBalanceWallet,
+                                    identifier = "planner-module-budget"
                                 ) { selectedSection = ReferencePlannerSection.BUDGET }
                             }
                             item {
                                 ReferencePlannerRow(
                                     title = "Vendors",
                                     subtitle = moduleSubtitle(snap, "vendors"),
-                                    icon = Icons.Default.Storefront
+                                    icon = Icons.Default.Storefront,
+                                    identifier = "planner-module-vendors"
                                 ) { selectedSection = ReferencePlannerSection.VENDORS }
                             }
                             item {
                                 ReferencePlannerRow(
                                     title = "Seating",
                                     subtitle = moduleSubtitle(snap, "seating"),
-                                    icon = Icons.Default.TableRestaurant
+                                    icon = Icons.Default.TableRestaurant,
+                                    identifier = "planner-module-seating"
                                 ) { destination = ReferencePlannerDestination.SEATING }
                             }
                             item {
                                 ReferencePlannerRow(
                                     title = "Timeline",
                                     subtitle = moduleSubtitle(snap, "timeline"),
-                                    icon = Icons.Default.CalendarMonth
+                                    icon = Icons.Default.CalendarMonth,
+                                    identifier = "planner-module-timeline"
                                 ) { destination = ReferencePlannerDestination.TIMELINE }
                             }
                             item {
                                 ReferencePlannerRow(
                                     title = "Documents",
                                     subtitle = "Contracts, notes, files",
-                                    icon = Icons.Default.Description
+                                    icon = Icons.Default.Description,
+                                    identifier = "planner-module-documents"
                                 ) { destination = ReferencePlannerDestination.DOCUMENTS }
                             }
                         }
@@ -250,6 +258,7 @@ private fun ReferencePlannerRow(
     title: String,
     subtitle: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
+    identifier: String,
     onClick: () -> Unit
 ) {
     Row(
@@ -259,6 +268,7 @@ private fun ReferencePlannerRow(
             .background(WeddingIdentityPalette.IvorySoft)
             .border(1.dp, WeddingIdentityPalette.Hairline, RoundedCornerShape(16.dp))
             .clickable { onClick() }
+            .testTag(identifier)
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
