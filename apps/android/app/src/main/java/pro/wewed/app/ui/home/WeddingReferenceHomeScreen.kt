@@ -141,6 +141,15 @@ fun WeddingReferenceHomeScreen(appViewModel: AppViewModel) {
                     Spacer(modifier = Modifier.height(12.dp))
                 }
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                "“Two hearts, one beautiful tomorrow.”",
+                fontFamily = FontFamily.Serif,
+                fontStyle = FontStyle.Italic,
+                fontSize = 15.sp,
+                color = Color.White.copy(alpha = 0.92f)
+            )
         }
     }
 }
@@ -237,20 +246,6 @@ private fun ReferenceHero(
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = 2.sp,
                 color = Color.White
-            )
-            Text(
-                "${wedding.city.uppercase()}, ${wedding.country.uppercase()}",
-                fontSize = 10.sp,
-                letterSpacing = 1.7.sp,
-                color = Color.White.copy(alpha = 0.86f)
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                "“Two hearts, one beautiful tomorrow.”",
-                fontFamily = FontFamily.Serif,
-                fontStyle = FontStyle.Italic,
-                fontSize = 15.sp,
-                color = Color.White.copy(alpha = 0.92f)
             )
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -378,6 +373,5 @@ private fun displayWeddingDate(raw: String): String {
 }
 
 private fun formatMoney(amount: Double): String =
-    if (amount >= 1000) "$" + String.format(Locale.US, "%.1fk", amount / 1000.0)
-    else "$" + String.format(Locale.US, "%.0f", amount)
+    String.format(Locale.US, "$%,.0f", amount)
 
