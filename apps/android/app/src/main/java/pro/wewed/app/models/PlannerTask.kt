@@ -3,6 +3,7 @@ package pro.wewed.app.models
 enum class TaskStatus(val value: String, val title: String) {
     TODO("todo", "To Do"),
     IN_PROGRESS("in_progress", "In Progress"),
+    BLOCKED("blocked", "Blocked"),
     DONE("done", "Done");
 
     companion object {
