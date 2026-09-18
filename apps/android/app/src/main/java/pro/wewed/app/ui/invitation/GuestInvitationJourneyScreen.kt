@@ -31,7 +31,8 @@ import pro.wewed.app.ui.pass.PassScreen
 @Composable
 fun GuestInvitationJourneyScreen(
     reference: GuestJourneyReference,
-    appViewModel: AppViewModel
+    appViewModel: AppViewModel,
+    onExit: () -> Unit = {}
 ) {
     var stage by remember(reference) { mutableStateOf(reference.initialStage) }
 
@@ -60,11 +61,19 @@ fun GuestInvitationJourneyScreen(
                 stage = GuestJourneyStage.DECLINED
             }
         )
-        GuestJourneyStage.CONFIRMED_ATTENDING -> PassScreen(
-            appViewModel = appViewModel,
-            onOpenScanner = {}
-        )
-        GuestJourneyStage.DECLINED -> DeclinedGuestStage()
+        GuestJourneyStage.CONFIRMED_ATTENDING -> Box(modifier = Modifier.fillMaxSize()) {
+            PassScreen(
+                appViewModel = appViewModel,
+                onOpenScanner = {}
+            )
+            TextButton(
+                onClick = onExit,
+                modifier = Modifier.align(Alignment.TopEnd).padding(12.dp)
+            ) {
+                Text("Done", fontWeight = FontWeight.SemiBold, color = WewedColors.Emerald)
+            }
+        }
+        GuestJourneyStage.DECLINED -> DeclinedGuestStage(onExit)
     }
 }
 
@@ -109,7 +118,7 @@ private fun WewedInvitationSplash() {
 }
 
 @Composable
-private fun DeclinedGuestStage() {
+private fun DeclinedGuestStage(onExit: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -129,6 +138,9 @@ private fun DeclinedGuestStage() {
                 color = Color.Gray,
                 textAlign = TextAlign.Center
             )
+            TextButton(onClick = onExit) {
+                Text("Return to Wedding", color = WewedColors.Emerald, fontWeight = FontWeight.SemiBold)
+            }
         }
     }
 }
