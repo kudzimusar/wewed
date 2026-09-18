@@ -8,7 +8,7 @@
 
 The current authoritative next-sprint manual is:
 
-**NATIVE_SHADOW_REAL_WEDDING_PARITY_PLAN.md**  
+**WEWED_NATIVE_SHADOW_INTEGRATION_REAL_WEDDING_PARITY_PLAN_2026-09-18.md**  
 Plan ID: **WW-NATIVE-SHADOW-REAL-WEDDING-PARITY-2026-09-18-01**
 
 It governs the transition from the qualified fixture-backed whole-product shell to a realistic Mobile Shadow environment using the **Charity & Kudzie** wedding and the **Eleven Eleven Testing** planner context as the real-world reference scenario.
