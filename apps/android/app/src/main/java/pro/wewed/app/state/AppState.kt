@@ -7,6 +7,7 @@ import pro.wewed.app.models.NativeDataEnvironment
 import pro.wewed.app.services.FixturePlannerDashboardRepository
 import pro.wewed.app.services.FixtureWeddingRepository
 import pro.wewed.app.services.PlannerDashboardRepository
+import pro.wewed.app.services.NativeEnvironmentGuard
 import pro.wewed.app.services.WeddingDayGateAwareRepository
 import pro.wewed.app.services.WeddingDayGateOperations
 import pro.wewed.app.services.WeddingRepository
@@ -23,8 +24,13 @@ class AppViewModel(
     baseRepository: WeddingRepository = FixtureWeddingRepository(),
     val plannerRepository: PlannerDashboardRepository = FixturePlannerDashboardRepository(),
     val dataEnvironment: NativeDataEnvironment = NativeDataEnvironment.FIXTURE,
+    val dataBaseUrl: String? = null,
     val weddingDayGate: WeddingDayGateOperations? = null
 ) {
+    init {
+        NativeEnvironmentGuard.validate(dataBaseUrl, dataEnvironment)
+    }
+
     val repository: WeddingRepository = if (weddingDayGate != null) {
         WeddingDayGateAwareRepository(baseRepository, weddingDayGate)
     } else {
