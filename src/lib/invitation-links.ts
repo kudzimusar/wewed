@@ -93,9 +93,11 @@ export function buildAndroidInvitationIntentUrl({
     throw new Error('Invalid invitation app resume handoff')
   }
 
-  const target = `${currentOrigin.host}${resume.pathname}${resume.search}`
-  const scheme = currentOrigin.protocol.replace(/:$/, '')
-  return `intent://${target}#Intent;scheme=${scheme};package=${ANDROID_PACKAGE};S.browser_fallback_url=${encodeURIComponent(fallbackUrl)};end`
+  // Use a package-targeted native bridge rather than asking Chrome to reinterpret
+  // the HTTPS resume URL as an already-running TWA navigation. The bridge carries only
+  // the opaque one-time handoff; LauncherActivity validates it and maps it back to the
+  // correct UAT/production HTTPS /invite/resume endpoint using BuildConfig.
+  return `intent://invite/resume#Intent;scheme=wewed;package=${ANDROID_PACKAGE};S.wewed_handoff=${encodeURIComponent(handoff)};S.browser_fallback_url=${encodeURIComponent(fallbackUrl)};end`
 }
 
 export function buildPhysicalInvitationResumePath(handoff: string): string {
