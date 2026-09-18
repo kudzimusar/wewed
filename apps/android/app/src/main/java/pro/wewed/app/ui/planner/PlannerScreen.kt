@@ -146,7 +146,7 @@ fun PlannerScreen(appViewModel: AppViewModel) {
                 ) {
                     Text("Priority Tasks", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     Text(
-                        "\${tasks.count { it.status != TaskStatus.DONE }} open",
+                        "${tasks.count { it.status != TaskStatus.DONE }} open",
                         fontSize = 12.sp,
                         color = Color.Gray
                     )
@@ -199,7 +199,7 @@ fun PlannerScreen(appViewModel: AppViewModel) {
                                 color = if (task.status == TaskStatus.DONE) Color.Gray else Color.Unspecified
                             )
                             Text(
-                                "\${task.category} • \${task.priority.title}",
+                                "${task.category} • ${task.priority.title}",
                                 fontSize = 11.sp,
                                 color = Color.Gray
                             )
@@ -226,7 +226,7 @@ fun PlannerScreen(appViewModel: AppViewModel) {
                         shape = RoundedCornerShape(WewedRadius.md)
                     ) {
                         Text(
-                            "Isolated native data • \${snapshot.sourceLabel}",
+                            "Isolated native data • ${snapshot.sourceLabel}",
                             modifier = Modifier.padding(WewedSpacing.base),
                             fontSize = 11.sp,
                             color = WewedColors.Emerald
@@ -273,7 +273,7 @@ private fun ReadinessCard(snapshot: PlannerDashboardSnapshot) {
                     Text("PLANNING HEALTH", fontSize = 10.sp, color = WewedColors.Gold, fontWeight = FontWeight.Bold)
                     Text("Ready for the next planning milestone", fontSize = 12.sp, color = Color.Gray)
                 }
-                Text("\${snapshot.readinessScore}%", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = WewedColors.Emerald)
+                Text("${snapshot.readinessScore}%", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = WewedColors.Emerald)
             }
             Spacer(modifier = Modifier.height(WewedSpacing.sm))
             LinearProgressIndicator(
