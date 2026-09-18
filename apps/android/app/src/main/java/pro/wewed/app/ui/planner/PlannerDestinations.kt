@@ -89,6 +89,7 @@ fun TasksDestination(appViewModel: AppViewModel, onBack: () -> Unit) {
     val filteredTasks = when (selectedFilter) {
         "To Do" -> tasks.filter { it.status == TaskStatus.TODO }
         "In Progress" -> tasks.filter { it.status == TaskStatus.IN_PROGRESS }
+        "Blocked" -> tasks.filter { it.status == TaskStatus.BLOCKED }
         "Done" -> tasks.filter { it.status == TaskStatus.DONE }
         else -> tasks
     }
@@ -106,7 +107,7 @@ fun TasksDestination(appViewModel: AppViewModel, onBack: () -> Unit) {
                     modifier = Modifier.fillMaxWidth().padding(top = WewedSpacing.sm),
                     horizontalArrangement = Arrangement.spacedBy(WewedSpacing.sm)
                 ) {
-                    listOf("All", "To Do", "In Progress", "Done").forEach { f ->
+                    listOf("All", "To Do", "In Progress", "Blocked", "Done").forEach { f ->
                         FilterChip(
                             selected = selectedFilter == f,
                             onClick = { selectedFilter = f },
