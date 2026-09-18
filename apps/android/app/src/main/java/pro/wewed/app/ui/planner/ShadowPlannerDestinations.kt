@@ -10,6 +10,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -31,7 +32,7 @@ fun ShadowBudgetDestination(appViewModel: AppViewModel, onBack: () -> Unit) {
 
     PlannerSubScreenScaffold(title = "Budget", onBack = onBack) { padding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = WewedSpacing.base),
+            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = WewedSpacing.base).testTag("planner-budget-root"),
             verticalArrangement = Arrangement.spacedBy(WewedSpacing.md)
         ) {
             item {
@@ -103,7 +104,7 @@ fun ShadowContributionsDestination(appViewModel: AppViewModel, onBack: () -> Uni
 
     PlannerSubScreenScaffold(title = "Contributions", onBack = onBack) { padding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = WewedSpacing.base),
+            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = WewedSpacing.base).testTag("planner-contributions-root"),
             verticalArrangement = Arrangement.spacedBy(WewedSpacing.md)
         ) {
             item {
@@ -165,7 +166,7 @@ fun ShadowVendorsDestination(appViewModel: AppViewModel, onBack: () -> Unit) {
 
     PlannerSubScreenScaffold(title = "Vendors", onBack = onBack) { padding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = WewedSpacing.base),
+            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = WewedSpacing.base).testTag("planner-vendors-root"),
             verticalArrangement = Arrangement.spacedBy(WewedSpacing.md)
         ) {
             items(vendors) { vendor ->
@@ -199,7 +200,7 @@ fun ShadowSeatingDestination(appViewModel: AppViewModel, onBack: () -> Unit) {
 
     PlannerSubScreenScaffold(title = "Seating", onBack = onBack) { padding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = WewedSpacing.base),
+            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = WewedSpacing.base).testTag("planner-seating-root"),
             verticalArrangement = Arrangement.spacedBy(WewedSpacing.md)
         ) {
             item {
@@ -253,7 +254,7 @@ fun ShadowTimelineDestination(appViewModel: AppViewModel, onBack: () -> Unit) {
 
     PlannerSubScreenScaffold(title = "Timeline", onBack = onBack) { padding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = WewedSpacing.base),
+            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = WewedSpacing.base).testTag("planner-timeline-root"),
             verticalArrangement = Arrangement.spacedBy(WewedSpacing.md)
         ) {
             items(entries) { entry ->
