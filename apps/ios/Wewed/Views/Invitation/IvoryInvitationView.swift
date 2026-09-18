@@ -9,6 +9,7 @@ public struct IvoryInvitationView: View {
     public let invitation: InvitationContext
     public let allowsClose: Bool
     public let onRsvpConfirmed: (WeddingPass) -> Void
+    public let onRsvpDeclined: () -> Void
 
     @State private var isRevealed: Bool = false
     @State private var rsvpSubmitted: Bool = false
@@ -19,11 +20,13 @@ public struct IvoryInvitationView: View {
     public init(
         invitation: InvitationContext,
         allowsClose: Bool = true,
-        onRsvpConfirmed: @escaping (WeddingPass) -> Void
+        onRsvpConfirmed: @escaping (WeddingPass) -> Void,
+        onRsvpDeclined: @escaping () -> Void = {}
     ) {
         self.invitation = invitation
         self.allowsClose = allowsClose
         self.onRsvpConfirmed = onRsvpConfirmed
+        self.onRsvpDeclined = onRsvpDeclined
     }
 
     public var body: some View {
@@ -341,6 +344,7 @@ public struct IvoryInvitationView: View {
                     generatedPass = nil
                     rsvpSubmitted = false
                     declined = true
+                    onRsvpDeclined()
                 }
                 isSubmitting = false
             } catch {
