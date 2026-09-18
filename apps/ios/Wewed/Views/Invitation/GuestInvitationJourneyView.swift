@@ -11,6 +11,7 @@ public struct GuestInvitationJourneyView: View {
 
     @State private var stage: GuestJourneyStage
     @State private var splashVisible = false
+    @State private var confirmedPass: WeddingPass?
 
     public init(reference: GuestJourneyReference) {
         self.reference = reference
@@ -26,7 +27,8 @@ public struct GuestInvitationJourneyView: View {
                 IvoryInvitationView(
                     invitation: reference.invitation,
                     allowsClose: false
-                ) { _ in
+                ) { pass in
+                    confirmedPass = pass
                     withAnimation(.easeInOut(duration: 0.35)) {
                         stage = .confirmedAttending
                     }
@@ -37,7 +39,7 @@ public struct GuestInvitationJourneyView: View {
                 }
             case .confirmedAttending:
                 ZStack(alignment: .topTrailing) {
-                    PassView()
+                    WeddingReferencePassView(pass: confirmedPass)
                     Button("Done") { dismiss() }
                         .font(.subheadline)
                         .fontWeight(.semibold)
