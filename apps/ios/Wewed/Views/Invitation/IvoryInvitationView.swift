@@ -7,6 +7,7 @@ public struct IvoryInvitationView: View {
     @EnvironmentObject private var appState: AppState
 
     public let invitation: InvitationContext
+    public let allowsClose: Bool
     public let onRsvpConfirmed: (WeddingPass) -> Void
 
     @State private var isRevealed: Bool = false
@@ -17,9 +18,11 @@ public struct IvoryInvitationView: View {
 
     public init(
         invitation: InvitationContext,
+        allowsClose: Bool = true,
         onRsvpConfirmed: @escaping (WeddingPass) -> Void
     ) {
         self.invitation = invitation
+        self.allowsClose = allowsClose
         self.onRsvpConfirmed = onRsvpConfirmed
     }
 
@@ -50,9 +53,11 @@ public struct IvoryInvitationView: View {
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
-                        .foregroundColor(WewedColors.gold)
+                if allowsClose {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Close") { dismiss() }
+                            .foregroundColor(WewedColors.gold)
+                    }
                 }
             }
         }
