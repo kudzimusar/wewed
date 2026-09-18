@@ -16,6 +16,7 @@ public struct PlannerTasksView: View {
                     Text("All").tag("All")
                     Text("To Do").tag("To Do")
                     Text("In Progress").tag("In Progress")
+                    Text("Blocked").tag("Blocked")
                     Text("Done").tag("Done")
                 }
                 .pickerStyle(.segmented)
@@ -58,6 +59,7 @@ public struct PlannerTasksView: View {
         switch selectedFilter {
         case "To Do": return tasks.filter { $0.status == .todo }
         case "In Progress": return tasks.filter { $0.status == .inProgress }
+        case "Blocked": return tasks.filter { $0.status == .blocked }
         case "Done": return tasks.filter { $0.status == .done }
         default: return tasks
         }
