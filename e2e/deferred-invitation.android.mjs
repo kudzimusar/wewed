@@ -155,11 +155,17 @@ async function prepareGate(browserPage, fixture, token, handoffPostCount) {
 }
 
 async function clickPreparedGate(prepared, handoffPostCount) {
-  // An intent:// click deliberately leaves the source Chrome page and hands
-  // navigation to Android/Wewed. Do not wait for the source page's scheduled
-  // navigation to settle; that wait can time out even after Android has
-  // successfully delivered the intent and /invite/resume has already run.
-  await prepared.link.click({ noWaitAfter: true })
+  // Preserve a genuine Chrome user gesture. Playwright may keep waiting for
+  // the source page's scheduled navigation after Android has already handed
+  // the intent to Wewed, so a short navigation timeout is expected here. The
+  // authoritative success criteria are the native + server checkpoints below.
+  try {
+    await prepared.link.click({ timeout: 5_000 })
+  } catch (error) {
+    if (!(error instanceof Error) || error.name !== 'TimeoutError') throw error
+    console.log('checkpoint=source_chrome_navigation_wait_released')
+  }
+
   await sleep(750)
   assert.equal(
     handoffPostCount(),
