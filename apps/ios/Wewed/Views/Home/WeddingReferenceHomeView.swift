@@ -108,17 +108,6 @@ public struct WeddingReferenceHomeView: View {
                     .tracking(2.2)
                     .foregroundStyle(.white)
 
-                Text("\(wedding.city.uppercased()), \(wedding.country.uppercased())")
-                    .font(.system(size: 10, weight: .medium))
-                    .tracking(1.8)
-                    .foregroundStyle(.white.opacity(0.86))
-
-                Text("“Two hearts, one beautiful tomorrow.”")
-                    .font(.system(size: 16, design: .serif))
-                    .italic()
-                    .foregroundStyle(.white.opacity(0.92))
-                    .padding(.top, 3)
-
                 if let countdown = countdown(from: wedding.date) {
                     HStack(spacing: 7) {
                         countdownTile(countdown.days, "Days")
@@ -128,6 +117,12 @@ public struct WeddingReferenceHomeView: View {
                     }
                     .padding(.top, 5)
                 }
+
+                Text("“Two hearts, one beautiful tomorrow.”")
+                    .font(.system(size: 16, design: .serif))
+                    .italic()
+                    .foregroundStyle(.white.opacity(0.92))
+                    .padding(.top, 3)
             }
             .padding(16)
         }
@@ -251,10 +246,12 @@ public struct WeddingReferenceHomeView: View {
     }
 
     private func currencyShort(_ amount: Double) -> String {
-        if amount >= 1000 {
-            return String(format: "$%.1fk", amount / 1000)
-        }
-        return String(format: "$%.0f", amount)
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = "USD"
+        formatter.maximumFractionDigits = 0
+        formatter.minimumFractionDigits = 0
+        return formatter.string(from: NSNumber(value: amount)) ?? String(format: "$%.0f", amount)
     }
 
     private func displayWeddingDate(_ raw: String) -> String {
