@@ -5,6 +5,7 @@ public struct HomeView: View {
     @EnvironmentObject private var session: SessionStore
     @State private var wedding: Wedding? = nil
     @State private var announcements: [WeddingAnnouncement] = []
+    @State private var plannerDashboard: PlannerDashboardSnapshot? = nil
     @State private var isLoading: Bool = true
     @State private var showingInvitationSheet: Bool = false
     @State private var showingVendorSheet: Bool = false
@@ -20,10 +21,15 @@ public struct HomeView: View {
                         // 1. Hero / Monogram Card
                         heroCard(wedding: wedding)
 
-                        // 2. Next Programme Milestone (Native Guest Mode)
+                        // 2. Planning pulse — before Wedding Day becomes the dominant lifecycle mode.
+                        if let plannerDashboard {
+                            planningPulseCard(plannerDashboard)
+                        }
+
+                        // 3. Next Programme Milestone
                         nextMilestoneCard
 
-                        // 3. My Wedding Pass Quick Card
+                        // 4. My Wedding Pass Quick Card
                         quickPassCard
 
                         // 4. Day-Of Announcements Banner
@@ -43,7 +49,7 @@ public struct HomeView: View {
                 .padding(.bottom, WewedSpacing.xl)
             }
             .background(WewedColors.ivory)
-            .navigationTitle("Wedding Day")
+            .navigationTitle(wedding?.lifecycle == "day" ? "Wedding Day" : "Wedding Command Centre")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
@@ -122,6 +128,78 @@ public struct HomeView: View {
             .padding(.top, 4)
         }
         .frame(maxWidth: .infinity)
+        .padding()
+        .background(Color.white)
+        .cornerRadius(WewedRadius.lg)
+        .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 2)
+    }
+
+    private func planningPulseCard(_ dashboard: PlannerDashboardSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("PLANNING PULSE")
+                        .font(.caption2)
+                        .fontWeight(.bold)
+                        .tracking(1.4)
+                        .foregroundColor(WewedColors.goldDark)
+                    Text("What needs attention before Wedding Day")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                Text("\(dashboard.readinessScore)%")
+                    .font(.title3)
+                    .fontWeight(.bold)
+                    .foregroundColor(WewedColors.emerald)
+            }
+
+            ProgressView(value: Double(dashboard.readinessScore), total: 100)
+                .tint(WewedColors.emerald)
+
+            HStack(spacing: 8) {
+                ForEach(dashboard.modules.prefix(3)) { module in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(module.title)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Text(module.value)
+                            .font(.caption)
+                            .fontWeight(.bold)
+                            .foregroundColor(WewedColors.textPrimaryLight)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+
+            if let first = dashboard.attentionItems.first {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .foregroundColor(WewedColors.warning)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(first.title)
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                        Text(first.detail)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+
+            Button {
+                appState.selectedTab = .plan
+            } label: {
+                HStack {
+                    Text("Open Wedding Planner")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                }
+                .foregroundColor(WewedColors.emerald)
+            }
+        }
         .padding()
         .background(Color.white)
         .cornerRadius(WewedRadius.lg)
@@ -333,8 +411,13 @@ public struct HomeView: View {
     private func loadData() {
         Task {
             do {
-                wedding = try await appState.repository.getWedding()
-                announcements = try await appState.repository.getAnnouncements()
+                async let weddingTask = appState.repository.getWedding()
+                async let announcementsTask = appState.repository.getAnnouncements()
+                async let plannerTask = appState.plannerRepository.getDashboard()
+
+                wedding = try await weddingTask
+                announcements = try await announcementsTask
+                plannerDashboard = try await plannerTask
                 isLoading = false
             } catch {
                 isLoading = false
