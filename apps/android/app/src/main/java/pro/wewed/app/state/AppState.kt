@@ -46,4 +46,19 @@ class AppViewModel(
     fun selectTab(tab: AppTab) {
         _selectedTab.value = tab
     }
+
+    companion object {
+        fun fromEnvironment(
+            environment: NativeDataEnvironment,
+            baseUrl: String? = null
+        ): AppViewModel {
+            val bundle = pro.wewed.app.services.NativeRepositoryFactory.make(environment, baseUrl)
+            return AppViewModel(
+                baseRepository = bundle.wedding,
+                plannerRepository = bundle.planner,
+                dataEnvironment = bundle.environment,
+                dataBaseUrl = bundle.baseUrl
+            )
+        }
+    }
 }
