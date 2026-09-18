@@ -57,6 +57,15 @@ public struct RootView: View {
                     .font(.caption2)
                     .foregroundColor(WewedColors.gold)
                     .lineLimit(1)
+
+                Text(appState.dataEnvironment.title.uppercased())
+                    .font(.system(size: 8, weight: .bold))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.white.opacity(0.12))
+                    .foregroundColor(appState.dataEnvironment == .production ? .red : WewedColors.emerald)
+                    .clipShape(Capsule())
+                    .accessibilityLabel("Data environment \(appState.dataEnvironment.title)")
             }
 
             Spacer()
