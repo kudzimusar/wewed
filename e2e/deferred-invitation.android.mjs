@@ -108,12 +108,25 @@ function handoffFromIntent(intentUrl) {
   return handoff
 }
 
-async function activeGuestFromContext(browserContext, fixture) {
-  const response = await browserContext.request.get(
-    `${EMULATOR_BASE_URL}/api/weddings/${encodeURIComponent(fixture.weddingSlug)}/guest-session`,
-  )
-  assert.equal(response.status(), 200)
-  return response.json()
+async function activeGuestFromChrome(page, fixture) {
+  const result = await page.evaluate(async ({ baseUrl, slug }) => {
+    const response = await fetch(
+      `${baseUrl}/api/weddings/${encodeURIComponent(slug)}/guest-session`,
+      {
+        method: 'GET',
+        cache: 'no-store',
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      },
+    )
+    return {
+      status: response.status,
+      body: await response.json(),
+    }
+  }, { baseUrl: EMULATOR_BASE_URL, slug: fixture.weddingSlug })
+
+  assert.equal(result.status, 200)
+  return result.body
 }
 
 async function prepareGate(browserPage, fixture, token, handoffPostCount) {
@@ -225,7 +238,7 @@ async function run() {
     console.log('checkpoint=resume_requested guest=A')
     console.log('checkpoint=handoff_redeemed guest=A')
 
-    const activeA = await activeGuestFromContext(browserContext, fixture)
+    const activeA = await activeGuestFromChrome(browserPage, fixture)
     assert.equal(activeA.guest.id, fixture.guestAId)
     assert.equal(activeA.guest.name, 'Android UAT Guest A')
     console.log('checkpoint=active_guest=A')
@@ -240,7 +253,7 @@ async function run() {
     )
     assert.equal(handoffPosts, 2)
 
-    const beforeB = await activeGuestFromContext(browserContext, fixture)
+    const beforeB = await activeGuestFromChrome(browserPage, fixture)
     assert.equal(beforeB.guest.id, fixture.guestAId)
     console.log('checkpoint=active_guest=A-before-B-resume')
 
@@ -250,7 +263,7 @@ async function run() {
     console.log('checkpoint=resume_requested guest=B')
     console.log('checkpoint=handoff_redeemed guest=B')
 
-    const activeB = await activeGuestFromContext(browserContext, fixture)
+    const activeB = await activeGuestFromChrome(browserPage, fixture)
     assert.equal(activeB.guest.id, fixture.guestBId)
     assert.equal(activeB.guest.name, 'Android UAT Guest B')
     console.log('checkpoint=active_guest=B')
@@ -264,7 +277,7 @@ async function run() {
     )
     assert.equal(handoffPosts, 3)
 
-    const beforeA2 = await activeGuestFromContext(browserContext, fixture)
+    const beforeA2 = await activeGuestFromChrome(browserPage, fixture)
     assert.equal(beforeA2.guest.id, fixture.guestBId)
     console.log('checkpoint=active_guest=B-before-A-resume')
 
@@ -274,7 +287,7 @@ async function run() {
     console.log('checkpoint=resume_requested guest=A2')
     console.log('checkpoint=handoff_redeemed guest=A2')
 
-    const activeA2 = await activeGuestFromContext(browserContext, fixture)
+    const activeA2 = await activeGuestFromChrome(browserPage, fixture)
     assert.equal(activeA2.guest.id, fixture.guestAId)
     assert.equal(activeA2.guest.name, 'Android UAT Guest A')
     console.log('checkpoint=active_guest=A-restored')
