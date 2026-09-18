@@ -449,7 +449,7 @@ private fun PlanningPulseCard(
                     )
                 }
                 Text(
-                    "\${snapshot.readinessScore}%",
+                    "${snapshot.readinessScore}%",
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                     color = WewedColors.Emerald
