@@ -36,7 +36,9 @@ public struct WeddingReferenceHomeView: View {
                     }
                 }
             }
-            #if os(iOS)\n            .toolbar(.hidden, for: .navigationBar)\n            #endif
+            #if os(iOS)
+            .toolbar(.hidden, for: .navigationBar)
+            #endif
             .task { await load() }
             .sheet(isPresented: $showingInvitation) {
                 if let invitation {
