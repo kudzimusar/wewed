@@ -46,6 +46,28 @@ public struct WeddingHeaderOrnament: View {
     }
 }
 
+public struct WeddingBrandMark: View {
+    public init() {}
+
+    public var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(WeddingIdentityPalette.champagne, lineWidth: 2)
+                .frame(width: 12, height: 20)
+                .rotationEffect(.degrees(38))
+                .offset(x: -4)
+
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(WeddingIdentityPalette.champagne, lineWidth: 2)
+                .frame(width: 12, height: 20)
+                .rotationEffect(.degrees(-38))
+                .offset(x: 4)
+        }
+        .frame(width: 30, height: 26)
+        .accessibilityLabel("Wewed")
+    }
+}
+
 public struct WeddingMonogram: View {
     let names: String
     let size: CGFloat
