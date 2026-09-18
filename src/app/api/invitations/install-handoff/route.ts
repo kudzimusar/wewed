@@ -96,6 +96,11 @@ export async function POST(request: NextRequest) {
       userAgent: request.headers.get('user-agent'),
     })
 
+    console.info('[wewed][invitation-handoff]', {
+      checkpoint: 'handoff_created',
+      handoffId: handoff.id,
+    })
+
     return json(
       {
         playStoreUrl: handoff.playStoreUrl,
