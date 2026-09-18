@@ -224,4 +224,9 @@ jobs:
           grep -q "https://wewed.pro/invite/resume" android/app/src/main/java/pro/wewed/app/InstallReferrerHandoff.java
           grep -q "https://wewed.pro/invite/physical-resume" android/app/src/main/java/pro/wewed/app/InstallReferrerHandoff.java
           grep -q "physical_handoff" android/app/src/main/java/pro/wewed/app/InstallReferrerHandoff.java
+          grep -q 'android.support.customtabs.trusted.LAUNCH_HANDLER_CLIENT_MODE' android/app/src/main/AndroidManifest.xml
+          grep -q 'android:value="navigate-existing"' android/app/src/main/AndroidManifest.xml
+          MERGED_MANIFEST="$(find android/app/build/intermediates -type f -name AndroidManifest.xml -path '*release*' -print0 | xargs -0 -r grep -l 'LAUNCH_HANDLER_CLIENT_MODE' | head -n 1 || true)"
+          test -n "$MERGED_MANIFEST"
+          grep -q 'android:value="navigate-existing"' "$MERGED_MANIFEST"
           test -f android/app/build/outputs/bundle/release/app-release.aab
