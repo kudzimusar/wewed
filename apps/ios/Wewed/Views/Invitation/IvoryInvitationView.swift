@@ -13,6 +13,7 @@ public struct IvoryInvitationView: View {
     @State private var rsvpSubmitted: Bool = false
     @State private var isSubmitting: Bool = false
     @State private var generatedPass: WeddingPass? = nil
+    @State private var declined: Bool = false
 
     public init(
         invitation: InvitationContext,
@@ -78,7 +79,7 @@ public struct IvoryInvitationView: View {
                             .frame(width: 64, height: 64)
                             .shadow(color: WewedColors.gold.opacity(0.5), radius: 8, x: 0, y: 3)
 
-                        Text("T&S")
+                        Text(coupleInitials)
                             .font(.system(size: 20, weight: .bold, design: .serif))
                             .foregroundColor(.black)
                     }
@@ -202,36 +203,67 @@ public struct IvoryInvitationView: View {
                     .padding(.horizontal, 24)
 
                     // RSVP Section
-                    if !rsvpSubmitted {
+                    if !rsvpSubmitted && !declined {
                         VStack(spacing: 14) {
-                            Text("Kindly respond by 1 October 2026")
+                            Text("Kindly respond to continue your wedding experience")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
 
-                            HStack(spacing: 12) {
-                                Button {
-                                    submitRsvp(attending: true)
-                                } label: {
-                                    HStack {
-                                        if isSubmitting {
-                                            ProgressView().tint(.black)
-                                        } else {
-                                            Image(systemName: "checkmark.circle.fill")
-                                            Text("Accept with Pleasure")
-                                                .fontWeight(.bold)
-                                        }
+                            Button {
+                                submitRsvp(attending: true)
+                            } label: {
+                                HStack {
+                                    if isSubmitting {
+                                        ProgressView().tint(.black)
+                                    } else {
+                                        Image(systemName: "checkmark.circle.fill")
+                                        Text("Accept with Pleasure")
+                                            .fontWeight(.bold)
                                     }
-                                    .font(.subheadline)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 14)
-                                    .background(WewedColors.gold)
-                                    .foregroundColor(.black)
-                                    .cornerRadius(WewedRadius.pill)
                                 }
-                                .disabled(isSubmitting)
+                                .font(.subheadline)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(WewedColors.gold)
+                                .foregroundColor(.black)
+                                .cornerRadius(WewedRadius.pill)
                             }
-                            .padding(.horizontal, 24)
+                            .disabled(isSubmitting)
+
+                            Button {
+                                submitRsvp(attending: false)
+                            } label: {
+                                Text("Decline with Regret")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 12)
+                                    .foregroundColor(DeepInk)
+                                    .background(Color.white.opacity(0.72))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: WewedRadius.pill)
+                                            .stroke(WewedColors.gold.opacity(0.45), lineWidth: 1)
+                                    )
+                                    .cornerRadius(WewedRadius.pill)
+                            }
+                            .disabled(isSubmitting)
                         }
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 36)
+                    } else if declined {
+                        VStack(spacing: 12) {
+                            Image(systemName: "heart")
+                                .foregroundColor(WewedColors.gold)
+                            Text("Response Recorded")
+                                .font(.headline)
+                                .fontWeight(.bold)
+                                .foregroundColor(DeepInk)
+                            Text("Thank you for letting Charity & Kudzie's wedding team know. No admission pass is issued for a declined RSVP.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .padding(.horizontal, 24)
                         .padding(.bottom, 36)
                     } else {
                         // Confirmed State
@@ -277,6 +309,16 @@ public struct IvoryInvitationView: View {
         }
     }
 
+    private var coupleInitials: String {
+        invitation.coupleNames
+            .components(separatedBy: "&")
+            .compactMap { part in
+                part.trimmingCharacters(in: .whitespacesAndNewlines).first.map(String.init)
+            }
+            .joined(separator: "&")
+            .uppercased()
+    }
+
     private func submitRsvp(attending: Bool) {
         isSubmitting = true
         Task {
@@ -286,8 +328,15 @@ public struct IvoryInvitationView: View {
                     token: invitation.guestToken,
                     attending: attending
                 )
-                generatedPass = pass
-                rsvpSubmitted = true
+                if attending {
+                    generatedPass = pass
+                    rsvpSubmitted = true
+                    declined = false
+                } else {
+                    generatedPass = nil
+                    rsvpSubmitted = false
+                    declined = true
+                }
                 isSubmitting = false
             } catch {
                 isSubmitting = false
