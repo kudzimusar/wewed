@@ -30,6 +30,7 @@ public final class AppState: ObservableObject, @unchecked Sendable {
     public let repository: WeddingRepositoryProtocol
     public let plannerRepository: PlannerDashboardRepositoryProtocol
     public let dataEnvironment: NativeDataEnvironment
+    public let dataBaseURL: URL?
     /// Nil by default. Isolated integration builds/tests may inject a manifest-backed runtime.
     public let weddingDayGate: WeddingDayGateOperations?
 
@@ -37,10 +38,18 @@ public final class AppState: ObservableObject, @unchecked Sendable {
         repository: WeddingRepositoryProtocol = FixtureWeddingRepository(),
         plannerRepository: PlannerDashboardRepositoryProtocol = FixturePlannerDashboardRepository(),
         dataEnvironment: NativeDataEnvironment = .fixture,
+        dataBaseURL: URL? = nil,
         weddingDayGate: WeddingDayGateOperations? = nil
     ) {
+        do {
+            try NativeEnvironmentGuard.validate(baseURL: dataBaseURL, environment: dataEnvironment)
+        } catch {
+            preconditionFailure("Unsafe native data environment: \(error)")
+        }
+
         self.plannerRepository = plannerRepository
         self.dataEnvironment = dataEnvironment
+        self.dataBaseURL = dataBaseURL
         self.weddingDayGate = weddingDayGate
         if let weddingDayGate {
             self.repository = WeddingDayGateAwareRepository(base: repository, gate: weddingDayGate)
