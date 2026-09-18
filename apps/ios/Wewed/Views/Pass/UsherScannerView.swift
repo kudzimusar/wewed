@@ -10,8 +10,6 @@ public struct UsherScannerView: View {
     @State private var auditRecords: [CheckInAuditRecord] = []
     @State private var showingAuditSheet: Bool = false
 
-    private let tokenJane = "WW1.wedts26.WWJD0824.0e.66f001ab.3f9a7c2b4d1e809f"
-    private let tokenMusarurwa = "WW1.wedts26.WWMF0104.0e.77a002bc.5a8c9e1f2b3d4e6a"
     private let onDone: (() -> Void)?
 
     public init(onDone: (() -> Void)? = nil) {
@@ -126,34 +124,6 @@ public struct UsherScannerView: View {
                 }
                 .padding(.bottom, 8)
 
-                HStack(spacing: 10) {
-                    Button {
-                        performScan(token: tokenJane)
-                    } label: {
-                        Text("Scan Jane (x2)")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(Color.white.opacity(0.2))
-                            .foregroundColor(.white)
-                            .cornerRadius(WewedRadius.pill)
-                    }
-
-                    Button {
-                        performScan(token: tokenMusarurwa)
-                    } label: {
-                        Text("Scan Musarurwa (x4)")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(WewedColors.gold)
-                            .foregroundColor(.black)
-                            .cornerRadius(WewedRadius.pill)
-                    }
-                }
-                .padding(.bottom, WewedSpacing.base)
             }
         }
         .frame(height: 310)
@@ -268,7 +238,7 @@ public struct UsherScannerView: View {
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.secondary)
-                TextField("Search by guest or household name...", text: $manualSearchQuery)
+                TextField("Search by guest or table...", text: $manualSearchQuery)
                     .onChange(of: manualSearchQuery) { _, query in
                         search(query: query)
                     }
