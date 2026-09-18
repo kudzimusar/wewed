@@ -6,7 +6,7 @@ public enum AppTab: String, CaseIterable, Identifiable, Sendable {
     case plan = "Plan"
     case guests = "Guests"
     case pass = "Pass"
-    case live = "Live"
+    case live = "More"
 
     public var id: String { rawValue }
 
@@ -16,7 +16,7 @@ public enum AppTab: String, CaseIterable, Identifiable, Sendable {
         case .plan: return "checklist"
         case .guests: return "person.2.fill"
         case .pass: return "qrcode"
-        case .live: return "bubble.left.and.bubble.right.fill"
+        case .live: return "line.3.horizontal"
         }
     }
 }
