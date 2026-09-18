@@ -34,6 +34,19 @@ public final class AppState: ObservableObject, @unchecked Sendable {
     /// Nil by default. Isolated integration builds/tests may inject a manifest-backed runtime.
     public let weddingDayGate: WeddingDayGateOperations?
 
+    public static func make(
+        environment: NativeDataEnvironment,
+        baseURL: URL? = nil
+    ) throws -> AppState {
+        let bundle = try NativeRepositoryFactory.make(environment: environment, baseURL: baseURL)
+        return AppState(
+            repository: bundle.wedding,
+            plannerRepository: bundle.planner,
+            dataEnvironment: bundle.environment,
+            dataBaseURL: bundle.baseURL
+        )
+    }
+
     public init(
         repository: WeddingRepositoryProtocol = FixtureWeddingRepository(),
         plannerRepository: PlannerDashboardRepositoryProtocol = FixturePlannerDashboardRepository(),
