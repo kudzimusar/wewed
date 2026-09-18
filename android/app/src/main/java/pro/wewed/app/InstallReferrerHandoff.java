@@ -7,12 +7,10 @@ import java.util.regex.Pattern;
 final class InstallReferrerHandoff {
     private static final Pattern PERSONAL_HANDOFF_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{43}$");
     private static final Pattern PHYSICAL_HANDOFF_PATTERN = Pattern.compile("^p1\\.[A-Za-z0-9_-]{80,512}$");
-    private static final String PERSONAL_RESUME_URL = BuildConfig.UAT
-            ? "https://uat.wewed.pro/invite/resume"
-            : "https://wewed.pro/invite/resume";
-    private static final String PHYSICAL_RESUME_URL = BuildConfig.UAT
-            ? "https://uat.wewed.pro/invite/physical-resume"
-            : "https://wewed.pro/invite/physical-resume";
+    private static final String PERSONAL_RESUME_URL =
+            BuildConfig.INVITATION_RESUME_ORIGIN + "/invite/resume";
+    private static final String PHYSICAL_RESUME_URL =
+            BuildConfig.INVITATION_RESUME_ORIGIN + "/invite/physical-resume";
 
     private InstallReferrerHandoff() {}
 
