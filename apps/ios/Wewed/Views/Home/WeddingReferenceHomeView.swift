@@ -319,6 +319,7 @@ public struct WeddingReferenceHomeView: View {
 
     private func priorityRank(_ priority: TaskPriority) -> Int {
         switch priority {
+        case .urgent: return 4
         case .high: return 3
         case .medium: return 2
         case .low: return 1
@@ -327,6 +328,7 @@ public struct WeddingReferenceHomeView: View {
 
     private func priorityColor(_ priority: TaskPriority) -> Color {
         switch priority {
+        case .urgent: return .red
         case .high: return .red
         case .medium: return WeddingIdentityPalette.champagneDeep
         case .low: return WeddingIdentityPalette.muted
