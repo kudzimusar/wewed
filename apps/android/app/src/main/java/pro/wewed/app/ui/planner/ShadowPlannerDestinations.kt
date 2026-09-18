@@ -92,7 +92,7 @@ fun ShadowBudgetDestination(appViewModel: AppViewModel, onBack: () -> Unit) {
 private fun FinanceValue(label: String, amount: Double, modifier: Modifier = Modifier) {
     Column(modifier = modifier) {
         Text(label, fontSize = 9.sp, color = Color.Gray)
-        Text("$\${amount.toInt()}", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        Text("$${amount.toInt()}", fontSize = 11.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -119,7 +119,7 @@ fun ShadowContributionsDestination(appViewModel: AppViewModel, onBack: () -> Uni
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Column {
-                            Text("$\${total.toInt()}", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = WewedColors.Emerald)
+                            Text("$${total.toInt()}", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = WewedColors.Emerald)
                             Text("recorded contribution value", fontSize = 11.sp, color = Color.Gray)
                         }
                         Column(horizontalAlignment = Alignment.End) {
@@ -139,7 +139,7 @@ fun ShadowContributionsDestination(appViewModel: AppViewModel, onBack: () -> Uni
                     Column(modifier = Modifier.padding(WewedSpacing.base), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(record.contributorLabel, fontWeight = FontWeight.SemiBold)
-                            Text("$\${record.value.toInt()}", fontWeight = FontWeight.Bold, color = WewedColors.Emerald)
+                            Text("$${record.value.toInt()}", fontWeight = FontWeight.Bold, color = WewedColors.Emerald)
                         }
                         Text(record.typeLabel, fontSize = 11.sp, color = Color.Gray)
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -182,9 +182,9 @@ fun ShadowVendorsDestination(appViewModel: AppViewModel, onBack: () -> Unit) {
                             }
                             Text(vendor.bookingStatus, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = WewedColors.Emerald)
                         }
-                        Text("Contract: \${vendor.contractStatus}", fontSize = 10.sp, color = Color.Gray)
-                        Text("Payment: \${vendor.paymentStatus}", fontSize = 10.sp, color = Color.Gray)
-                        Text("Next: \${vendor.nextAction}", fontSize = 11.sp, color = WewedColors.Gold)
+                        Text("Contract: ${vendor.contractStatus}", fontSize = 10.sp, color = Color.Gray)
+                        Text("Payment: ${vendor.paymentStatus}", fontSize = 10.sp, color = Color.Gray)
+                        Text("Next: ${vendor.nextAction}", fontSize = 11.sp, color = WewedColors.Gold)
                     }
                 }
             }
@@ -215,7 +215,7 @@ fun ShadowSeatingDestination(appViewModel: AppViewModel, onBack: () -> Unit) {
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text("$assigned assigned", fontWeight = FontWeight.Bold)
-                        Text("\${(capacity - assigned).coerceAtLeast(0)} available", color = WewedColors.Emerald, fontWeight = FontWeight.SemiBold)
+                        Text("${(capacity - assigned).coerceAtLeast(0)} available", color = WewedColors.Emerald, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -229,7 +229,7 @@ fun ShadowSeatingDestination(appViewModel: AppViewModel, onBack: () -> Unit) {
                     Column(modifier = Modifier.padding(WewedSpacing.base)) {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(table.name, fontWeight = FontWeight.SemiBold)
-                            Text("\${table.assigned}/\${table.capacity}", fontWeight = FontWeight.Bold)
+                            Text("${table.assigned}/${table.capacity}", fontWeight = FontWeight.Bold)
                         }
                         Text(table.zone, fontSize = 11.sp, color = Color.Gray)
                         Spacer(modifier = Modifier.height(6.dp))
