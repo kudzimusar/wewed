@@ -569,3 +569,16 @@ passes on the exact current remote HEAD.
 The next local intervention remains compile/unit/build qualification only. If that passes, simulator qualification becomes appropriate.
 
 No production discovery SQL has been executed and no live Wewed data has been copied.
+
+
+---
+
+## Next execution authority — production-derived Charity & Kudzie Shadow
+
+The synthetic Charity & Kudzie Shadow journey is qualified, but it is not yet production-derived real-wedding parity.
+
+The next implementation authority is:
+
+`docs/native-mobile/CHARITY_KUDZIE_REAL_WEDDING_SHADOW_DISCOVERY_AND_SNAPSHOT_DIRECTIVE_2026-09-18.md`
+
+Agents must follow that directive before replacing any further reference values. The required sequence is read-only production discovery → Live/Native parity ledger → private snapshot outside Git → sanitization → separate Shadow database/backend → Planner-first native wiring. Production writes remain prohibited.
