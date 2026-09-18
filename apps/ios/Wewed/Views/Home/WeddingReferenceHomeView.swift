@@ -25,7 +25,6 @@ public struct WeddingReferenceHomeView: View {
                             hero(wedding)
                             continuePlanning
                             metrics
-                            focus
                         }
                         .padding(.horizontal, 14)
                         .padding(.top, 8)
