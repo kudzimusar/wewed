@@ -34,7 +34,8 @@ public class LauncherActivity
     };
 
     @Override
-    protected Uri getUrlForIntent(Intent intent) {
+    protected Uri getLaunchingUrl() {
+        Intent intent = getIntent();
         if (intent != null) {
             Uri data = intent.getData();
             if (data != null
@@ -46,11 +47,11 @@ public class LauncherActivity
                     return InstallReferrerHandoff.buildResumeUri(handoff);
                 } catch (IllegalArgumentException ignored) {
                     // Never forward malformed or attacker-controlled values into the web session.
-                    return null;
+                    return super.getLaunchingUrl();
                 }
             }
         }
-        return super.getUrlForIntent(intent);
+        return super.getLaunchingUrl();
     }
 
     @Override
