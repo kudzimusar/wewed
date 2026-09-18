@@ -4,6 +4,7 @@ import SwiftUI
 /// Wewed splash -> Ivory Floral Gold invitation -> RSVP -> Wedding Pass.
 /// This view is intentionally isolated from the default GuestShell until local build/UI qualification.
 public struct GuestInvitationJourneyView: View {
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var appState: AppState
 
     public let reference: GuestJourneyReference
@@ -35,7 +36,18 @@ public struct GuestInvitationJourneyView: View {
                     }
                 }
             case .confirmedAttending:
-                PassView()
+                ZStack(alignment: .topTrailing) {
+                    PassView()
+                    Button("Done") { dismiss() }
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(.thinMaterial)
+                        .clipShape(Capsule())
+                        .padding()
+                        .accessibilityIdentifier("guest-journey-done")
+                }
             case .declined:
                 declinedStage
             }
@@ -91,6 +103,10 @@ public struct GuestInvitationJourneyView: View {
                 .font(.subheadline)
                 .multilineTextAlignment(.center)
                 .foregroundColor(.secondary)
+            Button("Return to Wedding") { dismiss() }
+                .fontWeight(.semibold)
+                .foregroundColor(WewedColors.emerald)
+                .padding(.top, 8)
         }
         .padding(28)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
