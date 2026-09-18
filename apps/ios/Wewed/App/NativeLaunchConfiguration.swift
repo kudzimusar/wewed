@@ -26,8 +26,13 @@ public struct NativeLaunchConfiguration: Equatable, Sendable {
             dataEnvironment = .productionReadVerify
         case "production":
             dataEnvironment = .production
-        default:
+        case "fixture":
             dataEnvironment = .fixture
+        default:
+            let privatePath = PrivateRealShadowWeddingRepository.defaultSnapshotPath()
+            dataEnvironment = FileManager.default.fileExists(atPath: privatePath)
+                ? .privateRealShadow
+                : .sanitizedShadow
         }
 
         let baseURL = environment["WEWED_SHADOW_API_BASE_URL"].flatMap(URL.init(string:))
