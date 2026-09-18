@@ -31,7 +31,7 @@ class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath:
     companion object {
         fun defaultSnapshotPath(): String {
             val envPath = System.getenv("WEWED_PRIVATE_SHADOW_PATH")
-            if (!envPath.isNullOrBlank()) return envPath
+            if (!envPath.isNullOrBlank() && File(envPath).exists()) return envPath
 
             val userHome = System.getProperty("user.home")
             val homePath = "$userHome/.wewed-shadow/charity-kudzie/charity-kudzie-private-real-shadow.json"
@@ -44,7 +44,10 @@ class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath:
             val sdcardPath = "/sdcard/charity-kudzie-private-real-shadow.json"
             if (File(sdcardPath).exists()) return sdcardPath
 
-            return homePath
+            val appDataPath = "/data/data/pro.wewed.app/files/charity-kudzie-private-real-shadow.json"
+            if (File(appDataPath).exists()) return appDataPath
+
+            return envPath ?: homePath
         }
 
         fun loadSnapshotString(path: String = defaultSnapshotPath()): String {

@@ -1,0 +1,34 @@
+appId: pro.wewed.app
+---
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "private_real_shadow"
+
+# 1. Sign In
+- assertVisible: "WEWED"
+- tapOn: "Sign In"
+
+# 2. Home / Overview Screen
+- assertVisible: "Charity & Kudzie"
+- assertVisible: "PRIVATE REAL SHADOW"
+- assertVisible: "NEXT UP"
+- scroll
+- assertVisible: "YOUR WEDDING PASS"
+
+# 3. Plan / Planner Screen
+- tapOn: "Plan"
+- assertVisible: "Wedding Planner"
+- assertVisible: "PRIVATE REAL SHADOW"
+- assertVisible: "Eleven Eleven Testing"
+- assertVisible: "Charity & Kudzie"
+- assertVisible: "13 high priority tasks"
+- assertVisible: "172 RSVPs pending"
+- scroll
+
+# 4. Guests Screen
+- tapOn: "Guests"
+- assertVisible: "Guest List"
+- assertNotVisible: "Guest G001"
+- assertNotVisible: "Faith Mutasa"
+- assertNotVisible: "Uncle Farai"

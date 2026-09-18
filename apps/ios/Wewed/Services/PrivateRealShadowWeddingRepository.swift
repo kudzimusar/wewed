@@ -19,12 +19,35 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
     private let partyFourToken = "shadow-party4-guest"
 
     public static func defaultSnapshotPath() -> String {
-        if let envPath = ProcessInfo.processInfo.environment["WEWED_PRIVATE_SHADOW_PATH"], !envPath.isEmpty {
+        if let envPath = ProcessInfo.processInfo.environment["WEWED_PRIVATE_SHADOW_PATH"], !envPath.isEmpty, FileManager.default.fileExists(atPath: envPath) {
             return envPath
         }
-        return FileManager.default.homeDirectoryForCurrentUser
+
+        // Check Documents Directory (e.g. provisioned in app container)
+        if let docsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+            let docsPath = docsDir.appendingPathComponent("charity-kudzie-private-real-shadow.json").path
+            if FileManager.default.fileExists(atPath: docsPath) {
+                return docsPath
+            }
+        }
+
+        // Check Application Support Directory
+        if let appSupportDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+            let appSupportPath = appSupportDir.appendingPathComponent("wewed/charity-kudzie-private-real-shadow.json").path
+            if FileManager.default.fileExists(atPath: appSupportPath) {
+                return appSupportPath
+            }
+        }
+
+        // Check standard user home directory
+        let homePath = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".wewed-shadow/charity-kudzie/charity-kudzie-private-real-shadow.json")
             .path
+        if FileManager.default.fileExists(atPath: homePath) {
+            return homePath
+        }
+
+        return ProcessInfo.processInfo.environment["WEWED_PRIVATE_SHADOW_PATH"] ?? homePath
     }
 
     public static func loadSnapshotData(path: String = defaultSnapshotPath()) throws -> Data {
