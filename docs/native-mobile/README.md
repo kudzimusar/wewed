@@ -34,6 +34,16 @@ Governs the transition from the fixture-only native shell to a realistic shadow-
 
 Production remains read-only during this phase. Shadow data never syncs back to production.
 
+### Current implementation checkpoint
+
+**SHADOW_SETUP_IMPLEMENTATION_STATUS_2026-09-18.md**
+
+Use this after reading the authoritative Shadow Real-Wedding plan. It records the executable setup already implemented on:
+
+`native-mobile/shadow-setup-implementation-20260918`
+
+and defines the non-simulator local qualification gate that must pass before simulator/Maestro intervention.
+
 ## Product authority and information architecture
 
 - NATIVE_PRODUCT_AUTHORITY_LEDGER.md — capability lifecycle status by platform.
