@@ -3,7 +3,6 @@ import SwiftUI
 public struct WeddingReferenceHomeView: View {
     @EnvironmentObject private var appState: AppState
     @State private var wedding: Wedding?
-    @State private var dashboard: PlannerDashboardSnapshot?
     @State private var tasks: [PlannerTask] = []
     @State private var guests: [Guest] = []
     @State private var budget: BudgetSummary?
@@ -217,71 +216,6 @@ public struct WeddingReferenceHomeView: View {
         .accessibilityIdentifier("home-metrics")
     }
 
-    private var focus: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Today’s Focus")
-                    .font(.system(size: 22, weight: .semibold, design: .serif))
-                    .foregroundStyle(WeddingIdentityPalette.ink)
-                Spacer()
-                Button("View All") {
-                    appState.selectedTab = .plan
-                }
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(WeddingIdentityPalette.muted)
-            }
-
-            WeddingSectionCard {
-                VStack(spacing: 0) {
-                    ForEach(Array(focusTasks.prefix(3).enumerated()), id: \.element.id) { index, task in
-                        HStack(spacing: 11) {
-                            Image(systemName: task.status == .done ? "checkmark.circle.fill" : "circle")
-                                .font(.system(size: 20))
-                                .foregroundStyle(task.status == .done ? WeddingIdentityPalette.forest : Color.gray.opacity(0.55))
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(task.title)
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundStyle(WeddingIdentityPalette.ink)
-                                    .lineLimit(2)
-                                Text(task.status == .done ? "Completed" : task.priority.title)
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(task.status == .done ? WeddingIdentityPalette.forest : priorityColor(task.priority))
-                            }
-
-                            Spacer()
-
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
-                                .foregroundStyle(WeddingIdentityPalette.muted)
-                        }
-                        .padding(.vertical, 11)
-
-                        if index < min(focusTasks.count, 3) - 1 {
-                            Divider()
-                        }
-                    }
-
-                    if focusTasks.isEmpty {
-                        Text("No planning tasks recorded.")
-                            .font(.subheadline)
-                            .foregroundStyle(WeddingIdentityPalette.muted)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-            }
-        }
-        .accessibilityIdentifier("home-today-focus")
-    }
-
-    private var focusTasks: [PlannerTask] {
-        tasks.sorted {
-            if $0.status == .done && $1.status != .done { return false }
-            if $0.status != .done && $1.status == .done { return true }
-            return priorityRank($0.priority) > priorityRank($1.priority)
-        }
-    }
-
     private var taskCompletionPercent: Int {
         guard !tasks.isEmpty else { return 0 }
         return Int((taskCompletionRatio * 100).rounded())
@@ -295,7 +229,6 @@ public struct WeddingReferenceHomeView: View {
     private func load() async {
         do {
             async let w = appState.repository.getWedding()
-            async let d = appState.plannerRepository.getDashboard()
             async let t = appState.repository.getTasks()
             async let g = appState.repository.getGuests()
             async let b = appState.repository.getBudget()
@@ -303,7 +236,6 @@ public struct WeddingReferenceHomeView: View {
 
             let loadedWedding = try await w
             wedding = loadedWedding
-            dashboard = try await d
             tasks = try await t
             guests = try await g
             budget = try await b
@@ -315,24 +247,6 @@ public struct WeddingReferenceHomeView: View {
             isLoading = false
         } catch {
             isLoading = false
-        }
-    }
-
-    private func priorityRank(_ priority: TaskPriority) -> Int {
-        switch priority {
-        case .urgent: return 4
-        case .high: return 3
-        case .medium: return 2
-        case .low: return 1
-        }
-    }
-
-    private func priorityColor(_ priority: TaskPriority) -> Color {
-        switch priority {
-        case .urgent: return .red
-        case .high: return .red
-        case .medium: return WeddingIdentityPalette.champagneDeep
-        case .low: return WeddingIdentityPalette.muted
         }
     }
 
