@@ -3,6 +3,7 @@ import SwiftUI
 public struct WeddingReferenceGuestsView: View {
     @EnvironmentObject private var appState: AppState
     @State private var guests: [Guest] = []
+    @State private var wedding: Wedding?
     @State private var query = ""
     @State private var filter: GuestReferenceFilter = .all
     @State private var isLoading = true
@@ -71,7 +72,7 @@ public struct WeddingReferenceGuestsView: View {
                     .foregroundStyle(WeddingIdentityPalette.muted)
             }
                 Spacer()
-                WeddingMonogram(names: "C & K", size: 32)
+                WeddingMonogram(names: wedding?.coupleNames ?? "C & K", size: 32)
                     .padding(.trailing, 8)
             }
         }
@@ -209,9 +210,13 @@ public struct WeddingReferenceGuestsView: View {
 
     private func load() async {
         do {
-            guests = try await appState.repository.getGuests()
+            async let loadedGuests = appState.repository.getGuests()
+            async let loadedWedding = appState.repository.getWedding()
+            guests = try await loadedGuests
+            wedding = try await loadedWedding
         } catch {
             guests = []
+            wedding = nil
         }
         isLoading = false
     }
