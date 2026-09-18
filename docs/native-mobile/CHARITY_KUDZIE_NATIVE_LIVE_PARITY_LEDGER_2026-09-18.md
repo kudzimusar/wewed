@@ -55,7 +55,7 @@ Prior to this audit, native Shadow mode relied on synthetic scaffolding (e.g., 9
 | **Vendors** | 9 Synthetic Vendors (dashboard) / 4 in repo | **7 actual rows** | **Replace** with 7 real production vendor records. |
 | **Service Engagements** | 9 Synthetic Engagements | **8 actual rows** | **Replace** with 8 real service engagements. |
 | **Contracts** | Synthetic templates | **0 actual rows** in `Contract` (governed via ServiceEngagements) | **Align** contract state to draft/unbound. |
-| **Guests Roster** | Total: 92 (dashboard) / 4 synthetic in repo<br>Attending: 68<br>Pending: 18<br>Declined: 6 | **Total: 174 actual rows**<br>• Attending: 2<br>• Pending: 172<br>• Declined: 0<br>• Checked In: 1 | **Replace** with 174 real guest topology records (2 attending, 172 pending). |
+| **Guest / RSVP Invitation-Party Topology** | Total: 92 (dashboard) / 4 synthetic in repo<br>Attending: 68<br>Pending: 18<br>Declined: 6 | **Total: 174 Guest rows (177 Invited Capacity)**<br>• Production Model: `Guest` + 1:1 `RSVP` (`plusOne`, `kidsAttending`, `kidsCount`)<br>• Household Model in Production: `NONE`<br>• Party Size Distribution: `partySize=1`: 173, `partySize=4`: 1<br>• Attending: 2 (1 single guest + 1 party of 4)<br>• Pending: 172<br>• Declined: 0<br>• Checked In: 1 | **Replace** with authentic 174-guest / RSVP invitation-party topology. |
 | **Seating Tables** | 10 Tables (84 / 92 assigned in dashboard; Jacaranda/Baobab in repo) | **8 actual rows (Capacity: 64)**<br>• Table 1 (Family): 7/8<br>• Table 2 (Family): 4/8<br>• Table 3 (Bridal Party): 5/8<br>• Table 4 (Bridal Party): 0/8<br>• Table 5 (Friends): 2/8<br>• Table 6 (Friends): 1/8<br>• Table 7 (Colleagues): 2/8<br>• Table 8 (VIPs): 1/8<br>**Total Assigned: 22 / 64** | **Replace** with 8 real tables, 64 total capacity, and 22 real guest seating assignments. |
 | **Programme / Timeline** | 24 Synthetic Events (dashboard) / 4 in repo | **13 actual rows** | **Replace** with 13 real chronological timeline milestones. |
 | **Vault Objects** | Synthetic media items | **0 rows** | **Align** to 0 media archive objects. |
@@ -89,6 +89,8 @@ Prior to this audit, native Shadow mode relied on synthetic scaffolding (e.g., 9
 - [x] Quarantined duplicate identified (`cmsgqh26w0002js04nh627i20`).
 - [x] Planner relationship documented (via `PlannerEnquiry` / `PlannerProfile`).
 - [x] Direct production row-level graph extracted (`Tasks: 42`, `Budget: 22`, `Vendors: 7`, `Engagements: 8`, `Guests: 174`, `Tables: 8`, `Programme: 13`, `Contributions: 4`, `Contracts: 0`).
+- [x] Guest / RSVP invitation-party topology calculated (174 guests, partySize=1: 173, partySize=4: 1, total invited capacity: 177).
+- [x] Household model in production documented as `NONE`.
 - [x] Domain count audit completed (`GuestContribution` = 4, `Contract` = 0).
 - [x] Parity Ledger updated with authentic production metadata.
 - [x] Row-level vs aggregate reconciliation verified (100% match across all dimensions).
