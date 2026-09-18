@@ -37,11 +37,16 @@ function recoveryRedirect(): NextResponse {
   // expired, duplicated, or otherwise fails. The replacement is atomic: only a
   // successfully redeemed handoff is allowed to overwrite the active guest.
   clearPendingInvitationCookie(response)
+  console.info('[wewed][invitation-handoff]', {
+    checkpoint: 'active_guest_set',
+    handoffId: result.handoffId,
+  })
   return response
 }
 
 export async function GET(request: NextRequest) {
   const handoff = request.nextUrl.searchParams.get('h')?.trim() || ''
+  console.info('[wewed][invitation-handoff]', { checkpoint: 'resume_requested' })
   const result = await consumeInvitationInstallHandoff({
     secret: handoff,
     ipAddress: clientIp(request),
@@ -49,8 +54,17 @@ export async function GET(request: NextRequest) {
   })
 
   if (!result.ok) {
+    console.info('[wewed][invitation-handoff]', {
+      checkpoint: 'resume_rejected',
+      reason: result.reason,
+    })
     return recoveryRedirect()
   }
+
+  console.info('[wewed][invitation-handoff]', {
+    checkpoint: 'handoff_redeemed',
+    handoffId: result.handoffId,
+  })
 
   // Every successful Android handoff gets a fresh, non-sensitive navigation nonce.
   // Guest A and Guest B can legitimately resolve to the same wedding URL. Without a
