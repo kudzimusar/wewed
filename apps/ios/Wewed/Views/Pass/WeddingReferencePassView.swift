@@ -60,13 +60,26 @@ public struct WeddingReferencePassView: View {
     }
 
     private var header: some View {
-        HStack {
-            Spacer()
+        ZStack {
             Text("Wedding Pass")
                 .font(.system(size: 22, weight: .semibold, design: .serif))
                 .foregroundStyle(WeddingIdentityPalette.ink)
-            Spacer()
+
+            HStack {
+                Spacer()
+                Button {
+                    showingScanner = true
+                } label: {
+                    Image(systemName: "qrcode.viewfinder")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(WeddingIdentityPalette.ink)
+                        .frame(width: 38, height: 38)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("pass-header-scanner")
+            }
         }
+        .frame(maxWidth: .infinity)
     }
 
     private func passCard(_ pass: WeddingPass) -> some View {
