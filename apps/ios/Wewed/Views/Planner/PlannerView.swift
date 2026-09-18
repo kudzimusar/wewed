@@ -55,16 +55,6 @@ public struct PlannerView: View {
             .background(WewedColors.ivory)
             .navigationTitle("Wedding Planner")
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Text(appState.dataEnvironment.title.uppercased())
-                        .font(.caption2)
-                        .fontWeight(.bold)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(WewedColors.emerald.opacity(0.12))
-                        .foregroundColor(WewedColors.emerald)
-                        .clipShape(Capsule())
-                }
                 ToolbarItem(placement: .primaryAction) {
                     Button {
                         showingCreateSheet = true
