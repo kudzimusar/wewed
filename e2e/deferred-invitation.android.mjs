@@ -129,6 +129,20 @@ async function activeGuestFromChrome(page, fixture) {
   return result.body
 }
 
+async function foregroundAndroidChrome(device, page) {
+  // Match the manual UAT sequence: after Wewed/TWA is foregrounded, the user
+  // explicitly returns to Android Chrome before opening the next guest link.
+  // CDP can otherwise drive a background Chrome tab without giving Android a
+  // foreground activity from which to dispatch a second external-app intent.
+  await device.shell(
+    'am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n com.android.chrome/com.google.android.apps.chrome.Main',
+  )
+  await sleep(500)
+  await page.bringToFront()
+  await sleep(250)
+  console.log('checkpoint=android_chrome_foreground')
+}
+
 async function prepareGate(browserPage, fixture, token, handoffPostCount) {
   await browserPage.goto(
     `${EMULATOR_BASE_URL}/invite/${encodeURIComponent(fixture.weddingSlug)}?rsvp=${encodeURIComponent(token)}&card=ivory-floral-gold`,
@@ -332,6 +346,7 @@ async function run() {
     })
 
     // A: real Android Chrome -> prepared intent -> Wewed wrapper -> local resume.
+    await foregroundAndroidChrome(device, browserPage)
     const preparedA = await prepareGate(
       browserPage,
       fixture,
@@ -357,6 +372,7 @@ async function run() {
 
     // B must be fully prepared while A remains valid; the switch is committed
     // only after the Android intent is received and B redeems its handoff.
+    await foregroundAndroidChrome(device, browserPage)
     const preparedB = await prepareGate(
       browserPage,
       fixture,
@@ -386,6 +402,7 @@ async function run() {
     )
 
     // Reverse B -> A through the same Android Chrome profile and installed app.
+    await foregroundAndroidChrome(device, browserPage)
     const preparedA2 = await prepareGate(
       browserPage,
       fixture,
