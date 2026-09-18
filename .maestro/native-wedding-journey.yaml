@@ -38,6 +38,8 @@ appId: pro.wewed.app
     id: "pass-root"
 - assertVisible:
     id: "wedding-pass-card"
+- assertVisible:
+    id: "wedding-pass-qr"
 - tapOn:
     id: "pass-open-scanner"
 - assertVisible: "Gate Scanner"
