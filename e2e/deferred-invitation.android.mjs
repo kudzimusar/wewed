@@ -169,30 +169,44 @@ async function clickPreparedGate(prepared, handoffPostCount) {
 }
 
 async function nativeCheckpoints(device, minimumIntentCount) {
-  const logs = await poll(
+  const state = await poll(
     `native invitation checkpoint #${minimumIntentCount}`,
     async () => {
-      const current = String(
-        await device.shell('logcat -d -s WewedInvitation:I WewedInvitation:W *:S'),
+      const xml = String(
+        await device.shell(
+          'run-as pro.wewed.app cat shared_prefs/wewed_invitation_checkpoints.xml',
+        ),
       )
-      const intentCount =
-        (current.match(/checkpoint=native_intent_received/g) ?? []).length
+      const countMatch = xml.match(
+        /<int name="native_intent_count" value="(\d+)"\s*\/>/,
+      )
+      const hostMatch = xml.match(
+        /<string name="last_resume_host">([^<]+)<\/string>/,
+      )
+      const pathMatch = xml.match(
+        /<string name="last_resume_path">([^<]+)<\/string>/,
+      )
+      const intentCount = Number.parseInt(countMatch?.[1] ?? '0', 10)
       if (
         intentCount >= minimumIntentCount &&
-        current.includes('checkpoint=native_resume_uri_ready') &&
-        current.includes('host=10.0.2.2') &&
-        current.includes('path=/invite/resume')
+        hostMatch?.[1] === '10.0.2.2' &&
+        pathMatch?.[1] === '/invite/resume'
       ) {
-        return current
+        return {
+          intentCount,
+          host: hostMatch[1],
+          path: pathMatch[1],
+        }
       }
       return null
     },
     { attempts: 80, delay: 250 },
   )
 
-  const intentCount = (logs.match(/checkpoint=native_intent_received/g) ?? []).length
-  console.log(`checkpoint=native_intent_received count=${intentCount}`)
-  console.log('checkpoint=native_resume_uri_ready')
+  console.log(`checkpoint=native_intent_received count=${state.intentCount}`)
+  console.log(
+    `checkpoint=native_resume_uri_ready host=${state.host} path=${state.path}`,
+  )
 }
 
 async function assertVisibleGuestInvitation(browserContext, fixture, guestName) {
