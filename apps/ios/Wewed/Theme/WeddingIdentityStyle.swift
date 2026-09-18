@@ -13,7 +13,11 @@ public enum WeddingIdentityPalette {
 }
 
 public struct WeddingFloralBackground: View {
-    public init() {}
+    private let opacity: Double
+
+    public init(opacity: Double = 0.16) {
+        self.opacity = opacity
+    }
 
     public var body: some View {
         ZStack {
@@ -21,9 +25,24 @@ public struct WeddingFloralBackground: View {
             Image("ornament-frame", bundle: .module)
                 .resizable()
                 .scaledToFill()
-                .opacity(0.16)
+                .opacity(opacity)
                 .ignoresSafeArea()
         }
+    }
+}
+
+public struct WeddingHeaderOrnament: View {
+    public init() {}
+
+    public var body: some View {
+        Image("ornament-frame", bundle: .module)
+            .resizable()
+            .scaledToFill()
+            .frame(width: 112, height: 92, alignment: .topTrailing)
+            .clipped()
+            .opacity(0.24)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 }
 
