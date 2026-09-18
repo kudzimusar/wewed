@@ -340,7 +340,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
           script: |
-            set -euo pipefail
+            set -eu
             adb install -r android/app/build/outputs/apk/uat/app-uat.apk
             adb shell pm list packages com.android.chrome | grep -q 'package:com.android.chrome'
             # Fresh AVD: do not clear Chrome here. Playwright Android depends on
