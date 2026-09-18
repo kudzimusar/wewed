@@ -88,7 +88,8 @@ public struct GuestInvitationJourneyView: View {
             .opacity(splashVisible ? 1 : 0)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Wewed. Plan together. Celebrate beautifully.")
+.accessibilityLabel("Wewed. Plan together. Celebrate beautifully.")
+        .accessibilityIdentifier("guest-journey-splash")
     }
 
     private var declinedStage: some View {
@@ -111,5 +112,6 @@ public struct GuestInvitationJourneyView: View {
         .padding(28)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(WewedColors.ivory)
+        .accessibilityIdentifier("guest-journey-declined")
     }
 }
