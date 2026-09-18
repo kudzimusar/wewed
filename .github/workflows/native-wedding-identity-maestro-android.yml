@@ -86,13 +86,25 @@ jobs:
           retention-days: 14
 
 
+      - name: Collect actual wireframe viewport captures
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/wireframe-captures"
+          find "$GITHUB_WORKSPACE" "$HOME" -type f -name 'wireframe-*.png' -print -exec cp -f {} "$GITHUB_WORKSPACE/wireframe-captures/" \; || true
+          count="$(find "$GITHUB_WORKSPACE/wireframe-captures" -maxdepth 1 -type f -name 'wireframe-*.png' | wc -l | tr -d ' ')"
+          echo "Collected $count wireframe viewport captures."
+          if [ "$count" -lt 6 ]; then
+            echo "FAIL: expected 6 wireframe screenshots, found $count."
+            exit 1
+          fi
+
       - name: Upload actual wireframe viewport captures
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: native-wireframe-viewport-captures
-          path: |
-            wireframe-*.png
-            **/wireframe-*.png
-          if-no-files-found: warn
+          path: wireframe-captures/
+          if-no-files-found: error
           retention-days: 14

@@ -13,6 +13,8 @@ on:
 permissions:
   contents: read
 
+# Exact-head qualification for the six-screen reference shell.
+
 concurrency:
   group: native-wedding-identity-ui-${{ github.ref }}
   cancel-in-progress: true
