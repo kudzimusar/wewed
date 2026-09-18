@@ -62,6 +62,7 @@ public struct ShadowPlannerBudgetView: View {
         }
         .background(WewedColors.ivory)
         .navigationTitle("Budget")
+        .accessibilityIdentifier("planner-budget-root")
         .task {
             lines = (try? await appState.plannerRepository.getBudgetLines()) ?? []
         }
@@ -175,6 +176,7 @@ public struct ShadowPlannerContributionsView: View {
         }
         .background(WewedColors.ivory)
         .navigationTitle("Contributions")
+        .accessibilityIdentifier("planner-contributions-root")
         .task {
             records = (try? await appState.plannerRepository.getContributions()) ?? []
         }
@@ -224,6 +226,7 @@ public struct ShadowPlannerVendorsView: View {
         }
         .background(WewedColors.ivory)
         .navigationTitle("Vendors")
+        .accessibilityIdentifier("planner-vendors-root")
         .task {
             vendors = (try? await appState.plannerRepository.getVendorEngagements()) ?? []
         }
@@ -301,6 +304,7 @@ public struct ShadowPlannerSeatingView: View {
         }
         .background(WewedColors.ivory)
         .navigationTitle("Seating")
+        .accessibilityIdentifier("planner-seating-root")
         .task {
             tables = (try? await appState.plannerRepository.getSeatingTables()) ?? []
         }
@@ -350,6 +354,7 @@ public struct ShadowPlannerTimelineView: View {
         }
         .background(WewedColors.ivory)
         .navigationTitle("Timeline")
+        .accessibilityIdentifier("planner-timeline-root")
         .task {
             entries = (try? await appState.plannerRepository.getTimelineEntries()) ?? []
         }
