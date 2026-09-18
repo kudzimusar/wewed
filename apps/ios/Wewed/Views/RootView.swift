@@ -99,7 +99,19 @@ public struct RootView: View {
         .ignoresSafeArea(edges: .top)
     }
 
+    @ViewBuilder
     private var coupleShell: some View {
+        #if os(iOS)
+        coupleTabs
+            .toolbarBackground(WeddingIdentityPalette.ivorySoft, for: .tabBar)
+            .toolbarBackground(.visible, for: .tabBar)
+            .toolbarColorScheme(.light, for: .tabBar)
+        #else
+        coupleTabs
+        #endif
+    }
+
+    private var coupleTabs: some View {
         TabView(selection: $appState.selectedTab) {
             WeddingReferenceHomeView()
                 .tabItem {
