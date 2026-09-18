@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -63,6 +64,7 @@ fun WeddingReferenceGuestsScreen(appViewModel: AppViewModel) {
         modifier = Modifier
             .fillMaxSize()
             .background(WeddingIdentityPalette.Ivory)
+            .testTag("guests-root")
     ) {
         Column(
             modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 12.dp),
@@ -93,7 +95,7 @@ fun WeddingReferenceGuestsScreen(appViewModel: AppViewModel) {
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
-                    modifier = Modifier.weight(1f).height(50.dp),
+                    modifier = Modifier.weight(1f).height(50.dp).testTag("guests-search"),
                     singleLine = true,
                     leadingIcon = {
                         Icon(Icons.Default.Search, contentDescription = null, tint = WeddingIdentityPalette.Muted)
@@ -151,6 +153,7 @@ fun WeddingReferenceGuestsScreen(appViewModel: AppViewModel) {
                                 CircleShape
                             )
                             .clickable { selectedFilter = filter }
+                            .testTag("guests-filter-${filter.name.lowercase()}")
                             .padding(horizontal = 10.dp, vertical = 7.dp)
                     )
                 }
@@ -174,7 +177,7 @@ fun WeddingReferenceGuestsScreen(appViewModel: AppViewModel) {
 
             Button(
                 onClick = { },
-                modifier = Modifier.fillMaxWidth().height(48.dp),
+                modifier = Modifier.fillMaxWidth().height(48.dp).testTag("guests-add"),
                 shape = RoundedCornerShape(13.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = WeddingIdentityPalette.Forest)
             ) {
