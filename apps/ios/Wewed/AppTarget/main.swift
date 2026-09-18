@@ -10,16 +10,17 @@ struct WewedMainApp: App {
         _session = StateObject(wrappedValue: SessionStore())
 
         let launch = NativeLaunchConfiguration.resolve()
+        let resolvedAppState: AppState
         do {
-            _appState = StateObject(
-                wrappedValue: try AppState.make(
-                    environment: launch.environment,
-                    baseURL: launch.baseURL
-                )
+            resolvedAppState = try AppState.make(
+                environment: launch.environment,
+                baseURL: launch.baseURL
             )
         } catch {
             preconditionFailure("Unsafe or unsupported Wewed native launch environment: \(error)")
         }
+
+        _appState = StateObject(wrappedValue: resolvedAppState)
     }
 
     var body: some Scene {

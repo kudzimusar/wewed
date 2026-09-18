@@ -181,58 +181,98 @@ public actor ShadowReferenceWeddingRepository: WeddingRepositoryProtocol {
     }
 
     public func resolveInvitation(weddingSlug: String, token: String) async throws -> InvitationContext {
-        InvitationContext(
+        let guest = try guestForToken(token)
+        return InvitationContext(
             weddingSlug: weddingSlug,
             guestToken: token,
             coupleNames: wedding.coupleNames,
-            guestName: guests[0].name,
-            householdName: guests[0].householdName,
-            partySize: guests[0].partySize,
+            guestName: guest.name,
+            householdName: guest.householdName,
+            partySize: guest.partySize,
             weddingDate: "Upcoming wedding",
             venueName: wedding.venueName,
             venueCity: "\(wedding.city), \(wedding.country)",
             cardStyle: "ivory-floral-gold",
-            isConfirmed: guests[0].rsvpStatus == .attending
+            isConfirmed: guest.rsvpStatus == .attending
         )
     }
 
     public func confirmRsvp(weddingSlug: String, token: String, attending: Bool) async throws -> WeddingPass {
-        if let index = guests.firstIndex(where: { $0.id == "shadow_guest_a" }) {
-            guests[index].rsvpStatus = attending ? .attending : .declined
+        guard let index = guestIndexForToken(token) else {
+            throw NSError(
+                domain: "ShadowReferenceWeddingRepository",
+                code: 404,
+                userInfo: [NSLocalizedDescriptionKey: "Shadow invitation token does not map to a reference guest."]
+            )
         }
-        return attending ? makePrimaryPass() : makeNonAdmissionPass()
+
+        var current = guests[index]
+        current.rsvpStatus = attending ? .attending : .declined
+        if attending && current.passSerial == nil {
+            current.passSerial = "SHDW\(current.id.uppercased().suffix(8))"
+        }
+        guests[index] = current
+
+        return attending ? makePass(for: current) : makeNonAdmissionPass(for: current)
     }
 
-    private func makePrimaryPass() -> WeddingPass {
-        WeddingPass(
-            token: "shadow-pass-guest-a",
+    private func guestIndexForToken(_ token: String) -> Int? {
+        let guestId: String
+        switch token {
+        case attendingToken, "native-reference-guest":
+            guestId = "shadow_guest_a"
+        case pendingToken:
+            guestId = "shadow_guest_c"
+        case declinedToken:
+            guestId = "shadow_guest_d"
+        default:
+            return nil
+        }
+        return guests.firstIndex(where: { $0.id == guestId })
+    }
+
+    private func guestForToken(_ token: String) throws -> Guest {
+        guard let index = guestIndexForToken(token) else {
+            throw NSError(
+                domain: "ShadowReferenceWeddingRepository",
+                code: 404,
+                userInfo: [NSLocalizedDescriptionKey: "Unknown Shadow guest token."]
+            )
+        }
+        return guests[index]
+    }
+
+    private func makePass(for guest: Guest) -> WeddingPass {
+        let serial = guest.passSerial ?? primaryPassSerial
+        return WeddingPass(
+            token: "shadow-pass-\(guest.id)",
             weddingId: wedding.id,
             coupleNames: wedding.coupleNames,
             weddingDate: "Upcoming wedding",
             venueName: wedding.venueName,
             venueAddress: wedding.venueAddress,
-            guestName: guests[0].name,
-            householdName: guests[0].householdName,
-            partySize: guests[0].partySize,
-            tableNumber: guests[0].tableNumber,
-            tableName: guests[0].tableName,
-            seatNumber: "Shadow assignment",
+            guestName: guest.name,
+            householdName: guest.householdName,
+            partySize: guest.partySize,
+            tableNumber: guest.tableNumber,
+            tableName: guest.tableName,
+            seatNumber: guest.tableName == nil ? nil : "Shadow assignment",
             currentStage: .attending,
-            qrPayload: "SHADOW_ONLY.WW2_PLACEHOLDER.\(primaryPassSerial).NOT_A_PRODUCTION_CREDENTIAL"
+            qrPayload: "SHADOW_ONLY.WW2_PLACEHOLDER.\(serial).NOT_A_PRODUCTION_CREDENTIAL"
         )
     }
 
-    private func makeNonAdmissionPass() -> WeddingPass {
+    private func makeNonAdmissionPass(for guest: Guest) -> WeddingPass {
         WeddingPass(
-            token: "shadow-non-admission",
+            token: "shadow-non-admission-\(guest.id)",
             weddingId: wedding.id,
             coupleNames: wedding.coupleNames,
             weddingDate: "Upcoming wedding",
             venueName: wedding.venueName,
             venueAddress: wedding.venueAddress,
-            guestName: guests[0].name,
-            householdName: guests[0].householdName,
-            partySize: guests[0].partySize,
+            guestName: guest.name,
+            householdName: guest.householdName,
+            partySize: guest.partySize,
             currentStage: .invitation,
             qrPayload: "SHADOW_DECLINED_NO_ADMISSION"
         )

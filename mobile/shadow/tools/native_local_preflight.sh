@@ -3,7 +3,7 @@ set -euo pipefail
 
 EXPECTED_BRANCH="native-mobile/shadow-setup-implementation-20260918"
 BASE_REF="origin/native-mobile/shadow-real-wedding-plan-20260918"
-REMOTE_REF="origin/\${EXPECTED_BRANCH}"
+REMOTE_REF="origin/${EXPECTED_BRANCH}"
 
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"

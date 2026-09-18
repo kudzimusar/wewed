@@ -6,6 +6,7 @@ import org.junit.Test
 import pro.wewed.app.models.NativeDataEnvironment
 import pro.wewed.app.models.PassStage
 import pro.wewed.app.models.RSVPStatus
+import pro.wewed.app.services.NativeEnvironmentGuardError
 import pro.wewed.app.services.NativeRepositoryFactory
 import pro.wewed.app.services.NativeRepositoryFactoryError
 import pro.wewed.app.services.ShadowReferenceWeddingRepository
@@ -115,7 +116,7 @@ class ShadowReferenceRepositoryTest {
         NativeRepositoryFactory.make(NativeDataEnvironment.PRODUCTION_READ_VERIFY)
     }
 
-    @Test(expected = NativeRepositoryFactoryError.ProductionDisabled::class)
+    @Test(expected = NativeEnvironmentGuardError.ProductionDisabled::class)
     fun productionRepositoryRemainsLocked() {
         NativeRepositoryFactory.make(NativeDataEnvironment.PRODUCTION)
     }
