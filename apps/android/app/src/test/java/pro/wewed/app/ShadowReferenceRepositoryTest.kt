@@ -83,6 +83,33 @@ class ShadowReferenceRepositoryTest {
         }
     }
 
+    @Test
+    fun pendingInvitationTransitionsToAttendingPassWithoutChangingExistingAttendee() = runBlocking {
+        val repository = ShadowReferenceWeddingRepository()
+
+        val invitation = repository.resolveInvitation(
+            "shadow_ref_charity_kudzie",
+            "shadow-pending-guest"
+        )
+        assertFalse(invitation.isConfirmed)
+        assertEquals("Guest C", invitation.guestName)
+
+        val pass = repository.confirmRsvp(
+            "shadow_ref_charity_kudzie",
+            "shadow-pending-guest",
+            true
+        )
+        val guests = repository.getGuests()
+        val converted = guests.first { it.id == "shadow_guest_c" }
+        val existing = guests.first { it.id == "shadow_guest_a" }
+
+        assertEquals(RSVPStatus.ATTENDING, converted.rsvpStatus)
+        assertNotNull(converted.passSerial)
+        assertEquals(converted.name, pass.guestName)
+        assertEquals(PassStage.ATTENDING, pass.currentStage)
+        assertEquals(RSVPStatus.ATTENDING, existing.rsvpStatus)
+    }
+
     @Test(expected = NativeRepositoryFactoryError.ProductionReadVerifyNotConfigured::class)
     fun productionReadVerifyRemainsLocked() {
         NativeRepositoryFactory.make(NativeDataEnvironment.PRODUCTION_READ_VERIFY)
