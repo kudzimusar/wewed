@@ -34,6 +34,7 @@ import pro.wewed.app.theme.*
 @Composable
 fun WeddingReferenceGuestsScreen(appViewModel: AppViewModel) {
     var guests by remember { mutableStateOf<List<Guest>>(emptyList()) }
+    var wedding by remember { mutableStateOf<pro.wewed.app.models.Wedding?>(null) }
     var query by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf(ReferenceGuestFilter.ALL) }
     var loading by remember { mutableStateOf(true) }
@@ -41,6 +42,7 @@ fun WeddingReferenceGuestsScreen(appViewModel: AppViewModel) {
     LaunchedEffect(Unit) {
         try {
             guests = appViewModel.repository.getGuests()
+            wedding = appViewModel.repository.getWedding()
         } finally {
             loading = false
         }
@@ -99,7 +101,7 @@ fun WeddingReferenceGuestsScreen(appViewModel: AppViewModel) {
                         fontSize = 12.sp
                     )
                 }
-                    WeddingMonogram("C & K", sizeSp = 32, modifier = Modifier.padding(end = 8.dp))
+                    WeddingMonogram(wedding?.coupleNames ?: "C & K", sizeSp = 32, modifier = Modifier.padding(end = 8.dp))
                 }
             }
 
