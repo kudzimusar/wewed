@@ -32,7 +32,7 @@ public struct IvoryInvitationView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                WeddingFloralBackground()
+                WeddingFloralBackground(opacity: 0.14)
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 18) {
