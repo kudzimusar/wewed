@@ -1,0 +1,49 @@
+appId: pro.wewed.app
+---
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+
+- assertVisible: "WEWED"
+- tapOn: "Sign In"
+
+# Capture the actual phone viewport for each approved reference screen.
+- assertVisible:
+    id: "home-root"
+- takeScreenshot: wireframe-home
+
+- tapOn: "Plan"
+- assertVisible:
+    id: "planner-root"
+- takeScreenshot: wireframe-plan
+
+- tapOn: "Guests"
+- assertVisible:
+    id: "guests-root"
+- takeScreenshot: wireframe-guests
+
+- tapOn: "Pass"
+- assertVisible:
+    id: "pass-root"
+- assertVisible:
+    id: "wedding-pass-qr"
+- takeScreenshot: wireframe-pass
+
+- tapOn: "More"
+- assertVisible:
+    id: "more-root"
+- takeScreenshot: wireframe-more
+
+- tapOn: "Home"
+- assertVisible:
+    id: "home-root"
+- tapOn:
+    id: "home-open-invitation"
+- assertVisible:
+    id: "guest-journey-splash"
+- extendedWaitUntil:
+    visible:
+      id: "ivory-invitation-root"
+    timeout: 5000
+- takeScreenshot: wireframe-invitation

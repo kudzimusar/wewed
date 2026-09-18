@@ -10,6 +10,7 @@ on:
       - '.maestro/native-shadow-invitation-accept.yaml'
       - '.maestro/native-shadow-invitation-decline.yaml'
       - '.maestro/native-wedding-journey.yaml'
+      - '.maestro/native-wireframe-screenshots.yaml'
       - '.github/workflows/native-wedding-identity-maestro-android.yml'
   workflow_dispatch:
 
@@ -72,6 +73,7 @@ jobs:
             maestro test .maestro/native-shadow-invitation-accept.yaml
             maestro test .maestro/native-shadow-invitation-decline.yaml
             maestro test .maestro/native-wedding-journey.yaml
+            maestro test .maestro/native-wireframe-screenshots.yaml
 
       - name: Upload Maestro diagnostics
         if: failure()
@@ -81,4 +83,16 @@ jobs:
           path: |
             ~/.maestro/tests
           if-no-files-found: ignore
+          retention-days: 14
+
+
+      - name: Upload actual wireframe viewport captures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: native-wireframe-viewport-captures
+          path: |
+            wireframe-*.png
+            **/wireframe-*.png
+          if-no-files-found: warn
           retention-days: 14
