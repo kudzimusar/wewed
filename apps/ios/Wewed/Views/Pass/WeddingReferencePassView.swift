@@ -25,7 +25,7 @@ public struct WeddingReferencePassView: View {
                                 WeddingPrimaryButtonLabel("Usher Check-In Mode", icon: "camera.viewfinder")
                             }
                             .buttonStyle(.plain)
-                            .accessibilityIdentifier("reference-pass-scanner")
+                            .accessibilityIdentifier("pass-open-scanner")
                         } else if isLoading {
                             ProgressView("Loading wedding pass…")
                                 .padding(.top, 120)
@@ -53,7 +53,7 @@ public struct WeddingReferencePassView: View {
             }
             .task { await loadPass() }
         }
-        .accessibilityIdentifier("reference-pass-root")
+        .accessibilityIdentifier("pass-root")
     }
 
     private var header: some View {
@@ -155,6 +155,7 @@ public struct WeddingReferencePassView: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: 22))
         .shadow(color: Color.black.opacity(0.06), radius: 14, x: 0, y: 5)
+        .accessibilityIdentifier("wedding-pass-card")
     }
 
     private func loadPass() async {
