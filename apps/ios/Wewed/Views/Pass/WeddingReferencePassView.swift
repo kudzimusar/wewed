@@ -14,7 +14,7 @@ public struct WeddingReferencePassView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                WeddingFloralBackground()
+                WeddingFloralBackground(opacity: 0.12)
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 18) {
