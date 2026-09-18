@@ -17,6 +17,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
@@ -83,6 +84,7 @@ fun WeddingReferenceHomeScreen(appViewModel: AppViewModel) {
         modifier = Modifier
             .fillMaxSize()
             .background(WeddingIdentityPalette.Ivory)
+            .testTag("home-root")
     ) {
         if (isLoading) {
             CircularProgressIndicator(
@@ -110,7 +112,7 @@ fun WeddingReferenceHomeScreen(appViewModel: AppViewModel) {
                     )
 
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().testTag("home-metrics"),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         WeddingMetricTile(
@@ -208,7 +210,10 @@ private fun ReferenceHero(
                     sizeSp = 28,
                     modifier = Modifier
                 )
-                IconButton(onClick = onInvitation) {
+                IconButton(
+                    onClick = onInvitation,
+                    modifier = Modifier.testTag("home-open-invitation")
+                ) {
                     Icon(
                         Icons.Default.NotificationsNone,
                         contentDescription = "Open invitation",
@@ -299,7 +304,7 @@ private fun ReferenceContinuePlanning(
     onClick: () -> Unit
 ) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().testTag("home-continue-planning"),
         shape = RoundedCornerShape(18.dp),
         color = WeddingIdentityPalette.IvorySoft,
         tonalElevation = 0.dp,
@@ -366,7 +371,10 @@ private fun ReferenceFocus(
             .thenByDescending { priorityRank(it.priority) }
     ).take(3)
 
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(
+        modifier = Modifier.testTag("home-today-focus"),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
