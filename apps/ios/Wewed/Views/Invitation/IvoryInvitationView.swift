@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Premium native Ivory Floral Gold invitation experience.
-/// Ceremonial opening sequence transitioning seamlessly into the Wewed Wedding Pass.
+/// In Shadow/UAT this is driven by the real wedding graph while RSVP/pass credentials remain Shadow-only.
 public struct IvoryInvitationView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var appState: AppState
@@ -11,11 +11,11 @@ public struct IvoryInvitationView: View {
     public let onRsvpConfirmed: (WeddingPass) -> Void
     public let onRsvpDeclined: () -> Void
 
-    @State private var isRevealed: Bool = false
-    @State private var rsvpSubmitted: Bool = false
-    @State private var isSubmitting: Bool = false
-    @State private var generatedPass: WeddingPass? = nil
-    @State private var declined: Bool = false
+    @State private var showDetails = false
+    @State private var rsvpSubmitted = false
+    @State private var declined = false
+    @State private var isSubmitting = false
+    @State private var generatedPass: WeddingPass?
 
     public init(
         invitation: InvitationContext,
@@ -32,306 +32,202 @@ public struct IvoryInvitationView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                // Background Stage
-                Color(red: 0.09, green: 0.07, blue: 0.06) // #17130F Stage backdrop
-                    .ignoresSafeArea()
+                WeddingFloralBackground()
 
-                ScrollView {
-                    VStack(spacing: 24) {
-                        Spacer().frame(height: 20)
-
-                        if !isRevealed {
-                            closedEnvelopeCard
-                        } else {
-                            unfoldedInvitationCard
-                        }
-
-                        Spacer().frame(height: 40)
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 18) {
+                        invitationCard
+                        responseArea
                     }
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 12)
+                    .padding(.bottom, 30)
                 }
             }
-            .navigationTitle("Wedding Invitation")
-            .accessibilityIdentifier("ivory-invitation-root")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .toolbar {
+            .toolbar(.hidden, for: .navigationBar)
+            .overlay(alignment: .topLeading) {
                 if allowsClose {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Close") { dismiss() }
-                            .foregroundColor(WewedColors.gold)
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(WeddingIdentityPalette.ink)
+                            .frame(width: 42, height: 42)
+                            .background(.ultraThinMaterial)
+                            .clipShape(Circle())
                     }
+                    .padding(.leading, 12)
+                    .padding(.top, 8)
+                    .accessibilityLabel("Close invitation")
                 }
             }
         }
+        .accessibilityIdentifier("ivory-invitation-root")
     }
 
-    // MARK: - Closed Ceremonial Envelope
-    private var closedEnvelopeCard: some View {
-        VStack(spacing: 20) {
-            ZStack {
-                // Outer Stationery Envelope
-                RoundedRectangle(cornerRadius: WewedRadius.lg)
-                    .fill(Color(red: 0.98, green: 0.96, blue: 0.91)) // #FBF5E9 Ivory paper
-                    .overlay(
-                        RoundedRectangle(cornerRadius: WewedRadius.lg)
-                            .stroke(WewedColors.gold.opacity(0.4), lineWidth: 1.5)
-                    )
-                    .shadow(color: Color.black.opacity(0.35), radius: 16, x: 0, y: 8)
+    private var invitationCard: some View {
+        ZStack {
+            Image("ornament-frame", bundle: .module)
+                .resizable()
+                .scaledToFill()
+                .opacity(0.42)
 
-                VStack(spacing: 16) {
-                    // Gold Monogram Seal
-                    ZStack {
-                        Circle()
-                            .fill(WewedColors.gold)
-                            .frame(width: 64, height: 64)
-                            .shadow(color: WewedColors.gold.opacity(0.5), radius: 8, x: 0, y: 3)
+            VStack(spacing: 14) {
+                Text("You’re Invited")
+                    .font(.system(size: 18, weight: .semibold, design: .serif))
+                    .foregroundStyle(WeddingIdentityPalette.ink)
 
-                        Text(coupleInitials)
-                            .font(.system(size: 20, weight: .bold, design: .serif))
-                            .foregroundColor(.black)
+                WeddingMonogram(names: invitation.coupleNames, size: 54)
+
+                Text(invitation.coupleNames)
+                    .font(.system(size: 29, weight: .regular, design: .serif))
+                    .italic()
+                    .foregroundStyle(WeddingIdentityPalette.ink)
+                    .multilineTextAlignment(.center)
+
+                Text("TOGETHER WITH OUR FAMILIES\nWE INVITE YOU TO CELEBRATE\nOUR WEDDING")
+                    .font(.system(size: 10, weight: .semibold))
+                    .tracking(1.5)
+                    .foregroundStyle(WeddingIdentityPalette.ink.opacity(0.86))
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(4)
+
+                Rectangle()
+                    .fill(WeddingIdentityPalette.champagne)
+                    .frame(width: 72, height: 1)
+
+                Text(displayDate(invitation.weddingDate))
+                    .font(.system(size: 23, weight: .medium, design: .serif))
+                    .foregroundStyle(WeddingIdentityPalette.champagneDeep)
+
+                Text(invitation.venueCity.uppercased())
+                    .font(.system(size: 10, weight: .medium))
+                    .tracking(1.8)
+                    .foregroundStyle(WeddingIdentityPalette.muted)
+
+                Text("For \(invitation.guestName) • Party of \(invitation.partySize)")
+                    .font(.system(size: 11))
+                    .foregroundStyle(WeddingIdentityPalette.muted)
+                    .padding(.top, 2)
+
+                if showDetails {
+                    VStack(spacing: 8) {
+                        Label(invitation.venueName, systemImage: "mappin.and.ellipse")
+                        Label(invitation.weddingDate, systemImage: "calendar")
                     }
-                    .padding(.top, 40)
+                    .font(.system(size: 12))
+                    .foregroundStyle(WeddingIdentityPalette.ink)
+                    .padding(12)
+                    .frame(maxWidth: .infinity)
+                    .background(.white.opacity(0.72))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 34)
+        }
+        .frame(maxWidth: .infinity)
+        .background(WeddingIdentityPalette.ivorySoft)
+        .overlay(
+            RoundedRectangle(cornerRadius: 24)
+                .stroke(WeddingIdentityPalette.champagne.opacity(0.70), lineWidth: 1.2)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 24))
+        .shadow(color: Color.black.opacity(0.06), radius: 14, x: 0, y: 5)
+    }
 
-                    Text(invitation.coupleNames.uppercased())
-                        .font(.system(size: 14, weight: .semibold, design: .serif))
-                        .tracking(3)
-                        .foregroundColor(Color(red: 0.26, green: 0.22, blue: 0.18)) // #42372F Ink
-
-                    Text("A PERSONAL INVITATION FOR")
-                        .font(.system(size: 10, weight: .bold))
-                        .tracking(2)
-                        .foregroundColor(WewedColors.goldDark)
-
-                    Text(invitation.guestName)
-                        .font(.system(size: 22, weight: .bold, design: .serif))
-                        .foregroundColor(Color(red: 0.26, green: 0.22, blue: 0.18))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-
-                    Text("\(invitation.partySize) Seats Reserved in Your Honour")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    Spacer().frame(height: 20)
+    @ViewBuilder
+    private var responseArea: some View {
+        if declined {
+            WeddingSectionCard {
+                VStack(spacing: 8) {
+                    Image(systemName: "heart")
+                        .foregroundStyle(WeddingIdentityPalette.champagneDeep)
+                    Text("Response Recorded")
+                        .font(.headline)
+                        .foregroundStyle(WeddingIdentityPalette.ink)
+                    Text("Thank you for letting the wedding team know.")
+                        .font(.subheadline)
+                        .foregroundStyle(WeddingIdentityPalette.muted)
+                }
+                .frame(maxWidth: .infinity)
+            }
+        } else if rsvpSubmitted, let generatedPass {
+            WeddingSectionCard {
+                VStack(spacing: 12) {
+                    Label("RSVP Confirmed", systemImage: "checkmark.seal.fill")
+                        .font(.headline)
+                        .foregroundStyle(WeddingIdentityPalette.forest)
 
                     Button {
-                        withAnimation(.spring(response: 0.6, dampingFraction: 0.75)) {
-                            isRevealed = true
-                        }
+                        onRsvpConfirmed(generatedPass)
+                        if allowsClose { dismiss() }
                     } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "envelope.open.fill")
-                            Text("Open Invitation")
-                                .fontWeight(.bold)
-                        }
-                        .font(.subheadline)
-                        .padding(.horizontal, 28)
-                        .padding(.vertical, 14)
-                        .background(WewedColors.gold)
-                        .foregroundColor(.black)
-                        .cornerRadius(WewedRadius.pill)
-                        .shadow(color: WewedColors.gold.opacity(0.4), radius: 8, x: 0, y: 3)
+                        WeddingPrimaryButtonLabel("View My Wedding Pass", icon: "qrcode")
                     }
-                    .padding(.bottom, 40)
-                    .accessibilityIdentifier("ivory-invitation-open")
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("ivory-view-wedding-pass")
                 }
             }
-            .frame(minHeight: 440)
-        }
-    }
-
-    // MARK: - Unfolded Premium Stationery
-    private var unfoldedInvitationCard: some View {
-        VStack(spacing: 24) {
-            ZStack {
-                RoundedRectangle(cornerRadius: WewedRadius.lg)
-                    .fill(Color(red: 0.98, green: 0.96, blue: 0.91)) // #FBF5E9 Ivory paper
-                    .overlay(
-                        RoundedRectangle(cornerRadius: WewedRadius.lg)
-                            .stroke(WewedColors.gold.opacity(0.5), lineWidth: 1.5)
-                    )
-                    .shadow(color: Color.black.opacity(0.4), radius: 20, x: 0, y: 10)
-
-                VStack(spacing: 20) {
-                    // Header flourish
-                    VStack(spacing: 6) {
-                        Text("TOGETHER WITH THEIR FAMILIES")
-                            .font(.system(size: 11, weight: .bold))
-                            .tracking(2.5)
-                            .foregroundColor(WewedColors.goldDark)
-
-                        Text(invitation.coupleNames)
-                            .font(.system(size: 32, weight: .bold, design: .serif))
-                            .foregroundColor(Color(red: 0.26, green: 0.22, blue: 0.18))
-                            .multilineTextAlignment(.center)
-                    }
-                    .padding(.top, 36)
-
-                    Divider()
-                        .frame(width: 80)
-                        .overlay(WewedColors.gold)
-
-                    Text("REQUEST THE PLEASURE OF YOUR COMPANY\nTO CELEBRATE THEIR MARRIAGE")
-                        .font(.system(size: 11, weight: .medium))
-                        .tracking(1.8)
-                        .multilineTextAlignment(.center)
-                        .foregroundColor(Color(red: 0.48, green: 0.43, blue: 0.38))
-                        .lineSpacing(4)
-
-                    // Event Details Card
-                    VStack(spacing: 12) {
-                        HStack(spacing: 10) {
-                            Image(systemName: "calendar")
-                                .foregroundColor(WewedColors.gold)
-                            Text(invitation.weddingDate)
-                                .font(.subheadline)
+        } else {
+            VStack(spacing: 10) {
+                Button {
+                    submitRsvp(attending: true)
+                } label: {
+                    HStack {
+                        if isSubmitting {
+                            ProgressView().tint(.white)
+                        } else {
+                            Text("RSVP Now")
                                 .fontWeight(.semibold)
-                                .foregroundColor(Color(red: 0.26, green: 0.22, blue: 0.18))
-                        }
-
-                        HStack(spacing: 10) {
-                            Image(systemName: "clock")
-                                .foregroundColor(WewedColors.gold)
-                            Text("Ceremony at 14:00 (Doors open 13:15)")
-                                .font(.subheadline)
-                                .foregroundColor(Color(red: 0.26, green: 0.22, blue: 0.18))
-                        }
-
-                        HStack(spacing: 10) {
-                            Image(systemName: "mappin.and.ellipse")
-                                .foregroundColor(WewedColors.gold)
-                            Text("\(invitation.venueName) • \(invitation.venueCity)")
-                                .font(.subheadline)
-                                .foregroundColor(Color(red: 0.26, green: 0.22, blue: 0.18))
                         }
                     }
-                    .padding()
-                    .background(Color.white.opacity(0.7))
-                    .cornerRadius(WewedRadius.md)
-                    .padding(.horizontal, 24)
-
-                    // RSVP Section
-                    if !rsvpSubmitted && !declined {
-                        VStack(spacing: 14) {
-                            Text("Kindly respond to continue your wedding experience")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-
-                            Button {
-                                submitRsvp(attending: true)
-                            } label: {
-                                HStack {
-                                    if isSubmitting {
-                                        ProgressView().tint(.black)
-                                    } else {
-                                        Image(systemName: "checkmark.circle.fill")
-                                        Text("Accept with Pleasure")
-                                            .fontWeight(.bold)
-                                    }
-                                }
-                                .font(.subheadline)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
-                                .background(WewedColors.gold)
-                                .foregroundColor(.black)
-                                .cornerRadius(WewedRadius.pill)
-                            }
-                            .disabled(isSubmitting)
-                            .accessibilityIdentifier("ivory-rsvp-accept")
-
-                            Button {
-                                submitRsvp(attending: false)
-                            } label: {
-                                Text("Decline with Regret")
-                                    .font(.subheadline)
-                                    .fontWeight(.semibold)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 12)
-                                    .foregroundColor(Color(red: 0.26, green: 0.22, blue: 0.18))
-                                    .background(Color.white.opacity(0.72))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: WewedRadius.pill)
-                                            .stroke(WewedColors.gold.opacity(0.45), lineWidth: 1)
-                                    )
-                                    .cornerRadius(WewedRadius.pill)
-                            }
-                            .disabled(isSubmitting)
-                            .accessibilityIdentifier("ivory-rsvp-decline")
-                        }
-                        .padding(.horizontal, 24)
-                        .padding(.bottom, 36)
-                    } else if declined {
-                        VStack(spacing: 12) {
-                            Image(systemName: "heart")
-                                .foregroundColor(WewedColors.gold)
-                            Text("Response Recorded")
-                                .font(.headline)
-                                .fontWeight(.bold)
-                                .foregroundColor(Color(red: 0.26, green: 0.22, blue: 0.18))
-                            Text("Thank you for letting \(invitation.coupleNames)'s wedding team know. No admission pass is issued for a declined RSVP.")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .multilineTextAlignment(.center)
-                        }
-                        .padding(.horizontal, 24)
-                        .padding(.bottom, 36)
-                    } else {
-                        // Confirmed State
-                        VStack(spacing: 16) {
-                            HStack(spacing: 8) {
-                                Image(systemName: "checkmark.seal.fill")
-                                    .foregroundColor(WewedColors.success)
-                                Text("RSVP Confirmed")
-                                    .font(.headline)
-                                    .fontWeight(.bold)
-                                    .foregroundColor(WewedColors.success)
-                            }
-
-                            Text("We are thrilled to celebrate with you!")
-                                .font(.subheadline)
-                                .foregroundColor(Color(red: 0.26, green: 0.22, blue: 0.18))
-
-                            if let p = generatedPass {
-                                Button {
-                                    onRsvpConfirmed(p)
-                                    if allowsClose {
-                                        dismiss()
-                                    }
-                                } label: {
-                                    HStack(spacing: 8) {
-                                        Image(systemName: "qrcode")
-                                        Text("View My Wedding Pass")
-                                            .fontWeight(.bold)
-                                    }
-                                    .font(.headline)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 14)
-                                    .background(WewedColors.gold)
-                                    .foregroundColor(.black)
-                                    .cornerRadius(WewedRadius.pill)
-                                    .shadow(color: WewedColors.gold.opacity(0.4), radius: 8, x: 0, y: 3)
-                                }
-                                .padding(.horizontal, 24)
-                                .accessibilityIdentifier("ivory-view-wedding-pass")
-                            }
-                        }
-                        .padding(.bottom, 36)
-                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .foregroundStyle(.white)
+                    .background(
+                        LinearGradient(
+                            colors: [WeddingIdentityPalette.champagneDeep, WeddingIdentityPalette.champagne],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 13))
                 }
+                .disabled(isSubmitting)
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("ivory-rsvp-accept")
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        showDetails.toggle()
+                    }
+                } label: {
+                    Text(showDetails ? "Hide Details" : "View Details")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(WeddingIdentityPalette.ink)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 13)
+                                .stroke(WeddingIdentityPalette.champagne, lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    submitRsvp(attending: false)
+                } label: {
+                    Text("Decline with Regret")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(WeddingIdentityPalette.muted)
+                        .padding(.vertical, 7)
+                }
+                .disabled(isSubmitting)
+                .accessibilityIdentifier("ivory-rsvp-decline")
             }
         }
-    }
-
-    private var coupleInitials: String {
-        invitation.coupleNames
-            .components(separatedBy: "&")
-            .compactMap { part in
-                part.trimmingCharacters(in: .whitespacesAndNewlines).first.map(String.init)
-            }
-            .joined(separator: "&")
-            .uppercased()
     }
 
     private func submitRsvp(attending: Bool) {
@@ -353,10 +249,22 @@ public struct IvoryInvitationView: View {
                     declined = true
                     onRsvpDeclined()
                 }
-                isSubmitting = false
             } catch {
-                isSubmitting = false
+                // Preserve the existing interaction contract: failed RSVP leaves the card actionable.
             }
+            isSubmitting = false
         }
+    }
+
+    private func displayDate(_ raw: String) -> String {
+        let input = DateFormatter()
+        input.locale = Locale(identifier: "en_US_POSIX")
+        input.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        guard let date = input.date(from: raw) else { return raw }
+
+        let output = DateFormatter()
+        output.locale = Locale(identifier: "en_US_POSIX")
+        output.dateFormat = "dd MMM yyyy"
+        return output.string(from: date).uppercased()
     }
 }
