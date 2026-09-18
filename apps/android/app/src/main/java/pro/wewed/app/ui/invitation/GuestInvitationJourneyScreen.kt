@@ -55,7 +55,10 @@ fun GuestInvitationJourneyScreen(
                 stage = GuestJourneyStage.CONFIRMED_ATTENDING
             },
             onClose = {},
-            allowsClose = false
+            allowsClose = false,
+            onRsvpDeclined = {
+                stage = GuestJourneyStage.DECLINED
+            }
         )
         GuestJourneyStage.CONFIRMED_ATTENDING -> PassScreen(
             appViewModel = appViewModel,
