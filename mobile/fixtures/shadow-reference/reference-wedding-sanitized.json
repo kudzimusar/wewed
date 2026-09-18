@@ -1,0 +1,33 @@
+{
+  "fixtureVersion": "2026-09-18.1",
+  "source": "sanitized-reference",
+  "isProductionSnapshot": false,
+  "referenceScenario": "Charity & Kudzie / Eleven Eleven Testing",
+  "privacyNote": "Synthetic values preserving the intended Wewed relationship shape. No production identifiers, secrets, private messages, payment credentials or real guest contact details are included.",
+  "wedding": {
+    "id": "shadow_ref_charity_kudzie",
+    "title": "Charity & Kudzie",
+    "lifecycle": "before",
+    "dateLabel": "Upcoming wedding",
+    "plannerContext": "Eleven Eleven Testing"
+  },
+  "plannerDashboard": {
+    "readinessScore": 78,
+    "overdueTasks": 3,
+    "pendingRsvps": 12,
+    "unseatedGuests": 8,
+    "vendorDecisions": 2,
+    "contractsNeedingAction": 1,
+    "paymentsDue": 3,
+    "timelineConflicts": 1
+  },
+  "modules": [
+    { "id": "tasks", "title": "Tasks", "value": "38 / 47", "attention": "3 overdue" },
+    { "id": "budget", "title": "Budget", "value": "$18.4k", "attention": "3 payments due" },
+    { "id": "contributions", "title": "Contributions", "value": "$3.2k", "attention": "2 unverified" },
+    { "id": "vendors", "title": "Vendors", "value": "9 booked", "attention": "2 decisions" },
+    { "id": "guests", "title": "Guests", "value": "92", "attention": "12 awaiting RSVP" },
+    { "id": "seating", "title": "Seating", "value": "84 / 92", "attention": "8 unseated" },
+    { "id": "timeline", "title": "Timeline", "value": "24 events", "attention": "1 conflict" }
+  ]
+}

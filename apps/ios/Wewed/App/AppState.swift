@@ -28,13 +28,19 @@ public final class AppState: ObservableObject, @unchecked Sendable {
     @Published public var lastSyncTime: Date? = nil
 
     public let repository: WeddingRepositoryProtocol
+    public let plannerRepository: PlannerDashboardRepositoryProtocol
+    public let dataEnvironment: NativeDataEnvironment
     /// Nil by default. Isolated integration builds/tests may inject a manifest-backed runtime.
     public let weddingDayGate: WeddingDayGateOperations?
 
     public init(
         repository: WeddingRepositoryProtocol = FixtureWeddingRepository(),
+        plannerRepository: PlannerDashboardRepositoryProtocol = FixturePlannerDashboardRepository(),
+        dataEnvironment: NativeDataEnvironment = .fixture,
         weddingDayGate: WeddingDayGateOperations? = nil
     ) {
+        self.plannerRepository = plannerRepository
+        self.dataEnvironment = dataEnvironment
         self.weddingDayGate = weddingDayGate
         if let weddingDayGate {
             self.repository = WeddingDayGateAwareRepository(base: repository, gate: weddingDayGate)

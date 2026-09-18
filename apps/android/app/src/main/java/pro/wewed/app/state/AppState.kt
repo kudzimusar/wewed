@@ -3,7 +3,10 @@ package pro.wewed.app.state
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import pro.wewed.app.models.NativeDataEnvironment
+import pro.wewed.app.services.FixturePlannerDashboardRepository
 import pro.wewed.app.services.FixtureWeddingRepository
+import pro.wewed.app.services.PlannerDashboardRepository
 import pro.wewed.app.services.WeddingDayGateAwareRepository
 import pro.wewed.app.services.WeddingDayGateOperations
 import pro.wewed.app.services.WeddingRepository
@@ -18,6 +21,8 @@ enum class AppTab(val title: String) {
 
 class AppViewModel(
     baseRepository: WeddingRepository = FixtureWeddingRepository(),
+    val plannerRepository: PlannerDashboardRepository = FixturePlannerDashboardRepository(),
+    val dataEnvironment: NativeDataEnvironment = NativeDataEnvironment.FIXTURE,
     val weddingDayGate: WeddingDayGateOperations? = null
 ) {
     val repository: WeddingRepository = if (weddingDayGate != null) {
