@@ -211,190 +211,109 @@ fun IvoryInvitationScreen(
                             }
                         }
                     }
-                }
-            }
 
-            when {
-                declined -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(18.dp))
-                            .background(WeddingIdentityPalette.IvorySoft)
-                            .border(
-                                1.dp,
-                                WeddingIdentityPalette.Hairline,
-                                RoundedCornerShape(18.dp)
-                            )
-                            .padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.FavoriteBorder,
-                            contentDescription = null,
-                            tint = WeddingIdentityPalette.ChampagneDeep
-                        )
-                        Text(
-                            "Response Recorded",
-                            color = WeddingIdentityPalette.Ink,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            "Thank you for letting the wedding team know.",
-                            color = WeddingIdentityPalette.Muted,
-                            fontSize = 12.sp,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-
-                rsvpSubmitted && generatedPass != null -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(18.dp))
-                            .background(WeddingIdentityPalette.IvorySoft)
-                            .border(
-                                1.dp,
-                                WeddingIdentityPalette.Hairline,
-                                RoundedCornerShape(18.dp)
-                            )
-                            .padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                when {
+                    declined -> {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(WeddingIdentityPalette.IvorySoft)
+                                .border(
+                                    1.dp,
+                                    WeddingIdentityPalette.Hairline,
+                                    RoundedCornerShape(18.dp)
+                                )
+                                .padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
                             Icon(
-                                Icons.Default.Verified,
+                                Icons.Default.FavoriteBorder,
                                 contentDescription = null,
-                                tint = WeddingIdentityPalette.Forest
+                                tint = WeddingIdentityPalette.ChampagneDeep
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                "RSVP Confirmed",
-                                color = WeddingIdentityPalette.Forest,
-                                fontWeight = FontWeight.Bold
+                                "Response Recorded",
+                                color = WeddingIdentityPalette.Ink,
+                                fontWeight = FontWeight.SemiBold
                             )
-                        }
-
-                        Button(
-                            onClick = {
-                                generatedPass?.let(onRsvpConfirmed)
-                                if (allowsClose) onClose()
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(48.dp)
-                                .testTag("ivory-view-wedding-pass"),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = WeddingIdentityPalette.Forest
-                            ),
-                            shape = RoundedCornerShape(13.dp)
-                        ) {
-                            Icon(Icons.Default.QrCode, contentDescription = null)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("View My Wedding Pass", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "Thank you for letting the wedding team know.",
+                                color = WeddingIdentityPalette.Muted,
+                                fontSize = 12.sp,
+                                textAlign = TextAlign.Center
+                            )
                         }
                     }
-                }
-
-                else -> {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Button(
-                            onClick = {
-                                isSubmitting = true
-                                scope.launch {
-                                    try {
-                                        generatedPass = appViewModel.repository.confirmRsvp(
-                                            invitation.weddingSlug,
-                                            invitation.guestToken,
-                                            true
-                                        )
-                                        rsvpSubmitted = true
-                                        declined = false
-                                    } finally {
-                                        isSubmitting = false
-                                    }
-                                }
-                            },
-                            enabled = !isSubmitting,
+    
+                    rsvpSubmitted && generatedPass != null -> {
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(50.dp)
-                                .testTag("ivory-rsvp-accept"),
-                            shape = RoundedCornerShape(13.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color.Transparent
-                            ),
-                            contentPadding = PaddingValues(0.dp)
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(WeddingIdentityPalette.IvorySoft)
+                                .border(
+                                    1.dp,
+                                    WeddingIdentityPalette.Hairline,
+                                    RoundedCornerShape(18.dp)
+                                )
+                                .padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Box(
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.Verified,
+                                    contentDescription = null,
+                                    tint = WeddingIdentityPalette.Forest
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    "RSVP Confirmed",
+                                    color = WeddingIdentityPalette.Forest,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+    
+                            Button(
+                                onClick = {
+                                    generatedPass?.let(onRsvpConfirmed)
+                                    if (allowsClose) onClose()
+                                },
                                 modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(
-                                        Brush.horizontalGradient(
-                                            listOf(
-                                                WeddingIdentityPalette.ChampagneDeep,
-                                                WeddingIdentityPalette.Champagne
-                                            )
-                                        )
-                                    ),
-                                contentAlignment = Alignment.Center
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                                    .testTag("ivory-view-wedding-pass"),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = WeddingIdentityPalette.Forest
+                                ),
+                                shape = RoundedCornerShape(13.dp)
                             ) {
-                                if (isSubmitting) {
-                                    CircularProgressIndicator(
-                                        color = Color.White,
-                                        modifier = Modifier.size(20.dp),
-                                        strokeWidth = 2.dp
-                                    )
-                                } else {
-                                    Text(
-                                        "RSVP Now",
-                                        color = Color.White,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                }
+                                Icon(Icons.Default.QrCode, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("View My Wedding Pass", fontWeight = FontWeight.SemiBold)
                             }
                         }
-
-                        OutlinedButton(
-                            onClick = { showDetails = !showDetails },
-                            modifier = Modifier.fillMaxWidth().height(48.dp).testTag("ivory-details-toggle"),
-                            shape = RoundedCornerShape(13.dp),
-                            border = androidx.compose.foundation.BorderStroke(
-                                1.dp,
-                                WeddingIdentityPalette.Champagne
-                            ),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = WeddingIdentityPalette.Ink
-                            )
+                    }
+    
+                    else -> {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Text(
-                                if (showDetails) "Hide Details" else "View Details",
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 13.sp
-                            )
-                        }
-
-                        if (showDetails) {
-                            TextButton(
+                            Button(
                                 onClick = {
                                     isSubmitting = true
                                     scope.launch {
                                         try {
-                                            appViewModel.repository.confirmRsvp(
+                                            generatedPass = appViewModel.repository.confirmRsvp(
                                                 invitation.weddingSlug,
                                                 invitation.guestToken,
-                                                false
+                                                true
                                             )
-                                            generatedPass = null
-                                            rsvpSubmitted = false
-                                            declined = true
-                                            onRsvpDeclined()
+                                            rsvpSubmitted = true
+                                            declined = false
                                         } finally {
                                             isSubmitting = false
                                         }
@@ -402,17 +321,99 @@ fun IvoryInvitationScreen(
                                 },
                                 enabled = !isSubmitting,
                                 modifier = Modifier
-                                    .align(Alignment.CenterHorizontally)
-                                    .testTag("ivory-rsvp-decline")
+                                    .fillMaxWidth()
+                                    .height(50.dp)
+                                    .testTag("ivory-rsvp-accept"),
+                                shape = RoundedCornerShape(13.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color.Transparent
+                                ),
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(
+                                            Brush.horizontalGradient(
+                                                listOf(
+                                                    WeddingIdentityPalette.ChampagneDeep,
+                                                    WeddingIdentityPalette.Champagne
+                                                )
+                                            )
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (isSubmitting) {
+                                        CircularProgressIndicator(
+                                            color = Color.White,
+                                            modifier = Modifier.size(20.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                    } else {
+                                        Text(
+                                            "RSVP Now",
+                                            color = Color.White,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                }
+                            }
+    
+                            OutlinedButton(
+                                onClick = { showDetails = !showDetails },
+                                modifier = Modifier.fillMaxWidth().height(48.dp).testTag("ivory-details-toggle"),
+                                shape = RoundedCornerShape(13.dp),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    WeddingIdentityPalette.Champagne
+                                ),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = WeddingIdentityPalette.Ink
+                                )
                             ) {
                                 Text(
-                                    "Decline with Regret",
-                                    color = WeddingIdentityPalette.Muted,
-                                    fontSize = 12.sp
+                                    if (showDetails) "Hide Details" else "View Details",
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp
                                 )
+                            }
+    
+                            if (showDetails) {
+                                TextButton(
+                                    onClick = {
+                                        isSubmitting = true
+                                        scope.launch {
+                                            try {
+                                                appViewModel.repository.confirmRsvp(
+                                                    invitation.weddingSlug,
+                                                    invitation.guestToken,
+                                                    false
+                                                )
+                                                generatedPass = null
+                                                rsvpSubmitted = false
+                                                declined = true
+                                                onRsvpDeclined()
+                                            } finally {
+                                                isSubmitting = false
+                                            }
+                                        }
+                                    },
+                                    enabled = !isSubmitting,
+                                    modifier = Modifier
+                                        .align(Alignment.CenterHorizontally)
+                                        .testTag("ivory-rsvp-decline")
+                                ) {
+                                    Text(
+                                        "Decline with Regret",
+                                        color = WeddingIdentityPalette.Muted,
+                                        fontSize = 12.sp
+                                    )
+                                }
                             }
                         }
                     }
+                }
+    
                 }
             }
 

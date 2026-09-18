@@ -38,7 +38,6 @@ public struct IvoryInvitationView: View {
                     VStack(spacing: 18) {
                         invitationHeader
                         invitationCard
-                        responseArea
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 12)
@@ -131,6 +130,9 @@ public struct IvoryInvitationView: View {
                     .background(.white.opacity(0.72))
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
+
+                responseArea
+                    .padding(.top, 4)
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 34)
