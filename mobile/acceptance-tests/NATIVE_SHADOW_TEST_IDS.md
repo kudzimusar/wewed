@@ -52,6 +52,7 @@ They are intentionally semantic and stable. Maestro and platform UI tests should
 |---|---|
 | Pass root | `pass-root` |
 | Pass card | `wedding-pass-card` |
+| Functional QR | `wedding-pass-qr` |
 | Open gate scanner | `pass-open-scanner` |
 
 ### More
