@@ -19,7 +19,12 @@ type InstallHandoffResponse = {
   expiresAt?: unknown
   message?: unknown
 }
-type PreparingAction = 'install' | 'open-app'
+type PreparedHandoff = {
+  playStoreUrl: string
+  appResumePath: string
+  androidIntentUrl: string
+  expiresAt: string | null
+}
 type ClientPlatform = 'checking' | 'android' | 'ios' | 'web'
 
 const INSTALL_PREPARATION_TIMEOUT_MS = 20_000
@@ -46,9 +51,10 @@ export function InvitationAppHandoff({
   const [platform, setPlatform] = useState<ClientPlatform>('checking')
   const [installed, setInstalled] = useState(false)
   const [checking, setChecking] = useState(true)
-  const [preparing, setPreparing] = useState<PreparingAction | null>(null)
+  const [preparing, setPreparing] = useState(false)
+  const [preparedHandoff, setPreparedHandoff] = useState<PreparedHandoff | null>(null)
   const [handoffError, setHandoffError] = useState<string | null>(null)
-  const preparingRef = useRef(false)
+  const preparationInFlightRef = useRef(false)
   const continueInBrowser = buildInvitationContinuePath({ weddingSlug, source: 'browser' })
   const continueInApp = buildInvitationContinuePath({ weddingSlug, source: 'app' })
 
@@ -97,46 +103,68 @@ export function InvitationAppHandoff({
     return () => { cancelled = true }
   }, [continueInApp])
 
-  function resetPreparation() {
-    preparingRef.current = false
-    setPreparing(null)
-  }
+  async function prepareSecureHandoff() {
+    if (
+      !deferredInstallEnabled ||
+      platform !== 'android' ||
+      preparationInFlightRef.current ||
+      preparedHandoff
+    ) {
+      return
+    }
 
-  async function requestSecureHandoff(action: PreparingAction, source: string) {
-    if (!deferredInstallEnabled || preparingRef.current) return null
-    preparingRef.current = true
-    setPreparing(action)
+    preparationInFlightRef.current = true
+    setPreparing(true)
     setHandoffError(null)
+
     const controller = new AbortController()
     const timeout = window.setTimeout(() => controller.abort(), INSTALL_PREPARATION_TIMEOUT_MS)
+
     try {
       const response = await fetch('/api/invitations/install-handoff', {
         method: 'POST',
         cache: 'no-store',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source }),
+        body: JSON.stringify({ source: 'android-prepared-entry' }),
         signal: controller.signal,
       })
       const data = (await response.json().catch(() => ({}))) as InstallHandoffResponse
       if (
         !response.ok ||
         typeof data.playStoreUrl !== 'string' ||
-        !data.playStoreUrl.startsWith(`https://play.google.com/store/apps/details?id=${ANDROID_PACKAGE}&referrer=`) ||
+        !data.playStoreUrl.startsWith(
+          `https://play.google.com/store/apps/details?id=${ANDROID_PACKAGE}&referrer=`,
+        ) ||
         typeof data.appResumePath !== 'string'
       ) {
-        throw new Error(typeof data.message === 'string' ? data.message : 'handoff unavailable')
+        throw new Error(
+          typeof data.message === 'string' ? data.message : 'handoff unavailable',
+        )
       }
-      const resumeUrl = new URL(data.appResumePath, 'https://wewed.pro')
+
+      const resumeUrl = new URL(data.appResumePath, window.location.origin)
       const handoff = resumeUrl.searchParams.get('h') || ''
       if (
+        resumeUrl.origin !== window.location.origin ||
         resumeUrl.pathname !== '/invite/resume' ||
         !isValidInvitationHandoffSecret(handoff) ||
         resumeUrl.searchParams.has('rsvp')
       ) {
         throw new Error('invalid handoff response')
       }
-      return { playStoreUrl: data.playStoreUrl, appResumePath: `${resumeUrl.pathname}${resumeUrl.search}` }
+
+      const appResumePath = `${resumeUrl.pathname}${resumeUrl.search}`
+      setPreparedHandoff({
+        playStoreUrl: data.playStoreUrl,
+        appResumePath,
+        androidIntentUrl: buildAndroidInvitationIntentUrl({
+          origin: window.location.origin,
+          appResumePath,
+          fallbackUrl: window.location.href,
+        }),
+        expiresAt: typeof data.expiresAt === 'string' ? data.expiresAt : null,
+      })
     } catch (error) {
       const timedOut = error instanceof DOMException && error.name === 'AbortError'
       setHandoffError(
@@ -144,29 +172,21 @@ export function InvitationAppHandoff({
           ? 'The connection took too long. Check your internet connection and try again.'
           : 'We could not securely prepare your invitation. Please try again.',
       )
-      return null
     } finally {
       window.clearTimeout(timeout)
-      resetPreparation()
+      preparationInFlightRef.current = false
+      setPreparing(false)
     }
   }
 
-  async function downloadFromGooglePlay() {
-    const handoff = await requestSecureHandoff('install', 'android-install-cta')
-    if (handoff) window.location.assign(handoff.playStoreUrl)
-  }
-
-  async function openInstalledWewed() {
-    const handoff = await requestSecureHandoff('open-app', 'android-installed-app')
-    if (!handoff) return
-    window.location.assign(
-      buildAndroidInvitationIntentUrl({
-        origin: window.location.origin,
-        appResumePath: handoff.appResumePath,
-        fallbackUrl: window.location.href,
-      }),
-    )
-  }
+  useEffect(() => {
+    if (platform !== 'android' || !deferredInstallEnabled || preparedHandoff || handoffError) {
+      return
+    }
+    void prepareSecureHandoff()
+    // prepareSecureHandoff intentionally runs only when the Android gate becomes eligible.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [platform, deferredInstallEnabled, preparedHandoff, handoffError])
 
   if (platform === 'web' && !checking) {
     return (
@@ -217,6 +237,8 @@ export function InvitationAppHandoff({
     )
   }
 
+  const handoffReady = Boolean(preparedHandoff)
+
   return (
     <main data-testid="personal-invitation-android-gate" className="min-h-screen bg-[#17130f] px-4 py-7 text-[#f8f1e7] sm:px-6 sm:py-10">
       <section className="mx-auto max-w-md rounded-[1.75rem] border border-[#b89155]/45 bg-[#211b16] p-5 text-center shadow-2xl sm:p-8">
@@ -230,43 +252,66 @@ export function InvitationAppHandoff({
         </p>
 
         <div className="mt-6 space-y-3">
-          {checking ? (
-            <div className="flex min-h-14 items-center justify-center gap-2 rounded-2xl border border-[#b89155]/45 text-[#d6cec5]">
-              <LoaderCircle className="size-5 animate-spin" /> Checking Wewed…
-            </div>
-          ) : installed ? (
-            <button type="button" onClick={openInstalledWewed} disabled={preparing !== null || !deferredInstallEnabled} className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#c6a061] px-5 py-4 font-semibold text-[#21170d] disabled:opacity-60">
-              {preparing === 'open-app' ? <LoaderCircle className="size-5 animate-spin" /> : <ExternalLink className="size-5" />}
-              {preparing === 'open-app' ? 'Opening Wewed…' : 'Open invitation in Wewed'}
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={downloadFromGooglePlay}
-              disabled={preparing !== null || !deferredInstallEnabled}
-              aria-label="Get Wewed on Google Play and reveal my invitation"
-              className="mx-auto inline-flex min-h-16 items-center justify-center rounded-lg bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#d8b477]"
+          {(checking || preparing) && !handoffReady ? (
+            <div
+              data-testid="android-handoff-preparing"
+              className="flex min-h-14 items-center justify-center gap-2 rounded-2xl border border-[#b89155]/45 text-[#d6cec5]"
             >
-              {preparing === 'install' ? (
-                <span className="flex items-center gap-2 px-3 text-sm font-semibold"><LoaderCircle className="size-5 animate-spin" /> Preparing your invitation…</span>
-              ) : (
-                <img src={GOOGLE_PLAY_BADGE} alt="Get it on Google Play" width={646} height={192} className="h-16 w-auto max-w-full object-contain" />
-              )}
-            </button>
-          )}
-
-          {!installed && platform === 'android' && deferredInstallEnabled && (
-            <button type="button" onClick={openInstalledWewed} disabled={preparing !== null} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-[#b89155]/55 px-5 py-3 font-semibold text-[#f8f1e7] disabled:opacity-60">
-              <ExternalLink className="size-5" /> Already downloaded? Open Wewed
-            </button>
-          )}
+              <LoaderCircle className="size-5 animate-spin" /> Preparing secure handoff…
+            </div>
+          ) : preparedHandoff ? (
+            installed ? (
+              <a
+                data-testid="android-open-installed-wewed"
+                href={preparedHandoff.androidIntentUrl}
+                className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#c6a061] px-5 py-4 font-semibold text-[#21170d]"
+              >
+                <ExternalLink className="size-5" /> Open invitation in Wewed
+              </a>
+            ) : (
+              <>
+                <a
+                  data-testid="android-google-play-install"
+                  href={preparedHandoff.playStoreUrl}
+                  aria-label="Get Wewed on Google Play and reveal my invitation"
+                  className="mx-auto inline-flex min-h-16 items-center justify-center rounded-lg bg-transparent p-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#d8b477]"
+                >
+                  <img src={GOOGLE_PLAY_BADGE} alt="Get it on Google Play" width={646} height={192} className="h-16 w-auto max-w-full object-contain" />
+                </a>
+                <a
+                  data-testid="android-open-existing-wewed"
+                  href={preparedHandoff.androidIntentUrl}
+                  className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-[#b89155]/55 px-5 py-3 font-semibold text-[#f8f1e7]"
+                >
+                  <ExternalLink className="size-5" /> Already downloaded? Open Wewed
+                </a>
+              </>
+            )
+          ) : null}
 
           {!deferredInstallEnabled && platform === 'android' && !checking && (
             <p role="alert" className="rounded-2xl border border-[#c97866]/50 bg-[#3a201c] px-4 py-3 text-sm leading-6 text-[#f3d8d1]">
               Secure invitation download handoff is being prepared for this UAT build. Your private invitation remains locked until it is enabled.
             </p>
           )}
-          {handoffError && <p role="alert" className="rounded-2xl border border-[#c97866]/50 bg-[#3a201c] px-4 py-3 text-sm leading-6 text-[#f3d8d1]">{handoffError}</p>}
+
+          {handoffError && (
+            <>
+              <p role="alert" className="rounded-2xl border border-[#c97866]/50 bg-[#3a201c] px-4 py-3 text-sm leading-6 text-[#f3d8d1]">
+                {handoffError}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setHandoffError(null)
+                  void prepareSecureHandoff()
+                }}
+                className="min-h-12 w-full rounded-2xl border border-[#b89155]/55 px-5 py-3 font-semibold text-[#f8f1e7]"
+              >
+                Retry secure preparation
+              </button>
+            </>
+          )}
         </div>
 
         <p className="mt-5 text-center text-xs leading-5 text-[#9f958a]">
