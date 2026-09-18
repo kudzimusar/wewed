@@ -47,13 +47,13 @@ fun WeddingReferenceMoreScreen(appViewModel: AppViewModel) {
             ReferenceMoreDestination.HONEYMOON ->
                 ShadowContributionsDestination(appViewModel) { destination = null }
             ReferenceMoreDestination.STORY ->
-                ReferenceMoreEmptyScreen("Our Story", "No story or media records are available in this Shadow wedding yet.") { destination = null }
+                ReferenceMoreEmptyScreen("Our Story", "No story or media records are available in this Shadow wedding yet.", wedding?.coupleNames ?: "C & K") { destination = null }
             ReferenceMoreDestination.GALLERY ->
-                ReferenceMoreEmptyScreen("Gallery", "No gallery media is available in this Shadow wedding yet.") { destination = null }
+                ReferenceMoreEmptyScreen("Gallery", "No gallery media is available in this Shadow wedding yet.", wedding?.coupleNames ?: "C & K") { destination = null }
             ReferenceMoreDestination.SETTINGS ->
-                ReferenceMoreEmptyScreen("Settings", "Wedding app preferences are not configured in this Shadow dataset.") { destination = null }
+                ReferenceMoreEmptyScreen("Settings", "Wedding app preferences are not configured in this Shadow dataset.", wedding?.coupleNames ?: "C & K") { destination = null }
             ReferenceMoreDestination.SUPPORT ->
-                ReferenceMoreEmptyScreen("Help & Support", "Support contact configuration is not part of this Shadow wedding dataset.") { destination = null }
+                ReferenceMoreEmptyScreen("Help & Support", "Support contact configuration is not part of this Shadow wedding dataset.", wedding?.coupleNames ?: "C & K") { destination = null }
         }
         return
     }
@@ -219,6 +219,7 @@ private fun ReferenceMoreRow(
 private fun ReferenceMoreEmptyScreen(
     title: String,
     message: String,
+    coupleNames: String,
     onBack: () -> Unit
 ) {
     Scaffold(
@@ -240,7 +241,7 @@ private fun ReferenceMoreEmptyScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            WeddingMonogram("C & K", sizeSp = 40)
+            WeddingMonogram(coupleNames, sizeSp = 40)
             Spacer(modifier = Modifier.height(12.dp))
             Text(title, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
             Text(
