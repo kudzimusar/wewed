@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ExternalLink, LoaderCircle, Smartphone } from 'lucide-react'
 import {
   ANDROID_PACKAGE,
+  buildAndroidInvitationIntentUrl,
   buildInvitationContinuePath,
   isValidInvitationHandoffSecret,
 } from '@/lib/invitation-links'
@@ -158,9 +159,13 @@ export function InvitationAppHandoff({
   async function openInstalledWewed() {
     const handoff = await requestSecureHandoff('open-app', 'android-installed-app')
     if (!handoff) return
-    const target = handoff.appResumePath.replace(/^\//, '')
-    const fallback = encodeURIComponent(window.location.href)
-    window.location.assign(`intent://wewed.pro/${target}#Intent;scheme=https;package=${ANDROID_PACKAGE};S.browser_fallback_url=${fallback};end`)
+    window.location.assign(
+      buildAndroidInvitationIntentUrl({
+        origin: window.location.origin,
+        appResumePath: handoff.appResumePath,
+        fallbackUrl: window.location.href,
+      }),
+    )
   }
 
   if (platform === 'web' && !checking) {
