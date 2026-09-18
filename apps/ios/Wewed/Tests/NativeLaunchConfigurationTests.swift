@@ -2,10 +2,15 @@ import XCTest
 @testable import WewedKit
 
 final class NativeLaunchConfigurationTests: XCTestCase {
-    func testDefaultsToFixture() {
+    func testDefaultNeverSilentlyUsesFixture() {
         let config = NativeLaunchConfiguration.resolve(environment: [:])
-        XCTAssertEqual(config.environment, .fixture)
+        XCTAssertTrue([.privateRealShadow, .sanitizedShadow].contains(config.environment))
         XCTAssertNil(config.baseURL)
+    }
+
+    func testFixtureRequiresExplicitSelection() {
+        let config = NativeLaunchConfiguration.resolve(environment: ["WEWED_NATIVE_ENV": "fixture"])
+        XCTAssertEqual(config.environment, .fixture)
     }
 
     func testShadowConfigurationUsesExplicitBaseURL() {
