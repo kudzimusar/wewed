@@ -44,7 +44,8 @@ fun IvoryInvitationScreen(
     invitation: InvitationContext,
     appViewModel: AppViewModel,
     onRsvpConfirmed: (WeddingPass) -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    allowsClose: Boolean = true
 ) {
     var isRevealed by remember { mutableStateOf(false) }
     var rsvpSubmitted by remember { mutableStateOf(false) }
@@ -58,8 +59,10 @@ fun IvoryInvitationScreen(
             TopAppBar(
                 title = { Text("Wedding Invitation", color = WewedColors.Gold, fontWeight = FontWeight.SemiBold) },
                 navigationIcon = {
-                    IconButton(onClick = onClose) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", tint = WewedColors.Gold)
+                    if (allowsClose) {
+                        IconButton(onClick = onClose) {
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = WewedColors.Gold)
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = StageBackground)
