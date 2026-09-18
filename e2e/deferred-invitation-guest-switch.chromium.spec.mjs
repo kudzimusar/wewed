@@ -80,51 +80,99 @@ async function cleanupFixture(fixture) {
   await prisma.couple.deleteMany({ where: { id: fixture.coupleId } })
 }
 
-async function androidContext(browser, { standalone = false } = {}) {
+async function androidContext(browser) {
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
     userAgent: ANDROID_UA,
   })
-  if (standalone) {
-    await context.addInitScript(() => {
-      const original = window.matchMedia.bind(window)
-      window.matchMedia = (query) => {
-        if (query === '(display-mode: standalone)') {
-          return {
-            matches: true,
-            media: query,
-            onchange: null,
-            addListener() {},
-            removeListener() {},
-            addEventListener() {},
-            removeEventListener() {},
-            dispatchEvent() { return false },
-          }
-        }
-        return original(query)
-      }
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, 'getInstalledRelatedApps', {
+      configurable: true,
+      value: async () => [{ platform: 'play', id: 'pro.wewed.app' }],
     })
-  }
+  })
   return context
 }
 
-async function prepareHandoff(browser, weddingSlug, token, label) {
-  const context = await androidContext(browser)
-  const page = await context.newPage()
+async function makeStandalone(page) {
+  await page.addInitScript(() => {
+    const original = window.matchMedia.bind(window)
+    window.matchMedia = (query) => {
+      if (query === '(display-mode: standalone)') {
+        return {
+          matches: true,
+          media: query,
+          onchange: null,
+          addListener() {},
+          removeListener() {},
+          addEventListener() {},
+          removeEventListener() {},
+          dispatchEvent() { return false },
+        }
+      }
+      return original(query)
+    }
+  })
+}
+
+function handoffFromIntent(intentUrl) {
+  expect(intentUrl).toMatch(/^intent:\/\/invite\/resume#Intent;/)
+  expect(intentUrl).toContain('scheme=wewed')
+  expect(intentUrl).toContain('package=pro.wewed.app')
+  expect(intentUrl).not.toContain('rsvp=')
+  expect(intentUrl).not.toContain('guest=')
+  expect(intentUrl).not.toContain('email=')
+
+  const match = intentUrl.match(/(?:^|;)S\.wewed_handoff=([^;]+);/)
+  expect(match).not.toBeNull()
+  const handoff = decodeURIComponent(match[1])
+  expect(handoff).toMatch(/^[A-Za-z0-9_-]{43}$/)
+  return handoff
+}
+
+async function prepareFromActualGate(page, fixture, token, expectedPostCount) {
   await page.goto(
-    `${BASE_URL}/invite/${encodeURIComponent(weddingSlug)}?rsvp=${encodeURIComponent(token)}&card=ivory-floral-gold`,
+    `${BASE_URL}/invite/${encodeURIComponent(fixture.weddingSlug)}?rsvp=${encodeURIComponent(token)}&card=ivory-floral-gold`,
     { waitUntil: 'domcontentloaded' },
   )
-  await expect(page).toHaveURL(`${BASE_URL}/invite/${encodeURIComponent(weddingSlug)}/open`)
+  await expect(page).toHaveURL(
+    `${BASE_URL}/invite/${encodeURIComponent(fixture.weddingSlug)}/open`,
+  )
 
-  const response = await context.request.post(`${BASE_URL}/api/invitations/install-handoff`, {
-    data: { source: label },
+  const open = page.getByTestId('android-open-installed-wewed')
+  await expect(open).toBeVisible()
+  const href = await open.getAttribute('href')
+  expect(href).toBeTruthy()
+
+  // The final user click must already have the intent URL. No async fetch is
+  // permitted between user activation and the Android external-app launch.
+  await page.evaluate(() => {
+    document
+      .querySelector('[data-testid="android-open-installed-wewed"]')
+      ?.addEventListener('click', (event) => event.preventDefault(), { once: true })
   })
-  expect(response.status()).toBe(201)
-  const payload = await response.json()
-  expect(payload.appResumePath).toMatch(/^\/invite\/resume\?h=[A-Za-z0-9_-]{43}$/)
-  await context.close()
-  return payload.appResumePath
+  await open.click()
+  await expect.poll(() => page.evaluate(() => window.location.pathname)).toBe(
+    `/invite/${fixture.weddingSlug}/open`,
+  )
+
+  expect(expectedPostCount()).toBeGreaterThan(0)
+  return handoffFromIntent(href)
+}
+
+async function expectActiveGuest(context, fixture, expected) {
+  const response = await context.request.get(
+    `${BASE_URL}/api/weddings/${encodeURIComponent(fixture.weddingSlug)}/guest-session`,
+  )
+  expect(response.status()).toBe(200)
+  expect(await response.json()).toMatchObject({
+    success: true,
+    guest: {
+      id: expected.id,
+      name: expected.name,
+    },
+  })
+  console.log(`checkpoint=active_guest=${expected.label}`)
 }
 
 async function openIvoryForGuest(page, guestName) {
@@ -142,19 +190,50 @@ async function openIvoryForGuest(page, guestName) {
   return { experience, card }
 }
 
-test('Android Guest B handoff replaces Guest A even while Guest A RSVP is open', async ({ browser }) => {
-  const fixture = await createFixture()
-  try {
-    const handoffA = await prepareHandoff(
-      browser,
-      fixture.weddingSlug,
-      fixture.tokenA,
-      'guest-switch-regression-a',
-    )
+async function openRsvp(page, experience, card, guestName) {
+  await experience.getByTestId('invitation-details-button').click()
+  await expect(card).toHaveAttribute('data-invitation-view', 'details')
+  await experience.getByTestId('invitation-cta-rsvp').click()
+  const dialog = page.getByTestId('premium-invitation-rsvp-dialog')
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByText(guestName, { exact: true })).toBeVisible()
+  return dialog
+}
 
-    const appContext = await androidContext(browser, { standalone: true })
-    const appPage = await appContext.newPage()
-    await appPage.goto(`${BASE_URL}${handoffA}`, { waitUntil: 'domcontentloaded' })
+test('same Chrome profile switches A→B→A atomically with a pre-created Android intent', async ({ browser }) => {
+  const fixture = await createFixture()
+  const context = await androidContext(browser)
+  let handoffPosts = 0
+
+  try {
+    const browserPage = await context.newPage()
+    browserPage.on('request', (request) => {
+      if (
+        request.method() === 'POST' &&
+        new URL(request.url()).pathname === '/api/invitations/install-handoff'
+      ) {
+        handoffPosts += 1
+        console.log('checkpoint=handoff_created')
+      }
+    })
+
+    const appPage = await context.newPage()
+    await makeStandalone(appPage)
+
+    const handoffA = await prepareFromActualGate(
+      browserPage,
+      fixture,
+      fixture.tokenA,
+      () => handoffPosts,
+    )
+    expect(handoffPosts).toBe(1)
+
+    console.log('checkpoint=resume_requested guest=A')
+    await appPage.goto(
+      `${BASE_URL}/invite/resume?h=${encodeURIComponent(handoffA)}`,
+      { waitUntil: 'domcontentloaded' },
+    )
+    console.log('checkpoint=handoff_redeemed guest=A')
 
     const firstUrl = new URL(appPage.url())
     expect(firstUrl.pathname).toBe(`/w/${fixture.weddingSlug}`)
@@ -164,48 +243,46 @@ test('Android Guest B handoff replaces Guest A even while Guest A RSVP is open',
     expect(firstUrl.searchParams.has('rsvp')).toBe(false)
 
     const first = await openIvoryForGuest(appPage, 'UAT Guest A')
-    await first.experience.getByTestId('invitation-details-button').click()
-    await expect(first.card).toHaveAttribute('data-invitation-view', 'details')
-    await first.experience.getByTestId('invitation-cta-rsvp').click()
-    const guestARsvp = appPage.getByTestId('premium-invitation-rsvp-dialog')
-    await expect(guestARsvp).toBeVisible()
-    await expect(guestARsvp.getByText('UAT Guest A', { exact: true })).toBeVisible()
+    await openRsvp(appPage, first.experience, first.card, 'UAT Guest A')
+    await expectActiveGuest(context, fixture, {
+      id: fixture.guestAId,
+      name: 'UAT Guest A',
+      label: 'A',
+    })
 
-    const handoffB = await prepareHandoff(
-      browser,
-      fixture.weddingSlug,
+    const handoffB = await prepareFromActualGate(
+      browserPage,
+      fixture,
       fixture.tokenB,
-      'guest-switch-regression-b',
+      () => handoffPosts,
     )
-    await appPage.goto(`${BASE_URL}${handoffB}`, { waitUntil: 'domcontentloaded' })
+    expect(handoffPosts).toBe(2)
 
-    const secondUrl = new URL(appPage.url())
-    expect(secondUrl.pathname).toBe(`/w/${fixture.weddingSlug}`)
-    expect(secondUrl.searchParams.get('source')).toBe('android-app')
-    expect(secondUrl.searchParams.get('entry')).toMatch(/^[0-9a-f-]{36}$/i)
-    expect(secondUrl.searchParams.get('entry')).not.toBe(firstUrl.searchParams.get('entry'))
-    expect(secondUrl.searchParams.has('h')).toBe(false)
-    expect(secondUrl.searchParams.has('rsvp')).toBe(false)
+    // Merely opening B must not destroy the active A session. Replacement is
+    // committed only after B successfully redeems its one-time handoff.
+    await expectActiveGuest(context, fixture, {
+      id: fixture.guestAId,
+      name: 'UAT Guest A',
+      label: 'A-before-B-resume',
+    })
+
+    console.log('checkpoint=resume_requested guest=B')
+    await appPage.goto(
+      `${BASE_URL}/invite/resume?h=${encodeURIComponent(handoffB)}`,
+      { waitUntil: 'domcontentloaded' },
+    )
+    console.log('checkpoint=handoff_redeemed guest=B')
 
     await expect(appPage.getByTestId('premium-invitation-rsvp-dialog')).toHaveCount(0)
     const second = await openIvoryForGuest(appPage, 'UAT Guest B')
-    await second.experience.getByTestId('invitation-details-button').click()
-    await expect(second.card).toHaveAttribute('data-invitation-view', 'details')
-    await second.experience.getByTestId('invitation-cta-rsvp').click()
-    const guestBRsvp = appPage.getByTestId('premium-invitation-rsvp-dialog')
-    await expect(guestBRsvp).toBeVisible()
-    await expect(guestBRsvp.getByText('UAT Guest B', { exact: true })).toBeVisible()
-
-    const activeSession = await appContext.request.get(
-      `${BASE_URL}/api/weddings/${encodeURIComponent(fixture.weddingSlug)}/guest-session`,
-    )
-    expect(activeSession.status()).toBe(200)
-    expect(await activeSession.json()).toMatchObject({
-      success: true,
-      guest: { id: fixture.guestBId, name: 'UAT Guest B' },
+    await openRsvp(appPage, second.experience, second.card, 'UAT Guest B')
+    await expectActiveGuest(context, fixture, {
+      id: fixture.guestBId,
+      name: 'UAT Guest B',
+      label: 'B',
     })
 
-    const staleGuestA = await appContext.request.put(
+    const staleGuestA = await context.request.put(
       `${BASE_URL}/api/weddings/${encodeURIComponent(fixture.weddingSlug)}/guest-session`,
       {
         data: {
@@ -221,7 +298,66 @@ test('Android Guest B handoff replaces Guest A even while Guest A RSVP is open',
       code: 'STALE_GUEST_CONTEXT',
     })
 
-    await appContext.close()
+    // Replaying the already-consumed B handoff must be harmless. In particular
+    // it must not clear the valid B session established by the first redemption.
+    const duplicateB = await context.request.get(
+      `${BASE_URL}/invite/resume?h=${encodeURIComponent(handoffB)}`,
+      { maxRedirects: 0 },
+    )
+    expect(duplicateB.status()).toBe(303)
+    await expectActiveGuest(context, fixture, {
+      id: fixture.guestBId,
+      name: 'UAT Guest B',
+      label: 'B-after-duplicate-resume',
+    })
+
+    const handoffA2 = await prepareFromActualGate(
+      browserPage,
+      fixture,
+      fixture.tokenA,
+      () => handoffPosts,
+    )
+    expect(handoffPosts).toBe(3)
+
+    await expectActiveGuest(context, fixture, {
+      id: fixture.guestBId,
+      name: 'UAT Guest B',
+      label: 'B-before-A-resume',
+    })
+
+    console.log('checkpoint=resume_requested guest=A2')
+    await appPage.goto(
+      `${BASE_URL}/invite/resume?h=${encodeURIComponent(handoffA2)}`,
+      { waitUntil: 'domcontentloaded' },
+    )
+    console.log('checkpoint=handoff_redeemed guest=A2')
+
+    await expect(appPage.getByTestId('premium-invitation-rsvp-dialog')).toHaveCount(0)
+    const third = await openIvoryForGuest(appPage, 'UAT Guest A')
+    await openRsvp(appPage, third.experience, third.card, 'UAT Guest A')
+    await expectActiveGuest(context, fixture, {
+      id: fixture.guestAId,
+      name: 'UAT Guest A',
+      label: 'A-restored',
+    })
+
+    const staleGuestB = await context.request.put(
+      `${BASE_URL}/api/weddings/${encodeURIComponent(fixture.weddingSlug)}/guest-session`,
+      {
+        data: {
+          originGuestId: fixture.guestBId,
+          attending: true,
+          message: 'Guest B stale form must never save after Guest A takes over.',
+        },
+      },
+    )
+    expect(staleGuestB.status()).toBe(409)
+    expect(await staleGuestB.json()).toMatchObject({
+      success: false,
+      code: 'STALE_GUEST_CONTEXT',
+    })
+
+    await context.close()
   } finally {
     await cleanupFixture(fixture)
   }
