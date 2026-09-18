@@ -26,14 +26,16 @@ public struct WeddingReferenceMoreView: View {
                             menuLink(title: "Our Story", subtitle: "Photos, videos and milestones", icon: "photo.on.rectangle.angled", identifier: "more-story") {
                                 ReferenceEmptyFeatureView(
                                     title: "Our Story",
-                                    message: "No story or media records are available in this Shadow wedding yet."
+                                    message: "No story or media records are available in this Shadow wedding yet.",
+                                    coupleNames: wedding?.coupleNames ?? "C & K"
                                 )
                             }
 
                             menuLink(title: "Gallery", subtitle: "Wedding photos and inspiration", icon: "photo.stack", identifier: "more-gallery") {
                                 ReferenceEmptyFeatureView(
                                     title: "Gallery",
-                                    message: "No gallery media is available in this Shadow wedding yet."
+                                    message: "No gallery media is available in this Shadow wedding yet.",
+                                    coupleNames: wedding?.coupleNames ?? "C & K"
                                 )
                             }
 
@@ -48,7 +50,8 @@ public struct WeddingReferenceMoreView: View {
                             menuLink(title: "Help & Support", subtitle: "Get in touch", icon: "questionmark.circle", identifier: "more-support") {
                                 ReferenceEmptyFeatureView(
                                     title: "Help & Support",
-                                    message: "Support contact configuration is not part of this Shadow wedding dataset."
+                                    message: "Support contact configuration is not part of this Shadow wedding dataset.",
+                                    coupleNames: wedding?.coupleNames ?? "C & K"
                                 )
                             }
                         }
@@ -186,12 +189,13 @@ public struct WeddingReferenceMoreView: View {
 private struct ReferenceEmptyFeatureView: View {
     let title: String
     let message: String
+    let coupleNames: String
 
     var body: some View {
         ZStack {
             WeddingFloralBackground()
             VStack(spacing: 12) {
-                WeddingMonogram(names: "C & K", size: 40)
+                WeddingMonogram(names: coupleNames, size: 40)
                 Text(title)
                     .font(.title2)
                     .fontWeight(.semibold)
