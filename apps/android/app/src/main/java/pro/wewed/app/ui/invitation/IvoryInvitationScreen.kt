@@ -45,7 +45,8 @@ fun IvoryInvitationScreen(
     appViewModel: AppViewModel,
     onRsvpConfirmed: (WeddingPass) -> Unit,
     onClose: () -> Unit,
-    allowsClose: Boolean = true
+    allowsClose: Boolean = true,
+    onRsvpDeclined: () -> Unit = {}
 ) {
     var isRevealed by remember { mutableStateOf(false) }
     var rsvpSubmitted by remember { mutableStateOf(false) }
@@ -291,6 +292,7 @@ fun IvoryInvitationScreen(
                                                     generatedPass = null
                                                     rsvpSubmitted = false
                                                     declined = true
+                                                    onRsvpDeclined()
                                                 } finally {
                                                     isSubmitting = false
                                                 }
