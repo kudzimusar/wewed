@@ -87,7 +87,6 @@ public struct WeddingReferencePlannerView: View {
                         )
                 }
                 .buttonStyle(.plain)
-                .accessibilityIdentifier("planner-module-documents")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -149,6 +148,7 @@ public struct WeddingReferencePlannerView: View {
                     referenceRow(title: "Documents", subtitle: "Contracts, notes, files", icon: "doc.text")
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("planner-module-documents")
             }
         } else {
             ContentUnavailableView(
