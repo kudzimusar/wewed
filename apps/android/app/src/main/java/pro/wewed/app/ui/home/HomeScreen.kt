@@ -19,12 +19,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import pro.wewed.app.models.InvitationContext
+import pro.wewed.app.models.GuestJourneyReference
+import pro.wewed.app.models.GuestJourneyStage
 import pro.wewed.app.models.Wedding
 import pro.wewed.app.models.WeddingAnnouncement
 import pro.wewed.app.models.PlannerDashboardSnapshot
 import pro.wewed.app.state.AppTab
 import pro.wewed.app.state.AppViewModel
-import pro.wewed.app.ui.invitation.IvoryInvitationScreen
+import pro.wewed.app.ui.invitation.GuestInvitationJourneyScreen
 import pro.wewed.app.ui.vendor.VendorPresenceScreen
 import pro.wewed.app.theme.WewedColors
 import pro.wewed.app.theme.WewedRadius
@@ -61,14 +63,12 @@ fun HomeScreen(appViewModel: AppViewModel) {
             venueCity = "Harare, Zimbabwe",
             cardStyle = "ivory-floral-gold"
         )
-        IvoryInvitationScreen(
-            invitation = dummyContext,
-            appViewModel = appViewModel,
-            onRsvpConfirmed = {
-                showInvitation = false
-                appViewModel.selectTab(AppTab.PASS)
-            },
-            onClose = { showInvitation = false }
+        GuestInvitationJourneyScreen(
+            reference = GuestJourneyReference(
+                invitation = dummyContext,
+                initialStage = GuestJourneyStage.SPLASH
+            ),
+            appViewModel = appViewModel
         )
         return
     }
@@ -133,7 +133,10 @@ fun HomeScreen(appViewModel: AppViewModel) {
                                 verticalArrangement = Arrangement.spacedBy(WewedSpacing.sm)
                             ) {
                                 Text(
-                                    text = "T & S",
+                                    text = w.coupleNames
+                                        .split("&")
+                                        .mapNotNull { it.trim().firstOrNull()?.uppercaseChar() }
+                                        .joinToString(" & "),
                                     fontSize = 32.sp,
                                     fontWeight = FontWeight.Bold,
                                     fontFamily = FontFamily.Serif,
