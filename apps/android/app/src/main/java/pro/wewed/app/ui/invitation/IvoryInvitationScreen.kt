@@ -48,6 +48,7 @@ fun IvoryInvitationScreen(
 ) {
     var isRevealed by remember { mutableStateOf(false) }
     var rsvpSubmitted by remember { mutableStateOf(false) }
+    var declined by remember { mutableStateOf(false) }
     var isSubmitting by remember { mutableStateOf(false) }
     var generatedPass by remember { mutableStateOf<WeddingPass?>(null) }
     val scope = rememberCoroutineScope()
@@ -98,7 +99,15 @@ fun IvoryInvitationScreen(
                                 .background(WewedColors.Gold, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("T&S", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = Color.Black)
+                            Text(
+                                invitation.coupleNames
+                                    .split("&")
+                                    .mapNotNull { it.trim().firstOrNull()?.uppercaseChar() }
+                                    .joinToString("&"),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 22.sp,
+                                color = Color.Black
+                            )
                         }
 
                         Text(
@@ -226,13 +235,13 @@ fun IvoryInvitationScreen(
                             }
 
                             // RSVP Section
-                            if (!rsvpSubmitted) {
+                            if (!rsvpSubmitted && !declined) {
                                 Column(
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     verticalArrangement = Arrangement.spacedBy(12.dp),
                                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
                                 ) {
-                                    Text("Kindly respond by 1 October 2026", fontSize = 12.sp, color = Color.Gray)
+                                    Text("Kindly respond to continue your wedding experience", fontSize = 12.sp, color = Color.Gray)
 
                                     Button(
                                         onClick = {
@@ -246,6 +255,7 @@ fun IvoryInvitationScreen(
                                                     )
                                                     generatedPass = pass
                                                     rsvpSubmitted = true
+                                                    declined = false
                                                 } finally {
                                                     isSubmitting = false
                                                 }
@@ -264,6 +274,47 @@ fun IvoryInvitationScreen(
                                             Text("Accept with Pleasure", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                         }
                                     }
+
+                                    OutlinedButton(
+                                        onClick = {
+                                            isSubmitting = true
+                                            scope.launch {
+                                                try {
+                                                    appViewModel.repository.confirmRsvp(
+                                                        invitation.weddingSlug,
+                                                        invitation.guestToken,
+                                                        false
+                                                    )
+                                                    generatedPass = null
+                                                    rsvpSubmitted = false
+                                                    declined = true
+                                                } finally {
+                                                    isSubmitting = false
+                                                }
+                                            }
+                                        },
+                                        modifier = Modifier.fillMaxWidth().height(46.dp),
+                                        shape = RoundedCornerShape(WewedRadius.pill),
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = DeepInk),
+                                        enabled = !isSubmitting
+                                    ) {
+                                        Text("Decline with Regret", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                    }
+                                }
+                            } else if (declined) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                                ) {
+                                    Icon(Icons.Default.FavoriteBorder, contentDescription = null, tint = WewedColors.Gold)
+                                    Text("Response Recorded", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = DeepInk)
+                                    Text(
+                                        "Thank you for letting ${invitation.coupleNames}'s wedding team know. No admission pass is issued for a declined RSVP.",
+                                        fontSize = 12.sp,
+                                        color = Color.Gray,
+                                        textAlign = TextAlign.Center
+                                    )
                                 }
                             } else {
                                 // Confirmed State
