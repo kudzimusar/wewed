@@ -18,6 +18,7 @@ public class LauncherActivity
         extends com.google.androidbrowserhelper.trusted.LauncherActivity {
 
     private static final String INVITATION_LOG_TAG = "WewedInvitation";
+    private static final String INVITATION_CHECKPOINT_PREFS = "wewed_invitation_checkpoints";
     private static final String REFERRER_PREFS = "wewed_install_referrer";
     private static final String REFERRER_PROCESSED_KEY = "invitation_handoff_processed_v1";
     private static final String REFERRER_ATTEMPTS_KEY = "invitation_handoff_attempts_v1";
@@ -54,6 +55,7 @@ public class LauncherActivity
                                     + resumeUri.getHost()
                                     + " path="
                                     + resumeUri.getPath());
+                    recordDebugInvitationCheckpoint(resumeUri);
                     return resumeUri;
                 } catch (IllegalArgumentException ignored) {
                     Log.w(INVITATION_LOG_TAG, "checkpoint=native_intent_rejected");
@@ -63,6 +65,18 @@ public class LauncherActivity
             }
         }
         return super.getLaunchingUrl();
+    }
+
+    private void recordDebugInvitationCheckpoint(Uri resumeUri) {
+        if (!BuildConfig.DEBUG) return;
+        SharedPreferences checkpoints =
+                getSharedPreferences(INVITATION_CHECKPOINT_PREFS, MODE_PRIVATE);
+        int nextCount = checkpoints.getInt("native_intent_count", 0) + 1;
+        checkpoints.edit()
+                .putInt("native_intent_count", nextCount)
+                .putString("last_resume_host", resumeUri.getHost())
+                .putString("last_resume_path", resumeUri.getPath())
+                .commit();
     }
 
     @Override
