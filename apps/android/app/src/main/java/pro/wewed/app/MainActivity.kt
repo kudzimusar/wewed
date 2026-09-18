@@ -1,8 +1,10 @@
 package pro.wewed.app
 
 import android.os.Bundle
+import android.graphics.Color
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.core.view.WindowCompat
 import pro.wewed.app.state.AppViewModel
 import pro.wewed.app.state.NativeLaunchConfiguration
 import pro.wewed.app.state.SessionViewModel
@@ -14,6 +16,13 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        window.statusBarColor = Color.rgb(251, 247, 239)
+        window.navigationBarColor = Color.rgb(255, 253, 248)
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = true
+            isAppearanceLightNavigationBars = true
+        }
 
         val launch = NativeLaunchConfiguration.resolve(
             rawEnvironment = intent.getStringExtra(EXTRA_NATIVE_ENV),
