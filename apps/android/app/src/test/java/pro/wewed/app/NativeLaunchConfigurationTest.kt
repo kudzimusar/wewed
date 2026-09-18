@@ -2,6 +2,7 @@ package pro.wewed.app
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import pro.wewed.app.models.NativeDataEnvironment
 import pro.wewed.app.state.NativeLaunchConfiguration
@@ -10,7 +11,7 @@ class NativeLaunchConfigurationTest {
     @Test
     fun defaultNeverSilentlyUsesFixture() {
         val config = NativeLaunchConfiguration.resolve(null, null)
-        assert(config.environment == NativeDataEnvironment.PRIVATE_REAL_SHADOW || config.environment == NativeDataEnvironment.SANITIZED_SHADOW)
+        assertTrue(config.environment == NativeDataEnvironment.PRIVATE_REAL_SHADOW || config.environment == NativeDataEnvironment.SANITIZED_SHADOW)
         assertNull(config.baseUrl)
     }
 
