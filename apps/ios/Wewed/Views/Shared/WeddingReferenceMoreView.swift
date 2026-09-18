@@ -27,7 +27,7 @@ public struct WeddingReferenceMoreView: View {
                                 ReferenceEmptyFeatureView(
                                     title: "Our Story",
                                     message: "No story or media records are available in this Shadow wedding yet.",
-                                    coupleNames: wedding?.coupleNames ?? "C & K"
+                                    coupleNames: wedding.coupleNames
                                 )
                             }
 
@@ -35,7 +35,7 @@ public struct WeddingReferenceMoreView: View {
                                 ReferenceEmptyFeatureView(
                                     title: "Gallery",
                                     message: "No gallery media is available in this Shadow wedding yet.",
-                                    coupleNames: wedding?.coupleNames ?? "C & K"
+                                    coupleNames: wedding.coupleNames
                                 )
                             }
 
@@ -51,7 +51,7 @@ public struct WeddingReferenceMoreView: View {
                                 ReferenceEmptyFeatureView(
                                     title: "Help & Support",
                                     message: "Support contact configuration is not part of this Shadow wedding dataset.",
-                                    coupleNames: wedding?.coupleNames ?? "C & K"
+                                    coupleNames: wedding.coupleNames
                                 )
                             }
                         }
