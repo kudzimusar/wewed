@@ -5,8 +5,6 @@ import {
   readPendingInvitation,
   setPendingInvitationCookie,
 } from '@/lib/pending-invitation'
-import { clearWeddingGuestSessionCookie } from '@/lib/wedding-guest-session'
-import { clearWeddingSharedInvitationCookie } from '@/lib/wedding-shared-invitation-session'
 
 interface Params {
   params: Promise<{ slug: string }>
@@ -26,10 +24,11 @@ function relativeRedirect(location: string): NextResponse {
   })
 }
 
-function clearInvitationContext(response: NextResponse): void {
+function clearPendingInvitationContext(response: NextResponse): void {
+  // A failed or superseding invitation attempt must not destroy the currently
+  // active guest session. Replacement becomes authoritative only after the new
+  // invitation is successfully resumed or continued.
   clearPendingInvitationCookie(response)
-  clearWeddingGuestSessionCookie(response)
-  clearWeddingSharedInvitationCookie(response)
 }
 
 function redirectToGateway(slug: string, error: string) {
@@ -37,7 +36,7 @@ function redirectToGateway(slug: string, error: string) {
   const response = relativeRedirect(
     `/w/${encodeURIComponent(slug)}?${query.toString()}`,
   )
-  clearInvitationContext(response)
+  clearPendingInvitationContext(response)
   return response
 }
 
@@ -68,8 +67,6 @@ export async function GET(request: NextRequest, { params }: Params) {
   const response = relativeRedirect(
     `/invite/${encodeURIComponent(slug)}/open`,
   )
-  clearWeddingGuestSessionCookie(response)
-  clearWeddingSharedInvitationCookie(response)
   setPendingInvitationCookie(response, {
     weddingSlug: invitation.weddingSlug,
     rsvpToken: invitation.rsvpToken,
