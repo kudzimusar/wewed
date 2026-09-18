@@ -2,10 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { consumeInvitationInstallHandoff } from '@/lib/invitation-install-handoff'
 import { clearPendingInvitationCookie } from '@/lib/pending-invitation'
-import {
-  clearWeddingGuestSessionCookie,
-  setWeddingGuestSessionCookie,
-} from '@/lib/wedding-guest-session'
+import { setWeddingGuestSessionCookie } from '@/lib/wedding-guest-session'
 import {
   mergeWeddingGuestPortfolio,
   readWeddingGuestPortfolio,
@@ -36,9 +33,10 @@ function hardenedRedirect(location: string, status = 303): NextResponse {
 
 function recoveryRedirect(): NextResponse {
   const response = hardenedRedirect('/guest-access-help?reason=invitation-resume')
+  // Do not erase an already-valid guest session when a new handoff is invalid,
+  // expired, duplicated, or otherwise fails. The replacement is atomic: only a
+  // successfully redeemed handoff is allowed to overwrite the active guest.
   clearPendingInvitationCookie(response)
-  clearWeddingGuestSessionCookie(response)
-  clearWeddingSharedInvitationCookie(response)
   return response
 }
 
