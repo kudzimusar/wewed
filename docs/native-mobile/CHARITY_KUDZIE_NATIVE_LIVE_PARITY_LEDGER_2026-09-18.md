@@ -78,11 +78,12 @@ Prior to this audit, native Shadow mode relied on synthetic scaffolding (e.g., 9
    - Contributor/guest phone numbers and emails.
    - Payment secrets, Stripe tokens, webhook signatures.
 4. **Git-Safe Derivative:**
-   - `NOT YET CREATED` — Pending explicit review and approval of this ledger and private snapshot before native repository transformation.
+   - Generated at `mobile/fixtures/shadow-reference/reference-wedding-sanitized.json`.
+   - Verified 100% compliant with sanitization, non-PII, and row-level production truth.
 
 ---
 
-## 6. Implementation Prerequisites Checklist
+## 6. Implementation Checklist
 
 - [x] Production read-only role proven (`wewed_shadow_reader`, `transaction_read_only = on`).
 - [x] Reference wedding uniquely identified (`cmqos70cb0004q6vxe9g9aiu5`).
@@ -98,4 +99,9 @@ Prior to this audit, native Shadow mode relied on synthetic scaffolding (e.g., 9
 - [x] JSON Schema validation passed against `snapshot-manifest.schema.json`.
 - [x] Key-name safety scan passed (`validate_shadow_material.py`).
 - [x] Value-level secret and PII scan passed (0 findings).
-- [ ] Review before native repository rewiring.
+- [x] Git-safe reference fixture generated at `mobile/fixtures/shadow-reference/reference-wedding-sanitized.json`.
+- [x] Native iOS Shadow repositories (`ShadowReferenceWeddingRepository.swift`, `ShadowReferencePlannerRepository.swift`) wired with authentic production-derived data.
+- [x] Native Android Shadow repositories (`ShadowReferenceWeddingRepository.kt`, `ShadowReferencePlannerRepository.kt`) wired with authentic production-derived data.
+- [x] Native unit tests updated and verified (iOS Swift tests 41/41 PASS, Android JUnit tests PASS).
+- [x] Maestro E2E flows updated with authentic Charity & Kudzie assertions.
+

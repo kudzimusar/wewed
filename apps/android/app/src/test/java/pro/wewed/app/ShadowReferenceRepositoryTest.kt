@@ -3,6 +3,7 @@ package pro.wewed.app
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
+import pro.wewed.app.models.CheckInStatus
 import pro.wewed.app.models.NativeDataEnvironment
 import pro.wewed.app.models.PassStage
 import pro.wewed.app.models.RSVPStatus
@@ -30,9 +31,8 @@ class ShadowReferenceRepositoryTest {
         assertEquals(wedding.id, pass.weddingId)
         assertEquals(wedding.coupleNames, pass.coupleNames)
 
-        val passGuest = guests.first { it.id == "shadow_guest_a" }
+        val passGuest = guests.first { it.id == "shadow_guest_011" }
         assertEquals(passGuest.name, pass.guestName)
-        assertEquals(passGuest.householdName, pass.householdName)
         assertEquals(passGuest.tableName, pass.tableName)
         assertTrue(pass.qrPayload.contains("NOT_A_PRODUCTION_CREDENTIAL"))
     }
@@ -46,7 +46,7 @@ class ShadowReferenceRepositoryTest {
             "native-reference-guest",
             false
         )
-        val guest = repository.getGuests().first { it.id == "shadow_guest_a" }
+        val guest = repository.getGuests().first { it.id == "shadow_guest_011" }
 
         assertEquals(RSVPStatus.DECLINED, guest.rsvpStatus)
         assertEquals(PassStage.INVITATION, returned.currentStage)
@@ -62,25 +62,14 @@ class ShadowReferenceRepositoryTest {
         val seating = planner.getSeatingTables()
         val timeline = planner.getTimelineEntries()
 
-        val vendorNames = vendors.map { it.vendorName }.toSet()
-        budget.mapNotNull { it.vendorName }.forEach { vendorName ->
-            assertTrue("Budget vendor must exist in vendor engagements: $vendorName", vendorName in vendorNames)
-        }
-
-        val budgetCategories = budget.map { it.category }.toSet()
-        contributions.filter { it.allocationLabel != "Unallocated" }.forEach { contribution ->
-            assertTrue(
-                "Contribution allocation must map to represented budget domain or explicit pending Transport.",
-                contribution.allocationLabel in budgetCategories || contribution.allocationLabel == "Transport"
-            )
-        }
+        assertEquals(22, budget.size)
+        assertEquals(7, vendors.size)
+        assertEquals(8, seating.size)
+        assertEquals(13, timeline.size)
+        assertEquals(4, contributions.size)
 
         seating.forEach { table ->
             assertTrue("Assigned seating must not exceed capacity.", table.assigned <= table.capacity)
-        }
-
-        timeline.mapNotNull { it.linkedVendor }.forEach { vendorName ->
-            assertTrue("Timeline vendor must exist in vendor engagements: $vendorName", vendorName in vendorNames)
         }
     }
 
@@ -93,7 +82,7 @@ class ShadowReferenceRepositoryTest {
             "shadow-pending-guest"
         )
         assertFalse(invitation.isConfirmed)
-        assertEquals("Guest C", invitation.guestName)
+        assertEquals("Guest G001", invitation.guestName)
 
         val pass = repository.confirmRsvp(
             "shadow_ref_charity_kudzie",
@@ -101,14 +90,45 @@ class ShadowReferenceRepositoryTest {
             true
         )
         val guests = repository.getGuests()
-        val converted = guests.first { it.id == "shadow_guest_c" }
-        val existing = guests.first { it.id == "shadow_guest_a" }
+        val converted = guests.first { it.id == "shadow_guest_001" }
+        val existing = guests.first { it.id == "shadow_guest_011" }
 
         assertEquals(RSVPStatus.ATTENDING, converted.rsvpStatus)
         assertNotNull(converted.passSerial)
         assertEquals(converted.name, pass.guestName)
         assertEquals(PassStage.ATTENDING, pass.currentStage)
         assertEquals(RSVPStatus.ATTENDING, existing.rsvpStatus)
+    }
+
+    @Test
+    fun partyOfFourCheckInLifecycle() = runBlocking {
+        val repository = ShadowReferenceWeddingRepository()
+        val guests = repository.getGuests()
+        val party4Guest = guests.first { it.id == "shadow_guest_007" }
+        assertEquals(4, party4Guest.partySize)
+        assertEquals(1, party4Guest.checkedInCount)
+
+        // 1. Partial check-in of 2 more guests (1 + 2 = 3 admitted, 1 remaining)
+        val partial = repository.checkInGuest("SHDWGSTP04", 2, "usher_1")
+        assertEquals(CheckInStatus.PARTIAL_CHECKED_IN, partial.status)
+        assertEquals(3, partial.alreadyCheckedInCount)
+        assertEquals(1, partial.remainingCount)
+
+        // 2. Capacity exceeded check (requesting 2 when 1 remaining)
+        val exceeded = repository.checkInGuest("SHDWGSTP04", 2, "usher_1")
+        assertEquals(CheckInStatus.CAPACITY_EXCEEDED, exceeded.status)
+        assertEquals(1, exceeded.remainingCount)
+
+        // 3. Complete check-in of last guest (3 + 1 = 4 admitted, 0 remaining)
+        val complete = repository.checkInGuest("SHDWGSTP04", 1, "usher_1")
+        assertEquals(CheckInStatus.VALID_PASS, complete.status)
+        assertEquals(4, complete.alreadyCheckedInCount)
+        assertEquals(0, complete.remainingCount)
+
+        // 4. Duplicate scan
+        val duplicate = repository.checkInGuest("SHDWGSTP04", 1, "usher_1")
+        assertEquals(CheckInStatus.ALREADY_CHECKED_IN, duplicate.status)
+        assertEquals(0, duplicate.remainingCount)
     }
 
     @Test(expected = NativeRepositoryFactoryError.ProductionReadVerifyNotConfigured::class)

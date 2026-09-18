@@ -19,11 +19,12 @@ appId: pro.wewed.app
 - assertVisible: "Charity & Kudzie"
 - scroll
 - scroll
-- assertVisible: "Resolve overdue venue readiness items"
-- assertVisible: "Follow up pending guest responses"
+- assertVisible: "8 high priority tasks"
+- assertVisible: "172 RSVPs pending"
 
 # 4. Guests
 - tapOn: "Guests"
 - assertVisible: "Guest List"
-- assertVisible: "Guest Household A"
-- assertVisible: "Jacaranda"
+- assertVisible: "Guest G001"
+- assertVisible: "Table 5 — Friends"
+
