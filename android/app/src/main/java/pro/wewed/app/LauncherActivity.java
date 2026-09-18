@@ -1,5 +1,6 @@
 package pro.wewed.app;
 
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.net.Uri;
@@ -31,6 +32,26 @@ public class LauncherActivity
         closeInstallReferrerConnection();
         launchDeferredTwa(null);
     };
+
+    @Override
+    protected Uri getUrlForIntent(Intent intent) {
+        if (intent != null) {
+            Uri data = intent.getData();
+            if (data != null
+                    && "wewed".equals(data.getScheme())
+                    && "invite".equals(data.getHost())
+                    && "/resume".equals(data.getPath())) {
+                String handoff = intent.getStringExtra("wewed_handoff");
+                try {
+                    return InstallReferrerHandoff.buildResumeUri(handoff);
+                } catch (IllegalArgumentException ignored) {
+                    // Never forward malformed or attacker-controlled values into the web session.
+                    return null;
+                }
+            }
+        }
+        return super.getUrlForIntent(intent);
+    }
 
     @Override
     protected boolean shouldLaunchImmediately() {
