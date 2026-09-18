@@ -9,9 +9,9 @@ public struct LiveWallMessage: Identifiable, Codable, Equatable, Sendable {
 
 public struct LiveWallView: View {
     @State private var messages: [LiveWallMessage] = [
-        LiveWallMessage(id: "m1", author: "Uncle Farai", content: "Congratulations Tariro & Shadreck! May God bless this union abundantly!", time: "14:15"),
-        LiveWallMessage(id: "m2", author: "Auntie Chipo", content: "Such a beautiful bride! Welcome to the family Shadreck!", time: "14:22"),
-        LiveWallMessage(id: "m3", author: "Kudzie M.", content: "Waiting for the dance floor to open! Cheers to the happy couple!", time: "14:35")
+        LiveWallMessage(id: "m1", author: "Uncle Farai", content: "Congratulations Charity & Kudzie! May God bless this union abundantly!", time: "14:15"),
+        LiveWallMessage(id: "m2", author: "Auntie Chipo", content: "Such a beautiful celebration at Imba Manor! Welcome to the family Kudzie!", time: "14:22"),
+        LiveWallMessage(id: "m3", author: "Tony M.", content: "Waiting for the dance floor to open! Cheers to Charity & Kudzie!", time: "14:35")
     ]
     @State private var applauseCount: Int = 142
     @State private var showingComposeSheet: Bool = false

@@ -73,5 +73,6 @@ dependencies {
     implementation("com.google.code.gson:gson:2.11.0")
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
 }

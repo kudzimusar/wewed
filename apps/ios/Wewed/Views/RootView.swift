@@ -48,7 +48,7 @@ public struct RootView: View {
                 Circle()
                     .fill(Color.green)
                     .frame(width: 8, height: 8)
-                Text(session.currentUserName ?? "Tariro & Shadreck")
+                Text(session.currentUserName ?? "Charity & Kudzie")
                     .font(.caption)
                     .fontWeight(.semibold)
                     .foregroundColor(.white)

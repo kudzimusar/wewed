@@ -23,16 +23,16 @@ class SessionViewModel(
     private val _currentRole = MutableStateFlow(AppRole.COUPLE)
     val currentRole: StateFlow<AppRole> = _currentRole.asStateFlow()
 
-    private val _currentUserName = MutableStateFlow<String?>("Tariro & Shadreck")
+    private val _currentUserName = MutableStateFlow<String?>("Charity & Kudzie")
     val currentUserName: StateFlow<String?> = _currentUserName.asStateFlow()
 
     private val _activePersonaId = MutableStateFlow("couple_owner")
     val activePersonaId: StateFlow<String> = _activePersonaId.asStateFlow()
 
-    private val _weddingId = MutableStateFlow("wed_tariro_shadreck_2026")
+    private val _weddingId = MutableStateFlow("cmqos70cb0004q6vxe9g9aiu5")
     val weddingId: StateFlow<String> = _weddingId.asStateFlow()
 
-    private val _weddingTitle = MutableStateFlow("Tariro & Shadreck Wedding")
+    private val _weddingTitle = MutableStateFlow("Charity & Kudzie Wedding")
     val weddingTitle: StateFlow<String> = _weddingTitle.asStateFlow()
 
     init {
@@ -45,7 +45,7 @@ class SessionViewModel(
             _isAuthenticated.value = true
             _currentUserRole.value = "couple"
             _currentRole.value = AppRole.COUPLE
-            _currentUserName.value = "Tariro & Shadreck"
+            _currentUserName.value = "Charity & Kudzie"
         }
     }
     fun login(email: String, role: String = "couple") {
@@ -56,7 +56,7 @@ class SessionViewModel(
         _currentUserRole.value = role
         val parsedRole = AppRole.fromId(role)
         _currentRole.value = parsedRole
-        _currentUserName.value = if (parsedRole == AppRole.USHER) "Gate A Usher" else "Tariro & Shadreck"
+        _currentUserName.value = if (parsedRole == AppRole.USHER) "Gate Usher" else "Charity & Kudzie"
     }
 
     fun switchPersona(persona: DevelopmentPersona) {

@@ -5,77 +5,77 @@ appId: pro.wewed.app
 
 - assertVisible: "WEWED"
 - tapOn: "Sign In"
-- assertVisible: "Tariro & Shadreck"
+- assertVisible: "Charity & Kudzie"
 - tapOn: "Switch"
 - waitForAnimationToEnd
 
 # 1. Check all personas visible in picker
 - assertVisible: "Switch Persona"
-- assertVisible: "Tariro & Shadreck"
-- assertVisible: "Kudzi Musarurwa"
-- assertVisible: "Chiedza Nyoni"
-- assertVisible: "Kudzi Visuals"
-- assertVisible: "Crown Sound Crew"
-- assertVisible: "Gate A Usher"
-- assertVisible: "Jane Doe"
+- assertVisible: "Charity & Kudzie"
+- assertVisible: "Eleven Eleven Testing"
+- assertVisible: "Faith Mutasa"
+- assertVisible: "FAUME MEDIA"
+- assertVisible: "MC Aloe"
+- assertVisible: "Gate Usher"
+- assertVisible: "Test Guest"
 - scrollUntilVisible:
-    element: "Global Ops Admin"
+    element: "System Admin"
     direction: DOWN
-- assertVisible: "Global Ops Admin"
+- assertVisible: "System Admin"
 
 # 2. Switch to Professional Planner (Role: PLANNER)
 - scrollUntilVisible:
-    element: "Kudzi Musarurwa"
+    element: "Eleven Eleven Testing"
     direction: UP
-- tapOn: "Kudzi Musarurwa"
-- assertVisible: "Kudzi Musarurwa"
+- tapOn: "Eleven Eleven Testing"
+- assertVisible: "Eleven Eleven Testing"
 - assertVisible: "Professional Planner"
 
 # 3. Switch to Day-of Coordinator (Role: COORDINATOR)
 - tapOn: "Switch"
-- tapOn: "Chiedza Nyoni"
-- assertVisible: "Chiedza Nyoni"
+- tapOn: "Faith Mutasa"
+- assertVisible: "Faith Mutasa"
 - assertVisible: "Day-of Coordinator"
 
 # 4. Switch to Vendor Owner (Role: VENDOR)
 - tapOn: "Switch"
-- tapOn: "Kudzi Visuals"
-- assertVisible: "Kudzi Visuals"
+- tapOn: "FAUME MEDIA"
+- assertVisible: "FAUME MEDIA"
 - assertVisible: "Vendor & Staff"
 
 # 5. Switch to Vendor Staff (Role: VENDOR)
 - tapOn: "Switch"
-- tapOn: "Crown Sound Crew"
-- assertVisible: "Crown Sound Crew"
+- tapOn: "MC Aloe"
+- assertVisible: "MC Aloe"
 - assertVisible: "Vendor & Staff"
 
 # 6. Switch to Gate Usher (Role: USHER)
 - tapOn: "Switch"
-- tapOn: "Gate A Usher"
-- assertVisible: "Gate A Usher"
+- tapOn: "Gate Usher"
+- assertVisible: "Gate Usher"
 - assertVisible: "Gate Usher"
 
 # 7. Switch to Attending Guest (Role: GUEST)
 - tapOn: "Switch"
-- tapOn: "Jane Doe"
-- assertVisible: "Jane Doe"
+- tapOn: "Test Guest"
+- assertVisible: "Test Guest"
 - assertVisible: "Attending Guest"
 
 # 8. Switch to Administrator (Role: ADMIN)
 - tapOn: "Switch"
 - scrollUntilVisible:
-    element: "Global Ops Admin"
+    element: "System Admin"
     direction: DOWN
-- tapOn: "Global Ops Admin"
-- assertVisible: "Global Ops Admin"
+- tapOn: "System Admin"
+- assertVisible: "System Admin"
 - assertVisible: "Administrator"
 
 # 9. Switch cleanly back to Couple Owner (Role: COUPLE)
 - tapOn: "Switch"
 - scrollUntilVisible:
-    element: "Tariro & Shadreck"
+    element: "Charity & Kudzie"
     direction: UP
-- tapOn: "Tariro & Shadreck"
-- assertVisible: "Tariro & Shadreck"
+- tapOn: "Charity & Kudzie"
+- assertVisible: "Charity & Kudzie"
 - assertVisible: "Couple"
 

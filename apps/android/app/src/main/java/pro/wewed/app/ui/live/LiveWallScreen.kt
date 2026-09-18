@@ -31,9 +31,9 @@ fun LiveWallScreen() {
     var messages by remember {
         mutableStateOf(
             listOf(
-                LiveMessage("m1", "Uncle Farai", "Congratulations Tariro & Shadreck! May God bless this union abundantly!", "14:15"),
-                LiveMessage("m2", "Auntie Chipo", "Such a beautiful bride! Welcome to the family Shadreck!", "14:22"),
-                LiveMessage("m3", "Kudzie M.", "Waiting for the dance floor to open! Cheers to the happy couple!", "14:35")
+                LiveMessage("m1", "Uncle Farai", "Congratulations Charity & Kudzie! May God bless this union abundantly!", "14:15"),
+                LiveMessage("m2", "Auntie Chipo", "Such a beautiful celebration at Imba Manor! Welcome to the family Kudzie!", "14:22"),
+                LiveMessage("m3", "Tony M.", "Waiting for the dance floor to open! Cheers to Charity & Kudzie!", "14:35")
             )
         )
     }

@@ -125,7 +125,7 @@ public struct WeddingContextSwitcherView: View {
                 .cornerRadius(WewedRadius.lg)
 
                 VStack(spacing: 10) {
-                    WeddingContextCard(id: "w1", couple: "Tariro & Shadreck Musarurwa", date: "24 October 2026", venue: "Imba Manor, Harare", role: "Primary Couple", isSelected: selectedWeddingId == "w1") {
+                    WeddingContextCard(id: "w1", couple: "Charity & Kudzie", date: "23 December 2026", venue: "Imba Manor, Harare", role: "Primary Couple", isSelected: selectedWeddingId == "w1") {
                         selectedWeddingId = "w1"
                     }
 
@@ -403,11 +403,11 @@ public struct MasterCalendarView: View {
                 .cornerRadius(WewedRadius.lg)
 
                 VStack(spacing: 10) {
-                    CalendarEventRow(date: "SEP 22", title: "Final Menu Tasting & Wine Pairing", location: "Imba Manor Estate", category: "Catering")
+                    CalendarEventRow(date: "SEP 22", title: "Final Menu Tasting & Wine Pairing", location: "Imba Manor", category: "Catering")
                     CalendarEventRow(date: "SEP 28", title: "Bridal Gown & Tuxedo Fitting", location: "Harare Atelier", category: "Attire")
                     CalendarEventRow(date: "OCT 10", title: "On-Site Lighting & Sound Walkthrough", location: "Chapel Gardens", category: "Technical")
-                    CalendarEventRow(date: "OCT 23", title: "Rehearsal Dinner & Briefing", location: "Imba Terrace", category: "Rehearsal")
-                    CalendarEventRow(date: "OCT 24", title: "WEDDING DAY — TARIRO & SHADRECK", location: "Imba Manor Estate", category: "WEDDING")
+                    CalendarEventRow(date: "DEC 22", title: "Rehearsal & Setup Coordination", location: "Imba Manor", category: "Rehearsal")
+                    CalendarEventRow(date: "DEC 23", title: "WEDDING DAY — CHARITY & KUDZIE", location: "Imba Manor, Harare", category: "WEDDING")
                 }
             }
             .padding()

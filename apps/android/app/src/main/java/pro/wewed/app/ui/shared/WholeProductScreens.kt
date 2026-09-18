@@ -160,7 +160,7 @@ fun WeddingContextSwitcherScreen(onBack: (() -> Unit)? = null) {
                 Text("Active Event Contexts", fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = WewedSpacing.sm))
             }
             val list = listOf(
-                Triple("w1", "Tariro & Shadreck Musarurwa", "24 Oct 2026 • Imba Manor, Harare"),
+                Triple("w1", "Charity & Kudzie", "23 Dec 2026 • Imba Manor, Harare"),
                 Triple("w2", "Ruvimbo & Farai Ndlovu", "12 Dec 2026 • Wild Geese Lodge"),
                 Triple("w3", "Chido & Tinashe Moyo", "15 Jan 2027 • Raintree Estate")
             )
@@ -330,10 +330,11 @@ fun MasterCalendarScreen(onBack: (() -> Unit)? = null) {
             verticalArrangement = Arrangement.spacedBy(WewedSpacing.md)
         ) {
             val events = listOf(
-                Triple("SEP 22", "Final Menu Tasting & Wine Pairing", "Imba Manor Estate"),
+                Triple("SEP 22", "Final Menu Tasting & Wine Pairing", "Imba Manor"),
                 Triple("SEP 28", "Bridal Gown & Tuxedo Fitting", "Harare Atelier"),
                 Triple("OCT 10", "On-Site Lighting & Sound Walkthrough", "Chapel Gardens"),
-                Triple("OCT 24", "WEDDING DAY — TARIRO & SHADRECK", "Imba Manor Estate")
+                Triple("DEC 22", "Rehearsal & Setup Coordination", "Imba Manor"),
+                Triple("DEC 23", "WEDDING DAY — CHARITY & KUDZIE", "Imba Manor, Harare")
             )
             items(events) { (date, title, location) ->
                 Card(

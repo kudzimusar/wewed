@@ -516,12 +516,12 @@ fun GenericToolDestination(title: String, subtitle: String, sections: List<Pair<
 fun ClientProfileDestination(onBack: () -> Unit) {
     GenericToolDestination(
         title = "Client Profile & Requirements",
-        subtitle = "Tariro & Shadreck • Intake & Style Preferences",
+        subtitle = "Charity & Kudzie • Intake & Style Preferences",
         sections = listOf(
-            Pair("Primary Aesthetic", "Modern Afro-Chic with warm gold and ivory accents"),
-            Pair("Religious & Cultural Observances", "Traditional ceremony followed by church solemnisation"),
-            Pair("Catering Directives", "Strict halal and nut-free accommodation for designated tables"),
-            Pair("Special VIP Notes", "Elder grandparents seated with zero steps access at Table 1")
+            Pair("Primary Aesthetic", "Modern Afro-Chic with ivory floral and botanical gold accents"),
+            Pair("Religious & Cultural Observances", "Ceremony and reception celebrations at Imba Manor"),
+            Pair("Catering Directives", "Beef, chicken, vegetarian and traditional Zimbabwean menu options"),
+            Pair("Special VIP Notes", "Elder family seated at Table 1 and Table 2")
         ),
         onBack = onBack
     )
@@ -532,12 +532,12 @@ fun ClientProfileDestination(onBack: () -> Unit) {
 fun CollaborationDestination(onBack: () -> Unit) {
     GenericToolDestination(
         title = "Collaboration & Team Access",
-        subtitle = "3 Planners • 4 Coordinators • Live Permissions",
+        subtitle = "1 Lead Planner • 1 Coordinator • Live Permissions",
         sections = listOf(
-            Pair("Lead Planner (Owner)", "Kudzi Musarurwa • Full administrative and export control"),
+            Pair("Lead Planner", "Eleven Eleven Testing • Accepted interest"),
+            Pair("Couple Owners", "Charity & Kudzie Musarurwa • Full administrative control"),
             Pair("Day-of Coordinator", "Chiedza Nyoni • Gate control and vendor check-in privileges"),
-            Pair("Bridal Assistant", "Tariro Banda • Schedule monitoring and bridal suite line"),
-            Pair("Audit Trail", "Last modification logged 14 minutes ago by Lead Planner")
+            Pair("Gate Team", "Imba Manor Gate Ushers • Scanner only")
         ),
         onBack = onBack
     )
@@ -662,7 +662,7 @@ fun PortfolioDestination(onBack: () -> Unit) {
         title = "Portfolio & Multi-Wedding Dashboard",
         subtitle = "Active Client Engagements & Production Pipeline",
         sections = listOf(
-            Pair("Tariro & Shadreck (Current)", "24 Oct 2026 • Imba Manor Estate • 74% Complete"),
+            Pair("Charity & Kudzie (Current)", "23 Dec 2026 • Imba Manor, Harare • 7 / 42 Tasks"),
             Pair("Rumbidzai & Farai", "12 Dec 2026 • Wild Geese Lodge • Intake & Budgeting"),
             Pair("Chipo & Tinashe", "18 Jan 2027 • Raintree Harare • Initial Concept"),
             Pair("Annual Target", "6 / 8 signature weddings booked for 2026/2027")
@@ -694,9 +694,9 @@ fun ContractGovernanceDestination(onBack: () -> Unit) {
         title = "Contract Governance & Vault",
         subtitle = "Digital Signatures, Retainers & Clause Vault",
         sections = listOf(
-            Pair("Standard Services Agreement", "Executed by Tariro & Shadreck on 15 Feb 2026"),
-            Pair("Retainer Deposit", "$2,500 retainer cleared into client escrow"),
-            Pair("Liability Waiver & Force Majeure", "Standard Southern Africa weather provisions active"),
+            Pair("Master Planning Agreement", "Pending formal contract execution (0 active contracts)"),
+            Pair("Vendor Engagement Contracts", "7 vendors booked • Formal contract execution pending"),
+            Pair("Retainer Escrow Vault", "0 executed contracts stored in governance vault"),
             Pair("Master Policy Version", "Wewed Standard Wedding Contract v3.2")
         ),
         onBack = onBack
@@ -710,10 +710,10 @@ fun ContractIntelligenceDestination(onBack: () -> Unit) {
         title = "Contract Intelligence & Risk Audit",
         subtitle = "Automated Vendor Clause Analysis & SLA Auditing",
         sections = listOf(
-            Pair("Sound & DJ SLA Analysis", "Overtime clause: $150/hr beyond 23:00 highlighted"),
-            Pair("Catering Force Majeure", "Power backup generator requirement confirmed"),
-            Pair("Photography Copyright Clause", "Full commercial rights released to couple"),
-            Pair("Risk Rating", "LOW • All 8 vendor contracts compliant with event bylaws")
+            Pair("Imba Manor Ground Policy", "Weather & grounds annex prepared for contract execution"),
+            Pair("Payment Milestone Guards", "Protected: 7 vendor payment schedules monitored"),
+            Pair("Cancellation & Escrow Terms", "Awaiting formal vendor agreements"),
+            Pair("Risk Rating", "LOW • 0 contract breaches recorded")
         ),
         onBack = onBack
     )

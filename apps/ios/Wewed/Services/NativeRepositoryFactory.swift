@@ -3,6 +3,7 @@ import Foundation
 public enum NativeRepositoryFactoryError: Error, Equatable, Sendable {
     case productionReadVerifyNotConfigured
     case productionDisabled
+    case privateRealShadowFixtureMissing(String)
 }
 
 public struct NativeRepositoryBundle: Sendable {
@@ -39,11 +40,19 @@ public enum NativeRepositoryFactory {
                 environment: .fixture
             )
 
-        case .shadow:
+        case .shadow, .sanitizedShadow:
             return NativeRepositoryBundle(
                 wedding: ShadowReferenceWeddingRepository(),
                 planner: ShadowReferencePlannerRepository(),
-                environment: .shadow,
+                environment: environment,
+                baseURL: baseURL
+            )
+
+        case .privateRealShadow:
+            return NativeRepositoryBundle(
+                wedding: try PrivateRealShadowWeddingRepository(),
+                planner: try PrivateRealShadowPlannerRepository(),
+                environment: .privateRealShadow,
                 baseURL: baseURL
             )
 

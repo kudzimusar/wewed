@@ -388,9 +388,9 @@ public struct ClientProfileView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Tariro & Shadreck Musarurwa")
+                    Text("Charity & Kudzie Musarurwa")
                         .font(.title2).fontWeight(.bold)
-                    Text("Wedding Date: 24 October 2026 • Imba Manor, Harare")
+                    Text("Wedding Date: 23 December 2026 • Imba Manor, Harare")
                         .font(.subheadline).foregroundColor(.secondary)
                 }
                 .padding()
@@ -400,10 +400,10 @@ public struct ClientProfileView: View {
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Contact & Relationship Details").font(.headline)
-                    Text("Primary Contact: Tariro (+263 77 123 4567)").font(.subheadline)
+                    Text("Primary Contact: Charity & Kudzie (+263 77 000 0000)").font(.subheadline)
                     Text("Email: couple@wewed.pro").font(.subheadline)
-                    Text("Preferred Theme: Ivory Floral & Champagne Gold").font(.subheadline)
-                    Text("Guest Estimate: 150 guests").font(.subheadline)
+                    Text("Preferred Theme: Ivory Floral & Botanical Gold").font(.subheadline)
+                    Text("Guest Capacity: 174 guests (177 invited capacity)").font(.subheadline)
                 }
                 .padding()
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -423,9 +423,10 @@ public struct CollaborationHubView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 Text("Planning Team Access & Roles").font(.headline)
-                TeamMemberRow(name: "Kudzie Musar (Lead Planner)", role: "Owner / Full Access", status: "Active")
-                TeamMemberRow(name: "Tariro (Bride)", role: "Couple / Co-Planner", status: "Active")
-                TeamMemberRow(name: "Nyasha Chiweshe", role: "Day-Of Coordinator", status: "Active")
+                TeamMemberRow(name: "Eleven Eleven Testing (Lead Planner)", role: "Tony The Planner / Accepted Interest", status: "Active")
+                TeamMemberRow(name: "Charity (Bride)", role: "Couple / Owner", status: "Active")
+                TeamMemberRow(name: "Kudzie (Groom)", role: "Couple / Owner", status: "Active")
+                TeamMemberRow(name: "Chiedza Nyoni", role: "Day-Of Coordinator", status: "Active")
                 TeamMemberRow(name: "Imba Manor Gate Team", role: "Usher / Scanner Only", status: "Assigned")
             }
             .padding()
@@ -643,7 +644,7 @@ public struct PlannerPortfolioView: View {
     public var body: some View {
         ScrollView {
             VStack(spacing: 12) {
-                PortfolioWeddingCard(couple: "Tariro & Shadreck", date: "24 Oct 2026", status: "Active • 37 Days", completion: 0.74)
+                PortfolioWeddingCard(couple: "Charity & Kudzie", date: "23 Dec 2026", status: "Active • 7 / 42 Tasks", completion: 0.17)
                 PortfolioWeddingCard(couple: "Ruvimbo & Farai", date: "12 Dec 2026", status: "Planning • 86 Days", completion: 0.42)
                 PortfolioWeddingCard(couple: "Chido & Tinashe", date: "15 Jan 2027", status: "Scoping • 120 Days", completion: 0.15)
             }
@@ -721,9 +722,9 @@ public struct ContractGovernanceView: View {
         ScrollView {
             VStack(spacing: 14) {
                 Text("Contract Governance & Legal Milestones").font(.headline).frame(maxWidth: .infinity, alignment: .leading)
-                OperationTile(title: "Master Planning Agreement", detail: "Signed digitally by Kudzie Musar & Couple", status: "Executed")
-                OperationTile(title: "Imba Manor Venue Lease", detail: "Deposit verified • Balance due 14 days prior", status: "Active")
-                OperationTile(title: "Catering Service SLA", detail: "Minimum 140 covers guaranteed", status: "Locked")
+                OperationTile(title: "Master Planning Agreement", detail: "Pending contract formulation (0 active contracts)", status: "Empty State")
+                OperationTile(title: "Vendor Agreements", detail: "7 vendors booked • Formal contract execution pending", status: "Pending")
+                OperationTile(title: "Escrow & Retainer Vault", detail: "0 executed retainers held", status: "Ready")
             }
             .padding()
         }
@@ -738,9 +739,9 @@ public struct ContractIntelligenceView: View {
         ScrollView {
             VStack(spacing: 14) {
                 Text("Contract Intelligence & Risk Audit").font(.headline).frame(maxWidth: .infinity, alignment: .leading)
-                OperationTile(title: "Force Majeure & Rain Contingency", detail: "Audited: Marquee provision covered under Clause 8.2", status: "Compliant")
-                OperationTile(title: "Vendor Payment Milestone Guard", detail: "No advance payment released without signed milestone", status: "Protected")
-                OperationTile(title: "Cancellation Terms", detail: "90-day grace period fully respected", status: "Low Risk")
+                OperationTile(title: "Force Majeure & Rain Contingency", detail: "Imba Manor grounds policy ready for contract annex", status: "Draft")
+                OperationTile(title: "Vendor Payment Milestone Guard", detail: "Deposit guards active for 7 vendors", status: "Protected")
+                OperationTile(title: "Cancellation Terms", detail: "Awaiting formal vendor agreements", status: "Pending")
             }
             .padding()
         }

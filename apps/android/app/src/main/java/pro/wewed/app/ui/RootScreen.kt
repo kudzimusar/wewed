@@ -69,7 +69,7 @@ fun RootScreen(
                         .background(Color.Green, CircleShape)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
-                Text(currentUserName ?: "Tariro & Shadreck", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Text(currentUserName ?: "Charity & Kudzie", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(currentRole.title, color = WewedColors.Gold, fontSize = 11.sp)
                 Spacer(modifier = Modifier.width(6.dp))

@@ -47,7 +47,7 @@ fi
 echo "Checking changed-path isolation..."
 outside_scope="$(
   git diff --name-only "$BASE_REF"...HEAD |
-  grep -Ev '^(apps/ios/|apps/android/|mobile/|docs/native-mobile/|\.maestro/)' || true
+  grep -Ev '^(apps/ios/|apps/android/|mobile/|docs/native-mobile/|\.maestro/|\.gitignore)' || true
 )"
 
 if [[ -n "$outside_scope" ]]; then

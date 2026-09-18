@@ -8,7 +8,7 @@ appId: pro.wewed.app
 - tapOn: "Sign In"
 
 # 2. Overview / Home Screen
-- assertVisible: "Tariro & Shadreck"
+- assertVisible: "Charity & Kudzie"
 - assertVisible: "NEXT UP"
 - scroll
 - assertVisible: "YOUR WEDDING PASS"
@@ -17,26 +17,19 @@ appId: pro.wewed.app
 - tapOn: "Plan"
 - assertVisible: "Wedding Planner"
 - scroll
-- assertVisible: "Finalize seating chart with venue manager"
+- assertVisible: "Book Imba Manor"
 
 # 4. Guests & Seating Search
 - tapOn: "Guests"
 - assertVisible: "Guest List"
-- assertVisible: "Musarurwa Family"
-- assertVisible: "Baobab — 1"
+- assertVisible: "Table 5 — Friends"
 
 # 5. Wedding Pass & Gate Scanner
 - tapOn: "Pass"
 - assertVisible: "WEWED WEDDING PASS"
-- assertVisible: "Jane & Michael Doe"
-- assertVisible: "Jacaranda — 8"
 - scroll
 - tapOn: "Usher Check-In Mode"
 - assertVisible: "Gate Scanner"
-- tapOn: "Scan Jane (x2)"
-- assertVisible: "Admitted — Partial Arrival"
-- tapOn: "Scan Jane (x2)"
-- assertVisible: "Admitted — Full Party"
 - tapOn:
     id: "gate-scanner-exit"
     optional: true

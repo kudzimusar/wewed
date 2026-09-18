@@ -16,6 +16,10 @@ public struct NativeLaunchConfiguration: Equatable, Sendable {
         let dataEnvironment: NativeDataEnvironment
 
         switch rawEnvironment {
+        case "private_real_shadow", "private-real-shadow", "private_shadow", "private":
+            dataEnvironment = .privateRealShadow
+        case "sanitized_shadow", "sanitized-shadow":
+            dataEnvironment = .sanitizedShadow
         case "shadow":
             dataEnvironment = .shadow
         case "production_read_verify", "production-read-verify":

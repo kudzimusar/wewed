@@ -144,4 +144,46 @@ final class ShadowReferenceRepositoryTests: XCTestCase {
             XCTAssertEqual(error, .transportNotConfigured)
         }
     }
+
+    func testSanitizedShadowEnvironmentFactoryBuildsValidBundle() throws {
+        let bundle = try NativeRepositoryFactory.make(environment: .sanitizedShadow)
+        XCTAssertEqual(bundle.environment, .sanitizedShadow)
+    }
+
+    func testPrivateRealShadowLoadsWhenSnapshotAvailable() async throws {
+        let snapshotPath = PrivateRealShadowWeddingRepository.defaultSnapshotPath()
+        guard FileManager.default.fileExists(atPath: snapshotPath) else {
+            // If fixture is not present, make should throw privateRealShadowFixtureMissing
+            XCTAssertThrowsError(try NativeRepositoryFactory.make(environment: .privateRealShadow))
+            return
+        }
+
+        let bundle = try NativeRepositoryFactory.make(environment: .privateRealShadow)
+        XCTAssertEqual(bundle.environment, .privateRealShadow)
+
+        let wedding = try await bundle.wedding.getWedding()
+        let guests = try await bundle.wedding.getGuests()
+        let tasks = try await bundle.wedding.getTasks()
+        let budget = try await bundle.wedding.getBudget()
+        let dashboard = try await bundle.planner.getDashboard()
+
+        XCTAssertEqual(wedding.coupleNames, "Charity & Kudzie")
+        XCTAssertEqual(tasks.count, 42)
+        XCTAssertEqual(guests.count, 174)
+        XCTAssertEqual(dashboard.plannerContext, "Eleven Eleven Testing")
+        XCTAssertEqual(dashboard.taskCompletionLabel, "7 / 42")
+        XCTAssertEqual(budget.totalBudget, 30380)
+    }
+
+    func testPrivateRealShadowFailsExplicitlyWhenFixtureMissing() {
+        XCTAssertThrowsError(
+            try PrivateRealShadowWeddingRepository(path: "/nonexistent/path/fixture.json")
+        ) { error in
+            guard case NativeRepositoryFactoryError.privateRealShadowFixtureMissing(let msg) = error else {
+                XCTFail("Expected privateRealShadowFixtureMissing but got \(error)")
+                return
+            }
+            XCTAssertTrue(msg.contains("Private real shadow fixture not found"))
+        }
+    }
 }

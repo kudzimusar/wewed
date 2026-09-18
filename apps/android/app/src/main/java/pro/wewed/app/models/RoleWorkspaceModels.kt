@@ -27,66 +27,66 @@ data class DevelopmentPersona(
         val allPersonas = listOf(
             DevelopmentPersona(
                 id = "couple_owner",
-                name = "Tariro & Shadreck",
-                subtitle = "Couple Owner • Imba Manor Estate",
+                name = "Charity & Kudzie",
+                subtitle = "Couple Owner • Imba Manor",
                 role = AppRole.COUPLE,
-                weddingId = "wed_tariro_shadreck_2026",
-                weddingTitle = "Tariro & Shadreck Wedding"
+                weddingId = "cmqos70cb0004q6vxe9g9aiu5",
+                weddingTitle = "Charity & Kudzie Wedding"
             ),
             DevelopmentPersona(
                 id = "pro_planner",
-                name = "Kudzi Musarurwa",
-                subtitle = "Lead Architect • 3 Active Weddings",
+                name = "Eleven Eleven Testing",
+                subtitle = "Lead Planner • Tony The Planner",
                 role = AppRole.PLANNER,
-                weddingId = "wed_tariro_shadreck_2026",
-                weddingTitle = "Tariro & Shadreck Wedding"
+                weddingId = "cmqos70cb0004q6vxe9g9aiu5",
+                weddingTitle = "Charity & Kudzie Wedding"
             ),
             DevelopmentPersona(
                 id = "day_coordinator",
                 name = "Chiedza Nyoni",
-                subtitle = "Ground Operations Lead",
+                subtitle = "Day-of Coordinator",
                 role = AppRole.COORDINATOR,
-                weddingId = "wed_tariro_shadreck_2026",
-                weddingTitle = "Tariro & Shadreck Wedding"
+                weddingId = "cmqos70cb0004q6vxe9g9aiu5",
+                weddingTitle = "Charity & Kudzie Wedding"
             ),
             DevelopmentPersona(
                 id = "vendor_owner",
-                name = "Kudzi Visuals",
-                subtitle = "Lead Cinematographer & Drone",
+                name = "FAUME MEDIA",
+                subtitle = "Lead Cinematographer & Media",
                 role = AppRole.VENDOR,
-                weddingId = "wed_tariro_shadreck_2026",
-                weddingTitle = "Tariro & Shadreck Wedding"
+                weddingId = "cmqos70cb0004q6vxe9g9aiu5",
+                weddingTitle = "Charity & Kudzie Wedding"
             ),
             DevelopmentPersona(
                 id = "vendor_staff",
-                name = "Crown Sound Crew",
-                subtitle = "Audio & Acoustics Engineer",
+                name = "MC Aloe The Avangelist",
+                subtitle = "Master of Ceremonies & Sound",
                 role = AppRole.VENDOR,
-                weddingId = "wed_tariro_shadreck_2026",
-                weddingTitle = "Tariro & Shadreck Wedding"
+                weddingId = "cmqos70cb0004q6vxe9g9aiu5",
+                weddingTitle = "Charity & Kudzie Wedding"
             ),
             DevelopmentPersona(
                 id = "gate_usher",
-                name = "Gate A Usher",
-                subtitle = "Stationed at Main Entrance",
+                name = "Gate Usher",
+                subtitle = "Stationed at Imba Manor Main Gate",
                 role = AppRole.USHER,
-                weddingId = "wed_tariro_shadreck_2026",
-                weddingTitle = "Tariro & Shadreck Wedding"
+                weddingId = "cmqos70cb0004q6vxe9g9aiu5",
+                weddingTitle = "Charity & Kudzie Wedding"
             ),
             DevelopmentPersona(
                 id = "attending_guest",
-                name = "Jane Doe",
-                subtitle = "Party of 2 • Table 8",
+                name = "Test Guest",
+                subtitle = "Party of 4 • Attending",
                 role = AppRole.GUEST,
-                weddingId = "wed_tariro_shadreck_2026",
-                weddingTitle = "Tariro & Shadreck Wedding"
+                weddingId = "cmqos70cb0004q6vxe9g9aiu5",
+                weddingTitle = "Charity & Kudzie Wedding"
             ),
             DevelopmentPersona(
                 id = "administrator",
                 name = "Global Ops Admin",
                 subtitle = "Platform Security & Health",
                 role = AppRole.ADMIN,
-                weddingId = "wed_tariro_shadreck_2026",
+                weddingId = "cmqos70cb0004q6vxe9g9aiu5",
                 weddingTitle = "Global Wewed Ecosystem"
             )
         )

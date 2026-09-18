@@ -6,8 +6,8 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
     @Published public var currentUserRole: String? = nil
     @Published public var currentRole: AppRole = .couple
     @Published public var currentUserName: String? = nil
-    @Published public var weddingId: String = "wed_tariro_shadreck_2026"
-    @Published public var weddingTitle: String = "Tariro & Shadreck Wedding"
+    @Published public var weddingId: String = "cmqos70cb0004q6vxe9g9aiu5"
+    @Published public var weddingTitle: String = "Charity & Kudzie Wedding"
     @Published public var activePersona: DevelopmentPersona? = nil
     @Published public var passToken: String? = nil
     @Published public var showingPersonaPicker: Bool = false
@@ -25,7 +25,7 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
             self.isAuthenticated = true
             self.currentUserRole = "couple"
             self.currentRole = .couple
-            self.currentUserName = "Tariro & Shadreck"
+            self.currentUserName = "Charity & Kudzie"
         }
     }
 
@@ -36,7 +36,7 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
         self.currentUserRole = role
         let parsed = AppRole.from(roleId: role)
         self.currentRole = parsed
-        self.currentUserName = (parsed == .usher) ? "Gate A Usher" : "Tariro & Shadreck"
+        self.currentUserName = (parsed == .usher) ? "Gate Usher" : "Charity & Kudzie"
     }
 
     public func switchPersona(_ persona: DevelopmentPersona) {

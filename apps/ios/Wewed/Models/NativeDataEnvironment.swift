@@ -3,13 +3,16 @@ import Foundation
 public enum NativeDataEnvironment: String, Codable, CaseIterable, Sendable {
     case fixture
     case shadow
+    case sanitizedShadow = "sanitized_shadow"
+    case privateRealShadow = "private_real_shadow"
     case productionReadVerify = "production_read_verify"
     case production
 
     public var title: String {
         switch self {
         case .fixture: return "Fixture"
-        case .shadow: return "Shadow"
+        case .shadow, .sanitizedShadow: return "Sanitized Shadow"
+        case .privateRealShadow: return "Private Real Shadow"
         case .productionReadVerify: return "Production Read Verify"
         case .production: return "Production"
         }
@@ -17,7 +20,7 @@ public enum NativeDataEnvironment: String, Codable, CaseIterable, Sendable {
 
     public var allowsMutableNativeDevelopment: Bool {
         switch self {
-        case .fixture, .shadow: return true
+        case .fixture, .shadow, .sanitizedShadow, .privateRealShadow: return true
         case .productionReadVerify, .production: return false
         }
     }

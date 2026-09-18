@@ -83,3 +83,12 @@ apps/ios/build/
 apps/ios/DerivedData/
 apps/ios/*.xcodeproj/xcuserdata/
 apps/ios/*.xcworkspace/xcuserdata/
+
+# Private Real Shadow & UAT Identity Material (NEVER commit real identity data)
+*private-real-shadow*
+*.private.json
+.private/
+**/private-shadow/
+mobile/fixtures/private/
+apps/ios/**/PrivateRealShadow*Data.swift
+apps/android/**/PrivateRealShadow*Data.kt

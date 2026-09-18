@@ -26,4 +26,13 @@ class NativeLaunchConfigurationTest {
         val config = NativeLaunchConfiguration.resolve("production", null)
         assertEquals(NativeDataEnvironment.PRODUCTION, config.environment)
     }
+
+    @Test
+    fun sanitizedAndPrivateRealShadowParsing() {
+        val sanitized = NativeLaunchConfiguration.resolve("sanitized_shadow", null)
+        assertEquals(NativeDataEnvironment.SANITIZED_SHADOW, sanitized.environment)
+
+        val privateReal = NativeLaunchConfiguration.resolve("private_real_shadow", null)
+        assertEquals(NativeDataEnvironment.PRIVATE_REAL_SHADOW, privateReal.environment)
+    }
 }

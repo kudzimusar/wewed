@@ -8,6 +8,9 @@ sealed class NativeRepositoryFactoryError(message: String) : IllegalStateExcepti
 
     data object ProductionDisabled :
         NativeRepositoryFactoryError("Production native repositories are disabled during the shadow parity sprint.")
+
+    class PrivateRealShadowFixtureMissing(message: String) :
+        NativeRepositoryFactoryError(message)
 }
 
 data class NativeRepositoryBundle(
@@ -31,10 +34,17 @@ object NativeRepositoryFactory {
                 environment = NativeDataEnvironment.FIXTURE
             )
 
-            NativeDataEnvironment.SHADOW -> NativeRepositoryBundle(
+            NativeDataEnvironment.SHADOW, NativeDataEnvironment.SANITIZED_SHADOW -> NativeRepositoryBundle(
                 wedding = ShadowReferenceWeddingRepository(),
                 planner = ShadowReferencePlannerRepository(),
-                environment = NativeDataEnvironment.SHADOW,
+                environment = environment,
+                baseUrl = baseUrl
+            )
+
+            NativeDataEnvironment.PRIVATE_REAL_SHADOW -> NativeRepositoryBundle(
+                wedding = PrivateRealShadowWeddingRepository(),
+                planner = PrivateRealShadowPlannerRepository(),
+                environment = NativeDataEnvironment.PRIVATE_REAL_SHADOW,
                 baseUrl = baseUrl
             )
 

@@ -23,4 +23,12 @@ final class NativeLaunchConfigurationTests: XCTestCase {
         ])
         XCTAssertEqual(config.environment, .production)
     }
+
+    func testSanitizedAndPrivateRealShadowParsing() {
+        let sanitized = NativeLaunchConfiguration.resolve(environment: ["WEWED_NATIVE_ENV": "sanitized_shadow"])
+        XCTAssertEqual(sanitized.environment, .sanitizedShadow)
+
+        let privateReal = NativeLaunchConfiguration.resolve(environment: ["WEWED_NATIVE_ENV": "private_real_shadow"])
+        XCTAssertEqual(privateReal.environment, .privateRealShadow)
+    }
 }

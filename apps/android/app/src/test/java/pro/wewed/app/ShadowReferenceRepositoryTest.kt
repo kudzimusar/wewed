@@ -140,4 +140,45 @@ class ShadowReferenceRepositoryTest {
     fun productionRepositoryRemainsLocked() {
         NativeRepositoryFactory.make(NativeDataEnvironment.PRODUCTION)
     }
+
+    @Test
+    fun sanitizedShadowFactoryBuildsValidBundle() = runBlocking {
+        val bundle = NativeRepositoryFactory.make(NativeDataEnvironment.SANITIZED_SHADOW)
+        assertEquals(NativeDataEnvironment.SANITIZED_SHADOW, bundle.environment)
+    }
+
+    @Test
+    fun privateRealShadowLoadsWhenSnapshotAvailable() = runBlocking {
+        val path = pro.wewed.app.services.PrivateRealShadowWeddingRepository.defaultSnapshotPath()
+        if (!java.io.File(path).exists()) {
+            try {
+                NativeRepositoryFactory.make(NativeDataEnvironment.PRIVATE_REAL_SHADOW)
+                fail("Expected PrivateRealShadowFixtureMissing exception")
+            } catch (e: NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing) {
+                assertTrue(e.message!!.contains("Private real shadow fixture not found"))
+            }
+            return@runBlocking
+        }
+
+        val bundle = NativeRepositoryFactory.make(NativeDataEnvironment.PRIVATE_REAL_SHADOW)
+        assertEquals(NativeDataEnvironment.PRIVATE_REAL_SHADOW, bundle.environment)
+
+        val wedding = bundle.wedding.getWedding()
+        val tasks = bundle.wedding.getTasks()
+        val guests = bundle.wedding.getGuests()
+        val budget = bundle.wedding.getBudget()
+        val dashboard = bundle.planner.getDashboard()
+
+        assertEquals("Charity & Kudzie", wedding.coupleNames)
+        assertEquals(42, tasks.size)
+        assertEquals(174, guests.size)
+        assertEquals("Eleven Eleven Testing", dashboard.plannerContext)
+        assertEquals("7 / 42", dashboard.taskCompletionLabel)
+        assertEquals(30380.0, budget.totalBudget, 0.01)
+    }
+
+    @Test(expected = NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing::class)
+    fun privateRealShadowFailsExplicitlyWhenFixtureMissing() {
+        pro.wewed.app.services.PrivateRealShadowWeddingRepository(customPath = "/nonexistent/fixture.json")
+    }
 }
