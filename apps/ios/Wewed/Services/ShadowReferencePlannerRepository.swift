@@ -45,11 +45,11 @@ public actor ShadowReferencePlannerRepository: PlannerDashboardRepositoryProtoco
         vendorEngagements = [
             PlannerVendorEngagement(id: "shadow_vnd_01", vendorName: "Cake Gourmet", category: "caterer", bookingStatus: "Confirmed", contractStatus: "Pending", paymentStatus: "Deposit", nextAction: "Operational review"),
             PlannerVendorEngagement(id: "shadow_vnd_02", vendorName: "MC Aloe The Avangelist", category: "dj", bookingStatus: "Confirmed", contractStatus: "Pending", paymentStatus: "Unpaid", nextAction: "Operational review"),
-            PlannerVendorEngagement(id: "shadow_vnd_03", vendorName: "The Glass Petal Atelier", category: "florist", bookingStatus: "Confirmed", contractStatus: "Signed", paymentStatus: "Deposit", nextAction: "Operational review"),
+            PlannerVendorEngagement(id: "shadow_vnd_03", vendorName: "The Glass Petal Atelier", category: "florist", bookingStatus: "Confirmed", contractStatus: "Pending", paymentStatus: "Deposit", nextAction: "Operational review"),
             PlannerVendorEngagement(id: "shadow_vnd_04", vendorName: "Makeup Artist", category: "other", bookingStatus: "Confirmed", contractStatus: "Pending", paymentStatus: "Unpaid", nextAction: "Operational review"),
             PlannerVendorEngagement(id: "shadow_vnd_05", vendorName: "TBD", category: "other", bookingStatus: "Confirmed", contractStatus: "Pending", paymentStatus: "Unpaid", nextAction: "Operational review"),
-            PlannerVendorEngagement(id: "shadow_vnd_06", vendorName: "FAUME MEDIA", category: "photographer", bookingStatus: "Confirmed", contractStatus: "Signed", paymentStatus: "Unpaid", nextAction: "Operational review"),
-            PlannerVendorEngagement(id: "shadow_vnd_07", vendorName: "Imba Manor", category: "venue", bookingStatus: "Confirmed", contractStatus: "Negotiating", paymentStatus: "Paid", nextAction: "Operational review"),
+            PlannerVendorEngagement(id: "shadow_vnd_06", vendorName: "FAUME MEDIA", category: "photographer", bookingStatus: "Confirmed", contractStatus: "Pending", paymentStatus: "Unpaid", nextAction: "Operational review"),
+            PlannerVendorEngagement(id: "shadow_vnd_07", vendorName: "Imba Manor", category: "venue", bookingStatus: "Confirmed", contractStatus: "Pending", paymentStatus: "Paid", nextAction: "Operational review"),
         ]
 
         seatingTables = [
@@ -87,7 +87,8 @@ public actor ShadowReferencePlannerRepository: PlannerDashboardRepositoryProtoco
             weddingDateLabel: "2026-12-23 14:00:00",
             lifecycle: "before",
             plannerContext: "Eleven Eleven Testing",
-            readinessScore: 17,
+            readinessScore: nil,
+            taskCompletionLabel: "7 / 42",
             attentionItems: [
                 PlannerAttentionItem(id: "attn_tasks", title: "8 high priority tasks", detail: "Venue, invitations and logistics need attention.", severity: .urgent),
                 PlannerAttentionItem(id: "attn_rsvp", title: "172 RSVPs pending", detail: "Guest follow-up is affecting seating readiness.", severity: .warning),
@@ -99,17 +100,12 @@ public actor ShadowReferencePlannerRepository: PlannerDashboardRepositoryProtoco
                 PlannerModuleSummary(id: "tasks", title: "Tasks", value: "7 / 42", attention: "8 urgent", systemImage: "checklist"),
                 PlannerModuleSummary(id: "budget", title: "Budget", value: "$30.4k", attention: "$3.9k paid", systemImage: "creditcard.fill"),
                 PlannerModuleSummary(id: "contributions", title: "Contributions", value: "4 memories", attention: "4 approved", systemImage: "gift.fill"),
-                PlannerModuleSummary(id: "vendors", title: "Vendors", value: "7 booked", attention: "1 contract signed", systemImage: "storefront.fill"),
+                PlannerModuleSummary(id: "vendors", title: "Vendors", value: "7 booked", attention: "0 contracts", systemImage: "storefront.fill"),
                 PlannerModuleSummary(id: "guests", title: "Guests", value: "174", attention: "172 awaiting RSVP", systemImage: "person.3.fill"),
                 PlannerModuleSummary(id: "seating", title: "Seating", value: "22 / 64", attention: "42 seats free", systemImage: "table.furniture.fill"),
                 PlannerModuleSummary(id: "timeline", title: "Timeline", value: "13 events", attention: "Programme locked", systemImage: "calendar.badge.clock")
             ],
-            recentActivity: [
-                PlannerActivityItem(id: "act_1", title: "Venue confirmed", detail: "Imba Manor confirmed for ceremony and reception.", relativeTime: "Today"),
-                PlannerActivityItem(id: "act_2", title: "Guest contribution submitted", detail: "New wedding blessing added to the memory stream.", relativeTime: "Today"),
-                PlannerActivityItem(id: "act_3", title: "RSVP party check-in verified", detail: "Party admission tested with QR verification.", relativeTime: "Yesterday"),
-                PlannerActivityItem(id: "act_4", title: "Seating updated", detail: "Table 1 Family allocations reviewed.", relativeTime: "Yesterday")
-            ],
+            recentActivity: [],
             sourceLabel: "Production-derived reference fixture"
         )
     }

@@ -20,6 +20,7 @@ public actor FixturePlannerDashboardRepository: PlannerDashboardRepositoryProtoc
             lifecycle: "before",
             plannerContext: "Eleven Eleven Testing",
             readinessScore: 78,
+            taskCompletionLabel: "38 / 47",
             attentionItems: [
                 PlannerAttentionItem(id: "attn_tasks", title: "3 overdue tasks", detail: "Venue, invitations and logistics need attention.", severity: .urgent),
                 PlannerAttentionItem(id: "attn_rsvp", title: "12 RSVPs pending", detail: "Guest follow-up is affecting seating readiness.", severity: .warning),

@@ -28,7 +28,7 @@ public actor ShadowReferenceWeddingRepository: WeddingRepositoryProtocol {
             coupleNames: "Charity & Kudzie",
             date: "2026-12-23 14:00:00",
             venueName: "Imba Manor",
-            venueAddress: "1 Worplestone Way, Glen Lorne",
+            venueAddress: "Imba Manor, Harare",
             city: "Harare",
             country: "Zimbabwe",
             lifecycle: "before",
@@ -277,23 +277,26 @@ public actor ShadowReferenceWeddingRepository: WeddingRepositoryProtocol {
             totalAllocated: 8690,
             totalPaid: 3875,
             categories: [
-                BudgetCategory(name: "Venue & Grounds", allocated: 12000, spent: 4500),
-                BudgetCategory(name: "Attire & Beauty", allocated: 6770, spent: 1020),
-                BudgetCategory(name: "Music & Entertainment", allocated: 1400, spent: 350),
-                BudgetCategory(name: "Floral & Decor", allocated: 3800, spent: 240),
-                BudgetCategory(name: "Photo & Video", allocated: 4300, spent: 1200),
-                BudgetCategory(name: "Catering & Bar", allocated: 2110, spent: 1380)
+                BudgetCategory(name: "Attire", allocated: 6000, spent: 1210),
+                BudgetCategory(name: "Catering", allocated: 6600, spent: 1850),
+                BudgetCategory(name: "Decor", allocated: 4100, spent: 300),
+                BudgetCategory(name: "Miscellaneous", allocated: 2320, spent: 1020),
+                BudgetCategory(name: "Music", allocated: 1500, spent: 230),
+                BudgetCategory(name: "Photo & Video", allocated: 3200, spent: 500),
+                BudgetCategory(name: "Stationery", allocated: 700, spent: 120),
+                BudgetCategory(name: "Transport", allocated: 900, spent: 500),
+                BudgetCategory(name: "Venue", allocated: 5060, spent: 2960)
             ]
         )
 
         vendors = [
-            VendorPresence(id: "shadow_vnd_01", vendorName: "Cake Gourmet", serviceCategory: "caterer", serviceArea: "Main Venue", state: .scheduled, expectedTime: "12:00"),
-            VendorPresence(id: "shadow_vnd_02", vendorName: "MC Aloe The Avangelist", serviceCategory: "dj", serviceArea: "Main Venue", state: .scheduled, expectedTime: "12:00"),
-            VendorPresence(id: "shadow_vnd_03", vendorName: "The Glass Petal Atelier", serviceCategory: "florist", serviceArea: "Main Venue", state: .scheduled, expectedTime: "12:00"),
-            VendorPresence(id: "shadow_vnd_04", vendorName: "Makeup Artist", serviceCategory: "other", serviceArea: "Main Venue", state: .scheduled, expectedTime: "12:00"),
-            VendorPresence(id: "shadow_vnd_05", vendorName: "TBD", serviceCategory: "other", serviceArea: "Main Venue", state: .scheduled, expectedTime: "12:00"),
-            VendorPresence(id: "shadow_vnd_06", vendorName: "FAUME MEDIA", serviceCategory: "photographer", serviceArea: "Main Venue", state: .scheduled, expectedTime: "12:00"),
-            VendorPresence(id: "shadow_vnd_07", vendorName: "Imba Manor", serviceCategory: "venue", serviceArea: "Main Venue", state: .scheduled, expectedTime: "12:00"),
+            VendorPresence(id: "shadow_vnd_01", vendorName: "Cake Gourmet", serviceCategory: "caterer", serviceArea: "Imba Manor", state: .scheduled, expectedTime: "TBD"),
+            VendorPresence(id: "shadow_vnd_02", vendorName: "MC Aloe The Avangelist", serviceCategory: "dj", serviceArea: "Imba Manor", state: .scheduled, expectedTime: "TBD"),
+            VendorPresence(id: "shadow_vnd_03", vendorName: "The Glass Petal Atelier", serviceCategory: "florist", serviceArea: "Imba Manor", state: .scheduled, expectedTime: "TBD"),
+            VendorPresence(id: "shadow_vnd_04", vendorName: "Makeup Artist", serviceCategory: "other", serviceArea: "Imba Manor", state: .scheduled, expectedTime: "TBD"),
+            VendorPresence(id: "shadow_vnd_05", vendorName: "TBD", serviceCategory: "other", serviceArea: "Imba Manor", state: .scheduled, expectedTime: "TBD"),
+            VendorPresence(id: "shadow_vnd_06", vendorName: "FAUME MEDIA", serviceCategory: "photographer", serviceArea: "Imba Manor", state: .scheduled, expectedTime: "TBD"),
+            VendorPresence(id: "shadow_vnd_07", vendorName: "Imba Manor", serviceCategory: "venue", serviceArea: "Imba Manor", state: .scheduled, expectedTime: "TBD"),
         ]
 
         announcements = [

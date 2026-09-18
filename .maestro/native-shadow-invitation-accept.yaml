@@ -1,5 +1,10 @@
 appId: pro.wewed.app
 ---
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+
 # 1. Sign In
 - assertVisible: "WEWED"
 - tapOn: "Sign In"

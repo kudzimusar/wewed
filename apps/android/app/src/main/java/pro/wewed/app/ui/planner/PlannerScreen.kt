@@ -276,16 +276,26 @@ private fun ReadinessCard(snapshot: PlannerDashboardSnapshot) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column {
                     Text("PLANNING HEALTH", fontSize = 10.sp, color = WewedColors.Gold, fontWeight = FontWeight.Bold)
-                    Text("Ready for the next planning milestone", fontSize = 12.sp, color = Color.Gray)
+                    Text(
+                        if (snapshot.readinessScore != null) "Ready for the next planning milestone" else "Task Completion: ${snapshot.taskCompletionLabel}",
+                        fontSize = 12.sp,
+                        color = Color.Gray
+                    )
                 }
-                Text("${snapshot.readinessScore}%", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = WewedColors.Emerald)
+                if (snapshot.readinessScore != null) {
+                    Text("${snapshot.readinessScore}%", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = WewedColors.Emerald)
+                } else {
+                    Text("Unavailable / TBD", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color.Gray)
+                }
             }
-            Spacer(modifier = Modifier.height(WewedSpacing.sm))
-            LinearProgressIndicator(
-                progress = { snapshot.readinessScore / 100f },
-                modifier = Modifier.fillMaxWidth(),
-                color = WewedColors.Emerald
-            )
+            if (snapshot.readinessScore != null) {
+                Spacer(modifier = Modifier.height(WewedSpacing.sm))
+                LinearProgressIndicator(
+                    progress = { snapshot.readinessScore / 100f },
+                    modifier = Modifier.fillMaxWidth(),
+                    color = WewedColors.Emerald
+                )
+            }
         }
     }
 }

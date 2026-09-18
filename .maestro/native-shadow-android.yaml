@@ -24,10 +24,9 @@ appId: pro.wewed.app
 - assertVisible: "SHADOW"
 - assertVisible: "Eleven Eleven Testing"
 - assertVisible: "Charity & Kudzie"
-- scroll
-- scroll
 - assertVisible: "8 high priority tasks"
 - assertVisible: "172 RSVPs pending"
+- scroll
 
 # 4. Guests
 - tapOn: "Guests"

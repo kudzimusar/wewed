@@ -42,11 +42,11 @@ class ShadowReferencePlannerRepository : PlannerDashboardRepository {
     private val vendorEngagements = listOf(
         PlannerVendorEngagement("shadow_vnd_01", "Cake Gourmet", "caterer", "Confirmed", "Pending", "Deposit", "Operational review"),
         PlannerVendorEngagement("shadow_vnd_02", "MC Aloe The Avangelist", "dj", "Confirmed", "Pending", "Unpaid", "Operational review"),
-        PlannerVendorEngagement("shadow_vnd_03", "The Glass Petal Atelier", "florist", "Confirmed", "Signed", "Deposit", "Operational review"),
+        PlannerVendorEngagement("shadow_vnd_03", "The Glass Petal Atelier", "florist", "Confirmed", "Pending", "Deposit", "Operational review"),
         PlannerVendorEngagement("shadow_vnd_04", "Makeup Artist", "other", "Confirmed", "Pending", "Unpaid", "Operational review"),
         PlannerVendorEngagement("shadow_vnd_05", "TBD", "other", "Confirmed", "Pending", "Unpaid", "Operational review"),
-        PlannerVendorEngagement("shadow_vnd_06", "FAUME MEDIA", "photographer", "Confirmed", "Signed", "Unpaid", "Operational review"),
-        PlannerVendorEngagement("shadow_vnd_07", "Imba Manor", "venue", "Confirmed", "Negotiating", "Paid", "Operational review"),
+        PlannerVendorEngagement("shadow_vnd_06", "FAUME MEDIA", "photographer", "Confirmed", "Pending", "Unpaid", "Operational review"),
+        PlannerVendorEngagement("shadow_vnd_07", "Imba Manor", "venue", "Confirmed", "Pending", "Paid", "Operational review"),
     )
 
     private val seatingTables = listOf(
@@ -83,7 +83,8 @@ class ShadowReferencePlannerRepository : PlannerDashboardRepository {
             weddingDateLabel = "2026-12-23 14:00:00",
             lifecycle = "before",
             plannerContext = "Eleven Eleven Testing",
-            readinessScore = 17,
+            readinessScore = null,
+            taskCompletionLabel = "7 / 42",
             attentionItems = listOf(
                 PlannerAttentionItem("attn_tasks", "8 high priority tasks", "Venue, invitations and logistics need attention.", PlannerAttentionSeverity.URGENT),
                 PlannerAttentionItem("attn_rsvp", "172 RSVPs pending", "Guest follow-up is affecting seating readiness.", PlannerAttentionSeverity.WARNING),
@@ -95,17 +96,12 @@ class ShadowReferencePlannerRepository : PlannerDashboardRepository {
                 PlannerModuleSummary("tasks", "Tasks", "7 / 42", "8 urgent", "tasks"),
                 PlannerModuleSummary("budget", "Budget", "$30.4k", "$3.9k paid", "budget"),
                 PlannerModuleSummary("contributions", "Contributions", "4 memories", "4 approved", "contributions"),
-                PlannerModuleSummary("vendors", "Vendors", "7 booked", "1 contract signed", "vendors"),
+                PlannerModuleSummary("vendors", "Vendors", "7 booked", "0 contracts", "vendors"),
                 PlannerModuleSummary("guests", "Guests", "174", "172 awaiting RSVP", "guests"),
                 PlannerModuleSummary("seating", "Seating", "22 / 64", "42 seats free", "seating"),
                 PlannerModuleSummary("timeline", "Timeline", "13 events", "Programme locked", "timeline")
             ),
-            recentActivity = listOf(
-                PlannerActivityItem("act_1", "Venue confirmed", "Imba Manor confirmed for ceremony and reception.", "Today"),
-                PlannerActivityItem("act_2", "Guest contribution submitted", "New wedding blessing added to the memory stream.", "Today"),
-                PlannerActivityItem("act_3", "RSVP party check-in verified", "Party admission tested with QR verification.", "Yesterday"),
-                PlannerActivityItem("act_4", "Seating updated", "Table 1 Family allocations reviewed.", "Yesterday")
-            ),
+            recentActivity = emptyList(),
             sourceLabel = "Production-derived reference fixture"
         )
     }

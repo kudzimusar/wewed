@@ -25,7 +25,7 @@ class ShadowReferenceWeddingRepository : WeddingRepository {
         coupleNames = "Charity & Kudzie",
         date = "2026-12-23 14:00:00",
         venueName = "Imba Manor",
-        venueAddress = "1 Worplestone Way, Glen Lorne",
+        venueAddress = "Imba Manor, Harare",
         city = "Harare",
         country = "Zimbabwe",
         lifecycle = "before",
@@ -274,23 +274,26 @@ class ShadowReferenceWeddingRepository : WeddingRepository {
         totalAllocated = 8690.0,
         totalPaid = 3875.0,
         categories = listOf(
-            BudgetCategory("Venue & Grounds", 12000.0, 4500.0),
-            BudgetCategory("Attire & Beauty", 6770.0, 1020.0),
-            BudgetCategory("Music & Entertainment", 1400.0, 350.0),
-            BudgetCategory("Floral & Decor", 3800.0, 240.0),
-            BudgetCategory("Photo & Video", 4300.0, 1200.0),
-            BudgetCategory("Catering & Bar", 2110.0, 1380.0)
+            BudgetCategory("Attire", 6000.0, 1210.0),
+            BudgetCategory("Catering", 6600.0, 1850.0),
+            BudgetCategory("Decor", 4100.0, 300.0),
+            BudgetCategory("Miscellaneous", 2320.0, 1020.0),
+            BudgetCategory("Music", 1500.0, 230.0),
+            BudgetCategory("Photo & Video", 3200.0, 500.0),
+            BudgetCategory("Stationery", 700.0, 120.0),
+            BudgetCategory("Transport", 900.0, 500.0),
+            BudgetCategory("Venue", 5060.0, 2960.0)
         )
     )
 
     private val vendors = mutableListOf(
-        VendorPresence("shadow_vnd_01", "Cake Gourmet", "caterer", "Main Venue", VendorPresenceState.SCHEDULED, "12:00"),
-        VendorPresence("shadow_vnd_02", "MC Aloe The Avangelist", "dj", "Main Venue", VendorPresenceState.SCHEDULED, "12:00"),
-        VendorPresence("shadow_vnd_03", "The Glass Petal Atelier", "florist", "Main Venue", VendorPresenceState.SCHEDULED, "12:00"),
-        VendorPresence("shadow_vnd_04", "Makeup Artist", "other", "Main Venue", VendorPresenceState.SCHEDULED, "12:00"),
-        VendorPresence("shadow_vnd_05", "TBD", "other", "Main Venue", VendorPresenceState.SCHEDULED, "12:00"),
-        VendorPresence("shadow_vnd_06", "FAUME MEDIA", "photographer", "Main Venue", VendorPresenceState.SCHEDULED, "12:00"),
-        VendorPresence("shadow_vnd_07", "Imba Manor", "venue", "Main Venue", VendorPresenceState.SCHEDULED, "12:00"),
+        VendorPresence("shadow_vnd_01", "Cake Gourmet", "caterer", "Imba Manor", VendorPresenceState.SCHEDULED, "TBD"),
+        VendorPresence("shadow_vnd_02", "MC Aloe The Avangelist", "dj", "Imba Manor", VendorPresenceState.SCHEDULED, "TBD"),
+        VendorPresence("shadow_vnd_03", "The Glass Petal Atelier", "florist", "Imba Manor", VendorPresenceState.SCHEDULED, "TBD"),
+        VendorPresence("shadow_vnd_04", "Makeup Artist", "other", "Imba Manor", VendorPresenceState.SCHEDULED, "TBD"),
+        VendorPresence("shadow_vnd_05", "TBD", "other", "Imba Manor", VendorPresenceState.SCHEDULED, "TBD"),
+        VendorPresence("shadow_vnd_06", "FAUME MEDIA", "photographer", "Imba Manor", VendorPresenceState.SCHEDULED, "TBD"),
+        VendorPresence("shadow_vnd_07", "Imba Manor", "venue", "Imba Manor", VendorPresenceState.SCHEDULED, "TBD"),
     )
 
     private val announcements = mutableListOf(

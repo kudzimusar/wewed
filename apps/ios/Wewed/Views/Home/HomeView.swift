@@ -168,14 +168,23 @@ public struct HomeView: View {
                         .foregroundColor(.secondary)
                 }
                 Spacer()
-                Text("\(dashboard.readinessScore)%")
-                    .font(.title3)
-                    .fontWeight(.bold)
-                    .foregroundColor(WewedColors.emerald)
+                if let score = dashboard.readinessScore {
+                    Text("\(score)%")
+                        .font(.title3)
+                        .fontWeight(.bold)
+                        .foregroundColor(WewedColors.emerald)
+                } else {
+                    Text(dashboard.taskCompletionLabel)
+                        .font(.subheadline)
+                        .fontWeight(.bold)
+                        .foregroundColor(WewedColors.emerald)
+                }
             }
 
-            ProgressView(value: Double(dashboard.readinessScore), total: 100)
-                .tint(WewedColors.emerald)
+            if let score = dashboard.readinessScore {
+                ProgressView(value: Double(score), total: 100)
+                    .tint(WewedColors.emerald)
+            }
 
             HStack(spacing: 8) {
                 ForEach(dashboard.modules.prefix(3)) { module in

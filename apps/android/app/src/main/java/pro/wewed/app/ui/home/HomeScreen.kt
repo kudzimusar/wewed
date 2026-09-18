@@ -475,19 +475,30 @@ private fun PlanningPulseCard(
                         color = Color.Gray
                     )
                 }
-                Text(
-                    "${snapshot.readinessScore}%",
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
+                if (snapshot.readinessScore != null) {
+                    Text(
+                        "${snapshot.readinessScore}%",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = WewedColors.Emerald
+                    )
+                } else {
+                    Text(
+                        snapshot.taskCompletionLabel,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = WewedColors.Emerald
+                    )
+                }
+            }
+
+            if (snapshot.readinessScore != null) {
+                LinearProgressIndicator(
+                    progress = { snapshot.readinessScore / 100f },
+                    modifier = Modifier.fillMaxWidth(),
                     color = WewedColors.Emerald
                 )
             }
-
-            LinearProgressIndicator(
-                progress = { snapshot.readinessScore / 100f },
-                modifier = Modifier.fillMaxWidth(),
-                color = WewedColors.Emerald
-            )
 
             Row(
                 modifier = Modifier.fillMaxWidth(),

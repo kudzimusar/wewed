@@ -3458,7 +3458,7 @@
       "serviceCategory": "florist",
       "serviceDate": "2026-12-22 00:00:00",
       "serviceDescription": "Provide runner flowers",
-      "serviceLocation": "1 Worplestone Way, Glen Lorne, Harare, Zimbabwe.",
+      "serviceLocation": "Imba Manor, Harare, Zimbabwe",
       "vendorId": "shadow_vnd_03"
     },
     {
@@ -3472,7 +3472,7 @@
       "serviceCategory": "MC",
       "serviceDate": "2026-12-23 00:00:00",
       "serviceDescription": null,
-      "serviceLocation": "1 Worplestone Way, Glen Lorne, Harare, Zimbabwe.",
+      "serviceLocation": "Imba Manor, Harare, Zimbabwe",
       "vendorId": "shadow_vnd_02"
     },
     {
@@ -3500,7 +3500,7 @@
       "serviceCategory": "venue",
       "serviceDate": "2026-12-23 00:00:00",
       "serviceDescription": "Wedding venue",
-      "serviceLocation": "1 Worplestone Way, Glen Lorne, Harare, Zimbabwe.",
+      "serviceLocation": "Imba Manor, Harare, Zimbabwe",
       "vendorId": "shadow_vnd_07"
     }
   ],
@@ -4033,7 +4033,7 @@
     {
       "category": "venue",
       "contractStatus": "negotiating",
-      "description": "Situated at 1 Worplestone Way in Glen Lorne, Harare, Imba Manor is the confirmed wedding and conference venue for Charity and Kudzie's ceremony and reception on 23 December 2026.",
+      "description": "Imba Manor is the confirmed wedding and conference venue for Charity and Kudzie's ceremony and reception in Harare on 23 December 2026.",
       "id": "shadow_vnd_07",
       "name": "Imba Manor",
       "paymentStatus": "paid",

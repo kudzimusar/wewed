@@ -115,19 +115,28 @@ public struct PlannerView: View {
                         .fontWeight(.bold)
                         .tracking(1.4)
                         .foregroundColor(WewedColors.goldDark)
-                    Text("Ready for the next planning milestone")
+                    Text(dashboard.readinessScore != nil ? "Ready for the next planning milestone" : "Task Completion: \(dashboard.taskCompletionLabel)")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
                 Spacer()
-                Text("\(dashboard.readinessScore)%")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundColor(WewedColors.emerald)
+                if let score = dashboard.readinessScore {
+                    Text("\(score)%")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(WewedColors.emerald)
+                } else {
+                    Text("Unavailable / TBD")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.secondary)
+                }
             }
 
-            ProgressView(value: Double(dashboard.readinessScore), total: 100)
-                .tint(WewedColors.emerald)
+            if let score = dashboard.readinessScore {
+                ProgressView(value: Double(score), total: 100)
+                    .tint(WewedColors.emerald)
+            }
         }
         .padding()
         .background(Color.white)

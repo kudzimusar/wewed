@@ -56,7 +56,8 @@ public struct PlannerDashboardSnapshot: Codable, Equatable, Sendable {
     public let weddingDateLabel: String
     public let lifecycle: String
     public let plannerContext: String
-    public let readinessScore: Int
+    public let readinessScore: Int?
+    public let taskCompletionLabel: String
     public let attentionItems: [PlannerAttentionItem]
     public let modules: [PlannerModuleSummary]
     public let recentActivity: [PlannerActivityItem]
@@ -68,7 +69,8 @@ public struct PlannerDashboardSnapshot: Codable, Equatable, Sendable {
         weddingDateLabel: String,
         lifecycle: String,
         plannerContext: String,
-        readinessScore: Int,
+        readinessScore: Int? = nil,
+        taskCompletionLabel: String = "7 / 42",
         attentionItems: [PlannerAttentionItem],
         modules: [PlannerModuleSummary],
         recentActivity: [PlannerActivityItem],
@@ -80,6 +82,7 @@ public struct PlannerDashboardSnapshot: Codable, Equatable, Sendable {
         self.lifecycle = lifecycle
         self.plannerContext = plannerContext
         self.readinessScore = readinessScore
+        self.taskCompletionLabel = taskCompletionLabel
         self.attentionItems = attentionItems
         self.modules = modules
         self.recentActivity = recentActivity
