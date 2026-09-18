@@ -282,12 +282,9 @@ public struct WeddingReferenceHomeView: View {
         }
     }
 
-    private var taskProgressLabel: String {
-        if let dashboard {
-            return "\(dashboard.taskCompletionLabel) tasks complete"
-        }
-        let done = tasks.filter { $0.status == .done }.count
-        return "\(done) / \(tasks.count) tasks complete"
+    private var taskCompletionPercent: Int {
+        guard !tasks.isEmpty else { return 0 }
+        return Int((taskCompletionRatio * 100).rounded())
     }
 
     private var taskCompletionRatio: Double {
