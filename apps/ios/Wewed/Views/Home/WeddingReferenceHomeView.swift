@@ -54,7 +54,7 @@ public struct WeddingReferenceHomeView: View {
                 }
             }
         }
-        .accessibilityIdentifier("reference-home-root")
+        .accessibilityIdentifier("home-root")
     }
 
     private func hero(_ wedding: Wedding) -> some View {
@@ -90,7 +90,7 @@ public struct WeddingReferenceHomeView: View {
                             .background(.black.opacity(0.20))
                             .clipShape(Circle())
                     }
-                    .accessibilityIdentifier("home-invitation-button")
+                    .accessibilityIdentifier("home-open-invitation")
                 }
 
                 Spacer()
@@ -188,6 +188,7 @@ public struct WeddingReferenceHomeView: View {
                 }
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("home-continue-planning")
         }
     }
 
@@ -214,6 +215,7 @@ public struct WeddingReferenceHomeView: View {
                 icon: "storefront"
             )
         }
+        .accessibilityIdentifier("home-metrics")
     }
 
     private var focus: some View {
@@ -270,6 +272,7 @@ public struct WeddingReferenceHomeView: View {
                 }
             }
         }
+        .accessibilityIdentifier("home-today-focus")
     }
 
     private var focusTasks: [PlannerTask] {
