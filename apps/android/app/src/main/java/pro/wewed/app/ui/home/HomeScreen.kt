@@ -24,6 +24,7 @@ import pro.wewed.app.models.GuestJourneyStage
 import pro.wewed.app.models.Wedding
 import pro.wewed.app.models.WeddingAnnouncement
 import pro.wewed.app.models.PlannerDashboardSnapshot
+import pro.wewed.app.models.WeddingPass
 import pro.wewed.app.state.AppTab
 import pro.wewed.app.state.AppViewModel
 import pro.wewed.app.ui.invitation.GuestInvitationJourneyScreen
@@ -38,39 +39,43 @@ fun HomeScreen(appViewModel: AppViewModel) {
     var wedding by remember { mutableStateOf<Wedding?>(null) }
     var announcements by remember { mutableStateOf<List<WeddingAnnouncement>>(emptyList()) }
     var plannerDashboard by remember { mutableStateOf<PlannerDashboardSnapshot?>(null) }
+    var invitationContext by remember { mutableStateOf<InvitationContext?>(null) }
+    var quickPass by remember { mutableStateOf<WeddingPass?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var showInvitation by remember { mutableStateOf(false) }
     var showVendor by remember { mutableStateOf(false) }
     var showDirectionsDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        wedding = appViewModel.repository.getWedding()
+        val loadedWedding = appViewModel.repository.getWedding()
+        wedding = loadedWedding
         announcements = appViewModel.repository.getAnnouncements()
         plannerDashboard = appViewModel.plannerRepository.getDashboard()
+        invitationContext = runCatching {
+            appViewModel.repository.resolveInvitation(loadedWedding.id, "native-reference-guest")
+        }.getOrNull()
+        quickPass = runCatching {
+            appViewModel.repository.getWeddingPass("native-reference-guest")
+        }.getOrNull()
         isLoading = false
     }
 
     if (showInvitation) {
-        val dummyContext = InvitationContext(
-            weddingSlug = "tariro-shadreck-2026",
-            guestToken = "tok_jane_doe_2026",
-            coupleNames = "Tariro & Shadreck",
-            guestName = "Jane & Michael Doe",
-            householdName = "Doe Household",
-            partySize = 2,
-            weddingDate = "Saturday, 24 October 2026",
-            venueName = "Imba Manor Estate",
-            venueCity = "Harare, Zimbabwe",
-            cardStyle = "ivory-floral-gold"
-        )
-        GuestInvitationJourneyScreen(
-            reference = GuestJourneyReference(
-                invitation = dummyContext,
-                initialStage = GuestJourneyStage.SPLASH
-            ),
-            appViewModel = appViewModel,
-            onExit = { showInvitation = false }
-        )
+        invitationContext?.let { context ->
+            GuestInvitationJourneyScreen(
+                reference = GuestJourneyReference(
+                    invitation = context,
+                    initialStage = GuestJourneyStage.SPLASH
+                ),
+                appViewModel = appViewModel,
+                onExit = { showInvitation = false }
+            )
+        } ?: Box(
+            modifier = Modifier.fillMaxSize().background(WewedColors.Ivory),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = WewedColors.Gold)
+        }
         return
     }
 
@@ -150,18 +155,23 @@ fun HomeScreen(appViewModel: AppViewModel) {
                                     fontFamily = FontFamily.Serif
                                 )
                                 Text(
-                                    text = "24 October 2026 • Harare, Zimbabwe",
+                                    text = "${plannerDashboard?.weddingDateLabel ?: if (w.date == "pending-production-discovery") "Upcoming wedding" else w.date} • ${w.city}, ${w.country}",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = WewedColors.TextSecondaryLight
                                 )
 
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(WewedSpacing.md),
+                                Surface(
+                                    shape = RoundedCornerShape(WewedRadius.pill),
+                                    color = WewedColors.Emerald.copy(alpha = 0.10f),
                                     modifier = Modifier.padding(top = WewedSpacing.sm)
                                 ) {
-                                    CountdownBadge("37", "Days")
-                                    CountdownBadge("04", "Hours")
-                                    CountdownBadge("22", "Mins")
+                                    Text(
+                                        "Planning timeline active",
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                        color = WewedColors.Emerald,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
                                 }
                             }
                         }
@@ -179,6 +189,7 @@ fun HomeScreen(appViewModel: AppViewModel) {
 
                     // 3. Next Programme Milestone
                     item {
+                        val next = w.programme.firstOrNull()
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(WewedRadius.lg),
@@ -201,22 +212,24 @@ fun HomeScreen(appViewModel: AppViewModel) {
                                         letterSpacing = 1.sp,
                                         color = WewedColors.GoldDark
                                     )
-                                    Surface(
-                                        shape = RoundedCornerShape(WewedRadius.pill),
-                                        color = WewedColors.Gold.copy(alpha = 0.2f)
-                                    ) {
-                                        Text(
-                                            "Doors Open 13:15",
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = WewedColors.GoldDark,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                                        )
+                                    next?.let {
+                                        Surface(
+                                            shape = RoundedCornerShape(WewedRadius.pill),
+                                            color = WewedColors.Gold.copy(alpha = 0.2f)
+                                        ) {
+                                            Text(
+                                                it.time,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = WewedColors.GoldDark,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                            )
+                                        }
                                     }
                                 }
 
                                 Text(
-                                    "Ceremony & Vows — 14:00",
+                                    next?.title ?: "Programme preparing",
                                     fontSize = 18.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = WewedColors.TextPrimaryLight
@@ -225,7 +238,7 @@ fun HomeScreen(appViewModel: AppViewModel) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Default.Place, contentDescription = null, tint = WewedColors.Emerald, modifier = Modifier.size(14.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Chapel on the Hill • Imba Manor Gardens", fontSize = 12.sp, color = WewedColors.Emerald)
+                                    Text(next?.location ?: w.venueName, fontSize = 12.sp, color = WewedColors.Emerald)
                                 }
                             }
                         }
@@ -256,8 +269,12 @@ fun HomeScreen(appViewModel: AppViewModel) {
 
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text("YOUR WEDDING PASS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = WewedColors.GoldDark)
-                                    Text("Table: Jacaranda — 8", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = WewedColors.TextPrimaryLight)
-                                    Text("Jane & Michael Doe • 2 Seats", fontSize = 11.sp, color = Color.Gray)
+                                    Text("Table: ${quickPass?.tableName ?: "To be assigned"}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = WewedColors.TextPrimaryLight)
+                                    Text(
+                                        "${quickPass?.guestName ?: invitationContext?.guestName ?: "Guest"} • ${quickPass?.partySize ?: invitationContext?.partySize ?: 1} seat(s)",
+                                        fontSize = 11.sp,
+                                        color = Color.Gray
+                                    )
                                 }
 
                                 Button(
@@ -400,8 +417,14 @@ fun HomeScreen(appViewModel: AppViewModel) {
     if (showDirectionsDialog) {
         AlertDialog(
             onDismissRequest = { showDirectionsDialog = false },
-            title = { Text("Directions to Venue", fontWeight = FontWeight.Bold) },
-            text = { Text("Imba Manor Estate, Glen Lorne, Harare. Approximately 25 mins from Harare CBD.") },
+            title = { Text("Directions to ${wedding?.venueName ?: "Wedding Venue"}", fontWeight = FontWeight.Bold) },
+            text = {
+                val w = wedding
+                Text(
+                    if (w != null) "${w.venueName}, ${w.venueAddress}, ${w.city}, ${w.country}"
+                    else "Venue details are still loading."
+                )
+            },
             confirmButton = {
                 Button(
                     onClick = { showDirectionsDialog = false },
