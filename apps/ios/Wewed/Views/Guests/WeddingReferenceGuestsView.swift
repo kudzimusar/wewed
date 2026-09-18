@@ -77,8 +77,6 @@ public struct WeddingReferenceGuestsView: View {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(WeddingIdentityPalette.muted)
                 TextField("Search guests by name…", text: $query)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
                     .font(.system(size: 13))
             }
             .padding(.horizontal, 12)
