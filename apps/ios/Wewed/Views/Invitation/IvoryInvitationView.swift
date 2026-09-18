@@ -32,7 +32,7 @@ public struct IvoryInvitationView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                WeddingFloralBackground(opacity: 0.14)
+                WeddingFloralBackground(opacity: 0.07)
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 18) {
@@ -82,7 +82,7 @@ public struct IvoryInvitationView: View {
             Image("ornament-frame", bundle: .module)
                 .resizable()
                 .scaledToFill()
-                .opacity(0.42)
+                .opacity(0.15)
 
             VStack(spacing: 14) {
                 WeddingMonogram(names: invitation.coupleNames, size: 54)

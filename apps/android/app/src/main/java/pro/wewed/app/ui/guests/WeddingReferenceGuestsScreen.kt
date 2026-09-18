@@ -85,14 +85,10 @@ fun WeddingReferenceGuestsScreen(appViewModel: AppViewModel) {
             modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Box(modifier = Modifier.fillMaxWidth()) {
-                WeddingHeaderOrnament(
-                    modifier = Modifier.align(Alignment.TopEnd).offset(x = 8.dp, y = (-12).dp)
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Top
-                ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.Top
+            ) {
                     Column(modifier = Modifier.weight(1f)) {
                     Text(
                         "Guests",
@@ -107,9 +103,8 @@ fun WeddingReferenceGuestsScreen(appViewModel: AppViewModel) {
                         fontSize = 12.sp
                     )
                 }
-                    wedding?.coupleNames?.let { coupleNames ->
-                        WeddingMonogram(coupleNames, sizeSp = 32, modifier = Modifier.padding(end = 8.dp))
-                    }
+                wedding?.coupleNames?.let { coupleNames ->
+                    WeddingMonogramBadge(names = coupleNames, size = 58)
                 }
             }
 

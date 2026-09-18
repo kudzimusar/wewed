@@ -68,6 +68,37 @@ public struct WeddingBrandMark: View {
     }
 }
 
+public struct WeddingMonogramBadge: View {
+    let names: String
+    let size: CGFloat
+
+    public init(names: String, size: CGFloat = 58) {
+        self.names = names
+        self.size = size
+    }
+
+    public var body: some View {
+        ZStack {
+            Circle()
+                .fill(WeddingIdentityPalette.ivorySoft)
+
+            Image("ornament-frame", bundle: .module)
+                .resizable()
+                .scaledToFill()
+                .opacity(0.09)
+                .clipShape(Circle())
+
+            Circle()
+                .stroke(WeddingIdentityPalette.champagne.opacity(0.85), lineWidth: 1.2)
+
+            WeddingMonogram(names: names, size: size * 0.42)
+        }
+        .frame(width: size, height: size)
+        .shadow(color: Color.black.opacity(0.04), radius: 5, x: 0, y: 2)
+        .accessibilityLabel("Wedding monogram")
+    }
+}
+
 public struct WeddingMonogram: View {
     let names: String
     let size: CGFloat

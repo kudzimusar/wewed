@@ -15,7 +15,7 @@ public struct WeddingReferencePassView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                WeddingFloralBackground(opacity: 0.12)
+                WeddingFloralBackground(opacity: 0.055)
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 18) {
@@ -106,7 +106,7 @@ public struct WeddingReferencePassView: View {
             Image("ornament-frame", bundle: .module)
                 .resizable()
                 .scaledToFill()
-                .opacity(0.22)
+                .opacity(0.12)
 
             VStack(spacing: 12) {
                 WeddingMonogram(names: pass.coupleNames, size: 42)

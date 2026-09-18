@@ -79,11 +79,7 @@ public struct WeddingReferenceGuestsView: View {
     }
 
     private var header: some View {
-        ZStack(alignment: .topTrailing) {
-            WeddingHeaderOrnament()
-                .offset(x: 8, y: -12)
-
-            HStack(alignment: .top) {
+        HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 3) {
                 Text("Guests")
                     .font(.system(size: 28, weight: .semibold, design: .serif))
@@ -93,10 +89,8 @@ public struct WeddingReferenceGuestsView: View {
                     .foregroundStyle(WeddingIdentityPalette.muted)
             }
                 Spacer()
-                if let coupleNames = wedding?.coupleNames {
-                    WeddingMonogram(names: coupleNames, size: 32)
-                        .padding(.trailing, 8)
-                }
+            if let coupleNames = wedding?.coupleNames {
+                WeddingMonogramBadge(names: coupleNames, size: 58)
             }
         }
     }

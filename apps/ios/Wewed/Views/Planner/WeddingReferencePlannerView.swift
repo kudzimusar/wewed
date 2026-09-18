@@ -53,11 +53,7 @@ public struct WeddingReferencePlannerView: View {
     }
 
     private var header: some View {
-        ZStack(alignment: .topTrailing) {
-            WeddingHeaderOrnament()
-                .offset(x: 8, y: -12)
-
-            HStack(alignment: .top) {
+        HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 3) {
                 Text("Wedding Planner")
                     .font(.system(size: 28, weight: .semibold, design: .serif))
@@ -67,10 +63,8 @@ public struct WeddingReferencePlannerView: View {
                     .foregroundStyle(WeddingIdentityPalette.muted)
             }
                 Spacer()
-                if let coupleNames = dashboard?.coupleNames {
-                    WeddingMonogram(names: coupleNames, size: 33)
-                        .padding(.trailing, 8)
-                }
+            if let coupleNames = dashboard?.coupleNames {
+                WeddingMonogramBadge(names: coupleNames, size: 58)
             }
         }
         .accessibilityIdentifier("planner-identity-card")

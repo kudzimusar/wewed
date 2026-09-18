@@ -61,6 +61,30 @@ fun WeddingBrandMark(modifier: Modifier = Modifier) {
 }
 
 @Composable
+fun WeddingMonogramBadge(
+    names: String,
+    modifier: Modifier = Modifier,
+    size: Int = 58
+) {
+    Box(
+        modifier = modifier
+            .size(size.dp)
+            .clip(CircleShape)
+            .background(WeddingIdentityPalette.IvorySoft)
+            .border(1.2.dp, WeddingIdentityPalette.Champagne.copy(alpha = 0.85f), CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        Image(
+            painter = painterResource(R.drawable.ornament_frame),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.matchParentSize().alpha(0.09f)
+        )
+        WeddingMonogram(names = names, sizeSp = (size * 0.42f).toInt())
+    }
+}
+
+@Composable
 fun WeddingMonogram(names: String, modifier: Modifier = Modifier, sizeSp: Int = 36) {
     val parts = names.split("&").map { it.trim() }.filter { it.isNotBlank() }
     val monogram = if (parts.size >= 2) {

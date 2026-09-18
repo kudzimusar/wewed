@@ -91,14 +91,10 @@ fun WeddingReferencePlannerScreen(appViewModel: AppViewModel) {
                 modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                Box(modifier = Modifier.fillMaxWidth().testTag("planner-identity-card")) {
-                    WeddingHeaderOrnament(
-                        modifier = Modifier.align(Alignment.TopEnd).offset(x = 8.dp, y = (-12).dp)
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.Top
-                    ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().testTag("planner-identity-card"),
+                    verticalAlignment = Alignment.Top
+                ) {
                         Column(modifier = Modifier.weight(1f)) {
                         Text(
                             "Wedding Planner",
@@ -113,13 +109,11 @@ fun WeddingReferencePlannerScreen(appViewModel: AppViewModel) {
                             fontSize = 12.sp
                         )
                     }
-                        dashboard?.coupleNames?.let { coupleNames ->
-                            WeddingMonogram(
-                                coupleNames,
-                                sizeSp = 33,
-                                modifier = Modifier.padding(end = 8.dp)
-                            )
-                        }
+                    dashboard?.coupleNames?.let { coupleNames ->
+                        WeddingMonogramBadge(
+                            names = coupleNames,
+                            size = 58
+                        )
                     }
                 }
 

@@ -119,7 +119,7 @@ private fun IvoryInvitationScaffold(
             painter = painterResource(R.drawable.ornament_frame),
             contentDescription = null,
             contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize().alpha(0.16f)
+            modifier = Modifier.fillMaxSize().alpha(0.07f)
         )
 
         Column(
@@ -215,7 +215,7 @@ private fun IvoryInvitationCard(
             painter = painterResource(R.drawable.ornament_frame),
             contentDescription = null,
             contentScale = ContentScale.Crop,
-            modifier = Modifier.matchParentSize().alpha(0.42f)
+            modifier = Modifier.matchParentSize().alpha(0.15f)
         )
 
         Column(

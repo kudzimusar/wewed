@@ -142,7 +142,7 @@ fun WeddingReferencePassScreen(
                             painter = painterResource(R.drawable.ornament_frame),
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
-                            modifier = Modifier.matchParentSize().alpha(0.22f)
+                            modifier = Modifier.matchParentSize().alpha(0.12f)
                         )
 
                         Column(
