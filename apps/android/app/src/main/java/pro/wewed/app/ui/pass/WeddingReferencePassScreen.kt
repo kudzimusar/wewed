@@ -174,26 +174,22 @@ fun WeddingReferencePassScreen(
 
                             Box(
                                 modifier = Modifier
-                                    .size(170.dp)
+                                    .size(174.dp)
                                     .clip(RoundedCornerShape(14.dp))
                                     .background(Color.White),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    Icons.Default.QrCode,
-                                    contentDescription = "QR Code",
-                                    tint = WeddingIdentityPalette.Ink,
-                                    modifier = Modifier.size(126.dp)
-                                )
+                                WeddingQrCode(payload = p.qrPayload)
                             }
 
                             Text("Scan at venue", color = WeddingIdentityPalette.Muted, fontSize = 11.sp)
 
                             Text(
-                                p.token,
+                                "WEWED VERIFIED PASS",
                                 color = WeddingIdentityPalette.Muted,
                                 fontSize = 9.sp,
-                                maxLines = 1
+                                fontWeight = FontWeight.SemiBold,
+                                letterSpacing = 1.3.sp
                             )
 
                             p.tableName?.let {
