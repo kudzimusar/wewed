@@ -1,3 +1,9 @@
+## Current real-wedding Shadow execution directive
+
+**CHARITY_KUDZIE_REAL_WEDDING_SHADOW_DISCOVERY_AND_SNAPSHOT_DIRECTIVE_2026-09-18.md**
+
+This is the next execution authority after the synthetic Shadow qualification. It requires strict read-only discovery of the actual Charity & Kudzie / Eleven Eleven Testing wedding graph, a private production-derived snapshot outside Git, a sanitized Git-safe derivative, a separate Shadow database/backend, and Planner-first native rewiring. It explicitly forbids further invented reference values once production-derived data is available.
+
 # Wewed Native Mobile Documentation Index
 
 This directory is the durable operating manual for the Wewed dual-native mobile program.
