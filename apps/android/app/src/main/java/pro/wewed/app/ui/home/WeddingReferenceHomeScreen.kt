@@ -141,11 +141,6 @@ fun WeddingReferenceHomeScreen(appViewModel: AppViewModel) {
                         )
                     }
 
-                    ReferenceFocus(
-                        tasks = tasks,
-                        onViewAll = { appViewModel.selectTab(AppTab.PLAN) }
-                    )
-
                     Spacer(modifier = Modifier.height(12.dp))
                 }
             }
