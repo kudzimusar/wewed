@@ -470,6 +470,7 @@ private fun formatMoney(amount: Double): String =
     else "$" + String.format(Locale.US, "%.0f", amount)
 
 private fun priorityRank(priority: TaskPriority): Int = when (priority) {
+    TaskPriority.URGENT -> 4
     TaskPriority.HIGH -> 3
     TaskPriority.MEDIUM -> 2
     TaskPriority.LOW -> 1
