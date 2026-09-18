@@ -74,21 +74,23 @@ public struct WeddingReferenceHomeView: View {
             )
 
             VStack(alignment: .leading, spacing: 9) {
-                HStack {
-                    WeddingMonogram(names: wedding.coupleNames, size: 28)
-                        .foregroundStyle(.white)
-                    Spacer()
-                    Button {
-                        showingInvitation = true
-                    } label: {
-                        Image(systemName: "bell")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .padding(10)
-                            .background(.black.opacity(0.20))
-                            .clipShape(Circle())
+                ZStack {
+                    WeddingBrandMark()
+
+                    HStack {
+                        Spacer()
+                        Button {
+                            showingInvitation = true
+                        } label: {
+                            Image(systemName: "bell")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .padding(10)
+                                .background(.black.opacity(0.20))
+                                .clipShape(Circle())
+                        }
+                        .accessibilityIdentifier("home-open-invitation")
                     }
-                    .accessibilityIdentifier("home-open-invitation")
                 }
 
                 Spacer()
