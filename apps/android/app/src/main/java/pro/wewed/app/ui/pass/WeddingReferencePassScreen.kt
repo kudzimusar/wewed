@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
@@ -58,6 +59,7 @@ fun WeddingReferencePassScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(WeddingIdentityPalette.Ivory)
+            .testTag("pass-root")
     ) {
         when {
             loading -> {
@@ -114,6 +116,7 @@ fun WeddingReferencePassScreen(
                                 WeddingIdentityPalette.Champagne.copy(alpha = 0.70f),
                                 RoundedCornerShape(22.dp)
                             )
+                            .testTag("wedding-pass-card")
                     ) {
                         Image(
                             painter = painterResource(R.drawable.ornament_frame),
@@ -229,7 +232,7 @@ fun WeddingReferencePassScreen(
 
                     Button(
                         onClick = onOpenScanner,
-                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                        modifier = Modifier.fillMaxWidth().height(50.dp).testTag("pass-open-scanner"),
                         shape = RoundedCornerShape(13.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = WeddingIdentityPalette.Forest
