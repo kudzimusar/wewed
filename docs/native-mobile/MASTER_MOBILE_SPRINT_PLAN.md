@@ -4,6 +4,19 @@
 **Governing Status:** LOCKED & AUTHORITATIVE  
 **Target Release:** Dual-Native Production (iOS Swift/SwiftUI + Android Kotlin/Jetpack Compose)
 
+## Current Execution Addendum — 2026-09-18
+
+The current authoritative next-sprint manual is:
+
+**NATIVE_SHADOW_REAL_WEDDING_PARITY_PLAN.md**  
+Plan ID: **WW-NATIVE-SHADOW-REAL-WEDDING-PARITY-2026-09-18-01**
+
+It governs the transition from the qualified fixture-backed whole-product shell to a realistic Mobile Shadow environment using the **Charity & Kudzie** wedding and the **Eleven Eleven Testing** planner context as the real-world reference scenario.
+
+This addendum does **not** unlock production integration. Production remains a read-only source during the shadow phase; no shadow writes may flow back to production. The permanent architecture, isolation, security, dual-native and release gates in this Master Plan remain in force.
+
+For agent onboarding and required document reading order, see **docs/native-mobile/README.md**.
+
 ---
 
 ## Executive Summary & Core Mandate
