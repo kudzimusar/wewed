@@ -41,12 +41,12 @@ fun PlannerScreen(appViewModel: AppViewModel) {
     if (activeModule != null) {
         when (activeModule) {
             "tasks" -> TasksDestination(appViewModel = appViewModel, onBack = { activeModule = null })
-            "budget" -> BudgetDestination(onBack = { activeModule = null })
-            "contributions" -> ContributionsDestination(onBack = { activeModule = null })
-            "vendors" -> VendorsDestination(appViewModel = appViewModel, onBack = { activeModule = null })
+            "budget" -> ShadowBudgetDestination(appViewModel = appViewModel, onBack = { activeModule = null })
+            "contributions" -> ShadowContributionsDestination(appViewModel = appViewModel, onBack = { activeModule = null })
+            "vendors" -> ShadowVendorsDestination(appViewModel = appViewModel, onBack = { activeModule = null })
             "guests" -> GuestsBridgeDestination(appViewModel = appViewModel, onBack = { activeModule = null })
-            "seating" -> SeatingDestination(onBack = { activeModule = null })
-            "timeline" -> TimelineDestination(appViewModel = appViewModel, onBack = { activeModule = null })
+            "seating" -> ShadowSeatingDestination(appViewModel = appViewModel, onBack = { activeModule = null })
+            "timeline" -> ShadowTimelineDestination(appViewModel = appViewModel, onBack = { activeModule = null })
             else -> activeModule = null
         }
         return
