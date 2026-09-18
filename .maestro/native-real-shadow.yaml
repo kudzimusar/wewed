@@ -9,26 +9,41 @@ appId: pro.wewed.app
 - assertVisible: "WEWED"
 - tapOn: "Sign In"
 
-# 2. Home / Overview Screen
-- assertVisible: "Charity & Kudzie"
-- assertVisible: "PRIVATE REAL SHADOW"
-- assertVisible: "NEXT UP"
-- scroll
-- assertVisible: "YOUR WEDDING PASS"
+# 2. Home / real wedding graph
+- assertVisible:
+    id: "home-root"
+- assertVisible: "OUR WEDDING JOURNEY"
+- assertVisible:
+    id: "home-metrics"
 
-# 3. Plan / Planner Screen
+# 3. Planner / same real wedding graph
 - tapOn: "Plan"
+- assertVisible:
+    id: "planner-root"
 - assertVisible: "Wedding Planner"
-- assertVisible: "PRIVATE REAL SHADOW"
-- assertVisible: "Eleven Eleven Testing"
-- assertVisible: "Charity & Kudzie"
-- assertVisible: "13 high priority tasks"
-- assertVisible: "172 RSVPs pending"
-- scroll
+- assertVisible:
+    id: "planner-module-tasks"
+- assertVisible:
+    id: "planner-module-budget"
+- assertVisible:
+    id: "planner-module-vendors"
 
-# 4. Guests Screen
+# 4. Guests / do not bind Git tests to private names
 - tapOn: "Guests"
-- assertVisible: "Guest List"
+- assertVisible:
+    id: "guests-root"
+- assertVisible:
+    id: "guests-search"
 - assertNotVisible: "Guest G001"
-- assertNotVisible: "Faith Mutasa"
-- assertNotVisible: "Uncle Farai"
+
+# 5. Pass
+- tapOn: "Pass"
+- assertVisible:
+    id: "pass-root"
+- assertVisible:
+    id: "wedding-pass-card"
+
+# 6. More
+- tapOn: "More"
+- assertVisible:
+    id: "more-root"
