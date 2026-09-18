@@ -68,7 +68,8 @@ fun HomeScreen(appViewModel: AppViewModel) {
                 invitation = dummyContext,
                 initialStage = GuestJourneyStage.SPLASH
             ),
-            appViewModel = appViewModel
+            appViewModel = appViewModel,
+            onExit = { showInvitation = false }
         )
         return
     }
