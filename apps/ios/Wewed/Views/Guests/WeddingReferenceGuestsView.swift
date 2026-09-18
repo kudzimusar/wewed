@@ -42,7 +42,7 @@ public struct WeddingReferenceGuestsView: View {
                         WeddingPrimaryButtonLabel("Add Guest", icon: "plus")
                     }
                     .buttonStyle(.plain)
-                    .accessibilityIdentifier("reference-add-guest")
+                    .accessibilityIdentifier("guests-add")
                 }
                 .padding(.horizontal, 14)
                 .padding(.top, 12)
@@ -53,7 +53,7 @@ public struct WeddingReferenceGuestsView: View {
             #endif
             .task { await load() }
         }
-        .accessibilityIdentifier("reference-guests-root")
+        .accessibilityIdentifier("guests-root")
     }
 
     private var header: some View {
@@ -78,6 +78,7 @@ public struct WeddingReferenceGuestsView: View {
                     .foregroundStyle(WeddingIdentityPalette.muted)
                 TextField("Search guests by name…", text: $query)
                     .font(.system(size: 13))
+                    .accessibilityIdentifier("guests-search")
             }
             .padding(.horizontal, 12)
             .frame(height: 42)
@@ -131,6 +132,7 @@ public struct WeddingReferenceGuestsView: View {
                 )
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("guests-filter-\(value.rawValue)")
     }
 
     private func guestRow(_ guest: Guest) -> some View {
