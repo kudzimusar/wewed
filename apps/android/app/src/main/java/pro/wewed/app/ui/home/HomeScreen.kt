@@ -21,6 +21,7 @@ import kotlinx.coroutines.launch
 import pro.wewed.app.models.InvitationContext
 import pro.wewed.app.models.Wedding
 import pro.wewed.app.models.WeddingAnnouncement
+import pro.wewed.app.models.PlannerDashboardSnapshot
 import pro.wewed.app.state.AppTab
 import pro.wewed.app.state.AppViewModel
 import pro.wewed.app.ui.invitation.IvoryInvitationScreen
@@ -34,6 +35,7 @@ import pro.wewed.app.theme.WewedSpacing
 fun HomeScreen(appViewModel: AppViewModel) {
     var wedding by remember { mutableStateOf<Wedding?>(null) }
     var announcements by remember { mutableStateOf<List<WeddingAnnouncement>>(emptyList()) }
+    var plannerDashboard by remember { mutableStateOf<PlannerDashboardSnapshot?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var showInvitation by remember { mutableStateOf(false) }
     var showVendor by remember { mutableStateOf(false) }
@@ -42,6 +44,7 @@ fun HomeScreen(appViewModel: AppViewModel) {
     LaunchedEffect(Unit) {
         wedding = appViewModel.repository.getWedding()
         announcements = appViewModel.repository.getAnnouncements()
+        plannerDashboard = appViewModel.plannerRepository.getDashboard()
         isLoading = false
     }
 
@@ -81,7 +84,12 @@ fun HomeScreen(appViewModel: AppViewModel) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Wedding Day", fontWeight = FontWeight.SemiBold) },
+                title = {
+                    Text(
+                        if (wedding?.lifecycle == "day") "Wedding Day" else "Wedding Command Centre",
+                        fontWeight = FontWeight.SemiBold
+                    )
+                },
                 actions = {
                     IconButton(onClick = { showInvitation = true }) {
                         Icon(Icons.Default.Mail, contentDescription = "Ivory Invitation", tint = WewedColors.Gold)
@@ -155,7 +163,17 @@ fun HomeScreen(appViewModel: AppViewModel) {
                         }
                     }
 
-                    // 2. Next Programme Milestone (Native Guest Mode)
+                    // 2. Planning pulse — keep the pre-wedding product centred on planning.
+                    plannerDashboard?.let { snapshot ->
+                        item {
+                            PlanningPulseCard(
+                                snapshot = snapshot,
+                                onOpenPlanner = { appViewModel.selectTab(AppTab.PLAN) }
+                            )
+                        }
+                    }
+
+                    // 3. Next Programme Milestone
                     item {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
@@ -394,6 +412,101 @@ fun HomeScreen(appViewModel: AppViewModel) {
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun PlanningPulseCard(
+    snapshot: PlannerDashboardSnapshot,
+    onOpenPlanner: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(WewedRadius.lg),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(2.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(WewedSpacing.base),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column {
+                    Text(
+                        "PLANNING PULSE",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = WewedColors.GoldDark
+                    )
+                    Text(
+                        "What needs attention before Wedding Day",
+                        fontSize = 11.sp,
+                        color = Color.Gray
+                    )
+                }
+                Text(
+                    "\${snapshot.readinessScore}%",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = WewedColors.Emerald
+                )
+            }
+
+            LinearProgressIndicator(
+                progress = { snapshot.readinessScore / 100f },
+                modifier = Modifier.fillMaxWidth(),
+                color = WewedColors.Emerald
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                snapshot.modules.take(3).forEach { module ->
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(module.title, fontSize = 10.sp, color = Color.Gray)
+                        Text(module.value, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
+            snapshot.attentionItems.firstOrNull()?.let { item ->
+                Row(verticalAlignment = Alignment.Top) {
+                    Icon(
+                        Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = WewedColors.Warning,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Column {
+                        Text(item.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Text(item.detail, fontSize = 10.sp, color = Color.Gray)
+                    }
+                }
+            }
+
+            TextButton(
+                onClick = onOpenPlanner,
+                modifier = Modifier.align(Alignment.End)
+            ) {
+                Text(
+                    "Open Wedding Planner",
+                    color = WewedColors.Emerald,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(
+                    Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = WewedColors.Emerald
+                )
+            }
+        }
     }
 }
 
