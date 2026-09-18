@@ -18,6 +18,49 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  ui-contract:
+    name: Wireframe and real-shadow UI contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Reject demo and wireframe-only literals
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(
+            apps/ios/Wewed/Views/Home/WeddingReferenceHomeView.swift
+            apps/ios/Wewed/Views/Planner/WeddingReferencePlannerView.swift
+            apps/ios/Wewed/Views/Guests/WeddingReferenceGuestsView.swift
+            apps/ios/Wewed/Views/Invitation/IvoryInvitationView.swift
+            apps/ios/Wewed/Views/Pass/WeddingReferencePassView.swift
+            apps/ios/Wewed/Views/Shared/WeddingReferenceMoreView.swift
+            apps/android/app/src/main/java/pro/wewed/app/ui/home/WeddingReferenceHomeScreen.kt
+            apps/android/app/src/main/java/pro/wewed/app/ui/planner/WeddingReferencePlannerScreen.kt
+            apps/android/app/src/main/java/pro/wewed/app/ui/guests/WeddingReferenceGuestsScreen.kt
+            apps/android/app/src/main/java/pro/wewed/app/ui/invitation/IvoryInvitationScreen.kt
+            apps/android/app/src/main/java/pro/wewed/app/ui/pass/WeddingReferencePassScreen.kt
+            apps/android/app/src/main/java/pro/wewed/app/ui/more/WeddingReferenceMoreScreen.kt
+          )
+          banned='Stella Ndlovu|John Moyo|Appa Tawanda|Brian Kamau|Lindiwe Ncube|Tariro Chikomo|Jane & Michael Doe|Tariro & Shadreck|Guest G001|Reference Venue|Reference City|68% complete|14 NOV 2026'
+          if grep -En "$banned" "${files[@]}"; then
+            echo "FAIL: demo/wireframe-only literal found in production-derived reference UI."
+            exit 1
+          fi
+
+      - name: Require six-screen acceptance anchors
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -R --fixed-strings 'home-root' apps/ios/Wewed/Views/Home apps/android/app/src/main/java/pro/wewed/app/ui/home
+          grep -R --fixed-strings 'planner-root' apps/ios/Wewed/Views/Planner apps/android/app/src/main/java/pro/wewed/app/ui/planner
+          grep -R --fixed-strings 'guests-root' apps/ios/Wewed/Views/Guests apps/android/app/src/main/java/pro/wewed/app/ui/guests
+          grep -R --fixed-strings 'ivory-invitation-root' apps/ios/Wewed/Views/Invitation apps/android/app/src/main/java/pro/wewed/app/ui/invitation
+          grep -R --fixed-strings 'wedding-pass-qr' apps/ios/Wewed/Theme apps/android/app/src/main/java/pro/wewed/app/ui/pass
+          grep -R --fixed-strings 'more-root' apps/ios/Wewed/Views/Shared apps/android/app/src/main/java/pro/wewed/app/ui/more
+
   ios:
     name: iOS Swift package tests and build
     runs-on: macos-14

@@ -113,11 +113,13 @@ fun WeddingReferencePlannerScreen(appViewModel: AppViewModel) {
                             fontSize = 12.sp
                         )
                     }
-                        WeddingMonogram(
-                            dashboard?.coupleNames ?: "C & K",
-                            sizeSp = 33,
-                            modifier = Modifier.padding(end = 8.dp)
-                        )
+                        dashboard?.coupleNames?.let { coupleNames ->
+                            WeddingMonogram(
+                                coupleNames,
+                                sizeSp = 33,
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                        }
                     }
                 }
 

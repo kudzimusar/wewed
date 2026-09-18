@@ -67,8 +67,10 @@ public struct WeddingReferencePlannerView: View {
                     .foregroundStyle(WeddingIdentityPalette.muted)
             }
                 Spacer()
-                WeddingMonogram(names: dashboard?.coupleNames ?? "C & K", size: 33)
-                    .padding(.trailing, 8)
+                if let coupleNames = dashboard?.coupleNames {
+                    WeddingMonogram(names: coupleNames, size: 33)
+                        .padding(.trailing, 8)
+                }
             }
         }
         .accessibilityIdentifier("planner-identity-card")

@@ -23,7 +23,9 @@ appId: pro.wewed.app
       id: "ivory-invitation-root"
     timeout: 5000
 
-# 4. Decline RSVP
+# 4. Open details, then decline RSVP
+- tapOn:
+    id: "ivory-details-toggle"
 - tapOn:
     id: "ivory-rsvp-decline"
 

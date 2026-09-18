@@ -41,6 +41,7 @@ fun WeddingReferencePassScreen(
     providedPass: WeddingPass? = null
 ) {
     var pass by remember { mutableStateOf<WeddingPass?>(null) }
+    var showGuestDetails by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(true) }
 
     LaunchedEffect(providedPass) {
@@ -228,7 +229,7 @@ fun WeddingReferencePassScreen(
                             )
 
                             OutlinedButton(
-                                onClick = { },
+                                onClick = { showGuestDetails = true },
                                 modifier = Modifier.fillMaxWidth().height(46.dp),
                                 shape = RoundedCornerShape(12.dp),
                                 border = androidx.compose.foundation.BorderStroke(
@@ -246,6 +247,25 @@ fun WeddingReferencePassScreen(
                     }
 
                     Spacer(modifier = Modifier.height(18.dp))
+                }
+
+                if (showGuestDetails) {
+                    AlertDialog(
+                        onDismissRequest = { showGuestDetails = false },
+                        title = { Text("Guest Details") },
+                        text = {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(p.guestName, fontWeight = FontWeight.SemiBold)
+                                Text("Party of ${p.partySize}")
+                                p.tableName?.let { Text(it) }
+                                Text(p.venueName)
+                                Text(displayPassDate(p.weddingDate), color = WeddingIdentityPalette.Muted)
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = { showGuestDetails = false }) { Text("Done") }
+                        }
+                    )
                 }
             }
         }

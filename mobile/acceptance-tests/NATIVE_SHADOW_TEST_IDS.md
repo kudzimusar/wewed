@@ -44,6 +44,7 @@ They are intentionally semantic and stable. Maestro and platform UI tests should
 | Pending filter | `guests-filter-pending` |
 | Declined filter | `guests-filter-declined` |
 | Add guest | `guests-add` |
+| Save local Shadow guest | `guests-add-save` |
 
 ### Wedding Pass
 
@@ -74,6 +75,7 @@ They are intentionally semantic and stable. Maestro and platform UI tests should
 | Wewed splash | `guest-journey-splash` |
 | Ivory invitation root | `ivory-invitation-root` |
 | Accept RSVP | `ivory-rsvp-accept` |
+| Toggle invitation details | `ivory-details-toggle` |
 | Decline RSVP | `ivory-rsvp-decline` |
 | View issued Wedding Pass | `ivory-view-wedding-pass` |
 | Declined state | `guest-journey-declined` |

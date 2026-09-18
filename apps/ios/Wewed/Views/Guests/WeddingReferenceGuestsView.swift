@@ -6,6 +6,11 @@ public struct WeddingReferenceGuestsView: View {
     @State private var wedding: Wedding?
     @State private var query = ""
     @State private var filter: GuestReferenceFilter = .all
+    @State private var showingFilters = false
+    @State private var showingAddGuest = false
+    @State private var selectedGuest: Guest?
+    @State private var newGuestName = ""
+    @State private var newGuestPartySize = 1
     @State private var isLoading = true
 
     public init() {}
@@ -27,7 +32,12 @@ public struct WeddingReferenceGuestsView: View {
                     } else {
                         List {
                             ForEach(filteredGuests) { guest in
-                                guestRow(guest)
+                                Button {
+                                    selectedGuest = guest
+                                } label: {
+                                    guestRow(guest)
+                                }
+                                .buttonStyle(.plain)
                                     .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 8, trailing: 0))
                                     .listRowBackground(Color.clear)
                                     .listRowSeparator(.hidden)
@@ -38,7 +48,7 @@ public struct WeddingReferenceGuestsView: View {
                     }
 
                     Button {
-                        // Shadow/local guest creation remains a separate workflow.
+                        showingAddGuest = true
                     } label: {
                         WeddingPrimaryButtonLabel("Add Guest", icon: "plus")
                     }
@@ -53,6 +63,17 @@ public struct WeddingReferenceGuestsView: View {
             .toolbar(.hidden, for: .navigationBar)
             #endif
             .task { await load() }
+            .confirmationDialog("Filter Guests", isPresented: $showingFilters, titleVisibility: .visible) {
+                ForEach(GuestReferenceFilter.allCases, id: \.rawValue) { value in
+                    Button(value.title) { filter = value }
+                }
+            }
+            .sheet(isPresented: $showingAddGuest) {
+                addGuestSheet
+            }
+            .sheet(item: $selectedGuest) { guest in
+                guestDetailsSheet(guest)
+            }
         }
         .accessibilityIdentifier("guests-root")
     }
@@ -96,7 +117,7 @@ public struct WeddingReferenceGuestsView: View {
             )
             .clipShape(RoundedRectangle(cornerRadius: 12))
 
-            Button {} label: {
+            Button { showingFilters = true } label: {
                 Image(systemName: "line.3.horizontal.decrease")
                     .foregroundStyle(WeddingIdentityPalette.ink)
                     .frame(width: 42, height: 42)
@@ -206,6 +227,76 @@ public struct WeddingReferenceGuestsView: View {
 
             return matchesFilter && matchesQuery
         }
+    }
+
+    private var addGuestSheet: some View {
+        NavigationStack {
+            Form {
+                Section("Guest") {
+                    TextField("Guest name", text: $newGuestName)
+                    Stepper("Party of \(newGuestPartySize)", value: $newGuestPartySize, in: 1...10)
+                }
+
+                Section {
+                    Text("This addition stays in the local Shadow session and does not write to production.")
+                        .font(.footnote)
+                        .foregroundStyle(WeddingIdentityPalette.muted)
+                }
+            }
+            .navigationTitle("Add Guest")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        resetGuestDraft()
+                        showingAddGuest = false
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add") {
+                        let trimmed = newGuestName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !trimmed.isEmpty else { return }
+                        guests.append(
+                            Guest(
+                                id: "shadow-local-\(UUID().uuidString)",
+                                name: trimmed,
+                                partySize: newGuestPartySize,
+                                rsvpStatus: .pending
+                            )
+                        )
+                        resetGuestDraft()
+                        showingAddGuest = false
+                    }
+                    .disabled(newGuestName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .accessibilityIdentifier("guests-add-save")
+                }
+            }
+        }
+    }
+
+    private func guestDetailsSheet(_ guest: Guest) -> some View {
+        NavigationStack {
+            List {
+                Section("Guest") {
+                    LabeledContent("Name", value: guest.name)
+                    LabeledContent("RSVP", value: guest.rsvpStatus.title)
+                    LabeledContent("Party", value: "Party of \(guest.partySize)")
+                    if let table = guest.tableName {
+                        LabeledContent("Seating", value: table)
+                    }
+                }
+            }
+            .navigationTitle("Guest Details")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { selectedGuest = nil }
+                }
+            }
+        }
+    }
+
+    private func resetGuestDraft() {
+        newGuestName = ""
+        newGuestPartySize = 1
     }
 
     private func load() async {

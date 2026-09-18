@@ -36,6 +36,7 @@ public struct IvoryInvitationView: View {
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 18) {
+                        invitationHeader
                         invitationCard
                         responseArea
                     }
@@ -47,8 +48,19 @@ public struct IvoryInvitationView: View {
             #if os(iOS)
             .toolbar(.hidden, for: .navigationBar)
             #endif
-            .overlay(alignment: .topLeading) {
-                if allowsClose {
+
+        }
+        .accessibilityIdentifier("ivory-invitation-root")
+    }
+
+    private var invitationHeader: some View {
+        ZStack {
+            Text("You’re Invited")
+                .font(.system(size: 18, weight: .semibold, design: .serif))
+                .foregroundStyle(WeddingIdentityPalette.ink)
+
+            if allowsClose {
+                HStack {
                     Button {
                         dismiss()
                     } label: {
@@ -56,16 +68,14 @@ public struct IvoryInvitationView: View {
                             .font(.system(size: 17, weight: .semibold))
                             .foregroundStyle(WeddingIdentityPalette.ink)
                             .frame(width: 42, height: 42)
-                            .background(.ultraThinMaterial)
-                            .clipShape(Circle())
                     }
-                    .padding(.leading, 12)
-                    .padding(.top, 8)
+                    .buttonStyle(.plain)
                     .accessibilityLabel("Close invitation")
+                    Spacer()
                 }
             }
         }
-        .accessibilityIdentifier("ivory-invitation-root")
+        .frame(maxWidth: .infinity)
     }
 
     private var invitationCard: some View {
@@ -76,10 +86,6 @@ public struct IvoryInvitationView: View {
                 .opacity(0.42)
 
             VStack(spacing: 14) {
-                Text("You’re Invited")
-                    .font(.system(size: 18, weight: .semibold, design: .serif))
-                    .foregroundStyle(WeddingIdentityPalette.ink)
-
                 WeddingMonogram(names: invitation.coupleNames, size: 54)
 
                 Text(invitation.coupleNames)
@@ -217,17 +223,20 @@ public struct IvoryInvitationView: View {
                         )
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("ivory-details-toggle")
 
-                Button {
-                    submitRsvp(attending: false)
-                } label: {
-                    Text("Decline with Regret")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(WeddingIdentityPalette.muted)
-                        .padding(.vertical, 7)
+                if showDetails {
+                    Button {
+                        submitRsvp(attending: false)
+                    } label: {
+                        Text("Decline with Regret")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(WeddingIdentityPalette.muted)
+                            .padding(.vertical, 7)
+                    }
+                    .disabled(isSubmitting)
+                    .accessibilityIdentifier("ivory-rsvp-decline")
                 }
-                .disabled(isSubmitting)
-                .accessibilityIdentifier("ivory-rsvp-decline")
             }
         }
     }

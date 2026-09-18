@@ -164,12 +164,6 @@ fun WeddingReferenceMoreScreen(appViewModel: AppViewModel) {
                 }
 
                 Spacer(modifier = Modifier.weight(1f))
-
-                WeddingMonogram(
-                    names = wedding?.coupleNames ?: "C & K",
-                    sizeSp = 34,
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                )
             }
         }
     }

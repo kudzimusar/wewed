@@ -74,14 +74,22 @@ fun IvoryInvitationScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            if (allowsClose) {
-                Row(modifier = Modifier.fillMaxWidth()) {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    "You’re Invited",
+                    color = WeddingIdentityPalette.Ink,
+                    fontFamily = FontFamily.Serif,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 18.sp,
+                    modifier = Modifier.align(Alignment.Center)
+                )
+
+                if (allowsClose) {
                     IconButton(
                         onClick = onClose,
                         modifier = Modifier
+                            .align(Alignment.CenterStart)
                             .size(42.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.82f))
                     ) {
                         Icon(
                             Icons.Default.ChevronLeft,
@@ -115,14 +123,6 @@ fun IvoryInvitationScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Text(
-                        "You’re Invited",
-                        color = WeddingIdentityPalette.Ink,
-                        fontFamily = FontFamily.Serif,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 18.sp
-                    )
-
                     WeddingMonogram(invitation.coupleNames, sizeSp = 54)
 
                     Text(
@@ -363,7 +363,7 @@ fun IvoryInvitationScreen(
 
                         OutlinedButton(
                             onClick = { showDetails = !showDetails },
-                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            modifier = Modifier.fillMaxWidth().height(48.dp).testTag("ivory-details-toggle"),
                             shape = RoundedCornerShape(13.dp),
                             border = androidx.compose.foundation.BorderStroke(
                                 1.dp,
@@ -380,35 +380,37 @@ fun IvoryInvitationScreen(
                             )
                         }
 
-                        TextButton(
-                            onClick = {
-                                isSubmitting = true
-                                scope.launch {
-                                    try {
-                                        appViewModel.repository.confirmRsvp(
-                                            invitation.weddingSlug,
-                                            invitation.guestToken,
-                                            false
-                                        )
-                                        generatedPass = null
-                                        rsvpSubmitted = false
-                                        declined = true
-                                        onRsvpDeclined()
-                                    } finally {
-                                        isSubmitting = false
+                        if (showDetails) {
+                            TextButton(
+                                onClick = {
+                                    isSubmitting = true
+                                    scope.launch {
+                                        try {
+                                            appViewModel.repository.confirmRsvp(
+                                                invitation.weddingSlug,
+                                                invitation.guestToken,
+                                                false
+                                            )
+                                            generatedPass = null
+                                            rsvpSubmitted = false
+                                            declined = true
+                                            onRsvpDeclined()
+                                        } finally {
+                                            isSubmitting = false
+                                        }
                                     }
-                                }
-                            },
-                            enabled = !isSubmitting,
-                            modifier = Modifier
-                                .align(Alignment.CenterHorizontally)
-                                .testTag("ivory-rsvp-decline")
-                        ) {
-                            Text(
-                                "Decline with Regret",
-                                color = WeddingIdentityPalette.Muted,
-                                fontSize = 12.sp
-                            )
+                                },
+                                enabled = !isSubmitting,
+                                modifier = Modifier
+                                    .align(Alignment.CenterHorizontally)
+                                    .testTag("ivory-rsvp-decline")
+                            ) {
+                                Text(
+                                    "Decline with Regret",
+                                    color = WeddingIdentityPalette.Muted,
+                                    fontSize = 12.sp
+                                )
+                            }
                         }
                     }
                 }

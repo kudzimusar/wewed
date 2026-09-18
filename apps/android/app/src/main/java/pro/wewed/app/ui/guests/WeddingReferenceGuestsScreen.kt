@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import pro.wewed.app.models.Guest
 import pro.wewed.app.models.RSVPStatus
 import pro.wewed.app.state.AppViewModel
+import java.util.UUID
 import pro.wewed.app.theme.*
 
 @Composable
@@ -37,6 +38,11 @@ fun WeddingReferenceGuestsScreen(appViewModel: AppViewModel) {
     var wedding by remember { mutableStateOf<pro.wewed.app.models.Wedding?>(null) }
     var query by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf(ReferenceGuestFilter.ALL) }
+    var showFilterMenu by remember { mutableStateOf(false) }
+    var showAddGuest by remember { mutableStateOf(false) }
+    var selectedGuest by remember { mutableStateOf<Guest?>(null) }
+    var newGuestName by remember { mutableStateOf("") }
+    var newGuestPartySize by remember { mutableIntStateOf(1) }
     var loading by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
@@ -128,18 +134,36 @@ fun WeddingReferenceGuestsScreen(appViewModel: AppViewModel) {
                     keyboardActions = KeyboardActions(onSearch = {})
                 )
 
-                Surface(
-                    modifier = Modifier.size(50.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    color = WeddingIdentityPalette.IvorySoft,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, WeddingIdentityPalette.Hairline)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            Icons.Default.FilterList,
-                            contentDescription = "Guest filters",
-                            tint = WeddingIdentityPalette.Ink
-                        )
+                Box {
+                    Surface(
+                        onClick = { showFilterMenu = true },
+                        modifier = Modifier.size(50.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        color = WeddingIdentityPalette.IvorySoft,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, WeddingIdentityPalette.Hairline)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Default.FilterList,
+                                contentDescription = "Guest filters",
+                                tint = WeddingIdentityPalette.Ink
+                            )
+                        }
+                    }
+
+                    DropdownMenu(
+                        expanded = showFilterMenu,
+                        onDismissRequest = { showFilterMenu = false }
+                    ) {
+                        ReferenceGuestFilter.entries.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option.title) },
+                                onClick = {
+                                    selectedFilter = option
+                                    showFilterMenu = false
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -189,13 +213,13 @@ fun WeddingReferenceGuestsScreen(appViewModel: AppViewModel) {
                     contentPadding = PaddingValues(bottom = 8.dp)
                 ) {
                     items(filtered, key = { it.id }) { guest ->
-                        ReferenceGuestRow(guest)
+                        ReferenceGuestRow(guest) { selectedGuest = guest }
                     }
                 }
             }
 
             Button(
-                onClick = { },
+                onClick = { showAddGuest = true },
                 modifier = Modifier.fillMaxWidth().height(48.dp).testTag("guests-add"),
                 shape = RoundedCornerShape(13.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = WeddingIdentityPalette.Forest)
@@ -205,15 +229,98 @@ fun WeddingReferenceGuestsScreen(appViewModel: AppViewModel) {
                 Text("Add Guest", fontWeight = FontWeight.SemiBold)
             }
         }
+
+        if (showAddGuest) {
+            AlertDialog(
+                onDismissRequest = { showAddGuest = false },
+                title = { Text("Add Guest") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OutlinedTextField(
+                            value = newGuestName,
+                            onValueChange = { newGuestName = it },
+                            label = { Text("Guest name") },
+                            singleLine = true
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Party of $newGuestPartySize")
+                            Row {
+                                IconButton(onClick = { if (newGuestPartySize > 1) newGuestPartySize-- }) {
+                                    Icon(Icons.Default.Remove, contentDescription = "Decrease party")
+                                }
+                                IconButton(onClick = { if (newGuestPartySize < 10) newGuestPartySize++ }) {
+                                    Icon(Icons.Default.Add, contentDescription = "Increase party")
+                                }
+                            }
+                        }
+                        Text(
+                            "This addition stays in the local Shadow session and does not write to production.",
+                            color = WeddingIdentityPalette.Muted,
+                            fontSize = 11.sp
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            val trimmed = newGuestName.trim()
+                            if (trimmed.isNotEmpty()) {
+                                guests = guests + Guest(
+                                    id = "shadow-local-${UUID.randomUUID()}",
+                                    name = trimmed,
+                                    partySize = newGuestPartySize,
+                                    rsvpStatus = RSVPStatus.PENDING
+                                )
+                                newGuestName = ""
+                                newGuestPartySize = 1
+                                showAddGuest = false
+                            }
+                        },
+                        enabled = newGuestName.trim().isNotEmpty(),
+                        modifier = Modifier.testTag("guests-add-save")
+                    ) { Text("Add") }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        newGuestName = ""
+                        newGuestPartySize = 1
+                        showAddGuest = false
+                    }) { Text("Cancel") }
+                }
+            )
+        }
+
+        selectedGuest?.let { guest ->
+            AlertDialog(
+                onDismissRequest = { selectedGuest = null },
+                title = { Text("Guest Details") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(guest.name, fontWeight = FontWeight.SemiBold)
+                        Text(guest.rsvpStatus.title)
+                        Text("Party of ${guest.partySize}")
+                        guest.tableName?.let { Text(it) }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { selectedGuest = null }) { Text("Done") }
+                }
+            )
+        }
     }
 }
 
 @Composable
-private fun ReferenceGuestRow(guest: Guest) {
+private fun ReferenceGuestRow(guest: Guest, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(15.dp))
+            .clickable { onClick() }
             .background(WeddingIdentityPalette.IvorySoft)
             .border(1.dp, WeddingIdentityPalette.Hairline, RoundedCornerShape(15.dp))
             .padding(13.dp),

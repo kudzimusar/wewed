@@ -4,6 +4,7 @@ public struct WeddingReferencePassView: View {
     @EnvironmentObject private var appState: AppState
     @State private var pass: WeddingPass?
     @State private var showingScanner = false
+    @State private var showingGuestDetails = false
     @State private var isLoading = true
     private let providedPass: WeddingPass?
 
@@ -45,6 +46,31 @@ public struct WeddingReferencePassView: View {
             .sheet(isPresented: $showingScanner) {
                 UsherScannerView {
                     showingScanner = false
+                }
+            }
+            .sheet(isPresented: $showingGuestDetails) {
+                if let pass {
+                    NavigationStack {
+                        List {
+                            Section("Guest") {
+                                LabeledContent("Name", value: pass.guestName)
+                                LabeledContent("Party", value: "Party of \(pass.partySize)")
+                                if let table = pass.tableName {
+                                    LabeledContent("Seating", value: table)
+                                }
+                            }
+                            Section("Wedding") {
+                                LabeledContent("Venue", value: pass.venueName)
+                                LabeledContent("Date", value: displayDate(pass.weddingDate))
+                            }
+                        }
+                        .navigationTitle("Guest Details")
+                        .toolbar {
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button("Done") { showingGuestDetails = false }
+                            }
+                        }
+                    }
                 }
             }
             .task { await preparePass() }
@@ -137,7 +163,7 @@ public struct WeddingReferencePassView: View {
                     .font(.system(size: 11))
                     .foregroundStyle(WeddingIdentityPalette.muted)
 
-                Button {} label: {
+                Button { showingGuestDetails = true } label: {
                     Text("View Guest Details")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(WeddingIdentityPalette.ink)
