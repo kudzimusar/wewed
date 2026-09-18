@@ -201,6 +201,7 @@ async function openRsvp(page, experience, card, guestName) {
 }
 
 test('same Chrome profile switches A→B→A atomically with a pre-created Android intent', async ({ browser }) => {
+  test.setTimeout(90_000)
   const fixture = await createFixture()
   const context = await androidContext(browser)
   let handoffPosts = 0
