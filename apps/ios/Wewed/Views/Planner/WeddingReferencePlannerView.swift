@@ -44,7 +44,7 @@ public struct WeddingReferencePlannerView: View {
                     .padding(.bottom, 24)
                 }
             }
-            .toolbar(.hidden, for: .navigationBar)
+            #if os(iOS)\n            .toolbar(.hidden, for: .navigationBar)\n            #endif
             .task { await load() }
         }
         .accessibilityIdentifier("reference-planner-root")
