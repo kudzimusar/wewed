@@ -324,7 +324,7 @@ function WeddingHomeContent({
             <InvitationCountdown date={invitationData.date} />
           </div>
           <PremiumInvitationExperience
-            key={`${slug}:${invitationCardStyle}`}
+            key={`${slug}:${invitationCardStyle}:${invitationGuestName ?? 'guest'}`}
             slug={slug}
             data={invitationData}
             style={invitationCardStyle}
@@ -396,8 +396,15 @@ function WeddingHomeContent({
 
       {mounted && invitationAvailable && invitationCardStyle && (
         <>
-          <PremiumInvitationRsvpDialog slug={slug} style={invitationCardStyle} />
-          <WeddingGuestPassDialog slug={slug} />
+          <PremiumInvitationRsvpDialog
+            key={`rsvp:${slug}:${invitationGuestName ?? 'guest'}`}
+            slug={slug}
+            style={invitationCardStyle}
+          />
+          <WeddingGuestPassDialog
+            key={`pass:${slug}:${invitationGuestName ?? 'guest'}`}
+            slug={slug}
+          />
         </>
       )}
       {mounted && !invitationAvailable && <InvitationRsvpDialog />}
