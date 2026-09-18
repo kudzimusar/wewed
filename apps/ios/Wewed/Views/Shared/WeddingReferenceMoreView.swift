@@ -10,7 +10,7 @@ public struct WeddingReferenceMoreView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                WeddingFloralBackground()
+                WeddingFloralBackground(opacity: 0.025)
 
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 14) {
@@ -67,13 +67,31 @@ public struct WeddingReferenceMoreView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text("More")
-                .font(.system(size: 28, weight: .semibold, design: .serif))
-                .foregroundStyle(WeddingIdentityPalette.ink)
-            Text("Your wedding, beautifully organised.")
-                .font(.system(size: 12))
-                .foregroundStyle(WeddingIdentityPalette.muted)
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("More")
+                    .font(.system(size: 28, weight: .semibold, design: .serif))
+                    .foregroundStyle(WeddingIdentityPalette.ink)
+                Text("Your wedding, beautifully organised.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(WeddingIdentityPalette.muted)
+            }
+
+            Spacer()
+
+            NavigationLink {
+                SettingsView()
+            } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(WeddingIdentityPalette.ink)
+                    .frame(width: 40, height: 40)
+                    .background(WeddingIdentityPalette.ivorySoft)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(WeddingIdentityPalette.hairline, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("more-settings-shortcut")
         }
     }
 
