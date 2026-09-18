@@ -76,6 +76,11 @@ fun WeddingReferencePlannerScreen(appViewModel: AppViewModel) {
             .background(WeddingIdentityPalette.Ivory)
             .testTag("planner-root")
     ) {
+        WeddingOrnamentBackdrop(
+            modifier = Modifier.matchParentSize(),
+            alpha = 0.055f
+        )
+
         if (loading) {
             CircularProgressIndicator(
                 color = WeddingIdentityPalette.ChampagneDeep,
@@ -86,11 +91,15 @@ fun WeddingReferencePlannerScreen(appViewModel: AppViewModel) {
                 modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().testTag("planner-identity-card"),
-                    verticalAlignment = Alignment.Top
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
+                Box(modifier = Modifier.fillMaxWidth().testTag("planner-identity-card")) {
+                    WeddingHeaderOrnament(
+                        modifier = Modifier.align(Alignment.TopEnd).offset(x = 8.dp, y = (-12).dp)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
                         Text(
                             "Wedding Planner",
                             color = WeddingIdentityPalette.Ink,
@@ -104,7 +113,12 @@ fun WeddingReferencePlannerScreen(appViewModel: AppViewModel) {
                             fontSize = 12.sp
                         )
                     }
-                    WeddingMonogram(dashboard?.coupleNames ?: "C & K", sizeSp = 33)
+                        WeddingMonogram(
+                            dashboard?.coupleNames ?: "C & K",
+                            sizeSp = 33,
+                            modifier = Modifier.padding(end = 8.dp)
+                        )
+                    }
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -154,6 +168,7 @@ fun WeddingReferencePlannerScreen(appViewModel: AppViewModel) {
                             contentPadding = PaddingValues(bottom = 24.dp)
                         ) {
                             item {
+                                val ratio = if (tasks.isEmpty()) 0f else tasks.count { it.status == TaskStatus.DONE }.toFloat() / tasks.size.toFloat()
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -176,7 +191,7 @@ fun WeddingReferencePlannerScreen(appViewModel: AppViewModel) {
                                                 fontSize = 16.sp
                                             )
                                             Text(
-                                                snap.taskCompletionLabel + " tasks complete",
+                                                "${(ratio * 100).toInt()}% complete • ${snap.taskCompletionLabel} tasks",
                                                 color = WeddingIdentityPalette.Muted,
                                                 fontSize = 12.sp
                                             )
@@ -187,7 +202,6 @@ fun WeddingReferencePlannerScreen(appViewModel: AppViewModel) {
                                             tint = WeddingIdentityPalette.Muted
                                         )
                                     }
-                                    val ratio = if (tasks.isEmpty()) 0f else tasks.count { it.status == TaskStatus.DONE }.toFloat() / tasks.size.toFloat()
                                     LinearProgressIndicator(
                                         progress = { ratio },
                                         modifier = Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(20.dp)),
