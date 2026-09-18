@@ -27,6 +27,7 @@ public struct WeddingQRCodeView: View {
         }
         .frame(width: size, height: size)
         .accessibilityLabel("Wedding pass QR code")
+        .accessibilityIdentifier("wedding-pass-qr")
     }
 
     private var qrImage: CGImage? {
