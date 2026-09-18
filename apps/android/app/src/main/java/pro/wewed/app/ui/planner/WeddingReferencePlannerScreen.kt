@@ -367,7 +367,7 @@ private fun ReferencePlannerEmptyDestination(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            WeddingMonogram("C & K", sizeSp = 40)
+            WeddingBrandMark()
             Spacer(modifier = Modifier.height(12.dp))
             Text(title, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
             Text(
