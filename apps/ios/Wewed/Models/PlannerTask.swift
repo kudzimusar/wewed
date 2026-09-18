@@ -3,12 +3,14 @@ import Foundation
 public enum TaskStatus: String, Codable, CaseIterable, Sendable {
     case todo = "todo"
     case inProgress = "in_progress"
+    case blocked = "blocked"
     case done = "done"
 
     public var title: String {
         switch self {
         case .todo: return "To Do"
         case .inProgress: return "In Progress"
+        case .blocked: return "Blocked"
         case .done: return "Done"
         }
     }
