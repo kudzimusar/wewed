@@ -5,7 +5,6 @@ import {
   readPendingInvitation,
 } from '@/lib/pending-invitation'
 import {
-  clearWeddingGuestSessionCookie,
   setWeddingGuestSessionCookie,
 } from '@/lib/wedding-guest-session'
 import {
@@ -37,9 +36,9 @@ function redirectToGateway(slug: string, error: string) {
 
 function failedExchange(slug: string, error: string): NextResponse {
   const response = redirectToGateway(slug, error)
+  // Keep the previously active guest/share context intact. A failed attempt to
+  // switch invitations must not strand the user in a stale, unauthorized UI.
   clearPendingInvitationCookie(response)
-  clearWeddingGuestSessionCookie(response)
-  clearWeddingSharedInvitationCookie(response)
   return response
 }
 
