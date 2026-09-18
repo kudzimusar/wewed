@@ -311,12 +311,12 @@ public struct PlannerView: View {
     private func moduleDestination(_ id: String) -> some View {
         switch id {
         case "tasks": PlannerTasksView()
-        case "budget": PlannerBudgetView()
-        case "contributions": PlannerContributionsView()
-        case "vendors": PlannerVendorsView()
+        case "budget": ShadowPlannerBudgetView()
+        case "contributions": ShadowPlannerContributionsView()
+        case "vendors": ShadowPlannerVendorsView()
         case "guests": PlannerGuestsBridgeView()
-        case "seating": PlannerSeatingView()
-        case "timeline": PlannerTimelineView()
+        case "seating": ShadowPlannerSeatingView()
+        case "timeline": ShadowPlannerTimelineView()
         default:
             Text("Planning module unavailable")
         }
