@@ -43,7 +43,7 @@ appId: pro.wewed.app
 - assertVisible:
     id: "guest-journey-splash"
 - extendedWaitUntil:
-    visible:
-      id: "ivory-invitation-root"
-    timeout: 5000
+    visible: "RSVP Now"
+    timeout: 7000
+- waitForAnimationToEnd
 - takeScreenshot: wireframe-invitation

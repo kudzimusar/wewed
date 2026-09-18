@@ -61,19 +61,19 @@ class ShadowReferencePlannerRepository : PlannerDashboardRepository {
     )
 
     private val timelineEntries = listOf(
-        PlannerTimelineEntry("shadow_prog_01", "14:00", "Ceremony Begins", "Imba Manor", "Scheduled", null),
-        PlannerTimelineEntry("shadow_prog_02", "13:00", "Guest Arrival", "Imba Manor", "Scheduled", null),
-        PlannerTimelineEntry("shadow_prog_03", "14:45", "Confetti & Congratulations", "Imba Manor", "Scheduled", null),
-        PlannerTimelineEntry("shadow_prog_04", "15:30", "Cocktail Hour", "Imba Manor", "Scheduled", null),
-        PlannerTimelineEntry("shadow_prog_05", "16:30", "Reception Entrance", "Imba Manor", "Scheduled", null),
-        PlannerTimelineEntry("shadow_prog_06", "17:00", "First Dance", "Imba Manor", "Scheduled", null),
-        PlannerTimelineEntry("shadow_prog_07", "17:30", "Dinner is Served", "Imba Manor", "Scheduled", null),
-        PlannerTimelineEntry("shadow_prog_08", "18:30", "Speeches & Toasts", "Imba Manor", "Scheduled", null),
-        PlannerTimelineEntry("shadow_prog_09", "19:30", "Cake Cutting", "Imba Manor", "Scheduled", null),
-        PlannerTimelineEntry("shadow_prog_10", "11:45", "UAT-TIMELINE-001 Vendor access and setup", "Imba Manor service entrance", "Scheduled", null),
-        PlannerTimelineEntry("shadow_prog_11", "20:00", "Dance Floor Opens", "Imba Manor", "Scheduled", null),
-        PlannerTimelineEntry("shadow_prog_12", "22:00", "Last Dance", "Imba Manor", "Scheduled", null),
-        PlannerTimelineEntry("shadow_prog_13", "22:30", "Sparkler Send-Off", "Imba Manor", "Scheduled", null),
+        PlannerTimelineEntry("shadow_prog_01", "14:00", "Ceremony Begins", "Imba Manor", "23 Dec 2026", null),
+        PlannerTimelineEntry("shadow_prog_02", "13:00", "Guest Arrival", "Imba Manor", "23 Dec 2026", null),
+        PlannerTimelineEntry("shadow_prog_03", "14:45", "Confetti & Congratulations", "Imba Manor", "23 Dec 2026", null),
+        PlannerTimelineEntry("shadow_prog_04", "15:30", "Cocktail Hour", "Imba Manor", "23 Dec 2026", null),
+        PlannerTimelineEntry("shadow_prog_05", "16:30", "Reception Entrance", "Imba Manor", "23 Dec 2026", null),
+        PlannerTimelineEntry("shadow_prog_06", "17:00", "First Dance", "Imba Manor", "23 Dec 2026", null),
+        PlannerTimelineEntry("shadow_prog_07", "17:30", "Dinner is Served", "Imba Manor", "23 Dec 2026", null),
+        PlannerTimelineEntry("shadow_prog_08", "18:30", "Speeches & Toasts", "Imba Manor", "23 Dec 2026", null),
+        PlannerTimelineEntry("shadow_prog_09", "19:30", "Cake Cutting", "Imba Manor", "23 Dec 2026", null),
+        PlannerTimelineEntry("shadow_prog_10", "11:45", "UAT-TIMELINE-001 Vendor access and setup", "Imba Manor service entrance", "23 Dec 2026", null),
+        PlannerTimelineEntry("shadow_prog_11", "20:00", "Dance Floor Opens", "Imba Manor", "23 Dec 2026", null),
+        PlannerTimelineEntry("shadow_prog_12", "22:00", "Last Dance", "Imba Manor", "23 Dec 2026", null),
+        PlannerTimelineEntry("shadow_prog_13", "22:30", "Sparkler Send-Off", "Imba Manor", "23 Dec 2026", null),
     )
 
     override suspend fun getDashboard(): PlannerDashboardSnapshot {
@@ -86,20 +86,20 @@ class ShadowReferencePlannerRepository : PlannerDashboardRepository {
             readinessScore = null,
             taskCompletionLabel = "7 / 42",
             attentionItems = listOf(
-                PlannerAttentionItem("attn_tasks", "8 high priority tasks", "Venue, invitations and logistics need attention.", PlannerAttentionSeverity.URGENT),
-                PlannerAttentionItem("attn_rsvp", "172 RSVPs pending", "Guest follow-up is affecting seating readiness.", PlannerAttentionSeverity.WARNING),
-                PlannerAttentionItem("attn_seating", "152 guests unseated", "Complete table allocations for invited party capacity.", PlannerAttentionSeverity.WARNING),
-                PlannerAttentionItem("attn_vendor", "7 vendors booked", "Operational contracts and logistics reviews in progress.", PlannerAttentionSeverity.INFO),
-                PlannerAttentionItem("attn_payment", "Payments in progress", "$3,875 paid out of $8,690 actual expenses.", PlannerAttentionSeverity.INFO)
+                PlannerAttentionItem("attn_tasks", "8 high priority tasks", "Active checklist tasks requiring coordination.", PlannerAttentionSeverity.URGENT),
+                PlannerAttentionItem("attn_rsvp", "172 RSVPs pending", "2 attending records across 174 guest records.", PlannerAttentionSeverity.WARNING),
+                PlannerAttentionItem("attn_seating", "22 of 64 table seats allocated", "42 seats free across 8 tables.", PlannerAttentionSeverity.INFO),
+                PlannerAttentionItem("attn_vendor", "7 vendors recorded", "0 active contracts recorded for this wedding.", PlannerAttentionSeverity.INFO),
+                PlannerAttentionItem("attn_payment", "Budget & Expenses", "$3,875 paid of $8,690 actual expenses ($30,380 estimated).", PlannerAttentionSeverity.INFO)
             ),
             modules = listOf(
-                PlannerModuleSummary("tasks", "Tasks", "7 / 42", "8 urgent", "tasks"),
+                PlannerModuleSummary("tasks", "Tasks", "7 / 42", "8 high priority", "tasks"),
                 PlannerModuleSummary("budget", "Budget", "$30.4k", "$3.9k paid", "budget"),
-                PlannerModuleSummary("contributions", "Contributions", "4 memories", "4 approved", "contributions"),
-                PlannerModuleSummary("vendors", "Vendors", "7 booked", "0 contracts", "vendors"),
-                PlannerModuleSummary("guests", "Guests", "174", "172 awaiting RSVP", "guests"),
+                PlannerModuleSummary("contributions", "Contributions", "4 messages", "Non-monetary", "contributions"),
+                PlannerModuleSummary("vendors", "Vendors", "7 recorded", "0 contracts", "vendors"),
+                PlannerModuleSummary("guests", "Guests", "174", "172 pending", "guests"),
                 PlannerModuleSummary("seating", "Seating", "22 / 64", "42 seats free", "seating"),
-                PlannerModuleSummary("timeline", "Timeline", "13 events", "Programme locked", "timeline")
+                PlannerModuleSummary("timeline", "Timeline", "13 items", "23 Dec 2026", "timeline")
             ),
             recentActivity = emptyList(),
             sourceLabel = "Production-derived reference fixture"

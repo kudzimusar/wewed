@@ -35,13 +35,16 @@ fun VendorPresenceScreen(
     onClose: () -> Unit
 ) {
     var vendors by remember { mutableStateOf<List<VendorPresence>>(emptyList()) }
-    var selectedVendorId by remember { mutableStateOf("v1") }
+    var selectedVendorId by remember { mutableStateOf("") }
     var showContactDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     fun refreshVendors() {
         scope.launch {
             vendors = appViewModel.repository.getVendors()
+            if (vendors.none { it.id == selectedVendorId }) {
+                selectedVendorId = vendors.firstOrNull()?.id.orEmpty()
+            }
         }
     }
 
@@ -237,18 +240,10 @@ fun VendorPresenceScreen(
         AlertDialog(
             onDismissRequest = { showContactDialog = false },
             title = { Text("Contact Planner", fontWeight = FontWeight.Bold) },
-            text = { Text("Call Lead Wedding Coordinator at Imba Manor: +263 77 123 4567") },
+            text = { Text("Planner contact details are not available in this Shadow dataset.") },
             confirmButton = {
-                Button(
-                    onClick = { showContactDialog = false },
-                    colors = ButtonDefaults.buttonColors(containerColor = WewedColors.Gold)
-                ) {
-                    Text("Call Now", color = Color.Black)
-                }
-            },
-            dismissButton = {
                 TextButton(onClick = { showContactDialog = false }) {
-                    Text("Dismiss", color = Color.Gray)
+                    Text("OK")
                 }
             }
         )
@@ -258,6 +253,7 @@ fun VendorPresenceScreen(
 @Composable
 private fun StateBadge(state: VendorPresenceState) {
     val (bg, fg) = when (state) {
+        VendorPresenceState.NOT_RECORDED -> Pair(Color.LightGray.copy(alpha = 0.4f), Color.DarkGray)
         VendorPresenceState.SCHEDULED -> Pair(Color.LightGray.copy(alpha = 0.4f), Color.DarkGray)
         VendorPresenceState.EN_ROUTE -> Pair(WewedColors.Gold.copy(alpha = 0.25f), WewedColors.GoldDark)
         VendorPresenceState.ARRIVED -> Pair(WewedColors.Emerald.copy(alpha = 0.2f), WewedColors.Emerald)

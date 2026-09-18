@@ -266,8 +266,8 @@ class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath:
                     vendorName = name,
                     serviceCategory = cat.replaceFirstChar { it.uppercase() },
                     serviceArea = venueStr,
-                    state = VendorPresenceState.SCHEDULED,
-                    expectedTime = "12:00"
+                    state = VendorPresenceState.NOT_RECORDED,
+                    expectedTime = "Not recorded"
                 )
             )
         }

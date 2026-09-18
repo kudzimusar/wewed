@@ -18,7 +18,7 @@ public struct WeddingReferenceGuestsView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                WeddingFloralBackground(opacity: 0.055)
+                WeddingFloralBackground(opacity: 0.018)
 
                 VStack(spacing: 12) {
                     header

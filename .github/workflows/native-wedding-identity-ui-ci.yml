@@ -46,9 +46,25 @@ jobs:
             apps/android/app/src/main/java/pro/wewed/app/ui/pass/WeddingReferencePassScreen.kt
             apps/android/app/src/main/java/pro/wewed/app/ui/more/WeddingReferenceMoreScreen.kt
           )
-          banned='Stella Ndlovu|John Moyo|Appa Tawanda|Brian Kamau|Lindiwe Ncube|Tariro Chikomo|Jane & Michael Doe|Tariro & Shadreck|Guest G001|Reference Venue|Reference City|68% complete|14 NOV 2026|C & K|C&K'
+          banned='Stella Ndlovu|John Moyo|Appa Tawanda|Brian Kamau|Lindiwe Ncube|Tariro Chikomo|Jane & Michael Doe|Tariro & Shadreck|Guest G001|Reference Venue|Reference City|68% complete|14 NOV 2026|C & K|C&K|Programme locked|7 booked'
           if grep -En "$banned" "${files[@]}"; then
             echo "FAIL: demo/wireframe-only literal found in production-derived reference UI."
+            exit 1
+          fi
+
+      - name: Reject unsupported Shadow operational claims
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(
+            apps/ios/Wewed/Services/PrivateRealShadowWeddingRepository.swift
+            apps/android/app/src/main/java/pro/wewed/app/services/PrivateRealShadowWeddingRepository.kt
+            apps/ios/Wewed/Services/ShadowReferencePlannerRepository.swift
+            apps/android/app/src/main/java/pro/wewed/app/services/ShadowReferencePlannerRepository.kt
+          )
+          banned='expectedTime: "12:00"|expectedTime = "12:00"|7 vendors booked|Programme locked|152 guests unseated|8 urgent'
+          if grep -En "$banned" "${files[@]}"; then
+            echo "FAIL: unsupported Shadow operational claim found."
             exit 1
           fi
 

@@ -287,13 +287,13 @@ class ShadowReferenceWeddingRepository : WeddingRepository {
     )
 
     private val vendors = mutableListOf(
-        VendorPresence("shadow_vnd_01", "Cake Gourmet", "caterer", "Imba Manor", VendorPresenceState.SCHEDULED, "TBD"),
-        VendorPresence("shadow_vnd_02", "MC Aloe The Avangelist", "dj", "Imba Manor", VendorPresenceState.SCHEDULED, "TBD"),
-        VendorPresence("shadow_vnd_03", "The Glass Petal Atelier", "florist", "Imba Manor", VendorPresenceState.SCHEDULED, "TBD"),
-        VendorPresence("shadow_vnd_04", "Makeup Artist", "other", "Imba Manor", VendorPresenceState.SCHEDULED, "TBD"),
-        VendorPresence("shadow_vnd_05", "TBD", "other", "Imba Manor", VendorPresenceState.SCHEDULED, "TBD"),
-        VendorPresence("shadow_vnd_06", "FAUME MEDIA", "photographer", "Imba Manor", VendorPresenceState.SCHEDULED, "TBD"),
-        VendorPresence("shadow_vnd_07", "Imba Manor", "venue", "Imba Manor", VendorPresenceState.SCHEDULED, "TBD"),
+        VendorPresence("shadow_vnd_01", "Cake Gourmet", "caterer", "Imba Manor", VendorPresenceState.NOT_RECORDED, "Not recorded"),
+        VendorPresence("shadow_vnd_02", "MC Aloe The Avangelist", "dj", "Imba Manor", VendorPresenceState.NOT_RECORDED, "Not recorded"),
+        VendorPresence("shadow_vnd_03", "The Glass Petal Atelier", "florist", "Imba Manor", VendorPresenceState.NOT_RECORDED, "Not recorded"),
+        VendorPresence("shadow_vnd_04", "Makeup Artist", "other", "Imba Manor", VendorPresenceState.NOT_RECORDED, "Not recorded"),
+        VendorPresence("shadow_vnd_05", "TBD", "other", "Imba Manor", VendorPresenceState.NOT_RECORDED, "Not recorded"),
+        VendorPresence("shadow_vnd_06", "FAUME MEDIA", "photographer", "Imba Manor", VendorPresenceState.NOT_RECORDED, "Not recorded"),
+        VendorPresence("shadow_vnd_07", "Imba Manor", "venue", "Imba Manor", VendorPresenceState.NOT_RECORDED, "Not recorded"),
     )
 
     private val announcements = mutableListOf(

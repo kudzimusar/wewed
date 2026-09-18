@@ -12,7 +12,7 @@ public struct WeddingReferencePlannerView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                WeddingFloralBackground(opacity: 0.065)
+                WeddingFloralBackground(opacity: 0.018)
 
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 14) {

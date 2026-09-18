@@ -7,7 +7,7 @@ public struct VendorPresenceView: View {
     @EnvironmentObject private var appState: AppState
 
     @State private var vendors: [VendorPresence] = []
-    @State private var selectedVendorId: String = "v1"
+    @State private var selectedVendorId: String = ""
     @State private var showingContactAlert: Bool = false
 
     public init() {}
@@ -40,11 +40,10 @@ public struct VendorPresenceView: View {
             .task {
                 loadVendors()
             }
-            .alert("Contact Planner", isPresented: $showingContactAlert) {
-                Button("Call Lead Coordinator (+263 77 123 4567)") {}
-                Button("Cancel", role: .cancel) {}
+            .alert("Planner Contact", isPresented: $showingContactAlert) {
+                Button("OK", role: .cancel) {}
             } message: {
-                Text("Connecting you with the lead wedding day coordinator at Imba Manor.")
+                Text("Planner contact details are not available in this Shadow dataset.")
             }
         }
     }
@@ -211,6 +210,7 @@ public struct VendorPresenceView: View {
 
     private func badgeBackground(state: VendorPresenceState) -> Color {
         switch state {
+        case .notRecorded: return Color.gray.opacity(0.15)
         case .scheduled: return Color.gray.opacity(0.15)
         case .enRoute: return WewedColors.gold.opacity(0.2)
         case .arrived: return WewedColors.emerald.opacity(0.15)
@@ -221,6 +221,7 @@ public struct VendorPresenceView: View {
 
     private func badgeForeground(state: VendorPresenceState) -> Color {
         switch state {
+        case .notRecorded: return .secondary
         case .scheduled: return .secondary
         case .enRoute: return WewedColors.goldDark
         case .arrived: return WewedColors.emerald
@@ -233,6 +234,9 @@ public struct VendorPresenceView: View {
         Task {
             if let list = try? await appState.repository.getVendors() {
                 vendors = list
+                if !list.contains(where: { $0.id == selectedVendorId }) {
+                    selectedVendorId = list.first?.id ?? ""
+                }
             }
         }
     }

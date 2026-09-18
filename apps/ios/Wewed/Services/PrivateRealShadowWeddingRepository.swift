@@ -253,8 +253,8 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
                 vendorName: name,
                 serviceCategory: cat.capitalized,
                 serviceArea: venueStr,
-                state: .scheduled,
-                expectedTime: "12:00",
+                state: .notRecorded,
+                expectedTime: "Not recorded",
                 lastUpdated: Date()
             )
         }

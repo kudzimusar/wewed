@@ -2,6 +2,7 @@ import Foundation
 
 /// Represents real-time operational vendor presence on the wedding day.
 public enum VendorPresenceState: String, Codable, Sendable, CaseIterable {
+    case notRecorded = "NOT_RECORDED"
     case scheduled = "SCHEDULED"
     case enRoute = "EN_ROUTE"
     case arrived = "ARRIVED"
@@ -10,6 +11,7 @@ public enum VendorPresenceState: String, Codable, Sendable, CaseIterable {
 
     public var title: String {
         switch self {
+        case .notRecorded: return "Not recorded"
         case .scheduled: return "Scheduled"
         case .enRoute: return "En Route"
         case .arrived: return "Arrived on Site"
@@ -33,7 +35,7 @@ public struct VendorPresence: Codable, Identifiable, Equatable, Sendable {
         vendorName: String,
         serviceCategory: String,
         serviceArea: String,
-        state: VendorPresenceState = .scheduled,
+        state: VendorPresenceState = .notRecorded,
         expectedTime: String,
         lastUpdated: Date = Date()
     ) {

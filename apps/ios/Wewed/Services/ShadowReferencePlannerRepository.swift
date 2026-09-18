@@ -64,7 +64,7 @@ public actor ShadowReferencePlannerRepository: PlannerDashboardRepositoryProtoco
         ]
 
         timelineEntries = [
-            PlannerTimelineEntry(id: "shadow_prog_01", time: "14:00", title: "Ceremony Begins", location: "Imba Manor", statusLabel: "Scheduled", linkedVendor: nil),
+            PlannerTimelineEntry(id: "shadow_prog_01", time: "14:00", title: "Ceremony Begins", location: "Imba Manor", statusLabel: "23 Dec 2026", linkedVendor: nil),
             PlannerTimelineEntry(id: "shadow_prog_02", time: "13:00", title: "Guest Arrival", location: "Imba Manor", statusLabel: "Scheduled", linkedVendor: nil),
             PlannerTimelineEntry(id: "shadow_prog_03", time: "14:45", title: "Confetti & Congratulations", location: "Imba Manor", statusLabel: "Scheduled", linkedVendor: nil),
             PlannerTimelineEntry(id: "shadow_prog_04", time: "15:30", title: "Cocktail Hour", location: "Imba Manor", statusLabel: "Scheduled", linkedVendor: nil),
@@ -90,20 +90,20 @@ public actor ShadowReferencePlannerRepository: PlannerDashboardRepositoryProtoco
             readinessScore: nil,
             taskCompletionLabel: "7 / 42",
             attentionItems: [
-                PlannerAttentionItem(id: "attn_tasks", title: "8 high priority tasks", detail: "Venue, invitations and logistics need attention.", severity: .urgent),
-                PlannerAttentionItem(id: "attn_rsvp", title: "172 RSVPs pending", detail: "Guest follow-up is affecting seating readiness.", severity: .warning),
-                PlannerAttentionItem(id: "attn_seating", title: "152 guests unseated", detail: "Complete table allocations for invited party capacity.", severity: .warning),
-                PlannerAttentionItem(id: "attn_vendor", title: "7 vendors booked", detail: "Operational contracts and logistics reviews in progress.", severity: .info),
-                PlannerAttentionItem(id: "attn_payment", title: "Payments in progress", detail: "$3,875 paid out of $8,690 actual expenses.", severity: .info)
+                PlannerAttentionItem(id: "attn_tasks", title: "8 high priority tasks", detail: "Active checklist tasks requiring coordination.", severity: .urgent),
+                PlannerAttentionItem(id: "attn_rsvp", title: "172 RSVPs pending", detail: "2 attending records across 174 guest records.", severity: .warning),
+                PlannerAttentionItem(id: "attn_seating", title: "22 of 64 table seats allocated", detail: "42 seats free across 8 tables.", severity: .info),
+                PlannerAttentionItem(id: "attn_vendor", title: "7 vendors recorded", detail: "0 active contracts recorded for this wedding.", severity: .info),
+                PlannerAttentionItem(id: "attn_payment", title: "Budget & Expenses", detail: "$3,875 paid of $8,690 actual expenses ($30,380 estimated).", severity: .info)
             ],
             modules: [
-                PlannerModuleSummary(id: "tasks", title: "Tasks", value: "7 / 42", attention: "8 urgent", systemImage: "checklist"),
+                PlannerModuleSummary(id: "tasks", title: "Tasks", value: "7 / 42", attention: "8 high priority", systemImage: "checklist"),
                 PlannerModuleSummary(id: "budget", title: "Budget", value: "$30.4k", attention: "$3.9k paid", systemImage: "creditcard.fill"),
-                PlannerModuleSummary(id: "contributions", title: "Contributions", value: "4 memories", attention: "4 approved", systemImage: "gift.fill"),
-                PlannerModuleSummary(id: "vendors", title: "Vendors", value: "7 booked", attention: "0 contracts", systemImage: "storefront.fill"),
-                PlannerModuleSummary(id: "guests", title: "Guests", value: "174", attention: "172 awaiting RSVP", systemImage: "person.3.fill"),
+                PlannerModuleSummary(id: "contributions", title: "Contributions", value: "4 messages", attention: "Non-monetary", systemImage: "gift.fill"),
+                PlannerModuleSummary(id: "vendors", title: "Vendors", value: "7 recorded", attention: "0 contracts", systemImage: "storefront.fill"),
+                PlannerModuleSummary(id: "guests", title: "Guests", value: "174", attention: "172 pending", systemImage: "person.3.fill"),
                 PlannerModuleSummary(id: "seating", title: "Seating", value: "22 / 64", attention: "42 seats free", systemImage: "table.furniture.fill"),
-                PlannerModuleSummary(id: "timeline", title: "Timeline", value: "13 events", attention: "Programme locked", systemImage: "calendar.badge.clock")
+                PlannerModuleSummary(id: "timeline", title: "Timeline", value: "13 items", attention: "23 Dec 2026", systemImage: "calendar.badge.clock")
             ],
             recentActivity: [],
             sourceLabel: "Production-derived reference fixture"

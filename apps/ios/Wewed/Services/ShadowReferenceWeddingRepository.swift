@@ -290,13 +290,13 @@ public actor ShadowReferenceWeddingRepository: WeddingRepositoryProtocol {
         )
 
         vendors = [
-            VendorPresence(id: "shadow_vnd_01", vendorName: "Cake Gourmet", serviceCategory: "caterer", serviceArea: "Imba Manor", state: .scheduled, expectedTime: "TBD"),
-            VendorPresence(id: "shadow_vnd_02", vendorName: "MC Aloe The Avangelist", serviceCategory: "dj", serviceArea: "Imba Manor", state: .scheduled, expectedTime: "TBD"),
-            VendorPresence(id: "shadow_vnd_03", vendorName: "The Glass Petal Atelier", serviceCategory: "florist", serviceArea: "Imba Manor", state: .scheduled, expectedTime: "TBD"),
-            VendorPresence(id: "shadow_vnd_04", vendorName: "Makeup Artist", serviceCategory: "other", serviceArea: "Imba Manor", state: .scheduled, expectedTime: "TBD"),
-            VendorPresence(id: "shadow_vnd_05", vendorName: "TBD", serviceCategory: "other", serviceArea: "Imba Manor", state: .scheduled, expectedTime: "TBD"),
-            VendorPresence(id: "shadow_vnd_06", vendorName: "FAUME MEDIA", serviceCategory: "photographer", serviceArea: "Imba Manor", state: .scheduled, expectedTime: "TBD"),
-            VendorPresence(id: "shadow_vnd_07", vendorName: "Imba Manor", serviceCategory: "venue", serviceArea: "Imba Manor", state: .scheduled, expectedTime: "TBD"),
+            VendorPresence(id: "shadow_vnd_01", vendorName: "Cake Gourmet", serviceCategory: "caterer", serviceArea: "Imba Manor", state: .notRecorded, expectedTime: "Not recorded"),
+            VendorPresence(id: "shadow_vnd_02", vendorName: "MC Aloe The Avangelist", serviceCategory: "dj", serviceArea: "Imba Manor", state: .notRecorded, expectedTime: "Not recorded"),
+            VendorPresence(id: "shadow_vnd_03", vendorName: "The Glass Petal Atelier", serviceCategory: "florist", serviceArea: "Imba Manor", state: .notRecorded, expectedTime: "Not recorded"),
+            VendorPresence(id: "shadow_vnd_04", vendorName: "Makeup Artist", serviceCategory: "other", serviceArea: "Imba Manor", state: .notRecorded, expectedTime: "Not recorded"),
+            VendorPresence(id: "shadow_vnd_05", vendorName: "TBD", serviceCategory: "other", serviceArea: "Imba Manor", state: .notRecorded, expectedTime: "Not recorded"),
+            VendorPresence(id: "shadow_vnd_06", vendorName: "FAUME MEDIA", serviceCategory: "photographer", serviceArea: "Imba Manor", state: .notRecorded, expectedTime: "Not recorded"),
+            VendorPresence(id: "shadow_vnd_07", vendorName: "Imba Manor", serviceCategory: "venue", serviceArea: "Imba Manor", state: .notRecorded, expectedTime: "Not recorded"),
         ]
 
         announcements = [

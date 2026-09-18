@@ -6,6 +6,7 @@ import java.util.UUID
  * Represents real-time operational vendor presence on the wedding day.
  */
 enum class VendorPresenceState(val title: String) {
+    NOT_RECORDED("Not recorded"),
     SCHEDULED("Scheduled"),
     EN_ROUTE("En Route"),
     ARRIVED("Arrived on Site"),
@@ -18,7 +19,7 @@ data class VendorPresence(
     val vendorName: String,
     val serviceCategory: String,
     val serviceArea: String,
-    var state: VendorPresenceState = VendorPresenceState.SCHEDULED,
+    var state: VendorPresenceState = VendorPresenceState.NOT_RECORDED,
     val expectedTime: String,
     var lastUpdatedMillis: Long = System.currentTimeMillis()
 )

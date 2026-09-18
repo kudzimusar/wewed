@@ -78,7 +78,7 @@ fun WeddingReferenceGuestsScreen(appViewModel: AppViewModel) {
     ) {
         WeddingOrnamentBackdrop(
             modifier = Modifier.matchParentSize(),
-            alpha = 0.05f
+            alpha = 0.018f
         )
 
         Column(
