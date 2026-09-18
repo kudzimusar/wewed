@@ -56,6 +56,7 @@ public struct PlannerView: View {
             }
             .background(WewedColors.ivory)
             .navigationTitle("Wedding Planner")
+            .accessibilityIdentifier("planner-root")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
@@ -102,6 +103,7 @@ public struct PlannerView: View {
         .background(Color.white)
         .cornerRadius(WewedRadius.lg)
         .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 2)
+        .accessibilityIdentifier("planner-identity-card")
     }
 
     private func readinessCard(_ dashboard: PlannerDashboardSnapshot) -> some View {
@@ -199,6 +201,7 @@ public struct PlannerView: View {
                         .cornerRadius(WewedRadius.lg)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("planner-module-\(module.id)")
                 }
             }
         }
@@ -307,6 +310,7 @@ public struct PlannerView: View {
         .padding()
         .background(WewedColors.emerald.opacity(0.08))
         .cornerRadius(WewedRadius.md)
+        .accessibilityIdentifier("planner-source-card")
     }
 
     @ViewBuilder
