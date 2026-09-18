@@ -66,11 +66,18 @@ fun RootScreen(
                 modifier = Modifier.semantics { testTagsAsResourceId = true },
                 containerColor = WeddingIdentityPalette.Ivory,
                 bottomBar = {
-                    NavigationBar(
-                        containerColor = WeddingIdentityPalette.IvorySoft,
-                        tonalElevation = 2.dp
+                    Column(
+                        modifier = Modifier.background(WeddingIdentityPalette.IvorySoft)
                     ) {
-                        ReferenceNavItem(
+                        HorizontalDivider(
+                            thickness = 1.dp,
+                            color = WeddingIdentityPalette.Hairline
+                        )
+                        NavigationBar(
+                            containerColor = WeddingIdentityPalette.IvorySoft,
+                            tonalElevation = 0.dp
+                        ) {
+                            ReferenceNavItem(
                             selected = selectedTab == AppTab.HOME,
                             label = "Home",
                             icon = Icons.Default.Home
@@ -94,11 +101,12 @@ fun RootScreen(
                             icon = Icons.Default.QrCode
                         ) { appViewModel.selectTab(AppTab.PASS) }
 
-                        ReferenceNavItem(
-                            selected = selectedTab == AppTab.LIVE,
-                            label = "More",
-                            icon = Icons.Default.Menu
-                        ) { appViewModel.selectTab(AppTab.LIVE) }
+                            ReferenceNavItem(
+                                selected = selectedTab == AppTab.LIVE,
+                                label = "More",
+                                icon = Icons.Default.Menu
+                            ) { appViewModel.selectTab(AppTab.LIVE) }
+                        }
                     }
                 }
             ) { innerPadding ->
@@ -184,7 +192,7 @@ private fun RowScope.ReferenceNavItem(
         colors = NavigationBarItemDefaults.colors(
             selectedIconColor = WeddingIdentityPalette.ChampagneDeep,
             selectedTextColor = WeddingIdentityPalette.ChampagneDeep,
-            indicatorColor = WeddingIdentityPalette.Champagne.copy(alpha = 0.12f),
+            indicatorColor = Color.Transparent,
             unselectedIconColor = WeddingIdentityPalette.Muted,
             unselectedTextColor = WeddingIdentityPalette.Muted
         )
