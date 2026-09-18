@@ -132,7 +132,7 @@ fun WeddingReferenceMoreScreen(appViewModel: AppViewModel) {
                     destination = ReferenceMoreDestination.SUPPORT
                 }
 
-                Spacer()
+                Spacer(modifier = Modifier.weight(1f))
 
                 WeddingMonogram(
                     names = wedding?.coupleNames ?: "C & K",
