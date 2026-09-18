@@ -104,13 +104,26 @@ fun WeddingReferencePassScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(18.dp)
                 ) {
-                    Text(
-                        "Wedding Pass",
-                        color = WeddingIdentityPalette.Ink,
-                        fontFamily = FontFamily.Serif,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 22.sp
-                    )
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            "Wedding Pass",
+                            color = WeddingIdentityPalette.Ink,
+                            fontFamily = FontFamily.Serif,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 22.sp,
+                            modifier = Modifier.align(Alignment.Center)
+                        )
+                        IconButton(
+                            onClick = onOpenScanner,
+                            modifier = Modifier.align(Alignment.CenterEnd).testTag("pass-header-scanner")
+                        ) {
+                            Icon(
+                                Icons.Default.QrCodeScanner,
+                                contentDescription = "Open gate scanner",
+                                tint = WeddingIdentityPalette.Ink
+                            )
+                        }
+                    }
 
                     Box(
                         modifier = Modifier
