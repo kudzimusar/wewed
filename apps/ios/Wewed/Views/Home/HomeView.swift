@@ -469,7 +469,7 @@ public struct HomeView: View {
                     weddingSlug: loadedWedding.id,
                     token: "native-reference-guest"
                 )
-                quickPass = try? await appState.repository.getWeddingPass(token: "native-reference-guest")
+                quickPass = try? await appState.repository.getWeddingPass(token: "shadow-attending-guest")
                 isLoading = false
             } catch {
                 isLoading = false
