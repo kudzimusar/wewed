@@ -6,7 +6,6 @@ import { randomUUID } from 'node:crypto'
 
 const prisma = new PrismaClient()
 const EMULATOR_BASE_URL = process.env.WEWED_ANDROID_E2E_BASE_URL ?? 'http://10.0.2.2:3000'
-const HOST_BASE_URL = process.env.WEWED_UAT_BASE_URL ?? 'http://127.0.0.1:3000'
 
 async function createFixture() {
   const suffix = randomUUID().replaceAll('-', '').slice(0, 16)
@@ -101,6 +100,7 @@ function handoffFromIntent(intentUrl) {
   assert.ok(intentUrl.includes('package=pro.wewed.app'))
   assert.ok(!intentUrl.includes('rsvp='))
   assert.ok(!intentUrl.includes('guest='))
+  assert.ok(!intentUrl.includes('email='))
   const match = intentUrl.match(/(?:^|;)S\.wewed_handoff=([^;]+);/)
   assert.ok(match, 'missing opaque handoff in Android intent')
   const handoff = decodeURIComponent(match[1])
@@ -108,16 +108,15 @@ function handoffFromIntent(intentUrl) {
   return handoff
 }
 
-async function activeGuestFromPage(page, fixture) {
-  const response = await page.goto(
+async function activeGuestFromContext(browserContext, fixture) {
+  const response = await browserContext.request.get(
     `${EMULATOR_BASE_URL}/api/weddings/${encodeURIComponent(fixture.weddingSlug)}/guest-session`,
-    { waitUntil: 'domcontentloaded' },
   )
-  assert.equal(response?.status(), 200)
-  return JSON.parse(await page.locator('body').innerText())
+  assert.equal(response.status(), 200)
+  return response.json()
 }
 
-async function prepareAndClick(browserPage, fixture, token, handoffPostCount) {
+async function prepareGate(browserPage, fixture, token, handoffPostCount) {
   await browserPage.goto(
     `${EMULATOR_BASE_URL}/invite/${encodeURIComponent(fixture.weddingSlug)}?rsvp=${encodeURIComponent(token)}&card=ivory-floral-gold`,
     { waitUntil: 'domcontentloaded' },
@@ -134,17 +133,22 @@ async function prepareAndClick(browserPage, fixture, token, handoffPostCount) {
   const href = await link.getAttribute('href')
   assert.ok(href)
   const handoff = handoffFromIntent(href)
-  const postsBeforeClick = handoffPostCount()
 
-  await link.click()
+  return {
+    link,
+    handoff,
+    postsBeforeClick: handoffPostCount(),
+  }
+}
+
+async function clickPreparedGate(prepared, handoffPostCount) {
+  await prepared.link.click()
   await sleep(750)
-
   assert.equal(
     handoffPostCount(),
-    postsBeforeClick,
+    prepared.postsBeforeClick,
     'final Android launch click must not perform an async handoff POST',
   )
-  return handoff
 }
 
 async function nativeCheckpoints(device, minimumIntentCount) {
@@ -179,6 +183,7 @@ async function run() {
   let fixture
   let browserContext
   let device
+
   try {
     fixture = await createFixture()
 
@@ -206,68 +211,79 @@ async function run() {
       }
     })
 
-    // A: Chrome -> actual intent link -> Wewed wrapper -> local resume endpoint.
-    const handoffA = await prepareAndClick(
+    // A: real Android Chrome -> prepared intent -> Wewed wrapper -> local resume.
+    const preparedA = await prepareGate(
       browserPage,
       fixture,
       fixture.tokenA,
       () => handoffPosts,
     )
-    assert.match(handoffA, /^[A-Za-z0-9_-]{43}$/)
+    assert.equal(handoffPosts, 1)
+    await clickPreparedGate(preparedA, () => handoffPosts)
     await nativeCheckpoints(device, 1)
     await waitForRedemption(fixture, 1)
+    console.log('checkpoint=resume_requested guest=A')
     console.log('checkpoint=handoff_redeemed guest=A')
 
-    const activeA = await activeGuestFromPage(browserPage, fixture)
+    const activeA = await activeGuestFromContext(browserContext, fixture)
     assert.equal(activeA.guest.id, fixture.guestAId)
     assert.equal(activeA.guest.name, 'Android UAT Guest A')
     console.log('checkpoint=active_guest=A')
 
-    // B gate must leave A valid until B has actually entered Wewed.
-    const handoffB = await browserPage.goto(
-      `${EMULATOR_BASE_URL}/invite/${encodeURIComponent(fixture.weddingSlug)}?rsvp=${encodeURIComponent(fixture.tokenB)}&card=ivory-floral-gold`,
-      { waitUntil: 'domcontentloaded' },
-    )
-    assert.ok(handoffB)
-    const beforeB = await activeGuestFromPage(browserPage, fixture)
-    assert.equal(beforeB.guest.id, fixture.guestAId)
-    console.log('checkpoint=active_guest=A-before-B-resume')
-
-    // Return to B's gate after the API assertion above, prepare, then launch.
-    const bOpaque = await prepareAndClick(
+    // B must be fully prepared while A remains valid; the switch is committed
+    // only after the Android intent is received and B redeems its handoff.
+    const preparedB = await prepareGate(
       browserPage,
       fixture,
       fixture.tokenB,
       () => handoffPosts,
     )
-    assert.match(bOpaque, /^[A-Za-z0-9_-]{43}$/)
+    assert.equal(handoffPosts, 2)
+
+    const beforeB = await activeGuestFromContext(browserContext, fixture)
+    assert.equal(beforeB.guest.id, fixture.guestAId)
+    console.log('checkpoint=active_guest=A-before-B-resume')
+
+    await clickPreparedGate(preparedB, () => handoffPosts)
     await nativeCheckpoints(device, 2)
     await waitForRedemption(fixture, 2)
+    console.log('checkpoint=resume_requested guest=B')
     console.log('checkpoint=handoff_redeemed guest=B')
 
-    const activeB = await activeGuestFromPage(browserPage, fixture)
+    const activeB = await activeGuestFromContext(browserContext, fixture)
     assert.equal(activeB.guest.id, fixture.guestBId)
     assert.equal(activeB.guest.name, 'Android UAT Guest B')
     console.log('checkpoint=active_guest=B')
 
-    // Reverse B -> A through the same real Chrome profile and installed wrapper.
-    const aOpaque2 = await prepareAndClick(
+    // Reverse B -> A through the same Android Chrome profile and installed app.
+    const preparedA2 = await prepareGate(
       browserPage,
       fixture,
       fixture.tokenA,
       () => handoffPosts,
     )
-    assert.match(aOpaque2, /^[A-Za-z0-9_-]{43}$/)
+    assert.equal(handoffPosts, 3)
+
+    const beforeA2 = await activeGuestFromContext(browserContext, fixture)
+    assert.equal(beforeA2.guest.id, fixture.guestBId)
+    console.log('checkpoint=active_guest=B-before-A-resume')
+
+    await clickPreparedGate(preparedA2, () => handoffPosts)
     await nativeCheckpoints(device, 3)
     await waitForRedemption(fixture, 3)
+    console.log('checkpoint=resume_requested guest=A2')
     console.log('checkpoint=handoff_redeemed guest=A2')
 
-    const activeA2 = await activeGuestFromPage(browserPage, fixture)
+    const activeA2 = await activeGuestFromContext(browserContext, fixture)
     assert.equal(activeA2.guest.id, fixture.guestAId)
     assert.equal(activeA2.guest.name, 'Android UAT Guest A')
     console.log('checkpoint=active_guest=A-restored')
 
-    assert.equal(handoffPosts, 3, 'one prepared handoff must be created per explicit guest switch')
+    assert.equal(
+      handoffPosts,
+      3,
+      'one prepared handoff must be created per explicit guest switch',
+    )
   } finally {
     await browserContext?.close().catch(() => undefined)
     await device?.close().catch(() => undefined)
