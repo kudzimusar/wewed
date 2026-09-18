@@ -17,7 +17,7 @@ public struct WeddingReferenceHomeView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                WeddingFloralBackground()
+                WeddingFloralBackground(opacity: 0.035)
 
                 ScrollView(showsIndicators: false) {
                     if let wedding {
@@ -174,7 +174,7 @@ public struct WeddingReferenceHomeView: View {
                         Text("Continue Planning")
                             .font(.system(size: 17, weight: .semibold, design: .serif))
                             .foregroundStyle(WeddingIdentityPalette.ink)
-                        Text(taskProgressLabel)
+                        Text("You’re \(taskCompletionPercent)% there")
                             .font(.system(size: 13))
                             .foregroundStyle(WeddingIdentityPalette.muted)
                         ProgressView(value: taskCompletionRatio)
