@@ -60,6 +60,7 @@ fun PlannerScreen(appViewModel: AppViewModel) {
     val filteredTasks = when (selectedFilter) {
         "To Do" -> tasks.filter { it.status == TaskStatus.TODO }
         "In Progress" -> tasks.filter { it.status == TaskStatus.IN_PROGRESS }
+        "Blocked" -> tasks.filter { it.status == TaskStatus.BLOCKED }
         "Done" -> tasks.filter { it.status == TaskStatus.DONE }
         else -> tasks
     }
@@ -155,7 +156,7 @@ fun PlannerScreen(appViewModel: AppViewModel) {
 
             item {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(WewedSpacing.sm)) {
-                    val filters = listOf("All", "To Do", "In Progress", "Done")
+                    val filters = listOf("All", "To Do", "In Progress", "Blocked", "Done")
                     items(filters) { f ->
                         FilterChip(
                             selected = selectedFilter == f,
