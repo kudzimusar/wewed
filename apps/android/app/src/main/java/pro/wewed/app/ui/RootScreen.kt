@@ -18,17 +18,17 @@ import pro.wewed.app.models.AppRole
 import pro.wewed.app.state.AppTab
 import pro.wewed.app.state.AppViewModel
 import pro.wewed.app.state.SessionViewModel
+import pro.wewed.app.theme.WeddingIdentityPalette
 import pro.wewed.app.theme.WewedColors
 import pro.wewed.app.ui.auth.LoginScreen
-import pro.wewed.app.ui.guests.GuestsScreen
-import pro.wewed.app.ui.home.HomeScreen
-import pro.wewed.app.ui.live.LiveWallScreen
-import pro.wewed.app.ui.pass.PassScreen
+import pro.wewed.app.ui.guests.WeddingReferenceGuestsScreen
+import pro.wewed.app.ui.home.WeddingReferenceHomeScreen
+import pro.wewed.app.ui.more.WeddingReferenceMoreScreen
 import pro.wewed.app.ui.pass.UsherScannerScreen
-import pro.wewed.app.ui.planner.PlannerScreen
+import pro.wewed.app.ui.pass.WeddingReferencePassScreen
+import pro.wewed.app.ui.planner.WeddingReferencePlannerScreen
 import pro.wewed.app.ui.roles.*
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RootScreen(
     sessionViewModel: SessionViewModel,
@@ -53,43 +53,80 @@ fun RootScreen(
         )
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color.Black.copy(alpha = 0.85f))
-                .padding(horizontal = 16.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+    if (currentRole == AppRole.COUPLE) {
+        if (isScannerOpen) {
+            UsherScannerScreen(
+                appViewModel = appViewModel,
+                onClose = { isScannerOpen = false }
+            )
+        } else {
+            Scaffold(
+                containerColor = WeddingIdentityPalette.Ivory,
+                bottomBar = {
+                    NavigationBar(
+                        containerColor = WeddingIdentityPalette.IvorySoft,
+                        tonalElevation = 2.dp
+                    ) {
+                        ReferenceNavItem(
+                            selected = selectedTab == AppTab.HOME,
+                            label = "Home",
+                            icon = Icons.Default.Home
+                        ) { appViewModel.selectTab(AppTab.HOME) }
+
+                        ReferenceNavItem(
+                            selected = selectedTab == AppTab.PLAN,
+                            label = "Plan",
+                            icon = Icons.Default.CalendarMonth
+                        ) { appViewModel.selectTab(AppTab.PLAN) }
+
+                        ReferenceNavItem(
+                            selected = selectedTab == AppTab.GUESTS,
+                            label = "Guests",
+                            icon = Icons.Default.Group
+                        ) { appViewModel.selectTab(AppTab.GUESTS) }
+
+                        ReferenceNavItem(
+                            selected = selectedTab == AppTab.PASS,
+                            label = "Pass",
+                            icon = Icons.Default.QrCode
+                        ) { appViewModel.selectTab(AppTab.PASS) }
+
+                        ReferenceNavItem(
+                            selected = selectedTab == AppTab.LIVE,
+                            label = "More",
+                            icon = Icons.Default.Menu
+                        ) { appViewModel.selectTab(AppTab.LIVE) }
+                    }
+                }
+            ) { innerPadding ->
                 Box(
                     modifier = Modifier
-                        .size(8.dp)
-                        .background(Color.Green, CircleShape)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(currentUserName ?: "Charity & Kudzie", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(currentRole.title, color = WewedColors.Gold, fontSize = 11.sp)
-                Spacer(modifier = Modifier.width(6.dp))
-                Surface(
-                    shape = RoundedCornerShape(50),
-                    color = Color.White.copy(alpha = 0.12f)
+                        .fillMaxSize()
+                        .padding(innerPadding)
                 ) {
-                    Text(
-                        appViewModel.dataEnvironment.title.uppercase(),
-                        color = if (appViewModel.dataEnvironment.name == "PRODUCTION") Color.Red else WewedColors.Emerald,
-                        fontSize = 8.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
+                    when (selectedTab) {
+                        AppTab.HOME -> WeddingReferenceHomeScreen(appViewModel)
+                        AppTab.PLAN -> WeddingReferencePlannerScreen(appViewModel)
+                        AppTab.GUESTS -> WeddingReferenceGuestsScreen(appViewModel)
+                        AppTab.PASS -> WeddingReferencePassScreen(
+                            appViewModel = appViewModel,
+                            onOpenScanner = { isScannerOpen = true }
+                        )
+                        AppTab.LIVE -> WeddingReferenceMoreScreen(appViewModel)
+                    }
                 }
             }
-            TextButton(onClick = { showPersonaPicker = true }) {
-                Text("Switch", color = WewedColors.Gold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            }
         }
+        return
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        DeveloperPersonaBanner(
+            currentUserName = currentUserName,
+            currentRole = currentRole,
+            appViewModel = appViewModel,
+            onSwitch = { showPersonaPicker = true }
+        )
 
         Box(modifier = Modifier.weight(1f)) {
             when (currentRole) {
@@ -123,105 +160,86 @@ fun RootScreen(
                     appViewModel = appViewModel,
                     onOpenPersonaPicker = { showPersonaPicker = true }
                 )
-                AppRole.COUPLE -> {
-                    if (isScannerOpen) {
-                        UsherScannerScreen(
-                            appViewModel = appViewModel,
-                            onClose = { isScannerOpen = false }
-                        )
-                    } else {
-                        Scaffold(
-                            topBar = {
-                                TopAppBar(
-                                    title = { Text("WEWED", color = WewedColors.Gold) },
-                                    actions = {
-                                        TextButton(onClick = { showPersonaPicker = true }) {
-                                            Text("Switch", color = WewedColors.Gold, fontWeight = FontWeight.Bold)
-                                        }
-                                    },
-                                    colors = TopAppBarDefaults.topAppBarColors(containerColor = WewedColors.Ivory)
-                                )
-                            },
-                            bottomBar = {
-                                NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                                    NavigationBarItem(
-                                        selected = selectedTab == AppTab.HOME,
-                                        onClick = { appViewModel.selectTab(AppTab.HOME) },
-                                        icon = { Icon(Icons.Default.Favorite, contentDescription = "Home") },
-                                        label = { Text("Home") },
-                                        colors = NavigationBarItemDefaults.colors(
-                                            selectedIconColor = WewedColors.Gold,
-                                            selectedTextColor = WewedColors.Gold,
-                                            indicatorColor = WewedColors.GoldLight.copy(alpha = 0.3f)
-                                        )
-                                    )
-                                    NavigationBarItem(
-                                        selected = selectedTab == AppTab.PLAN,
-                                        onClick = { appViewModel.selectTab(AppTab.PLAN) },
-                                        icon = { Icon(Icons.Default.Checklist, contentDescription = "Plan") },
-                                        label = { Text("Plan") },
-                                        colors = NavigationBarItemDefaults.colors(
-                                            selectedIconColor = WewedColors.Gold,
-                                            selectedTextColor = WewedColors.Gold,
-                                            indicatorColor = WewedColors.GoldLight.copy(alpha = 0.3f)
-                                        )
-                                    )
-                                    NavigationBarItem(
-                                        selected = selectedTab == AppTab.GUESTS,
-                                        onClick = { appViewModel.selectTab(AppTab.GUESTS) },
-                                        icon = { Icon(Icons.Default.Group, contentDescription = "Guests") },
-                                        label = { Text("Guests") },
-                                        colors = NavigationBarItemDefaults.colors(
-                                            selectedIconColor = WewedColors.Gold,
-                                            selectedTextColor = WewedColors.Gold,
-                                            indicatorColor = WewedColors.GoldLight.copy(alpha = 0.3f)
-                                        )
-                                    )
-                                    NavigationBarItem(
-                                        selected = selectedTab == AppTab.PASS,
-                                        onClick = { appViewModel.selectTab(AppTab.PASS) },
-                                        icon = { Icon(Icons.Default.QrCode, contentDescription = "Pass") },
-                                        label = { Text("Pass") },
-                                        colors = NavigationBarItemDefaults.colors(
-                                            selectedIconColor = WewedColors.Gold,
-                                            selectedTextColor = WewedColors.Gold,
-                                            indicatorColor = WewedColors.GoldLight.copy(alpha = 0.3f)
-                                        )
-                                    )
-                                    NavigationBarItem(
-                                        selected = selectedTab == AppTab.LIVE,
-                                        onClick = { appViewModel.selectTab(AppTab.LIVE) },
-                                        icon = { Icon(Icons.Default.Forum, contentDescription = "Live") },
-                                        label = { Text("Live") },
-                                        colors = NavigationBarItemDefaults.colors(
-                                            selectedIconColor = WewedColors.Gold,
-                                            selectedTextColor = WewedColors.Gold,
-                                            indicatorColor = WewedColors.GoldLight.copy(alpha = 0.3f)
-                                        )
-                                    )
-                                }
-                            }
-                        ) { innerPadding ->
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(innerPadding)
-                            ) {
-                                when (selectedTab) {
-                                    AppTab.HOME -> HomeScreen(appViewModel = appViewModel)
-                                    AppTab.PLAN -> PlannerScreen(appViewModel = appViewModel)
-                                    AppTab.GUESTS -> GuestsScreen(appViewModel = appViewModel)
-                                    AppTab.PASS -> PassScreen(
-                                        appViewModel = appViewModel,
-                                        onOpenScanner = { isScannerOpen = true }
-                                    )
-                                    AppTab.LIVE -> LiveWallScreen()
-                                }
-                            }
-                        }
-                    }
-                }
+                AppRole.COUPLE -> Unit
             }
+        }
+    }
+}
+
+@Composable
+private fun ReferenceNavItem(
+    selected: Boolean,
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit
+) {
+    NavigationBarItem(
+        selected = selected,
+        onClick = onClick,
+        icon = { Icon(icon, contentDescription = label) },
+        label = { Text(label, fontSize = 11.sp) },
+        colors = NavigationBarItemDefaults.colors(
+            selectedIconColor = WeddingIdentityPalette.ChampagneDeep,
+            selectedTextColor = WeddingIdentityPalette.ChampagneDeep,
+            indicatorColor = WeddingIdentityPalette.Champagne.copy(alpha = 0.12f),
+            unselectedIconColor = WeddingIdentityPalette.Muted,
+            unselectedTextColor = WeddingIdentityPalette.Muted
+        )
+    )
+}
+
+@Composable
+private fun DeveloperPersonaBanner(
+    currentUserName: String?,
+    currentRole: AppRole,
+    appViewModel: AppViewModel,
+    onSwitch: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.Black.copy(alpha = 0.85f))
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .background(Color.Green, CircleShape)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                currentUserName ?: "Active User",
+                color = Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(currentRole.title, color = WewedColors.Gold, fontSize = 11.sp)
+            Spacer(modifier = Modifier.width(6.dp))
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = Color.White.copy(alpha = 0.12f)
+            ) {
+                Text(
+                    appViewModel.dataEnvironment.title.uppercase(),
+                    color = if (appViewModel.dataEnvironment.name == "PRODUCTION") Color.Red else WewedColors.Emerald,
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                )
+            }
+        }
+
+        TextButton(onClick = onSwitch) {
+            Text(
+                "Switch",
+                color = WewedColors.Gold,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }
