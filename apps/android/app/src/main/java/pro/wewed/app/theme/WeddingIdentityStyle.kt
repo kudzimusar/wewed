@@ -66,7 +66,7 @@ fun WeddingMonogram(names: String, modifier: Modifier = Modifier, sizeSp: Int = 
     val monogram = if (parts.size >= 2) {
         "${parts[0].first()}&${parts[1].first()}"
     } else {
-        "C&K"
+        "♡"
     }
 
     Text(

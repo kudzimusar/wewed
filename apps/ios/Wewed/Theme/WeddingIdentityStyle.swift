@@ -93,7 +93,7 @@ public struct WeddingMonogram: View {
         guard pieces.count >= 2,
               let first = pieces[0].first,
               let second = pieces[1].first else {
-            return "C&K"
+            return "♡"
         }
         return "\(first)&\(second)"
     }

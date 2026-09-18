@@ -44,7 +44,7 @@ jobs:
             apps/android/app/src/main/java/pro/wewed/app/ui/pass/WeddingReferencePassScreen.kt
             apps/android/app/src/main/java/pro/wewed/app/ui/more/WeddingReferenceMoreScreen.kt
           )
-          banned='Stella Ndlovu|John Moyo|Appa Tawanda|Brian Kamau|Lindiwe Ncube|Tariro Chikomo|Jane & Michael Doe|Tariro & Shadreck|Guest G001|Reference Venue|Reference City|68% complete|14 NOV 2026'
+          banned='Stella Ndlovu|John Moyo|Appa Tawanda|Brian Kamau|Lindiwe Ncube|Tariro Chikomo|Jane & Michael Doe|Tariro & Shadreck|Guest G001|Reference Venue|Reference City|68% complete|14 NOV 2026|C & K|C&K'
           if grep -En "$banned" "${files[@]}"; then
             echo "FAIL: demo/wireframe-only literal found in production-derived reference UI."
             exit 1

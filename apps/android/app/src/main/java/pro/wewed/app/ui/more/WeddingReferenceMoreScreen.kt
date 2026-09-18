@@ -55,13 +55,13 @@ fun WeddingReferenceMoreScreen(appViewModel: AppViewModel) {
             ReferenceMoreDestination.HONEYMOON ->
                 ShadowContributionsDestination(appViewModel) { destination = null }
             ReferenceMoreDestination.STORY ->
-                ReferenceMoreEmptyScreen("Our Story", "No story or media records are available in this Shadow wedding yet.", wedding?.coupleNames ?: "C & K") { destination = null }
+                ReferenceMoreEmptyScreen("Our Story", "No story or media records are available in this Shadow wedding yet.", wedding?.coupleNames ?: "") { destination = null }
             ReferenceMoreDestination.GALLERY ->
-                ReferenceMoreEmptyScreen("Gallery", "No gallery media is available in this Shadow wedding yet.", wedding?.coupleNames ?: "C & K") { destination = null }
+                ReferenceMoreEmptyScreen("Gallery", "No gallery media is available in this Shadow wedding yet.", wedding?.coupleNames ?: "") { destination = null }
             ReferenceMoreDestination.SETTINGS ->
-                ReferenceMoreEmptyScreen("Settings", "Wedding app preferences are not configured in this Shadow dataset.", wedding?.coupleNames ?: "C & K") { destination = null }
+                ReferenceMoreEmptyScreen("Settings", "Wedding app preferences are not configured in this Shadow dataset.", wedding?.coupleNames ?: "") { destination = null }
             ReferenceMoreDestination.SUPPORT ->
-                ReferenceMoreEmptyScreen("Help & Support", "Support contact configuration is not part of this Shadow wedding dataset.", wedding?.coupleNames ?: "C & K") { destination = null }
+                ReferenceMoreEmptyScreen("Help & Support", "Support contact configuration is not part of this Shadow wedding dataset.", wedding?.coupleNames ?: "") { destination = null }
         }
         return
     }

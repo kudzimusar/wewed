@@ -93,8 +93,10 @@ public struct WeddingReferenceGuestsView: View {
                     .foregroundStyle(WeddingIdentityPalette.muted)
             }
                 Spacer()
-                WeddingMonogram(names: wedding?.coupleNames ?? "C & K", size: 32)
-                    .padding(.trailing, 8)
+                if let coupleNames = wedding?.coupleNames {
+                    WeddingMonogram(names: coupleNames, size: 32)
+                        .padding(.trailing, 8)
+                }
             }
         }
     }

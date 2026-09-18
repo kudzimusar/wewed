@@ -107,7 +107,9 @@ fun WeddingReferenceGuestsScreen(appViewModel: AppViewModel) {
                         fontSize = 12.sp
                     )
                 }
-                    WeddingMonogram(wedding?.coupleNames ?: "C & K", sizeSp = 32, modifier = Modifier.padding(end = 8.dp))
+                    wedding?.coupleNames?.let { coupleNames ->
+                        WeddingMonogram(coupleNames, sizeSp = 32, modifier = Modifier.padding(end = 8.dp))
+                    }
                 }
             }
 
