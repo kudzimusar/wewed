@@ -38,7 +38,6 @@ import kotlin.math.max
 @Composable
 fun WeddingReferenceHomeScreen(appViewModel: AppViewModel) {
     var wedding by remember { mutableStateOf<Wedding?>(null) }
-    var dashboard by remember { mutableStateOf<PlannerDashboardSnapshot?>(null) }
     var tasks by remember { mutableStateOf<List<PlannerTask>>(emptyList()) }
     var guests by remember { mutableStateOf<List<Guest>>(emptyList()) }
     var budget by remember { mutableStateOf<BudgetSummary?>(null) }
@@ -51,7 +50,6 @@ fun WeddingReferenceHomeScreen(appViewModel: AppViewModel) {
         try {
             val loadedWedding = appViewModel.repository.getWedding()
             wedding = loadedWedding
-            dashboard = appViewModel.plannerRepository.getDashboard()
             tasks = appViewModel.repository.getTasks()
             guests = appViewModel.repository.getGuests()
             budget = appViewModel.repository.getBudget()
@@ -106,7 +104,6 @@ fun WeddingReferenceHomeScreen(appViewModel: AppViewModel) {
                     )
 
                     ReferenceContinuePlanning(
-                        label = dashboard?.taskCompletionLabel ?: "${tasks.count { it.status == TaskStatus.DONE }} / ${tasks.size}",
                         ratio = if (tasks.isEmpty()) 0f else tasks.count { it.status == TaskStatus.DONE }.toFloat() / tasks.size.toFloat(),
                         onClick = { appViewModel.selectTab(AppTab.PLAN) }
                     )
@@ -294,7 +291,6 @@ private fun ReferenceCountdownTile(value: Int, label: String, modifier: Modifier
 
 @Composable
 private fun ReferenceContinuePlanning(
-    label: String,
     ratio: Float,
     onClick: () -> Unit
 ) {
@@ -356,93 +352,6 @@ private fun ReferenceContinuePlanning(
     }
 }
 
-@Composable
-private fun ReferenceFocus(
-    tasks: List<PlannerTask>,
-    onViewAll: () -> Unit
-) {
-    val focus = tasks.sortedWith(
-        compareBy<PlannerTask> { it.status == TaskStatus.DONE }
-            .thenByDescending { priorityRank(it.priority) }
-    ).take(3)
-
-    Column(
-        modifier = Modifier.testTag("home-today-focus"),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                "Today’s Focus",
-                color = WeddingIdentityPalette.Ink,
-                fontFamily = FontFamily.Serif,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-            TextButton(onClick = onViewAll) {
-                Text("View All", color = WeddingIdentityPalette.Muted, fontSize = 12.sp)
-            }
-        }
-
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .background(WeddingIdentityPalette.IvorySoft)
-                .border(1.dp, WeddingIdentityPalette.Hairline, RoundedCornerShape(18.dp))
-                .padding(horizontal = 14.dp)
-        ) {
-            if (focus.isEmpty()) {
-                Text(
-                    "No planning tasks recorded.",
-                    modifier = Modifier.padding(vertical = 16.dp),
-                    color = WeddingIdentityPalette.Muted,
-                    fontSize = 13.sp
-                )
-            } else {
-                focus.forEachIndexed { index, task ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 11.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            if (task.status == TaskStatus.DONE) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
-                            contentDescription = null,
-                            tint = if (task.status == TaskStatus.DONE) WeddingIdentityPalette.Forest else Color.Gray.copy(alpha = 0.55f)
-                        )
-                        Spacer(modifier = Modifier.width(11.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                task.title,
-                                color = WeddingIdentityPalette.Ink,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Text(
-                                if (task.status == TaskStatus.DONE) "Completed" else task.priority.title,
-                                color = if (task.status == TaskStatus.DONE) WeddingIdentityPalette.Forest else WeddingIdentityPalette.ChampagneDeep,
-                                fontSize = 11.sp
-                            )
-                        }
-                        Icon(
-                            Icons.Default.ChevronRight,
-                            contentDescription = null,
-                            tint = WeddingIdentityPalette.Muted,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    if (index < focus.lastIndex) {
-                        HorizontalDivider(color = WeddingIdentityPalette.Hairline)
-                    }
-                }
-            }
-        }
-    }
-}
-
 private data class ReferenceCountdown(
     val days: Int,
     val hours: Int,
@@ -472,9 +381,3 @@ private fun formatMoney(amount: Double): String =
     if (amount >= 1000) "$" + String.format(Locale.US, "%.1fk", amount / 1000.0)
     else "$" + String.format(Locale.US, "%.0f", amount)
 
-private fun priorityRank(priority: TaskPriority): Int = when (priority) {
-    TaskPriority.URGENT -> 4
-    TaskPriority.HIGH -> 3
-    TaskPriority.MEDIUM -> 2
-    TaskPriority.LOW -> 1
-}
