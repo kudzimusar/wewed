@@ -49,7 +49,7 @@ public struct WeddingReferencePlannerView: View {
             #endif
             .task { await load() }
         }
-        .accessibilityIdentifier("reference-planner-root")
+        .accessibilityIdentifier("planner-root")
     }
 
     private var header: some View {
@@ -65,6 +65,7 @@ public struct WeddingReferencePlannerView: View {
             Spacer()
             WeddingMonogram(names: dashboard?.coupleNames ?? "C & K", size: 33)
         }
+        .accessibilityIdentifier("planner-identity-card")
     }
 
     private var sectionPicker: some View {
@@ -86,6 +87,7 @@ public struct WeddingReferencePlannerView: View {
                         )
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("planner-module-documents")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -115,13 +117,13 @@ public struct WeddingReferencePlannerView: View {
             }
 
             VStack(spacing: 8) {
-                plannerRow(title: "Tasks", subtitle: taskSubtitle, icon: "checklist") {
+                plannerRow(title: "Tasks", subtitle: taskSubtitle, icon: "checklist", identifier: "planner-module-tasks") {
                     selectedSection = .tasks
                 }
-                plannerRow(title: "Budget", subtitle: moduleSubtitle("budget"), icon: "wallet.pass") {
+                plannerRow(title: "Budget", subtitle: moduleSubtitle("budget"), icon: "wallet.pass", identifier: "planner-module-budget") {
                     selectedSection = .budget
                 }
-                plannerRow(title: "Vendors", subtitle: moduleSubtitle("vendors"), icon: "storefront") {
+                plannerRow(title: "Vendors", subtitle: moduleSubtitle("vendors"), icon: "storefront", identifier: "planner-module-vendors") {
                     selectedSection = .vendors
                 }
 
@@ -131,6 +133,7 @@ public struct WeddingReferencePlannerView: View {
                     referenceRow(title: "Seating", subtitle: moduleSubtitle("seating"), icon: "table.furniture")
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("planner-module-seating")
 
                 NavigationLink {
                     ShadowPlannerTimelineView()
@@ -138,6 +141,7 @@ public struct WeddingReferencePlannerView: View {
                     referenceRow(title: "Timeline", subtitle: moduleSubtitle("timeline"), icon: "calendar")
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("planner-module-timeline")
 
                 NavigationLink {
                     ReferenceDocumentsEmptyState()
@@ -159,12 +163,14 @@ public struct WeddingReferencePlannerView: View {
         title: String,
         subtitle: String,
         icon: String,
+        identifier: String,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             referenceRow(title: title, subtitle: subtitle, icon: icon)
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier)
     }
 
     private func referenceRow(title: String, subtitle: String, icon: String) -> some View {
