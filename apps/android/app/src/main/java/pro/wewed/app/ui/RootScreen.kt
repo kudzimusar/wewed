@@ -71,6 +71,19 @@ fun RootScreen(
                 Text(currentUserName ?: "Tariro & Shadreck", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(currentRole.title, color = WewedColors.Gold, fontSize = 11.sp)
+                Spacer(modifier = Modifier.width(6.dp))
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = Color.White.copy(alpha = 0.12f)
+                ) {
+                    Text(
+                        appViewModel.dataEnvironment.title.uppercase(),
+                        color = if (appViewModel.dataEnvironment.name == "PRODUCTION") Color.Red else WewedColors.Emerald,
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
             }
             TextButton(onClick = { showPersonaPicker = true }) {
                 Text("Switch", color = WewedColors.Gold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
