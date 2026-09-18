@@ -9,6 +9,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.semantics
@@ -31,6 +32,7 @@ import pro.wewed.app.ui.pass.WeddingReferencePassScreen
 import pro.wewed.app.ui.planner.WeddingReferencePlannerScreen
 import pro.wewed.app.ui.roles.*
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun RootScreen(
     sessionViewModel: SessionViewModel,

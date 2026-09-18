@@ -119,7 +119,7 @@ fun WeddingReferencePassScreen(
                             modifier = Modifier.align(Alignment.CenterEnd).testTag("pass-open-scanner")
                         ) {
                             Icon(
-                                Icons.Default.QrCodeScanner,
+                                Icons.Default.QrCode,
                                 contentDescription = "Open gate scanner",
                                 tint = WeddingIdentityPalette.Ink
                             )
