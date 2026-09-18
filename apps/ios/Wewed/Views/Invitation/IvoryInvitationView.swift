@@ -296,7 +296,9 @@ public struct IvoryInvitationView: View {
                             if let p = generatedPass {
                                 Button {
                                     onRsvpConfirmed(p)
-                                    dismiss()
+                                    if allowsClose {
+                                        dismiss()
+                                    }
                                 } label: {
                                     HStack(spacing: 8) {
                                         Image(systemName: "qrcode")
