@@ -8,10 +8,16 @@ import pro.wewed.app.state.NativeLaunchConfiguration
 
 class NativeLaunchConfigurationTest {
     @Test
-    fun defaultsToFixture() {
+    fun defaultNeverSilentlyUsesFixture() {
         val config = NativeLaunchConfiguration.resolve(null, null)
-        assertEquals(NativeDataEnvironment.FIXTURE, config.environment)
+        assert(config.environment == NativeDataEnvironment.PRIVATE_REAL_SHADOW || config.environment == NativeDataEnvironment.SANITIZED_SHADOW)
         assertNull(config.baseUrl)
+    }
+
+    @Test
+    fun fixtureRequiresExplicitSelection() {
+        val config = NativeLaunchConfiguration.resolve("fixture", null)
+        assertEquals(NativeDataEnvironment.FIXTURE, config.environment)
     }
 
     @Test
