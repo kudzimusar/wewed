@@ -425,3 +425,147 @@ It should:
 7. request simulator intervention only after non-simulator PASS.
 
 Do not connect production simply because the current Planner now looks more complete.
+
+
+---
+
+## 16. Continuation checkpoint after the original status document
+
+**Remote implementation checkpoint before this addendum:** \`d130f856637583d4e4117920d8294c265f8f05dd\`
+
+Further non-simulator-safe implementation has now been completed while preserving the same production boundary.
+
+### 16.1 Explicit Shadow repository boundary
+
+Added platform-specific \`ShadowReferencePlannerRepository\` types and changed the Shadow environment factory so:
+
+\`\`\`
+SHADOW
+  -> ShadowReferenceWeddingRepository
+  -> ShadowReferencePlannerRepository
+\`\`\`
+
+The generic Fixture environment remains separate and preserves the older qualified fixture journey.
+
+### 16.2 Launch environment selection
+
+Both native executables now resolve their repository environment through an explicit launch configuration.
+
+iOS reads:
+
+\`\`\`
+WEWED_NATIVE_ENV
+WEWED_SHADOW_API_BASE_URL
+\`\`\`
+
+Android accepts development intent extras:
+
+\`\`\`
+wewed_native_env
+wewed_shadow_base_url
+\`\`\`
+
+Unknown/missing values resolve to Fixture.
+
+A deliberate \`production\` value does **not** silently fall back to Fixture; it reaches the production-disabled guard and fails closed.
+
+### 16.3 Guest reference states separated
+
+The Shadow reference wedding now has explicit non-secret development guest tokens:
+
+\`\`\`
+shadow-attending-guest
+shadow-pending-guest
+shadow-declined-guest
+\`\`\`
+
+This fixes an important journey problem: the Invitation preview no longer resolves the same already-attending guest that the Pass preview uses.
+
+Home now uses:
+
+- pending guest for Splash → Ivory Floral Gold → RSVP testing;
+- attending guest for existing Wedding Pass preview.
+
+The repositories now resolve invitation/pass state by token instead of always using the first guest.
+
+Accepting the pending Shadow guest:
+
+- changes only that guest to attending;
+- creates a development-only pass serial if required;
+- returns an attending-stage pass.
+
+Declining:
+
+- records declined state;
+- returns only a non-admission invitation-stage placeholder;
+- does not grant a usable admission state.
+
+### 16.4 Cross-platform Shadow tests expanded
+
+iOS and Android now both contain tests covering:
+
+- Charity & Kudzie graph coherence;
+- Planner relationship coherence;
+- pending invitation → attending pass transition;
+- declined guest non-admission behavior;
+- production repository modes remaining locked;
+- Shadow production-host rejection;
+- unconfigured HTTP transport performing no network traffic;
+- launch environment parsing.
+
+These tests are committed but still require the local non-simulator gate before PASS can be claimed.
+
+### 16.5 Stable acceptance identifiers
+
+A shared acceptance identifier contract now exists at:
+
+\`mobile/acceptance-tests/NATIVE_SHADOW_TEST_IDS.md\`
+
+Stable identifiers were added to both platforms for:
+
+- Planner root and module cards;
+- Budget;
+- Contributions;
+- Vendors;
+- Seating;
+- Timeline;
+- Wewed guest splash;
+- Ivory invitation root;
+- invitation open action;
+- RSVP accept;
+- RSVP decline;
+- view issued pass;
+- declined state;
+- guest-journey done.
+
+This prepares the next Maestro phase to use semantic selectors instead of coordinates.
+
+### 16.6 Ivory RSVP-first transition correction
+
+On iOS, the Ivory invitation no longer dismisses the enclosing guest journey when \`allowsClose == false\`.
+
+This preserves the canonical transition:
+
+\`\`\`
+Splash
+  -> Ivory invitation
+  -> RSVP accept
+  -> View Wedding Pass
+  -> Pass stage
+\`\`\`
+
+inside one controlled native journey.
+
+### 16.7 Current stop boundary
+
+No simulator/emulator work should begin until:
+
+\`\`\`bash
+bash mobile/shadow/tools/native_local_preflight.sh
+\`\`\`
+
+passes on the exact current remote HEAD.
+
+The next local intervention remains compile/unit/build qualification only. If that passes, simulator qualification becomes appropriate.
+
+No production discovery SQL has been executed and no live Wewed data has been copied.
