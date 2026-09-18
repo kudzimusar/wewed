@@ -14,7 +14,6 @@ They are intentionally semantic and stable. Maestro and platform UI tests should
 | Open invitation | `home-open-invitation` |
 | Continue planning | `home-continue-planning` |
 | Wedding metrics | `home-metrics` |
-| Today’s focus | `home-today-focus` |
 
 ### Planner
 
@@ -65,6 +64,7 @@ They are intentionally semantic and stable. Maestro and platform UI tests should
 | Gallery | `more-gallery` |
 | Honeymoon / Contributions | `more-honeymoon` |
 | Settings | `more-settings` |
+| Settings shortcut | `more-settings-shortcut` |
 | Help & Support | `more-support` |
 
 ## Guest invitation journey
