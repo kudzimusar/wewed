@@ -33,7 +33,7 @@ object NativeRepositoryFactory {
 
             NativeDataEnvironment.SHADOW -> NativeRepositoryBundle(
                 wedding = ShadowReferenceWeddingRepository(),
-                planner = FixturePlannerDashboardRepository(),
+                planner = ShadowReferencePlannerRepository(),
                 environment = NativeDataEnvironment.SHADOW,
                 baseUrl = baseUrl
             )
