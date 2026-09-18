@@ -21,7 +21,8 @@ import pro.wewed.app.models.GuestJourneyReference
 import pro.wewed.app.models.GuestJourneyStage
 import pro.wewed.app.state.AppViewModel
 import pro.wewed.app.theme.WewedColors
-import pro.wewed.app.ui.pass.PassScreen
+import pro.wewed.app.models.WeddingPass
+import pro.wewed.app.ui.pass.WeddingReferencePassScreen
 
 /**
  * Canonical guest entry sequence for the shadow-real-wedding sprint:
@@ -37,6 +38,7 @@ fun GuestInvitationJourneyScreen(
     onExit: () -> Unit = {}
 ) {
     var stage by remember(reference) { mutableStateOf(reference.initialStage) }
+    var confirmedPass by remember(reference) { mutableStateOf<WeddingPass?>(null) }
 
     LaunchedEffect(stage) {
         if (stage == GuestJourneyStage.SPLASH) {
@@ -54,7 +56,8 @@ fun GuestInvitationJourneyScreen(
         GuestJourneyStage.INVITATION -> IvoryInvitationScreen(
             invitation = reference.invitation,
             appViewModel = appViewModel,
-            onRsvpConfirmed = {
+            onRsvpConfirmed = { pass ->
+                confirmedPass = pass
                 stage = GuestJourneyStage.CONFIRMED_ATTENDING
             },
             onClose = {},
@@ -64,9 +67,10 @@ fun GuestInvitationJourneyScreen(
             }
         )
         GuestJourneyStage.CONFIRMED_ATTENDING -> Box(modifier = Modifier.fillMaxSize()) {
-            PassScreen(
+            WeddingReferencePassScreen(
                 appViewModel = appViewModel,
-                onOpenScanner = {}
+                onOpenScanner = {},
+                providedPass = confirmedPass
             )
             TextButton(
                 onClick = onExit,
