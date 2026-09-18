@@ -86,9 +86,12 @@ public struct HomeView: View {
                     venueCity: "Harare, Zimbabwe",
                     cardStyle: "ivory-floral-gold"
                 )
-                IvoryInvitationView(invitation: dummyContext) { _ in
-                    appState.selectedTab = .pass
-                }
+                GuestInvitationJourneyView(
+                    reference: GuestJourneyReference(
+                        invitation: dummyContext,
+                        initialStage: .splash
+                    )
+                )
             }
             .sheet(isPresented: $showingVendorSheet) {
                 VendorPresenceView()
@@ -107,7 +110,7 @@ public struct HomeView: View {
 
     private func heroCard(wedding: Wedding) -> some View {
         VStack(spacing: WewedSpacing.sm) {
-            Text("T & S")
+            Text(coupleInitials(wedding.coupleNames))
                 .font(.system(size: 34, weight: .bold, design: .serif))
                 .foregroundColor(WewedColors.gold)
                 .padding(.top, 6)
@@ -132,6 +135,16 @@ public struct HomeView: View {
         .background(Color.white)
         .cornerRadius(WewedRadius.lg)
         .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 2)
+    }
+
+    private func coupleInitials(_ names: String) -> String {
+        names
+            .components(separatedBy: "&")
+            .compactMap { part in
+                part.trimmingCharacters(in: .whitespacesAndNewlines).first.map(String.init)
+            }
+            .joined(separator: " & ")
+            .uppercased()
     }
 
     private func planningPulseCard(_ dashboard: PlannerDashboardSnapshot) -> some View {
