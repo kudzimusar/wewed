@@ -58,3 +58,31 @@ Before implementation, read:
 4. current platform repository interfaces.
 
 If the local and remote branch are not aligned, stop before changing code.
+
+
+## Implemented setup tooling
+
+The setup branch now includes:
+
+- `tools/01_discover_reference_wedding_readonly.sql` — read-only Charity & Kudzie / Eleven Eleven Testing identity discovery.
+- `tools/02_audit_reference_wedding_counts_readonly.sql` — count/status audit after the wedding ID is confirmed.
+- `tools/validate_shadow_material.py` — manifest/checksum/secret-key validation.
+- `tools/native_local_preflight.sh` — one-command repository alignment + iOS/Android non-simulator qualification.
+
+The SQL files are templates only. They have **not** been executed against production from this repository branch. They must be run only with an authorized read-only database credential.
+
+## First local qualification
+
+Before opening a simulator, a local agent should align to the exact remote setup branch and run:
+
+```bash
+cd "/Users/shadreckmusarurwa/Project AI/wewed-native-mobile"
+git fetch origin --prune
+git switch native-mobile/shadow-setup-implementation-20260918
+git pull --ff-only
+bash mobile/shadow/tools/native_local_preflight.sh
+```
+
+The script stops on branch mismatch, local/remote divergence, dirty worktree, scope contamination, iOS test/build failure, or Android test/build failure.
+
+Do not proceed to Maestro/simulator qualification until this script returns PASS.
