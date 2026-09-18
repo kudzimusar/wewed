@@ -16,8 +16,7 @@ appId: pro.wewed.app
     id: "home-open-invitation"
 
 # 3. Splash -> Ivory Floral Gold invitation
-- assertVisible:
-    id: "guest-journey-splash"
+# Splash is intentionally transient; verify the destination after the branded transition.
 - extendedWaitUntil:
     visible:
       id: "ivory-invitation-root"
