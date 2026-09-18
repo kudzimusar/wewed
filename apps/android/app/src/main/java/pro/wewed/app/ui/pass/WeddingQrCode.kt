@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.size
 import com.google.zxing.BarcodeFormat
@@ -22,7 +23,7 @@ fun WeddingQrCode(
     Image(
         bitmap = bitmap.asImageBitmap(),
         contentDescription = "Wedding pass QR code",
-        modifier = modifier.size(150.dp)
+        modifier = modifier.size(150.dp).testTag("wedding-pass-qr")
     )
 }
 
