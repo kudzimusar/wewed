@@ -10,31 +10,37 @@ public struct RootView: View {
     public var body: some View {
         Group {
             if session.isAuthenticated {
-                VStack(spacing: 0) {
-                    // Top developer / role persona banner
-                    personaBanner
+                if session.currentRole == .couple {
+                    coupleShell
+                        .sheet(isPresented: $showingPersonaPicker) {
+                            PersonaPickerSheet()
+                                .environmentObject(session)
+                        }
+                } else {
+                    VStack(spacing: 0) {
+                        personaBanner
 
-                    // Role-scoped workspace shells
-                    switch session.currentRole {
-                    case .couple:
-                        coupleShell
-                    case .planner:
-                        PlannerShellView()
-                    case .coordinator:
-                        CoordinatorShellView()
-                    case .vendor:
-                        VendorShellView()
-                    case .usher:
-                        UsherShellView()
-                    case .guest:
-                        GuestShellView()
-                    case .admin:
-                        AdminShellView()
+                        switch session.currentRole {
+                        case .couple:
+                            coupleShell
+                        case .planner:
+                            PlannerShellView()
+                        case .coordinator:
+                            CoordinatorShellView()
+                        case .vendor:
+                            VendorShellView()
+                        case .usher:
+                            UsherShellView()
+                        case .guest:
+                            GuestShellView()
+                        case .admin:
+                            AdminShellView()
+                        }
                     }
-                }
-                .sheet(isPresented: $showingPersonaPicker) {
-                    PersonaPickerSheet()
-                        .environmentObject(session)
+                    .sheet(isPresented: $showingPersonaPicker) {
+                        PersonaPickerSheet()
+                            .environmentObject(session)
+                    }
                 }
             } else {
                 LoginView()
@@ -48,7 +54,7 @@ public struct RootView: View {
                 Circle()
                     .fill(Color.green)
                     .frame(width: 8, height: 8)
-                Text(session.currentUserName ?? "Charity & Kudzie")
+                Text(session.currentUserName ?? "Active User")
                     .font(.caption)
                     .fontWeight(.semibold)
                     .foregroundColor(.white)
@@ -95,36 +101,36 @@ public struct RootView: View {
 
     private var coupleShell: some View {
         TabView(selection: $appState.selectedTab) {
-            HomeView()
+            WeddingReferenceHomeView()
                 .tabItem {
-                    Label(AppTab.home.rawValue, systemImage: AppTab.home.systemImage)
+                    Label(AppTab.home.rawValue, systemImage: "house.fill")
                 }
                 .tag(AppTab.home)
 
-            PlannerView()
+            WeddingReferencePlannerView()
                 .tabItem {
-                    Label(AppTab.plan.rawValue, systemImage: AppTab.plan.systemImage)
+                    Label(AppTab.plan.rawValue, systemImage: "calendar.badge.checkmark")
                 }
                 .tag(AppTab.plan)
 
-            GuestsView()
+            WeddingReferenceGuestsView()
                 .tabItem {
-                    Label(AppTab.guests.rawValue, systemImage: AppTab.guests.systemImage)
+                    Label(AppTab.guests.rawValue, systemImage: "person.2.fill")
                 }
                 .tag(AppTab.guests)
 
-            PassView()
+            WeddingReferencePassView()
                 .tabItem {
-                    Label(AppTab.pass.rawValue, systemImage: AppTab.pass.systemImage)
+                    Label(AppTab.pass.rawValue, systemImage: "qrcode")
                 }
                 .tag(AppTab.pass)
 
-            LiveWallView()
+            WeddingReferenceMoreView()
                 .tabItem {
-                    Label(AppTab.live.rawValue, systemImage: AppTab.live.systemImage)
+                    Label(AppTab.live.rawValue, systemImage: "line.3.horizontal")
                 }
                 .tag(AppTab.live)
         }
-        .tint(WewedColors.gold)
+        .tint(WeddingIdentityPalette.champagneDeep)
     }
 }
