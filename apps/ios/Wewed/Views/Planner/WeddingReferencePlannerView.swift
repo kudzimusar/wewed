@@ -12,7 +12,7 @@ public struct WeddingReferencePlannerView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                WeddingFloralBackground()
+                WeddingFloralBackground(opacity: 0.065)
 
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 14) {
@@ -53,8 +53,12 @@ public struct WeddingReferencePlannerView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 3) {
+        ZStack(alignment: .topTrailing) {
+            WeddingHeaderOrnament()
+                .offset(x: 8, y: -12)
+
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 3) {
                 Text("Wedding Planner")
                     .font(.system(size: 28, weight: .semibold, design: .serif))
                     .foregroundStyle(WeddingIdentityPalette.ink)
@@ -62,8 +66,10 @@ public struct WeddingReferencePlannerView: View {
                     .font(.system(size: 12))
                     .foregroundStyle(WeddingIdentityPalette.muted)
             }
-            Spacer()
-            WeddingMonogram(names: dashboard?.coupleNames ?? "C & K", size: 33)
+                Spacer()
+                WeddingMonogram(names: dashboard?.coupleNames ?? "C & K", size: 33)
+                    .padding(.trailing, 8)
+            }
         }
         .accessibilityIdentifier("planner-identity-card")
     }
@@ -102,7 +108,7 @@ public struct WeddingReferencePlannerView: View {
                             Text("Planning Progress")
                                 .font(.system(size: 16, weight: .semibold, design: .serif))
                                 .foregroundStyle(WeddingIdentityPalette.ink)
-                            Text(dashboard.taskCompletionLabel + " tasks complete")
+                            Text("\(completionPercent)% complete • " + dashboard.taskCompletionLabel + " tasks")
                                 .font(.system(size: 12))
                                 .foregroundStyle(WeddingIdentityPalette.muted)
                         }
@@ -210,6 +216,10 @@ public struct WeddingReferencePlannerView: View {
     private var completionRatio: Double {
         guard !tasks.isEmpty else { return 0 }
         return Double(tasks.filter { $0.status == .done }.count) / Double(tasks.count)
+    }
+
+    private var completionPercent: Int {
+        Int((completionRatio * 100).rounded())
     }
 
     private var taskSubtitle: String {
