@@ -22,13 +22,6 @@ public struct WeddingReferencePassView: View {
                             header
                             passCard(pass)
 
-                            Button {
-                                showingScanner = true
-                            } label: {
-                                WeddingPrimaryButtonLabel("Usher Check-In Mode", icon: "camera.viewfinder")
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("pass-open-scanner")
                         } else if isLoading {
                             ProgressView("Loading wedding pass…")
                                 .padding(.top, 120)
@@ -76,7 +69,7 @@ public struct WeddingReferencePassView: View {
                         .frame(width: 38, height: 38)
                 }
                 .buttonStyle(.plain)
-                .accessibilityIdentifier("pass-header-scanner")
+                .accessibilityIdentifier("pass-open-scanner")
             }
         }
         .frame(maxWidth: .infinity)
