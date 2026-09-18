@@ -38,3 +38,54 @@ data class PlannerDashboardSnapshot(
     val recentActivity: List<PlannerActivityItem>,
     val sourceLabel: String
 )
+
+
+data class PlannerBudgetLine(
+    val id: String,
+    val category: String,
+    val vendorName: String?,
+    val estimated: Double,
+    val actual: Double,
+    val paid: Double,
+    val dueDateLabel: String?,
+    val fundingLabel: String,
+    val statusLabel: String
+)
+
+data class PlannerContributionRecord(
+    val id: String,
+    val contributorLabel: String,
+    val typeLabel: String,
+    val value: Double,
+    val statusLabel: String,
+    val allocationLabel: String,
+    val verified: Boolean
+)
+
+data class PlannerVendorEngagement(
+    val id: String,
+    val vendorName: String,
+    val category: String,
+    val bookingStatus: String,
+    val contractStatus: String,
+    val paymentStatus: String,
+    val nextAction: String
+)
+
+data class PlannerSeatingTable(
+    val id: String,
+    val name: String,
+    val zone: String,
+    val capacity: Int,
+    val assigned: Int,
+    val attentionLabel: String?
+)
+
+data class PlannerTimelineEntry(
+    val id: String,
+    val time: String,
+    val title: String,
+    val location: String,
+    val statusLabel: String,
+    val linkedVendor: String?
+)
