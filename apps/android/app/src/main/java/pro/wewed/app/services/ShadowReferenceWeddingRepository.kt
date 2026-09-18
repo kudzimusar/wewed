@@ -15,6 +15,9 @@ import java.util.UUID
 class ShadowReferenceWeddingRepository : WeddingRepository {
     private val mutex = Mutex()
     private val primaryPassSerial = "SHDWGSTA01"
+    private val attendingToken = "shadow-attending-guest"
+    private val pendingToken = "shadow-pending-guest"
+    private val declinedToken = "shadow-declined-guest"
 
     private val wedding = Wedding(
         id = "shadow_ref_charity_kudzie",
@@ -105,7 +108,13 @@ class ShadowReferenceWeddingRepository : WeddingRepository {
         updated
     }
 
-    override suspend fun getWeddingPass(token: String): WeddingPass = mutex.withLock { makePrimaryPass() }
+    override suspend fun getWeddingPass(token: String): WeddingPass = mutex.withLock {
+        val guest = guestForToken(token)
+        require(guest.rsvpStatus == RSVPStatus.ATTENDING) {
+            "Wedding Pass is available only to attending guests in Shadow."
+        }
+        makePass(guest)
+    }
 
     override suspend fun searchGuests(query: String): List<Guest> = mutex.withLock {
         val normalized = query.trim().lowercase()
@@ -205,56 +214,82 @@ class ShadowReferenceWeddingRepository : WeddingRepository {
     }
 
     override suspend fun resolveInvitation(weddingSlug: String, token: String): InvitationContext = mutex.withLock {
+        val guest = guestForToken(token)
         InvitationContext(
             weddingSlug = weddingSlug,
             guestToken = token,
             coupleNames = wedding.coupleNames,
-            guestName = guests[0].name,
-            householdName = guests[0].householdName,
-            partySize = guests[0].partySize,
+            guestName = guest.name,
+            householdName = guest.householdName,
+            partySize = guest.partySize,
             weddingDate = "Upcoming wedding",
             venueName = wedding.venueName,
             venueCity = "${wedding.city}, ${wedding.country}",
             cardStyle = "ivory-floral-gold",
-            isConfirmed = guests[0].rsvpStatus == RSVPStatus.ATTENDING
+            isConfirmed = guest.rsvpStatus == RSVPStatus.ATTENDING
         )
     }
 
     override suspend fun confirmRsvp(weddingSlug: String, token: String, attending: Boolean): WeddingPass = mutex.withLock {
-        val index = guests.indexOfFirst { it.id == "shadow_guest_a" }
-        if (index >= 0) {
-            guests[index] = guests[index].copy(rsvpStatus = if (attending) RSVPStatus.ATTENDING else RSVPStatus.DECLINED)
-        }
-        if (attending) makePrimaryPass() else makeNonAdmissionPass()
+        val index = guestIndexForToken(token)
+        require(index >= 0) { "Shadow invitation token does not map to a reference guest." }
+
+        val current = guests[index]
+        val updated = current.copy(
+            rsvpStatus = if (attending) RSVPStatus.ATTENDING else RSVPStatus.DECLINED,
+            passSerial = if (attending) current.passSerial ?: "SHDW${current.id.uppercase().takeLast(8)}" else current.passSerial
+        )
+        guests[index] = updated
+
+        if (attending) makePass(updated) else makeNonAdmissionPass(updated)
     }
 
-    private fun makePrimaryPass(): WeddingPass = WeddingPass(
-        token = "shadow-pass-guest-a",
-        weddingId = wedding.id,
-        coupleNames = wedding.coupleNames,
-        weddingDate = "Upcoming wedding",
-        venueName = wedding.venueName,
-        venueAddress = wedding.venueAddress,
-        guestName = guests[0].name,
-        householdName = guests[0].householdName,
-        partySize = guests[0].partySize,
-        tableNumber = guests[0].tableNumber,
-        tableName = guests[0].tableName,
-        seatNumber = "Shadow assignment",
-        currentStage = PassStage.ATTENDING,
-        qrPayload = "SHADOW_ONLY.WW2_PLACEHOLDER.$primaryPassSerial.NOT_A_PRODUCTION_CREDENTIAL"
-    )
+    private fun guestIndexForToken(token: String): Int {
+        val guestId = when (token) {
+            attendingToken, "native-reference-guest" -> "shadow_guest_a"
+            pendingToken -> "shadow_guest_c"
+            declinedToken -> "shadow_guest_d"
+            else -> return -1
+        }
+        return guests.indexOfFirst { it.id == guestId }
+    }
 
-    private fun makeNonAdmissionPass(): WeddingPass = WeddingPass(
-        token = "shadow-non-admission",
+    private fun guestForToken(token: String): Guest {
+        val index = guestIndexForToken(token)
+        require(index >= 0) { "Unknown Shadow guest token." }
+        return guests[index]
+    }
+
+    private fun makePass(guest: Guest): WeddingPass {
+        val serial = guest.passSerial ?: primaryPassSerial
+        return WeddingPass(
+            token = "shadow-pass-${guest.id}",
+            weddingId = wedding.id,
+            coupleNames = wedding.coupleNames,
+            weddingDate = "Upcoming wedding",
+            venueName = wedding.venueName,
+            venueAddress = wedding.venueAddress,
+            guestName = guest.name,
+            householdName = guest.householdName,
+            partySize = guest.partySize,
+            tableNumber = guest.tableNumber,
+            tableName = guest.tableName,
+            seatNumber = if (guest.tableName == null) null else "Shadow assignment",
+            currentStage = PassStage.ATTENDING,
+            qrPayload = "SHADOW_ONLY.WW2_PLACEHOLDER.$serial.NOT_A_PRODUCTION_CREDENTIAL"
+        )
+    }
+
+    private fun makeNonAdmissionPass(guest: Guest): WeddingPass = WeddingPass(
+        token = "shadow-non-admission-${guest.id}",
         weddingId = wedding.id,
         coupleNames = wedding.coupleNames,
         weddingDate = "Upcoming wedding",
         venueName = wedding.venueName,
         venueAddress = wedding.venueAddress,
-        guestName = guests[0].name,
-        householdName = guests[0].householdName,
-        partySize = guests[0].partySize,
+        guestName = guest.name,
+        householdName = guest.householdName,
+        partySize = guest.partySize,
         currentStage = PassStage.INVITATION,
         qrPayload = "SHADOW_DECLINED_NO_ADMISSION"
     )
