@@ -48,7 +48,9 @@ public struct WeddingReferenceGuestsView: View {
                 .padding(.top, 12)
                 .padding(.bottom, 8)
             }
-            #if os(iOS)\n            .toolbar(.hidden, for: .navigationBar)\n            #endif
+            #if os(iOS)
+            .toolbar(.hidden, for: .navigationBar)
+            #endif
             .task { await load() }
         }
         .accessibilityIdentifier("reference-guests-root")
