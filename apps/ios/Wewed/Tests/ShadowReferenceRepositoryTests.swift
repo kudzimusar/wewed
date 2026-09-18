@@ -78,6 +78,32 @@ final class ShadowReferenceRepositoryTests: XCTestCase {
         }
     }
 
+    func testPendingInvitationTransitionsToAttendingPassWithoutChangingAttendingFixtureGuest() async throws {
+        let repository = ShadowReferenceWeddingRepository()
+
+        let invitation = try await repository.resolveInvitation(
+            weddingSlug: "shadow_ref_charity_kudzie",
+            token: "shadow-pending-guest"
+        )
+        XCTAssertFalse(invitation.isConfirmed)
+        XCTAssertEqual(invitation.guestName, "Guest C")
+
+        let pass = try await repository.confirmRsvp(
+            weddingSlug: "shadow_ref_charity_kudzie",
+            token: "shadow-pending-guest",
+            attending: true
+        )
+        let guests = try await repository.getGuests()
+        let converted = try XCTUnwrap(guests.first(where: { $0.id == "shadow_guest_c" }))
+        let existing = try XCTUnwrap(guests.first(where: { $0.id == "shadow_guest_a" }))
+
+        XCTAssertEqual(converted.rsvpStatus, .attending)
+        XCTAssertNotNil(converted.passSerial)
+        XCTAssertEqual(pass.guestName, converted.name)
+        XCTAssertEqual(pass.currentStage, .attending)
+        XCTAssertEqual(existing.rsvpStatus, .attending)
+    }
+
     func testProductionRepositoryModesRemainLocked() {
         XCTAssertThrowsError(try NativeRepositoryFactory.make(environment: .productionReadVerify))
         XCTAssertThrowsError(try NativeRepositoryFactory.make(environment: .production))
