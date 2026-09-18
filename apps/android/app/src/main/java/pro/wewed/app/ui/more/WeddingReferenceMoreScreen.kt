@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -61,6 +62,7 @@ fun WeddingReferenceMoreScreen(appViewModel: AppViewModel) {
         modifier = Modifier
             .fillMaxSize()
             .background(WeddingIdentityPalette.Ivory)
+            .testTag("more-root")
     ) {
         if (loading) {
             CircularProgressIndicator(
@@ -92,6 +94,7 @@ fun WeddingReferenceMoreScreen(appViewModel: AppViewModel) {
                             .clip(RoundedCornerShape(16.dp))
                             .background(WeddingIdentityPalette.IvorySoft)
                             .border(1.dp, WeddingIdentityPalette.Hairline, RoundedCornerShape(16.dp))
+                            .testTag("more-wedding-profile")
                             .padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -116,19 +119,19 @@ fun WeddingReferenceMoreScreen(appViewModel: AppViewModel) {
                     }
                 }
 
-                ReferenceMoreRow("Our Story", "Photos, videos and milestones", Icons.Default.PhotoLibrary) {
+                ReferenceMoreRow("Our Story", "Photos, videos and milestones", Icons.Default.PhotoLibrary, "more-story") {
                     destination = ReferenceMoreDestination.STORY
                 }
-                ReferenceMoreRow("Gallery", "Wedding photos and inspiration", Icons.Default.Collections) {
+                ReferenceMoreRow("Gallery", "Wedding photos and inspiration", Icons.Default.Collections, "more-gallery") {
                     destination = ReferenceMoreDestination.GALLERY
                 }
-                ReferenceMoreRow("Honeymoon", "Contributions and plans", Icons.Default.FlightTakeoff) {
+                ReferenceMoreRow("Honeymoon", "Contributions and plans", Icons.Default.FlightTakeoff, "more-honeymoon") {
                     destination = ReferenceMoreDestination.HONEYMOON
                 }
-                ReferenceMoreRow("Settings", "App preferences", Icons.Default.Settings) {
+                ReferenceMoreRow("Settings", "App preferences", Icons.Default.Settings, "more-settings") {
                     destination = ReferenceMoreDestination.SETTINGS
                 }
-                ReferenceMoreRow("Help & Support", "Get in touch", Icons.Default.HelpOutline) {
+                ReferenceMoreRow("Help & Support", "Get in touch", Icons.Default.HelpOutline, "more-support") {
                     destination = ReferenceMoreDestination.SUPPORT
                 }
 
@@ -149,6 +152,7 @@ private fun ReferenceMoreRow(
     title: String,
     subtitle: String,
     icon: ImageVector,
+    identifier: String,
     onClick: () -> Unit
 ) {
     Row(
@@ -158,6 +162,7 @@ private fun ReferenceMoreRow(
             .background(WeddingIdentityPalette.IvorySoft)
             .border(1.dp, WeddingIdentityPalette.Hairline, RoundedCornerShape(15.dp))
             .clickable { onClick() }
+            .testTag(identifier)
             .padding(13.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
