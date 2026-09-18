@@ -52,6 +52,7 @@ public struct IvoryInvitationView: View {
                 }
             }
             .navigationTitle("Wedding Invitation")
+            .accessibilityIdentifier("ivory-invitation-root")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
@@ -134,6 +135,7 @@ public struct IvoryInvitationView: View {
                         .shadow(color: WewedColors.gold.opacity(0.4), radius: 8, x: 0, y: 3)
                     }
                     .padding(.bottom, 40)
+                    .accessibilityIdentifier("ivory-invitation-open")
                 }
             }
             .frame(minHeight: 440)
@@ -237,6 +239,7 @@ public struct IvoryInvitationView: View {
                                 .cornerRadius(WewedRadius.pill)
                             }
                             .disabled(isSubmitting)
+                            .accessibilityIdentifier("ivory-rsvp-accept")
 
                             Button {
                                 submitRsvp(attending: false)
@@ -255,6 +258,7 @@ public struct IvoryInvitationView: View {
                                     .cornerRadius(WewedRadius.pill)
                             }
                             .disabled(isSubmitting)
+                            .accessibilityIdentifier("ivory-rsvp-decline")
                         }
                         .padding(.horizontal, 24)
                         .padding(.bottom, 36)
@@ -308,6 +312,7 @@ public struct IvoryInvitationView: View {
                                     .shadow(color: WewedColors.gold.opacity(0.4), radius: 8, x: 0, y: 3)
                                 }
                                 .padding(.horizontal, 24)
+                                .accessibilityIdentifier("ivory-view-wedding-pass")
                             }
                         }
                         .padding(.bottom, 36)
