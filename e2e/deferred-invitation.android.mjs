@@ -1,0 +1,282 @@
+import assert from 'node:assert/strict'
+import { setTimeout as sleep } from 'node:timers/promises'
+import { _android as android } from 'playwright'
+import { PrismaClient } from '@prisma/client'
+import { randomUUID } from 'node:crypto'
+
+const prisma = new PrismaClient()
+const EMULATOR_BASE_URL = process.env.WEWED_ANDROID_E2E_BASE_URL ?? 'http://10.0.2.2:3000'
+const HOST_BASE_URL = process.env.WEWED_UAT_BASE_URL ?? 'http://127.0.0.1:3000'
+
+async function createFixture() {
+  const suffix = randomUUID().replaceAll('-', '').slice(0, 16)
+  const couple = await prisma.couple.create({
+    data: {
+      slug: `android-switch-couple-${suffix}`,
+      partner1: 'Android',
+      partner2: 'Switch',
+    },
+  })
+  const wedding = await prisma.wedding.create({
+    data: {
+      slug: `android-switch-wedding-${suffix}`,
+      title: 'Android Chrome Guest Switch Gate',
+      date: new Date('2030-06-20T10:00:00.000Z'),
+      venue: 'Wewed Android UAT Venue',
+      venueCity: 'Harare',
+      venueCountry: 'Zimbabwe',
+      privacy: 'link_only',
+      invitationCardStyle: 'ivory-floral-gold',
+      coupleId: couple.id,
+    },
+  })
+  const guestA = await prisma.guest.create({
+    data: {
+      name: 'Android UAT Guest A',
+      email: `android-a-${suffix}@example.test`,
+      weddingId: wedding.id,
+    },
+  })
+  const guestB = await prisma.guest.create({
+    data: {
+      name: 'Android UAT Guest B',
+      email: `android-b-${suffix}@example.test`,
+      weddingId: wedding.id,
+    },
+  })
+  const tokenA = `android-a-${suffix}-${randomUUID().replaceAll('-', '')}`
+  const tokenB = `android-b-${suffix}-${randomUUID().replaceAll('-', '')}`
+  await prisma.rSVP.createMany({
+    data: [
+      { id: `${guestA.id}-rsvp`, token: tokenA, guestId: guestA.id },
+      { id: `${guestB.id}-rsvp`, token: tokenB, guestId: guestB.id },
+    ],
+  })
+  return {
+    coupleId: couple.id,
+    weddingId: wedding.id,
+    weddingSlug: wedding.slug,
+    guestAId: guestA.id,
+    guestBId: guestB.id,
+    tokenA,
+    tokenB,
+  }
+}
+
+async function cleanupFixture(fixture) {
+  if (!fixture) return
+  await prisma.auditEvent.deleteMany({ where: { weddingId: fixture.weddingId } })
+  await prisma.$executeRawUnsafe(
+    'DELETE FROM private."InvitationInstallHandoff" WHERE "weddingId" = $1',
+    fixture.weddingId,
+  )
+  await prisma.rSVP.deleteMany({
+    where: { guestId: { in: [fixture.guestAId, fixture.guestBId] } },
+  })
+  await prisma.guest.deleteMany({
+    where: { id: { in: [fixture.guestAId, fixture.guestBId] } },
+  })
+  await prisma.wedding.deleteMany({ where: { id: fixture.weddingId } })
+  await prisma.couple.deleteMany({ where: { id: fixture.coupleId } })
+}
+
+async function poll(label, callback, { attempts = 40, delay = 250 } = {}) {
+  let last
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const value = await callback()
+      if (value) return value
+      last = value
+    } catch (error) {
+      last = error
+    }
+    await sleep(delay)
+  }
+  throw new Error(`Timed out waiting for ${label}: ${String(last ?? '')}`)
+}
+
+function handoffFromIntent(intentUrl) {
+  assert.match(intentUrl, /^intent:\/\/invite\/resume#Intent;/)
+  assert.ok(intentUrl.includes('scheme=wewed'))
+  assert.ok(intentUrl.includes('package=pro.wewed.app'))
+  assert.ok(!intentUrl.includes('rsvp='))
+  assert.ok(!intentUrl.includes('guest='))
+  const match = intentUrl.match(/(?:^|;)S\.wewed_handoff=([^;]+);/)
+  assert.ok(match, 'missing opaque handoff in Android intent')
+  const handoff = decodeURIComponent(match[1])
+  assert.match(handoff, /^[A-Za-z0-9_-]{43}$/)
+  return handoff
+}
+
+async function activeGuestFromPage(page, fixture) {
+  const response = await page.goto(
+    `${EMULATOR_BASE_URL}/api/weddings/${encodeURIComponent(fixture.weddingSlug)}/guest-session`,
+    { waitUntil: 'domcontentloaded' },
+  )
+  assert.equal(response?.status(), 200)
+  return JSON.parse(await page.locator('body').innerText())
+}
+
+async function prepareAndClick(browserPage, fixture, token, handoffPostCount) {
+  await browserPage.goto(
+    `${EMULATOR_BASE_URL}/invite/${encodeURIComponent(fixture.weddingSlug)}?rsvp=${encodeURIComponent(token)}&card=ivory-floral-gold`,
+    { waitUntil: 'domcontentloaded' },
+  )
+
+  const direct = browserPage.getByTestId('android-open-installed-wewed')
+  const fallback = browserPage.getByTestId('android-open-existing-wewed')
+  const link = await poll('prepared Android intent link', async () => {
+    if (await direct.isVisible().catch(() => false)) return direct
+    if (await fallback.isVisible().catch(() => false)) return fallback
+    return null
+  })
+
+  const href = await link.getAttribute('href')
+  assert.ok(href)
+  const handoff = handoffFromIntent(href)
+  const postsBeforeClick = handoffPostCount()
+
+  await link.click()
+  await sleep(750)
+
+  assert.equal(
+    handoffPostCount(),
+    postsBeforeClick,
+    'final Android launch click must not perform an async handoff POST',
+  )
+  return handoff
+}
+
+async function nativeCheckpoints(device, minimumIntentCount) {
+  const logs = String(
+    await device.shell('logcat -d -s WewedInvitation:I WewedInvitation:W *:S'),
+  )
+  const intentCount = (logs.match(/checkpoint=native_intent_received/g) ?? []).length
+  assert.ok(
+    intentCount >= minimumIntentCount,
+    `expected at least ${minimumIntentCount} native intent checkpoints, got ${intentCount}\n${logs}`,
+  )
+  assert.ok(logs.includes('checkpoint=native_resume_uri_ready'))
+  assert.ok(logs.includes('host=10.0.2.2'))
+  assert.ok(logs.includes('path=/invite/resume'))
+  console.log(`checkpoint=native_intent_received count=${intentCount}`)
+  console.log('checkpoint=native_resume_uri_ready')
+}
+
+async function waitForRedemption(fixture, minimumCount) {
+  return poll('handoff redemption audit', async () => {
+    const count = await prisma.auditEvent.count({
+      where: {
+        weddingId: fixture.weddingId,
+        action: 'invitation_handoff_redeemed',
+      },
+    })
+    return count >= minimumCount ? count : null
+  }, { attempts: 60, delay: 250 })
+}
+
+async function run() {
+  let fixture
+  let browserContext
+  let device
+  try {
+    fixture = await createFixture()
+
+    const devices = await android.devices()
+    assert.equal(devices.length, 1, `expected one Android device, found ${devices.length}`)
+    device = devices[0]
+
+    await device.shell('logcat -c')
+    browserContext = await device.launchBrowser()
+    const pages = browserContext.pages()
+    const browserPage = pages[0] ?? await browserContext.newPage()
+
+    let handoffPosts = 0
+    browserPage.on('request', (request) => {
+      try {
+        if (
+          request.method() === 'POST' &&
+          new URL(request.url()).pathname === '/api/invitations/install-handoff'
+        ) {
+          handoffPosts += 1
+          console.log('checkpoint=handoff_created')
+        }
+      } catch {
+        // Ignore non-HTTP browser-internal requests.
+      }
+    })
+
+    // A: Chrome -> actual intent link -> Wewed wrapper -> local resume endpoint.
+    const handoffA = await prepareAndClick(
+      browserPage,
+      fixture,
+      fixture.tokenA,
+      () => handoffPosts,
+    )
+    assert.match(handoffA, /^[A-Za-z0-9_-]{43}$/)
+    await nativeCheckpoints(device, 1)
+    await waitForRedemption(fixture, 1)
+    console.log('checkpoint=handoff_redeemed guest=A')
+
+    const activeA = await activeGuestFromPage(browserPage, fixture)
+    assert.equal(activeA.guest.id, fixture.guestAId)
+    assert.equal(activeA.guest.name, 'Android UAT Guest A')
+    console.log('checkpoint=active_guest=A')
+
+    // B gate must leave A valid until B has actually entered Wewed.
+    const handoffB = await browserPage.goto(
+      `${EMULATOR_BASE_URL}/invite/${encodeURIComponent(fixture.weddingSlug)}?rsvp=${encodeURIComponent(fixture.tokenB)}&card=ivory-floral-gold`,
+      { waitUntil: 'domcontentloaded' },
+    )
+    assert.ok(handoffB)
+    const beforeB = await activeGuestFromPage(browserPage, fixture)
+    assert.equal(beforeB.guest.id, fixture.guestAId)
+    console.log('checkpoint=active_guest=A-before-B-resume')
+
+    // Return to B's gate after the API assertion above, prepare, then launch.
+    const bOpaque = await prepareAndClick(
+      browserPage,
+      fixture,
+      fixture.tokenB,
+      () => handoffPosts,
+    )
+    assert.match(bOpaque, /^[A-Za-z0-9_-]{43}$/)
+    await nativeCheckpoints(device, 2)
+    await waitForRedemption(fixture, 2)
+    console.log('checkpoint=handoff_redeemed guest=B')
+
+    const activeB = await activeGuestFromPage(browserPage, fixture)
+    assert.equal(activeB.guest.id, fixture.guestBId)
+    assert.equal(activeB.guest.name, 'Android UAT Guest B')
+    console.log('checkpoint=active_guest=B')
+
+    // Reverse B -> A through the same real Chrome profile and installed wrapper.
+    const aOpaque2 = await prepareAndClick(
+      browserPage,
+      fixture,
+      fixture.tokenA,
+      () => handoffPosts,
+    )
+    assert.match(aOpaque2, /^[A-Za-z0-9_-]{43}$/)
+    await nativeCheckpoints(device, 3)
+    await waitForRedemption(fixture, 3)
+    console.log('checkpoint=handoff_redeemed guest=A2')
+
+    const activeA2 = await activeGuestFromPage(browserPage, fixture)
+    assert.equal(activeA2.guest.id, fixture.guestAId)
+    assert.equal(activeA2.guest.name, 'Android UAT Guest A')
+    console.log('checkpoint=active_guest=A-restored')
+
+    assert.equal(handoffPosts, 3, 'one prepared handoff must be created per explicit guest switch')
+  } finally {
+    await browserContext?.close().catch(() => undefined)
+    await device?.close().catch(() => undefined)
+    await cleanupFixture(fixture)
+    await prisma.$disconnect()
+  }
+}
+
+run().catch((error) => {
+  console.error(error)
+  process.exitCode = 1
+})
