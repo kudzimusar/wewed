@@ -2,6 +2,11 @@ import Foundation
 
 public protocol PlannerDashboardRepositoryProtocol: Sendable {
     func getDashboard() async throws -> PlannerDashboardSnapshot
+    func getBudgetLines() async throws -> [PlannerBudgetLine]
+    func getContributions() async throws -> [PlannerContributionRecord]
+    func getVendorEngagements() async throws -> [PlannerVendorEngagement]
+    func getSeatingTables() async throws -> [PlannerSeatingTable]
+    func getTimelineEntries() async throws -> [PlannerTimelineEntry]
 }
 
 public actor FixturePlannerDashboardRepository: PlannerDashboardRepositoryProtocol {
@@ -39,5 +44,51 @@ public actor FixturePlannerDashboardRepository: PlannerDashboardRepositoryProtoc
             ],
             sourceLabel: "Sanitized reference fixture — NOT production snapshot"
         )
+    }
+
+    public func getBudgetLines() async throws -> [PlannerBudgetLine] {
+        [
+            PlannerBudgetLine(id: "budget_venue", category: "Venue & Catering", vendorName: "Shadow Venue Partner", estimated: 12000, actual: 11800, paid: 8000, dueDateLabel: "Balance due before event", fundingLabel: "Couple + contributor funding", statusLabel: "Partially paid"),
+            PlannerBudgetLine(id: "budget_photo", category: "Photography & Video", vendorName: "Shadow Visuals", estimated: 3500, actual: 3500, paid: 3500, dueDateLabel: nil, fundingLabel: "Couple funded", statusLabel: "Paid"),
+            PlannerBudgetLine(id: "budget_decor", category: "Decor & Florals", vendorName: "Shadow Events", estimated: 3000, actual: 3200, paid: 1500, dueDateLabel: "Final balance pending", fundingLabel: "Contributor + couple", statusLabel: "Deposit paid"),
+            PlannerBudgetLine(id: "budget_sound", category: "Music & Sound", vendorName: "Shadow Sound", estimated: 1500, actual: 1650, paid: 500, dueDateLabel: "Payment milestone open", fundingLabel: "Couple funded", statusLabel: "Balance pending")
+        ]
+    }
+
+    public func getContributions() async throws -> [PlannerContributionRecord] {
+        [
+            PlannerContributionRecord(id: "contrib_1", contributorLabel: "Contributor A", typeLabel: "Cash contribution", value: 1200, statusLabel: "Received", allocationLabel: "Venue & Catering", verified: true),
+            PlannerContributionRecord(id: "contrib_2", contributorLabel: "Contributor B", typeLabel: "Direct vendor payment", value: 900, statusLabel: "Verified", allocationLabel: "Decor & Florals", verified: true),
+            PlannerContributionRecord(id: "contrib_3", contributorLabel: "Contributor C", typeLabel: "In-kind service", value: 650, statusLabel: "Pending verification", allocationLabel: "Transport", verified: false),
+            PlannerContributionRecord(id: "contrib_4", contributorLabel: "Contributor D", typeLabel: "Pledge", value: 450, statusLabel: "Pledged", allocationLabel: "Unallocated", verified: false)
+        ]
+    }
+
+    public func getVendorEngagements() async throws -> [PlannerVendorEngagement] {
+        [
+            PlannerVendorEngagement(id: "vendor_1", vendorName: "Shadow Venue Partner", category: "Venue & Catering", bookingStatus: "Booked", contractStatus: "Signed", paymentStatus: "Balance due", nextAction: "Confirm final headcount"),
+            PlannerVendorEngagement(id: "vendor_2", vendorName: "Shadow Visuals", category: "Photography & Video", bookingStatus: "Booked", contractStatus: "Signed", paymentStatus: "Paid", nextAction: "Confirm shot list"),
+            PlannerVendorEngagement(id: "vendor_3", vendorName: "Shadow Events", category: "Decor & Florals", bookingStatus: "Booked", contractStatus: "Needs review", paymentStatus: "Deposit paid", nextAction: "Approve floral substitutions"),
+            PlannerVendorEngagement(id: "vendor_4", vendorName: "Shadow Sound", category: "Music & Sound", bookingStatus: "Booked", contractStatus: "Signed", paymentStatus: "Balance pending", nextAction: "Lock reception playlist")
+        ]
+    }
+
+    public func getSeatingTables() async throws -> [PlannerSeatingTable] {
+        [
+            PlannerSeatingTable(id: "table_1", name: "Baobab", zone: "Family", capacity: 10, assigned: 10, attentionLabel: nil),
+            PlannerSeatingTable(id: "table_2", name: "Jacaranda", zone: "Friends", capacity: 10, assigned: 8, attentionLabel: "2 seats free"),
+            PlannerSeatingTable(id: "table_3", name: "Acacia", zone: "Family", capacity: 10, assigned: 9, attentionLabel: "1 seat free"),
+            PlannerSeatingTable(id: "table_4", name: "Flame Lily", zone: "VIP", capacity: 8, assigned: 7, attentionLabel: "1 assignment pending")
+        ]
+    }
+
+    public func getTimelineEntries() async throws -> [PlannerTimelineEntry] {
+        [
+            PlannerTimelineEntry(id: "time_1", time: "10:00", title: "Venue setup verification", location: "Main venue", statusLabel: "Planning", linkedVendor: "Shadow Venue Partner"),
+            PlannerTimelineEntry(id: "time_2", time: "12:30", title: "Photography arrival & detail shots", location: "Preparation suite", statusLabel: "Confirmed", linkedVendor: "Shadow Visuals"),
+            PlannerTimelineEntry(id: "time_3", time: "13:15", title: "Guest arrival", location: "Main gate", statusLabel: "Upcoming", linkedVendor: nil),
+            PlannerTimelineEntry(id: "time_4", time: "14:00", title: "Ceremony", location: "Ceremony area", statusLabel: "Upcoming", linkedVendor: nil),
+            PlannerTimelineEntry(id: "time_5", time: "17:30", title: "Reception", location: "Reception space", statusLabel: "Upcoming", linkedVendor: "Shadow Sound")
+        ]
     }
 }
