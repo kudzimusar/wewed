@@ -16,12 +16,12 @@ on:
       version_code:
         description: 'Google Play versionCode. Must be greater than every existing pro.wewed.app versionCode.'
         required: true
-        default: '6'
+        default: '7'
         type: string
       version_name:
         description: 'Base Android versionName; -uat is appended to the Play UAT variant.'
         required: true
-        default: '2.0.3'
+        default: '2.0.4'
         type: string
       play_track:
         description: 'Existing Google Play closed-testing track id (normally alpha).'
@@ -42,8 +42,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  WEWED_ANDROID_VERSION_CODE: ${{ github.event_name == 'workflow_dispatch' && inputs.version_code || '6' }}
-  WEWED_ANDROID_VERSION_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.version_name || '2.0.3' }}
+  WEWED_ANDROID_VERSION_CODE: ${{ github.event_name == 'workflow_dispatch' && inputs.version_code || '7' }}
+  WEWED_ANDROID_VERSION_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.version_name || '2.0.4' }}
 
 jobs:
   bundle-contract:
@@ -78,6 +78,9 @@ jobs:
           grep -q 'https://uat.wewed.pro/invite/physical-resume' android/app/src/main/java/pro/wewed/app/InstallReferrerHandoff.java
           grep -q 'android.support.customtabs.trusted.LAUNCH_HANDLER_CLIENT_MODE' android/app/src/main/AndroidManifest.xml
           grep -q 'android:value="navigate-existing"' android/app/src/main/AndroidManifest.xml
+          grep -q 'android:scheme="wewed"' android/app/src/main/AndroidManifest.xml
+          grep -q 'android:host="invite"' android/app/src/main/AndroidManifest.xml
+          grep -q 'getStringExtra("wewed_handoff")' android/app/src/main/java/pro/wewed/app/LauncherActivity.java
           UAT_NAV_MANIFEST="$(find android/app/build/intermediates -type f -name AndroidManifest.xml -path '*uatPlay*' -print0 | xargs -0 -r grep -l 'LAUNCH_HANDLER_CLIENT_MODE' | head -n 1 || true)"
           test -n "$UAT_NAV_MANIFEST"
           grep -q 'android:value="navigate-existing"' "$UAT_NAV_MANIFEST"
