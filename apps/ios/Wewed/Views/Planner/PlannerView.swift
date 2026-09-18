@@ -12,6 +12,7 @@ public struct PlannerView: View {
         case all = "All"
         case todo = "To Do"
         case inProgress = "In Progress"
+        case blocked = "Blocked"
         case done = "Done"
     }
 
@@ -22,6 +23,7 @@ public struct PlannerView: View {
         case .all: return tasks
         case .todo: return tasks.filter { $0.status == .todo }
         case .inProgress: return tasks.filter { $0.status == .inProgress }
+        case .blocked: return tasks.filter { $0.status == .blocked }
         case .done: return tasks.filter { $0.status == .done }
         }
     }
