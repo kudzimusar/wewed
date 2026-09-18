@@ -52,10 +52,10 @@ fun HomeScreen(appViewModel: AppViewModel) {
         announcements = appViewModel.repository.getAnnouncements()
         plannerDashboard = appViewModel.plannerRepository.getDashboard()
         invitationContext = runCatching {
-            appViewModel.repository.resolveInvitation(loadedWedding.id, "native-reference-guest")
+            appViewModel.repository.resolveInvitation(loadedWedding.id, "shadow-pending-guest")
         }.getOrNull()
         quickPass = runCatching {
-            appViewModel.repository.getWeddingPass("native-reference-guest")
+            appViewModel.repository.getWeddingPass("shadow-attending-guest")
         }.getOrNull()
         isLoading = false
     }
