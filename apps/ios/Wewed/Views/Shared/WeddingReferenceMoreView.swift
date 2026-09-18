@@ -58,7 +58,9 @@ public struct WeddingReferenceMoreView: View {
                     .padding(.bottom, 24)
                 }
             }
-            #if os(iOS)\n            .toolbar(.hidden, for: .navigationBar)\n            #endif
+            #if os(iOS)
+            .toolbar(.hidden, for: .navigationBar)
+            #endif
             .task { await load() }
         }
         .accessibilityIdentifier("reference-more-root")
