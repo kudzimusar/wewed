@@ -169,17 +169,28 @@ async function clickPreparedGate(prepared, handoffPostCount) {
 }
 
 async function nativeCheckpoints(device, minimumIntentCount) {
-  const logs = String(
-    await device.shell('logcat -d -s WewedInvitation:I WewedInvitation:W *:S'),
+  const logs = await poll(
+    `native invitation checkpoint #${minimumIntentCount}`,
+    async () => {
+      const current = String(
+        await device.shell('logcat -d -s WewedInvitation:I WewedInvitation:W *:S'),
+      )
+      const intentCount =
+        (current.match(/checkpoint=native_intent_received/g) ?? []).length
+      if (
+        intentCount >= minimumIntentCount &&
+        current.includes('checkpoint=native_resume_uri_ready') &&
+        current.includes('host=10.0.2.2') &&
+        current.includes('path=/invite/resume')
+      ) {
+        return current
+      }
+      return null
+    },
+    { attempts: 80, delay: 250 },
   )
+
   const intentCount = (logs.match(/checkpoint=native_intent_received/g) ?? []).length
-  assert.ok(
-    intentCount >= minimumIntentCount,
-    `expected at least ${minimumIntentCount} native intent checkpoints, got ${intentCount}\n${logs}`,
-  )
-  assert.ok(logs.includes('checkpoint=native_resume_uri_ready'))
-  assert.ok(logs.includes('host=10.0.2.2'))
-  assert.ok(logs.includes('path=/invite/resume'))
   console.log(`checkpoint=native_intent_received count=${intentCount}`)
   console.log('checkpoint=native_resume_uri_ready')
 }
