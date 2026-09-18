@@ -40,8 +40,10 @@ appId: pro.wewed.app
     id: "home-root"
 - tapOn:
     id: "home-open-invitation"
-- assertVisible:
-    id: "guest-journey-splash"
+- extendedWaitUntil:
+    visible:
+      id: "ivory-invitation-root"
+    timeout: 5000
 - extendedWaitUntil:
     visible: "RSVP Now"
     timeout: 7000
