@@ -180,6 +180,78 @@ async function nativeCheckpoints(device, minimumIntentCount) {
   console.log('checkpoint=native_resume_uri_ready')
 }
 
+async function assertVisibleGuestInvitation(browserContext, fixture, guestName) {
+  const appPage = await poll(
+    `Wewed invitation page for ${guestName}`,
+    async () => {
+      for (const page of browserContext.pages()) {
+        try {
+          const url = new URL(page.url())
+          if (url.pathname !== `/w/${fixture.weddingSlug}`) continue
+          const experience = page.getByTestId('premium-invitation-experience')
+          if (!(await experience.isVisible().catch(() => false))) continue
+          return page
+        } catch {
+          // Ignore transient about:blank / internal targets.
+        }
+      }
+      return null
+    },
+    { attempts: 80, delay: 250 },
+  )
+
+  const experience = appPage.getByTestId('premium-invitation-experience')
+  const card = experience.getByTestId('invitation-trifold')
+  await poll(
+    `Ivory Floral Gold artwork for ${guestName}`,
+    async () => (await card.getAttribute('data-artwork-ready')) === 'true',
+    { attempts: 40, delay: 250 },
+  )
+
+  const openButton = experience.getByTestId('invitation-open-button')
+  if (await openButton.isVisible().catch(() => false)) {
+    await openButton.click()
+  }
+
+  await poll(
+    `guest personalization ${guestName}`,
+    async () => {
+      const text = await experience
+        .getByTestId('invitation-guest-personalization')
+        .innerText()
+        .catch(() => '')
+      return text.includes(guestName)
+    },
+    { attempts: 40, delay: 250 },
+  )
+
+  const detailsButton = experience.getByTestId('invitation-details-button')
+  if (await detailsButton.isVisible().catch(() => false)) {
+    await detailsButton.click()
+  }
+
+  const rsvpButton = experience.getByTestId('invitation-cta-rsvp')
+  await poll(
+    `RSVP CTA for ${guestName}`,
+    () => rsvpButton.isVisible().catch(() => false),
+    { attempts: 40, delay: 250 },
+  )
+  await rsvpButton.click()
+
+  const dialog = appPage.getByTestId('premium-invitation-rsvp-dialog')
+  await poll(
+    `RSVP dialog for ${guestName}`,
+    async () => {
+      if (!(await dialog.isVisible().catch(() => false))) return false
+      return (await dialog.innerText().catch(() => '')).includes(guestName)
+    },
+    { attempts: 40, delay: 250 },
+  )
+
+  console.log(`checkpoint=visible_guest=${guestName}`)
+  return appPage
+}
+
 async function waitForRedemption(fixture, minimumCount) {
   return poll('handoff redemption audit', async () => {
     const count = await prisma.auditEvent.count({
@@ -242,6 +314,11 @@ async function run() {
     assert.equal(activeA.guest.id, fixture.guestAId)
     assert.equal(activeA.guest.name, 'Android UAT Guest A')
     console.log('checkpoint=active_guest=A')
+    await assertVisibleGuestInvitation(
+      browserContext,
+      fixture,
+      'Android UAT Guest A',
+    )
 
     // B must be fully prepared while A remains valid; the switch is committed
     // only after the Android intent is received and B redeems its handoff.
@@ -267,6 +344,11 @@ async function run() {
     assert.equal(activeB.guest.id, fixture.guestBId)
     assert.equal(activeB.guest.name, 'Android UAT Guest B')
     console.log('checkpoint=active_guest=B')
+    await assertVisibleGuestInvitation(
+      browserContext,
+      fixture,
+      'Android UAT Guest B',
+    )
 
     // Reverse B -> A through the same Android Chrome profile and installed app.
     const preparedA2 = await prepareGate(
@@ -291,6 +373,11 @@ async function run() {
     assert.equal(activeA2.guest.id, fixture.guestAId)
     assert.equal(activeA2.guest.name, 'Android UAT Guest A')
     console.log('checkpoint=active_guest=A-restored')
+    await assertVisibleGuestInvitation(
+      browserContext,
+      fixture,
+      'Android UAT Guest A',
+    )
 
     assert.equal(
       handoffPosts,
