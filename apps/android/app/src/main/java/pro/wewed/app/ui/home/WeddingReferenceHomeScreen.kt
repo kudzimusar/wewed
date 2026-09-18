@@ -192,19 +192,14 @@ private fun ReferenceHero(
         Column(
             modifier = Modifier.fillMaxSize().padding(16.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                WeddingMonogram(
-                    names = wedding.coupleNames,
-                    sizeSp = 28,
-                    modifier = Modifier
-                )
+            Box(modifier = Modifier.fillMaxWidth()) {
+                WeddingBrandMark(modifier = Modifier.align(Alignment.Center))
+
                 IconButton(
                     onClick = onInvitation,
-                    modifier = Modifier.testTag("home-open-invitation")
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .testTag("home-open-invitation")
                 ) {
                     Icon(
                         Icons.Default.NotificationsNone,
