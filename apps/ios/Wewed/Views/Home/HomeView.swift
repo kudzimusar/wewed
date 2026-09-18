@@ -467,7 +467,7 @@ public struct HomeView: View {
 
                 invitationContext = try? await appState.repository.resolveInvitation(
                     weddingSlug: loadedWedding.id,
-                    token: "native-reference-guest"
+                    token: "shadow-pending-guest"
                 )
                 quickPass = try? await appState.repository.getWeddingPass(token: "shadow-attending-guest")
                 isLoading = false

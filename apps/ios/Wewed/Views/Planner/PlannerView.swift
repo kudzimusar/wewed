@@ -36,8 +36,8 @@ public struct PlannerView: View {
                         plannerIdentityCard(dashboard)
                         readinessCard(dashboard)
                         attentionCard(dashboard)
-                        planningModules(dashboard)
                         priorityTasks
+                        planningModules(dashboard)
                         recentActivity(dashboard)
                         sourceCard(dashboard)
                     } else if isLoading {

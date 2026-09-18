@@ -120,27 +120,7 @@ fun PlannerScreen(appViewModel: AppViewModel) {
                 item { PlannerIdentityCard(snapshot) }
                 item { ReadinessCard(snapshot) }
                 item { AttentionCard(snapshot) }
-                item { Text("Planning Areas", fontWeight = FontWeight.Bold, fontSize = 18.sp) }
-
-                items(snapshot.modules.chunked(2)) { row ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(WewedSpacing.md)
-                    ) {
-                        row.forEach { module ->
-                            PlanningModuleCard(
-                                module = module,
-                                modifier = Modifier.weight(1f).testTag("planner-module-${module.id}"),
-                                onClick = { activeModule = module.id }
-                            )
-                        }
-                        if (row.size == 1) {
-                            Spacer(modifier = Modifier.weight(1f))
-                        }
-                    }
-                }
             }
-
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -217,6 +197,28 @@ fun PlannerScreen(appViewModel: AppViewModel) {
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Open full task workspace", color = WewedColors.Emerald, fontWeight = FontWeight.SemiBold)
+                }
+            }
+
+            dashboard?.let { snapshot ->
+                item { Text("Planning Areas", fontWeight = FontWeight.Bold, fontSize = 18.sp) }
+
+                items(snapshot.modules.chunked(2)) { row ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(WewedSpacing.md)
+                    ) {
+                        row.forEach { module ->
+                            PlanningModuleCard(
+                                module = module,
+                                modifier = Modifier.weight(1f).testTag("planner-module-${module.id}"),
+                                onClick = { activeModule = module.id }
+                            )
+                        }
+                        if (row.size == 1) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
                 }
             }
 

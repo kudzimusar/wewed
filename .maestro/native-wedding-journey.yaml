@@ -10,11 +10,13 @@ appId: pro.wewed.app
 # 2. Overview / Home Screen
 - assertVisible: "Tariro & Shadreck"
 - assertVisible: "NEXT UP"
+- scroll
 - assertVisible: "YOUR WEDDING PASS"
 
 # 3. Planner & Task Management
 - tapOn: "Plan"
 - assertVisible: "Wedding Planner"
+- scroll
 - assertVisible: "Finalize seating chart with venue manager"
 
 # 4. Guests & Seating Search
