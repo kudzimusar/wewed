@@ -17,7 +17,7 @@ enum class AppTab(val title: String) {
     PLAN("Plan"),
     GUESTS("Guests"),
     PASS("Pass"),
-    LIVE("Live Wall")
+    LIVE("More")
 }
 
 class AppViewModel(
