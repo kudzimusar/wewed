@@ -17,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -69,7 +70,8 @@ fun IvoryInvitationScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = StageBackground)
             )
         },
-        containerColor = StageBackground
+        containerColor = StageBackground,
+        modifier = Modifier.testTag("ivory-invitation-root")
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -150,7 +152,7 @@ fun IvoryInvitationScreen(
                             onClick = { isRevealed = true },
                             colors = ButtonDefaults.buttonColors(containerColor = WewedColors.Gold),
                             shape = RoundedCornerShape(WewedRadius.pill),
-                            modifier = Modifier.padding(bottom = 16.dp)
+                            modifier = Modifier.padding(bottom = 16.dp).testTag("ivory-invitation-open")
                         ) {
                             Icon(Icons.Default.Mail, contentDescription = null, tint = Color.Black)
                             Spacer(modifier = Modifier.width(8.dp))
@@ -267,7 +269,7 @@ fun IvoryInvitationScreen(
                                         },
                                         colors = ButtonDefaults.buttonColors(containerColor = WewedColors.Gold),
                                         shape = RoundedCornerShape(WewedRadius.pill),
-                                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                                        modifier = Modifier.fillMaxWidth().height(48.dp).testTag("ivory-rsvp-accept"),
                                         enabled = !isSubmitting
                                     ) {
                                         if (isSubmitting) {
@@ -298,7 +300,7 @@ fun IvoryInvitationScreen(
                                                 }
                                             }
                                         },
-                                        modifier = Modifier.fillMaxWidth().height(46.dp),
+                                        modifier = Modifier.fillMaxWidth().height(46.dp).testTag("ivory-rsvp-decline"),
                                         shape = RoundedCornerShape(WewedRadius.pill),
                                         colors = ButtonDefaults.outlinedButtonColors(contentColor = DeepInk),
                                         enabled = !isSubmitting
@@ -348,7 +350,7 @@ fun IvoryInvitationScreen(
                                             },
                                             colors = ButtonDefaults.buttonColors(containerColor = WewedColors.Gold),
                                             shape = RoundedCornerShape(WewedRadius.pill),
-                                            modifier = Modifier.fillMaxWidth().height(48.dp)
+                                            modifier = Modifier.fillMaxWidth().height(48.dp).testTag("ivory-view-wedding-pass")
                                         ) {
                                             Icon(Icons.Default.QrCode, contentDescription = null, tint = Color.Black)
                                             Spacer(modifier = Modifier.width(8.dp))
