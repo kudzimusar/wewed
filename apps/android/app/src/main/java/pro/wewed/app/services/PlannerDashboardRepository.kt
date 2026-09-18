@@ -4,6 +4,11 @@ import pro.wewed.app.models.*
 
 interface PlannerDashboardRepository {
     suspend fun getDashboard(): PlannerDashboardSnapshot
+    suspend fun getBudgetLines(): List<PlannerBudgetLine>
+    suspend fun getContributions(): List<PlannerContributionRecord>
+    suspend fun getVendorEngagements(): List<PlannerVendorEngagement>
+    suspend fun getSeatingTables(): List<PlannerSeatingTable>
+    suspend fun getTimelineEntries(): List<PlannerTimelineEntry>
 }
 
 class FixturePlannerDashboardRepository : PlannerDashboardRepository {
@@ -40,4 +45,40 @@ class FixturePlannerDashboardRepository : PlannerDashboardRepository {
             sourceLabel = "Sanitized reference fixture — NOT production snapshot"
         )
     }
+
+    override suspend fun getBudgetLines(): List<PlannerBudgetLine> = listOf(
+        PlannerBudgetLine("budget_venue", "Venue & Catering", "Shadow Venue Partner", 12000.0, 11800.0, 8000.0, "Balance due before event", "Couple + contributor funding", "Partially paid"),
+        PlannerBudgetLine("budget_photo", "Photography & Video", "Shadow Visuals", 3500.0, 3500.0, 3500.0, null, "Couple funded", "Paid"),
+        PlannerBudgetLine("budget_decor", "Decor & Florals", "Shadow Events", 3000.0, 3200.0, 1500.0, "Final balance pending", "Contributor + couple", "Deposit paid"),
+        PlannerBudgetLine("budget_sound", "Music & Sound", "Shadow Sound", 1500.0, 1650.0, 500.0, "Payment milestone open", "Couple funded", "Balance pending")
+    )
+
+    override suspend fun getContributions(): List<PlannerContributionRecord> = listOf(
+        PlannerContributionRecord("contrib_1", "Contributor A", "Cash contribution", 1200.0, "Received", "Venue & Catering", true),
+        PlannerContributionRecord("contrib_2", "Contributor B", "Direct vendor payment", 900.0, "Verified", "Decor & Florals", true),
+        PlannerContributionRecord("contrib_3", "Contributor C", "In-kind service", 650.0, "Pending verification", "Transport", false),
+        PlannerContributionRecord("contrib_4", "Contributor D", "Pledge", 450.0, "Pledged", "Unallocated", false)
+    )
+
+    override suspend fun getVendorEngagements(): List<PlannerVendorEngagement> = listOf(
+        PlannerVendorEngagement("vendor_1", "Shadow Venue Partner", "Venue & Catering", "Booked", "Signed", "Balance due", "Confirm final headcount"),
+        PlannerVendorEngagement("vendor_2", "Shadow Visuals", "Photography & Video", "Booked", "Signed", "Paid", "Confirm shot list"),
+        PlannerVendorEngagement("vendor_3", "Shadow Events", "Decor & Florals", "Booked", "Needs review", "Deposit paid", "Approve floral substitutions"),
+        PlannerVendorEngagement("vendor_4", "Shadow Sound", "Music & Sound", "Booked", "Signed", "Balance pending", "Lock reception playlist")
+    )
+
+    override suspend fun getSeatingTables(): List<PlannerSeatingTable> = listOf(
+        PlannerSeatingTable("table_1", "Baobab", "Family", 10, 10, null),
+        PlannerSeatingTable("table_2", "Jacaranda", "Friends", 10, 8, "2 seats free"),
+        PlannerSeatingTable("table_3", "Acacia", "Family", 10, 9, "1 seat free"),
+        PlannerSeatingTable("table_4", "Flame Lily", "VIP", 8, 7, "1 assignment pending")
+    )
+
+    override suspend fun getTimelineEntries(): List<PlannerTimelineEntry> = listOf(
+        PlannerTimelineEntry("time_1", "10:00", "Venue setup verification", "Main venue", "Planning", "Shadow Venue Partner"),
+        PlannerTimelineEntry("time_2", "12:30", "Photography arrival & detail shots", "Preparation suite", "Confirmed", "Shadow Visuals"),
+        PlannerTimelineEntry("time_3", "13:15", "Guest arrival", "Main gate", "Upcoming", null),
+        PlannerTimelineEntry("time_4", "14:00", "Ceremony", "Ceremony area", "Upcoming", null),
+        PlannerTimelineEntry("time_5", "17:30", "Reception", "Reception space", "Upcoming", "Shadow Sound")
+    )
 }
