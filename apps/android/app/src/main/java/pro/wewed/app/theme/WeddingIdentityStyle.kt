@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -33,6 +34,30 @@ object WeddingIdentityPalette {
     val Ink = Color(0xFF13212B)
     val Muted = Color(0xFF667381)
     val Hairline = Color(0xFFE9E1D5)
+}
+
+
+@Composable
+fun WeddingBrandMark(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier.size(width = 30.dp, height = 26.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(width = 12.dp, height = 20.dp)
+                .offset(x = (-4).dp)
+                .rotate(38f)
+                .border(2.dp, WeddingIdentityPalette.Champagne, RoundedCornerShape(8.dp))
+        )
+        Box(
+            modifier = Modifier
+                .size(width = 12.dp, height = 20.dp)
+                .offset(x = 4.dp)
+                .rotate(-38f)
+                .border(2.dp, WeddingIdentityPalette.Champagne, RoundedCornerShape(8.dp))
+        )
+    }
 }
 
 @Composable
