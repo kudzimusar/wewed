@@ -21,7 +21,12 @@ public struct WeddingReferenceMoreView: View {
                                 .frame(maxWidth: .infinity)
                                 .padding(.top, 80)
                         } else if let wedding {
-                            weddingCard(wedding)
+                            NavigationLink {
+                                ReferenceWeddingProfileView(wedding: wedding)
+                            } label: {
+                                weddingCard(wedding)
+                            }
+                            .buttonStyle(.plain)
 
                             menuLink(title: "Our Story", subtitle: "Photos, videos and milestones", icon: "photo.on.rectangle.angled", identifier: "more-story") {
                                 ReferenceEmptyFeatureView(
@@ -207,5 +212,41 @@ private struct ReferenceEmptyFeatureView: View {
             }
         }
         .navigationTitle(title)
+    }
+}
+
+
+private struct ReferenceWeddingProfileView: View {
+    let wedding: Wedding
+
+    var body: some View {
+        ZStack {
+            WeddingFloralBackground(opacity: 0.06)
+            ScrollView {
+                VStack(spacing: 18) {
+                    Image("hero-wedding", bundle: .module)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(height: 260)
+                        .clipped()
+                        .clipShape(RoundedRectangle(cornerRadius: 22))
+
+                    WeddingMonogram(names: wedding.coupleNames, size: 42)
+
+                    Text(wedding.coupleNames)
+                        .font(.system(size: 27, weight: .semibold, design: .serif))
+
+                    VStack(spacing: 8) {
+                        Label(wedding.venueName, systemImage: "mappin.and.ellipse")
+                        Label("\(wedding.city), \(wedding.country)", systemImage: "globe")
+                        Label(wedding.date, systemImage: "calendar")
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(WeddingIdentityPalette.muted)
+                }
+                .padding(18)
+            }
+        }
+        .navigationTitle("Wedding")
     }
 }

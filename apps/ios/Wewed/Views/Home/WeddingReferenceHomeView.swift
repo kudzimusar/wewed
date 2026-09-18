@@ -189,28 +189,52 @@ public struct WeddingReferenceHomeView: View {
 
     private var metrics: some View {
         HStack(spacing: 8) {
-            WeddingMetricTile(
+            metricButton(
                 title: "Tasks",
                 value: "\(tasks.filter { $0.status != .done }.count) left",
-                icon: "checklist"
+                icon: "checklist",
+                tab: .plan,
+                identifier: "home-metric-tasks"
             )
-            WeddingMetricTile(
+            metricButton(
                 title: "Budget",
                 value: currencyShort(budget?.totalBudget ?? 0),
-                icon: "wallet.pass"
+                icon: "wallet.pass",
+                tab: .plan,
+                identifier: "home-metric-budget"
             )
-            WeddingMetricTile(
+            metricButton(
                 title: "Guests",
                 value: "\(guests.count)",
-                icon: "person.2"
+                icon: "person.2",
+                tab: .guests,
+                identifier: "home-metric-guests"
             )
-            WeddingMetricTile(
+            metricButton(
                 title: "Vendors",
                 value: "\(vendors.count)",
-                icon: "storefront"
+                icon: "storefront",
+                tab: .plan,
+                identifier: "home-metric-vendors"
             )
         }
         .accessibilityIdentifier("home-metrics")
+    }
+
+    private func metricButton(
+        title: String,
+        value: String,
+        icon: String,
+        tab: AppTab,
+        identifier: String
+    ) -> some View {
+        Button {
+            appState.selectedTab = tab
+        } label: {
+            WeddingMetricTile(title: title, value: value, icon: icon)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier)
     }
 
     private var taskCompletionPercent: Int {

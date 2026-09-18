@@ -3,6 +3,7 @@ package pro.wewed.app.ui.home
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -112,29 +113,37 @@ fun WeddingReferenceHomeScreen(appViewModel: AppViewModel) {
                         modifier = Modifier.fillMaxWidth().testTag("home-metrics"),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        WeddingMetricTile(
-                            "Tasks",
-                            "${tasks.count { it.status != TaskStatus.DONE }} left",
-                            Icons.Default.Checklist,
-                            Modifier.weight(1f)
+                        ReferenceMetricAction(
+                            title = "Tasks",
+                            value = "${tasks.count { it.status != TaskStatus.DONE }} left",
+                            icon = Icons.Default.Checklist,
+                            identifier = "home-metric-tasks",
+                            modifier = Modifier.weight(1f),
+                            onClick = { appViewModel.selectTab(AppTab.PLAN) }
                         )
-                        WeddingMetricTile(
-                            "Budget",
-                            formatMoney(budget?.totalBudget ?: 0.0),
-                            Icons.Default.AccountBalanceWallet,
-                            Modifier.weight(1f)
+                        ReferenceMetricAction(
+                            title = "Budget",
+                            value = formatMoney(budget?.totalBudget ?: 0.0),
+                            icon = Icons.Default.AccountBalanceWallet,
+                            identifier = "home-metric-budget",
+                            modifier = Modifier.weight(1f),
+                            onClick = { appViewModel.selectTab(AppTab.PLAN) }
                         )
-                        WeddingMetricTile(
-                            "Guests",
-                            guests.size.toString(),
-                            Icons.Default.Group,
-                            Modifier.weight(1f)
+                        ReferenceMetricAction(
+                            title = "Guests",
+                            value = guests.size.toString(),
+                            icon = Icons.Default.Group,
+                            identifier = "home-metric-guests",
+                            modifier = Modifier.weight(1f),
+                            onClick = { appViewModel.selectTab(AppTab.GUESTS) }
                         )
-                        WeddingMetricTile(
-                            "Vendors",
-                            vendors.size.toString(),
-                            Icons.Default.Storefront,
-                            Modifier.weight(1f)
+                        ReferenceMetricAction(
+                            title = "Vendors",
+                            value = vendors.size.toString(),
+                            icon = Icons.Default.Storefront,
+                            identifier = "home-metric-vendors",
+                            modifier = Modifier.weight(1f),
+                            onClick = { appViewModel.selectTab(AppTab.PLAN) }
                         )
                     }
 
@@ -142,6 +151,30 @@ fun WeddingReferenceHomeScreen(appViewModel: AppViewModel) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ReferenceMetricAction(
+    title: String,
+    value: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    identifier: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(15.dp))
+            .clickable { onClick() }
+            .testTag(identifier)
+    ) {
+        WeddingMetricTile(
+            title = title,
+            value = value,
+            icon = icon,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 

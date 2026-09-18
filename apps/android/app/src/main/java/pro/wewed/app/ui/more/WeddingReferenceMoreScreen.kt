@@ -44,6 +44,14 @@ fun WeddingReferenceMoreScreen(appViewModel: AppViewModel) {
 
     destination?.let { current ->
         when (current) {
+            ReferenceMoreDestination.PROFILE -> {
+                val currentWedding = wedding
+                if (currentWedding != null) {
+                    ReferenceWeddingProfileScreen(currentWedding) { destination = null }
+                } else {
+                    ReferenceMoreEmptyScreen("Wedding", "Wedding details are unavailable.", "") { destination = null }
+                }
+            }
             ReferenceMoreDestination.HONEYMOON ->
                 ShadowContributionsDestination(appViewModel) { destination = null }
             ReferenceMoreDestination.STORY ->
@@ -123,6 +131,7 @@ fun WeddingReferenceMoreScreen(appViewModel: AppViewModel) {
                             .background(WeddingIdentityPalette.IvorySoft)
                             .border(1.dp, WeddingIdentityPalette.Hairline, RoundedCornerShape(16.dp))
                             .testTag("more-wedding-profile")
+                            .clickable { destination = ReferenceMoreDestination.PROFILE }
                             .padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -248,7 +257,59 @@ private fun ReferenceMoreEmptyScreen(
     }
 }
 
+@Composable
+private fun ReferenceWeddingProfileScreen(
+    wedding: Wedding,
+    onBack: () -> Unit
+) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Wedding", fontFamily = FontFamily.Serif) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = WeddingIdentityPalette.Ivory)
+            )
+        },
+        containerColor = WeddingIdentityPalette.Ivory
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Image(
+                painter = painterResource(R.drawable.hero_wedding),
+                contentDescription = "Wedding visual",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(260.dp)
+                    .clip(RoundedCornerShape(22.dp))
+            )
+            WeddingMonogram(wedding.coupleNames, sizeSp = 42)
+            Text(
+                wedding.coupleNames,
+                color = WeddingIdentityPalette.Ink,
+                fontFamily = FontFamily.Serif,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 27.sp
+            )
+            Text(wedding.venueName, color = WeddingIdentityPalette.Muted)
+            Text("${wedding.city}, ${wedding.country}", color = WeddingIdentityPalette.Muted)
+            Text(wedding.date, color = WeddingIdentityPalette.Muted)
+        }
+    }
+}
+
 private enum class ReferenceMoreDestination {
+    PROFILE,
     STORY,
     GALLERY,
     HONEYMOON,

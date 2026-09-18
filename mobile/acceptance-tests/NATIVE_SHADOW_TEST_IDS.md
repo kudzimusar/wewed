@@ -14,6 +14,10 @@ They are intentionally semantic and stable. Maestro and platform UI tests should
 | Open invitation | `home-open-invitation` |
 | Continue planning | `home-continue-planning` |
 | Wedding metrics | `home-metrics` |
+| Tasks quick action | `home-metric-tasks` |
+| Budget quick action | `home-metric-budget` |
+| Guests quick action | `home-metric-guests` |
+| Vendors quick action | `home-metric-vendors` |
 
 ### Planner
 

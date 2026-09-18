@@ -68,29 +68,39 @@ public struct GuestInvitationJourneyView: View {
 
     private var splashStage: some View {
         ZStack {
-            Color(red: 0.08, green: 0.07, blue: 0.06)
-                .ignoresSafeArea()
+            WeddingFloralBackground(opacity: 0.11)
 
             VStack(spacing: 14) {
-                Text("WEWED")
-                    .font(.system(size: 40, weight: .semibold, design: .serif))
-                    .tracking(5)
-                    .foregroundColor(WewedColors.gold)
+                WeddingBrandMark()
+                    .scaleEffect(splashVisible ? 1 : 0.72)
+                    .rotationEffect(.degrees(splashVisible ? 0 : -10))
 
-                Text("Plan together. Celebrate beautifully.")
-                    .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.78))
+                Text("Wewed")
+                    .font(.system(size: 42, weight: .medium, design: .serif))
+                    .foregroundStyle(WeddingIdentityPalette.ink)
+
+                Text("PLAN  •  CONNECT  •  CELEBRATE")
+                    .font(.system(size: 10, weight: .semibold))
+                    .tracking(2.4)
+                    .foregroundStyle(WeddingIdentityPalette.muted)
 
                 Capsule()
-                    .fill(WewedColors.gold.opacity(0.7))
-                    .frame(width: splashVisible ? 92 : 26, height: 2)
-                    .animation(.easeInOut(duration: 0.8), value: splashVisible)
+                    .fill(WeddingIdentityPalette.champagne.opacity(0.72))
+                    .frame(width: splashVisible ? 94 : 26, height: 1.5)
+
+                Text("Weddings Made More Meaningful")
+                    .font(.system(size: 18, design: .serif))
+                    .italic()
+                    .foregroundStyle(WeddingIdentityPalette.ink)
             }
-            .scaleEffect(splashVisible ? 1 : 0.92)
+            .padding(28)
+            .scaleEffect(splashVisible ? 1 : 0.94)
+            .offset(y: splashVisible ? 0 : 18)
             .opacity(splashVisible ? 1 : 0)
+            .animation(.easeOut(duration: 0.65), value: splashVisible)
         }
         .accessibilityElement(children: .combine)
-.accessibilityLabel("Wewed. Plan together. Celebrate beautifully.")
+        .accessibilityLabel("Wewed. Plan, connect, celebrate. Weddings made more meaningful.")
         .accessibilityIdentifier("guest-journey-splash")
     }
 
