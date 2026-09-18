@@ -9,6 +9,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -68,7 +69,7 @@ fun GuestInvitationJourneyScreen(
             )
             TextButton(
                 onClick = onExit,
-                modifier = Modifier.align(Alignment.TopEnd).padding(12.dp)
+                modifier = Modifier.align(Alignment.TopEnd).padding(12.dp).testTag("guest-journey-done")
             ) {
                 Text("Done", fontWeight = FontWeight.SemiBold, color = WewedColors.Emerald)
             }
@@ -91,7 +92,8 @@ private fun WewedInvitationSplash() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF151210)),
+            .background(Color(0xFF151210))
+            .testTag("guest-journey-splash"),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -123,7 +125,8 @@ private fun DeclinedGuestStage(onExit: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(WewedColors.Ivory)
-            .padding(28.dp),
+            .padding(28.dp)
+            .testTag("guest-journey-declined"),
         contentAlignment = Alignment.Center
     ) {
         Column(
