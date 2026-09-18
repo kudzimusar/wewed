@@ -86,3 +86,63 @@ bash mobile/shadow/tools/native_local_preflight.sh
 The script stops on branch mismatch, local/remote divergence, dirty worktree, scope contamination, iOS test/build failure, or Android test/build failure.
 
 Do not proceed to Maestro/simulator qualification until this script returns PASS.
+
+
+## Native environment selection
+
+The apps now use the same repository factory boundary on both platforms.
+
+### iOS
+
+The executable reads:
+
+- `WEWED_NATIVE_ENV`
+- `WEWED_SHADOW_API_BASE_URL`
+
+Recognized values are:
+
+```
+fixture
+shadow
+production_read_verify
+production
+```
+
+During this sprint:
+
+- `fixture` is allowed;
+- `shadow` is allowed;
+- `production_read_verify` deliberately throws until separately configured;
+- `production` deliberately throws.
+
+A local Shadow launch should therefore supply `WEWED_NATIVE_ENV=shadow`. The base URL may be omitted while using the in-memory Shadow reference repositories.
+
+### Android
+
+`MainActivity` accepts these development intent extras:
+
+```
+wewed_native_env
+wewed_shadow_base_url
+```
+
+The same safety rules apply. A production value does not silently fall back to fixtures.
+
+## Reference guest tokens
+
+The sanitized Shadow reference repository intentionally exposes separate non-secret development tokens:
+
+```
+shadow-attending-guest
+shadow-pending-guest
+shadow-declined-guest
+```
+
+They exist only to exercise different guest states.
+
+- Home's Invitation preview uses `shadow-pending-guest` so the full Splash → Ivory Floral Gold → RSVP sequence remains testable.
+- Home's Pass preview uses `shadow-attending-guest` so an already-confirmed pass state remains independently testable.
+- Accepting the pending invitation updates only that guest and creates a development-only pass serial.
+- Declining does not grant an admission-stage pass.
+
+None of these values are production credentials.
