@@ -37,16 +37,13 @@ function recoveryRedirect(): NextResponse {
   // expired, duplicated, or otherwise fails. The replacement is atomic: only a
   // successfully redeemed handoff is allowed to overwrite the active guest.
   clearPendingInvitationCookie(response)
-  console.info('[wewed][invitation-handoff]', {
-    checkpoint: 'active_guest_set',
-    handoffId: result.handoffId,
-  })
   return response
 }
 
 export async function GET(request: NextRequest) {
   const handoff = request.nextUrl.searchParams.get('h')?.trim() || ''
   console.info('[wewed][invitation-handoff]', { checkpoint: 'resume_requested' })
+
   const result = await consumeInvitationInstallHandoff({
     secret: handoff,
     ipAddress: clientIp(request),
@@ -98,5 +95,11 @@ export async function GET(request: NextRequest) {
     }),
   )
   clearPendingInvitationCookie(response)
+
+  console.info('[wewed][invitation-handoff]', {
+    checkpoint: 'active_guest_set',
+    handoffId: result.handoffId,
+  })
+
   return response
 }
