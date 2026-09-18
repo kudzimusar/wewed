@@ -2,6 +2,7 @@
 
 import { describe, expect, test } from 'bun:test'
 import {
+  buildAndroidInvitationIntentUrl,
   buildInvitationContinuePath,
   buildInvitationResumePath,
   buildPhysicalInvitationResumePath,
@@ -77,6 +78,41 @@ describe('smart invitation links', () => {
     expect(buildPhysicalInvitationResumePath(physical)).toBe(
       `/invite/physical-resume?h=${physical}`,
     )
+  })
+
+
+  test('keeps installed Android invitation handoff on the active Wewed origin', () => {
+    const handoff = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
+    const path = buildInvitationResumePath(handoff)
+
+    const uat = buildAndroidInvitationIntentUrl({
+      origin: 'https://uat.wewed.pro',
+      appResumePath: path,
+      fallbackUrl: 'https://uat.wewed.pro/invite/example/open',
+    })
+    expect(uat).toBe(
+      `intent://uat.wewed.pro/invite/resume?h=${handoff}#Intent;scheme=https;package=pro.wewed.app;S.browser_fallback_url=${encodeURIComponent('https://uat.wewed.pro/invite/example/open')};end`,
+    )
+    expect(uat).not.toContain('intent://wewed.pro/')
+
+    const production = buildAndroidInvitationIntentUrl({
+      origin: 'https://wewed.pro',
+      appResumePath: path,
+      fallbackUrl: 'https://wewed.pro/invite/example/open',
+    })
+    expect(production).toContain('intent://wewed.pro/invite/resume?')
+    expect(production).not.toContain('uat.wewed.pro')
+  })
+
+  test('rejects cross-origin Android invitation resume construction', () => {
+    const handoff = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
+    expect(() =>
+      buildAndroidInvitationIntentUrl({
+        origin: 'https://uat.wewed.pro',
+        appResumePath: `https://wewed.pro/invite/resume?h=${handoff}`,
+        fallbackUrl: 'https://uat.wewed.pro/invite/example/open',
+      }),
+    ).toThrow('current Wewed origin')
   })
 
   test('rejects malformed deferred handoff values', () => {
