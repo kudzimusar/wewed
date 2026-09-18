@@ -2,32 +2,59 @@ appId: pro.wewed.app
 ---
 - launchApp:
     clearState: true
+    arguments:
+      wewed_native_env: "shadow"
 
 # 1. Sign In
 - assertVisible: "WEWED"
 - tapOn: "Sign In"
 
-
-# 2. Home / Overview
-- assertVisible: "Charity & Kudzie"
-- assertVisible: "Data environment Shadow"
-- assertVisible: "NEXT UP"
-- scroll
-- assertVisible: "YOUR WEDDING PASS"
+# 2. Home / Wedding Command Center
+- assertVisible:
+    id: "home-root"
+- assertVisible: "OUR WEDDING JOURNEY"
+- assertVisible:
+    id: "home-continue-planning"
+- assertVisible:
+    id: "home-metrics"
 
 # 3. Planner
 - tapOn: "Plan"
+- assertVisible:
+    id: "planner-root"
 - assertVisible: "Wedding Planner"
-- assertVisible: "Data environment Shadow"
-- assertVisible: "Eleven Eleven Testing"
-- assertVisible: "Charity & Kudzie"
-- scroll
-- assertVisible: "8 high priority tasks"
-- assertVisible: "172 RSVPs pending"
+- assertVisible:
+    id: "planner-module-tasks"
+- assertVisible:
+    id: "planner-module-budget"
+- assertVisible:
+    id: "planner-module-vendors"
 
 # 4. Guests
 - tapOn: "Guests"
-- assertVisible: "Guest List"
-- assertVisible: "Guest G001"
-- assertVisible: "Table 5 — Friends"
+- assertVisible:
+    id: "guests-root"
+- assertVisible:
+    id: "guests-search"
+- assertVisible:
+    id: "guests-filter-all"
+- tapOn:
+    id: "guests-filter-pending"
+- assertVisible:
+    id: "guests-root"
 
+# 5. Pass
+- tapOn: "Pass"
+- assertVisible:
+    id: "pass-root"
+- assertVisible:
+    id: "wedding-pass-card"
+
+# 6. More
+- tapOn: "More"
+- assertVisible:
+    id: "more-root"
+- assertVisible:
+    id: "more-wedding-profile"
+- assertVisible:
+    id: "more-honeymoon"
