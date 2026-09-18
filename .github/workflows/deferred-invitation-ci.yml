@@ -165,7 +165,18 @@ jobs:
         with:
           bun-version: 1.3.14
       - name: Install application dependencies
-        run: bun install --frozen-lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if bun install --frozen-lockfile; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              exit 1
+            fi
+            sleep $((attempt * 3))
+          done
       - name: Install pinned Playwright test runner
         run: bun add --no-save --exact @playwright/test@1.55.0
       - name: Install Chromium and system dependencies
@@ -320,26 +331,31 @@ jobs:
             sudo chmod 666 /dev/kvm
           fi
       - name: Run real Android Chrome A-B-A guest-switch gate
-        uses: reactivecircus/android-emulator-runner@v2
+        uses: reactivecircus/android-emulator-runner@v2.38.0
         with:
           api-level: 35
           target: google_apis
           arch: x86_64
           profile: pixel_6
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
           script: |
             set -euo pipefail
             adb install -r android/app/build/outputs/apk/uat/app-uat.apk
             adb shell pm list packages com.android.chrome | grep -q 'package:com.android.chrome'
-            adb shell pm clear com.android.chrome || true
+            # Fresh AVD: do not clear Chrome here. Playwright Android depends on
+            # Chrome's command-line capability, and clearing app data can reset it.
+            adb shell am force-stop com.android.chrome || true
+            adb shell settings put global stay_on_while_plugged_in 3 || true
+            adb shell input keyevent KEYCODE_WAKEUP || true
             adb logcat -c
             bun e2e/deferred-invitation.android.mjs
       - name: Print sanitized Android invitation checkpoints on failure
         if: failure()
         shell: bash
         run: |
-          adb logcat -d -s WewedInvitation:I WewedInvitation:W '*:S' || true
-          perl -pe 's/([?&](?:rsvp|h)=)[^&\s]+/${1}[REDACTED]/g' /tmp/wewed-android-chrome-server.log || true
+          timeout 10s adb logcat -d -s WewedInvitation:I WewedInvitation:W '*:S' || true
+          timeout 10s perl -pe 's/([?&](?:rsvp|h)=)[^&\s]+/${1}[REDACTED]/g' /tmp/wewed-android-chrome-server.log || true
       - name: Stop Android test server
         if: always()
         run: |
