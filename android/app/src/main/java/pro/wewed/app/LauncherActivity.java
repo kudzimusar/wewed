@@ -8,6 +8,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 
 import com.android.installreferrer.api.InstallReferrerClient;
 import com.android.installreferrer.api.InstallReferrerStateListener;
@@ -16,6 +17,7 @@ import com.android.installreferrer.api.ReferrerDetails;
 public class LauncherActivity
         extends com.google.androidbrowserhelper.trusted.LauncherActivity {
 
+    private static final String INVITATION_LOG_TAG = "WewedInvitation";
     private static final String REFERRER_PREFS = "wewed_install_referrer";
     private static final String REFERRER_PROCESSED_KEY = "invitation_handoff_processed_v1";
     private static final String REFERRER_ATTEMPTS_KEY = "invitation_handoff_attempts_v1";
@@ -42,10 +44,19 @@ public class LauncherActivity
                     && "wewed".equals(data.getScheme())
                     && "invite".equals(data.getHost())
                     && "/resume".equals(data.getPath())) {
+                Log.i(INVITATION_LOG_TAG, "checkpoint=native_intent_received");
                 String handoff = intent.getStringExtra("wewed_handoff");
                 try {
-                    return InstallReferrerHandoff.buildResumeUri(handoff);
+                    Uri resumeUri = InstallReferrerHandoff.buildResumeUri(handoff);
+                    Log.i(
+                            INVITATION_LOG_TAG,
+                            "checkpoint=native_resume_uri_ready host="
+                                    + resumeUri.getHost()
+                                    + " path="
+                                    + resumeUri.getPath());
+                    return resumeUri;
                 } catch (IllegalArgumentException ignored) {
+                    Log.w(INVITATION_LOG_TAG, "checkpoint=native_intent_rejected");
                     // Never forward malformed or attacker-controlled values into the web session.
                     return super.getLaunchingUrl();
                 }
