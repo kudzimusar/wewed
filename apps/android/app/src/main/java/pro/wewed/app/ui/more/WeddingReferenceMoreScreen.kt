@@ -64,6 +64,11 @@ fun WeddingReferenceMoreScreen(appViewModel: AppViewModel) {
             .background(WeddingIdentityPalette.Ivory)
             .testTag("more-root")
     ) {
+        WeddingOrnamentBackdrop(
+            modifier = Modifier.matchParentSize(),
+            alpha = 0.025f
+        )
+
         if (loading) {
             CircularProgressIndicator(
                 color = WeddingIdentityPalette.ChampagneDeep,
@@ -74,18 +79,41 @@ fun WeddingReferenceMoreScreen(appViewModel: AppViewModel) {
                 modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(
-                    "More",
-                    color = WeddingIdentityPalette.Ink,
-                    fontFamily = FontFamily.Serif,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 28.sp
-                )
-                Text(
-                    "Your wedding, beautifully organised.",
-                    color = WeddingIdentityPalette.Muted,
-                    fontSize = 12.sp
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "More",
+                            color = WeddingIdentityPalette.Ink,
+                            fontFamily = FontFamily.Serif,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 28.sp
+                        )
+                        Text(
+                            "Your wedding, beautifully organised.",
+                            color = WeddingIdentityPalette.Muted,
+                            fontSize = 12.sp
+                        )
+                    }
+
+                    Surface(
+                        modifier = Modifier.size(40.dp).testTag("more-settings-shortcut"),
+                        shape = CircleShape,
+                        color = WeddingIdentityPalette.IvorySoft,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, WeddingIdentityPalette.Hairline),
+                        onClick = { destination = ReferenceMoreDestination.SETTINGS }
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Default.Settings,
+                                contentDescription = "Settings",
+                                tint = WeddingIdentityPalette.Ink
+                            )
+                        }
+                    }
+                }
 
                 wedding?.let { currentWedding ->
                     Row(
