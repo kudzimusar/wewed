@@ -6,6 +6,8 @@ public struct HomeView: View {
     @State private var wedding: Wedding? = nil
     @State private var announcements: [WeddingAnnouncement] = []
     @State private var plannerDashboard: PlannerDashboardSnapshot? = nil
+    @State private var invitationContext: InvitationContext? = nil
+    @State private var quickPass: WeddingPass? = nil
     @State private var isLoading: Bool = true
     @State private var showingInvitationSheet: Bool = false
     @State private var showingVendorSheet: Bool = false
@@ -27,7 +29,7 @@ public struct HomeView: View {
                         }
 
                         // 3. Next Programme Milestone
-                        nextMilestoneCard
+                        nextMilestoneCard(wedding: wedding)
 
                         // 4. My Wedding Pass Quick Card
                         quickPassCard
@@ -74,34 +76,31 @@ public struct HomeView: View {
                 loadData()
             }
             .sheet(isPresented: $showingInvitationSheet) {
-                let dummyContext = InvitationContext(
-                    weddingSlug: "tariro-shadreck-2026",
-                    guestToken: "tok_jane_doe_2026",
-                    coupleNames: "Tariro & Shadreck",
-                    guestName: "Jane & Michael Doe",
-                    householdName: "Doe Household",
-                    partySize: 2,
-                    weddingDate: "Saturday, 24 October 2026",
-                    venueName: "Imba Manor Estate",
-                    venueCity: "Harare, Zimbabwe",
-                    cardStyle: "ivory-floral-gold"
-                )
-                GuestInvitationJourneyView(
-                    reference: GuestJourneyReference(
-                        invitation: dummyContext,
-                        initialStage: .splash
+                if let invitationContext {
+                    GuestInvitationJourneyView(
+                        reference: GuestJourneyReference(
+                            invitation: invitationContext,
+                            initialStage: .splash
+                        )
                     )
-                )
+                } else {
+                    ProgressView("Preparing invitation...")
+                        .padding(40)
+                }
             }
             .sheet(isPresented: $showingVendorSheet) {
                 VendorPresenceView()
             }
-            .alert("Directions to Imba Manor", isPresented: $showingDirectionsAlert) {
+            .alert("Directions to \(wedding?.venueName ?? "Wedding Venue")", isPresented: $showingDirectionsAlert) {
                 Button("Open in Apple Maps") {}
                 Button("Open in Google Maps") {}
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("Imba Manor Estate, Glen Lorne, Harare, Zimbabwe. Estimated 25 minutes from Harare CBD.")
+                if let wedding {
+                    Text("\(wedding.venueName), \(wedding.venueAddress), \(wedding.city), \(wedding.country)")
+                } else {
+                    Text("Venue details are still loading.")
+                }
             }
         }
     }
@@ -119,16 +118,24 @@ public struct HomeView: View {
                 .font(.system(size: 24, weight: .semibold, design: .serif))
                 .foregroundColor(WewedColors.textPrimaryLight)
 
-            Text("24 October 2026 • Harare, Zimbabwe")
+            Text("\(plannerDashboard?.weddingDateLabel ?? displayDateLabel(wedding.date)) • \(wedding.city), \(wedding.country)")
                 .font(.subheadline)
                 .foregroundColor(WewedColors.textSecondaryLight)
 
-            HStack(spacing: WewedSpacing.md) {
-                CountdownUnit(value: "37", label: "Days")
-                CountdownUnit(value: "04", label: "Hours")
-                CountdownUnit(value: "22", label: "Mins")
+            if let countdown = countdownComponents(from: wedding.date) {
+                HStack(spacing: WewedSpacing.md) {
+                    CountdownUnit(value: countdown.days, label: "Days")
+                    CountdownUnit(value: countdown.hours, label: "Hours")
+                    CountdownUnit(value: countdown.minutes, label: "Mins")
+                }
+                .padding(.top, 4)
+            } else {
+                Text("Planning timeline active")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(WewedColors.emerald)
+                    .padding(.top, 4)
             }
-            .padding(.top, 4)
         }
         .frame(maxWidth: .infinity)
         .padding()
@@ -219,8 +226,9 @@ public struct HomeView: View {
         .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 2)
     }
 
-    private var nextMilestoneCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
+    private func nextMilestoneCard(wedding: Wedding) -> some View {
+        let next = wedding.programme.first
+        return VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("NEXT UP")
                     .font(.caption2)
@@ -228,17 +236,19 @@ public struct HomeView: View {
                     .tracking(1.5)
                     .foregroundColor(WewedColors.goldDark)
                 Spacer()
-                Text("Doors Open 13:15")
-                    .font(.caption2)
-                    .fontWeight(.bold)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(WewedColors.gold.opacity(0.2))
-                    .foregroundColor(WewedColors.goldDark)
-                    .cornerRadius(WewedRadius.pill)
+                if let next {
+                    Text(next.time)
+                        .font(.caption2)
+                        .fontWeight(.bold)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(WewedColors.gold.opacity(0.2))
+                        .foregroundColor(WewedColors.goldDark)
+                        .cornerRadius(WewedRadius.pill)
+                }
             }
 
-            Text("Ceremony & Vows — 14:00")
+            Text(next?.title ?? "Programme preparing")
                 .font(.title3)
                 .fontWeight(.bold)
                 .foregroundColor(WewedColors.textPrimaryLight)
@@ -246,7 +256,7 @@ public struct HomeView: View {
             HStack(spacing: 4) {
                 Image(systemName: "mappin.and.ellipse")
                     .font(.caption)
-                Text("Chapel on the Hill • Imba Manor Gardens")
+                Text(next?.location ?? wedding.venueName)
                     .font(.caption)
             }
             .foregroundColor(WewedColors.emerald)
@@ -275,12 +285,12 @@ public struct HomeView: View {
                     .tracking(1)
                     .foregroundColor(WewedColors.goldDark)
 
-                Text("Table: Jacaranda — 8")
+                Text("Table: \(quickPass?.tableName ?? "To be assigned")")
                     .font(.subheadline)
                     .fontWeight(.bold)
                     .foregroundColor(WewedColors.textPrimaryLight)
 
-                Text("Jane & Michael Doe • 2 Seats Reserved")
+                Text("\(quickPass?.guestName ?? invitationContext?.guestName ?? "Guest") • \(quickPass?.partySize ?? invitationContext?.partySize ?? 1) seat(s)")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -421,6 +431,28 @@ public struct HomeView: View {
         .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 2)
     }
 
+    private func displayDateLabel(_ raw: String) -> String {
+        guard raw != "pending-production-discovery" else { return "Upcoming wedding" }
+        let parser = ISO8601DateFormatter()
+        guard let date = parser.date(from: raw) else { return raw }
+        return date.formatted(date: .long, time: .omitted)
+    }
+
+    private func countdownComponents(from raw: String) -> (days: String, hours: String, minutes: String)? {
+        let parser = ISO8601DateFormatter()
+        guard let date = parser.date(from: raw) else { return nil }
+        let interval = max(0, date.timeIntervalSinceNow)
+        let totalMinutes = Int(interval / 60)
+        let days = totalMinutes / (24 * 60)
+        let hours = (totalMinutes % (24 * 60)) / 60
+        let minutes = totalMinutes % 60
+        return (
+            String(format: "%02d", days),
+            String(format: "%02d", hours),
+            String(format: "%02d", minutes)
+        )
+    }
+
     private func loadData() {
         Task {
             do {
@@ -428,9 +460,16 @@ public struct HomeView: View {
                 async let announcementsTask = appState.repository.getAnnouncements()
                 async let plannerTask = appState.plannerRepository.getDashboard()
 
-                wedding = try await weddingTask
+                let loadedWedding = try await weddingTask
+                wedding = loadedWedding
                 announcements = try await announcementsTask
                 plannerDashboard = try await plannerTask
+
+                invitationContext = try? await appState.repository.resolveInvitation(
+                    weddingSlug: loadedWedding.id,
+                    token: "native-reference-guest"
+                )
+                quickPass = try? await appState.repository.getWeddingPass(token: "native-reference-guest")
                 isLoading = false
             } catch {
                 isLoading = false
