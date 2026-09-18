@@ -37,12 +37,18 @@ import java.util.Locale
 @Composable
 fun WeddingReferencePassScreen(
     appViewModel: AppViewModel,
-    onOpenScanner: () -> Unit
+    onOpenScanner: () -> Unit,
+    providedPass: WeddingPass? = null
 ) {
     var pass by remember { mutableStateOf<WeddingPass?>(null) }
     var loading by remember { mutableStateOf(true) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(providedPass) {
+        if (providedPass != null) {
+            pass = providedPass
+            loading = false
+            return@LaunchedEffect
+        }
         pass = runCatching {
             appViewModel.repository.getWeddingPass("shadow-attending-guest")
         }.getOrNull()
