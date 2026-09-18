@@ -50,27 +50,34 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
         }
 
         // 1. Wedding
-        let weddingDict = json["wedding"] as? [String: Any] ?? [:]
-        let coupleTitle = (weddingDict["title"] as? String) ?? "Charity & Kudzie"
-        let dateStr = (weddingDict["dateRaw"] as? String) ?? "2026-12-23 14:00:00"
-        let venueStr = (weddingDict["venue"] as? String) ?? "Imba Manor"
-        let cityStr = (weddingDict["venueCity"] as? String) ?? "Harare"
-        let countryStr = (weddingDict["venueCountry"] as? String) ?? "Zimbabwe"
-        let lifecycleStr = (weddingDict["lifecycle"] as? String) ?? "before"
+        guard let weddingDict = json["wedding"] as? [String: Any],
+              let weddingId = weddingDict["id"] as? String, !weddingId.isEmpty,
+              let coupleTitle = weddingDict["title"] as? String, !coupleTitle.isEmpty,
+              let dateStr = weddingDict["dateRaw"] as? String, !dateStr.isEmpty,
+              let venueStr = weddingDict["venue"] as? String, !venueStr.isEmpty,
+              let cityStr = weddingDict["venueCity"] as? String, !cityStr.isEmpty,
+              let countryStr = weddingDict["venueCountry"] as? String, !countryStr.isEmpty,
+              let lifecycleStr = weddingDict["lifecycle"] as? String, !lifecycleStr.isEmpty else {
+            throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required wedding metadata missing in private real shadow fixture.")
+        }
 
         // 2. Programme
-        let progRaw = json["programme"] as? [[String: Any]] ?? []
-        let progItems: [ProgrammeItem] = progRaw.enumerated().map { (idx, item) in
-            let id = (item["id"] as? String) ?? "prog_\(idx + 1)"
-            let title = (item["title"] as? String) ?? "Event"
-            let time = (item["time"] as? String) ?? "12:00"
+        guard let progRaw = json["programme"] as? [[String: Any]] else {
+            throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required programme list missing in private real shadow fixture.")
+        }
+        let progItems: [ProgrammeItem] = try progRaw.map { item in
+            guard let id = item["id"] as? String, !id.isEmpty,
+                  let title = item["title"] as? String, !title.isEmpty,
+                  let time = item["time"] as? String, !time.isEmpty else {
+                throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required programme item fields missing in private real shadow fixture.")
+            }
             let loc = (item["location"] as? String) ?? venueStr
             let desc = (item["description"] as? String) ?? ""
             return ProgrammeItem(id: id, title: title, time: time, location: loc, description: desc)
         }
 
         self.wedding = Wedding(
-            id: (weddingDict["id"] as? String) ?? "cmqos70cb0004q6vxe9g9aiu5",
+            id: weddingId,
             coupleNames: coupleTitle,
             date: dateStr,
             venueName: venueStr,
@@ -81,25 +88,30 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
             programme: progItems
         )
 
-        // 3. Tasks (42 tasks)
-        let tasksRaw = json["tasks"] as? [[String: Any]] ?? []
-        self.tasks = tasksRaw.enumerated().map { (idx, item) in
-            let id = (item["id"] as? String) ?? "task_\(idx + 1)"
-            let title = (item["title"] as? String) ?? "Task \(idx + 1)"
-            let statusRaw = (item["status"] as? String)?.lowercased() ?? "todo"
-            let priorityRaw = (item["priority"] as? String)?.lowercased() ?? "medium"
-            let category = (item["category"] as? String) ?? "general"
+        // 3. Tasks
+        guard let tasksRaw = json["tasks"] as? [[String: Any]] else {
+            throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required tasks list missing in private real shadow fixture.")
+        }
+        self.tasks = try tasksRaw.map { item in
+            guard let id = item["id"] as? String, !id.isEmpty,
+                  let title = item["title"] as? String, !title.isEmpty,
+                  let statusRaw = item["status"] as? String, !statusRaw.isEmpty,
+                  let priorityRaw = item["priority"] as? String, !priorityRaw.isEmpty,
+                  let category = item["category"] as? String, !category.isEmpty else {
+                throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required task fields missing in private real shadow fixture.")
+            }
             let dueDate = item["dueDate"] as? String
 
             let status: TaskStatus
-            switch statusRaw {
+            switch statusRaw.lowercased() {
             case "done", "completed": status = .done
             case "in_progress", "inprogress": status = .inProgress
+            case "blocked": status = .blocked
             default: status = .todo
             }
 
             let priority: TaskPriority
-            switch priorityRaw {
+            switch priorityRaw.lowercased() {
             case "high", "urgent": priority = .high
             case "low": priority = .low
             default: priority = .medium
@@ -117,21 +129,25 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
             }
         }
 
-        // 4. Guests (174 guests with real names)
-        let guestsRaw = json["guests"] as? [[String: Any]] ?? []
-        self.guests = guestsRaw.enumerated().map { (idx, item) in
-            let id = (item["id"] as? String) ?? "guest_\(idx + 1)"
-            let name = (item["name"] as? String) ?? "Guest \(idx + 1)"
+        // 4. Guests
+        guard let guestsRaw = json["guests"] as? [[String: Any]] else {
+            throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required guests list missing in private real shadow fixture.")
+        }
+        self.guests = try guestsRaw.map { item in
+            guard let id = item["id"] as? String, !id.isEmpty,
+                  let name = item["name"] as? String, !name.isEmpty,
+                  let rsvpRaw = item["rsvpStatus"] as? String, !rsvpRaw.isEmpty,
+                  let partySize = item["partySize"] as? Int,
+                  let checkedIn = item["checkedIn"] as? Bool else {
+                throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required guest fields missing in private real shadow fixture.")
+            }
             let side = (item["side"] as? String) ?? "family"
-            let rsvpRaw = (item["rsvpStatus"] as? String)?.lowercased() ?? "pending"
-            let checkedIn = (item["checkedIn"] as? Bool) ?? false
             let checkedInCount = (item["checkedInCount"] as? Int) ?? (checkedIn ? 1 : 0)
-            let partySize = (item["partySize"] as? Int) ?? 1
             let seatingTableId = item["seatingTableId"] as? String
             let tableName = seatingTableId.flatMap { tableMap[$0] }
 
             let rsvp: RSVPStatus
-            switch rsvpRaw {
+            switch rsvpRaw.lowercased() {
             case "attending", "confirmed": rsvp = .attending
             case "declined": rsvp = .declined
             default: rsvp = .pending
@@ -159,8 +175,10 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
             )
         }
 
-        // 5. Budget (22 budget items across categories)
-        let budgetRaw = json["budgetItems"] as? [[String: Any]] ?? []
+        // 5. Budget
+        guard let budgetRaw = json["budgetItems"] as? [[String: Any]] else {
+            throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required budgetItems missing in private real shadow fixture.")
+        }
         var catAllocated: [String: Double] = [:]
         var catSpent: [String: Double] = [:]
         var totalEst: Double = 0
@@ -168,15 +186,21 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
         var totalPd: Double = 0
 
         for b in budgetRaw {
-            let cat = ((b["category"] as? String) ?? "general").capitalized
-            let est = (b["estimatedCost"] as? NSNumber)?.doubleValue ?? 0
-            let act = (b["actualCost"] as? NSNumber)?.doubleValue ?? 0
-            let pd = (b["paidAmount"] as? NSNumber)?.doubleValue ?? 0
+            guard let id = b["id"] as? String, !id.isEmpty,
+                  let cat = b["category"] as? String, !cat.isEmpty,
+                  let estNum = b["estimatedCost"] as? NSNumber,
+                  let actNum = b["actualCost"] as? NSNumber,
+                  let pdNum = b["paidAmount"] as? NSNumber else {
+                throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required budget item fields missing in private real shadow fixture.")
+            }
+            let est = estNum.doubleValue
+            let act = actNum.doubleValue
+            let pd = pdNum.doubleValue
             totalEst += est
             totalAct += act
             totalPd += pd
-            catAllocated[cat, default: 0] += act > 0 ? act : est
-            catSpent[cat, default: 0] += pd
+            catAllocated[cat.capitalized, default: 0] += act > 0 ? act : est
+            catSpent[cat.capitalized, default: 0] += pd
         }
 
         let categories = catAllocated.keys.sorted().map { cat in
@@ -185,32 +209,34 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
 
         self.budget = BudgetSummary(
             currency: "USD",
-            totalBudget: totalEst > 0 ? totalEst : 30380,
-            totalAllocated: totalAct > 0 ? totalAct : 8690,
-            totalPaid: totalPd > 0 ? totalPd : 3875,
+            totalBudget: totalEst,
+            totalAllocated: totalAct,
+            totalPaid: totalPd,
             categories: categories
         )
 
-        // 6. Vendors (7 vendors)
-        let vendorsRaw = json["vendors"] as? [[String: Any]] ?? []
-        self.vendors = vendorsRaw.enumerated().map { (idx, item) in
-            let id = (item["id"] as? String) ?? "vnd_\(idx + 1)"
-            let name = (item["name"] as? String) ?? "Vendor \(idx + 1)"
-            let cat = (item["category"] as? String) ?? "other"
+        // 6. Vendors
+        guard let vendorsRaw = json["vendors"] as? [[String: Any]] else {
+            throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required vendors list missing in private real shadow fixture.")
+        }
+        self.vendors = try vendorsRaw.map { item in
+            guard let id = item["id"] as? String, !id.isEmpty,
+                  let name = item["name"] as? String, !name.isEmpty,
+                  let cat = item["category"] as? String, !cat.isEmpty else {
+                throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required vendor fields missing in private real shadow fixture.")
+            }
             return VendorPresence(
                 id: id,
                 vendorName: name,
-                serviceCategory: cat,
+                serviceCategory: cat.capitalized,
                 serviceArea: venueStr,
                 state: .scheduled,
-                expectedTime: "TBD"
+                expectedTime: "12:00",
+                lastUpdated: Date()
             )
         }
 
-        self.announcements = [
-            WeddingAnnouncement(id: "real_ann_1", title: "Private Real Shadow Active", message: "Authentic Charity & Kudzie graph with 42 tasks, 22 budget items, 174 guests, and Eleven Eleven Testing.", urgency: .info),
-            WeddingAnnouncement(id: "real_ann_2", title: "RSVP & Gate Readiness", message: "174 guests invited, 8 seating tables allocated at Imba Manor.", urgency: .info)
-        ]
+        self.announcements = []
     }
 
     public func getWedding() async throws -> Wedding { wedding }

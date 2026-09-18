@@ -29,15 +29,9 @@ data class LiveMessage(
 @Composable
 fun LiveWallScreen() {
     var messages by remember {
-        mutableStateOf(
-            listOf(
-                LiveMessage("m1", "Uncle Farai", "Congratulations Charity & Kudzie! May God bless this union abundantly!", "14:15"),
-                LiveMessage("m2", "Auntie Chipo", "Such a beautiful celebration at Imba Manor! Welcome to the family Kudzie!", "14:22"),
-                LiveMessage("m3", "Tony M.", "Waiting for the dance floor to open! Cheers to Charity & Kudzie!", "14:35")
-            )
-        )
+        mutableStateOf(emptyList<LiveMessage>())
     }
-    var applauseCount by remember { mutableIntStateOf(142) }
+    var applauseCount by remember { mutableIntStateOf(0) }
     var showDialog by remember { mutableStateOf(false) }
     var draftText by remember { mutableStateOf("") }
 
@@ -88,27 +82,42 @@ fun LiveWallScreen() {
 
             Spacer(modifier = Modifier.height(WewedSpacing.sm))
 
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(WewedSpacing.sm)
-            ) {
-                items(messages, key = { it.id }) { msg ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(WewedRadius.md),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        elevation = CardDefaults.cardElevation(1.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(WewedSpacing.base)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(msg.author, fontWeight = FontWeight.Bold, color = WewedColors.Emerald)
-                                Text(msg.time, fontSize = 11.sp, color = Color.Gray)
+            if (messages.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "No live messages yet. Be the first to share well wishes!",
+                        color = Color.Gray,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(WewedSpacing.sm)
+                ) {
+                    items(messages, key = { it.id }) { msg ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(WewedRadius.md),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            elevation = CardDefaults.cardElevation(1.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(WewedSpacing.base)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(msg.author, fontWeight = FontWeight.Bold, color = WewedColors.Emerald)
+                                    Text(msg.time, fontSize = 11.sp, color = Color.Gray)
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(msg.content, style = MaterialTheme.typography.bodyMedium)
                             }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(msg.content, style = MaterialTheme.typography.bodyMedium)
                         }
                     }
                 }

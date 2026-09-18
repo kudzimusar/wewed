@@ -13,7 +13,24 @@ class PrivateRealShadowPlannerRepository(jsonString: String? = null, customPath:
     private val seatingTables: List<PlannerSeatingTable>
     private val timelineEntries: List<PlannerTimelineEntry>
     private val weddingTitle: String
+    private val weddingId: String
+    private val weddingDate: String
+    private val weddingLifecycle: String
     private val plannerTitle: String
+    private val doneTasksCount: Int
+    private val totalTasksCount: Int
+    private val highPriorityTasksCount: Int
+    private val totalEstBudget: Double
+    private val totalActBudget: Double
+    private val totalPdBudget: Double
+    private val totalGuestsCount: Int
+    private val pendingRsvpCount: Int
+    private val attendingGuestsCount: Int
+    private val totalSeatingCapacity: Int
+    private val assignedInvitedCapacity: Int
+    private val remainingTableCapacity: Int
+    private val vendorsCount: Int
+    private val serviceEngagementsCount: Int
 
     init {
         val raw = jsonString ?: PrivateRealShadowWeddingRepository.loadSnapshotString(
@@ -21,176 +38,300 @@ class PrivateRealShadowPlannerRepository(jsonString: String? = null, customPath:
         )
         val root = JSONObject(raw)
 
-        val weddingObj = root.optJSONObject("wedding") ?: JSONObject()
-        weddingTitle = weddingObj.optString("title", "Charity & Kudzie")
+        val weddingObj = root.optJSONObject("wedding")
+            ?: throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required wedding metadata missing in private real shadow fixture.")
+        weddingId = weddingObj.optString("id")
+        weddingTitle = weddingObj.optString("title")
+        weddingDate = weddingObj.optString("dateRaw")
+        weddingLifecycle = weddingObj.optString("lifecycle")
 
-        val plannerObj = root.optJSONObject("planner") ?: JSONObject()
-        plannerTitle = plannerObj.optString("displayName", "Eleven Eleven Testing")
+        if (weddingId.isEmpty() || weddingTitle.isEmpty() || weddingDate.isEmpty() || weddingLifecycle.isEmpty()) {
+            throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required wedding fields missing in private real shadow fixture.")
+        }
+
+        val plannerObj = root.optJSONObject("planner")
+            ?: throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required planner metadata missing in private real shadow fixture.")
+        plannerTitle = plannerObj.optString("displayName").ifEmpty { plannerObj.optString("businessName") }
+        if (plannerTitle.isEmpty()) {
+            throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required planner metadata missing in private real shadow fixture.")
+        }
+
+        // Tasks stats
+        val taskArray = root.optJSONArray("tasks")
+            ?: throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required tasks list missing in private real shadow fixture.")
+        totalTasksCount = taskArray.length()
+        var doneCount = 0
+        var highCount = 0
+        for (i in 0 until taskArray.length()) {
+            val t = taskArray.getJSONObject(i)
+            val title = t.optString("title")
+            val st = t.optString("status")
+            val prio = t.optString("priority")
+            if (title.isEmpty() || st.isEmpty() || prio.isEmpty()) {
+                throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required task fields missing in private real shadow fixture.")
+            }
+            if (st.equals("done", ignoreCase = true) || st.equals("completed", ignoreCase = true)) {
+                doneCount++
+            }
+            if (prio.equals("high", ignoreCase = true) || prio.equals("urgent", ignoreCase = true)) {
+                highCount++
+            }
+        }
+        doneTasksCount = doneCount
+        highPriorityTasksCount = highCount
 
         // 1. Budget Lines (22 items)
         val bArray = root.optJSONArray("budgetItems")
+            ?: throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required budgetItems missing in private real shadow fixture.")
         val bList = mutableListOf<PlannerBudgetLine>()
-        if (bArray != null) {
-            for (i in 0 until bArray.length()) {
-                val item = bArray.getJSONObject(i)
-                val cat = item.optString("category", "general")
-                val vName = if (item.isNull("vendorName")) null else item.optString("vendorName")
-                val est = item.optDouble("estimatedCost", 0.0)
-                val act = item.optDouble("actualCost", 0.0)
-                val pd = item.optDouble("paidAmount", 0.0)
-                val due = if (item.isNull("dueDate")) null else item.optString("dueDate")
-                val status = if (pd >= act && act > 0) "Paid" else if (pd > 0) "Deposit paid" else "Unpaid"
-                bList.add(
-                    PlannerBudgetLine(
-                        id = item.optString("id", "bitem_${i + 1}"),
-                        category = cat,
-                        vendorName = vName,
-                        estimated = est,
-                        actual = act,
-                        paid = pd,
-                        dueDateLabel = due,
-                        fundingLabel = "Couple funded",
-                        statusLabel = status
-                    )
-                )
+        var totalEst = 0.0
+        var totalAct = 0.0
+        var totalPd = 0.0
+        for (i in 0 until bArray.length()) {
+            val item = bArray.getJSONObject(i)
+            val id = item.optString("id")
+            val cat = item.optString("category")
+            if (id.isEmpty() || cat.isEmpty() || !item.has("estimatedCost") || !item.has("actualCost") || !item.has("paidAmount")) {
+                throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required budget item fields missing in private real shadow fixture.")
             }
+            val vName = if (item.isNull("vendorName")) null else item.optString("vendorName")
+            val est = item.optDouble("estimatedCost", 0.0)
+            val act = item.optDouble("actualCost", 0.0)
+            val pd = item.optDouble("paidAmount", 0.0)
+            val due = if (item.isNull("dueDate")) null else item.optString("dueDate")
+            val status = if (pd >= act && act > 0) "Paid" else if (pd > 0) "Deposit paid" else "Unpaid"
+            totalEst += est
+            totalAct += act
+            totalPd += pd
+            bList.add(
+                PlannerBudgetLine(
+                    id = id,
+                    category = cat.replaceFirstChar { it.uppercase() },
+                    vendorName = vName,
+                    estimated = est,
+                    actual = act,
+                    paid = pd,
+                    dueDateLabel = due,
+                    fundingLabel = "Direct expense",
+                    statusLabel = status
+                )
+            )
         }
         budgetLines = bList
+        totalEstBudget = totalEst
+        totalActBudget = totalAct
+        totalPdBudget = totalPd
+
+        // Guest Map for name resolution
+        val gArray = root.optJSONArray("guests")
+            ?: throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required guests list missing in private real shadow fixture.")
+        totalGuestsCount = gArray.length()
+        val guestNameMap = mutableMapOf<String, String>()
+        val tableAssignedCapacity = mutableMapOf<String, Int>()
+        var totalAssignedCap = 0
+        var pendingCount = 0
+        var attendingCount = 0
+
+        for (i in 0 until gArray.length()) {
+            val g = gArray.getJSONObject(i)
+            val gId = g.optString("id")
+            val gName = g.optString("name")
+            val rsvpRaw = g.optString("rsvpStatus")
+            if (gId.isEmpty() || gName.isEmpty() || rsvpRaw.isEmpty() || !g.has("partySize")) {
+                throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required guest fields missing in private real shadow fixture.")
+            }
+            val partySize = g.optInt("partySize", 1)
+            guestNameMap[gId] = gName
+            if (rsvpRaw.equals("attending", ignoreCase = true) || rsvpRaw.equals("confirmed", ignoreCase = true)) {
+                attendingCount++
+            } else if (!rsvpRaw.equals("declined", ignoreCase = true)) {
+                pendingCount++
+            }
+
+            if (!g.isNull("seatingTableId")) {
+                val tId = g.getString("seatingTableId")
+                if (tId.isNotEmpty()) {
+                    totalAssignedCap += partySize
+                    tableAssignedCapacity[tId] = (tableAssignedCapacity[tId] ?: 0) + partySize
+                }
+            }
+        }
+        pendingRsvpCount = pendingCount
+        attendingGuestsCount = attendingCount
+        assignedInvitedCapacity = totalAssignedCap
 
         // 2. Contributions (4 items)
         val cArray = root.optJSONArray("contributions")
+            ?: throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required contributions missing in private real shadow fixture.")
         val cList = mutableListOf<PlannerContributionRecord>()
-        if (cArray != null) {
-            for (i in 0 until cArray.length()) {
-                val item = cArray.getJSONObject(i)
-                val type = item.optString("type", "blessing").replaceFirstChar { it.uppercase() }
-                val status = item.optString("status", "approved").replaceFirstChar { it.uppercase() }
-                cList.add(
-                    PlannerContributionRecord(
-                        id = item.optString("id", "contrib_${i + 1}"),
-                        contributorLabel = "Guest Contributor",
-                        typeLabel = type,
-                        value = 0.0,
-                        statusLabel = status,
-                        allocationLabel = "Guest Messages",
-                        verified = true
-                    )
-                )
+        for (i in 0 until cArray.length()) {
+            val item = cArray.getJSONObject(i)
+            val id = item.optString("id")
+            val guestId = item.optString("guestId")
+            val type = item.optString("type")
+            val status = item.optString("status")
+            if (id.isEmpty() || guestId.isEmpty() || type.isEmpty() || status.isEmpty()) {
+                throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required contribution fields missing in private real shadow fixture.")
             }
+            val contributorName = guestNameMap[guestId] ?: "Guest"
+            val formattedType = type.replace("_", " ").replaceFirstChar { it.uppercase() }
+            val formattedStatus = status.replaceFirstChar { it.uppercase() }
+            cList.add(
+                PlannerContributionRecord(
+                    id = id,
+                    contributorLabel = contributorName,
+                    typeLabel = formattedType,
+                    value = 0.0,
+                    statusLabel = formattedStatus,
+                    allocationLabel = "Guest Story & Blessing",
+                    verified = true
+                )
+            )
         }
         contributions = cList
 
-        // 3. Vendor Engagements (7 vendors)
-        val vArray = root.optJSONArray("vendors")
-        val vList = mutableListOf<PlannerVendorEngagement>()
-        if (vArray != null) {
-            for (i in 0 until vArray.length()) {
-                val item = vArray.getJSONObject(i)
-                val name = item.optString("name", "Vendor ${i + 1}")
-                val cat = item.optString("category", "other")
-                val payStatus = item.optString("paymentStatus", "unpaid").replaceFirstChar { it.uppercase() }
-                vList.add(
-                    PlannerVendorEngagement(
-                        id = item.optString("id", "vnd_${i + 1}"),
-                        vendorName = name,
-                        category = cat,
-                        bookingStatus = "Confirmed",
-                        contractStatus = "Pending",
-                        paymentStatus = payStatus,
-                        nextAction = "Operational review"
-                    )
-                )
+        // 3. Seating Tables (8 tables)
+        val tArray = root.optJSONArray("seatingTables")
+            ?: throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required seatingTables missing in private real shadow fixture.")
+        var totalCap = 0
+        val sList = mutableListOf<PlannerSeatingTable>()
+        for (i in 0 until tArray.length()) {
+            val item = tArray.getJSONObject(i)
+            val id = item.optString("id")
+            val name = item.optString("name")
+            if (id.isEmpty() || name.isEmpty() || !item.has("capacity")) {
+                throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required seating table fields missing in private real shadow fixture.")
             }
+            val cap = item.getInt("capacity")
+            totalCap += cap
+            val assigned = tableAssignedCapacity[id] ?: 0
+            val free = cap - assigned
+            if (free < 0) {
+                throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Integrity failure: table $name assigned capacity $assigned exceeds table capacity $cap.")
+            }
+            val zone = when {
+                name.contains("Family") -> "Family"
+                name.contains("Bridal") -> "Bridal Party"
+                name.contains("VIP") -> "VIP"
+                name.contains("Colleagues") -> "Colleagues"
+                else -> "Friends"
+            }
+            sList.add(
+                PlannerSeatingTable(
+                    id = id,
+                    name = name,
+                    zone = zone,
+                    capacity = cap,
+                    assigned = assigned,
+                    attentionLabel = "$free seats free"
+                )
+            )
+        }
+        seatingTables = sList
+        totalSeatingCapacity = totalCap
+        val remCap = totalCap - totalAssignedCap
+        if (remCap < 0) {
+            throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Integrity failure: total assigned capacity $totalAssignedCap exceeds total seating capacity $totalCap.")
+        }
+        remainingTableCapacity = remCap
+
+        // 4. Vendors & Service Engagements (7 vendors / 8 engagements)
+        val vArray = root.optJSONArray("vendors")
+            ?: throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required vendors missing in private real shadow fixture.")
+        vendorsCount = vArray.length()
+
+        val engagementsArray = root.optJSONArray("serviceEngagements")
+        serviceEngagementsCount = engagementsArray?.length() ?: 0
+        val engagementsByVendor = mutableMapOf<String, JSONObject>()
+        if (engagementsArray != null) {
+            for (i in 0 until engagementsArray.length()) {
+                val se = engagementsArray.getJSONObject(i)
+                val vId = se.optString("vendorId")
+                if (vId.isNotEmpty()) {
+                    engagementsByVendor[vId] = se
+                }
+            }
+        }
+
+        val vList = mutableListOf<PlannerVendorEngagement>()
+        for (i in 0 until vArray.length()) {
+            val item = vArray.getJSONObject(i)
+            val id = item.optString("id")
+            val name = item.optString("name")
+            val cat = item.optString("category")
+            if (id.isEmpty() || name.isEmpty() || cat.isEmpty()) {
+                throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required vendor fields missing in private real shadow fixture.")
+            }
+            val payStatus = item.optString("paymentStatus", "unpaid").replaceFirstChar { it.uppercase() }
+            val se = engagementsByVendor[id]
+            val serviceDesc = se?.optString("serviceDescription") ?: "${cat.replaceFirstChar { it.uppercase() }} services"
+            val lifecycleStatus = se?.optString("lifecycleStatus", "recorded")?.replace("_", " ")?.replaceFirstChar { it.uppercase() } ?: "Recorded"
+            val externalAgreementStatus = se?.optString("externalAgreementStatus", "none")?.replaceFirstChar { it.uppercase() } ?: "None"
+
+            vList.add(
+                PlannerVendorEngagement(
+                    id = id,
+                    vendorName = name,
+                    category = cat.replaceFirstChar { it.uppercase() },
+                    bookingStatus = lifecycleStatus,
+                    contractStatus = externalAgreementStatus,
+                    paymentStatus = payStatus,
+                    nextAction = serviceDesc
+                )
+            )
         }
         vendorEngagements = vList
 
-        // 4. Seating Tables (8 tables)
-        val tArray = root.optJSONArray("seatingTables")
-        val gArray = root.optJSONArray("guests")
-        val tableCounts = mutableMapOf<String, Int>()
-        if (gArray != null) {
-            for (i in 0 until gArray.length()) {
-                val g = gArray.getJSONObject(i)
-                if (!g.isNull("seatingTableId")) {
-                    val tId = g.getString("seatingTableId")
-                    tableCounts[tId] = (tableCounts[tId] ?: 0) + 1
-                }
-            }
-        }
-
-        val sList = mutableListOf<PlannerSeatingTable>()
-        if (tArray != null) {
-            for (i in 0 until tArray.length()) {
-                val item = tArray.getJSONObject(i)
-                val id = item.getString("id")
-                val name = item.getString("name")
-                val cap = item.optInt("capacity", 8)
-                val assigned = tableCounts[id] ?: 0
-                val free = (cap - assigned).coerceAtLeast(0)
-                val zone = when {
-                    name.contains("Family") -> "Family"
-                    name.contains("Bridal") -> "Bridal Party"
-                    name.contains("VIP") -> "VIP"
-                    else -> "Friends"
-                }
-                sList.add(
-                    PlannerSeatingTable(
-                        id = id,
-                        name = name,
-                        zone = zone,
-                        capacity = cap,
-                        assigned = assigned,
-                        attentionLabel = "$free seats free"
-                    )
-                )
-            }
-        }
-        seatingTables = sList
-
         // 5. Timeline Entries (13 entries)
         val pArray = root.optJSONArray("programme")
+            ?: throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required programme missing in private real shadow fixture.")
         val pList = mutableListOf<PlannerTimelineEntry>()
-        if (pArray != null) {
-            for (i in 0 until pArray.length()) {
-                val item = pArray.getJSONObject(i)
-                pList.add(
-                    PlannerTimelineEntry(
-                        id = item.optString("id", "prog_${i + 1}"),
-                        time = item.optString("time", "12:00"),
-                        title = item.optString("title", "Event"),
-                        location = if (item.isNull("location")) "Imba Manor" else item.optString("location", "Imba Manor"),
-                        statusLabel = "Scheduled",
-                        linkedVendor = null
-                    )
-                )
+        for (i in 0 until pArray.length()) {
+            val item = pArray.getJSONObject(i)
+            val id = item.optString("id")
+            val time = item.optString("time")
+            val title = item.optString("title")
+            if (id.isEmpty() || time.isEmpty() || title.isEmpty()) {
+                throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required programme fields missing in private real shadow fixture.")
             }
+            val loc = if (item.isNull("location")) "Imba Manor" else item.optString("location", "Imba Manor")
+            pList.add(
+                PlannerTimelineEntry(
+                    id = id,
+                    time = time,
+                    title = title,
+                    location = loc,
+                    statusLabel = "23 Dec 2026",
+                    linkedVendor = null
+                )
+            )
         }
         timelineEntries = pList
     }
 
     override suspend fun getDashboard(): PlannerDashboardSnapshot = PlannerDashboardSnapshot(
-        weddingId = "cmqos70cb0004q6vxe9g9aiu5",
+        weddingId = weddingId,
         coupleNames = weddingTitle,
-        weddingDateLabel = "2026-12-23 14:00:00",
-        lifecycle = "before",
+        weddingDateLabel = weddingDate,
+        lifecycle = weddingLifecycle,
         plannerContext = plannerTitle,
         readinessScore = null,
-        taskCompletionLabel = "7 / 42",
+        taskCompletionLabel = "$doneTasksCount / $totalTasksCount",
         attentionItems = listOf(
-            PlannerAttentionItem("attn_tasks", "8 high priority tasks", "Venue, invitations and logistics need attention.", PlannerAttentionSeverity.URGENT),
-            PlannerAttentionItem("attn_rsvp", "172 RSVPs pending", "Guest follow-up is affecting seating readiness.", PlannerAttentionSeverity.WARNING),
-            PlannerAttentionItem("attn_seating", "152 guests unseated", "Complete table allocations for invited party capacity.", PlannerAttentionSeverity.WARNING),
-            PlannerAttentionItem("attn_vendor", "7 vendors booked", "Operational contracts and logistics reviews in progress.", PlannerAttentionSeverity.INFO),
-            PlannerAttentionItem("attn_payment", "Payments in progress", "$3,875 paid out of $8,690 actual expenses.", PlannerAttentionSeverity.INFO)
+            PlannerAttentionItem("attn_tasks", "$highPriorityTasksCount high priority tasks", "Active checklist tasks requiring coordination.", PlannerAttentionSeverity.URGENT),
+            PlannerAttentionItem("attn_rsvp", "$pendingRsvpCount RSVPs pending", "$attendingGuestsCount confirmed guests across $totalGuestsCount invited records.", PlannerAttentionSeverity.WARNING),
+            PlannerAttentionItem("attn_seating", "$assignedInvitedCapacity of $totalSeatingCapacity table seats allocated", "$remainingTableCapacity seats free across ${seatingTables.size} tables.", PlannerAttentionSeverity.INFO),
+            PlannerAttentionItem("attn_vendor", "$vendorsCount vendors recorded", "0 active contracts recorded for this wedding.", PlannerAttentionSeverity.INFO),
+            PlannerAttentionItem("attn_payment", "Budget & Expenses", "$${totalPdBudget.toInt()} paid of $${totalActBudget.toInt()} actual expenses ($${totalEstBudget.toInt()} estimated).", PlannerAttentionSeverity.INFO)
         ),
         modules = listOf(
-            PlannerModuleSummary("tasks", "Tasks", "7 / 42", "8 urgent", "checklist"),
-            PlannerModuleSummary("budget", "Budget", "$30.4k", "$3.9k paid", "creditcard"),
-            PlannerModuleSummary("contributions", "Contributions", "4 memories", "4 approved", "gift"),
-            PlannerModuleSummary("vendors", "Vendors", "7 booked", "0 contracts", "storefront"),
-            PlannerModuleSummary("guests", "Guests", "174", "172 awaiting RSVP", "person.3"),
-            PlannerModuleSummary("seating", "Seating", "22 / 64", "42 seats free", "table.furniture"),
-            PlannerModuleSummary("timeline", "Timeline", "13 events", "Programme locked", "calendar.badge.clock")
+            PlannerModuleSummary("tasks", "Tasks", "$doneTasksCount / $totalTasksCount", "$highPriorityTasksCount high priority", "checklist"),
+            PlannerModuleSummary("budget", "Budget", "$${String.format("%.1fk", totalEstBudget / 1000.0)}", "$${String.format("%.1fk", totalPdBudget / 1000.0)} paid", "creditcard"),
+            PlannerModuleSummary("contributions", "Contributions", "${contributions.size} messages", "Non-monetary", "gift"),
+            PlannerModuleSummary("vendors", "Vendors", "$vendorsCount recorded", "0 contracts", "storefront"),
+            PlannerModuleSummary("guests", "Guests", "$totalGuestsCount", "$pendingRsvpCount pending", "person.3"),
+            PlannerModuleSummary("seating", "Seating", "$assignedInvitedCapacity / $totalSeatingCapacity", "$remainingTableCapacity seats free", "table.furniture"),
+            PlannerModuleSummary("timeline", "Timeline", "${timelineEntries.size} items", "23 Dec 2026", "calendar.badge.clock")
         ),
         recentActivity = emptyList(),
         sourceLabel = "Private real-wedding row snapshot"

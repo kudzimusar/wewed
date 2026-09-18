@@ -165,19 +165,108 @@ final class ShadowReferenceRepositoryTests: XCTestCase {
         let guests = try await bundle.wedding.getGuests()
         let tasks = try await bundle.wedding.getTasks()
         let budget = try await bundle.wedding.getBudget()
+        let vendors = try await bundle.wedding.getVendors()
+        let announcements = try await bundle.wedding.getAnnouncements()
         let dashboard = try await bundle.planner.getDashboard()
+        let budgetLines = try await bundle.planner.getBudgetLines()
+        let contributions = try await bundle.planner.getContributions()
+        let vendorEngagements = try await bundle.planner.getVendorEngagements()
+        let seatingTables = try await bundle.planner.getSeatingTables()
+        let timelineEntries = try await bundle.planner.getTimelineEntries()
 
+        // 1. Wedding metadata
         XCTAssertEqual(wedding.coupleNames, "Charity & Kudzie")
+        XCTAssertEqual(wedding.venueName, "Imba Manor")
+        XCTAssertEqual(wedding.city, "Harare")
+        XCTAssertEqual(wedding.country, "Zimbabwe")
+        XCTAssertEqual(wedding.lifecycle, "before")
+
+        // 2. Tasks (42 tasks, 7 done, 8 high priority)
         XCTAssertEqual(tasks.count, 42)
+        XCTAssertEqual(tasks.filter { $0.status == .done }.count, 7)
+        XCTAssertEqual(tasks.filter { $0.priority == .high }.count, 13)
+
+        // 3. Guests (174 guests, 177 invited capacity)
         XCTAssertEqual(guests.count, 174)
+        let totalInvitedCapacity = guests.reduce(0) { $0 + $1.partySize }
+        XCTAssertEqual(totalInvitedCapacity, 177)
+        XCTAssertEqual(guests.filter { $0.rsvpStatus == .attending }.count, 2)
+        XCTAssertEqual(guests.filter { $0.rsvpStatus == .pending }.count, 172)
+        XCTAssertEqual(guests.filter { $0.rsvpStatus == .declined }.count, 0)
+
+        // 4. Seating Tables (8 tables, 22 assigned, 64 capacity, 42 free)
+        XCTAssertEqual(seatingTables.count, 8)
+        let totalSeatingCapacity = seatingTables.reduce(0) { $0 + $1.capacity }
+        let totalAssigned = seatingTables.reduce(0) { $0 + $1.assigned }
+        XCTAssertEqual(totalSeatingCapacity, 64)
+        XCTAssertEqual(totalAssigned, 22)
+        XCTAssertEqual(totalSeatingCapacity - totalAssigned, 42)
+
+        // 5. Budget (22 lines, $30,380 est, $8,690 act, $3,875 paid)
+        XCTAssertEqual(budgetLines.count, 22)
+        XCTAssertEqual(budget.totalBudget, 30380)
+        XCTAssertEqual(budget.totalAllocated, 8690)
+        XCTAssertEqual(budget.totalPaid, 3875)
+
+        // 6. Vendors (7 vendors, 8 engagements)
+        XCTAssertEqual(vendors.count, 7)
+        XCTAssertEqual(vendorEngagements.count, 7)
+
+        // 7. Contributions (4 non-monetary guest contributions)
+        XCTAssertEqual(contributions.count, 4)
+        for c in contributions {
+            XCTAssertEqual(c.value, 0.0)
+            XCTAssertTrue(c.verified)
+        }
+        let contributorNames = contributions.map { $0.contributorLabel }
+        XCTAssertTrue(contributorNames.contains("Learnon Musarurwa"))
+        XCTAssertTrue(contributorNames.contains("Charity Manyewu"))
+        XCTAssertTrue(contributorNames.contains("Spenser Musarurwa"))
+        XCTAssertTrue(contributorNames.contains("Gladmore Musarurwa"))
+
+        // 8. Timeline (13 programme items)
+        XCTAssertEqual(timelineEntries.count, 13)
+
+        // 9. Announcements (0 by default)
+        XCTAssertEqual(announcements.count, 0)
+
+        // 10. Planner Dashboard
         XCTAssertEqual(dashboard.plannerContext, "Eleven Eleven Testing")
         XCTAssertEqual(dashboard.taskCompletionLabel, "7 / 42")
-        XCTAssertEqual(budget.totalBudget, 30380)
+    }
+
+    func testPrivateRealShadowZeroProhibitedDemoData() {
+        let prohibitedNames = [
+            "Faith Mutasa",
+            "Uncle Farai",
+            "Auntie Chipo",
+            "Tony M.",
+            "Chiedza Nyoni",
+            "Ruvimbo & Farai",
+            "Chido & Tinashe",
+            "Honeyfund"
+        ]
+
+        for persona in DevelopmentPersona.allPersonas {
+            for prohibited in prohibitedNames {
+                XCTAssertFalse(persona.name.contains(prohibited), "Persona name \(persona.name) contains prohibited demo string \(prohibited)")
+            }
+        }
     }
 
     func testPrivateRealShadowFailsExplicitlyWhenFixtureMissing() {
         XCTAssertThrowsError(
             try PrivateRealShadowWeddingRepository(path: "/nonexistent/path/fixture.json")
+        ) { error in
+            guard case NativeRepositoryFactoryError.privateRealShadowFixtureMissing(let msg) = error else {
+                XCTFail("Expected privateRealShadowFixtureMissing but got \(error)")
+                return
+            }
+            XCTAssertTrue(msg.contains("Private real shadow fixture not found"))
+        }
+
+        XCTAssertThrowsError(
+            try PrivateRealShadowPlannerRepository(path: "/nonexistent/path/fixture.json")
         ) { error in
             guard case NativeRepositoryFactoryError.privateRealShadowFixtureMissing(let msg) = error else {
                 XCTFail("Expected privateRealShadowFixtureMissing but got \(error)")

@@ -67,46 +67,93 @@ public struct PlannerTasksView: View {
 }
 
 public struct PlannerBudgetView: View {
+    @EnvironmentObject private var appState: AppState
+    @State private var budget: BudgetSummary? = nil
+    @State private var budgetLines: [PlannerBudgetLine] = []
+
     public init() {}
 
     public var body: some View {
         ScrollView {
             VStack(spacing: WewedSpacing.lg) {
-                VStack(spacing: 8) {
-                    Text("Total Wedding Budget")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    Text("$25,000")
-                        .font(.system(size: 36, weight: .bold))
-                        .foregroundColor(WewedColors.gold)
-                    ProgressView(value: 18500, total: 25000)
-                        .tint(WewedColors.emerald)
-                        .padding(.horizontal, 40)
-                    Text("$18,500 Allocated • $6,500 Remaining")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .padding()
-                .frame(maxWidth: .infinity)
-                .background(Color.white)
-                .cornerRadius(WewedRadius.lg)
+                if let budget {
+                    VStack(spacing: 8) {
+                        Text("Total Estimated Budget")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        Text("$\(Int(budget.totalBudget).formattedWithSeparator)")
+                            .font(.system(size: 36, weight: .bold))
+                            .foregroundColor(WewedColors.gold)
+                        ProgressView(value: budget.totalPaid, total: max(1, budget.totalAllocated > 0 ? budget.totalAllocated : budget.totalBudget))
+                            .tint(WewedColors.emerald)
+                            .padding(.horizontal, 40)
+                        Text("$\(Int(budget.totalPaid).formattedWithSeparator) Paid • $\(Int(budget.totalAllocated).formattedWithSeparator) Actual Expenses")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color.white)
+                    .cornerRadius(WewedRadius.lg)
 
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Allocations by Category")
-                        .font(.headline)
-                    BudgetItemRow(category: "Venue & Catering", allocated: "$12,000", paid: "$8,000", status: "Partially Paid")
-                    BudgetItemRow(category: "Photography & Video", allocated: "$3,500", paid: "$3,500", status: "Paid in Full")
-                    BudgetItemRow(category: "Decor & Florals", allocated: "$3,000", paid: "$1,500", status: "Deposit Paid")
-                    BudgetItemRow(category: "Music & Sound", allocated: "$1,500", paid: "$500", status: "Pending Balance")
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Budget Categories")
+                            .font(.headline)
+                        ForEach(budget.categories) { cat in
+                            BudgetItemRow(
+                                category: cat.name,
+                                allocated: "$\(Int(cat.allocated).formattedWithSeparator)",
+                                paid: "$\(Int(cat.spent).formattedWithSeparator)",
+                                status: cat.spent >= cat.allocated && cat.allocated > 0 ? "Paid" : (cat.spent > 0 ? "Deposit Paid" : "Allocated")
+                            )
+                        }
+                    }
+                    .padding()
+                    .background(Color.white)
+                    .cornerRadius(WewedRadius.lg)
                 }
-                .padding()
-                .background(Color.white)
-                .cornerRadius(WewedRadius.lg)
+
+                if !budgetLines.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Line Items (\(budgetLines.count))")
+                            .font(.headline)
+                        ForEach(budgetLines) { line in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(line.vendorName ?? line.category)
+                                        .font(.subheadline).fontWeight(.semibold)
+                                    Text("\(line.category) • Actual: $\(Int(line.actual).formattedWithSeparator)")
+                                        .font(.caption).foregroundColor(.secondary)
+                                }
+                                Spacer()
+                                VStack(alignment: .trailing, spacing: 2) {
+                                    Text("$\(Int(line.paid).formattedWithSeparator) paid")
+                                        .font(.caption).fontWeight(.bold).foregroundColor(WewedColors.emerald)
+                                    Text(line.statusLabel)
+                                        .font(.caption2).foregroundColor(.secondary)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                            Divider()
+                        }
+                    }
+                    .padding()
+                    .background(Color.white)
+                    .cornerRadius(WewedRadius.lg)
+                }
             }
             .padding()
         }
         .background(WewedColors.ivory)
         .navigationTitle("Budget Allocation")
+        .task {
+            if let b = try? await appState.repository.getBudget() {
+                budget = b
+            }
+            if let lines = try? await appState.plannerRepository.getBudgetLines() {
+                budgetLines = lines
+            }
+        }
     }
 }
 
@@ -136,19 +183,22 @@ private struct BudgetItemRow: View {
 }
 
 public struct PlannerContributionsView: View {
+    @EnvironmentObject private var appState: AppState
+    @State private var contributions: [PlannerContributionRecord] = []
+
     public init() {}
 
     public var body: some View {
         ScrollView {
             VStack(spacing: WewedSpacing.base) {
                 VStack(spacing: 6) {
-                    Text("Cash Gifts & Funding Milestones")
+                    Text("Guest Stories & Blessings")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
-                    Text("$7,420")
-                        .font(.system(size: 32, weight: .bold))
+                    Text("\(contributions.count) Non-Monetary Messages")
+                        .font(.system(size: 24, weight: .bold))
                         .foregroundColor(WewedColors.emerald)
-                    Text("28 verified guest contributions")
+                    Text("Recorded guest memories, wishes, and blessings")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -158,11 +208,35 @@ public struct PlannerContributionsView: View {
                 .cornerRadius(WewedRadius.lg)
 
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Recent Contributions")
+                    Text("Recorded Contributions")
                         .font(.headline)
-                    ContributionRow(contributor: "Tendai & Chipo Moyo", amount: "$300", note: "For your honeymoon in Victoria Falls!", time: "2 hours ago")
-                    ContributionRow(contributor: "Blessing Sithole", amount: "$150", note: "Congratulations guys!", time: "Yesterday")
-                    ContributionRow(contributor: "Anonymous Guest", amount: "$500", note: "Blessings on your union", time: "Sep 15")
+                    if contributions.isEmpty {
+                        Text("No guest contributions recorded yet.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.vertical, 8)
+                    } else {
+                        ForEach(contributions) { item in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(item.contributorLabel)
+                                        .font(.subheadline).fontWeight(.semibold)
+                                    Text("\(item.typeLabel) • \(item.allocationLabel)")
+                                        .font(.caption).foregroundColor(.secondary)
+                                }
+                                Spacer()
+                                Text(item.statusLabel)
+                                    .font(.caption2)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(WewedColors.emerald.opacity(0.1))
+                                    .foregroundColor(WewedColors.emerald)
+                                    .cornerRadius(WewedRadius.pill)
+                            }
+                            .padding(.vertical, 6)
+                            Divider()
+                        }
+                    }
                 }
                 .padding()
                 .background(Color.white)
@@ -172,58 +246,69 @@ public struct PlannerContributionsView: View {
         }
         .background(WewedColors.ivory)
         .navigationTitle("Contributions")
-    }
-}
-
-private struct ContributionRow: View {
-    let contributor: String
-    let amount: String
-    let note: String
-    let time: String
-
-    var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(contributor).font(.subheadline).fontWeight(.semibold)
-                Text(note).font(.caption).foregroundColor(.secondary)
-            }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(amount).font(.subheadline).fontWeight(.bold).foregroundColor(WewedColors.emerald)
-                Text(time).font(.caption2).foregroundColor(.secondary)
+        .task {
+            if let list = try? await appState.plannerRepository.getContributions() {
+                contributions = list
             }
         }
-        .padding(.vertical, 6)
     }
 }
 
 public struct PlannerVendorsView: View {
     @EnvironmentObject private var appState: AppState
     @State private var vendors: [VendorPresence] = []
+    @State private var vendorEngagements: [PlannerVendorEngagement] = []
 
     public init() {}
 
     public var body: some View {
         ScrollView {
             VStack(spacing: WewedSpacing.sm) {
-                ForEach(vendors) { v in
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(v.vendorName).font(.subheadline).fontWeight(.semibold)
-                            Text("\(v.serviceCategory) • \(v.serviceArea)").font(.caption).foregroundColor(.secondary)
+                if !vendorEngagements.isEmpty {
+                    ForEach(vendorEngagements) { v in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(v.vendorName).font(.subheadline).fontWeight(.semibold)
+                                Text("\(v.category) • \(v.nextAction)").font(.caption).foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text(v.paymentStatus)
+                                    .font(.caption2)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(WewedColors.gold.opacity(0.15))
+                                    .foregroundColor(WewedColors.gold)
+                                    .cornerRadius(WewedRadius.pill)
+                                Text(v.bookingStatus)
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
                         }
-                        Spacer()
-                        Text(v.state.title)
-                            .font(.caption2)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(WewedColors.gold.opacity(0.15))
-                            .foregroundColor(WewedColors.gold)
-                            .cornerRadius(WewedRadius.pill)
+                        .padding()
+                        .background(Color.white)
+                        .cornerRadius(WewedRadius.md)
                     }
-                    .padding()
-                    .background(Color.white)
-                    .cornerRadius(WewedRadius.md)
+                } else {
+                    ForEach(vendors) { v in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(v.vendorName).font(.subheadline).fontWeight(.semibold)
+                                Text("\(v.serviceCategory) • \(v.serviceArea)").font(.caption).foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            Text(v.state.title)
+                                .font(.caption2)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(WewedColors.gold.opacity(0.15))
+                                .foregroundColor(WewedColors.gold)
+                                .cornerRadius(WewedRadius.pill)
+                        }
+                        .padding()
+                        .background(Color.white)
+                        .cornerRadius(WewedRadius.md)
+                    }
                 }
             }
             .padding()
@@ -234,100 +319,109 @@ public struct PlannerVendorsView: View {
             if let list = try? await appState.repository.getVendors() {
                 vendors = list
             }
+            if let engs = try? await appState.plannerRepository.getVendorEngagements() {
+                vendorEngagements = engs
+            }
         }
     }
 }
 
 public struct PlannerTimelineView: View {
+    @EnvironmentObject private var appState: AppState
+    @State private var timeline: [PlannerTimelineEntry] = []
+
     public init() {}
 
     public var body: some View {
         ScrollView {
             VStack(spacing: 12) {
-                TimelineItemRow(time: "10:00", title: "Bridal Party Hair & Makeup", location: "Bridal Suite", status: "Completed")
-                TimelineItemRow(time: "13:30", title: "Gates Open & Guest Arrival", location: "Main Gate", status: "Active Now")
-                TimelineItemRow(time: "14:00", title: "Ceremony Begins", location: "Chapel Garden", status: "Upcoming")
-                TimelineItemRow(time: "15:30", title: "Family & Bridal Portraits", location: "Estate Lawn", status: "Upcoming")
-                TimelineItemRow(time: "17:00", title: "Reception Entrance & Dinner", location: "Jacaranda Ballroom", status: "Upcoming")
+                if timeline.isEmpty {
+                    Text("No timeline items recorded.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .padding()
+                } else {
+                    ForEach(timeline) { item in
+                        HStack(alignment: .top, spacing: 12) {
+                            Text(item.time)
+                                .font(.subheadline)
+                                .fontWeight(.bold)
+                                .foregroundColor(WewedColors.gold)
+                                .frame(width: 50, alignment: .leading)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(item.title).font(.subheadline).fontWeight(.medium)
+                                Text(item.location).font(.caption).foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            Text(item.statusLabel)
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding()
+                        .background(Color.white)
+                        .cornerRadius(WewedRadius.md)
+                    }
+                }
             }
             .padding()
         }
         .background(WewedColors.ivory)
         .navigationTitle("Timeline & Run-Sheet")
-    }
-}
-
-private struct TimelineItemRow: View {
-    let time: String
-    let title: String
-    let location: String
-    let status: String
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Text(time)
-                .font(.subheadline)
-                .fontWeight(.bold)
-                .foregroundColor(WewedColors.gold)
-                .frame(width: 50, alignment: .leading)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.subheadline).fontWeight(.medium)
-                Text(location).font(.caption).foregroundColor(.secondary)
+        .task {
+            if let items = try? await appState.plannerRepository.getTimelineEntries() {
+                timeline = items
             }
-            Spacer()
-            Text(status)
-                .font(.caption2)
-                .foregroundColor(status == "Completed" ? WewedColors.success : (status == "Active Now" ? WewedColors.emerald : .secondary))
         }
-        .padding()
-        .background(Color.white)
-        .cornerRadius(WewedRadius.md)
     }
 }
 
 public struct PlannerSeatingView: View {
+    @EnvironmentObject private var appState: AppState
+    @State private var tables: [PlannerSeatingTable] = []
+
     public init() {}
 
     public var body: some View {
         ScrollView {
             VStack(spacing: 12) {
-                SeatingTableRow(tableName: "Baobab", tableNumber: 1, capacity: 10, assigned: 10, status: "Full")
-                SeatingTableRow(tableName: "Acacia", tableNumber: 2, capacity: 8, assigned: 8, status: "Full")
-                SeatingTableRow(tableName: "Jacaranda", tableNumber: 8, capacity: 8, assigned: 7, status: "1 Seat Free")
-                SeatingTableRow(tableName: "Marula", tableNumber: 9, capacity: 10, assigned: 8, status: "2 Seats Free")
+                if tables.isEmpty {
+                    Text("No seating tables recorded.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .padding()
+                } else {
+                    ForEach(tables) { tbl in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(tbl.name).font(.subheadline).fontWeight(.semibold)
+                                Text("\(tbl.assigned) of \(tbl.capacity) Seats Allocated • \(tbl.zone)").font(.caption).foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            if let attention = tbl.attentionLabel {
+                                Text(attention)
+                                    .font(.caption2)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Color.gray.opacity(0.1))
+                                    .cornerRadius(WewedRadius.pill)
+                            }
+                        }
+                        .padding()
+                        .background(Color.white)
+                        .cornerRadius(WewedRadius.md)
+                    }
+                }
             }
             .padding()
         }
         .background(WewedColors.ivory)
         .navigationTitle("Seating & Floor Plan")
-    }
-}
-
-private struct SeatingTableRow: View {
-    let tableName: String
-    let tableNumber: Int
-    let capacity: Int
-    let assigned: Int
-    let status: String
-
-    var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("\(tableName) — Table \(tableNumber)").font(.subheadline).fontWeight(.semibold)
-                Text("\(assigned) of \(capacity) Guests Assigned").font(.caption).foregroundColor(.secondary)
+        .task {
+            if let list = try? await appState.plannerRepository.getSeatingTables() {
+                tables = list
             }
-            Spacer()
-            Text(status)
-                .font(.caption2)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color.gray.opacity(0.1))
-                .cornerRadius(WewedRadius.pill)
         }
-        .padding()
-        .background(Color.white)
-        .cornerRadius(WewedRadius.md)
     }
 }
 
@@ -341,7 +435,23 @@ public struct PlannerGuestsBridgeView: View {
         ScrollView {
             VStack(spacing: WewedSpacing.sm) {
                 ForEach(guests) { g in
-                    GuestBridgeRow(guest: g)
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(g.name)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                            Text("\(g.tableName ?? "Unseated") • Party of \(g.partySize)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        Text(g.rsvpStatus.rawValue.capitalized)
+                            .font(.caption2)
+                            .foregroundColor(g.rsvpStatus == .attending ? WewedColors.success : .secondary)
+                    }
+                    .padding()
+                    .background(Color.white)
+                    .cornerRadius(WewedRadius.md)
                 }
             }
             .padding()
@@ -356,78 +466,90 @@ public struct PlannerGuestsBridgeView: View {
     }
 }
 
-private struct GuestBridgeRow: View {
-    let guest: Guest
-
-    var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(guest.name)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                Text("Table \(guest.tableNumber ?? 0) • Party of \(guest.partySize)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            Spacer()
-            Text(guest.rsvpStatus.rawValue.capitalized)
-                .font(.caption2)
-                .foregroundColor(guest.rsvpStatus == .attending ? WewedColors.success : .secondary)
-        }
-        .padding()
-        .background(Color.white)
-        .cornerRadius(WewedRadius.md)
-    }
-}
-
 // MARK: - Planner Tools & Operational Destinations
 
 public struct ClientProfileView: View {
+    @EnvironmentObject private var appState: AppState
+    @State private var wedding: Wedding? = nil
+    @State private var guestCount: Int = 0
+
     public init() {}
+
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Charity & Kudzie Musarurwa")
-                        .font(.title2).fontWeight(.bold)
-                    Text("Wedding Date: 23 December 2026 • Imba Manor, Harare")
-                        .font(.subheadline).foregroundColor(.secondary)
-                }
-                .padding()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.white)
-                .cornerRadius(WewedRadius.lg)
+                if let wedding {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(wedding.coupleNames)
+                            .font(.title2).fontWeight(.bold)
+                        Text("Wedding Date: \(wedding.date) • \(wedding.venueName), \(wedding.city)")
+                            .font(.subheadline).foregroundColor(.secondary)
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.white)
+                    .cornerRadius(WewedRadius.lg)
 
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Contact & Relationship Details").font(.headline)
-                    Text("Primary Contact: Charity & Kudzie (+263 77 000 0000)").font(.subheadline)
-                    Text("Email: couple@wewed.pro").font(.subheadline)
-                    Text("Preferred Theme: Ivory Floral & Botanical Gold").font(.subheadline)
-                    Text("Guest Capacity: 174 guests (177 invited capacity)").font(.subheadline)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Wedding Details").font(.headline)
+                        Text("Venue: \(wedding.venueName), \(wedding.city), \(wedding.country)").font(.subheadline)
+                        Text("Guest Records: \(guestCount) guests on manifest").font(.subheadline)
+                        Text("Account Contact: Managed via Planner Workspace").font(.subheadline).foregroundColor(.secondary)
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.white)
+                    .cornerRadius(WewedRadius.lg)
+                } else {
+                    ProgressView("Loading profile...")
+                        .padding()
                 }
-                .padding()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.white)
-                .cornerRadius(WewedRadius.lg)
             }
             .padding()
         }
         .background(WewedColors.ivory)
         .navigationTitle("Client Profile")
+        .task {
+            if let w = try? await appState.repository.getWedding() {
+                wedding = w
+            }
+            if let g = try? await appState.repository.getGuests() {
+                guestCount = g.count
+            }
+        }
     }
 }
 
 public struct CollaborationHubView: View {
     public init() {}
+
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 Text("Planning Team Access & Roles").font(.headline)
-                TeamMemberRow(name: "Eleven Eleven Testing (Lead Planner)", role: "Tony The Planner / Accepted Interest", status: "Active")
-                TeamMemberRow(name: "Charity (Bride)", role: "Couple / Owner", status: "Active")
-                TeamMemberRow(name: "Kudzie (Groom)", role: "Couple / Owner", status: "Active")
-                TeamMemberRow(name: "Chiedza Nyoni", role: "Day-Of Coordinator", status: "Active")
-                TeamMemberRow(name: "Imba Manor Gate Team", role: "Usher / Scanner Only", status: "Assigned")
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Eleven Eleven Testing").font(.subheadline).fontWeight(.semibold)
+                        Text("Lead Planner / Accepted Interest").font(.caption).foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Text("Verified").font(.caption2).foregroundColor(WewedColors.success)
+                }
+                .padding()
+                .background(Color.white)
+                .cornerRadius(WewedRadius.md)
+
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Charity & Kudzie").font(.subheadline).fontWeight(.semibold)
+                        Text("Couple / Owner").font(.caption).foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Text("Owner").font(.caption2).foregroundColor(WewedColors.success)
+                }
+                .padding()
+                .background(Color.white)
+                .cornerRadius(WewedRadius.md)
             }
             .padding()
         }
@@ -436,124 +558,62 @@ public struct CollaborationHubView: View {
     }
 }
 
-private struct TeamMemberRow: View {
-    let name: String
-    let role: String
-    let status: String
-
-    var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(name).font(.subheadline).fontWeight(.semibold)
-                Text(role).font(.caption).foregroundColor(.secondary)
-            }
-            Spacer()
-            Text(status).font(.caption2).foregroundColor(WewedColors.success)
-        }
-        .padding()
-        .background(Color.white)
-        .cornerRadius(WewedRadius.md)
-    }
-}
-
 public struct PlannerOperationsView: View {
+    @EnvironmentObject private var appState: AppState
+    @State private var dashboard: PlannerDashboardSnapshot? = nil
+
     public init() {}
+
     public var body: some View {
         ScrollView {
             VStack(spacing: 14) {
-                Text("Live Field Dispatch & Staff Roster").font(.headline).frame(maxWidth: .infinity, alignment: .leading)
-                OperationTile(title: "Main Gate Check-In Station", detail: "2 Ushers Active • 82 Guests Admitted", status: "Operational")
-                OperationTile(title: "Catering & Dietary Station", detail: "Chef briefed • 12 Special Diet meals ready", status: "On Schedule")
-                OperationTile(title: "Audio & PA Systems", detail: "Garden chapel soundcheck completed", status: "Ready")
+                Text("Operational Status").font(.headline).frame(maxWidth: .infinity, alignment: .leading)
+                if let dashboard {
+                    ForEach(dashboard.attentionItems) { item in
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text(item.title).font(.subheadline).fontWeight(.semibold)
+                                Spacer()
+                                Text(item.severity.rawValue.capitalized).font(.caption2).foregroundColor(WewedColors.gold)
+                            }
+                            Text(item.detail).font(.caption).foregroundColor(.secondary)
+                        }
+                        .padding()
+                        .background(Color.white)
+                        .cornerRadius(WewedRadius.md)
+                    }
+                }
             }
             .padding()
         }
         .background(WewedColors.ivory)
         .navigationTitle("Day-Of Operations")
-    }
-}
-
-private struct OperationTile: View {
-    let title: String
-    let detail: String
-    let status: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(title).font(.subheadline).fontWeight(.semibold)
-                Spacer()
-                Text(status).font(.caption2).foregroundColor(WewedColors.emerald)
+        .task {
+            if let d = try? await appState.plannerRepository.getDashboard() {
+                dashboard = d
             }
-            Text(detail).font(.caption).foregroundColor(.secondary)
         }
-        .padding()
-        .background(Color.white)
-        .cornerRadius(WewedRadius.md)
     }
 }
 
 public struct PlannerInvitationToolsView: View {
+    @EnvironmentObject private var appState: AppState
+    @State private var guests: [Guest] = []
+
     public init() {}
+
     public var body: some View {
         ScrollView {
             VStack(spacing: 14) {
-                Text("Pass Provisioning & Physical QR Gateway").font(.headline).frame(maxWidth: .infinity, alignment: .leading)
-                OperationTile(title: "Digital Passes Generated", detail: "150 of 150 passes issued with WW2 signatures", status: "100% Ready")
-                OperationTile(title: "Physical Cards & QR Printed", detail: "Wax-sealed physical invitations linked", status: "Distributed")
-                OperationTile(title: "Gate Scanner Trust Anchor", detail: "ECDSA Root Key Active: keyId #ww2-2026-prod", status: "Secure")
-            }
-            .padding()
-        }
-        .background(WewedColors.ivory)
-        .navigationTitle("Invitations & QR Tools")
-    }
-}
+                Text("Invitations & Pass Status").font(.headline).frame(maxWidth: .infinity, alignment: .leading)
+                let attending = guests.filter { $0.rsvpStatus == .attending }.count
+                let pending = guests.filter { $0.rsvpStatus == .pending }.count
+                let checkedIn = guests.filter { $0.checkedIn }.count
 
-public struct EventCommandView: View {
-    public init() {}
-    public var body: some View {
-        ScrollView {
-            VStack(spacing: 14) {
-                Text("Event Command Center").font(.headline).frame(maxWidth: .infinity, alignment: .leading)
-                OperationTile(title: "Current Milestone", detail: "Arrival & Welcome Drinks", status: "Phase 2 Active")
-                OperationTile(title: "Live Attendance Pulse", detail: "82 Admitted (55% of guest allocation)", status: "Normal Flow")
-                OperationTile(title: "Incident Log", detail: "0 critical escalations reported", status: "Clear")
-            }
-            .padding()
-        }
-        .background(WewedColors.ivory)
-        .navigationTitle("Event Command")
-    }
-}
-
-public struct ReleaseCenterView: View {
-    public init() {}
-    public var body: some View {
-        ScrollView {
-            VStack(spacing: 14) {
-                Text("Handoff & Deliverable Release").font(.headline).frame(maxWidth: .infinity, alignment: .leading)
-                OperationTile(title: "Master Seating Chart PDF", detail: "Exported & verified for venue manager", status: "Released")
-                OperationTile(title: "Vendor Run-Sheet Dossier", detail: "Dispatched to photography, catering & sound", status: "Dispatched")
-                OperationTile(title: "Gate Admission Audit Log", detail: "Archived with 82 verified audit records", status: "Pending Final Closeout")
-            }
-            .padding()
-        }
-        .background(WewedColors.ivory)
-        .navigationTitle("Release Centre")
-    }
-}
-
-public struct WeddingBriefView: View {
-    public init() {}
-    public var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Wedding Brief & Aesthetic Directive").font(.headline)
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Ceremonial Theme: Ivory Floral & Champagne Gold").font(.subheadline).fontWeight(.semibold)
-                    Text("Key Elements: Botanical ivory stationery, gilded monograms, natural wood accents, warm lighting.").font(.caption).foregroundColor(.secondary)
-                    Text("Music Style: Acoustic African gospel & soulful Afrobeats").font(.caption).foregroundColor(.secondary)
+                    Text("Guest Manifest Summary").font(.subheadline).fontWeight(.semibold)
+                    Text("Total Guests: \(guests.count)").font(.caption).foregroundColor(.secondary)
+                    Text("Attending: \(attending) • Pending: \(pending) • Checked In: \(checkedIn)").font(.caption).foregroundColor(.secondary)
                 }
                 .padding()
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -563,18 +623,112 @@ public struct WeddingBriefView: View {
             .padding()
         }
         .background(WewedColors.ivory)
+        .navigationTitle("Invitations & QR Tools")
+        .task {
+            if let list = try? await appState.repository.getGuests() {
+                guests = list
+            }
+        }
+    }
+}
+
+public struct EventCommandView: View {
+    @EnvironmentObject private var appState: AppState
+    @State private var wedding: Wedding? = nil
+
+    public init() {}
+
+    public var body: some View {
+        ScrollView {
+            VStack(spacing: 14) {
+                Text("Event Command Center").font(.headline).frame(maxWidth: .infinity, alignment: .leading)
+                if let wedding {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(wedding.coupleNames).font(.subheadline).fontWeight(.semibold)
+                        Text("\(wedding.date) • \(wedding.venueName), \(wedding.city)").font(.caption).foregroundColor(.secondary)
+                        Text("Lifecycle: \(wedding.lifecycle)").font(.caption2).foregroundColor(WewedColors.gold)
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.white)
+                    .cornerRadius(WewedRadius.md)
+                }
+            }
+            .padding()
+        }
+        .background(WewedColors.ivory)
+        .navigationTitle("Event Command")
+        .task {
+            if let w = try? await appState.repository.getWedding() {
+                wedding = w
+            }
+        }
+    }
+}
+
+public struct ReleaseCenterView: View {
+    public init() {}
+
+    public var body: some View {
+        ScrollView {
+            VStack(spacing: 14) {
+                Text("Deliverable Release").font(.headline).frame(maxWidth: .infinity, alignment: .leading)
+                Text("No releases queued.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding()
+            }
+            .padding()
+        }
+        .background(WewedColors.ivory)
+        .navigationTitle("Release Centre")
+    }
+}
+
+public struct WeddingBriefView: View {
+    @EnvironmentObject private var appState: AppState
+    @State private var wedding: Wedding? = nil
+
+    public init() {}
+
+    public var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Wedding Brief").font(.headline)
+                if let wedding {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(wedding.coupleNames).font(.subheadline).fontWeight(.semibold)
+                        Text("Date: \(wedding.date)").font(.caption).foregroundColor(.secondary)
+                        Text("Venue: \(wedding.venueName), \(wedding.city), \(wedding.country)").font(.caption).foregroundColor(.secondary)
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.white)
+                    .cornerRadius(WewedRadius.md)
+                }
+            }
+            .padding()
+        }
+        .background(WewedColors.ivory)
         .navigationTitle("Wedding Brief")
+        .task {
+            if let w = try? await appState.repository.getWedding() {
+                wedding = w
+            }
+        }
     }
 }
 
 public struct NotebookView: View {
     public init() {}
+
     public var body: some View {
         ScrollView {
             VStack(spacing: 12) {
-                NotebookNoteCard(title: "Meeting with Venue Coordinator", date: "Sep 14, 2026", preview: "Confirmed backup marquee in case of unexpected rain. Power generator check scheduled for 09:00.")
-                NotebookNoteCard(title: "Cake Tasting Notes", date: "Sep 10, 2026", preview: "Selected 3-tier red velvet & champagne sponge with gold leaf accents.")
-                NotebookNoteCard(title: "Usher Briefing Protocol", date: "Sep 05, 2026", preview: "Usher scanners will be paired at 12:00. Admittance stepper handles partial household entry.")
+                Text("No planner notes recorded.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .padding()
             }
             .padding()
         }
@@ -583,35 +737,17 @@ public struct NotebookView: View {
     }
 }
 
-private struct NotebookNoteCard: View {
-    let title: String
-    let date: String
-    let preview: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(title).font(.subheadline).fontWeight(.semibold)
-                Spacer()
-                Text(date).font(.caption2).foregroundColor(.secondary)
-            }
-            Text(preview).font(.caption).foregroundColor(.secondary)
-        }
-        .padding()
-        .background(Color.white)
-        .cornerRadius(WewedRadius.md)
-    }
-}
-
 public struct MediaArchiveView: View {
     public init() {}
+
     public var body: some View {
         ScrollView {
             VStack(spacing: 14) {
-                Text("High-Resolution Media Archive Vault").font(.headline).frame(maxWidth: .infinity, alignment: .leading)
-                OperationTile(title: "Pre-Wedding Shoot & Story Assets", detail: "48 curated photos loaded", status: "Indexed")
-                OperationTile(title: "Ceremonial Artwork Assets", detail: "Ivory tri-fold 3D textures & SVG monograms", status: "Optimized")
-                OperationTile(title: "Live Wall Upload Vault", detail: "Guest photo submissions ready for moderation", status: "Active")
+                Text("Media Archive").font(.headline).frame(maxWidth: .infinity, alignment: .leading)
+                Text("No media assets indexed for this wedding.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding()
             }
             .padding()
         }
@@ -622,13 +758,15 @@ public struct MediaArchiveView: View {
 
 public struct WewedAIWorkspaceView: View {
     public init() {}
+
     public var body: some View {
         ScrollView {
             VStack(spacing: 14) {
-                Text("Wewed AI Wedding Architect").font(.headline).frame(maxWidth: .infinity, alignment: .leading)
-                OperationTile(title: "Timeline Optimization Engine", detail: "Calculated 15 min buffer between ceremony & photos", status: "Optimized")
-                OperationTile(title: "Seating Arrangement Suggestions", detail: "Zero dietary conflicts across all 14 tables", status: "Balanced")
-                OperationTile(title: "Speech & Vow Assistant", detail: "Groom & Best Man speaking drafts saved", status: "Ready")
+                Text("Wewed AI Workspace").font(.headline).frame(maxWidth: .infinity, alignment: .leading)
+                Text("AI recommendations are active for task scheduling and manifest verification.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding()
             }
             .padding()
         }
@@ -640,52 +778,60 @@ public struct WewedAIWorkspaceView: View {
 // MARK: - Professional Planner Workspace Destinations
 
 public struct PlannerPortfolioView: View {
+    @EnvironmentObject private var appState: AppState
+    @State private var wedding: Wedding? = nil
+    @State private var doneTasks: Int = 0
+    @State private var totalTasks: Int = 0
+
     public init() {}
+
     public var body: some View {
         ScrollView {
             VStack(spacing: 12) {
-                PortfolioWeddingCard(couple: "Charity & Kudzie", date: "23 Dec 2026", status: "Active • 7 / 42 Tasks", completion: 0.17)
-                PortfolioWeddingCard(couple: "Ruvimbo & Farai", date: "12 Dec 2026", status: "Planning • 86 Days", completion: 0.42)
-                PortfolioWeddingCard(couple: "Chido & Tinashe", date: "15 Jan 2027", status: "Scoping • 120 Days", completion: 0.15)
+                if let wedding {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text(wedding.coupleNames).font(.headline)
+                            Spacer()
+                            Text("Active • \(doneTasks) / \(totalTasks) Tasks").font(.caption2).foregroundColor(WewedColors.gold)
+                        }
+                        Text(wedding.date).font(.caption).foregroundColor(.secondary)
+                        let ratio = totalTasks > 0 ? Double(doneTasks) / Double(totalTasks) : 0.0
+                        ProgressView(value: ratio)
+                            .tint(WewedColors.emerald)
+                        Text("\(Int(ratio * 100))% Complete").font(.caption2).foregroundColor(.secondary)
+                    }
+                    .padding()
+                    .background(Color.white)
+                    .cornerRadius(WewedRadius.md)
+                }
             }
             .padding()
         }
         .background(WewedColors.ivory)
         .navigationTitle("Planner Portfolio")
-    }
-}
-
-private struct PortfolioWeddingCard: View {
-    let couple: String
-    let date: String
-    let status: String
-    let completion: Double
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(couple).font(.headline)
-                Spacer()
-                Text(status).font(.caption2).foregroundColor(WewedColors.gold)
+        .task {
+            if let w = try? await appState.repository.getWedding() {
+                wedding = w
             }
-            Text(date).font(.caption).foregroundColor(.secondary)
-            ProgressView(value: completion)
-                .tint(WewedColors.emerald)
-            Text("\(Int(completion * 100))% Complete").font(.caption2).foregroundColor(.secondary)
+            if let t = try? await appState.repository.getTasks() {
+                totalTasks = t.count
+                doneTasks = t.filter { $0.status == .done }.count
+            }
         }
-        .padding()
-        .background(Color.white)
-        .cornerRadius(WewedRadius.md)
     }
 }
 
 public struct PlannerBookingsView: View {
     public init() {}
+
     public var body: some View {
         ScrollView {
             VStack(spacing: 12) {
-                BookingCard(client: "Tanaka & Rudo", service: "Full Wedding Planning", date: "Oct 02, 2026 at 14:00", status: "Confirmed")
-                BookingCard(client: "Munyaradzi & Sarah", service: "Day-Of Coordination Consultation", date: "Oct 08, 2026 at 11:30", status: "Pending Deposit")
+                Text("No external consultations queued.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .padding()
             }
             .padding()
         }
@@ -694,37 +840,23 @@ public struct PlannerBookingsView: View {
     }
 }
 
-private struct BookingCard: View {
-    let client: String
-    let service: String
-    let date: String
-    let status: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(client).font(.subheadline).fontWeight(.semibold)
-                Spacer()
-                Text(status).font(.caption2).foregroundColor(status == "Confirmed" ? WewedColors.emerald : WewedColors.warning)
-            }
-            Text(service).font(.caption).foregroundColor(.secondary)
-            Text(date).font(.caption2).foregroundColor(WewedColors.gold)
-        }
-        .padding()
-        .background(Color.white)
-        .cornerRadius(WewedRadius.md)
-    }
-}
-
 public struct ContractGovernanceView: View {
     public init() {}
+
     public var body: some View {
         ScrollView {
             VStack(spacing: 14) {
-                Text("Contract Governance & Legal Milestones").font(.headline).frame(maxWidth: .infinity, alignment: .leading)
-                OperationTile(title: "Master Planning Agreement", detail: "Pending contract formulation (0 active contracts)", status: "Empty State")
-                OperationTile(title: "Vendor Agreements", detail: "7 vendors booked • Formal contract execution pending", status: "Pending")
-                OperationTile(title: "Escrow & Retainer Vault", detail: "0 executed retainers held", status: "Ready")
+                Text("Contract Governance").font(.headline).frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("No contracts recorded for this wedding.")
+                        .font(.subheadline).fontWeight(.semibold)
+                    Text("0 active contracts or formal legal documents recorded on ledger.")
+                        .font(.caption).foregroundColor(.secondary)
+                }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.white)
+                .cornerRadius(WewedRadius.md)
             }
             .padding()
         }
@@ -735,13 +867,21 @@ public struct ContractGovernanceView: View {
 
 public struct ContractIntelligenceView: View {
     public init() {}
+
     public var body: some View {
         ScrollView {
             VStack(spacing: 14) {
-                Text("Contract Intelligence & Risk Audit").font(.headline).frame(maxWidth: .infinity, alignment: .leading)
-                OperationTile(title: "Force Majeure & Rain Contingency", detail: "Imba Manor grounds policy ready for contract annex", status: "Draft")
-                OperationTile(title: "Vendor Payment Milestone Guard", detail: "Deposit guards active for 7 vendors", status: "Protected")
-                OperationTile(title: "Cancellation Terms", detail: "Awaiting formal vendor agreements", status: "Pending")
+                Text("Contract Intelligence").font(.headline).frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("No contracts recorded for this wedding.")
+                        .font(.subheadline).fontWeight(.semibold)
+                    Text("Contract risk analysis will activate upon contract execution.")
+                        .font(.caption).foregroundColor(.secondary)
+                }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.white)
+                .cornerRadius(WewedRadius.md)
             }
             .padding()
         }
@@ -751,17 +891,18 @@ public struct ContractIntelligenceView: View {
 }
 
 public struct MarketplaceProfileView: View {
+    @EnvironmentObject private var appState: AppState
+    @State private var plannerDashboard: PlannerDashboardSnapshot? = nil
+
     public init() {}
+
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Kudzie Musarurwa Events").font(.title2).fontWeight(.bold)
-                    Text("Premium Wedding & Event Architect • Harare, Zimbabwe").font(.subheadline).foregroundColor(.secondary)
-                    HStack(spacing: 4) {
-                        Image(systemName: "star.fill").foregroundColor(WewedColors.gold)
-                        Text("4.98 (42 Weddings Qualified)").font(.caption).fontWeight(.semibold)
-                    }
+                    Text(plannerDashboard?.plannerContext ?? "Eleven Eleven Testing")
+                        .font(.title2).fontWeight(.bold)
+                    Text("Professional Wedding Planner • Accepted Interest").font(.subheadline).foregroundColor(.secondary)
                 }
                 .padding()
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -769,10 +910,8 @@ public struct MarketplaceProfileView: View {
                 .cornerRadius(WewedRadius.lg)
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Service Offerings").font(.headline)
-                    Text("• Full Wedding Architectural Design & Execution").font(.subheadline)
-                    Text("• Day-Of Coordination & Gate Pass Management").font(.subheadline)
-                    Text("• Luxury Stationery & Physical QR Integration").font(.subheadline)
+                    Text("Active Engagements").font(.headline)
+                    Text("• Lead Planning for Charity & Kudzie (23 Dec 2026)").font(.subheadline)
                 }
                 .padding()
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -783,5 +922,19 @@ public struct MarketplaceProfileView: View {
         }
         .background(WewedColors.ivory)
         .navigationTitle("Marketplace Profile")
+        .task {
+            if let d = try? await appState.plannerRepository.getDashboard() {
+                plannerDashboard = d
+            }
+        }
     }
 }
+
+private extension Int {
+    var formattedWithSeparator: String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        return formatter.string(from: NSNumber(value: self)) ?? "\(self)"
+    }
+}
+

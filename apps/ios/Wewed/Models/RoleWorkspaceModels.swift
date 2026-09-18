@@ -54,23 +54,23 @@ public struct DevelopmentPersona: Identifiable, Sendable {
             subtitle: "Couple Owner • Imba Manor",
             role: .couple,
             weddingId: "cmqos70cb0004q6vxe9g9aiu5",
-            weddingTitle: "Charity & Kudzie Wedding"
+            weddingTitle: "Charity & Kudzie"
         ),
         DevelopmentPersona(
             id: "pro_planner",
             name: "Eleven Eleven Testing",
-            subtitle: "Lead Planner • Tony The Planner",
+            subtitle: "Lead Planner • Accepted Interest",
             role: .planner,
             weddingId: "cmqos70cb0004q6vxe9g9aiu5",
-            weddingTitle: "Charity & Kudzie Wedding"
+            weddingTitle: "Charity & Kudzie"
         ),
         DevelopmentPersona(
             id: "day_coordinator",
-            name: "Chiedza Nyoni",
-            subtitle: "Day-of Coordinator",
+            name: "Shadow Coordinator Test Role",
+            subtitle: "SHADOW TEST-ONLY • Day-of Coordinator",
             role: .coordinator,
             weddingId: "cmqos70cb0004q6vxe9g9aiu5",
-            weddingTitle: "Charity & Kudzie Wedding"
+            weddingTitle: "Charity & Kudzie"
         ),
         DevelopmentPersona(
             id: "vendor_owner",
@@ -78,7 +78,7 @@ public struct DevelopmentPersona: Identifiable, Sendable {
             subtitle: "Lead Cinematographer & Media",
             role: .vendor,
             weddingId: "cmqos70cb0004q6vxe9g9aiu5",
-            weddingTitle: "Charity & Kudzie Wedding"
+            weddingTitle: "Charity & Kudzie"
         ),
         DevelopmentPersona(
             id: "vendor_staff",
@@ -86,31 +86,31 @@ public struct DevelopmentPersona: Identifiable, Sendable {
             subtitle: "Master of Ceremonies & Sound",
             role: .vendor,
             weddingId: "cmqos70cb0004q6vxe9g9aiu5",
-            weddingTitle: "Charity & Kudzie Wedding"
+            weddingTitle: "Charity & Kudzie"
         ),
         DevelopmentPersona(
             id: "gate_usher",
-            name: "Gate Usher",
-            subtitle: "Stationed at Imba Manor Main Gate",
+            name: "Shadow Usher Test Role",
+            subtitle: "SHADOW TEST-ONLY • Gate Scanner",
             role: .usher,
             weddingId: "cmqos70cb0004q6vxe9g9aiu5",
-            weddingTitle: "Charity & Kudzie Wedding"
+            weddingTitle: "Charity & Kudzie"
         ),
         DevelopmentPersona(
             id: "attending_guest",
-            name: "Test Guest",
-            subtitle: "Party of 4 • Attending",
+            name: "Shadow Guest Test Role",
+            subtitle: "SHADOW TEST-ONLY • Attending Guest",
             role: .guest,
             weddingId: "cmqos70cb0004q6vxe9g9aiu5",
-            weddingTitle: "Charity & Kudzie Wedding"
+            weddingTitle: "Charity & Kudzie"
         ),
         DevelopmentPersona(
             id: "administrator",
-            name: "Global Ops Admin",
-            subtitle: "Platform Security & Health",
+            name: "Shadow Admin Test Role",
+            subtitle: "SHADOW TEST-ONLY • Platform Admin",
             role: .admin,
             weddingId: "cmqos70cb0004q6vxe9g9aiu5",
-            weddingTitle: "Global Wewed Ecosystem"
+            weddingTitle: "Charity & Kudzie"
         )
     ]
 }

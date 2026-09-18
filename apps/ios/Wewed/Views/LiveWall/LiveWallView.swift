@@ -8,12 +8,8 @@ public struct LiveWallMessage: Identifiable, Codable, Equatable, Sendable {
 }
 
 public struct LiveWallView: View {
-    @State private var messages: [LiveWallMessage] = [
-        LiveWallMessage(id: "m1", author: "Uncle Farai", content: "Congratulations Charity & Kudzie! May God bless this union abundantly!", time: "14:15"),
-        LiveWallMessage(id: "m2", author: "Auntie Chipo", content: "Such a beautiful celebration at Imba Manor! Welcome to the family Kudzie!", time: "14:22"),
-        LiveWallMessage(id: "m3", author: "Tony M.", content: "Waiting for the dance floor to open! Cheers to Charity & Kudzie!", time: "14:35")
-    ]
-    @State private var applauseCount: Int = 142
+    @State private var messages: [LiveWallMessage] = []
+    @State private var applauseCount: Int = 0
     @State private var showingComposeSheet: Bool = false
     @State private var newMessageText: String = ""
 
@@ -54,24 +50,42 @@ public struct LiveWallView: View {
                 .shadow(color: Color.black.opacity(0.02), radius: 4, x: 0, y: 1)
 
                 // Message List
-                List {
-                    ForEach(messages) { msg in
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Text(msg.author)
-                                    .font(.subheadline)
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(WewedColors.emerald)
-                                Spacer()
-                                Text(msg.time)
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
+                if messages.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "bubble.left.and.bubble.right.fill")
+                            .font(.system(size: 40))
+                            .foregroundColor(WewedColors.gold.opacity(0.5))
+                            .padding(.top, 40)
+                        Text("No live wall messages yet.")
+                            .font(.headline)
+                        Text("Messages from attending guests will appear here during the celebration.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 32)
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    List {
+                        ForEach(messages) { msg in
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Text(msg.author)
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(WewedColors.emerald)
+                                    Spacer()
+                                    Text(msg.time)
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
+                                Text(msg.content)
+                                    .font(.body)
+                                    .foregroundColor(WewedColors.textPrimaryLight)
                             }
-                            Text(msg.content)
-                                .font(.body)
-                                .foregroundColor(WewedColors.textPrimaryLight)
+                            .padding(.vertical, 4)
                         }
-                        .padding(.vertical, 4)
                     }
                 }
 

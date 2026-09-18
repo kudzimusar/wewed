@@ -63,34 +63,45 @@ class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath:
         val root = JSONObject(raw)
 
         // 1. Wedding
-        val weddingObj = root.optJSONObject("wedding") ?: JSONObject()
-        val coupleTitle = weddingObj.optString("title", "Charity & Kudzie")
-        val dateStr = weddingObj.optString("dateRaw", "2026-12-23 14:00:00")
-        val venueStr = weddingObj.optString("venue", "Imba Manor")
-        val cityStr = weddingObj.optString("venueCity", "Harare")
-        val countryStr = weddingObj.optString("venueCountry", "Zimbabwe")
-        val lifecycleStr = weddingObj.optString("lifecycle", "before")
+        val weddingObj = root.optJSONObject("wedding")
+            ?: throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required wedding metadata missing in private real shadow fixture.")
+        val weddingId = weddingObj.optString("id")
+        val coupleTitle = weddingObj.optString("title")
+        val dateStr = weddingObj.optString("dateRaw")
+        val venueStr = weddingObj.optString("venue")
+        val cityStr = weddingObj.optString("venueCity")
+        val countryStr = weddingObj.optString("venueCountry")
+        val lifecycleStr = weddingObj.optString("lifecycle")
+
+        if (weddingId.isEmpty() || coupleTitle.isEmpty() || dateStr.isEmpty() || venueStr.isEmpty() || cityStr.isEmpty() || countryStr.isEmpty() || lifecycleStr.isEmpty()) {
+            throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required wedding fields missing in private real shadow fixture.")
+        }
 
         // 2. Programme
         val progArray = root.optJSONArray("programme")
+            ?: throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required programme list missing in private real shadow fixture.")
         val progItems = mutableListOf<ProgrammeItem>()
-        if (progArray != null) {
-            for (i in 0 until progArray.length()) {
-                val item = progArray.getJSONObject(i)
-                progItems.add(
-                    ProgrammeItem(
-                        id = item.optString("id", "prog_${i + 1}"),
-                        title = item.optString("title", "Event"),
-                        time = item.optString("time", "12:00"),
-                        location = if (item.isNull("location")) venueStr else item.optString("location", venueStr),
-                        description = item.optString("description", "")
-                    )
-                )
+        for (i in 0 until progArray.length()) {
+            val item = progArray.getJSONObject(i)
+            val id = item.optString("id")
+            val title = item.optString("title")
+            val time = item.optString("time")
+            if (id.isEmpty() || title.isEmpty() || time.isEmpty()) {
+                throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required programme item fields missing in private real shadow fixture.")
             }
+            progItems.add(
+                ProgrammeItem(
+                    id = id,
+                    title = title,
+                    time = time,
+                    location = if (item.isNull("location")) venueStr else item.optString("location", venueStr),
+                    description = item.optString("description", "")
+                )
+            )
         }
 
         wedding = Wedding(
-            id = weddingObj.optString("id", "cmqos70cb0004q6vxe9g9aiu5"),
+            id = weddingId,
             coupleNames = coupleTitle,
             date = dateStr,
             venueName = venueStr,
@@ -103,34 +114,40 @@ class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath:
 
         // 3. Tasks (42 tasks)
         val taskArray = root.optJSONArray("tasks")
+            ?: throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required tasks list missing in private real shadow fixture.")
         tasks = mutableListOf()
-        if (taskArray != null) {
-            for (i in 0 until taskArray.length()) {
-                val item = taskArray.getJSONObject(i)
-                val statusRaw = item.optString("status", "todo").lowercase()
-                val priorityRaw = item.optString("priority", "medium").lowercase()
-                val status = when (statusRaw) {
-                    "done", "completed" -> TaskStatus.DONE
-                    "in_progress", "inprogress" -> TaskStatus.IN_PROGRESS
-                    else -> TaskStatus.TODO
-                }
-                val priority = when (priorityRaw) {
-                    "high", "urgent" -> TaskPriority.HIGH
-                    "low" -> TaskPriority.LOW
-                    else -> TaskPriority.MEDIUM
-                }
-                val dueDate = if (item.isNull("dueDate")) null else item.optString("dueDate")
-                tasks.add(
-                    PlannerTask(
-                        id = item.optString("id", "task_${i + 1}"),
-                        title = item.optString("title", "Task ${i + 1}"),
-                        status = status,
-                        priority = priority,
-                        category = item.optString("category", "general"),
-                        dueDate = dueDate
-                    )
-                )
+        for (i in 0 until taskArray.length()) {
+            val item = taskArray.getJSONObject(i)
+            val id = item.optString("id")
+            val title = item.optString("title")
+            val statusRaw = item.optString("status").lowercase()
+            val priorityRaw = item.optString("priority").lowercase()
+            val category = item.optString("category")
+            if (id.isEmpty() || title.isEmpty() || statusRaw.isEmpty() || priorityRaw.isEmpty() || category.isEmpty()) {
+                throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required task fields missing in private real shadow fixture.")
             }
+            val status = when (statusRaw) {
+                "done", "completed" -> TaskStatus.DONE
+                "in_progress", "inprogress" -> TaskStatus.IN_PROGRESS
+                "blocked" -> TaskStatus.BLOCKED
+                else -> TaskStatus.TODO
+            }
+            val priority = when (priorityRaw) {
+                "high", "urgent" -> TaskPriority.HIGH
+                "low" -> TaskPriority.LOW
+                else -> TaskPriority.MEDIUM
+            }
+            val dueDate = if (item.isNull("dueDate")) null else item.optString("dueDate")
+            tasks.add(
+                PlannerTask(
+                    id = id,
+                    title = title,
+                    status = status,
+                    priority = priority,
+                    category = category,
+                    dueDate = dueDate
+                )
+            )
         }
 
         // Seating tables mapping
@@ -145,69 +162,75 @@ class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath:
 
         // 4. Guests (174 guests with real names)
         val guestArray = root.optJSONArray("guests")
+            ?: throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required guests list missing in private real shadow fixture.")
         guests = mutableListOf()
-        if (guestArray != null) {
-            for (i in 0 until guestArray.length()) {
-                val item = guestArray.getJSONObject(i)
-                val id = item.optString("id", "guest_${i + 1}")
-                val name = item.optString("name", "Guest ${i + 1}")
-                val side = if (item.isNull("side")) null else item.optString("side")
-                val rsvpRaw = item.optString("rsvpStatus", "pending").lowercase()
-                val checkedIn = item.optBoolean("checkedIn", false)
-                val checkedInCount = item.optInt("checkedInCount", if (checkedIn) 1 else 0)
-                val partySize = item.optInt("partySize", 1)
-                val seatingTableId = if (item.isNull("seatingTableId")) null else item.optString("seatingTableId")
-                val tableName = seatingTableId?.let { tableMap[it] }
-
-                val rsvp = when (rsvpRaw) {
-                    "attending", "confirmed" -> RSVPStatus.ATTENDING
-                    "declined" -> RSVPStatus.DECLINED
-                    else -> RSVPStatus.PENDING
-                }
-
-                val passSerial = if (rsvp == RSVPStatus.ATTENDING) {
-                    if (partySize > 1) "SHDWGSTP04" else "SHDWGSTA01"
-                } else null
-
-                guests.add(
-                    Guest(
-                        id = id,
-                        name = name,
-                        householdName = null,
-                        partySize = partySize,
-                        side = side,
-                        rsvpStatus = rsvp,
-                        tableNumber = null,
-                        tableName = tableName,
-                        checkedIn = checkedIn,
-                        checkedInCount = checkedInCount,
-                        passSerial = passSerial
-                    )
-                )
+        for (i in 0 until guestArray.length()) {
+            val item = guestArray.getJSONObject(i)
+            val id = item.optString("id")
+            val name = item.optString("name")
+            val rsvpRaw = item.optString("rsvpStatus").lowercase()
+            if (id.isEmpty() || name.isEmpty() || rsvpRaw.isEmpty() || !item.has("partySize") || !item.has("checkedIn")) {
+                throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required guest fields missing in private real shadow fixture.")
             }
+            val side = if (item.isNull("side")) "family" else item.optString("side", "family")
+            val checkedIn = item.optBoolean("checkedIn", false)
+            val checkedInCount = item.optInt("checkedInCount", if (checkedIn) 1 else 0)
+            val partySize = item.optInt("partySize", 1)
+            val seatingTableId = if (item.isNull("seatingTableId")) null else item.optString("seatingTableId")
+            val tableName = seatingTableId?.let { tableMap[it] }
+
+            val rsvp = when (rsvpRaw) {
+                "attending", "confirmed" -> RSVPStatus.ATTENDING
+                "declined" -> RSVPStatus.DECLINED
+                else -> RSVPStatus.PENDING
+            }
+
+            val passSerial = if (rsvp == RSVPStatus.ATTENDING) {
+                if (partySize > 1) "SHDWGSTP04" else "SHDWGSTA01"
+            } else null
+
+            guests.add(
+                Guest(
+                    id = id,
+                    name = name,
+                    householdName = null,
+                    partySize = partySize,
+                    side = side,
+                    rsvpStatus = rsvp,
+                    tableNumber = null,
+                    tableName = tableName,
+                    checkedIn = checkedIn,
+                    checkedInCount = checkedInCount,
+                    passSerial = passSerial
+                )
+            )
         }
 
         // 5. Budget (22 items)
         val budgetArray = root.optJSONArray("budgetItems")
+            ?: throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required budgetItems missing in private real shadow fixture.")
         val catAllocated = mutableMapOf<String, Double>()
         val catSpent = mutableMapOf<String, Double>()
         var totalEst = 0.0
         var totalAct = 0.0
         var totalPd = 0.0
 
-        if (budgetArray != null) {
-            for (i in 0 until budgetArray.length()) {
-                val b = budgetArray.getJSONObject(i)
-                val cat = b.optString("category", "general").replaceFirstChar { it.uppercase() }
-                val est = b.optDouble("estimatedCost", 0.0)
-                val act = b.optDouble("actualCost", 0.0)
-                val pd = b.optDouble("paidAmount", 0.0)
-                totalEst += est
-                totalAct += act
-                totalPd += pd
-                catAllocated[cat] = (catAllocated[cat] ?: 0.0) + if (act > 0) act else est
-                catSpent[cat] = (catSpent[cat] ?: 0.0) + pd
+        for (i in 0 until budgetArray.length()) {
+            val b = budgetArray.getJSONObject(i)
+            val id = b.optString("id")
+            val cat = b.optString("category")
+            if (id.isEmpty() || cat.isEmpty() || !b.has("estimatedCost") || !b.has("actualCost") || !b.has("paidAmount")) {
+                throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required budget item fields missing in private real shadow fixture.")
             }
+            val catTitle = cat.replaceFirstChar { it.uppercase() }
+            val est = b.optDouble("estimatedCost", 0.0)
+            val act = b.optDouble("actualCost", 0.0)
+            val pd = b.optDouble("paidAmount", 0.0)
+            totalEst += est
+            totalAct += act
+            totalPd += pd
+            catAllocated[catTitle] = (catAllocated[catTitle] ?: 0.0) + if (act > 0) act else est
+            catSpent[catTitle] = (catSpent[catTitle] ?: 0.0) + pd
         }
 
         val categories = catAllocated.keys.sorted().map { cat ->
@@ -216,35 +239,37 @@ class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath:
 
         budget = BudgetSummary(
             currency = "USD",
-            totalBudget = if (totalEst > 0) totalEst else 30380.0,
-            totalAllocated = if (totalAct > 0) totalAct else 8690.0,
-            totalPaid = if (totalPd > 0) totalPd else 3875.0,
+            totalBudget = totalEst,
+            totalAllocated = totalAct,
+            totalPaid = totalPd,
             categories = categories
         )
 
         // 6. Vendors (7 vendors)
         val vendorsArray = root.optJSONArray("vendors")
+            ?: throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required vendors list missing in private real shadow fixture.")
         vendors = mutableListOf()
-        if (vendorsArray != null) {
-            for (i in 0 until vendorsArray.length()) {
-                val v = vendorsArray.getJSONObject(i)
-                vendors.add(
-                    VendorPresence(
-                        id = v.optString("id", "vnd_${i + 1}"),
-                        vendorName = v.optString("name", "Vendor ${i + 1}"),
-                        serviceCategory = v.optString("category", "other"),
-                        serviceArea = venueStr,
-                        state = VendorPresenceState.SCHEDULED,
-                        expectedTime = "TBD"
-                    )
-                )
+        for (i in 0 until vendorsArray.length()) {
+            val v = vendorsArray.getJSONObject(i)
+            val id = v.optString("id")
+            val name = v.optString("name")
+            val cat = v.optString("category")
+            if (id.isEmpty() || name.isEmpty() || cat.isEmpty()) {
+                throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required vendor fields missing in private real shadow fixture.")
             }
+            vendors.add(
+                VendorPresence(
+                    id = id,
+                    vendorName = name,
+                    serviceCategory = cat.replaceFirstChar { it.uppercase() },
+                    serviceArea = venueStr,
+                    state = VendorPresenceState.SCHEDULED,
+                    expectedTime = "12:00"
+                )
+            )
         }
 
-        announcements = mutableListOf(
-            WeddingAnnouncement(id = "real_ann_1", title = "Private Real Shadow Active", message = "Authentic Charity & Kudzie graph with 42 tasks, 22 budget items, 174 guests, and Eleven Eleven Testing.", urgency = AnnouncementUrgency.INFO),
-            WeddingAnnouncement(id = "real_ann_2", title = "RSVP & Gate Readiness", message = "174 guests invited, 8 seating tables allocated at Imba Manor.", urgency = AnnouncementUrgency.INFO)
-        )
+        announcements = mutableListOf()
     }
 
     override suspend fun getWedding(): Wedding = mutex.withLock { wedding }

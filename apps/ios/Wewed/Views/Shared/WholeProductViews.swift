@@ -106,7 +106,7 @@ public struct AccountPrivacyView: View {
 
 // MARK: - 2. Wedding & Business Context Switcher (WEDD-01)
 public struct WeddingContextSwitcherView: View {
-    @State private var selectedWeddingId: String = "w1"
+    @State private var selectedWeddingId: String = "cmqos70cb0004q6vxe9g9aiu5"
 
     public init() {}
 
@@ -116,7 +116,7 @@ public struct WeddingContextSwitcherView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Active Wedding & Event Context")
                         .font(.headline)
-                    Text("Switch between your active wedding project and external client events.")
+                    Text("Active wedding project on verified ledger.")
                         .font(.caption).foregroundColor(.secondary)
                 }
                 .padding()
@@ -125,32 +125,9 @@ public struct WeddingContextSwitcherView: View {
                 .cornerRadius(WewedRadius.lg)
 
                 VStack(spacing: 10) {
-                    WeddingContextCard(id: "w1", couple: "Charity & Kudzie", date: "23 December 2026", venue: "Imba Manor, Harare", role: "Primary Couple", isSelected: selectedWeddingId == "w1") {
-                        selectedWeddingId = "w1"
+                    WeddingContextCard(id: "cmqos70cb0004q6vxe9g9aiu5", couple: "Charity & Kudzie", date: "23 December 2026", venue: "Imba Manor, Harare", role: "Primary Couple", isSelected: selectedWeddingId == "cmqos70cb0004q6vxe9g9aiu5") {
+                        selectedWeddingId = "cmqos70cb0004q6vxe9g9aiu5"
                     }
-
-                    WeddingContextCard(id: "w2", couple: "Ruvimbo & Farai Ndlovu", date: "12 December 2026", venue: "Wild Geese Lodge", role: "Professional Planner", isSelected: selectedWeddingId == "w2") {
-                        selectedWeddingId = "w2"
-                    }
-
-                    WeddingContextCard(id: "w3", couple: "Chido & Tinashe Moyo", date: "15 January 2027", venue: "Raintree Estate", role: "Vendor Coordinator", isSelected: selectedWeddingId == "w3") {
-                        selectedWeddingId = "w3"
-                    }
-                }
-
-                Button {
-                    // Add wedding
-                } label: {
-                    HStack {
-                        Image(systemName: "plus.circle.fill")
-                        Text("Add New Wedding Context")
-                            .fontWeight(.semibold)
-                    }
-                    .foregroundColor(WewedColors.gold)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.white)
-                    .cornerRadius(WewedRadius.md)
                 }
             }
             .padding()
@@ -200,7 +177,7 @@ public struct MarketplaceDirectoryView: View {
     @State private var searchQuery: String = ""
     @State private var selectedCategory: String = "All"
 
-    private let categories = ["All", "Planners", "Photographers", "Catering", "Florals", "Venues"]
+    private let categories = ["All", "Planners", "Photographers", "Catering", "Florals", "Venues", "DJs"]
 
     public init() {}
 
@@ -210,7 +187,7 @@ public struct MarketplaceDirectoryView: View {
                 // Search Field
                 HStack {
                     Image(systemName: "magnifyingglass").foregroundColor(.secondary)
-                    TextField("Search planners, vendors & venues...", text: $searchQuery)
+                    TextField("Search verified vendors & venues...", text: $searchQuery)
                 }
                 .padding()
                 .background(Color.white)
@@ -236,12 +213,14 @@ public struct MarketplaceDirectoryView: View {
                     }
                 }
 
-                // Provider Listings
+                // Provider Listings (Verified Vendors from Graph)
                 VStack(spacing: 12) {
-                    MarketplaceCard(name: "Kudzie Musarurwa Events", category: "Planners", rating: "4.98 (42)", price: "$$$", location: "Harare & Destination")
-                    MarketplaceCard(name: "Imba Manor Estate", category: "Venues", rating: "5.00 (68)", price: "$$$$", location: "Glen Lorne, Harare")
-                    MarketplaceCard(name: "AfroGlow Visuals", category: "Photographers", rating: "4.95 (31)", price: "$$", location: "Harare & Victoria Falls")
-                    MarketplaceCard(name: "Botanical Ivory Florals", category: "Florals", rating: "4.89 (19)", price: "$$", location: "Harare")
+                    MarketplaceCard(name: "Eleven Eleven Testing", category: "Planners", rating: "5.00", price: "$$$", location: "Harare, Zimbabwe")
+                    MarketplaceCard(name: "Imba Manor", category: "Venues", rating: "5.00", price: "$$$$", location: "Glen Lorne, Harare")
+                    MarketplaceCard(name: "FAUME MEDIA", category: "Photographers", rating: "4.95", price: "$$$", location: "Harare, Zimbabwe")
+                    MarketplaceCard(name: "The Glass Petal Atelier", category: "Florals", rating: "4.90", price: "$$", location: "Harare, Zimbabwe")
+                    MarketplaceCard(name: "Cake Gourmet", category: "Catering", rating: "4.85", price: "$$", location: "Harare, Zimbabwe")
+                    MarketplaceCard(name: "MC Aloe The Avangelist", category: "DJs", rating: "5.00", price: "$$", location: "Harare, Zimbabwe")
                 }
             }
             .padding()
@@ -288,10 +267,7 @@ public struct MessagesInboxView: View {
     public var body: some View {
         ScrollView {
             VStack(spacing: 10) {
-                MessageThreadRow(sender: "Kudzie Musar (Lead Planner)", preview: "Timeline updated for 14:00 ceremony start.", time: "10:42 AM", unreadCount: 2)
-                MessageThreadRow(sender: "Imba Manor Venue Manager", preview: "Marquee setup is complete and powered.", time: "09:15 AM", unreadCount: 0)
-                MessageThreadRow(sender: "AfroGlow Photography", preview: "Lighting check looks excellent for bridal suite.", time: "Yesterday", unreadCount: 0)
-                MessageThreadRow(sender: "Gate Usher Command", preview: "4 ushers briefed on ECDSA pass verification.", time: "Sep 15", unreadCount: 0)
+                MessageThreadRow(sender: "Eleven Eleven Testing (Lead Planner)", preview: "Planning coordination for Charity & Kudzie active.", time: "10:42 AM", unreadCount: 1)
             }
             .padding()
         }
@@ -345,42 +321,15 @@ public struct NotificationsCenterView: View {
     public var body: some View {
         ScrollView {
             VStack(spacing: 10) {
-                NotificationRow(title: "RSVP Confirmation Received", description: "Blessing & Tendai Moyo confirmed attending (2 seats).", time: "15 mins ago", icon: "checkmark.circle.fill", iconColor: WewedColors.emerald)
-                NotificationRow(title: "Vendor Checked In", description: "AfroGlow Photography arrived on-site at Imba Manor.", time: "1 hour ago", icon: "mappin.circle.fill", iconColor: WewedColors.gold)
-                NotificationRow(title: "Gate Scanner Ready", description: "Offline trust anchor key #ww2-2026 synced successfully.", time: "3 hours ago", icon: "shield.checkmark.fill", iconColor: WewedColors.emerald)
+                Text("No notifications recorded.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .padding()
             }
             .padding()
         }
         .background(WewedColors.ivory)
         .navigationTitle("Notifications")
-    }
-}
-
-private struct NotificationRow: View {
-    let title: String
-    let description: String
-    let time: String
-    let icon: String
-    let iconColor: Color
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundColor(iconColor)
-
-            VStack(alignment: .leading, spacing: 2) {
-                HStack {
-                    Text(title).font(.subheadline).fontWeight(.semibold)
-                    Spacer()
-                    Text(time).font(.caption2).foregroundColor(.secondary)
-                }
-                Text(description).font(.caption).foregroundColor(.secondary)
-            }
-        }
-        .padding()
-        .background(Color.white)
-        .cornerRadius(WewedRadius.md)
     }
 }
 
@@ -392,9 +341,9 @@ public struct MasterCalendarView: View {
         ScrollView {
             VStack(spacing: WewedSpacing.base) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Master Schedule & Tastings")
+                    Text("Master Schedule & Milestones")
                         .font(.headline)
-                    Text("Tastings, fittings, walkthroughs, and milestone dates.")
+                    Text("Verified task deadlines, vendor deliveries, and wedding date.")
                         .font(.caption).foregroundColor(.secondary)
                 }
                 .padding()
@@ -403,10 +352,7 @@ public struct MasterCalendarView: View {
                 .cornerRadius(WewedRadius.lg)
 
                 VStack(spacing: 10) {
-                    CalendarEventRow(date: "SEP 22", title: "Final Menu Tasting & Wine Pairing", location: "Imba Manor", category: "Catering")
-                    CalendarEventRow(date: "SEP 28", title: "Bridal Gown & Tuxedo Fitting", location: "Harare Atelier", category: "Attire")
-                    CalendarEventRow(date: "OCT 10", title: "On-Site Lighting & Sound Walkthrough", location: "Chapel Gardens", category: "Technical")
-                    CalendarEventRow(date: "DEC 22", title: "Rehearsal & Setup Coordination", location: "Imba Manor", category: "Rehearsal")
+                    CalendarEventRow(date: "DEC 22", title: "Florist Delivery & Setup", location: "Imba Manor", category: "Vendor Delivery")
                     CalendarEventRow(date: "DEC 23", title: "WEDDING DAY — CHARITY & KUDZIE", location: "Imba Manor, Harare", category: "WEDDING")
                 }
             }

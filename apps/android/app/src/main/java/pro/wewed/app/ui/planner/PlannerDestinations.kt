@@ -161,64 +161,13 @@ fun TasksDestination(appViewModel: AppViewModel, onBack: () -> Unit) {
 
 // 2. Budget Destination
 @Composable
-fun BudgetDestination(onBack: () -> Unit) {
-    PlannerSubScreenScaffold(title = "Budget Allocations", onBack = onBack) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = WewedSpacing.base),
-            verticalArrangement = Arrangement.spacedBy(WewedSpacing.md)
-        ) {
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(top = WewedSpacing.sm),
-                    shape = RoundedCornerShape(WewedRadius.lg),
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(WewedSpacing.base),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text("Total Wedding Budget", fontSize = 13.sp, color = Color.Gray)
-                        Text("$25,000", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = WewedColors.Gold)
-                        Spacer(modifier = Modifier.height(WewedSpacing.sm))
-                        LinearProgressIndicator(
-                            progress = { 18500f / 25000f },
-                            modifier = Modifier.fillMaxWidth().height(8.dp),
-                            color = WewedColors.Emerald,
-                            trackColor = WewedColors.GoldLight.copy(alpha = 0.3f)
-                        )
-                        Spacer(modifier = Modifier.height(WewedSpacing.xs))
-                        Text("$18,500 Allocated • $6,500 Remaining", fontSize = 12.sp, color = Color.Gray)
-                    }
-                }
-            }
-
-            val items = listOf(
-                Triple("Venue & Catering", "$12,000", "Partially Paid ($8,000 paid)"),
-                Triple("Photography & Video", "$3,500", "Paid in Full"),
-                Triple("Decor & Florals", "$3,000", "Deposit Paid ($1,500 paid)"),
-                Triple("Music & Sound", "$1,500", "Pending Balance ($500 paid)")
-            )
-            items(items) { (cat, alloc, status) ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(WewedRadius.md),
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(WewedSpacing.base),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(cat, fontWeight = FontWeight.SemiBold)
-                            Text(status, fontSize = 12.sp, color = Color.Gray)
-                        }
-                        Text(alloc, fontWeight = FontWeight.Bold, color = WewedColors.Emerald)
-                    }
-                }
+fun BudgetDestination(appViewModel: AppViewModel? = null, onBack: () -> Unit) {
+    if (appViewModel != null) {
+        ShadowBudgetDestination(appViewModel = appViewModel, onBack = onBack)
+    } else {
+        PlannerSubScreenScaffold(title = "Budget Allocation", onBack = onBack) { padding ->
+            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Text("Budget ledger managed via Planner Workspace.", color = Color.Gray)
             }
         }
     }
@@ -226,41 +175,13 @@ fun BudgetDestination(onBack: () -> Unit) {
 
 // 3. Contributions Destination
 @Composable
-fun ContributionsDestination(onBack: () -> Unit) {
-    PlannerSubScreenScaffold(title = "Guest Gift Registry", onBack = onBack) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = WewedSpacing.base),
-            verticalArrangement = Arrangement.spacedBy(WewedSpacing.md)
-        ) {
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(top = WewedSpacing.sm),
-                    shape = RoundedCornerShape(WewedRadius.lg),
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
-                ) {
-                    Column(modifier = Modifier.padding(WewedSpacing.base)) {
-                        Text("Honeyfund & Registry Total", fontSize = 13.sp, color = Color.Gray)
-                        Text("$7,420.00", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = WewedColors.Emerald)
-                        Text("28 community contributors", fontSize = 12.sp, color = Color.Gray)
-                    }
-                }
-            }
-            val funds = listOf(
-                Pair("Zanzibar Honeymoon Retreat", "$3,200 raised of $4,000"),
-                Pair("Kitchen & Home Starter Fund", "$2,120 raised of $2,500"),
-                Pair("Wedding Photography Fund", "$2,100 raised of $2,100 (Funded)")
-            )
-            items(funds) { (name, desc) ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(WewedRadius.md),
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
-                ) {
-                    Column(modifier = Modifier.padding(WewedSpacing.base)) {
-                        Text(name, fontWeight = FontWeight.SemiBold)
-                        Text(desc, fontSize = 12.sp, color = Color.Gray)
-                    }
-                }
+fun ContributionsDestination(appViewModel: AppViewModel? = null, onBack: () -> Unit) {
+    if (appViewModel != null) {
+        ShadowContributionsDestination(appViewModel = appViewModel, onBack = onBack)
+    } else {
+        PlannerSubScreenScaffold(title = "Contributions", onBack = onBack) { padding ->
+            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Text("4 guest messages & well wishes recorded.", color = Color.Gray)
             }
         }
     }
@@ -269,130 +190,24 @@ fun ContributionsDestination(onBack: () -> Unit) {
 // 4. Vendors Destination
 @Composable
 fun VendorsDestination(appViewModel: AppViewModel, onBack: () -> Unit) {
-    var vendors by remember { mutableStateOf<List<VendorPresence>>(emptyList()) }
-    LaunchedEffect(Unit) {
-        vendors = appViewModel.repository.getVendors()
-    }
-
-    PlannerSubScreenScaffold(title = "Vendor Operations", onBack = onBack) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = WewedSpacing.base),
-            verticalArrangement = Arrangement.spacedBy(WewedSpacing.md)
-        ) {
-            item {
-                Text(
-                    "Contracted Event Day Vendors",
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = WewedSpacing.sm)
-                )
-            }
-            items(vendors) { v ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(WewedRadius.md),
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(WewedSpacing.base),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(v.vendorName, fontWeight = FontWeight.Bold)
-                            Text("${v.serviceCategory} • ${v.serviceArea}", fontSize = 12.sp, color = Color.Gray)
-                        }
-                        Text(
-                            v.state.title,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = WewedColors.Gold,
-                            modifier = Modifier
-                                .background(WewedColors.GoldLight.copy(alpha = 0.3f), RoundedCornerShape(WewedRadius.sm))
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-                }
-            }
-        }
-    }
+    ShadowVendorsDestination(appViewModel = appViewModel, onBack = onBack)
 }
 
 // 5. Timeline Destination
 @Composable
 fun TimelineDestination(appViewModel: AppViewModel, onBack: () -> Unit) {
-    var wedding by remember { mutableStateOf<Wedding?>(null) }
-    LaunchedEffect(Unit) {
-        wedding = appViewModel.repository.getWedding()
-    }
-
-    PlannerSubScreenScaffold(title = "Run of Show Timeline", onBack = onBack) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = WewedSpacing.base),
-            verticalArrangement = Arrangement.spacedBy(WewedSpacing.md)
-        ) {
-            item {
-                Text(
-                    "Wedding Day Schedule • ${wedding?.venueName ?: "Imba Manor Estate"}",
-                    fontSize = 13.sp,
-                    color = Color.Gray,
-                    modifier = Modifier.padding(top = WewedSpacing.sm)
-                )
-            }
-            items(wedding?.programme ?: emptyList()) { item ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(WewedRadius.md),
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
-                ) {
-                    Row(modifier = Modifier.padding(WewedSpacing.base), verticalAlignment = Alignment.CenterVertically) {
-                        Text(item.time, fontWeight = FontWeight.Bold, color = WewedColors.Gold, fontSize = 15.sp)
-                        Spacer(modifier = Modifier.width(WewedSpacing.base))
-                        Column {
-                            Text(item.title, fontWeight = FontWeight.SemiBold)
-                            Text("${item.location} • ${item.description}", fontSize = 12.sp, color = Color.Gray)
-                        }
-                    }
-                }
-            }
-        }
-    }
+    ShadowTimelineDestination(appViewModel = appViewModel, onBack = onBack)
 }
 
 // 6. Seating Destination
 @Composable
-fun SeatingDestination(onBack: () -> Unit) {
-    val tables = listOf(
-        Triple("Table 1 — Baobab", "10 / 10 Seated", "VIP Bridal Family"),
-        Triple("Table 2 — Jacaranda", "8 / 10 Seated", "Groom High School Circle"),
-        Triple("Table 3 — Acacia", "10 / 10 Seated", "University Alumni"),
-        Triple("Table 4 — Flame Lily", "6 / 8 Seated", "Church Elders")
-    )
-    PlannerSubScreenScaffold(title = "Seating Arrangements", onBack = onBack) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = WewedSpacing.base),
-            verticalArrangement = Arrangement.spacedBy(WewedSpacing.md)
-        ) {
-            item {
-                Text("14 Tables • 142 Confirmed Seats", fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = WewedSpacing.sm))
-            }
-            items(tables) { (name, cap, desc) ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(WewedRadius.md),
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(WewedSpacing.base),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(name, fontWeight = FontWeight.SemiBold)
-                            Text(desc, fontSize = 12.sp, color = Color.Gray)
-                        }
-                        Text(cap, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WewedColors.Emerald)
-                    }
-                }
+fun SeatingDestination(appViewModel: AppViewModel? = null, onBack: () -> Unit) {
+    if (appViewModel != null) {
+        ShadowSeatingDestination(appViewModel = appViewModel, onBack = onBack)
+    } else {
+        PlannerSubScreenScaffold(title = "Seating Arrangements", onBack = onBack) { padding ->
+            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Text("8 seating tables • 22 assigned of 64 capacity", color = Color.Gray)
             }
         }
     }
@@ -411,7 +226,7 @@ fun GuestsBridgeDestination(appViewModel: AppViewModel, onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(WewedSpacing.md)
         ) {
             item {
-                Text("Sync with Wedding Pass Gate Manifest", fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = WewedSpacing.sm))
+                Text("Sync with Wedding Pass Gate Manifest (${guests.size} guests)", fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = WewedSpacing.sm))
             }
             items(guests) { g ->
                 Card(
@@ -426,13 +241,13 @@ fun GuestsBridgeDestination(appViewModel: AppViewModel, onBack: () -> Unit) {
                     ) {
                         Column {
                             Text(g.name, fontWeight = FontWeight.SemiBold)
-                            Text("Table ${g.tableNumber ?: 0} • Party of ${g.partySize}", fontSize = 12.sp, color = Color.Gray)
+                            Text("${g.tableName ?: "Unseated"} • Party of ${g.partySize}", fontSize = 12.sp, color = Color.Gray)
                         }
                         Text(
-                            if (g.checkedIn) "ADMITTED" else "INVITED",
+                            if (g.checkedIn) "ADMITTED" else g.rsvpStatus.title.uppercase(),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (g.checkedIn) WewedColors.Success else WewedColors.Gold
+                            color = if (g.checkedIn) WewedColors.Success else (if (g.rsvpStatus == RSVPStatus.ATTENDING) WewedColors.Emerald else WewedColors.Gold)
                         )
                     }
                 }
@@ -445,10 +260,10 @@ fun GuestsBridgeDestination(appViewModel: AppViewModel, onBack: () -> Unit) {
 @Composable
 fun OperationsDestination(onBack: () -> Unit) {
     val items = listOf(
-        Pair("Gate Usher Dispatch", "4 active ushers assigned to Gate A and East Marquee"),
-        Pair("Live Ceremony Broadcast", "Stream encoder ready on Channel 1"),
-        Pair("Sound & Lighting Check", "Microphone line check verified at 10:30"),
-        Pair("Emergency Protocol", "On-site medical liaison and security dispatch armed")
+        Pair("Active Tasks Checklist", "8 high priority tasks requiring coordination"),
+        Pair("RSVP & Seating Status", "172 RSVPs pending • 22 table seats allocated"),
+        Pair("Vendor Bookings", "7 vendors recorded • 0 active contracts"),
+        Pair("Budget Position", "Direct expenses monitored • USD currency")
     )
     PlannerSubScreenScaffold(title = "Day-of Operations Dispatch", onBack = onBack) { padding ->
         LazyColumn(
@@ -456,7 +271,7 @@ fun OperationsDestination(onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(WewedSpacing.md)
         ) {
             item {
-                Text("Real-Time Ground Operations", fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = WewedSpacing.sm))
+                Text("Operational Status", fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = WewedSpacing.sm))
             }
             items(items) { (name, detail) ->
                 Card(
@@ -516,12 +331,12 @@ fun GenericToolDestination(title: String, subtitle: String, sections: List<Pair<
 fun ClientProfileDestination(onBack: () -> Unit) {
     GenericToolDestination(
         title = "Client Profile & Requirements",
-        subtitle = "Charity & Kudzie • Intake & Style Preferences",
+        subtitle = "Charity & Kudzie • Imba Manor, Harare",
         sections = listOf(
-            Pair("Primary Aesthetic", "Modern Afro-Chic with ivory floral and botanical gold accents"),
-            Pair("Religious & Cultural Observances", "Ceremony and reception celebrations at Imba Manor"),
-            Pair("Catering Directives", "Beef, chicken, vegetarian and traditional Zimbabwean menu options"),
-            Pair("Special VIP Notes", "Elder family seated at Table 1 and Table 2")
+            Pair("Wedding", "Charity & Kudzie"),
+            Pair("Date & Venue", "23 December 2026 • Imba Manor, Harare, Zimbabwe"),
+            Pair("Guest Manifest", "174 guest records • 8 seating tables"),
+            Pair("Lead Planner", "Eleven Eleven Testing (Accepted interest)")
         ),
         onBack = onBack
     )
@@ -532,12 +347,11 @@ fun ClientProfileDestination(onBack: () -> Unit) {
 fun CollaborationDestination(onBack: () -> Unit) {
     GenericToolDestination(
         title = "Collaboration & Team Access",
-        subtitle = "1 Lead Planner • 1 Coordinator • Live Permissions",
+        subtitle = "Lead Planner • Couple Owners",
         sections = listOf(
             Pair("Lead Planner", "Eleven Eleven Testing • Accepted interest"),
-            Pair("Couple Owners", "Charity & Kudzie Musarurwa • Full administrative control"),
-            Pair("Day-of Coordinator", "Chiedza Nyoni • Gate control and vendor check-in privileges"),
-            Pair("Gate Team", "Imba Manor Gate Ushers • Scanner only")
+            Pair("Couple Owners", "Charity & Kudzie • Full administrative control"),
+            Pair("Memberships & Engagements", "0 external memberships recorded")
         ),
         onBack = onBack
     )
@@ -548,12 +362,11 @@ fun CollaborationDestination(onBack: () -> Unit) {
 fun InvitationsDestination(onBack: () -> Unit) {
     GenericToolDestination(
         title = "Invitations & QR Gateway",
-        subtitle = "150 Dispatched • 128 RSVP Confirmed",
+        subtitle = "174 Guest Records • Imba Manor",
         sections = listOf(
-            Pair("Digital Invitation Portal", "Hosted on wewed.app/w/tariro-shadreck-2026"),
-            Pair("QR Pass Sync", "128 cryptographic gate credentials generated"),
-            Pair("Printed Elder Cards", "22 embossed offline cardstock passes prepared"),
-            Pair("RSVP Deadline", "Closed on 10 October 2026 • 94% response rate achieved")
+            Pair("Guest Manifest", "174 guests invited across family & friends"),
+            Pair("Pass Gate Credentials", "ECDSA P-256 cryptographic pass verification active"),
+            Pair("Seating Allocations", "8 tables allocated at Imba Manor")
         ),
         onBack = onBack
     )
@@ -564,12 +377,11 @@ fun InvitationsDestination(onBack: () -> Unit) {
 fun EventCommandDestination(onBack: () -> Unit) {
     GenericToolDestination(
         title = "Event Command Center",
-        subtitle = "Real-Time Event Radio & Incident Channel",
+        subtitle = "Charity & Kudzie • 23 Dec 2026",
         sections = listOf(
-            Pair("Channel 1: Security & Gate", "All 4 gates operational • Zero admittance violations"),
-            Pair("Channel 2: Food & Beverage", "Dinner service timeline synchronized with bridal party entrance"),
-            Pair("Channel 3: AV & Live Stream", "Main ballroom feed 1080p60 active"),
-            Pair("Command Status", "Green • Running on 100% scheduled timing")
+            Pair("Event", "Charity & Kudzie Wedding"),
+            Pair("Venue", "Imba Manor, Harare, Zimbabwe"),
+            Pair("Lifecycle", "before (Planning in progress)")
         ),
         onBack = onBack
     )
@@ -580,12 +392,9 @@ fun EventCommandDestination(onBack: () -> Unit) {
 fun ReleaseCentreDestination(onBack: () -> Unit) {
     GenericToolDestination(
         title = "Release Centre & Deliverables",
-        subtitle = "Post-Wedding Production & Archival Pipeline",
+        subtitle = "Post-Wedding Production Pipeline",
         sections = listOf(
-            Pair("Edited Master Video", "Expected delivery in 14 days • 4K HDR master"),
-            Pair("Full Photo Album Gallery", "450 select proofs in review with couple"),
-            Pair("Vendor Settlement Ledger", "All 8 final invoices audited and ready for payment"),
-            Pair("Thank You Dispatch", "Automated WhatsApp card batches ready for release")
+            Pair("Release Status", "No releases queued.")
         ),
         onBack = onBack
     )
@@ -595,13 +404,12 @@ fun ReleaseCentreDestination(onBack: () -> Unit) {
 @Composable
 fun WeddingBriefDestination(onBack: () -> Unit) {
     GenericToolDestination(
-        title = "Wedding Brief & Aesthetic Directive",
-        subtitle = "Creative Vision, Palette & Spatial Design",
+        title = "Wedding Brief",
+        subtitle = "Charity & Kudzie • Imba Manor",
         sections = listOf(
-            Pair("Color Story", "Rich Ivory #FDFBF7, Satin Gold #C5A880, Royal Burgundy #6B1D2F"),
-            Pair("Florals & Flora", "White hydrangeas, eucalyptus greenery, golden pampas plumes"),
-            Pair("Lighting Atmosphere", "Warm ambient fairy canopies and soft candlelight chandeliers"),
-            Pair("Dress Code Directive", "Black Tie Formal with African elegance touches")
+            Pair("Event Title", "Charity & Kudzie"),
+            Pair("Date", "2026-12-23 14:00:00"),
+            Pair("Location", "Imba Manor, Harare, Zimbabwe")
         ),
         onBack = onBack
     )
@@ -611,13 +419,10 @@ fun WeddingBriefDestination(onBack: () -> Unit) {
 @Composable
 fun NotebookDestination(onBack: () -> Unit) {
     GenericToolDestination(
-        title = "Notebook & Audio Memos",
-        subtitle = "Field Notes, Voice Transcripts & Sudden Ideas",
+        title = "Notebook",
+        subtitle = "Field Notes & Memos",
         sections = listOf(
-            Pair("Memo: Cake Delivery Delay Route", "Driver advised to take Enterprise Road to bypass construction"),
-            Pair("Memo: Priest Arrival Time", "Priest confirmed 13:45 arrival in vestry room"),
-            Pair("Memo: Flower Girl Spare Basket", "Extra white rose petals placed in bridal room closet"),
-            Pair("Voice Memo Transcripts", "3 recordings processed with local on-device transcription")
+            Pair("Planner Notes", "No planner notes recorded.")
         ),
         onBack = onBack
     )
@@ -627,13 +432,10 @@ fun NotebookDestination(onBack: () -> Unit) {
 @Composable
 fun MediaArchiveDestination(onBack: () -> Unit) {
     GenericToolDestination(
-        title = "High-Res Media Archive",
-        subtitle = "Raw Assets, Floorplans & Brand Guidelines",
+        title = "Media Archive",
+        subtitle = "Raw Assets & Documents",
         sections = listOf(
-            Pair("Venue CAD Floorplan v4", "PDF • 8.4 MB • Approved by Imba Manor Estate"),
-            Pair("Menu Calligraphy Proofs", "ZIP • 42 MB • High-res print vector files"),
-            Pair("Contract Signatures Vault", "Encrypted storage • 8 executed contracts"),
-            Pair("Couple Engagement Shoot", "50 selected press and program assets")
+            Pair("Archive Status", "No media assets indexed for this wedding.")
         ),
         onBack = onBack
     )
@@ -643,13 +445,10 @@ fun MediaArchiveDestination(onBack: () -> Unit) {
 @Composable
 fun AIWorkspaceDestination(onBack: () -> Unit) {
     GenericToolDestination(
-        title = "Wewed AI Architect Workspace",
-        subtitle = "Automated Timeline Simulation & Seating Solver",
+        title = "Wewed AI Workspace",
+        subtitle = "Planner Intelligence",
         sections = listOf(
-            Pair("Timeline Optimization Engine", "Simulated guest transit: estimated buffer +8 mins"),
-            Pair("Conflict Resolution", "Zero dietary conflicts detected across 14 tables"),
-            Pair("Weather Risk Advisory", "Forecast: 26°C Sunny, 0% precipitation risk"),
-            Pair("Budget Anomaly Detector", "All line items within ±3% target margin")
+            Pair("AI Recommendations", "AI recommendations active for task scheduling and manifest verification.")
         ),
         onBack = onBack
     )
@@ -659,13 +458,10 @@ fun AIWorkspaceDestination(onBack: () -> Unit) {
 @Composable
 fun PortfolioDestination(onBack: () -> Unit) {
     GenericToolDestination(
-        title = "Portfolio & Multi-Wedding Dashboard",
-        subtitle = "Active Client Engagements & Production Pipeline",
+        title = "Planner Portfolio",
+        subtitle = "Active Client Engagements",
         sections = listOf(
-            Pair("Charity & Kudzie (Current)", "23 Dec 2026 • Imba Manor, Harare • 7 / 42 Tasks"),
-            Pair("Rumbidzai & Farai", "12 Dec 2026 • Wild Geese Lodge • Intake & Budgeting"),
-            Pair("Chipo & Tinashe", "18 Jan 2027 • Raintree Harare • Initial Concept"),
-            Pair("Annual Target", "6 / 8 signature weddings booked for 2026/2027")
+            Pair("Charity & Kudzie (Active)", "23 Dec 2026 • Imba Manor, Harare • 7 / 42 Tasks Completed")
         ),
         onBack = onBack
     )
@@ -675,13 +471,10 @@ fun PortfolioDestination(onBack: () -> Unit) {
 @Composable
 fun BookingsDestination(onBack: () -> Unit) {
     GenericToolDestination(
-        title = "Consultations & Inbound Bookings",
-        subtitle = "Lead Pipeline, Inquiry Forms & Discovery Calls",
+        title = "Consultations & Bookings",
+        subtitle = "Inbound Inquiries",
         sections = listOf(
-            Pair("Inquiry: Nyasha & Brian", "Wedding date Sept 2027 • Luxury 300-guest inquiry"),
-            Pair("Consultation Scheduled", "Tomorrow at 14:00 • Video Discovery Call via Wewed"),
-            Pair("Contract Proposal Sent", "Tafadzwa & Vimbai • Waiting for digital signature"),
-            Pair("Conversion Rate", "68% consultation to retainer conversion rate")
+            Pair("Consultation Pipeline", "No external consultations queued.")
         ),
         onBack = onBack
     )
@@ -691,13 +484,10 @@ fun BookingsDestination(onBack: () -> Unit) {
 @Composable
 fun ContractGovernanceDestination(onBack: () -> Unit) {
     GenericToolDestination(
-        title = "Contract Governance & Vault",
-        subtitle = "Digital Signatures, Retainers & Clause Vault",
+        title = "Contract Governance",
+        subtitle = "Legal & SLA Ledger",
         sections = listOf(
-            Pair("Master Planning Agreement", "Pending formal contract execution (0 active contracts)"),
-            Pair("Vendor Engagement Contracts", "7 vendors booked • Formal contract execution pending"),
-            Pair("Retainer Escrow Vault", "0 executed contracts stored in governance vault"),
-            Pair("Master Policy Version", "Wewed Standard Wedding Contract v3.2")
+            Pair("Active Contracts", "No contracts recorded for this wedding.")
         ),
         onBack = onBack
     )
@@ -707,13 +497,10 @@ fun ContractGovernanceDestination(onBack: () -> Unit) {
 @Composable
 fun ContractIntelligenceDestination(onBack: () -> Unit) {
     GenericToolDestination(
-        title = "Contract Intelligence & Risk Audit",
-        subtitle = "Automated Vendor Clause Analysis & SLA Auditing",
+        title = "Contract Intelligence",
+        subtitle = "Risk Analysis",
         sections = listOf(
-            Pair("Imba Manor Ground Policy", "Weather & grounds annex prepared for contract execution"),
-            Pair("Payment Milestone Guards", "Protected: 7 vendor payment schedules monitored"),
-            Pair("Cancellation & Escrow Terms", "Awaiting formal vendor agreements"),
-            Pair("Risk Rating", "LOW • 0 contract breaches recorded")
+            Pair("Contract Analysis", "No contracts recorded for this wedding.")
         ),
         onBack = onBack
     )
@@ -723,13 +510,12 @@ fun ContractIntelligenceDestination(onBack: () -> Unit) {
 @Composable
 fun MarketplaceProfileDestination(onBack: () -> Unit) {
     GenericToolDestination(
-        title = "Marketplace Listing & Public Profile",
-        subtitle = "Wewed Pro Directory & Verified Badge",
+        title = "Marketplace Profile",
+        subtitle = "Eleven Eleven Testing",
         sections = listOf(
-            Pair("Profile Status", "VERIFIED LUXURY PLANNER • 5.0 Star Rating (42 reviews)"),
-            Pair("Featured Gallery", "12 editorial wedding albums published on directory"),
-            Pair("Starting Package", "Full Wedding Architecture & Production from $3,500"),
-            Pair("Geographic Coverage", "Harare, Victoria Falls, Bulawayo & Destination Southern Africa")
+            Pair("Planner", "Eleven Eleven Testing"),
+            Pair("Profile Slug", "tony-the-planner"),
+            Pair("Status", "Accepted interest for Charity & Kudzie")
         ),
         onBack = onBack
     )

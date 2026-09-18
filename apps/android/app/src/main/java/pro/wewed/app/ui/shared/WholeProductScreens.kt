@@ -149,7 +149,7 @@ fun AccountPrivacyScreen(onBack: (() -> Unit)? = null) {
 // 2. Wedding Context Switcher Screen (WEDD-01)
 @Composable
 fun WeddingContextSwitcherScreen(onBack: (() -> Unit)? = null) {
-    var selectedId by remember { mutableStateOf("w1") }
+    var selectedId by remember { mutableStateOf("cmqos70cb0004q6vxe9g9aiu5") }
 
     SharedScaffold(title = "Event Switcher", onBack = onBack) { padding ->
         LazyColumn(
@@ -160,9 +160,7 @@ fun WeddingContextSwitcherScreen(onBack: (() -> Unit)? = null) {
                 Text("Active Event Contexts", fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = WewedSpacing.sm))
             }
             val list = listOf(
-                Triple("w1", "Charity & Kudzie", "23 Dec 2026 • Imba Manor, Harare"),
-                Triple("w2", "Ruvimbo & Farai Ndlovu", "12 Dec 2026 • Wild Geese Lodge"),
-                Triple("w3", "Chido & Tinashe Moyo", "15 Jan 2027 • Raintree Estate")
+                Triple("cmqos70cb0004q6vxe9g9aiu5", "Charity & Kudzie", "23 Dec 2026 • Imba Manor, Harare")
             )
             items(list) { (id, couple, meta) ->
                 Card(
@@ -203,7 +201,7 @@ fun MarketplaceDirectoryScreen(onBack: (() -> Unit)? = null) {
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    placeholder = { Text("Search planners, venues & vendors...") },
+                    placeholder = { Text("Search verified vendors & venues...") },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                     modifier = Modifier.fillMaxWidth().padding(top = WewedSpacing.sm),
                     shape = RoundedCornerShape(WewedRadius.md),
@@ -212,10 +210,12 @@ fun MarketplaceDirectoryScreen(onBack: (() -> Unit)? = null) {
             }
 
             val providers = listOf(
-                Triple("Kudzie Musarurwa Events", "Planners • Harare", "4.98 (42 reviews) • $$$"),
-                Triple("Imba Manor Estate", "Venues • Glen Lorne", "5.00 (68 reviews) • $$$$"),
-                Triple("AfroGlow Visuals", "Photographers • Harare", "4.95 (31 reviews) • $$"),
-                Triple("Botanical Ivory Florals", "Florals • Harare", "4.89 (19 reviews) • $$")
+                Triple("Eleven Eleven Testing", "Planners • Harare", "5.00 (Accepted Interest) • $$$"),
+                Triple("Imba Manor", "Venues • Glen Lorne", "5.00 (Verified Venue) • $$$$"),
+                Triple("FAUME MEDIA", "Photographers • Harare", "4.95 (Cinematography) • $$$"),
+                Triple("The Glass Petal Atelier", "Florals • Harare", "4.90 (Floral Design) • $$"),
+                Triple("Cake Gourmet", "Catering • Harare", "4.85 (Cake & Desserts) • $$"),
+                Triple("MC Aloe The Avangelist", "Master of Ceremonies • Harare", "5.00 (Sound & MC) • $$")
             )
             items(providers) { (name, category, meta) ->
                 Card(
@@ -250,10 +250,7 @@ fun MessagesInboxScreen(onBack: (() -> Unit)? = null) {
             verticalArrangement = Arrangement.spacedBy(WewedSpacing.md)
         ) {
             val threads = listOf(
-                Triple("Kudzie Musar (Lead Planner)", "Timeline updated for 14:00 ceremony start.", "10:42 AM"),
-                Triple("Imba Manor Venue Manager", "Marquee setup is complete and powered.", "09:15 AM"),
-                Triple("AfroGlow Photography", "Lighting check looks excellent for bridal suite.", "Yesterday"),
-                Triple("Gate Usher Command", "4 ushers briefed on ECDSA pass verification.", "Sep 15")
+                Triple("Eleven Eleven Testing (Lead Planner)", "Planning coordination for Charity & Kudzie active.", "10:42 AM")
             )
             items(threads) { (sender, preview, time) ->
                 Card(
@@ -296,25 +293,12 @@ fun NotificationsCenterScreen(onBack: (() -> Unit)? = null) {
             modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = WewedSpacing.base),
             verticalArrangement = Arrangement.spacedBy(WewedSpacing.md)
         ) {
-            val notifs = listOf(
-                Triple("RSVP Confirmation Received", "Blessing & Tendai Moyo confirmed attending.", "15 mins ago"),
-                Triple("Vendor Checked In", "AfroGlow Photography arrived on-site at Imba Manor.", "1 hour ago"),
-                Triple("Gate Scanner Ready", "Offline trust anchor key #ww2-2026 synced successfully.", "3 hours ago")
-            )
-            items(notifs) { (title, desc, time) ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(WewedRadius.md),
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
+            item {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(WewedSpacing.base),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Column(modifier = Modifier.padding(WewedSpacing.base)) {
-                        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                            Text(title, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                            Text(time, fontSize = 11.sp, color = Color.Gray)
-                        }
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(desc, fontSize = 12.sp, color = Color.Gray)
-                    }
+                    Text("No notifications recorded.", color = Color.Gray, fontSize = 14.sp)
                 }
             }
         }
@@ -330,10 +314,7 @@ fun MasterCalendarScreen(onBack: (() -> Unit)? = null) {
             verticalArrangement = Arrangement.spacedBy(WewedSpacing.md)
         ) {
             val events = listOf(
-                Triple("SEP 22", "Final Menu Tasting & Wine Pairing", "Imba Manor"),
-                Triple("SEP 28", "Bridal Gown & Tuxedo Fitting", "Harare Atelier"),
-                Triple("OCT 10", "On-Site Lighting & Sound Walkthrough", "Chapel Gardens"),
-                Triple("DEC 22", "Rehearsal & Setup Coordination", "Imba Manor"),
+                Triple("DEC 22", "Florist Delivery & Setup", "Imba Manor"),
                 Triple("DEC 23", "WEDDING DAY — CHARITY & KUDZIE", "Imba Manor, Harare")
             )
             items(events) { (date, title, location) ->

@@ -167,18 +167,103 @@ class ShadowReferenceRepositoryTest {
         val tasks = bundle.wedding.getTasks()
         val guests = bundle.wedding.getGuests()
         val budget = bundle.wedding.getBudget()
+        val vendors = bundle.wedding.getVendors()
+        val announcements = bundle.wedding.getAnnouncements()
         val dashboard = bundle.planner.getDashboard()
+        val budgetLines = bundle.planner.getBudgetLines()
+        val contributions = bundle.planner.getContributions()
+        val vendorEngagements = bundle.planner.getVendorEngagements()
+        val seatingTables = bundle.planner.getSeatingTables()
+        val timelineEntries = bundle.planner.getTimelineEntries()
 
+        // 1. Wedding metadata
         assertEquals("Charity & Kudzie", wedding.coupleNames)
+        assertEquals("Imba Manor", wedding.venueName)
+        assertEquals("Harare", wedding.city)
+        assertEquals("Zimbabwe", wedding.country)
+        assertEquals("before", wedding.lifecycle)
+
+        // 2. Tasks (42 tasks, 7 done, 13 high priority)
         assertEquals(42, tasks.size)
+        assertEquals(7, tasks.count { it.status == pro.wewed.app.models.TaskStatus.DONE })
+        assertEquals(13, tasks.count { it.priority == pro.wewed.app.models.TaskPriority.HIGH })
+
+        // 3. Guests (174 guests, 177 invited capacity)
         assertEquals(174, guests.size)
+        val totalInvitedCapacity = guests.sumOf { it.partySize }
+        assertEquals(177, totalInvitedCapacity)
+        assertEquals(2, guests.count { it.rsvpStatus == RSVPStatus.ATTENDING })
+        assertEquals(172, guests.count { it.rsvpStatus == RSVPStatus.PENDING })
+        assertEquals(0, guests.count { it.rsvpStatus == RSVPStatus.DECLINED })
+
+        // 4. Seating Tables (8 tables, 22 assigned, 64 capacity, 42 free)
+        assertEquals(8, seatingTables.size)
+        val totalSeatingCapacity = seatingTables.sumOf { it.capacity }
+        val totalAssigned = seatingTables.sumOf { it.assigned }
+        assertEquals(64, totalSeatingCapacity)
+        assertEquals(22, totalAssigned)
+        assertEquals(42, totalSeatingCapacity - totalAssigned)
+
+        // 5. Budget (22 lines, $30,380 est, $8,690 act, $3,875 paid)
+        assertEquals(22, budgetLines.size)
+        assertEquals(30380.0, budget.totalBudget, 0.01)
+        assertEquals(8690.0, budget.totalAllocated, 0.01)
+        assertEquals(3875.0, budget.totalPaid, 0.01)
+
+        // 6. Vendors (7 vendors, 8 engagements)
+        assertEquals(7, vendors.size)
+        assertEquals(7, vendorEngagements.size)
+
+        // 7. Contributions (4 non-monetary guest contributions)
+        assertEquals(4, contributions.size)
+        for (c in contributions) {
+            assertEquals(0.0, c.value, 0.01)
+            assertTrue(c.verified)
+        }
+        val contributorNames = contributions.map { it.contributorLabel }
+        assertTrue(contributorNames.contains("Learnon Musarurwa"))
+        assertTrue(contributorNames.contains("Charity Manyewu"))
+        assertTrue(contributorNames.contains("Spenser Musarurwa"))
+        assertTrue(contributorNames.contains("Gladmore Musarurwa"))
+
+        // 8. Timeline (13 programme items)
+        assertEquals(13, timelineEntries.size)
+
+        // 9. Announcements (0 by default)
+        assertEquals(0, announcements.size)
+
+        // 10. Planner Dashboard
         assertEquals("Eleven Eleven Testing", dashboard.plannerContext)
         assertEquals("7 / 42", dashboard.taskCompletionLabel)
-        assertEquals(30380.0, budget.totalBudget, 0.01)
+    }
+
+    @Test
+    fun privateRealShadowZeroProhibitedDemoData() {
+        val prohibitedNames = listOf(
+            "Faith Mutasa",
+            "Uncle Farai",
+            "Auntie Chipo",
+            "Tony M.",
+            "Chiedza Nyoni",
+            "Ruvimbo & Farai",
+            "Chido & Tinashe",
+            "Honeyfund"
+        )
+
+        for (persona in pro.wewed.app.models.DevelopmentPersona.allPersonas) {
+            for (prohibited in prohibitedNames) {
+                assertFalse("Persona name ${persona.name} contains prohibited demo string $prohibited", persona.name.contains(prohibited))
+            }
+        }
     }
 
     @Test(expected = NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing::class)
     fun privateRealShadowFailsExplicitlyWhenFixtureMissing() {
         pro.wewed.app.services.PrivateRealShadowWeddingRepository(customPath = "/nonexistent/fixture.json")
+    }
+
+    @Test(expected = NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing::class)
+    fun privateRealShadowPlannerFailsExplicitlyWhenFixtureMissing() {
+        pro.wewed.app.services.PrivateRealShadowPlannerRepository(customPath = "/nonexistent/fixture.json")
     }
 }
