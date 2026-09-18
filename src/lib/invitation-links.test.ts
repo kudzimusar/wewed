@@ -91,17 +91,23 @@ describe('smart invitation links', () => {
       fallbackUrl: 'https://uat.wewed.pro/invite/example/open',
     })
     expect(uat).toBe(
-      `intent://uat.wewed.pro/invite/resume?h=${handoff}#Intent;scheme=https;package=pro.wewed.app;S.browser_fallback_url=${encodeURIComponent('https://uat.wewed.pro/invite/example/open')};end`,
+      `intent://invite/resume#Intent;scheme=wewed;package=pro.wewed.app;S.wewed_handoff=${handoff};S.browser_fallback_url=${encodeURIComponent('https://uat.wewed.pro/invite/example/open')};end`,
     )
-    expect(uat).not.toContain('intent://wewed.pro/')
+    expect(uat).not.toContain('rsvp=')
+    expect(uat).not.toContain('guest=')
+    expect(uat).not.toContain('email=')
+    expect(uat).not.toContain('wedding=')
 
     const production = buildAndroidInvitationIntentUrl({
       origin: 'https://wewed.pro',
       appResumePath: path,
       fallbackUrl: 'https://wewed.pro/invite/example/open',
     })
-    expect(production).toContain('intent://wewed.pro/invite/resume?')
-    expect(production).not.toContain('uat.wewed.pro')
+    expect(production).toContain('intent://invite/resume#Intent;scheme=wewed;')
+    expect(production).toContain(`S.wewed_handoff=${handoff}`)
+    expect(production).toContain(
+      `S.browser_fallback_url=${encodeURIComponent('https://wewed.pro/invite/example/open')}`,
+    )
   })
 
   test('rejects cross-origin Android invitation resume construction', () => {
