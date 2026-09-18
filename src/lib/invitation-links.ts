@@ -67,6 +67,37 @@ export function buildInvitationResumePath(handoff: string): string {
   return `/invite/resume?${new URLSearchParams({ h: handoff }).toString()}`
 }
 
+
+export function buildAndroidInvitationIntentUrl({
+  origin,
+  appResumePath,
+  fallbackUrl,
+}: {
+  origin: string
+  appResumePath: string
+  fallbackUrl: string
+}): string {
+  const currentOrigin = new URL(origin)
+  const resume = new URL(appResumePath, currentOrigin)
+
+  if (resume.origin !== currentOrigin.origin) {
+    throw new Error('Invitation app resume must stay on the current Wewed origin')
+  }
+
+  if (resume.pathname !== '/invite/resume') {
+    throw new Error('Invalid invitation app resume path')
+  }
+
+  const handoff = resume.searchParams.get('h') || ''
+  if (!isValidInvitationHandoffSecret(handoff) || resume.searchParams.has('rsvp')) {
+    throw new Error('Invalid invitation app resume handoff')
+  }
+
+  const target = `${currentOrigin.host}${resume.pathname}${resume.search}`
+  const scheme = currentOrigin.protocol.replace(/:$/, '')
+  return `intent://${target}#Intent;scheme=${scheme};package=${ANDROID_PACKAGE};S.browser_fallback_url=${encodeURIComponent(fallbackUrl)};end`
+}
+
 export function buildPhysicalInvitationResumePath(handoff: string): string {
   if (!isValidPhysicalInvitationHandoff(handoff)) {
     throw new Error('Invalid physical invitation install handoff')
