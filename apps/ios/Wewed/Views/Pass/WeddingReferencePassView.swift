@@ -43,7 +43,9 @@ public struct WeddingReferencePassView: View {
                     .padding(.bottom, 30)
                 }
             }
-            #if os(iOS)\n            .toolbar(.hidden, for: .navigationBar)\n            #endif
+            #if os(iOS)
+            .toolbar(.hidden, for: .navigationBar)
+            #endif
             .sheet(isPresented: $showingScanner) {
                 UsherScannerView {
                     showingScanner = false
