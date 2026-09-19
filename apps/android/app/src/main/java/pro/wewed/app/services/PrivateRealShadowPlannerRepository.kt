@@ -12,6 +12,7 @@ class PrivateRealShadowPlannerRepository(jsonString: String? = null, customPath:
     private val vendorEngagements: List<PlannerVendorEngagement>
     private val seatingTables: List<PlannerSeatingTable>
     private val timelineEntries: List<PlannerTimelineEntry>
+    private val documents: List<PlannerDocumentRecord>
     private val weddingTitle: String
     private val weddingId: String
     private val weddingDate: String
@@ -381,6 +382,60 @@ class PrivateRealShadowPlannerRepository(jsonString: String? = null, customPath:
             )
         }
         timelineEntries = pList
+
+        // 6. Documents / contracts. Current Charity & Kudzie snapshot is expected to be empty,
+        // but this keeps the destination connected to the same account graph for future rows.
+        val documentList = mutableListOf<PlannerDocumentRecord>()
+        val contractsArray = root.optJSONArray("contracts")
+        if (contractsArray != null) {
+            for (i in 0 until contractsArray.length()) {
+                val item = contractsArray.getJSONObject(i)
+                val id = item.optString("id")
+                if (id.isBlank()) {
+                    throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing(
+                        "Contract row missing id in private real shadow fixture."
+                    )
+                }
+                val title = listOf("title", "name", "contractType", "serviceDescription")
+                    .asSequence()
+                    .map { key -> if (item.isNull(key)) "" else item.optString(key).trim() }
+                    .firstOrNull { it.isNotBlank() }
+                    ?: "Contract"
+                val status = listOf("status", "contractStatus", "lifecycleStatus")
+                    .asSequence()
+                    .map { key -> if (item.isNull(key)) "" else item.optString(key).trim() }
+                    .firstOrNull { it.isNotBlank() }
+                    ?.replace("_", " ")
+                    ?.replaceFirstChar { it.uppercase() }
+                documentList.add(PlannerDocumentRecord(id, title, "Contract", status))
+            }
+        }
+
+        val vaultArray = root.optJSONArray("vaultObjects")
+        if (vaultArray != null) {
+            for (i in 0 until vaultArray.length()) {
+                val item = vaultArray.getJSONObject(i)
+                val id = item.optString("id")
+                if (id.isBlank()) {
+                    throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing(
+                        "Vault object row missing id in private real shadow fixture."
+                    )
+                }
+                val title = listOf("title", "name", "fileName", "objectName")
+                    .asSequence()
+                    .map { key -> if (item.isNull(key)) "" else item.optString(key).trim() }
+                    .firstOrNull { it.isNotBlank() }
+                    ?: "Document"
+                val status = listOf("status", "state")
+                    .asSequence()
+                    .map { key -> if (item.isNull(key)) "" else item.optString(key).trim() }
+                    .firstOrNull { it.isNotBlank() }
+                    ?.replace("_", " ")
+                    ?.replaceFirstChar { it.uppercase() }
+                documentList.add(PlannerDocumentRecord(id, title, "Document", status))
+            }
+        }
+        documents = documentList
     }
 
     override suspend fun getDashboard(): PlannerDashboardSnapshot = PlannerDashboardSnapshot(
@@ -416,4 +471,5 @@ class PrivateRealShadowPlannerRepository(jsonString: String? = null, customPath:
     override suspend fun getVendorEngagements(): List<PlannerVendorEngagement> = vendorEngagements
     override suspend fun getSeatingTables(): List<PlannerSeatingTable> = seatingTables
     override suspend fun getTimelineEntries(): List<PlannerTimelineEntry> = timelineEntries
+    override suspend fun getDocuments(): List<PlannerDocumentRecord> = documents
 }
