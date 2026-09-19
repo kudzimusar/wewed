@@ -214,17 +214,18 @@ class ShadowReferenceRepositoryTest {
         assertEquals(7, vendors.size)
         assertEquals(7, vendorEngagements.size)
 
-        // 7. Contributions (4 non-monetary guest contributions)
+        // 7. Contributions (4 non-monetary guest contributions).
+        // Do not commit private contributor names into the test contract.
         assertEquals(4, contributions.size)
-        for (c in contributions) {
-            assertEquals(0.0, c.value, 0.01)
-            assertTrue(c.verified)
+        for (contribution in contributions) {
+            assertEquals(0.0, contribution.value, 0.01)
+            assertTrue(contribution.contributorLabel.isNotBlank())
+            assertTrue(contribution.typeLabel.isNotBlank())
+            assertTrue(contribution.allocationLabel.isNotBlank())
         }
-        val contributorNames = contributions.map { it.contributorLabel }
-        assertTrue(contributorNames.contains("Learnon Musarurwa"))
-        assertTrue(contributorNames.contains("Charity Manyewu"))
-        assertTrue(contributorNames.contains("Spenser Musarurwa"))
-        assertTrue(contributorNames.contains("Gladmore Musarurwa"))
+        val contributionModule = dashboard.modules.first { it.id == "contributions" }
+        assertEquals("4 messages", contributionModule.value)
+        assertEquals("Non-monetary", contributionModule.attention)
 
         // 8. Timeline (13 programme items)
         assertEquals(13, timelineEntries.size)
