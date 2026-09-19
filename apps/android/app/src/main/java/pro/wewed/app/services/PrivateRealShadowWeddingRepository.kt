@@ -14,7 +14,6 @@ import java.util.UUID
  */
 class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath: String? = null) : WeddingRepository {
     private val mutex = Mutex()
-    private val primaryPassSerial = "SHDWGSTA01"
     private val attendingToken = "shadow-attending-guest"
     private val pendingToken = "shadow-pending-guest"
     private val declinedToken = "shadow-declined-guest"
@@ -467,7 +466,7 @@ class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath:
     }
 
     private fun makePass(guest: Guest): WeddingPass {
-        val serial = guest.passSerial ?: primaryPassSerial
+        val serial = guest.passSerial ?: ("SHDW" + guest.id.uppercase().takeLast(8))
         return WeddingPass(
             token = "real-pass-${guest.id}",
             weddingId = wedding.id,
