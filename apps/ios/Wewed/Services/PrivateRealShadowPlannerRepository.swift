@@ -248,25 +248,24 @@ public actor PrivateRealShadowPlannerRepository: PlannerDashboardRepositoryProto
                   let cat = item["category"] as? String, !cat.isEmpty else {
                 throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required vendor fields missing in private real shadow fixture.")
             }
-            let paymentStatus = (item["paymentStatus"] as? String)?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .nilIfBlank?
-                .replacingOccurrences(of: "_", with: " ")
-                .capitalized ?? "Not recorded"
+            let paymentStatus = (item["paymentStatus"] as? String).flatMap { raw -> String? in
+                let cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !cleaned.isEmpty else { return nil }
+                return cleaned.replacingOccurrences(of: "_", with: " ").capitalized
+            } ?? "Not recorded"
             let se = engagementsByVendor[id]
             let serviceDesc = (se?["serviceDescription"] as? String)?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .nilIfBlank ?? "Service details not recorded"
-            let lifecycleStatus = (se?["lifecycleStatus"] as? String)?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .nilIfBlank?
-                .replacingOccurrences(of: "_", with: " ")
-                .capitalized ?? "Not recorded"
-            let externalAgreementStatus = (se?["externalAgreementStatus"] as? String)?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .nilIfBlank?
-                .replacingOccurrences(of: "_", with: " ")
-                .capitalized ?? "Not recorded"
+                .trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank ?? "Service details not recorded"
+            let lifecycleStatus = (se?["lifecycleStatus"] as? String).flatMap { raw -> String? in
+                let cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !cleaned.isEmpty else { return nil }
+                return cleaned.replacingOccurrences(of: "_", with: " ").capitalized
+            } ?? "Not recorded"
+            let externalAgreementStatus = (se?["externalAgreementStatus"] as? String).flatMap { raw -> String? in
+                let cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !cleaned.isEmpty else { return nil }
+                return cleaned.replacingOccurrences(of: "_", with: " ").capitalized
+            } ?? "Not recorded"
 
             return PlannerVendorEngagement(
                 id: id,
