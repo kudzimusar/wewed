@@ -140,11 +140,12 @@ public struct WeddingReferencePassView: View {
                     WeddingQRCodeView(payload: pass.qrPayload, size: 146)
                 }
 
-                Text("Scan at venue")
+                let productionCredential = pass.qrPayload.hasPrefix("WW2.")
+                Text(productionCredential ? "Scan at venue" : "Shadow preview — not valid for admission")
                     .font(.system(size: 11))
                     .foregroundStyle(WeddingIdentityPalette.muted)
 
-                Text("WEWED VERIFIED PASS")
+                Text(productionCredential ? "WEWED PASS CREDENTIAL" : "SHADOW TEST CREDENTIAL")
                     .font(.system(size: 9, weight: .semibold))
                     .tracking(1.3)
                     .foregroundStyle(WeddingIdentityPalette.muted)
