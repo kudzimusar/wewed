@@ -27,7 +27,7 @@ public enum NativeDeepLinkParser {
             .split(separator: "/", omittingEmptySubsequences: true)
             .map(String.init)
 
-        if scheme == "https" || scheme == "http" {
+        if scheme == "https" {
             guard let host = components.host?.lowercased(),
                   host == "wewed.pro" || host == "www.wewed.pro" else {
                 return nil
