@@ -212,17 +212,18 @@ final class ShadowReferenceRepositoryTests: XCTestCase {
         XCTAssertEqual(vendors.count, 7)
         XCTAssertEqual(vendorEngagements.count, 7)
 
-        // 7. Contributions (4 non-monetary guest contributions)
+        // 7. Contributions (4 non-monetary guest contributions).
+        // Do not commit private contributor names into the test contract.
         XCTAssertEqual(contributions.count, 4)
-        for c in contributions {
-            XCTAssertEqual(c.value, 0.0)
-            XCTAssertTrue(c.verified)
+        for contribution in contributions {
+            XCTAssertEqual(contribution.value, 0.0)
+            XCTAssertFalse(contribution.contributorLabel.isEmpty)
+            XCTAssertFalse(contribution.typeLabel.isEmpty)
+            XCTAssertFalse(contribution.allocationLabel.isEmpty)
         }
-        let contributorNames = contributions.map { $0.contributorLabel }
-        XCTAssertTrue(contributorNames.contains("Learnon Musarurwa"))
-        XCTAssertTrue(contributorNames.contains("Charity Manyewu"))
-        XCTAssertTrue(contributorNames.contains("Spenser Musarurwa"))
-        XCTAssertTrue(contributorNames.contains("Gladmore Musarurwa"))
+        let contributionModule = try XCTUnwrap(dashboard.modules.first(where: { $0.id == "contributions" }))
+        XCTAssertEqual(contributionModule.value, "4 messages")
+        XCTAssertEqual(contributionModule.attention, "Non-monetary")
 
         // 8. Timeline (13 programme items)
         XCTAssertEqual(timelineEntries.count, 13)
