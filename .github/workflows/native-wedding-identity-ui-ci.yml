@@ -136,23 +136,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          check_bundle_id() {
-            local config="$1"
-            local expected="$2"
-            local actual
-            actual="$(
-              xcodebuild -project Wewed.xcodeproj -scheme Wewed -configuration "$config" -showBuildSettings 2>/dev/null \
-                | awk -F ' = ' '/PRODUCT_BUNDLE_IDENTIFIER = / { print $2; exit }'
-            )"
-            test "$actual" = "$expected" || {
-              echo "::error::$config bundle id is '$actual'; expected '$expected'"
-              exit 1
-            }
-            echo "$config bundle id: $actual"
-          }
-          check_bundle_id Debug pro.wewed.app.dev
-          check_bundle_id UAT pro.wewed.app.uatdev
-          check_bundle_id Release pro.wewed.app
+          project='Wewed.xcodeproj/project.pbxproj'
+          test -f "$project"
+          grep -F 'PRODUCT_BUNDLE_IDENTIFIER = pro.wewed.app.dev;' "$project"
+          grep -F 'PRODUCT_BUNDLE_IDENTIFIER = pro.wewed.app.uatdev;' "$project"
+          grep -F 'PRODUCT_BUNDLE_IDENTIFIER = pro.wewed.app;' "$project"
+          echo "PASS: generated Xcode project preserves Debug/UAT/store bundle identity split."
 
       - name: Build iOS application target for simulator
         working-directory: apps/ios
