@@ -46,6 +46,9 @@ public struct RootView: View {
                 LoginView()
             }
         }
+        .onOpenURL { url in
+            appState.handleIncomingURL(url)
+        }
     }
 
     private var personaBanner: some View {
