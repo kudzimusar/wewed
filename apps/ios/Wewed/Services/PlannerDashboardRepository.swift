@@ -7,6 +7,7 @@ public protocol PlannerDashboardRepositoryProtocol: Sendable {
     func getVendorEngagements() async throws -> [PlannerVendorEngagement]
     func getSeatingTables() async throws -> [PlannerSeatingTable]
     func getTimelineEntries() async throws -> [PlannerTimelineEntry]
+    func getDocuments() async throws -> [PlannerDocumentRecord]
 }
 
 public actor FixturePlannerDashboardRepository: PlannerDashboardRepositoryProtocol {
@@ -92,4 +93,8 @@ public actor FixturePlannerDashboardRepository: PlannerDashboardRepositoryProtoc
             PlannerTimelineEntry(id: "time_5", time: "17:30", title: "Reception", location: "Reception space", statusLabel: "Upcoming", linkedVendor: "Shadow Sound")
         ]
     }
+    public func getDocuments() async throws -> [PlannerDocumentRecord] {
+        []
+    }
+
 }
