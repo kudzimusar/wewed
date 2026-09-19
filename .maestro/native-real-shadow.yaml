@@ -5,9 +5,11 @@ appId: pro.wewed.app
     arguments:
       wewed_native_env: "private_real_shadow"
 
-# 1. Sign In
+# 1. Sign In and prove the explicitly requested data source loaded.
 - assertVisible: "WEWED"
 - tapOn: "Sign In"
+- assertVisible:
+    id: "shadow-source-private-real-shadow"
 
 # 2. Home / real wedding graph
 - assertVisible:
@@ -26,24 +28,44 @@ appId: pro.wewed.app
 - assertVisible:
     id: "planner-module-budget"
 - assertVisible:
+    id: "planner-module-contributions"
+- assertVisible:
     id: "planner-module-vendors"
 
-# 4. Guests / do not bind Git tests to private names
+# 4. Detailed budget must render values, never an escaped template literal.
+- tapOn:
+    id: "planner-module-budget"
+- assertVisible:
+    id: "planner-budget-root"
+- assertNotVisible: "{amount.toInt()}"
+- back
+
+# 5. Contributions are real non-monetary records, not an invented cash total.
+- tapOn:
+    id: "planner-module-contributions"
+- assertVisible:
+    id: "planner-contributions-root"
+- assertVisible: "memories, blessings & stories"
+- back
+
+# 6. Guests / do not bind Git tests to private names.
 - tapOn: "Guests"
 - assertVisible:
     id: "guests-root"
 - assertVisible:
     id: "guests-search"
 - assertNotVisible: "Guest G001"
+- assertNotVisible: "Guest G011"
 
-# 5. Pass
+# 7. Pass / same real runtime guest graph.
 - tapOn: "Pass"
 - assertVisible:
     id: "pass-root"
 - assertVisible:
     id: "wedding-pass-card"
+- assertNotVisible: "Guest G011"
 
-# 6. More
+# 8. More
 - tapOn: "More"
 - assertVisible:
     id: "more-root"
