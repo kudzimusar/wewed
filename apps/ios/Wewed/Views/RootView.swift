@@ -4,12 +4,28 @@ public struct RootView: View {
     @EnvironmentObject private var session: SessionStore
     @EnvironmentObject private var appState: AppState
     @State private var showingPersonaPicker = false
+    @State private var deepLinkedInvitation: InvitationContext?
+    @State private var resolvingDeepLinkedInvitation = false
 
     public init() {}
 
     public var body: some View {
         Group {
-            if session.isAuthenticated {
+            if let deepLinkedInvitation {
+                GuestInvitationJourneyView(
+                    reference: GuestJourneyReference(
+                        invitation: deepLinkedInvitation,
+                        initialStage: .splash
+                    ),
+                    onExit: {
+                        self.deepLinkedInvitation = nil
+                    }
+                )
+            } else if resolvingDeepLinkedInvitation {
+                ProgressView("Preparing invitation…")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(WeddingIdentityPalette.ivory)
+            } else if session.isAuthenticated {
                 if session.currentRole == .couple {
                     coupleShell
                         .sheet(isPresented: $showingPersonaPicker) {
@@ -49,6 +65,22 @@ public struct RootView: View {
         .onOpenURL { url in
             appState.handleIncomingURL(url)
         }
+        .task(id: appState.pendingInvitationDeepLink) {
+            await resolvePendingInvitationDeepLink()
+        }
+    }
+
+    private func resolvePendingInvitationDeepLink() async {
+        guard let pending = appState.pendingInvitationDeepLink else { return }
+
+        resolvingDeepLinkedInvitation = true
+        let resolved = try? await appState.repository.resolveInvitation(
+            weddingSlug: pending.weddingSlug,
+            token: pending.rsvpToken
+        )
+        appState.pendingInvitationDeepLink = nil
+        resolvingDeepLinkedInvitation = false
+        deepLinkedInvitation = resolved
     }
 
     private var personaBanner: some View {
