@@ -194,6 +194,12 @@ final class ShadowReferenceRepositoryTests: XCTestCase {
         XCTAssertEqual(guests.filter { $0.rsvpStatus == .attending }.count, 2)
         XCTAssertEqual(guests.filter { $0.rsvpStatus == .pending }.count, 172)
         XCTAssertEqual(guests.filter { $0.rsvpStatus == .declined }.count, 0)
+        let attendingPassSerials = guests
+            .filter { $0.rsvpStatus == .attending }
+            .compactMap { $0.passSerial }
+        XCTAssertEqual(attendingPassSerials.count, 2)
+        XCTAssertEqual(Set(attendingPassSerials).count, attendingPassSerials.count)
+        XCTAssertTrue(attendingPassSerials.allSatisfy { $0.hasPrefix("SHDW") })
 
         // 4. Seating Tables (8 tables, 22 assigned, 64 capacity, 42 free)
         XCTAssertEqual(seatingTables.count, 8)
