@@ -28,7 +28,7 @@ public struct PassView: View {
                                     .font(.system(size: 22, weight: .bold, design: .serif))
                                     .foregroundColor(WewedColors.textPrimaryLight)
 
-                                Text("24 October 2026 • 14:00")
+                                Text(pass.weddingDate)
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                             }
@@ -63,16 +63,16 @@ public struct PassView: View {
                                 }
                             }
 
-                            // QR Representation Box
+                            // QR credential. Shadow repositories deliberately use
+                            // non-WW2 placeholders so they can never be mistaken for admission credentials.
                             VStack(spacing: 8) {
-                                Image(systemName: "qrcode")
-                                    .resizable()
-                                    .interpolation(.none)
-                                    .scaledToFit()
-                                    .frame(width: 160, height: 160)
-                                    .foregroundColor(WewedColors.textPrimaryLight)
+                                WeddingQRCodeView(payload: pass.qrPayload, size: 150)
 
-                                Text("Scan at venue entrance")
+                                Text(
+                                    pass.qrPayload.hasPrefix("WW2.")
+                                        ? "Scan at venue entrance"
+                                        : "Shadow preview — not valid for admission"
+                                )
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
                             }
