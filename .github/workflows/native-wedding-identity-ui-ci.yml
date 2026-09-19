@@ -81,7 +81,7 @@ jobs:
           grep -R --fixed-strings 'more-root' apps/ios/Wewed/Views/Shared apps/android/app/src/main/java/pro/wewed/app/ui/more
 
   ios:
-    name: iOS Swift package tests and build
+    name: iOS native app tests and build
     runs-on: macos-14
     timeout-minutes: 25
     steps:
@@ -103,6 +103,29 @@ jobs:
         working-directory: apps/ios
         run: xcodegen generate --spec project.yml
 
+      - name: Verify iOS local, UAT and store bundle identities
+        working-directory: apps/ios
+        shell: bash
+        run: |
+          set -euo pipefail
+          check_bundle_id() {
+            local config="$1"
+            local expected="$2"
+            local actual
+            actual="$(
+              xcodebuild -project Wewed.xcodeproj -scheme Wewed -configuration "$config" -showBuildSettings 2>/dev/null \
+                | awk -F ' = ' '/PRODUCT_BUNDLE_IDENTIFIER = / { print $2; exit }'
+            )"
+            test "$actual" = "$expected" || {
+              echo "::error::$config bundle id is '$actual'; expected '$expected'"
+              exit 1
+            }
+            echo "$config bundle id: $actual"
+          }
+          check_bundle_id Debug pro.wewed.app.dev
+          check_bundle_id UAT pro.wewed.app.uatdev
+          check_bundle_id Release pro.wewed.app
+
       - name: Build iOS application target for simulator
         working-directory: apps/ios
         run: >-
@@ -112,6 +135,18 @@ jobs:
           -configuration Debug
           -sdk iphonesimulator
           -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO
+          build
+
+      - name: Build unsigned iOS release target for generic device
+        working-directory: apps/ios
+        run: >-
+          xcodebuild
+          -project Wewed.xcodeproj
+          -scheme Wewed
+          -configuration Release
+          -sdk iphoneos
+          -destination 'generic/platform=iOS'
           CODE_SIGNING_ALLOWED=NO
           build
 
@@ -129,11 +164,24 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Run Android unit tests and assemble
+      - name: Run Android unit tests and assemble local + release variants
         working-directory: apps/android
         run: |
           chmod +x gradlew
-          ./gradlew testDebugUnitTest assembleDebug --no-daemon --stacktrace
+          ./gradlew testDebugUnitTest assembleDebug assembleRelease --no-daemon --stacktrace
 
       - name: Verify local Android identity cannot replace Play
         run: bash .github/scripts/verify-android-local-package.sh apps/android/app/build/outputs/apk/debug pro.wewed.app.dev
+
+      - name: Verify release Android identity remains the Play package
+        shell: bash
+        run: |
+          set -euo pipefail
+          metadata='apps/android/app/build/outputs/apk/release/output-metadata.json'
+          test -f "$metadata"
+          actual="$(sed -n 's/.*"applicationId"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$metadata" | head -n 1)"
+          test "$actual" = 'pro.wewed.app' || {
+            echo "::error::Release package is '$actual'; expected pro.wewed.app"
+            exit 1
+          }
+          echo "Release Android package: $actual"
