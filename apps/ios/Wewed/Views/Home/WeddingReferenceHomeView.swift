@@ -38,6 +38,9 @@ public struct WeddingReferenceHomeView: View {
             .toolbar(.hidden, for: .navigationBar)
             #endif
             .task { await load() }
+            .task(id: appState.pendingInvitationDeepLink) {
+                await openPendingInvitationDeepLink()
+            }
             .sheet(isPresented: $showingInvitation) {
                 if let invitation {
                     GuestInvitationJourneyView(
@@ -245,6 +248,21 @@ public struct WeddingReferenceHomeView: View {
     private var taskCompletionRatio: Double {
         guard !tasks.isEmpty else { return 0 }
         return Double(tasks.filter { $0.status == .done }.count) / Double(tasks.count)
+    }
+
+    private func openPendingInvitationDeepLink() async {
+        guard let pending = appState.pendingInvitationDeepLink else { return }
+
+        let resolved = try? await appState.repository.resolveInvitation(
+            weddingSlug: pending.weddingSlug,
+            token: pending.rsvpToken
+        )
+
+        appState.pendingInvitationDeepLink = nil
+        guard let resolved else { return }
+
+        invitation = resolved
+        showingInvitation = true
     }
 
     private func load() async {
