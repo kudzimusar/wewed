@@ -30,10 +30,32 @@ final class NativeLaunchConfigurationTests: XCTestCase {
     }
 
     func testSanitizedAndPrivateRealShadowParsing() {
-        let sanitized = NativeLaunchConfiguration.resolve(environment: ["WEWED_NATIVE_ENV": "sanitized_shadow"])
+        let sanitized = NativeLaunchConfiguration.resolve(
+            environment: ["WEWED_NATIVE_ENV": "sanitized_shadow"],
+            arguments: []
+        )
         XCTAssertEqual(sanitized.environment, .sanitizedShadow)
 
-        let privateReal = NativeLaunchConfiguration.resolve(environment: ["WEWED_NATIVE_ENV": "private_real_shadow"])
+        let privateReal = NativeLaunchConfiguration.resolve(
+            environment: ["WEWED_NATIVE_ENV": "private_real_shadow"],
+            arguments: []
+        )
         XCTAssertEqual(privateReal.environment, .privateRealShadow)
+    }
+
+    func testPrivateRealShadowCanBeForcedWithLaunchArgument() {
+        let config = NativeLaunchConfiguration.resolve(
+            environment: [:],
+            arguments: ["Wewed", "wewed_native_env", "private_real_shadow"]
+        )
+        XCTAssertEqual(config.environment, .privateRealShadow)
+    }
+
+    func testEnvironmentVariableWinsOverLaunchArgument() {
+        let config = NativeLaunchConfiguration.resolve(
+            environment: ["WEWED_NATIVE_ENV": "sanitized_shadow"],
+            arguments: ["Wewed", "wewed_native_env=private_real_shadow"]
+        )
+        XCTAssertEqual(config.environment, .sanitizedShadow)
     }
 }
