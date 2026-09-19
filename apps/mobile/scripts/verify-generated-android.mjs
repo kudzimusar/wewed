@@ -4,8 +4,7 @@ import { resolve } from 'node:path'
 const root = process.cwd()
 const expectedVersionCode = String(process.env.WEWED_ANDROID_VERSION_CODE ?? '3')
 const expectedPackageId = process.env.WEWED_ANDROID_PACKAGE_ID ?? 'pro.wewed.app.dev'
-const escapedPackageId = expectedPackageId.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\const expectedVersionCode = String(process.env.WEWED_ANDROID_VERSION_CODE ?? '3')
-')
+const escapedPackageId = expectedPackageId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const localCiE2E = process.env.WEWED_E2E_MODE === '1'
 const gradlePath = resolve(root, 'android/app/build.gradle')
 const manifestPath = resolve(root, 'android/app/src/main/AndroidManifest.xml')
