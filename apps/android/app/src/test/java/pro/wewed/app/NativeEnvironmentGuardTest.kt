@@ -18,8 +18,27 @@ class NativeEnvironmentGuardTest {
     }
 
     @Test
+    fun everyMutableShadowRuntimeRejectsProductionHost() {
+        val environments = listOf(
+            NativeDataEnvironment.SHADOW,
+            NativeDataEnvironment.SANITIZED_SHADOW,
+            NativeDataEnvironment.PRIVATE_REAL_SHADOW
+        )
+
+        environments.forEach { environment ->
+            try {
+                NativeEnvironmentGuard.validate("https://wewed.pro/api", environment)
+                fail("Expected production-host rejection for $environment")
+            } catch (_: NativeEnvironmentGuardError.ShadowPointsToProductionHost) {
+            }
+        }
+    }
+
+    @Test
     fun shadowAcceptsLocalhost() {
         NativeEnvironmentGuard.validate("http://127.0.0.1:8787", NativeDataEnvironment.SHADOW)
+        NativeEnvironmentGuard.validate("http://127.0.0.1:8787", NativeDataEnvironment.SANITIZED_SHADOW)
+        NativeEnvironmentGuard.validate("http://127.0.0.1:8787", NativeDataEnvironment.PRIVATE_REAL_SHADOW)
     }
 
     @Test(expected = NativeEnvironmentGuardError.ProductionDisabled::class)
