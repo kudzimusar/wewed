@@ -3,6 +3,22 @@ import type { InvitationCardStyle } from '@/lib/digital-invitation-card'
 export const ANDROID_PACKAGE = 'pro.wewed.app'
 export const PLAY_STORE_URL = `https://play.google.com/store/apps/details?id=${ANDROID_PACKAGE}`
 
+// Local/CI emulator builds of the UAT wrapper install as pro.wewed.app.uatdev so they
+// can never replace the Play-installed app. Only intents may be redirected to that
+// package, only by explicit opt-in, and never in a production build.
+const LOCAL_ANDROID_INTENT_PACKAGES = new Set(['pro.wewed.app.uatdev'])
+
+export function resolveAndroidIntentPackage(
+  requested: string | undefined = process.env.NEXT_PUBLIC_WEWED_ANDROID_INTENT_PACKAGE,
+  vercelEnvironment: string | undefined = process.env.NEXT_PUBLIC_VERCEL_ENV,
+): string {
+  const candidate = requested?.trim()
+  if (!candidate || vercelEnvironment === 'production') return ANDROID_PACKAGE
+  return LOCAL_ANDROID_INTENT_PACKAGES.has(candidate) ? candidate : ANDROID_PACKAGE
+}
+
+export const ANDROID_INTENT_PACKAGE = resolveAndroidIntentPackage()
+
 const INVITATION_HANDOFF_PATTERN = /^[A-Za-z0-9_-]{43}$/
 const PHYSICAL_INVITATION_HANDOFF_PATTERN = /^p1\.[A-Za-z0-9_-]{80,512}$/
 
@@ -97,7 +113,7 @@ export function buildAndroidInvitationIntentUrl({
   // the HTTPS resume URL as an already-running TWA navigation. The bridge carries only
   // the opaque one-time handoff; LauncherActivity validates it and maps it back to the
   // correct UAT/production HTTPS /invite/resume endpoint using BuildConfig.
-  return `intent://invite/resume#Intent;scheme=wewed;package=${ANDROID_PACKAGE};S.wewed_handoff=${encodeURIComponent(handoff)};S.browser_fallback_url=${encodeURIComponent(fallbackUrl)};end`
+  return `intent://invite/resume#Intent;scheme=wewed;package=${ANDROID_INTENT_PACKAGE};S.wewed_handoff=${encodeURIComponent(handoff)};S.browser_fallback_url=${encodeURIComponent(fallbackUrl)};end`
 }
 
 export function buildPhysicalInvitationResumePath(handoff: string): string {

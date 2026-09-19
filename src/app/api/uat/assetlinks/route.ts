@@ -17,13 +17,22 @@ const ESTABLISHED_ANDROID_SHA256 = [
 
 const SHA256_PATTERN = /^([A-F0-9]{2}:){31}[A-F0-9]{2}$/
 
-function configuredFingerprints(): string[] {
+// Local UAT wrapper builds install as their own package so they can never replace the
+// Play-installed app. They are trusted only with explicitly configured local keys,
+// never with the Play signing identity.
+const LOCAL_UAT_ANDROID_PACKAGE = 'pro.wewed.app.uatdev'
+
+function localUatFingerprints(): string[] {
   const configured = (process.env.WEWED_UAT_ANDROID_SHA256 ?? '')
     .split(',')
     .map((value) => value.trim().toUpperCase())
     .filter((value) => SHA256_PATTERN.test(value))
 
-  return [...new Set([...ESTABLISHED_ANDROID_SHA256, ...configured])]
+  return [...new Set(configured)]
+}
+
+function configuredFingerprints(): string[] {
+  return [...new Set([...ESTABLISHED_ANDROID_SHA256, ...localUatFingerprints()])]
 }
 
 export function GET() {
@@ -34,17 +43,27 @@ export function GET() {
     return new NextResponse(null, { status: 404 })
   }
 
-  return NextResponse.json(
-    [
-      {
-        relation: ['delegate_permission/common.handle_all_urls'],
-        target: {
-          namespace: 'android_app',
-          package_name: ANDROID_PACKAGE,
-          sha256_cert_fingerprints: configuredFingerprints(),
-        },
+  const statements = [
+    {
+      relation: ['delegate_permission/common.handle_all_urls'],
+      target: {
+        namespace: 'android_app',
+        package_name: ANDROID_PACKAGE,
+        sha256_cert_fingerprints: configuredFingerprints(),
       },
-    ],
-    { headers: { 'Cache-Control': 'no-store' } },
-  )
+    },
+  ]
+  const localKeys = localUatFingerprints()
+  if (localKeys.length > 0) {
+    statements.push({
+      relation: ['delegate_permission/common.handle_all_urls'],
+      target: {
+        namespace: 'android_app',
+        package_name: LOCAL_UAT_ANDROID_PACKAGE,
+        sha256_cert_fingerprints: localKeys,
+      },
+    })
+  }
+
+  return NextResponse.json(statements, { headers: { 'Cache-Control': 'no-store' } })
 }

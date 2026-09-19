@@ -6,6 +6,7 @@ import type { DigitalInvitationCardData } from '@/components/wedding/digital-inv
 import { PhysicalInvitationClaim } from '@/components/wedding/physical-invitation-claim'
 import type { InvitationCardStyle } from '@/lib/digital-invitation-card'
 import {
+  ANDROID_INTENT_PACKAGE,
   ANDROID_PACKAGE,
   isValidPhysicalInvitationHandoff,
 } from '@/lib/invitation-links'
@@ -150,7 +151,7 @@ export function PhysicalInvitationEntry({
     const target = handoff.appResumePath.replace(/^\//, '')
     const fallback = encodeURIComponent(window.location.href)
     window.location.assign(
-      `intent://wewed.pro/${target}#Intent;scheme=https;package=${ANDROID_PACKAGE};S.browser_fallback_url=${fallback};end`,
+      `intent://wewed.pro/${target}#Intent;scheme=https;package=${ANDROID_INTENT_PACKAGE};S.browser_fallback_url=${fallback};end`,
     )
   }
 

@@ -11,6 +11,7 @@ import {
   buildSmartInvitationUrl,
   isValidInvitationHandoffSecret,
   isValidPhysicalInvitationHandoff,
+  resolveAndroidIntentPackage,
 } from '@/lib/invitation-links'
 
 describe('smart invitation links', () => {
@@ -119,6 +120,16 @@ describe('smart invitation links', () => {
         fallbackUrl: 'https://uat.wewed.pro/invite/example/open',
       }),
     ).toThrow('current Wewed origin')
+  })
+
+  test('targets the Play package unless a local UAT intent package is explicitly allowed', () => {
+    expect(resolveAndroidIntentPackage(undefined, undefined)).toBe('pro.wewed.app')
+    expect(resolveAndroidIntentPackage('', 'preview')).toBe('pro.wewed.app')
+    expect(resolveAndroidIntentPackage('pro.wewed.app.uatdev', undefined)).toBe('pro.wewed.app.uatdev')
+    expect(resolveAndroidIntentPackage(' pro.wewed.app.uatdev ', 'preview')).toBe('pro.wewed.app.uatdev')
+    expect(resolveAndroidIntentPackage('pro.wewed.app.dev', undefined)).toBe('pro.wewed.app')
+    expect(resolveAndroidIntentPackage('com.attacker.app', undefined)).toBe('pro.wewed.app')
+    expect(resolveAndroidIntentPackage('pro.wewed.app.uatdev', 'production')).toBe('pro.wewed.app')
   })
 
   test('rejects malformed deferred handoff values', () => {
