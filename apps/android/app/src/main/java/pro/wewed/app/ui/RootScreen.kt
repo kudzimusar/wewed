@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
@@ -65,7 +66,9 @@ fun RootScreen(
             )
         } else {
             Scaffold(
-                modifier = Modifier.semantics { testTagsAsResourceId = true },
+                modifier = Modifier
+                    .semantics { testTagsAsResourceId = true }
+                    .testTag("shadow-source-${appViewModel.dataEnvironment.name.lowercase().replace('_', '-')}"),
                 containerColor = WeddingIdentityPalette.Ivory,
                 bottomBar = {
                     Column(
