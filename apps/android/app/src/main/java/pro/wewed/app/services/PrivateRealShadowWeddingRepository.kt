@@ -44,9 +44,6 @@ class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath:
             val appDataUatPath = "/data/data/pro.wewed.app.uatdev/files/charity-kudzie-private-real-shadow.json"
             if (File(appDataUatPath).exists()) return appDataUatPath
 
-            val appDataPath = "/data/data/pro.wewed.app/files/charity-kudzie-private-real-shadow.json"
-            if (File(appDataPath).exists()) return appDataPath
-
             return envPath ?: homePath
         }
 
