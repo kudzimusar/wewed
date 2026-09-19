@@ -36,7 +36,9 @@ function recoveryRedirect(): NextResponse {
   // Do not erase an already-valid guest session when a new handoff is invalid,
   // expired, duplicated, or otherwise fails. The replacement is atomic: only a
   // successfully redeemed handoff is allowed to overwrite the active guest.
+  // Anonymous shared physical context still fails closed.
   clearPendingInvitationCookie(response)
+  clearWeddingSharedInvitationCookie(response)
   return response
 }
 

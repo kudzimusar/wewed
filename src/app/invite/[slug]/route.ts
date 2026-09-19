@@ -5,6 +5,8 @@ import {
   readPendingInvitation,
   setPendingInvitationCookie,
 } from '@/lib/pending-invitation'
+import { clearWeddingGuestSessionCookie } from '@/lib/wedding-guest-session'
+import { clearWeddingSharedInvitationCookie } from '@/lib/wedding-shared-invitation-session'
 
 interface Params {
   params: Promise<{ slug: string }>
@@ -24,11 +26,15 @@ function relativeRedirect(location: string): NextResponse {
   })
 }
 
-function clearPendingInvitationContext(response: NextResponse): void {
-  // A failed or superseding invitation attempt must not destroy the currently
-  // active guest session. Replacement becomes authoritative only after the new
-  // invitation is successfully resumed or continued.
+function clearInvitationContext(response: NextResponse): void {
+  // A missing or unverifiable personal credential fails closed: no guest identity
+  // or shared physical context may survive onto the access-error gateway, where the
+  // person holding the bad link could otherwise act as the previously active guest.
+  // A valid superseding invitation never reaches this path; it stays atomic and only
+  // replaces the active guest once it is successfully continued or resumed.
   clearPendingInvitationCookie(response)
+  clearWeddingGuestSessionCookie(response)
+  clearWeddingSharedInvitationCookie(response)
 }
 
 function redirectToGateway(slug: string, error: string) {
@@ -36,7 +42,7 @@ function redirectToGateway(slug: string, error: string) {
   const response = relativeRedirect(
     `/w/${encodeURIComponent(slug)}?${query.toString()}`,
   )
-  clearPendingInvitationContext(response)
+  clearInvitationContext(response)
   return response
 }
 

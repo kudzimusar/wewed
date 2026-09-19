@@ -36,9 +36,11 @@ function redirectToGateway(slug: string, error: string) {
 
 function failedExchange(slug: string, error: string): NextResponse {
   const response = redirectToGateway(slug, error)
-  // Keep the previously active guest/share context intact. A failed attempt to
-  // switch invitations must not strand the user in a stale, unauthorized UI.
+  // Keep the previously active guest intact: a failed attempt to switch
+  // invitations must not strand the user in a stale, unauthorized UI. Anonymous
+  // shared physical context still fails closed.
   clearPendingInvitationCookie(response)
+  clearWeddingSharedInvitationCookie(response)
   return response
 }
 
