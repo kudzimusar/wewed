@@ -16,6 +16,7 @@ class PrivateRealShadowPlannerRepository(jsonString: String? = null, customPath:
     private val weddingTitle: String
     private val weddingId: String
     private val weddingDate: String
+    private val weddingVenue: String
     private val weddingLifecycle: String
     private val plannerTitle: String
     private val doneTasksCount: Int
@@ -44,9 +45,10 @@ class PrivateRealShadowPlannerRepository(jsonString: String? = null, customPath:
         weddingId = weddingObj.optString("id")
         weddingTitle = weddingObj.optString("title")
         weddingDate = weddingObj.optString("dateRaw")
+        weddingVenue = weddingObj.optString("venue")
         weddingLifecycle = weddingObj.optString("lifecycle")
 
-        if (weddingId.isEmpty() || weddingTitle.isEmpty() || weddingDate.isEmpty() || weddingLifecycle.isEmpty()) {
+        if (weddingId.isEmpty() || weddingTitle.isEmpty() || weddingDate.isEmpty() || weddingVenue.isEmpty() || weddingLifecycle.isEmpty()) {
             throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required wedding fields missing in private real shadow fixture.")
         }
 
@@ -184,7 +186,10 @@ class PrivateRealShadowPlannerRepository(jsonString: String? = null, customPath:
             if (id.isEmpty() || guestId.isEmpty() || type.isEmpty() || status.isEmpty()) {
                 throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required contribution fields missing in private real shadow fixture.")
             }
-            val contributorName = guestNameMap[guestId] ?: "Guest"
+            val contributorName = guestNameMap[guestId]
+                ?: throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing(
+                    "Contribution $id references unknown guest $guestId."
+                )
             val formattedType = type.replace("_", " ").replaceFirstChar { it.uppercase() }
             val formattedStatus = status.replace("_", " ").replaceFirstChar { it.uppercase() }
             val contributionText = listOf("message", "content", "story", "note", "text")
@@ -369,14 +374,14 @@ class PrivateRealShadowPlannerRepository(jsonString: String? = null, customPath:
             if (id.isEmpty() || time.isEmpty() || title.isEmpty()) {
                 throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required programme fields missing in private real shadow fixture.")
             }
-            val loc = if (item.isNull("location")) "Imba Manor" else item.optString("location", "Imba Manor")
+            val loc = if (item.isNull("location") || item.optString("location").isBlank()) weddingVenue else item.optString("location")
             pList.add(
                 PlannerTimelineEntry(
                     id = id,
                     time = time,
                     title = title,
                     location = loc,
-                    statusLabel = "23 Dec 2026",
+                    statusLabel = weddingDate,
                     linkedVendor = null
                 )
             )
