@@ -36,15 +36,13 @@ class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath:
             val homePath = "$userHome/.wewed-shadow/charity-kudzie/charity-kudzie-private-real-shadow.json"
             if (File(homePath).exists()) return homePath
 
-            // Android emulator / device fallback paths
-            val tmpPath = "/data/local/tmp/charity-kudzie-private-real-shadow.json"
-            if (File(tmpPath).exists()) return tmpPath
-
-            val sdcardPath = "/sdcard/charity-kudzie-private-real-shadow.json"
-            if (File(sdcardPath).exists()) return sdcardPath
-
+            // Android private app storage only. Production-derived private
+            // snapshots must never be read from /sdcard or /data/local/tmp.
             val appDataDevPath = "/data/data/pro.wewed.app.dev/files/charity-kudzie-private-real-shadow.json"
             if (File(appDataDevPath).exists()) return appDataDevPath
+
+            val appDataUatPath = "/data/data/pro.wewed.app.uatdev/files/charity-kudzie-private-real-shadow.json"
+            if (File(appDataUatPath).exists()) return appDataUatPath
 
             val appDataPath = "/data/data/pro.wewed.app/files/charity-kudzie-private-real-shadow.json"
             if (File(appDataPath).exists()) return appDataPath
@@ -56,7 +54,7 @@ class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath:
             val file = File(path)
             if (!file.exists()) {
                 throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing(
-                    "Private real shadow fixture not found at $path. Set WEWED_PRIVATE_SHADOW_PATH or place file at ~/.wewed-shadow/charity-kudzie/charity-kudzie-private-real-shadow.json. Falling back to demo data is strictly prohibited."
+                    "Private real shadow fixture not found at $path. Use WEWED_PRIVATE_SHADOW_PATH on desktop tests or provision the protected file into app-private storage. Public tmp/sdcard fallback and demo-data fallback are prohibited."
                 )
             }
             return file.readText()
