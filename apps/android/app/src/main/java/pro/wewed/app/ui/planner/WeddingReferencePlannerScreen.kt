@@ -48,10 +48,12 @@ fun WeddingReferencePlannerScreen(appViewModel: AppViewModel) {
                 ShadowSeatingDestination(appViewModel) { destination = null }
             ReferencePlannerDestination.TIMELINE ->
                 ShadowTimelineDestination(appViewModel) { destination = null }
+            ReferencePlannerDestination.CONTRIBUTIONS ->
+                ShadowContributionsDestination(appViewModel) { destination = null }
             ReferencePlannerDestination.DOCUMENTS ->
                 ReferencePlannerEmptyDestination(
                     title = "Documents",
-                    message = "No contracts recorded for this wedding.",
+                    message = "No contracts or documents recorded for this wedding.",
                     onBack = { destination = null }
                 )
         }
@@ -225,6 +227,14 @@ fun WeddingReferencePlannerScreen(appViewModel: AppViewModel) {
                             }
                             item {
                                 ReferencePlannerRow(
+                                    title = "Contributions",
+                                    subtitle = moduleSubtitle(snap, "contributions"),
+                                    icon = Icons.Default.CardGiftcard,
+                                    identifier = "planner-module-contributions"
+                                ) { destination = ReferencePlannerDestination.CONTRIBUTIONS }
+                            }
+                            item {
+                                ReferencePlannerRow(
                                     title = "Vendors",
                                     subtitle = moduleSubtitle(snap, "vendors"),
                                     icon = Icons.Default.Storefront,
@@ -389,5 +399,6 @@ private enum class ReferencePlannerSection(val title: String) {
 private enum class ReferencePlannerDestination {
     SEATING,
     TIMELINE,
+    CONTRIBUTIONS,
     DOCUMENTS
 }
