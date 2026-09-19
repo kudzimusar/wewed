@@ -258,51 +258,102 @@ class PrivateRealShadowPlannerRepository(jsonString: String? = null, customPath:
 
         val engagementsArray = root.optJSONArray("serviceEngagements")
         serviceEngagementsCount = engagementsArray?.length() ?: 0
-        val engagementsByVendor = mutableMapOf<String, JSONObject>()
-        if (engagementsArray != null) {
-            for (i in 0 until engagementsArray.length()) {
-                val se = engagementsArray.getJSONObject(i)
-                val vId = se.optString("vendorId")
-                if (vId.isNotEmpty()) {
-                    engagementsByVendor[vId] = se
-                }
-            }
+
+        val vendorsById = mutableMapOf<String, JSONObject>()
+        for (i in 0 until vArray.length()) {
+            val vendor = vArray.getJSONObject(i)
+            val vendorId = vendor.optString("id")
+            if (vendorId.isNotBlank()) vendorsById[vendorId] = vendor
         }
 
         val vList = mutableListOf<PlannerVendorEngagement>()
-        for (i in 0 until vArray.length()) {
-            val item = vArray.getJSONObject(i)
-            val id = item.optString("id")
-            val name = item.optString("name")
-            val cat = item.optString("category")
-            if (id.isEmpty() || name.isEmpty() || cat.isEmpty()) {
-                throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required vendor fields missing in private real shadow fixture.")
-            }
-            val payStatus = if (item.isNull("paymentStatus")) {
-                "Not recorded"
-            } else {
-                item.optString("paymentStatus").takeIf { it.isNotBlank() }?.replace("_", " ")?.replaceFirstChar { it.uppercase() }
-                    ?: "Not recorded"
-            }
-            val se = engagementsByVendor[id]
-            val serviceDesc = se?.optString("serviceDescription")?.takeIf { it.isNotBlank() } ?: "Service details not recorded"
-            val lifecycleStatus = se?.optString("lifecycleStatus")?.takeIf { it.isNotBlank() }?.replace("_", " ")?.replaceFirstChar { it.uppercase() }
-                ?: "Not recorded"
-            val externalAgreementStatus = se?.optString("externalAgreementStatus")?.takeIf { it.isNotBlank() }?.replace("_", " ")?.replaceFirstChar { it.uppercase() }
-                ?: "Not recorded"
+        val vendorsWithEngagements = mutableSetOf<String>()
 
+        if (engagementsArray != null) {
+            for (i in 0 until engagementsArray.length()) {
+                val se = engagementsArray.getJSONObject(i)
+                val engagementId = se.optString("id")
+                val vendorId = se.optString("vendorId")
+                if (engagementId.isBlank() || vendorId.isBlank()) {
+                    throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing(
+                        "Required service engagement id/vendorId missing in private real shadow fixture."
+                    )
+                }
+
+                val vendor = vendorsById[vendorId]
+                    ?: throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing(
+                        "Service engagement $engagementId references unknown vendor $vendorId."
+                    )
+                vendorsWithEngagements.add(vendorId)
+
+                val name = vendor.optString("name")
+                val cat = vendor.optString("category")
+                if (name.isBlank() || cat.isBlank()) {
+                    throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing(
+                        "Required vendor fields missing for service engagement $engagementId."
+                    )
+                }
+
+                val payStatus = vendor.optString("paymentStatus")
+                    .takeIf { it.isNotBlank() }
+                    ?.replace("_", " ")
+                    ?.replaceFirstChar { it.uppercase() }
+                    ?: "Not recorded"
+                val serviceDesc = se.optString("serviceDescription")
+                    .takeIf { it.isNotBlank() }
+                    ?: "Service details not recorded"
+                val lifecycleStatus = se.optString("lifecycleStatus")
+                    .takeIf { it.isNotBlank() }
+                    ?.replace("_", " ")
+                    ?.replaceFirstChar { it.uppercase() }
+                    ?: "Not recorded"
+                val externalAgreementStatus = se.optString("externalAgreementStatus")
+                    .takeIf { it.isNotBlank() }
+                    ?.replace("_", " ")
+                    ?.replaceFirstChar { it.uppercase() }
+                    ?: "Not recorded"
+
+                vList.add(
+                    PlannerVendorEngagement(
+                        id = engagementId,
+                        vendorName = name,
+                        category = cat.replaceFirstChar { it.uppercase() },
+                        bookingStatus = lifecycleStatus,
+                        contractStatus = externalAgreementStatus,
+                        paymentStatus = payStatus,
+                        nextAction = serviceDesc
+                    )
+                )
+            }
+        }
+
+        // Preserve vendors that exist in the account but do not yet have a service engagement.
+        for (i in 0 until vArray.length()) {
+            val vendor = vArray.getJSONObject(i)
+            val id = vendor.optString("id")
+            if (id.isBlank() || id in vendorsWithEngagements) continue
+            val name = vendor.optString("name")
+            val cat = vendor.optString("category")
+            if (name.isBlank() || cat.isBlank()) continue
+
+            val payStatus = vendor.optString("paymentStatus")
+                .takeIf { it.isNotBlank() }
+                ?.replace("_", " ")
+                ?.replaceFirstChar { it.uppercase() }
+                ?: "Not recorded"
             vList.add(
                 PlannerVendorEngagement(
-                    id = id,
+                    id = "vendor-$id",
                     vendorName = name,
                     category = cat.replaceFirstChar { it.uppercase() },
-                    bookingStatus = lifecycleStatus,
-                    contractStatus = externalAgreementStatus,
+                    bookingStatus = "No service engagement recorded",
+                    contractStatus = "Not recorded",
                     paymentStatus = payStatus,
-                    nextAction = serviceDesc
+                    nextAction = "Service details not recorded"
                 )
             )
         }
+
         vendorEngagements = vList
 
         // 5. Timeline Entries (13 entries)
