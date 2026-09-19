@@ -413,7 +413,10 @@ public actor PrivateRealShadowPlannerRepository: PlannerDashboardRepositoryProto
     }
 
     public func getDashboard() async throws -> PlannerDashboardSnapshot {
-        PlannerDashboardSnapshot(
+        let contractCount = documents.filter { $0.kind.caseInsensitiveCompare("Contract") == .orderedSame }.count
+        let timelineDateLabel = weddingDate.components(separatedBy: " ").first.flatMap { $0.isEmpty ? nil : $0 } ?? weddingDate
+
+        return PlannerDashboardSnapshot(
             weddingId: weddingId,
             coupleNames: weddingTitle,
             weddingDateLabel: weddingDate,
@@ -425,17 +428,17 @@ public actor PrivateRealShadowPlannerRepository: PlannerDashboardRepositoryProto
                 PlannerAttentionItem(id: "attn_tasks", title: "\(highPriorityTasksCount) high priority tasks", detail: "Active checklist tasks requiring coordination.", severity: .urgent),
                 PlannerAttentionItem(id: "attn_rsvp", title: "\(pendingRsvpCount) RSVPs pending", detail: "\(attendingGuestsCount) confirmed guests across \(totalGuestsCount) invited records.", severity: .warning),
                 PlannerAttentionItem(id: "attn_seating", title: "\(assignedInvitedCapacity) of \(totalSeatingCapacity) table seats allocated", detail: "\(remainingTableCapacity) seats free across \(seatingTables.count) tables.", severity: .info),
-                PlannerAttentionItem(id: "attn_vendor", title: "\(vendorsCount) vendors recorded", detail: "0 active contracts recorded for this wedding.", severity: .info),
+                PlannerAttentionItem(id: "attn_vendor", title: "\(vendorsCount) vendors recorded", detail: "\(contractCount) active contracts recorded for this wedding.", severity: .info),
                 PlannerAttentionItem(id: "attn_payment", title: "Budget & Expenses", detail: "$\(Int(totalPdBudget)) paid of $\(Int(totalActBudget)) actual expenses ($\(Int(totalEstBudget)) estimated).", severity: .info)
             ],
             modules: [
                 PlannerModuleSummary(id: "tasks", title: "Tasks", value: "\(doneTasksCount) / \(totalTasksCount)", attention: "\(highPriorityTasksCount) high priority", systemImage: "checklist"),
                 PlannerModuleSummary(id: "budget", title: "Budget", value: "$\(String(format: "%.1fk", totalEstBudget / 1000.0))", attention: "$\(String(format: "%.1fk", totalPdBudget / 1000.0)) paid", systemImage: "creditcard.fill"),
                 PlannerModuleSummary(id: "contributions", title: "Contributions", value: "\(contributions.count) messages", attention: "Non-monetary", systemImage: "gift.fill"),
-                PlannerModuleSummary(id: "vendors", title: "Vendors", value: "\(vendorsCount) vendors", attention: "\(serviceEngagementsCount) service engagements • 0 contracts", systemImage: "storefront.fill"),
+                PlannerModuleSummary(id: "vendors", title: "Vendors", value: "\(vendorsCount) vendors", attention: "\(serviceEngagementsCount) service engagements • \(contractCount) contracts", systemImage: "storefront.fill"),
                 PlannerModuleSummary(id: "guests", title: "Guests", value: "\(totalGuestsCount)", attention: "\(pendingRsvpCount) pending", systemImage: "person.3.fill"),
                 PlannerModuleSummary(id: "seating", title: "Seating", value: "\(assignedInvitedCapacity) / \(totalSeatingCapacity)", attention: "\(remainingTableCapacity) seats free", systemImage: "table.furniture.fill"),
-                PlannerModuleSummary(id: "timeline", title: "Timeline", value: "\(timelineEntries.count) items", attention: "23 Dec 2026", systemImage: "calendar.badge.clock")
+                PlannerModuleSummary(id: "timeline", title: "Timeline", value: "\(timelineEntries.count) items", attention: timelineDateLabel, systemImage: "calendar.badge.clock")
             ],
             recentActivity: [],
             sourceLabel: "Private real-wedding row snapshot"
