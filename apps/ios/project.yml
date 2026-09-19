@@ -1,7 +1,7 @@
 name: Wewed
 options:
   minimumXcodeGenVersion: 2.40.0
-  xcodeVersion: "15.4"
+  xcodeVersion: "16.2"
   deploymentTarget:
     iOS: "17.0"
 configs:
