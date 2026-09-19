@@ -41,6 +41,9 @@ describe('multi-wedding guest portfolio contract', () => {
     expect(app).toContain('WORKSPACE_BY_ROLE[session.role]')
     expect(app).toContain("invitation: '1'")
     expect(app).toContain('resolveLegacyGuestSession(request)')
+    // The saved wedding style is authoritative on cold launch as well.
+    expect(app).toContain('normalizeInvitationCardStyle(record.wedding.invitationCardStyle)')
+    expect(app).not.toContain('activeEntry.invitationCardStyle ||')
   })
 
   test('all successful personal and claimed-physical entry paths add the wedding to the portfolio', () => {

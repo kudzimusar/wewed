@@ -127,9 +127,9 @@ export async function GET(request: NextRequest) {
           weddingId: record.wedding.id,
           weddingSlug: record.wedding.slug,
           guestId: record.id,
-          invitationCardStyle: normalizeInvitationCardStyle(
-            activeEntry.invitationCardStyle || record.wedding.invitationCardStyle,
-          ),
+          // The wedding's saved style is authoritative; a remembered portfolio style
+          // must not resurrect an older design in the cold-launch URL.
+          invitationCardStyle: normalizeInvitationCardStyle(record.wedding.invitationCardStyle),
           rsvpToken: record.rsvp.token,
         }
       }
