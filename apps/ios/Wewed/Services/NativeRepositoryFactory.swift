@@ -49,9 +49,12 @@ public enum NativeRepositoryFactory {
             )
 
         case .privateRealShadow:
+            // Load once so all native projections are initialized from the exact same account snapshot.
+            // Explicit private-real selection fails here when the protected file is unavailable.
+            let snapshot = try PrivateRealShadowWeddingRepository.loadSnapshotData()
             return NativeRepositoryBundle(
-                wedding: try PrivateRealShadowWeddingRepository(),
-                planner: try PrivateRealShadowPlannerRepository(),
+                wedding: try PrivateRealShadowWeddingRepository(jsonData: snapshot),
+                planner: try PrivateRealShadowPlannerRepository(jsonData: snapshot),
                 environment: .privateRealShadow,
                 baseURL: baseURL
             )
