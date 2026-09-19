@@ -46,7 +46,6 @@ fun WeddingReferenceHomeScreen(appViewModel: AppViewModel) {
     var invitation by remember { mutableStateOf<InvitationContext?>(null) }
     var showInvitation by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(true) }
-    val pendingInvitationDeepLink by appViewModel.pendingInvitationDeepLink.collectAsState()
 
     LaunchedEffect(Unit) {
         try {
@@ -61,21 +60,6 @@ fun WeddingReferenceHomeScreen(appViewModel: AppViewModel) {
             }.getOrNull()
         } finally {
             isLoading = false
-        }
-    }
-
-    LaunchedEffect(pendingInvitationDeepLink) {
-        val pending = pendingInvitationDeepLink ?: return@LaunchedEffect
-        val resolved = runCatching {
-            appViewModel.repository.resolveInvitation(
-                pending.weddingSlug,
-                pending.rsvpToken
-            )
-        }.getOrNull()
-        appViewModel.consumePendingInvitationDeepLink()
-        if (resolved != null) {
-            invitation = resolved
-            showInvitation = true
         }
     }
 
