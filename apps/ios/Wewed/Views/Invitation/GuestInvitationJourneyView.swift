@@ -8,14 +8,27 @@ public struct GuestInvitationJourneyView: View {
     @EnvironmentObject private var appState: AppState
 
     public let reference: GuestJourneyReference
+    private let onExit: (() -> Void)?
 
     @State private var stage: GuestJourneyStage
     @State private var splashVisible = false
     @State private var confirmedPass: WeddingPass?
 
-    public init(reference: GuestJourneyReference) {
+    public init(
+        reference: GuestJourneyReference,
+        onExit: (() -> Void)? = nil
+    ) {
         self.reference = reference
+        self.onExit = onExit
         _stage = State(initialValue: reference.initialStage)
+    }
+
+    private func exitJourney() {
+        if let onExit {
+            onExit()
+        } else {
+            dismiss()
+        }
     }
 
     public var body: some View {
@@ -40,7 +53,7 @@ public struct GuestInvitationJourneyView: View {
             case .confirmedAttending:
                 ZStack(alignment: .topTrailing) {
                     WeddingReferencePassView(pass: confirmedPass)
-                    Button("Done") { dismiss() }
+                    Button("Done") { exitJourney() }
                         .font(.subheadline)
                         .fontWeight(.semibold)
                         .padding(.horizontal, 14)
@@ -116,7 +129,7 @@ public struct GuestInvitationJourneyView: View {
                 .font(.subheadline)
                 .multilineTextAlignment(.center)
                 .foregroundColor(.secondary)
-            Button("Return to Wedding") { dismiss() }
+            Button("Return to Wedding") { exitJourney() }
                 .fontWeight(.semibold)
                 .foregroundColor(WewedColors.emerald)
                 .padding(.top, 8)
