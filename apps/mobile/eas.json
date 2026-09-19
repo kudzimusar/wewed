@@ -1,0 +1,35 @@
+{
+  "cli": {
+    "version": ">= 16.0.0"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "WEWED_ANDROID_PACKAGE_ID": "pro.wewed.app.dev",
+        "WEWED_IOS_BUNDLE_ID": "pro.wewed.app.dev",
+        "WEWED_APP_DISPLAY_NAME": "Wewed Dev"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_WEWED_API_BASE_URL": "https://uat.wewed.pro",
+        "WEWED_ANDROID_PACKAGE_ID": "pro.wewed.app.uatdev",
+        "WEWED_IOS_BUNDLE_ID": "pro.wewed.app.uatdev",
+        "WEWED_APP_DISPLAY_NAME": "Wewed UAT"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "distribution": "store",
+      "env": {
+        "EXPO_PUBLIC_WEWED_API_BASE_URL": "https://wewed.pro",
+        "WEWED_ANDROID_PACKAGE_ID": "pro.wewed.app",
+        "WEWED_IOS_BUNDLE_ID": "pro.wewed.app",
+        "WEWED_APP_DISPLAY_NAME": "Wewed"
+      }
+    }
+  }
+}
