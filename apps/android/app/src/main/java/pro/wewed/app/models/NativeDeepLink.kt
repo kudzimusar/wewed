@@ -29,7 +29,7 @@ object NativeDeepLinkParser {
                 .toMutableList()
 
             when (scheme) {
-                "https", "http" -> {
+                "https" -> {
                     val host = uri.host?.lowercase()
                     if (host != "wewed.pro" && host != "www.wewed.pro") {
                         return@runCatching null
@@ -56,7 +56,7 @@ object NativeDeepLinkParser {
                 "pass" -> NativeDeepLink.Pass
                 "w" -> route.getOrNull(1)?.trim()
                     ?.takeIf { it.isNotEmpty() }
-                    ?.let(NativeDeepLink::Wedding)
+                    ?.let { NativeDeepLink.Wedding(it) }
                 else -> null
             }
         }.getOrNull()
