@@ -41,6 +41,7 @@ jobs:
       EXPO_PUBLIC_WEWED_API_BASE_URL: https://wewed.pro
       WEWED_ANDROID_VERSION_CODE: '3'
       WEWED_APP_VERSION: 2.0.0
+      WEWED_ANDROID_PACKAGE_ID: pro.wewed.app
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -102,6 +103,7 @@ jobs:
       EXPO_PUBLIC_WEWED_API_BASE_URL: https://wewed.pro
       WEWED_ANDROID_VERSION_CODE: '3'
       WEWED_APP_VERSION: 2.0.0
+      WEWED_ANDROID_PACKAGE_ID: pro.wewed.app
       WEWED_REQUIRE_RELEASE_SIGNING: '1'
       WEWED_UPLOAD_KEYSTORE_BASE64: ${{ secrets.WEWED_UPLOAD_KEYSTORE_BASE64 }}
       WEWED_UPLOAD_STORE_PASSWORD: ${{ secrets.WEWED_UPLOAD_STORE_PASSWORD }}
