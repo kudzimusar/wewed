@@ -26,6 +26,7 @@ public final class AppState: ObservableObject, @unchecked Sendable {
     @Published public var isOffline: Bool = false
     @Published public var pendingSyncCount: Int = 0
     @Published public var lastSyncTime: Date? = nil
+    @Published public var pendingInvitationDeepLink: InvitationDeepLink? = nil
 
     public let repository: WeddingRepositoryProtocol
     public let plannerRepository: PlannerDashboardRepositoryProtocol
@@ -33,6 +34,22 @@ public final class AppState: ObservableObject, @unchecked Sendable {
     public let dataBaseURL: URL?
     /// Nil by default. Isolated integration builds/tests may inject a manifest-backed runtime.
     public let weddingDayGate: WeddingDayGateOperations?
+
+    public func handleIncomingURL(_ url: URL) {
+        guard let deepLink = NativeDeepLinkParser.parse(url.absoluteString) else { return }
+
+        switch deepLink {
+        case .invitation(let invitation):
+            pendingInvitationDeepLink = invitation
+            selectedTab = .home
+        case .pass:
+            pendingInvitationDeepLink = nil
+            selectedTab = .pass
+        case .wedding:
+            pendingInvitationDeepLink = nil
+            selectedTab = .home
+        }
+    }
 
     public static func make(
         environment: NativeDataEnvironment,
