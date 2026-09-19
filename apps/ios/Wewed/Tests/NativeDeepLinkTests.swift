@@ -39,6 +39,11 @@ final class NativeDeepLinkTests: XCTestCase {
                 "https://wewed.pro/invite/charity-and-kudzie"
             )
         )
+        XCTAssertNil(
+            NativeDeepLinkParser.parse(
+                "http://wewed.pro/invite/charity-and-kudzie?rsvp=guest-token-123"
+            )
+        )
     }
 
     func testParsesCustomSchemeInvitation() {
