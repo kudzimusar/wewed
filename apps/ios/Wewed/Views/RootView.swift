@@ -65,6 +65,11 @@ public struct RootView: View {
         .onOpenURL { url in
             appState.handleIncomingURL(url)
         }
+        .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+            if let url = activity.webpageURL {
+                appState.handleIncomingURL(url)
+            }
+        }
         .task(id: appState.pendingInvitationDeepLink) {
             await resolvePendingInvitationDeepLink()
         }
