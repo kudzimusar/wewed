@@ -48,7 +48,15 @@ appId: pro.wewed.app
 - assertVisible: "memories, blessings & stories"
 - back
 
-# 6. Guests / do not bind Git tests to private names.
+# 6. Documents/contracts are connected to the same graph; current account is honestly empty.
+- tapOn:
+    id: "planner-module-documents"
+- assertVisible:
+    id: "planner-documents-root"
+- assertVisible: "No contracts or documents recorded for this wedding."
+- back
+
+# 7. Guests / do not bind Git tests to private names.
 - tapOn: "Guests"
 - assertVisible:
     id: "guests-root"
@@ -57,7 +65,7 @@ appId: pro.wewed.app
 - assertNotVisible: "Guest G001"
 - assertNotVisible: "Guest G011"
 
-# 7. Pass / same real runtime guest graph.
+# 8. Pass / same real runtime guest graph.
 - tapOn: "Pass"
 - assertVisible:
     id: "pass-root"
@@ -65,7 +73,7 @@ appId: pro.wewed.app
     id: "wedding-pass-card"
 - assertNotVisible: "Guest G011"
 
-# 8. More
+# 9. More
 - tapOn: "More"
 - assertVisible:
     id: "more-root"
