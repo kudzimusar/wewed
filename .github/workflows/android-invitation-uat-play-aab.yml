@@ -102,6 +102,10 @@ jobs:
           grep -q 'android:value="navigate-existing"' "$UAT_NAV_MANIFEST"
           UAT_MIN_SDK_MANIFEST="$(find android/app/build/intermediates -type f -name AndroidManifest.xml -path '*uatPlay*' -print0 | xargs -0 -r grep -l 'android:minSdkVersion="24"' | head -n 1 || true)"
           test -n "$UAT_MIN_SDK_MANIFEST"
+          # Local debug/uat builds use suffixed identities; the Play bundle must keep pro.wewed.app.
+          UAT_PLAY_MANIFEST="$(find android/app/build/intermediates -type f -name AndroidManifest.xml -path '*merged_manifest*uatPlay*' | head -n 1)"
+          test -n "$UAT_PLAY_MANIFEST"
+          grep -q 'package="pro.wewed.app"' "$UAT_PLAY_MANIFEST"
           unzip -t android/app/build/outputs/bundle/uatPlay/app-uatPlay.aab >/dev/null
       - name: Upload unsigned contract AAB
         uses: actions/upload-artifact@v4

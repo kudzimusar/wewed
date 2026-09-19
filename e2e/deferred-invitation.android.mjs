@@ -6,6 +6,8 @@ import { randomUUID } from 'node:crypto'
 
 const prisma = new PrismaClient()
 const EMULATOR_BASE_URL = process.env.WEWED_ANDROID_E2E_BASE_URL ?? 'http://10.0.2.2:3000'
+// The emulator runs the local UAT wrapper, which never installs as the Play package.
+const APP_PACKAGE = process.env.NEXT_PUBLIC_WEWED_ANDROID_INTENT_PACKAGE ?? 'pro.wewed.app.uatdev'
 
 async function createFixture() {
   const suffix = randomUUID().replaceAll('-', '').slice(0, 16)
@@ -97,7 +99,7 @@ async function poll(label, callback, { attempts = 40, delay = 250 } = {}) {
 function handoffFromIntent(intentUrl) {
   assert.match(intentUrl, /^intent:\/\/invite\/resume#Intent;/)
   assert.ok(intentUrl.includes('scheme=wewed'))
-  assert.ok(intentUrl.includes('package=pro.wewed.app'))
+  assert.ok(intentUrl.includes(`package=${APP_PACKAGE};`))
   assert.ok(!intentUrl.includes('rsvp='))
   assert.ok(!intentUrl.includes('guest='))
   assert.ok(!intentUrl.includes('email='))
@@ -194,7 +196,7 @@ async function nativeCheckpoints(device, minimumIntentCount) {
     async () => {
       const xml = String(
         await device.shell(
-          'run-as pro.wewed.app cat shared_prefs/wewed_invitation_checkpoints.xml',
+          `run-as ${APP_PACKAGE} cat shared_prefs/wewed_invitation_checkpoints.xml`,
         ),
       )
       const countMatch = xml.match(

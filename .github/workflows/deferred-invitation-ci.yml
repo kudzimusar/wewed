@@ -291,6 +291,9 @@ jobs:
       WEWED_ANDROID_UAT_RESUME_ORIGIN: http://10.0.2.2:3000
       WEWED_ANDROID_E2E_BASE_URL: http://10.0.2.2:3000
       WEWED_UAT_BASE_URL: http://127.0.0.1:3000
+      # The emulator runs the local UAT wrapper, which installs as its own package so it
+      # can never replace a Play-installed pro.wewed.app.
+      NEXT_PUBLIC_WEWED_ANDROID_INTENT_PACKAGE: pro.wewed.app.uatdev
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -329,6 +332,15 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew :app:assembleUat --no-daemon --stacktrace
+      - name: Verify the local UAT APK cannot replace the Play app
+        shell: bash
+        run: |
+          set -euo pipefail
+          AAPT2="$(ls "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -n 1)"
+          PACKAGE="$("$AAPT2" dump badging android/app/build/outputs/apk/uat/app-uat.apk | sed -n "s/^package: name='\([^']*\)'.*/\1/p")"
+          echo "Local UAT APK package: $PACKAGE"
+          test "$PACKAGE" = "$NEXT_PUBLIC_WEWED_ANDROID_INTENT_PACKAGE"
+          test "$PACKAGE" != 'pro.wewed.app'
       - name: Enable KVM access
         run: |
           if [ -e /dev/kvm ]; then

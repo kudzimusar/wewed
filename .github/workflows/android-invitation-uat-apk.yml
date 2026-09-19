@@ -48,6 +48,10 @@ jobs:
           UAT_BUILD_CONFIG="$(find android/app/build/generated -type f -name BuildConfig.java -path '*uat*' | head -n 1)"
           test -n "$UAT_BUILD_CONFIG"
           grep -q 'INVITATION_RESUME_ORIGIN = "https://uat.wewed.pro"' "$UAT_BUILD_CONFIG"
+          # The installable UAT APK is debug-signed, so it must never carry the Play identity.
+          AAPT2="$(ls "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -n 1)"
+          "$AAPT2" dump badging android/app/build/outputs/apk/uat/app-uat.apk | grep -q "^package: name='pro.wewed.app.uatdev'"
+          "$AAPT2" dump resources android/app/build/outputs/apk/uat/app-uat.apk | grep -A1 'string/providerAuthority' | grep -q '"pro.wewed.app.uatdev.fileprovider"'
       - name: Upload installable UAT APK
         uses: actions/upload-artifact@v4
         with:
