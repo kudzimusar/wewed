@@ -111,4 +111,5 @@ class ShadowReferencePlannerRepository : PlannerDashboardRepository {
     override suspend fun getVendorEngagements(): List<PlannerVendorEngagement> = vendorEngagements
     override suspend fun getSeatingTables(): List<PlannerSeatingTable> = seatingTables
     override suspend fun getTimelineEntries(): List<PlannerTimelineEntry> = timelineEntries
+    override suspend fun getDocuments(): List<PlannerDocumentRecord> = emptyList()
 }
