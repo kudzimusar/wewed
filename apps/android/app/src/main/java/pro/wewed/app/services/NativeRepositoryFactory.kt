@@ -41,12 +41,17 @@ object NativeRepositoryFactory {
                 baseUrl = baseUrl
             )
 
-            NativeDataEnvironment.PRIVATE_REAL_SHADOW -> NativeRepositoryBundle(
-                wedding = PrivateRealShadowWeddingRepository(),
-                planner = PrivateRealShadowPlannerRepository(),
-                environment = NativeDataEnvironment.PRIVATE_REAL_SHADOW,
-                baseUrl = baseUrl
-            )
+            NativeDataEnvironment.PRIVATE_REAL_SHADOW -> {
+                // Load once so every native projection is built from the exact same account snapshot.
+                // Explicit private-real selection still fails here if the protected snapshot is absent.
+                val snapshot = PrivateRealShadowWeddingRepository.loadSnapshotString()
+                NativeRepositoryBundle(
+                    wedding = PrivateRealShadowWeddingRepository(jsonString = snapshot),
+                    planner = PrivateRealShadowPlannerRepository(jsonString = snapshot),
+                    environment = NativeDataEnvironment.PRIVATE_REAL_SHADOW,
+                    baseUrl = baseUrl
+                )
+            }
 
             NativeDataEnvironment.PRODUCTION_READ_VERIFY ->
                 throw NativeRepositoryFactoryError.ProductionReadVerifyNotConfigured
