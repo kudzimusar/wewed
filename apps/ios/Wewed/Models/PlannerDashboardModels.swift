@@ -190,3 +190,18 @@ public struct PlannerTimelineEntry: Identifiable, Codable, Equatable, Sendable {
         self.linkedVendor = linkedVendor
     }
 }
+
+
+public struct PlannerDocumentRecord: Identifiable, Codable, Equatable, Sendable {
+    public let id: String
+    public let title: String
+    public let kind: String
+    public let statusLabel: String?
+
+    public init(id: String, title: String, kind: String, statusLabel: String?) {
+        self.id = id
+        self.title = title
+        self.kind = kind
+        self.statusLabel = statusLabel
+    }
+}
