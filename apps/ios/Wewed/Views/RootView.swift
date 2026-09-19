@@ -144,5 +144,6 @@ public struct RootView: View {
                 .tag(AppTab.live)
         }
         .tint(WeddingIdentityPalette.champagneDeep)
+        .accessibilityIdentifier("shadow-source-" + appState.dataEnvironment.rawValue.replacingOccurrences(of: "_", with: "-"))
     }
 }
