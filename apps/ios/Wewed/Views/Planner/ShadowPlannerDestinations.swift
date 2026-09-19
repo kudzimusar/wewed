@@ -108,6 +108,7 @@ public struct ShadowPlannerContributionsView: View {
 
     private var totalValue: Double { records.reduce(0) { $0 + $1.value } }
     private var unverified: Int { records.filter { !$0.verified }.count }
+    private var hasMonetaryValues: Bool { records.contains { $0.value > 0 } }
 
     public var body: some View {
         ScrollView {
@@ -117,11 +118,11 @@ public struct ShadowPlannerContributionsView: View {
                         .font(.headline)
                     HStack {
                         VStack(alignment: .leading) {
-                            Text("$\(Int(totalValue))")
+                            Text(hasMonetaryValues ? "$\(Int(totalValue))" : "\(records.count)")
                                 .font(.title2)
                                 .fontWeight(.bold)
                                 .foregroundColor(WewedColors.emerald)
-                            Text("recorded value")
+                            Text(hasMonetaryValues ? "recorded contribution value" : "memories, blessings & stories")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -148,10 +149,12 @@ public struct ShadowPlannerContributionsView: View {
                                 .font(.subheadline)
                                 .fontWeight(.semibold)
                             Spacer()
-                            Text("$\(Int(record.value))")
-                                .font(.subheadline)
-                                .fontWeight(.bold)
-                                .foregroundColor(WewedColors.emerald)
+                            if record.value > 0 {
+                                Text("$\(Int(record.value))")
+                                    .font(.subheadline)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(WewedColors.emerald)
+                            }
                         }
                         Text(record.typeLabel)
                             .font(.caption)
