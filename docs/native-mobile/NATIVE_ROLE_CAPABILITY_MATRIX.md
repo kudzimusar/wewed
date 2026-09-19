@@ -44,16 +44,12 @@
 
 ---
 
-## 3. Switchable Deterministic Personas (Development & Testing)
+## 3. Role selection (superseded 2026-09-19)
 
-The native shell exposes a development persona selector available via header or settings:
+The development persona selector has been removed. People no longer pick a role. The account's
+authorized grants decide the experience. A single-role account enters directly; a multi-role account
+chooses among only its own roles. UAT sign-in uses the `wewed_shadow_account` launch argument.
+Test-only overlays are labelled on screen as test access.
 
-1. **`couple_owner`**: Tariro & Shadreck (Imba Manor Estate, Oct 2026) -> Loads `COUPLE` Workspace.
-2. **`pro_planner`**: Kudzi Musarurwa (Lead Architect, 3 active weddings) -> Loads `PLANNER` Workspace.
-3. **`day_coordinator`**: Chiedza Nyoni (Ground Operations Coordinator) -> Loads `COORDINATOR` Workspace.
-4. **`vendor_owner`**: Kudzi Visuals (Lead Cinematographer & Drone) -> Loads `VENDOR` Workspace.
-5. **`vendor_staff`**: Crown Sound Crew (Audio Technician) -> Loads `VENDOR` (Staff) Workspace.
-6. **`gate_usher`**: Gate A Usher (Stationed at Manor Entrance) -> Loads `USHER` Workspace.
-7. **`attending_guest`**: Jane Doe (Party of 2, Table 8) -> Loads `GUEST` Workspace.
-8. **`administrator`**: Global Operations Supervisor -> Loads `ADMIN` Workspace.
-
+The authoritative capability matrix and shell definitions are in
+**NATIVE_ROLE_ARCHITECTURE_P0_2026-09-19.md**. Where this document disagrees, that document wins.

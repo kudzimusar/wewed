@@ -1,3 +1,14 @@
+## Current execution authority (2026-09-19)
+
+**NATIVE_ROLE_ARCHITECTURE_P0_2026-09-19.md** defines:
+- role-scoped shells (Couple, Planner, Guest, Vendor, Gate team, Coordinator, Support);
+- the least-privilege capability matrix;
+- Planner Actions parity with the web workspace;
+- the split between sanitized CI evidence and local-only Private Real Shadow qualification
+  (`scripts/native/private-real-qualification.sh`, `scripts/native/scan-private-pii.sh`).
+
+Sanitized screenshots are never evidence of Private Real Shadow fidelity.
+
 ## Current real-wedding Shadow execution directive
 
 **CHARITY_KUDZIE_REAL_WEDDING_SHADOW_DISCOVERY_AND_SNAPSHOT_DIRECTIVE_2026-09-18.md**
