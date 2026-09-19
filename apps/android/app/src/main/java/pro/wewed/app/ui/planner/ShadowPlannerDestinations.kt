@@ -93,14 +93,19 @@ fun ShadowBudgetDestination(appViewModel: AppViewModel, onBack: () -> Unit) {
 private fun FinanceValue(label: String, amount: Double, modifier: Modifier = Modifier) {
     Column(modifier = modifier) {
         Text(label, fontSize = 9.sp, color = Color.Gray)
-        Text("\${amount.toInt()}", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        Text(formatUsd(amount), fontSize = 11.sp, fontWeight = FontWeight.Bold)
     }
 }
+
+private fun formatUsd(amount: Double): String =
+    String.format(java.util.Locale.US, "$%,.0f", amount)
 
 @Composable
 fun ShadowContributionsDestination(appViewModel: AppViewModel, onBack: () -> Unit) {
     var records by remember { mutableStateOf<List<PlannerContributionRecord>>(emptyList()) }
     LaunchedEffect(Unit) { records = appViewModel.plannerRepository.getContributions() }
+
+    val hasMonetaryValues = records.any { it.value > 0.0 }
 
     PlannerSubScreenScaffold(title = "Contributions", onBack = onBack) { padding ->
         LazyColumn(
@@ -120,8 +125,17 @@ fun ShadowContributionsDestination(appViewModel: AppViewModel, onBack: () -> Uni
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Column {
-                            Text("\${total.toInt()}", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = WewedColors.Emerald)
-                            Text("recorded contribution value", fontSize = 11.sp, color = Color.Gray)
+                            Text(
+                                if (hasMonetaryValues) formatUsd(total) else records.size.toString(),
+                                fontSize = 26.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = WewedColors.Emerald
+                            )
+                            Text(
+                                if (hasMonetaryValues) "recorded contribution value" else "memories, blessings & stories",
+                                fontSize = 11.sp,
+                                color = Color.Gray
+                            )
                         }
                         Column(horizontalAlignment = Alignment.End) {
                             Text("$unverified", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = if (unverified > 0) WewedColors.Warning else WewedColors.Emerald)
@@ -140,18 +154,20 @@ fun ShadowContributionsDestination(appViewModel: AppViewModel, onBack: () -> Uni
                     Column(modifier = Modifier.padding(WewedSpacing.base), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(record.contributorLabel, fontWeight = FontWeight.SemiBold)
-                            Text("\${record.value.toInt()}", fontWeight = FontWeight.Bold, color = WewedColors.Emerald)
+                            if (record.value > 0.0) {
+                                Text(formatUsd(record.value), fontWeight = FontWeight.Bold, color = WewedColors.Emerald)
+                            }
                         }
                         Text(record.typeLabel, fontSize = 11.sp, color = Color.Gray)
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        if (record.allocationLabel.isNotBlank()) {
                             Text(record.allocationLabel, fontSize = 10.sp, color = WewedColors.Gold)
-                            Text(
-                                record.statusLabel,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (record.verified) WewedColors.Emerald else WewedColors.Warning
-                            )
                         }
+                        Text(
+                            record.statusLabel,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (record.verified) WewedColors.Emerald else WewedColors.Warning
+                        )
                     }
                 }
             }
