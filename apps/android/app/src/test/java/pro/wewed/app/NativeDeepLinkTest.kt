@@ -6,6 +6,8 @@ import org.junit.Test
 import pro.wewed.app.models.InvitationDeepLink
 import pro.wewed.app.models.NativeDeepLink
 import pro.wewed.app.models.NativeDeepLinkParser
+import pro.wewed.app.state.AppTab
+import pro.wewed.app.state.AppViewModel
 
 class NativeDeepLinkTest {
     @Test
@@ -52,6 +54,37 @@ class NativeDeepLinkTest {
                 "http://wewed.pro/invite/charity-and-kudzie?rsvp=guest-token-123"
             )
         )
+    }
+
+    @Test
+    fun appViewModelRoutesInvitationBeforeAuthenticationShell() {
+        val state = AppViewModel()
+
+        state.handleIncomingUrl(
+            "wewed://invite/charity-and-kudzie?rsvp=guest-token-123"
+        )
+
+        assertEquals(
+            InvitationDeepLink(
+                weddingSlug = "charity-and-kudzie",
+                rsvpToken = "guest-token-123"
+            ),
+            state.pendingInvitationDeepLink.value
+        )
+        assertEquals(AppTab.HOME, state.selectedTab.value)
+    }
+
+    @Test
+    fun appViewModelRoutesPassWithoutGuestCredentialLeakage() {
+        val state = AppViewModel()
+        state.handleIncomingUrl(
+            "wewed://invite/charity-and-kudzie?rsvp=old-token"
+        )
+
+        state.handleIncomingUrl("wewed://pass/example")
+
+        assertNull(state.pendingInvitationDeepLink.value)
+        assertEquals(AppTab.PASS, state.selectedTab.value)
     }
 
     @Test
