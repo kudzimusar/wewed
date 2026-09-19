@@ -48,6 +48,7 @@ export EXPO_NO_TELEMETRY=1
 export EXPO_PUBLIC_WEWED_API_BASE_URL="${EXPO_PUBLIC_WEWED_API_BASE_URL:-https://wewed.pro}"
 export WEWED_ANDROID_VERSION_CODE="${WEWED_ANDROID_VERSION_CODE:-3}"
 export WEWED_APP_VERSION="${WEWED_APP_VERSION:-2.0.0}"
+export WEWED_ANDROID_PACKAGE_ID="pro.wewed.app"
 export WEWED_REQUIRE_RELEASE_SIGNING=1
 unset WEWED_E2E_MODE
 
@@ -55,6 +56,8 @@ unset WEWED_E2E_MODE
   "This release-candidate script is pinned to Android versionCode 3; got $WEWED_ANDROID_VERSION_CODE"
 [ "$EXPO_PUBLIC_WEWED_API_BASE_URL" = 'https://wewed.pro' ] || fail \
   "Play candidate must use https://wewed.pro; got $EXPO_PUBLIC_WEWED_API_BASE_URL"
+[ "$WEWED_ANDROID_PACKAGE_ID" = 'pro.wewed.app' ] || fail \
+  "Play candidate must use pro.wewed.app; got $WEWED_ANDROID_PACKAGE_ID"
 
 printf 'Upload certificate verified: %s\n' "$EXPECTED_UPLOAD_SHA256"
 printf 'Generating native Android project for Wewed %s (versionCode %s)...\n' \
