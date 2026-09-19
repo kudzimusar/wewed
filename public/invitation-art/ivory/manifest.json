@@ -1,0 +1,74 @@
+{
+  "canvas": [
+    1080,
+    2340
+  ],
+  "sources": {
+    "closed": {
+      "sha256": "1bca1e8befd2e35cfbde323197707e8f09354da6b5bc1d23f16bb2e6d5c0b6aa",
+      "crop": [
+        183,
+        144,
+        648,
+        1292
+      ],
+      "provenance": "Original approved session PNG"
+    },
+    "open": {
+      "sha256": "a2a2681887f00eee81bb7abe0d32dd5f8a0f60130a8e4a9c8b793587ee367eb7",
+      "crop": [
+        54,
+        108,
+        814,
+        1530
+      ],
+      "provenance": "Original approved session PNG"
+    },
+    "details": {
+      "sha256": "3f4d2ecb0007e4892fe664235148dc89268c6e59ef15e2211dfbab57d921b942",
+      "crop": [
+        48,
+        92,
+        758,
+        1705
+      ],
+      "provenance": "Original approved session PNG"
+    },
+    "opening": {
+      "sha256": "708db0d4f6d0c2a235b41241f598312a49af108986ac8abc23a5234935f4f270",
+      "crop": [
+        20,
+        355,
+        1030,
+        1695
+      ],
+      "provenance": "Embedded raster extracted from charity_kudzie_opening_view_mobile.pdf"
+    }
+  },
+  "normalized": {
+    "closed": {
+      "x": 0,
+      "y": 93,
+      "width": 1080,
+      "height": 2153
+    },
+    "open": {
+      "x": 0,
+      "y": 155,
+      "width": 1080,
+      "height": 2030
+    },
+    "details": {
+      "x": 20,
+      "y": 0,
+      "width": 1040,
+      "height": 2340
+    },
+    "opening": {
+      "x": 0,
+      "y": 281,
+      "width": 1080,
+      "height": 1777
+    }
+  }
+}

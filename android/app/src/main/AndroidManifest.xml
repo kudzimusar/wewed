@@ -77,6 +77,12 @@
             <meta-data android:name="android.support.customtabs.trusted.DEFAULT_URL"
                 android:value="@string/launchUrl" />
 
+            <!-- A second personal invitation must navigate the already-running TWA
+                 instead of merely foregrounding the previous guest's page. -->
+            <meta-data
+                android:name="android.support.customtabs.trusted.LAUNCH_HANDLER_CLIENT_MODE"
+                android:value="navigate-existing" />
+
             <meta-data
                 android:name="android.support.customtabs.trusted.STATUS_BAR_COLOR"
                 android:resource="@color/colorPrimary" />
@@ -146,6 +152,19 @@
                     android:host="@string/hostName"
 
                 />
+            </intent-filter>
+
+            <!-- Package-targeted invitation bridge. Chrome carries only the opaque,
+                 one-time handoff; LauncherActivity maps it to the environment-safe
+                 HTTPS resume endpoint before launching the TWA. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data
+                    android:scheme="wewed"
+                    android:host="invite"
+                    android:path="/resume" />
             </intent-filter>
 
 

@@ -2,11 +2,16 @@
 
 import { describe, expect, test } from 'bun:test'
 import {
+  buildAndroidInvitationIntentUrl,
   buildInvitationContinuePath,
   buildInvitationResumePath,
+  buildPhysicalInvitationResumePath,
+  buildPhysicalPlayStoreInstallUrl,
   buildPlayStoreInstallUrl,
   buildSmartInvitationUrl,
   isValidInvitationHandoffSecret,
+  isValidPhysicalInvitationHandoff,
+  resolveAndroidIntentPackage,
 } from '@/lib/invitation-links'
 
 describe('smart invitation links', () => {
@@ -39,7 +44,7 @@ describe('smart invitation links', () => {
     ).toBe('/invite/charity-and-kudzie/continue')
   })
 
-  test('puts only an opaque handoff into the Google Play referrer', () => {
+  test('puts only an opaque personal handoff into the Google Play referrer', () => {
     const handoff = 'E7kP3tQv9x2mABCDEFGHIJKLMN0123456789_-abcde'
     expect(handoff).toHaveLength(43)
     const url = buildPlayStoreInstallUrl(handoff)
@@ -53,11 +58,78 @@ describe('smart invitation links', () => {
     expect(url).not.toContain('wedding=')
   })
 
-  test('builds a one-time resume path without wedding identity', () => {
-    const handoff = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
-    expect(buildInvitationResumePath(handoff)).toBe(
-      `/invite/resume?h=${handoff}`,
+  test('puts the encrypted shared physical handoff in its own Play referrer key', () => {
+    const handoff = `p1.${'A'.repeat(120)}`
+    expect(isValidPhysicalInvitationHandoff(handoff)).toBe(true)
+    const url = buildPhysicalPlayStoreInstallUrl(handoff)
+    const play = new URL(url)
+    expect(play.searchParams.get('id')).toBe('pro.wewed.app')
+    const referrer = new URLSearchParams(play.searchParams.get('referrer') || '')
+    expect([...referrer.keys()]).toEqual(['physical_handoff'])
+    expect(referrer.get('physical_handoff')).toBe(handoff)
+    expect(url).not.toContain('rsvp=')
+    expect(url).not.toContain('guest=')
+    expect(url).not.toContain('email=')
+  })
+
+  test('builds personal and physical resume paths without wedding identity', () => {
+    const personal = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
+    const physical = `p1.${'B'.repeat(120)}`
+    expect(buildInvitationResumePath(personal)).toBe(`/invite/resume?h=${personal}`)
+    expect(buildPhysicalInvitationResumePath(physical)).toBe(
+      `/invite/physical-resume?h=${physical}`,
     )
+  })
+
+
+  test('keeps installed Android invitation handoff on the active Wewed origin', () => {
+    const handoff = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
+    const path = buildInvitationResumePath(handoff)
+
+    const uat = buildAndroidInvitationIntentUrl({
+      origin: 'https://uat.wewed.pro',
+      appResumePath: path,
+      fallbackUrl: 'https://uat.wewed.pro/invite/example/open',
+    })
+    expect(uat).toBe(
+      `intent://invite/resume#Intent;scheme=wewed;package=pro.wewed.app;S.wewed_handoff=${handoff};S.browser_fallback_url=${encodeURIComponent('https://uat.wewed.pro/invite/example/open')};end`,
+    )
+    expect(uat).not.toContain('rsvp=')
+    expect(uat).not.toContain('guest=')
+    expect(uat).not.toContain('email=')
+    expect(uat).not.toContain('wedding=')
+
+    const production = buildAndroidInvitationIntentUrl({
+      origin: 'https://wewed.pro',
+      appResumePath: path,
+      fallbackUrl: 'https://wewed.pro/invite/example/open',
+    })
+    expect(production).toContain('intent://invite/resume#Intent;scheme=wewed;')
+    expect(production).toContain(`S.wewed_handoff=${handoff}`)
+    expect(production).toContain(
+      `S.browser_fallback_url=${encodeURIComponent('https://wewed.pro/invite/example/open')}`,
+    )
+  })
+
+  test('rejects cross-origin Android invitation resume construction', () => {
+    const handoff = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
+    expect(() =>
+      buildAndroidInvitationIntentUrl({
+        origin: 'https://uat.wewed.pro',
+        appResumePath: `https://wewed.pro/invite/resume?h=${handoff}`,
+        fallbackUrl: 'https://uat.wewed.pro/invite/example/open',
+      }),
+    ).toThrow('current Wewed origin')
+  })
+
+  test('targets the Play package unless a local UAT intent package is explicitly allowed', () => {
+    expect(resolveAndroidIntentPackage(undefined, undefined)).toBe('pro.wewed.app')
+    expect(resolveAndroidIntentPackage('', 'preview')).toBe('pro.wewed.app')
+    expect(resolveAndroidIntentPackage('pro.wewed.app.uatdev', undefined)).toBe('pro.wewed.app.uatdev')
+    expect(resolveAndroidIntentPackage(' pro.wewed.app.uatdev ', 'preview')).toBe('pro.wewed.app.uatdev')
+    expect(resolveAndroidIntentPackage('pro.wewed.app.dev', undefined)).toBe('pro.wewed.app')
+    expect(resolveAndroidIntentPackage('com.attacker.app', undefined)).toBe('pro.wewed.app')
+    expect(resolveAndroidIntentPackage('pro.wewed.app.uatdev', 'production')).toBe('pro.wewed.app')
   })
 
   test('rejects malformed deferred handoff values', () => {
@@ -65,7 +137,12 @@ describe('smart invitation links', () => {
     expect(isValidInvitationHandoffSecret('A'.repeat(42))).toBe(false)
     expect(isValidInvitationHandoffSecret('A'.repeat(44))).toBe(false)
     expect(isValidInvitationHandoffSecret('A'.repeat(42) + '!')).toBe(false)
+    expect(isValidPhysicalInvitationHandoff(`p1.${'A'.repeat(80)}`)).toBe(true)
+    expect(isValidPhysicalInvitationHandoff(`p1.${'A'.repeat(79)}`)).toBe(false)
+    expect(isValidPhysicalInvitationHandoff(`p1.${'A'.repeat(513)}`)).toBe(false)
     expect(() => buildPlayStoreInstallUrl('not-valid')).toThrow()
     expect(() => buildInvitationResumePath('not-valid')).toThrow()
+    expect(() => buildPhysicalPlayStoreInstallUrl('not-valid')).toThrow()
+    expect(() => buildPhysicalInvitationResumePath('not-valid')).toThrow()
   })
 })

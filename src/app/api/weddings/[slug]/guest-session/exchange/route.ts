@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { normalizeInvitationCardStyle } from '@/lib/digital-invitation-card'
 import { setWeddingGuestSessionCookie } from '@/lib/wedding-guest-session'
+import {
+  mergeWeddingGuestPortfolio,
+  readWeddingGuestPortfolio,
+  setWeddingGuestPortfolioCookie,
+} from '@/lib/wedding-guest-portfolio'
 
 interface Params {
   params: Promise<{ slug: string }>
@@ -25,7 +30,6 @@ function redirectToGateway(slug: string, error: string) {
 export async function GET(request: NextRequest, { params }: Params) {
   const { slug } = await params
   const token = request.nextUrl.searchParams.get('token')?.trim() || ''
-  const requestedCard = request.nextUrl.searchParams.get('card')
 
   if (!token) {
     return redirectToGateway(slug, 'missing')
@@ -58,10 +62,12 @@ export async function GET(request: NextRequest, { params }: Params) {
     return redirectToGateway(slug, 'invalid')
   }
 
-  const requestedStyle = requestedCard
-    ? normalizeInvitationCardStyle(requestedCard)
-    : normalizeInvitationCardStyle(rsvp.guest.wedding.invitationCardStyle)
-  const query = new URLSearchParams({ invitation: '1', card: requestedStyle })
+  // The wedding's saved style is authoritative. Guest-facing URLs are access
+  // credentials, not design selectors, and may be long-lived or forwarded.
+  const invitationStyle = normalizeInvitationCardStyle(
+    rsvp.guest.wedding.invitationCardStyle,
+  )
+  const query = new URLSearchParams({ invitation: '1', card: invitationStyle })
   const response = relativeRedirect(
     `/w/${encodeURIComponent(slug)}?${query.toString()}`,
   )
@@ -70,6 +76,15 @@ export async function GET(request: NextRequest, { params }: Params) {
     guestId: rsvp.guest.id,
     rsvpToken: rsvp.token,
   })
+  setWeddingGuestPortfolioCookie(
+    response,
+    mergeWeddingGuestPortfolio(readWeddingGuestPortfolio(request), {
+      weddingId: rsvp.guest.wedding.id,
+      weddingSlug: rsvp.guest.wedding.slug,
+      guestId: rsvp.guest.id,
+      invitationCardStyle: invitationStyle,
+    }),
+  )
   response.headers.set('Vary', 'Cookie')
   return response
 }

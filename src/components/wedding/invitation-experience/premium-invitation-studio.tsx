@@ -13,27 +13,33 @@ import {
   type InvitationCardStyle,
 } from '@/lib/digital-invitation-card'
 
+type ChildrenPolicy = 'welcome' | 'adults_only'
+
 export function PremiumInvitationStudio({
   data,
   style,
   message,
   deadline,
+  childrenPolicy,
   saved,
   busy,
   onStyleChange,
   onMessageChange,
   onDeadlineChange,
+  onChildrenPolicyChange,
   onSave,
 }: {
   data: DigitalInvitationCardData
   style: InvitationCardStyle
   message: string
   deadline: string
+  childrenPolicy: ChildrenPolicy
   saved: boolean
   busy: boolean
   onStyleChange: (style: InvitationCardStyle) => void
   onMessageChange: (message: string) => void
   onDeadlineChange: (deadline: string) => void
+  onChildrenPolicyChange: (policy: ChildrenPolicy) => void
   onSave: () => void
 }) {
   const [device, setDevice] = useState<'mobile' | 'desktop'>('mobile')
@@ -138,10 +144,26 @@ export function PremiumInvitationStudio({
             </div>
           </div>
 
-          <div className="mt-4 max-w-[15rem] space-y-2">
-            <Label htmlFor="invitation-rsvp-deadline">RSVP deadline</Label>
-            <Input id="invitation-rsvp-deadline" type="date" value={deadline} max={String(data.date).slice(0, 10)} onChange={(event) => onDeadlineChange(event.target.value)} />
-            <p className="text-[10px] leading-4 text-espresso/45">Optional. It cannot be later than the wedding date.</p>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="invitation-rsvp-deadline">RSVP deadline</Label>
+              <Input id="invitation-rsvp-deadline" type="date" value={deadline} max={String(data.date).slice(0, 10)} onChange={(event) => onDeadlineChange(event.target.value)} />
+              <p className="text-[10px] leading-4 text-espresso/45">Optional. It cannot be later than the wedding date.</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="invitation-children-policy">Children policy</Label>
+              <select
+                id="invitation-children-policy"
+                data-testid="invitation-children-policy"
+                value={childrenPolicy}
+                onChange={(event) => onChildrenPolicyChange(event.target.value as ChildrenPolicy)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              >
+                <option value="welcome">Children welcome</option>
+                <option value="adults_only">Adults-only celebration</option>
+              </select>
+              <p className="text-[10px] leading-4 text-espresso/45">Adults-only hides child attendance controls and politely informs invited guests.</p>
+            </div>
           </div>
         </div>
       </div>

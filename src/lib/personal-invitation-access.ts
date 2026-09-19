@@ -18,7 +18,6 @@ export interface ResolvedPersonalInvitation {
 export async function resolvePersonalInvitation({
   weddingSlug,
   token,
-  requestedCard,
 }: {
   weddingSlug: string
   token: string
@@ -57,8 +56,8 @@ export async function resolvePersonalInvitation({
     weddingTitle: rsvp.guest.wedding.title,
     guestId: rsvp.guest.id,
     rsvpToken: rsvp.token,
-    card: requestedCard
-      ? normalizeInvitationCardStyle(requestedCard)
-      : normalizeInvitationCardStyle(rsvp.guest.wedding.invitationCardStyle),
+    // The wedding's saved style is authoritative. Personal links can be long-lived,
+    // so a stale or edited card query must not resurrect an obsolete design.
+    card: normalizeInvitationCardStyle(rsvp.guest.wedding.invitationCardStyle),
   }
 }

@@ -10,6 +10,8 @@ export interface DigitalInvitationCardData {
   tagline?: string | null
   date: string | Date
   venue: string
+  venueMapUrl?: string | null
+  venueAddress?: string | null
   venueCity?: string | null
   venueCountry?: string | null
   guestName?: string | null

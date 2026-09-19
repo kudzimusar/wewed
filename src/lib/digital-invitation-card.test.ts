@@ -116,14 +116,17 @@ describe('digital invitation card delivery', () => {
     expect(delivery).not.toContain('`${siteUrl}/?rsvp=')
   })
 
-  test('QR exchange preserves the selected card but strips the RSVP credential', () => {
+  test('guest exchange strips the RSVP credential and ignores stale card overrides', () => {
     const page = source('src/app/w/[slug]/page.tsx')
     const exchange = source(
       'src/app/api/weddings/[slug]/guest-session/exchange/route.ts',
     )
-    expect(page).toContain("exchangeQuery.set('card', normalizeInvitationCardStyle(query.card))")
+    expect(page).not.toContain("exchangeQuery.set('card', normalizeInvitationCardStyle(query.card))")
+    expect(page).toContain('normalizeInvitationCardStyle(wedding.invitationCardStyle)')
+    expect(exchange).not.toContain("searchParams.get('card')")
+    expect(exchange).toContain('rsvp.guest.wedding.invitationCardStyle')
+    expect(exchange).toContain('card: invitationStyle')
     expect(exchange).toContain("invitation: '1'")
-    expect(exchange).toContain('card: requestedStyle')
     expect(exchange).toContain('relativeRedirect')
   })
 

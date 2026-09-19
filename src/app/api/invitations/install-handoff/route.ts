@@ -1,3 +1,4 @@
+import { previewWriteError } from '@/lib/preview-write-response'
 import { NextRequest, NextResponse } from 'next/server'
 import {
   createInvitationInstallHandoff,
@@ -81,6 +82,9 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  const blocked = previewWriteError(invitation.weddingId)
+  if (blocked) return blocked
+
   try {
     const handoff = await createInvitationInstallHandoff({
       weddingId: invitation.weddingId,
@@ -90,6 +94,11 @@ export async function POST(request: NextRequest) {
       source: await requestedSource(request),
       ipAddress: clientIp(request),
       userAgent: request.headers.get('user-agent'),
+    })
+
+    console.info('[wewed][invitation-handoff]', {
+      checkpoint: 'handoff_created',
+      handoffId: handoff.id,
     })
 
     return json(
