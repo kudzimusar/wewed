@@ -18,6 +18,11 @@ if command -v adb >/dev/null 2>&1; then
   if [[ -n "$devices" ]]; then
     echo "Provisioning to Android app-private storage..."
     staging="/data/local/tmp/wewed-private-real-shadow.$"
+    cleanup_android_staging() {
+      adb shell rm -f "$staging" >/dev/null 2>&1 || true
+    }
+    trap cleanup_android_staging EXIT
+
     adb push "$SOURCE_FIXTURE" "$staging" >/dev/null
     adb shell chmod 644 "$staging"
 
@@ -32,7 +37,8 @@ if command -v adb >/dev/null 2>&1; then
       fi
     done
 
-    adb shell rm -f "$staging"
+    cleanup_android_staging
+    trap - EXIT
 
     if [[ "$provisioned" != "1" ]]; then
       echo "FAIL: No debuggable Wewed .dev/.uatdev app was available for app-private provisioning."
@@ -50,12 +56,6 @@ if command -v xcrun >/dev/null 2>&1; then
   if [[ -n "$booted_sims" ]]; then
     for sim_udid in $booted_sims; do
       echo "Provisioning to iOS simulator UDID: $sim_udid..."
-      # Simulator sandbox home
-      sim_home="$HOME/Library/Developer/CoreSimulator/Devices/$sim_udid/data"
-      target_dir="$sim_home/.wewed-shadow/charity-kudzie"
-      mkdir -p "$target_dir"
-      cp -f "$SOURCE_FIXTURE" "$target_dir/charity-kudzie-private-real-shadow.json"
-
       # Provision whichever isolated Wewed identity is installed. Private
       # snapshots live in Application Support, never Documents/iCloud.
       ios_bundle_ids=(
@@ -78,7 +78,9 @@ if command -v xcrun >/dev/null 2>&1; then
       if [[ "$ios_provisioned" != "1" ]]; then
         echo "INFO: No isolated iOS .dev/.uatdev app container is installed yet."
       fi
-      echo "PASS: iOS simulator home provisioned at $target_dir"
+      if [[ "$ios_provisioned" == "1" ]]; then
+        echo "PASS: iOS private snapshot exists only inside installed .dev/.uatdev app containers."
+      fi
     done
   else
     echo "INFO: No iOS simulator booted"
