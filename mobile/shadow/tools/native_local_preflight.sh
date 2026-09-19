@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-EXPECTED_BRANCH="native-mobile/shadow-setup-implementation-20260918"
-BASE_REF="origin/native-mobile/shadow-real-wedding-plan-20260918"
+EXPECTED_BRANCH="${WEWED_NATIVE_EXPECTED_BRANCH:-native-mobile/wedding-identity-ui-20260918}"
+BASE_REF="${WEWED_NATIVE_BASE_REF:-origin/native-mobile/shadow-real-wedding-plan-20260918}"
 REMOTE_REF="origin/${EXPECTED_BRANCH}"
 
 ROOT="$(git rev-parse --show-toplevel)"
@@ -47,7 +47,7 @@ fi
 echo "Checking changed-path isolation..."
 outside_scope="$(
   git diff --name-only "$BASE_REF"...HEAD |
-  grep -Ev '^(apps/ios/|apps/android/|mobile/|docs/native-mobile/|\.maestro/|\.gitignore)' || true
+  grep -Ev '^(apps/ios/|apps/android/|mobile/|docs/native-mobile/|\.maestro/|\.github/workflows/native-|\.github/scripts/verify-android-local-package\.sh|\.gitignore)' || true
 )"
 
 if [[ -n "$outside_scope" ]]; then
@@ -73,6 +73,18 @@ echo "== iOS Swift build =="
 )
 
 echo
+echo "== iOS application target =="
+if ! command -v xcodegen >/dev/null 2>&1; then
+  echo "FAIL: xcodegen is required. Install it with: brew install xcodegen"
+  exit 7
+fi
+(
+  cd apps/ios
+  xcodegen generate --spec project.yml
+  xcodebuild     -project Wewed.xcodeproj     -scheme Wewed     -configuration Debug     -sdk iphonesimulator     -destination 'generic/platform=iOS Simulator'     CODE_SIGNING_ALLOWED=NO     build
+)
+
+echo
 echo "== Android unit tests =="
 (
   cd apps/android
@@ -80,15 +92,27 @@ echo "== Android unit tests =="
 )
 
 echo
-echo "== Android debug assembly =="
+echo "== Android debug + release assembly =="
 (
   cd apps/android
-  ./gradlew assembleDebug
+  ./gradlew assembleDebug assembleRelease
 )
 
 echo
 echo "== Android local package isolation =="
 bash .github/scripts/verify-android-local-package.sh apps/android/app/build/outputs/apk/debug pro.wewed.app.dev
+
+release_metadata="apps/android/app/build/outputs/apk/release/output-metadata.json"
+test -f "$release_metadata" || {
+  echo "FAIL: Android release metadata missing"
+  exit 8
+}
+release_package="$(sed -n 's/.*"applicationId"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$release_metadata" | head -n 1)"
+test "$release_package" = "pro.wewed.app" || {
+  echo "FAIL: Android release package is '$release_package'; expected pro.wewed.app"
+  exit 9
+}
+echo "PASS: Android release package remains pro.wewed.app"
 
 echo
 echo "PASS: non-simulator native qualification complete"
