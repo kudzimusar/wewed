@@ -110,9 +110,20 @@ android {
     }
 
     buildTypes {
+        // Local builds never share the Play identity (pro.wewed.app): a debug-signed APK
+        // installed over the Play copy blocks every Play update on that device. The
+        // suffix is also distinct from pro.wewed.app.dev, the native Compose debug app.
+        debug {
+            applicationIdSuffix ".twadev"
+            versionNameSuffix "-twadev"
+            resValue "string", "providerAuthority", "pro.wewed.app.twadev.fileprovider"
+        }
         uat {
             initWith debug
             matchingFallbacks = ['debug']
+            applicationIdSuffix ".uatdev"
+            versionNameSuffix "-uatdev"
+            resValue "string", "providerAuthority", "pro.wewed.app.uatdev.fileprovider"
             buildConfigField "boolean", "UAT", "true"
             buildConfigField "String", "INVITATION_RESUME_ORIGIN", "\"${uatResumeOrigin}\""
             resValue "string", "appName", "Wewed UAT"
