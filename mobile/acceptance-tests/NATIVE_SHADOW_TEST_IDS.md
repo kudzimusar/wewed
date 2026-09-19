@@ -6,6 +6,15 @@ They are intentionally semantic and stable. Maestro and platform UI tests should
 
 ## Couple shell
 
+### Environment provenance
+
+| Capability | Identifier |
+|---|---|
+| Explicit Private Real Shadow source | `shadow-source-private-real-shadow` |
+| Explicit Sanitized Shadow source | `shadow-source-sanitized-shadow` |
+
+These identifiers expose only the selected data environment. They must never contain guest names, tokens, file paths, or other private snapshot values.
+
 ### Home
 
 | Capability | Identifier |
@@ -27,6 +36,7 @@ They are intentionally semantic and stable. Maestro and platform UI tests should
 | Planner identity | `planner-identity-card` |
 | Tasks module | `planner-module-tasks` |
 | Budget module | `planner-module-budget` |
+| Contributions module | `planner-module-contributions` |
 | Vendors module | `planner-module-vendors` |
 | Seating module | `planner-module-seating` |
 | Timeline module | `planner-module-timeline` |
