@@ -11,6 +11,7 @@ public actor PrivateRealShadowPlannerRepository: PlannerDashboardRepositoryProto
     private let weddingTitle: String
     private let weddingId: String
     private let weddingDate: String
+    private let weddingVenue: String
     private let weddingLifecycle: String
     private let plannerTitle: String
     private let doneTasksCount: Int
@@ -44,12 +45,14 @@ public actor PrivateRealShadowPlannerRepository: PlannerDashboardRepositoryProto
               let wId = weddingDict["id"] as? String, !wId.isEmpty,
               let coupleTitle = weddingDict["title"] as? String, !coupleTitle.isEmpty,
               let dateStr = weddingDict["dateRaw"] as? String, !dateStr.isEmpty,
+              let venueStr = weddingDict["venue"] as? String, !venueStr.isEmpty,
               let lifecycleStr = weddingDict["lifecycle"] as? String, !lifecycleStr.isEmpty else {
             throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required wedding metadata missing in private real shadow fixture.")
         }
         self.weddingId = wId
         self.weddingTitle = coupleTitle
         self.weddingDate = dateStr
+        self.weddingVenue = venueStr
         self.weddingLifecycle = lifecycleStr
 
         guard let plannerDict = json["planner"] as? [String: Any],
@@ -175,7 +178,11 @@ public actor PrivateRealShadowPlannerRepository: PlannerDashboardRepositoryProto
                   let status = item["status"] as? String, !status.isEmpty else {
                 throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required contribution fields missing in private real shadow fixture.")
             }
-            let contributorName = guestNameMap[guestId] ?? "Guest"
+            guard let contributorName = guestNameMap[guestId] else {
+                throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing(
+                    "Contribution \(id) references unknown guest \(guestId)."
+                )
+            }
             let formattedType = type.replacingOccurrences(of: "_", with: " ").capitalized
             let formattedStatus = status.replacingOccurrences(of: "_", with: " ").capitalized
             let contributionText = ["message", "content", "story", "note", "text"]
@@ -210,7 +217,15 @@ public actor PrivateRealShadowPlannerRepository: PlannerDashboardRepositoryProto
             guard free >= 0 else {
                 throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Integrity failure: table \(name) assigned capacity \(assigned) exceeds table capacity \(cap).")
             }
-            let zone = name.contains("Family") ? "Family" : (name.contains("Bridal") ? "Bridal Party" : (name.contains("VIP") ? "VIP" : (name.contains("Colleagues") ? "Colleagues" : "Friends")))
+            let sourceZone = (item["zone"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
+            let zone = sourceZone ?? (
+                name.localizedCaseInsensitiveContains("Family") ? "Family" :
+                name.localizedCaseInsensitiveContains("Bridal") ? "Bridal Party" :
+                name.localizedCaseInsensitiveContains("VIP") ? "VIP" :
+                name.localizedCaseInsensitiveContains("Colleagues") ? "Colleagues" :
+                name.localizedCaseInsensitiveContains("Friends") ? "Friends" :
+                "Not recorded"
+            )
             return PlannerSeatingTable(
                 id: id,
                 name: name,
@@ -336,13 +351,14 @@ public actor PrivateRealShadowPlannerRepository: PlannerDashboardRepositoryProto
                   let title = item["title"] as? String, !title.isEmpty else {
                 throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required programme fields missing in private real shadow fixture.")
             }
-            let loc = (item["location"] as? String) ?? "Imba Manor"
+            let loc = (item["location"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank ?? weddingVenue
             return PlannerTimelineEntry(
                 id: id,
                 time: time,
                 title: title,
                 location: loc,
-                statusLabel: "23 Dec 2026",
+                statusLabel: weddingDate,
                 linkedVendor: nil
             )
         }
