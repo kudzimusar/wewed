@@ -1,12 +1,10 @@
 const SAFE_HTTP_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
-const PR202_UAT_BRANCH = 'feature/private-invitation-android-delivery-20260912'
-const PR202_UAT_WEDDING_ID = 'wewed-pr202-uat-20260912'
-
 export interface PreviewWriteSafetyInput {
   method: string
   weddingId: string
   vercelEnvironment?: string
   writablePreviewWeddingId?: string
+  /** @deprecated Branch identity never authorizes preview writes. */
   gitCommitRef?: string
 }
 
@@ -15,27 +13,25 @@ export interface PreviewWriteSafetyInput {
  * but reject planner mutations unless the deployment is explicitly scoped to
  * one non-production UAT wedding.
  *
- * PR #202 predates the writable-preview environment variable on uat.wewed.pro,
- * so its dedicated synthetic wedding is allowed only on that exact preview
- * branch. This keeps every real wedding read-only while manual UAT completes.
+ * Preview branch identity is never an authorization boundary. A preview may
+ * mutate data only when WEWED_PREVIEW_WRITABLE_WEDDING_ID explicitly names
+ * the wedding being mutated. This keeps all other production-backed preview
+ * data read-only, including stale or forgotten PR branches.
  */
 export function shouldBlockPreviewWrite({
   method,
   weddingId,
   vercelEnvironment = process.env.VERCEL_ENV,
   writablePreviewWeddingId = process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID,
-  gitCommitRef = process.env.VERCEL_GIT_COMMIT_REF,
+  gitCommitRef: _gitCommitRef = process.env.VERCEL_GIT_COMMIT_REF,
 }: PreviewWriteSafetyInput): boolean {
   if (SAFE_HTTP_METHODS.has(method.toUpperCase())) return false
   if (vercelEnvironment !== 'preview') return false
 
   const allowedWeddingId = writablePreviewWeddingId?.trim()
-  if (allowedWeddingId) return allowedWeddingId !== weddingId
+  if (!allowedWeddingId) return true
 
-  const isPr202SyntheticUat =
-    gitCommitRef === PR202_UAT_BRANCH && weddingId === PR202_UAT_WEDDING_ID
-
-  return !isPr202SyntheticUat
+  return allowedWeddingId !== weddingId
 }
 
 export const PREVIEW_WRITE_BLOCK_MESSAGE =
