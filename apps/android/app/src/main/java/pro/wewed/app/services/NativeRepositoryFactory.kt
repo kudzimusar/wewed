@@ -1,5 +1,6 @@
 package pro.wewed.app.services
 
+import pro.wewed.app.BuildConfig
 import pro.wewed.app.models.NativeDataEnvironment
 
 sealed class NativeRepositoryFactoryError(message: String) : IllegalStateException(message) {
@@ -8,6 +9,9 @@ sealed class NativeRepositoryFactoryError(message: String) : IllegalStateExcepti
 
     data object ProductionDisabled :
         NativeRepositoryFactoryError("Production native repositories are disabled during the shadow parity sprint.")
+
+    data object ShadowOnProductionIdentityForbidden :
+        NativeRepositoryFactoryError("Mutable native Shadow runtimes may not execute under the Google Play package identity.")
 
     class PrivateRealShadowFixtureMissing(message: String) :
         NativeRepositoryFactoryError(message)
@@ -25,6 +29,9 @@ object NativeRepositoryFactory {
         environment: NativeDataEnvironment,
         baseUrl: String? = null
     ): NativeRepositoryBundle {
+        if (BuildConfig.APPLICATION_ID == "pro.wewed.app" && environment.allowsMutableNativeDevelopment) {
+            throw NativeRepositoryFactoryError.ShadowOnProductionIdentityForbidden
+        }
         NativeEnvironmentGuard.validate(baseUrl, environment)
 
         return when (environment) {
