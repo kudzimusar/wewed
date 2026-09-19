@@ -293,3 +293,68 @@ fun ShadowTimelineDestination(appViewModel: AppViewModel, onBack: () -> Unit) {
         }
     }
 }
+
+
+@Composable
+fun ShadowDocumentsDestination(appViewModel: AppViewModel, onBack: () -> Unit) {
+    var records by remember { mutableStateOf<List<PlannerDocumentRecord>>(emptyList()) }
+    var loaded by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        records = appViewModel.plannerRepository.getDocuments()
+        loaded = true
+    }
+
+    PlannerSubScreenScaffold(title = "Documents", onBack = onBack) { padding ->
+        if (loaded && records.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .testTag("planner-documents-root"),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Documents", fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "No contracts or documents recorded for this wedding.",
+                        color = Color.Gray,
+                        fontSize = 13.sp
+                    )
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(horizontal = WewedSpacing.base)
+                    .testTag("planner-documents-root"),
+                verticalArrangement = Arrangement.spacedBy(WewedSpacing.md)
+            ) {
+                items(records) { record ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(WewedRadius.lg),
+                        colors = CardDefaults.cardColors(containerColor = Color.White)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(WewedSpacing.base),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(record.title, fontWeight = FontWeight.SemiBold)
+                                Text(record.kind, fontSize = 11.sp, color = Color.Gray)
+                            }
+                            record.statusLabel?.let {
+                                Text(it, fontSize = 10.sp, color = WewedColors.Emerald, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
