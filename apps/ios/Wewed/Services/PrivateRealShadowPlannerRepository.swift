@@ -7,6 +7,7 @@ public actor PrivateRealShadowPlannerRepository: PlannerDashboardRepositoryProto
     private let vendorEngagements: [PlannerVendorEngagement]
     private let seatingTables: [PlannerSeatingTable]
     private let timelineEntries: [PlannerTimelineEntry]
+    private let documents: [PlannerDocumentRecord]
     private let weddingTitle: String
     private let weddingId: String
     private let weddingDate: String
@@ -345,6 +346,54 @@ public actor PrivateRealShadowPlannerRepository: PlannerDashboardRepositoryProto
                 linkedVendor: nil
             )
         }
+
+
+        // Documents / contracts. The current account is expected to have zero rows,
+        // but the destination remains connected to the selected private snapshot.
+        var mappedDocuments: [PlannerDocumentRecord] = []
+
+        if let contractsRaw = json["contracts"] as? [[String: Any]] {
+            for item in contractsRaw {
+                guard let id = item["id"] as? String, !id.isEmpty else {
+                    throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing(
+                        "Contract row missing id in private real shadow fixture."
+                    )
+                }
+                let title = ["title", "name", "contractType", "serviceDescription"]
+                    .compactMap { (item[$0] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank }
+                    .first ?? "Contract"
+                let status = ["status", "contractStatus", "lifecycleStatus"]
+                    .compactMap { (item[$0] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank }
+                    .first?
+                    .replacingOccurrences(of: "_", with: " ")
+                    .capitalized
+                mappedDocuments.append(
+                    PlannerDocumentRecord(id: id, title: title, kind: "Contract", statusLabel: status)
+                )
+            }
+        }
+
+        if let vaultRaw = json["vaultObjects"] as? [[String: Any]] {
+            for item in vaultRaw {
+                guard let id = item["id"] as? String, !id.isEmpty else {
+                    throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing(
+                        "Vault object row missing id in private real shadow fixture."
+                    )
+                }
+                let title = ["title", "name", "fileName", "objectName"]
+                    .compactMap { (item[$0] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank }
+                    .first ?? "Document"
+                let status = ["status", "state"]
+                    .compactMap { (item[$0] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank }
+                    .first?
+                    .replacingOccurrences(of: "_", with: " ")
+                    .capitalized
+                mappedDocuments.append(
+                    PlannerDocumentRecord(id: id, title: title, kind: "Document", statusLabel: status)
+                )
+            }
+        }
+        self.documents = mappedDocuments
     }
 
     public func getDashboard() async throws -> PlannerDashboardSnapshot {
@@ -382,6 +431,7 @@ public actor PrivateRealShadowPlannerRepository: PlannerDashboardRepositoryProto
     public func getVendorEngagements() async throws -> [PlannerVendorEngagement] { vendorEngagements }
     public func getSeatingTables() async throws -> [PlannerSeatingTable] { seatingTables }
     public func getTimelineEntries() async throws -> [PlannerTimelineEntry] { timelineEntries }
+    public func getDocuments() async throws -> [PlannerDocumentRecord] { documents }
 }
 
 
