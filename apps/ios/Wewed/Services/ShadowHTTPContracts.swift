@@ -113,4 +113,10 @@ public struct ShadowPlannerHTTPRepository: PlannerDashboardRepositoryProtocol {
             from: await transport.get(path: ShadowEndpoint.plannerTimeline)
         )
     }
+
+    public func getDocuments() async throws -> [PlannerDocumentRecord] {
+        // The HTTP Shadow contract has no documents endpoint yet. Private Real Shadow
+        // reads contracts/vault objects directly from the selected local account graph.
+        []
+    }
 }
