@@ -24,13 +24,26 @@ android {
         debug {
             applicationIdSuffix = ".dev"
             versionNameSuffix = "-dev"
+            resValue("string", "app_name", "Wewed Dev")
         }
         release {
+            resValue("string", "app_name", "Wewed")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+    }
+
+    androidComponents {
+        onVariants { variant ->
+            val resolvedApplicationId = variant.applicationId.get()
+            if (resolvedApplicationId == "pro.wewed.app" && variant.buildType != "release") {
+                throw GradleException(
+                    "Refusing to build ${variant.name}: pro.wewed.app is reserved for signed release distribution."
+                )
+            }
         }
     }
 
