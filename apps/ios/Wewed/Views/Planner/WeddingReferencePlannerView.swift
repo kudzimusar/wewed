@@ -124,6 +124,15 @@ public struct WeddingReferencePlannerView: View {
                 plannerRow(title: "Budget", subtitle: moduleSubtitle("budget"), icon: "wallet.pass", identifier: "planner-module-budget") {
                     selectedSection = .budget
                 }
+
+                NavigationLink {
+                    ShadowPlannerContributionsView()
+                } label: {
+                    referenceRow(title: "Contributions", subtitle: moduleSubtitle("contributions"), icon: "gift")
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("planner-module-contributions")
+
                 plannerRow(title: "Vendors", subtitle: moduleSubtitle("vendors"), icon: "storefront", identifier: "planner-module-vendors") {
                     selectedSection = .vendors
                 }
@@ -274,7 +283,7 @@ private struct ReferenceDocumentsEmptyState: View {
                 Text("Documents")
                     .font(.title2)
                     .fontWeight(.semibold)
-                Text("No contracts recorded for this wedding.")
+                Text("No contracts or documents recorded for this wedding.")
                     .font(.subheadline)
                     .foregroundStyle(WeddingIdentityPalette.muted)
             }
