@@ -115,4 +115,5 @@ public actor ShadowReferencePlannerRepository: PlannerDashboardRepositoryProtoco
     public func getVendorEngagements() async throws -> [PlannerVendorEngagement] { vendorEngagements }
     public func getSeatingTables() async throws -> [PlannerSeatingTable] { seatingTables }
     public func getTimelineEntries() async throws -> [PlannerTimelineEntry] { timelineEntries }
+    public func getDocuments() async throws -> [PlannerDocumentRecord] { [] }
 }
