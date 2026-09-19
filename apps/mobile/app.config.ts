@@ -1,6 +1,14 @@
 import type { ExpoConfig, ConfigContext } from 'expo/config'
 
 const androidVersionCode = Number.parseInt(process.env.WEWED_ANDROID_VERSION_CODE ?? '3', 10)
+const androidPackageId = (process.env.WEWED_ANDROID_PACKAGE_ID ?? 'pro.wewed.app.dev').trim()
+
+if (!/^pro\.wewed\.app(?:\.(?:dev|uatdev))?$/.test(androidPackageId)) {
+  throw new Error(
+    `Unsupported WEWED_ANDROID_PACKAGE_ID "${androidPackageId}". ` +
+      'Use pro.wewed.app only for Play release builds; local builds must use a suffixed identity.',
+  )
+}
 
 const appLinkPaths = [
   '/app',
@@ -23,7 +31,7 @@ const androidAppLinkData = appLinkPaths.flatMap((pathPrefix) => [
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
-  name: 'Wewed',
+  name: androidPackageId === 'pro.wewed.app' ? 'Wewed' : 'Wewed Dev',
   slug: 'wewed',
   owner: process.env.EXPO_OWNER,
   version: process.env.WEWED_APP_VERSION ?? '2.0.0',
@@ -32,7 +40,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   icon: '../../android/store_icon.png',
   assetBundlePatterns: ['**/*'],
   android: {
-    package: 'pro.wewed.app',
+    package: androidPackageId,
     versionCode: Number.isFinite(androidVersionCode) ? androidVersionCode : 3,
     adaptiveIcon: {
       foregroundImage: '../../android/store_icon.png',
@@ -70,6 +78,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   extra: {
     apiBaseUrl: process.env.EXPO_PUBLIC_WEWED_API_BASE_URL ?? 'https://wewed.pro',
     buildStamp: 'WW-NATIVE-MOBILE-2026-09-10-01',
+    androidPackageId,
     eas: {
       projectId: process.env.EXPO_PROJECT_ID ?? '',
     },
