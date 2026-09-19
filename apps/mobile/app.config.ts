@@ -2,8 +2,6 @@ import type { ExpoConfig, ConfigContext } from 'expo/config'
 
 const androidVersionCode = Number.parseInt(process.env.WEWED_ANDROID_VERSION_CODE ?? '3', 10)
 const androidPackageId = (process.env.WEWED_ANDROID_PACKAGE_ID ?? 'pro.wewed.app.dev').trim()
-const iosBuildNumber = (process.env.WEWED_IOS_BUILD_NUMBER ?? '1').trim()
-const iosBundleId = (process.env.WEWED_IOS_BUNDLE_ID ?? 'pro.wewed.app.dev').trim()
 
 if (!/^pro\.wewed\.app(?:\.(?:dev|uatdev))?$/.test(androidPackageId)) {
   throw new Error(
@@ -11,17 +9,6 @@ if (!/^pro\.wewed\.app(?:\.(?:dev|uatdev))?$/.test(androidPackageId)) {
       'Use pro.wewed.app only for Play release builds; local builds must use a suffixed identity.',
   )
 }
-
-if (!/^pro\.wewed\.app(?:\.(?:dev|uatdev))?$/.test(iosBundleId)) {
-  throw new Error(
-    `Unsupported WEWED_IOS_BUNDLE_ID "${iosBundleId}". ` +
-      'Use pro.wewed.app only for App Store builds; local builds must use a suffixed identity.',
-  )
-}
-
-const storeIdentity =
-  androidPackageId === 'pro.wewed.app' || iosBundleId === 'pro.wewed.app'
-const appDisplayName = process.env.WEWED_APP_DISPLAY_NAME ?? (storeIdentity ? 'Wewed' : 'Wewed Dev')
 
 const appLinkPaths = [
   '/app',
@@ -44,7 +31,7 @@ const androidAppLinkData = appLinkPaths.flatMap((pathPrefix) => [
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
-  name: appDisplayName,
+  name: androidPackageId === 'pro.wewed.app' ? 'Wewed' : 'Wewed Dev',
   slug: 'wewed',
   owner: process.env.EXPO_OWNER,
   version: process.env.WEWED_APP_VERSION ?? '2.0.0',
@@ -69,14 +56,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ],
   },
   ios: {
-    bundleIdentifier: iosBundleId,
-    buildNumber: iosBuildNumber,
+    bundleIdentifier: 'pro.wewed.app',
     associatedDomains: ['applinks:wewed.pro'],
     supportsTablet: true,
     config: { usesNonExemptEncryption: false },
-    infoPlist: {
-      NSCameraUsageDescription: 'Wewed uses the camera to scan Wedding Pass QR codes and capture wedding planning media.',
-    },
   },
   plugins: [
     'expo-router',
@@ -96,7 +79,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     apiBaseUrl: process.env.EXPO_PUBLIC_WEWED_API_BASE_URL ?? 'https://wewed.pro',
     buildStamp: 'WW-NATIVE-MOBILE-2026-09-10-01',
     androidPackageId,
-    iosBundleId,
     eas: {
       projectId: process.env.EXPO_PROJECT_ID ?? '',
     },
