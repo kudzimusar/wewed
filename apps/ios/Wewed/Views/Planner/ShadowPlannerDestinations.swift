@@ -375,11 +375,19 @@ public struct ShadowPlannerDocumentsView: View {
     public var body: some View {
         Group {
             if loaded && records.isEmpty {
-                ContentUnavailableView(
-                    "Documents",
-                    systemImage: "doc.text",
-                    description: Text("No contracts or documents recorded for this wedding.")
-                )
+                VStack(spacing: WewedSpacing.sm) {
+                    Image(systemName: "doc.text")
+                        .font(.title2)
+                        .foregroundColor(WewedColors.gold)
+                    Text("Documents")
+                        .font(.title3)
+                        .fontWeight(.semibold)
+                    Text("No contracts or documents recorded for this wedding.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding()
             } else {
                 ScrollView {
                     VStack(spacing: WewedSpacing.sm) {
