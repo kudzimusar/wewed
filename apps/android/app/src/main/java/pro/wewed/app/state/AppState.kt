@@ -3,7 +3,10 @@ package pro.wewed.app.state
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import pro.wewed.app.models.InvitationDeepLink
 import pro.wewed.app.models.NativeDataEnvironment
+import pro.wewed.app.models.NativeDeepLink
+import pro.wewed.app.models.NativeDeepLinkParser
 import pro.wewed.app.services.FixturePlannerDashboardRepository
 import pro.wewed.app.services.FixtureWeddingRepository
 import pro.wewed.app.services.PlannerDashboardRepository
@@ -42,6 +45,32 @@ class AppViewModel(
 
     private val _isOffline = MutableStateFlow(false)
     val isOffline: StateFlow<Boolean> = _isOffline.asStateFlow()
+
+    private val _pendingInvitationDeepLink = MutableStateFlow<InvitationDeepLink?>(null)
+    val pendingInvitationDeepLink: StateFlow<InvitationDeepLink?> =
+        _pendingInvitationDeepLink.asStateFlow()
+
+    fun handleIncomingUrl(rawUrl: String?) {
+        when (val deepLink = NativeDeepLinkParser.parse(rawUrl)) {
+            is NativeDeepLink.Invitation -> {
+                _pendingInvitationDeepLink.value = deepLink.value
+                _selectedTab.value = AppTab.HOME
+            }
+            NativeDeepLink.Pass -> {
+                _pendingInvitationDeepLink.value = null
+                _selectedTab.value = AppTab.PASS
+            }
+            is NativeDeepLink.Wedding -> {
+                _pendingInvitationDeepLink.value = null
+                _selectedTab.value = AppTab.HOME
+            }
+            null -> Unit
+        }
+    }
+
+    fun consumePendingInvitationDeepLink() {
+        _pendingInvitationDeepLink.value = null
+    }
 
     fun selectTab(tab: AppTab) {
         _selectedTab.value = tab
