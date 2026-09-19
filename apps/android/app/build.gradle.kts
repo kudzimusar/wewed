@@ -36,17 +36,6 @@ android {
         }
     }
 
-    androidComponents {
-        onVariants { variant ->
-            val resolvedApplicationId = variant.applicationId.get()
-            if (resolvedApplicationId == "pro.wewed.app" && variant.buildType != "release") {
-                throw GradleException(
-                    "Refusing to build ${variant.name}: pro.wewed.app is reserved for signed release distribution."
-                )
-            }
-        }
-    }
-
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -68,6 +57,17 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+    }
+}
+
+androidComponents {
+    onVariants { variant ->
+        val resolvedApplicationId = variant.applicationId.get()
+        if (resolvedApplicationId == "pro.wewed.app" && variant.buildType != "release") {
+            throw GradleException(
+                "Refusing to build ${variant.name}: pro.wewed.app is reserved for signed release distribution."
+            )
         }
     }
 }
