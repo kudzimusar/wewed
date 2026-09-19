@@ -12,7 +12,6 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
     private var vendors: [VendorPresence]
     private var announcements: [WeddingAnnouncement]
 
-    private let primaryPassSerial = "SHDWGSTA01"
     private let attendingToken = "shadow-attending-guest"
     private let pendingToken = "shadow-pending-guest"
     private let declinedToken = "shadow-declined-guest"
@@ -424,7 +423,7 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
     }
 
     private func makePass(for guest: Guest) -> WeddingPass {
-        let serial = guest.passSerial ?? primaryPassSerial
+        let serial = guest.passSerial ?? ("SHDW" + String(guest.id.uppercased().suffix(8)))
         return WeddingPass(
             token: "real-pass-\(guest.id)",
             weddingId: wedding.id,
