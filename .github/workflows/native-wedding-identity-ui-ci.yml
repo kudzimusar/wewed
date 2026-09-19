@@ -80,6 +80,34 @@ jobs:
           grep -R --fixed-strings 'wedding-pass-qr' apps/ios/Wewed/Theme apps/android/app/src/main/java/pro/wewed/app/ui/pass
           grep -R --fixed-strings 'more-root' apps/ios/Wewed/Views/Shared apps/android/app/src/main/java/pro/wewed/app/ui/more
 
+      - name: Enforce private Shadow storage boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          android_repo='apps/android/app/src/main/java/pro/wewed/app/services/PrivateRealShadowWeddingRepository.kt'
+          ios_repo='apps/ios/Wewed/Services/PrivateRealShadowWeddingRepository.swift'
+          provisioner='mobile/shadow/tools/provision_private_real_shadow.sh'
+
+          forbidden_android='/sdcard/charity-kudzie-private-real-shadow.json|/data/local/tmp/charity-kudzie-private-real-shadow.json|/data/data/pro\.wewed\.app/files/charity-kudzie-private-real-shadow.json'
+          if grep -En "$forbidden_android" "$android_repo"; then
+            echo "FAIL: Android private-real repository can read a public or Play-identity snapshot path."
+            exit 1
+          fi
+
+          if grep -En 'Documents.*charity-kudzie-private-real-shadow|documentDirectory' "$ios_repo"; then
+            echo "FAIL: iOS private-real repository can read the protected snapshot from Documents/iCloud."
+            exit 1
+          fi
+
+          grep -F 'run-as "$package_id"' "$provisioner"
+          grep -F 'Library/Application Support/wewed' "$provisioner"
+          grep -F 'trap cleanup_android_staging EXIT' "$provisioner"
+          grep -F 'trap - EXIT' "$provisioner"
+          if grep -En 'sim_home=.*\.wewed-shadow|Documents.*charity-kudzie-private-real-shadow' "$provisioner"; then
+            echo "FAIL: private snapshot provisioner retains a copy outside the isolated app sandbox."
+            exit 1
+          fi
+
   ios:
     name: iOS native app tests and build
     runs-on: macos-14
