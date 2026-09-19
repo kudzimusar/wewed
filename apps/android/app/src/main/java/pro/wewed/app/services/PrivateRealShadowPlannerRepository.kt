@@ -443,7 +443,11 @@ class PrivateRealShadowPlannerRepository(jsonString: String? = null, customPath:
         documents = documentList
     }
 
-    override suspend fun getDashboard(): PlannerDashboardSnapshot = PlannerDashboardSnapshot(
+    override suspend fun getDashboard(): PlannerDashboardSnapshot {
+        val contractCount = documents.count { it.kind.equals("Contract", ignoreCase = true) }
+        val timelineDateLabel = weddingDate.substringBefore(" ").ifBlank { weddingDate }
+
+        return PlannerDashboardSnapshot(
         weddingId = weddingId,
         coupleNames = weddingTitle,
         weddingDateLabel = weddingDate,
@@ -455,21 +459,22 @@ class PrivateRealShadowPlannerRepository(jsonString: String? = null, customPath:
             PlannerAttentionItem("attn_tasks", "$highPriorityTasksCount high priority tasks", "Active checklist tasks requiring coordination.", PlannerAttentionSeverity.URGENT),
             PlannerAttentionItem("attn_rsvp", "$pendingRsvpCount RSVPs pending", "$attendingGuestsCount confirmed guests across $totalGuestsCount invited records.", PlannerAttentionSeverity.WARNING),
             PlannerAttentionItem("attn_seating", "$assignedInvitedCapacity of $totalSeatingCapacity table seats allocated", "$remainingTableCapacity seats free across ${seatingTables.size} tables.", PlannerAttentionSeverity.INFO),
-            PlannerAttentionItem("attn_vendor", "$vendorsCount vendors recorded", "0 active contracts recorded for this wedding.", PlannerAttentionSeverity.INFO),
+            PlannerAttentionItem("attn_vendor", "$vendorsCount vendors recorded", "$contractCount active contracts recorded for this wedding.", PlannerAttentionSeverity.INFO),
             PlannerAttentionItem("attn_payment", "Budget & Expenses", "$${totalPdBudget.toInt()} paid of $${totalActBudget.toInt()} actual expenses ($${totalEstBudget.toInt()} estimated).", PlannerAttentionSeverity.INFO)
         ),
         modules = listOf(
             PlannerModuleSummary("tasks", "Tasks", "$doneTasksCount / $totalTasksCount", "$highPriorityTasksCount high priority", "checklist"),
             PlannerModuleSummary("budget", "Budget", "$${String.format("%.1fk", totalEstBudget / 1000.0)}", "$${String.format("%.1fk", totalPdBudget / 1000.0)} paid", "creditcard"),
             PlannerModuleSummary("contributions", "Contributions", "${contributions.size} messages", "Non-monetary", "gift"),
-            PlannerModuleSummary("vendors", "Vendors", "$vendorsCount vendors", "$serviceEngagementsCount service engagements • 0 contracts", "storefront"),
+            PlannerModuleSummary("vendors", "Vendors", "$vendorsCount vendors", "$serviceEngagementsCount service engagements • $contractCount contracts", "storefront"),
             PlannerModuleSummary("guests", "Guests", "$totalGuestsCount", "$pendingRsvpCount pending", "person.3"),
             PlannerModuleSummary("seating", "Seating", "$assignedInvitedCapacity / $totalSeatingCapacity", "$remainingTableCapacity seats free", "table.furniture"),
-            PlannerModuleSummary("timeline", "Timeline", "${timelineEntries.size} items", "23 Dec 2026", "calendar.badge.clock")
+            PlannerModuleSummary("timeline", "Timeline", "${timelineEntries.size} items", timelineDateLabel, "calendar.badge.clock")
         ),
         recentActivity = emptyList(),
         sourceLabel = "Private real-wedding row snapshot"
-    )
+        )
+    }
 
     override suspend fun getBudgetLines(): List<PlannerBudgetLine> = budgetLines
     override suspend fun getContributions(): List<PlannerContributionRecord> = contributions
