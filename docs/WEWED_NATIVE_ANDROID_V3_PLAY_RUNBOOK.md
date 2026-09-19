@@ -60,7 +60,18 @@ The structural CI artifact named `wewed-native-v3-ci-aab-NOT-FOR-PLAY` is build 
 
 ## 3. Identity that must remain unchanged
 
-The native upgrade deliberately preserves the existing Play application identity:
+The native upgrade deliberately preserves the existing Play application identity **only for release/Play builds**. Local Android development must never install with the Play package ID.
+
+Local/debug identities:
+
+```text
+apps/android debug: pro.wewed.app.dev
+apps/mobile local default: pro.wewed.app.dev
+```
+
+The release builder explicitly sets `WEWED_ANDROID_PACKAGE_ID=pro.wewed.app`. Do not export that variable in a normal Android Studio / Expo development shell. This separation prevents a local debug APK from silently replacing a Play-installed Wewed build on an emulator or physical tester device.
+
+Play identity:
 
 ```text
 package: pro.wewed.app
