@@ -16,10 +16,29 @@ sha256sum "$SOURCE_FIXTURE" 2>/dev/null || shasum -a 256 "$SOURCE_FIXTURE"
 if command -v adb >/dev/null 2>&1; then
   devices="$(adb devices | grep -v "List of devices" | grep "device$" || true)"
   if [[ -n "$devices" ]]; then
-    echo "Provisioning to Android emulator/device..."
-    adb push "$SOURCE_FIXTURE" /data/local/tmp/charity-kudzie-private-real-shadow.json
-    adb shell chmod 644 /data/local/tmp/charity-kudzie-private-real-shadow.json
-    echo "PASS: Android /data/local/tmp provisioned"
+    echo "Provisioning to Android app-private storage..."
+    staging="/data/local/tmp/wewed-private-real-shadow.$"
+    adb push "$SOURCE_FIXTURE" "$staging" >/dev/null
+    adb shell chmod 644 "$staging"
+
+    provisioned=0
+    for package_id in pro.wewed.app.dev pro.wewed.app.uatdev; do
+      if adb shell pm path "$package_id" >/dev/null 2>&1; then
+        if adb shell run-as "$package_id" sh -c \
+          "mkdir -p files && cp '$staging' files/charity-kudzie-private-real-shadow.json && chmod 600 files/charity-kudzie-private-real-shadow.json"; then
+          echo "PASS: Android $package_id app-private snapshot provisioned"
+          provisioned=1
+        fi
+      fi
+    done
+
+    adb shell rm -f "$staging"
+
+    if [[ "$provisioned" != "1" ]]; then
+      echo "FAIL: No debuggable Wewed .dev/.uatdev app was available for app-private provisioning."
+      echo "Install the isolated native debug/UAT app first; public tmp/sdcard storage is prohibited."
+      exit 2
+    fi
   else
     echo "INFO: No Android device/emulator online"
   fi
@@ -37,21 +56,28 @@ if command -v xcrun >/dev/null 2>&1; then
       mkdir -p "$target_dir"
       cp -f "$SOURCE_FIXTURE" "$target_dir/charity-kudzie-private-real-shadow.json"
 
-      # Provision whichever Wewed identity is installed. Debug/UAT must never
-      # depend on the production bundle identifier.
+      # Provision whichever isolated Wewed identity is installed. Private
+      # snapshots live in Application Support, never Documents/iCloud.
       ios_bundle_ids=(
         "pro.wewed.app.dev"
         "pro.wewed.app.uatdev"
-        "pro.wewed.app"
       )
+      ios_provisioned=0
       for bundle_id in "${ios_bundle_ids[@]}"; do
         app_data="$(xcrun simctl get_app_container "$sim_udid" "$bundle_id" data 2>/dev/null || true)"
         if [[ -n "$app_data" && -d "$app_data" ]]; then
-          mkdir -p "$app_data/Documents"
-          cp -f "$SOURCE_FIXTURE" "$app_data/Documents/charity-kudzie-private-real-shadow.json"
-          echo "PASS: iOS $bundle_id Documents container provisioned at $app_data/Documents"
+          target_dir="$app_data/Library/Application Support/wewed"
+          mkdir -p "$target_dir"
+          cp -f "$SOURCE_FIXTURE" "$target_dir/charity-kudzie-private-real-shadow.json"
+          chmod 600 "$target_dir/charity-kudzie-private-real-shadow.json"
+          echo "PASS: iOS $bundle_id protected Application Support snapshot provisioned"
+          ios_provisioned=1
         fi
       done
+
+      if [[ "$ios_provisioned" != "1" ]]; then
+        echo "INFO: No isolated iOS .dev/.uatdev app container is installed yet."
+      fi
       echo "PASS: iOS simulator home provisioned at $target_dir"
     done
   else
