@@ -173,6 +173,7 @@ final class ShadowReferenceRepositoryTests: XCTestCase {
         let vendorEngagements = try await bundle.planner.getVendorEngagements()
         let seatingTables = try await bundle.planner.getSeatingTables()
         let timelineEntries = try await bundle.planner.getTimelineEntries()
+        let documents = try await bundle.planner.getDocuments()
 
         // 1. Wedding metadata
         XCTAssertEqual(wedding.coupleNames, "Charity & Kudzie")
@@ -208,9 +209,9 @@ final class ShadowReferenceRepositoryTests: XCTestCase {
         XCTAssertEqual(budget.totalAllocated, 8690)
         XCTAssertEqual(budget.totalPaid, 3875)
 
-        // 6. Vendors (7 vendors, 8 engagements)
+        // 6. Vendors (7 vendors, 8 service engagements)
         XCTAssertEqual(vendors.count, 7)
-        XCTAssertEqual(vendorEngagements.count, 7)
+        XCTAssertEqual(vendorEngagements.count, 8)
 
         // 7. Contributions (4 non-monetary guest contributions).
         // Do not commit private contributor names into the test contract.
@@ -228,7 +229,8 @@ final class ShadowReferenceRepositoryTests: XCTestCase {
         // 8. Timeline (13 programme items)
         XCTAssertEqual(timelineEntries.count, 13)
 
-        // 9. Announcements (0 by default)
+        // 9. Documents/contracts and announcements are honest real empty states.
+        XCTAssertEqual(documents.count, 0)
         XCTAssertEqual(announcements.count, 0)
 
         // 10. Planner Dashboard
