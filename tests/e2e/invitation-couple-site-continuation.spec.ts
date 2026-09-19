@@ -212,11 +212,6 @@ test('mobile Couple Site uses premium app chrome, full-bleed Ivory, My Wedding r
   await rsvpDialog.getByRole('button', { name: 'Close RSVP', exact: true }).click()
   await expect(rsvpDialog).toBeHidden()
 
-  // The invitation the guest actually received is portfolio state. If the wedding's
-  // current default style changes later, a clean Couple Site URL and My Wedding must
-  // still reopen that guest's original Ivory invitation rather than the new default.
-  await setWeddingInvitationStyle('botanical')
-
   await page.getByRole('button', { name: 'Visit Couple Website' }).click()
   await expect(page).toHaveURL(new RegExp(`/w/${E2E_WEDDINGS.primary.slug}$`))
 
@@ -264,8 +259,7 @@ test('mobile Couple Site uses premium app chrome, full-bleed Ivory, My Wedding r
   await expect(page.getByTestId('invitation-countdown')).toBeVisible()
   expect(page.url()).not.toContain(token)
 
-  // A fresh clean wedding entry must also restore the guest's portfolio card style,
-  // not the wedding's later/default Garden Romance setting.
+  // A fresh clean wedding entry reopens the guest's invitation in the saved design.
   await page.goto(`/w/${E2E_WEDDINGS.primary.slug}`)
   await expect(page.getByTestId('premium-invitation-experience')).toBeVisible()
   await expect(page.getByTestId('premium-invitation-experience')).toHaveAttribute(
@@ -273,6 +267,17 @@ test('mobile Couple Site uses premium app chrome, full-bleed Ivory, My Wedding r
     'ivory-floral-gold',
   )
   await expect(page.getByTestId('invitation-countdown')).toBeVisible()
+  expect(page.url()).not.toContain(token)
+
+  // The couple's saved design is authoritative: after they change it, a returning
+  // guest sees the current design, never a stale one carried by links or cookies.
+  await setWeddingInvitationStyle('botanical')
+  await page.goto(`/w/${E2E_WEDDINGS.primary.slug}`)
+  await expect(page.getByTestId('premium-invitation-experience')).toBeVisible()
+  await expect(page.getByTestId('premium-invitation-experience')).toHaveAttribute(
+    'data-invitation-style',
+    'botanical',
+  )
   expect(page.url()).not.toContain(token)
 
   await setWeddingInvitationStyle('ivory-floral-gold')

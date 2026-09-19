@@ -1,6 +1,7 @@
 import { createHmac } from 'node:crypto'
 import { mkdirSync } from 'node:fs'
 import { expect, test } from '@playwright/test'
+import { PrismaClient } from '@prisma/client'
 import { E2E_COUPLE } from './support/marketplace-fixture'
 import { E2E_WEDDINGS } from './support/planner-fixture'
 import {
@@ -198,12 +199,27 @@ test('couples design, save, export and deliver guest-specific digital invitation
   expect(errors).toEqual([])
 })
 
+async function saveWeddingInvitationStyle(invitationCardStyle: string) {
+  const prisma = new PrismaClient()
+  try {
+    await prisma.wedding.update({
+      where: { id: E2E_WEDDINGS.primary.id },
+      data: { invitationCardStyle },
+    })
+  } finally {
+    await prisma.$disconnect()
+  }
+}
+
 test('QR card and RSVP remain contained on mobile @mobile', async ({ page }) => {
   await resetUnifiedNavigationFixture()
+  // The couple's saved design is authoritative: a stale card= query on a
+  // long-lived personal link must not override it.
+  await saveWeddingInvitationStyle('midnight')
   const errors = runtimeErrors(page)
 
   await page.goto(
-    `/w/${E2E_WEDDINGS.primary.slug}?rsvp=${encodeURIComponent(E2E_GUEST_INVITATION.token)}&card=midnight`,
+    `/w/${E2E_WEDDINGS.primary.slug}?rsvp=${encodeURIComponent(E2E_GUEST_INVITATION.token)}&card=botanical`,
   )
   await expect(page).toHaveURL(
     new RegExp(`/w/${E2E_WEDDINGS.primary.slug}\\?invitation=1&card=midnight$`),
