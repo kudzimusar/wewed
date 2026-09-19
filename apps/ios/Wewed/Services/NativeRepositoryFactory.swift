@@ -3,6 +3,7 @@ import Foundation
 public enum NativeRepositoryFactoryError: Error, Equatable, Sendable {
     case productionReadVerifyNotConfigured
     case productionDisabled
+    case shadowOnProductionIdentityForbidden
     case privateRealShadowFixtureMissing(String)
 }
 
@@ -30,6 +31,10 @@ public enum NativeRepositoryFactory {
         environment: NativeDataEnvironment,
         baseURL: URL? = nil
     ) throws -> NativeRepositoryBundle {
+        if Bundle.main.bundleIdentifier == "pro.wewed.app",
+           environment.allowsMutableNativeDevelopment {
+            throw NativeRepositoryFactoryError.shadowOnProductionIdentityForbidden
+        }
         try NativeEnvironmentGuard.validate(baseURL: baseURL, environment: environment)
 
         switch environment {
