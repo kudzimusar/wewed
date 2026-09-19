@@ -121,7 +121,7 @@ Admission lookup returns name, party size, admitted count and table, for attendi
 
 | Row | id | Content |
 |---|---|---|
-| Wedding Profile | `more-profile` | Wedding couple names, date, venue, city, country, and Open in Maps |
+| Wedding Profile | `more-wedding-profile` | Wedding couple names, date, venue, city, country, and Open in Maps |
 | Our Story | `more-story` | "Your wedding story isn't available in the app yet." |
 | Gallery | `more-gallery` | "Wedding photos aren't available in the app yet." |
 | Honeymoon & Gifts | `more-honeymoon` | Contributions summary (count, types) and a link to the contributions list; the honeymoon fund itself isn't available in the app yet |

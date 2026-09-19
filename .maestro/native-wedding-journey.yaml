@@ -3,11 +3,13 @@ appId: pro.wewed.app.dev
 - launchApp:
     clearState: true
     arguments:
-      wewed_native_env: "shadow"
+      wewed_native_env: "sanitized_shadow"
 
 # 1. Authentication
 - assertVisible: "WEWED"
 - tapOn: "Sign In"
+- assertVisible:
+    id: "shadow-source-sanitized-shadow"
 
 # 2. Home
 - assertVisible:
@@ -63,4 +65,4 @@ appId: pro.wewed.app.dev
     id: "more-root"
 - assertVisible: "Our Story"
 - assertVisible: "Gallery"
-- assertVisible: "Honeymoon"
+- assertVisible: "Honeymoon.*"

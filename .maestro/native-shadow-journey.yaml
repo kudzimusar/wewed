@@ -3,11 +3,13 @@ appId: pro.wewed.app.dev
 - launchApp:
     clearState: true
     arguments:
-      wewed_native_env: "shadow"
+      wewed_native_env: "sanitized_shadow"
 
 # 1. Sign In
 - assertVisible: "WEWED"
 - tapOn: "Sign In"
+- assertVisible:
+    id: "shadow-source-sanitized-shadow"
 
 # 2. Home / Wedding Command Center
 - assertVisible:
@@ -23,6 +25,7 @@ appId: pro.wewed.app.dev
 - assertVisible:
     id: "planner-root"
 - assertVisible: "Our Wedding Plan"
+- assertNotVisible: "Wedding Planner"
 - assertVisible:
     id: "planner-module-tasks"
 - assertVisible:
@@ -49,6 +52,9 @@ appId: pro.wewed.app.dev
     id: "pass-root"
 - assertVisible:
     id: "wedding-pass-card"
+- assertVisible:
+    id: "pass-open-maps"
+- assertVisible: "Open in Maps"
 
 # 6. More
 - tapOn: "More"

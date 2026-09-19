@@ -1,0 +1,75 @@
+appId: pro.wewed.app.dev
+---
+# LOCAL ONLY. Run through scripts/native/private-real-qualification.sh, which installs the
+# private snapshot on the device and keeps all output outside the repository.
+# Never add names or other private values to this file.
+- launchApp:
+    # The snapshot lives in app storage; clearing state would delete it. The app keeps no
+    # persisted session, so every launch still starts signed out.
+    clearState: false
+    stopApp: true
+    arguments:
+      wewed_native_env: "private_real_shadow"
+      wewed_shadow_account: "couple"
+
+- assertVisible: "WEWED"
+- tapOn: "Sign In"
+- assertVisible:
+    id: "shadow-source-private-real-shadow"
+
+# Home
+- assertVisible:
+    id: "home-root"
+- assertNotVisible: ".*Guest G[0-9]+.*"
+
+# Plan: the couple's plan, not the professional planner workspace.
+- tapOn: "Plan"
+- assertVisible:
+    id: "planner-root"
+- assertVisible: "Our Wedding Plan"
+- assertNotVisible: "Wedding Planner"
+- tapOn:
+    id: "planner-module-contributions"
+- assertVisible:
+    id: "planner-contributions-root"
+- assertNotVisible: ".*Guest Contributor.*"
+- assertNotVisible: ".*Guest G[0-9]+.*"
+- assertNotVisible: "Non-monetary contribution"
+- back
+
+# Guests: the pseudonym *pattern* must be absent, checked across several pages of the list.
+- tapOn: "Guests"
+- assertVisible:
+    id: "guests-root"
+- assertVisible: "174"
+- assertNotVisible: ".*Guest G[0-9]+.*"
+- scroll
+- assertNotVisible: ".*Guest G[0-9]+.*"
+- scroll
+- assertNotVisible: ".*Guest G[0-9]+.*"
+- scroll
+- assertNotVisible: ".*Guest G[0-9]+.*"
+
+# Pass
+- tapOn: "Pass"
+- assertVisible:
+    id: "pass-root"
+- assertVisible:
+    id: "wedding-pass-card"
+- assertNotVisible: ".*Guest G[0-9]+.*"
+- assertVisible:
+    id: "pass-open-maps"
+
+# More
+- tapOn: "More"
+- assertVisible:
+    id: "more-root"
+- tapOn:
+    id: "more-story"
+- assertVisible:
+    id: "more-empty-state"
+- back
+- tapOn:
+    id: "more-wedding-profile"
+- assertVisible: "Open in Maps"
+- back

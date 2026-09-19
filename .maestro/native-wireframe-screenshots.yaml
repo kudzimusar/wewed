@@ -1,39 +1,44 @@
 appId: pro.wewed.app.dev
 ---
+# SANITIZED evidence only. These captures are Git/CI-safe and show pseudonymous guests
+# (Guest G###) by design. They are never evidence of Private Real Shadow fidelity;
+# see scripts/native/private-real-qualification.sh for that (local only).
 - launchApp:
     clearState: true
     arguments:
-      wewed_native_env: "shadow"
+      wewed_native_env: "sanitized_shadow"
 
 - assertVisible: "WEWED"
 - tapOn: "Sign In"
+- assertVisible:
+    id: "shadow-source-sanitized-shadow"
 
-# Capture the actual phone viewport for each approved reference screen.
 - assertVisible:
     id: "home-root"
-- takeScreenshot: wireframe-home
+- takeScreenshot: sanitized-wireframe-home
 
 - tapOn: "Plan"
 - assertVisible:
     id: "planner-root"
-- takeScreenshot: wireframe-plan
+- assertVisible: "Our Wedding Plan"
+- takeScreenshot: sanitized-wireframe-plan
 
 - tapOn: "Guests"
 - assertVisible:
     id: "guests-root"
-- takeScreenshot: wireframe-guests
+- takeScreenshot: sanitized-wireframe-guests
 
 - tapOn: "Pass"
 - assertVisible:
     id: "pass-root"
 - assertVisible:
     id: "wedding-pass-qr"
-- takeScreenshot: wireframe-pass
+- takeScreenshot: sanitized-wireframe-pass
 
 - tapOn: "More"
 - assertVisible:
     id: "more-root"
-- takeScreenshot: wireframe-more
+- takeScreenshot: sanitized-wireframe-more
 
 - tapOn: "Home"
 - assertVisible:
@@ -43,9 +48,8 @@ appId: pro.wewed.app.dev
 - extendedWaitUntil:
     visible:
       id: "ivory-invitation-root"
-    timeout: 5000
-- extendedWaitUntil:
-    visible: "RSVP Now"
     timeout: 7000
+- assertVisible:
+    id: "invitation-preview-notice"
 - waitForAnimationToEnd
-- takeScreenshot: wireframe-invitation
+- takeScreenshot: sanitized-wireframe-invitation

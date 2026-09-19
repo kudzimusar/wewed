@@ -1,0 +1,16 @@
+appId: pro.wewed.app.dev
+---
+# LOCAL ONLY. Leaves the couple Guests list on screen for hierarchy inspection.
+- launchApp:
+    clearState: false
+    stopApp: true
+    arguments:
+      wewed_native_env: "private_real_shadow"
+      wewed_shadow_account: "couple"
+- tapOn: "Sign In"
+- assertVisible:
+    id: "shadow-source-private-real-shadow"
+- tapOn: "Guests"
+- assertVisible:
+    id: "guests-root"
+- waitForAnimationToEnd

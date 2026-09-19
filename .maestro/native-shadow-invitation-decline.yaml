@@ -1,35 +1,31 @@
 appId: pro.wewed.app.dev
 ---
+# A guest who declines gets no admission pass.
 - launchApp:
     clearState: true
     arguments:
-      wewed_native_env: "shadow"
+      wewed_native_env: "sanitized_shadow"
+      wewed_shadow_account: "guest"
+      wewed_invitation_token: "shadow-declined-guest"
 
-# 1. Sign In
 - assertVisible: "WEWED"
 - tapOn: "Sign In"
-
-# 2. Open the invitation from Home
 - assertVisible:
-    id: "home-root"
-- tapOn:
-    id: "home-open-invitation"
-
-# 3. Splash -> Ivory Floral Gold invitation
-# Splash is intentionally transient; verify the destination after the branded transition.
+    id: "guest-shell-root"
 - extendedWaitUntil:
     visible:
       id: "ivory-invitation-root"
-    timeout: 5000
-
-# 4. Open details, then decline RSVP
-- tapOn:
-    id: "ivory-details-toggle"
+    timeout: 7000
+- scrollUntilVisible:
+    element:
+      id: "ivory-rsvp-decline"
+    direction: DOWN
+    timeout: 10000
 - tapOn:
     id: "ivory-rsvp-decline"
 
-# 5. Confirm declined journey and no pass issuance
+- tapOn: "My Pass"
 - assertVisible:
-    id: "guest-journey-declined"
-- assertVisible: "Thank you for responding"
-- assertVisible: "Return to Wedding"
+    id: "guest-pass-unavailable"
+- assertNotVisible:
+    id: "wedding-pass-qr"

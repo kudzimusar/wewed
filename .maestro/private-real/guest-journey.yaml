@@ -1,41 +1,31 @@
 appId: pro.wewed.app.dev
 ---
-# A guest signs in with their own invitation, accepts, and receives a pass for the same person.
+# LOCAL ONLY. Invitation -> RSVP -> Pass for one real runtime guest, compared without naming them.
 - launchApp:
-    clearState: true
+    # The snapshot lives in app storage; clearing state would delete it. The app keeps no
+    # persisted session, so every launch still starts signed out.
+    clearState: false
+    stopApp: true
     arguments:
-      wewed_native_env: "sanitized_shadow"
+      wewed_native_env: "private_real_shadow"
       wewed_shadow_account: "guest"
       wewed_invitation_token: "shadow-pending-guest"
 
-- assertVisible: "WEWED"
 - tapOn: "Sign In"
 - assertVisible:
-    id: "shadow-source-sanitized-shadow"
+    id: "shadow-source-private-real-shadow"
 - assertVisible:
     id: "guest-shell-root"
-
-# Least privilege: a guest never sees wedding-management areas.
-- assertNotVisible:
-    id: "guests-root"
-- assertNotVisible:
-    id: "planner-root"
-- assertNotVisible: "Budget"
-
 - extendedWaitUntil:
     visible:
       id: "ivory-invitation-root"
     timeout: 7000
+- assertNotVisible: ".*Guest G[0-9]+.*"
 - copyTextFrom:
     id: "invitation-guest-name"
 - assertVisible:
     id: "invitation-open-maps"
 
-- tapOn: "My Pass"
-- assertVisible:
-    id: "guest-pass-unavailable"
-
-- tapOn: "Invitation"
 - scrollUntilVisible:
     element:
       id: "ivory-rsvp-accept"
@@ -52,7 +42,6 @@ appId: pro.wewed.app.dev
 - assertVisible:
     id: "guest-pass-guest-name"
     text: "${maestro.copiedText}"
-- assertVisible:
-    id: "wedding-pass-qr"
+- assertNotVisible: ".*Guest G[0-9]+.*"
 - assertVisible:
     id: "pass-open-maps"

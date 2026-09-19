@@ -1,0 +1,94 @@
+appId: pro.wewed.app.dev
+---
+# The professional Planner workspace is separate from the couple's plan and keeps web capability parity.
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "sanitized_shadow"
+      wewed_shadow_account: "planner"
+- tapOn: "Sign In"
+- assertVisible:
+    id: "planner-workspace-root"
+- assertVisible:
+    id: "test-access-notice"
+- assertVisible:
+    id: "planner-client-selector"
+- assertNotVisible:
+    id: "home-root"
+- assertNotVisible: "Our Wedding Plan"
+
+# Actions sheet: every web worksheet action is present.
+- tapOn:
+    id: "planner-actions-button"
+- assertVisible:
+    id: "planner-actions-sheet"
+- assertVisible:
+    id: "planner-action-refresh"
+- assertVisible:
+    id: "planner-action-switch"
+- assertVisible:
+    id: "planner-action-print"
+- assertVisible:
+    id: "planner-action-arrange"
+- assertVisible:
+    id: "planner-action-select"
+- scrollUntilVisible:
+    element:
+      id: "planner-action-edit-wedding"
+    direction: DOWN
+    timeout: 8000
+- assertVisible:
+    id: "planner-action-template"
+- assertVisible:
+    id: "planner-action-export"
+- assertVisible:
+    id: "planner-action-import"
+- assertVisible:
+    id: "planner-action-recent-imports"
+- tapOn:
+    id: "planner-action-switch"
+- tapOn:
+    id: "planner-worksheet-contributions"
+- assertVisible: "Guest G00.*"
+- assertNotVisible: ".*Guest Contributor.*"
+
+- tapOn:
+    id: "planner-actions-button"
+- tapOn:
+    id: "planner-action-switch"
+- tapOn:
+    id: "planner-worksheet-tasks"
+- tapOn:
+    id: "planner-actions-button"
+- tapOn:
+    id: "planner-action-recent-imports"
+- assertVisible: "Imports on this device"
+- back
+
+- tapOn: "Daily Ops"
+- assertVisible:
+    id: "planner-daily-ops-root"
+- tapOn: "Wedding Day"
+- assertVisible:
+    id: "planner-wedding-day-root"
+
+- tapOn: "More"
+- assertVisible:
+    id: "planner-more-root"
+- tapOn: "Client Profile"
+- assertVisible:
+    id: "planner-client-profile-root"
+- assertVisible: "Open in Maps"
+- back
+- tapOn: "Team Hub"
+- assertVisible:
+    id: "planner-team-hub-root"
+- assertVisible: "No team members have been added to this wedding."
+- back
+- tapOn: "Invitations & QR"
+- assertVisible:
+    id: "planner-invitations-root"
+- back
+- tapOn: "Intelligence"
+- assertVisible:
+    id: "planner-intelligence-root"

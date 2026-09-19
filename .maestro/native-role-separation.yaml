@@ -1,0 +1,63 @@
+appId: pro.wewed.app.dev
+---
+# Roles come from the account, never from a picker the person controls.
+
+# 1. A single-role account (the couple) enters its experience directly.
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "sanitized_shadow"
+      wewed_shadow_account: "couple"
+- tapOn: "Sign In"
+- assertVisible:
+    id: "home-root"
+- assertNotVisible:
+    id: "role-chooser-root"
+- assertNotVisible: "Switch"
+- tapOn: "More"
+- tapOn:
+    id: "more-settings"
+- assertVisible:
+    id: "account-root"
+- assertNotVisible:
+    id: "account-switch-role"
+
+# 2. A multi-role account chooses among only its authorized roles.
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "sanitized_shadow"
+      wewed_shadow_account: "couple_planner"
+- tapOn: "Sign In"
+- assertVisible:
+    id: "role-chooser-root"
+- assertVisible: "How are you using Wewed today?"
+- assertVisible:
+    id: "role-choice-couple"
+- assertVisible:
+    id: "role-choice-planner"
+- assertNotVisible:
+    id: "role-choice-admin"
+- assertNotVisible:
+    id: "role-choice-guest"
+- assertNotVisible:
+    id: "role-choice-vendor"
+
+- tapOn:
+    id: "role-choice-planner"
+- assertVisible:
+    id: "planner-workspace-root"
+- assertVisible:
+    id: "test-access-notice"
+- tapOn: "More"
+- tapOn: "Account"
+- assertVisible:
+    id: "account-root"
+- tapOn:
+    id: "account-switch-role"
+- assertVisible:
+    id: "role-chooser-root"
+- tapOn:
+    id: "role-choice-couple"
+- assertVisible:
+    id: "home-root"

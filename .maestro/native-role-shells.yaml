@@ -1,0 +1,73 @@
+appId: pro.wewed.app.dev
+---
+# Vendor, gate team, coordinator and support each see only their own operational surface.
+
+# Vendor: own engagement only, never guest data.
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "sanitized_shadow"
+      wewed_shadow_account: "vendor"
+- tapOn: "Sign In"
+- assertVisible:
+    id: "vendor-shell-root"
+- assertVisible:
+    id: "test-access-notice"
+- assertVisible:
+    id: "vendor-engagement-root"
+- assertNotVisible: ".*Guest G[0-9]+.*"
+- assertNotVisible:
+    id: "guests-root"
+- tapOn: "Schedule"
+- assertVisible:
+    id: "vendor-schedule-root"
+
+# Gate team: scanner and admissions, nothing else.
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "sanitized_shadow"
+      wewed_shadow_account: "usher"
+- tapOn: "Sign In"
+- assertVisible:
+    id: "usher-shell-root"
+- assertVisible:
+    id: "usher-scanner-open"
+- assertVisible: "Scan pass"
+- tapOn: "Admissions"
+- assertVisible:
+    id: "usher-admissions-root"
+- assertVisible:
+    id: "usher-lookup-field"
+- assertNotVisible: "Budget"
+
+# Coordinator: run sheet and vendor presence, no finances.
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "sanitized_shadow"
+      wewed_shadow_account: "coordinator"
+- tapOn: "Sign In"
+- assertVisible:
+    id: "coordinator-shell-root"
+- assertNotVisible: "Budget"
+
+# Support: every data view is explicit and recorded.
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "sanitized_shadow"
+      wewed_shadow_account: "admin"
+- tapOn: "Sign In"
+- assertVisible:
+    id: "admin-shell-root"
+- assertVisible:
+    id: "admin-support-root"
+- tapOn:
+    id: "admin-open-guests"
+- assertVisible: "This view was recorded in the audit log."
+- back
+- tapOn: "Audit log"
+- assertVisible:
+    id: "admin-audit-root"
+- assertVisible: "Guest.*"

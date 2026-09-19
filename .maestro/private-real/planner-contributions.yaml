@@ -1,0 +1,31 @@
+appId: pro.wewed.app.dev
+---
+# LOCAL ONLY. The planner sees resolved contributors, never generic or pseudonymous labels.
+- launchApp:
+    # The snapshot lives in app storage; clearing state would delete it. The app keeps no
+    # persisted session, so every launch still starts signed out.
+    clearState: false
+    stopApp: true
+    arguments:
+      wewed_native_env: "private_real_shadow"
+      wewed_shadow_account: "planner"
+- tapOn: "Sign In"
+- assertVisible:
+    id: "shadow-source-private-real-shadow"
+- assertVisible:
+    id: "planner-workspace-root"
+- tapOn:
+    id: "planner-actions-button"
+- tapOn:
+    id: "planner-action-switch"
+- tapOn:
+    id: "planner-worksheet-contributions"
+- assertNotVisible: ".*Guest Contributor.*"
+- assertNotVisible: ".*Guest G[0-9]+.*"
+- tapOn:
+    id: "planner-actions-button"
+- tapOn:
+    id: "planner-action-switch"
+- tapOn:
+    id: "planner-worksheet-guests"
+- assertNotVisible: ".*Guest G[0-9]+.*"

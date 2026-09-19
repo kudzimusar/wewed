@@ -1,0 +1,18 @@
+appId: pro.wewed.app.dev
+---
+# LOCAL ONLY. Leaves the couple Contributions list on screen for hierarchy inspection.
+- launchApp:
+    clearState: false
+    stopApp: true
+    arguments:
+      wewed_native_env: "private_real_shadow"
+      wewed_shadow_account: "couple"
+- tapOn: "Sign In"
+- assertVisible:
+    id: "shadow-source-private-real-shadow"
+- tapOn: "Plan"
+- tapOn:
+    id: "planner-module-contributions"
+- assertVisible:
+    id: "planner-contributions-root"
+- waitForAnimationToEnd
