@@ -9,6 +9,7 @@ interface PlannerDashboardRepository {
     suspend fun getVendorEngagements(): List<PlannerVendorEngagement>
     suspend fun getSeatingTables(): List<PlannerSeatingTable>
     suspend fun getTimelineEntries(): List<PlannerTimelineEntry>
+    suspend fun getDocuments(): List<PlannerDocumentRecord>
 }
 
 class FixturePlannerDashboardRepository : PlannerDashboardRepository {
@@ -81,4 +82,6 @@ class FixturePlannerDashboardRepository : PlannerDashboardRepository {
         PlannerTimelineEntry("time_4", "14:00", "Ceremony", "Ceremony area", "Upcoming", null),
         PlannerTimelineEntry("time_5", "17:30", "Reception", "Reception space", "Upcoming", "Shadow Sound")
     )
+
+    override suspend fun getDocuments(): List<PlannerDocumentRecord> = emptyList()
 }
