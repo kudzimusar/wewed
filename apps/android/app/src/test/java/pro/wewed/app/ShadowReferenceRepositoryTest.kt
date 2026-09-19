@@ -175,6 +175,7 @@ class ShadowReferenceRepositoryTest {
         val vendorEngagements = bundle.planner.getVendorEngagements()
         val seatingTables = bundle.planner.getSeatingTables()
         val timelineEntries = bundle.planner.getTimelineEntries()
+        val documents = bundle.planner.getDocuments()
 
         // 1. Wedding metadata
         assertEquals("Charity & Kudzie", wedding.coupleNames)
@@ -210,9 +211,9 @@ class ShadowReferenceRepositoryTest {
         assertEquals(8690.0, budget.totalAllocated, 0.01)
         assertEquals(3875.0, budget.totalPaid, 0.01)
 
-        // 6. Vendors (7 vendors, 8 engagements)
+        // 6. Vendors (7 vendors, 8 service engagements)
         assertEquals(7, vendors.size)
-        assertEquals(7, vendorEngagements.size)
+        assertEquals(8, vendorEngagements.size)
 
         // 7. Contributions (4 non-monetary guest contributions).
         // Do not commit private contributor names into the test contract.
@@ -230,7 +231,8 @@ class ShadowReferenceRepositoryTest {
         // 8. Timeline (13 programme items)
         assertEquals(13, timelineEntries.size)
 
-        // 9. Announcements (0 by default)
+        // 9. Documents/contracts and announcements are honest real empty states.
+        assertEquals(0, documents.size)
         assertEquals(0, announcements.size)
 
         // 10. Planner Dashboard
