@@ -4,13 +4,10 @@ on:
   push:
     branches:
       - native-mobile/wedding-identity-ui-20260918
+      - native-mobile/role-architecture-p0-20260919
     paths:
       - 'apps/android/**'
-      - '.maestro/native-shadow-journey.yaml'
-      - '.maestro/native-shadow-invitation-accept.yaml'
-      - '.maestro/native-shadow-invitation-decline.yaml'
-      - '.maestro/native-wedding-journey.yaml'
-      - '.maestro/native-wireframe-screenshots.yaml'
+      - '.maestro/native-*.yaml'
       - '.github/workflows/native-wedding-identity-maestro-android.yml'
       - '.github/scripts/verify-android-local-package.sh'
   workflow_dispatch:
@@ -24,7 +21,7 @@ concurrency:
 
 jobs:
   android-maestro:
-    name: Six-screen Android Maestro qualification
+    name: Sanitized Android Maestro qualification (roles, journeys, screenshots)
     runs-on: ubuntu-latest
     timeout-minutes: 55
 
@@ -37,6 +34,16 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+
+      - name: Keep private-real flows out of CI
+        shell: bash
+        run: |
+          set -euo pipefail
+          # .maestro/private-real/* need the local private snapshot and must never run or upload in CI.
+          if grep -rn 'private-real/' .github/workflows; then
+            echo "FAIL: a workflow references local-only private-real Maestro flows."
+            exit 1
+          fi
 
       - name: Build native Android debug APK
         working-directory: apps/android
@@ -61,7 +68,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Run six-screen Shadow journeys
+      - name: Run sanitized Shadow journeys and role flows
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
         with:
           api-level: 34
@@ -77,6 +84,9 @@ jobs:
             maestro test .maestro/native-shadow-invitation-accept.yaml
             maestro test .maestro/native-shadow-invitation-decline.yaml
             maestro test .maestro/native-wedding-journey.yaml
+            maestro test .maestro/native-role-separation.yaml
+            maestro test .maestro/native-planner-workspace.yaml
+            maestro test .maestro/native-role-shells.yaml
             maestro test .maestro/native-wireframe-screenshots.yaml
 
       - name: Upload Maestro diagnostics
@@ -90,25 +100,26 @@ jobs:
           retention-days: 14
 
 
-      - name: Collect actual wireframe viewport captures
+      # Sanitized (pseudonymous) captures only. These are never evidence of private-real fidelity.
+      - name: Collect sanitized viewport captures
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$GITHUB_WORKSPACE/wireframe-captures"
-          find "$GITHUB_WORKSPACE" "$HOME" -type f -name 'wireframe-*.png' -print -exec cp -f {} "$GITHUB_WORKSPACE/wireframe-captures/" \; || true
-          count="$(find "$GITHUB_WORKSPACE/wireframe-captures" -maxdepth 1 -type f -name 'wireframe-*.png' | wc -l | tr -d ' ')"
-          echo "Collected $count wireframe viewport captures."
+          mkdir -p "$GITHUB_WORKSPACE/sanitized-captures"
+          find "$GITHUB_WORKSPACE" "$HOME" -type f -name 'sanitized-wireframe-*.png' -print -exec cp -f {} "$GITHUB_WORKSPACE/sanitized-captures/" \; || true
+          count="$(find "$GITHUB_WORKSPACE/sanitized-captures" -maxdepth 1 -type f -name 'sanitized-wireframe-*.png' | wc -l | tr -d ' ')"
+          echo "Collected $count sanitized viewport captures."
           if [ "$count" -lt 6 ]; then
-            echo "FAIL: expected 6 wireframe screenshots, found $count."
+            echo "FAIL: expected 6 sanitized screenshots, found $count."
             exit 1
           fi
 
-      - name: Upload actual wireframe viewport captures
+      - name: Upload sanitized viewport captures
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: native-wireframe-viewport-captures
-          path: wireframe-captures/
+          name: native-sanitized-viewport-captures
+          path: sanitized-captures/
           if-no-files-found: error
           retention-days: 14

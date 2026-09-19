@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - native-mobile/wedding-identity-ui-20260918
+      - native-mobile/role-architecture-p0-20260919
     paths:
       - 'apps/ios/**'
       - 'apps/android/**'
@@ -53,6 +54,18 @@ jobs:
             exit 1
           fi
 
+      - name: Reject fabricated role-shell content and persona switching
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Role shells must render repository data or honest empty states; these strings were typed-in
+          # placeholders, fake success messages, invented contributor names or developer role switching.
+          banned='ECDSA P-256 Offline Active|Worksheet exported successfully|Active Weddings Monitored|wewed\.mobile@pro\.wewed|wewed-admin-2026|Tinashe Moyo|Chipo Ndlovu|Farai Mutasa|Nyasha Gumbo|DevelopmentPersona|PersonaPicker|Switch Persona|"Guest Contributor"'
+          if grep -rEn "$banned" apps/android/app/src/main apps/ios/Wewed --include='*.kt' --include='*.swift' --exclude-dir=Tests; then
+            echo "FAIL: fabricated or persona-switching content found in native source."
+            exit 1
+          fi
+
       - name: Reject unsupported Shadow operational claims
         shell: bash
         run: |
@@ -95,6 +108,14 @@ jobs:
       - name: Build Swift package
         working-directory: apps/ios
         run: swift build
+
+      # swift build on macOS cannot catch iOS-only API problems; compile the app for the simulator too.
+      - name: Compile app for iOS Simulator
+        working-directory: apps/ios
+        run: |
+          xcodebuild -scheme WewedApp -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath .build/ci-sim -quiet build
 
   android:
     name: Android unit tests and debug assembly
