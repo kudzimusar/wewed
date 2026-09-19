@@ -19,6 +19,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import pro.wewed.app.models.AppRole
+import pro.wewed.app.models.GuestJourneyReference
+import pro.wewed.app.models.GuestJourneyStage
+import pro.wewed.app.models.InvitationContext
 import pro.wewed.app.state.AppTab
 import pro.wewed.app.state.AppViewModel
 import pro.wewed.app.state.SessionViewModel
@@ -27,6 +30,7 @@ import pro.wewed.app.theme.WewedColors
 import pro.wewed.app.ui.auth.LoginScreen
 import pro.wewed.app.ui.guests.WeddingReferenceGuestsScreen
 import pro.wewed.app.ui.home.WeddingReferenceHomeScreen
+import pro.wewed.app.ui.invitation.GuestInvitationJourneyScreen
 import pro.wewed.app.ui.more.WeddingReferenceMoreScreen
 import pro.wewed.app.ui.pass.UsherScannerScreen
 import pro.wewed.app.ui.pass.WeddingReferencePassScreen
@@ -43,8 +47,48 @@ fun RootScreen(
     val currentRole by sessionViewModel.currentRole.collectAsState()
     val currentUserName by sessionViewModel.currentUserName.collectAsState()
     val selectedTab by appViewModel.selectedTab.collectAsState()
+    val pendingInvitationDeepLink by appViewModel.pendingInvitationDeepLink.collectAsState()
     var isScannerOpen by remember { mutableStateOf(false) }
     var showPersonaPicker by remember { mutableStateOf(false) }
+    var deepLinkedInvitation by remember { mutableStateOf<InvitationContext?>(null) }
+    var resolvingDeepLinkedInvitation by remember { mutableStateOf(false) }
+
+    LaunchedEffect(pendingInvitationDeepLink) {
+        val pending = pendingInvitationDeepLink ?: return@LaunchedEffect
+        resolvingDeepLinkedInvitation = true
+        deepLinkedInvitation = runCatching {
+            appViewModel.repository.resolveInvitation(
+                pending.weddingSlug,
+                pending.rsvpToken
+            )
+        }.getOrNull()
+        appViewModel.consumePendingInvitationDeepLink()
+        resolvingDeepLinkedInvitation = false
+    }
+
+    deepLinkedInvitation?.let { invitation ->
+        GuestInvitationJourneyScreen(
+            reference = GuestJourneyReference(
+                invitation,
+                GuestJourneyStage.SPLASH
+            ),
+            appViewModel = appViewModel,
+            onExit = { deepLinkedInvitation = null }
+        )
+        return
+    }
+
+    if (resolvingDeepLinkedInvitation) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(WeddingIdentityPalette.Ivory),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = WeddingIdentityPalette.ChampagneDeep)
+        }
+        return
+    }
 
     if (!isAuthenticated) {
         LoginScreen(sessionViewModel = sessionViewModel)
