@@ -174,7 +174,11 @@ class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath:
             if (id.isEmpty() || name.isEmpty() || rsvpRaw.isEmpty() || !item.has("partySize") || !item.has("checkedIn")) {
                 throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required guest fields missing in private real shadow fixture.")
             }
-            val side = if (item.isNull("side")) "family" else item.optString("side", "family")
+            val side = if (item.isNull("side")) {
+                "Not recorded"
+            } else {
+                item.optString("side").takeIf { it.isNotBlank() } ?: "Not recorded"
+            }
             val checkedIn = item.optBoolean("checkedIn", false)
             val checkedInCount = item.optInt("checkedInCount", if (checkedIn) 1 else 0)
             val partySize = item.optInt("partySize", 1)
@@ -188,7 +192,7 @@ class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath:
             }
 
             val passSerial = if (rsvp == RSVPStatus.ATTENDING) {
-                if (partySize > 1) "SHDWGSTP04" else "SHDWGSTA01"
+                "SHDW" + id.uppercase().takeLast(8)
             } else null
 
             guests.add(
