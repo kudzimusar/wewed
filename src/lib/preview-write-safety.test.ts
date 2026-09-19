@@ -28,6 +28,17 @@ describe('preview write safety', () => {
     }
   })
 
+  test('does not treat a legacy PR branch name as write authorization', () => {
+    expect(
+      shouldBlockPreviewWrite({
+        method: 'POST',
+        weddingId: 'wewed-pr202-uat-20260912',
+        vercelEnvironment: 'preview',
+        gitCommitRef: 'feature/private-invitation-android-delivery-20260912',
+      }),
+    ).toBe(true)
+  })
+
   test('blocks a live wedding even when another preview wedding is allow-listed', () => {
     expect(
       shouldBlockPreviewWrite({
