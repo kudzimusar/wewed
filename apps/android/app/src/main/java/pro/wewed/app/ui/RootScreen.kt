@@ -67,14 +67,20 @@ fun RootScreen(
     }
 
     deepLinkedInvitation?.let { invitation ->
-        GuestInvitationJourneyScreen(
-            reference = GuestJourneyReference(
-                invitation,
-                GuestJourneyStage.SPLASH
-            ),
-            appViewModel = appViewModel,
-            onExit = { deepLinkedInvitation = null }
-        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .semantics { testTagsAsResourceId = true }
+        ) {
+            GuestInvitationJourneyScreen(
+                reference = GuestJourneyReference(
+                    invitation,
+                    GuestJourneyStage.SPLASH
+                ),
+                appViewModel = appViewModel,
+                onExit = { deepLinkedInvitation = null }
+            )
+        }
         return
     }
 
