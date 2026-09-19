@@ -55,6 +55,7 @@ jobs:
       EXPO_PUBLIC_WEWED_API_BASE_URL: https://wewed.pro
       WEWED_ANDROID_VERSION_CODE: '3'
       WEWED_APP_VERSION: 2.0.0
+      WEWED_ANDROID_PACKAGE_ID: pro.wewed.app.dev
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -104,6 +105,7 @@ jobs:
       EXPO_PUBLIC_WEWED_API_BASE_URL: https://wewed.pro
       WEWED_ANDROID_VERSION_CODE: '3'
       WEWED_APP_VERSION: 2.0.0
+      WEWED_ANDROID_PACKAGE_ID: pro.wewed.app.dev
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -129,6 +131,9 @@ jobs:
 
       - name: Generate Android native project
         run: bun run prebuild:android
+
+      - name: Verify local Android identity cannot replace Play
+        run: node scripts/verify-generated-android.mjs
 
       - name: Compile Android debug application
         run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
