@@ -55,7 +55,7 @@ public struct WeddingReferencePlannerView: View {
     private var header: some View {
         HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 3) {
-                Text("Wedding Planner")
+                Text("Our Wedding Plan")
                     .font(.system(size: 28, weight: .semibold, design: .serif))
                     .foregroundStyle(WeddingIdentityPalette.ink)
                 Text("Plan with clarity. Celebrate with confidence.")

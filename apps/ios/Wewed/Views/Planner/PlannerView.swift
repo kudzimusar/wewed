@@ -16,6 +16,8 @@ public struct PlannerView: View {
         case done = "Done"
     }
 
+    @State private var showingActionsSheet: Bool = false
+
     public init() {}
 
     private var filteredTasks: [PlannerTask] {
@@ -55,18 +57,41 @@ public struct PlannerView: View {
                 .padding(.bottom, WewedSpacing.xl)
             }
             .background(WewedColors.ivory)
-            .navigationTitle("Wedding Planner")
+            .navigationTitle("Planner Workspace")
             .accessibilityIdentifier("planner-root")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        showingCreateSheet = true
-                    } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .foregroundColor(WewedColors.gold)
+                    HStack(spacing: 12) {
+                        Button {
+                            showingActionsSheet = true
+                        } label: {
+                            Image(systemName: "ellipsis.circle.fill")
+                                .foregroundColor(WewedColors.gold)
+                        }
+                        .accessibilityIdentifier("planner-actions-button")
+                        .accessibilityLabel("Planner actions")
+
+                        Button {
+                            showingCreateSheet = true
+                        } label: {
+                            Image(systemName: "plus.circle.fill")
+                                .foregroundColor(WewedColors.gold)
+                        }
+                        .accessibilityLabel("Add planner task")
                     }
-                    .accessibilityLabel("Add planner task")
                 }
+            }
+            .confirmationDialog("Planner Actions", isPresented: $showingActionsSheet, titleVisibility: .visible) {
+                Button("Refresh Wedding Data") {
+                    Task { await loadWorkspace() }
+                }
+                Button("Export Planning Worksheet") {
+                    // Safe export action
+                }
+                Button("Import Safe Template") {
+                    // Safe template preview
+                }
+                Button("Cancel", role: .cancel) {}
             }
             .sheet(isPresented: $showingCreateSheet) {
                 CreateTaskSheet { title, priority, category in

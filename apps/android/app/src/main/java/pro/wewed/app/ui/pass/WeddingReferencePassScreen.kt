@@ -1,5 +1,9 @@
 package pro.wewed.app.ui.pass
 
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -222,11 +226,48 @@ fun WeddingReferencePassScreen(
                                 fontWeight = FontWeight.SemiBold
                             )
 
+                            val context = LocalContext.current
+                            val venueQuery = (p.venueAddress.takeIf { it.isNotBlank() } ?: p.venueName).trim()
+
                             Text(
                                 displayPassDate(p.weddingDate),
                                 color = WeddingIdentityPalette.Muted,
                                 fontSize = 11.sp
                             )
+
+                            TextButton(
+                                onClick = {
+                                    try {
+                                        val encoded = Uri.encode(venueQuery)
+                                        val mapIntent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=$encoded"))
+                                        mapIntent.setPackage("com.google.android.apps.maps")
+                                        if (mapIntent.resolveActivity(context.packageManager) != null) {
+                                            context.startActivity(mapIntent)
+                                        } else {
+                                            val browserMap = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/search/?api=1&query=$encoded"))
+                                            context.startActivity(browserMap)
+                                        }
+                                    } catch (_: Exception) {
+                                        val browserMap = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/search/?api=1&query=${Uri.encode(venueQuery)}"))
+                                        context.startActivity(browserMap)
+                                    }
+                                },
+                                modifier = Modifier.testTag("pass-open-maps")
+                            ) {
+                                Icon(
+                                    Icons.Default.Place,
+                                    contentDescription = null,
+                                    tint = WeddingIdentityPalette.ChampagneDeep,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    "Open in Maps",
+                                    color = WeddingIdentityPalette.ChampagneDeep,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
 
                             OutlinedButton(
                                 onClick = { showGuestDetails = true },

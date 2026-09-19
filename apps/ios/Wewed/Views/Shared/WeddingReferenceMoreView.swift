@@ -31,7 +31,7 @@ public struct WeddingReferenceMoreView: View {
                             menuLink(title: "Our Story", subtitle: "Photos, videos and milestones", icon: "photo.on.rectangle.angled", identifier: "more-story") {
                                 ReferenceEmptyFeatureView(
                                     title: "Our Story",
-                                    message: "No story or media records are available in this Shadow wedding yet.",
+                                    message: "Our wedding story, photo highlights, and milestones will appear here as updates are posted.",
                                     coupleNames: wedding.coupleNames
                                 )
                             }
@@ -39,7 +39,7 @@ public struct WeddingReferenceMoreView: View {
                             menuLink(title: "Gallery", subtitle: "Wedding photos and inspiration", icon: "photo.stack", identifier: "more-gallery") {
                                 ReferenceEmptyFeatureView(
                                     title: "Gallery",
-                                    message: "No gallery media is available in this Shadow wedding yet.",
+                                    message: "The shared wedding photo gallery will be available during and after the wedding celebrations.",
                                     coupleNames: wedding.coupleNames
                                 )
                             }
@@ -55,7 +55,7 @@ public struct WeddingReferenceMoreView: View {
                             menuLink(title: "Help & Support", subtitle: "Get in touch", icon: "questionmark.circle", identifier: "more-support") {
                                 ReferenceEmptyFeatureView(
                                     title: "Help & Support",
-                                    message: "Support contact configuration is not part of this Shadow wedding dataset.",
+                                    message: "Need assistance? Contact the wedding team at support@wewed.pro • Version 1.0.0 (ECDSA P-256 Offline Active)",
                                     coupleNames: wedding.coupleNames
                                 )
                             }

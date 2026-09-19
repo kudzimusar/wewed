@@ -43,6 +43,9 @@ class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath:
             val sdcardPath = "/sdcard/charity-kudzie-private-real-shadow.json"
             if (File(sdcardPath).exists()) return sdcardPath
 
+            val appDataDevPath = "/data/data/pro.wewed.app.dev/files/charity-kudzie-private-real-shadow.json"
+            if (File(appDataDevPath).exists()) return appDataDevPath
+
             val appDataPath = "/data/data/pro.wewed.app/files/charity-kudzie-private-real-shadow.json"
             if (File(appDataPath).exists()) return appDataPath
 
@@ -455,12 +458,20 @@ class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath:
 
     private fun guestIndexForToken(token: String): Int? {
         if (guests.isEmpty()) return null
-        return when (token) {
-            attendingToken, "native-reference-guest" -> guests.indexOfFirst { it.rsvpStatus == RSVPStatus.ATTENDING && it.partySize == 1 }.takeIf { it != -1 } ?: guests.indexOfFirst { it.rsvpStatus == RSVPStatus.ATTENDING }
-            partyFourToken -> guests.indexOfFirst { it.partySize >= 4 }.takeIf { it != -1 } ?: 0
-            pendingToken -> guests.indexOfFirst { it.rsvpStatus == RSVPStatus.PENDING }
-            declinedToken -> guests.indexOfFirst { it.rsvpStatus == RSVPStatus.DECLINED }.takeIf { it != -1 } ?: if (guests.size > 1) 1 else 0
-            else -> guests.indexOfFirst { it.id == token }
+        return when {
+            token == attendingToken || token == "native-reference-guest" -> guests.indexOfFirst { it.rsvpStatus == RSVPStatus.ATTENDING && it.partySize == 1 }.takeIf { it != -1 } ?: guests.indexOfFirst { it.rsvpStatus == RSVPStatus.ATTENDING }
+            token == partyFourToken -> guests.indexOfFirst { it.partySize >= 4 }.takeIf { it != -1 } ?: 0
+            token == pendingToken -> guests.indexOfFirst { it.rsvpStatus == RSVPStatus.PENDING }
+            token == declinedToken -> guests.indexOfFirst { it.rsvpStatus == RSVPStatus.DECLINED }.takeIf { it != -1 } ?: if (guests.size > 1) 1 else 0
+            token.startsWith("real-pass-") -> {
+                val id = token.removePrefix("real-pass-")
+                guests.indexOfFirst { it.id == id }
+            }
+            token.startsWith("real-non-admission-") -> {
+                val id = token.removePrefix("real-non-admission-")
+                guests.indexOfFirst { it.id == id }
+            }
+            else -> guests.indexOfFirst { it.id == token || it.passSerial == token }
         }.takeIf { it != -1 }
     }
 

@@ -191,6 +191,10 @@ class ShadowReferenceRepositoryTest {
 
         // 3. Guests (174 guests, 177 invited capacity)
         assertEquals(174, guests.size)
+        val guestPseudonymRegex = Regex("""Guest G\d+""")
+        guests.forEach { guest ->
+            assertFalse("Private real shadow guest name '${guest.name}' must not match pseudonym pattern", guestPseudonymRegex.containsMatchIn(guest.name))
+        }
         val totalInvitedCapacity = guests.sumOf { it.partySize }
         assertEquals(177, totalInvitedCapacity)
         assertEquals(2, guests.count { it.rsvpStatus == RSVPStatus.ATTENDING })
@@ -224,9 +228,11 @@ class ShadowReferenceRepositoryTest {
         // 7. Contributions (4 non-monetary guest contributions).
         // Do not commit private contributor names into the test contract.
         assertEquals(4, contributions.size)
+        val contributorPseudonymRegex = Regex("""Guest Contributor|Guest G\d+""")
         for (contribution in contributions) {
             assertEquals(0.0, contribution.value, 0.01)
             assertTrue(contribution.contributorLabel.isNotBlank())
+            assertFalse("Contribution author must not match generic pseudonym", contributorPseudonymRegex.containsMatchIn(contribution.contributorLabel))
             assertTrue(contribution.typeLabel.isNotBlank())
             assertTrue(contribution.allocationLabel.isNotBlank())
         }
@@ -244,6 +250,49 @@ class ShadowReferenceRepositoryTest {
         // 10. Planner Dashboard
         assertEquals("Eleven Eleven Testing", dashboard.plannerContext)
         assertEquals("7 / 42", dashboard.taskCompletionLabel)
+    }
+
+    @Test
+    fun privateRealShadowInvitationToRsvpToPassUsesSameGuest() = runBlocking {
+        val path = pro.wewed.app.services.PrivateRealShadowWeddingRepository.defaultSnapshotPath()
+        if (!java.io.File(path).exists()) return@runBlocking
+
+        val bundle = NativeRepositoryFactory.make(NativeDataEnvironment.PRIVATE_REAL_SHADOW)
+        val wedding = bundle.wedding.getWedding()
+
+        // 1. Resolve pending invitation
+        val invitation = bundle.wedding.resolveInvitation(wedding.id, "shadow-pending-guest")
+        assertFalse(invitation.isConfirmed)
+        assertFalse("Invitation guest name must not be generic pseudonym", Regex("""Guest G\d+""").containsMatchIn(invitation.guestName))
+
+        // 2. Accept RSVP
+        val pass = bundle.wedding.confirmRsvp(wedding.id, "shadow-pending-guest", true)
+        assertEquals(invitation.guestName, pass.guestName)
+        assertEquals(PassStage.ATTENDING, pass.currentStage)
+        assertTrue(pass.qrPayload.startsWith("REAL_SHADOW_ONLY"))
+
+        // 3. Get wedding pass
+        val retrievedPass = bundle.wedding.getWeddingPass(pass.token)
+        assertEquals(invitation.guestName, retrievedPass.guestName)
+        assertEquals(pass.qrPayload, retrievedPass.qrPayload)
+
+        // 4. Verify guest roster state
+        val updatedGuest = bundle.wedding.getGuests().first { it.name == invitation.guestName }
+        assertEquals(RSVPStatus.ATTENDING, updatedGuest.rsvpStatus)
+        assertNotNull(updatedGuest.passSerial)
+    }
+
+    @Test
+    fun mapsUriQueryConstruction() {
+        val venueName = "Imba Manor"
+        val venueCity = "Harare, Zimbabwe"
+        val queryAddress = "$venueName, $venueCity".trim()
+        val encoded = java.net.URLEncoder.encode(queryAddress, "UTF-8").replace("+", "%20")
+        val geoUri = "geo:0,0?q=$encoded"
+        val browserUri = "https://www.google.com/maps/search/?api=1&query=$encoded"
+
+        assertEquals("geo:0,0?q=Imba%20Manor%2C%20Harare%2C%20Zimbabwe", geoUri)
+        assertEquals("https://www.google.com/maps/search/?api=1&query=Imba%20Manor%2C%20Harare%2C%20Zimbabwe", browserUri)
     }
 
     @Test

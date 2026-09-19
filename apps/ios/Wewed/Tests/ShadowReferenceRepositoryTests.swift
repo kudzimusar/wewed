@@ -189,6 +189,11 @@ final class ShadowReferenceRepositoryTests: XCTestCase {
 
         // 3. Guests (174 guests, 177 invited capacity)
         XCTAssertEqual(guests.count, 174)
+        let guestPseudonymRegex = try NSRegularExpression(pattern: #"Guest G\d+"#)
+        for guest in guests {
+            let range = NSRange(location: 0, length: guest.name.utf16.count)
+            XCTAssertNil(guestPseudonymRegex.firstMatch(in: guest.name, options: [], range: range), "Guest name \(guest.name) must not match pseudonym pattern")
+        }
         let totalInvitedCapacity = guests.reduce(0) { $0 + $1.partySize }
         XCTAssertEqual(totalInvitedCapacity, 177)
         XCTAssertEqual(guests.filter { $0.rsvpStatus == .attending }.count, 2)
@@ -222,9 +227,12 @@ final class ShadowReferenceRepositoryTests: XCTestCase {
         // 7. Contributions (4 non-monetary guest contributions).
         // Do not commit private contributor names into the test contract.
         XCTAssertEqual(contributions.count, 4)
+        let contributorPseudonymRegex = try NSRegularExpression(pattern: #"Guest Contributor|Guest G\d+"#)
         for contribution in contributions {
             XCTAssertEqual(contribution.value, 0.0)
             XCTAssertFalse(contribution.contributorLabel.isEmpty)
+            let range = NSRange(location: 0, length: contribution.contributorLabel.utf16.count)
+            XCTAssertNil(contributorPseudonymRegex.firstMatch(in: contribution.contributorLabel, options: [], range: range), "Contribution author must not match generic pseudonym")
             XCTAssertFalse(contribution.typeLabel.isEmpty)
             XCTAssertFalse(contribution.allocationLabel.isEmpty)
         }
@@ -242,6 +250,57 @@ final class ShadowReferenceRepositoryTests: XCTestCase {
         // 10. Planner Dashboard
         XCTAssertEqual(dashboard.plannerContext, "Eleven Eleven Testing")
         XCTAssertEqual(dashboard.taskCompletionLabel, "7 / 42")
+    }
+
+    func testPrivateRealShadowInvitationToRsvpToPassUsesSameGuest() async throws {
+        let snapshotPath = PrivateRealShadowWeddingRepository.defaultSnapshotPath()
+        guard FileManager.default.fileExists(atPath: snapshotPath) else { return }
+
+        let bundle = try NativeRepositoryFactory.make(environment: .privateRealShadow)
+        let wedding = try await bundle.wedding.getWedding()
+
+        // 1. Resolve pending invitation
+        let invitation = try await bundle.wedding.resolveInvitation(
+            weddingSlug: wedding.id,
+            token: "shadow-pending-guest"
+        )
+        XCTAssertFalse(invitation.isConfirmed)
+        let pseudonymRegex = try NSRegularExpression(pattern: #"Guest G\d+"#)
+        let range = NSRange(location: 0, length: invitation.guestName.utf16.count)
+        XCTAssertNil(pseudonymRegex.firstMatch(in: invitation.guestName, options: [], range: range))
+
+        // 2. Accept RSVP
+        let pass = try await bundle.wedding.confirmRsvp(
+            weddingSlug: wedding.id,
+            token: "shadow-pending-guest",
+            attending: true
+        )
+        XCTAssertEqual(invitation.guestName, pass.guestName)
+        XCTAssertEqual(pass.currentStage, .attending)
+        XCTAssertTrue(pass.qrPayload.hasPrefix("REAL_SHADOW_ONLY"))
+
+        // 3. Get wedding pass
+        let retrievedPass = try await bundle.wedding.getWeddingPass(token: pass.token)
+        XCTAssertEqual(invitation.guestName, retrievedPass.guestName)
+        XCTAssertEqual(pass.qrPayload, retrievedPass.qrPayload)
+
+        // 4. Verify guest roster state
+        let guests = try await bundle.wedding.getGuests()
+        let updatedGuest = try XCTUnwrap(guests.first(where: { $0.name == invitation.guestName }))
+        XCTAssertEqual(updatedGuest.rsvpStatus, .attending)
+        XCTAssertNotNil(updatedGuest.passSerial)
+    }
+
+    func testMapsUriQueryConstruction() {
+        let venueName = "Imba Manor"
+        let venueCity = "Harare, Zimbabwe"
+        let queryAddress = "\(venueName), \(venueCity)".trimmingCharacters(in: .whitespacesAndNewlines)
+        let encoded = queryAddress.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let appleMapsUrl = "maps:?q=\(encoded)"
+        let googleMapsUrl = "https://www.google.com/maps/search/?api=1&query=\(encoded)"
+
+        XCTAssertEqual(appleMapsUrl, "maps:?q=Imba%20Manor,%20Harare,%20Zimbabwe")
+        XCTAssertEqual(googleMapsUrl, "https://www.google.com/maps/search/?api=1&query=Imba%20Manor,%20Harare,%20Zimbabwe")
     }
 
     func testPrivateRealShadowZeroProhibitedDemoData() {

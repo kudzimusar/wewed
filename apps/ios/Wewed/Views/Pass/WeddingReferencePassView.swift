@@ -163,6 +163,21 @@ public struct WeddingReferencePassView: View {
                     .font(.system(size: 11))
                     .foregroundStyle(WeddingIdentityPalette.muted)
 
+                let venueAddress = pass.venueAddress.isEmpty ? pass.venueName : pass.venueAddress
+                if let query = venueAddress.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+                   let mapURL = URL(string: "https://maps.apple.com/?q=\(query)") {
+                    Link(destination: mapURL) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "mappin.and.ellipse")
+                            Text("Open in Maps")
+                                .font(.system(size: 12, weight: .semibold))
+                        }
+                        .foregroundStyle(WeddingIdentityPalette.champagneDeep)
+                        .padding(.vertical, 2)
+                    }
+                    .accessibilityIdentifier("pass-open-maps")
+                }
+
                 Button { showingGuestDetails = true } label: {
                     Text("View Guest Details")
                         .font(.system(size: 13, weight: .semibold))

@@ -33,10 +33,10 @@ class ShadowReferencePlannerRepository : PlannerDashboardRepository {
     )
 
     private val contributions = listOf(
-        PlannerContributionRecord("shadow_contrib_01", "Guest Contributor", "Blessing", 0.0, "Approved", "Guest Messages", true),
-        PlannerContributionRecord("shadow_contrib_02", "Guest Contributor", "Wish", 0.0, "Featured", "Guest Messages", true),
-        PlannerContributionRecord("shadow_contrib_03", "Guest Contributor", "Funny Story", 0.0, "Approved", "Guest Messages", true),
-        PlannerContributionRecord("shadow_contrib_04", "Guest Contributor", "Memory", 0.0, "Approved", "Guest Messages", true),
+        PlannerContributionRecord("shadow_contrib_01", "Tinashe Moyo", "Blessing", 0.0, "Approved", "Blessing message (48 words • Public)", true),
+        PlannerContributionRecord("shadow_contrib_02", "Chipo Ndlovu", "Wish", 0.0, "Featured", "Wish message (32 words • Public)", true),
+        PlannerContributionRecord("shadow_contrib_03", "Farai Mutasa", "Funny Story", 0.0, "Approved", "Funny Story (65 words • Public)", true),
+        PlannerContributionRecord("shadow_contrib_04", "Nyasha Gumbo", "Memory", 0.0, "Approved", "Memory message (54 words • Public)", true),
     )
 
     private val vendorEngagements = listOf(

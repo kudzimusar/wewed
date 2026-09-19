@@ -192,11 +192,13 @@ class PrivateRealShadowPlannerRepository(jsonString: String? = null, customPath:
                 )
             val formattedType = type.replace("_", " ").replaceFirstChar { it.uppercase() }
             val formattedStatus = status.replace("_", " ").replaceFirstChar { it.uppercase() }
+            val privacy = item.optString("privacy", "public").replaceFirstChar { it.uppercase() }
+            val wordCount = item.optInt("wordCount", 0)
             val contributionText = listOf("message", "content", "story", "note", "text")
                 .asSequence()
                 .map { key -> if (item.isNull(key)) "" else item.optString(key).trim() }
                 .firstOrNull { it.isNotBlank() }
-                ?: "Non-monetary contribution"
+                ?: if (wordCount > 0) "$formattedType message ($wordCount words • $privacy)" else "$formattedType ($privacy)"
             val verified = status.lowercase() in setOf("verified", "approved", "published", "received", "accepted", "recorded")
             cList.add(
                 PlannerContributionRecord(

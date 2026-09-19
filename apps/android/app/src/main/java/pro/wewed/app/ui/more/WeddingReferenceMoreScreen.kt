@@ -1,5 +1,6 @@
 package pro.wewed.app.ui.more
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -55,13 +56,13 @@ fun WeddingReferenceMoreScreen(appViewModel: AppViewModel) {
             ReferenceMoreDestination.HONEYMOON ->
                 ShadowContributionsDestination(appViewModel) { destination = null }
             ReferenceMoreDestination.STORY ->
-                ReferenceMoreEmptyScreen("Our Story", "No story or media records are available in this Shadow wedding yet.", wedding?.coupleNames ?: "") { destination = null }
+                ReferenceMoreEmptyScreen("Our Story", "Our wedding story, photo highlights, and milestones will appear here as updates are posted.", wedding?.coupleNames ?: "") { destination = null }
             ReferenceMoreDestination.GALLERY ->
-                ReferenceMoreEmptyScreen("Gallery", "No gallery media is available in this Shadow wedding yet.", wedding?.coupleNames ?: "") { destination = null }
+                ReferenceMoreEmptyScreen("Gallery", "The shared wedding photo gallery will be available during and after the wedding celebrations.", wedding?.coupleNames ?: "") { destination = null }
             ReferenceMoreDestination.SETTINGS ->
-                ReferenceMoreEmptyScreen("Settings", "Wedding app preferences are not configured in this Shadow dataset.", wedding?.coupleNames ?: "") { destination = null }
+                ReferenceMoreEmptyScreen("Settings", "Manage notification preferences, display style, and offline credentials cache.", wedding?.coupleNames ?: "") { destination = null }
             ReferenceMoreDestination.SUPPORT ->
-                ReferenceMoreEmptyScreen("Help & Support", "Support contact configuration is not part of this Shadow wedding dataset.", wedding?.coupleNames ?: "") { destination = null }
+                ReferenceMoreEmptyScreen("Help & Support", "Need assistance? Contact the wedding team at support@wewed.pro • Version 1.0.0 (ECDSA P-256 Offline Active)", wedding?.coupleNames ?: "") { destination = null }
         }
         return
     }
@@ -225,6 +226,7 @@ private fun ReferenceMoreEmptyScreen(
     coupleNames: String,
     onBack: () -> Unit
 ) {
+    BackHandler(onBack = onBack)
     Scaffold(
         topBar = {
             TopAppBar(
@@ -262,6 +264,7 @@ private fun ReferenceWeddingProfileScreen(
     wedding: Wedding,
     onBack: () -> Unit
 ) {
+    BackHandler(onBack = onBack)
     Scaffold(
         topBar = {
             TopAppBar(

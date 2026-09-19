@@ -398,17 +398,22 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
 
     private func guestIndexForToken(_ token: String) -> Int? {
         if guests.isEmpty { return nil }
-        switch token {
-        case attendingToken, "native-reference-guest":
+        if token == attendingToken || token == "native-reference-guest" {
             return guests.firstIndex(where: { $0.rsvpStatus == .attending && $0.partySize == 1 }) ?? guests.firstIndex(where: { $0.rsvpStatus == .attending })
-        case partyFourToken:
+        } else if token == partyFourToken {
             return guests.firstIndex(where: { $0.partySize >= 4 }) ?? guests.indices.first
-        case pendingToken:
+        } else if token == pendingToken {
             return guests.firstIndex(where: { $0.rsvpStatus == .pending })
-        case declinedToken:
+        } else if token == declinedToken {
             return guests.firstIndex(where: { $0.rsvpStatus == .declined }) ?? (guests.count > 1 ? 1 : 0)
-        default:
-            return guests.firstIndex(where: { $0.id == token })
+        } else if token.hasPrefix("real-pass-") {
+            let id = String(token.dropFirst("real-pass-".count))
+            return guests.firstIndex(where: { $0.id == id })
+        } else if token.hasPrefix("real-non-admission-") {
+            let id = String(token.dropFirst("real-non-admission-".count))
+            return guests.firstIndex(where: { $0.id == id })
+        } else {
+            return guests.firstIndex(where: { $0.id == token || $0.passSerial == token })
         }
     }
 

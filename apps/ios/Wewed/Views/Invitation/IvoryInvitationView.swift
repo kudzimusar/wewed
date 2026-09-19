@@ -122,6 +122,20 @@ public struct IvoryInvitationView: View {
                     VStack(spacing: 8) {
                         Label(invitation.venueName, systemImage: "mappin.and.ellipse")
                         Label(invitation.weddingDate, systemImage: "calendar")
+
+                        let query = "\(invitation.venueName), \(invitation.venueCity)".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+                        if let mapURL = URL(string: "https://maps.apple.com/?q=\(query)") {
+                            Link(destination: mapURL) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "arrow.triangle.turn.up.right.circle.fill")
+                                    Text("Open in Maps")
+                                        .font(.system(size: 12, weight: .semibold))
+                                }
+                                .foregroundStyle(WeddingIdentityPalette.champagneDeep)
+                                .padding(.top, 4)
+                            }
+                            .accessibilityIdentifier("invitation-open-maps")
+                        }
                     }
                     .font(.system(size: 12))
                     .foregroundStyle(WeddingIdentityPalette.ink)

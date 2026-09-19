@@ -185,9 +185,12 @@ public actor PrivateRealShadowPlannerRepository: PlannerDashboardRepositoryProto
             }
             let formattedType = type.replacingOccurrences(of: "_", with: " ").capitalized
             let formattedStatus = status.replacingOccurrences(of: "_", with: " ").capitalized
-            let contributionText = ["message", "content", "story", "note", "text"]
+            let privacy = (item["privacy"] as? String)?.capitalized ?? "Public"
+            let wordCount = item["wordCount"] as? Int ?? 0
+            let rawText = ["message", "content", "story", "note", "text"]
                 .compactMap { (item[$0] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank }
-                .first ?? "Non-monetary contribution"
+                .first
+            let contributionText = rawText ?? (wordCount > 0 ? "\(formattedType) message (\(wordCount) words • \(privacy))" : "\(formattedType) (\(privacy))")
             let verifiedStatuses: Set<String> = ["verified", "approved", "published", "received", "accepted", "recorded"]
             return PlannerContributionRecord(
                 id: id,

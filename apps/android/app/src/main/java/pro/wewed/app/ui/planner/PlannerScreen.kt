@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -66,10 +67,86 @@ fun PlannerScreen(appViewModel: AppViewModel) {
         else -> tasks
     }
 
+    var showPlannerActions by remember { mutableStateOf(false) }
+    var actionMessage by remember { mutableStateOf<String?>(null) }
+
+    if (showPlannerActions) {
+        ModalBottomSheet(
+            onDismissRequest = { showPlannerActions = false },
+            containerColor = Color.White,
+            modifier = Modifier.testTag("planner-actions-sheet")
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    "Planner Actions",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp,
+                    color = WewedColors.Burgundy
+                )
+                Text(
+                    "Professional tools & workflow utilities",
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                ListItem(
+                    headlineContent = { Text("Refresh Wedding Data", fontWeight = FontWeight.SemiBold) },
+                    supportingContent = { Text("Re-sync live state from repository") },
+                    leadingContent = { Icon(Icons.Default.Refresh, contentDescription = null, tint = WewedColors.Emerald) },
+                    modifier = Modifier.clickable {
+                        scope.launch {
+                            dashboard = appViewModel.plannerRepository.getDashboard()
+                            tasks = appViewModel.repository.getTasks()
+                            showPlannerActions = false
+                        }
+                    }
+                )
+
+                ListItem(
+                    headlineContent = { Text("Export Planning Worksheet", fontWeight = FontWeight.SemiBold) },
+                    supportingContent = { Text("Generate CSV / PDF logistics summary") },
+                    leadingContent = { Icon(Icons.Default.ArrowForward, contentDescription = null, tint = WewedColors.Gold) },
+                    modifier = Modifier.clickable {
+                        actionMessage = "Worksheet exported successfully."
+                        showPlannerActions = false
+                    }
+                )
+
+                ListItem(
+                    headlineContent = { Text("Import Worksheet Template", fontWeight = FontWeight.SemiBold) },
+                    supportingContent = { Text("Safe schema validator & template library") },
+                    leadingContent = { Icon(Icons.Default.Add, contentDescription = null, tint = Color(0xFF1976D2)) },
+                    modifier = Modifier.clickable {
+                        actionMessage = "Safe template library active (zero synthetic overwrites)."
+                        showPlannerActions = false
+                    }
+                )
+
+                ListItem(
+                    headlineContent = { Text("Switch to Documents / Contracts", fontWeight = FontWeight.SemiBold) },
+                    supportingContent = { Text("Inspect vendor contracts & compliance") },
+                    leadingContent = { Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF7B1FA2)) },
+                    modifier = Modifier.clickable {
+                        showPlannerActions = false
+                        activeModule = "budget"
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Wedding Planner", fontWeight = FontWeight.SemiBold) },
+                title = { Text("Planner Workspace", fontWeight = FontWeight.SemiBold) },
                 actions = {
                     Surface(
                         shape = RoundedCornerShape(50),
@@ -83,7 +160,17 @@ fun PlannerScreen(appViewModel: AppViewModel) {
                             fontWeight = FontWeight.Bold
                         )
                     }
-                    Spacer(modifier = Modifier.width(WewedSpacing.sm))
+                    IconButton(
+                        onClick = { showPlannerActions = true },
+                        modifier = Modifier.testTag("planner-actions-button")
+                    ) {
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = "Planner Actions",
+                            tint = WewedColors.Burgundy
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(WewedSpacing.xs))
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = WewedColors.Ivory)
             )

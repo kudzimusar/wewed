@@ -1,5 +1,8 @@
 package pro.wewed.app.ui.invitation
 
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -300,6 +303,8 @@ private fun InvitationCardIdentity(invitation: InvitationContext) {
 
 @Composable
 private fun InvitationDetailPanel(invitation: InvitationContext) {
+    val context = LocalContext.current
+    val queryAddress = "${invitation.venueName}, ${invitation.venueCity}".trim()
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -310,12 +315,50 @@ private fun InvitationDetailPanel(invitation: InvitationContext) {
     ) {
         InvitationDetailRow(
             icon = Icons.Default.Place,
-            text = invitation.venueName
+            text = "${invitation.venueName}, ${invitation.venueCity}"
         )
         InvitationDetailRow(
             icon = Icons.Default.CalendarToday,
             text = invitation.weddingDate
         )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End
+        ) {
+            TextButton(
+                onClick = {
+                    try {
+                        val encoded = Uri.encode(queryAddress)
+                        val mapIntent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=$encoded"))
+                        mapIntent.setPackage("com.google.android.apps.maps")
+                        if (mapIntent.resolveActivity(context.packageManager) != null) {
+                            context.startActivity(mapIntent)
+                        } else {
+                            val browserMap = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/search/?api=1&query=$encoded"))
+                            context.startActivity(browserMap)
+                        }
+                    } catch (_: Exception) {
+                        val browserMap = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/search/?api=1&query=${Uri.encode(queryAddress)}"))
+                        context.startActivity(browserMap)
+                    }
+                },
+                modifier = Modifier.testTag("invitation-open-maps")
+            ) {
+                Icon(
+                    Icons.Default.Directions,
+                    contentDescription = null,
+                    tint = WeddingIdentityPalette.ChampagneDeep,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    "Open in Maps",
+                    color = WeddingIdentityPalette.ChampagneDeep,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
     }
 }
 

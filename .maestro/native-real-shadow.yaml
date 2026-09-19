@@ -22,7 +22,7 @@ appId: pro.wewed.app.dev
 - tapOn: "Plan"
 - assertVisible:
     id: "planner-root"
-- assertVisible: "Wedding Planner"
+- assertVisible: "Our Wedding Plan"
 - assertVisible:
     id: "planner-module-tasks"
 - assertVisible:

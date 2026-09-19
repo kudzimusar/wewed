@@ -36,10 +36,10 @@ public actor ShadowReferencePlannerRepository: PlannerDashboardRepositoryProtoco
         ]
 
         contributions = [
-            PlannerContributionRecord(id: "shadow_contrib_01", contributorLabel: "Guest Contributor", typeLabel: "Blessing", value: 0, statusLabel: "Approved", allocationLabel: "Guest Messages", verified: true),
-            PlannerContributionRecord(id: "shadow_contrib_02", contributorLabel: "Guest Contributor", typeLabel: "Wish", value: 0, statusLabel: "Featured", allocationLabel: "Guest Messages", verified: true),
-            PlannerContributionRecord(id: "shadow_contrib_03", contributorLabel: "Guest Contributor", typeLabel: "Funny Story", value: 0, statusLabel: "Approved", allocationLabel: "Guest Messages", verified: true),
-            PlannerContributionRecord(id: "shadow_contrib_04", contributorLabel: "Guest Contributor", typeLabel: "Memory", value: 0, statusLabel: "Approved", allocationLabel: "Guest Messages", verified: true),
+            PlannerContributionRecord(id: "shadow_contrib_01", contributorLabel: "Tinashe Moyo", typeLabel: "Blessing", value: 0, statusLabel: "Approved", allocationLabel: "Blessing message (48 words • Public)", verified: true),
+            PlannerContributionRecord(id: "shadow_contrib_02", contributorLabel: "Chipo Ndlovu", typeLabel: "Wish", value: 0, statusLabel: "Featured", allocationLabel: "Wish message (32 words • Public)", verified: true),
+            PlannerContributionRecord(id: "shadow_contrib_03", contributorLabel: "Farai Mutasa", typeLabel: "Funny Story", value: 0, statusLabel: "Approved", allocationLabel: "Funny Story (65 words • Public)", verified: true),
+            PlannerContributionRecord(id: "shadow_contrib_04", contributorLabel: "Nyasha Gumbo", typeLabel: "Memory", value: 0, statusLabel: "Approved", allocationLabel: "Memory message (54 words • Public)", verified: true),
         ]
 
         vendorEngagements = [

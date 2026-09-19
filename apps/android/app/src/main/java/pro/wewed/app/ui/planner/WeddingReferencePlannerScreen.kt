@@ -95,7 +95,7 @@ fun WeddingReferencePlannerScreen(appViewModel: AppViewModel) {
                 ) {
                         Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "Wedding Planner",
+                            "Our Wedding Plan",
                             color = WeddingIdentityPalette.Ink,
                             fontFamily = FontFamily.Serif,
                             fontWeight = FontWeight.SemiBold,
