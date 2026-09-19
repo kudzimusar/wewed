@@ -21,15 +21,21 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Universal / Deep Link handler for Wewed Wedding Pass -->
+            <!-- Canonical Wewed universal/app links. -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data
-                    android:scheme="https"
-                    android:host="wewed.pro"
-                    android:pathPrefix="/pass" />
+                <data android:scheme="https" android:host="wewed.pro" android:pathPrefix="/invite" />
+                <data android:scheme="https" android:host="wewed.pro" android:pathPrefix="/pass" />
+                <data android:scheme="https" android:host="wewed.pro" android:pathPrefix="/w" />
+            </intent-filter>
+
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="wewed" />
             </intent-filter>
         </activity>
     </application>
