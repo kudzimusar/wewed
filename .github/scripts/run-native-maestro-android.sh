@@ -2,6 +2,7 @@
 set -euo pipefail
 
 APK_PATH="apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk"
+ANDROID_PACKAGE_ID="${WEWED_ANDROID_PACKAGE_ID:-pro.wewed.app.dev}"
 METRO_LOG="/tmp/wewed-maestro-metro.log"
 METRO_PID_FILE="/tmp/wewed-maestro-metro.pid"
 METRO_STATUS_URL="http://127.0.0.1:8081/status"
@@ -10,6 +11,10 @@ if [[ ! -f "$APK_PATH" ]]; then
   echo "Compiled native APK is missing: $APK_PATH" >&2
   exit 1
 fi
+
+# Never install a debug APK carrying the Google Play identity: it would replace
+# a Play-installed Wewed on the device and break Play updates.
+bash "$(dirname "$0")/verify-android-local-package.sh" "$(dirname "$APK_PATH")" "$ANDROID_PACKAGE_ID"
 
 adb install -r "$APK_PATH"
 adb reverse tcp:3000 tcp:3000
@@ -87,5 +92,5 @@ maestro test \
 # authenticated journey. Physical-device verification remains a release gate
 # for OS-level domain association, but these commands prove the compiled app
 # owns and can resolve both native intents without crashing.
-adb shell am start -W -a android.intent.action.VIEW -d 'wewed://messages' pro.wewed.app
-adb shell am start -W -a android.intent.action.VIEW -d 'https://wewed.pro/messages' pro.wewed.app
+adb shell am start -W -a android.intent.action.VIEW -d 'wewed://messages' "$ANDROID_PACKAGE_ID"
+adb shell am start -W -a android.intent.action.VIEW -d 'https://wewed.pro/messages' "$ANDROID_PACKAGE_ID"
