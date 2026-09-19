@@ -51,11 +51,7 @@ fun WeddingReferencePlannerScreen(appViewModel: AppViewModel) {
             ReferencePlannerDestination.CONTRIBUTIONS ->
                 ShadowContributionsDestination(appViewModel) { destination = null }
             ReferencePlannerDestination.DOCUMENTS ->
-                ReferencePlannerEmptyDestination(
-                    title = "Documents",
-                    message = "No contracts or documents recorded for this wedding.",
-                    onBack = { destination = null }
-                )
+                ShadowDocumentsDestination(appViewModel) { destination = null }
         }
         return
     }
