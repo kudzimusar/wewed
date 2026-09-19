@@ -1,5 +1,6 @@
 package pro.wewed.app
 
+import android.content.Intent
 import android.os.Bundle
 import android.graphics.Color
 import androidx.activity.ComponentActivity
@@ -13,6 +14,7 @@ import pro.wewed.app.ui.RootScreen
 
 class MainActivity : ComponentActivity() {
     private val sessionViewModel = SessionViewModel()
+    private lateinit var appViewModel: AppViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -28,10 +30,11 @@ class MainActivity : ComponentActivity() {
             rawEnvironment = intent.getStringExtra(EXTRA_NATIVE_ENV),
             shadowBaseUrl = intent.getStringExtra(EXTRA_SHADOW_BASE_URL)
         )
-        val appViewModel = AppViewModel.fromEnvironment(
+        appViewModel = AppViewModel.fromEnvironment(
             environment = launch.environment,
             baseUrl = launch.baseUrl
         )
+        appViewModel.handleIncomingUrl(intent?.dataString)
 
         setContent {
             WewedTheme {
@@ -40,6 +43,14 @@ class MainActivity : ComponentActivity() {
                     appViewModel = appViewModel
                 )
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (::appViewModel.isInitialized) {
+            appViewModel.handleIncomingUrl(intent.dataString)
         }
     }
 
