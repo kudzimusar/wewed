@@ -46,6 +46,7 @@ These identifiers expose only the selected data environment. They must never con
 | Vendors destination | `planner-vendors-root` |
 | Seating destination | `planner-seating-root` |
 | Timeline destination | `planner-timeline-root` |
+| Documents destination | `planner-documents-root` |
 
 ### Guests
 
