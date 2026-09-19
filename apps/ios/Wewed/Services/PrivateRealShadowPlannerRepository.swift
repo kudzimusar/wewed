@@ -101,18 +101,25 @@ public actor PrivateRealShadowPlannerRepository: PlannerDashboardRepositoryProto
             totalEst += est
             totalAct += act
             totalPd += pd
-            let vName = item["vendorName"] as? String
-            let due = item["dueDate"] as? String
+            let vName = (item["vendorName"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
+            let sourceLabel = ["name", "title", "itemName", "description"]
+                .compactMap { (item[$0] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank }
+                .first
+            let displayLabel = sourceLabel ?? cat.capitalized
+            let fundingLabel = ["fundingLabel", "fundingSource", "paymentSource", "fundingType"]
+                .compactMap { (item[$0] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank }
+                .first ?? "Funding source not recorded"
+            let due = (item["dueDate"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
             let status = pd >= act && act > 0 ? "Paid" : (pd > 0 ? "Deposit paid" : "Unpaid")
             return PlannerBudgetLine(
                 id: id,
-                category: cat.capitalized,
+                category: displayLabel,
                 vendorName: vName,
                 estimated: est,
                 actual: act,
                 paid: pd,
                 dueDateLabel: due,
-                fundingLabel: "Direct expense",
+                fundingLabel: fundingLabel,
                 statusLabel: status
             )
         }
@@ -169,15 +176,19 @@ public actor PrivateRealShadowPlannerRepository: PlannerDashboardRepositoryProto
             }
             let contributorName = guestNameMap[guestId] ?? "Guest"
             let formattedType = type.replacingOccurrences(of: "_", with: " ").capitalized
-            let formattedStatus = status.capitalized
+            let formattedStatus = status.replacingOccurrences(of: "_", with: " ").capitalized
+            let contributionText = ["message", "content", "story", "note", "text"]
+                .compactMap { (item[$0] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank }
+                .first ?? "Non-monetary contribution"
+            let verifiedStatuses: Set<String> = ["verified", "approved", "published", "received", "accepted", "recorded"]
             return PlannerContributionRecord(
                 id: id,
                 contributorLabel: contributorName,
                 typeLabel: formattedType,
                 value: 0.0,
                 statusLabel: formattedStatus,
-                allocationLabel: "Guest Story & Blessing",
-                verified: true
+                allocationLabel: contributionText,
+                verified: verifiedStatuses.contains(status.lowercased())
             )
         }
 
@@ -237,11 +248,25 @@ public actor PrivateRealShadowPlannerRepository: PlannerDashboardRepositoryProto
                   let cat = item["category"] as? String, !cat.isEmpty else {
                 throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required vendor fields missing in private real shadow fixture.")
             }
-            let paymentStatus = (item["paymentStatus"] as? String)?.capitalized ?? "Unpaid"
+            let paymentStatus = (item["paymentStatus"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .nilIfBlank?
+                .replacingOccurrences(of: "_", with: " ")
+                .capitalized ?? "Not recorded"
             let se = engagementsByVendor[id]
-            let serviceDesc = se?["serviceDescription"] as? String ?? "\(cat.capitalized) services"
-            let lifecycleStatus = (se?["lifecycleStatus"] as? String)?.replacingOccurrences(of: "_", with: " ").capitalized ?? "Recorded"
-            let externalAgreementStatus = (se?["externalAgreementStatus"] as? String)?.capitalized ?? "None"
+            let serviceDesc = (se?["serviceDescription"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .nilIfBlank ?? "Service details not recorded"
+            let lifecycleStatus = (se?["lifecycleStatus"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .nilIfBlank?
+                .replacingOccurrences(of: "_", with: " ")
+                .capitalized ?? "Not recorded"
+            let externalAgreementStatus = (se?["externalAgreementStatus"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .nilIfBlank?
+                .replacingOccurrences(of: "_", with: " ")
+                .capitalized ?? "Not recorded"
 
             return PlannerVendorEngagement(
                 id: id,
@@ -296,7 +321,7 @@ public actor PrivateRealShadowPlannerRepository: PlannerDashboardRepositoryProto
                 PlannerModuleSummary(id: "tasks", title: "Tasks", value: "\(doneTasksCount) / \(totalTasksCount)", attention: "\(highPriorityTasksCount) high priority", systemImage: "checklist"),
                 PlannerModuleSummary(id: "budget", title: "Budget", value: "$\(String(format: "%.1fk", totalEstBudget / 1000.0))", attention: "$\(String(format: "%.1fk", totalPdBudget / 1000.0)) paid", systemImage: "creditcard.fill"),
                 PlannerModuleSummary(id: "contributions", title: "Contributions", value: "\(contributions.count) messages", attention: "Non-monetary", systemImage: "gift.fill"),
-                PlannerModuleSummary(id: "vendors", title: "Vendors", value: "\(vendorsCount) recorded", attention: "0 contracts", systemImage: "storefront.fill"),
+                PlannerModuleSummary(id: "vendors", title: "Vendors", value: "\(vendorsCount) vendors", attention: "\(serviceEngagementsCount) service engagements • 0 contracts", systemImage: "storefront.fill"),
                 PlannerModuleSummary(id: "guests", title: "Guests", value: "\(totalGuestsCount)", attention: "\(pendingRsvpCount) pending", systemImage: "person.3.fill"),
                 PlannerModuleSummary(id: "seating", title: "Seating", value: "\(assignedInvitedCapacity) / \(totalSeatingCapacity)", attention: "\(remainingTableCapacity) seats free", systemImage: "table.furniture.fill"),
                 PlannerModuleSummary(id: "timeline", title: "Timeline", value: "\(timelineEntries.count) items", attention: "23 Dec 2026", systemImage: "calendar.badge.clock")
@@ -313,3 +338,10 @@ public actor PrivateRealShadowPlannerRepository: PlannerDashboardRepositoryProto
     public func getTimelineEntries() async throws -> [PlannerTimelineEntry] { timelineEntries }
 }
 
+
+
+private extension String {
+    var nilIfBlank: String? {
+        isEmpty ? nil : self
+    }
+}
