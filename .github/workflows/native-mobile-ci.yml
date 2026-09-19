@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - feat/native-mobile-platform-20260910
-      - native-mobile/wedding-identity-ui-20260918
     paths:
       - 'apps/mobile/**'
       - 'src/lib/app-session.ts'
@@ -57,7 +56,6 @@ jobs:
       WEWED_ANDROID_VERSION_CODE: '3'
       WEWED_APP_VERSION: 2.0.0
       WEWED_ANDROID_PACKAGE_ID: pro.wewed.app.dev
-      WEWED_IOS_BUNDLE_ID: pro.wewed.app.dev
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -93,9 +91,6 @@ jobs:
       - name: Bundle Android JavaScript and assets
         run: bun run export:android
 
-      - name: Bundle iOS JavaScript and assets
-        run: bun run export:ios
-
   android-prebuild:
     name: Android native prebuild and debug compile gate
     runs-on: ubuntu-latest
@@ -111,7 +106,6 @@ jobs:
       WEWED_ANDROID_VERSION_CODE: '3'
       WEWED_APP_VERSION: 2.0.0
       WEWED_ANDROID_PACKAGE_ID: pro.wewed.app.dev
-      WEWED_IOS_BUNDLE_ID: pro.wewed.app.dev
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
