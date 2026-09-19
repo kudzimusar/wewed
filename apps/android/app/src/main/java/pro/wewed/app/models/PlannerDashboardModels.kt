@@ -90,3 +90,11 @@ data class PlannerTimelineEntry(
     val statusLabel: String,
     val linkedVendor: String?
 )
+
+
+data class PlannerDocumentRecord(
+    val id: String,
+    val title: String,
+    val kind: String,
+    val statusLabel: String?
+)
