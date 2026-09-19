@@ -14,10 +14,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "expo lint",
     "export:android": "expo export --platform android --output-dir dist-android --clear",
-    "export:ios": "expo export --platform ios --output-dir dist-ios --clear",
     "prebuild": "expo prebuild",
-    "prebuild:android": "expo prebuild --platform android --clean --no-install",
-    "prebuild:ios": "expo prebuild --platform ios --clean --no-install"
+    "prebuild:android": "expo prebuild --platform android --clean --no-install"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
