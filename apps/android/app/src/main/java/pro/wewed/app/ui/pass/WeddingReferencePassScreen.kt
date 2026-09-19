@@ -200,10 +200,15 @@ fun WeddingReferencePassScreen(
                                 WeddingQrCode(payload = p.qrPayload)
                             }
 
-                            Text("Scan at venue", color = WeddingIdentityPalette.Muted, fontSize = 11.sp)
+                            val productionCredential = p.qrPayload.startsWith("WW2.")
+                            Text(
+                                if (productionCredential) "Scan at venue" else "Shadow preview — not valid for admission",
+                                color = WeddingIdentityPalette.Muted,
+                                fontSize = 11.sp
+                            )
 
                             Text(
-                                "WEWED VERIFIED PASS",
+                                if (productionCredential) "WEWED PASS CREDENTIAL" else "SHADOW TEST CREDENTIAL",
                                 color = WeddingIdentityPalette.Muted,
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.SemiBold,
