@@ -1,0 +1,24 @@
+appId: pro.wewed.app.dev
+---
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+
+# Guest-specific invitation links must bypass dashboard authentication.
+- openLink: "wewed://invite/shadow_ref_charity_kudzie?rsvp=shadow-pending-guest"
+
+- extendedWaitUntil:
+    visible:
+      id: "ivory-invitation-root"
+    timeout: 5000
+
+- assertVisible: "You’re Invited"
+- assertNotVisible: "Sign In"
+
+- tapOn:
+    id: "ivory-rsvp-accept"
+
+- assertVisible: "RSVP Confirmed"
+- assertVisible:
+    id: "ivory-view-wedding-pass"
