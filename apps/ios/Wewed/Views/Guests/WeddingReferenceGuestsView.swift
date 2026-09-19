@@ -7,11 +7,9 @@ public struct WeddingReferenceGuestsView: View {
     @State private var query = ""
     @State private var filter: GuestReferenceFilter = .all
     @State private var showingFilters = false
-    @State private var showingAddGuest = false
     @State private var selectedGuest: Guest?
-    @State private var newGuestName = ""
-    @State private var newGuestPartySize = 1
     @State private var isLoading = true
+    @ScaledMetric(relativeTo: .largeTitle) private var titleSize: CGFloat = 28
 
     public init() {}
 
@@ -19,6 +17,7 @@ public struct WeddingReferenceGuestsView: View {
         NavigationStack {
             ZStack {
                 WeddingFloralBackground(opacity: 0.018)
+                    .accessibilityHidden(true)
 
                 VStack(spacing: 12) {
                     header
@@ -47,13 +46,11 @@ public struct WeddingReferenceGuestsView: View {
                         .scrollContentBackground(.hidden)
                     }
 
-                    Button {
-                        showingAddGuest = true
-                    } label: {
-                        WeddingPrimaryButtonLabel("Add Guest", icon: "plus")
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("guests-add")
+                    Text("To add or edit guests, use the Wewed web workspace.")
+                        .font(.footnote)
+                        .foregroundStyle(WeddingIdentityPalette.muted)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityIdentifier("guests-add-on-web")
                 }
                 .padding(.horizontal, 14)
                 .padding(.top, 12)
@@ -68,13 +65,11 @@ public struct WeddingReferenceGuestsView: View {
                     Button(value.title) { filter = value }
                 }
             }
-            .sheet(isPresented: $showingAddGuest) {
-                addGuestSheet
-            }
             .sheet(item: $selectedGuest) { guest in
                 guestDetailsSheet(guest)
             }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("guests-root")
     }
 
@@ -82,15 +77,17 @@ public struct WeddingReferenceGuestsView: View {
         HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 3) {
                 Text("Guests")
-                    .font(.system(size: 28, weight: .semibold, design: .serif))
+                    .font(.system(size: titleSize, weight: .semibold, design: .serif))
                     .foregroundStyle(WeddingIdentityPalette.ink)
+                    .accessibilityAddTraits(.isHeader)
                 Text("The people who make it special.")
-                    .font(.system(size: 12))
+                    .font(.caption)
                     .foregroundStyle(WeddingIdentityPalette.muted)
             }
                 Spacer()
             if let coupleNames = wedding?.coupleNames {
                 WeddingMonogramBadge(names: coupleNames, size: 58)
+                    .accessibilityHidden(true)
             }
         }
     }
@@ -100,12 +97,14 @@ public struct WeddingReferenceGuestsView: View {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(WeddingIdentityPalette.muted)
+                    .accessibilityHidden(true)
                 TextField("Search guests by name…", text: $query)
-                    .font(.system(size: 13))
+                    .font(.body)
+                    .accessibilityLabel("Search guests")
                     .accessibilityIdentifier("guests-search")
             }
             .padding(.horizontal, 12)
-            .frame(height: 42)
+            .frame(minHeight: 44)
             .background(WeddingIdentityPalette.ivorySoft)
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
@@ -116,7 +115,7 @@ public struct WeddingReferenceGuestsView: View {
             Button { showingFilters = true } label: {
                 Image(systemName: "line.3.horizontal.decrease")
                     .foregroundStyle(WeddingIdentityPalette.ink)
-                    .frame(width: 42, height: 42)
+                    .frame(width: 44, height: 44)
                     .background(WeddingIdentityPalette.ivorySoft)
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
@@ -144,10 +143,10 @@ public struct WeddingReferenceGuestsView: View {
             filter = value
         } label: {
             Text("\(value.title) (\(count))")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(filter == value ? .white : WeddingIdentityPalette.muted)
-                .padding(.horizontal, 11)
-                .padding(.vertical, 7)
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(filter == value ? .white : WeddingIdentityPalette.ink)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 44)
                 .background(filter == value ? WeddingIdentityPalette.forest : WeddingIdentityPalette.ivorySoft)
                 .clipShape(Capsule())
                 .overlay(
@@ -156,6 +155,7 @@ public struct WeddingReferenceGuestsView: View {
                 )
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(filter == value ? .isSelected : [])
         .accessibilityIdentifier("guests-filter-\(value.rawValue)")
     }
 
@@ -166,27 +166,23 @@ public struct WeddingReferenceGuestsView: View {
                     .fill(WeddingIdentityPalette.champagne.opacity(0.18))
                     .frame(width: 42, height: 42)
                 Text(initials(guest.name))
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(WeddingIdentityPalette.champagneDeep)
             }
+            .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(guest.name)
-                    .font(.system(size: 14, weight: .semibold, design: .serif))
+                    .font(.system(.subheadline, design: .serif).weight(.semibold))
                     .foregroundStyle(WeddingIdentityPalette.ink)
 
                 HStack(spacing: 6) {
                     Circle()
                         .fill(statusColor(guest.rsvpStatus))
                         .frame(width: 7, height: 7)
-                    Text(guest.rsvpStatus.title)
-                        .font(.system(size: 11))
-                        .foregroundStyle(WeddingIdentityPalette.muted)
-                    Text("•")
-                        .font(.caption2)
-                        .foregroundStyle(WeddingIdentityPalette.muted)
-                    Text("Party of \(guest.partySize)")
-                        .font(.system(size: 11))
+                        .accessibilityHidden(true)
+                    Text(PlainStatus.rsvp(guest.rsvpStatus) + " · Party of \(guest.partySize)")
+                        .font(.footnote)
                         .foregroundStyle(WeddingIdentityPalette.muted)
                 }
             }
@@ -196,6 +192,7 @@ public struct WeddingReferenceGuestsView: View {
             Image(systemName: "chevron.right")
                 .font(.caption)
                 .foregroundStyle(WeddingIdentityPalette.muted)
+                .accessibilityHidden(true)
         }
         .padding(13)
         .background(WeddingIdentityPalette.ivorySoft)
@@ -225,60 +222,14 @@ public struct WeddingReferenceGuestsView: View {
         }
     }
 
-    private var addGuestSheet: some View {
-        NavigationStack {
-            Form {
-                Section("Guest") {
-                    TextField("Guest name", text: $newGuestName)
-                    Stepper("Party of \(newGuestPartySize)", value: $newGuestPartySize, in: 1...10)
-                }
-
-                Section {
-                    Text("This addition stays in the local Shadow session and does not write to production.")
-                        .font(.footnote)
-                        .foregroundStyle(WeddingIdentityPalette.muted)
-                }
-            }
-            .navigationTitle("Add Guest")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        resetGuestDraft()
-                        showingAddGuest = false
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") {
-                        let trimmed = newGuestName.trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard !trimmed.isEmpty else { return }
-                        guests.append(
-                            Guest(
-                                id: "shadow-local-\(UUID().uuidString)",
-                                name: trimmed,
-                                partySize: newGuestPartySize,
-                                rsvpStatus: .pending
-                            )
-                        )
-                        resetGuestDraft()
-                        showingAddGuest = false
-                    }
-                    .disabled(newGuestName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    .accessibilityIdentifier("guests-add-save")
-                }
-            }
-        }
-    }
-
     private func guestDetailsSheet(_ guest: Guest) -> some View {
         NavigationStack {
             List {
                 Section("Guest") {
                     LabeledContent("Name", value: guest.name)
-                    LabeledContent("RSVP", value: guest.rsvpStatus.title)
+                    LabeledContent("RSVP", value: PlainStatus.rsvp(guest.rsvpStatus))
                     LabeledContent("Party", value: "Party of \(guest.partySize)")
-                    if let table = guest.tableName {
-                        LabeledContent("Seating", value: table)
-                    }
+                    LabeledContent("Table", value: guest.tableName ?? "No table")
                 }
             }
             .navigationTitle("Guest Details")
@@ -288,11 +239,6 @@ public struct WeddingReferenceGuestsView: View {
                 }
             }
         }
-    }
-
-    private func resetGuestDraft() {
-        newGuestName = ""
-        newGuestPartySize = 1
     }
 
     private func load() async {
@@ -332,7 +278,7 @@ private enum GuestReferenceFilter: String, CaseIterable {
         switch self {
         case .all: return "All"
         case .attending: return "Attending"
-        case .pending: return "Pending"
+        case .pending: return "Not replied"
         case .declined: return "Declined"
         }
     }

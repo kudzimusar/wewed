@@ -1,14 +1,12 @@
 package pro.wewed.app.ui.invitation
 
-import android.content.Intent
-import android.net.Uri
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -23,95 +21,83 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 import pro.wewed.app.R
 import pro.wewed.app.models.InvitationContext
+import pro.wewed.app.models.VenueLocation
 import pro.wewed.app.models.WeddingPass
-import pro.wewed.app.state.AppViewModel
 import pro.wewed.app.theme.WeddingIdentityPalette
 import pro.wewed.app.theme.WeddingMonogram
-import java.text.SimpleDateFormat
-import java.util.Locale
+import pro.wewed.app.ui.shared.Formatting
+import pro.wewed.app.ui.shared.MinTouchTarget
+import pro.wewed.app.ui.shared.OpenInMapsButton
+
+/** Who is looking at the invitation decides whether the reply buttons do anything. */
+sealed interface InvitationMode {
+    /** A guest replying to their own invitation. */
+    data class Guest(
+        val respond: suspend (attending: Boolean) -> WeddingPass,
+        val onViewPass: () -> Unit
+    ) : InvitationMode
+
+    /** The couple previewing what guests see. The reply buttons never change any guest. */
+    data object Preview : InvitationMode
+}
+
+private enum class ReplyState { NONE, ACCEPTED, DECLINED }
 
 @Composable
 fun IvoryInvitationScreen(
     invitation: InvitationContext,
-    appViewModel: AppViewModel,
-    onRsvpConfirmed: (WeddingPass) -> Unit,
-    onClose: () -> Unit,
-    allowsClose: Boolean = true,
-    onRsvpDeclined: () -> Unit = {}
+    mode: InvitationMode,
+    fallbackVenue: VenueLocation? = null,
+    onClose: (() -> Unit)? = null
 ) {
+    val scope = rememberCoroutineScope()
     var showDetails by remember { mutableStateOf(false) }
-    var rsvpSubmitted by remember { mutableStateOf(false) }
-    var declined by remember { mutableStateOf(false) }
-    var generatedPass by remember { mutableStateOf<WeddingPass?>(null) }
-    var pendingAttendance by remember { mutableStateOf<Boolean?>(null) }
+    var reply by remember(invitation.guestId) {
+        mutableStateOf(if (mode is InvitationMode.Guest && invitation.isConfirmed) ReplyState.ACCEPTED else ReplyState.NONE)
+    }
+    var submitting by remember { mutableStateOf(false) }
+    var problem by remember { mutableStateOf<String?>(null) }
+    var previewNote by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(pendingAttendance) {
-        val attending = pendingAttendance ?: return@LaunchedEffect
-        try {
-            val pass = appViewModel.repository.confirmRsvp(
-                invitation.weddingSlug,
-                invitation.guestToken,
-                attending
-            )
-            if (attending) {
-                generatedPass = pass
-                rsvpSubmitted = true
-                declined = false
-            } else {
-                generatedPass = null
-                rsvpSubmitted = false
-                declined = true
-                onRsvpDeclined()
+    fun respond(attending: Boolean) {
+        when (mode) {
+            InvitationMode.Preview -> {
+                previewNote = if (attending) {
+                    "Preview only. In a guest's own invitation, Accept confirms their place. No reply was recorded."
+                } else {
+                    "Preview only. In a guest's own invitation, Decline sends their regrets. No reply was recorded."
+                }
             }
-        } catch (_: Throwable) {
-            // Keep the invitation actionable when a Shadow RSVP operation fails.
-        } finally {
-            pendingAttendance = null
+            is InvitationMode.Guest -> {
+                if (submitting) return
+                submitting = true
+                problem = null
+                scope.launch {
+                    try {
+                        mode.respond(attending)
+                        reply = if (attending) ReplyState.ACCEPTED else ReplyState.DECLINED
+                    } catch (_: Exception) {
+                        problem = "Your reply couldn't be sent. Please try again."
+                    } finally {
+                        submitting = false
+                    }
+                }
+            }
         }
     }
 
-    IvoryInvitationScaffold(
-        invitation = invitation,
-        showDetails = showDetails,
-        declined = declined,
-        rsvpSubmitted = rsvpSubmitted,
-        generatedPass = generatedPass,
-        isSubmitting = pendingAttendance != null,
-        allowsClose = allowsClose,
-        onClose = onClose,
-        onToggleDetails = { showDetails = !showDetails },
-        onAccept = { pendingAttendance = true },
-        onDecline = { pendingAttendance = false },
-        onViewPass = {
-            generatedPass?.let(onRsvpConfirmed)
-            if (allowsClose) onClose()
-        }
-    )
-}
-
-@Composable
-private fun IvoryInvitationScaffold(
-    invitation: InvitationContext,
-    showDetails: Boolean,
-    declined: Boolean,
-    rsvpSubmitted: Boolean,
-    generatedPass: WeddingPass?,
-    isSubmitting: Boolean,
-    allowsClose: Boolean,
-    onClose: () -> Unit,
-    onToggleDetails: () -> Unit,
-    onAccept: () -> Unit,
-    onDecline: () -> Unit,
-    onViewPass: () -> Unit
-) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -131,121 +117,113 @@ private fun IvoryInvitationScaffold(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(18.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            IvoryInvitationHeader(
-                allowsClose = allowsClose,
-                onClose = onClose
-            )
+            InvitationHeader(onClose)
 
-            IvoryInvitationCard(
-                invitation = invitation,
-                showDetails = showDetails,
-                declined = declined,
-                rsvpSubmitted = rsvpSubmitted,
-                generatedPass = generatedPass,
-                isSubmitting = isSubmitting,
-                allowsClose = allowsClose,
-                onToggleDetails = onToggleDetails,
-                onAccept = onAccept,
-                onDecline = onDecline,
-                onViewPass = onViewPass
-            )
+            if (mode == InvitationMode.Preview) {
+                Text(
+                    "This is how your guests see their invitation. Guests reply from their own invitation.",
+                    color = WeddingIdentityPalette.Ink,
+                    fontSize = 15.sp,
+                    lineHeight = 21.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFFFFF4DE))
+                        .border(1.dp, Color(0xFFE8C98E), RoundedCornerShape(12.dp))
+                        .padding(12.dp)
+                        .testTag("invitation-preview-notice")
+                )
+            }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(WeddingIdentityPalette.IvorySoft)
+                    .border(1.dp, WeddingIdentityPalette.Champagne.copy(alpha = 0.70f), RoundedCornerShape(24.dp))
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.ornament_frame),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.matchParentSize().alpha(0.15f)
+                )
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 30.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    InvitationCardIdentity(invitation)
+                    OpenInMapsButton(
+                        venue = invitation.venue,
+                        fallback = fallbackVenue,
+                        tag = "invitation-open-maps"
+                    )
+                    if (showDetails) InvitationDetailPanel(invitation)
+
+                    when (reply) {
+                        ReplyState.ACCEPTED -> AcceptedState(
+                            onViewPass = (mode as? InvitationMode.Guest)?.onViewPass
+                        )
+                        ReplyState.DECLINED -> DeclinedState(onChangeReply = { reply = ReplyState.NONE })
+                        ReplyState.NONE -> ReplyActions(
+                            submitting = submitting,
+                            showDetails = showDetails,
+                            onAccept = { respond(true) },
+                            onDecline = { respond(false) },
+                            onToggleDetails = { showDetails = !showDetails }
+                        )
+                    }
+
+                    previewNote?.let {
+                        Text(
+                            it,
+                            color = WeddingIdentityPalette.Ink,
+                            fontSize = 15.sp,
+                            lineHeight = 21.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .testTag("invitation-preview-rsvp-note")
+                                .semantics { liveRegion = LiveRegionMode.Polite }
+                        )
+                    }
+                    problem?.let {
+                        Text(
+                            it,
+                            color = Color(0xFF9B1C1C),
+                            fontSize = 15.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
 
 @Composable
-private fun IvoryInvitationHeader(
-    allowsClose: Boolean,
-    onClose: () -> Unit
-) {
-    Box(modifier = Modifier.fillMaxWidth()) {
+private fun InvitationHeader(onClose: (() -> Unit)?) {
+    Box(modifier = Modifier.fillMaxWidth().heightIn(min = MinTouchTarget)) {
         Text(
             "You’re Invited",
             color = WeddingIdentityPalette.Ink,
             fontFamily = FontFamily.Serif,
             fontWeight = FontWeight.SemiBold,
-            fontSize = 18.sp,
+            fontSize = 20.sp,
             modifier = Modifier.align(Alignment.Center)
         )
-
-        if (allowsClose) {
+        if (onClose != null) {
             IconButton(
                 onClick = onClose,
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .size(42.dp)
+                modifier = Modifier.align(Alignment.CenterStart).testTag("invitation-close")
             ) {
-                Icon(
-                    Icons.Default.ChevronLeft,
-                    contentDescription = "Close invitation",
-                    tint = WeddingIdentityPalette.Ink
-                )
+                Icon(Icons.Default.ChevronLeft, contentDescription = "Close invitation", tint = WeddingIdentityPalette.Ink)
             }
-        }
-    }
-}
-
-@Composable
-private fun IvoryInvitationCard(
-    invitation: InvitationContext,
-    showDetails: Boolean,
-    declined: Boolean,
-    rsvpSubmitted: Boolean,
-    generatedPass: WeddingPass?,
-    isSubmitting: Boolean,
-    allowsClose: Boolean,
-    onToggleDetails: () -> Unit,
-    onAccept: () -> Unit,
-    onDecline: () -> Unit,
-    onViewPass: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(WeddingIdentityPalette.IvorySoft)
-            .border(
-                1.dp,
-                WeddingIdentityPalette.Champagne.copy(alpha = 0.70f),
-                RoundedCornerShape(24.dp)
-            )
-    ) {
-        Image(
-            painter = painterResource(R.drawable.ornament_frame),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.matchParentSize().alpha(0.15f)
-        )
-
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 34.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            InvitationCardIdentity(invitation)
-
-            if (showDetails) {
-                InvitationDetailPanel(invitation)
-            }
-
-            InvitationResponseArea(
-                showDetails = showDetails,
-                declined = declined,
-                rsvpSubmitted = rsvpSubmitted,
-                hasGeneratedPass = generatedPass != null,
-                isSubmitting = isSubmitting,
-                allowsClose = allowsClose,
-                onToggleDetails = onToggleDetails,
-                onAccept = onAccept,
-                onDecline = onDecline,
-                onViewPass = onViewPass
-            )
         }
     }
 }
@@ -253,7 +231,6 @@ private fun IvoryInvitationCard(
 @Composable
 private fun InvitationCardIdentity(invitation: InvitationContext) {
     WeddingMonogram(invitation.coupleNames, sizeSp = 54)
-
     Text(
         invitation.coupleNames,
         color = WeddingIdentityPalette.Ink,
@@ -262,342 +239,187 @@ private fun InvitationCardIdentity(invitation: InvitationContext) {
         fontSize = 29.sp,
         textAlign = TextAlign.Center
     )
-
     Text(
         "TOGETHER WITH OUR FAMILIES\nWE INVITE YOU TO CELEBRATE\nOUR WEDDING",
         color = WeddingIdentityPalette.Ink.copy(alpha = 0.86f),
-        fontSize = 10.sp,
+        fontSize = 12.sp,
         fontWeight = FontWeight.SemiBold,
-        letterSpacing = 1.5.sp,
+        letterSpacing = 1.4.sp,
         textAlign = TextAlign.Center,
-        lineHeight = 18.sp
+        lineHeight = 19.sp
     )
-
-    HorizontalDivider(
-        modifier = Modifier.width(72.dp),
-        color = WeddingIdentityPalette.Champagne
-    )
-
+    HorizontalDivider(modifier = Modifier.width(72.dp), color = WeddingIdentityPalette.Champagne)
     Text(
-        displayInvitationDate(invitation.weddingDate),
+        Formatting.shortDate(invitation.weddingDate).uppercase(),
         color = WeddingIdentityPalette.ChampagneDeep,
         fontFamily = FontFamily.Serif,
         fontWeight = FontWeight.Medium,
         fontSize = 23.sp
     )
-
     Text(
-        invitation.venueCity.uppercase(),
+        listOf(invitation.venueName, invitation.venueCity).filter { it.isNotBlank() }.joinToString(" · ").uppercase(),
         color = WeddingIdentityPalette.Muted,
-        fontSize = 10.sp,
+        fontSize = 12.sp,
         fontWeight = FontWeight.Medium,
-        letterSpacing = 1.8.sp
+        letterSpacing = 1.4.sp,
+        textAlign = TextAlign.Center
     )
-
-    Text(
-        "For ${invitation.guestName} • Party of ${invitation.partySize}",
-        color = WeddingIdentityPalette.Muted,
-        fontSize = 11.sp
-    )
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text("Prepared for", color = WeddingIdentityPalette.Muted, fontSize = 13.sp)
+        Text(
+            invitation.guestName,
+            color = WeddingIdentityPalette.Ink,
+            fontFamily = FontFamily.Serif,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 20.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.testTag("invitation-guest-name")
+        )
+        Text("Party of ${invitation.partySize}", color = WeddingIdentityPalette.Muted, fontSize = 14.sp)
+    }
 }
 
 @Composable
 private fun InvitationDetailPanel(invitation: InvitationContext) {
-    val context = LocalContext.current
-    val queryAddress = "${invitation.venueName}, ${invitation.venueCity}".trim()
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(Color.White.copy(alpha = 0.72f))
-            .padding(12.dp),
+            .padding(12.dp)
+            .testTag("ivory-details-panel"),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        InvitationDetailRow(
-            icon = Icons.Default.Place,
-            text = "${invitation.venueName}, ${invitation.venueCity}"
-        )
-        InvitationDetailRow(
-            icon = Icons.Default.CalendarToday,
-            text = invitation.weddingDate
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End
-        ) {
-            TextButton(
-                onClick = {
-                    try {
-                        val encoded = Uri.encode(queryAddress)
-                        val mapIntent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=$encoded"))
-                        mapIntent.setPackage("com.google.android.apps.maps")
-                        if (mapIntent.resolveActivity(context.packageManager) != null) {
-                            context.startActivity(mapIntent)
-                        } else {
-                            val browserMap = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/search/?api=1&query=$encoded"))
-                            context.startActivity(browserMap)
-                        }
-                    } catch (_: Exception) {
-                        val browserMap = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/search/?api=1&query=${Uri.encode(queryAddress)}"))
-                        context.startActivity(browserMap)
-                    }
-                },
-                modifier = Modifier.testTag("invitation-open-maps")
-            ) {
-                Icon(
-                    Icons.Default.Directions,
-                    contentDescription = null,
-                    tint = WeddingIdentityPalette.ChampagneDeep,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    "Open in Maps",
-                    color = WeddingIdentityPalette.ChampagneDeep,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-        }
+        DetailRow(Icons.Default.Place, listOf(invitation.venueName, invitation.venueCity).filter { it.isNotBlank() }.joinToString(", "))
+        DetailRow(Icons.Default.CalendarToday, Formatting.dateAndTime(invitation.weddingDate))
     }
 }
 
 @Composable
-private fun InvitationDetailRow(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    text: String
-) {
+private fun DetailRow(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(
-            icon,
-            contentDescription = null,
-            tint = WeddingIdentityPalette.ChampagneDeep,
-            modifier = Modifier.size(17.dp)
-        )
+        Icon(icon, contentDescription = null, tint = WeddingIdentityPalette.ChampagneDeep, modifier = Modifier.size(18.dp))
         Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text,
-            color = WeddingIdentityPalette.Ink,
-            fontSize = 12.sp
-        )
+        Text(text, color = WeddingIdentityPalette.Ink, fontSize = 15.sp)
     }
 }
 
 @Composable
-private fun InvitationResponseArea(
+private fun ReplyActions(
+    submitting: Boolean,
     showDetails: Boolean,
-    declined: Boolean,
-    rsvpSubmitted: Boolean,
-    hasGeneratedPass: Boolean,
-    isSubmitting: Boolean,
-    allowsClose: Boolean,
-    onToggleDetails: () -> Unit,
     onAccept: () -> Unit,
     onDecline: () -> Unit,
-    onViewPass: () -> Unit
+    onToggleDetails: () -> Unit
 ) {
-    when {
-        declined -> InvitationDeclinedState()
-        rsvpSubmitted && hasGeneratedPass -> InvitationConfirmedState(
-            onViewPass = onViewPass
-        )
-        else -> InvitationActions(
-            showDetails = showDetails,
-            isSubmitting = isSubmitting,
-            allowsClose = allowsClose,
-            onToggleDetails = onToggleDetails,
-            onAccept = onAccept,
-            onDecline = onDecline
-        )
-    }
-}
-
-@Composable
-private fun InvitationDeclinedState() {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(WeddingIdentityPalette.IvorySoft)
-            .border(
-                1.dp,
-                WeddingIdentityPalette.Hairline,
-                RoundedCornerShape(18.dp)
-            )
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Icon(
-            Icons.Default.FavoriteBorder,
-            contentDescription = null,
-            tint = WeddingIdentityPalette.ChampagneDeep
-        )
-        Text(
-            "Response Recorded",
-            color = WeddingIdentityPalette.Ink,
-            fontWeight = FontWeight.SemiBold
-        )
-        Text(
-            "Thank you for letting the wedding team know.",
-            color = WeddingIdentityPalette.Muted,
-            fontSize = 12.sp,
-            textAlign = TextAlign.Center
-        )
-    }
-}
-
-@Composable
-private fun InvitationConfirmedState(
-    onViewPass: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(WeddingIdentityPalette.IvorySoft)
-            .border(
-                1.dp,
-                WeddingIdentityPalette.Hairline,
-                RoundedCornerShape(18.dp)
-            )
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                Icons.Default.Verified,
-                contentDescription = null,
-                tint = WeddingIdentityPalette.Forest
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                "RSVP Confirmed",
-                color = WeddingIdentityPalette.Forest,
-                fontWeight = FontWeight.Bold
-            )
-        }
-
-        Button(
-            onClick = onViewPass,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp)
-                .testTag("ivory-view-wedding-pass"),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = WeddingIdentityPalette.Forest
-            ),
-            shape = RoundedCornerShape(13.dp)
-        ) {
-            Icon(Icons.Default.QrCode, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("View My Wedding Pass", fontWeight = FontWeight.SemiBold)
-        }
-    }
-}
-
-@Composable
-private fun InvitationActions(
-    showDetails: Boolean,
-    isSubmitting: Boolean,
-    allowsClose: Boolean,
-    onToggleDetails: () -> Unit,
-    onAccept: () -> Unit,
-    onDecline: () -> Unit
-) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Button(
             onClick = onAccept,
-            enabled = !isSubmitting,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp)
-                .testTag("ivory-rsvp-accept"),
+            enabled = !submitting,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).testTag("ivory-rsvp-accept"),
             shape = RoundedCornerShape(13.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color.Transparent
-            ),
+            colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
             contentPadding = PaddingValues(0.dp)
         ) {
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.horizontalGradient(
-                            listOf(
-                                WeddingIdentityPalette.ChampagneDeep,
-                                WeddingIdentityPalette.Champagne
-                            )
-                        )
-                    ),
+                    .fillMaxWidth()
+                    .heightIn(min = 52.dp)
+                    .background(Brush.horizontalGradient(listOf(WeddingIdentityPalette.ChampagneDeep, WeddingIdentityPalette.Champagne))),
                 contentAlignment = Alignment.Center
             ) {
-                if (isSubmitting) {
-                    CircularProgressIndicator(
-                        color = Color.White,
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp
-                    )
+                if (submitting) {
+                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
                 } else {
-                    Text(
-                        "RSVP Now",
-                        color = Color.White,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    Text("Accept", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
                 }
             }
         }
-
         OutlinedButton(
-            onClick = onToggleDetails,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp)
-                .testTag("ivory-details-toggle"),
+            onClick = onDecline,
+            enabled = !submitting,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).testTag("ivory-rsvp-decline"),
             shape = RoundedCornerShape(13.dp),
-            border = androidx.compose.foundation.BorderStroke(
-                1.dp,
-                WeddingIdentityPalette.Champagne
-            ),
-            colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = WeddingIdentityPalette.Ink
-            )
+            border = BorderStroke(1.dp, WeddingIdentityPalette.Champagne),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = WeddingIdentityPalette.Ink)
+        ) {
+            Text("Decline", fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
+        }
+        TextButton(
+            onClick = onToggleDetails,
+            modifier = Modifier.fillMaxWidth().heightIn(min = MinTouchTarget).testTag("ivory-details-toggle")
         ) {
             Text(
-                if (showDetails) "Hide Details" else "View Details",
+                if (showDetails) "Hide details" else "View details",
+                color = WeddingIdentityPalette.ChampagneDeep,
                 fontWeight = FontWeight.SemiBold,
-                fontSize = 13.sp
+                fontSize = 16.sp
             )
-        }
-
-        if (showDetails) {
-            TextButton(
-                onClick = onDecline,
-                enabled = !isSubmitting,
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .testTag("ivory-rsvp-decline")
-            ) {
-                Text(
-                    "Decline with Regret",
-                    color = WeddingIdentityPalette.Muted,
-                    fontSize = 12.sp
-                )
-            }
-        }
-
-        if (!allowsClose) {
-            Spacer(modifier = Modifier.height(2.dp))
         }
     }
 }
 
-private fun displayInvitationDate(raw: String): String {
-    val parser = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
-    val date = runCatching { parser.parse(raw) }.getOrNull() ?: return raw
-    return SimpleDateFormat("dd MMM yyyy", Locale.US).format(date).uppercase()
+@Composable
+private fun AcceptedState(onViewPass: (() -> Unit)?) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(WeddingIdentityPalette.IvorySoft)
+            .border(1.dp, WeddingIdentityPalette.Hairline, RoundedCornerShape(18.dp))
+            .padding(16.dp)
+            .testTag("invitation-accepted")
+            .semantics { liveRegion = LiveRegionMode.Polite },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.Verified, contentDescription = null, tint = WeddingIdentityPalette.Forest)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("You accepted. Your place is confirmed.", color = WeddingIdentityPalette.Forest, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        }
+        if (onViewPass != null) {
+            Button(
+                onClick = onViewPass,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).testTag("ivory-view-wedding-pass"),
+                colors = ButtonDefaults.buttonColors(containerColor = WeddingIdentityPalette.Forest),
+                shape = RoundedCornerShape(13.dp)
+            ) {
+                Icon(Icons.Default.QrCode, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("View my pass", fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DeclinedState(onChangeReply: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(WeddingIdentityPalette.IvorySoft)
+            .border(1.dp, WeddingIdentityPalette.Hairline, RoundedCornerShape(18.dp))
+            .padding(16.dp)
+            .testTag("invitation-declined")
+            .semantics { liveRegion = LiveRegionMode.Polite },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Icon(Icons.Default.FavoriteBorder, contentDescription = null, tint = WeddingIdentityPalette.ChampagneDeep)
+        Text("You declined. Your reply was sent.", color = WeddingIdentityPalette.Ink, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+        Text(
+            "Thank you for letting the couple know. A pass is only issued to guests who accept.",
+            color = WeddingIdentityPalette.Muted,
+            fontSize = 14.sp,
+            textAlign = TextAlign.Center
+        )
+        TextButton(
+            onClick = onChangeReply,
+            modifier = Modifier.heightIn(min = MinTouchTarget).testTag("ivory-change-reply")
+        ) {
+            Text("Change my reply", color = WeddingIdentityPalette.ChampagneDeep, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+        }
+    }
 }

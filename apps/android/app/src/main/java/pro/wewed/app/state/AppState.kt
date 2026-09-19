@@ -28,7 +28,8 @@ class AppViewModel(
     val plannerRepository: PlannerDashboardRepository = FixturePlannerDashboardRepository(),
     val dataEnvironment: NativeDataEnvironment = NativeDataEnvironment.FIXTURE,
     val dataBaseUrl: String? = null,
-    val weddingDayGate: WeddingDayGateOperations? = null
+    val weddingDayGate: WeddingDayGateOperations? = null,
+    val dataFingerprint: String? = null
 ) {
     init {
         NativeEnvironmentGuard.validate(dataBaseUrl, dataEnvironment)
@@ -66,7 +67,8 @@ class AppViewModel(
                 baseRepository = bundle.wedding,
                 plannerRepository = bundle.planner,
                 dataEnvironment = bundle.environment,
-                dataBaseUrl = bundle.baseUrl
+                dataBaseUrl = bundle.baseUrl,
+                dataFingerprint = bundle.dataFingerprint
             )
         }
     }

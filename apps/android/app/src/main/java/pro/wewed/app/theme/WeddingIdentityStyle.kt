@@ -142,8 +142,8 @@ fun WeddingMetricTile(
         )
         Text(
             text = value,
-            color = WeddingIdentityPalette.Muted,
-            fontSize = 11.sp,
+            color = WeddingIdentityPalette.Ink,
+            fontSize = 13.sp,
             maxLines = 1
         )
     }

@@ -11,12 +11,18 @@ public struct WeddingReferenceHomeView: View {
     @State private var showingInvitation = false
     @State private var isLoading = true
 
+    @ScaledMetric(relativeTo: .largeTitle) private var namesSize: CGFloat = 39
+    @ScaledMetric(relativeTo: .title3) private var dateSize: CGFloat = 20
+    @ScaledMetric(relativeTo: .title2) private var countdownSize: CGFloat = 24
+    @ScaledMetric(relativeTo: .body) private var heroHeight: CGFloat = 390
+
     public init() {}
 
     public var body: some View {
         NavigationStack {
             ZStack {
                 WeddingFloralBackground(opacity: 0.035)
+                    .accessibilityHidden(true)
 
                 ScrollView(showsIndicators: false) {
                     if let wedding {
@@ -31,6 +37,9 @@ public struct WeddingReferenceHomeView: View {
                     } else if isLoading {
                         ProgressView("Loading wedding…")
                             .padding(.top, 120)
+                    } else {
+                        LoadFailureText("your wedding")
+                            .padding(16)
                     }
                 }
             }
@@ -40,114 +49,133 @@ public struct WeddingReferenceHomeView: View {
             .task { await load() }
             .sheet(isPresented: $showingInvitation) {
                 if let invitation {
-                    GuestInvitationJourneyView(
-                        reference: GuestJourneyReference(
-                            invitation: invitation,
-                            initialStage: .splash
-                        )
+                    IvoryInvitationView(
+                        invitation: invitation,
+                        mode: .preview,
+                        fallbackVenue: wedding?.venueLocation,
+                        allowsClose: true
                     )
                 } else {
-                    ProgressView("Preparing invitation…")
-                        .padding(40)
+                    VStack(spacing: 16) {
+                        EmptyStateText("There is no guest invitation to preview yet.", identifier: "invitation-preview-unavailable")
+                        Button("Close") { showingInvitation = false }
+                            .buttonStyle(WeddingActionButtonStyle(.secondary))
+                    }
+                    .padding(24)
                 }
             }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("home-root")
     }
 
     private func hero(_ wedding: Wedding) -> some View {
-        ZStack(alignment: .bottomLeading) {
-            Image("hero-wedding", bundle: .module)
-                .resizable()
-                .scaledToFill()
-                .frame(height: 390)
-                .clipped()
-
-            LinearGradient(
-                colors: [
-                    .clear,
-                    Color.black.opacity(0.12),
-                    Color.black.opacity(0.78)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-
-            VStack(alignment: .leading, spacing: 9) {
-                ZStack {
+        heroContent(wedding)
+            .padding(16)
+            .padding(.top, 64)
+            .frame(maxWidth: .infinity, minHeight: heroHeight, alignment: .bottomLeading)
+            .overlay(alignment: .top) {
+                HStack(alignment: .top) {
                     WeddingBrandMark()
-
-                    HStack {
-                        Spacer()
-                        Button {
-                            showingInvitation = true
-                        } label: {
-                            Image(systemName: "bell")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundStyle(.white)
-                                .padding(10)
-                                .background(.black.opacity(0.20))
-                                .clipShape(Circle())
-                        }
-                        .accessibilityIdentifier("home-open-invitation")
+                    Spacer()
+                    Button {
+                        showingInvitation = true
+                    } label: {
+                        Label("Preview invitation", systemImage: "envelope.open")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 12)
+                            .frame(minHeight: 44)
+                            .background(.black.opacity(0.35), in: Capsule())
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Shows the invitation the way your guests see it")
+                    .accessibilityIdentifier("home-open-invitation")
                 }
+                .padding(16)
+            }
+            .background {
+                ZStack {
+                    Image("hero-wedding", bundle: .module)
+                        .resizable()
+                        .scaledToFill()
+                    LinearGradient(
+                        colors: [
+                            .clear,
+                            Color.black.opacity(0.12),
+                            Color.black.opacity(0.78)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                }
+                .accessibilityHidden(true)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 23))
+            .overlay(
+                RoundedRectangle(cornerRadius: 23)
+                    .stroke(WeddingIdentityPalette.champagne.opacity(0.35), lineWidth: 1)
+            )
+    }
 
-                Spacer()
-
+    private func heroContent(_ wedding: Wedding) -> some View {
+            VStack(alignment: .leading, spacing: 9) {
                 Text(wedding.coupleNames)
-                    .font(.system(size: 39, weight: .regular, design: .serif))
+                    .font(.system(size: namesSize, weight: .regular, design: .serif))
                     .italic()
                     .foregroundStyle(.white)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Text("OUR WEDDING JOURNEY")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                     .tracking(3)
                     .foregroundStyle(.white.opacity(0.90))
 
-                Text(displayWeddingDate(wedding.date))
-                    .font(.system(size: 20, weight: .semibold))
+                Text(WeddingDateText.short(wedding.date).uppercased())
+                    .font(.system(size: dateSize, weight: .semibold))
                     .tracking(2.2)
                     .foregroundStyle(.white)
+                    .accessibilityLabel(WeddingDateText.long(wedding.date))
 
                 if let countdown = countdown(from: wedding.date) {
-                    HStack(spacing: 7) {
-                        countdownTile(countdown.days, "Days")
-                        countdownTile(countdown.hours, "Hours")
-                        countdownTile(countdown.minutes, "Mins")
-                        countdownTile(countdown.seconds, "Secs")
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 7) { countdownTiles(countdown) }
+                        Text("\(countdown.days) days to go")
+                            .font(.headline)
+                            .foregroundStyle(.white)
                     }
                     .padding(.top, 5)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("\(countdown.days) days, \(countdown.hours) hours and \(countdown.minutes) minutes to go")
                 }
 
                 Text("“Two hearts, one beautiful tomorrow.”")
-                    .font(.system(size: 16, design: .serif))
+                    .font(.system(.callout, design: .serif))
                     .italic()
                     .foregroundStyle(.white.opacity(0.92))
                     .padding(.top, 3)
             }
-            .padding(16)
-        }
-        .frame(height: 390)
-        .clipShape(RoundedRectangle(cornerRadius: 23))
-        .overlay(
-            RoundedRectangle(cornerRadius: 23)
-                .stroke(WeddingIdentityPalette.champagne.opacity(0.35), lineWidth: 1)
-        )
+    }
+
+    @ViewBuilder
+    private func countdownTiles(_ countdown: (days: Int, hours: Int, minutes: Int, seconds: Int)) -> some View {
+        countdownTile(countdown.days, "Days")
+        countdownTile(countdown.hours, "Hours")
+        countdownTile(countdown.minutes, "Mins")
+        countdownTile(countdown.seconds, "Secs")
     }
 
     private func countdownTile(_ value: Int, _ label: String) -> some View {
         VStack(spacing: 1) {
             Text("\(value)")
-                .font(.system(size: 24, weight: .medium, design: .serif))
+                .font(.system(size: countdownSize, weight: .medium, design: .serif))
             Text(label)
-                .font(.system(size: 10))
+                .font(.caption2)
         }
         .foregroundStyle(.white)
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
-        .background(.black.opacity(0.46))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .background(.black.opacity(0.46), in: RoundedRectangle(cornerRadius: 10))
     }
 
     private var continuePlanning: some View {
@@ -156,31 +184,32 @@ public struct WeddingReferenceHomeView: View {
                 appState.selectedTab = .plan
             } label: {
                 HStack(spacing: 12) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 13)
-                            .fill(WeddingIdentityPalette.champagne.opacity(0.15))
-                            .frame(width: 52, height: 52)
-                        Image(systemName: "checklist")
-                            .font(.system(size: 20, weight: .semibold))
-                            .foregroundStyle(WeddingIdentityPalette.champagneDeep)
-                    }
+                    Image(systemName: "checklist")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(WeddingIdentityPalette.champagneDeep)
+                        .frame(width: 52, height: 52)
+                        .background(WeddingIdentityPalette.champagne.opacity(0.15), in: RoundedRectangle(cornerRadius: 13))
+                        .accessibilityHidden(true)
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Continue Planning")
-                            .font(.system(size: 17, weight: .semibold, design: .serif))
+                            .font(.system(.headline, design: .serif))
                             .foregroundStyle(WeddingIdentityPalette.ink)
-                        Text("You’re \(taskCompletionPercent)% there")
-                            .font(.system(size: 13))
+                        Text("\(taskCompletionPercent)% of tasks done")
+                            .font(.footnote)
                             .foregroundStyle(WeddingIdentityPalette.muted)
                         ProgressView(value: taskCompletionRatio)
                             .tint(WeddingIdentityPalette.forest)
+                            .accessibilityHidden(true)
                     }
 
                     Spacer()
 
                     Image(systemName: "chevron.right")
                         .foregroundStyle(WeddingIdentityPalette.champagneDeep)
+                        .accessibilityHidden(true)
                 }
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("home-continue-planning")
@@ -188,37 +217,44 @@ public struct WeddingReferenceHomeView: View {
     }
 
     private var metrics: some View {
-        HStack(spacing: 8) {
-            metricButton(
-                title: "Tasks",
-                value: "\(tasks.filter { $0.status != .done }.count) left",
-                icon: "checklist",
-                tab: .plan,
-                identifier: "home-metric-tasks"
-            )
-            metricButton(
-                title: "Budget",
-                value: currencyShort(budget?.totalBudget ?? 0),
-                icon: "wallet.pass",
-                tab: .plan,
-                identifier: "home-metric-budget"
-            )
-            metricButton(
-                title: "Guests",
-                value: "\(guests.count)",
-                icon: "person.2",
-                tab: .guests,
-                identifier: "home-metric-guests"
-            )
-            metricButton(
-                title: "Vendors",
-                value: "\(vendors.count)",
-                icon: "storefront",
-                tab: .plan,
-                identifier: "home-metric-vendors"
-            )
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) { metricButtons }
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) { metricButtons }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("home-metrics")
+    }
+
+    @ViewBuilder
+    private var metricButtons: some View {
+        metricButton(
+            title: "Tasks",
+            value: "\(tasks.filter { $0.status != .done }.count) left",
+            icon: "checklist",
+            tab: .plan,
+            identifier: "home-metric-tasks"
+        )
+        metricButton(
+            title: "Budget",
+            value: budget.map { WeddingMoney.format($0.totalBudget, currency: $0.currency) } ?? "Not recorded",
+            icon: "wallet.pass",
+            tab: .plan,
+            identifier: "home-metric-budget"
+        )
+        metricButton(
+            title: "Guests",
+            value: "\(guests.count)",
+            icon: "person.2",
+            tab: .guests,
+            identifier: "home-metric-guests"
+        )
+        metricButton(
+            title: "Vendors",
+            value: "\(vendors.count)",
+            icon: "storefront",
+            tab: .plan,
+            identifier: "home-metric-vendors"
+        )
     }
 
     private func metricButton(
@@ -231,9 +267,31 @@ public struct WeddingReferenceHomeView: View {
         Button {
             appState.selectedTab = tab
         } label: {
-            WeddingMetricTile(title: title, value: value, icon: icon)
+            VStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(WeddingIdentityPalette.champagneDeep)
+                    .frame(width: 44, height: 44)
+                    .background(WeddingIdentityPalette.champagne.opacity(0.14), in: RoundedRectangle(cornerRadius: 12))
+                    .accessibilityHidden(true)
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(WeddingIdentityPalette.ink)
+                Text(value)
+                    .font(.footnote)
+                    .foregroundStyle(WeddingIdentityPalette.muted)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .padding(.vertical, 12)
+            .background(WeddingIdentityPalette.ivorySoft, in: RoundedRectangle(cornerRadius: 15))
+            .overlay(RoundedRectangle(cornerRadius: 15).stroke(WeddingIdentityPalette.hairline, lineWidth: 1))
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
         .accessibilityIdentifier(identifier)
     }
 
@@ -248,56 +306,23 @@ public struct WeddingReferenceHomeView: View {
     }
 
     private func load() async {
-        do {
-            async let w = appState.repository.getWedding()
-            async let t = appState.repository.getTasks()
-            async let g = appState.repository.getGuests()
-            async let b = appState.repository.getBudget()
-            async let v = appState.repository.getVendors()
-
-            let loadedWedding = try await w
-            wedding = loadedWedding
-            tasks = try await t
-            guests = try await g
-            budget = try await b
-            vendors = try await v
-            invitation = try? await appState.repository.resolveInvitation(
-                weddingSlug: loadedWedding.id,
-                token: "shadow-pending-guest"
-            )
-            isLoading = false
-        } catch {
-            isLoading = false
+        defer { isLoading = false }
+        guard let loadedWedding = try? await appState.repository.getWedding() else { return }
+        wedding = loadedWedding
+        tasks = (try? await appState.repository.getTasks()) ?? []
+        guests = (try? await appState.repository.getGuests()) ?? []
+        budget = try? await appState.repository.getBudget()
+        vendors = (try? await appState.repository.getVendors()) ?? []
+        // Preview the invitation of a real guest record; resolving it never changes the guest.
+        if let guest = guests.first(where: { $0.rsvpStatus == .pending }) ?? guests.first {
+            invitation = try? await appState.repository.resolveInvitation(weddingSlug: loadedWedding.id, token: guest.id)
+        } else {
+            invitation = nil
         }
     }
 
-    private func currencyShort(_ amount: Double) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.currencyCode = "USD"
-        formatter.maximumFractionDigits = 0
-        formatter.minimumFractionDigits = 0
-        return formatter.string(from: NSNumber(value: amount)) ?? String(format: "$%.0f", amount)
-    }
-
-    private func displayWeddingDate(_ raw: String) -> String {
-        let input = DateFormatter()
-        input.locale = Locale(identifier: "en_US_POSIX")
-        input.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        guard let date = input.date(from: raw) else { return raw.uppercased() }
-
-        let output = DateFormatter()
-        output.locale = Locale(identifier: "en_US_POSIX")
-        output.dateFormat = "dd MMM yyyy"
-        return output.string(from: date).uppercased()
-    }
-
     private func countdown(from raw: String) -> (days: Int, hours: Int, minutes: Int, seconds: Int)? {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        guard let date = formatter.date(from: raw) else { return nil }
-
+        guard let date = WeddingDateText.parse(raw) else { return nil }
         let interval = max(0, Int(date.timeIntervalSinceNow))
         return (
             interval / 86_400,

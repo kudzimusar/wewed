@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Worksheet CSV exports and templates are written to cacheDir/exports and shared only on an explicit tap. -->
+<paths>
+    <cache-path name="exports" path="exports/" />
+</paths>

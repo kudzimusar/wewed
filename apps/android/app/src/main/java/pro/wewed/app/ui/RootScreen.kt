@@ -29,9 +29,10 @@ import pro.wewed.app.ui.auth.LoginScreen
 import pro.wewed.app.ui.guests.WeddingReferenceGuestsScreen
 import pro.wewed.app.ui.home.WeddingReferenceHomeScreen
 import pro.wewed.app.ui.more.WeddingReferenceMoreScreen
-import pro.wewed.app.ui.pass.UsherScannerScreen
 import pro.wewed.app.ui.pass.WeddingReferencePassScreen
+import pro.wewed.app.ui.planner.PlannerShell
 import pro.wewed.app.ui.planner.WeddingReferencePlannerScreen
+import pro.wewed.app.services.RoleScopedAccess
 import pro.wewed.app.ui.roles.*
 
 @OptIn(ExperimentalComposeUiApi::class)
@@ -65,27 +66,40 @@ fun RootScreen(
                 onChoose = { sessionViewModel.activate(it.role) },
                 onSignOut = { sessionViewModel.signOut() }
             )
-            else -> when (grant.role) {
-                AppRole.COUPLE -> CoupleShell(appViewModel)
-                AppRole.PLANNER -> PlannerShell(sessionViewModel, appViewModel, onOpenPersonaPicker = { sessionViewModel.clearActiveRole() })
-                AppRole.COORDINATOR -> CoordinatorShell(sessionViewModel, appViewModel, onOpenPersonaPicker = { sessionViewModel.clearActiveRole() })
-                AppRole.VENDOR -> VendorShell(sessionViewModel, appViewModel, onOpenPersonaPicker = { sessionViewModel.clearActiveRole() })
-                AppRole.USHER -> UsherShell(sessionViewModel, appViewModel, onOpenPersonaPicker = { sessionViewModel.clearActiveRole() })
-                AppRole.GUEST -> GuestShell(sessionViewModel, appViewModel, onOpenPersonaPicker = { sessionViewModel.clearActiveRole() })
-                AppRole.ADMIN -> AdminShell(sessionViewModel, appViewModel, onOpenPersonaPicker = { sessionViewModel.clearActiveRole() })
+            else -> {
+                // The only data gateway a shell receives, bound to this grant's capabilities and scope.
+                val access = remember(grant) { appViewModel.access(grant) }
+                // Each grant gets fresh screen state, so switching roles never shows the previous role's screens.
+                key(grant) {
+                    when (grant.role) {
+                        AppRole.COUPLE -> CoupleShell(appViewModel, access, sessionViewModel)
+                        AppRole.PLANNER -> PlannerShell(access, sessionViewModel)
+                        AppRole.COORDINATOR -> CoordinatorShell(access, sessionViewModel)
+                        AppRole.VENDOR -> VendorShell(access, sessionViewModel)
+                        AppRole.USHER -> UsherShell(access, sessionViewModel)
+                        AppRole.GUEST -> GuestShell(access, sessionViewModel)
+                        AppRole.ADMIN -> AdminShell(access, sessionViewModel)
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun CoupleShell(appViewModel: AppViewModel) {
+private fun CoupleShell(
+    appViewModel: AppViewModel,
+    access: RoleScopedAccess,
+    sessionViewModel: SessionViewModel
+) {
     val selectedTab by appViewModel.selectedTab.collectAsState()
     var isScannerOpen by remember { mutableStateOf(false) }
+    val operatorId = rememberOperatorId(sessionViewModel, access)
 
     if (isScannerOpen) {
-        UsherScannerScreen(
-            appViewModel = appViewModel,
+        GateScannerScreen(
+            access = access,
+            operatorId = operatorId,
             onClose = { isScannerOpen = false }
         )
         return
@@ -144,13 +158,13 @@ private fun CoupleShell(appViewModel: AppViewModel) {
         ) {
             when (selectedTab) {
                 AppTab.HOME -> WeddingReferenceHomeScreen(appViewModel)
-                AppTab.PLAN -> WeddingReferencePlannerScreen(appViewModel)
+                AppTab.PLAN -> WeddingReferencePlannerScreen(appViewModel, access)
                 AppTab.GUESTS -> WeddingReferenceGuestsScreen(appViewModel)
                 AppTab.PASS -> WeddingReferencePassScreen(
                     appViewModel = appViewModel,
                     onOpenScanner = { isScannerOpen = true }
                 )
-                AppTab.LIVE -> WeddingReferenceMoreScreen(appViewModel)
+                AppTab.LIVE -> WeddingReferenceMoreScreen(appViewModel, access, sessionViewModel)
             }
         }
     }
@@ -167,7 +181,7 @@ private fun RowScope.ReferenceNavItem(
         selected = selected,
         onClick = onClick,
         icon = { Icon(icon, contentDescription = label) },
-        label = { Text(label, fontSize = 11.sp) },
+        label = { Text(label, fontSize = 12.sp) },
         colors = NavigationBarItemDefaults.colors(
             selectedIconColor = WeddingIdentityPalette.ChampagneDeep,
             selectedTextColor = WeddingIdentityPalette.ChampagneDeep,

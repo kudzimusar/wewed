@@ -1,6 +1,7 @@
 package pro.wewed.app
 
 import android.os.Bundle
+import android.util.Log
 import android.graphics.Color
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -34,6 +35,8 @@ class MainActivity : ComponentActivity() {
             environment = launch.environment,
             baseUrl = launch.baseUrl
         )
+        // Provenance for local qualification: which dataset, and for private data which exact bytes.
+        Log.i(PROVENANCE_TAG, "environment=${appViewModel.dataEnvironment.name} sha256=${appViewModel.dataFingerprint ?: "none"}")
 
         setContent {
             WewedTheme {
@@ -47,6 +50,7 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
+        const val PROVENANCE_TAG = "WewedProvenance"
         const val EXTRA_NATIVE_ENV = "wewed_native_env"
         const val EXTRA_SHADOW_BASE_URL = "wewed_shadow_base_url"
         const val EXTRA_SHADOW_ACCOUNT = "wewed_shadow_account"

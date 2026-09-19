@@ -1,17 +1,19 @@
 package pro.wewed.app.ui.more
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -19,50 +21,48 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import pro.wewed.app.R
 import pro.wewed.app.models.Wedding
+import pro.wewed.app.services.RoleScopedAccess
 import pro.wewed.app.state.AppViewModel
+import pro.wewed.app.state.SessionViewModel
 import pro.wewed.app.theme.*
-import pro.wewed.app.ui.planner.ShadowContributionsDestination
+import pro.wewed.app.ui.planner.CoupleContributionsDestination
+import pro.wewed.app.ui.shared.*
 
+/** Couple "More": wedding profile, story, gallery, honeymoon and gifts, settings (Account) and help. */
 @Composable
-fun WeddingReferenceMoreScreen(appViewModel: AppViewModel) {
+fun WeddingReferenceMoreScreen(
+    appViewModel: AppViewModel,
+    access: RoleScopedAccess,
+    sessionViewModel: SessionViewModel
+) {
     var wedding by remember { mutableStateOf<Wedding?>(null) }
     var loading by remember { mutableStateOf(true) }
-    var destination by remember { mutableStateOf<ReferenceMoreDestination?>(null) }
+    var destination by rememberSaveable { mutableStateOf<ReferenceMoreDestination?>(null) }
 
-    LaunchedEffect(Unit) {
-        try {
-            wedding = appViewModel.repository.getWedding()
-        } finally {
+    LaunchedEffect(destination) {
+        if (destination == null) {
+            wedding = runCatching { appViewModel.repository.getWedding() }.getOrNull()
             loading = false
         }
     }
 
     destination?.let { current ->
+        val back = { destination = null }
         when (current) {
-            ReferenceMoreDestination.PROFILE -> {
-                val currentWedding = wedding
-                if (currentWedding != null) {
-                    ReferenceWeddingProfileScreen(currentWedding) { destination = null }
-                } else {
-                    ReferenceMoreEmptyScreen("Wedding", "Wedding details are unavailable.", "") { destination = null }
-                }
-            }
-            ReferenceMoreDestination.HONEYMOON ->
-                ShadowContributionsDestination(appViewModel) { destination = null }
-            ReferenceMoreDestination.STORY ->
-                ReferenceMoreEmptyScreen("Our Story", "Our wedding story, photo highlights, and milestones will appear here as updates are posted.", wedding?.coupleNames ?: "") { destination = null }
-            ReferenceMoreDestination.GALLERY ->
-                ReferenceMoreEmptyScreen("Gallery", "The shared wedding photo gallery will be available during and after the wedding celebrations.", wedding?.coupleNames ?: "") { destination = null }
-            ReferenceMoreDestination.SETTINGS ->
-                ReferenceMoreEmptyScreen("Settings", "Manage notification preferences, display style, and offline credentials cache.", wedding?.coupleNames ?: "") { destination = null }
-            ReferenceMoreDestination.SUPPORT ->
-                ReferenceMoreEmptyScreen("Help & Support", "Need assistance? Contact the wedding team at support@wewed.pro • Version 1.0.0 (ECDSA P-256 Offline Active)", wedding?.coupleNames ?: "") { destination = null }
+            ReferenceMoreDestination.PROFILE -> WeddingProfileScreen(wedding, back)
+            ReferenceMoreDestination.STORY -> MoreEmptyScreen("Our Story", "Your wedding story isn't available in the app yet.", back)
+            ReferenceMoreDestination.GALLERY -> MoreEmptyScreen("Gallery", "Wedding photos aren't available in the app yet.", back)
+            ReferenceMoreDestination.HONEYMOON -> HoneymoonScreen(access, back) { destination = ReferenceMoreDestination.CONTRIBUTIONS }
+            ReferenceMoreDestination.CONTRIBUTIONS -> CoupleContributionsDestination(access) { destination = ReferenceMoreDestination.HONEYMOON }
+            ReferenceMoreDestination.SETTINGS -> AccountScreen(sessionViewModel, access.grant, back)
+            ReferenceMoreDestination.SUPPORT -> HelpSupportScreen(back)
         }
         return
     }
@@ -73,114 +73,75 @@ fun WeddingReferenceMoreScreen(appViewModel: AppViewModel) {
             .background(WeddingIdentityPalette.Ivory)
             .testTag("more-root")
     ) {
-        WeddingOrnamentBackdrop(
-            modifier = Modifier.matchParentSize(),
-            alpha = 0.025f
-        )
+        WeddingOrnamentBackdrop(modifier = Modifier.matchParentSize(), alpha = 0.025f)
 
         if (loading) {
-            CircularProgressIndicator(
-                color = WeddingIdentityPalette.ChampagneDeep,
-                modifier = Modifier.align(Alignment.Center)
-            )
-        } else {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Top
+            CircularProgressIndicator(color = WeddingIdentityPalette.ChampagneDeep, modifier = Modifier.align(Alignment.Center))
+            return@Box
+        }
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("More", color = WeddingIdentityPalette.Ink, fontFamily = FontFamily.Serif, fontWeight = FontWeight.SemiBold, fontSize = 28.sp)
+                    Text("Your wedding, beautifully organised.", color = WeddingIdentityPalette.Muted, fontSize = 14.sp)
+                }
+                Surface(
+                    modifier = Modifier.size(48.dp).testTag("more-settings-shortcut"),
+                    shape = CircleShape,
+                    color = WeddingIdentityPalette.IvorySoft,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, WeddingIdentityPalette.Hairline),
+                    onClick = { destination = ReferenceMoreDestination.SETTINGS }
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            "More",
-                            color = WeddingIdentityPalette.Ink,
-                            fontFamily = FontFamily.Serif,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 28.sp
-                        )
-                        Text(
-                            "Your wedding, beautifully organised.",
-                            color = WeddingIdentityPalette.Muted,
-                            fontSize = 12.sp
-                        )
-                    }
-
-                    Surface(
-                        modifier = Modifier.size(40.dp).testTag("more-settings-shortcut"),
-                        shape = CircleShape,
-                        color = WeddingIdentityPalette.IvorySoft,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, WeddingIdentityPalette.Hairline),
-                        onClick = { destination = ReferenceMoreDestination.SETTINGS }
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                Icons.Default.Settings,
-                                contentDescription = "Settings",
-                                tint = WeddingIdentityPalette.Ink
-                            )
-                        }
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings", tint = WeddingIdentityPalette.Ink)
                     }
                 }
-
-                wedding?.let { currentWedding ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(WeddingIdentityPalette.IvorySoft)
-                            .border(1.dp, WeddingIdentityPalette.Hairline, RoundedCornerShape(16.dp))
-                            .testTag("more-wedding-profile")
-                            .clickable { destination = ReferenceMoreDestination.PROFILE }
-                            .padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Image(
-                            painter = painterResource(R.drawable.hero_wedding),
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.size(58.dp).clip(CircleShape)
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                currentWedding.coupleNames,
-                                color = WeddingIdentityPalette.Ink,
-                                fontFamily = FontFamily.Serif,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 16.sp
-                            )
-                            Text("Wedding Couple", color = WeddingIdentityPalette.Muted, fontSize = 11.sp)
-                        }
-                        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = WeddingIdentityPalette.Muted)
-                    }
-                }
-
-                ReferenceMoreRow("Our Story", "Photos, videos and milestones", Icons.Default.PhotoLibrary, "more-story") {
-                    destination = ReferenceMoreDestination.STORY
-                }
-                ReferenceMoreRow("Gallery", "Wedding photos and inspiration", Icons.Default.Collections, "more-gallery") {
-                    destination = ReferenceMoreDestination.GALLERY
-                }
-                ReferenceMoreRow("Honeymoon", "Contributions and plans", Icons.Default.FlightTakeoff, "more-honeymoon") {
-                    destination = ReferenceMoreDestination.HONEYMOON
-                }
-                ReferenceMoreRow("Settings", "App preferences", Icons.Default.Settings, "more-settings") {
-                    destination = ReferenceMoreDestination.SETTINGS
-                }
-                ReferenceMoreRow("Help & Support", "Get in touch", Icons.Default.HelpOutline, "more-support") {
-                    destination = ReferenceMoreDestination.SUPPORT
-                }
-
-                Spacer(modifier = Modifier.weight(1f))
             }
+
+            wedding?.let { currentWedding ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(WeddingIdentityPalette.IvorySoft)
+                        .border(1.dp, WeddingIdentityPalette.Hairline, RoundedCornerShape(16.dp))
+                        .clickable(role = Role.Button) { destination = ReferenceMoreDestination.PROFILE }
+                        .testTag("more-wedding-profile")
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.hero_wedding),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.size(58.dp).clip(CircleShape)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(currentWedding.coupleNames, color = WeddingIdentityPalette.Ink, fontFamily = FontFamily.Serif, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
+                        Text("Wedding Profile", color = WeddingIdentityPalette.Muted, fontSize = 14.sp)
+                    }
+                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = WeddingIdentityPalette.Muted)
+                }
+            }
+
+            MoreRow("Our Story", "Your story and milestones", Icons.Default.PhotoLibrary, "more-story") { destination = ReferenceMoreDestination.STORY }
+            MoreRow("Gallery", "Wedding photos", Icons.Default.Collections, "more-gallery") { destination = ReferenceMoreDestination.GALLERY }
+            MoreRow("Honeymoon & Gifts", "Contributions from your guests", Icons.Default.FlightTakeoff, "more-honeymoon") { destination = ReferenceMoreDestination.HONEYMOON }
+            MoreRow("Settings", "Your account and sign out", Icons.Default.Settings, "more-settings") { destination = ReferenceMoreDestination.SETTINGS }
+            MoreRow("Help & Support", "Contact Wewed support", Icons.Default.HelpOutline, "more-support") { destination = ReferenceMoreDestination.SUPPORT }
         }
     }
 }
 
 @Composable
-private fun ReferenceMoreRow(
+private fun MoreRow(
     title: String,
     subtitle: String,
     icon: ImageVector,
@@ -190,10 +151,11 @@ private fun ReferenceMoreRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = 60.dp)
             .clip(RoundedCornerShape(15.dp))
             .background(WeddingIdentityPalette.IvorySoft)
             .border(1.dp, WeddingIdentityPalette.Hairline, RoundedCornerShape(15.dp))
-            .clickable { onClick() }
+            .clickable(role = Role.Button) { onClick() }
             .testTag(identifier)
             .padding(13.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -201,112 +163,69 @@ private fun ReferenceMoreRow(
         WeddingListRowIcon(icon)
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                title,
-                color = WeddingIdentityPalette.Ink,
-                fontFamily = FontFamily.Serif,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 14.sp
-            )
-            Text(subtitle, color = WeddingIdentityPalette.Muted, fontSize = 11.sp)
+            Text(title, color = WeddingIdentityPalette.Ink, fontFamily = FontFamily.Serif, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+            Text(subtitle, color = WeddingIdentityPalette.Muted, fontSize = 14.sp)
         }
-        Icon(
-            Icons.Default.ChevronRight,
-            contentDescription = null,
-            tint = WeddingIdentityPalette.Muted,
-            modifier = Modifier.size(18.dp)
-        )
+        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = WeddingIdentityPalette.Muted, modifier = Modifier.size(20.dp))
     }
 }
 
 @Composable
-private fun ReferenceMoreEmptyScreen(
-    title: String,
-    message: String,
-    coupleNames: String,
-    onBack: () -> Unit
-) {
-    BackHandler(onBack = onBack)
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(title, fontFamily = FontFamily.Serif) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = WeddingIdentityPalette.Ivory)
-            )
-        },
-        containerColor = WeddingIdentityPalette.Ivory
-    ) { padding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(30.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            WeddingMonogram(coupleNames, sizeSp = 40)
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(title, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
-            Text(
-                message,
-                color = WeddingIdentityPalette.Muted,
-                fontSize = 13.sp,
-                modifier = Modifier.padding(top = 8.dp)
-            )
+private fun MoreEmptyScreen(title: String, message: String, onBack: () -> Unit) {
+    SubScreen(title, onBack, Modifier.testTag("more-destination-root")) {
+        Column(modifier = Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            EmptyStateText(message, "more-empty-state")
         }
     }
 }
 
 @Composable
-private fun ReferenceWeddingProfileScreen(
-    wedding: Wedding,
-    onBack: () -> Unit
-) {
-    BackHandler(onBack = onBack)
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Wedding", fontFamily = FontFamily.Serif) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = WeddingIdentityPalette.Ivory)
-            )
-        },
-        containerColor = WeddingIdentityPalette.Ivory
-    ) { padding ->
+private fun WeddingProfileScreen(wedding: Wedding?, onBack: () -> Unit) {
+    SubScreen("Wedding Profile", onBack, Modifier.testTag("more-wedding-profile-root")) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(18.dp),
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Image(
-                painter = painterResource(R.drawable.hero_wedding),
-                contentDescription = "Wedding visual",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(260.dp)
-                    .clip(RoundedCornerShape(22.dp))
-            )
+            if (wedding == null) {
+                EmptyStateText("Wedding details couldn't be loaded.", "more-empty-state")
+                return@Column
+            }
             WeddingMonogram(wedding.coupleNames, sizeSp = 42)
-            Text(
-                wedding.coupleNames,
-                color = WeddingIdentityPalette.Ink,
-                fontFamily = FontFamily.Serif,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 27.sp
-            )
-            Text(wedding.venueName, color = WeddingIdentityPalette.Muted)
-            Text("${wedding.city}, ${wedding.country}", color = WeddingIdentityPalette.Muted)
-            Text(wedding.date, color = WeddingIdentityPalette.Muted)
+            InfoCard {
+                LabeledValue("Couple", wedding.coupleNames)
+                LabeledValue("Date", Formatting.dateAndTime(wedding.date))
+                LabeledValue("Venue", wedding.venueName.ifBlank { "Not recorded" })
+                LabeledValue("City", wedding.city.ifBlank { "Not recorded" })
+                LabeledValue("Country", wedding.country.ifBlank { "Not recorded" })
+                OpenInMapsButton(venue = wedding.venueLocation, tag = "wedding-profile-open-maps")
+            }
+        }
+    }
+}
+
+@Composable
+private fun HoneymoonScreen(access: RoleScopedAccess, onBack: () -> Unit, onOpenContributions: () -> Unit) {
+    val records = rememberLoad(Unit) { access.contributions() }
+    SubScreen("Honeymoon & Gifts", onBack, Modifier.testTag("more-honeymoon-root")) {
+        Column(
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            LoadContent(records) { rows ->
+                InfoCard(modifier = Modifier.testTag("more-contributions-summary")) {
+                    SectionTitle("Contributions")
+                    BodyText(Formatting.plural(rows.size, "contribution") + " recorded")
+                    val types = rows.map { it.typeLabel }.distinct()
+                    if (types.isNotEmpty()) SupportingText("Types: ${types.joinToString(", ")}")
+                    SecondaryButton(
+                        text = "View contributions",
+                        onClick = onOpenContributions,
+                        modifier = Modifier.fillMaxWidth().testTag("more-open-contributions")
+                    )
+                }
+            }
+            EmptyStateText("The honeymoon fund isn't available in the app yet.", "more-empty-state")
         }
     }
 }
@@ -316,6 +235,7 @@ private enum class ReferenceMoreDestination {
     STORY,
     GALLERY,
     HONEYMOON,
+    CONTRIBUTIONS,
     SETTINGS,
     SUPPORT
 }

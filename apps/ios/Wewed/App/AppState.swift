@@ -32,6 +32,8 @@ public final class AppState: ObservableObject, @unchecked Sendable {
     public let dataEnvironment: NativeDataEnvironment
     public let dataBaseURL: URL?
     public let launch: NativeLaunchConfiguration
+    /// SHA-256 of the private snapshot bytes this app loaded (nil for compiled-in datasets).
+    public let dataFingerprint: String?
     private let adminAuditLog = AdminAuditLog()
     /// Nil by default. Isolated integration builds/tests may inject a manifest-backed runtime.
     public let weddingDayGate: WeddingDayGateOperations?
@@ -47,7 +49,8 @@ public final class AppState: ObservableObject, @unchecked Sendable {
             plannerRepository: bundle.planner,
             dataEnvironment: bundle.environment,
             dataBaseURL: bundle.baseURL,
-            launch: launch ?? NativeLaunchConfiguration(environment: bundle.environment, baseURL: bundle.baseURL)
+            launch: launch ?? NativeLaunchConfiguration(environment: bundle.environment, baseURL: bundle.baseURL),
+            dataFingerprint: bundle.dataFingerprint
         )
     }
 
@@ -62,8 +65,10 @@ public final class AppState: ObservableObject, @unchecked Sendable {
         dataEnvironment: NativeDataEnvironment = .fixture,
         dataBaseURL: URL? = nil,
         launch: NativeLaunchConfiguration? = nil,
+        dataFingerprint: String? = nil,
         weddingDayGate: WeddingDayGateOperations? = nil
     ) {
+        self.dataFingerprint = dataFingerprint
         self.launch = launch ?? NativeLaunchConfiguration(environment: dataEnvironment, baseURL: dataBaseURL)
         do {
             try NativeEnvironmentGuard.validate(baseURL: dataBaseURL, environment: dataEnvironment)

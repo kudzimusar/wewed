@@ -1,42 +1,61 @@
 import SwiftUI
 
-/// Premium native Ivory Floral Gold invitation experience.
-/// In Shadow/UAT this is driven by the real wedding graph while RSVP/pass credentials remain Shadow-only.
+/// The ivory floral gold invitation.
+/// - `.guest`: the guest's own invitation; Accept and Decline call `respond`, which the guest shell binds
+///   to `RoleScopedAccess.respondToOwnInvitation`.
+/// - `.preview`: what the couple's guests see. Nothing is sent and no guest record changes.
 public struct IvoryInvitationView: View {
+    public enum Mode: Equatable { case guest, preview }
+
+    private enum Reply { case none, accepted, declined }
+
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var appState: AppState
 
     public let invitation: InvitationContext
-    public let allowsClose: Bool
-    public let onRsvpConfirmed: (WeddingPass) -> Void
-    public let onRsvpDeclined: () -> Void
+    public let mode: Mode
+    private let fallbackVenue: VenueLocation?
+    private let allowsClose: Bool
+    private let respond: ((Bool) async throws -> Void)?
+    private let onViewPass: (() -> Void)?
 
     @State private var showDetails = false
-    @State private var rsvpSubmitted = false
-    @State private var declined = false
+    @State private var reply: Reply
     @State private var isSubmitting = false
-    @State private var generatedPass: WeddingPass?
+    @State private var errorText: String?
+    @State private var previewTapped = false
+
+    @ScaledMetric(relativeTo: .title) private var namesSize: CGFloat = 29
+    @ScaledMetric(relativeTo: .title2) private var dateSize: CGFloat = 23
 
     public init(
         invitation: InvitationContext,
+        mode: Mode,
+        fallbackVenue: VenueLocation? = nil,
         allowsClose: Bool = true,
-        onRsvpConfirmed: @escaping (WeddingPass) -> Void,
-        onRsvpDeclined: @escaping () -> Void = {}
+        respond: ((Bool) async throws -> Void)? = nil,
+        onViewPass: (() -> Void)? = nil
     ) {
         self.invitation = invitation
+        self.mode = mode
+        self.fallbackVenue = fallbackVenue
         self.allowsClose = allowsClose
-        self.onRsvpConfirmed = onRsvpConfirmed
-        self.onRsvpDeclined = onRsvpDeclined
+        self.respond = respond
+        self.onViewPass = onViewPass
+        _reply = State(initialValue: mode == .guest && invitation.isConfirmed ? .accepted : .none)
     }
 
     public var body: some View {
         NavigationStack {
             ZStack {
                 WeddingFloralBackground(opacity: 0.07)
+                    .accessibilityHidden(true)
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 18) {
                         invitationHeader
+                        if mode == .preview {
+                            previewNotice
+                        }
                         invitationCard
                     }
                     .padding(.horizontal, 16)
@@ -47,34 +66,52 @@ public struct IvoryInvitationView: View {
             #if os(iOS)
             .toolbar(.hidden, for: .navigationBar)
             #endif
-
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("ivory-invitation-root")
     }
 
     private var invitationHeader: some View {
         ZStack {
             Text("You’re Invited")
-                .font(.system(size: 18, weight: .semibold, design: .serif))
+                .font(.system(.title3, design: .serif).weight(.semibold))
                 .foregroundStyle(WeddingIdentityPalette.ink)
+                .accessibilityAddTraits(.isHeader)
 
             if allowsClose {
                 HStack {
                     Button {
                         dismiss()
                     } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 17, weight: .semibold))
+                        Label("Close", systemImage: "chevron.left")
+                            .font(.body.weight(.semibold))
                             .foregroundStyle(WeddingIdentityPalette.ink)
-                            .frame(width: 42, height: 42)
+                            .frame(minWidth: 44, minHeight: 44)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Close invitation")
+                    .accessibilityIdentifier("invitation-close")
                     Spacer()
                 }
             }
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private var previewNotice: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "eye")
+                .foregroundStyle(WeddingIdentityPalette.champagneDeep)
+                .accessibilityHidden(true)
+            Text("This is how your guests see their invitation. Guests reply from their own invitation.")
+                .font(.callout)
+                .foregroundStyle(WeddingIdentityPalette.ink)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(WeddingIdentityPalette.champagne.opacity(0.16), in: RoundedRectangle(cornerRadius: 12))
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("invitation-preview-notice")
     }
 
     private var invitationCard: some View {
@@ -83,18 +120,19 @@ public struct IvoryInvitationView: View {
                 .resizable()
                 .scaledToFill()
                 .opacity(0.15)
+                .accessibilityHidden(true)
 
             VStack(spacing: 14) {
                 WeddingMonogram(names: invitation.coupleNames, size: 54)
 
                 Text(invitation.coupleNames)
-                    .font(.system(size: 29, weight: .regular, design: .serif))
+                    .font(.system(size: namesSize, weight: .regular, design: .serif))
                     .italic()
                     .foregroundStyle(WeddingIdentityPalette.ink)
                     .multilineTextAlignment(.center)
 
                 Text("TOGETHER WITH OUR FAMILIES\nWE INVITE YOU TO CELEBRATE\nOUR WEDDING")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                     .tracking(1.5)
                     .foregroundStyle(WeddingIdentityPalette.ink.opacity(0.86))
                     .multilineTextAlignment(.center)
@@ -103,53 +141,43 @@ public struct IvoryInvitationView: View {
                 Rectangle()
                     .fill(WeddingIdentityPalette.champagne)
                     .frame(width: 72, height: 1)
+                    .accessibilityHidden(true)
 
-                Text(displayDate(invitation.weddingDate))
-                    .font(.system(size: 23, weight: .medium, design: .serif))
+                Text(WeddingDateText.short(invitation.weddingDate).uppercased())
+                    .font(.system(size: dateSize, weight: .medium, design: .serif))
                     .foregroundStyle(WeddingIdentityPalette.champagneDeep)
+                    .accessibilityLabel(WeddingDateText.long(invitation.weddingDate))
 
                 Text(invitation.venueCity.uppercased())
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.caption.weight(.medium))
                     .tracking(1.8)
                     .foregroundStyle(WeddingIdentityPalette.muted)
+                    .multilineTextAlignment(.center)
 
-                Text("For \(invitation.guestName) • Party of \(invitation.partySize)")
-                    .font(.system(size: 11))
-                    .foregroundStyle(WeddingIdentityPalette.muted)
-                    .padding(.top, 2)
+                VStack(spacing: 3) {
+                    Text("Invitation for")
+                        .font(.footnote)
+                        .foregroundStyle(WeddingIdentityPalette.muted)
+                    Text(invitation.guestName)
+                        .font(.system(.headline, design: .serif))
+                        .foregroundStyle(WeddingIdentityPalette.ink)
+                        .multilineTextAlignment(.center)
+                        .accessibilityIdentifier("invitation-guest-name")
+                    Text("Party of \(invitation.partySize)")
+                        .font(.footnote)
+                        .foregroundStyle(WeddingIdentityPalette.muted)
+                }
+                .padding(.top, 2)
 
                 if showDetails {
-                    VStack(spacing: 8) {
-                        Label(invitation.venueName, systemImage: "mappin.and.ellipse")
-                        Label(invitation.weddingDate, systemImage: "calendar")
-
-                        let query = "\(invitation.venueName), \(invitation.venueCity)".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-                        if let mapURL = URL(string: "https://maps.apple.com/?q=\(query)") {
-                            Link(destination: mapURL) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "arrow.triangle.turn.up.right.circle.fill")
-                                    Text("Open in Maps")
-                                        .font(.system(size: 12, weight: .semibold))
-                                }
-                                .foregroundStyle(WeddingIdentityPalette.champagneDeep)
-                                .padding(.top, 4)
-                            }
-                            .accessibilityIdentifier("invitation-open-maps")
-                        }
-                    }
-                    .font(.system(size: 12))
-                    .foregroundStyle(WeddingIdentityPalette.ink)
-                    .padding(12)
-                    .frame(maxWidth: .infinity)
-                    .background(.white.opacity(0.72))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    details
                 }
 
                 responseArea
                     .padding(.top, 4)
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 34)
+            .padding(.horizontal, 22)
+            .padding(.vertical, 32)
         }
         .frame(maxWidth: .infinity)
         .background(WeddingIdentityPalette.ivorySoft)
@@ -161,137 +189,162 @@ public struct IvoryInvitationView: View {
         .shadow(color: Color.black.opacity(0.06), radius: 14, x: 0, y: 5)
     }
 
-    @ViewBuilder
+    private var details: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(invitation.venueName, systemImage: "mappin.and.ellipse")
+            Label(WeddingDateText.longWithTime(invitation.weddingDate), systemImage: "calendar")
+            OpenInMapsButton(venue: invitation.venue ?? fallbackVenue, identifier: "invitation-open-maps")
+        }
+        .font(.body)
+        .foregroundStyle(WeddingIdentityPalette.ink)
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 12))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("invitation-details")
+    }
+
     private var responseArea: some View {
-        if declined {
-            WeddingSectionCard {
-                VStack(spacing: 8) {
-                    Image(systemName: "heart")
-                        .foregroundStyle(WeddingIdentityPalette.champagneDeep)
-                    Text("Response Recorded")
-                        .font(.headline)
-                        .foregroundStyle(WeddingIdentityPalette.ink)
-                    Text("Thank you for letting the wedding team know.")
-                        .font(.subheadline)
-                        .foregroundStyle(WeddingIdentityPalette.muted)
-                }
-                .frame(maxWidth: .infinity)
+        VStack(spacing: 10) {
+            switch reply {
+            case .accepted:
+                acceptedCard
+            case .declined:
+                declinedCard
+            case .none:
+                replyButtons
             }
-        } else if rsvpSubmitted, let generatedPass {
-            WeddingSectionCard {
-                VStack(spacing: 12) {
-                    Label("RSVP Confirmed", systemImage: "checkmark.seal.fill")
-                        .font(.headline)
-                        .foregroundStyle(WeddingIdentityPalette.forest)
 
-                    Button {
-                        onRsvpConfirmed(generatedPass)
-                        if allowsClose { dismiss() }
-                    } label: {
-                        WeddingPrimaryButtonLabel("View My Wedding Pass", icon: "qrcode")
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("ivory-view-wedding-pass")
-                }
+            detailsToggle
+
+            if let errorText {
+                Text(errorText)
+                    .font(.callout)
+                    .foregroundStyle(Color(red: 0.61, green: 0.11, blue: 0.11))
+                    .multilineTextAlignment(.center)
+                    .accessibilityIdentifier("ivory-rsvp-error")
             }
-        } else {
-            VStack(spacing: 10) {
-                Button {
-                    submitRsvp(attending: true)
-                } label: {
-                    HStack {
-                        if isSubmitting {
-                            ProgressView().tint(.white)
-                        } else {
-                            Text("RSVP Now")
-                                .fontWeight(.semibold)
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .foregroundStyle(.white)
-                    .background(
-                        LinearGradient(
-                            colors: [WeddingIdentityPalette.champagneDeep, WeddingIdentityPalette.champagne],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 13))
-                }
-                .disabled(isSubmitting)
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("ivory-rsvp-accept")
-
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        showDetails.toggle()
-                    }
-                } label: {
-                    Text(showDetails ? "Hide Details" : "View Details")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(WeddingIdentityPalette.ink)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 13)
-                                .stroke(WeddingIdentityPalette.champagne, lineWidth: 1)
-                        )
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("ivory-details-toggle")
-
-                if showDetails {
-                    Button {
-                        submitRsvp(attending: false)
-                    } label: {
-                        Text("Decline with Regret")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(WeddingIdentityPalette.muted)
-                            .padding(.vertical, 7)
-                    }
-                    .disabled(isSubmitting)
-                    .accessibilityIdentifier("ivory-rsvp-decline")
-                }
+            if previewTapped {
+                Text("This is a preview. No reply was sent.")
+                    .font(.callout)
+                    .foregroundStyle(WeddingIdentityPalette.muted)
+                    .multilineTextAlignment(.center)
+                    .accessibilityIdentifier("invitation-preview-rsvp-note")
             }
         }
     }
 
-    private func submitRsvp(attending: Bool) {
+    private var replyButtons: some View {
+        VStack(spacing: 10) {
+            Button {
+                submit(attending: true)
+            } label: {
+                HStack {
+                    if isSubmitting {
+                        ProgressView().tint(.white)
+                    } else {
+                        Text("Accept")
+                    }
+                }
+                .font(.body.weight(.semibold))
+                .frame(maxWidth: .infinity, minHeight: 50)
+                .foregroundStyle(.white)
+                .background(
+                    LinearGradient(
+                        colors: [WeddingIdentityPalette.champagneDeep, WeddingIdentityPalette.champagne],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    ),
+                    in: RoundedRectangle(cornerRadius: 13)
+                )
+            }
+            .disabled(isSubmitting)
+            .buttonStyle(.plain)
+            .accessibilityLabel("Accept invitation")
+            .accessibilityIdentifier("ivory-rsvp-accept")
+
+            Button {
+                submit(attending: false)
+            } label: {
+                Text("Decline")
+            }
+            .buttonStyle(WeddingActionButtonStyle(.secondary))
+            .disabled(isSubmitting)
+            .accessibilityLabel("Decline invitation")
+            .accessibilityIdentifier("ivory-rsvp-decline")
+        }
+    }
+
+    private var detailsToggle: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                showDetails.toggle()
+            }
+        } label: {
+            Text(showDetails ? "Hide details" : "View details")
+        }
+        .buttonStyle(WeddingActionButtonStyle(.quiet))
+        .accessibilityIdentifier("ivory-details-toggle")
+    }
+
+    private var acceptedCard: some View {
+        WeddingSectionCard {
+            VStack(spacing: 12) {
+                StatusText("You are attending", systemImage: "checkmark.seal.fill", tone: .positive)
+                    .accessibilityIdentifier("ivory-rsvp-accepted")
+                if let onViewPass {
+                    Button(action: onViewPass) {
+                        Label("View my pass", systemImage: "qrcode")
+                    }
+                    .buttonStyle(WeddingActionButtonStyle(.primary))
+                    .accessibilityIdentifier("ivory-view-wedding-pass")
+                }
+                Button("Change my reply") {
+                    reply = .none
+                }
+                .buttonStyle(WeddingActionButtonStyle(.quiet))
+                .accessibilityIdentifier("ivory-change-reply")
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    private var declinedCard: some View {
+        WeddingSectionCard {
+            VStack(spacing: 10) {
+                StatusText("You have declined", systemImage: "heart", tone: .neutral)
+                    .accessibilityIdentifier("ivory-rsvp-declined")
+                Text("Thank you for letting the couple know. A pass is only issued to guests who accept.")
+                    .font(.subheadline)
+                    .foregroundStyle(WeddingIdentityPalette.muted)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button("Change my reply") {
+                    reply = .none
+                }
+                .buttonStyle(WeddingActionButtonStyle(.quiet))
+                .accessibilityIdentifier("ivory-change-reply")
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    private func submit(attending: Bool) {
+        errorText = nil
+        guard mode == .guest, let respond else {
+            // Preview: nothing is sent and no guest record changes.
+            previewTapped = true
+            return
+        }
         isSubmitting = true
         Task {
             do {
-                let pass = try await appState.repository.confirmRsvp(
-                    weddingSlug: invitation.weddingSlug,
-                    token: invitation.guestToken,
-                    attending: attending
-                )
-                if attending {
-                    generatedPass = pass
-                    rsvpSubmitted = true
-                    declined = false
-                } else {
-                    generatedPass = nil
-                    rsvpSubmitted = false
-                    declined = true
-                    onRsvpDeclined()
-                }
+                try await respond(attending)
+                reply = attending ? .accepted : .declined
             } catch {
-                // Preserve the existing interaction contract: failed RSVP leaves the card actionable.
+                errorText = "Your reply couldn't be sent. Please try again."
             }
             isSubmitting = false
         }
-    }
-
-    private func displayDate(_ raw: String) -> String {
-        let input = DateFormatter()
-        input.locale = Locale(identifier: "en_US_POSIX")
-        input.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        guard let date = input.date(from: raw) else { return raw }
-
-        let output = DateFormatter()
-        output.locale = Locale(identifier: "en_US_POSIX")
-        output.dateFormat = "dd MMM yyyy"
-        return output.string(from: date).uppercased()
     }
 }

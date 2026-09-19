@@ -18,21 +18,22 @@ public struct RootView: View {
     private var content: some View {
         if let current = session.session {
             if let grant = session.activeGrant {
+                // Non-couple shells receive only a gateway scoped to their grant, never the repositories.
                 switch grant.role {
                 case .couple:
                     coupleShell
                 case .planner:
-                    PlannerShellView()
+                    PlannerShellView(access: appState.access(for: grant))
                 case .coordinator:
-                    CoordinatorShellView()
+                    CoordinatorShellView(access: appState.access(for: grant))
                 case .vendor:
-                    VendorShellView()
+                    VendorShellView(access: appState.access(for: grant))
                 case .usher:
-                    UsherShellView()
+                    UsherShellView(access: appState.access(for: grant))
                 case .guest:
-                    GuestShellView()
+                    GuestShellView(access: appState.access(for: grant))
                 case .admin:
-                    AdminShellView()
+                    AdminShellView(access: appState.access(for: grant))
                 }
             } else {
                 RoleChooserView(

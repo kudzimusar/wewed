@@ -17,8 +17,13 @@ data class NativeRepositoryBundle(
     val wedding: WeddingRepository,
     val planner: PlannerDashboardRepository,
     val environment: NativeDataEnvironment,
-    val baseUrl: String? = null
+    val baseUrl: String? = null,
+    /** SHA-256 of the exact private snapshot bytes loaded; null for datasets compiled into the app. */
+    val dataFingerprint: String? = null
 )
+
+internal fun sha256Hex(bytes: ByteArray): String =
+    java.security.MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
 object NativeRepositoryFactory {
     fun make(
@@ -49,7 +54,8 @@ object NativeRepositoryFactory {
                     wedding = PrivateRealShadowWeddingRepository(jsonString = snapshot),
                     planner = PrivateRealShadowPlannerRepository(jsonString = snapshot),
                     environment = NativeDataEnvironment.PRIVATE_REAL_SHADOW,
-                    baseUrl = baseUrl
+                    baseUrl = baseUrl,
+                    dataFingerprint = sha256Hex(snapshot.toByteArray(Charsets.UTF_8))
                 )
             }
 

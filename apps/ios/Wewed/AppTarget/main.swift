@@ -21,6 +21,8 @@ struct WewedMainApp: App {
             preconditionFailure("Unsafe or unsupported Wewed native launch environment: \(error)")
         }
 
+        // Provenance for local qualification: which dataset, and for private data which exact bytes.
+        NSLog("WewedProvenance environment=%@ sha256=%@", resolvedAppState.dataEnvironment.rawValue, resolvedAppState.dataFingerprint ?? "none")
         _appState = StateObject(wrappedValue: resolvedAppState)
     }
 

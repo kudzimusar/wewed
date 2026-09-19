@@ -29,8 +29,10 @@ public struct CameraBarcodeScannerView: View {
             cameraPlaceholderView
             #endif
 
-            // Target Reticle Overlay
-            scannerOverlay
+            // Target reticle, only over a live camera image
+            if isCameraAuthorized {
+                scannerOverlay
+            }
         }
         .onAppear {
             checkCameraPermissions()
@@ -47,10 +49,11 @@ public struct CameraBarcodeScannerView: View {
 
                 VStack(spacing: 8) {
                     Image(systemName: "qrcode.viewfinder")
-                        .font(.system(size: 40))
+                        .font(.largeTitle)
                         .foregroundColor(WewedColors.gold.opacity(0.8))
-                    Text("Align Wewed Pass QR")
-                        .font(.caption)
+                        .accessibilityHidden(true)
+                    Text("Line up the pass QR code")
+                        .font(.subheadline)
                         .fontWeight(.medium)
                         .foregroundColor(.white.opacity(0.9))
                 }
@@ -62,17 +65,18 @@ public struct CameraBarcodeScannerView: View {
     private var cameraPlaceholderView: some View {
         VStack(spacing: 12) {
             Image(systemName: "camera.viewfinder")
-                .font(.system(size: 48))
+                .font(.largeTitle)
                 .foregroundColor(WewedColors.gold)
+                .accessibilityHidden(true)
 
-            Text("Camera Scanner Ready")
-                .font(.subheadline)
-                .fontWeight(.semibold)
+            Text("Camera not available")
+                .font(.headline)
                 .foregroundColor(.white)
 
-            Text("Point at guest pass or tap simulation below")
-                .font(.caption)
-                .foregroundColor(.white.opacity(0.7))
+            Text("Allow camera access in Settings, or type the pass code below.")
+                .font(.subheadline)
+                .multilineTextAlignment(.center)
+                .foregroundColor(.white.opacity(0.85))
         }
         .padding()
     }

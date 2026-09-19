@@ -29,7 +29,6 @@ import androidx.compose.ui.unit.sp
 import pro.wewed.app.models.Guest
 import pro.wewed.app.models.RSVPStatus
 import pro.wewed.app.state.AppViewModel
-import java.util.UUID
 import pro.wewed.app.theme.*
 
 @Composable
@@ -39,10 +38,7 @@ fun WeddingReferenceGuestsScreen(appViewModel: AppViewModel) {
     var query by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf(ReferenceGuestFilter.ALL) }
     var showFilterMenu by remember { mutableStateOf(false) }
-    var showAddGuest by remember { mutableStateOf(false) }
     var selectedGuest by remember { mutableStateOf<Guest?>(null) }
-    var newGuestName by remember { mutableStateOf("") }
-    var newGuestPartySize by remember { mutableIntStateOf(1) }
     var loading by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
@@ -100,7 +96,7 @@ fun WeddingReferenceGuestsScreen(appViewModel: AppViewModel) {
                     Text(
                         "The people who make it special.",
                         color = WeddingIdentityPalette.Muted,
-                        fontSize = 12.sp
+                        fontSize = 14.sp
                     )
                 }
                 wedding?.coupleNames?.let { coupleNames ->
@@ -112,13 +108,13 @@ fun WeddingReferenceGuestsScreen(appViewModel: AppViewModel) {
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
-                    modifier = Modifier.weight(1f).height(50.dp).testTag("guests-search"),
+                    modifier = Modifier.weight(1f).heightIn(min = 52.dp).testTag("guests-search"),
                     singleLine = true,
                     leadingIcon = {
                         Icon(Icons.Default.Search, contentDescription = null, tint = WeddingIdentityPalette.Muted)
                     },
                     placeholder = {
-                        Text("Search guests by name…", fontSize = 12.sp)
+                        Text("Search guests by name…", fontSize = 15.sp)
                     },
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
@@ -179,12 +175,9 @@ fun WeddingReferenceGuestsScreen(appViewModel: AppViewModel) {
                         ReferenceGuestFilter.DECLINED -> guests.count { it.rsvpStatus == RSVPStatus.DECLINED }
                     }
                     val selected = filter == selectedFilter
-                    Text(
-                        text = "${filter.title} ($count)",
-                        color = if (selected) Color.White else WeddingIdentityPalette.Muted,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Medium,
+                    Box(
                         modifier = Modifier
+                            .heightIn(min = 48.dp)
                             .clip(CircleShape)
                             .background(if (selected) WeddingIdentityPalette.Forest else WeddingIdentityPalette.IvorySoft)
                             .border(
@@ -192,10 +185,18 @@ fun WeddingReferenceGuestsScreen(appViewModel: AppViewModel) {
                                 WeddingIdentityPalette.Hairline,
                                 CircleShape
                             )
-                            .clickable { selectedFilter = filter }
+                            .clickable(role = androidx.compose.ui.semantics.Role.Tab) { selectedFilter = filter }
                             .testTag("guests-filter-${filter.name.lowercase()}")
-                            .padding(horizontal = 10.dp, vertical = 7.dp)
-                    )
+                            .padding(horizontal = 14.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "${filter.title} ($count)",
+                            color = if (selected) Color.White else WeddingIdentityPalette.Ink,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
             }
 
@@ -215,80 +216,6 @@ fun WeddingReferenceGuestsScreen(appViewModel: AppViewModel) {
                 }
             }
 
-            Button(
-                onClick = { showAddGuest = true },
-                modifier = Modifier.fillMaxWidth().height(48.dp).testTag("guests-add"),
-                shape = RoundedCornerShape(13.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = WeddingIdentityPalette.Forest)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Add Guest", fontWeight = FontWeight.SemiBold)
-            }
-        }
-
-        if (showAddGuest) {
-            AlertDialog(
-                onDismissRequest = { showAddGuest = false },
-                title = { Text("Add Guest") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        OutlinedTextField(
-                            value = newGuestName,
-                            onValueChange = { newGuestName = it },
-                            label = { Text("Guest name") },
-                            singleLine = true
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Party of $newGuestPartySize")
-                            Row {
-                                IconButton(onClick = { if (newGuestPartySize > 1) newGuestPartySize-- }) {
-                                    Icon(Icons.Default.Remove, contentDescription = "Decrease party")
-                                }
-                                IconButton(onClick = { if (newGuestPartySize < 10) newGuestPartySize++ }) {
-                                    Icon(Icons.Default.Add, contentDescription = "Increase party")
-                                }
-                            }
-                        }
-                        Text(
-                            "This addition stays in the local Shadow session and does not write to production.",
-                            color = WeddingIdentityPalette.Muted,
-                            fontSize = 11.sp
-                        )
-                    }
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            val trimmed = newGuestName.trim()
-                            if (trimmed.isNotEmpty()) {
-                                guests = guests + Guest(
-                                    id = "shadow-local-${UUID.randomUUID()}",
-                                    name = trimmed,
-                                    partySize = newGuestPartySize,
-                                    rsvpStatus = RSVPStatus.PENDING
-                                )
-                                newGuestName = ""
-                                newGuestPartySize = 1
-                                showAddGuest = false
-                            }
-                        },
-                        enabled = newGuestName.trim().isNotEmpty(),
-                        modifier = Modifier.testTag("guests-add-save")
-                    ) { Text("Add") }
-                },
-                dismissButton = {
-                    TextButton(onClick = {
-                        newGuestName = ""
-                        newGuestPartySize = 1
-                        showAddGuest = false
-                    }) { Text("Cancel") }
-                }
-            )
         }
 
         selectedGuest?.let { guest ->
@@ -317,7 +244,8 @@ private fun ReferenceGuestRow(guest: Guest, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(15.dp))
-            .clickable { onClick() }
+            .heightIn(min = 56.dp)
+            .clickable(role = androidx.compose.ui.semantics.Role.Button) { onClick() }
             .background(WeddingIdentityPalette.IvorySoft)
             .border(1.dp, WeddingIdentityPalette.Hairline, RoundedCornerShape(15.dp))
             .padding(13.dp),
@@ -356,9 +284,9 @@ private fun ReferenceGuestRow(guest: Guest, onClick: () -> Unit) {
                         .background(statusColor(guest.rsvpStatus))
                 )
                 Spacer(modifier = Modifier.width(6.dp))
-                Text(guest.rsvpStatus.title, color = WeddingIdentityPalette.Muted, fontSize = 11.sp)
-                Text("  •  ", color = WeddingIdentityPalette.Muted, fontSize = 11.sp)
-                Text("Party of ${guest.partySize}", color = WeddingIdentityPalette.Muted, fontSize = 11.sp)
+                Text(guest.rsvpStatus.title, color = WeddingIdentityPalette.Ink, fontSize = 14.sp)
+                Text("  ·  ", color = WeddingIdentityPalette.Muted, fontSize = 14.sp)
+                Text("Party of ${guest.partySize}", color = WeddingIdentityPalette.Muted, fontSize = 14.sp)
             }
         }
 

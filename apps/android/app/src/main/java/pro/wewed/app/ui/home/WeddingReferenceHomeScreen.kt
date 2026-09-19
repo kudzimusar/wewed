@@ -31,7 +31,8 @@ import pro.wewed.app.models.*
 import pro.wewed.app.state.AppTab
 import pro.wewed.app.state.AppViewModel
 import pro.wewed.app.theme.*
-import pro.wewed.app.ui.invitation.GuestInvitationJourneyScreen
+import pro.wewed.app.ui.invitation.InvitationPreviewJourney
+import pro.wewed.app.ui.shared.MinTouchTarget
 import java.text.SimpleDateFormat
 import java.util.Locale
 import kotlin.math.max
@@ -64,17 +65,24 @@ fun WeddingReferenceHomeScreen(appViewModel: AppViewModel) {
     }
 
     if (showInvitation) {
+        // A read-only preview of what guests see; replying here never changes a guest.
         invitation?.let { context ->
-            GuestInvitationJourneyScreen(
-                reference = GuestJourneyReference(context, GuestJourneyStage.SPLASH),
-                appViewModel = appViewModel,
+            InvitationPreviewJourney(
+                invitation = context,
+                fallbackVenue = wedding?.venueLocation,
                 onExit = { showInvitation = false }
             )
         } ?: Box(
-            modifier = Modifier.fillMaxSize().background(WeddingIdentityPalette.Ivory),
+            modifier = Modifier.fillMaxSize().background(WeddingIdentityPalette.Ivory).padding(24.dp),
             contentAlignment = Alignment.Center
         ) {
-            CircularProgressIndicator(color = WeddingIdentityPalette.ChampagneDeep)
+            androidx.activity.compose.BackHandler { showInvitation = false }
+            Text(
+                "There is no guest invitation to preview yet.",
+                color = WeddingIdentityPalette.Ink,
+                fontSize = 17.sp,
+                modifier = Modifier.testTag("invitation-preview-unavailable")
+            )
         }
         return
     }
@@ -228,17 +236,23 @@ private fun ReferenceHero(
             Box(modifier = Modifier.fillMaxWidth()) {
                 WeddingBrandMark(modifier = Modifier.align(Alignment.Center))
 
-                IconButton(
+                Surface(
                     onClick = onInvitation,
+                    shape = RoundedCornerShape(50),
+                    color = Color.Black.copy(alpha = 0.42f),
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
+                        .heightIn(min = MinTouchTarget)
                         .testTag("home-open-invitation")
                 ) {
-                    Icon(
-                        Icons.Default.NotificationsNone,
-                        contentDescription = "Open invitation",
-                        tint = Color.White
-                    )
+                    Row(
+                        modifier = Modifier.heightIn(min = MinTouchTarget).padding(horizontal = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.MailOutline, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Preview invitation", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
 
@@ -253,7 +267,7 @@ private fun ReferenceHero(
             )
             Text(
                 "OUR WEDDING JOURNEY",
-                fontSize = 11.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = 3.sp,
                 color = Color.White.copy(alpha = 0.90f)
@@ -308,7 +322,7 @@ private fun ReferenceCountdownTile(value: Int, label: String, modifier: Modifier
             fontSize = 23.sp,
             fontWeight = FontWeight.Medium
         )
-        Text(label, color = Color.White, fontSize = 10.sp)
+        Text(label, color = Color.White, fontSize = 12.sp)
     }
 }
 
