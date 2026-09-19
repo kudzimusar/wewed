@@ -211,7 +211,7 @@ jobs:
 
       - name: Retain Ivory artwork UAT comparisons
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ivory-artwork-uat-comparisons
           path: |
@@ -222,7 +222,7 @@ jobs:
 
       - name: Upload browser failure evidence
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: planner-browser-release-gate
           path: |
