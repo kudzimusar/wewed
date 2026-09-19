@@ -38,10 +38,14 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
             }
         }
 
-        // Check standard user home directory
+        // Check standard user home directory (host-side tests on macOS; iOS apps only see their container)
+        #if os(macOS)
         let homePath = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".wewed-shadow/charity-kudzie/charity-kudzie-private-real-shadow.json")
             .path
+        #else
+        let homePath = NSHomeDirectory() + "/.wewed-shadow/charity-kudzie/charity-kudzie-private-real-shadow.json"
+        #endif
         if FileManager.default.fileExists(atPath: homePath) {
             return homePath
         }
