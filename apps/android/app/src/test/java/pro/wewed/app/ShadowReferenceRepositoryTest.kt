@@ -196,6 +196,12 @@ class ShadowReferenceRepositoryTest {
         assertEquals(2, guests.count { it.rsvpStatus == RSVPStatus.ATTENDING })
         assertEquals(172, guests.count { it.rsvpStatus == RSVPStatus.PENDING })
         assertEquals(0, guests.count { it.rsvpStatus == RSVPStatus.DECLINED })
+        val attendingPassSerials = guests
+            .filter { it.rsvpStatus == RSVPStatus.ATTENDING }
+            .mapNotNull { it.passSerial }
+        assertEquals(2, attendingPassSerials.size)
+        assertEquals(attendingPassSerials.size, attendingPassSerials.toSet().size)
+        assertTrue(attendingPassSerials.all { it.startsWith("SHDW") })
 
         // 4. Seating Tables (8 tables, 22 assigned, 64 capacity, 42 free)
         assertEquals(8, seatingTables.size)
