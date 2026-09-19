@@ -235,48 +235,95 @@ public actor PrivateRealShadowPlannerRepository: PlannerDashboardRepositoryProto
         let engagementsRaw = json["serviceEngagements"] as? [[String: Any]] ?? []
         self.serviceEngagementsCount = engagementsRaw.count
 
-        var engagementsByVendor: [String: [String: Any]] = [:]
-        for se in engagementsRaw {
-            if let vId = se["vendorId"] as? String {
-                engagementsByVendor[vId] = se
+        var vendorsById: [String: [String: Any]] = [:]
+        for vendor in vendorsRaw {
+            if let vendorId = vendor["id"] as? String, !vendorId.isEmpty {
+                vendorsById[vendorId] = vendor
             }
         }
 
-        self.vendorEngagements = try vendorsRaw.map { item in
-            guard let id = item["id"] as? String, !id.isEmpty,
-                  let name = item["name"] as? String, !name.isEmpty,
-                  let cat = item["category"] as? String, !cat.isEmpty else {
-                throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required vendor fields missing in private real shadow fixture.")
+        var mappedEngagements: [PlannerVendorEngagement] = []
+        var vendorsWithEngagements = Set<String>()
+
+        for se in engagementsRaw {
+            guard let engagementId = se["id"] as? String, !engagementId.isEmpty,
+                  let vendorId = se["vendorId"] as? String, !vendorId.isEmpty else {
+                throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing(
+                    "Required service engagement id/vendorId missing in private real shadow fixture."
+                )
             }
-            let paymentStatus = (item["paymentStatus"] as? String).flatMap { raw -> String? in
+            guard let vendor = vendorsById[vendorId] else {
+                throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing(
+                    "Service engagement \(engagementId) references unknown vendor \(vendorId)."
+                )
+            }
+            guard let name = vendor["name"] as? String, !name.isEmpty,
+                  let cat = vendor["category"] as? String, !cat.isEmpty else {
+                throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing(
+                    "Required vendor fields missing for service engagement \(engagementId)."
+                )
+            }
+            vendorsWithEngagements.insert(vendorId)
+
+            let paymentStatus = (vendor["paymentStatus"] as? String).flatMap { raw -> String? in
                 let cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !cleaned.isEmpty else { return nil }
                 return cleaned.replacingOccurrences(of: "_", with: " ").capitalized
             } ?? "Not recorded"
-            let se = engagementsByVendor[id]
-            let serviceDesc = (se?["serviceDescription"] as? String)?
+            let serviceDesc = (se["serviceDescription"] as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank ?? "Service details not recorded"
-            let lifecycleStatus = (se?["lifecycleStatus"] as? String).flatMap { raw -> String? in
+            let lifecycleStatus = (se["lifecycleStatus"] as? String).flatMap { raw -> String? in
                 let cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !cleaned.isEmpty else { return nil }
                 return cleaned.replacingOccurrences(of: "_", with: " ").capitalized
             } ?? "Not recorded"
-            let externalAgreementStatus = (se?["externalAgreementStatus"] as? String).flatMap { raw -> String? in
+            let externalAgreementStatus = (se["externalAgreementStatus"] as? String).flatMap { raw -> String? in
                 let cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !cleaned.isEmpty else { return nil }
                 return cleaned.replacingOccurrences(of: "_", with: " ").capitalized
             } ?? "Not recorded"
 
-            return PlannerVendorEngagement(
-                id: id,
-                vendorName: name,
-                category: cat.capitalized,
-                bookingStatus: lifecycleStatus,
-                contractStatus: externalAgreementStatus,
-                paymentStatus: paymentStatus,
-                nextAction: serviceDesc
+            mappedEngagements.append(
+                PlannerVendorEngagement(
+                    id: engagementId,
+                    vendorName: name,
+                    category: cat.capitalized,
+                    bookingStatus: lifecycleStatus,
+                    contractStatus: externalAgreementStatus,
+                    paymentStatus: paymentStatus,
+                    nextAction: serviceDesc
+                )
             )
         }
+
+        // Preserve vendors that exist but do not yet have a service engagement.
+        for vendor in vendorsRaw {
+            guard let id = vendor["id"] as? String, !id.isEmpty,
+                  !vendorsWithEngagements.contains(id),
+                  let name = vendor["name"] as? String, !name.isEmpty,
+                  let cat = vendor["category"] as? String, !cat.isEmpty else {
+                continue
+            }
+            let paymentStatus = (vendor["paymentStatus"] as? String).flatMap { raw -> String? in
+                let cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !cleaned.isEmpty else { return nil }
+                return cleaned.replacingOccurrences(of: "_", with: " ").capitalized
+            } ?? "Not recorded"
+
+            mappedEngagements.append(
+                PlannerVendorEngagement(
+                    id: "vendor-\(id)",
+                    vendorName: name,
+                    category: cat.capitalized,
+                    bookingStatus: "No service engagement recorded",
+                    contractStatus: "Not recorded",
+                    paymentStatus: paymentStatus,
+                    nextAction: "Service details not recorded"
+                )
+            )
+        }
+
+        self.vendorEngagements = mappedEngagements
 
         // Timeline (13 programme items)
         guard let progRaw = json["programme"] as? [[String: Any]] else {
