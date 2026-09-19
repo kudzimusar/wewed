@@ -10,9 +10,16 @@ public struct NativeLaunchConfiguration: Equatable, Sendable {
     }
 
     public static func resolve(
-        environment: [String: String] = ProcessInfo.processInfo.environment
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        arguments: [String] = ProcessInfo.processInfo.arguments
     ) -> NativeLaunchConfiguration {
-        let rawEnvironment = environment["WEWED_NATIVE_ENV"]?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let environmentValue = environment["WEWED_NATIVE_ENV"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let argumentValue = launchArgumentValue(named: "wewed_native_env", arguments: arguments)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let rawEnvironment = environmentValue ?? argumentValue
         let dataEnvironment: NativeDataEnvironment
 
         switch rawEnvironment {
@@ -35,7 +42,24 @@ public struct NativeLaunchConfiguration: Equatable, Sendable {
                 : .sanitizedShadow
         }
 
-        let baseURL = environment["WEWED_SHADOW_API_BASE_URL"].flatMap(URL.init(string:))
+        let argumentBaseURL = launchArgumentValue(named: "wewed_shadow_base_url", arguments: arguments)
+        let baseURL = (environment["WEWED_SHADOW_API_BASE_URL"] ?? argumentBaseURL).flatMap(URL.init(string:))
         return NativeLaunchConfiguration(environment: dataEnvironment, baseURL: baseURL)
+    }
+
+    private static func launchArgumentValue(named name: String, arguments: [String]) -> String? {
+        let normalizedNames = [name, "--\(name)", "-\(name)"]
+        for (index, argument) in arguments.enumerated() {
+            for candidate in normalizedNames {
+                if argument == candidate, arguments.indices.contains(index + 1) {
+                    return arguments[index + 1]
+                }
+                let prefix = "\(candidate)="
+                if argument.hasPrefix(prefix) {
+                    return String(argument.dropFirst(prefix.count))
+                }
+            }
+        }
+        return nil
     }
 }
