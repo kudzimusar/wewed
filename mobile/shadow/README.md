@@ -4,18 +4,25 @@ This directory contains the implementation-facing contract for the isolated Wewe
 
 ## Current status
 
-The native apps are still running with deterministic fixture repositories. No production database or production API write path is enabled.
+The native SwiftUI and Jetpack Compose clients now support three isolated data modes:
 
-The next safe transition is:
+- sanitized Shadow reference data committed to the repository;
+- `PRIVATE_REAL_SHADOW`, loaded only from a protected local production-derived snapshot outside Git;
+- deterministic fixture data for lower-level tests.
+
+Production runtime remains disabled. No native production database credential, production API write path, or reverse-sync path is enabled.
+
+The active safety chain is:
 
 ```
 production (read-only discovery)
-    -> scoped snapshot
-    -> private shadow import
-    -> sanitized repository fixture
-    -> shadow API adapters
-    -> native repositories
+    -> scoped private snapshot outside Git
+    -> PRIVATE_REAL_SHADOW native repositories
+    -> isolated mutable native state
+    -> no reverse sync
 ```
+
+A future network-backed Shadow service remains a separate acceptance gate; local private-real parity does not authorize production integration.
 
 ## Hard rules
 
@@ -78,7 +85,7 @@ Before opening a simulator, a local agent should align to the exact remote setup
 ```bash
 cd "/Users/shadreckmusarurwa/Project AI/wewed-native-mobile"
 git fetch origin --prune
-git switch native-mobile/shadow-setup-implementation-20260918
+git switch native-mobile/wedding-identity-ui-20260918
 git pull --ff-only
 bash mobile/shadow/tools/native_local_preflight.sh
 ```
@@ -104,18 +111,20 @@ Recognized values are:
 ```
 fixture
 shadow
+sanitized_shadow
+private_real_shadow
 production_read_verify
 production
 ```
 
 During this sprint:
 
-- `fixture` is allowed;
-- `shadow` is allowed;
-- `production_read_verify` deliberately throws until separately configured;
+- `fixture`, `shadow`, `sanitized_shadow`, and `private_real_shadow` are allowed;
+- every mutable Shadow mode rejects production hosts;
+- `production_read_verify` deliberately throws until separately authorized and configured;
 - `production` deliberately throws.
 
-A local Shadow launch should therefore supply `WEWED_NATIVE_ENV=shadow`. The base URL may be omitted while using the in-memory Shadow reference repositories.
+For authentic Charity & Kudzie qualification, use `WEWED_NATIVE_ENV=private_real_shadow` only after provisioning the protected snapshot. For sanitized automation, use `shadow` or `sanitized_shadow`.
 
 ### Android
 
