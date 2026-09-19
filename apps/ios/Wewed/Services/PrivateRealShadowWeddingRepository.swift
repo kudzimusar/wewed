@@ -22,15 +22,8 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
             return envPath
         }
 
-        // Check Documents Directory (e.g. provisioned in app container)
-        if let docsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
-            let docsPath = docsDir.appendingPathComponent("charity-kudzie-private-real-shadow.json").path
-            if FileManager.default.fileExists(atPath: docsPath) {
-                return docsPath
-            }
-        }
-
-        // Check Application Support Directory
+        // Check Application Support Directory. Private production-derived
+        // Shadow snapshots are intentionally excluded from Documents/iCloud.
         if let appSupportDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
             let appSupportPath = appSupportDir.appendingPathComponent("wewed/charity-kudzie-private-real-shadow.json").path
             if FileManager.default.fileExists(atPath: appSupportPath) {
@@ -53,10 +46,25 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
         let fileURL = URL(fileURLWithPath: path)
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
             throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing(
-                "Private real shadow fixture not found at \(path). Set WEWED_PRIVATE_SHADOW_PATH or place file at ~/.wewed-shadow/charity-kudzie/charity-kudzie-private-real-shadow.json. Falling back to demo data is strictly prohibited."
+                "Private real shadow fixture not found at \(path). Use WEWED_PRIVATE_SHADOW_PATH for desktop tests or provision the protected file into Application Support. Documents/iCloud and demo-data fallback are prohibited."
             )
         }
+        try hardenSnapshotFile(at: fileURL)
         return try Data(contentsOf: fileURL)
+    }
+
+    private static func hardenSnapshotFile(at fileURL: URL) throws {
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        var mutableURL = fileURL
+        try mutableURL.setResourceValues(values)
+
+        #if os(iOS)
+        try FileManager.default.setAttributes(
+            [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+            ofItemAtPath: fileURL.path
+        )
+        #endif
     }
 
     public init(jsonData: Data? = nil, path: String = defaultSnapshotPath()) throws {
