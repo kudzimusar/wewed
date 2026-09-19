@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feat/native-mobile-platform-20260910
+      - native-mobile/integration
     paths:
       - 'apps/mobile/**'
       - 'src/lib/app-session.ts'
