@@ -42,9 +42,12 @@ jobs:
         run: |
           test -f android/app/build/outputs/apk/uat/app-uat.apk
           grep -q 'buildConfigField "boolean", "UAT", "true"' android/app/build.gradle
-          grep -q 'https://uat.wewed.pro/invite/resume' android/app/src/main/java/pro/wewed/app/InstallReferrerHandoff.java
-          grep -q 'https://uat.wewed.pro/invite/physical-resume' android/app/src/main/java/pro/wewed/app/InstallReferrerHandoff.java
+          grep -q 'BuildConfig.INVITATION_RESUME_ORIGIN + "/invite/resume"' android/app/src/main/java/pro/wewed/app/InstallReferrerHandoff.java
+          grep -q 'BuildConfig.INVITATION_RESUME_ORIGIN + "/invite/physical-resume"' android/app/src/main/java/pro/wewed/app/InstallReferrerHandoff.java
           grep -q 'physical_handoff' android/app/src/main/java/pro/wewed/app/InstallReferrerHandoff.java
+          UAT_BUILD_CONFIG="$(find android/app/build/generated -type f -name BuildConfig.java -path '*uat*' | head -n 1)"
+          test -n "$UAT_BUILD_CONFIG"
+          grep -q 'INVITATION_RESUME_ORIGIN = "https://uat.wewed.pro"' "$UAT_BUILD_CONFIG"
       - name: Upload installable UAT APK
         uses: actions/upload-artifact@v4
         with:
