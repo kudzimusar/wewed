@@ -51,10 +51,22 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - name: Check out repository
+      - name: Check out exact candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - name: Record exact candidate SHA
-        run: echo "Android UAT AAB candidate SHA=$GITHUB_SHA"
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify and record exact candidate SHA
+        shell: bash
+        env:
+          EXPECTED_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$EXPECTED_CANDIDATE_SHA" || {
+            echo "::error::Checked out $actual but expected $EXPECTED_CANDIDATE_SHA"
+            exit 1
+          }
+          echo "Android UAT AAB exact candidate SHA=$actual"
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
@@ -104,8 +116,22 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - name: Check out repository
+      - name: Check out exact candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact signed-candidate SHA
+        shell: bash
+        env:
+          EXPECTED_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$EXPECTED_CANDIDATE_SHA" || {
+            echo "::error::Checked out $actual but expected $EXPECTED_CANDIDATE_SHA"
+            exit 1
+          }
+          echo "Android signed UAT exact candidate SHA=$actual"
       - name: Detect Android signing and Play publisher credentials
         id: credentials
         shell: bash
