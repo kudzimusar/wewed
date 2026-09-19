@@ -46,6 +46,37 @@ final class NativeDeepLinkTests: XCTestCase {
         )
     }
 
+    func testAppStateRoutesInvitationBeforeAuthenticationShell() {
+        let state = AppState()
+        let url = URL(
+            string: "wewed://invite/charity-and-kudzie?rsvp=guest-token-123"
+        )!
+
+        state.handleIncomingURL(url)
+
+        XCTAssertEqual(
+            state.pendingInvitationDeepLink,
+            InvitationDeepLink(
+                weddingSlug: "charity-and-kudzie",
+                rsvpToken: "guest-token-123"
+            )
+        )
+        XCTAssertEqual(state.selectedTab, .home)
+    }
+
+    func testAppStateRoutesPassWithoutGuestCredentialLeakage() {
+        let state = AppState()
+        state.pendingInvitationDeepLink = InvitationDeepLink(
+            weddingSlug: "old",
+            rsvpToken: "old-token"
+        )
+
+        state.handleIncomingURL(URL(string: "wewed://pass/example")!)
+
+        XCTAssertNil(state.pendingInvitationDeepLink)
+        XCTAssertEqual(state.selectedTab, .pass)
+    }
+
     func testParsesCustomSchemeInvitation() {
         XCTAssertEqual(
             NativeDeepLinkParser.parse(
