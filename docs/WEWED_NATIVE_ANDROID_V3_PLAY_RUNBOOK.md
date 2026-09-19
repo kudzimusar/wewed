@@ -71,6 +71,10 @@ apps/mobile local default: pro.wewed.app.dev
 
 The release builder explicitly sets `WEWED_ANDROID_PACKAGE_ID=pro.wewed.app`. Do not export that variable in a normal Android Studio / Expo development shell. This separation prevents a local debug APK from silently replacing a Play-installed Wewed build on an emulator or physical tester device.
 
+`.github/scripts/verify-android-local-package.sh <apk-output-dir>` fails when a debug APK resolves to `pro.wewed.app`. CI, the Maestro runners and `mobile/shadow/tools/native_local_preflight.sh` run it before a debug APK is installed.
+
+The Play TWA wrapper in `android/` still builds its `debug` and `uat` variants as `pro.wewed.app` with the local debug key. Never install those APKs on a device that must receive Wewed from Google Play.
+
 Play identity:
 
 ```text
