@@ -22,7 +22,10 @@ object NativeEnvironmentGuard {
             throw NativeEnvironmentGuardError.ProductionDisabled
         }
 
-        if (environment != NativeDataEnvironment.SHADOW || baseUrl.isNullOrBlank()) return
+        val shadowFamily = environment == NativeDataEnvironment.SHADOW ||
+            environment == NativeDataEnvironment.SANITIZED_SHADOW ||
+            environment == NativeDataEnvironment.PRIVATE_REAL_SHADOW
+        if (!shadowFamily || baseUrl.isNullOrBlank()) return
 
         val host = runCatching { URI(baseUrl).host?.lowercase() }.getOrNull() ?: return
         if (host in productionHosts) {
