@@ -20,6 +20,8 @@ import {
   type InvitationCardStyle,
 } from '@/lib/digital-invitation-card'
 
+type ChildrenPolicy = 'welcome' | 'adults_only'
+
 interface InvitationRow {
   id: string
   name: string
@@ -48,6 +50,7 @@ interface InvitationWedding {
   invitationCardStyle: InvitationCardStyle
   invitationCardMessage: string | null
   rsvpDeadline: string | null
+  childrenPolicy: ChildrenPolicy
 }
 
 function GuestQr({ value, name }: { value: string; name: string }) {
@@ -80,6 +83,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
   const [draftStyle, setDraftStyle] = useState<InvitationCardStyle>('botanical')
   const [draftMessage, setDraftMessage] = useState('')
   const [draftDeadline, setDraftDeadline] = useState('')
+  const [draftChildrenPolicy, setDraftChildrenPolicy] = useState<ChildrenPolicy>('welcome')
   const [busy, setBusy] = useState<string | null>('load')
   const [copied, setCopied] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
@@ -98,12 +102,14 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
       const nextWedding = {
         ...payload.wedding,
         invitationCardStyle: normalizeInvitationCardStyle(payload.wedding.invitationCardStyle),
+        childrenPolicy: payload.wedding.childrenPolicy === 'adults_only' ? 'adults_only' : 'welcome',
       } as InvitationWedding
       setRows(payload.data)
       setWedding(nextWedding)
       setDraftStyle(nextWedding.invitationCardStyle)
       setDraftMessage(nextWedding.invitationCardMessage || '')
       setDraftDeadline(dateInputValue(nextWedding.rsvpDeadline))
+      setDraftChildrenPolicy(nextWedding.childrenPolicy)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to load invitations.')
     } finally {
@@ -168,7 +174,12 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
       const response = await fetch('/api/planner/guests/invitations', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ style: draftStyle, message: draftMessage, rsvpDeadline: draftDeadline || null }),
+        body: JSON.stringify({
+          style: draftStyle,
+          message: draftMessage,
+          rsvpDeadline: draftDeadline || null,
+          childrenPolicy: draftChildrenPolicy,
+        }),
       })
       const payload = await response.json()
       if (!response.ok || !payload.success) throw new Error(payload.error || 'Unable to save invitation card design.')
@@ -225,11 +236,13 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
           style={draftStyle}
           message={draftMessage}
           deadline={draftDeadline}
+          childrenPolicy={draftChildrenPolicy}
           saved={saved}
           busy={busy !== null}
           onStyleChange={(next) => { setDraftStyle(next); setSaved(false) }}
           onMessageChange={(next) => { setDraftMessage(next); setSaved(false) }}
           onDeadlineChange={(next) => { setDraftDeadline(next); setSaved(false) }}
+          onChildrenPolicyChange={(next) => { setDraftChildrenPolicy(next); setSaved(false) }}
           onSave={() => void saveDesign()}
         />
       )}

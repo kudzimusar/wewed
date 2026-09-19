@@ -1,6 +1,7 @@
 import { createHmac } from 'node:crypto'
 import { mkdirSync } from 'node:fs'
 import { expect, test } from '@playwright/test'
+import { PrismaClient } from '@prisma/client'
 import { E2E_COUPLE } from './support/marketplace-fixture'
 import { E2E_WEDDINGS } from './support/planner-fixture'
 import {
@@ -165,6 +166,8 @@ test('couples design, save, export and deliver guest-specific digital invitation
   await expect(deliveredExperience).toHaveAttribute('data-invitation-style', 'editorial')
   await expect(deliveredExperience).toContainText('Aurora & Blake')
   await expect(deliveredExperience).toContainText('Primary Test Estate')
+  await expect(page.locator('main#main-content')).toHaveCount(0)
+  await expect(page.locator('footer')).toHaveCount(0)
   await removeSampleOverlays(page)
   await deliveredExperience.screenshot({
     path: `${SAMPLE_DIR}/delivered-editorial-guest-card.png`,
@@ -174,6 +177,7 @@ test('couples design, save, export and deliver guest-specific digital invitation
   await deliveredExperience.getByTestId('invitation-open-button').click()
   await expect(deliveredExperience).toHaveAttribute('data-motion-state', 'open', { timeout: 4_000 })
   await deliveredExperience.getByTestId('invitation-continue-button').click()
+  await expect(page.locator('main#main-content')).toBeVisible()
   await page.locator('#rsvp').scrollIntoViewIfNeeded()
   await page.getByRole('button', { name: 'Review my RSVP' }).click()
   await expect(page.getByRole('heading', { name: 'Your private RSVP' })).toBeVisible()
@@ -195,12 +199,27 @@ test('couples design, save, export and deliver guest-specific digital invitation
   expect(errors).toEqual([])
 })
 
+async function saveWeddingInvitationStyle(invitationCardStyle: string) {
+  const prisma = new PrismaClient()
+  try {
+    await prisma.wedding.update({
+      where: { id: E2E_WEDDINGS.primary.id },
+      data: { invitationCardStyle },
+    })
+  } finally {
+    await prisma.$disconnect()
+  }
+}
+
 test('QR card and RSVP remain contained on mobile @mobile', async ({ page }) => {
   await resetUnifiedNavigationFixture()
+  // The couple's saved design is authoritative: a stale card= query on a
+  // long-lived personal link must not override it.
+  await saveWeddingInvitationStyle('midnight')
   const errors = runtimeErrors(page)
 
   await page.goto(
-    `/w/${E2E_WEDDINGS.primary.slug}?rsvp=${encodeURIComponent(E2E_GUEST_INVITATION.token)}&card=midnight`,
+    `/w/${E2E_WEDDINGS.primary.slug}?rsvp=${encodeURIComponent(E2E_GUEST_INVITATION.token)}&card=botanical`,
   )
   await expect(page).toHaveURL(
     new RegExp(`/w/${E2E_WEDDINGS.primary.slug}\\?invitation=1&card=midnight$`),

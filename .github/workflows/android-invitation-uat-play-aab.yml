@@ -1,0 +1,210 @@
+name: Android Invitation UAT Play AAB
+
+on:
+  pull_request:
+    paths:
+      - 'android/**'
+      - 'src/app/api/uat/assetlinks/route.ts'
+      - 'src/app/api/invitations/**'
+      - 'src/app/invite/**'
+      - 'src/lib/invitation-install-handoff.ts'
+      - 'src/lib/physical-invitation-install-handoff.ts'
+      - 'next.config.ts'
+      - '.github/workflows/android-invitation-uat-play-aab.yml'
+  workflow_dispatch:
+    inputs:
+      version_code:
+        description: 'Google Play versionCode. Must be greater than every existing pro.wewed.app versionCode.'
+        required: true
+        default: '7'
+        type: string
+      version_name:
+        description: 'Base Android versionName; -uat is appended to the Play UAT variant.'
+        required: true
+        default: '2.0.4'
+        type: string
+      play_track:
+        description: 'Existing Google Play closed-testing track id (normally alpha).'
+        required: true
+        default: 'alpha'
+        type: string
+      publish_to_play:
+        description: 'Upload the signed AAB to the existing closed-testing track.'
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-invitation-uat-play-aab-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  WEWED_ANDROID_VERSION_CODE: ${{ github.event_name == 'workflow_dispatch' && inputs.version_code || '7' }}
+  WEWED_ANDROID_VERSION_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.version_name || '2.0.4' }}
+
+jobs:
+  bundle-contract:
+    name: Build release-grade UAT AAB contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - name: Build UAT Play app bundle
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:bundleUatPlay --no-daemon --stacktrace
+      - name: Verify UAT Play bundle contract
+        run: |
+          set -euo pipefail
+          test -f android/app/build/outputs/bundle/uatPlay/app-uatPlay.aab
+          grep -q 'applicationId "pro.wewed.app"' android/app/build.gradle
+          grep -q 'uatPlay {' android/app/build.gradle
+          grep -q 'initWith release' android/app/build.gradle
+          grep -q 'variantBuilder.minSdk = 24' android/app/build.gradle
+          grep -q 'buildConfigField "boolean", "UAT", "true"' android/app/build.gradle
+          grep -q 'https://uat.wewed.pro/app?source=google-play-uat' android/app/build.gradle
+          grep -q 'buildConfigField "String", "INVITATION_RESUME_ORIGIN", '"'"'"https://uat.wewed.pro"'"'"'' android/app/build.gradle
+          grep -q 'BuildConfig.INVITATION_RESUME_ORIGIN' android/app/src/main/java/pro/wewed/app/InstallReferrerHandoff.java
+          grep -q 'android.support.customtabs.trusted.LAUNCH_HANDLER_CLIENT_MODE' android/app/src/main/AndroidManifest.xml
+          grep -q 'android:value="navigate-existing"' android/app/src/main/AndroidManifest.xml
+          grep -q 'android:scheme="wewed"' android/app/src/main/AndroidManifest.xml
+          grep -q 'android:host="invite"' android/app/src/main/AndroidManifest.xml
+          grep -q 'getStringExtra("wewed_handoff")' android/app/src/main/java/pro/wewed/app/LauncherActivity.java
+          grep -q 'checkpoint=native_intent_received' android/app/src/main/java/pro/wewed/app/LauncherActivity.java
+          grep -q 'checkpoint=native_resume_uri_ready' android/app/src/main/java/pro/wewed/app/LauncherActivity.java
+          UAT_NAV_MANIFEST="$(find android/app/build/intermediates -type f -name AndroidManifest.xml -path '*uatPlay*' -print0 | xargs -0 -r grep -l 'LAUNCH_HANDLER_CLIENT_MODE' | head -n 1 || true)"
+          test -n "$UAT_NAV_MANIFEST"
+          grep -q 'android:value="navigate-existing"' "$UAT_NAV_MANIFEST"
+          UAT_MIN_SDK_MANIFEST="$(find android/app/build/intermediates -type f -name AndroidManifest.xml -path '*uatPlay*' -print0 | xargs -0 -r grep -l 'android:minSdkVersion="24"' | head -n 1 || true)"
+          test -n "$UAT_MIN_SDK_MANIFEST"
+          unzip -t android/app/build/outputs/bundle/uatPlay/app-uatPlay.aab >/dev/null
+      - name: Upload unsigned contract AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: wewed-uat-play-contract-aab
+          path: android/app/build/outputs/bundle/uatPlay/app-uatPlay.aab
+          if-no-files-found: error
+          retention-days: 7
+
+  signed-candidate:
+    name: Build signed Google Play UAT candidate when credentials exist
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Detect Android signing and Play publisher credentials
+        id: credentials
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.WEWED_ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.WEWED_UPLOAD_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.WEWED_UPLOAD_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.WEWED_UPLOAD_KEY_PASSWORD }}
+          PLAY_SERVICE_ACCOUNT: ${{ secrets.WEWED_GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          if [[ -n "$KEYSTORE_BASE64" && -n "$STORE_PASSWORD" && -n "$KEY_ALIAS" && -n "$KEY_PASSWORD" ]]; then
+            echo 'signing=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'signing=false' >> "$GITHUB_OUTPUT"
+            echo '::notice::Signed Play UAT AAB skipped because one or more WEWED Android upload-key secrets are not configured.'
+          fi
+          if [[ -n "$PLAY_SERVICE_ACCOUNT" ]]; then
+            echo 'publisher=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'publisher=false' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Set up Java 17
+        if: steps.credentials.outputs.signing == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - name: Materialize upload keystore
+        if: steps.credentials.outputs.signing == 'true'
+        id: keystore
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.WEWED_ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          KEYSTORE_PATH="$RUNNER_TEMP/wewed-upload.jks"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          chmod 600 "$KEYSTORE_PATH"
+          echo "path=$KEYSTORE_PATH" >> "$GITHUB_OUTPUT"
+      - name: Build signed UAT Play app bundle
+        if: steps.credentials.outputs.signing == 'true'
+        working-directory: android
+        env:
+          WEWED_UPLOAD_STORE_FILE: ${{ steps.keystore.outputs.path }}
+          WEWED_UPLOAD_STORE_PASSWORD: ${{ secrets.WEWED_UPLOAD_STORE_PASSWORD }}
+          WEWED_UPLOAD_KEY_ALIAS: ${{ secrets.WEWED_UPLOAD_KEY_ALIAS }}
+          WEWED_UPLOAD_KEY_PASSWORD: ${{ secrets.WEWED_UPLOAD_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew :app:bundleUatPlay --no-daemon --stacktrace
+      - name: Verify signed candidate
+        if: steps.credentials.outputs.signing == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          AAB='android/app/build/outputs/bundle/uatPlay/app-uatPlay.aab'
+          # The Wewed upload certificate is self-signed, so `jarsigner -strict`
+          # wrongly treats its absent public CA chain as a release failure. Verify
+          # integrity, then bind the bundle to the known upload certificate instead.
+          EXPECTED_UPLOAD_CERT_SHA256='C3D856D782F642C6884D982552F567653E35D5DA1EABB112EF6FC0598E88658C'
+          test -f "$AAB"
+          jarsigner -verify "$AAB" >/dev/null
+          ACTUAL_UPLOAD_CERT_SHA256="$(
+            keytool -printcert -jarfile "$AAB" 2>/dev/null \
+              | sed -n 's/^[[:space:]]*SHA256: //p' \
+              | head -n 1 \
+              | tr -d ':' \
+              | tr '[:lower:]' '[:upper:]'
+          )"
+          test -n "$ACTUAL_UPLOAD_CERT_SHA256"
+          test "$ACTUAL_UPLOAD_CERT_SHA256" = "$EXPECTED_UPLOAD_CERT_SHA256"
+          unzip -t "$AAB" >/dev/null
+      - name: Upload signed UAT Play candidate
+        if: steps.credentials.outputs.signing == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: wewed-uat-play-signed-aab
+          path: android/app/build/outputs/bundle/uatPlay/app-uatPlay.aab
+          if-no-files-found: error
+          retention-days: 14
+      - name: Require publisher credential for requested Play upload
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_to_play && steps.credentials.outputs.publisher != 'true'
+        shell: bash
+        run: |
+          echo 'WEWED_GOOGLE_PLAY_SERVICE_ACCOUNT_JSON is required to publish to the closed-testing track.' >&2
+          exit 1
+      - name: Require signed candidate for requested Play upload
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_to_play && steps.credentials.outputs.signing != 'true'
+        shell: bash
+        run: |
+          echo 'Android upload-key secrets are required before a Google Play upload can occur.' >&2
+          exit 1
+      - name: Upload signed candidate to Google Play closed testing
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_to_play && steps.credentials.outputs.signing == 'true' && steps.credentials.outputs.publisher == 'true'
+        uses: r0adkll/upload-google-play@935ef9c68bb393a8e6116b1575626a7f5be3a7fb
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.WEWED_GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: pro.wewed.app
+          releaseFiles: android/app/build/outputs/bundle/uatPlay/app-uatPlay.aab
+          track: ${{ inputs.play_track }}
+          status: completed

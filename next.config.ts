@@ -13,8 +13,12 @@ const LEGACY_PUBLIC_HOSTS = [
   `wewed-git-main-pay-pass-project.${vercelSuffix}`,
 ] as const;
 
+const PR202_WEDDING_ID = "wewed-pr202-uat-20260912";
+
 const nextConfig: NextConfig = {
   output: "standalone",
+  outputFileTracingRoot: process.cwd(),
+  turbopack: { root: process.cwd() },
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -40,6 +44,17 @@ const nextConfig: NextConfig = {
     "socket.io-client",
     "sharp",
   ],
+  async rewrites() {
+    const servePr202UatAssetlinks =
+      process.env.VERCEL_ENV === "preview" &&
+      process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID === PR202_WEDDING_ID;
+
+    return {
+      beforeFiles: servePr202UatAssetlinks
+        ? [{ source: "/.well-known/assetlinks.json", has: [{ type: "host" as const, value: "uat.wewed.pro" }], destination: "/api/uat/assetlinks" }]
+        : [],
+    };
+  },
   async redirects() {
     if (process.env.VERCEL_ENV !== "production") {
       return [];

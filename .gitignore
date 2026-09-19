@@ -71,3 +71,6 @@ tool-results/
 # Z.AI workspace runtime files (keep the .sh scripts, ignore runtime output)
 .zscripts/dev.pid
 .zscripts/*.log
+# Browser validation artifacts
+/test-results/
+/playwright-report/
