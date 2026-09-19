@@ -37,13 +37,21 @@ if command -v xcrun >/dev/null 2>&1; then
       mkdir -p "$target_dir"
       cp -f "$SOURCE_FIXTURE" "$target_dir/charity-kudzie-private-real-shadow.json"
 
-      # Also check if app container exists
-      app_data="$(xcrun simctl get_app_container "$sim_udid" pro.wewed.app data 2>/dev/null || true)"
-      if [[ -n "$app_data" && -d "$app_data" ]]; then
-        mkdir -p "$app_data/Documents"
-        cp -f "$SOURCE_FIXTURE" "$app_data/Documents/charity-kudzie-private-real-shadow.json"
-        echo "PASS: iOS App Documents container provisioned at $app_data/Documents"
-      fi
+      # Provision whichever Wewed identity is installed. Debug/UAT must never
+      # depend on the production bundle identifier.
+      ios_bundle_ids=(
+        "pro.wewed.app.dev"
+        "pro.wewed.app.uatdev"
+        "pro.wewed.app"
+      )
+      for bundle_id in "${ios_bundle_ids[@]}"; do
+        app_data="$(xcrun simctl get_app_container "$sim_udid" "$bundle_id" data 2>/dev/null || true)"
+        if [[ -n "$app_data" && -d "$app_data" ]]; then
+          mkdir -p "$app_data/Documents"
+          cp -f "$SOURCE_FIXTURE" "$app_data/Documents/charity-kudzie-private-real-shadow.json"
+          echo "PASS: iOS $bundle_id Documents container provisioned at $app_data/Documents"
+        fi
+      done
       echo "PASS: iOS simulator home provisioned at $target_dir"
     done
   else
