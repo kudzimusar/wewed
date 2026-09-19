@@ -94,11 +94,21 @@ class PrivateRealShadowPlannerRepository(jsonString: String? = null, customPath:
             if (id.isEmpty() || cat.isEmpty() || !item.has("estimatedCost") || !item.has("actualCost") || !item.has("paidAmount")) {
                 throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required budget item fields missing in private real shadow fixture.")
             }
-            val vName = if (item.isNull("vendorName")) null else item.optString("vendorName")
+            val vName = if (item.isNull("vendorName")) null else item.optString("vendorName").takeIf { it.isNotBlank() }
+            val sourceLabel = listOf("name", "title", "itemName", "description")
+                .asSequence()
+                .map { key -> if (item.isNull(key)) "" else item.optString(key).trim() }
+                .firstOrNull { it.isNotBlank() }
+            val displayLabel = sourceLabel ?: cat.replaceFirstChar { it.uppercase() }
+            val fundingLabel = listOf("fundingLabel", "fundingSource", "paymentSource", "fundingType")
+                .asSequence()
+                .map { key -> if (item.isNull(key)) "" else item.optString(key).trim() }
+                .firstOrNull { it.isNotBlank() }
+                ?: "Funding source not recorded"
             val est = item.optDouble("estimatedCost", 0.0)
             val act = item.optDouble("actualCost", 0.0)
             val pd = item.optDouble("paidAmount", 0.0)
-            val due = if (item.isNull("dueDate")) null else item.optString("dueDate")
+            val due = if (item.isNull("dueDate")) null else item.optString("dueDate").takeIf { it.isNotBlank() }
             val status = if (pd >= act && act > 0) "Paid" else if (pd > 0) "Deposit paid" else "Unpaid"
             totalEst += est
             totalAct += act
@@ -106,13 +116,13 @@ class PrivateRealShadowPlannerRepository(jsonString: String? = null, customPath:
             bList.add(
                 PlannerBudgetLine(
                     id = id,
-                    category = cat.replaceFirstChar { it.uppercase() },
+                    category = displayLabel,
                     vendorName = vName,
                     estimated = est,
                     actual = act,
                     paid = pd,
                     dueDateLabel = due,
-                    fundingLabel = "Direct expense",
+                    fundingLabel = fundingLabel,
                     statusLabel = status
                 )
             )
@@ -175,7 +185,13 @@ class PrivateRealShadowPlannerRepository(jsonString: String? = null, customPath:
             }
             val contributorName = guestNameMap[guestId] ?: "Guest"
             val formattedType = type.replace("_", " ").replaceFirstChar { it.uppercase() }
-            val formattedStatus = status.replaceFirstChar { it.uppercase() }
+            val formattedStatus = status.replace("_", " ").replaceFirstChar { it.uppercase() }
+            val contributionText = listOf("message", "content", "story", "note", "text")
+                .asSequence()
+                .map { key -> if (item.isNull(key)) "" else item.optString(key).trim() }
+                .firstOrNull { it.isNotBlank() }
+                ?: "Non-monetary contribution"
+            val verified = status.lowercase() in setOf("verified", "approved", "published", "received", "accepted", "recorded")
             cList.add(
                 PlannerContributionRecord(
                     id = id,
@@ -183,8 +199,8 @@ class PrivateRealShadowPlannerRepository(jsonString: String? = null, customPath:
                     typeLabel = formattedType,
                     value = 0.0,
                     statusLabel = formattedStatus,
-                    allocationLabel = "Guest Story & Blessing",
-                    verified = true
+                    allocationLabel = contributionText,
+                    verified = verified
                 )
             )
         }
@@ -262,11 +278,18 @@ class PrivateRealShadowPlannerRepository(jsonString: String? = null, customPath:
             if (id.isEmpty() || name.isEmpty() || cat.isEmpty()) {
                 throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required vendor fields missing in private real shadow fixture.")
             }
-            val payStatus = item.optString("paymentStatus", "unpaid").replaceFirstChar { it.uppercase() }
+            val payStatus = if (item.isNull("paymentStatus")) {
+                "Not recorded"
+            } else {
+                item.optString("paymentStatus").takeIf { it.isNotBlank() }?.replace("_", " ")?.replaceFirstChar { it.uppercase() }
+                    ?: "Not recorded"
+            }
             val se = engagementsByVendor[id]
-            val serviceDesc = se?.optString("serviceDescription") ?: "${cat.replaceFirstChar { it.uppercase() }} services"
-            val lifecycleStatus = se?.optString("lifecycleStatus", "recorded")?.replace("_", " ")?.replaceFirstChar { it.uppercase() } ?: "Recorded"
-            val externalAgreementStatus = se?.optString("externalAgreementStatus", "none")?.replaceFirstChar { it.uppercase() } ?: "None"
+            val serviceDesc = se?.optString("serviceDescription")?.takeIf { it.isNotBlank() } ?: "Service details not recorded"
+            val lifecycleStatus = se?.optString("lifecycleStatus")?.takeIf { it.isNotBlank() }?.replace("_", " ")?.replaceFirstChar { it.uppercase() }
+                ?: "Not recorded"
+            val externalAgreementStatus = se?.optString("externalAgreementStatus")?.takeIf { it.isNotBlank() }?.replace("_", " ")?.replaceFirstChar { it.uppercase() }
+                ?: "Not recorded"
 
             vList.add(
                 PlannerVendorEngagement(
@@ -328,7 +351,7 @@ class PrivateRealShadowPlannerRepository(jsonString: String? = null, customPath:
             PlannerModuleSummary("tasks", "Tasks", "$doneTasksCount / $totalTasksCount", "$highPriorityTasksCount high priority", "checklist"),
             PlannerModuleSummary("budget", "Budget", "$${String.format("%.1fk", totalEstBudget / 1000.0)}", "$${String.format("%.1fk", totalPdBudget / 1000.0)} paid", "creditcard"),
             PlannerModuleSummary("contributions", "Contributions", "${contributions.size} messages", "Non-monetary", "gift"),
-            PlannerModuleSummary("vendors", "Vendors", "$vendorsCount recorded", "0 contracts", "storefront"),
+            PlannerModuleSummary("vendors", "Vendors", "$vendorsCount vendors", "$serviceEngagementsCount service engagements • 0 contracts", "storefront"),
             PlannerModuleSummary("guests", "Guests", "$totalGuestsCount", "$pendingRsvpCount pending", "person.3"),
             PlannerModuleSummary("seating", "Seating", "$assignedInvitedCapacity / $totalSeatingCapacity", "$remainingTableCapacity seats free", "table.furniture"),
             PlannerModuleSummary("timeline", "Timeline", "${timelineEntries.size} items", "23 Dec 2026", "calendar.badge.clock")
