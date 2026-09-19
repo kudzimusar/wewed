@@ -312,33 +312,6 @@ public actor PrivateRealShadowPlannerRepository: PlannerDashboardRepositoryProto
             )
         }
 
-        // Preserve vendors that exist but do not yet have a service engagement.
-        for vendor in vendorsRaw {
-            guard let id = vendor["id"] as? String, !id.isEmpty,
-                  !vendorsWithEngagements.contains(id),
-                  let name = vendor["name"] as? String, !name.isEmpty,
-                  let cat = vendor["category"] as? String, !cat.isEmpty else {
-                continue
-            }
-            let paymentStatus = (vendor["paymentStatus"] as? String).flatMap { raw -> String? in
-                let cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !cleaned.isEmpty else { return nil }
-                return cleaned.replacingOccurrences(of: "_", with: " ").capitalized
-            } ?? "Not recorded"
-
-            mappedEngagements.append(
-                PlannerVendorEngagement(
-                    id: "vendor-\(id)",
-                    vendorName: name,
-                    category: cat.capitalized,
-                    bookingStatus: "No service engagement recorded",
-                    contractStatus: "Not recorded",
-                    paymentStatus: paymentStatus,
-                    nextAction: "Service details not recorded"
-                )
-            )
-        }
-
         self.vendorEngagements = mappedEngagements
 
         // Timeline (13 programme items)

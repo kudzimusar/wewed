@@ -163,8 +163,8 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
                   let checkedIn = item["checkedIn"] as? Bool else {
                 throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required guest fields missing in private real shadow fixture.")
             }
-            let side = (item["side"] as? String)?
-                .trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank ?? "Not recorded"
+            let rawSide = (item["side"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let side = (rawSide?.isEmpty == false) ? rawSide! : "Not recorded"
             let checkedInCount = (item["checkedInCount"] as? Int) ?? (checkedIn ? 1 : 0)
             let seatingTableId = item["seatingTableId"] as? String
             let tableName = seatingTableId.flatMap { tableMap[$0] }

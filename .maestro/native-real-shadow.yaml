@@ -49,6 +49,7 @@ appId: pro.wewed.app
 - back
 
 # 6. Documents/contracts are connected to the same graph; current account is honestly empty.
+- scroll
 - tapOn:
     id: "planner-module-documents"
 - assertVisible:

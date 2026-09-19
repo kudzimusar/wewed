@@ -333,33 +333,6 @@ class PrivateRealShadowPlannerRepository(jsonString: String? = null, customPath:
             }
         }
 
-        // Preserve vendors that exist in the account but do not yet have a service engagement.
-        for (i in 0 until vArray.length()) {
-            val vendor = vArray.getJSONObject(i)
-            val id = vendor.optString("id")
-            if (id.isBlank() || id in vendorsWithEngagements) continue
-            val name = vendor.optString("name")
-            val cat = vendor.optString("category")
-            if (name.isBlank() || cat.isBlank()) continue
-
-            val payStatus = vendor.optString("paymentStatus")
-                .takeIf { it.isNotBlank() }
-                ?.replace("_", " ")
-                ?.replaceFirstChar { it.uppercase() }
-                ?: "Not recorded"
-            vList.add(
-                PlannerVendorEngagement(
-                    id = "vendor-$id",
-                    vendorName = name,
-                    category = cat.replaceFirstChar { it.uppercase() },
-                    bookingStatus = "No service engagement recorded",
-                    contractStatus = "Not recorded",
-                    paymentStatus = payStatus,
-                    nextAction = "Service details not recorded"
-                )
-            )
-        }
-
         vendorEngagements = vList
 
         // 5. Timeline Entries (13 entries)
