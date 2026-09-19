@@ -109,7 +109,7 @@ function WeddingHomeContent({
   const setLifecycle = useWewedStore((state) => state.setLifecycle)
   const [mounted, setMounted] = useState(false)
   const [invitationVisible, setInvitationVisible] = useState(invitationMode)
-  const [arrivalVisible, setArrivalVisible] = useState(invitationArrivalMode)
+  const [arrivalDismissed, setArrivalDismissed] = useState(false)
   const { wedding, slug } = useWeddingContext()
 
   useEffect(() => {
@@ -167,17 +167,22 @@ function WeddingHomeContent({
     return () => window.clearTimeout(id)
   }, [invitationAvailable, invitationMode, invitationSkipKey])
 
-  useEffect(() => {
-    if (!invitationArrivalMode || !invitationAvailable || !invitationVisible) {
-      setArrivalVisible(false)
-      return
-    }
+  // The branded arrival is derived from the invitation state so it is already
+  // painted on the first Android resume render; only its timed dismissal is state.
+  const arrivalEligible = Boolean(invitationArrivalMode && invitationAvailable && invitationVisible)
+  const arrivalVisible = arrivalEligible && !arrivalDismissed
 
-    setArrivalVisible(true)
+  useEffect(() => {
+    if (!arrivalEligible) return
+
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    const id = window.setTimeout(() => setArrivalVisible(false), reducedMotion ? 450 : 1550)
-    return () => window.clearTimeout(id)
-  }, [invitationArrivalMode, invitationAvailable, invitationVisible])
+    const id = window.setTimeout(() => setArrivalDismissed(true), reducedMotion ? 450 : 1550)
+    return () => {
+      window.clearTimeout(id)
+      // Replay the arrival the next time the invitation becomes eligible again.
+      setArrivalDismissed(false)
+    }
+  }, [arrivalEligible])
 
   useEffect(() => {
     if (!invitationSkipKey) return
