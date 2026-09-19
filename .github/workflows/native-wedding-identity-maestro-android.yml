@@ -9,6 +9,7 @@ on:
       - '.maestro/native-shadow-journey.yaml'
       - '.maestro/native-shadow-invitation-accept.yaml'
       - '.maestro/native-shadow-invitation-decline.yaml'
+      - '.maestro/native-shadow-deep-link-invitation.yaml'
       - '.maestro/native-wedding-journey.yaml'
       - '.maestro/native-wireframe-screenshots.yaml'
       - '.github/workflows/native-wedding-identity-maestro-android.yml'
@@ -76,6 +77,7 @@ jobs:
             maestro test .maestro/native-shadow-journey.yaml
             maestro test .maestro/native-shadow-invitation-accept.yaml
             maestro test .maestro/native-shadow-invitation-decline.yaml
+            maestro test .maestro/native-shadow-deep-link-invitation.yaml
             maestro test .maestro/native-wedding-journey.yaml
             maestro test .maestro/native-wireframe-screenshots.yaml
 
