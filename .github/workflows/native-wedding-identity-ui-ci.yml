@@ -96,6 +96,25 @@ jobs:
         working-directory: apps/ios
         run: swift build
 
+      - name: Install pinned XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate native iOS application project
+        working-directory: apps/ios
+        run: xcodegen generate --spec project.yml
+
+      - name: Build iOS application target for simulator
+        working-directory: apps/ios
+        run: >-
+          xcodebuild
+          -project Wewed.xcodeproj
+          -scheme Wewed
+          -configuration Debug
+          -sdk iphonesimulator
+          -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO
+          build
+
   android:
     name: Android unit tests and debug assembly
     runs-on: ubuntu-latest
