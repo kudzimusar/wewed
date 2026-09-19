@@ -31,7 +31,15 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
             }
         }
 
-        // Check standard user home directory
+        #if os(iOS)
+        if let appSupportDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+            return appSupportDir
+                .appendingPathComponent("wewed/charity-kudzie-private-real-shadow.json")
+                .path
+        }
+        return ProcessInfo.processInfo.environment["WEWED_PRIVATE_SHADOW_PATH"] ?? "charity-kudzie-private-real-shadow.json"
+        #else
+        // Desktop test tooling may use the operator's protected home-directory snapshot.
         let homePath = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".wewed-shadow/charity-kudzie/charity-kudzie-private-real-shadow.json")
             .path
@@ -40,6 +48,7 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
         }
 
         return ProcessInfo.processInfo.environment["WEWED_PRIVATE_SHADOW_PATH"] ?? homePath
+        #endif
     }
 
     public static func loadSnapshotData(path: String = defaultSnapshotPath()) throws -> Data {
