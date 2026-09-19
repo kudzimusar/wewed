@@ -352,13 +352,13 @@ public actor PrivateRealShadowPlannerRepository: PlannerDashboardRepositoryProto
                 throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required programme fields missing in private real shadow fixture.")
             }
             let loc = (item["location"] as? String)?
-                .trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank ?? weddingVenue
+                .trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank ?? venueStr
             return PlannerTimelineEntry(
                 id: id,
                 time: time,
                 title: title,
                 location: loc,
-                statusLabel: weddingDate,
+                statusLabel: dateStr,
                 linkedVendor: nil
             )
         }
