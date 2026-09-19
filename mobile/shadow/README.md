@@ -31,6 +31,7 @@ A future network-backed Shadow service remains a separate acceptance gate; local
 - Shadow never syncs mutations back to production.
 - Production secrets, sessions, invitation secrets, payment credentials, signing private keys and private message bodies are excluded from exports.
 - Real guest/vendor PII is not committed to Git.
+- Private-real snapshots must stay in protected local storage: Android app-private files and iOS Application Support excluded from backup. Public `/sdcard`, `/data/local/tmp`, Documents/iCloud, and cloud backup are prohibited for retained snapshots.
 - Email, WhatsApp/SMS, push, payments, contract signing and external webhooks must use sandbox/null adapters in Shadow.
 
 ## Reference wedding
