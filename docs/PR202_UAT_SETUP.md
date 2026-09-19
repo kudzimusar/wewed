@@ -14,6 +14,16 @@ Set `WEWED_PREVIEW_WRITABLE_WEDDING_ID=wewed-pr202-uat-20260912` for this previe
 
 `:app:assembleUat` remains the debug-signed local/simulator APK associated with `uat.wewed.pro`. It is useful for ordinary native smoke testing but **does not qualify Google Play deferred-install recovery**.
 
+Local wrapper builds never use the Play identity, so they can coexist with a Play-installed Wewed instead of silently replacing it and blocking every Play update:
+
+| Build type | Package | Use |
+|---|---|---|
+| `debug` | `pro.wewed.app.twadev` | local development (distinct from the native Compose `pro.wewed.app.dev`) |
+| `uat` | `pro.wewed.app.uatdev` | local/CI emulator UAT |
+| `uatPlay`, `release` | `pro.wewed.app` | Google Play only |
+
+Invitation pages target the local UAT package only when `NEXT_PUBLIC_WEWED_ANDROID_INTENT_PACKAGE=pro.wewed.app.uatdev` is set (CI emulator job and local runs). Any other value, or any production build, targets `pro.wewed.app`. The UAT asset links trust `pro.wewed.app.uatdev` only with keys listed in `WEWED_UAT_ANDROID_SHA256`, never with the Play signing identity.
+
 `:app:bundleUatPlay` is the Play-distribution candidate. The `uatPlay` variant:
 
 - keeps the production package id `pro.wewed.app`;
@@ -52,5 +62,15 @@ On the PR #202 preview, `https://uat.wewed.pro/.well-known/assetlinks.json` is r
 5. only then is `ANDROID_DEFERRED_INVITATION_HANDOFF=1` enabled on the PR #202 preview.
 
 Final qualification is a clean-device round trip: personal invitation or physical QR → Google Play → install → Wewed → exact UAT invitation → Ivory Floral Gold → RSVP. Only opaque short-lived handoff material may enter the Install Referrer; raw RSVP credentials and guest PII must never appear there.
+
+## Production connection checklist
+
+The PR #202 preview shares the live production database. Writes are allowed only for the wedding named by `WEWED_PREVIEW_WRITABLE_WEDDING_ID`, and name-only physical claims additionally require `VERCEL_ENV=preview`. Before connecting this feature to production:
+
+1. Keep `WEWED_PREVIEW_WRITABLE_WEDDING_ID` scoped to Preview on this branch only; it must never exist for Production.
+2. Never set `NEXT_PUBLIC_WEWED_ANDROID_INTENT_PACKAGE` for Production (it is ignored there, but must not be configured).
+3. Set `ANDROID_DEFERRED_INVITATION_HANDOFF=1` for Production only after the production Play release is live; it is currently Preview-only, so deferred Android handoff stays off in production until then.
+4. On `wewed.pro` with the production Play build installed, confirm Chrome shows "Open invitation in Wewed" (installed-app detection uses the production asset statements for `https://wewed.pro`). The UAT build shows the equivalent "Already downloaded? Open Wewed" because its asset statements name only `wewed.pro`.
+5. Retire the synthetic UAT wedding `wewed-pr202-uat-20260912` (guests, printed card, campaigns, vendor fixture) once UAT is no longer needed.
 
 The Excel regression now waits for the visible responsive review element instead of deciding desktop/mobile before React commits the response. The release gate still uses `--fail-on-flaky-tests`.
