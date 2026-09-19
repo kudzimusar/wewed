@@ -8,7 +8,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -88,7 +87,7 @@ fun PassScreen(appViewModel: AppViewModel, onOpenScanner: () -> Unit) {
                             )
 
                             Text(
-                                text = "24 October 2026 • 14:00",
+                                text = p.weddingDate,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color.Gray
                             )
@@ -115,23 +114,22 @@ fun PassScreen(appViewModel: AppViewModel, onOpenScanner: () -> Unit) {
                                 }
                             }
 
-                            // QR Representation
+                            val productionCredential = p.qrPayload.startsWith("WW2.")
                             Box(
                                 modifier = Modifier
-                                    .size(160.dp)
+                                    .size(174.dp)
                                     .background(WewedColors.Ivory, RoundedCornerShape(WewedRadius.md)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.QrCode,
-                                    contentDescription = "QR Code",
-                                    modifier = Modifier.size(120.dp),
-                                    tint = WewedColors.TextPrimaryLight
-                                )
+                                WeddingQrCode(payload = p.qrPayload)
                             }
 
                             Text(
-                                text = "Scan at venue entrance",
+                                text = if (productionCredential) {
+                                    "Scan at venue entrance"
+                                } else {
+                                    "Shadow preview — not valid for admission"
+                                },
                                 fontSize = 11.sp,
                                 color = Color.Gray
                             )
