@@ -154,7 +154,7 @@ public struct WeddingReferencePlannerView: View {
                 .accessibilityIdentifier("planner-module-timeline")
 
                 NavigationLink {
-                    ReferenceDocumentsEmptyState()
+                    ShadowPlannerDocumentsView()
                 } label: {
                     referenceRow(title: "Documents", subtitle: "Contracts, notes, files", icon: "doc.text")
                 }
