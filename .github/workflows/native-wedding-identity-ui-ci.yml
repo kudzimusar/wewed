@@ -8,6 +8,7 @@ on:
       - 'apps/ios/**'
       - 'apps/android/**'
       - '.github/workflows/native-wedding-identity-ui-ci.yml'
+      - '.github/scripts/verify-android-local-package.sh'
   workflow_dispatch:
 
 permissions:
@@ -114,3 +115,6 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew testDebugUnitTest assembleDebug --no-daemon --stacktrace
+
+      - name: Verify local Android identity cannot replace Play
+        run: bash .github/scripts/verify-android-local-package.sh apps/android/app/build/outputs/apk/debug pro.wewed.app.dev

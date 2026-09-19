@@ -12,6 +12,7 @@ on:
       - '.maestro/native-wedding-journey.yaml'
       - '.maestro/native-wireframe-screenshots.yaml'
       - '.github/workflows/native-wedding-identity-maestro-android.yml'
+      - '.github/scripts/verify-android-local-package.sh'
   workflow_dispatch:
 
 permissions:
@@ -43,6 +44,9 @@ jobs:
           chmod +x gradlew
           ./gradlew :app:assembleDebug --no-daemon --stacktrace
 
+      - name: Verify local Android identity cannot replace Play
+        run: bash .github/scripts/verify-android-local-package.sh apps/android/app/build/outputs/apk/debug pro.wewed.app.dev
+
       - name: Install pinned Maestro CLI
         env:
           MAESTRO_VERSION: '2.7.0'
@@ -68,7 +72,7 @@ jobs:
           disable-animations: true
           script: |
             adb install -r apps/android/app/build/outputs/apk/debug/app-debug.apk
-            adb shell pm grant pro.wewed.app android.permission.CAMERA || true
+            adb shell pm grant pro.wewed.app.dev android.permission.CAMERA || true
             maestro test .maestro/native-shadow-journey.yaml
             maestro test .maestro/native-shadow-invitation-accept.yaml
             maestro test .maestro/native-shadow-invitation-decline.yaml

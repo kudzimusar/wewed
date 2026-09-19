@@ -87,6 +87,10 @@ echo "== Android debug assembly =="
 )
 
 echo
+echo "== Android local package isolation =="
+bash .github/scripts/verify-android-local-package.sh apps/android/app/build/outputs/apk/debug pro.wewed.app.dev
+
+echo
 echo "PASS: non-simulator native qualification complete"
 echo "Exact tested HEAD: $(git rev-parse HEAD)"
 echo "Simulator/Maestro qualification may proceed only after this script passes."
