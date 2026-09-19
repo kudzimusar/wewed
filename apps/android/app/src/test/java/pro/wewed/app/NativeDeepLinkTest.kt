@@ -47,6 +47,11 @@ class NativeDeepLinkTest {
                 "https://wewed.pro/invite/charity-and-kudzie"
             )
         )
+        assertNull(
+            NativeDeepLinkParser.parse(
+                "http://wewed.pro/invite/charity-and-kudzie?rsvp=guest-token-123"
+            )
+        )
     }
 
     @Test
