@@ -18,7 +18,13 @@ public enum NativeEnvironmentGuard {
             throw NativeEnvironmentGuardError.productionDisabled
         }
 
-        guard environment == .shadow, let host = baseURL?.host?.lowercased() else {
+        let shadowFamily: Set<NativeDataEnvironment> = [
+            .shadow,
+            .sanitizedShadow,
+            .privateRealShadow
+        ]
+        guard shadowFamily.contains(environment),
+              let host = baseURL?.host?.lowercased() else {
             return
         }
 
