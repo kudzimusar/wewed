@@ -363,3 +363,59 @@ public struct ShadowPlannerTimelineView: View {
         }
     }
 }
+
+
+public struct ShadowPlannerDocumentsView: View {
+    @EnvironmentObject private var appState: AppState
+    @State private var records: [PlannerDocumentRecord] = []
+    @State private var loaded = false
+
+    public init() {}
+
+    public var body: some View {
+        Group {
+            if loaded && records.isEmpty {
+                ContentUnavailableView(
+                    "Documents",
+                    systemImage: "doc.text",
+                    description: Text("No contracts or documents recorded for this wedding.")
+                )
+            } else {
+                ScrollView {
+                    VStack(spacing: WewedSpacing.sm) {
+                        ForEach(records) { record in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(record.title)
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                    Text(record.kind)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                if let status = record.statusLabel {
+                                    Text(status)
+                                        .font(.caption2)
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(WewedColors.emerald)
+                                }
+                            }
+                            .padding()
+                            .background(Color.white)
+                            .cornerRadius(WewedRadius.lg)
+                        }
+                    }
+                    .padding()
+                }
+                .background(WewedColors.ivory)
+            }
+        }
+        .navigationTitle("Documents")
+        .accessibilityIdentifier("planner-documents-root")
+        .task {
+            records = (try? await appState.plannerRepository.getDocuments()) ?? []
+            loaded = true
+        }
+    }
+}
