@@ -401,9 +401,9 @@ public struct SettingsView: View {
     public init() {}
 
     public var body: some View {
-        let name = session.activePersona?.name ?? session.currentUserName ?? "Active User"
-        let subtitle = session.activePersona?.subtitle ?? "Wewed Mobile Member"
-        let roleTitle = session.activePersona?.role.title ?? session.currentRole.title
+        let name = session.session?.displayName ?? "Signed out"
+        let subtitle = session.activeGrant?.weddingTitle ?? ""
+        let roleTitle = session.activeGrant?.role.choiceLabel ?? ""
 
         return ScrollView {
             VStack(spacing: WewedSpacing.base) {

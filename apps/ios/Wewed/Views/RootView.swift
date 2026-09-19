@@ -3,100 +3,47 @@ import SwiftUI
 public struct RootView: View {
     @EnvironmentObject private var session: SessionStore
     @EnvironmentObject private var appState: AppState
-    @State private var showingPersonaPicker = false
 
     public init() {}
 
     public var body: some View {
-        Group {
-            if session.isAuthenticated {
-                if session.currentRole == .couple {
-                    coupleShell
-                        .sheet(isPresented: $showingPersonaPicker) {
-                            PersonaPickerSheet()
-                                .environmentObject(session)
-                        }
-                } else {
-                    VStack(spacing: 0) {
-                        personaBanner
-
-                        switch session.currentRole {
-                        case .couple:
-                            coupleShell
-                        case .planner:
-                            PlannerShellView()
-                        case .coordinator:
-                            CoordinatorShellView()
-                        case .vendor:
-                            VendorShellView()
-                        case .usher:
-                            UsherShellView()
-                        case .guest:
-                            GuestShellView()
-                        case .admin:
-                            AdminShellView()
-                        }
-                    }
-                    .sheet(isPresented: $showingPersonaPicker) {
-                        PersonaPickerSheet()
-                            .environmentObject(session)
-                    }
-                }
-            } else {
-                LoginView()
-            }
-        }
+        // Every shell sits under one node carrying the data-source provenance, so acceptance
+        // flows can prove which dataset produced the screen without any visible developer label.
+        content
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("shadow-source-" + appState.dataEnvironment.rawValue.replacingOccurrences(of: "_", with: "-"))
     }
 
-    private var personaBanner: some View {
-        HStack {
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(Color.green)
-                    .frame(width: 8, height: 8)
-                Text(session.currentUserName ?? "Active User")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.white)
-                    .lineLimit(1)
-                Text(session.currentRole.title)
-                    .font(.caption2)
-                    .foregroundColor(WewedColors.gold)
-                    .lineLimit(1)
-
-                Text(appState.dataEnvironment.title.uppercased())
-                    .font(.system(size: 8, weight: .bold))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.white.opacity(0.12))
-                    .foregroundColor(appState.dataEnvironment == .production ? .red : WewedColors.emerald)
-                    .clipShape(Capsule())
-                    .accessibilityLabel("Data environment \(appState.dataEnvironment.title)")
+    @ViewBuilder
+    private var content: some View {
+        if let current = session.session {
+            if let grant = session.activeGrant {
+                switch grant.role {
+                case .couple:
+                    coupleShell
+                case .planner:
+                    PlannerShellView()
+                case .coordinator:
+                    CoordinatorShellView()
+                case .vendor:
+                    VendorShellView()
+                case .usher:
+                    UsherShellView()
+                case .guest:
+                    GuestShellView()
+                case .admin:
+                    AdminShellView()
+                }
+            } else {
+                RoleChooserView(
+                    authorizedSession: current,
+                    onChoose: { session.activate($0.role) },
+                    onSignOut: { session.signOut() }
+                )
             }
-
-            Spacer()
-
-            Button(action: {
-                showingPersonaPicker = true
-            }) {
-                Text("Switch")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Color.secondary.opacity(0.15))
-                    .foregroundColor(WewedColors.gold)
-                    .cornerRadius(WewedRadius.pill)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("dev-persona-switcher-button")
+        } else {
+            LoginView()
         }
-        .padding(.horizontal, WewedSpacing.base)
-        .padding(.top, 48)
-        .padding(.bottom, 8)
-        .background(Color.black.opacity(0.85))
-        .ignoresSafeArea(edges: .top)
     }
 
     @ViewBuilder
@@ -144,6 +91,5 @@ public struct RootView: View {
                 .tag(AppTab.live)
         }
         .tint(WeddingIdentityPalette.champagneDeep)
-        .accessibilityIdentifier("shadow-source-" + appState.dataEnvironment.rawValue.replacingOccurrences(of: "_", with: "-"))
     }
 }

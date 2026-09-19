@@ -92,6 +92,9 @@ public struct InvitationContext: Codable, Identifiable, Equatable, Sendable {
     public let venueCity: String
     public let cardStyle: String
     public var isConfirmed: Bool
+    /// Stable guest record id; keeps a guest session bound to the same person after RSVP.
+    public let guestId: String?
+    public let venue: VenueLocation?
 
     public init(
         weddingSlug: String,
@@ -104,8 +107,12 @@ public struct InvitationContext: Codable, Identifiable, Equatable, Sendable {
         venueName: String,
         venueCity: String,
         cardStyle: String = "ivory-floral-gold",
-        isConfirmed: Bool = false
+        isConfirmed: Bool = false,
+        guestId: String? = nil,
+        venue: VenueLocation? = nil
     ) {
+        self.guestId = guestId
+        self.venue = venue
         self.weddingSlug = weddingSlug
         self.guestToken = guestToken
         self.coupleNames = coupleNames

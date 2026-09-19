@@ -3,11 +3,26 @@ import Foundation
 public struct NativeLaunchConfiguration: Equatable, Sendable {
     public let environment: NativeDataEnvironment
     public let baseURL: URL?
+    /// Which Shadow account "Sign In" authenticates as. Defaults to the couple who owns the wedding.
+    public let shadowAccount: ShadowAccount
+    /// Invitation link token used when the account is a guest.
+    public let invitationToken: String?
 
-    public init(environment: NativeDataEnvironment, baseURL: URL? = nil) {
+    public init(
+        environment: NativeDataEnvironment,
+        baseURL: URL? = nil,
+        shadowAccount: ShadowAccount = .couple,
+        invitationToken: String? = nil
+    ) {
         self.environment = environment
         self.baseURL = baseURL
+        self.shadowAccount = shadowAccount
+        self.invitationToken = invitationToken
     }
+
+    /// Data source selection is explicit. With no selection the Git-safe sanitized dataset loads;
+    /// private real data is never picked up implicitly, and an explicit private request fails
+    /// loudly (in the repository factory) instead of degrading to sanitized data.
 
     public static func resolve(
         environment: [String: String] = ProcessInfo.processInfo.environment,
@@ -36,15 +51,22 @@ public struct NativeLaunchConfiguration: Equatable, Sendable {
         case "fixture":
             dataEnvironment = .fixture
         default:
-            let privatePath = PrivateRealShadowWeddingRepository.defaultSnapshotPath()
-            dataEnvironment = FileManager.default.fileExists(atPath: privatePath)
-                ? .privateRealShadow
-                : .sanitizedShadow
+            dataEnvironment = .sanitizedShadow
         }
 
         let argumentBaseURL = launchArgumentValue(named: "wewed_shadow_base_url", arguments: arguments)
         let baseURL = (environment["WEWED_SHADOW_API_BASE_URL"] ?? argumentBaseURL).flatMap(URL.init(string:))
-        return NativeLaunchConfiguration(environment: dataEnvironment, baseURL: baseURL)
+        let account = ShadowAccount.from(
+            key: environment["WEWED_SHADOW_ACCOUNT"] ?? launchArgumentValue(named: "wewed_shadow_account", arguments: arguments)
+        ) ?? .couple
+        let token = (environment["WEWED_INVITATION_TOKEN"] ?? launchArgumentValue(named: "wewed_invitation_token", arguments: arguments))?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return NativeLaunchConfiguration(
+            environment: dataEnvironment,
+            baseURL: baseURL,
+            shadowAccount: account,
+            invitationToken: (token?.isEmpty ?? true) ? nil : token
+        )
     }
 
     private static func launchArgumentValue(named name: String, arguments: [String]) -> String? {

@@ -25,7 +25,9 @@ data class WeddingPass(
     val tableName: String? = null,
     val seatNumber: String? = null,
     val currentStage: PassStage = PassStage.ATTENDING,
-    val qrPayload: String
+    val qrPayload: String,
+    val guestId: String? = null,
+    val venue: VenueLocation? = null
 )
 
 data class CheckInAuditRecord(

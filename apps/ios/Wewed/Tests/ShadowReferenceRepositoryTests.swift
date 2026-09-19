@@ -291,19 +291,7 @@ final class ShadowReferenceRepositoryTests: XCTestCase {
         XCTAssertNotNil(updatedGuest.passSerial)
     }
 
-    func testMapsUriQueryConstruction() {
-        let venueName = "Imba Manor"
-        let venueCity = "Harare, Zimbabwe"
-        let queryAddress = "\(venueName), \(venueCity)".trimmingCharacters(in: .whitespacesAndNewlines)
-        let encoded = queryAddress.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        let appleMapsUrl = "maps:?q=\(encoded)"
-        let googleMapsUrl = "https://www.google.com/maps/search/?api=1&query=\(encoded)"
-
-        XCTAssertEqual(appleMapsUrl, "maps:?q=Imba%20Manor,%20Harare,%20Zimbabwe")
-        XCTAssertEqual(googleMapsUrl, "https://www.google.com/maps/search/?api=1&query=Imba%20Manor,%20Harare,%20Zimbabwe")
-    }
-
-    func testPrivateRealShadowZeroProhibitedDemoData() {
+    func testPrivateRealShadowZeroProhibitedDemoData() async throws {
         let prohibitedNames = [
             "Faith Mutasa",
             "Uncle Farai",
@@ -315,12 +303,16 @@ final class ShadowReferenceRepositoryTests: XCTestCase {
             "Honeyfund"
         ]
 
-        for persona in DevelopmentPersona.allPersonas {
+        // Role session display names come from SessionAuthority; none may carry demo strings.
+        let bundle = try NativeRepositoryFactory.make(environment: .sanitizedShadow)
+        for account in ShadowAccount.allCases {
+            let session = try await SessionAuthority.signIn(account: account, environment: .sanitizedShadow, wedding: bundle.wedding, planner: bundle.planner)
             for prohibited in prohibitedNames {
-                XCTAssertFalse(persona.name.contains(prohibited), "Persona name \(persona.name) contains prohibited demo string \(prohibited)")
+                XCTAssertFalse(session.displayName.contains(prohibited), "Session name \(session.displayName) contains prohibited demo string \(prohibited)")
             }
         }
     }
+
 
     func testPrivateRealShadowFailsExplicitlyWhenFixtureMissing() {
         XCTAssertThrowsError(

@@ -1,60 +1,39 @@
 import Foundation
 import Combine
 
+/// Holds who is signed in and which of their authorized roles is active.
+/// A role can only become active if the session was granted it; there is no persona switcher.
+/// Mirrors Android `SessionViewModel`.
 public final class SessionStore: ObservableObject, @unchecked Sendable {
-    @Published public var isAuthenticated: Bool = false
-    @Published public var currentUserRole: String? = nil
-    @Published public var currentRole: AppRole = .couple
-    @Published public var currentUserName: String? = nil
-    @Published public var weddingId: String = "cmqos70cb0004q6vxe9g9aiu5"
-    @Published public var weddingTitle: String = "Charity & Kudzie Wedding"
-    @Published public var activePersona: DevelopmentPersona? = nil
-    @Published public var passToken: String? = nil
-    @Published public var showingPersonaPicker: Bool = false
+    @Published public private(set) var session: AuthorizedSession?
+    /// Nil while signed out, or while a multi-role account has not yet chosen how to use the app.
+    @Published public private(set) var activeGrant: RoleGrant?
 
-    private let storage: SecureStorageProtocol
-    private let tokenKey = "wewed_session_token"
+    public init() {}
 
-    public init(storage: SecureStorageProtocol = InMemorySecureStorage()) {
-        self.storage = storage
-        restoreSession()
+    public var isAuthenticated: Bool { session != nil }
+
+    /// One role enters directly; several roles wait for the person to choose.
+    public func establish(_ session: AuthorizedSession) {
+        self.session = session
+        self.activeGrant = session.grants.count == 1 ? session.grants[0] : nil
     }
 
-    public func restoreSession() {
-        if let token = storage.get(key: tokenKey), !token.isEmpty {
-            self.isAuthenticated = true
-            self.currentUserRole = "couple"
-            self.currentRole = .couple
-            self.currentUserName = "Charity & Kudzie"
-        }
+    /// Returns false (and changes nothing) if the role is not one this session was granted.
+    @discardableResult
+    public func activate(_ role: AppRole) -> Bool {
+        guard let grant = session?.grant(for: role) else { return false }
+        activeGrant = grant
+        return true
     }
 
-    public func login(email: String, role: String = "couple") {
-        let dummyToken = "token_\(UUID().uuidString)"
-        storage.save(key: tokenKey, value: dummyToken)
-        self.isAuthenticated = true
-        self.currentUserRole = role
-        let parsed = AppRole.from(roleId: role)
-        self.currentRole = parsed
-        self.currentUserName = (parsed == .usher) ? "Gate Usher" : "Charity & Kudzie"
+    /// Back to the role chooser; only meaningful for multi-role sessions.
+    public func clearActiveRole() {
+        if session?.requiresRoleChoice == true { activeGrant = nil }
     }
 
-    public func switchPersona(_ persona: DevelopmentPersona) {
-        self.activePersona = persona
-        self.currentRole = persona.role
-        self.currentUserRole = persona.role.roleId
-        self.currentUserName = persona.name
-        self.weddingId = persona.weddingId
-        self.weddingTitle = persona.weddingTitle
-        self.isAuthenticated = true
-    }
-
-    public func logout() {
-        storage.delete(key: tokenKey)
-        self.isAuthenticated = false
-        self.currentUserRole = nil
-        self.currentRole = .couple
-        self.currentUserName = nil
-        self.activePersona = nil
+    public func signOut() {
+        session = nil
+        activeGrant = nil
     }
 }

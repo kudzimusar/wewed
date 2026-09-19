@@ -180,35 +180,44 @@ class PrivateRealShadowPlannerRepository(jsonString: String? = null, customPath:
         for (i in 0 until cArray.length()) {
             val item = cArray.getJSONObject(i)
             val id = item.optString("id")
-            val guestId = item.optString("guestId")
             val type = item.optString("type")
             val status = item.optString("status")
-            if (id.isEmpty() || guestId.isEmpty() || type.isEmpty() || status.isEmpty()) {
+            if (id.isEmpty() || type.isEmpty() || status.isEmpty()) {
                 throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required contribution fields missing in private real shadow fixture.")
             }
-            val contributorName = guestNameMap[guestId]
+            // A blank guestId is a genuinely absent relationship; an unknown one is a broken graph.
+            val guestId = if (item.isNull("guestId")) "" else item.optString("guestId").trim()
+            val contributorName = if (guestId.isEmpty()) null else guestNameMap[guestId]
                 ?: throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing(
                     "Contribution $id references unknown guest $guestId."
                 )
             val formattedType = type.replace("_", " ").replaceFirstChar { it.uppercase() }
             val formattedStatus = status.replace("_", " ").replaceFirstChar { it.uppercase() }
-            val privacy = item.optString("privacy", "public").replaceFirstChar { it.uppercase() }
-            val wordCount = item.optInt("wordCount", 0)
-            val contributionText = listOf("message", "content", "story", "note", "text")
+            val privacy = if (item.isNull("privacy")) null else item.optString("privacy").trim()
+                .takeIf { it.isNotEmpty() }?.replaceFirstChar { it.uppercase() }
+            val wordCount = if (item.has("wordCount") && !item.isNull("wordCount")) item.optInt("wordCount") else null
+            val submittedAt = if (item.isNull("submittedAt")) null else item.optString("submittedAt").trim()
+                .takeIf { it.isNotEmpty() }?.let { formatSubmittedAt(it) }
+            val messageText = listOf("message", "content", "story", "note", "text")
                 .asSequence()
                 .map { key -> if (item.isNull(key)) "" else item.optString(key).trim() }
                 .firstOrNull { it.isNotBlank() }
-                ?: if (wordCount > 0) "$formattedType message ($wordCount words • $privacy)" else "$formattedType ($privacy)"
-            val verified = status.lowercase() in setOf("verified", "approved", "published", "received", "accepted", "recorded")
+            val verified = status.lowercase() in setOf("verified", "approved", "published", "received", "accepted", "recorded", "featured")
             cList.add(
                 PlannerContributionRecord(
                     id = id,
-                    contributorLabel = contributorName,
+                    contributorLabel = contributorName ?: "Contributor not recorded",
                     typeLabel = formattedType,
                     value = 0.0,
                     statusLabel = formattedStatus,
-                    allocationLabel = contributionText,
-                    verified = verified
+                    allocationLabel = "Guest messages",
+                    verified = verified,
+                    contributorGuestId = guestId.takeIf { it.isNotEmpty() },
+                    contributorResolution = if (contributorName == null) ContributorResolution.NOT_RECORDED else ContributorResolution.RESOLVED,
+                    privacyLabel = privacy,
+                    wordCount = wordCount,
+                    submittedAtLabel = submittedAt,
+                    messageText = messageText
                 )
             )
         }
@@ -329,7 +338,8 @@ class PrivateRealShadowPlannerRepository(jsonString: String? = null, customPath:
                         bookingStatus = lifecycleStatus,
                         contractStatus = externalAgreementStatus,
                         paymentStatus = payStatus,
-                        nextAction = serviceDesc
+                        nextAction = serviceDesc,
+                        vendorId = vendorId
                     )
                 )
             }
@@ -457,4 +467,12 @@ class PrivateRealShadowPlannerRepository(jsonString: String? = null, customPath:
     override suspend fun getSeatingTables(): List<PlannerSeatingTable> = seatingTables
     override suspend fun getTimelineEntries(): List<PlannerTimelineEntry> = timelineEntries
     override suspend fun getDocuments(): List<PlannerDocumentRecord> = documents
+
+    private fun formatSubmittedAt(raw: String): String {
+        val datePart = raw.take(10)
+        return runCatching {
+            java.time.LocalDate.parse(datePart)
+                .format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy", java.util.Locale.ENGLISH))
+        }.getOrDefault(datePart)
+    }
 }

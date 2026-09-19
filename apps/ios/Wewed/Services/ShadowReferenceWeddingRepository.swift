@@ -416,8 +416,15 @@ public actor ShadowReferenceWeddingRepository: WeddingRepositoryProtocol {
             venueName: wedding.venueName,
             venueCity: "\(wedding.city), \(wedding.country)",
             cardStyle: "ivory-floral-gold",
-            isConfirmed: guest.rsvpStatus == .attending
+            isConfirmed: guest.rsvpStatus == .attending,
+            guestId: guest.id,
+            venue: wedding.venueLocation
         )
+    }
+
+    public func updateWeddingDetails(_ update: WeddingDetailsUpdate) async throws -> Wedding {
+        wedding = try wedding.applying(update)
+        return wedding
     }
 
     public func confirmRsvp(weddingSlug: String, token: String, attending: Bool) async throws -> WeddingPass {
@@ -451,7 +458,13 @@ public actor ShadowReferenceWeddingRepository: WeddingRepositoryProtocol {
         case declinedToken:
             guestId = "shadow_guest_002"
         default:
-            return nil
+            if token.hasPrefix("shadow-pass-") {
+                guestId = String(token.dropFirst("shadow-pass-".count))
+            } else if token.hasPrefix("shadow-non-admission-") {
+                guestId = String(token.dropFirst("shadow-non-admission-".count))
+            } else {
+                guestId = token
+            }
         }
         return guests.firstIndex(where: { $0.id == guestId })
     }
@@ -483,7 +496,9 @@ public actor ShadowReferenceWeddingRepository: WeddingRepositoryProtocol {
             tableName: guest.tableName,
             seatNumber: guest.tableName == nil ? nil : "Shadow assignment",
             currentStage: .attending,
-            qrPayload: "SHADOW_ONLY.WW2_PLACEHOLDER.\(serial).NOT_A_PRODUCTION_CREDENTIAL"
+            qrPayload: "SHADOW_ONLY.WW2_PLACEHOLDER.\(serial).NOT_A_PRODUCTION_CREDENTIAL",
+            guestId: guest.id,
+            venue: wedding.venueLocation
         )
     }
 
@@ -499,7 +514,9 @@ public actor ShadowReferenceWeddingRepository: WeddingRepositoryProtocol {
             householdName: guest.householdName,
             partySize: guest.partySize,
             currentStage: .invitation,
-            qrPayload: "SHADOW_DECLINED_NO_ADMISSION"
+            qrPayload: "SHADOW_DECLINED_NO_ADMISSION",
+            guestId: guest.id,
+            venue: wedding.venueLocation
         )
     }
 }

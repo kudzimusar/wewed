@@ -32,21 +32,22 @@ class ShadowReferencePlannerRepository : PlannerDashboardRepository {
         PlannerBudgetLine("shadow_bitem_22", "venue", "munokokwa  events", 100.0, 100.0, 0.0, null, "Couple funded", "Unpaid"),
     )
 
+    // Git-safe: contributors resolve to their pseudonymous guest records (same guestId relationships as the source).
     private val contributions = listOf(
-        PlannerContributionRecord("shadow_contrib_01", "Tinashe Moyo", "Blessing", 0.0, "Approved", "Blessing message (48 words • Public)", true),
-        PlannerContributionRecord("shadow_contrib_02", "Chipo Ndlovu", "Wish", 0.0, "Featured", "Wish message (32 words • Public)", true),
-        PlannerContributionRecord("shadow_contrib_03", "Farai Mutasa", "Funny Story", 0.0, "Approved", "Funny Story (65 words • Public)", true),
-        PlannerContributionRecord("shadow_contrib_04", "Nyasha Gumbo", "Memory", 0.0, "Approved", "Memory message (54 words • Public)", true),
+        PlannerContributionRecord("shadow_contrib_01", "Guest G008", "Blessing", 0.0, "Approved", "Guest messages", true, contributorGuestId = "shadow_guest_008", privacyLabel = "Public", wordCount = 41, submittedAtLabel = "18 Jun 2026"),
+        PlannerContributionRecord("shadow_contrib_02", "Guest G009", "Wish", 0.0, "Featured", "Guest messages", true, contributorGuestId = "shadow_guest_009", privacyLabel = "Public", wordCount = 25, submittedAtLabel = "20 Jun 2026"),
+        PlannerContributionRecord("shadow_contrib_03", "Guest G010", "Funny story", 0.0, "Approved", "Guest messages", true, contributorGuestId = "shadow_guest_010", privacyLabel = "Public", wordCount = 32, submittedAtLabel = "21 Jun 2026"),
+        PlannerContributionRecord("shadow_contrib_04", "Guest G011", "Memory", 0.0, "Approved", "Guest messages", true, contributorGuestId = "shadow_guest_011", privacyLabel = "Public", wordCount = 42, submittedAtLabel = "22 Jun 2026"),
     )
 
     private val vendorEngagements = listOf(
-        PlannerVendorEngagement("shadow_vnd_01", "Cake Gourmet", "caterer", "Confirmed", "Pending", "Deposit", "Operational review"),
-        PlannerVendorEngagement("shadow_vnd_02", "MC Aloe The Avangelist", "dj", "Confirmed", "Pending", "Unpaid", "Operational review"),
-        PlannerVendorEngagement("shadow_vnd_03", "The Glass Petal Atelier", "florist", "Confirmed", "Pending", "Deposit", "Operational review"),
-        PlannerVendorEngagement("shadow_vnd_04", "Makeup Artist", "other", "Confirmed", "Pending", "Unpaid", "Operational review"),
-        PlannerVendorEngagement("shadow_vnd_05", "TBD", "other", "Confirmed", "Pending", "Unpaid", "Operational review"),
-        PlannerVendorEngagement("shadow_vnd_06", "FAUME MEDIA", "photographer", "Confirmed", "Pending", "Unpaid", "Operational review"),
-        PlannerVendorEngagement("shadow_vnd_07", "Imba Manor", "venue", "Confirmed", "Pending", "Paid", "Operational review"),
+        PlannerVendorEngagement("shadow_vnd_01", "Cake Gourmet", "caterer", "Confirmed", "Pending", "Deposit", "Operational review", vendorId = "shadow_vnd_01"),
+        PlannerVendorEngagement("shadow_vnd_02", "MC Aloe The Avangelist", "dj", "Confirmed", "Pending", "Unpaid", "Operational review", vendorId = "shadow_vnd_02"),
+        PlannerVendorEngagement("shadow_vnd_03", "The Glass Petal Atelier", "florist", "Confirmed", "Pending", "Deposit", "Operational review", vendorId = "shadow_vnd_03"),
+        PlannerVendorEngagement("shadow_vnd_04", "Makeup Artist", "other", "Confirmed", "Pending", "Unpaid", "Operational review", vendorId = "shadow_vnd_04"),
+        PlannerVendorEngagement("shadow_vnd_05", "TBD", "other", "Confirmed", "Pending", "Unpaid", "Operational review", vendorId = "shadow_vnd_05"),
+        PlannerVendorEngagement("shadow_vnd_06", "FAUME MEDIA", "photographer", "Confirmed", "Pending", "Unpaid", "Operational review", vendorId = "shadow_vnd_06"),
+        PlannerVendorEngagement("shadow_vnd_07", "Imba Manor", "venue", "Confirmed", "Pending", "Paid", "Operational review", vendorId = "shadow_vnd_07"),
     )
 
     private val seatingTables = listOf(

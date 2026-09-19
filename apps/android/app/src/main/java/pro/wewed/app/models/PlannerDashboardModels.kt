@@ -53,6 +53,15 @@ data class PlannerBudgetLine(
     val statusLabel: String
 )
 
+enum class ContributorResolution {
+    /** Contributor resolved through GuestContribution.guestId -> Guest.id. */
+    RESOLVED,
+    /** The source row genuinely has no contributor relationship. */
+    NOT_RECORDED,
+    /** Identity exists but this role or the contribution's privacy setting hides it. */
+    HIDDEN
+}
+
 data class PlannerContributionRecord(
     val id: String,
     val contributorLabel: String,
@@ -60,7 +69,14 @@ data class PlannerContributionRecord(
     val value: Double,
     val statusLabel: String,
     val allocationLabel: String,
-    val verified: Boolean
+    val verified: Boolean,
+    val contributorGuestId: String? = null,
+    val contributorResolution: ContributorResolution = ContributorResolution.RESOLVED,
+    val privacyLabel: String? = null,
+    val wordCount: Int? = null,
+    val submittedAtLabel: String? = null,
+    /** Null when the source export does not carry the message body. Never invented. */
+    val messageText: String? = null
 )
 
 data class PlannerVendorEngagement(
@@ -70,7 +86,8 @@ data class PlannerVendorEngagement(
     val bookingStatus: String,
     val contractStatus: String,
     val paymentStatus: String,
-    val nextAction: String
+    val nextAction: String,
+    val vendorId: String? = null
 )
 
 data class PlannerSeatingTable(

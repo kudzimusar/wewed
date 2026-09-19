@@ -30,6 +30,8 @@ class WeddingDayGateAwareRepository(
         base.resolveInvitation(weddingSlug, token)
     override suspend fun confirmRsvp(weddingSlug: String, token: String, attending: Boolean): WeddingPass =
         base.confirmRsvp(weddingSlug, token, attending)
+    override suspend fun updateWeddingDetails(update: WeddingDetailsUpdate): Wedding =
+        base.updateWeddingDetails(update)
 
     override suspend fun checkInGuest(
         qrPayload: String,

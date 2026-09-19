@@ -2,10 +2,31 @@ import XCTest
 @testable import WewedKit
 
 final class NativeLaunchConfigurationTests: XCTestCase {
-    func testDefaultNeverSilentlyUsesFixture() {
-        let config = NativeLaunchConfiguration.resolve(environment: [:])
-        XCTAssertTrue([.privateRealShadow, .sanitizedShadow].contains(config.environment))
+    func testDefaultIsDeterministicallySanitizedNeverImplicitPrivate() {
+        // Private real data must be requested explicitly, even when a snapshot exists on this machine.
+        let config = NativeLaunchConfiguration.resolve(environment: [:], arguments: [])
+        XCTAssertEqual(config.environment, .sanitizedShadow)
         XCTAssertNil(config.baseURL)
+        XCTAssertEqual(config.shadowAccount, .couple)
+        XCTAssertNil(config.invitationToken)
+    }
+
+    func testShadowAccountAndInvitationTokenParsing() {
+        let guest = NativeLaunchConfiguration.resolve(
+            environment: [:],
+            arguments: ["Wewed", "wewed_native_env", "private_real_shadow", "wewed_shadow_account", "guest", "wewed_invitation_token", " shadow-pending-guest "]
+        )
+        XCTAssertEqual(guest.shadowAccount, .guest)
+        XCTAssertEqual(guest.invitationToken, "shadow-pending-guest")
+        XCTAssertEqual(
+            NativeLaunchConfiguration.resolve(environment: [:], arguments: ["Wewed", "wewed_shadow_account=couple-planner"]).shadowAccount,
+            .coupleAndPlanner
+        )
+        // Unknown account strings never grant a broader role; they fall back to the wedding owner.
+        XCTAssertEqual(
+            NativeLaunchConfiguration.resolve(environment: [:], arguments: ["Wewed", "wewed_shadow_account", "superuser"]).shadowAccount,
+            .couple
+        )
     }
 
     func testFixtureRequiresExplicitSelection() {

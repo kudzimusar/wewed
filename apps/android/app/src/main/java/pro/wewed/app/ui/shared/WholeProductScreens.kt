@@ -367,9 +367,9 @@ fun SettingsScreen(sessionViewModel: SessionViewModel, onBack: (() -> Unit)? = n
         }
     }
 
-    val userName by sessionViewModel.currentUserName.collectAsState()
-    val role by sessionViewModel.currentRole.collectAsState()
-    val displayName = userName ?: "Active User"
+    val session by sessionViewModel.session.collectAsState()
+    val grant by sessionViewModel.activeGrant.collectAsState()
+    val displayName = session?.displayName ?: "Signed out"
 
     SharedScaffold(title = "Settings & Profile", onBack = onBack) { padding ->
         LazyColumn(
@@ -392,8 +392,7 @@ fun SettingsScreen(sessionViewModel: SessionViewModel, onBack: (() -> Unit)? = n
                         Spacer(modifier = Modifier.width(WewedSpacing.base))
                         Column {
                             Text(displayName, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                            Text("wewed.mobile@pro.wewed", fontSize = 12.sp, color = Color.Gray)
-                            Text(role.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = WewedColors.Gold)
+                            Text(grant?.role?.choiceLabel ?: "", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = WewedColors.Gold)
                         }
                     }
                 }

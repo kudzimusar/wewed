@@ -283,19 +283,6 @@ class ShadowReferenceRepositoryTest {
     }
 
     @Test
-    fun mapsUriQueryConstruction() {
-        val venueName = "Imba Manor"
-        val venueCity = "Harare, Zimbabwe"
-        val queryAddress = "$venueName, $venueCity".trim()
-        val encoded = java.net.URLEncoder.encode(queryAddress, "UTF-8").replace("+", "%20")
-        val geoUri = "geo:0,0?q=$encoded"
-        val browserUri = "https://www.google.com/maps/search/?api=1&query=$encoded"
-
-        assertEquals("geo:0,0?q=Imba%20Manor%2C%20Harare%2C%20Zimbabwe", geoUri)
-        assertEquals("https://www.google.com/maps/search/?api=1&query=Imba%20Manor%2C%20Harare%2C%20Zimbabwe", browserUri)
-    }
-
-    @Test
     fun privateRealShadowZeroProhibitedDemoData() {
         val prohibitedNames = listOf(
             "Faith Mutasa",
@@ -308,12 +295,18 @@ class ShadowReferenceRepositoryTest {
             "Honeyfund"
         )
 
-        for (persona in pro.wewed.app.models.DevelopmentPersona.allPersonas) {
+        // Role session display names come from SessionAuthority; none may carry demo strings.
+        for (account in pro.wewed.app.services.ShadowAccount.entries) {
+            val session = runBlocking {
+                val bundle = NativeRepositoryFactory.make(NativeDataEnvironment.SANITIZED_SHADOW)
+                pro.wewed.app.services.SessionAuthority.signIn(account, NativeDataEnvironment.SANITIZED_SHADOW, bundle.wedding, bundle.planner)
+            }
             for (prohibited in prohibitedNames) {
-                assertFalse("Persona name ${persona.name} contains prohibited demo string $prohibited", persona.name.contains(prohibited))
+                assertFalse("Session name ${session.displayName} contains prohibited demo string $prohibited", session.displayName.contains(prohibited))
             }
         }
     }
+
 
     @Test(expected = NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing::class)
     fun privateRealShadowFailsExplicitlyWhenFixtureMissing() {

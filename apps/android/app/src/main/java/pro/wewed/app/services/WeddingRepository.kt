@@ -22,6 +22,25 @@ interface WeddingRepository {
     suspend fun postAnnouncement(title: String, message: String, urgency: AnnouncementUrgency): WeddingAnnouncement
     suspend fun resolveInvitation(weddingSlug: String, token: String): InvitationContext
     suspend fun confirmRsvp(weddingSlug: String, token: String, attending: Boolean): WeddingPass
+    suspend fun updateWeddingDetails(update: WeddingDetailsUpdate): Wedding
+}
+
+/** Applies an edit to the recorded wedding fields; programme and identity are unchanged. */
+internal fun Wedding.applying(update: WeddingDetailsUpdate): Wedding {
+    val names = update.coupleNames.trim()
+    val venue = update.venueName.trim()
+    val city = update.city.trim()
+    require(names.isNotEmpty()) { "Couple names are required." }
+    require(update.date.isNotBlank()) { "Wedding date is required." }
+    require(venue.isNotEmpty()) { "Venue is required." }
+    return copy(
+        coupleNames = names,
+        date = update.date.trim(),
+        venueName = venue,
+        venueAddress = if (city.isEmpty()) venue else "$venue, $city",
+        city = city,
+        country = update.country.trim()
+    )
 }
 
 class FixtureWeddingRepository : WeddingRepository {
@@ -267,12 +286,19 @@ class FixtureWeddingRepository : WeddingRepository {
             venueName = wedding.venueName,
             venueCity = "${wedding.city}, ${wedding.country}",
             cardStyle = "ivory-floral-gold",
-            isConfirmed = false
+            isConfirmed = false,
+            guestId = "gst_1",
+            venue = wedding.venueLocation
         )
     }
 
     override suspend fun confirmRsvp(weddingSlug: String, token: String, attending: Boolean): WeddingPass = mutex.withLock {
         pass
+    }
+
+    override suspend fun updateWeddingDetails(update: WeddingDetailsUpdate): Wedding = mutex.withLock {
+        wedding = wedding.applying(update)
+        wedding
     }
 }
 

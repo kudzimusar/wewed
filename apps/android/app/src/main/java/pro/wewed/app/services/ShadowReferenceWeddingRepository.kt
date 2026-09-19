@@ -20,7 +20,7 @@ class ShadowReferenceWeddingRepository : WeddingRepository {
     private val declinedToken = "shadow-declined-guest"
     private val partyFourToken = "shadow-party4-guest"
 
-    private val wedding = Wedding(
+    private var wedding = Wedding(
         id = "shadow_ref_charity_kudzie",
         coupleNames = "Charity & Kudzie",
         date = "2026-12-23 14:00:00",
@@ -458,8 +458,15 @@ class ShadowReferenceWeddingRepository : WeddingRepository {
             venueName = wedding.venueName,
             venueCity = "${wedding.city}, ${wedding.country}",
             cardStyle = "ivory-floral-gold",
-            isConfirmed = guest.rsvpStatus == RSVPStatus.ATTENDING
+            isConfirmed = guest.rsvpStatus == RSVPStatus.ATTENDING,
+            guestId = guest.id,
+            venue = wedding.venueLocation
         )
+    }
+
+    override suspend fun updateWeddingDetails(update: WeddingDetailsUpdate): Wedding = mutex.withLock {
+        wedding = wedding.applying(update)
+        wedding
     }
 
     override suspend fun confirmRsvp(weddingSlug: String, token: String, attending: Boolean): WeddingPass = mutex.withLock {
@@ -474,12 +481,14 @@ class ShadowReferenceWeddingRepository : WeddingRepository {
     }
 
     private fun guestIndexForToken(token: String): Int? {
-        val guestId = when (token) {
-            attendingToken, "native-reference-guest" -> "shadow_guest_011"
-            partyFourToken -> "shadow_guest_007"
-            pendingToken -> "shadow_guest_001"
-            declinedToken -> "shadow_guest_002"
-            else -> return null
+        val guestId = when {
+            token == attendingToken || token == "native-reference-guest" -> "shadow_guest_011"
+            token == partyFourToken -> "shadow_guest_007"
+            token == pendingToken -> "shadow_guest_001"
+            token == declinedToken -> "shadow_guest_002"
+            token.startsWith("shadow-pass-") -> token.removePrefix("shadow-pass-")
+            token.startsWith("shadow-non-admission-") -> token.removePrefix("shadow-non-admission-")
+            else -> token
         }
         return guests.indexOfFirst { it.id == guestId }.takeIf { it != -1 }
     }
@@ -505,7 +514,9 @@ class ShadowReferenceWeddingRepository : WeddingRepository {
             tableName = guest.tableName,
             seatNumber = if (guest.tableName == null) null else "Shadow assignment",
             currentStage = PassStage.ATTENDING,
-            qrPayload = "SHADOW_ONLY.WW2_PLACEHOLDER.$serial.NOT_A_PRODUCTION_CREDENTIAL"
+            qrPayload = "SHADOW_ONLY.WW2_PLACEHOLDER.$serial.NOT_A_PRODUCTION_CREDENTIAL",
+            guestId = guest.id,
+            venue = wedding.venueLocation
         )
     }
 
@@ -521,7 +532,9 @@ class ShadowReferenceWeddingRepository : WeddingRepository {
             householdName = guest.householdName,
             partySize = guest.partySize,
             currentStage = PassStage.INVITATION,
-            qrPayload = "SHADOW_DECLINED_NO_ADMISSION"
+            qrPayload = "SHADOW_DECLINED_NO_ADMISSION",
+            guestId = guest.id,
+            venue = wedding.venueLocation
         )
     }
 }

@@ -31,20 +31,29 @@ public final class AppState: ObservableObject, @unchecked Sendable {
     public let plannerRepository: PlannerDashboardRepositoryProtocol
     public let dataEnvironment: NativeDataEnvironment
     public let dataBaseURL: URL?
+    public let launch: NativeLaunchConfiguration
+    private let adminAuditLog = AdminAuditLog()
     /// Nil by default. Isolated integration builds/tests may inject a manifest-backed runtime.
     public let weddingDayGate: WeddingDayGateOperations?
 
     public static func make(
         environment: NativeDataEnvironment,
-        baseURL: URL? = nil
+        baseURL: URL? = nil,
+        launch: NativeLaunchConfiguration? = nil
     ) throws -> AppState {
         let bundle = try NativeRepositoryFactory.make(environment: environment, baseURL: baseURL)
         return AppState(
             repository: bundle.wedding,
             plannerRepository: bundle.planner,
             dataEnvironment: bundle.environment,
-            dataBaseURL: bundle.baseURL
+            dataBaseURL: bundle.baseURL,
+            launch: launch ?? NativeLaunchConfiguration(environment: bundle.environment, baseURL: bundle.baseURL)
         )
+    }
+
+    /// The only data gateway handed to non-couple shells; bound to one grant's capabilities and scope.
+    public func access(for grant: RoleGrant) -> RoleScopedAccess {
+        RoleScopedAccess(grant: grant, wedding: repository, planner: plannerRepository, audit: adminAuditLog)
     }
 
     public init(
@@ -52,8 +61,10 @@ public final class AppState: ObservableObject, @unchecked Sendable {
         plannerRepository: PlannerDashboardRepositoryProtocol = FixturePlannerDashboardRepository(),
         dataEnvironment: NativeDataEnvironment = .fixture,
         dataBaseURL: URL? = nil,
+        launch: NativeLaunchConfiguration? = nil,
         weddingDayGate: WeddingDayGateOperations? = nil
     ) {
+        self.launch = launch ?? NativeLaunchConfiguration(environment: dataEnvironment, baseURL: dataBaseURL)
         do {
             try NativeEnvironmentGuard.validate(baseURL: dataBaseURL, environment: dataEnvironment)
         } catch {

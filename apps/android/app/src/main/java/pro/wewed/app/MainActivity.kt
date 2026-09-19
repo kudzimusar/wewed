@@ -26,7 +26,9 @@ class MainActivity : ComponentActivity() {
 
         val launch = NativeLaunchConfiguration.resolve(
             rawEnvironment = intent.getStringExtra(EXTRA_NATIVE_ENV),
-            shadowBaseUrl = intent.getStringExtra(EXTRA_SHADOW_BASE_URL)
+            shadowBaseUrl = intent.getStringExtra(EXTRA_SHADOW_BASE_URL),
+            rawAccount = intent.getStringExtra(EXTRA_SHADOW_ACCOUNT),
+            invitationToken = intent.getStringExtra(EXTRA_INVITATION_TOKEN)
         )
         val appViewModel = AppViewModel.fromEnvironment(
             environment = launch.environment,
@@ -37,7 +39,8 @@ class MainActivity : ComponentActivity() {
             WewedTheme {
                 RootScreen(
                     sessionViewModel = sessionViewModel,
-                    appViewModel = appViewModel
+                    appViewModel = appViewModel,
+                    launch = launch
                 )
             }
         }
@@ -46,5 +49,7 @@ class MainActivity : ComponentActivity() {
     companion object {
         const val EXTRA_NATIVE_ENV = "wewed_native_env"
         const val EXTRA_SHADOW_BASE_URL = "wewed_shadow_base_url"
+        const val EXTRA_SHADOW_ACCOUNT = "wewed_shadow_account"
+        const val EXTRA_INVITATION_TOKEN = "wewed_invitation_token"
     }
 }

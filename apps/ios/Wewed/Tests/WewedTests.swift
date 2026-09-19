@@ -121,21 +121,37 @@ final class WewedTests: XCTestCase {
         XCTAssertEqual(res.guestName, "Unknown Guest")
     }
 
-    func testSessionStore() {
-        let storage = InMemorySecureStorage()
-        let session = SessionStore(storage: storage)
+    func testSessionHoldsOnlyGrantedRoles() {
+        let session = SessionStore()
         XCTAssertFalse(session.isAuthenticated)
 
-        session.login(email: "tariro@wewed.pro", role: "couple")
+        let couple = RoleGrant(role: .couple, weddingId: "w1", weddingTitle: "A & B", provenance: .sanitizedFixture, provenanceNote: "owner")
+        session.establish(AuthorizedSession(accountId: "couple:w1", displayName: "A & B", grants: [couple]))
         XCTAssertTrue(session.isAuthenticated)
-        XCTAssertEqual(session.currentUserRole, "couple")
+        // A single role is entered directly.
+        XCTAssertEqual(session.activeGrant?.role, .couple)
+        // A role the account does not hold can never be activated.
+        XCTAssertFalse(session.activate(.admin))
+        XCTAssertFalse(session.activate(.planner))
+        XCTAssertEqual(session.activeGrant?.role, .couple)
 
-        // Restore in new session instance
-        let restoredSession = SessionStore(storage: storage)
-        XCTAssertTrue(restoredSession.isAuthenticated)
+        session.signOut()
+        XCTAssertFalse(session.isAuthenticated)
+        XCTAssertNil(session.activeGrant)
+    }
 
-        restoredSession.logout()
-        XCTAssertFalse(restoredSession.isAuthenticated)
+    func testMultiRoleSessionWaitsForChoiceAndSwitchesOnlyAmongGrants() {
+        let session = SessionStore()
+        let couple = RoleGrant(role: .couple, weddingId: "w1", weddingTitle: "A & B", provenance: .sanitizedFixture, provenanceNote: "owner")
+        let planner = RoleGrant(role: .planner, weddingId: "w1", weddingTitle: "A & B", provenance: .shadowTestOverlay, provenanceNote: "overlay")
+        session.establish(AuthorizedSession(accountId: "cp:w1", displayName: "A & B", grants: [couple, planner]))
+        XCTAssertNil(session.activeGrant, "Multi-role accounts choose explicitly")
+        XCTAssertTrue(session.activate(.planner))
+        XCTAssertEqual(session.activeGrant?.role, .planner)
+        session.clearActiveRole()
+        XCTAssertNil(session.activeGrant)
+        XCTAssertTrue(session.activate(.couple))
+        XCTAssertFalse(session.activate(.guest))
     }
 
     func testBudgetCalculations() async throws {

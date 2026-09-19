@@ -36,6 +36,8 @@ public struct WeddingPass: Identifiable, Codable, Equatable, Sendable {
     public let seatNumber: String?
     public let currentStage: PassStage
     public let qrPayload: String
+    public let guestId: String?
+    public let venue: VenueLocation?
 
     public init(
         token: String,
@@ -51,8 +53,12 @@ public struct WeddingPass: Identifiable, Codable, Equatable, Sendable {
         tableName: String? = nil,
         seatNumber: String? = nil,
         currentStage: PassStage = .attending,
-        qrPayload: String
+        qrPayload: String,
+        guestId: String? = nil,
+        venue: VenueLocation? = nil
     ) {
+        self.guestId = guestId
+        self.venue = venue
         self.token = token
         self.weddingId = weddingId
         self.coupleNames = coupleNames

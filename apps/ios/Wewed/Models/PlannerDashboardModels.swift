@@ -115,6 +115,15 @@ public struct PlannerBudgetLine: Identifiable, Codable, Equatable, Sendable {
     }
 }
 
+public enum ContributorResolution: String, Codable, Equatable, Sendable {
+    /// Contributor resolved through GuestContribution.guestId -> Guest.id.
+    case resolved
+    /// The source row genuinely has no contributor relationship.
+    case notRecorded
+    /// Identity exists but this role or the contribution's privacy setting hides it.
+    case hidden
+}
+
 public struct PlannerContributionRecord: Identifiable, Codable, Equatable, Sendable {
     public let id: String
     public let contributorLabel: String
@@ -123,8 +132,35 @@ public struct PlannerContributionRecord: Identifiable, Codable, Equatable, Senda
     public let statusLabel: String
     public let allocationLabel: String
     public let verified: Bool
+    public let contributorGuestId: String?
+    public let contributorResolution: ContributorResolution
+    public let privacyLabel: String?
+    public let wordCount: Int?
+    public let submittedAtLabel: String?
+    /// Nil when the source export does not carry the message body. Never invented.
+    public let messageText: String?
 
-    public init(id: String, contributorLabel: String, typeLabel: String, value: Double, statusLabel: String, allocationLabel: String, verified: Bool) {
+    public init(
+        id: String,
+        contributorLabel: String,
+        typeLabel: String,
+        value: Double,
+        statusLabel: String,
+        allocationLabel: String,
+        verified: Bool,
+        contributorGuestId: String? = nil,
+        contributorResolution: ContributorResolution = .resolved,
+        privacyLabel: String? = nil,
+        wordCount: Int? = nil,
+        submittedAtLabel: String? = nil,
+        messageText: String? = nil
+    ) {
+        self.contributorGuestId = contributorGuestId
+        self.contributorResolution = contributorResolution
+        self.privacyLabel = privacyLabel
+        self.wordCount = wordCount
+        self.submittedAtLabel = submittedAtLabel
+        self.messageText = messageText
         self.id = id
         self.contributorLabel = contributorLabel
         self.typeLabel = typeLabel
@@ -143,8 +179,10 @@ public struct PlannerVendorEngagement: Identifiable, Codable, Equatable, Sendabl
     public let contractStatus: String
     public let paymentStatus: String
     public let nextAction: String
+    public let vendorId: String?
 
-    public init(id: String, vendorName: String, category: String, bookingStatus: String, contractStatus: String, paymentStatus: String, nextAction: String) {
+    public init(id: String, vendorName: String, category: String, bookingStatus: String, contractStatus: String, paymentStatus: String, nextAction: String, vendorId: String? = nil) {
+        self.vendorId = vendorId
         self.id = id
         self.vendorName = vendorName
         self.category = category

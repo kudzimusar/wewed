@@ -35,21 +35,22 @@ public actor ShadowReferencePlannerRepository: PlannerDashboardRepositoryProtoco
             PlannerBudgetLine(id: "shadow_bitem_22", category: "venue", vendorName: "munokokwa  events", estimated: 100, actual: 100, paid: 0, dueDateLabel: nil, fundingLabel: "Couple funded", statusLabel: "Unpaid"),
         ]
 
+        // Git-safe: contributors resolve to their pseudonymous guest records (same guestId relationships as the source).
         contributions = [
-            PlannerContributionRecord(id: "shadow_contrib_01", contributorLabel: "Tinashe Moyo", typeLabel: "Blessing", value: 0, statusLabel: "Approved", allocationLabel: "Blessing message (48 words • Public)", verified: true),
-            PlannerContributionRecord(id: "shadow_contrib_02", contributorLabel: "Chipo Ndlovu", typeLabel: "Wish", value: 0, statusLabel: "Featured", allocationLabel: "Wish message (32 words • Public)", verified: true),
-            PlannerContributionRecord(id: "shadow_contrib_03", contributorLabel: "Farai Mutasa", typeLabel: "Funny Story", value: 0, statusLabel: "Approved", allocationLabel: "Funny Story (65 words • Public)", verified: true),
-            PlannerContributionRecord(id: "shadow_contrib_04", contributorLabel: "Nyasha Gumbo", typeLabel: "Memory", value: 0, statusLabel: "Approved", allocationLabel: "Memory message (54 words • Public)", verified: true),
+            PlannerContributionRecord(id: "shadow_contrib_01", contributorLabel: "Guest G008", typeLabel: "Blessing", value: 0, statusLabel: "Approved", allocationLabel: "Guest messages", verified: true, contributorGuestId: "shadow_guest_008", privacyLabel: "Public", wordCount: 41, submittedAtLabel: "18 Jun 2026"),
+            PlannerContributionRecord(id: "shadow_contrib_02", contributorLabel: "Guest G009", typeLabel: "Wish", value: 0, statusLabel: "Featured", allocationLabel: "Guest messages", verified: true, contributorGuestId: "shadow_guest_009", privacyLabel: "Public", wordCount: 25, submittedAtLabel: "20 Jun 2026"),
+            PlannerContributionRecord(id: "shadow_contrib_03", contributorLabel: "Guest G010", typeLabel: "Funny story", value: 0, statusLabel: "Approved", allocationLabel: "Guest messages", verified: true, contributorGuestId: "shadow_guest_010", privacyLabel: "Public", wordCount: 32, submittedAtLabel: "21 Jun 2026"),
+            PlannerContributionRecord(id: "shadow_contrib_04", contributorLabel: "Guest G011", typeLabel: "Memory", value: 0, statusLabel: "Approved", allocationLabel: "Guest messages", verified: true, contributorGuestId: "shadow_guest_011", privacyLabel: "Public", wordCount: 42, submittedAtLabel: "22 Jun 2026"),
         ]
 
         vendorEngagements = [
-            PlannerVendorEngagement(id: "shadow_vnd_01", vendorName: "Cake Gourmet", category: "caterer", bookingStatus: "Confirmed", contractStatus: "Pending", paymentStatus: "Deposit", nextAction: "Operational review"),
-            PlannerVendorEngagement(id: "shadow_vnd_02", vendorName: "MC Aloe The Avangelist", category: "dj", bookingStatus: "Confirmed", contractStatus: "Pending", paymentStatus: "Unpaid", nextAction: "Operational review"),
-            PlannerVendorEngagement(id: "shadow_vnd_03", vendorName: "The Glass Petal Atelier", category: "florist", bookingStatus: "Confirmed", contractStatus: "Pending", paymentStatus: "Deposit", nextAction: "Operational review"),
-            PlannerVendorEngagement(id: "shadow_vnd_04", vendorName: "Makeup Artist", category: "other", bookingStatus: "Confirmed", contractStatus: "Pending", paymentStatus: "Unpaid", nextAction: "Operational review"),
-            PlannerVendorEngagement(id: "shadow_vnd_05", vendorName: "TBD", category: "other", bookingStatus: "Confirmed", contractStatus: "Pending", paymentStatus: "Unpaid", nextAction: "Operational review"),
-            PlannerVendorEngagement(id: "shadow_vnd_06", vendorName: "FAUME MEDIA", category: "photographer", bookingStatus: "Confirmed", contractStatus: "Pending", paymentStatus: "Unpaid", nextAction: "Operational review"),
-            PlannerVendorEngagement(id: "shadow_vnd_07", vendorName: "Imba Manor", category: "venue", bookingStatus: "Confirmed", contractStatus: "Pending", paymentStatus: "Paid", nextAction: "Operational review"),
+            PlannerVendorEngagement(id: "shadow_vnd_01", vendorName: "Cake Gourmet", category: "caterer", bookingStatus: "Confirmed", contractStatus: "Pending", paymentStatus: "Deposit", nextAction: "Operational review", vendorId: "shadow_vnd_01"),
+            PlannerVendorEngagement(id: "shadow_vnd_02", vendorName: "MC Aloe The Avangelist", category: "dj", bookingStatus: "Confirmed", contractStatus: "Pending", paymentStatus: "Unpaid", nextAction: "Operational review", vendorId: "shadow_vnd_02"),
+            PlannerVendorEngagement(id: "shadow_vnd_03", vendorName: "The Glass Petal Atelier", category: "florist", bookingStatus: "Confirmed", contractStatus: "Pending", paymentStatus: "Deposit", nextAction: "Operational review", vendorId: "shadow_vnd_03"),
+            PlannerVendorEngagement(id: "shadow_vnd_04", vendorName: "Makeup Artist", category: "other", bookingStatus: "Confirmed", contractStatus: "Pending", paymentStatus: "Unpaid", nextAction: "Operational review", vendorId: "shadow_vnd_04"),
+            PlannerVendorEngagement(id: "shadow_vnd_05", vendorName: "TBD", category: "other", bookingStatus: "Confirmed", contractStatus: "Pending", paymentStatus: "Unpaid", nextAction: "Operational review", vendorId: "shadow_vnd_05"),
+            PlannerVendorEngagement(id: "shadow_vnd_06", vendorName: "FAUME MEDIA", category: "photographer", bookingStatus: "Confirmed", contractStatus: "Pending", paymentStatus: "Unpaid", nextAction: "Operational review", vendorId: "shadow_vnd_06"),
+            PlannerVendorEngagement(id: "shadow_vnd_07", vendorName: "Imba Manor", category: "venue", bookingStatus: "Confirmed", contractStatus: "Pending", paymentStatus: "Paid", nextAction: "Operational review", vendorId: "shadow_vnd_07"),
         ]
 
         seatingTables = [

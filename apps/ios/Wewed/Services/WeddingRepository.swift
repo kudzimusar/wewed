@@ -17,6 +17,43 @@ public protocol WeddingRepositoryProtocol: Sendable {
     func postAnnouncement(title: String, message: String, urgency: AnnouncementUrgency) async throws -> WeddingAnnouncement
     func resolveInvitation(weddingSlug: String, token: String) async throws -> InvitationContext
     func confirmRsvp(weddingSlug: String, token: String, attending: Bool) async throws -> WeddingPass
+    func updateWeddingDetails(_ update: WeddingDetailsUpdate) async throws -> Wedding
+}
+
+public enum WeddingDetailsError: Error, Equatable, LocalizedError {
+    case missing(String)
+
+    public var errorDescription: String? {
+        if case .missing(let field) = self { return "\(field) is required." }
+        return nil
+    }
+}
+
+extension Wedding {
+    /// Applies an edit to the recorded wedding fields; programme and identity are unchanged.
+    func applying(_ update: WeddingDetailsUpdate) throws -> Wedding {
+        let trim: (String) -> String = { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        let names = trim(update.coupleNames)
+        let venue = trim(update.venueName)
+        let city = trim(update.city)
+        guard !names.isEmpty else { throw WeddingDetailsError.missing("Couple names") }
+        guard !trim(update.date).isEmpty else { throw WeddingDetailsError.missing("Wedding date") }
+        guard !venue.isEmpty else { throw WeddingDetailsError.missing("Venue") }
+        return Wedding(
+            id: id,
+            coupleNames: names,
+            date: trim(update.date),
+            venueName: venue,
+            venueAddress: city.isEmpty ? venue : "\(venue), \(city)",
+            city: city,
+            country: trim(update.country),
+            lifecycle: lifecycle,
+            programme: programme,
+            mapsUrl: mapsUrl,
+            latitude: latitude,
+            longitude: longitude
+        )
+    }
 }
 
 public actor FixtureWeddingRepository: WeddingRepositoryProtocol {
@@ -281,12 +318,19 @@ public actor FixtureWeddingRepository: WeddingRepositoryProtocol {
             venueName: wedding.venueName,
             venueCity: "\(wedding.city), \(wedding.country)",
             cardStyle: "ivory-floral-gold",
-            isConfirmed: false
+            isConfirmed: false,
+            guestId: "gst_1",
+            venue: wedding.venueLocation
         )
     }
 
     public func confirmRsvp(weddingSlug: String, token: String, attending: Bool) async throws -> WeddingPass {
         return pass
+    }
+
+    public func updateWeddingDetails(_ update: WeddingDetailsUpdate) async throws -> Wedding {
+        wedding = try wedding.applying(update)
+        return wedding
     }
 }
 

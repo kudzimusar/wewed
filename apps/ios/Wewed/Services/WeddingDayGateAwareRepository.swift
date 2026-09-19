@@ -36,6 +36,9 @@ public actor WeddingDayGateAwareRepository: WeddingRepositoryProtocol {
     public func confirmRsvp(weddingSlug: String, token: String, attending: Bool) async throws -> WeddingPass {
         try await base.confirmRsvp(weddingSlug: weddingSlug, token: token, attending: attending)
     }
+    public func updateWeddingDetails(_ update: WeddingDetailsUpdate) async throws -> Wedding {
+        try await base.updateWeddingDetails(update)
+    }
 
     public func checkInGuest(qrPayload: String, count: Int, usherId: String) async throws -> CheckInVerificationResult {
         try await gate.checkIn(qrPayload: qrPayload, count: count, usherId: usherId)

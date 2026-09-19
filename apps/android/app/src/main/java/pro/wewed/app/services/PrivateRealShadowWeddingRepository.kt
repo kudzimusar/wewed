@@ -19,7 +19,7 @@ class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath:
     private val declinedToken = "shadow-declined-guest"
     private val partyFourToken = "shadow-party4-guest"
 
-    private val wedding: Wedding
+    private var wedding: Wedding
     private val tasks: MutableList<PlannerTask>
     private val guests: MutableList<Guest>
     private val budget: BudgetSummary
@@ -441,8 +441,15 @@ class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath:
             venueName = wedding.venueName,
             venueCity = "${wedding.city}, ${wedding.country}",
             cardStyle = "ivory-floral-gold",
-            isConfirmed = guest.rsvpStatus == RSVPStatus.ATTENDING
+            isConfirmed = guest.rsvpStatus == RSVPStatus.ATTENDING,
+            guestId = guest.id,
+            venue = wedding.venueLocation
         )
+    }
+
+    override suspend fun updateWeddingDetails(update: WeddingDetailsUpdate): Wedding = mutex.withLock {
+        wedding = wedding.applying(update)
+        wedding
     }
 
     override suspend fun confirmRsvp(weddingSlug: String, token: String, attending: Boolean): WeddingPass = mutex.withLock {
@@ -496,7 +503,9 @@ class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath:
             tableName = guest.tableName,
             seatNumber = if (guest.tableName == null) null else "Assigned Seat",
             currentStage = PassStage.ATTENDING,
-            qrPayload = "REAL_SHADOW_ONLY.WW2_PLACEHOLDER.$serial.NOT_A_PRODUCTION_CREDENTIAL"
+            qrPayload = "REAL_SHADOW_ONLY.WW2_PLACEHOLDER.$serial.NOT_A_PRODUCTION_CREDENTIAL",
+            guestId = guest.id,
+            venue = wedding.venueLocation
         )
     }
 
@@ -512,7 +521,9 @@ class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath:
             householdName = guest.householdName,
             partySize = guest.partySize,
             currentStage = PassStage.INVITATION,
-            qrPayload = "DECLINED_NO_ADMISSION"
+            qrPayload = "DECLINED_NO_ADMISSION",
+            guestId = guest.id,
+            venue = wedding.venueLocation
         )
     }
 }

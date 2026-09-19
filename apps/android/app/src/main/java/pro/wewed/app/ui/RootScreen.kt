@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.sp
 import pro.wewed.app.models.AppRole
 import pro.wewed.app.state.AppTab
 import pro.wewed.app.state.AppViewModel
+import pro.wewed.app.state.NativeLaunchConfiguration
 import pro.wewed.app.state.SessionViewModel
 import pro.wewed.app.theme.WeddingIdentityPalette
 import pro.wewed.app.theme.WewedColors
@@ -37,146 +38,119 @@ import pro.wewed.app.ui.roles.*
 @Composable
 fun RootScreen(
     sessionViewModel: SessionViewModel,
-    appViewModel: AppViewModel
+    appViewModel: AppViewModel,
+    launch: NativeLaunchConfiguration
 ) {
-    val isAuthenticated by sessionViewModel.isAuthenticated.collectAsState()
-    val currentRole by sessionViewModel.currentRole.collectAsState()
-    val currentUserName by sessionViewModel.currentUserName.collectAsState()
+    val session by sessionViewModel.session.collectAsState()
+    val activeGrant by sessionViewModel.activeGrant.collectAsState()
+
+    // Every shell sits under one node carrying the data-source provenance, so acceptance
+    // flows can prove which dataset produced the screen without any visible developer label.
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .semantics { testTagsAsResourceId = true }
+            .testTag("shadow-source-${appViewModel.dataEnvironment.name.lowercase().replace('_', '-')}")
+    ) {
+        val current = session
+        val grant = activeGrant
+        when {
+            current == null -> LoginScreen(
+                appViewModel = appViewModel,
+                launch = launch,
+                onSignedIn = { sessionViewModel.establish(it) }
+            )
+            grant == null -> RoleChooserScreen(
+                session = current,
+                onChoose = { sessionViewModel.activate(it.role) },
+                onSignOut = { sessionViewModel.signOut() }
+            )
+            else -> when (grant.role) {
+                AppRole.COUPLE -> CoupleShell(appViewModel)
+                AppRole.PLANNER -> PlannerShell(sessionViewModel, appViewModel, onOpenPersonaPicker = { sessionViewModel.clearActiveRole() })
+                AppRole.COORDINATOR -> CoordinatorShell(sessionViewModel, appViewModel, onOpenPersonaPicker = { sessionViewModel.clearActiveRole() })
+                AppRole.VENDOR -> VendorShell(sessionViewModel, appViewModel, onOpenPersonaPicker = { sessionViewModel.clearActiveRole() })
+                AppRole.USHER -> UsherShell(sessionViewModel, appViewModel, onOpenPersonaPicker = { sessionViewModel.clearActiveRole() })
+                AppRole.GUEST -> GuestShell(sessionViewModel, appViewModel, onOpenPersonaPicker = { sessionViewModel.clearActiveRole() })
+                AppRole.ADMIN -> AdminShell(sessionViewModel, appViewModel, onOpenPersonaPicker = { sessionViewModel.clearActiveRole() })
+            }
+        }
+    }
+}
+
+@Composable
+private fun CoupleShell(appViewModel: AppViewModel) {
     val selectedTab by appViewModel.selectedTab.collectAsState()
     var isScannerOpen by remember { mutableStateOf(false) }
-    var showPersonaPicker by remember { mutableStateOf(false) }
 
-    if (!isAuthenticated) {
-        LoginScreen(sessionViewModel = sessionViewModel)
+    if (isScannerOpen) {
+        UsherScannerScreen(
+            appViewModel = appViewModel,
+            onClose = { isScannerOpen = false }
+        )
         return
     }
-
-    if (showPersonaPicker) {
-        PersonaPickerDialog(
-            sessionViewModel = sessionViewModel,
-            onDismiss = { showPersonaPicker = false }
-        )
-    }
-
-    if (currentRole == AppRole.COUPLE) {
-        if (isScannerOpen) {
-            UsherScannerScreen(
-                appViewModel = appViewModel,
-                onClose = { isScannerOpen = false }
-            )
-        } else {
-            Scaffold(
-                modifier = Modifier
-                    .semantics { testTagsAsResourceId = true }
-                    .testTag("shadow-source-${appViewModel.dataEnvironment.name.lowercase().replace('_', '-')}"),
-                containerColor = WeddingIdentityPalette.Ivory,
-                bottomBar = {
-                    Column(
-                        modifier = Modifier.background(WeddingIdentityPalette.IvorySoft)
-                    ) {
-                        HorizontalDivider(
-                            thickness = 1.dp,
-                            color = WeddingIdentityPalette.Hairline
-                        )
-                        NavigationBar(
-                            containerColor = WeddingIdentityPalette.IvorySoft,
-                            tonalElevation = 0.dp
-                        ) {
-                            ReferenceNavItem(
-                            selected = selectedTab == AppTab.HOME,
-                            label = "Home",
-                            icon = Icons.Default.Home
-                        ) { appViewModel.selectTab(AppTab.HOME) }
-
-                        ReferenceNavItem(
-                            selected = selectedTab == AppTab.PLAN,
-                            label = "Plan",
-                            icon = Icons.Default.CalendarMonth
-                        ) { appViewModel.selectTab(AppTab.PLAN) }
-
-                        ReferenceNavItem(
-                            selected = selectedTab == AppTab.GUESTS,
-                            label = "Guests",
-                            icon = Icons.Default.Group
-                        ) { appViewModel.selectTab(AppTab.GUESTS) }
-
-                        ReferenceNavItem(
-                            selected = selectedTab == AppTab.PASS,
-                            label = "Pass",
-                            icon = Icons.Default.QrCode
-                        ) { appViewModel.selectTab(AppTab.PASS) }
-
-                            ReferenceNavItem(
-                                selected = selectedTab == AppTab.LIVE,
-                                label = "More",
-                                icon = Icons.Default.Menu
-                            ) { appViewModel.selectTab(AppTab.LIVE) }
-                        }
-                    }
-                }
-            ) { innerPadding ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding)
+    Scaffold(
+        containerColor = WeddingIdentityPalette.Ivory,
+        bottomBar = {
+            Column(
+                modifier = Modifier.background(WeddingIdentityPalette.IvorySoft)
+            ) {
+                HorizontalDivider(
+                    thickness = 1.dp,
+                    color = WeddingIdentityPalette.Hairline
+                )
+                NavigationBar(
+                    containerColor = WeddingIdentityPalette.IvorySoft,
+                    tonalElevation = 0.dp
                 ) {
-                    when (selectedTab) {
-                        AppTab.HOME -> WeddingReferenceHomeScreen(appViewModel)
-                        AppTab.PLAN -> WeddingReferencePlannerScreen(appViewModel)
-                        AppTab.GUESTS -> WeddingReferenceGuestsScreen(appViewModel)
-                        AppTab.PASS -> WeddingReferencePassScreen(
-                            appViewModel = appViewModel,
-                            onOpenScanner = { isScannerOpen = true }
-                        )
-                        AppTab.LIVE -> WeddingReferenceMoreScreen(appViewModel)
-                    }
+                    ReferenceNavItem(
+                        selected = selectedTab == AppTab.HOME,
+                        label = "Home",
+                        icon = Icons.Default.Home
+                    ) { appViewModel.selectTab(AppTab.HOME) }
+
+                    ReferenceNavItem(
+                        selected = selectedTab == AppTab.PLAN,
+                        label = "Plan",
+                        icon = Icons.Default.CalendarMonth
+                    ) { appViewModel.selectTab(AppTab.PLAN) }
+
+                    ReferenceNavItem(
+                        selected = selectedTab == AppTab.GUESTS,
+                        label = "Guests",
+                        icon = Icons.Default.Group
+                    ) { appViewModel.selectTab(AppTab.GUESTS) }
+
+                    ReferenceNavItem(
+                        selected = selectedTab == AppTab.PASS,
+                        label = "Pass",
+                        icon = Icons.Default.QrCode
+                    ) { appViewModel.selectTab(AppTab.PASS) }
+
+                    ReferenceNavItem(
+                        selected = selectedTab == AppTab.LIVE,
+                        label = "More",
+                        icon = Icons.Default.Menu
+                    ) { appViewModel.selectTab(AppTab.LIVE) }
                 }
             }
         }
-        return
-    }
-
-    Column(modifier = Modifier.fillMaxSize()) {
-        DeveloperPersonaBanner(
-            currentUserName = currentUserName,
-            currentRole = currentRole,
-            appViewModel = appViewModel,
-            onSwitch = { showPersonaPicker = true }
-        )
-
-        Box(modifier = Modifier.weight(1f)) {
-            when (currentRole) {
-                AppRole.PLANNER -> PlannerShell(
-                    sessionViewModel = sessionViewModel,
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
+            when (selectedTab) {
+                AppTab.HOME -> WeddingReferenceHomeScreen(appViewModel)
+                AppTab.PLAN -> WeddingReferencePlannerScreen(appViewModel)
+                AppTab.GUESTS -> WeddingReferenceGuestsScreen(appViewModel)
+                AppTab.PASS -> WeddingReferencePassScreen(
                     appViewModel = appViewModel,
-                    onOpenPersonaPicker = { showPersonaPicker = true }
+                    onOpenScanner = { isScannerOpen = true }
                 )
-                AppRole.COORDINATOR -> CoordinatorShell(
-                    sessionViewModel = sessionViewModel,
-                    appViewModel = appViewModel,
-                    onOpenPersonaPicker = { showPersonaPicker = true }
-                )
-                AppRole.VENDOR -> VendorShell(
-                    sessionViewModel = sessionViewModel,
-                    appViewModel = appViewModel,
-                    onOpenPersonaPicker = { showPersonaPicker = true }
-                )
-                AppRole.USHER -> UsherShell(
-                    sessionViewModel = sessionViewModel,
-                    appViewModel = appViewModel,
-                    onOpenPersonaPicker = { showPersonaPicker = true }
-                )
-                AppRole.GUEST -> GuestShell(
-                    sessionViewModel = sessionViewModel,
-                    appViewModel = appViewModel,
-                    onOpenPersonaPicker = { showPersonaPicker = true }
-                )
-                AppRole.ADMIN -> AdminShell(
-                    sessionViewModel = sessionViewModel,
-                    appViewModel = appViewModel,
-                    onOpenPersonaPicker = { showPersonaPicker = true }
-                )
-                AppRole.COUPLE -> Unit
+                AppTab.LIVE -> WeddingReferenceMoreScreen(appViewModel)
             }
         }
     }
@@ -202,60 +176,4 @@ private fun RowScope.ReferenceNavItem(
             unselectedTextColor = WeddingIdentityPalette.Muted
         )
     )
-}
-
-@Composable
-private fun DeveloperPersonaBanner(
-    currentUserName: String?,
-    currentRole: AppRole,
-    appViewModel: AppViewModel,
-    onSwitch: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color.Black.copy(alpha = 0.85f))
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .background(Color.Green, CircleShape)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                currentUserName ?: "Active User",
-                color = Color.White,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(currentRole.title, color = WewedColors.Gold, fontSize = 11.sp)
-            Spacer(modifier = Modifier.width(6.dp))
-            Surface(
-                shape = RoundedCornerShape(50),
-                color = Color.White.copy(alpha = 0.12f)
-            ) {
-                Text(
-                    appViewModel.dataEnvironment.title.uppercase(),
-                    color = if (appViewModel.dataEnvironment.name == "PRODUCTION") Color.Red else WewedColors.Emerald,
-                    fontSize = 8.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                )
-            }
-        }
-
-        TextButton(onClick = onSwitch) {
-            Text(
-                "Switch",
-                color = WewedColors.Gold,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-    }
 }

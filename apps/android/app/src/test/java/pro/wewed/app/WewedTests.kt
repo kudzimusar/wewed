@@ -12,6 +12,7 @@ import pro.wewed.app.services.InMemorySecureStorage
 import pro.wewed.app.services.TokenVerificationResult
 import pro.wewed.app.services.TokenVerifier
 import pro.wewed.app.state.SessionViewModel
+import pro.wewed.app.models.*
 
 class WewedTests {
 
@@ -140,21 +141,38 @@ class WewedTests {
     }
 
     @Test
-    fun testSessionStore() {
-        val storage = InMemorySecureStorage()
-        val session = SessionViewModel(storage)
-        assertFalse(session.isAuthenticated.value)
+    fun testSessionHoldsOnlyGrantedRoles() {
+        val session = SessionViewModel()
+        assertFalse(session.isAuthenticated)
 
-        session.login("tariro@wewed.pro", "couple")
-        assertTrue(session.isAuthenticated.value)
-        assertEquals("couple", session.currentUserRole.value)
+        val couple = RoleGrant(AppRole.COUPLE, "w1", "A & B", GrantProvenance.SANITIZED_FIXTURE, "owner")
+        session.establish(AuthorizedSession("couple:w1", "A & B", listOf(couple)))
+        assertTrue(session.isAuthenticated)
+        // A single role is entered directly.
+        assertEquals(AppRole.COUPLE, session.activeGrant.value?.role)
+        // A role the account does not hold can never be activated.
+        assertFalse(session.activate(AppRole.ADMIN))
+        assertFalse(session.activate(AppRole.PLANNER))
+        assertEquals(AppRole.COUPLE, session.activeGrant.value?.role)
 
-        // Restore in new session instance
-        val restoredSession = SessionViewModel(storage)
-        assertTrue(restoredSession.isAuthenticated.value)
+        session.signOut()
+        assertFalse(session.isAuthenticated)
+        assertNull(session.activeGrant.value)
+    }
 
-        restoredSession.logout()
-        assertFalse(restoredSession.isAuthenticated.value)
+    @Test
+    fun testMultiRoleSessionWaitsForChoiceAndSwitchesOnlyAmongGrants() {
+        val session = SessionViewModel()
+        val couple = RoleGrant(AppRole.COUPLE, "w1", "A & B", GrantProvenance.SANITIZED_FIXTURE, "owner")
+        val planner = RoleGrant(AppRole.PLANNER, "w1", "A & B", GrantProvenance.SHADOW_TEST_OVERLAY, "overlay")
+        session.establish(AuthorizedSession("cp:w1", "A & B", listOf(couple, planner)))
+        assertNull("Multi-role accounts choose explicitly", session.activeGrant.value)
+        assertTrue(session.activate(AppRole.PLANNER))
+        assertEquals(AppRole.PLANNER, session.activeGrant.value?.role)
+        session.clearActiveRole()
+        assertNull(session.activeGrant.value)
+        assertTrue(session.activate(AppRole.COUPLE))
+        assertFalse(session.activate(AppRole.GUEST))
     }
 
     @Test

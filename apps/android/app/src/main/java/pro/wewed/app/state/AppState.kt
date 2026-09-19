@@ -4,6 +4,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import pro.wewed.app.models.NativeDataEnvironment
+import pro.wewed.app.models.RoleGrant
+import pro.wewed.app.services.AdminAuditLog
+import pro.wewed.app.services.RoleScopedAccess
 import pro.wewed.app.services.FixturePlannerDashboardRepository
 import pro.wewed.app.services.FixtureWeddingRepository
 import pro.wewed.app.services.PlannerDashboardRepository
@@ -46,6 +49,12 @@ class AppViewModel(
     fun selectTab(tab: AppTab) {
         _selectedTab.value = tab
     }
+
+    private val adminAuditLog = AdminAuditLog()
+
+    /** The only data gateway handed to non-couple shells; bound to one grant's capabilities and scope. */
+    fun access(grant: RoleGrant): RoleScopedAccess =
+        RoleScopedAccess(grant, repository, plannerRepository, adminAuditLog)
 
     companion object {
         fun fromEnvironment(

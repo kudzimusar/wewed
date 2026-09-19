@@ -173,33 +173,46 @@ public actor PrivateRealShadowPlannerRepository: PlannerDashboardRepositoryProto
         }
         self.contributions = try contribRaw.map { item in
             guard let id = item["id"] as? String, !id.isEmpty,
-                  let guestId = item["guestId"] as? String, !guestId.isEmpty,
                   let type = item["type"] as? String, !type.isEmpty,
                   let status = item["status"] as? String, !status.isEmpty else {
                 throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required contribution fields missing in private real shadow fixture.")
             }
-            guard let contributorName = guestNameMap[guestId] else {
-                throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing(
-                    "Contribution \(id) references unknown guest \(guestId)."
-                )
+            // A blank guestId is a genuinely absent relationship; an unknown one is a broken graph.
+            let guestId = (item["guestId"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            var contributorName: String?
+            if !guestId.isEmpty {
+                guard let name = guestNameMap[guestId] else {
+                    throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing(
+                        "Contribution \(id) references unknown guest \(guestId)."
+                    )
+                }
+                contributorName = name
             }
-            let formattedType = type.replacingOccurrences(of: "_", with: " ").capitalized
-            let formattedStatus = status.replacingOccurrences(of: "_", with: " ").capitalized
-            let privacy = (item["privacy"] as? String)?.capitalized ?? "Public"
-            let wordCount = item["wordCount"] as? Int ?? 0
-            let rawText = ["message", "content", "story", "note", "text"]
+            let sentenceCased: (String) -> String = { raw in
+                let spaced = raw.replacingOccurrences(of: "_", with: " ")
+                return spaced.prefix(1).uppercased() + spaced.dropFirst()
+            }
+            let privacy = (item["privacy"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank.map(sentenceCased)
+            let submittedAt = (item["submittedAt"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
+                .map(Self.formatSubmittedAt)
+            let messageText = ["message", "content", "story", "note", "text"]
                 .compactMap { (item[$0] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank }
                 .first
-            let contributionText = rawText ?? (wordCount > 0 ? "\(formattedType) message (\(wordCount) words • \(privacy))" : "\(formattedType) (\(privacy))")
-            let verifiedStatuses: Set<String> = ["verified", "approved", "published", "received", "accepted", "recorded"]
+            let verifiedStatuses: Set<String> = ["verified", "approved", "published", "received", "accepted", "recorded", "featured"]
             return PlannerContributionRecord(
                 id: id,
-                contributorLabel: contributorName,
-                typeLabel: formattedType,
+                contributorLabel: contributorName ?? "Contributor not recorded",
+                typeLabel: sentenceCased(type),
                 value: 0.0,
-                statusLabel: formattedStatus,
-                allocationLabel: contributionText,
-                verified: verifiedStatuses.contains(status.lowercased())
+                statusLabel: sentenceCased(status),
+                allocationLabel: "Guest messages",
+                verified: verifiedStatuses.contains(status.lowercased()),
+                contributorGuestId: guestId.isEmpty ? nil : guestId,
+                contributorResolution: contributorName == nil ? .notRecorded : .resolved,
+                privacyLabel: privacy,
+                wordCount: item["wordCount"] as? Int,
+                submittedAtLabel: submittedAt,
+                messageText: messageText
             )
         }
 
@@ -310,7 +323,8 @@ public actor PrivateRealShadowPlannerRepository: PlannerDashboardRepositoryProto
                     bookingStatus: lifecycleStatus,
                     contractStatus: externalAgreementStatus,
                     paymentStatus: paymentStatus,
-                    nextAction: serviceDesc
+                    nextAction: serviceDesc,
+                    vendorId: vendorId
                 )
             )
         }
@@ -422,6 +436,18 @@ public actor PrivateRealShadowPlannerRepository: PlannerDashboardRepositoryProto
     }
 
     public func getBudgetLines() async throws -> [PlannerBudgetLine] { budgetLines }
+    private static func formatSubmittedAt(_ raw: String) -> String {
+        let datePart = String(raw.prefix(10))
+        let parser = DateFormatter()
+        parser.locale = Locale(identifier: "en_US_POSIX")
+        parser.dateFormat = "yyyy-MM-dd"
+        guard let date = parser.date(from: datePart) else { return datePart }
+        let output = DateFormatter()
+        output.locale = Locale(identifier: "en_US_POSIX")
+        output.dateFormat = "d MMM yyyy"
+        return output.string(from: date)
+    }
+
     public func getContributions() async throws -> [PlannerContributionRecord] { contributions }
     public func getVendorEngagements() async throws -> [PlannerVendorEngagement] { vendorEngagements }
     public func getSeatingTables() async throws -> [PlannerSeatingTable] { seatingTables }

@@ -55,5 +55,8 @@ data class InvitationContext(
     val venueName: String,
     val venueCity: String,
     val cardStyle: String = "ivory-floral-gold",
-    var isConfirmed: Boolean = false
+    var isConfirmed: Boolean = false,
+    /** Stable guest record id; lets a guest session stay bound to the same person after RSVP. */
+    val guestId: String? = null,
+    val venue: VenueLocation? = null
 )

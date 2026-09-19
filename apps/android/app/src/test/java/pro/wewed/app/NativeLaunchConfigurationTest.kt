@@ -2,17 +2,31 @@ package pro.wewed.app
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 import pro.wewed.app.models.NativeDataEnvironment
+import pro.wewed.app.services.ShadowAccount
 import pro.wewed.app.state.NativeLaunchConfiguration
 
 class NativeLaunchConfigurationTest {
     @Test
-    fun defaultNeverSilentlyUsesFixture() {
+    fun defaultIsDeterministicallySanitizedNeverImplicitPrivate() {
+        // Private real data must be requested explicitly, even when a snapshot exists on this machine.
         val config = NativeLaunchConfiguration.resolve(null, null)
-        assertTrue(config.environment == NativeDataEnvironment.PRIVATE_REAL_SHADOW || config.environment == NativeDataEnvironment.SANITIZED_SHADOW)
+        assertEquals(NativeDataEnvironment.SANITIZED_SHADOW, config.environment)
         assertNull(config.baseUrl)
+        assertEquals(ShadowAccount.COUPLE, config.shadowAccount)
+        assertNull(config.invitationToken)
+    }
+
+    @Test
+    fun shadowAccountAndInvitationTokenParsing() {
+        val guest = NativeLaunchConfiguration.resolve("private_real_shadow", null, "guest", "  shadow-pending-guest ")
+        assertEquals(ShadowAccount.GUEST, guest.shadowAccount)
+        assertEquals("shadow-pending-guest", guest.invitationToken)
+
+        assertEquals(ShadowAccount.COUPLE_AND_PLANNER, NativeLaunchConfiguration.resolve(null, null, "couple-planner").shadowAccount)
+        // Unknown account strings never grant a broader role; they fall back to the wedding owner.
+        assertEquals(ShadowAccount.COUPLE, NativeLaunchConfiguration.resolve(null, null, "superuser").shadowAccount)
     }
 
     @Test

@@ -14,7 +14,8 @@ struct WewedMainApp: App {
         do {
             resolvedAppState = try AppState.make(
                 environment: launch.environment,
-                baseURL: launch.baseURL
+                baseURL: launch.baseURL,
+                launch: launch
             )
         } catch {
             preconditionFailure("Unsafe or unsupported Wewed native launch environment: \(error)")
