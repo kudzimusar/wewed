@@ -61,7 +61,7 @@ public struct PlannerShellView: View {
                     }
                 case "clients":
                     WorkspaceSurface(destination: destination, testIdPrefix: "planner", context: ctx, sectionMemory: sectionMemory) { section in
-                        PlannerClientsSection(section: section, context: ctx)
+                        PlannerClientsSection(section: section, context: ctx, graph: graph)
                     }
                 case "daily_ops":
                     WorkspaceSurface(destination: destination, testIdPrefix: "planner", context: ctx, sectionMemory: sectionMemory) { section in
@@ -112,6 +112,7 @@ struct PlannerWorkspaceSection: View {
 struct PlannerClientsSection: View {
     let section: String
     let context: NavigationContext
+    @ObservedObject var graph: WeddingGraphState
 
     var body: some View {
         // The native contract exposes exactly one planner engagement: the active wedding. Other
@@ -135,8 +136,10 @@ struct PlannerClientsSection: View {
                     trailing: "Absent"
                 )
             }
+        // One concept must have one route. This pointed at a static legacy screen while a
+        // repository-backed Client Profile existed in Planner -> More.
         case "Client Profiles":
-            ClientProfileView()
+            PlannerClientProfileSection(graph: graph)
         default:
             IAUnsupportedSection(
                 section,

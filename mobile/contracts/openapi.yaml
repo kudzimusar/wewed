@@ -1,15 +1,49 @@
 openapi: 3.1.0
 info:
-  title: Wewed Canonical Mobile API
-  version: 1.0.0
-  description: Authoritative contract for Wewed iOS (Swift) and Android (Kotlin) native clients.
+  title: Wewed Mobile API (SUPERSEDED — NOT CANONICAL)
+  version: 0.0.0-superseded
+  description: |
+    THIS CONTRACT IS NOT CANONICAL AND MUST NOT BE TREATED AS AUTHORITATIVE.
+
+    Measured against the backend on 2026-09-20 by
+    `mobile/contracts/audit_mobile_api_coverage.py`:
+
+      backend route files ........ 259
+      backend operations ......... 395
+      paths declared here ........   9   (2.3%)
+      paths that resolve to a real backend route ... 0
+
+    Every path below describes a route the backend does not have. It was written against a
+    sandbox API that no longer exists, and it drifted silently because nothing compared it to
+    the running product. `/auth/login` is the clearest example: the real mobile authentication
+    surface is `/api/mobile/auth/signin`, `/me`, `/signout` and `/wedding`.
+
+    The paths are retained only so the drift stays visible in review. Do not generate clients
+    from this file, and do not cite it as evidence of coverage.
+
+    THE RULE THIS FILE MUST BE REBUILT AGAINST:
+      Where Wewed web has a database-backed capability, native consumes the SAME canonical
+      service. "Unsupported" is legitimate only when Wewed itself lacks the capability — never
+      when the mobile adapter has simply not been written.
+
+    Run the auditor for the current gap by backend area; it writes
+    `mobile/contracts/mobile-api-coverage.json` for the parity ledger.
+
+  x-status: superseded
+  x-real-mobile-auth:
+    - POST /api/mobile/auth/signin
+    - GET  /api/mobile/auth/me
+    - POST /api/mobile/auth/signout
+    - POST /api/mobile/auth/wedding
+  x-coverage-auditor: mobile/contracts/audit_mobile_api_coverage.py
 servers:
   - url: https://wewed.pro/api
     description: Production API
   - url: http://localhost:8080/api
-    description: Isolated Mobile Sandbox
+    description: Isolated Mobile Sandbox (no longer running)
 
 paths:
+  # SUPERSEDED. The real route is POST /api/mobile/auth/signin.
   /auth/login:
     post:
       summary: Couple or Admin Login

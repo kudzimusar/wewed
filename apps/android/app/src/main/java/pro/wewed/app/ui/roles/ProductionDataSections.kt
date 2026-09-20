@@ -1008,3 +1008,42 @@ fun VendorServicesSection(graph: WeddingGraphState, context: pro.wewed.app.navig
 
 /** Groups thousands so a budget reads as money rather than as a raw number. */
 internal fun Double.asMoney(): String = String.format(java.util.Locale.US, "%,d", toLong())
+
+/**
+ * A capability Wewed already has on the web, which native has not yet connected.
+ *
+ * This is deliberately NOT [IAUnsupportedSection]. "Unsupported" should mean Wewed does not do
+ * this. Using it for a feature the website already ships — backed by a real API over real tables —
+ * quietly reclassifies our own unfinished work as an absent product feature, and that is how a
+ * route stops being counted as a gap.
+ *
+ * Naming the backing web source makes the gap specific, assignable, and impossible to mistake for
+ * a decision. It maps to MOBILE ADAPTER MISSING in the database-first parity ledger.
+ */
+@Composable
+fun IACapabilityNotConnected(
+    capability: String,
+    webSource: String,
+    detail: String,
+    testTagPrefix: String = "not-connected"
+) {
+    IASectionList(capability, "Not yet available on mobile") {
+        IACard(
+            title = "Available on Wewed web, not yet on mobile",
+            subtitle = detail,
+            status = "Adapter missing",
+            testTag = "$testTagPrefix-adapter-missing"
+        )
+        IACard(
+            title = "Backed by",
+            subtitle = webSource,
+            testTag = "$testTagPrefix-web-source"
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "This is a mobile gap, not a missing Wewed capability.",
+            color = WeddingIdentityPalette.Muted,
+            fontSize = 11.sp
+        )
+    }
+}

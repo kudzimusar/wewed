@@ -134,13 +134,31 @@ cannot become a licence.
 | Guest A → Guest B, no fallback | ✅ model | ✅ model |
 | Answering decoupled from admission | ✅ | ✅ |
 | Invitation-stated RSVP permissions | ✅ model | ✅ model |
-| **Secure claim exchange** | ⬜ **server contract absent** | ⬜ **server contract absent** |
-| **Guest session in secure storage** | ⬜ | ⬜ |
-| **Server validation on restore** | ⬜ | ⬜ |
+| **Secure claim exchange** | ⬜ MOBILE ADAPTER MISSING | ⬜ MOBILE ADAPTER MISSING |
+| **Guest session in secure storage** | ⬜ MOBILE ADAPTER MISSING | ⬜ MOBILE ADAPTER MISSING |
+| **Server validation on restore** | ⬜ MOBILE ADAPTER MISSING | ⬜ MOBILE ADAPTER MISSING |
 | **Account linking after RSVP** | ⬜ | ⬜ |
-| **Deferred install handoff** | ⬜ | ⬜ |
+| **Deferred install handoff** | ⬜ MOBILE ADAPTER MISSING (/api/invitations/install-handoff exists) | ⬜ MOBILE ADAPTER MISSING |
 
-The models and routing are in place and asserted. The **server side is not**: there is no claim
-exchange endpoint, so no `GuestInvitationSession` can be minted, stored or validated. Until that
-exists the app resolves the card through the repository rather than through an exchanged session,
-and guest entry cannot be qualified for production.
+### Correction — 2026-09-20
+
+An earlier version of this document stated that *"there is no claim exchange endpoint, so no
+`GuestInvitationSession` can be minted"*. **That was wrong, and wrong in the direction that
+matters.** The endpoints exist:
+
+| Capability | Backend route |
+|---|---|
+| Exchange an RSVP claim for a guest session | `GET /api/weddings/[slug]/guest-session/exchange?token=…` |
+| Guest session lifecycle | `GET/POST/PUT/PATCH/DELETE /api/weddings/[slug]/guest-session` |
+| Invitation access exchange | `GET /api/weddings/[slug]/invitation-access/exchange` |
+| Deferred install handoff | `POST /api/invitations/install-handoff` |
+
+`setWeddingGuestSessionCookie` already mints a guest session carrying the wedding, the guest and
+the RSVP token. Wewed web has done this the whole time.
+
+So the classification is **MOBILE ADAPTER MISSING**, not *server contract absent*. The distinction
+is the entire point: one is a gap in our work, the other would be a gap in the product. Recording
+it as the latter would have quietly retired it from the queue.
+
+The native models and routing are in place and asserted; the mobile client for these endpoints is
+not written. Guest entry remains unqualified for production until it is.

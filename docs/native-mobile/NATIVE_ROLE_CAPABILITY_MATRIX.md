@@ -5,6 +5,17 @@
 
 ---
 
+> ## ⚠️ This matrix is stale
+>
+> It describes an older navigation model and fixture personas that no longer exist. The current
+> taxonomy is IA V2, asserted from `mobile/contracts/ia-v2-navigation.json` by tests on both
+> platforms; the personas were renamed to sanitized "Shadow … Test Role" labels.
+>
+> Treat this file as historical. For current capability status use
+> `docs/native-mobile/NATIVE_DATABASE_PARITY_LEDGER.md`, which classifies every capability
+> against the backend that actually exists.
+
+
 ## 1. Native Workspace Topology by Role
 
 | Role Identifier | Role Persona | Primary Tab Navigation Topology | Quick Actions / Overlays |

@@ -438,13 +438,36 @@ fun CoupleGuestsSection(section: String, graph: WeddingGraphState, environment: 
                 }
             }
         }
-        "Invitations" -> IASectionList("Invitations", "Invitation delivery state per household") {
+        // A Wedding Pass serial is derived from RSVP = attending. Labelling that "Issued" claimed
+        // an invitation had been DELIVERED, which it does not evidence — and which iOS correctly
+        // refused to claim, so this was also an Android/iOS parity defect.
+        //
+        // Neither does the web record delivery: /api/planner/guests/invitations returns an
+        // addressable invitation link, a QR value and a share message, alongside RSVP status.
+        // That link is server-issued and its token is deliberately absent from the native
+        // snapshot, so native shows the RSVP truth it holds and names the missing adapter.
+        "Invitations" -> IASectionList("Invitations", "${guests.size} guests") {
+            IACapabilityNotConnected(
+                capability = "Invitation links & sharing",
+                webSource = "GET/POST/PUT /api/planner/guests/invitations (+ physical invitations)",
+                detail = "Invitation links, QR values and share messages are issued by the server. " +
+                    "Wewed web sends and re-sends invitations; mobile has no contract for it yet.",
+                testTagPrefix = "invitations"
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "RSVP status",
+                color = WeddingIdentityPalette.Muted,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 12.sp
+            )
             guests.forEach { guest ->
                 IACard(
                     title = guest.name,
                     subtitle = guest.householdName ?: "—",
-                    // Pass serial existence is the only invitation fact the repository exposes.
-                    trailing = if (guest.passSerial != null) "Issued" else "Not issued"
+                    // The RSVP answer is a fact the graph holds. Delivery is not.
+                    trailing = guest.rsvpStatus.title,
+                    testTag = "invitation-rsvp-${guest.id}"
                 )
             }
         }

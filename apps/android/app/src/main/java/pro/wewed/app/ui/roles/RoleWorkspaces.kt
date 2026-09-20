@@ -62,7 +62,7 @@ fun PlannerShell(
                 PlannerWorkspaceSection(section, appViewModel, graph, ctx, sectionMemory)
             }
             "clients" -> WorkspaceSurface(destination, "planner", ctx, sectionMemory) { section ->
-                PlannerClientsSection(section, ctx)
+                PlannerClientsSection(section, appViewModel, ctx)
             }
             "daily_ops" -> WorkspaceSurface(destination, "planner", ctx, sectionMemory) { section ->
                 PlannerDailyOpsSection(section, appViewModel, graph, ctx)
@@ -105,7 +105,11 @@ private fun PlannerWorkspaceSection(
 }
 
 @Composable
-private fun PlannerClientsSection(section: String, context: NavigationContext) {
+private fun PlannerClientsSection(
+    section: String,
+    appViewModel: AppViewModel,
+    context: NavigationContext
+) {
     // The native contract exposes exactly one planner engagement: the active wedding. Other client
     // states are not invented (playbook §8 — "Never fabricate a PlannerEngagement").
     when (section) {
@@ -131,7 +135,11 @@ private fun PlannerClientsSection(section: String, context: NavigationContext) {
             "The native planner contract exposes only the active engagement. No $section records exist to read, and none are fabricated.",
             context.environment
         )
-        "Client Profiles" -> ClientProfileDestination {}
+        // One concept must have one route. This pointed at a static legacy screen whose
+        // hard-coded "174 guest records" was already stale — the real count is 175 — while a
+        // repository-backed Client Profile existed in Planner -> More. Static product copy does
+        // not stay true; it only stays unnoticed.
+        "Client Profiles" -> PlannerClientProfileSection(rememberWeddingGraph(appViewModel, context))
         else -> IAUnsupportedSection(section, "This clients section is not wired yet.", context.environment)
     }
 }
@@ -762,16 +770,85 @@ private fun GuestInvitationSection(
             }
             IACard("Invited", self.name, "Party of ${self.partySize}", testTag = "guest-identity-${self.id}")
         }
-        "RSVP" -> IASectionList("RSVP", "Your response") {
-            IACard("Your RSVP", self.name, self.rsvpStatus.title, testTag = "guest-rsvp-state")
-        }
+        // A guest's OWN RSVP record. The repository already held every one of these fields — the
+        // Couple's worksheet was rendering them while the guest's own invitation said
+        // "unsupported" about their own answer. Data existed, native knew about it, one surface
+        // used it and the other showed a shell.
+        //
+        // canSeePrivateDetail is true here because this is the guest's own record, reached
+        // through their own credential. It is not the roster.
+        "RSVP" -> GuestRsvpDetailSection(
+            guest = self,
+            rsvp = graph.rsvpDetails[self.id],
+            contact = graph.guestContacts[self.id],
+            canSeePrivateDetail = true,
+            testTagPrefix = "guest-rsvp"
+        )
         "Party Members" -> IASectionList("Party Members", self.householdName) {
+            val detail = graph.rsvpDetails[self.id]
             IACard(self.householdName ?: self.name, "Party of ${self.partySize}")
+            if (detail?.plusOne == true) {
+                IACard(
+                    title = "Plus one",
+                    subtitle = detail.plusOneName ?: "Confirmed, no name recorded",
+                    status = detail.plusOneMeal?.replaceFirstChar { it.uppercase() },
+                    testTag = "guest-party-plus-one"
+                )
+            }
+            if ((detail?.kidsCount ?: 0) > 0) {
+                IACard(
+                    title = "Children",
+                    subtitle = "${detail?.kidsCount} attending",
+                    testTag = "guest-party-kids"
+                )
+            }
         }
-        "Dietary / Accessibility", "Message to Couple", "Contribution / Memory" -> IAUnsupportedSection(
-            section,
-            "No native contract exists for $section yet. Nothing is recorded against your invitation.",
-            context.environment
+        "Dietary / Accessibility" -> {
+            val detail = graph.rsvpDetails[self.id]
+            IASectionList("Dietary / Accessibility", "Your requirements") {
+                if (detail?.hasDietaryRequirement == true) {
+                    IACard(
+                        title = "Dietary and accessibility",
+                        subtitle = detail.dietaryNotes,
+                        testTag = "guest-dietary-notes"
+                    )
+                } else {
+                    IACard(
+                        title = "Nothing recorded",
+                        subtitle = "You haven't told the couple about any dietary or accessibility needs.",
+                        testTag = "guest-dietary-empty"
+                    )
+                }
+                detail?.mealChoice?.takeIf { it.isNotBlank() }?.let {
+                    IACard("Meal choice", it.replaceFirstChar { c -> c.uppercase() }, testTag = "guest-meal")
+                }
+            }
+        }
+        "Message to Couple" -> {
+            val detail = graph.rsvpDetails[self.id]
+            IASectionList("Message to Couple", "What you sent with your RSVP") {
+                if (detail?.hasMessage == true) {
+                    IACard("Your message", detail.message, testTag = "guest-rsvp-message")
+                } else {
+                    IACard(
+                        title = "No message sent",
+                        subtitle = "You didn't leave a message with your RSVP.",
+                        testTag = "guest-rsvp-message-empty"
+                    )
+                }
+                if (detail?.hasSongRequest == true) {
+                    IACard("Your song request", detail.songRequests, testTag = "guest-song-request")
+                }
+            }
+        }
+        // Contributions ARE a real Wewed capability with a real API; mobile has no guest-facing
+        // contract for submitting or viewing one's own. Named rather than called unsupported.
+        "Contribution / Memory" -> IACapabilityNotConnected(
+            capability = "Contribution / Memory",
+            webSource = "/api/weddings/[slug]/contributions (guest contribution submission)",
+            detail = "Guests can leave a blessing, memory or song on Wewed web. Mobile has no " +
+                "guest-facing contribution contract yet.",
+            testTagPrefix = "guest-contribution"
         )
         else -> IAUnsupportedSection(section, "This invitation section is not wired yet.", context.environment)
     }

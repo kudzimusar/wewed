@@ -2,7 +2,37 @@
 
 **Plan ID:** `WW-NATIVE-MOBILE-IOS-ANDROID-2026-09-17-01`  
 **Governing Document:** [`docs/native-mobile/MASTER_MOBILE_SPRINT_PLAN.md`](file:///Users/shadreckmusarurwa/Project%20AI/wewed-native-mobile/docs/native-mobile/MASTER_MOBILE_SPRINT_PLAN.md)  
-**Status:** Canonical Reference
+**Status:** ⚠️ **INVALIDATED — DO NOT TREAT AS EVIDENCE OF COMPLETION**
+
+---
+
+> ## This matrix is not true
+>
+> Every `PASS` / `In Parity` claim below is **unverified**, and several are demonstrably false as
+> of 2026-09-20. It was written as a plan and then read as a record.
+>
+> Directly contradicted by runtime evidence in the same repository:
+>
+> | This matrix claims | Actually |
+> |---|---|
+> | `AUTH-01` Email / Password Sign In — *In Parity* | **Not wired.** `signIn()` refuses; there is no client for `/api/mobile/auth/signin` |
+> | `AUTH-02` Session Restore — *In Parity* | No server validation; a restored session is never checked against `/me` |
+> | `AUTH-03` Biometric Quick Unlock — *In Parity* | **Not implemented on either platform** |
+> | `AUTH-05` Secure Sign Out & Cache Flush — *In Parity* | `signOut()` clears local state only; no `/signout` call |
+> | `AUTH-06` 401 Recovery — *In Parity* | No interceptor exists |
+> | iOS Keychain — *implemented* | **Not implemented.** Only Android has Keystore-backed storage |
+>
+> The damage of a stale parity document is specific: the next person reads "In Parity", does not
+> look, and the gap survives another cycle. That is how authentication came to be listed as
+> complete in a product that cannot sign anyone in.
+>
+> **Use instead, because they are measured rather than asserted:**
+> - `mobile/contracts/audit_mobile_api_coverage.py` — counts backend operations against the
+>   mobile contract from the filesystem (259 route files, 395 operations, 2.3% covered)
+> - `docs/native-mobile/NATIVE_DATABASE_PARITY_LEDGER.md` — capability-by-capability, classified
+> - `docs/native-mobile/PRIVATE_REAL_UAT_COVERAGE_V2.md` — the Charity & Kudzie wedding graph
+>
+> A replacement for this matrix must be **generated from evidence**, never hand-maintained.
 
 ---
 
