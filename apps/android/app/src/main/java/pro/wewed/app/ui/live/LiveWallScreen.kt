@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import pro.wewed.app.models.WallMessage
 import pro.wewed.app.theme.WewedColors
 import pro.wewed.app.theme.WewedRadius
 import pro.wewed.app.theme.WewedSpacing
@@ -26,10 +27,29 @@ data class LiveMessage(
     val time: String
 )
 
+/**
+ * The wedding wall.
+ *
+ * Production holds this wedding's wall posts as `Message` rows with `type = "wall"` and
+ * `isPublic = true`. The screen previously started from an empty list and never read them, so three
+ * real messages rendered as an empty wall. Private posts are filtered out here, not merely unshown:
+ * a non-public row must not reach this surface at all.
+ */
 @Composable
-fun LiveWallScreen() {
-    var messages by remember {
-        mutableStateOf(emptyList<LiveMessage>())
+fun LiveWallScreen(realMessages: List<WallMessage> = emptyList()) {
+    var messages by remember(realMessages) {
+        mutableStateOf(
+            realMessages
+                .filter { it.isPublic }
+                .map {
+                    LiveMessage(
+                        id = it.id,
+                        author = it.authorName?.takeIf { name -> name.isNotBlank() } ?: "A guest",
+                        content = it.content,
+                        time = it.createdAt?.take(10) ?: ""
+                    )
+                }
+        )
     }
     var applauseCount by remember { mutableIntStateOf(0) }
     var showDialog by remember { mutableStateOf(false) }

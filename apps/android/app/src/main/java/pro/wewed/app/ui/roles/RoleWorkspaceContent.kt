@@ -9,6 +9,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -85,8 +86,30 @@ class WeddingGraphState {
     var vendors by mutableStateOf<List<VendorPresence>>(emptyList())
     var announcements by mutableStateOf<List<WeddingAnnouncement>>(emptyList())
     var auditRecords by mutableStateOf<List<CheckInAuditRecord>>(emptyList())
+
+    // Production-derived domains. Empty here means "this source holds none", which the manifest
+    // can confirm; it is not the same as "the app has no adapter for it".
+    var manifest by mutableStateOf<UatSnapshotManifest?>(null)
+    var contentSections by mutableStateOf<List<WeddingContentSection>>(emptyList())
+    var songs by mutableStateOf<List<SongEntry>>(emptyList())
+    var qrDestinations by mutableStateOf<List<QrDestination>>(emptyList())
+    var importJobs by mutableStateOf<List<ImportJobRecord>>(emptyList())
+    var wallMessages by mutableStateOf<List<WallMessage>>(emptyList())
+    var engagementParties by mutableStateOf<List<EngagementPartyRecord>>(emptyList())
+    var contentRevisions by mutableStateOf<List<ContentRevisionRecord>>(emptyList())
+    var auditEvents by mutableStateOf<List<AuditEventRecord>>(emptyList())
+    var rsvpDetails by mutableStateOf<Map<String, GuestRsvpDetail>>(emptyMap())
+    var guestContacts by mutableStateOf<Map<String, GuestContactDetail>>(emptyMap())
+    var plannerAccess by mutableStateOf<PlannerAccessContext?>(null)
+    var adminAccess by mutableStateOf<AdminAccessContext?>(null)
+
     var loading by mutableStateOf(true)
     var error by mutableStateOf<String?>(null)
+
+    /** Content for one production section key, or an empty section when the couple published none. */
+    fun section(key: String): WeddingContentSection =
+        contentSections.firstOrNull { it.section == key }
+            ?: WeddingContentSection(key, WeddingContentSection.titleFor(key), emptyList())
 
     /** The wedding this graph was actually loaded for; null until a scoped load succeeds. */
     var scopedWeddingId by mutableStateOf<String?>(null)
@@ -100,6 +123,19 @@ class WeddingGraphState {
         vendors = emptyList()
         announcements = emptyList()
         auditRecords = emptyList()
+        manifest = null
+        contentSections = emptyList()
+        songs = emptyList()
+        qrDestinations = emptyList()
+        importJobs = emptyList()
+        wallMessages = emptyList()
+        engagementParties = emptyList()
+        contentRevisions = emptyList()
+        auditEvents = emptyList()
+        rsvpDetails = emptyMap()
+        guestContacts = emptyMap()
+        plannerAccess = null
+        adminAccess = null
         scopedWeddingId = null
     }
 }
@@ -129,6 +165,27 @@ fun rememberWeddingGraph(
             state.vendors = scoped.getVendors()
             state.announcements = scoped.getAnnouncements()
             state.auditRecords = scoped.getAuditRecords()
+
+            // Production-derived graph. A source that holds none of this returns empty lists
+            // through the protocol defaults, so this is safe for every environment.
+            state.manifest = scoped.snapshotManifest()
+            state.contentSections = scoped.getWeddingContentSections()
+            state.songs = scoped.getSongs()
+            state.qrDestinations = scoped.getQrDestinations()
+            state.importJobs = scoped.getImportJobs()
+            state.wallMessages = scoped.getWallMessages()
+            state.engagementParties = scoped.getEngagementParties()
+            state.contentRevisions = scoped.getContentRevisions()
+            state.auditEvents = scoped.getAuditEvents()
+            state.plannerAccess = scoped.plannerAccessContext()
+            state.adminAccess = scoped.adminAccessContext()
+            state.rsvpDetails = state.guests.mapNotNull { guest ->
+                scoped.getRsvpDetail(guest.id)?.let { guest.id to it }
+            }.toMap()
+            state.guestContacts = state.guests.mapNotNull { guest ->
+                scoped.getGuestContact(guest.id)?.let { guest.id to it }
+            }.toMap()
+
             state.scopedWeddingId = scoped.weddingId
         } catch (mismatch: WeddingScopeMismatch) {
             state.clearGraph()
@@ -320,16 +377,45 @@ fun CoupleGuestsSection(section: String, graph: WeddingGraphState, environment: 
             val attending = guests.filter { it.rsvpStatus == RSVPStatus.ATTENDING }
             val pending = guests.filter { it.rsvpStatus == RSVPStatus.PENDING }
             val declined = guests.filter { it.rsvpStatus == RSVPStatus.DECLINED }
-            IASectionList(
-                "RSVP",
-                "${attending.size} attending • ${pending.size} pending • ${declined.size} declined"
-            ) {
+            var openGuestId by remember { mutableStateOf<String?>(null) }
+            val openGuest = guests.firstOrNull { it.id == openGuestId }
+
+            if (openGuest != null) {
+                BackHandler { openGuestId = null }
+                // The Couple is authorized to see the full record for their own guests.
+                GuestRsvpDetailSection(
+                    guest = openGuest,
+                    rsvp = graph.rsvpDetails[openGuest.id],
+                    contact = graph.guestContacts[openGuest.id],
+                    canSeePrivateDetail = true
+                )
+                return
+            }
+
+            val dietary = graph.rsvpDetails.values.count { it.hasDietaryRequirement }
+            val subtitle = buildString {
+                append("${attending.size} attending • ${pending.size} pending • ${declined.size} declined")
+                if (dietary > 0) append(" • $dietary dietary")
+            }
+            IASectionList("RSVP", subtitle) {
                 guests.forEach { guest ->
+                    val detail = graph.rsvpDetails[guest.id]
+                    val markers = listOfNotNull(
+                        detail?.mealChoice?.takeIf { it.isNotBlank() },
+                        if (detail?.plusOne == true) "+1" else null,
+                        detail?.kidsCount?.takeIf { it > 0 }?.let { "$it kids" },
+                        if (detail?.hasDietaryRequirement == true) "Dietary" else null,
+                        if (detail?.hasMessage == true) "Message" else null
+                    ).joinToString(" · ")
                     IACard(
                         title = guest.name,
-                        subtitle = "Party of ${guest.partySize}",
-                        trailing = guest.rsvpStatus.title
+                        subtitle = listOf("Party of ${guest.partySize}", markers)
+                            .filter { it.isNotBlank() }
+                            .joinToString(" — "),
+                        trailing = guest.rsvpStatus.title,
+                        testTag = "rsvp-row-${guest.id}"
                     )
+                    IAOpenRow("Open RSVP detail", "rsvp-open-${guest.id}") { openGuestId = guest.id }
                 }
             }
         }
@@ -418,12 +504,27 @@ fun WeddingDaySection(
                 )
             }
         }
+        // Venue is the largest published content section for this wedding (25 rows). Rendering only
+        // the name and address discarded everything the couple actually wrote about it.
         "Venue & Maps", "Venue", "Maps", "Venue Map" -> IASectionList("Venue", wedding?.venueName) {
             wedding?.let {
                 IACard(title = it.venueName, subtitle = it.venueAddress, trailing = null)
                 IACard(title = "City", subtitle = "${it.city}, ${it.country}")
             }
+            val venueContent = graph.section("venue")
+            venueContent.proseEntries.forEach { entry ->
+                IACard(
+                    title = entry.field.humanisedContentField(),
+                    subtitle = entry.value,
+                    testTag = "venue-${entry.field}"
+                )
+            }
         }
+        "Travel" -> WeddingContentSectionView(graph.section("travel"), "travel")
+        "FAQ" -> WeddingContentSectionView(graph.section("faq"), "faq")
+        "The Day", "Wedding Info" -> WeddingContentSectionView(graph.section("theday"), "theday")
+        "After" -> WeddingContentSectionView(graph.section("after"), "after")
+        "Songbook", "Music" -> SongbookSection(graph.songs, guestVisible = boundGuestId != null)
         "Vendor Status", "Vendor Arrivals" -> IASectionList("Vendor Status", "${graph.vendors.size} vendors on site plan") {
             graph.vendors.forEach { vendor ->
                 IACard(
@@ -634,9 +735,30 @@ fun AdminAuditSection(section: String, graph: WeddingGraphState, environment: Na
                 IACard("No check-in records", "No admissions have been recorded for this wedding.")
             }
         }
-        "Data Changes", "Access Events", "Payments", "Contracts", "Admin Actions" -> IAUnsupportedSection(
+        // Production holds a real wedding-scoped AuditEvent trail. The native model carries only
+        // the fields this surface needs; IP address, user agent and before/after values are not
+        // part of it, so they cannot leak through a list of activity.
+        //
+        // Access remains gated: while the Admin read-only grant is missing, the section says so
+        // instead of showing rows the reader is not authorized to interpret as an admin record.
+        "Data Changes" -> AuditEventsSection(
+            events = graph.auditEvents.filter { it.action.contains("update", true) || it.action.contains("create", true) || it.action.contains("delete", true) },
+            adminAccess = graph.adminAccess,
+            testTagPrefix = "audit-data-changes"
+        )
+        "Access Events" -> AuditEventsSection(
+            events = graph.auditEvents.filter { it.action.contains("access", true) || it.action.contains("login", true) || it.action.contains("view", true) },
+            adminAccess = graph.adminAccess,
+            testTagPrefix = "audit-access-events"
+        )
+        "Admin Actions" -> AuditEventsSection(
+            events = graph.auditEvents,
+            adminAccess = graph.adminAccess,
+            testTagPrefix = "audit-admin-actions"
+        )
+        "Payments", "Contracts" -> IAUnsupportedSection(
             section,
-            "This audit stream has no native contract yet. Only check-in audit records are available natively, and no audit entries are fabricated.",
+            "Production records no payment or contract audit rows for this wedding, and no audit entries are fabricated.",
             environment
         )
         else -> IAUnsupportedSection(section, "This audit section is not wired yet.", environment)

@@ -203,7 +203,9 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
             }
             let category = (item["category"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "General"
             return PlannerTask(id: id, title: title, status: status, priority: priority,
-                               category: category, dueDate: item["dueDate"] as? String)
+                               category: category, dueDate: item["dueDate"] as? String,
+                               description: item["description"] as? String,
+                               assignee: item["assignee"] as? String)
         }
 
         // 4. Seating tables

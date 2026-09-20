@@ -39,6 +39,10 @@ public struct PlannerTask: Identifiable, Codable, Equatable, Sendable {
     public var priority: TaskPriority
     public var category: String
     public var dueDate: String?
+    /// The couple's or planner's own note on the task. Production field; previously dropped.
+    public var description: String?
+    /// Who the task is assigned to, as production recorded it. Production field; previously dropped.
+    public var assignee: String?
 
     public init(
         id: String,
@@ -46,7 +50,9 @@ public struct PlannerTask: Identifiable, Codable, Equatable, Sendable {
         status: TaskStatus,
         priority: TaskPriority,
         category: String,
-        dueDate: String? = nil
+        dueDate: String? = nil,
+        description: String? = nil,
+        assignee: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -54,5 +60,7 @@ public struct PlannerTask: Identifiable, Codable, Equatable, Sendable {
         self.priority = priority
         self.category = category
         self.dueDate = dueDate
+        self.description = description
+        self.assignee = assignee
     }
 }

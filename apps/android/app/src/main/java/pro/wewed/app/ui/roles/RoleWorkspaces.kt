@@ -248,13 +248,22 @@ private fun PlannerMoreSection(
     sectionMemory: WorkspaceSectionMemory,
     context: NavigationContext
 ) {
+    // Every route below reads the wedding graph. The six legacy fixture destinations
+    // (Client Profile, Team Hub, Invitations & QR, Intelligence, Media Archive, Vendor Catalog)
+    // used to render static copy here — insurance lines, rate sheets, "AI active" claims — which
+    // is why Private Real UAT could show a real wedding alongside invented operational facts.
+    val graph = rememberWeddingGraph(appViewModel, context)
+
     when (section) {
-        "Client Profile" -> ClientProfileDestination {}
-        "Invitations & QR" -> InvitationsDestination {}
-        "Intelligence" -> AIWorkspaceDestination {}
-        "Team Hub" -> CollaborationDestination {}
-        "Files / Documents" -> MediaArchiveDestination {}
-        "Planner Actions" -> PlannerActionsSection(appViewModel, context, sectionMemory) {}
+        "Client Profile" -> PlannerClientProfileSection(graph)
+        "Invitations & QR" -> InvitationsQrSection(
+            destinations = graph.qrDestinations,
+            invitationCardStyle = null
+        )
+        "Intelligence" -> PlannerIntelligenceSection(graph)
+        "Team Hub" -> PlannerTeamHubSection(graph)
+        "Files / Documents" -> PlannerMediaArchiveSection(graph)
+        "Planner Actions" -> PlannerActionsSection(appViewModel, context, sectionMemory, graph) {}
         "Settings" -> SettingsScreen(sessionViewModel = sessionViewModel)
         "Account" -> AccountPrivacyScreen()
         "Help & Support" -> IASectionList("Help & Support", "Wewed planner support") {
@@ -275,6 +284,7 @@ private fun PlannerActionsSection(
     appViewModel: AppViewModel,
     context: NavigationContext,
     sectionMemory: WorkspaceSectionMemory,
+    graph: WeddingGraphState,
     onRefreshed: () -> Unit
 ) {
     var lastResult by remember { mutableStateOf<String?>(null) }
@@ -319,13 +329,30 @@ private fun PlannerActionsSection(
             lastResult = "Workspace worksheet set to $next"
         }
 
+        // Recent Imports is no longer "not connected": production holds a real ImportJob history
+        // for this wedding, and it is rendered from that history rather than declared absent.
+        var showImports by remember { mutableStateOf(false) }
+        IAActionRow(
+            title = "Recent Imports",
+            subtitle = if (graph.importJobs.isEmpty()) {
+                "No imports are recorded for this wedding"
+            } else {
+                "${graph.importJobs.size} imports recorded"
+            },
+            enabled = graph.importJobs.isNotEmpty(),
+            testTag = "planner-action-recent-imports"
+        ) { showImports = !showImports }
+
+        if (showImports) {
+            RecentImportsSection(graph.importJobs)
+        }
+
         // --- Honestly unsupported ---
         listOf(
             "Print / Arrange / Select" to "Printable guest, seating and programme output has no native contract yet.",
             "Templates" to "Planning templates are not exposed to the native client yet.",
             "Export" to "No native export contract exists for the wedding graph.",
             "Import" to "Guest and task import is not available natively; no import endpoint is wired.",
-            "Recent Imports" to "No import history is recorded for the native client.",
             "Edit Wedding Details" to "Wedding identity is read-only during Shadow qualification; no native write path exists."
         ).forEach { (title, why) ->
             IAUnsupportedActionRow(
@@ -485,7 +512,7 @@ fun VendorShell(
             }
             "messages" -> MessagesInboxScreen()
             "more" -> WorkspaceSurface(destination, "vendor", ctx, sectionMemory) { section ->
-                VendorMoreSection(section, sessionViewModel, ctx)
+                VendorMoreSection(section, sessionViewModel, appViewModel, ctx)
             }
             else -> IAUnsupportedSection(destination.label, "Unknown destination.", ctx.environment)
         }
@@ -520,10 +547,16 @@ private fun VendorHomeContent(graph: WeddingGraphState, context: NavigationConte
 private fun VendorMoreSection(
     section: String,
     sessionViewModel: SessionViewModel,
+    appViewModel: AppViewModel,
     context: NavigationContext
 ) {
+    val graph = rememberWeddingGraph(appViewModel, context)
     when (section) {
-        "Services", "Company Profile" -> VendorCatalogScreen()
+        // The vendor catalog previously listed an invented public-liability policy, an invented
+        // tax clearance certificate and an invented rate sheet, all marked "Verified". Against a
+        // real wedding those read as facts about a real business. Replaced with the vendor and
+        // service-engagement rows the graph actually holds.
+        "Services", "Company Profile" -> VendorServicesSection(graph, context)
         "Settings" -> SettingsScreen(sessionViewModel = sessionViewModel)
         "Account" -> AccountPrivacyScreen()
         "Support" -> IASectionList("Support", "Vendor support") {
@@ -680,7 +713,7 @@ fun GuestShell(
                 GuestWeddingDaySection(section, graph, ctx)
             }
             "more" -> WorkspaceSurface(destination, "guest", ctx, sectionMemory) { section ->
-                GuestMoreSection(section, ctx)
+                GuestMoreSection(section, graph, ctx)
             }
             else -> IAUnsupportedSection(destination.label, "Unknown destination.", ctx.environment)
         }
@@ -793,7 +826,7 @@ private fun GuestWeddingDaySection(
     context: NavigationContext
 ) {
     when (section) {
-        "Gallery / Live Wall" -> LiveWallScreen()
+        "Gallery / Live Wall" -> LiveWallScreen(graph.wallMessages)
         "Contacts" -> IAUnsupportedSection(
             "Contacts",
             "No guest-visible contact directory exists in the native contract.",
@@ -804,16 +837,30 @@ private fun GuestWeddingDaySection(
 }
 
 @Composable
-private fun GuestMoreSection(section: String, context: NavigationContext) {
+private fun GuestMoreSection(
+    section: String,
+    graph: WeddingGraphState,
+    context: NavigationContext
+) {
     when (section) {
-        "Gallery" -> LiveWallScreen()
+        // Our Story and Gallery are published content, and this wedding has published both. The
+        // guest surface previously declared them unpublished without ever reading the graph.
+        "Our Story" -> WeddingContentSectionView(graph.section("story"), "guest-more-story")
+        "Gallery" -> GalleryContentSection(
+            section = graph.section("gallery"),
+            bundledMedia = BundledWeddingMedia.names,
+            testTagPrefix = "guest-more-gallery"
+        )
         "Account", "Privacy" -> AccountPrivacyScreen()
         "Help" -> IASectionList("Help", "Guest support") {
             IACard("Contact the wedding team", "support@wewed.pro")
         }
-        "Our Story", "Contribution / Gift Info" -> IAUnsupportedSection(
+        // Contributions are guest blessings, wishes, stories and memories — not monetary gifts.
+        // No gift or honeymoon-fund contract exists in this wedding's graph, so the section says
+        // that rather than presenting memories as gift information.
+        "Contribution / Gift Info" -> IAUnsupportedSection(
             section,
-            "The couple has not published $section for this wedding.",
+            "No gift or contribution fund is configured for this wedding.",
             context.environment
         )
         else -> IAUnsupportedSection(section, "This section is not wired yet.", context.environment)

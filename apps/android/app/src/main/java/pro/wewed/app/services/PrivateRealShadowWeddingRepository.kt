@@ -202,7 +202,9 @@ class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath:
                     status = status,
                     priority = priority,
                     category = item.optString("category").ifEmpty { "General" },
-                    dueDate = if (item.isNull("dueDate")) null else item.optString("dueDate")
+                    dueDate = if (item.isNull("dueDate")) null else item.optString("dueDate"),
+                    description = item.optStringOrNull("description"),
+                    assignee = item.optStringOrNull("assignee")
                 )
             )
         }

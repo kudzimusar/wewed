@@ -30,5 +30,9 @@ data class PlannerTask(
     val status: TaskStatus,
     val priority: TaskPriority,
     val category: String,
-    val dueDate: String? = null
+    val dueDate: String? = null,
+    /** The couple's or planner's own note on the task. Production field; previously dropped. */
+    val description: String? = null,
+    /** Who the task is assigned to, as production recorded it. Production field; previously dropped. */
+    val assignee: String? = null
 )

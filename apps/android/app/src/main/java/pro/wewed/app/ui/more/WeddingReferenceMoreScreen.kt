@@ -25,7 +25,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import pro.wewed.app.R
 import pro.wewed.app.models.Wedding
+import pro.wewed.app.models.WeddingContentSection
 import pro.wewed.app.state.AppViewModel
+import pro.wewed.app.ui.roles.GalleryContentSection
+import pro.wewed.app.ui.roles.WeddingContentSectionView
+import pro.wewed.app.ui.roles.BundledWeddingMedia
 import pro.wewed.app.ui.planner.ShadowDocumentsDestination
 import pro.wewed.app.ui.shared.AccountPrivacyScreen
 import pro.wewed.app.theme.*
@@ -36,14 +40,23 @@ fun WeddingReferenceMoreScreen(appViewModel: AppViewModel) {
     var wedding by remember { mutableStateOf<Wedding?>(null) }
     var loading by remember { mutableStateOf(true) }
     var destination by remember { mutableStateOf<ReferenceMoreDestination?>(null) }
+    // Our Story and Gallery are published through the wedding content graph, which the couple's
+    // More screen previously never read — so two populated sections rendered as "will appear here".
+    var contentSections by remember { mutableStateOf<List<WeddingContentSection>>(emptyList()) }
 
     LaunchedEffect(Unit) {
         try {
-            wedding = appViewModel.scopedRepository().getWedding()
+            val scoped = appViewModel.scopedRepository()
+            wedding = scoped.getWedding()
+            contentSections = scoped.getWeddingContentSections()
         } finally {
             loading = false
         }
     }
+
+    fun contentSection(key: String): WeddingContentSection =
+        contentSections.firstOrNull { it.section == key }
+            ?: WeddingContentSection(key, WeddingContentSection.titleFor(key), emptyList())
 
     destination?.let { current ->
         when (current) {
@@ -64,10 +77,18 @@ fun WeddingReferenceMoreScreen(appViewModel: AppViewModel) {
                     "Honeymoon and gift contributions are not configured for this wedding. The wedding graph records guest messages and memories, which are shown under Plan → Contributions; it holds no honeymoon fund.",
                     wedding?.coupleNames ?: ""
                 ) { destination = null }
-            ReferenceMoreDestination.STORY ->
-                ReferenceMoreEmptyScreen("Our Story", "Our wedding story, photo highlights, and milestones will appear here as updates are posted.", wedding?.coupleNames ?: "") { destination = null }
-            ReferenceMoreDestination.GALLERY ->
-                ReferenceMoreEmptyScreen("Gallery", "The shared wedding photo gallery will be available during and after the wedding celebrations.", wedding?.coupleNames ?: "") { destination = null }
+            ReferenceMoreDestination.STORY -> {
+                BackHandler { destination = null }
+                WeddingContentSectionView(contentSection("story"), "more-story")
+            }
+            ReferenceMoreDestination.GALLERY -> {
+                BackHandler { destination = null }
+                GalleryContentSection(
+                    section = contentSection("gallery"),
+                    bundledMedia = BundledWeddingMedia.names,
+                    testTagPrefix = "more-gallery"
+                )
+            }
             ReferenceMoreDestination.SETTINGS ->
                 ReferenceMoreEmptyScreen("Settings", "Manage notification preferences, display style, and offline credentials cache.", wedding?.coupleNames ?: "") { destination = null }
             ReferenceMoreDestination.DOCUMENTS ->
