@@ -12,13 +12,8 @@ import pro.wewed.app.models.NativeDeepLinkParser
 /** IA V2 §14 — a deep link must never bypass entitlement checks. */
 class DeepLinkRouterTest {
 
-    private fun context(role: AppRole, weddingId: String = "wed_1") = NavigationContext(
-        actorId = "actor_test",
-        activeRole = role,
-        activeWeddingId = weddingId,
-        activeWeddingTitle = "Charity & Kudzie",
-        environment = NativeDataEnvironment.FIXTURE
-    )
+    private fun context(role: AppRole, weddingId: String = AuthorizedContexts.WEDDING) =
+        AuthorizedContexts.authorized(role, weddingId = weddingId)
 
     @Test
     fun `canonical workspace deep links parse to their documented destination`() {
@@ -70,7 +65,7 @@ class DeepLinkRouterTest {
     @Test
     fun `an unauthorized deep link is denied with a safe return`() {
         // A guest handed a planner workspace link must not reach it.
-        val link = NativeDeepLink.Workspace("wed_1", "workspace")
+        val link = NativeDeepLink.Workspace(AuthorizedContexts.WEDDING, "workspace")
         val resolution = DeepLinkRouter.resolve(link, context(AppRole.GUEST))
         assertTrue(resolution is Entitlements.Resolution.Denied)
         assertEquals("home", (resolution as Entitlements.Resolution.Denied).safeReturnDestinationId)
@@ -93,7 +88,7 @@ class DeepLinkRouterTest {
     @Test
     fun `a link naming a different wedding never rebinds the active context`() {
         val foreign = NativeDeepLink.Workspace("wed_OTHER", "plan")
-        val resolution = DeepLinkRouter.resolve(foreign, context(AppRole.COUPLE, weddingId = "wed_1"))
+        val resolution = DeepLinkRouter.resolve(foreign, context(AppRole.COUPLE))
         assertTrue(resolution is Entitlements.Resolution.Denied)
         assertTrue(
             (resolution as Entitlements.Resolution.Denied).reason.contains("different wedding")
@@ -102,12 +97,12 @@ class DeepLinkRouterTest {
 
     @Test
     fun `an authorized deep link resolves without changing the active wedding`() {
-        val link = NativeDeepLink.Workspace("wed_1", "plan")
-        val ctx = context(AppRole.COUPLE, weddingId = "wed_1")
+        val link = NativeDeepLink.Workspace(AuthorizedContexts.WEDDING, "plan")
+        val ctx = context(AppRole.COUPLE)
         val resolution = DeepLinkRouter.resolve(link, ctx)
         assertTrue(resolution is Entitlements.Resolution.Allowed)
         val allowed = resolution as Entitlements.Resolution.Allowed
         assertEquals("plan", allowed.destination.id)
-        assertEquals("wed_1", allowed.context.activeWeddingId)
+        assertEquals(AuthorizedContexts.WEDDING, allowed.context.activeWeddingId)
     }
 }

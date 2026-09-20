@@ -24,12 +24,12 @@ import pro.wewed.app.theme.WewedRadius
 import pro.wewed.app.theme.WewedSpacing
 
 @Composable
-fun PassScreen(appViewModel: AppViewModel, onOpenScanner: () -> Unit) {
+fun PassScreen(appViewModel: AppViewModel, onOpenScanner: () -> Unit, passToken: String? = null) {
     var pass by remember { mutableStateOf<WeddingPass?>(null) }
     var isLoading by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
-        pass = appViewModel.repository.getWeddingPass("w1-j8doe-7x9")
+        pass = passToken?.let { appViewModel.repository.getWeddingPass(it) }
         isLoading = false
     }
 

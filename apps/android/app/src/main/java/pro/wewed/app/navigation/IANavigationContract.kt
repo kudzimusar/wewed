@@ -27,15 +27,32 @@ enum class ContextScope(val key: String) {
     WEDDING("wedding"),
     CLIENT("client"),
     ENGAGEMENT("engagement"),
-    GATE("gate")
+    GATE("gate"),
+    /** Which guest record the actor *is* (P0-4). */
+    GUEST("guest"),
+    /** Global administrative scope, not tied to one wedding (P0-15). */
+    SYSTEM("system")
 }
 
 data class RoleNavigation(
     val role: AppRole,
     val displayName: String,
-    val contextScopes: List<ContextScope>,
+    /** Context dimensions this role uses, and how strongly it depends on each (P0-3). */
+    val scopes: List<ScopeDeclaration>,
     val primary: List<PrimaryDestination>
 ) {
+    val contextScopes: List<ContextScope> get() = scopes.map { it.scope }
+
+    fun requirement(scope: ContextScope): ScopeRequirement? =
+        scopes.firstOrNull { it.scope == scope }?.requirement
+
+    val requiredScopes: List<ContextScope>
+        get() = scopes.filter { it.requirement == ScopeRequirement.REQUIRED }.map { it.scope }
+
+    /** True when this role operates at system level rather than inside one wedding. */
+    val isSystemScoped: Boolean
+        get() = scopes.any { it.scope == ContextScope.SYSTEM }
+
     /** Level-1 labels in order — the bottom-navigation contract. */
     val labels: List<String> get() = primary.map { it.label }
 
@@ -46,12 +63,12 @@ data class RoleNavigation(
 
 object IANavigationContract {
 
-    const val CONTRACT_ID = "WW-NATIVE-IA-V2-NAV-2026-09-20-01"
+    const val CONTRACT_ID = "WW-NATIVE-IA-V2-NAV-2026-09-20-02"
 
     private val couple = RoleNavigation(
         role = AppRole.COUPLE,
         displayName = "Couple",
-        contextScopes = listOf(ContextScope.WEDDING),
+        scopes = listOf(ScopeDeclaration(ContextScope.WEDDING, ScopeRequirement.REQUIRED)),
         primary = listOf(
             PrimaryDestination("home", "Home"),
             PrimaryDestination(
@@ -76,7 +93,10 @@ object IANavigationContract {
     private val planner = RoleNavigation(
         role = AppRole.PLANNER,
         displayName = "Professional Planner",
-        contextScopes = listOf(ContextScope.WEDDING, ContextScope.CLIENT),
+        scopes = listOf(
+            ScopeDeclaration(ContextScope.WEDDING, ScopeRequirement.REQUIRED),
+            ScopeDeclaration(ContextScope.CLIENT, ScopeRequirement.OPTIONAL)
+        ),
         primary = listOf(
             PrimaryDestination(
                 "workspace", "Workspace",
@@ -104,7 +124,10 @@ object IANavigationContract {
     private val guest = RoleNavigation(
         role = AppRole.GUEST,
         displayName = "Attending Guest",
-        contextScopes = listOf(ContextScope.WEDDING),
+        scopes = listOf(
+            ScopeDeclaration(ContextScope.WEDDING, ScopeRequirement.REQUIRED),
+            ScopeDeclaration(ContextScope.GUEST, ScopeRequirement.REQUIRED)
+        ),
         primary = listOf(
             PrimaryDestination("home", "Home"),
             PrimaryDestination(
@@ -129,7 +152,10 @@ object IANavigationContract {
     private val vendor = RoleNavigation(
         role = AppRole.VENDOR,
         displayName = "Vendor & Staff",
-        contextScopes = listOf(ContextScope.WEDDING, ContextScope.ENGAGEMENT),
+        scopes = listOf(
+            ScopeDeclaration(ContextScope.WEDDING, ScopeRequirement.REQUIRED),
+            ScopeDeclaration(ContextScope.ENGAGEMENT, ScopeRequirement.REQUIRED)
+        ),
         primary = listOf(
             PrimaryDestination("home", "Home"),
             PrimaryDestination(
@@ -151,7 +177,10 @@ object IANavigationContract {
     private val usher = RoleNavigation(
         role = AppRole.USHER,
         displayName = "Gate Team",
-        contextScopes = listOf(ContextScope.WEDDING, ContextScope.GATE),
+        scopes = listOf(
+            ScopeDeclaration(ContextScope.WEDDING, ScopeRequirement.REQUIRED),
+            ScopeDeclaration(ContextScope.GATE, ScopeRequirement.REQUIRED)
+        ),
         primary = listOf(
             PrimaryDestination("scan", "Scan"),
             PrimaryDestination(
@@ -173,7 +202,7 @@ object IANavigationContract {
     private val coordinator = RoleNavigation(
         role = AppRole.COORDINATOR,
         displayName = "Day-of Coordinator",
-        contextScopes = listOf(ContextScope.WEDDING),
+        scopes = listOf(ScopeDeclaration(ContextScope.WEDDING, ScopeRequirement.REQUIRED)),
         primary = listOf(
             PrimaryDestination("today", "Today"),
             PrimaryDestination("run_sheet", "Run Sheet"),
@@ -195,7 +224,11 @@ object IANavigationContract {
     private val admin = RoleNavigation(
         role = AppRole.ADMIN,
         displayName = "Support / Admin",
-        contextScopes = listOf(ContextScope.WEDDING, ContextScope.CLIENT),
+        scopes = listOf(
+            ScopeDeclaration(ContextScope.SYSTEM, ScopeRequirement.REQUIRED),
+            ScopeDeclaration(ContextScope.WEDDING, ScopeRequirement.OPTIONAL),
+            ScopeDeclaration(ContextScope.CLIENT, ScopeRequirement.OPTIONAL)
+        ),
         primary = listOf(
             PrimaryDestination("dashboard", "Dashboard"),
             PrimaryDestination("cases", "Cases"),

@@ -39,30 +39,30 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 @Composable
+/**
+ * @param passToken the credential of the *current authorized actor*. P0-5: there is no fallback
+ * token list — guessing an attending guest would resolve a different person than the Invitation,
+ * RSVP and Table surfaces, which is precisely the identity break this screen must not reintroduce.
+ */
 fun WeddingReferencePassScreen(
     appViewModel: AppViewModel,
     onOpenScanner: () -> Unit,
+    passToken: String? = null,
     providedPass: WeddingPass? = null
 ) {
     var pass by remember { mutableStateOf<WeddingPass?>(null) }
     var showGuestDetails by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(true) }
 
-    LaunchedEffect(providedPass) {
+    LaunchedEffect(providedPass, passToken) {
         if (providedPass != null) {
             pass = providedPass
             loading = false
             return@LaunchedEffect
         }
-        pass = runCatching {
-            appViewModel.repository.getWeddingPass("shadow-attending-guest")
-        }.getOrNull()
-            ?: runCatching {
-                appViewModel.repository.getWeddingPass("native-reference-guest")
-            }.getOrNull()
-            ?: runCatching {
-                appViewModel.repository.getWeddingPass("w1-j8doe-7x9")
-            }.getOrNull()
+        pass = passToken?.let { token ->
+            runCatching { appViewModel.repository.getWeddingPass(token) }.getOrNull()
+        }
         loading = false
     }
 

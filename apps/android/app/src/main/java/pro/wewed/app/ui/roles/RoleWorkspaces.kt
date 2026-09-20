@@ -9,6 +9,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import pro.wewed.app.models.AppRole
+import pro.wewed.app.models.NativeDeepLink
 import pro.wewed.app.navigation.NavigationContext
 import pro.wewed.app.navigation.PrimaryDestination
 import pro.wewed.app.state.AppViewModel
@@ -38,31 +39,33 @@ fun PlannerShell(
     sessionViewModel: SessionViewModel,
     appViewModel: AppViewModel,
     context: NavigationContext,
-    requestedDestinationId: String? = null,
-    onRequestedDestinationHandled: (() -> Unit)? = null,
+    pendingDeepLink: NativeDeepLink? = null,
+    onDeepLinkHandled: (() -> Unit)? = null,
     onOpenPersonaPicker: () -> Unit
 ) {
+    val sectionMemory = rememberWorkspaceSectionMemory()
     RoleShellScaffold(
         context = context,
         onSwitchPersona = onOpenPersonaPicker,
-        requestedDestinationId = requestedDestinationId,
-        onRequestedDestinationHandled = onRequestedDestinationHandled
+        pendingDeepLink = pendingDeepLink,
+        sectionMemory = sectionMemory,
+        onDeepLinkHandled = onDeepLinkHandled
     ) { destination, ctx ->
         val graph = rememberWeddingGraph(appViewModel, ctx)
         when (destination.id) {
-            "workspace" -> WorkspaceSurface(destination, "planner") { section ->
+            "workspace" -> WorkspaceSurface(destination, "planner", ctx, sectionMemory) { section ->
                 PlannerWorkspaceSection(section, appViewModel, graph, ctx)
             }
-            "clients" -> WorkspaceSurface(destination, "planner") { section ->
+            "clients" -> WorkspaceSurface(destination, "planner", ctx, sectionMemory) { section ->
                 PlannerClientsSection(section, ctx)
             }
-            "daily_ops" -> WorkspaceSurface(destination, "planner") { section ->
+            "daily_ops" -> WorkspaceSurface(destination, "planner", ctx, sectionMemory) { section ->
                 PlannerDailyOpsSection(section, appViewModel, graph, ctx)
             }
-            "wedding_day" -> WorkspaceSurface(destination, "planner") { section ->
+            "wedding_day" -> WorkspaceSurface(destination, "planner", ctx, sectionMemory) { section ->
                 PlannerWeddingDaySection(section, graph, ctx)
             }
-            "more" -> WorkspaceSurface(destination, "planner") { section ->
+            "more" -> WorkspaceSurface(destination, "planner", ctx, sectionMemory) { section ->
                 PlannerMoreSection(section, sessionViewModel, ctx)
             }
             else -> IAUnsupportedSection(destination.label, "Unknown destination.", ctx.environment)
@@ -254,27 +257,29 @@ fun CoordinatorShell(
     sessionViewModel: SessionViewModel,
     appViewModel: AppViewModel,
     context: NavigationContext,
-    requestedDestinationId: String? = null,
-    onRequestedDestinationHandled: (() -> Unit)? = null,
+    pendingDeepLink: NativeDeepLink? = null,
+    onDeepLinkHandled: (() -> Unit)? = null,
     onOpenPersonaPicker: () -> Unit
 ) {
+    val sectionMemory = rememberWorkspaceSectionMemory()
     RoleShellScaffold(
         context = context,
         onSwitchPersona = onOpenPersonaPicker,
-        requestedDestinationId = requestedDestinationId,
-        onRequestedDestinationHandled = onRequestedDestinationHandled
+        pendingDeepLink = pendingDeepLink,
+        sectionMemory = sectionMemory,
+        onDeepLinkHandled = onDeepLinkHandled
     ) { destination, ctx ->
         val graph = rememberWeddingGraph(appViewModel, ctx)
         when (destination.id) {
             "today" -> CoordinatorTodayContent(graph, ctx)
             "run_sheet" -> WeddingDaySection("Programme", graph, ctx.environment)
-            "team" -> WorkspaceSurface(destination, "coordinator") { section ->
+            "team" -> WorkspaceSurface(destination, "coordinator", ctx, sectionMemory) { section ->
                 CoordinatorTeamSection(section, graph, ctx)
             }
-            "wedding_day" -> WorkspaceSurface(destination, "coordinator") { section ->
+            "wedding_day" -> WorkspaceSurface(destination, "coordinator", ctx, sectionMemory) { section ->
                 CoordinatorWeddingDaySection(section, graph, ctx)
             }
-            "more" -> WorkspaceSurface(destination, "coordinator") { section ->
+            "more" -> WorkspaceSurface(destination, "coordinator", ctx, sectionMemory) { section ->
                 CoordinatorMoreSection(section, sessionViewModel, graph, ctx)
             }
             else -> IAUnsupportedSection(destination.label, "Unknown destination.", ctx.environment)
@@ -371,27 +376,29 @@ fun VendorShell(
     sessionViewModel: SessionViewModel,
     appViewModel: AppViewModel,
     context: NavigationContext,
-    requestedDestinationId: String? = null,
-    onRequestedDestinationHandled: (() -> Unit)? = null,
+    pendingDeepLink: NativeDeepLink? = null,
+    onDeepLinkHandled: (() -> Unit)? = null,
     onOpenPersonaPicker: () -> Unit
 ) {
+    val sectionMemory = rememberWorkspaceSectionMemory()
     RoleShellScaffold(
         context = context,
         onSwitchPersona = onOpenPersonaPicker,
-        requestedDestinationId = requestedDestinationId,
-        onRequestedDestinationHandled = onRequestedDestinationHandled
+        pendingDeepLink = pendingDeepLink,
+        sectionMemory = sectionMemory,
+        onDeepLinkHandled = onDeepLinkHandled
     ) { destination, ctx ->
         val graph = rememberWeddingGraph(appViewModel, ctx)
         when (destination.id) {
             "home" -> VendorHomeContent(graph, ctx)
-            "jobs" -> WorkspaceSurface(destination, "vendor") { section ->
+            "jobs" -> WorkspaceSurface(destination, "vendor", ctx, sectionMemory) { section ->
                 VendorJobsSection(section, graph, ctx)
             }
-            "schedule" -> WorkspaceSurface(destination, "vendor") { section ->
+            "schedule" -> WorkspaceSurface(destination, "vendor", ctx, sectionMemory) { section ->
                 VendorScheduleSection(section, graph, ctx)
             }
             "messages" -> MessagesInboxScreen()
-            "more" -> WorkspaceSurface(destination, "vendor") { section ->
+            "more" -> WorkspaceSurface(destination, "vendor", ctx, sectionMemory) { section ->
                 VendorMoreSection(section, sessionViewModel, ctx)
             }
             else -> IAUnsupportedSection(destination.label, "Unknown destination.", ctx.environment)
@@ -447,8 +454,8 @@ fun UsherShell(
     sessionViewModel: SessionViewModel,
     appViewModel: AppViewModel,
     context: NavigationContext,
-    requestedDestinationId: String? = null,
-    onRequestedDestinationHandled: (() -> Unit)? = null,
+    pendingDeepLink: NativeDeepLink? = null,
+    onDeepLinkHandled: (() -> Unit)? = null,
     onOpenPersonaPicker: () -> Unit
 ) {
     var isScannerOpen by remember { mutableStateOf(false) }
@@ -457,23 +464,25 @@ fun UsherShell(
         return
     }
 
+    val sectionMemory = rememberWorkspaceSectionMemory()
     RoleShellScaffold(
         context = context,
         onSwitchPersona = onOpenPersonaPicker,
-        requestedDestinationId = requestedDestinationId,
-        onRequestedDestinationHandled = onRequestedDestinationHandled
+        pendingDeepLink = pendingDeepLink,
+        sectionMemory = sectionMemory,
+        onDeepLinkHandled = onDeepLinkHandled
     ) { destination, ctx ->
         val graph = rememberWeddingGraph(appViewModel, ctx)
         when (destination.id) {
             "scan" -> GateScanContent(ctx) { isScannerOpen = true }
-            "admissions" -> WorkspaceSurface(destination, "gate") { section ->
+            "admissions" -> WorkspaceSurface(destination, "gate", ctx, sectionMemory) { section ->
                 GateAdmissionsSection(section, graph, ctx.environment)
             }
             "guests" -> GateGuestLookup(graph)
-            "incidents" -> WorkspaceSurface(destination, "gate") { section ->
+            "incidents" -> WorkspaceSurface(destination, "gate", ctx, sectionMemory) { section ->
                 GateIncidentsSection(section, ctx)
             }
-            "more" -> WorkspaceSurface(destination, "gate") { section ->
+            "more" -> WorkspaceSurface(destination, "gate", ctx, sectionMemory) { section ->
                 GateMoreSection(section, graph, ctx)
             }
             else -> IAUnsupportedSection(destination.label, "Unknown destination.", ctx.environment)
@@ -556,29 +565,31 @@ fun GuestShell(
     sessionViewModel: SessionViewModel,
     appViewModel: AppViewModel,
     context: NavigationContext,
-    requestedDestinationId: String? = null,
-    onRequestedDestinationHandled: (() -> Unit)? = null,
+    pendingDeepLink: NativeDeepLink? = null,
+    onDeepLinkHandled: (() -> Unit)? = null,
     onOpenPersonaPicker: () -> Unit
 ) {
+    val sectionMemory = rememberWorkspaceSectionMemory()
     RoleShellScaffold(
         context = context,
         onSwitchPersona = onOpenPersonaPicker,
-        requestedDestinationId = requestedDestinationId,
-        onRequestedDestinationHandled = onRequestedDestinationHandled
+        pendingDeepLink = pendingDeepLink,
+        sectionMemory = sectionMemory,
+        onDeepLinkHandled = onDeepLinkHandled
     ) { destination, ctx ->
         val graph = rememberWeddingGraph(appViewModel, ctx)
         when (destination.id) {
             "home" -> GuestHomeContent(graph, ctx)
-            "invitation" -> WorkspaceSurface(destination, "guest") { section ->
+            "invitation" -> WorkspaceSurface(destination, "guest", ctx, sectionMemory) { section ->
                 GuestInvitationSection(section, appViewModel, graph, ctx)
             }
-            "pass" -> WorkspaceSurface(destination, "guest") { section ->
+            "pass" -> WorkspaceSurface(destination, "guest", ctx, sectionMemory) { section ->
                 GuestPassSection(section, appViewModel, graph, ctx)
             }
-            "wedding_day" -> WorkspaceSurface(destination, "guest") { section ->
+            "wedding_day" -> WorkspaceSurface(destination, "guest", ctx, sectionMemory) { section ->
                 GuestWeddingDaySection(section, graph, ctx)
             }
-            "more" -> WorkspaceSurface(destination, "guest") { section ->
+            "more" -> WorkspaceSurface(destination, "guest", ctx, sectionMemory) { section ->
                 GuestMoreSection(section, ctx)
             }
             else -> IAUnsupportedSection(destination.label, "Unknown destination.", ctx.environment)
@@ -597,6 +608,9 @@ private fun GuestHomeContent(graph: WeddingGraphState, context: NavigationContex
         graph.announcements.firstOrNull()?.let {
             IACard("Announcement", it.message, null, it.urgency.name)
         }
+        context.boundGuest(graph)?.let {
+            IACard("Your invitation", it.name, "Party of ${it.partySize}", testTag = "guest-home-identity-${it.id}")
+        }
         IACard("Your pass", "Open the Pass workspace for your QR and table", null)
     }
 }
@@ -609,22 +623,27 @@ private fun GuestInvitationSection(
     context: NavigationContext
 ) {
     if (graph.loading) return IALoading()
-    // A guest resolves only their own record — never the roster (IA V2 §6).
-    val self = graph.guests.firstOrNull()
+    // P0-4: "me" is the guest the credential resolved to, not the first row in the roster.
+    val self = context.boundGuest(graph)
+    if (self == null) {
+        return IAUnsupportedSection(
+            section,
+            "No guest invitation is bound to this session, so no invitation details can be shown.",
+            context.environment
+        )
+    }
     when (section) {
         "Invitation" -> IASectionList("Invitation", graph.wedding?.coupleNames) {
             graph.wedding?.let {
                 IACard(it.coupleNames, "${it.venueName} • ${it.city}", it.date)
             }
-            self?.let { IACard("Invited", it.name, "Party of ${it.partySize}") }
+            IACard("Invited", self.name, "Party of ${self.partySize}", testTag = "guest-identity-${self.id}")
         }
         "RSVP" -> IASectionList("RSVP", "Your response") {
-            self?.let {
-                IACard("Your RSVP", it.name, it.rsvpStatus.title, testTag = "guest-rsvp-state")
-            } ?: IACard("No invitation resolved", "No guest record is bound to this session.")
+            IACard("Your RSVP", self.name, self.rsvpStatus.title, testTag = "guest-rsvp-state")
         }
-        "Party Members" -> IASectionList("Party Members", self?.householdName) {
-            self?.let { IACard(it.householdName ?: it.name, "Party of ${it.partySize}") }
+        "Party Members" -> IASectionList("Party Members", self.householdName) {
+            IACard(self.householdName ?: self.name, "Party of ${self.partySize}")
         }
         "Dietary / Accessibility", "Message to Couple", "Contribution / Memory" -> IAUnsupportedSection(
             section,
@@ -643,18 +662,29 @@ private fun GuestPassSection(
     context: NavigationContext
 ) {
     when (section) {
-        "Wedding Pass", "QR" -> WeddingReferencePassScreen(appViewModel = appViewModel, onOpenScanner = {})
+        // P0-5: the pass is fetched with THIS actor's credential; there is no default guest.
+        "Wedding Pass", "QR" -> WeddingReferencePassScreen(
+            appViewModel = appViewModel,
+            onOpenScanner = {},
+            passToken = context.activePassToken
+        )
         "Party Size", "Table", "Admission State" -> {
             if (graph.loading) return IALoading()
-            val self = graph.guests.firstOrNull()
-            IASectionList(section, self?.name) {
+            val self = context.boundGuest(graph)
+                ?: return IAUnsupportedSection(
+                    section,
+                    "No guest invitation is bound to this session.",
+                    context.environment
+                )
+            IASectionList(section, self.name) {
                 when (section) {
-                    "Party Size" -> IACard("Party size", self?.householdName ?: "—", "${self?.partySize ?: 0}")
-                    "Table" -> IACard("Table", self?.tableName ?: "Not yet assigned", self?.tableNumber?.toString())
+                    "Party Size" -> IACard("Party size", self.householdName ?: "—", "${self.partySize}", testTag = "guest-party-${self.id}")
+                    "Table" -> IACard("Table", self.tableName ?: "Not yet assigned", self.tableNumber?.toString(), testTag = "guest-table-${self.id}")
                     else -> IACard(
                         "Admission",
-                        if (self?.checkedIn == true) "Admitted at the gate" else "Not yet admitted",
-                        "${self?.checkedInCount ?: 0}/${self?.partySize ?: 0}"
+                        if (self.checkedIn) "Admitted at the gate" else "Not yet admitted",
+                        "${self.checkedInCount}/${self.partySize}",
+                        testTag = "guest-admission-${self.id}"
                     )
                 }
             }
@@ -679,7 +709,7 @@ private fun GuestWeddingDaySection(
             "No guest-visible contact directory exists in the native contract.",
             context.environment
         )
-        else -> WeddingDaySection(section, graph, context.environment)
+        else -> WeddingDaySection(section, graph, context.environment, boundGuestId = context.activeGuestId)
     }
 }
 
@@ -706,15 +736,17 @@ fun AdminShell(
     sessionViewModel: SessionViewModel,
     appViewModel: AppViewModel,
     context: NavigationContext,
-    requestedDestinationId: String? = null,
-    onRequestedDestinationHandled: (() -> Unit)? = null,
+    pendingDeepLink: NativeDeepLink? = null,
+    onDeepLinkHandled: (() -> Unit)? = null,
     onOpenPersonaPicker: () -> Unit
 ) {
+    val sectionMemory = rememberWorkspaceSectionMemory()
     RoleShellScaffold(
         context = context,
         onSwitchPersona = onOpenPersonaPicker,
-        requestedDestinationId = requestedDestinationId,
-        onRequestedDestinationHandled = onRequestedDestinationHandled
+        pendingDeepLink = pendingDeepLink,
+        sectionMemory = sectionMemory,
+        onDeepLinkHandled = onDeepLinkHandled
     ) { destination, ctx ->
         val graph = rememberWeddingGraph(appViewModel, ctx)
         when (destination.id) {
@@ -724,13 +756,13 @@ fun AdminShell(
                 "No native support-case contract exists yet. No cases are fabricated.",
                 ctx.environment
             )
-            "accounts" -> WorkspaceSurface(destination, "admin") { section ->
+            "accounts" -> WorkspaceSurface(destination, "admin", ctx, sectionMemory) { section ->
                 AdminAccountsSection(section, ctx)
             }
-            "audit" -> WorkspaceSurface(destination, "admin") { section ->
+            "audit" -> WorkspaceSurface(destination, "admin", ctx, sectionMemory) { section ->
                 AdminAuditSection(section, graph, ctx.environment)
             }
-            "more" -> WorkspaceSurface(destination, "admin") { section ->
+            "more" -> WorkspaceSurface(destination, "admin", ctx, sectionMemory) { section ->
                 AdminMoreSection(section, sessionViewModel, graph, ctx)
             }
             else -> IAUnsupportedSection(destination.label, "Unknown destination.", ctx.environment)
@@ -779,32 +811,38 @@ fun CoupleShell(
     appViewModel: AppViewModel,
     context: NavigationContext,
     onOpenScanner: () -> Unit,
-    requestedDestinationId: String? = null,
-    onRequestedDestinationHandled: (() -> Unit)? = null,
+    pendingDeepLink: NativeDeepLink? = null,
+    onDeepLinkHandled: (() -> Unit)? = null,
     onOpenPersonaPicker: (() -> Unit)? = null
 ) {
+    val sectionMemory = rememberWorkspaceSectionMemory()
     RoleShellScaffold(
         context = context,
         onSwitchPersona = onOpenPersonaPicker,
-        requestedDestinationId = requestedDestinationId,
-        onRequestedDestinationHandled = onRequestedDestinationHandled
+        pendingDeepLink = pendingDeepLink,
+        sectionMemory = sectionMemory,
+        onDeepLinkHandled = onDeepLinkHandled
     ) { destination, ctx ->
         val graph = rememberWeddingGraph(appViewModel, ctx)
         when (destination.id) {
             "home" -> WeddingReferenceHomeScreen(appViewModel)
-            "plan" -> WorkspaceSurface(destination, "couple") { section ->
+            "plan" -> WorkspaceSurface(destination, "couple", ctx, sectionMemory) { section ->
                 CouplePlanSection(section, appViewModel, ctx)
             }
-            "guests" -> WorkspaceSurface(destination, "couple") { section ->
+            "guests" -> WorkspaceSurface(destination, "couple", ctx, sectionMemory) { section ->
                 if (section == "Guest List") {
                     WeddingReferenceGuestsScreen(appViewModel)
                 } else {
                     CoupleGuestsSection(section, graph, ctx.environment)
                 }
             }
-            "wedding_day" -> WorkspaceSurface(destination, "couple") { section ->
-                WeddingDaySection(section, graph, ctx.environment) {
-                    WeddingReferencePassScreen(appViewModel = appViewModel, onOpenScanner = onOpenScanner)
+            "wedding_day" -> WorkspaceSurface(destination, "couple", ctx, sectionMemory) { section ->
+                WeddingDaySection(section, graph, ctx.environment, boundGuestId = ctx.activeGuestId) {
+                    WeddingReferencePassScreen(
+                        appViewModel = appViewModel,
+                        onOpenScanner = onOpenScanner,
+                        passToken = ctx.activePassToken
+                    )
                 }
             }
             "more" -> WeddingReferenceMoreScreen(appViewModel)

@@ -108,11 +108,13 @@ fun rememberWeddingGraph(
 fun WorkspaceSurface(
     destination: PrimaryDestination,
     testTagPrefix: String,
+    context: NavigationContext,
+    sectionMemory: WorkspaceSectionMemory,
     sectionContent: @Composable (String) -> Unit
 ) {
-    var selectedSection by remember(destination.id) {
-        mutableStateOf(destination.sections.firstOrNull() ?: destination.label)
-    }
+    val default = destination.sections.firstOrNull() ?: destination.label
+    val selectedSection = sectionMemory.selected(context, destination.id, default)
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -123,7 +125,7 @@ fun WorkspaceSurface(
             sections = destination.sections,
             selected = selectedSection,
             testTagPrefix = "$testTagPrefix-${destination.id}"
-        ) { selectedSection = it }
+        ) { sectionMemory.select(context, destination.id, it) }
 
         Box(modifier = Modifier.weight(1f)) {
             sectionContent(selectedSection)
@@ -356,6 +358,8 @@ fun WeddingDaySection(
     section: String,
     graph: WeddingGraphState,
     environment: NativeDataEnvironment,
+    /** The guest whose table may be shown. Null means no guest identity is bound (P0-4). */
+    boundGuestId: String? = null,
     passContent: (@Composable () -> Unit)? = null
 ) {
     if (graph.loading) return IALoading()
@@ -402,11 +406,20 @@ fun WeddingDaySection(
             }
         }
         "Table" -> IASectionList("Table", "Your seating assignment") {
-            val seated = graph.guests.firstOrNull { it.tableName != null }
-            if (seated?.tableName != null) {
-                IACard(title = seated.tableName!!, subtitle = seated.name)
-            } else {
-                IACard(title = "Not yet assigned", subtitle = "Seating has not been published.")
+            // P0-4: only the bound guest's own table may be shown here. Falling back to the first
+            // seated guest would show another household's name and table.
+            val self = boundGuestId?.let { id -> graph.guests.firstOrNull { it.id == id } }
+            when {
+                self == null -> IACard(
+                    title = "No invitation bound",
+                    subtitle = "No guest identity is bound to this session."
+                )
+                self.tableName != null -> IACard(
+                    title = self.tableName!!,
+                    subtitle = self.name,
+                    testTag = "wedding-day-table-${self.id}"
+                )
+                else -> IACard(title = "Not yet assigned", subtitle = "Seating has not been published.")
             }
         }
         "Key Contacts", "Contacts", "Emergency Contacts" -> IAUnsupportedSection(
@@ -619,16 +632,14 @@ fun VendorJobsSection(
     context: NavigationContext
 ) {
     if (graph.loading) return IALoading()
-    val engagement = graph.vendors.firstOrNull { it.id == context.activeEngagementId }
-        ?: graph.vendors.firstOrNull()
-
-    if (engagement == null) {
-        return IAUnsupportedSection(
+    // P0-6: only the engagement this vendor is authorized for. There is no "first vendor"
+    // fallback — that would show another company's engagement.
+    val engagement = context.authorizedEngagement(graph)
+        ?: return IAUnsupportedSection(
             section,
             "No service engagement is assigned to this vendor for the active wedding.",
             context.environment
         )
-    }
 
     when (section) {
         "Service Details" -> IASectionList(engagement.vendorName, engagement.serviceCategory) {
@@ -663,8 +674,7 @@ fun VendorScheduleSection(
     context: NavigationContext
 ) {
     if (graph.loading) return IALoading()
-    val engagement = graph.vendors.firstOrNull { it.id == context.activeEngagementId }
-        ?: graph.vendors.firstOrNull()
+    val engagement = context.authorizedEngagement(graph)
 
     when (section) {
         "Calendar" -> IASectionList("Calendar", graph.wedding?.date) {
@@ -685,4 +695,26 @@ fun VendorScheduleSection(
         )
         else -> IAUnsupportedSection(section, "This schedule section is not wired yet.", context.environment)
     }
+}
+
+/**
+ * The service engagement this vendor is authorized for (P0-6).
+ *
+ * Returns null when no engagement is bound, so the caller renders an honest empty state instead
+ * of another vendor's engagement.
+ */
+fun NavigationContext.authorizedEngagement(graph: WeddingGraphState): VendorPresence? {
+    val engagementId = activeEngagementId ?: return null
+    return graph.vendors.firstOrNull { it.id == engagementId }
+}
+
+/**
+ * The guest record this context is bound to (P0-4).
+ *
+ * Returns null when no guest identity was resolved from a credential — callers must render an
+ * honest unbound state rather than falling back to an arbitrary row.
+ */
+fun NavigationContext.boundGuest(graph: WeddingGraphState): Guest? {
+    val guestId = activeGuestId ?: return null
+    return graph.guests.firstOrNull { it.id == guestId }
 }

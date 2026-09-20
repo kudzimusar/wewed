@@ -480,6 +480,18 @@ class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath:
         if (attending) makePass(updated) else makeNonAdmissionPass(updated)
     }
 
+
+    override suspend fun resolveGuestIdentity(token: String): GuestIdentity? = mutex.withLock {
+        val index = guestIndexForToken(token) ?: return@withLock null
+        val guest = guests[index]
+        GuestIdentity(
+            guestId = guest.id,
+            guestName = guest.name,
+            weddingId = wedding.id,
+            passToken = token
+        )
+    }
+
     private fun guestIndexForToken(token: String): Int? {
         if (guests.isEmpty()) return null
         return when {

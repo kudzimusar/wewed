@@ -28,9 +28,28 @@ class WeddingScopeMismatch(
  * Token-addressed reads (pass, invitation, RSVP) are credential-scoped rather than wedding-scoped:
  * the token itself identifies both the wedding and the guest.
  */
+/**
+ * Who a credential belongs to (P0-4/P0-5).
+ *
+ * Guest identity originates here — from an invitation or pass token resolved by the repository —
+ * and never from the position of a row in a collection.
+ */
+data class GuestIdentity(
+    val guestId: String,
+    val guestName: String,
+    val weddingId: String,
+    val passToken: String
+)
+
 interface WeddingRepository {
     /** Wedding identities this source can serve for the current actor. */
     suspend fun availableWeddingIds(): List<String>
+
+    /**
+     * Resolves the guest a credential identifies, or null when the token is not recognised.
+     * This is the only sanctioned origin of guest identity.
+     */
+    suspend fun resolveGuestIdentity(token: String): GuestIdentity?
 
     suspend fun getWedding(weddingId: String): Wedding
     suspend fun getTasks(weddingId: String): List<PlannerTask>
@@ -82,6 +101,7 @@ class ScopedWeddingRepository internal constructor(
     suspend fun postAnnouncement(title: String, message: String, urgency: AnnouncementUrgency): WeddingAnnouncement =
         source.postAnnouncement(weddingId, title, message, urgency)
 
+    suspend fun resolveGuestIdentity(token: String): GuestIdentity? = source.resolveGuestIdentity(token)
     suspend fun getWeddingPass(token: String): WeddingPass = source.getWeddingPass(token)
     suspend fun resolveInvitation(weddingSlug: String, token: String): InvitationContext =
         source.resolveInvitation(weddingSlug, token)
@@ -176,6 +196,14 @@ class FixtureWeddingRepository : WeddingRepository {
     )
 
     private val auditRecords = mutableListOf<CheckInAuditRecord>()
+
+    override suspend fun resolveGuestIdentity(token: String): GuestIdentity? = mutex.withLock {
+        // The fixture issues exactly one pass; only its token identifies a guest.
+        if (token != pass.token) return@withLock null
+        val guest = guests.firstOrNull { it.passSerial != null && pass.qrPayload.contains(it.passSerial) }
+            ?: return@withLock null
+        GuestIdentity(guest.id, guest.name, wedding.id, token)
+    }
 
     override suspend fun getWedding(weddingId: String): Wedding = mutex.withLock {
         requireScope(weddingId)

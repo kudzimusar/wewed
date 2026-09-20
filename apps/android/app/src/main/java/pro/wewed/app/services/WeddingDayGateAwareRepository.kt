@@ -8,6 +8,7 @@ class WeddingDayGateAwareRepository(
     private val gate: WeddingDayGateOperations
 ) : WeddingRepository {
     override suspend fun availableWeddingIds(): List<String> = base.availableWeddingIds()
+    override suspend fun resolveGuestIdentity(token: String): GuestIdentity? = base.resolveGuestIdentity(token)
     override suspend fun getWedding(weddingId: String): Wedding = base.getWedding(weddingId)
     override suspend fun getTasks(weddingId: String): List<PlannerTask> = base.getTasks(weddingId)
     override suspend fun createTask(weddingId: String, title: String, priority: TaskPriority, category: String): PlannerTask =

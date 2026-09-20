@@ -88,11 +88,50 @@ object Entitlements {
 
     fun can(role: AppRole, capability: String): Boolean = capabilities(role).contains(capability)
 
-    /** Outcome of resolving a requested route against actor, role, context and entitlement. */
+    /** Outcome of resolving a requested route against actor, role, context and relationship. */
     sealed interface Resolution {
         data class Allowed(val destination: PrimaryDestination, val context: NavigationContext) : Resolution
         /** Unauthorized: explain the boundary, leak no destination data, offer a safe return (IA V2 §14). */
         data class Denied(val reason: String, val safeReturnDestinationId: String) : Resolution
+    }
+
+    /**
+     * P0-2 — authorization is actor + role + scope + relationship, never role alone.
+     *
+     * Static [capabilitiesByRole] is policy: it says what a planner *may* do. It cannot say that
+     * THIS actor is the planner for THIS wedding. That is what [ActorAssignment] decides, and both
+     * layers must agree before a destination opens.
+     */
+    fun relationshipHolds(context: NavigationContext): Boolean {
+        val assignment = context.assignment ?: return false
+        if (assignment.actorId != context.actorId) return false
+        if (assignment.role != context.activeRole) return false
+
+        val navigation = IANavigationContract.forRole(context.activeRole)
+
+        // System-scope roles are not bound to one wedding.
+        if (navigation.isSystemScoped) {
+            return assignment.isSystemScope || assignment.weddingId == context.activeWeddingId
+        }
+
+        // Every other role must be assigned to the wedding it is operating in.
+        if (assignment.weddingId != context.activeWeddingId) return false
+
+        // Required sub-scopes must match the assignment exactly, not merely be present.
+        navigation.scopes.forEach { declaration ->
+            if (declaration.requirement != ScopeRequirement.REQUIRED) return@forEach
+            val held = context.valueFor(declaration.scope) ?: return false
+            val authorized = when (declaration.scope) {
+                ContextScope.WEDDING -> assignment.weddingId
+                ContextScope.CLIENT -> assignment.clientId
+                ContextScope.ENGAGEMENT -> assignment.engagementId
+                ContextScope.GATE -> assignment.gateId
+                ContextScope.GUEST -> assignment.guestId
+                ContextScope.SYSTEM -> context.actorId
+            } ?: return false
+            if (held != authorized) return false
+        }
+        return true
     }
 
     /**
@@ -109,13 +148,25 @@ object Entitlements {
                 safeReturn
             )
 
-        if (!context.isComplete) {
+        // 1. Required context must be resolved (P0-3): an absent engagement/gate/guest is not
+        //    silently treated as satisfied.
+        val missing = context.missingRequiredScopes
+        if (missing.isNotEmpty()) {
             return Resolution.Denied(
-                "No active wedding is selected for this workspace.",
+                missingScopeReason(navigation.displayName, missing.first()),
                 safeReturn
             )
         }
 
+        // 2. The actor must actually hold the relationship it is claiming (P0-2).
+        if (!relationshipHolds(context)) {
+            return Resolution.Denied(
+                "You are not assigned to this ${navigation.displayName.lowercase()} workspace.",
+                safeReturn
+            )
+        }
+
+        // 3. Static role policy is the last gate, not the only one.
         val required = destinationCapability["${context.activeRole.roleId}/$destinationId"]
         if (required != null && !can(context.activeRole, required)) {
             return Resolution.Denied(
@@ -125,5 +176,14 @@ object Entitlements {
         }
 
         return Resolution.Allowed(destination, context)
+    }
+
+    private fun missingScopeReason(roleName: String, scope: ContextScope): String = when (scope) {
+        ContextScope.WEDDING -> "No active wedding is selected for this workspace."
+        ContextScope.CLIENT -> "No client is selected for this $roleName workspace."
+        ContextScope.ENGAGEMENT -> "You have no assigned engagement for this wedding."
+        ContextScope.GATE -> "You have no gate assignment for this wedding."
+        ContextScope.GUEST -> "No guest invitation is bound to this session."
+        ContextScope.SYSTEM -> "This account does not hold administrative access."
     }
 }

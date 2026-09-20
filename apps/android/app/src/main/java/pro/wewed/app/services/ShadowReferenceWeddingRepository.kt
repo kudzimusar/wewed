@@ -502,6 +502,18 @@ class ShadowReferenceWeddingRepository : WeddingRepository {
         if (attending) makePass(updated) else makeNonAdmissionPass(updated)
     }
 
+
+    override suspend fun resolveGuestIdentity(token: String): GuestIdentity? = mutex.withLock {
+        val index = guestIndexForToken(token) ?: return@withLock null
+        val guest = guests[index]
+        GuestIdentity(
+            guestId = guest.id,
+            guestName = guest.name,
+            weddingId = wedding.id,
+            passToken = token
+        )
+    }
+
     private fun guestIndexForToken(token: String): Int? {
         val guestId = when (token) {
             attendingToken, "native-reference-guest" -> "shadow_guest_011"

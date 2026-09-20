@@ -15,6 +15,8 @@ import pro.wewed.app.models.GuestJourneyReference
 import pro.wewed.app.models.GuestJourneyStage
 import pro.wewed.app.models.InvitationContext
 import pro.wewed.app.navigation.DeepLinkRouter
+import pro.wewed.app.navigation.IANavigationContract
+import pro.wewed.app.navigation.ShadowActorAssignmentSource
 import pro.wewed.app.navigation.NavigationContext
 import pro.wewed.app.state.AppViewModel
 import pro.wewed.app.state.SessionViewModel
@@ -106,25 +108,55 @@ fun RootScreen(
         )
     }
 
-    // IA V2 §13.1 — one context envelope, resolved once, handed to every role shell.
-    val context = remember(currentRole, weddingId, weddingTitle, activePersonaId) {
-        NavigationContext(
+    // IA V2 §13.1 / P0-3 — the context envelope is *resolved from verified assignments*, never
+    // assembled from convenient defaults. No client id, gate id, engagement id or guest identity
+    // is invented here; an unresolved scope stays null and the shell denies the workspace.
+    val assignmentSource = remember(appViewModel) { ShadowActorAssignmentSource(appViewModel.repository) }
+    var resolvedContext by remember { mutableStateOf<NavigationContext?>(null) }
+    var resolvingContext by remember { mutableStateOf(true) }
+
+    LaunchedEffect(currentRole, activePersonaId, weddingId, weddingTitle) {
+        resolvingContext = true
+        val assignment = runCatching { assignmentSource.assignments(activePersonaId) }
+            .getOrDefault(emptyList())
+            .firstOrNull { it.role == currentRole }
+
+        val systemScoped = IANavigationContract.forRole(currentRole).isSystemScoped
+        resolvedContext = NavigationContext(
             actorId = activePersonaId,
             activeRole = currentRole,
-            activeWeddingId = weddingId,
-            activeWeddingTitle = weddingTitle,
+            // A system-scoped role opens without a wedding; everyone else uses the assigned one.
+            activeWeddingId = when {
+                systemScoped -> assignment?.weddingId.orEmpty()
+                else -> assignment?.weddingId ?: weddingId
+            },
+            activeWeddingTitle = if (systemScoped && assignment?.weddingId == null) "" else weddingTitle,
             environment = appViewModel.dataEnvironment,
-            // Scoped context the role owns; resolved from the active actor rather than guessed.
-            activeClientId = if (currentRole == AppRole.PLANNER) weddingId else null,
-            activeGateId = if (currentRole == AppRole.USHER) "Gate A — Main Entrance" else null
+            activeClientId = assignment?.clientId,
+            activeEngagementId = assignment?.engagementId,
+            activeGateId = assignment?.gateId,
+            activeGuestId = assignment?.guestId,
+            activePassToken = assignment?.passToken,
+            assignment = assignment
         )
+        resolvingContext = false
     }
 
-    // IA V2 §14 — a deep link resolves to a destination *request*; the shell then gates it.
-    val requestedDestinationId = pendingRouteDeepLink?.let {
-        DeepLinkRouter.destinationFor(it, currentRole)
+    if (resolvingContext) {
+        Box(
+            modifier = Modifier.fillMaxSize().background(WeddingIdentityPalette.Ivory),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = WeddingIdentityPalette.ChampagneDeep)
+        }
+        return
     }
-    val onRequestedDestinationHandled = { appViewModel.consumePendingRouteDeepLink() }
+
+    val context = resolvedContext ?: return
+
+    // P0-8: the parsed link is handed to the shell intact; the shell resolves it against the
+    // active context through DeepLinkRouter rather than reducing it to a destination id here.
+    val onDeepLinkHandled = { appViewModel.consumePendingRouteDeepLink() }
 
     // Legacy screens that still read ambiently resolve through the same bound wedding.
     LaunchedEffect(context.activeWeddingId) {
@@ -150,8 +182,8 @@ fun RootScreen(
                 sessionViewModel = sessionViewModel,
                 appViewModel = appViewModel,
                 context = context,
-                requestedDestinationId = requestedDestinationId,
-                onRequestedDestinationHandled = onRequestedDestinationHandled,
+                pendingDeepLink = pendingRouteDeepLink,
+                onDeepLinkHandled = onDeepLinkHandled,
                 onOpenScanner = { isScannerOpen = true },
                 onOpenPersonaPicker = { showPersonaPicker = true }
             )
@@ -159,48 +191,48 @@ fun RootScreen(
                 sessionViewModel = sessionViewModel,
                 appViewModel = appViewModel,
                 context = context,
-                requestedDestinationId = requestedDestinationId,
-                onRequestedDestinationHandled = onRequestedDestinationHandled,
+                pendingDeepLink = pendingRouteDeepLink,
+                onDeepLinkHandled = onDeepLinkHandled,
                 onOpenPersonaPicker = { showPersonaPicker = true }
             )
             AppRole.COORDINATOR -> CoordinatorShell(
                 sessionViewModel = sessionViewModel,
                 appViewModel = appViewModel,
                 context = context,
-                requestedDestinationId = requestedDestinationId,
-                onRequestedDestinationHandled = onRequestedDestinationHandled,
+                pendingDeepLink = pendingRouteDeepLink,
+                onDeepLinkHandled = onDeepLinkHandled,
                 onOpenPersonaPicker = { showPersonaPicker = true }
             )
             AppRole.VENDOR -> VendorShell(
                 sessionViewModel = sessionViewModel,
                 appViewModel = appViewModel,
                 context = context,
-                requestedDestinationId = requestedDestinationId,
-                onRequestedDestinationHandled = onRequestedDestinationHandled,
+                pendingDeepLink = pendingRouteDeepLink,
+                onDeepLinkHandled = onDeepLinkHandled,
                 onOpenPersonaPicker = { showPersonaPicker = true }
             )
             AppRole.USHER -> UsherShell(
                 sessionViewModel = sessionViewModel,
                 appViewModel = appViewModel,
                 context = context,
-                requestedDestinationId = requestedDestinationId,
-                onRequestedDestinationHandled = onRequestedDestinationHandled,
+                pendingDeepLink = pendingRouteDeepLink,
+                onDeepLinkHandled = onDeepLinkHandled,
                 onOpenPersonaPicker = { showPersonaPicker = true }
             )
             AppRole.GUEST -> GuestShell(
                 sessionViewModel = sessionViewModel,
                 appViewModel = appViewModel,
                 context = context,
-                requestedDestinationId = requestedDestinationId,
-                onRequestedDestinationHandled = onRequestedDestinationHandled,
+                pendingDeepLink = pendingRouteDeepLink,
+                onDeepLinkHandled = onDeepLinkHandled,
                 onOpenPersonaPicker = { showPersonaPicker = true }
             )
             AppRole.ADMIN -> AdminShell(
                 sessionViewModel = sessionViewModel,
                 appViewModel = appViewModel,
                 context = context,
-                requestedDestinationId = requestedDestinationId,
-                onRequestedDestinationHandled = onRequestedDestinationHandled,
+                pendingDeepLink = pendingRouteDeepLink,
+                onDeepLinkHandled = onDeepLinkHandled,
                 onOpenPersonaPicker = { showPersonaPicker = true }
             )
         }

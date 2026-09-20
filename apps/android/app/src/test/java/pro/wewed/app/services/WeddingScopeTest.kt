@@ -59,6 +59,11 @@ class WeddingScopeTest {
             ?: throw WeddingScopeMismatch(weddingId, graphs.keys.toList())
 
         override suspend fun availableWeddingIds(): List<String> = graphs.keys.toList()
+        override suspend fun resolveGuestIdentity(token: String): GuestIdentity? =
+            graphs.entries.firstNotNullOfOrNull { (weddingId, g) ->
+                g.guests.firstOrNull { it.passSerial == token }
+                    ?.let { GuestIdentity(it.id, it.name, weddingId, token) }
+            }
         override suspend fun getWedding(weddingId: String) = graph(weddingId).wedding
         override suspend fun getTasks(weddingId: String) = graph(weddingId).tasks
         override suspend fun getGuests(weddingId: String) = graph(weddingId).guests

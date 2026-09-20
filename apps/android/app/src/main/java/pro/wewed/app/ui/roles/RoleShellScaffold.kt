@@ -22,6 +22,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import pro.wewed.app.models.NativeDeepLink
+import pro.wewed.app.navigation.DeepLinkRouter
 import pro.wewed.app.navigation.Entitlements
 import pro.wewed.app.navigation.IANavigationContract
 import pro.wewed.app.navigation.NavigationContext
@@ -40,9 +42,10 @@ import pro.wewed.app.theme.WeddingIdentityPalette
 fun RoleShellScaffold(
     context: NavigationContext,
     onSwitchPersona: (() -> Unit)? = null,
-    /** A deep link / notification target, already parsed but not yet authorized. */
-    requestedDestinationId: String? = null,
-    onRequestedDestinationHandled: (() -> Unit)? = null,
+    /** A parsed but not yet authorized deep link / notification target (P0-8). */
+    pendingDeepLink: NativeDeepLink? = null,
+    sectionMemory: WorkspaceSectionMemory,
+    onDeepLinkHandled: (() -> Unit)? = null,
     content: @Composable (destination: PrimaryDestination, context: NavigationContext) -> Unit
 ) {
     val navigation = remember(context.activeRole) { IANavigationContract.forRole(context.activeRole) }
@@ -51,21 +54,28 @@ fun RoleShellScaffold(
 
     val roleTag = context.activeRole.roleId
 
-    // Deep links land here rather than setting the tab directly, so an external link is gated
-    // by exactly the same check as a tap (IA V2 §14).
-    LaunchedEffect(requestedDestinationId) {
-        val requested = requestedDestinationId ?: return@LaunchedEffect
-        when (val resolution = Entitlements.resolve(context, requested)) {
+    // P0-8: the WHOLE deep link is resolved here — target wedding, destination, Level-2 section
+    // and entity id — through the same gate as a tap. Nothing is discarded before authorization.
+    LaunchedEffect(pendingDeepLink) {
+        val link = pendingDeepLink ?: return@LaunchedEffect
+        when (val resolution = DeepLinkRouter.resolve(link, context)) {
             is Entitlements.Resolution.Allowed -> {
                 denial = null
                 selectedId = resolution.destination.id
+                // Level-2 deep links land on the requested section, not the workspace default.
+                sectionMemory.applyRequested(
+                    context = context,
+                    destinationId = resolution.destination.id,
+                    requested = (link as? NativeDeepLink.Workspace)?.section,
+                    available = resolution.destination.sections
+                )
             }
             is Entitlements.Resolution.Denied -> {
                 denial = resolution
                 selectedId = resolution.safeReturnDestinationId
             }
         }
-        onRequestedDestinationHandled?.invoke()
+        onDeepLinkHandled?.invoke()
     }
 
     // IA V2 §15.2 — tablets promote Level-1 into a navigation rail. The taxonomy is identical;

@@ -1,5 +1,5 @@
 {
-  "contractId": "WW-NATIVE-IA-V2-NAV-2026-09-20-01",
+  "contractId": "WW-NATIVE-IA-V2-NAV-2026-09-20-02",
   "derivedFrom": "docs/native-mobile/WEWED_NATIVE_INFORMATION_ARCHITECTURE_V2.md",
   "specDocumentId": "WW-NATIVE-IA-V2-2026-09-20-01",
   "status": "AUTHORITATIVE",
@@ -14,98 +14,614 @@
   "roles": {
     "couple": {
       "displayName": "Couple",
-      "contextScopes": ["wedding"],
+      "contextScopes": {
+        "wedding": "required"
+      },
       "primary": [
-        { "id": "home", "label": "Home", "sections": [] },
-        { "id": "plan", "label": "Plan", "sections": ["Overview", "Tasks", "Budget", "Contributions", "Vendors", "Seating", "Timeline", "Documents"] },
-        { "id": "guests", "label": "Guests", "sections": ["Guest List", "RSVP", "Invitations", "Groups / Households", "Seating", "Messages", "Passes / QR"] },
-        { "id": "wedding_day", "label": "Wedding Day", "sections": ["My Pass", "Programme", "Venue & Maps", "Key Contacts", "Vendor Status", "Announcements", "Wedding-day Checklist"] },
-        { "id": "more", "label": "More", "sections": ["Wedding Profile", "Our Story", "Gallery", "Honeymoon", "Documents", "Settings", "Help & Support", "Account"] }
+        {
+          "id": "home",
+          "label": "Home",
+          "sections": []
+        },
+        {
+          "id": "plan",
+          "label": "Plan",
+          "sections": [
+            "Overview",
+            "Tasks",
+            "Budget",
+            "Contributions",
+            "Vendors",
+            "Seating",
+            "Timeline",
+            "Documents"
+          ]
+        },
+        {
+          "id": "guests",
+          "label": "Guests",
+          "sections": [
+            "Guest List",
+            "RSVP",
+            "Invitations",
+            "Groups / Households",
+            "Seating",
+            "Messages",
+            "Passes / QR"
+          ]
+        },
+        {
+          "id": "wedding_day",
+          "label": "Wedding Day",
+          "sections": [
+            "My Pass",
+            "Programme",
+            "Venue & Maps",
+            "Key Contacts",
+            "Vendor Status",
+            "Announcements",
+            "Wedding-day Checklist"
+          ]
+        },
+        {
+          "id": "more",
+          "label": "More",
+          "sections": [
+            "Wedding Profile",
+            "Our Story",
+            "Gallery",
+            "Honeymoon",
+            "Documents",
+            "Settings",
+            "Help & Support",
+            "Account"
+          ]
+        }
       ]
     },
     "planner": {
       "displayName": "Professional Planner",
-      "contextScopes": ["wedding", "client"],
+      "contextScopes": {
+        "wedding": "required",
+        "client": "optional"
+      },
       "primary": [
-        { "id": "workspace", "label": "Workspace", "sections": ["Overview", "Tasks", "Budget", "Guests", "Vendors", "Contributions", "Seating", "Timeline", "Documents"] },
-        { "id": "clients", "label": "Clients", "sections": ["Active Weddings", "Upcoming Weddings", "Enquiries", "Archived Weddings", "Client Profiles", "Team Assignment"] },
-        { "id": "daily_ops", "label": "Daily Ops", "sections": ["Today", "Overdue", "Approvals", "Messages", "Upcoming Deadlines", "Vendor Follow-ups", "Guest Issues", "Payments Requiring Attention", "Team Activity"] },
-        { "id": "wedding_day", "label": "Wedding Day", "sections": ["Run Sheet", "Programme", "Gate / Admissions", "Vendor Arrivals", "Coordinator Tasks", "Guest Issues", "Incidents", "Live Notes", "Emergency Contacts", "Offline Status"] },
-        { "id": "more", "label": "More", "sections": ["Team Hub", "Client Profile", "Invitations & QR", "Intelligence", "Files / Documents", "Planner Actions", "Account", "Settings", "Help & Support"] }
+        {
+          "id": "workspace",
+          "label": "Workspace",
+          "sections": [
+            "Overview",
+            "Tasks",
+            "Budget",
+            "Guests",
+            "Vendors",
+            "Contributions",
+            "Seating",
+            "Timeline",
+            "Documents"
+          ]
+        },
+        {
+          "id": "clients",
+          "label": "Clients",
+          "sections": [
+            "Active Weddings",
+            "Upcoming Weddings",
+            "Enquiries",
+            "Archived Weddings",
+            "Client Profiles",
+            "Team Assignment"
+          ]
+        },
+        {
+          "id": "daily_ops",
+          "label": "Daily Ops",
+          "sections": [
+            "Today",
+            "Overdue",
+            "Approvals",
+            "Messages",
+            "Upcoming Deadlines",
+            "Vendor Follow-ups",
+            "Guest Issues",
+            "Payments Requiring Attention",
+            "Team Activity"
+          ]
+        },
+        {
+          "id": "wedding_day",
+          "label": "Wedding Day",
+          "sections": [
+            "Run Sheet",
+            "Programme",
+            "Gate / Admissions",
+            "Vendor Arrivals",
+            "Coordinator Tasks",
+            "Guest Issues",
+            "Incidents",
+            "Live Notes",
+            "Emergency Contacts",
+            "Offline Status"
+          ]
+        },
+        {
+          "id": "more",
+          "label": "More",
+          "sections": [
+            "Team Hub",
+            "Client Profile",
+            "Invitations & QR",
+            "Intelligence",
+            "Files / Documents",
+            "Planner Actions",
+            "Account",
+            "Settings",
+            "Help & Support"
+          ]
+        }
       ]
     },
     "guest": {
       "displayName": "Attending Guest",
-      "contextScopes": ["wedding"],
+      "contextScopes": {
+        "wedding": "required",
+        "guest": "required"
+      },
       "primary": [
-        { "id": "home", "label": "Home", "sections": [] },
-        { "id": "invitation", "label": "Invitation", "sections": ["Invitation", "RSVP", "Party Members", "Dietary / Accessibility", "Message to Couple", "Contribution / Memory"] },
-        { "id": "pass", "label": "Pass", "sections": ["Wedding Pass", "QR", "Party Size", "Table", "Admission State", "Open in Maps"] },
-        { "id": "wedding_day", "label": "Wedding Day", "sections": ["Programme", "Venue", "Maps", "Table", "Announcements", "Contacts", "Gallery / Live Wall"] },
-        { "id": "more", "label": "More", "sections": ["Our Story", "Gallery", "Contribution / Gift Info", "Help", "Account", "Privacy"] }
+        {
+          "id": "home",
+          "label": "Home",
+          "sections": []
+        },
+        {
+          "id": "invitation",
+          "label": "Invitation",
+          "sections": [
+            "Invitation",
+            "RSVP",
+            "Party Members",
+            "Dietary / Accessibility",
+            "Message to Couple",
+            "Contribution / Memory"
+          ]
+        },
+        {
+          "id": "pass",
+          "label": "Pass",
+          "sections": [
+            "Wedding Pass",
+            "QR",
+            "Party Size",
+            "Table",
+            "Admission State",
+            "Open in Maps"
+          ]
+        },
+        {
+          "id": "wedding_day",
+          "label": "Wedding Day",
+          "sections": [
+            "Programme",
+            "Venue",
+            "Maps",
+            "Table",
+            "Announcements",
+            "Contacts",
+            "Gallery / Live Wall"
+          ]
+        },
+        {
+          "id": "more",
+          "label": "More",
+          "sections": [
+            "Our Story",
+            "Gallery",
+            "Contribution / Gift Info",
+            "Help",
+            "Account",
+            "Privacy"
+          ]
+        }
       ]
     },
     "vendor": {
       "displayName": "Vendor & Staff",
-      "contextScopes": ["wedding", "engagement"],
+      "contextScopes": {
+        "wedding": "required",
+        "engagement": "required"
+      },
       "primary": [
-        { "id": "home", "label": "Home", "sections": [] },
-        { "id": "jobs", "label": "Jobs", "sections": ["Service Details", "Deliverables", "Tasks", "Client / Planner Contacts", "Venue", "Contract", "Payment", "Files", "Notes"] },
-        { "id": "schedule", "label": "Schedule", "sections": ["Calendar", "Arrival Time", "Setup", "Service Window", "Breakdown", "Dependencies"] },
-        { "id": "messages", "label": "Messages", "sections": [] },
-        { "id": "more", "label": "More", "sections": ["Company Profile", "Services", "Contracts", "Payments", "Files", "Settings", "Support", "Account"] }
+        {
+          "id": "home",
+          "label": "Home",
+          "sections": []
+        },
+        {
+          "id": "jobs",
+          "label": "Jobs",
+          "sections": [
+            "Service Details",
+            "Deliverables",
+            "Tasks",
+            "Client / Planner Contacts",
+            "Venue",
+            "Contract",
+            "Payment",
+            "Files",
+            "Notes"
+          ]
+        },
+        {
+          "id": "schedule",
+          "label": "Schedule",
+          "sections": [
+            "Calendar",
+            "Arrival Time",
+            "Setup",
+            "Service Window",
+            "Breakdown",
+            "Dependencies"
+          ]
+        },
+        {
+          "id": "messages",
+          "label": "Messages",
+          "sections": []
+        },
+        {
+          "id": "more",
+          "label": "More",
+          "sections": [
+            "Company Profile",
+            "Services",
+            "Contracts",
+            "Payments",
+            "Files",
+            "Settings",
+            "Support",
+            "Account"
+          ]
+        }
       ]
     },
     "usher": {
       "displayName": "Gate Team",
-      "contextScopes": ["wedding", "gate"],
+      "contextScopes": {
+        "wedding": "required",
+        "gate": "required"
+      },
       "primary": [
-        { "id": "scan", "label": "Scan", "sections": [] },
-        { "id": "admissions", "label": "Admissions", "sections": ["Checked In", "Not Arrived", "Partial Parties", "Duplicate Scans", "Exceptions", "Manual Admission"] },
-        { "id": "guests", "label": "Guests", "sections": [] },
-        { "id": "incidents", "label": "Incidents", "sections": ["Admission Exception", "Lost Pass", "Guest Dispute", "Accessibility Assistance", "Security Note", "Coordinator Escalation"] },
-        { "id": "more", "label": "More", "sections": ["Gate Assignment", "Offline Status", "Sync Status", "Venue Map", "Help", "Account"] }
+        {
+          "id": "scan",
+          "label": "Scan",
+          "sections": []
+        },
+        {
+          "id": "admissions",
+          "label": "Admissions",
+          "sections": [
+            "Checked In",
+            "Not Arrived",
+            "Partial Parties",
+            "Duplicate Scans",
+            "Exceptions",
+            "Manual Admission"
+          ]
+        },
+        {
+          "id": "guests",
+          "label": "Guests",
+          "sections": []
+        },
+        {
+          "id": "incidents",
+          "label": "Incidents",
+          "sections": [
+            "Admission Exception",
+            "Lost Pass",
+            "Guest Dispute",
+            "Accessibility Assistance",
+            "Security Note",
+            "Coordinator Escalation"
+          ]
+        },
+        {
+          "id": "more",
+          "label": "More",
+          "sections": [
+            "Gate Assignment",
+            "Offline Status",
+            "Sync Status",
+            "Venue Map",
+            "Help",
+            "Account"
+          ]
+        }
       ]
     },
     "coordinator": {
       "displayName": "Day-of Coordinator",
-      "contextScopes": ["wedding"],
+      "contextScopes": {
+        "wedding": "required"
+      },
       "primary": [
-        { "id": "today", "label": "Today", "sections": [] },
-        { "id": "run_sheet", "label": "Run Sheet", "sections": [] },
-        { "id": "team", "label": "Team", "sections": ["Tasks", "Vendors", "Ushers", "Staff", "Assignments", "Contacts"] },
-        { "id": "wedding_day", "label": "Wedding Day", "sections": ["Gate", "Admissions", "Vendor Arrivals", "Venue Zones", "Incidents", "Announcements", "Programme Status"] },
-        { "id": "more", "label": "More", "sections": ["Documents", "Notes", "Maps", "Offline", "Support", "Account"] }
+        {
+          "id": "today",
+          "label": "Today",
+          "sections": []
+        },
+        {
+          "id": "run_sheet",
+          "label": "Run Sheet",
+          "sections": []
+        },
+        {
+          "id": "team",
+          "label": "Team",
+          "sections": [
+            "Tasks",
+            "Vendors",
+            "Ushers",
+            "Staff",
+            "Assignments",
+            "Contacts"
+          ]
+        },
+        {
+          "id": "wedding_day",
+          "label": "Wedding Day",
+          "sections": [
+            "Gate",
+            "Admissions",
+            "Vendor Arrivals",
+            "Venue Zones",
+            "Incidents",
+            "Announcements",
+            "Programme Status"
+          ]
+        },
+        {
+          "id": "more",
+          "label": "More",
+          "sections": [
+            "Documents",
+            "Notes",
+            "Maps",
+            "Offline",
+            "Support",
+            "Account"
+          ]
+        }
       ]
     },
     "admin": {
       "displayName": "Support / Admin",
-      "contextScopes": ["wedding", "client"],
+      "contextScopes": {
+        "system": "required",
+        "wedding": "optional",
+        "client": "optional"
+      },
       "primary": [
-        { "id": "dashboard", "label": "Dashboard", "sections": [] },
-        { "id": "cases", "label": "Cases", "sections": [] },
-        { "id": "accounts", "label": "Accounts", "sections": ["Couples", "Planners", "Vendors", "Guests", "Access", "Role Memberships"] },
-        { "id": "audit", "label": "Audit", "sections": ["Data Changes", "Access Events", "Payments", "Contracts", "Check-ins", "Admin Actions"] },
-        { "id": "more", "label": "More", "sections": ["System Health", "Integrations", "Templates", "Configuration", "Announcements", "Help", "Admin Profile"] }
+        {
+          "id": "dashboard",
+          "label": "Dashboard",
+          "sections": []
+        },
+        {
+          "id": "cases",
+          "label": "Cases",
+          "sections": []
+        },
+        {
+          "id": "accounts",
+          "label": "Accounts",
+          "sections": [
+            "Couples",
+            "Planners",
+            "Vendors",
+            "Guests",
+            "Access",
+            "Role Memberships"
+          ]
+        },
+        {
+          "id": "audit",
+          "label": "Audit",
+          "sections": [
+            "Data Changes",
+            "Access Events",
+            "Payments",
+            "Contracts",
+            "Check-ins",
+            "Admin Actions"
+          ]
+        },
+        {
+          "id": "more",
+          "label": "More",
+          "sections": [
+            "System Health",
+            "Integrations",
+            "Templates",
+            "Configuration",
+            "Announcements",
+            "Help",
+            "Admin Profile"
+          ]
+        }
       ]
     }
   },
   "capabilities": {
-    "couple": ["plan.read", "plan.write", "tasks.read", "tasks.write", "budget.read", "budget.write", "contributions.read", "vendors.read", "seating.read", "seating.write", "timeline.read", "documents.read", "guests.roster.read", "guests.roster.write", "invitations.send", "weddingday.read", "pass.self", "messages.read", "messages.write", "account.self"],
-    "planner": ["plan.read", "plan.write", "tasks.read", "tasks.write", "budget.read", "budget.write", "contributions.read", "contributions.write", "vendors.read", "vendors.write", "seating.read", "seating.write", "timeline.read", "timeline.write", "documents.read", "documents.write", "guests.roster.read", "guests.roster.write", "invitations.send", "weddingday.read", "weddingday.operate", "gate.admissions.read", "incidents.read", "incidents.write", "clients.read", "clients.write", "dailyops.read", "messages.read", "messages.write", "pass.issue", "account.self"],
-    "guest": ["invitation.self", "rsvp.self", "pass.self", "weddingday.read", "messages.write", "account.self"],
-    "vendor": ["vendor.jobs.own", "vendor.schedule.own", "vendor.contract.own", "vendor.payment.own", "vendor.files.own", "messages.read", "messages.write", "account.self"],
-    "usher": ["gate.scan", "gate.admissions.read", "gate.admissions.write", "guests.operational.read", "incidents.read", "incidents.write", "weddingday.read", "account.self"],
-    "coordinator": ["weddingday.read", "weddingday.operate", "timeline.read", "timeline.write", "tasks.read", "tasks.write", "vendors.read", "gate.admissions.read", "incidents.read", "incidents.write", "team.read", "team.write", "documents.read", "messages.read", "messages.write", "account.self"],
-    "admin": ["admin.dashboard", "admin.cases.read", "admin.cases.write", "admin.accounts.read", "admin.accounts.write", "admin.audit.read", "admin.system.read", "admin.config.write", "account.self"]
+    "couple": [
+      "plan.read",
+      "plan.write",
+      "tasks.read",
+      "tasks.write",
+      "budget.read",
+      "budget.write",
+      "contributions.read",
+      "vendors.read",
+      "seating.read",
+      "seating.write",
+      "timeline.read",
+      "documents.read",
+      "guests.roster.read",
+      "guests.roster.write",
+      "invitations.send",
+      "weddingday.read",
+      "pass.self",
+      "messages.read",
+      "messages.write",
+      "account.self"
+    ],
+    "planner": [
+      "plan.read",
+      "plan.write",
+      "tasks.read",
+      "tasks.write",
+      "budget.read",
+      "budget.write",
+      "contributions.read",
+      "contributions.write",
+      "vendors.read",
+      "vendors.write",
+      "seating.read",
+      "seating.write",
+      "timeline.read",
+      "timeline.write",
+      "documents.read",
+      "documents.write",
+      "guests.roster.read",
+      "guests.roster.write",
+      "invitations.send",
+      "weddingday.read",
+      "weddingday.operate",
+      "gate.admissions.read",
+      "incidents.read",
+      "incidents.write",
+      "clients.read",
+      "clients.write",
+      "dailyops.read",
+      "messages.read",
+      "messages.write",
+      "pass.issue",
+      "account.self"
+    ],
+    "guest": [
+      "invitation.self",
+      "rsvp.self",
+      "pass.self",
+      "weddingday.read",
+      "messages.write",
+      "account.self"
+    ],
+    "vendor": [
+      "vendor.jobs.own",
+      "vendor.schedule.own",
+      "vendor.contract.own",
+      "vendor.payment.own",
+      "vendor.files.own",
+      "messages.read",
+      "messages.write",
+      "account.self"
+    ],
+    "usher": [
+      "gate.scan",
+      "gate.admissions.read",
+      "gate.admissions.write",
+      "guests.operational.read",
+      "incidents.read",
+      "incidents.write",
+      "weddingday.read",
+      "account.self"
+    ],
+    "coordinator": [
+      "weddingday.read",
+      "weddingday.operate",
+      "timeline.read",
+      "timeline.write",
+      "tasks.read",
+      "tasks.write",
+      "vendors.read",
+      "gate.admissions.read",
+      "incidents.read",
+      "incidents.write",
+      "team.read",
+      "team.write",
+      "documents.read",
+      "messages.read",
+      "messages.write",
+      "account.self"
+    ],
+    "admin": [
+      "admin.dashboard",
+      "admin.cases.read",
+      "admin.cases.write",
+      "admin.accounts.read",
+      "admin.accounts.write",
+      "admin.audit.read",
+      "admin.system.read",
+      "admin.config.write",
+      "account.self"
+    ]
   },
   "deniedCapabilityAssertions": {
-    "guest": ["guests.roster.read", "budget.read", "plan.read", "clients.read", "admin.dashboard", "vendor.jobs.own", "gate.scan", "contributions.read"],
-    "vendor": ["guests.roster.read", "budget.read", "plan.read", "clients.read", "admin.dashboard", "gate.scan", "contributions.read"],
-    "usher": ["budget.read", "plan.read", "contributions.read", "clients.read", "admin.dashboard", "guests.roster.read"],
-    "coordinator": ["budget.read", "contributions.read", "clients.read", "admin.dashboard", "guests.roster.write"],
-    "couple": ["clients.read", "admin.dashboard", "admin.audit.read", "gate.scan"],
-    "planner": ["admin.dashboard", "admin.audit.read", "admin.accounts.write"],
-    "admin": ["budget.write", "plan.write", "gate.scan", "pass.issue"]
+    "guest": [
+      "guests.roster.read",
+      "budget.read",
+      "plan.read",
+      "clients.read",
+      "admin.dashboard",
+      "vendor.jobs.own",
+      "gate.scan",
+      "contributions.read"
+    ],
+    "vendor": [
+      "guests.roster.read",
+      "budget.read",
+      "plan.read",
+      "clients.read",
+      "admin.dashboard",
+      "gate.scan",
+      "contributions.read"
+    ],
+    "usher": [
+      "budget.read",
+      "plan.read",
+      "contributions.read",
+      "clients.read",
+      "admin.dashboard",
+      "guests.roster.read"
+    ],
+    "coordinator": [
+      "budget.read",
+      "contributions.read",
+      "clients.read",
+      "admin.dashboard",
+      "guests.roster.write"
+    ],
+    "couple": [
+      "clients.read",
+      "admin.dashboard",
+      "admin.audit.read",
+      "gate.scan"
+    ],
+    "planner": [
+      "admin.dashboard",
+      "admin.audit.read",
+      "admin.accounts.write"
+    ],
+    "admin": [
+      "budget.write",
+      "plan.write",
+      "gate.scan",
+      "pass.issue"
+    ]
+  },
+  "scopeRequirements": {
+    "required": "Must be resolved from a verified actor relationship before the workspace opens.",
+    "optional": "Selectable when a relationship exists; absent means unselected, not invalid.",
+    "system": "Global administrative scope; not tied to a single wedding."
   }
 }

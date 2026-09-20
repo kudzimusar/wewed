@@ -82,6 +82,14 @@ data class DevelopmentPersona(
                 weddingTitle = "Charity & Kudzie"
             ),
             DevelopmentPersona(
+                id = "attending_guest_party4",
+                name = "Shadow Guest Test Role (party of four)",
+                subtitle = "SHADOW TEST-ONLY • Second attending guest",
+                role = AppRole.GUEST,
+                weddingId = "cmqos70cb0004q6vxe9g9aiu5",
+                weddingTitle = "Charity & Kudzie"
+            ),
+            DevelopmentPersona(
                 id = "administrator",
                 name = "Shadow Admin Test Role",
                 subtitle = "SHADOW TEST-ONLY • Platform Admin",

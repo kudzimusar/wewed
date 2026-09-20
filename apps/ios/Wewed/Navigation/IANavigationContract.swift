@@ -52,7 +52,7 @@ public struct RoleNavigation: Equatable, Sendable {
 
 public enum IANavigationContract {
 
-    public static let contractId = "WW-NATIVE-IA-V2-NAV-2026-09-20-01"
+    public static let contractId = "WW-NATIVE-IA-V2-NAV-2026-09-20-02"
 
     private static let couple = RoleNavigation(
         role: .couple,

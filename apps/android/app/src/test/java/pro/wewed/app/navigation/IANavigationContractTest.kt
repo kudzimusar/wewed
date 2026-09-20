@@ -95,13 +95,23 @@ class IANavigationContractTest {
     }
 
     @Test
-    fun `context scopes match the shared contract`() {
+    fun `context scopes and their requirements match the shared contract`() {
         IANavigationContract.all.forEach { (role, navigation) ->
+            val expected = jsonRole(role.roleId).getJSONObject("contextScopes")
+            val expectedScopes = expected.keys().asSequence().toSet()
             assertEquals(
                 "Context scopes diverged for ${role.roleId}",
-                jsonList(jsonRole(role.roleId), "contextScopes"),
-                navigation.contextScopes.map { it.key }
+                expectedScopes,
+                navigation.contextScopes.map { it.key }.toSet()
             )
+            expectedScopes.forEach { scopeKey ->
+                val scope = ContextScope.entries.first { it.key == scopeKey }
+                assertEquals(
+                    "Scope requirement diverged for ${role.roleId}/$scopeKey",
+                    ScopeRequirement.fromKey(expected.getString(scopeKey)),
+                    navigation.requirement(scope)
+                )
+            }
         }
     }
 
@@ -174,12 +184,31 @@ class IANavigationContractTest {
     }
 
     @Test
-    fun `every role declares the wedding context scope`() {
+    fun `every wedding-scoped role requires a wedding, and Admin does not`() {
+        // P0-15: Admin is a system-scope console. Requiring a wedding to open Admin Dashboard was
+        // exactly what forced a fabricated Charity & Kudzie context.
         IANavigationContract.all.forEach { (role, navigation) ->
-            assertTrue(
-                "${role.roleId} must operate within a wedding context",
-                navigation.contextScopes.contains(ContextScope.WEDDING)
-            )
+            if (role == AppRole.ADMIN) {
+                assertTrue("Admin must be system-scoped", navigation.isSystemScoped)
+                assertFalse(
+                    "Admin must not require a wedding",
+                    navigation.requiredScopes.contains(ContextScope.WEDDING)
+                )
+            } else {
+                assertTrue(
+                    "${role.roleId} must require a wedding context",
+                    navigation.requiredScopes.contains(ContextScope.WEDDING)
+                )
+            }
         }
+    }
+
+    @Test
+    fun `roles with a sub-scope declare it as required rather than optional`() {
+        // A vendor without an engagement, an usher without a gate and a guest without an identity
+        // must not be treated as authorized (P0-3).
+        assertTrue(IANavigationContract.forRole(AppRole.VENDOR).requiredScopes.contains(ContextScope.ENGAGEMENT))
+        assertTrue(IANavigationContract.forRole(AppRole.USHER).requiredScopes.contains(ContextScope.GATE))
+        assertTrue(IANavigationContract.forRole(AppRole.GUEST).requiredScopes.contains(ContextScope.GUEST))
     }
 }

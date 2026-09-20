@@ -15,15 +15,8 @@ import pro.wewed.app.models.NativeDataEnvironment
  */
 class RoleJourneyTest {
 
-    private fun context(role: AppRole) = NavigationContext(
-        actorId = "actor_journey",
-        activeRole = role,
-        activeWeddingId = "cmqos70cb0004q6vxe9g9aiu5",
-        activeWeddingTitle = "Charity & Kudzie",
-        environment = NativeDataEnvironment.PRIVATE_REAL_SHADOW,
-        activeClientId = "cmqos70cb0004q6vxe9g9aiu5",
-        activeGateId = "Gate A — Main Entrance"
-    )
+    private fun context(role: AppRole) =
+        AuthorizedContexts.authorized(role, NativeDataEnvironment.PRIVATE_REAL_SHADOW)
 
     /** Walks destinations, asserting each resolves and never changes the wedding identity. */
     private fun walk(role: AppRole, vararg destinationIds: String) {
@@ -129,7 +122,7 @@ class RoleJourneyTest {
     fun `private real shadow environment still resolves every role journey`() {
         // Shadow qualification must exercise the same routes as fixture (playbook §23).
         IANavigationContract.all.forEach { (role, navigation) ->
-            val shadowContext = context(role).copy(environment = NativeDataEnvironment.PRIVATE_REAL_SHADOW)
+            val shadowContext = context(role)
             navigation.primary.forEach { destination ->
                 val resolution = Entitlements.resolve(shadowContext, destination.id)
                 assertTrue(
@@ -143,10 +136,10 @@ class RoleJourneyTest {
     @Test
     fun `wedding identity survives an entire multi role journey`() {
         // Simulates switching roles on the same wedding, as a planner-owned account would.
-        var ctx = context(AppRole.PLANNER)
-        val original = ctx.activeWeddingId
+        val original = AuthorizedContexts.WEDDING
         listOf(AppRole.PLANNER, AppRole.COORDINATOR, AppRole.USHER, AppRole.COUPLE).forEach { role ->
-            ctx = ctx.withRole(role)
+            // Each role re-resolves its own assignment; nothing is inherited from the previous role.
+            val ctx = context(role)
             IANavigationContract.forRole(role).primary.forEach { destination ->
                 val resolution = Entitlements.resolve(ctx, destination.id)
                 assertTrue(

@@ -30,14 +30,8 @@ class EntitlementsTest {
 
     private fun contextFor(
         role: AppRole,
-        weddingId: String = "cmqos70cb0004q6vxe9g9aiu5"
-    ) = NavigationContext(
-        actorId = "actor_test",
-        activeRole = role,
-        activeWeddingId = weddingId,
-        activeWeddingTitle = "Charity & Kudzie",
-        environment = NativeDataEnvironment.FIXTURE
-    )
+        weddingId: String = AuthorizedContexts.WEDDING
+    ) = AuthorizedContexts.authorized(role, weddingId = weddingId)
 
     @Test
     fun `granted capabilities match the shared contract`() {
@@ -116,7 +110,10 @@ class EntitlementsTest {
 
     @Test
     fun `a missing active wedding blocks every repository-backed destination`() {
-        val resolution = Entitlements.resolve(contextFor(AppRole.COUPLE, weddingId = ""), "plan")
+        val resolution = Entitlements.resolve(
+            contextFor(AppRole.COUPLE).copy(activeWeddingId = ""),
+            "plan"
+        )
         assertTrue(
             "A blank active wedding must not resolve to a repository-backed workspace",
             resolution is Entitlements.Resolution.Denied
@@ -143,7 +140,10 @@ class EntitlementsTest {
 
     @Test
     fun `switching wedding keeps the new identity across the whole workspace`() {
-        val switched = contextFor(AppRole.PLANNER).withWedding("wed_other_001", "Other Wedding")
+        val base = contextFor(AppRole.PLANNER)
+        // A wedding switch invalidates the old assignment, so the new wedding must be re-authorized.
+        val switched = base.withWedding("wed_other_001", "Other Wedding")
+            .copy(assignment = AuthorizedContexts.assignment(AppRole.PLANNER, base.actorId, "wed_other_001"))
         IANavigationContract.forRole(AppRole.PLANNER).primary.forEach { destination ->
             val resolution = Entitlements.resolve(switched, destination.id)
             val allowed = resolution as Entitlements.Resolution.Allowed
@@ -174,6 +174,8 @@ class EntitlementsTest {
         val context = contextFor(AppRole.COORDINATOR).copy(activeGateId = "Gate A")
         val asUsher = context.withRole(AppRole.USHER)
         assertEquals("Gate A", asUsher.activeGateId)
+        // The previous role's assignment must not carry over as authorization.
+        assertNull(asUsher.assignment)
     }
 
     @Test
