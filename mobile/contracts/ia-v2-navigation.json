@@ -1,5 +1,5 @@
 {
-  "contractId": "WW-NATIVE-IA-V2-NAV-2026-09-20-02",
+  "contractId": "WW-NATIVE-IA-V2-NAV-2026-09-20-03",
   "derivedFrom": "docs/native-mobile/WEWED_NATIVE_INFORMATION_ARCHITECTURE_V2.md",
   "specDocumentId": "WW-NATIVE-IA-V2-2026-09-20-01",
   "status": "AUTHORITATIVE",
@@ -228,7 +228,8 @@
       "displayName": "Vendor & Staff",
       "contextScopes": {
         "wedding": "required",
-        "engagement": "required"
+        "vendor": "required",
+        "engagement": "optional"
       },
       "primary": [
         {

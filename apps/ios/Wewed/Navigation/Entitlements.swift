@@ -121,6 +121,7 @@ public enum Entitlements {
             switch declaration.scope {
             case .wedding: authorized = assignment.weddingId
             case .client: authorized = assignment.clientId
+            case .vendor: authorized = assignment.vendorId
             case .engagement: authorized = assignment.engagementId
             case .gate: authorized = assignment.gateId
             case .guest: authorized = assignment.guestId
@@ -177,6 +178,7 @@ public enum Entitlements {
         switch scope {
         case .wedding: return "No active wedding is selected for this workspace."
         case .client: return "No client is selected for this \(roleName) workspace."
+        case .vendor: return "This account is not linked to a vendor on this wedding."
         case .engagement: return "You have no assigned engagement for this wedding."
         case .gate: return "You have no gate assignment for this wedding."
         case .guest: return "No guest invitation is bound to this session."

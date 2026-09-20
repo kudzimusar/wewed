@@ -762,10 +762,18 @@ fun VendorScheduleSection(
  * Returns null when no engagement is bound, so the caller renders an honest empty state instead
  * of another vendor's engagement.
  */
-fun NavigationContext.authorizedEngagement(graph: WeddingGraphState): VendorPresence? {
-    val engagementId = activeEngagementId ?: return null
-    return graph.vendors.firstOrNull { it.id == engagementId }
+fun NavigationContext.authorizedVendor(graph: WeddingGraphState): VendorPresence? {
+    val vendorId = activeVendorId ?: return null
+    return graph.vendors.firstOrNull { it.id == vendorId }
 }
+
+/**
+ * Backwards-compatible alias used by the vendor workspaces, which present the vendor's own
+ * presence record. The *service engagement* is a separate entity resolved from the planner
+ * projection by [NavigationContext.activeEngagementId].
+ */
+fun NavigationContext.authorizedEngagement(graph: WeddingGraphState): VendorPresence? =
+    authorizedVendor(graph)
 
 /**
  * The guest record this context is bound to (P0-4).

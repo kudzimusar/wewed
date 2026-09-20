@@ -124,6 +124,7 @@ object Entitlements {
             val authorized = when (declaration.scope) {
                 ContextScope.WEDDING -> assignment.weddingId
                 ContextScope.CLIENT -> assignment.clientId
+                ContextScope.VENDOR -> assignment.vendorId
                 ContextScope.ENGAGEMENT -> assignment.engagementId
                 ContextScope.GATE -> assignment.gateId
                 ContextScope.GUEST -> assignment.guestId
@@ -181,6 +182,7 @@ object Entitlements {
     private fun missingScopeReason(roleName: String, scope: ContextScope): String = when (scope) {
         ContextScope.WEDDING -> "No active wedding is selected for this workspace."
         ContextScope.CLIENT -> "No client is selected for this $roleName workspace."
+        ContextScope.VENDOR -> "This account is not linked to a vendor on this wedding."
         ContextScope.ENGAGEMENT -> "You have no assigned engagement for this wedding."
         ContextScope.GATE -> "You have no gate assignment for this wedding."
         ContextScope.GUEST -> "No guest invitation is bound to this session."

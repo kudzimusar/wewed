@@ -137,6 +137,8 @@ public struct PlannerContributionRecord: Identifiable, Codable, Equatable, Senda
 
 public struct PlannerVendorEngagement: Identifiable, Codable, Equatable, Sendable {
     public let id: String
+    /// The vendor this engagement belongs to; nil when the source does not record the link.
+    public let vendorId: String?
     public let vendorName: String
     public let category: String
     public let bookingStatus: String
@@ -144,14 +146,23 @@ public struct PlannerVendorEngagement: Identifiable, Codable, Equatable, Sendabl
     public let paymentStatus: String
     public let nextAction: String
 
-    public init(id: String, vendorName: String, category: String, bookingStatus: String, contractStatus: String, paymentStatus: String, nextAction: String) {
+    public init(id: String, vendorId: String? = nil, vendorName: String, category: String, bookingStatus: String, contractStatus: String, paymentStatus: String, nextAction: String) {
         self.id = id
+        self.vendorId = vendorId
         self.vendorName = vendorName
         self.category = category
         self.bookingStatus = bookingStatus
         self.contractStatus = contractStatus
         self.paymentStatus = paymentStatus
         self.nextAction = nextAction
+    }
+
+    /// True when this is a historical/record-only capture rather than a live managed contract.
+    /// In the Private Real Shadow graph 7 of 8 engagements are historical; erasing that
+    /// distinction would present archived work as current.
+    public var isRecordOnly: Bool {
+        bookingStatus.range(of: "historical", options: .caseInsensitive) != nil
+            || bookingStatus.range(of: "record only", options: .caseInsensitive) != nil
     }
 }
 

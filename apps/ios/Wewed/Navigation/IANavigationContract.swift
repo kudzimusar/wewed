@@ -28,6 +28,8 @@ public struct PrimaryDestination: Equatable, Identifiable, Sendable {
 public enum ContextScope: String, Equatable, Sendable {
     case wedding
     case client
+    /// The vendor company (P0-9).
+    case vendor
     case engagement
     case gate
     /// Which guest record the actor *is* (P0-4).
@@ -70,7 +72,7 @@ public struct RoleNavigation: Equatable, Sendable {
 
 public enum IANavigationContract {
 
-    public static let contractId = "WW-NATIVE-IA-V2-NAV-2026-09-20-02"
+    public static let contractId = "WW-NATIVE-IA-V2-NAV-2026-09-20-03"
 
     private static let couple = RoleNavigation(
         role: .couple,
@@ -153,7 +155,13 @@ public enum IANavigationContract {
     private static let vendor = RoleNavigation(
         role: .vendor,
         displayName: "Vendor & Staff",
-        scopes: [ScopeDeclaration(.wedding, .required), ScopeDeclaration(.engagement, .required)],
+        scopes: [
+            ScopeDeclaration(.wedding, .required),
+            // The vendor company must be known; a specific engagement is selectable, because a
+            // vendor may hold several and some are historical records rather than live work.
+            ScopeDeclaration(.vendor, .required),
+            ScopeDeclaration(.engagement, .optional)
+        ],
         primary: [
             PrimaryDestination(id: "home", label: "Home"),
             PrimaryDestination(

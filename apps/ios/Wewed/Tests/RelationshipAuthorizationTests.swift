@@ -32,21 +32,21 @@ final class RelationshipAuthorizationTests: XCTestCase {
         XCTAssertTrue(reason.lowercased().contains("not assigned"))
     }
 
-    func testVendorWithWrongEngagementIsDenied() {
+    func testVendorWithWrongVendorIdentityIsDenied() {
         let context = AuthorizedContexts.mutate(
             AuthorizedContexts.authorized(.vendor),
-            engagementId: .some(AuthorizedContexts.otherEngagement)
+            vendorId: .some(AuthorizedContexts.otherVendor)
         )
         denied(context, "jobs")
     }
 
-    func testVendorWithNoEngagementIsDeniedRatherThanDefaulted() {
+    func testVendorWithNoVendorIdentityIsDeniedRatherThanDefaulted() {
         let context = AuthorizedContexts.mutate(
             AuthorizedContexts.authorized(.vendor),
-            engagementId: .some(nil)
+            vendorId: .some(nil)
         )
         let reason = denied(context, "jobs")
-        XCTAssertTrue(reason.lowercased().contains("engagement"))
+        XCTAssertTrue(reason.lowercased().contains("vendor"))
     }
 
     func testGuestBoundToDifferentGuestRecordIsDenied() {
@@ -126,9 +126,11 @@ final class RelationshipAuthorizationTests: XCTestCase {
         let vendorAssignments = await source.assignments(actorId: "vendor_owner")
         let vendor = try XCTUnwrap(vendorAssignments.first)
         let scoped = try await repository.forOnlyWedding()
-        let engagements = try await scoped.getVendors().map(\.id)
-        let engagementId = try XCTUnwrap(vendor.engagementId)
-        XCTAssertTrue(engagements.contains(engagementId))
+        // The assignment must name a real VENDOR on the wedding; the engagement is a separate
+        // entity and may legitimately be nil when the vendor holds several or none.
+        let vendorIds = try await scoped.getVendors().map(\.id)
+        let vendorId = try XCTUnwrap(vendor.vendorId)
+        XCTAssertTrue(vendorIds.contains(vendorId))
     }
 
     func testShadowSourceNeverSetsClientIdToWeddingId() async throws {

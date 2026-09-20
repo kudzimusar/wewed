@@ -9,6 +9,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import pro.wewed.app.models.AppRole
 import pro.wewed.app.models.NativeDataEnvironment
+import pro.wewed.app.services.ShadowReferencePlannerRepository
 import pro.wewed.app.services.ShadowReferenceWeddingRepository
 import pro.wewed.app.services.forOnlyWedding
 
@@ -49,17 +50,17 @@ class RelationshipAuthorizationTest {
     }
 
     @Test
-    fun `vendor holding the wrong engagement is denied`() {
+    fun `vendor holding the wrong vendor identity is denied`() {
         val context = AuthorizedContexts.authorized(AppRole.VENDOR)
-            .copy(activeEngagementId = AuthorizedContexts.OTHER_ENGAGEMENT)
+            .copy(activeVendorId = AuthorizedContexts.OTHER_VENDOR)
         denied(context, "jobs")
     }
 
     @Test
-    fun `vendor with no engagement at all is denied rather than defaulted`() {
-        val context = AuthorizedContexts.authorized(AppRole.VENDOR).copy(activeEngagementId = null)
+    fun `vendor with no vendor identity is denied rather than defaulted`() {
+        val context = AuthorizedContexts.authorized(AppRole.VENDOR).copy(activeVendorId = null)
         val denial = denied(context, "jobs")
-        assertTrue(denial.reason.contains("engagement", ignoreCase = true))
+        assertTrue(denial.reason.contains("vendor", ignoreCase = true))
     }
 
     @Test
@@ -132,12 +133,13 @@ class RelationshipAuthorizationTest {
     @Test
     fun `shadow assignment source resolves vendor engagement from the repository`() = runBlocking {
         val repository = ShadowReferenceWeddingRepository()
-        val source = ShadowActorAssignmentSource(repository, NativeDataEnvironment.SANITIZED_SHADOW)
+        val source = ShadowActorAssignmentSource(repository, NativeDataEnvironment.SANITIZED_SHADOW, ShadowReferencePlannerRepository())
         val vendorAssignment = source.assignments("vendor_owner").firstOrNull()
-        assertNotNull("FAUME MEDIA has a recorded engagement on this wedding", vendorAssignment)
-        // The engagement id must be a real VendorPresence on the wedding, not a placeholder.
-        val engagements = repository.forOnlyWedding().getVendors().map { it.id }
-        assertTrue(engagements.contains(vendorAssignment!!.engagementId))
+        assertNotNull("FAUME MEDIA is a recorded vendor on this wedding", vendorAssignment)
+        // The assignment must name a real VENDOR on the wedding; the engagement is a separate
+        // entity and may legitimately be null when the vendor holds several or none (P0-9).
+        val vendorIds = repository.forOnlyWedding().getVendors().map { it.id }
+        assertTrue(vendorIds.contains(vendorAssignment!!.vendorId))
     }
 
     @Test

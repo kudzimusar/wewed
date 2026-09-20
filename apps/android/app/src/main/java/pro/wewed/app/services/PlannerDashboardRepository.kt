@@ -62,10 +62,10 @@ class FixturePlannerDashboardRepository : PlannerDashboardRepository {
     )
 
     override suspend fun getVendorEngagements(): List<PlannerVendorEngagement> = listOf(
-        PlannerVendorEngagement("vendor_1", "Shadow Venue Partner", "Venue & Catering", "Booked", "Signed", "Balance due", "Confirm final headcount"),
-        PlannerVendorEngagement("vendor_2", "Shadow Visuals", "Photography & Video", "Booked", "Signed", "Paid", "Confirm shot list"),
-        PlannerVendorEngagement("vendor_3", "Shadow Events", "Decor & Florals", "Booked", "Needs review", "Deposit paid", "Approve floral substitutions"),
-        PlannerVendorEngagement("vendor_4", "Shadow Sound", "Music & Sound", "Booked", "Signed", "Balance pending", "Lock reception playlist")
+        PlannerVendorEngagement(id = "vendor_1", vendorId = "vendor_1", vendorName = "Shadow Venue Partner", category = "Venue & Catering", bookingStatus = "Booked", contractStatus = "Signed", paymentStatus = "Balance due", nextAction = "Confirm final headcount"),
+        PlannerVendorEngagement(id = "vendor_2", vendorId = "vendor_2", vendorName = "Shadow Visuals", category = "Photography & Video", bookingStatus = "Booked", contractStatus = "Signed", paymentStatus = "Paid", nextAction = "Confirm shot list"),
+        PlannerVendorEngagement(id = "vendor_3", vendorId = "vendor_3", vendorName = "Shadow Events", category = "Decor & Florals", bookingStatus = "Booked", contractStatus = "Needs review", paymentStatus = "Deposit paid", nextAction = "Approve floral substitutions"),
+        PlannerVendorEngagement(id = "vendor_4", vendorId = "vendor_4", vendorName = "Shadow Sound", category = "Music & Sound", bookingStatus = "Booked", contractStatus = "Signed", paymentStatus = "Balance pending", nextAction = "Lock reception playlist")
     )
 
     override suspend fun getSeatingTables(): List<PlannerSeatingTable> = listOf(

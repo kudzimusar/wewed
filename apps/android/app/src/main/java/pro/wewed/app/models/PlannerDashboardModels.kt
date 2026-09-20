@@ -63,15 +63,32 @@ data class PlannerContributionRecord(
     val verified: Boolean
 )
 
+/**
+ * One **service engagement** — a contracted or recorded piece of work on a wedding.
+ *
+ * A vendor may hold several engagements, so [id] (the engagement) and [vendorId] (the company)
+ * are deliberately separate. Conflating them is unsafe the moment one vendor appears twice.
+ */
 data class PlannerVendorEngagement(
     val id: String,
+    /** The vendor this engagement belongs to; null when the source does not record the link. */
+    val vendorId: String? = null,
     val vendorName: String,
     val category: String,
     val bookingStatus: String,
     val contractStatus: String,
     val paymentStatus: String,
     val nextAction: String
-)
+) {
+    /**
+     * True when this is a historical/record-only capture rather than a live managed contract.
+     * In the Private Real Shadow graph 7 of 8 engagements are historical; erasing that
+     * distinction would present archived work as current.
+     */
+    val isRecordOnly: Boolean
+        get() = bookingStatus.contains("historical", ignoreCase = true) ||
+            bookingStatus.contains("record only", ignoreCase = true)
+}
 
 data class PlannerSeatingTable(
     val id: String,

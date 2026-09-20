@@ -183,9 +183,12 @@ final class IANavigationContractTests: XCTestCase {
     }
 
     func testRolesWithASubScopeDeclareItRequired() {
-        // A vendor without an engagement, an usher without a gate and a guest without an identity
-        // must not be treated as authorized (P0-3).
-        XCTAssertTrue(IANavigationContract.forRole(.vendor).requiredScopes.contains(.engagement))
+        // A vendor without a vendor identity, an usher without a gate and a guest without an
+        // identity must not be treated as authorized (P0-3). The vendor's *service engagement* is
+        // optional by design: a vendor may hold several engagements or none, and most in the
+        // Private Real Shadow graph are historical records rather than live work (P0-9).
+        XCTAssertTrue(IANavigationContract.forRole(.vendor).requiredScopes.contains(.vendor))
+        XCTAssertEqual(IANavigationContract.forRole(.vendor).requirement(.engagement), .optional)
         XCTAssertTrue(IANavigationContract.forRole(.usher).requiredScopes.contains(.gate))
         XCTAssertTrue(IANavigationContract.forRole(.guest).requiredScopes.contains(.guest))
     }

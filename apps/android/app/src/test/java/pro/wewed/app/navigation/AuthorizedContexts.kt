@@ -13,7 +13,9 @@ object AuthorizedContexts {
 
     const val WEDDING = "cmqos70cb0004q6vxe9g9aiu5"
     const val OTHER_WEDDING = "wed_other_001"
-    const val ENGAGEMENT = "shadow_vnd_06"
+    const val VENDOR = "shadow_vnd_06"
+    const val OTHER_VENDOR = "shadow_vnd_02"
+    const val ENGAGEMENT = "shadow_eng_06"
     const val OTHER_ENGAGEMENT = "shadow_vnd_02"
     const val GATE = "gate_main_entrance"
     const val OTHER_GATE = "gate_side_entrance"
@@ -29,6 +31,7 @@ object AuthorizedContexts {
         actorId = actorId,
         role = role,
         weddingId = if (role == AppRole.ADMIN) null else weddingId,
+        vendorId = if (role == AppRole.VENDOR) VENDOR else null,
         engagementId = if (role == AppRole.VENDOR) ENGAGEMENT else null,
         gateId = if (role == AppRole.USHER) GATE else null,
         guestId = if (role == AppRole.GUEST) GUEST else null,
@@ -51,6 +54,7 @@ object AuthorizedContexts {
             activeWeddingTitle = if (systemScoped) "" else "Charity & Kudzie",
             environment = environment,
             activeClientId = a.clientId,
+            activeVendorId = a.vendorId,
             activeEngagementId = a.engagementId,
             activeGateId = a.gateId,
             activeGuestId = a.guestId,

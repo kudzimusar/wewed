@@ -569,8 +569,10 @@ struct VendorHomeContent: View {
         if graph.loading {
             IALoading()
         } else {
-            let engagement = graph.vendors.first { $0.id == context.activeEngagementId } ?? graph.vendors.first
-            IASectionList("Home", engagement?.vendorName ?? "No assigned engagement") {
+            // P0-10: resolve the authorized vendor only. Falling back to the first vendor would
+            // show another company's job to make the page look populated.
+            let engagement = context.authorizedVendor(graph)
+            IASectionList("Home", engagement?.vendorName ?? "No vendor assigned") {
                 if let engagement {
                     IACard(
                         "Today's job",
@@ -587,7 +589,10 @@ struct VendorHomeContent: View {
                         trailing: "Not recorded"
                     )
                 } else {
-                    IACard("No engagement assigned", "This vendor has no recorded engagement for the active wedding.")
+                    IACard(
+                        "No vendor assigned",
+                        "This account is not linked to a vendor on the active wedding, so no job can be shown."
+                    )
                 }
             }
         }

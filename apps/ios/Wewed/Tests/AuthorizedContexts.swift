@@ -9,7 +9,9 @@ enum AuthorizedContexts {
 
     static let wedding = "cmqos70cb0004q6vxe9g9aiu5"
     static let otherWedding = "wed_other_001"
-    static let engagement = "shadow_vnd_06"
+    static let vendor = "shadow_vnd_06"
+    static let otherVendor = "shadow_vnd_02"
+    static let engagement = "shadow_eng_06"
     static let otherEngagement = "shadow_vnd_02"
     static let gate = "gate_main_entrance"
     static let otherGate = "gate_side_entrance"
@@ -26,6 +28,7 @@ enum AuthorizedContexts {
             actorId: actorId ?? "actor_\(role.roleId)",
             role: role,
             weddingId: role == .admin ? nil : weddingId,
+            vendorId: role == .vendor ? vendor : nil,
             engagementId: role == .vendor ? engagement : nil,
             gateId: role == .usher ? gate : nil,
             guestId: role == .guest ? guest : nil,
@@ -49,6 +52,7 @@ enum AuthorizedContexts {
             activeWeddingTitle: systemScoped ? "" : "Charity & Kudzie",
             environment: environment,
             activeClientId: a.clientId,
+            activeVendorId: a.vendorId,
             activeEngagementId: a.engagementId,
             activeGateId: a.gateId,
             activeGuestId: a.guestId,
@@ -63,7 +67,8 @@ enum AuthorizedContexts {
         return NavigationContext(
             actorId: c.actorId, activeRole: c.activeRole, activeWeddingId: c.activeWeddingId,
             activeWeddingTitle: c.activeWeddingTitle, environment: c.environment,
-            activeClientId: c.activeClientId, activeEngagementId: c.activeEngagementId,
+            activeClientId: c.activeClientId, activeVendorId: c.activeVendorId,
+            activeEngagementId: c.activeEngagementId,
             activeGateId: c.activeGateId, activeGuestId: c.activeGuestId,
             activePassToken: c.activePassToken, assignment: nil
         )
@@ -73,6 +78,7 @@ enum AuthorizedContexts {
     static func mutate(
         _ c: NavigationContext,
         weddingId: String? = nil,
+        vendorId: String?? = nil,
         engagementId: String?? = nil,
         gateId: String?? = nil,
         guestId: String?? = nil,
@@ -85,6 +91,7 @@ enum AuthorizedContexts {
             activeWeddingTitle: c.activeWeddingTitle,
             environment: c.environment,
             activeClientId: c.activeClientId,
+            activeVendorId: vendorId ?? c.activeVendorId,
             activeEngagementId: engagementId ?? c.activeEngagementId,
             activeGateId: gateId ?? c.activeGateId,
             activeGuestId: guestId ?? c.activeGuestId,

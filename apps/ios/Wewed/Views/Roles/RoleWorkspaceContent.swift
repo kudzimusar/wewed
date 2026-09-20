@@ -519,6 +519,13 @@ extension WeddingDaySection where PassContent == EmptyView {
 }
 
 public extension NavigationContext {
+    /// The vendor company this account is authorized for (P0-9/P0-10).
+    @MainActor
+    func authorizedVendor(_ graph: WeddingGraphState) -> VendorPresence? {
+        guard let vendorId = activeVendorId else { return nil }
+        return graph.vendors.first { $0.id == vendorId }
+    }
+
     /// The guest record this context is bound to (P0-4). Nil means unbound, and callers must
     /// render an honest state rather than falling back to an arbitrary row.
     @MainActor
@@ -761,12 +768,9 @@ public struct VendorJobsSection: View {
         self.context = context
     }
 
-    /// P0-6: only the engagement this vendor is authorized for. There is no "first vendor"
-    /// fallback — that would show another company's engagement.
-    private var engagement: VendorPresence? {
-        guard let engagementId = context.activeEngagementId else { return nil }
-        return graph.vendors.first { $0.id == engagementId }
-    }
+    /// P0-6/P0-10: only the vendor this account is authorized for. There is no "first vendor"
+    /// fallback — that would show another company's job.
+    private var engagement: VendorPresence? { context.authorizedVendor(graph) }
 
     public var body: some View {
         if graph.loading {
@@ -820,10 +824,7 @@ public struct VendorScheduleSection: View {
         self.context = context
     }
 
-    private var engagement: VendorPresence? {
-        guard let engagementId = context.activeEngagementId else { return nil }
-        return graph.vendors.first { $0.id == engagementId }
-    }
+    private var engagement: VendorPresence? { context.authorizedVendor(graph) }
 
     public var body: some View {
         if graph.loading {

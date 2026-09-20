@@ -205,9 +205,15 @@ class IANavigationContractTest {
 
     @Test
     fun `roles with a sub-scope declare it as required rather than optional`() {
-        // A vendor without an engagement, an usher without a gate and a guest without an identity
-        // must not be treated as authorized (P0-3).
-        assertTrue(IANavigationContract.forRole(AppRole.VENDOR).requiredScopes.contains(ContextScope.ENGAGEMENT))
+        // A vendor without a vendor identity, an usher without a gate and a guest without an
+        // identity must not be treated as authorized (P0-3). The vendor's *service engagement* is
+        // optional by design: a vendor may hold several engagements or none, and most in the
+        // Private Real Shadow graph are historical records rather than live work (P0-9).
+        assertTrue(IANavigationContract.forRole(AppRole.VENDOR).requiredScopes.contains(ContextScope.VENDOR))
+        assertEquals(
+            ScopeRequirement.OPTIONAL,
+            IANavigationContract.forRole(AppRole.VENDOR).requirement(ContextScope.ENGAGEMENT)
+        )
         assertTrue(IANavigationContract.forRole(AppRole.USHER).requiredScopes.contains(ContextScope.GATE))
         assertTrue(IANavigationContract.forRole(AppRole.GUEST).requiredScopes.contains(ContextScope.GUEST))
     }

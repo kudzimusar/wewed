@@ -3,6 +3,7 @@ package pro.wewed.app.navigation
 import pro.wewed.app.models.AppRole
 import pro.wewed.app.models.DevelopmentPersona
 import pro.wewed.app.models.NativeDataEnvironment
+import pro.wewed.app.services.PlannerDashboardRepository
 import pro.wewed.app.services.WeddingRepository
 import pro.wewed.app.services.forWedding
 
@@ -22,6 +23,8 @@ import pro.wewed.app.services.forWedding
 class ShadowActorAssignmentSource(
     private val repository: WeddingRepository,
     private val environment: NativeDataEnvironment,
+    /** Supplies service engagements, which live in the planner projection, not the wedding graph. */
+    private val plannerRepository: PlannerDashboardRepository? = null,
     private val personas: List<DevelopmentPersona> = DevelopmentPersona.allPersonas,
     private val scenario: AuthorizedScenario = AuthorizedScenario.CHARITY_AND_KUDZIE,
     private val gateAssignments: Map<String, String> = SHADOW_GATE_ASSIGNMENTS,
@@ -54,16 +57,30 @@ class ShadowActorAssignmentSource(
             )
 
             AppRole.VENDOR -> {
-                // The engagement must exist on this wedding, matched by the vendor's own identity.
-                val engagement = runCatching { scoped.getVendors() }.getOrNull()
+                // P0-9: resolve the VENDOR first, then its service engagements separately. The
+                // vendor id and an engagement id are different entities; a vendor may hold several
+                // engagements, and most in the Private Real Shadow graph are historical records.
+                val vendor = runCatching { scoped.getVendors() }.getOrNull()
                     ?.firstOrNull { it.vendorName.equals(persona.name, ignoreCase = true) }
                     ?: return emptyList()
+
+                val engagements = runCatching { plannerRepository?.getVendorEngagements() }
+                    .getOrNull()
+                    .orEmpty()
+                    .filter { engagement ->
+                        engagement.vendorId == vendor.id ||
+                            engagement.vendorName.equals(vendor.vendorName, ignoreCase = true)
+                    }
+
                 listOf(
                     ActorAssignment(
                         actorId = actorId,
                         role = AppRole.VENDOR,
                         weddingId = weddingId,
-                        engagementId = engagement.id,
+                        vendorId = vendor.id,
+                        // Auto-select only when exactly one engagement exists. Several means the
+                        // vendor must choose; none means there is nothing to select.
+                        engagementId = engagements.singleOrNull()?.id,
                         isShadowTestAccess = true
                     )
                 )

@@ -324,6 +324,8 @@ class PrivateRealShadowPlannerRepository(jsonString: String? = null, customPath:
                 vList.add(
                     PlannerVendorEngagement(
                         id = engagementId,
+                        // The snapshot links each engagement to its vendor; keep them distinct.
+                        vendorId = se.optString("vendorId").takeIf { it.isNotBlank() },
                         vendorName = name,
                         category = cat.replaceFirstChar { it.uppercase() },
                         bookingStatus = lifecycleStatus,

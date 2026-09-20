@@ -493,11 +493,15 @@ fun VendorShell(
 @Composable
 private fun VendorHomeContent(graph: WeddingGraphState, context: NavigationContext) {
     if (graph.loading) return IALoading()
-    val engagement = graph.vendors.firstOrNull { it.id == context.activeEngagementId }
-        ?: graph.vendors.firstOrNull()
-    IASectionList("Home", engagement?.vendorName ?: "No assigned engagement") {
+    // P0-10: resolve the authorized vendor only. Falling back to the first vendor would show
+    // another company's job to make the page look populated.
+    val engagement = context.authorizedVendor(graph)
+    IASectionList("Home", engagement?.vendorName ?: "No vendor assigned") {
         if (engagement == null) {
-            IACard("No engagement assigned", "This vendor has no recorded engagement for the active wedding.")
+            IACard(
+                "No vendor assigned",
+                "This account is not linked to a vendor on the active wedding, so no job can be shown."
+            )
         } else {
             IACard("Today's job", "${engagement.serviceCategory} • ${engagement.serviceArea}", engagement.expectedTime, engagement.state.title)
             graph.wedding?.let { IACard("Wedding", it.coupleNames, it.venueName) }

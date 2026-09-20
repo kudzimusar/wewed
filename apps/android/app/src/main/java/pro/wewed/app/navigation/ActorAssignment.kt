@@ -17,6 +17,9 @@ data class ActorAssignment(
     /** The wedding this assignment is for. Null only for system-scope roles. */
     val weddingId: String?,
     val clientId: String? = null,
+    /** The vendor company this actor belongs to. Distinct from [engagementId] (P0-9). */
+    val vendorId: String? = null,
+    /** One service engagement of that vendor. A vendor may hold several. */
     val engagementId: String? = null,
     val gateId: String? = null,
     /** Guest identity binding — which guest record this actor *is* (P0-4). */

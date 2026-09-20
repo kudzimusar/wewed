@@ -16,6 +16,9 @@ data class NavigationContext(
     val activeWeddingTitle: String,
     val environment: NativeDataEnvironment,
     val activeClientId: String? = null,
+    /** The vendor company in scope. Distinct from the service engagement (P0-9). */
+    val activeVendorId: String? = null,
+    /** One service engagement of [activeVendorId]. */
     val activeEngagementId: String? = null,
     val activeGateId: String? = null,
     /** Which guest record this actor is, for guest-scoped roles (P0-4). */
@@ -31,6 +34,7 @@ data class NavigationContext(
     fun valueFor(scope: ContextScope): String? = when (scope) {
         ContextScope.WEDDING -> activeWeddingId.takeIf { it.isNotBlank() }
         ContextScope.CLIENT -> activeClientId
+        ContextScope.VENDOR -> activeVendorId
         ContextScope.ENGAGEMENT -> activeEngagementId
         ContextScope.GATE -> activeGateId
         ContextScope.GUEST -> activeGuestId
@@ -59,6 +63,7 @@ data class NavigationContext(
         return copy(
             activeRole = role,
             activeClientId = activeClientId.takeIf { scopes.contains(ContextScope.CLIENT) },
+            activeVendorId = activeVendorId.takeIf { scopes.contains(ContextScope.VENDOR) },
             activeEngagementId = activeEngagementId.takeIf { scopes.contains(ContextScope.ENGAGEMENT) },
             activeGateId = activeGateId.takeIf { scopes.contains(ContextScope.GATE) },
             activeGuestId = activeGuestId.takeIf { scopes.contains(ContextScope.GUEST) },
@@ -79,6 +84,7 @@ data class NavigationContext(
             activeWeddingId = weddingId,
             activeWeddingTitle = weddingTitle,
             activeClientId = null,
+            activeVendorId = null,
             activeEngagementId = null,
             activeGateId = null,
             activeGuestId = null,

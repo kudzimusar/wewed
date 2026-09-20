@@ -13,6 +13,8 @@ public struct ActorAssignment: Equatable, Sendable {
     /// The wedding this assignment is for. Nil only for system-scope roles.
     public let weddingId: String?
     public let clientId: String?
+    /// The vendor company this actor belongs to. Distinct from `engagementId` (P0-9).
+    public let vendorId: String?
     public let engagementId: String?
     public let gateId: String?
     /// Guest identity binding — which guest record this actor *is* (P0-4).
@@ -28,6 +30,7 @@ public struct ActorAssignment: Equatable, Sendable {
         role: AppRole,
         weddingId: String?,
         clientId: String? = nil,
+        vendorId: String? = nil,
         engagementId: String? = nil,
         gateId: String? = nil,
         guestId: String? = nil,
@@ -38,6 +41,7 @@ public struct ActorAssignment: Equatable, Sendable {
         self.role = role
         self.weddingId = weddingId
         self.clientId = clientId
+        self.vendorId = vendorId
         self.engagementId = engagementId
         self.gateId = gateId
         self.guestId = guestId

@@ -26,6 +26,8 @@ public struct ShadowActorAssignmentSource: ActorAssignmentSource {
 
     private let repository: WeddingRepositoryProtocol
     private let environment: NativeDataEnvironment
+    /// Supplies service engagements, which live in the planner projection, not the wedding graph.
+    private let plannerRepository: PlannerDashboardRepositoryProtocol?
     private let personas: [DevelopmentPersona]
     private let scenario: AuthorizedScenario
     private let gateAssignments: [String: String]
@@ -34,6 +36,7 @@ public struct ShadowActorAssignmentSource: ActorAssignmentSource {
     public init(
         repository: WeddingRepositoryProtocol,
         environment: NativeDataEnvironment,
+        plannerRepository: PlannerDashboardRepositoryProtocol? = nil,
         personas: [DevelopmentPersona] = DevelopmentPersona.allPersonas,
         scenario: AuthorizedScenario = .charityAndKudzie,
         gateAssignments: [String: String] = ShadowActorAssignmentSource.shadowGateAssignments,
@@ -41,6 +44,7 @@ public struct ShadowActorAssignmentSource: ActorAssignmentSource {
     ) {
         self.repository = repository
         self.environment = environment
+        self.plannerRepository = plannerRepository
         self.personas = personas
         self.scenario = scenario
         self.gateAssignments = gateAssignments
@@ -76,17 +80,29 @@ public struct ShadowActorAssignmentSource: ActorAssignmentSource {
             ]
 
         case .vendor:
-            // The engagement must exist on this wedding, matched by the vendor's own identity.
+            // P0-9: resolve the VENDOR first, then its service engagements separately. The vendor
+            // id and an engagement id are different entities; a vendor may hold several
+            // engagements, and most in the Private Real Shadow graph are historical records.
             guard let vendors = try? await scoped.getVendors(),
-                  let engagement = vendors.first(where: {
+                  let vendor = vendors.first(where: {
                       $0.vendorName.compare(persona.name, options: .caseInsensitive) == .orderedSame
                   }) else { return [] }
+
+            let engagements = ((try? await plannerRepository?.getVendorEngagements()) ?? [])?
+                .filter { engagement in
+                    engagement.vendorId == vendor.id
+                        || engagement.vendorName.compare(vendor.vendorName, options: .caseInsensitive) == .orderedSame
+                } ?? []
+
             return [
                 ActorAssignment(
                     actorId: actorId,
                     role: .vendor,
                     weddingId: weddingId,
-                    engagementId: engagement.id,
+                    vendorId: vendor.id,
+                    // Auto-select only when exactly one engagement exists. Several means the
+                    // vendor must choose; none means there is nothing to select.
+                    engagementId: engagements.count == 1 ? engagements[0].id : nil,
                     isShadowTestAccess: true
                 )
             ]

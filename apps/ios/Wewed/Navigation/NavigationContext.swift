@@ -11,6 +11,8 @@ public struct NavigationContext: Equatable, Sendable {
     public let activeWeddingTitle: String
     public let environment: NativeDataEnvironment
     public let activeClientId: String?
+    /// The vendor company in scope. Distinct from the service engagement (P0-9).
+    public let activeVendorId: String?
     public let activeEngagementId: String?
     public let activeGateId: String?
     /// Which guest record this actor is, for guest-scoped roles (P0-4).
@@ -27,6 +29,7 @@ public struct NavigationContext: Equatable, Sendable {
         activeWeddingTitle: String,
         environment: NativeDataEnvironment,
         activeClientId: String? = nil,
+        activeVendorId: String? = nil,
         activeEngagementId: String? = nil,
         activeGateId: String? = nil,
         activeGuestId: String? = nil,
@@ -39,6 +42,7 @@ public struct NavigationContext: Equatable, Sendable {
         self.activeWeddingTitle = activeWeddingTitle
         self.environment = environment
         self.activeClientId = activeClientId
+        self.activeVendorId = activeVendorId
         self.activeEngagementId = activeEngagementId
         self.activeGateId = activeGateId
         self.activeGuestId = activeGuestId
@@ -53,6 +57,7 @@ public struct NavigationContext: Equatable, Sendable {
         switch scope {
         case .wedding: return activeWeddingId.isEmpty ? nil : activeWeddingId
         case .client: return activeClientId
+        case .vendor: return activeVendorId
         case .engagement: return activeEngagementId
         case .gate: return activeGateId
         case .guest: return activeGuestId
@@ -83,6 +88,7 @@ public struct NavigationContext: Equatable, Sendable {
             activeWeddingTitle: activeWeddingTitle,
             environment: environment,
             activeClientId: scopes.contains(.client) ? activeClientId : nil,
+            activeVendorId: scopes.contains(.vendor) ? activeVendorId : nil,
             activeEngagementId: scopes.contains(.engagement) ? activeEngagementId : nil,
             activeGateId: scopes.contains(.gate) ? activeGateId : nil,
             activeGuestId: scopes.contains(.guest) ? activeGuestId : nil,
@@ -100,7 +106,8 @@ public struct NavigationContext: Equatable, Sendable {
             return NavigationContext(
                 actorId: actorId, activeRole: activeRole, activeWeddingId: activeWeddingId,
                 activeWeddingTitle: title, environment: environment,
-                activeClientId: activeClientId, activeEngagementId: activeEngagementId,
+                activeClientId: activeClientId, activeVendorId: activeVendorId,
+                activeEngagementId: activeEngagementId,
                 activeGateId: activeGateId, activeGuestId: activeGuestId,
                 activePassToken: activePassToken, assignment: assignment
             )
@@ -112,6 +119,7 @@ public struct NavigationContext: Equatable, Sendable {
             activeWeddingTitle: title,
             environment: environment,
             activeClientId: nil,
+            activeVendorId: nil,
             activeEngagementId: nil,
             activeGateId: nil,
             activeGuestId: nil,

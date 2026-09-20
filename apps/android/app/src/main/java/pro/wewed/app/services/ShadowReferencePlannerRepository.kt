@@ -40,13 +40,13 @@ class ShadowReferencePlannerRepository : PlannerDashboardRepository {
     )
 
     private val vendorEngagements = listOf(
-        PlannerVendorEngagement("shadow_vnd_01", "Cake Gourmet", "caterer", "Confirmed", "Pending", "Deposit", "Operational review"),
-        PlannerVendorEngagement("shadow_vnd_02", "MC Aloe The Avangelist", "dj", "Confirmed", "Pending", "Unpaid", "Operational review"),
-        PlannerVendorEngagement("shadow_vnd_03", "The Glass Petal Atelier", "florist", "Confirmed", "Pending", "Deposit", "Operational review"),
-        PlannerVendorEngagement("shadow_vnd_04", "Makeup Artist", "other", "Confirmed", "Pending", "Unpaid", "Operational review"),
-        PlannerVendorEngagement("shadow_vnd_05", "TBD", "other", "Confirmed", "Pending", "Unpaid", "Operational review"),
-        PlannerVendorEngagement("shadow_vnd_06", "FAUME MEDIA", "photographer", "Confirmed", "Pending", "Unpaid", "Operational review"),
-        PlannerVendorEngagement("shadow_vnd_07", "Imba Manor", "venue", "Confirmed", "Pending", "Paid", "Operational review"),
+        PlannerVendorEngagement(id = "shadow_vnd_01", vendorId = "shadow_vnd_01", vendorName = "Cake Gourmet", category = "caterer", bookingStatus = "Confirmed", contractStatus = "Pending", paymentStatus = "Deposit", nextAction = "Operational review"),
+        PlannerVendorEngagement(id = "shadow_vnd_02", vendorId = "shadow_vnd_02", vendorName = "MC Aloe The Avangelist", category = "dj", bookingStatus = "Confirmed", contractStatus = "Pending", paymentStatus = "Unpaid", nextAction = "Operational review"),
+        PlannerVendorEngagement(id = "shadow_vnd_03", vendorId = "shadow_vnd_03", vendorName = "The Glass Petal Atelier", category = "florist", bookingStatus = "Confirmed", contractStatus = "Pending", paymentStatus = "Deposit", nextAction = "Operational review"),
+        PlannerVendorEngagement(id = "shadow_vnd_04", vendorId = "shadow_vnd_04", vendorName = "Makeup Artist", category = "other", bookingStatus = "Confirmed", contractStatus = "Pending", paymentStatus = "Unpaid", nextAction = "Operational review"),
+        PlannerVendorEngagement(id = "shadow_vnd_05", vendorId = "shadow_vnd_05", vendorName = "TBD", category = "other", bookingStatus = "Confirmed", contractStatus = "Pending", paymentStatus = "Unpaid", nextAction = "Operational review"),
+        PlannerVendorEngagement(id = "shadow_vnd_06", vendorId = "shadow_vnd_06", vendorName = "FAUME MEDIA", category = "photographer", bookingStatus = "Confirmed", contractStatus = "Pending", paymentStatus = "Unpaid", nextAction = "Operational review"),
+        PlannerVendorEngagement(id = "shadow_vnd_07", vendorId = "shadow_vnd_07", vendorName = "Imba Manor", category = "venue", bookingStatus = "Confirmed", contractStatus = "Pending", paymentStatus = "Paid", nextAction = "Operational review"),
     )
 
     private val seatingTables = listOf(

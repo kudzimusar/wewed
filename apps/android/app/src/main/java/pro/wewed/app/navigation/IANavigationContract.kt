@@ -26,6 +26,8 @@ data class PrimaryDestination(
 enum class ContextScope(val key: String) {
     WEDDING("wedding"),
     CLIENT("client"),
+    /** The vendor company (P0-9). */
+    VENDOR("vendor"),
     ENGAGEMENT("engagement"),
     GATE("gate"),
     /** Which guest record the actor *is* (P0-4). */
@@ -63,7 +65,7 @@ data class RoleNavigation(
 
 object IANavigationContract {
 
-    const val CONTRACT_ID = "WW-NATIVE-IA-V2-NAV-2026-09-20-02"
+    const val CONTRACT_ID = "WW-NATIVE-IA-V2-NAV-2026-09-20-03"
 
     private val couple = RoleNavigation(
         role = AppRole.COUPLE,
@@ -154,7 +156,10 @@ object IANavigationContract {
         displayName = "Vendor & Staff",
         scopes = listOf(
             ScopeDeclaration(ContextScope.WEDDING, ScopeRequirement.REQUIRED),
-            ScopeDeclaration(ContextScope.ENGAGEMENT, ScopeRequirement.REQUIRED)
+            // The vendor company must be known; a specific engagement is selectable, because a
+            // vendor may hold several and some are historical records rather than live work.
+            ScopeDeclaration(ContextScope.VENDOR, ScopeRequirement.REQUIRED),
+            ScopeDeclaration(ContextScope.ENGAGEMENT, ScopeRequirement.OPTIONAL)
         ),
         primary = listOf(
             PrimaryDestination("home", "Home"),
