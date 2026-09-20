@@ -102,7 +102,8 @@ class ShadowReferenceWeddingRepository : WeddingRepository {
 
     private val guests = mutableListOf(
         Guest("shadow_guest_001", "Guest G001", null, 1, "family", RSVPStatus.PENDING, null, "Table 5 — Friends", false, 0, null),
-        Guest("shadow_guest_002", "Guest G002", null, 1, "family", RSVPStatus.PENDING, null, "Table 1 — Family", false, 0, null),
+        // The declined guest the reference environment declares: `shadow-declined-guest` resolves here.
+        Guest("shadow_guest_002", "Guest G002", null, 1, "family", RSVPStatus.DECLINED, null, "Table 1 — Family", false, 0, null),
         Guest("shadow_guest_003", "Guest G003", null, 1, "groom", RSVPStatus.PENDING, null, "Table 3 — Bridal Party", false, 0, null),
         Guest("shadow_guest_004", "Guest G004", null, 1, "groom", RSVPStatus.PENDING, null, null, false, 0, null),
         Guest("shadow_guest_005", "Guest G005", null, 1, "groom", RSVPStatus.PENDING, null, "Table 2 — Family", false, 0, null),
@@ -487,7 +488,34 @@ class ShadowReferenceWeddingRepository : WeddingRepository {
             venueName = wedding.venueName,
             venueCity = "${wedding.city}, ${wedding.country}",
             cardStyle = "ivory-floral-gold",
-            isConfirmed = guest.rsvpStatus == RSVPStatus.ATTENDING
+            isConfirmed = guest.rsvpStatus == RSVPStatus.ATTENDING,
+            // Declined is its own state. Reading it back as "not confirmed" is what would send a
+            // guest who already said no to the RSVP question a second time.
+            isDeclined = guest.rsvpStatus == RSVPStatus.DECLINED
+        )
+    }
+
+    override suspend fun weddingSlug(weddingId: String): String? =
+        wedding.id.takeIf { it.equals(weddingId, ignoreCase = true) }
+
+    override suspend fun invitationCardStyleForSlug(weddingSlug: String): String? =
+        invitationConfigurationForSlug(weddingSlug)?.cardStyle
+
+    override suspend fun invitationConfigurationForSlug(
+        weddingSlug: String
+    ): WeddingInvitationConfiguration? {
+        if (!weddingSlug.equals(wedding.id, ignoreCase = true)) return null
+        return WeddingInvitationConfiguration(
+            cardStyle = "ivory-floral-gold",
+            monogram = "C & K",
+            tagline = "23.12.26",
+            message = "We would be honoured to have you with us.",
+            rsvpDeadline = "30 November 2026",
+            venueMapUrl = null,
+            venueCountry = wedding.country,
+            // The reference wedding has no configured gift destination, so the card offers none.
+            giftDestinationUrl = null,
+            provenance = DataProvenance.DERIVED
         )
     }
 

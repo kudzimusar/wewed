@@ -1,35 +1,83 @@
 appId: pro.wewed.app.dev
 ---
+# A pending guest accepts, from inside the wedding's configured invitation.
+#
+# Every assertion here is against the approved Ivory Floral Gold stationery. The flow deliberately
+# walks CLOSED -> OPENING -> OPEN -> DETAILS rather than jumping to an RSVP form, because the
+# invitation IS the entry, not a wrapper around one.
 - launchApp:
     clearState: true
     arguments:
       wewed_native_env: "shadow"
 
-# 1. Open the guest's own invitation via its scoped link.
-# Couple Home no longer opens an arbitrary guest's invitation (P0-11), so the invitation is
-# reached the legitimate way: the credential-scoped link the guest actually receives.
+# The invitation is reached the legitimate way: the credential-scoped link the guest receives.
 - openLink: "wewed://invite/shadow_ref_charity_kudzie?rsvp=shadow-pending-guest"
 
-# 3. Splash -> Ivory Floral Gold invitation
-# Splash is intentionally transient; verify the destination after the branded transition.
+# CLOSED. Doors shut, seal over them. This is the first frame a guest ever sees.
 - extendedWaitUntil:
     visible:
-      id: "ivory-invitation-root"
-    timeout: 5000
-- assertVisible: "You’re Invited"
+      id: "ivory-card-stage"
+    timeout: 8000
+- assertVisible:
+    id: "ivory-card-closed"
+- assertVisible:
+    id: "ivory-card-left-door"
+- assertVisible:
+    id: "ivory-card-right-door"
+- assertVisible:
+    id: "ivory-card-monogram"
 
-# 4. Accept RSVP
-# The invitation body scrolls; scroll the accept control into view on shorter viewports.
-- scrollUntilVisible:
-    element:
-      id: "ivory-rsvp-accept"
-    direction: DOWN
+# OPENING -> OPEN. The hinged reveal runs 1800ms.
 - tapOn:
-    id: "ivory-rsvp-accept"
+    id: "ivory-card-open-button"
+- extendedWaitUntil:
+    visible:
+      id: "ivory-card-open"
+    timeout: 8000
 
-# 5. Confirm pass can be opened
-- assertVisible: "RSVP Confirmed"
-- scrollUntilVisible:
-    element:
-      id: "ivory-view-wedding-pass"
-    direction: DOWN
+# The invitation's own content, from the wedding graph.
+- assertVisible:
+    id: "ivory-card-couple-names"
+- assertVisible:
+    id: "ivory-card-date"
+- assertVisible:
+    id: "ivory-card-venue"
+# The personalisation. Without it this is a template, not an invitation.
+- assertVisible:
+    id: "ivory-card-guest-personalization"
+
+# DETAILS.
+- tapOn:
+    id: "ivory-card-details-button"
+- extendedWaitUntil:
+    visible:
+      id: "ivory-card-details"
+    timeout: 5000
+- assertVisible:
+    id: "ivory-card-rsvp"
+- assertVisible:
+    id: "ivory-card-calendar"
+- assertVisible:
+    id: "ivory-card-venue-action"
+
+# Accept, over the card rather than instead of it.
+- tapOn:
+    id: "ivory-card-rsvp"
+- extendedWaitUntil:
+    visible:
+      id: "ivory-card-rsvp-prompt"
+    timeout: 5000
+- tapOn:
+    id: "ivory-card-rsvp-accept"
+
+# An attending guest is offered their pass, and is not asked again.
+- extendedWaitUntil:
+    visible:
+      id: "ivory-card-view-pass"
+    timeout: 8000
+- tapOn:
+    id: "ivory-card-view-invitation"
+- extendedWaitUntil:
+    visible:
+      id: "ivory-card-rsvp-confirmed"
+    timeout: 5000

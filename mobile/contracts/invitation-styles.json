@@ -1,0 +1,104 @@
+{
+  "contract": "wewed-invitation-styles/1",
+  "source": "src/lib/digital-invitation-card.ts",
+  "generatedBy": "mobile/contracts/generate_invitation_style_contract.py",
+  "fallbackStyleId": "botanical",
+  "styles": [
+    {
+      "id": "ivory-floral-gold",
+      "name": "Ivory Floral Gold",
+      "category": "classic",
+      "motion": "tri-fold",
+      "atmosphere": "champagne-glow",
+      "nativeRenderer": true
+    },
+    {
+      "id": "midnight",
+      "name": "Midnight Gold",
+      "category": "evening",
+      "motion": "gate-fold",
+      "atmosphere": "stars",
+      "nativeRenderer": false
+    },
+    {
+      "id": "botanical",
+      "name": "Garden Romance",
+      "category": "romantic",
+      "motion": "floral-reveal",
+      "atmosphere": "petals",
+      "nativeRenderer": false
+    },
+    {
+      "id": "royal-emerald",
+      "name": "Royal Emerald",
+      "category": "classic",
+      "motion": "envelope-letter",
+      "atmosphere": "soft-bokeh",
+      "nativeRenderer": false
+    },
+    {
+      "id": "classic-white",
+      "name": "Classic White",
+      "category": "classic",
+      "motion": "book-open",
+      "atmosphere": "minimal",
+      "nativeRenderer": false
+    },
+    {
+      "id": "blush-romance",
+      "name": "Blush Romance",
+      "category": "romantic",
+      "motion": "envelope-letter",
+      "atmosphere": "soft-bokeh",
+      "nativeRenderer": false
+    },
+    {
+      "id": "african-luxe",
+      "name": "African Luxe",
+      "category": "cultural",
+      "motion": "gate-fold",
+      "atmosphere": "candlelight",
+      "nativeRenderer": false
+    },
+    {
+      "id": "editorial",
+      "name": "Modern Editorial",
+      "category": "modern",
+      "motion": "single-card-lift",
+      "atmosphere": "minimal",
+      "nativeRenderer": false
+    },
+    {
+      "id": "black-tie",
+      "name": "Black Tie",
+      "category": "evening",
+      "motion": "gate-fold",
+      "atmosphere": "candlelight",
+      "nativeRenderer": false
+    },
+    {
+      "id": "watercolour-garden",
+      "name": "Watercolour Garden",
+      "category": "romantic",
+      "motion": "floral-reveal",
+      "atmosphere": "watercolour-bloom",
+      "nativeRenderer": false
+    },
+    {
+      "id": "sunset-terracotta",
+      "name": "Sunset Terracotta",
+      "category": "modern",
+      "motion": "sleeve-pull",
+      "atmosphere": "soft-bokeh",
+      "nativeRenderer": false
+    },
+    {
+      "id": "celestial",
+      "name": "Celestial",
+      "category": "evening",
+      "motion": "book-open",
+      "atmosphere": "stars",
+      "nativeRenderer": false
+    }
+  ]
+}

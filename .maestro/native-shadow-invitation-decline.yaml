@@ -1,41 +1,59 @@
 appId: pro.wewed.app.dev
 ---
+# A pending guest declines — and keeps their invitation.
+#
+# Declining is an answer, not an exit. The guest stays inside the same stationery; what changes is
+# that the card stops asking and never offers a pass.
 - launchApp:
     clearState: true
     arguments:
       wewed_native_env: "shadow"
 
-# 1. Sign In
-# 2. Open the guest's own invitation via its scoped link.
-# Couple Home no longer opens an arbitrary guest's invitation (P0-11), so the invitation is
-# reached the legitimate way: the credential-scoped link the guest actually receives.
 - openLink: "wewed://invite/shadow_ref_charity_kudzie?rsvp=shadow-pending-guest"
 
-# 3. Splash -> Ivory Floral Gold invitation
-# Splash is intentionally transient; verify the destination after the branded transition.
 - extendedWaitUntil:
     visible:
-      id: "ivory-invitation-root"
+      id: "ivory-card-stage"
+    timeout: 8000
+- assertVisible:
+    id: "ivory-card-closed"
+
+- tapOn:
+    id: "ivory-card-open-button"
+- extendedWaitUntil:
+    visible:
+      id: "ivory-card-open"
+    timeout: 8000
+
+- tapOn:
+    id: "ivory-card-details-button"
+- extendedWaitUntil:
+    visible:
+      id: "ivory-card-details"
     timeout: 5000
 
-# 4. Open details, then decline RSVP.
-# The invitation body scrolls; on shorter viewports the action area starts below the fold, so
-# each control is scrolled into view rather than assumed to be on screen.
-- scrollUntilVisible:
-    element:
-      id: "ivory-details-toggle"
-    direction: DOWN
 - tapOn:
-    id: "ivory-details-toggle"
-- scrollUntilVisible:
-    element:
-      id: "ivory-rsvp-decline"
-    direction: DOWN
+    id: "ivory-card-rsvp"
+- extendedWaitUntil:
+    visible:
+      id: "ivory-card-rsvp-prompt"
+    timeout: 5000
 - tapOn:
-    id: "ivory-rsvp-decline"
+    id: "ivory-card-rsvp-decline"
 
-# 5. Confirm declined journey and no pass issuance
-- assertVisible:
-    id: "guest-journey-declined"
-- assertVisible: "Thank you for responding"
-- assertVisible: "Return to Wedding"
+# The invitation is still the screen. A declined guest never gets a pass.
+- extendedWaitUntil:
+    visible:
+      id: "ivory-card-details"
+    timeout: 8000
+- assertNotVisible:
+    id: "ivory-card-view-pass"
+
+- tapOn:
+    id: "ivory-card-view-invitation"
+- extendedWaitUntil:
+    visible:
+      id: "ivory-card-response-recorded"
+    timeout: 5000
+- assertNotVisible:
+    id: "ivory-card-rsvp-prompt"

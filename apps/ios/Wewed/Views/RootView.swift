@@ -20,7 +20,16 @@ public struct RootView: View {
     /// card once per app-entry session, not once per lifetime and not on every glance back.
     @State private var entrySessionPresentedCard = false
     @State private var recognisedGuestInvitation: InvitationContext?
-    @State private var graphWeddingDate: String?
+    /// The Guest's own pass credential, resolved from their verified assignment.
+    ///
+    /// It deliberately does NOT come from `SessionStore.passToken`, which nothing assigns: reading
+    /// it there meant the ceremonial entry could never find a credential, so the workspace always
+    /// won and the invitation was silently skipped.
+    @State private var guestPassToken: String?
+    /// Whether the Guest's card has been looked for yet. Until it has, the root holds rather than
+    /// committing to the workspace — otherwise a slow repository skips the ceremony.
+    @State private var guestCardResolved = false
+    /// The wedding's SAVED invitation style decides the design.
     @State private var authMode: AuthenticationMode?
     @State private var resolvingDeepLinkedInvitation = false
 
@@ -66,68 +75,52 @@ public struct RootView: View {
 
     /// Where an invited guest lands. A confirmed guest goes to their pass; a guest who already
     /// declined sees their response, not the RSVP form again.
-    private static func journeyStage(for invitation: InvitationContext) -> GuestJourneyStage {
-        switch LaunchRouter.stage(for: invitation) {
-        case .confirmed: return .confirmedAttending
-        case .declined: return .declined
-        case .pending: return .invitation
-        }
-    }
-
-    /// The card a recognised Guest meets on entry, in whichever state they left it.
+    /// The card a recognised Guest meets on entry.
+    ///
+    /// The invitation is the wedding's configured product object. RSVP state changes what it
+    /// OFFERS; it never changes which object is shown, and it never skips the card. Presentation
+    /// (closed/opening/open/details) and RSVP state are orthogonal: a returning confirmed guest is
+    /// .closed + .attending, which is ordinary and correct.
     @ViewBuilder
     private func guestCeremonialEntry(_ card: InvitationContext) -> some View {
-        let stage = LaunchRouter.stage(for: card)
-        if stage == .pending {
-            // Still to answer: the full Ivory invitation, which carries the RSVP.
-            GuestInvitationJourneyView(
-                reference: GuestJourneyReference(invitation: card, initialStage: .invitation),
-                onExit: { entrySessionPresentedCard = true }
-            )
-        } else {
-            // Already answered. The card stays — a guest who has replied is never asked again —
-            // and its actions adapt to the answer and to where the wedding is in its own life.
-            let days = Self.daysUntil(graphWeddingDate)
-            GuestCeremonialCardView(
-                invitation: card,
-                presentation: GuestCeremonialEntry.presentation(
-                    rsvp: stage == .confirmed ? .attending : .declined,
-                    lifecycle: GuestCeremonialEntry.phase(daysRemaining: days)
-                ),
-                countdownLabel: GuestCeremonialEntry.countdownLabel(daysRemaining: days),
-                onAction: { _ in entrySessionPresentedCard = true },
-                // Continuing ends the ceremony for THIS entry session; the next cold launch
-                // stages it again.
-                onContinue: { entrySessionPresentedCard = true }
-            )
-        }
-    }
-
-    /// Days between now and the wedding. The card's lifecycle phase and its reminder line are
-    /// both derived from this, so neither has to be maintained by hand.
-    private static func daysUntil(_ rawDate: String?) -> Int {
-        guard let rawDate, rawDate.count >= 10 else { return Int.max }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd"
-        guard let target = formatter.date(from: String(rawDate.prefix(10))) else { return Int.max }
-        let day = 86_400.0
-        return Int((target.timeIntervalSince1970 / day).rounded(.down)
-                   - (Date().timeIntervalSince1970 / day).rounded(.down))
+        GuestInvitationJourneyView(
+            reference: GuestJourneyReference(invitation: card, initialStage: .invitation),
+            // Continuing ends the ceremony for THIS entry session; the next cold launch stages it
+            // again.
+            onExit: { entrySessionPresentedCard = true }
+        )
     }
 
     /// Resolves the active Guest's own card, keyed on their credential so switching guests
     /// resolves a different card rather than reusing the previous one.
     private func resolveRecognisedGuestCard() async {
-        guard session.currentRole == .guest, let token = session.passToken else {
+        defer { guestCardResolved = true }
+        guard session.currentRole == .guest else {
+            recognisedGuestInvitation = nil
+            guestPassToken = nil
+            return
+        }
+        // The credential comes from the verified assignment, the same place the Guest workspace
+        // gets it. Resolving it here rather than inside the workspace is what lets the invitation
+        // precede the workspace at all.
+        let source = ShadowActorAssignmentSource(
+            repository: appState.repository,
+            environment: appState.dataEnvironment,
+            plannerRepository: appState.plannerRepository
+        )
+        let actorId = session.activePersona?.id ?? "couple_owner"
+        let assignment = await source.assignments(actorId: actorId)
+            .first { $0.role == .guest }
+        guestPassToken = assignment?.passToken
+        guard let token = guestPassToken else {
             recognisedGuestInvitation = nil
             return
         }
-        let slug = (try? await appState.repository.weddingSlug(weddingId: session.weddingId)) ?? ""
+        let weddingId = assignment?.weddingId ?? session.weddingId
+        let slug = (try? await appState.repository.weddingSlug(weddingId: weddingId)) ?? nil
         recognisedGuestInvitation = try? await appState.repository.resolveInvitation(
             weddingSlug: slug ?? "", token: token
         )
-        graphWeddingDate = try? await appState.repository.getWedding(weddingId: session.weddingId).date
     }
 
     public var body: some View {
@@ -146,13 +139,13 @@ public struct RootView: View {
                     onFinished: { splashComplete = true }
                 )
             } else if let deepLinkedInvitation {
-                // An invitation outranks everything. No account, no sign-in, no role chooser: the
-                // invitation token IS the guest's authorization, and a confirmed guest goes
-                // straight to their pass rather than being asked to RSVP a second time.
+                // An invitation outranks everything: no account, no sign-in, no role chooser — the
+                // invitation token IS the guest's authorization. Every valid guest entry meets the
+                // configured invitation first, whatever they have already answered.
                 GuestInvitationJourneyView(
                     reference: GuestJourneyReference(
                         invitation: deepLinkedInvitation,
-                        initialStage: Self.journeyStage(for: deepLinkedInvitation)
+                        initialStage: .invitation
                     ),
                     onExit: {
                         self.deepLinkedInvitation = nil
@@ -163,6 +156,18 @@ public struct RootView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(WeddingIdentityPalette.ivory)
                     .accessibilityIdentifier("entry-resolving-deep-link")
+            } else if session.isAuthenticated,
+                      session.currentRole == .guest,
+                      !entrySessionPresentedCard,
+                      !guestCardResolved {
+                // Holding, not skipping. The workspace must not win this race: a Guest whose card
+                // is still resolving has not yet been offered their invitation.
+                ZStack {
+                    WeddingIdentityPalette.ivory.ignoresSafeArea()
+                    ProgressView()
+                        .tint(WeddingIdentityPalette.champagneDeep)
+                }
+                .accessibilityIdentifier("entry-staging-invitation")
             } else if let card = recognisedGuestInvitation,
                       !entrySessionPresentedCard,
                       session.currentRole == .guest {
@@ -221,7 +226,8 @@ public struct RootView: View {
         .task(id: appState.pendingInvitationDeepLink) {
             await resolvePendingInvitationDeepLink()
         }
-        .task(id: "\(session.currentRole.roleId)|\(session.passToken ?? "")") {
+        .task(id: "\(session.currentRole.roleId)|\(session.activePersona?.id ?? "")") {
+            guestCardResolved = false
             await resolveRecognisedGuestCard()
         }
     }

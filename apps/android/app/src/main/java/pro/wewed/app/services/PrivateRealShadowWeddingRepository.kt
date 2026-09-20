@@ -30,6 +30,10 @@ class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath:
 
     private val wedding: Wedding
     private val weddingSlug: String
+    /** The couple's saved invitation design, read from the production wedding row. */
+    private val invitationCardStyle: String
+    /** The couple's own choices for their invitation, read once from the production wedding row. */
+    private val invitationConfiguration: WeddingInvitationConfiguration
     private val tasks: MutableList<PlannerTask>
     private val guests: MutableList<Guest>
     private val budget: BudgetSummary
@@ -178,6 +182,29 @@ class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath:
             throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required wedding fields missing in Private Real UAT snapshot.")
         }
         weddingSlug = weddingObj.optString("slug").ifEmpty { "charity-and-kudzie" }
+        invitationCardStyle = weddingObj.optString("invitationCardStyle")
+        invitationConfiguration = WeddingInvitationConfiguration(
+            cardStyle = weddingObj.optStringOrNull("invitationCardStyle"),
+            monogram = weddingObj.optStringOrNull("monogram"),
+            tagline = weddingObj.optStringOrNull("tagline"),
+            message = weddingObj.optStringOrNull("invitationCardMessage"),
+            rsvpDeadline = weddingObj.optStringOrNull("rsvpDeadline"),
+            venueMapUrl = weddingObj.optStringOrNull("venueMapUrl"),
+            venueCountry = weddingObj.optStringOrNull("venueCountry"),
+            // Contributions are a wedding capability, not a native default: the card offers gifts
+            // only where the couple actually has somewhere for them to go.
+            giftDestinationUrl = domains.optJSONArray("qrDestinations")
+                ?.let { array ->
+                    (0 until array.length())
+                        .map { array.getJSONObject(it) }
+                        .firstOrNull {
+                            it.optBoolean("isActive") &&
+                                it.optString("type").contains("contribution", ignoreCase = true)
+                        }
+                        ?.optStringOrNull("url")
+                },
+            provenance = DataProvenance.PRODUCTION_DERIVED
+        )
 
         // 2. Programme
         val progArray = domains.optJSONArray("programme") ?: org.json.JSONArray()
@@ -865,6 +892,25 @@ class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath:
     override suspend fun weddingSlug(weddingId: String): String? = mutex.withLock {
         requireScope(weddingId)
         weddingSlug.takeIf { it.isNotBlank() }
+    }
+
+    override suspend fun invitationCardStyle(weddingId: String): String? = mutex.withLock {
+        requireScope(weddingId)
+        invitationCardStyle.takeIf { it.isNotBlank() }
+    }
+
+    override suspend fun invitationCardStyleForSlug(weddingSlug: String): String? = mutex.withLock {
+        // Scoped by slug rather than id: a mismatch means the caller is asking about a wedding this
+        // snapshot does not hold, and answering with this wedding's design would be a leak.
+        if (!weddingSlug.equals(this.weddingSlug, ignoreCase = true)) return@withLock null
+        invitationCardStyle.takeIf { it.isNotBlank() }
+    }
+
+    override suspend fun invitationConfigurationForSlug(
+        weddingSlug: String
+    ): WeddingInvitationConfiguration? = mutex.withLock {
+        if (!weddingSlug.equals(this.weddingSlug, ignoreCase = true)) return@withLock null
+        invitationConfiguration
     }
 }
 

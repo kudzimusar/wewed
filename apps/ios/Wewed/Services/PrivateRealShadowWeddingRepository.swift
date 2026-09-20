@@ -34,6 +34,10 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
     // Production-derived graph loaded from the canonical Private Real UAT snapshot.
     /// Where this wedding's site is published.
     private var publishedSlug: String = ""
+    /// The couple's saved invitation design, read from the production wedding row.
+    private var savedInvitationStyle: String = ""
+    /// The couple's own choices for their invitation, read once from the production wedding row.
+    private var savedInvitationConfiguration: WeddingInvitationConfiguration?
     private let manifest: UatSnapshotManifest
     private let rsvpDetails: [String: GuestRsvpDetail]
     private let guestContacts: [String: GuestContactDetail]
@@ -150,6 +154,32 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
         }
 
         self.publishedSlug = (envelope["wedding"] as? [String: Any])?["slug"] as? String ?? ""
+        self.savedInvitationStyle = (envelope["wedding"] as? [String: Any])?["invitationCardStyle"] as? String ?? ""
+        if let weddingRow = envelope["wedding"] as? [String: Any] {
+            func text(_ key: String) -> String? {
+                guard let value = weddingRow[key] as? String,
+                      !value.isEmpty, value != "null" else { return nil }
+                return value
+            }
+            // Contributions are a wedding capability, not a native default: the card offers gifts
+            // only where the couple actually has somewhere for them to go.
+            let giftUrl = ((envelope["domains"] as? [String: Any])?["qrDestinations"] as? [[String: Any]])?
+                .first {
+                    ($0["isActive"] as? Bool ?? false)
+                        && (($0["type"] as? String) ?? "").lowercased().contains("contribution")
+                }?["url"] as? String
+            self.savedInvitationConfiguration = WeddingInvitationConfiguration(
+                cardStyle: text("invitationCardStyle"),
+                monogram: text("monogram"),
+                tagline: text("tagline"),
+                message: text("invitationCardMessage"),
+                rsvpDeadline: text("rsvpDeadline"),
+                venueMapUrl: text("venueMapUrl"),
+                venueCountry: text("venueCountry"),
+                giftDestinationUrl: giftUrl,
+                provenance: .productionDerived
+            )
+        }
         self.manifest = UatSnapshotManifest(
             schemaVersion: schemaVersion,
             sourceWeddingId: (metadata["sourceWeddingId"] as? String) ?? "",
@@ -843,5 +873,24 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
     public func weddingSlug(weddingId: String) async throws -> String? {
         try requireScope(weddingId)
         return publishedSlug.isEmpty ? nil : publishedSlug
+    }
+
+    public func invitationCardStyle(weddingId: String) async throws -> String? {
+        try requireScope(weddingId)
+        return savedInvitationStyle.isEmpty ? nil : savedInvitationStyle
+    }
+
+    public func invitationCardStyleForSlug(_ weddingSlug: String) async throws -> String? {
+        // Scoped by slug rather than id: a mismatch means the caller is asking about a wedding this
+        // snapshot does not hold, and answering with this wedding's design would be a leak.
+        guard weddingSlug.lowercased() == publishedSlug.lowercased() else { return nil }
+        return savedInvitationStyle.isEmpty ? nil : savedInvitationStyle
+    }
+
+    public func invitationConfigurationForSlug(
+        _ weddingSlug: String
+    ) async throws -> WeddingInvitationConfiguration? {
+        guard weddingSlug.lowercased() == publishedSlug.lowercased() else { return nil }
+        return savedInvitationConfiguration
     }
 }

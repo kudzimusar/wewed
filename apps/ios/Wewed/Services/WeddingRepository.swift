@@ -105,6 +105,18 @@ public protocol WeddingRepositoryProtocol: Sendable {
     func adminAccessContext() async throws -> AdminAccessContext?
     /// The wedding's public slug — where its wedding site is published — when the source has one.
     func weddingSlug(weddingId: String) async throws -> String?
+    /// The wedding's saved digital-invitation style. The invitation is a wedding-configured
+    /// object; which design a guest meets is the couple's choice, not the app's.
+    func invitationCardStyle(weddingId: String) async throws -> String?
+    /// The same saved style, reached by the wedding's public slug. A guest arriving on an
+    /// invitation link has a slug and a token, never a wedding id.
+    func invitationCardStyleForSlug(_ weddingSlug: String) async throws -> String?
+    /// Everything the wedding has configured about its own invitation, by public slug. One read
+    /// rather than several, so the card is never drawn with half the couple's choices and defaults
+    /// for the rest.
+    func invitationConfigurationForSlug(
+        _ weddingSlug: String
+    ) async throws -> WeddingInvitationConfiguration?
 }
 
 /// Default "this source holds none" implementations, so the fixture and sanitized sources are not
@@ -124,6 +136,11 @@ public extension WeddingRepositoryProtocol {
     func plannerAccessContext(weddingId: String) async throws -> PlannerAccessContext? { nil }
     func adminAccessContext() async throws -> AdminAccessContext? { nil }
     func weddingSlug(weddingId: String) async throws -> String? { nil }
+    func invitationCardStyle(weddingId: String) async throws -> String? { nil }
+    func invitationCardStyleForSlug(_ weddingSlug: String) async throws -> String? { nil }
+    func invitationConfigurationForSlug(
+        _ weddingSlug: String
+    ) async throws -> WeddingInvitationConfiguration? { nil }
 }
 
 /// A repository bound to one wedding.

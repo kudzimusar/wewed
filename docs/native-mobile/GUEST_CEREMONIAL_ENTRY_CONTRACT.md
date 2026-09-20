@@ -3,6 +3,17 @@
 **Status: release invariant.** Asserted by 20 tests on Android and 20 on iOS.
 Added to the Master Plan release gate 2026-09-20.
 
+> **Amended 2026-09-20 by `WW-NATIVE-INVITATION-EXACT-PARITY-RULE-2026-09-20-08`.**
+>
+> This document says *when* the invitation is staged and *what it asks*. It does not decide **which
+> invitation**. That is the wedding's saved `invitationCardStyle`, and native must render that exact
+> approved design — see
+> [NATIVE_GUEST_INVITATION_ENTRY_CONTRACT.md](./NATIVE_GUEST_INVITATION_ENTRY_CONTRACT.md).
+>
+> Where this document previously described "the personalised card", read: *the wedding's configured
+> digital invitation*. The `GuestCeremonialCardScreen` / `GuestCeremonialCardView` built against
+> this contract were an invented design and have been deleted.
+
 ---
 
 ## The rule

@@ -25,6 +25,21 @@ Governs:
 - testing and release gates;
 - production integration authorization.
 
+### 1a. Binding rule — the Guest invitation
+
+NATIVE_GUEST_INVITATION_ENTRY_CONTRACT.md
+
+Read before touching anything a Guest sees on entry.
+
+An invited Guest enters through **the actual configured digital invitation design selected for that
+wedding** — `wedding.invitationCardStyle`, rendered exactly. Native must never invent or substitute
+a simplified ceremonial card, summary card or generic ivory card, and resemblance is not
+reproduction: `ivory background + gold border + floral ornament` is a FAIL.
+
+The document carries the style registry, the artwork provenance (six files pinned by SHA-256), the
+geometry and door keyframes both platforms assert, and the rule that presentation state is
+orthogonal to RSVP state.
+
 ### 2. Current sprint authority — Shadow Real-Wedding Parity
 
 WEWED_NATIVE_SHADOW_INTEGRATION_REAL_WEDDING_PARITY_PLAN_2026-09-18.md

@@ -1,0 +1,48 @@
+appId: pro.wewed.app.dev
+---
+# A guest who has already accepted meets their invitation again — and is never re-asked.
+#
+# This is the case the invented "ceremonial card" was built for: an answered guest used to be
+# handed a different screen entirely. The invitation is the same object whatever the answer; the
+# answer changes only what it offers.
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+
+- openLink: "wewed://invite/shadow_ref_charity_kudzie?rsvp=shadow-attending-guest"
+
+# The card is CLOSED, exactly as it is for a guest who has never opened it. Presentation state and
+# RSVP state are separate axes.
+- extendedWaitUntil:
+    visible:
+      id: "ivory-card-stage"
+    timeout: 8000
+- assertVisible:
+    id: "ivory-card-closed"
+- assertVisible:
+    id: "ivory-card-monogram"
+
+- tapOn:
+    id: "ivory-card-open-button"
+- extendedWaitUntil:
+    visible:
+      id: "ivory-card-open"
+    timeout: 8000
+
+# The status line stands where the "wedding details" cue would be for a pending guest.
+- assertVisible:
+    id: "ivory-card-rsvp-confirmed"
+- assertNotVisible:
+    id: "ivory-card-rsvp-prompt"
+
+- tapOn:
+    id: "ivory-card-details-button"
+- extendedWaitUntil:
+    visible:
+      id: "ivory-card-details"
+    timeout: 5000
+
+# An attending guest is offered their pass, from inside their invitation.
+- assertVisible:
+    id: "ivory-card-view-pass"

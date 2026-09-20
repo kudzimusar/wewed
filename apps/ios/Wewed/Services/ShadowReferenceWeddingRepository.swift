@@ -105,7 +105,8 @@ public actor ShadowReferenceWeddingRepository: WeddingRepositoryProtocol {
 
         guests = [
             Guest(id: "shadow_guest_001", name: "Guest G001", householdName: nil, partySize: 1, side: "family", rsvpStatus: .pending, tableNumber: nil, tableName: "Table 5 — Friends", checkedIn: false, checkedInCount: 0, passSerial: nil),
-            Guest(id: "shadow_guest_002", name: "Guest G002", householdName: nil, partySize: 1, side: "family", rsvpStatus: .pending, tableNumber: nil, tableName: "Table 1 — Family", checkedIn: false, checkedInCount: 0, passSerial: nil),
+            // The declined guest the reference environment declares: `shadow-declined-guest` resolves here.
+            Guest(id: "shadow_guest_002", name: "Guest G002", householdName: nil, partySize: 1, side: "family", rsvpStatus: .declined, tableNumber: nil, tableName: "Table 1 — Family", checkedIn: false, checkedInCount: 0, passSerial: nil),
             Guest(id: "shadow_guest_003", name: "Guest G003", householdName: nil, partySize: 1, side: "groom", rsvpStatus: .pending, tableNumber: nil, tableName: "Table 3 — Bridal Party", checkedIn: false, checkedInCount: 0, passSerial: nil),
             Guest(id: "shadow_guest_004", name: "Guest G004", householdName: nil, partySize: 1, side: "groom", rsvpStatus: .pending, tableNumber: nil, tableName: nil, checkedIn: false, checkedInCount: 0, passSerial: nil),
             Guest(id: "shadow_guest_005", name: "Guest G005", householdName: nil, partySize: 1, side: "groom", rsvpStatus: .pending, tableNumber: nil, tableName: "Table 2 — Family", checkedIn: false, checkedInCount: 0, passSerial: nil),
@@ -452,7 +453,36 @@ public actor ShadowReferenceWeddingRepository: WeddingRepositoryProtocol {
             venueName: wedding.venueName,
             venueCity: "\(wedding.city), \(wedding.country)",
             cardStyle: "ivory-floral-gold",
-            isConfirmed: guest.rsvpStatus == .attending
+            isConfirmed: guest.rsvpStatus == .attending,
+            // Declined is its own state. Reading it back as "not confirmed" is what would send a
+            // guest who already said no to the RSVP question a second time.
+            isDeclined: guest.rsvpStatus == .declined
+        )
+    }
+
+    public func weddingSlug(weddingId: String) async throws -> String? {
+        wedding.id.lowercased() == weddingId.lowercased() ? wedding.id : nil
+    }
+
+    public func invitationCardStyleForSlug(_ weddingSlug: String) async throws -> String? {
+        try await invitationConfigurationForSlug(weddingSlug)?.cardStyle
+    }
+
+    public func invitationConfigurationForSlug(
+        _ weddingSlug: String
+    ) async throws -> WeddingInvitationConfiguration? {
+        guard weddingSlug.lowercased() == wedding.id.lowercased() else { return nil }
+        return WeddingInvitationConfiguration(
+            cardStyle: "ivory-floral-gold",
+            monogram: "C & K",
+            tagline: "23.12.26",
+            message: "We would be honoured to have you with us.",
+            rsvpDeadline: "30 November 2026",
+            venueMapUrl: nil,
+            venueCountry: wedding.country,
+            // The reference wedding has no configured gift destination, so the card offers none.
+            giftDestinationUrl: nil,
+            provenance: .derived
         )
     }
 

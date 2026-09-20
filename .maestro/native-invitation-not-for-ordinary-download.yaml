@@ -1,0 +1,22 @@
+appId: pro.wewed.app.dev
+---
+# Someone who simply downloads Wewed is not a guest of anyone's wedding.
+#
+# The invitation is a personal object reached with a credential. An ordinary first launch must
+# never stage a wedding's stationery — that would show a stranger a couple's private invitation.
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+
+- extendedWaitUntil:
+    visible:
+      id: "welcome-root"
+    timeout: 8000
+
+- assertNotVisible:
+    id: "ivory-card-stage"
+- assertNotVisible:
+    id: "ivory-card-closed"
+- assertNotVisible:
+    id: "ivory-card-open"

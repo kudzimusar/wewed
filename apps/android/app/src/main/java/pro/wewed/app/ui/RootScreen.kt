@@ -31,8 +31,11 @@ import pro.wewed.app.ui.entry.ShadowEntryOption
 import pro.wewed.app.ui.entry.SplashDestination
 import pro.wewed.app.ui.entry.WewedAnimatedSplash
 import pro.wewed.app.ui.entry.WewedWelcomeScreen
+import pro.wewed.app.models.InvitationStyle
 import pro.wewed.app.models.RSVPStatus
-import pro.wewed.app.ui.invitation.GuestCeremonialCardScreen
+import pro.wewed.app.ui.invitation.ivory.IvoryActions
+import pro.wewed.app.ui.invitation.ivoryDataFrom
+import pro.wewed.app.ui.invitation.ivoryRsvpStateFrom
 import pro.wewed.app.ui.invitation.GuestInvitationJourneyScreen
 import pro.wewed.app.ui.pass.UsherScannerScreen
 import pro.wewed.app.ui.roles.*
@@ -145,14 +148,12 @@ fun RootScreen(
                 .fillMaxSize()
                 .semantics { testTagsAsResourceId = true }
         ) {
+            // Every valid guest entry meets the configured invitation first, whatever they have
+            // already answered. RSVP state changes what the card offers, never which card it is.
             GuestInvitationJourneyScreen(
                 reference = GuestJourneyReference(
                     invitationState.invitation,
-                    when (invitationState.stage) {
-                        InvitationEntryStage.CONFIRMED -> GuestJourneyStage.CONFIRMED_ATTENDING
-                        InvitationEntryStage.DECLINED -> GuestJourneyStage.DECLINED
-                        InvitationEntryStage.PENDING -> GuestJourneyStage.INVITATION
-                    }
+                    GuestJourneyStage.INVITATION
                 ),
                 appViewModel = appViewModel,
                 onExit = { deepLinkedInvitation = null }
@@ -276,13 +277,8 @@ fun RootScreen(
         mutableStateOf<InvitationContext?>(null)
     }
     val guestPassToken = context.activePassToken
-    var graphWeddingDate by remember(context.activeWeddingId) { mutableStateOf<String?>(null) }
-    LaunchedEffect(context.activeWeddingId) {
-        graphWeddingDate = runCatching {
-            appViewModel.repository.getWedding(context.activeWeddingId).date
-        }.getOrNull()
-    }
-
+    // The wedding's SAVED invitation style decides the design. Hard-coding Ivory would be right
+    // for Charity & Kudzie today and wrong for the next wedding.
     LaunchedEffect(guestPassToken, context.activeRole) {
         recognisedGuestInvitation =
             if (context.activeRole == AppRole.GUEST && guestPassToken != null) {
@@ -305,46 +301,22 @@ fun RootScreen(
             )
         }
         ?.let { card ->
-            val stage = LaunchRouter.stageFor(card)
+            // The invitation is the wedding's configured product object. RSVP state changes what
+            // it OFFERS; it never changes which object is shown, and it never skips the card.
+            // Presentation (CLOSED/OPENING/OPEN/DETAILS) and RSVP state are orthogonal: a
+            // returning confirmed guest is CLOSED + ATTENDING, which is ordinary and correct.
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .semantics { testTagsAsResourceId = true }
             ) {
-                if (stage == InvitationEntryStage.PENDING) {
-                    // Still to answer: the full Ivory invitation, which carries the RSVP.
-                    GuestInvitationJourneyScreen(
-                        reference = GuestJourneyReference(card, GuestJourneyStage.INVITATION),
-                        appViewModel = appViewModel,
-                        onExit = { entrySessionPresentedCard = true }
-                    )
-                } else {
-                    // Already answered. The card stays — a guest who has replied is never asked
-                    // again — and its actions adapt to the answer and to where the wedding is in
-                    // its own life. Sending them straight to the Pass would treat the invitation
-                    // as a form they had finished with.
-                    val rsvp = if (stage == InvitationEntryStage.CONFIRMED) {
-                        RSVPStatus.ATTENDING
-                    } else {
-                        RSVPStatus.DECLINED
-                    }
-                    val daysRemaining = remember(graphWeddingDate) {
-                        daysUntil(graphWeddingDate)
-                    }
-                    val presentation = GuestCeremonialEntry.presentation(
-                        rsvp,
-                        GuestCeremonialEntry.phaseFor(daysRemaining)
-                    )
-                    GuestCeremonialCardScreen(
-                        invitation = card,
-                        presentation = presentation,
-                        countdownLabel = GuestCeremonialEntry.countdownLabel(daysRemaining),
-                        onAction = { entrySessionPresentedCard = true },
-                        // Continuing ends the ceremony for THIS entry session; the next cold
-                        // launch stages it again.
-                        onContinue = { entrySessionPresentedCard = true }
-                    )
-                }
+                GuestInvitationJourneyScreen(
+                    reference = GuestJourneyReference(card, GuestJourneyStage.INVITATION),
+                    appViewModel = appViewModel,
+                    // Continuing ends the ceremony for THIS entry session; the next cold launch
+                    // stages it again.
+                    onExit = { entrySessionPresentedCard = true }
+                )
             }
             return
         }
@@ -418,19 +390,3 @@ fun RootScreen(
 }
 
 
-/**
- * Days between now and the wedding.
- *
- * The card's lifecycle phase and its reminder line are both derived from this, so neither has to
- * be maintained by hand as the date approaches and passes.
- */
-private fun daysUntil(rawDate: String?): Int {
-    val trimmed = rawDate?.trim().orEmpty().take(10)
-    if (trimmed.isEmpty()) return Int.MAX_VALUE
-    val target = runCatching {
-        java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(trimmed)
-    }.getOrNull() ?: return Int.MAX_VALUE
-    val millisPerDay = 86_400_000L
-    val today = System.currentTimeMillis() / millisPerDay
-    return (target.time / millisPerDay - today).toInt()
-}

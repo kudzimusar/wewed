@@ -151,3 +151,41 @@ different authorization model, or a second colour/type system.
 | Bottom-bar label | "Wedding Day" truncates to "Wedding" | renders in full | Android label needs scaling/2-line support |
 | Legacy palette | `WewedColors` still used by older planner/vendor/admin destinations | same | migrate as those screens are brought under IA V2 |
 | Legacy screens | `HomeScreen`, `GuestsScreen`, `PassScreen` retained | equivalents retained | remove once no IA V2 route reaches them |
+
+---
+
+## 9. The invitation is outside this contract
+
+**Task stamp:** `WW-NATIVE-INVITATION-EXACT-PARITY-RULE-2026-09-20-08`
+
+Everything above governs the **app's** visual language: Wewed's palette, type scale, spacing and
+component vocabulary, applied consistently across Android and iOS.
+
+The digital invitation is governed by a different authority and is deliberately exempt.
+
+| | The app | The invitation |
+|---|---|---|
+| Visual authority | This contract | The couple's saved `wedding.invitationCardStyle` |
+| Palette | `WeddingIdentityPalette` | The style's own palette, from the web registry |
+| Imagery | Wewed's own components and ornament | Approved artwork, imported by SHA-256 |
+| Platform adaptation | Expected and allowed | **None.** Android and iOS must render the same object |
+
+### Why the exemption exists
+
+The invitation is not a Wewed screen wearing Wewed's brand. It is **the couple's stationery**, and
+the couple chose it. Styling it with Wewed's palette, drawing its flowers with
+`WeddingOrnamentBackdrop`, or substituting SF Symbols and Material icons for approved artwork would
+replace the couple's design with ours — which is the defect this rule was written to correct.
+
+### Consequences for this contract
+
+1. `WeddingOrnamentBackdrop`, `WewedColors` and `WeddingIdentityPalette` must not appear inside an
+   invitation renderer. `IvoryPalette` is derived from the approved artwork, not from Wewed's brand.
+2. The platform adaptations §7 permits — icon glyphs, sheet behaviour, native chrome — **do not
+   apply inside the card**. Both platforms use the same artwork, the same percentage geometry and
+   the same 1800ms `cubic-bezier(0.3, 0.1, 0.2, 1)` reveal.
+3. The surrounding journey (RSVP sheet, note sheet, pass, splash) is ordinary app UI and **is**
+   governed by this contract.
+
+See [NATIVE_GUEST_INVITATION_ENTRY_CONTRACT.md](./NATIVE_GUEST_INVITATION_ENTRY_CONTRACT.md) for the
+artwork provenance, geometry table and door keyframes both platforms assert against.

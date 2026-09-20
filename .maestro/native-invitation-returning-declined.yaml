@@ -1,0 +1,44 @@
+appId: pro.wewed.app.dev
+---
+# A guest who declined keeps their invitation, and never gets a pass.
+#
+# Declining removes the pass, not the invitation. The wedding's public content stays open to them.
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+
+- openLink: "wewed://invite/shadow_ref_charity_kudzie?rsvp=shadow-declined-guest"
+
+- extendedWaitUntil:
+    visible:
+      id: "ivory-card-stage"
+    timeout: 8000
+- assertVisible:
+    id: "ivory-card-closed"
+
+- tapOn:
+    id: "ivory-card-open-button"
+- extendedWaitUntil:
+    visible:
+      id: "ivory-card-open"
+    timeout: 8000
+
+# "Response recorded", not the RSVP cue. A declined guest is an answered guest.
+- assertVisible:
+    id: "ivory-card-response-recorded"
+- assertNotVisible:
+    id: "ivory-card-rsvp-confirmed"
+- assertNotVisible:
+    id: "ivory-card-rsvp-prompt"
+
+- tapOn:
+    id: "ivory-card-details-button"
+- extendedWaitUntil:
+    visible:
+      id: "ivory-card-details"
+    timeout: 5000
+
+# The pass is the line that must not be crossed.
+- assertNotVisible:
+    id: "ivory-card-view-pass"

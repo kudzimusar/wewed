@@ -121,6 +121,32 @@ interface WeddingRepository {
 
     /** The wedding's public slug — where its wedding site is published — when the source has one. */
     suspend fun weddingSlug(weddingId: String): String? = null
+
+    /**
+     * The wedding's saved digital-invitation style.
+     *
+     * The invitation is a wedding-configured object; which design a guest meets is the couple's
+     * choice, not the app's. Mirrors server `wedding.invitationCardStyle`.
+     */
+    suspend fun invitationCardStyle(weddingId: String): String? = null
+
+    /**
+     * The same saved style, reached by the wedding's public slug.
+     *
+     * A guest arriving on an invitation link has a slug and a token, never a wedding id, so this is
+     * the lookup the invitation entry actually needs.
+     */
+    suspend fun invitationCardStyleForSlug(weddingSlug: String): String? = null
+
+    /**
+     * Everything the wedding has configured about its own invitation, by public slug.
+     *
+     * One read rather than several, so the card is never drawn with half the couple's choices and
+     * defaults for the rest.
+     */
+    suspend fun invitationConfigurationForSlug(
+        weddingSlug: String
+    ): WeddingInvitationConfiguration? = null
 }
 
 /**
@@ -167,6 +193,7 @@ class ScopedWeddingRepository internal constructor(
     suspend fun plannerAccessContext(): PlannerAccessContext? = source.plannerAccessContext(weddingId)
     suspend fun adminAccessContext(): AdminAccessContext? = source.adminAccessContext()
     suspend fun weddingSlug(): String? = source.weddingSlug(weddingId)
+    suspend fun invitationCardStyle(): String? = source.invitationCardStyle(weddingId)
 
     /** Content for one section, ordered, with a display title. */
     suspend fun getWeddingContentSection(section: String): WeddingContentSection {

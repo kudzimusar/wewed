@@ -22,7 +22,6 @@ import pro.wewed.app.state.SessionViewModel
 import pro.wewed.app.theme.WeddingIdentityPalette
 import pro.wewed.app.ui.guests.WeddingReferenceGuestsScreen
 import pro.wewed.app.ui.home.WeddingReferenceHomeScreen
-import pro.wewed.app.ui.invitation.IvoryInvitationScreen
 import pro.wewed.app.ui.live.LiveWallScreen
 import pro.wewed.app.ui.more.WeddingReferenceMoreScreen
 import pro.wewed.app.ui.pass.UsherScannerScreen

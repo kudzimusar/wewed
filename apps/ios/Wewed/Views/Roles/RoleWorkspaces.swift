@@ -877,7 +877,7 @@ struct GuestInvitationSection: View {
                 }
             case "RSVP":
                 IASectionList("RSVP", "Your response") {
-                    IACard("Your RSVP", mine.name, trailing: mine.rsvpStatus.title, testId: "guest-rsvp-state")
+                    IACard("Your RSVP", mine.name, trailing: mine.rsvpStatus.title, testId: "guest-rsvp-status")
                 }
             case "Party Members":
                 IASectionList("Party Members", mine.householdName) {

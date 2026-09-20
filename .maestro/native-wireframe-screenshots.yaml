@@ -35,15 +35,30 @@ appId: pro.wewed.app.dev
 # The invitation is captured from its own scoped guest link: Couple Home no longer opens an
 # arbitrary guest's invitation (P0-11).
 - openLink: "wewed://invite/shadow_ref_charity_kudzie?rsvp=shadow-pending-guest"
+# All four states of the approved stationery are captured, because a still of the open face alone
+# would not show whether the doors, the seal or the reveal are there at all.
 - extendedWaitUntil:
     visible:
-      id: "ivory-invitation-root"
-    timeout: 5000
-- extendedWaitUntil:
-    visible: "RSVP Now"
-    timeout: 7000
+      id: "ivory-card-closed"
+    timeout: 8000
 - waitForAnimationToEnd
-- takeScreenshot: wireframe-invitation
+- takeScreenshot: wireframe-invitation-closed
+- tapOn:
+    id: "ivory-card-open-button"
+- extendedWaitUntil:
+    visible:
+      id: "ivory-card-open"
+    timeout: 8000
+- waitForAnimationToEnd
+- takeScreenshot: wireframe-invitation-open
+- tapOn:
+    id: "ivory-card-details-button"
+- extendedWaitUntil:
+    visible:
+      id: "ivory-card-details"
+    timeout: 5000
+- waitForAnimationToEnd
+- takeScreenshot: wireframe-invitation-details
 
 # The Wedding Pass is identity-bound (P0-5), so it is captured as the guest who actually holds the
 # credential rather than from the couple shell, which has no pass token.
@@ -53,15 +68,29 @@ appId: pro.wewed.app.dev
       wewed_native_env: "shadow"
       wewed_native_persona: "attending_guest"
 # The persona launch argument authenticates the session directly, so no sign-in tap is required.
-# Guest Ceremonial Entry Contract: a recognised Guest meets their card BEFORE the Guest
-# workspace, on every new entry session. Continuing from the card ends the ceremony for this
-# session and hands over to the workspace.
+# Guest Ceremonial Entry Contract: a recognised Guest meets the wedding's configured invitation
+# BEFORE the Guest workspace, on every new entry session — as the approved stationery, never as a
+# summary card. Walking CLOSED -> OPEN -> DETAILS and continuing ends the ceremony for this session.
+- extendedWaitUntil:
+    visible:
+      id: "ivory-card-stage"
+    timeout: 8000
 - assertVisible:
-    id: "guest-ceremonial-card"
-- assertVisible:
-    id: "guest-card-status"
+    id: "ivory-card-closed"
 - tapOn:
-    id: "guest-card-continue"
+    id: "ivory-card-open-button"
+- extendedWaitUntil:
+    visible:
+      id: "ivory-card-open"
+    timeout: 8000
+- tapOn:
+    id: "ivory-card-details-button"
+- extendedWaitUntil:
+    visible:
+      id: "ivory-card-details"
+    timeout: 5000
+- tapOn:
+    id: "ivory-card-continue"
 - assertVisible:
     id: "role-shell-guest"
 - tapOn: "Pass"

@@ -142,3 +142,42 @@ If the desktop shows a value and the user is authorized to see it, native shows 
 6. Bring Vendor booking, catalog and document APIs into native.
 7. Build Admin mobile APIs over the existing Admin service layer.
 8. Keep this ledger generated, never hand-written.
+
+---
+
+## Addendum — the Guest invitation route
+
+**Task stamp:** `WW-NATIVE-INVITATION-EXACT-PARITY-RULE-2026-09-20-08`
+
+A correction to this ledger's own standard. The rule it applies is:
+
+> If the current Wewed website has a database-backed capability, the native app must either consume
+> the same canonical service/domain or the route must be considered **FAIL**.
+
+The invitation route was previously reported as working. It was not. Native rendered an invented
+card, and then an approximation of one approved design, while the wedding's saved
+`invitationCardStyle` was never read at all.
+
+| Capability | Web | Native now | Verdict |
+|---|---|---|---|
+| Saved invitation design | `wedding.invitationCardStyle`, 12 styles in `src/lib/digital-invitation-card.ts` | Read per wedding; 1 of 12 has an exact renderer, the other 11 are named and declined | **PARTIAL** — 1/12 |
+| Ivory Floral Gold | Approved tri-fold | Exact renderer, same artwork by SHA-256, same geometry, same 1800ms reveal | **PASS** |
+| Garden Romance (`botanical`) | Approved | No native renderer | **FAIL — native renderer missing** |
+| Couple's monogram, tagline, note, RSVP deadline | `wedding.*` | Resolved in one read via `invitationConfigurationForSlug` | **PASS** |
+| Venue location | `wedding.venueMapUrl` | Opens the couple's own link, else a venue search | **PASS** |
+| Gift / contributions | An active contribution QR destination | Offered only where one is configured | **PASS** |
+| RSVP from the invitation | `POST /api/weddings/[slug]/rsvp` | Offered over the card; an answered guest is never re-asked | **PASS (shadow)** |
+
+### The Charity & Kudzie consequence
+
+The real UAT wedding is saved as `botanical`. Its guest invitation route is therefore **FAIL**, not
+"unsupported": Wewed has the capability, native has not built it. Garden Romance is the next
+renderer required before that wedding's guests can enter natively through their own invitation.
+
+### A mis-mapping this ledger should record
+
+Native previously aliased `botanical`, `ivory`, `ivory-floral`, `floral-gold` and an empty value all
+onto Ivory Floral Gold. Because Charity & Kudzie is `botanical`, every guest of the one real wedding
+under test would have been shown another couple's stationery — while the build reported invitation
+parity. `mobile/contracts/invitation-styles.json` is now generated from the web registry and
+asserted on both platforms so the catalogues cannot drift again.

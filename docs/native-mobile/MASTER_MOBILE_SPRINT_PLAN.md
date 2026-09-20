@@ -235,3 +235,50 @@ Shared:
 | Signed Release Artifacts | PASS | PASS | Required |
 
 > **Rule:** Any critical `FAIL` blocks production integration unconditionally.
+
+---
+
+## Guest Invitation Exact-Parity Rule
+
+**Task stamp:** `WW-NATIVE-INVITATION-EXACT-PARITY-RULE-2026-09-20-08`
+**Full contract:** [NATIVE_GUEST_INVITATION_ENTRY_CONTRACT.md](./NATIVE_GUEST_INVITATION_ENTRY_CONTRACT.md)
+
+> An invited Guest enters Wewed through **the actual configured digital invitation design selected
+> for that wedding**. Native Android and iOS must not invent or substitute a simplified "ceremonial
+> card", summary card, generic ivory card, or other invitation-like UI.
+
+This rule is a standing gate on every future sprint, not a one-off correction. It follows from the
+project-wide rule already in force:
+
+> If the current Wewed website has a database-backed capability, the native app must either consume
+> the same canonical service/domain or the route must be considered **FAIL**. "Unsupported" is only
+> legitimate when Wewed itself does not have the capability — not when native simply has not wired
+> it yet.
+
+### What the rule requires
+
+1. The design comes from `wedding.invitationCardStyle`, resolved through the generated registry in
+   `mobile/contracts/invitation-styles.json`. Native never picks the design.
+2. A style native cannot reproduce is **named and declined**. It is never silently substituted, and
+   never aliased onto a style native happens to be able to draw.
+3. Presentation state (`CLOSED`/`OPENING`/`OPEN`/`DETAILS`) is orthogonal to RSVP state. An answered
+   guest meets the same invitation as everyone else; only what it *offers* changes.
+4. An answered guest is never re-asked. A declined guest never receives a pass.
+5. Resemblance is not reproduction. `ivory background + gold border + floral ornament` is a **FAIL**.
+
+### Release-gate consequence
+
+| Gate row | Effect |
+|---|---|
+| Feature Parity | A wedding whose saved style has no native renderer is **FAIL** for that wedding's guest invitation route — not "unsupported". |
+| Native Unit/UI Tests | The generated style registry and the artwork/geometry provenance are asserted on both platforms; drift fails the build. |
+| Maestro Cross-Platform E2E | The pending, decline, returning-attending, returning-declined and ordinary-download journeys are required lanes. |
+
+### Current standing
+
+- **Ivory Floral Gold** — exact native renderer on both platforms, runtime-verified. **PASS**
+- **The other eleven registry styles** — no native renderer. Each is named and declined at runtime.
+- **Charity & Kudzie (the real UAT wedding)** is saved as `botanical` (Garden Romance), so its guest
+  invitation route is **FAIL — native renderer missing**. Garden Romance is the next renderer
+  required. The website's invitation was not changed to make native easier, and the wedding's saved
+  style was not changed to make native pass.

@@ -1,0 +1,234 @@
+{
+  "style": "ivory-floral-gold",
+  "canvas": [
+    1080,
+    2340
+  ],
+  "authority": "origin/main public/invitation-art/ivory/",
+  "note": "Approved artwork. Never redrawn with generic ornament, vector flowers or symbols.",
+  "assets": {
+    "left-door": {
+      "source": "origin/main:public/invitation-art/ivory/left-door.webp",
+      "sourceSha256": "8f27c88bec7c64399de2124b0837ec0d6869aab7b3ed6bdef2ed1e744ab7ee11",
+      "canvas": [
+        540,
+        2340
+      ],
+      "android": "res/drawable-nodpi/ivory_left_door.webp",
+      "ios": "Wewed/Resources/ivory-left-door.png",
+      "conversion": "byte-identical (Android) / lossless WebP->PNG (iOS)"
+    },
+    "right-door": {
+      "source": "origin/main:public/invitation-art/ivory/right-door.webp",
+      "sourceSha256": "c0d1d883b8beaa317dc4551b082e360cd9b6c98931973cfa9349c3ab313b7693",
+      "canvas": [
+        540,
+        2340
+      ],
+      "android": "res/drawable-nodpi/ivory_right_door.webp",
+      "ios": "Wewed/Resources/ivory-right-door.png",
+      "conversion": "byte-identical (Android) / lossless WebP->PNG (iOS)"
+    },
+    "open-surface": {
+      "source": "origin/main:public/invitation-art/ivory/open-surface.webp",
+      "sourceSha256": "c1c347c25858e0187aea03f6edc554749d1db5f85ab23b08a6eda885f3115846",
+      "canvas": [
+        1080,
+        2340
+      ],
+      "android": "res/drawable-nodpi/ivory_open_surface.webp",
+      "ios": "Wewed/Resources/ivory-open-surface.png",
+      "conversion": "byte-identical (Android) / lossless WebP->PNG (iOS)"
+    },
+    "details-surface": {
+      "source": "origin/main:public/invitation-art/ivory/details-surface.webp",
+      "sourceSha256": "3bd953095a5a07551f41e388fbb4b2960211e3881cc747642aff4309403732ee",
+      "canvas": [
+        1080,
+        2340
+      ],
+      "android": "res/drawable-nodpi/ivory_details_surface.webp",
+      "ios": "Wewed/Resources/ivory-details-surface.png",
+      "conversion": "byte-identical (Android) / lossless WebP->PNG (iOS)"
+    },
+    "closed-surface": {
+      "source": "origin/main:public/invitation-art/ivory/closed-surface.webp",
+      "sourceSha256": "df27134688df5028790328a3b86c168487d291b013755de79b406086c4b4e4ca",
+      "canvas": [
+        1080,
+        2340
+      ],
+      "android": "res/drawable-nodpi/ivory_closed_surface.webp",
+      "ios": "Wewed/Resources/ivory-closed-surface.png",
+      "conversion": "byte-identical (Android) / lossless WebP->PNG (iOS)"
+    },
+    "paper": {
+      "source": "origin/main:public/invitation-art/ivory/paper.webp",
+      "sourceSha256": "901c593643ed408a717a995d8be06dfaee83bff8a8c8c9e596aed2699468d067",
+      "canvas": [
+        900,
+        200
+      ],
+      "android": "res/drawable-nodpi/ivory_paper.webp",
+      "ios": "Wewed/Resources/ivory-paper.png",
+      "conversion": "byte-identical (Android) / lossless WebP->PNG (iOS)"
+    }
+  },
+  "geometry": {
+    "note": "Percentages over the approved artwork, mirroring the web stage. Both platforms assert these; a silent drift here is how 'ivory background + gold border' passes for parity.",
+    "aspectWidth": 9.0,
+    "aspectHeight": 19.5,
+    "perspectivePx": 1900.0,
+    "openingMillis": 1800,
+    "doorEasing": [
+      0.3,
+      0.1,
+      0.2,
+      1.0
+    ],
+    "doorKeyframes": [
+      {
+        "at": 0.0,
+        "translateXPercent": 0.0,
+        "rotateYDegrees": 0.0,
+        "translateZPx": 0.0
+      },
+      {
+        "at": 0.12,
+        "translateXPercent": 0.0,
+        "rotateYDegrees": 2.0,
+        "translateZPx": 5.0
+      },
+      {
+        "at": 0.6,
+        "translateXPercent": 24.0,
+        "rotateYDegrees": 44.0,
+        "translateZPx": 0.0
+      },
+      {
+        "at": 1.0,
+        "translateXPercent": 112.0,
+        "rotateYDegrees": 82.0,
+        "translateZPx": 0.0
+      }
+    ],
+    "doorKeyframeNote": "Magnitudes. The left door takes the negative sign on both axes.",
+    "regions": {
+      "names": [
+        27.0,
+        20.0,
+        46.0,
+        19.0
+      ],
+      "message": [
+        24.0,
+        43.0,
+        52.0,
+        12.0
+      ],
+      "date": [
+        24.0,
+        57.0,
+        52.0,
+        8.0
+      ],
+      "location": [
+        23.0,
+        68.0,
+        54.0,
+        8.0
+      ],
+      "tagline": [
+        28.0,
+        79.0,
+        44.0,
+        4.2
+      ],
+      "guest": [
+        22.0,
+        83.3,
+        56.0,
+        4.2
+      ],
+      "monogram": [
+        38.0,
+        39.0,
+        24.0,
+        6.0
+      ],
+      "detailCouple": [
+        25.0,
+        2.0,
+        55.0,
+        3.0
+      ],
+      "detailNoteIntro": [
+        28.0,
+        26.0,
+        46.0,
+        5.0
+      ],
+      "detailVenue": [
+        35.0,
+        56.0,
+        44.0,
+        5.0
+      ],
+      "detailNote": [
+        36.0,
+        76.0,
+        44.0,
+        4.0
+      ]
+    },
+    "hitLeftPercent": 11.0,
+    "hitWidthPercent": 78.0,
+    "hits": {
+      "rsvp": [
+        35.0,
+        7.2
+      ],
+      "calendar": [
+        44.2,
+        7.3
+      ],
+      "venue": [
+        53.2,
+        8.4
+      ],
+      "registry": [
+        63.4,
+        7.3
+      ],
+      "note": [
+        72.4,
+        8.0
+      ]
+    },
+    "testIdentifiers": [
+      "ivory-card-stage",
+      "ivory-card-closed",
+      "ivory-card-left-door",
+      "ivory-card-right-door",
+      "ivory-card-monogram",
+      "ivory-card-open-button",
+      "ivory-card-opening",
+      "ivory-card-open",
+      "ivory-card-couple-names",
+      "ivory-card-guest-personalization",
+      "ivory-card-date",
+      "ivory-card-venue",
+      "ivory-card-details-button",
+      "ivory-card-details",
+      "ivory-card-rsvp",
+      "ivory-card-calendar",
+      "ivory-card-venue-action",
+      "ivory-card-contributions",
+      "ivory-card-note",
+      "ivory-card-rsvp-confirmed",
+      "ivory-card-response-recorded",
+      "ivory-card-view-pass"
+    ],
+    "maxStageWidthPx": 430.0
+  }
+}
