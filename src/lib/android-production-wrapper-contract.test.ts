@@ -36,7 +36,8 @@ describe('production Android invitation wrapper contract', () => {
     const workflow = source('.github/workflows/android-invitation-production-play-aab.yml')
 
     expect(workflow).toContain(':app:bundleRelease')
-    expect(workflow).toContain('android:host="wewed.pro"')
+    expect(workflow).toContain('android:host="@string/hostName"')
+    expect(workflow).toContain('<string name="hostName" translatable="false">wewed.pro</string>')
     expect(workflow).toContain('boolean UAT = false;')
     expect(workflow).toContain('INVITATION_RESUME_ORIGIN = "https://wewed.pro";')
     expect(workflow).toContain('EXPECTED_UPLOAD_CERT_SHA256')
