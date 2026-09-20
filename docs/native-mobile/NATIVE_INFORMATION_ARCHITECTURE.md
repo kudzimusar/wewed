@@ -1,5 +1,7 @@
 # WEWED NATIVE INFORMATION ARCHITECTURE & NAVIGATION
 
+> **Superseded by V2 for current navigation design.** See `WEWED_NATIVE_INFORMATION_ARCHITECTURE_V2.md` and `WEWED_NATIVE_IA_V2_IMPLEMENTATION_PLAYBOOK.md`. This V1 file is retained as historical architecture context and must not override the V2 role taxonomy.
+
 **Authority Baseline:** `main` @ `2be25d724b51539f4677f2f15050e0deb873922e`  
 **Purpose:** Formal specification of route hierarchies, navigation models, and deep-link schemes across iOS SwiftUI and Android Jetpack Compose.
 
