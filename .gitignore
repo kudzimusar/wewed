@@ -51,6 +51,17 @@ dev.out.log
 test
 prompt
 
+# The bare `test` rule above matches ANY directory named `test`, which silently swallowed the
+# native Android unit-test sources and made a clean checkout fail to compile. Native test trees
+# are first-class source and must always be tracked. The directory itself has to be un-ignored
+# before files inside it can be.
+!apps/android/app/src/test/
+!apps/android/app/src/test/**
+!apps/android/app/src/androidTest/
+!apps/android/app/src/androidTest/**
+!apps/ios/Wewed/Tests/
+!apps/ios/Wewed/Tests/**
+
 server.log
 # Skills directory
 /skills/
