@@ -6,6 +6,7 @@ import android.graphics.Color
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.core.view.WindowCompat
+import pro.wewed.app.models.DevelopmentPersona
 import pro.wewed.app.state.AppViewModel
 import pro.wewed.app.state.NativeLaunchConfiguration
 import pro.wewed.app.state.SessionViewModel
@@ -36,6 +37,14 @@ class MainActivity : ComponentActivity() {
         )
         appViewModel.handleIncomingUrl(intent?.dataString)
 
+        // Development/Shadow qualification only (P0-16): lets automated role traversal start as a
+        // specific authorized persona. Ignored entirely in production and production-read-verify.
+        if (launch.environment.allowsDevelopmentPersonaSwitching) {
+            intent.getStringExtra(EXTRA_NATIVE_PERSONA)
+                ?.let { requested -> DevelopmentPersona.allPersonas.firstOrNull { it.id == requested } }
+                ?.let { sessionViewModel.switchPersona(it) }
+        }
+
         setContent {
             WewedTheme {
                 RootScreen(
@@ -57,5 +66,6 @@ class MainActivity : ComponentActivity() {
     companion object {
         const val EXTRA_NATIVE_ENV = "wewed_native_env"
         const val EXTRA_SHADOW_BASE_URL = "wewed_shadow_base_url"
+        const val EXTRA_NATIVE_PERSONA = "wewed_native_persona"
     }
 }

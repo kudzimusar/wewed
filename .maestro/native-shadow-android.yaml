@@ -29,10 +29,10 @@ appId: pro.wewed.app.dev
 - assertVisible:
     id: "guests-filter-all"
 
-# 5. Pass
-- tapOn: "Pass"
+# 5. Wedding Day (IA V2: Pass moved into the Wedding Day workspace)
+- tapOn: "Wedding Day"
 - assertVisible:
-    id: "pass-root"
+    id: "couple-wedding_day"
 
 # 6. More
 - tapOn: "More"

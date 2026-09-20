@@ -20,10 +20,15 @@ appId: pro.wewed.app.dev
     id: "planner-root"
 - assertVisible:
     id: "planner-module-tasks"
-- assertVisible:
-    id: "planner-module-seating"
-- assertVisible:
-    id: "planner-module-timeline"
+# The Level-2 worksheet chips sit above the module grid, so the later modules need a scroll.
+- scrollUntilVisible:
+    element:
+      id: "planner-module-seating"
+    direction: DOWN
+- scrollUntilVisible:
+    element:
+      id: "planner-module-timeline"
+    direction: DOWN
 
 # 4. Guests
 - tapOn: "Guests"
@@ -32,20 +37,10 @@ appId: pro.wewed.app.dev
 - assertVisible:
     id: "guests-search"
 
-# 5. Wedding Pass & Gate Scanner
-- tapOn: "Pass"
+# 5. Wedding Day workspace (IA V2: My Pass lives here; the couple holds no guest credential).
+- tapOn: "Wedding Day"
 - assertVisible:
-    id: "pass-root"
-- assertVisible:
-    id: "wedding-pass-card"
-- assertVisible:
-    id: "wedding-pass-qr"
-- tapOn:
-    id: "pass-open-scanner"
-- assertVisible: "Gate Scanner"
-- tapOn:
-    id: "gate-scanner-done"
-    optional: true
+    id: "couple-wedding_day"
     retryTapIfNoChange: true
 - tapOn:
     id: "gate-scanner-exit"

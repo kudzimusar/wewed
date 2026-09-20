@@ -12,6 +12,8 @@ on:
       - '.maestro/native-shadow-deep-link-invitation.yaml'
       - '.maestro/native-wedding-journey.yaml'
       - '.maestro/native-wireframe-screenshots.yaml'
+      - '.maestro/native-role-traversal.yaml'
+      - '.maestro/native-guest-pass-identity.yaml'
       - '.github/workflows/native-wedding-identity-maestro-android.yml'
       - '.github/scripts/verify-android-local-package.sh'
   workflow_dispatch:
@@ -80,6 +82,8 @@ jobs:
             maestro test .maestro/native-shadow-deep-link-invitation.yaml
             maestro test .maestro/native-wedding-journey.yaml
             maestro test .maestro/native-wireframe-screenshots.yaml
+            maestro test .maestro/native-role-traversal.yaml
+            maestro test .maestro/native-guest-pass-identity.yaml
 
       - name: Upload Maestro diagnostics
         if: failure()

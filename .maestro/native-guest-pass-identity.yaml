@@ -1,0 +1,75 @@
+# P0-4 / P0-5 runtime proof: guest identity is bound to a credential, and every guest surface
+# resolves the SAME guest.
+#
+# Two distinct guest personas are launched in turn. If identity were still derived from collection
+# order, both would render the same guest and the cross-checks below would fail.
+appId: pro.wewed.app.dev
+---
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+      wewed_native_persona: "attending_guest"
+
+# Guest Home names the bound guest.
+- assertVisible:
+    id: "role-shell-guest"
+- assertVisible:
+    id: "guest-home-identity-shadow_guest_011"
+
+# Invitation resolves the same guest.
+- tapOn: "Invitation"
+- assertVisible:
+    id: "guest-identity-shadow_guest_011"
+
+# RSVP resolves the same guest.
+- tapOn:
+    id: "guest-invitation-section-rsvp"
+- assertVisible:
+    id: "guest-rsvp-state"
+
+# Pass resolves the same guest's credential.
+- tapOn: "Pass"
+- assertVisible:
+    id: "pass-root"
+- assertVisible:
+    id: "wedding-pass-qr"
+
+# Table and admission are the bound guest's own, not the first seated guest.
+- tapOn:
+    id: "guest-pass-section-table"
+- assertVisible:
+    id: "guest-table-shadow_guest_011"
+- assertNotVisible:
+    id: "guest-table-shadow_guest_007"
+
+- tapOn:
+    id: "guest-pass-section-admission-state"
+- assertVisible:
+    id: "guest-admission-shadow_guest_011"
+
+# --- Second guest: the same journey must resolve a DIFFERENT identity ---
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+      wewed_native_persona: "attending_guest_party4"
+
+- assertVisible:
+    id: "guest-home-identity-shadow_guest_007"
+- assertNotVisible:
+    id: "guest-home-identity-shadow_guest_011"
+
+- tapOn: "Invitation"
+- assertVisible:
+    id: "guest-identity-shadow_guest_007"
+- assertNotVisible:
+    id: "guest-identity-shadow_guest_011"
+
+- tapOn: "Pass"
+- tapOn:
+    id: "guest-pass-section-party-size"
+- assertVisible:
+    id: "guest-party-shadow_guest_007"
+- assertNotVisible:
+    id: "guest-party-shadow_guest_011"

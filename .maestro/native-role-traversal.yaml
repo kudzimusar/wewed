@@ -1,0 +1,93 @@
+# P0-20 runtime proof: every supported role shell renders its IA V2 Level-1 taxonomy, with the
+# context bar naming the resolved role and wedding.
+appId: pro.wewed.app.dev
+---
+# --- Couple ---
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+      wewed_native_persona: "couple_owner"
+- assertVisible:
+    id: "role-shell-couple"
+- assertVisible: "Home"
+- assertVisible: "Plan"
+- assertVisible: "Guests"
+- assertVisible: "Wedding Day"
+- assertVisible: "More"
+
+# --- Planner ---
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+      wewed_native_persona: "pro_planner"
+- assertVisible:
+    id: "role-shell-planner"
+- assertVisible: "Workspace"
+- assertVisible: "Clients"
+- assertVisible: "Daily Ops"
+- assertVisible: "Wedding Day"
+- assertVisible: "More"
+- assertVisible:
+    id: "role-context-bar"
+
+# --- Guest ---
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+      wewed_native_persona: "attending_guest"
+- assertVisible:
+    id: "role-shell-guest"
+- assertVisible: "Invitation"
+- assertVisible: "Pass"
+
+# --- Vendor ---
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+      wewed_native_persona: "vendor_owner"
+- assertVisible:
+    id: "role-shell-vendor"
+- assertVisible: "Jobs"
+- assertVisible: "Schedule"
+- assertVisible: "Messages"
+
+# --- Gate Team ---
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+      wewed_native_persona: "gate_usher"
+- assertVisible:
+    id: "role-shell-usher"
+- assertVisible: "Scan"
+- assertVisible: "Admissions"
+- assertVisible: "Incidents"
+
+# --- Coordinator ---
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+      wewed_native_persona: "day_coordinator"
+- assertVisible:
+    id: "role-shell-coordinator"
+- assertVisible: "Today"
+- assertVisible: "Run Sheet"
+- assertVisible: "Team"
+
+# --- Admin (system-scoped: opens with no wedding context) ---
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+      wewed_native_persona: "administrator"
+- assertVisible:
+    id: "role-shell-admin"
+- assertVisible: "Dashboard"
+- assertVisible: "Cases"
+- assertVisible: "Accounts"
+- assertVisible: "Audit"

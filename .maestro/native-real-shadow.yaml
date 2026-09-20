@@ -66,12 +66,12 @@ appId: pro.wewed.app.dev
 - assertNotVisible: "Guest G001"
 - assertNotVisible: "Guest G011"
 
-# 8. Pass / same real runtime guest graph.
-- tapOn: "Pass"
+# 8. Wedding Day / same real runtime graph.
+# IA V2 moved My Pass inside Wedding Day, and a couple holds no guest pass credential, so the
+# pass surface is exercised from the guest persona in native-guest-pass-identity.yaml.
+- tapOn: "Wedding Day"
 - assertVisible:
-    id: "pass-root"
-- assertVisible:
-    id: "wedding-pass-card"
+    id: "couple-wedding_day"
 - assertNotVisible: "Guest G011"
 
 # 9. More

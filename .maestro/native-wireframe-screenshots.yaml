@@ -23,13 +23,6 @@ appId: pro.wewed.app.dev
     id: "guests-root"
 - takeScreenshot: wireframe-guests
 
-- tapOn: "Pass"
-- assertVisible:
-    id: "pass-root"
-- assertVisible:
-    id: "wedding-pass-qr"
-- takeScreenshot: wireframe-pass
-
 - tapOn: "More"
 - assertVisible:
     id: "more-root"
@@ -49,3 +42,19 @@ appId: pro.wewed.app.dev
     timeout: 7000
 - waitForAnimationToEnd
 - takeScreenshot: wireframe-invitation
+
+# The Wedding Pass is identity-bound (P0-5), so it is captured as the guest who actually holds the
+# credential rather than from the couple shell, which has no pass token.
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+      wewed_native_persona: "attending_guest"
+- tapOn: "Sign In"
+    optional: true
+- tapOn: "Pass"
+- assertVisible:
+    id: "pass-root"
+- assertVisible:
+    id: "wedding-pass-qr"
+- takeScreenshot: wireframe-pass
