@@ -1,6 +1,18 @@
 name: Android Invitation Production Play AAB
 
 on:
+  pull_request:
+    paths:
+      - 'android/**'
+      - 'src/app/api/invitations/**'
+      - 'src/app/invite/**'
+      - 'src/components/wedding/invitation-app-handoff.tsx'
+      - 'src/components/wedding/physical-invitation-entry.tsx'
+      - 'src/lib/invitation-links.ts'
+      - 'src/lib/invitation-links.test.ts'
+      - 'src/lib/android-production-wrapper-contract.test.ts'
+      - 'public/.well-known/assetlinks.json'
+      - '.github/workflows/android-invitation-production-play-aab.yml'
   workflow_dispatch:
     inputs:
       version_code:
@@ -22,8 +34,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  WEWED_ANDROID_PRODUCTION_VERSION_CODE: ${{ inputs.version_code }}
-  WEWED_ANDROID_PRODUCTION_VERSION_NAME: ${{ inputs.version_name }}
+  WEWED_ANDROID_PRODUCTION_VERSION_CODE: ${{ github.event_name == 'workflow_dispatch' && inputs.version_code || '8' }}
+  WEWED_ANDROID_PRODUCTION_VERSION_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.version_name || '2.0.5' }}
 
 jobs:
   signed-candidate:
@@ -34,11 +46,11 @@ jobs:
       - name: Check out exact candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Verify exact candidate SHA
         shell: bash
         env:
-          EXPECTED_CANDIDATE_SHA: ${{ github.sha }}
+          EXPECTED_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           actual="$(git rev-parse HEAD)"
@@ -98,8 +110,8 @@ jobs:
       - name: Verify signed production bundle contract
         shell: bash
         env:
-          EXPECTED_VERSION_CODE: ${{ inputs.version_code }}
-          EXPECTED_VERSION_NAME: ${{ inputs.version_name }}
+          EXPECTED_VERSION_CODE: ${{ github.event_name == 'workflow_dispatch' && inputs.version_code || '8' }}
+          EXPECTED_VERSION_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.version_name || '2.0.5' }}
         run: |
           set -euo pipefail
           AAB='android/app/build/outputs/bundle/release/app-release.aab'
