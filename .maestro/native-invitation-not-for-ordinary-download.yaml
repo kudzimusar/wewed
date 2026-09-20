@@ -15,8 +15,8 @@ appId: pro.wewed.app.dev
     timeout: 8000
 
 - assertNotVisible:
-    id: "ivory-card-stage"
+    id: "invitation-trifold"
 - assertNotVisible:
-    id: "ivory-card-closed"
+    id: "invitation-closed-cover"
 - assertNotVisible:
-    id: "ivory-card-open"
+    id: "invitation-panel-centre"

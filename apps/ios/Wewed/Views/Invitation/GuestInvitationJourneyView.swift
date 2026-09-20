@@ -118,14 +118,18 @@ public struct GuestInvitationJourneyView: View {
                             // them across.
                             onAddToCalendar: { addWeddingToCalendar() },
                             onOpenVenue: { openVenueLocation() },
-                            // Gifts appear only where the wedding has a configured destination.
-                            onGifts: configuration?.giftDestinationUrl
-                                .flatMap { $0.isEmpty ? nil : $0 }
-                                .map { url in { open(url) } },
+                            // Gifts open the couple's own registry section, as
+                            // `hit('registry', ...)` does on the web: `visitCoupleWebsite('#registry')`.
+                            onGifts: { open(coupleSiteUrl(fragment: "#registry")) },
                             // The note is the couple's own words, not a stock sentence.
                             onNote: note == nil ? nil : { showNote = true },
-                            // A declined guest never gets a pass.
+                            // A declined guest never gets a pass. This is the guest's OWN pass —
+                            // never the usher scanner, which belongs to the separate Wedding Day
+                            // gate project.
                             onViewPass: status == .attending ? { showPass = true } : nil,
+                            // The couple's public site is offered to every guest, whatever they
+                            // answered.
+                            onVisitCoupleSite: { open(coupleSiteUrl(fragment: nil)) },
                             onContinue: { exitJourney() }
                         )
                     )
@@ -182,19 +186,19 @@ public struct GuestInvitationJourneyView: View {
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(WewedColors.emerald)
                         .padding(.vertical, 8)
-                        .accessibilityIdentifier("ivory-card-rsvp-accept")
+                        .accessibilityIdentifier("invitation-rsvp-accept")
                     Button("Regretfully decline") { Task { await submit(attending: false) } }
                         .font(.system(size: 14))
                         .foregroundStyle(WeddingIdentityPalette.muted)
                         .padding(.vertical, 8)
-                        .accessibilityIdentifier("ivory-card-rsvp-decline")
+                        .accessibilityIdentifier("invitation-rsvp-decline")
                 }
             }
             .padding(24)
             .frame(maxWidth: .infinity)
             .background(WeddingIdentityPalette.ivory)
         }
-        .accessibilityIdentifier("ivory-card-rsvp-prompt")
+        .accessibilityIdentifier("invitation-rsvp-prompt")
     }
 
     private var splashStage: some View {
@@ -255,7 +259,7 @@ public struct GuestInvitationJourneyView: View {
             .background(WeddingIdentityPalette.ivory)
             .padding(32)
         }
-        .accessibilityIdentifier("ivory-card-note-sheet")
+        .accessibilityIdentifier("invitation-note-sheet")
     }
 
     /// Hands the wedding to the phone's calendar.
@@ -292,6 +296,17 @@ public struct GuestInvitationJourneyView: View {
         let query = "\(invitation.venueName), \(invitation.venueCity)"
             .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         open("http://maps.apple.com/?q=\(query)")
+    }
+
+    /// The couple's public wedding site.
+    ///
+    /// Deliberately the generic `/w/<slug>` page and never the guest's private invitation link:
+    /// this one is safe to share, and conflating the two is how a private credential ends up
+    /// forwarded.
+    private func coupleSiteUrl(fragment: String?) -> String {
+        let slug = invitation.weddingSlug
+            .addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? invitation.weddingSlug
+        return "https://wewed.pro/w/\(slug)\(fragment ?? "")"
     }
 
     private func open(_ url: String) {

@@ -138,6 +138,10 @@ public struct RootView: View {
                         : (session.isAuthenticated ? .workspace : .welcome),
                     onFinished: { splashComplete = true }
                 )
+            } else if let reason = appState.rejectedInvitation {
+                // A refused invitation outranks everything that follows. It must not fall through
+                // to the ordinary launch and quietly present whoever was already active.
+                InvitationRefusedView(reason: reason) { appState.clearRejectedInvitation() }
             } else if let deepLinkedInvitation {
                 // An invitation outranks everything: no account, no sign-in, no role chooser — the
                 // invitation token IS the guest's authorization. Every valid guest entry meets the

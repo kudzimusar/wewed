@@ -1,0 +1,99 @@
+appId: pro.wewed.app.dev
+---
+# Every control on the invitation is actually tappable.
+#
+# The card is interactive stationery: approved artwork with real hit targets over it. The failure
+# this guards against is the one that already happened once — the card looks right, and a
+# decorative overlay silently eats the touch, so nothing responds and nothing fails a test either.
+#
+# Each control is tapped for real and its effect asserted, rather than merely asserted visible.
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+
+- openLink: "wewed://invite/shadow_ref_charity_kudzie?rsvp=shadow-pending-guest"
+
+# CLOSED -> the open control responds.
+- extendedWaitUntil:
+    visible:
+      id: "invitation-closed-cover"
+    timeout: 8000
+- tapOn:
+    id: "invitation-open-button"
+- extendedWaitUntil:
+    visible:
+      id: "invitation-panel-centre"
+    timeout: 8000
+
+# OPEN -> the details control responds.
+- tapOn:
+    id: "invitation-details-button"
+- extendedWaitUntil:
+    visible:
+      id: "invitation-interactive-details"
+    timeout: 5000
+
+# Every details CTA is present as a real control.
+- assertVisible:
+    id: "invitation-cta-rsvp"
+- assertVisible:
+    id: "invitation-cta-calendar"
+- assertVisible:
+    id: "invitation-cta-venue"
+- assertVisible:
+    id: "invitation-cta-registry"
+- assertVisible:
+    id: "invitation-cta-note"
+- assertVisible:
+    id: "invitation-cta-couple-site"
+
+# A Note from Us opens the couple's own words, then closes.
+- tapOn:
+    id: "invitation-cta-note"
+- extendedWaitUntil:
+    visible:
+      id: "invitation-note-sheet"
+    timeout: 5000
+- tapOn:
+    id: "invitation-note-sheet"
+- extendedWaitUntil:
+    visible:
+      id: "invitation-interactive-details"
+    timeout: 5000
+
+# RSVP opens the question, and both answers are offered.
+- tapOn:
+    id: "invitation-cta-rsvp"
+- extendedWaitUntil:
+    visible:
+      id: "invitation-rsvp-prompt"
+    timeout: 5000
+- assertVisible:
+    id: "invitation-rsvp-accept"
+- assertVisible:
+    id: "invitation-rsvp-decline"
+- tapOn:
+    id: "invitation-rsvp-prompt"
+
+# Returning to the invitation works, and so does coming back to the details.
+- tapOn:
+    id: "invitation-back-to-invitation"
+- extendedWaitUntil:
+    visible:
+      id: "invitation-panel-centre"
+    timeout: 5000
+- tapOn:
+    id: "invitation-details-button"
+- extendedWaitUntil:
+    visible:
+      id: "invitation-interactive-details"
+    timeout: 5000
+
+# Continue hands over to the rest of Wewed.
+- tapOn:
+    id: "invitation-continue"
+- extendedWaitUntil:
+    visible:
+      id: "welcome-root"
+    timeout: 8000

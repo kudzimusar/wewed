@@ -43,24 +43,24 @@ appId: pro.wewed.app.dev
 # summary card. Walking CLOSED -> OPEN -> DETAILS and continuing ends the ceremony for this session.
 - extendedWaitUntil:
     visible:
-      id: "ivory-card-stage"
+      id: "invitation-trifold"
     timeout: 8000
 - assertVisible:
-    id: "ivory-card-closed"
+    id: "invitation-closed-cover"
 - tapOn:
-    id: "ivory-card-open-button"
+    id: "invitation-open-button"
 - extendedWaitUntil:
     visible:
-      id: "ivory-card-open"
+      id: "invitation-panel-centre"
     timeout: 8000
 - tapOn:
-    id: "ivory-card-details-button"
+    id: "invitation-details-button"
 - extendedWaitUntil:
     visible:
-      id: "ivory-card-details"
+      id: "invitation-interactive-details"
     timeout: 5000
 - tapOn:
-    id: "ivory-card-continue"
+    id: "invitation-continue"
 - assertVisible:
     id: "role-shell-guest"
 - assertVisible: "Invitation"

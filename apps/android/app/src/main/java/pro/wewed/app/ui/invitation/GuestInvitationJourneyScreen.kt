@@ -158,14 +158,18 @@ fun GuestInvitationJourneyScreen(
                 // calendar and maps rather than asking the guest to copy them across.
                 onAddToCalendar = { addWeddingToCalendar(context, invitation) },
                 onOpenVenue = { openVenueLocation(context, invitation, configuration?.venueMapUrl) },
-                // Gifts appear only where the wedding has a configured destination.
-                onGifts = configuration?.giftDestinationUrl
-                    ?.takeIf { it.isNotBlank() }
-                    ?.let { url -> { openExternal(context, url) } },
+                // Gifts open the couple's own registry section, as `hit('registry', ...)` does on
+                // the web: `visitCoupleWebsite('#registry')`. It is the same public page, anchored.
+                onGifts = { openExternal(context, coupleSiteUrl(invitation.weddingSlug, "#registry")) },
                 // The note is the couple's own words. No note means no note, not a stock sentence.
                 onNote = note?.let { { showNote = true } },
-                // A declined guest never gets a pass.
+                // A declined guest never gets a pass. This is the guest's OWN pass — never the
+                // usher scanner, which belongs to the separate Wedding Day gate project.
                 onViewPass = if (status == RSVPStatus.ATTENDING) ({ showPass = true }) else null,
+                // The couple's public site is offered to every guest, whatever they answered.
+                onVisitCoupleSite = {
+                    openExternal(context, coupleSiteUrl(invitation.weddingSlug, null))
+                },
                 onContinue = onExit
             )
         )
@@ -205,7 +209,7 @@ private fun RsvpAnswerPrompt(
             .fillMaxSize()
             .background(Color.Black.copy(alpha = 0.45f))
             .clickable(enabled = !isSubmitting, onClick = onDismiss)
-            .testTag("ivory-card-rsvp-prompt"),
+            .testTag("invitation-rsvp-prompt"),
         contentAlignment = Alignment.BottomCenter
     ) {
         Column(
@@ -241,7 +245,7 @@ private fun RsvpAnswerPrompt(
                     modifier = Modifier
                         .clickable(onClick = onAccept)
                         .padding(vertical = 8.dp, horizontal = 20.dp)
-                        .testTag("ivory-card-rsvp-accept")
+                        .testTag("invitation-rsvp-accept")
                 )
                 Text(
                     "Regretfully decline",
@@ -250,7 +254,7 @@ private fun RsvpAnswerPrompt(
                     modifier = Modifier
                         .clickable(onClick = onDecline)
                         .padding(vertical = 8.dp, horizontal = 20.dp)
-                        .testTag("ivory-card-rsvp-decline")
+                        .testTag("invitation-rsvp-decline")
                 )
             }
         }
@@ -343,7 +347,7 @@ private fun NoteFromTheCouple(note: String, onDismiss: () -> Unit) {
             .fillMaxSize()
             .background(Color.Black.copy(alpha = 0.45f))
             .clickable(onClick = onDismiss)
-            .testTag("ivory-card-note-sheet"),
+            .testTag("invitation-note-sheet"),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -398,6 +402,15 @@ private fun openVenueLocation(
         ?: "geo:0,0?q=" + Uri.encode("${invitation.venueName}, ${invitation.venueCity}")
     openExternal(context, url)
 }
+
+/**
+ * The couple's public wedding site.
+ *
+ * Deliberately the generic `/w/<slug>` page and never the guest's private invitation link: this
+ * one is safe to share, and conflating the two is how a private credential ends up forwarded.
+ */
+private fun coupleSiteUrl(weddingSlug: String, fragment: String?): String =
+    "https://wewed.pro/w/" + Uri.encode(weddingSlug) + (fragment ?: "")
 
 private fun openExternal(context: android.content.Context, url: String) {
     runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }

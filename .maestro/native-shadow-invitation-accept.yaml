@@ -16,68 +16,68 @@ appId: pro.wewed.app.dev
 # CLOSED. Doors shut, seal over them. This is the first frame a guest ever sees.
 - extendedWaitUntil:
     visible:
-      id: "ivory-card-stage"
+      id: "invitation-trifold"
     timeout: 8000
 - assertVisible:
-    id: "ivory-card-closed"
+    id: "invitation-closed-cover"
 - assertVisible:
-    id: "ivory-card-left-door"
+    id: "invitation-panel-left"
 - assertVisible:
-    id: "ivory-card-right-door"
+    id: "invitation-panel-right"
 - assertVisible:
-    id: "ivory-card-monogram"
+    id: "invitation-monogram"
 
 # OPENING -> OPEN. The hinged reveal runs 1800ms.
 - tapOn:
-    id: "ivory-card-open-button"
+    id: "invitation-open-button"
 - extendedWaitUntil:
     visible:
-      id: "ivory-card-open"
+      id: "invitation-panel-centre"
     timeout: 8000
 
 # The invitation's own content, from the wedding graph.
 - assertVisible:
-    id: "ivory-card-couple-names"
+    id: "invitation-couple-names"
 - assertVisible:
-    id: "ivory-card-date"
+    id: "invitation-date"
 - assertVisible:
-    id: "ivory-card-venue"
+    id: "invitation-venue"
 # The personalisation. Without it this is a template, not an invitation.
 - assertVisible:
-    id: "ivory-card-guest-personalization"
+    id: "invitation-guest-personalization"
 
 # DETAILS.
 - tapOn:
-    id: "ivory-card-details-button"
+    id: "invitation-details-button"
 - extendedWaitUntil:
     visible:
-      id: "ivory-card-details"
+      id: "invitation-interactive-details"
     timeout: 5000
 - assertVisible:
-    id: "ivory-card-rsvp"
+    id: "invitation-cta-rsvp"
 - assertVisible:
-    id: "ivory-card-calendar"
+    id: "invitation-cta-calendar"
 - assertVisible:
-    id: "ivory-card-venue-action"
+    id: "invitation-cta-venue"
 
 # Accept, over the card rather than instead of it.
 - tapOn:
-    id: "ivory-card-rsvp"
+    id: "invitation-cta-rsvp"
 - extendedWaitUntil:
     visible:
-      id: "ivory-card-rsvp-prompt"
+      id: "invitation-rsvp-prompt"
     timeout: 5000
 - tapOn:
-    id: "ivory-card-rsvp-accept"
+    id: "invitation-rsvp-accept"
 
 # An attending guest is offered their pass, and is not asked again.
 - extendedWaitUntil:
     visible:
-      id: "ivory-card-view-pass"
+      id: "invitation-cta-pass"
     timeout: 8000
 - tapOn:
-    id: "ivory-card-view-invitation"
+    id: "invitation-back-to-invitation"
 - extendedWaitUntil:
     visible:
-      id: "ivory-card-rsvp-confirmed"
+      id: "invitation-rsvp-confirmed"
     timeout: 5000

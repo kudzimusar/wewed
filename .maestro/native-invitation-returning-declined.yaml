@@ -12,33 +12,33 @@ appId: pro.wewed.app.dev
 
 - extendedWaitUntil:
     visible:
-      id: "ivory-card-stage"
+      id: "invitation-trifold"
     timeout: 8000
 - assertVisible:
-    id: "ivory-card-closed"
+    id: "invitation-closed-cover"
 
 - tapOn:
-    id: "ivory-card-open-button"
+    id: "invitation-open-button"
 - extendedWaitUntil:
     visible:
-      id: "ivory-card-open"
+      id: "invitation-panel-centre"
     timeout: 8000
 
 # "Response recorded", not the RSVP cue. A declined guest is an answered guest.
 - assertVisible:
-    id: "ivory-card-response-recorded"
+    id: "invitation-response-recorded"
 - assertNotVisible:
-    id: "ivory-card-rsvp-confirmed"
+    id: "invitation-rsvp-confirmed"
 - assertNotVisible:
-    id: "ivory-card-rsvp-prompt"
+    id: "invitation-rsvp-prompt"
 
 - tapOn:
-    id: "ivory-card-details-button"
+    id: "invitation-details-button"
 - extendedWaitUntil:
     visible:
-      id: "ivory-card-details"
+      id: "invitation-interactive-details"
     timeout: 5000
 
 # The pass is the line that must not be crossed.
 - assertNotVisible:
-    id: "ivory-card-view-pass"
+    id: "invitation-cta-pass"

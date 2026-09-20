@@ -295,3 +295,22 @@ exists the Private Real guest invitation route is **FAIL — native renderer mis
 
 The approved website invitation was not changed to make native easier, and the wedding's saved style
 was not changed to make native pass.
+
+---
+
+## 12. The protocol underneath this contract
+
+**Added by `WW-NATIVE-IVORY-ENTRY-IDENTITY-RSVP-SHARING`.**
+
+This document governs *which* invitation a guest meets and *when*. It does not govern how the guest
+is identified, how the credential is exchanged, or how the answer is saved — that is the invitation
+protocol, and it has its own authority:
+[NATIVE_INVITATION_PROTOCOL.md](./NATIVE_INVITATION_PROTOCOL.md).
+
+The two meet at one point: the style the protocol reports from
+`GET /api/weddings/{slug}/guest-session` is the `invitationCardStyle` this contract renders. Neither
+document lets native choose the design.
+
+Since that work, the identifiers in §9 have been replaced by the web component's own `data-testid`
+values, so one element has one name across web, Android and iOS. The mapping and the full list live
+in the protocol document and in `mobile/contracts/ivory-invitation-art-provenance.json`.

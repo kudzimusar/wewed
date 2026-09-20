@@ -125,6 +125,8 @@ data class IvoryActions(
     val onGifts: (() -> Unit)?,
     val onNote: (() -> Unit)?,
     val onViewPass: (() -> Unit)?,
+    /** The couple's public wedding site. Present for every guest; it is not private. */
+    val onVisitCoupleSite: (() -> Unit)? = null,
     val onContinue: (() -> Unit)?
 )
 
@@ -248,7 +250,7 @@ fun IvoryFloralGoldNative(
         modifier = Modifier
             .fillMaxSize()
             .background(IvoryPalette.Stage)
-            .testTag("ivory-card-stage"),
+            .testTag("invitation-trifold"),
         contentAlignment = Alignment.Center
     ) {
         // The stationery keeps its authored aspect and is centred, the way a physical card sits on
@@ -280,7 +282,7 @@ fun IvoryFloralGoldNative(
                             val s = 0.94f + 0.06f * centreSettle.value
                             scaleX = s; scaleY = s
                         }
-                        .testTag("ivory-card-open")
+                        .testTag("invitation-panel-centre")
                 ) {
                     Image(
                         painter = painterResource(R.drawable.ivory_open_surface),
@@ -289,7 +291,7 @@ fun IvoryFloralGoldNative(
                         modifier = Modifier.matchParentSize()
                     )
 
-                    IvoryRegion(IvoryGeometry.NAMES, stageWidth, stageHeight, "ivory-card-couple-names") {
+                    IvoryRegion(IvoryGeometry.NAMES, stageWidth, stageHeight, "invitation-couple-names") {
                         Text(
                             data.coupleNames,
                             color = IvoryPalette.Ink,
@@ -313,7 +315,7 @@ fun IvoryFloralGoldNative(
                             textAlign = TextAlign.Center
                         )
                     }
-                    IvoryRegion(IvoryGeometry.DATE, stageWidth, stageHeight, "ivory-card-date") {
+                    IvoryRegion(IvoryGeometry.DATE, stageWidth, stageHeight, "invitation-date") {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             data.weekdayLabel?.let {
                                 Text(
@@ -357,7 +359,7 @@ fun IvoryFloralGoldNative(
                             }
                         }
                     }
-                    IvoryRegion(IvoryGeometry.LOCATION, stageWidth, stageHeight, "ivory-card-venue") {
+                    IvoryRegion(IvoryGeometry.LOCATION, stageWidth, stageHeight, "invitation-venue") {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
                                 // `.ivory-location strong { text-transform: uppercase }`
@@ -398,7 +400,7 @@ fun IvoryFloralGoldNative(
                     // The personalisation. Without it this is a template, not an invitation.
                     IvoryRegion(
                         IvoryGeometry.GUEST, stageWidth, stageHeight,
-                        "ivory-card-guest-personalization"
+                        "invitation-guest-personalization"
                     ) {
                         // `.ivory-guest { gap: .25cqw; font-size: 2.2cqw; line-height: 1.4 }`.
                         // The line height is explicit: the authored box holds two lines only at the
@@ -440,7 +442,7 @@ fun IvoryFloralGoldNative(
                                 .fillMaxWidth()
                                 .height(stageHeight * 0.075f)
                                 .clickable { view = InvitationPresentationState.DETAILS }
-                                .testTag("ivory-card-details-button"),
+                                .testTag("invitation-details-button"),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
@@ -450,9 +452,9 @@ fun IvoryFloralGoldNative(
                                 fontSize = (stageWidth.value * 0.030f).sp,
                                 modifier = Modifier.testTag(
                                     when (rsvp.answer) {
-                                        IvoryRsvpAnswer.ATTENDING -> "ivory-card-rsvp-confirmed"
-                                        IvoryRsvpAnswer.DECLINED -> "ivory-card-response-recorded"
-                                        IvoryRsvpAnswer.AWAITING -> "ivory-card-details-cue"
+                                        IvoryRsvpAnswer.ATTENDING -> "invitation-rsvp-confirmed"
+                                        IvoryRsvpAnswer.DECLINED -> "invitation-response-recorded"
+                                        IvoryRsvpAnswer.AWAITING -> "invitation-details-cue"
                                     }
                                 )
                             )
@@ -466,7 +468,7 @@ fun IvoryFloralGoldNative(
                 Box(
                     modifier = Modifier
                         .matchParentSize()
-                        .testTag("ivory-card-details")
+                        .testTag("invitation-interactive-details")
                 ) {
                     Image(
                         painter = painterResource(R.drawable.ivory_details_surface),
@@ -534,23 +536,23 @@ fun IvoryFloralGoldNative(
                     IvoryHit(
                         IvoryGeometry.HIT_RSVP[0], IvoryGeometry.HIT_RSVP[1], stageWidth, stageHeight,
                         if (rsvp.awaitsResponse) "RSVP" else "RSVP recorded",
-                        "ivory-card-rsvp", if (rsvp.awaitsResponse) actions.onRsvp else null
+                        "invitation-cta-rsvp", if (rsvp.awaitsResponse) actions.onRsvp else null
                     )
                     IvoryHit(
                         IvoryGeometry.HIT_CALENDAR[0], IvoryGeometry.HIT_CALENDAR[1], stageWidth, stageHeight,
-                        "Add to Calendar", "ivory-card-calendar", actions.onAddToCalendar
+                        "Add to Calendar", "invitation-cta-calendar", actions.onAddToCalendar
                     )
                     IvoryHit(
                         IvoryGeometry.HIT_VENUE[0], IvoryGeometry.HIT_VENUE[1], stageWidth, stageHeight,
-                        "Venue Location", "ivory-card-venue-action", actions.onOpenVenue
+                        "Venue Location", "invitation-cta-venue", actions.onOpenVenue
                     )
                     IvoryHit(
                         IvoryGeometry.HIT_REGISTRY[0], IvoryGeometry.HIT_REGISTRY[1], stageWidth, stageHeight,
-                        "Gift / Contributions", "ivory-card-contributions", actions.onGifts
+                        "Gift / Contributions", "invitation-cta-registry", actions.onGifts
                     )
                     IvoryHit(
                         IvoryGeometry.HIT_NOTE[0], IvoryGeometry.HIT_NOTE[1], stageWidth, stageHeight,
-                        "A Note from Us", "ivory-card-note", actions.onNote
+                        "A Note from Us", "invitation-cta-note", actions.onNote
                     )
 
                     Row(
@@ -567,7 +569,7 @@ fun IvoryFloralGoldNative(
                             modifier = Modifier
                                 .clickable { view = InvitationPresentationState.OPEN }
                                 .padding(horizontal = 10.dp)
-                                .testTag("ivory-card-view-invitation")
+                                .testTag("invitation-back-to-invitation")
                         )
                         if (rsvp.offersPass && actions.onViewPass != null) {
                             Text(
@@ -577,7 +579,18 @@ fun IvoryFloralGoldNative(
                                 modifier = Modifier
                                     .clickable { actions.onViewPass.invoke() }
                                     .padding(horizontal = 10.dp)
-                                    .testTag("ivory-card-view-pass")
+                                    .testTag("invitation-cta-pass")
+                            )
+                        }
+                        actions.onVisitCoupleSite?.let {
+                            Text(
+                                "Visit Couple Website",
+                                color = IvoryPalette.Gold,
+                                fontSize = (stageWidth.value * 0.026f).sp,
+                                modifier = Modifier
+                                    .clickable(onClick = it)
+                                    .padding(horizontal = 10.dp)
+                                    .testTag("invitation-cta-couple-site")
                             )
                         }
                         actions.onContinue?.let {
@@ -588,7 +601,7 @@ fun IvoryFloralGoldNative(
                                 modifier = Modifier
                                     .clickable(onClick = it)
                                     .padding(horizontal = 10.dp)
-                                    .testTag("ivory-card-continue")
+                                    .testTag("invitation-continue")
                             )
                         }
                     }
@@ -600,7 +613,7 @@ fun IvoryFloralGoldNative(
                 Box(
                     modifier = Modifier
                         .matchParentSize()
-                        .testTag("ivory-card-closed")
+                        .testTag("invitation-closed-cover")
                 ) {
                     // Anywhere on the closed card opens it. This target carries no semantics on
                     // purpose: Compose drops a semantics node that another one completely covers,
@@ -626,7 +639,7 @@ fun IvoryFloralGoldNative(
                             .fillMaxHeight()
                             .width(stageWidth / 2)
                             .semantics { contentDescription = "Invitation left door" }
-                            .testTag("ivory-card-left-door")
+                            .testTag("invitation-panel-left")
                     )
                     IvoryDoor(
                         drawable = R.drawable.ivory_right_door,
@@ -638,12 +651,12 @@ fun IvoryFloralGoldNative(
                             .fillMaxHeight()
                             .width(stageWidth / 2)
                             .semantics { contentDescription = "Invitation right door" }
-                            .testTag("ivory-card-right-door")
+                            .testTag("invitation-panel-right")
                     )
 
                     // The seal sits over the closed doors, and inks out as they part.
                     IvoryRegion(
-                        IvoryGeometry.MONOGRAM, stageWidth, stageHeight, "ivory-card-monogram"
+                        IvoryGeometry.MONOGRAM, stageWidth, stageHeight, "invitation-monogram"
                     ) {
                         Text(
                             data.monogram.replace(Regex("[·|]"), " "),
@@ -668,7 +681,7 @@ fun IvoryFloralGoldNative(
                                         contentDescription =
                                             "A special invitation awaits. Tap to open."
                                     }
-                                    .testTag("ivory-card-open-button")
+                                    .testTag("invitation-open-button")
                                     .clickable { scope.launch { openDoors() } }
                             )
                         }
@@ -677,7 +690,7 @@ fun IvoryFloralGoldNative(
             }
 
             if (view == InvitationPresentationState.OPENING) {
-                Box(modifier = Modifier.matchParentSize().testTag("ivory-card-opening"))
+                Box(modifier = Modifier.matchParentSize().testTag("invitation-opening"))
             }
         }
     }

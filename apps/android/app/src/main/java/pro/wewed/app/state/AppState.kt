@@ -3,6 +3,8 @@ package pro.wewed.app.state
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import pro.wewed.app.invitation.InvitationEntry
+import pro.wewed.app.invitation.InvitationEntryParser
 import pro.wewed.app.models.InvitationDeepLink
 import pro.wewed.app.models.NativeDataEnvironment
 import pro.wewed.app.models.NativeDeepLink
@@ -95,7 +97,42 @@ class AppViewModel(
     private val _pendingRouteDeepLink = MutableStateFlow<NativeDeepLink?>(null)
     val pendingRouteDeepLink: StateFlow<NativeDeepLink?> = _pendingRouteDeepLink.asStateFlow()
 
+    /**
+     * A launch that looked like an invitation and is refused.
+     *
+     * Held as its own state rather than dropped, because failing closed has to be *visible*. An
+     * invalid or expired link that silently does nothing looks identical to the app opening as
+     * whoever was already signed in — which is exactly the confusion that lets the wrong person's
+     * invitation appear.
+     */
+    private val _rejectedInvitation = MutableStateFlow<InvitationEntry.Reason?>(null)
+    val rejectedInvitation: StateFlow<InvitationEntry.Reason?> = _rejectedInvitation.asStateFlow()
+
+    fun clearRejectedInvitation() {
+        _rejectedInvitation.value = null
+    }
+
     fun handleIncomingUrl(rawUrl: String?) {
+        // Invitation entry is resolved first and by its own parser, because it is the only launch
+        // shape that carries a credential and the only one with refusals of its own.
+        when (val entry = InvitationEntryParser.fromUrl(rawUrl)) {
+            is InvitationEntry.Rejected -> {
+                _rejectedInvitation.value = entry.reason
+                _pendingInvitationDeepLink.value = null
+                _pendingRouteDeepLink.value = null
+                return
+            }
+            is InvitationEntry.Handoff -> {
+                // The opaque handoff is redeemed by the entry coordinator against the server; it
+                // names nobody here, so there is nothing to route on yet.
+                _rejectedInvitation.value = null
+                _pendingRouteDeepLink.value = null
+                return
+            }
+            is InvitationEntry.PrivateInvitation -> _rejectedInvitation.value = null
+            null -> Unit
+        }
+
         when (val deepLink = NativeDeepLinkParser.parse(rawUrl)) {
             is NativeDeepLink.Invitation -> {
                 _pendingInvitationDeepLink.value = deepLink.value

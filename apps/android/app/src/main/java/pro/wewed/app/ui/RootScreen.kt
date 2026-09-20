@@ -37,6 +37,7 @@ import pro.wewed.app.ui.invitation.ivory.IvoryActions
 import pro.wewed.app.ui.invitation.ivoryDataFrom
 import pro.wewed.app.ui.invitation.ivoryRsvpStateFrom
 import pro.wewed.app.ui.invitation.GuestInvitationJourneyScreen
+import pro.wewed.app.ui.invitation.InvitationRefusedScreen
 import pro.wewed.app.ui.pass.UsherScannerScreen
 import pro.wewed.app.ui.roles.*
 
@@ -60,6 +61,7 @@ fun RootScreen(
     val weddingId by sessionViewModel.weddingId.collectAsState()
     val weddingTitle by sessionViewModel.weddingTitle.collectAsState()
     val pendingInvitationDeepLink by appViewModel.pendingInvitationDeepLink.collectAsState()
+    val rejectedInvitation by appViewModel.rejectedInvitation.collectAsState()
     val pendingRouteDeepLink by appViewModel.pendingRouteDeepLink.collectAsState()
 
     var isScannerOpen by remember { mutableStateOf(false) }
@@ -116,6 +118,22 @@ fun RootScreen(
             destination = splashDestination,
             onFinished = { splashComplete = true }
         )
+        return
+    }
+
+    // A refused invitation outranks everything that follows. It must not fall through to the
+    // ordinary launch and quietly present whoever was already active.
+    rejectedInvitation?.let { reason ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .semantics { testTagsAsResourceId = true }
+        ) {
+            InvitationRefusedScreen(
+                reason = reason,
+                onDismiss = { appViewModel.clearRejectedInvitation() }
+            )
+        }
         return
     }
 

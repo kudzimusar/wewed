@@ -103,11 +103,14 @@ public struct IvoryActions {
     public let onGifts: (() -> Void)?
     public let onNote: (() -> Void)?
     public let onViewPass: (() -> Void)?
+    /// The couple's public wedding site. Present for every guest; it is not private.
+    public let onVisitCoupleSite: (() -> Void)?
     public let onContinue: (() -> Void)?
 
     public init(onRsvp: (() -> Void)? = nil, onAddToCalendar: (() -> Void)? = nil,
                 onOpenVenue: (() -> Void)? = nil, onGifts: (() -> Void)? = nil,
                 onNote: (() -> Void)? = nil, onViewPass: (() -> Void)? = nil,
+                onVisitCoupleSite: (() -> Void)? = nil,
                 onContinue: (() -> Void)? = nil) {
         self.onRsvp = onRsvp
         self.onAddToCalendar = onAddToCalendar
@@ -115,6 +118,7 @@ public struct IvoryActions {
         self.onGifts = onGifts
         self.onNote = onNote
         self.onViewPass = onViewPass
+        self.onVisitCoupleSite = onVisitCoupleSite
         self.onContinue = onContinue
     }
 }
@@ -203,14 +207,14 @@ public struct IvoryFloralGoldNative: View {
                 // container. `.accessibilityIdentifier` is inherited in SwiftUI: on the container
                 // it overwrote every descendant's identifier, so the doors, the seal and the
                 // couple's own names all reported as `ivory-card-stage` and none could be asserted.
-                IvoryMarker("ivory-card-stage", label: "Your invitation")
+                AccessibilityMarker("invitation-trifold", label: "Your invitation")
 
                 ZStack {
                     if view != .details { openFace(stageWidth, stageHeight) }
                     if view == .details { detailsFace(stageWidth, stageHeight) }
                     if view == .closed || view == .opening { doors(stageWidth, stageHeight) }
                     if view == .opening {
-                        IvoryMarker("ivory-card-opening", label: "Your invitation, opening")
+                        AccessibilityMarker("invitation-opening", label: "Your invitation, opening")
                     }
                 }
                 .frame(width: stageWidth, height: stageHeight)
@@ -238,7 +242,7 @@ public struct IvoryFloralGoldNative: View {
                     .foregroundStyle(IvoryPalette.ink)
                     .multilineTextAlignment(.center)
             }
-            .accessibilityIdentifier("ivory-card-couple-names")
+            .accessibilityIdentifier("invitation-couple-names")
 
             region(IvoryGeometry.message, w, h) {
                 // `.ivory-message { text-transform: uppercase; letter-spacing: .13em }`
@@ -281,7 +285,7 @@ public struct IvoryFloralGoldNative: View {
                     .frame(maxWidth: .infinity)
                 }
             }
-            .accessibilityIdentifier("ivory-card-date")
+            .accessibilityIdentifier("invitation-date")
 
             region(IvoryGeometry.location, w, h) {
                 VStack(spacing: 1) {
@@ -300,7 +304,7 @@ public struct IvoryFloralGoldNative: View {
                 }
                 .multilineTextAlignment(.center)
             }
-            .accessibilityIdentifier("ivory-card-venue")
+            .accessibilityIdentifier("invitation-venue")
 
             if let tagline = data.tagline, !tagline.isEmpty {
                 region(IvoryGeometry.tagline, w, h) {
@@ -328,7 +332,7 @@ public struct IvoryFloralGoldNative: View {
                 }
                 .multilineTextAlignment(.center)
             }
-            .accessibilityIdentifier("ivory-card-guest-personalization")
+            .accessibilityIdentifier("invitation-guest-personalization")
 
             if view == .open {
                 VStack {
@@ -339,11 +343,11 @@ public struct IvoryFloralGoldNative: View {
                             .foregroundStyle(IvoryPalette.gold)
                             .frame(maxWidth: .infinity, minHeight: h * 0.075)
                     }
-                    .accessibilityIdentifier("ivory-card-details-button")
+                    .accessibilityIdentifier("invitation-details-button")
 
                     // The status is marked beside the control, not inside it: a nested identifier
                     // would replace the button's own and the control would stop being findable.
-                    IvoryMarker(
+                    AccessibilityMarker(
                         Self.statusIdentifier(rsvp.answer),
                         label: rsvp.statusLabel ?? "Wedding details"
                     )
@@ -354,7 +358,7 @@ public struct IvoryFloralGoldNative: View {
         .frame(width: w, height: h)
         // `ivory-settle`: 0.94 -> 1.
         .scaleEffect(0.94 + 0.06 * centreSettle)
-        .overlay(IvoryMarker("ivory-card-open", label: "Your invitation, open"))
+        .overlay(AccessibilityMarker("invitation-panel-centre", label: "Your invitation, open"))
     }
 
     // MARK: - The details surface
@@ -404,15 +408,15 @@ public struct IvoryFloralGoldNative: View {
 
             // A guest who has already answered is never offered RSVP again; gifts appear only
             // when the wedding has a configured destination.
-            hit(IvoryGeometry.hitRsvp, w, h, "RSVP", "ivory-card-rsvp",
+            hit(IvoryGeometry.hitRsvp, w, h, "RSVP", "invitation-cta-rsvp",
                 rsvp.awaitsResponse ? actions.onRsvp : nil)
-            hit(IvoryGeometry.hitCalendar, w, h, "Add to Calendar", "ivory-card-calendar",
+            hit(IvoryGeometry.hitCalendar, w, h, "Add to Calendar", "invitation-cta-calendar",
                 actions.onAddToCalendar)
-            hit(IvoryGeometry.hitVenue, w, h, "Venue Location", "ivory-card-venue-action",
+            hit(IvoryGeometry.hitVenue, w, h, "Venue Location", "invitation-cta-venue",
                 actions.onOpenVenue)
             hit(IvoryGeometry.hitRegistry, w, h, "Gift / Contributions",
-                "ivory-card-contributions", actions.onGifts)
-            hit(IvoryGeometry.hitNote, w, h, "A Note from Us", "ivory-card-note", actions.onNote)
+                "invitation-cta-registry", actions.onGifts)
+            hit(IvoryGeometry.hitNote, w, h, "A Note from Us", "invitation-cta-note", actions.onNote)
 
             VStack {
                 Spacer()
@@ -420,18 +424,24 @@ public struct IvoryFloralGoldNative: View {
                     Button("View invitation") { view = .open }
                         .font(IvoryTypography.body(size: w * 0.026))
                         .foregroundStyle(IvoryPalette.gold)
-                        .accessibilityIdentifier("ivory-card-view-invitation")
+                        .accessibilityIdentifier("invitation-back-to-invitation")
                     if rsvp.offersPass, let onViewPass = actions.onViewPass {
                         Button("Guest Pass", action: onViewPass)
                             .font(IvoryTypography.body(size: w * 0.026))
                             .foregroundStyle(IvoryPalette.gold)
-                            .accessibilityIdentifier("ivory-card-view-pass")
+                            .accessibilityIdentifier("invitation-cta-pass")
+                    }
+                    if let onVisitCoupleSite = actions.onVisitCoupleSite {
+                        Button("Visit Couple Website", action: onVisitCoupleSite)
+                            .font(IvoryTypography.body(size: w * 0.026))
+                            .foregroundStyle(IvoryPalette.gold)
+                            .accessibilityIdentifier("invitation-cta-couple-site")
                     }
                     if let onContinue = actions.onContinue {
                         Button("Continue", action: onContinue)
                             .font(IvoryTypography.body(size: w * 0.026))
                             .foregroundStyle(IvoryPalette.inkSoft)
-                            .accessibilityIdentifier("ivory-card-continue")
+                            .accessibilityIdentifier("invitation-continue")
                     }
                 }
                 .padding(.bottom, h * 0.02)
@@ -439,7 +449,7 @@ public struct IvoryFloralGoldNative: View {
             .frame(width: w, height: h)
         }
         .frame(width: w, height: h)
-        .overlay(IvoryMarker("ivory-card-details", label: "Wedding details"))
+        .overlay(AccessibilityMarker("invitation-interactive-details", label: "Wedding details"))
     }
 
     // MARK: - The doors
@@ -449,9 +459,9 @@ public struct IvoryFloralGoldNative: View {
         ZStack {
             HStack(spacing: 0) {
                 door("ivory-left-door", isLeft: true, w: w / 2, h: h)
-                    .accessibilityIdentifier("ivory-card-left-door")
+                    .accessibilityIdentifier("invitation-panel-left")
                 door("ivory-right-door", isLeft: false, w: w / 2, h: h)
-                    .accessibilityIdentifier("ivory-card-right-door")
+                    .accessibilityIdentifier("invitation-panel-right")
             }
 
             // The seal sits over the closed doors, and inks out as they part.
@@ -462,7 +472,7 @@ public struct IvoryFloralGoldNative: View {
                     .foregroundStyle(IvoryPalette.ink)
                     .opacity(max(0, min(1, 1 - doorProgress * 6)))
             }
-            .accessibilityIdentifier("ivory-card-monogram")
+            .accessibilityIdentifier("invitation-monogram")
 
             if view == .closed {
                 Color.clear
@@ -470,7 +480,7 @@ public struct IvoryFloralGoldNative: View {
                     .onTapGesture { openDoors() }
                     .accessibilityLabel("A special invitation awaits. Tap to open.")
                     .accessibilityAddTraits(.isButton)
-                    .accessibilityIdentifier("ivory-card-open-button")
+                    .accessibilityIdentifier("invitation-open-button")
             }
 
             // A marker rather than an identifier on the group: SwiftUI publishes a container's
@@ -478,7 +488,7 @@ public struct IvoryFloralGoldNative: View {
             // one would swallow the doors and the seal — the very things worth asserting. The
             // marker carries the closed card's own description, so it is a real element rather
             // than an empty focus stop.
-            IvoryMarker("ivory-card-closed", label: "Your invitation, still closed")
+            AccessibilityMarker("invitation-closed-cover", label: "Your invitation, still closed")
         }
         .frame(width: w, height: h)
     }
@@ -494,9 +504,9 @@ public struct IvoryFloralGoldNative: View {
     /// distinguishable in tests — they are different outcomes, not one "answered" state.
     private static func statusIdentifier(_ answer: IvoryRsvpAnswer) -> String {
         switch answer {
-        case .attending: return "ivory-card-rsvp-confirmed"
-        case .declined: return "ivory-card-response-recorded"
-        case .awaiting: return "ivory-card-details-cue"
+        case .attending: return "invitation-rsvp-confirmed"
+        case .declined: return "invitation-response-recorded"
+        case .awaiting: return "invitation-details-cue"
         }
     }
 
@@ -590,26 +600,3 @@ public struct IvoryFloralGoldNative: View {
     }
 }
 
-/// A one-point leaf element carrying a state identifier.
-///
-/// SwiftUI inherits `.accessibilityIdentifier` down the tree, so putting a state's identifier on
-/// its container renames every descendant and makes the card unassertable. A leaf marker names the
-/// state without touching anything inside it.
-private struct IvoryMarker: View {
-    private let identifier: String
-    private let label: String
-
-    init(_ identifier: String, label: String) {
-        self.identifier = identifier
-        self.label = label
-    }
-
-    var body: some View {
-        Color.clear
-            .frame(width: 1, height: 1)
-            .allowsHitTesting(false)
-            .accessibilityElement()
-            .accessibilityLabel(label)
-            .accessibilityIdentifier(identifier)
-    }
-}

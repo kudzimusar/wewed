@@ -76,7 +76,39 @@ public final class AppState: ObservableObject, @unchecked Sendable {
         return try await repository.forWedding(weddingId)
     }
 
+    /// A launch that looked like an invitation and is refused.
+    ///
+    /// Held as its own state rather than dropped, because failing closed has to be *visible*. An
+    /// invalid or expired link that silently does nothing looks identical to the app opening as
+    /// whoever was already signed in — which is exactly the confusion that lets the wrong person's
+    /// invitation appear.
+    @Published public var rejectedInvitation: InvitationRejection?
+
+    public func clearRejectedInvitation() {
+        rejectedInvitation = nil
+    }
+
     public func handleIncomingURL(_ url: URL) {
+        // Invitation entry is resolved first and by its own parser, because it is the only launch
+        // shape that carries a credential and the only one with refusals of its own.
+        switch InvitationEntryParser.entry(from: url.absoluteString) {
+        case let .rejected(reason):
+            rejectedInvitation = reason
+            pendingInvitationDeepLink = nil
+            pendingRouteDeepLink = nil
+            return
+        case .handoff:
+            // The opaque handoff is redeemed against the server; it names nobody here, so there is
+            // nothing to route on yet.
+            rejectedInvitation = nil
+            pendingRouteDeepLink = nil
+            return
+        case .privateInvitation:
+            rejectedInvitation = nil
+        case .none:
+            break
+        }
+
         guard let deepLink = NativeDeepLinkParser.parse(url.absoluteString) else { return }
 
         switch deepLink {

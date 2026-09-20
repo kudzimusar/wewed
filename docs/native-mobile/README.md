@@ -40,6 +40,21 @@ The document carries the style registry, the artwork provenance (six files pinne
 geometry and door keyframes both platforms assert, and the rule that presentation state is
 orthogonal to RSVP state.
 
+### 1b. Binding rule — the invitation protocol
+
+NATIVE_INVITATION_PROTOCOL.md
+
+Read before touching anything that handles an invitation link, a handoff, a guest session or an
+RSVP write.
+
+A private invitation is a security protocol, not a URL convention. Native speaks the one already
+running in production — the same handoff shape, the same endpoints, the same refusals — or it
+refuses. It never invents a second one, never persists the raw RSVP credential, and never replaces
+an active guest before the server has validated the new one.
+
+The shapes and endpoints are generated from `origin/main` into
+`mobile/contracts/invitation-protocol.json` and asserted on both platforms.
+
 ### 2. Current sprint authority — Shadow Real-Wedding Parity
 
 WEWED_NATIVE_SHADOW_INTEGRATION_REAL_WEDDING_PARITY_PLAN_2026-09-18.md
