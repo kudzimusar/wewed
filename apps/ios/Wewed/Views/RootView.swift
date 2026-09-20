@@ -81,9 +81,17 @@ public struct RootView: View {
                                 .environmentObject(session)
                         }
                     }
-                    .accessibilityIdentifier(
-                        "shadow-source-" + appState.dataEnvironment.rawValue.replacingOccurrences(of: "_", with: "-")
-                    )
+                    // The environment marker is attached to a dedicated hidden element rather
+                    // than the whole authenticated tree: on iOS an identifier applied to a
+                    // container propagates to its descendants and overrides every nested
+                    // identifier, which hid role-shell-* and every workspace id from UI tests.
+                    .overlay(alignment: .top) {
+                        Color.clear
+                            .frame(width: 1, height: 1)
+                            .accessibilityIdentifier(
+                                "shadow-source-" + appState.dataEnvironment.rawValue.replacingOccurrences(of: "_", with: "-")
+                            )
+                    }
             } else {
                 LoginView()
             }

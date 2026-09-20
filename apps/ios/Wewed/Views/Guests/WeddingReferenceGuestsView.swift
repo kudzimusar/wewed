@@ -55,6 +55,7 @@ public struct WeddingReferenceGuestsView: View {
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("guests-add")
                 }
+                .wewedBoundedWidth(horizontalInset: 28)
                 .padding(.horizontal, 14)
                 .padding(.top, 12)
                 .padding(.bottom, 8)

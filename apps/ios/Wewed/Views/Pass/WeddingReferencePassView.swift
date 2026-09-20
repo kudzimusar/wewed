@@ -40,6 +40,7 @@ public struct WeddingReferencePassView: View {
                             .padding(.top, 80)
                         }
                     }
+                    .wewedBoundedWidth(horizontalInset: 36)
                     .padding(.horizontal, 18)
                     .padding(.top, 12)
                     .padding(.bottom, 30)

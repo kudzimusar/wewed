@@ -39,6 +39,7 @@ public struct IvoryInvitationView: View {
                         invitationHeader
                         invitationCard
                     }
+                    .wewedBoundedWidth(horizontalInset: 32)
                     .padding(.horizontal, 16)
                     .padding(.top, 12)
                     .padding(.bottom, 30)

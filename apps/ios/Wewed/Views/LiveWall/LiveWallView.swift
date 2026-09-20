@@ -39,6 +39,7 @@ public struct LiveWallView: View {
                                 .fontWeight(.bold)
                                 .foregroundColor(WewedColors.textPrimaryLight)
                         }
+                        .wewedBoundedWidth(horizontalInset: 28)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 8)
                         .background(WewedColors.goldLight.opacity(0.3))

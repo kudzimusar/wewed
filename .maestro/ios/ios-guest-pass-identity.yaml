@@ -1,0 +1,39 @@
+# iOS runtime proof that guest identity is bound to a credential and every guest surface resolves
+# the SAME guest. Two distinct guest personas are launched; if identity were derived from
+# collection order, both would render the same guest and these assertions would fail.
+appId: pro.wewed.app.dev
+---
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+      wewed_native_persona: "attending_guest"
+- assertVisible:
+    id: "role-shell-guest"
+- assertVisible:
+    id: "guest-home-identity-shadow_guest_011"
+
+- tapOn: "Invitation"
+- assertVisible:
+    id: "guest-identity-shadow_guest_011"
+
+- tapOn: "Pass"
+# The Pass workspace's Level-2 taxonomy confirms the surface rendered.
+- assertVisible: "Wedding Pass"
+
+# --- Second guest: the same journey must resolve a DIFFERENT identity ---
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+      wewed_native_persona: "attending_guest_party4"
+- assertVisible:
+    id: "guest-home-identity-shadow_guest_007"
+- assertNotVisible:
+    id: "guest-home-identity-shadow_guest_011"
+
+- tapOn: "Invitation"
+- assertVisible:
+    id: "guest-identity-shadow_guest_007"
+- assertNotVisible:
+    id: "guest-identity-shadow_guest_011"

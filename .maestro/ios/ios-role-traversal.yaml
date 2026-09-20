@@ -1,0 +1,87 @@
+# iOS runtime proof: every supported role shell renders its IA V2 Level-1 taxonomy on a real
+# Simulator, with the context bar naming the resolved role and wedding.
+#
+# Run with: maestro --device <simulator-udid> test .maestro/ios/ios-role-traversal.yaml
+appId: pro.wewed.app.dev
+---
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+      wewed_native_persona: "couple_owner"
+- assertVisible:
+    id: "role-shell-couple"
+- assertVisible: "Home"
+- assertVisible: "Plan"
+- assertVisible: "Guests"
+- assertVisible: "Wedding Day"
+- assertVisible: "More"
+# On iOS an identifier applied to a container propagates to its descendants, so nested container
+# ids are not reliably addressable. Assert the context bar's content instead, which is the thing
+# that actually matters: the resolved wedding is named.
+- assertVisible: "Charity & Kudzie"
+
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+      wewed_native_persona: "pro_planner"
+- assertVisible:
+    id: "role-shell-planner"
+- assertVisible: "Workspace"
+- assertVisible: "Clients"
+- assertVisible: "Daily Ops"
+
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+      wewed_native_persona: "attending_guest"
+- assertVisible:
+    id: "role-shell-guest"
+- assertVisible: "Invitation"
+- assertVisible: "Pass"
+
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+      wewed_native_persona: "vendor_owner"
+- assertVisible:
+    id: "role-shell-vendor"
+- assertVisible: "Jobs"
+- assertVisible: "Schedule"
+
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+      wewed_native_persona: "gate_usher"
+- assertVisible:
+    id: "role-shell-usher"
+- assertVisible: "Scan"
+- assertVisible: "Admissions"
+
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+      wewed_native_persona: "day_coordinator"
+- assertVisible:
+    id: "role-shell-coordinator"
+- assertVisible: "Today"
+- assertVisible: "Run Sheet"
+
+# Admin is system-scoped: the console opens with no wedding context (P0-13).
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+      wewed_native_persona: "administrator"
+- assertVisible:
+    id: "role-shell-admin"
+- assertVisible: "Dashboard"
+- assertVisible: "Cases"
+- assertVisible: "Audit"
+- assertVisible:
+    id: "admin-weddings-in-scope"
