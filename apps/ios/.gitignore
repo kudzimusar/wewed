@@ -6,3 +6,6 @@ Package.resolved
 *.xcworkspace
 DerivedData/
 .DS_Store
+
+# SwiftPM / Xcode build output — never committed (was accidentally tracked during P0 closure).
+.build/

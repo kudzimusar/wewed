@@ -63,3 +63,26 @@ public struct NativeLaunchConfiguration: Equatable, Sendable {
         return nil
     }
 }
+
+public extension NativeLaunchConfiguration {
+    /// Development/Shadow qualification only (P0-16): lets automated role traversal start as a
+    /// specific authorized persona. Ignored entirely in production and production-read-verify.
+    ///
+    /// Read from `-wewed_native_persona <id>` or the `wewed_native_persona` environment variable,
+    /// mirroring the Android launch extra.
+    static func requestedPersonaId(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        arguments: [String] = ProcessInfo.processInfo.arguments
+    ) -> String? {
+        if let index = arguments.firstIndex(of: "-wewed_native_persona"),
+           index + 1 < arguments.count {
+            let value = arguments[index + 1].trimmingCharacters(in: .whitespacesAndNewlines)
+            if !value.isEmpty { return value }
+        }
+        if let value = environment["wewed_native_persona"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !value.isEmpty {
+            return value
+        }
+        return nil
+    }
+}

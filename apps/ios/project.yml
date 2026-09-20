@@ -24,12 +24,14 @@ targets:
     dependencies:
       - package: WewedIOS
         product: WewedKit
-    info:
-      path: Wewed/AppTarget/Info.plist
-    entitlements:
-      path: Wewed/AppTarget/Wewed.entitlements
+    # P1 XcodeGen preservation: `info:` and `entitlements:` make XcodeGen *generate* those files,
+    # which silently overwrote the committed Info.plist and entitlements — dropping the wewed URL
+    # scheme, NSCameraUsageDescription and applinks:wewed.pro. Referencing them through build
+    # settings instead means XcodeGen consumes the committed files without rewriting them.
     settings:
       base:
+        INFOPLIST_FILE: Wewed/AppTarget/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Wewed/AppTarget/Wewed.entitlements
         PRODUCT_NAME: Wewed
         MARKETING_VERSION: 2.0.0
         CURRENT_PROJECT_VERSION: 1

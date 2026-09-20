@@ -5,3 +5,7 @@ app/build/
 .idea/
 local.properties
 .DS_Store
+
+# Gradle build output — never committed.
+app/build/
+.gradle/

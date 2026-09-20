@@ -7,9 +7,17 @@ struct WewedMainApp: App {
     @StateObject private var appState: AppState
 
     init() {
-        _session = StateObject(wrappedValue: SessionStore())
-
+        let store = SessionStore()
         let launch = NativeLaunchConfiguration.resolve()
+
+        // Development/Shadow qualification only (P0-16): ignored in production builds.
+        if launch.environment.allowsDevelopmentPersonaSwitching,
+           let requested = NativeLaunchConfiguration.requestedPersonaId(),
+           let persona = DevelopmentPersona.allPersonas.first(where: { $0.id == requested }) {
+            store.switchPersona(persona)
+        }
+        _session = StateObject(wrappedValue: store)
+
         let resolvedAppState: AppState
         do {
             resolvedAppState = try AppState.make(
