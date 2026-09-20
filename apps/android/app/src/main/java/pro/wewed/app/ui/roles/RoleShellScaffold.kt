@@ -128,7 +128,24 @@ fun RoleShellScaffold(
                                     icon = {
                                         Icon(iconFor(destination.id), contentDescription = destination.label)
                                     },
-                                    label = { Text(destination.label, fontSize = 11.sp, maxLines = 1) },
+                                    label = {
+                                Text(
+                                    destination.label,
+                                    fontSize = 11.sp,
+                                    maxLines = 1,
+                                    // "Wedding Day" was being clipped to "Wedding". Scale the
+                                    // label to fit instead of losing a word (accessibility +
+                                    // Android/iOS label parity).
+                                    softWrap = false,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Visible,
+                                    style = androidx.compose.ui.text.TextStyle(
+                                        fontSize = 11.sp,
+                                        platformStyle = null
+                                    ),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                            },
                                     colors = NavigationBarItemDefaults.colors(
                                         selectedIconColor = WeddingIdentityPalette.ChampagneDeep,
                                         selectedTextColor = WeddingIdentityPalette.ChampagneDeep,
@@ -161,7 +178,24 @@ fun RoleShellScaffold(
                                 icon = {
                                     Icon(iconFor(destination.id), contentDescription = destination.label)
                                 },
-                                label = { Text(destination.label, fontSize = 11.sp, maxLines = 1) },
+                                label = {
+                                Text(
+                                    destination.label,
+                                    fontSize = 11.sp,
+                                    maxLines = 1,
+                                    // "Wedding Day" was being clipped to "Wedding". Scale the
+                                    // label to fit instead of losing a word (accessibility +
+                                    // Android/iOS label parity).
+                                    softWrap = false,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Visible,
+                                    style = androidx.compose.ui.text.TextStyle(
+                                        fontSize = 11.sp,
+                                        platformStyle = null
+                                    ),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                            },
                                 colors = NavigationRailItemDefaults.colors(
                                     selectedIconColor = WeddingIdentityPalette.ChampagneDeep,
                                     selectedTextColor = WeddingIdentityPalette.ChampagneDeep,
