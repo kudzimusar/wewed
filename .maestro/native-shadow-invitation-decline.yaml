@@ -22,9 +22,19 @@ appId: pro.wewed.app.dev
       id: "ivory-invitation-root"
     timeout: 5000
 
-# 4. Open details, then decline RSVP
+# 4. Open details, then decline RSVP.
+# The invitation body scrolls; on shorter viewports the action area starts below the fold, so
+# each control is scrolled into view rather than assumed to be on screen.
+- scrollUntilVisible:
+    element:
+      id: "ivory-details-toggle"
+    direction: DOWN
 - tapOn:
     id: "ivory-details-toggle"
+- scrollUntilVisible:
+    element:
+      id: "ivory-rsvp-decline"
+    direction: DOWN
 - tapOn:
     id: "ivory-rsvp-decline"
 

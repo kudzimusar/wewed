@@ -12,22 +12,28 @@ appId: pro.wewed.app.dev
 # 2. Home
 - assertVisible:
     id: "home-root"
-- assertVisible:
-    id: "home-continue-planning"
+- scrollUntilVisible:
+    element:
+      id: "home-continue-planning"
+    direction: DOWN
 
 # 3. Planner
 - tapOn: "Plan"
 - assertVisible:
     id: "planner-root"
-- assertVisible:
-    id: "planner-module-tasks"
+- scrollUntilVisible:
+    element:
+      id: "planner-module-tasks"
+    direction: DOWN
 
 # 4. Guests
 - tapOn: "Guests"
 - assertVisible:
     id: "guests-root"
-- assertVisible:
-    id: "guests-filter-all"
+- scrollUntilVisible:
+    element:
+      id: "guests-filter-all"
+    direction: DOWN
 
 # 5. Wedding Day (IA V2: Pass moved into the Wedding Day workspace)
 - tapOn: "Wedding Day"

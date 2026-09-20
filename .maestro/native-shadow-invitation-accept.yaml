@@ -24,10 +24,17 @@ appId: pro.wewed.app.dev
 - assertVisible: "You’re Invited"
 
 # 4. Accept RSVP
+# The invitation body scrolls; scroll the accept control into view on shorter viewports.
+- scrollUntilVisible:
+    element:
+      id: "ivory-rsvp-accept"
+    direction: DOWN
 - tapOn:
     id: "ivory-rsvp-accept"
 
 # 5. Confirm pass can be opened
 - assertVisible: "RSVP Confirmed"
-- assertVisible:
-    id: "ivory-view-wedding-pass"
+- scrollUntilVisible:
+    element:
+      id: "ivory-view-wedding-pass"
+    direction: DOWN

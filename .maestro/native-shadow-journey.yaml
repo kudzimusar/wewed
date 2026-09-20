@@ -15,8 +15,11 @@ appId: pro.wewed.app.dev
 - assertVisible: "OUR WEDDING JOURNEY"
 - assertVisible:
     id: "home-continue-planning"
-- assertVisible:
-    id: "home-metrics"
+# Home scrolls; the metrics row sits below the hero on shorter viewports.
+- scrollUntilVisible:
+    element:
+      id: "home-metrics"
+    direction: DOWN
 
 # 3. Planner
 - tapOn: "Plan"
@@ -25,10 +28,14 @@ appId: pro.wewed.app.dev
 - assertVisible: "Our Wedding Plan"
 - assertVisible:
     id: "planner-module-tasks"
-- assertVisible:
-    id: "planner-module-budget"
-- assertVisible:
-    id: "planner-module-vendors"
+- scrollUntilVisible:
+    element:
+      id: "planner-module-budget"
+    direction: DOWN
+- scrollUntilVisible:
+    element:
+      id: "planner-module-vendors"
+    direction: DOWN
 
 # 4. Guests
 - tapOn: "Guests"

@@ -50,8 +50,9 @@ appId: pro.wewed.app.dev
     arguments:
       wewed_native_env: "shadow"
       wewed_native_persona: "attending_guest"
-- tapOn: "Sign In"
-    optional: true
+# The persona launch argument authenticates the session directly, so no sign-in tap is required.
+- assertVisible:
+    id: "role-shell-guest"
 - tapOn: "Pass"
 - assertVisible:
     id: "pass-root"
