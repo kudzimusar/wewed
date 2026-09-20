@@ -12,7 +12,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import pro.wewed.app.theme.WeddingBrandMark
+import pro.wewed.app.theme.WewedLogo
 import pro.wewed.app.theme.WeddingIdentityPalette
 
 /**
@@ -40,7 +40,7 @@ fun NativeEnvironmentUnavailableScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            WeddingBrandMark()
+            WewedLogo(contentDescription = "Wewed")
             Text(
                 "$environmentName is not available",
                 fontSize = 20.sp,

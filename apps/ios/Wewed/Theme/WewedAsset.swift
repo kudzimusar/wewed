@@ -13,6 +13,8 @@ import UIKit
 public enum WewedAsset {
     public static let heroWedding = "hero-wedding"
     public static let ornamentFrame = "ornament-frame"
+    /// The official Wewed logo on transparency, for brand surfaces.
+    public static let logo = "wewed-logo"
 
     /// True when the named media can actually be loaded, so tests can assert it without a screenshot.
     public static func isAvailable(_ name: String) -> Bool {

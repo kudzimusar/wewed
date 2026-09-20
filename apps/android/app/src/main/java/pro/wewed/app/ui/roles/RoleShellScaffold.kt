@@ -168,7 +168,15 @@ fun RoleShellScaffold(
                 if (useRail) {
                     NavigationRail(
                         containerColor = WeddingIdentityPalette.IvorySoft,
-                        modifier = Modifier.testTag("nav-rail-$roleTag")
+                        // The rail must be given an explicit width. Inside a Row it otherwise
+                        // accepts the whole proposal — measured at [0,1600] on a tablet — leaving
+                        // the content's weight(1f) box zero width, so every tablet workspace
+                        // rendered as an empty ivory page beside a stretched rail. The width is
+                        // wide enough for "Wedding Day" at 11sp without truncating it.
+                        modifier = Modifier
+                            .width(TABLET_RAIL_WIDTH)
+                            .fillMaxHeight()
+                            .testTag("nav-rail-$roleTag")
                     ) {
                         navigation.primary.forEach { destination ->
                             NavigationRailItem(
@@ -218,6 +226,9 @@ fun RoleShellScaffold(
 /** Width at which Level-1 moves from a bottom bar to a navigation rail (IA V2 §15.2). */
 internal val TABLET_RAIL_BREAKPOINT = 600.dp
 
+/** The rail's own width. Wide enough for the longest destination label without truncation. */
+internal val TABLET_RAIL_WIDTH = 104.dp
+
 /** IA V2 §1.2 — role and active wedding must never be ambiguous. */
 @Composable
 private fun RoleContextBar(
@@ -240,13 +251,18 @@ private fun RoleContextBar(
                         fontFamily = FontFamily.Serif,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 17.sp,
-                        maxLines = 1
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
                     Text(
                         context.activeWeddingTitle,
                         color = WeddingIdentityPalette.Muted,
                         fontSize = 12.sp,
                         maxLines = 1,
+                        // Without this the title is hard-clipped mid-word on a small phone —
+                        // "Charity & Kudzie" became "Charity &", which reads as a rendering bug
+                        // rather than as truncation.
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         modifier = Modifier.testTag("active-wedding-label")
                     )
                 }

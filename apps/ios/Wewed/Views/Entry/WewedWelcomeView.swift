@@ -49,7 +49,7 @@ public struct WewedWelcomeView: View {
             WeddingFloralBackground(opacity: 0.09)
 
             VStack(spacing: 12) {
-                WeddingBrandMark()
+                WewedLogo()
 
                 Text("Wewed")
                     .font(.system(size: 38, weight: .medium, design: .serif))

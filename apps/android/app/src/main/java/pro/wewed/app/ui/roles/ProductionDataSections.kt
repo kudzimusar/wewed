@@ -1,11 +1,13 @@
 package pro.wewed.app.ui.roles
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
@@ -16,7 +18,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import pro.wewed.app.models.*
+import androidx.compose.ui.text.style.TextAlign
 import pro.wewed.app.theme.WeddingIdentityPalette
+import pro.wewed.app.theme.WeddingOrnamentBackdrop
 
 /**
  * Sections backed by the production `WeddingContent`, `Song`, `QRDestination`, `ImportJob`,
@@ -103,6 +107,9 @@ fun GalleryContentSection(
         .filter { it.field.startsWith("previewImage") }
         .sortedBy { it.order }
 
+    // A gallery shows pictures in a grid, not a stack of cards. The first published image leads
+    // at full width — a gallery has a lead image — and the rest pair off beneath it, which is how
+    // a wedding gallery is actually read.
     IASectionList(heading, subtitle) {
         if (previews.isEmpty()) {
             IACard(
@@ -110,30 +117,104 @@ fun GalleryContentSection(
                 "The couple has published gallery text but no images yet.",
                 testTag = "$testTagPrefix-no-previews"
             )
+            return@IASectionList
         }
-        // A gallery shows pictures. Listing file paths is a manifest, not a gallery, so each
-        // reference the native bundle can resolve is rendered as the image itself; a reference it
-        // cannot resolve says so plainly rather than being hidden or faked.
-        previews.forEach { entry ->
-            val assetName = entry.value.substringAfterLast('/').substringBeforeLast('.')
-            val drawable = BundledWeddingMedia.drawableFor(assetName)
-            if (drawable != null) {
-                Image(
-                    painter = painterResource(id = drawable),
-                    contentDescription = entry.field.humanisedContentField(),
-                    contentScale = ContentScale.Crop,
+
+        previews.firstOrNull()?.let { lead ->
+            GalleryTile(
+                entry = lead,
+                height = 210.dp,
+                testTagPrefix = testTagPrefix,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        previews.drop(1).chunked(2).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEach { entry ->
+                    GalleryTile(
+                        entry = entry,
+                        height = 128.dp,
+                        testTagPrefix = testTagPrefix,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                // Keep a lone trailing tile at half width rather than letting it stretch across.
+                if (row.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+
+        val unavailable = previews.count {
+            BundledWeddingMedia.drawableFor(it.value.substringAfterLast('/').substringBeforeLast('.')) == null
+        }
+        if (unavailable > 0) {
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "$unavailable of ${previews.size} published images are not bundled with the app.",
+                color = WeddingIdentityPalette.Muted,
+                fontSize = 11.sp
+            )
+        }
+    }
+}
+
+/**
+ * One gallery tile.
+ *
+ * A published reference the bundle can resolve renders as the photograph, with its caption over a
+ * scrim so the text stays legible on any image. A reference it cannot resolve shows an ornamented
+ * placeholder that says so — never a broken image, never a raw file path, and never silence.
+ */
+@Composable
+private fun GalleryTile(
+    entry: WeddingContentEntry,
+    height: androidx.compose.ui.unit.Dp,
+    testTagPrefix: String,
+    modifier: Modifier = Modifier
+) {
+    val assetName = entry.value.substringAfterLast('/').substringBeforeLast('.')
+    val drawable = BundledWeddingMedia.drawableFor(assetName)
+    val caption = entry.metadata?.takeIf { it.isNotBlank() }
+
+    Box(
+        modifier = modifier
+            .height(height)
+            .clip(RoundedCornerShape(12.dp))
+            .testTag("$testTagPrefix-${entry.field}")
+    ) {
+        if (drawable != null) {
+            Image(
+                painter = painterResource(id = drawable),
+                contentDescription = caption ?: entry.field.humanisedContentField(),
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.matchParentSize()
+            )
+            caption?.let {
+                Box(
                     modifier = Modifier
+                        .align(Alignment.BottomStart)
                         .fillMaxWidth()
-                        .height(180.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .testTag("$testTagPrefix-${entry.field}")
-                )
-            } else {
-                IACard(
-                    title = entry.field.humanisedContentField(),
-                    subtitle = "This image is published for the web experience and is not bundled with the app.",
-                    status = "Not bundled",
-                    testTag = "$testTagPrefix-${entry.field}"
+                        .background(WeddingIdentityPalette.Ink.copy(alpha = 0.42f))
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Text(it, color = WeddingIdentityPalette.IvorySoft, fontSize = 11.sp)
+                }
+            }
+        } else {
+            // Honest unavailability, styled as part of the gallery rather than as an error.
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(WeddingIdentityPalette.IvorySoft),
+                contentAlignment = Alignment.Center
+            ) {
+                WeddingOrnamentBackdrop(modifier = Modifier.matchParentSize(), alpha = 0.16f)
+                Text(
+                    "Not bundled",
+                    color = WeddingIdentityPalette.Muted,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center
                 )
             }
         }

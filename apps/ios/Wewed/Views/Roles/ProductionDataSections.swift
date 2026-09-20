@@ -86,30 +86,34 @@ public struct GalleryContentSection: View {
         if section.isEmpty {
             IAEmptyPublishedSection(title: "Gallery", testIdPrefix: testIdPrefix)
         } else {
+            // A gallery shows pictures in a grid, not a stack of cards. The first published image
+            // leads at full width — a gallery has a lead image — and the rest pair off beneath it,
+            // which is how a wedding gallery is actually read.
             IASectionList(section.value("heading") ?? "Gallery", section.value("subtitle")) {
                 if previews.isEmpty {
                     IACard("No preview images published",
                            "The couple has published gallery text but no images yet.",
                            testId: "\(testIdPrefix)-no-previews")
-                }
-                // A gallery shows pictures. Listing file paths is a manifest, not a gallery, so
-                // each reference the native bundle can resolve is rendered as the image itself; a
-                // reference it cannot resolve says so plainly rather than being hidden or faked.
-                ForEach(previews) { entry in
-                    let assetName = entry.value.assetBaseName()
-                    if bundledMedia.contains(assetName) {
-                        WewedMediaImage(assetName)
-                            .aspectRatio(contentMode: .fill)
-                            .frame(height: 180)
-                            .clipped()
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                            .accessibilityLabel(entry.field.humanisedContentField())
-                            .accessibilityIdentifier("\(testIdPrefix)-\(entry.field)")
-                    } else {
-                        IACard(entry.field.humanisedContentField(),
-                               "This image is published for the web experience and is not bundled with the app.",
-                               status: "Not bundled",
-                               testId: "\(testIdPrefix)-\(entry.field)")
+                } else {
+                    if let lead = previews.first {
+                        GalleryTile(entry: lead, height: 210,
+                                    bundledMedia: bundledMedia, testIdPrefix: testIdPrefix)
+                    }
+                    ForEach(Array(previews.dropFirst()).chunkedPairs(), id: \.first?.id) { row in
+                        HStack(spacing: 8) {
+                            ForEach(row) { entry in
+                                GalleryTile(entry: entry, height: 128,
+                                            bundledMedia: bundledMedia, testIdPrefix: testIdPrefix)
+                            }
+                            // Keep a lone trailing tile at half width rather than stretching it.
+                            if row.count == 1 { Color.clear.frame(maxWidth: .infinity) }
+                        }
+                    }
+                    let unavailable = previews.filter { !bundledMedia.contains($0.value.assetBaseName()) }.count
+                    if unavailable > 0 {
+                        Text("\(unavailable) of \(previews.count) published images are not bundled with the app.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(WeddingIdentityPalette.muted)
                     }
                 }
             }
@@ -936,5 +940,63 @@ public struct CoupleRsvpWorksheet: View {
                 }
             }
         }
+    }
+}
+
+
+/// One gallery tile.
+///
+/// A published reference the bundle can resolve renders as the photograph, with its caption over a
+/// scrim so the text stays legible on any image. A reference it cannot resolve shows an ornamented
+/// placeholder that says so — never a broken image, never a raw file path, and never silence.
+private struct GalleryTile: View {
+    let entry: WeddingContentEntry
+    let height: CGFloat
+    let bundledMedia: Set<String>
+    let testIdPrefix: String
+
+    private var caption: String? {
+        entry.metadata.flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    var body: some View {
+        let assetName = entry.value.assetBaseName()
+        ZStack(alignment: .bottomLeading) {
+            if bundledMedia.contains(assetName) {
+                WewedMediaImage(assetName)
+                    .aspectRatio(contentMode: .fill)
+                if let caption {
+                    Text(caption)
+                        .font(.system(size: 11))
+                        .foregroundStyle(WeddingIdentityPalette.ivorySoft)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(WeddingIdentityPalette.ink.opacity(0.42))
+                }
+            } else {
+                // Honest unavailability, styled as part of the gallery rather than as an error.
+                ZStack {
+                    WeddingIdentityPalette.ivorySoft
+                    WeddingFloralBackground(opacity: 0.16)
+                    Text("Not bundled")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(WeddingIdentityPalette.muted)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: height)
+        .clipped()
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .accessibilityLabel(caption ?? entry.field.humanisedContentField())
+        .accessibilityIdentifier("\(testIdPrefix)-\(entry.field)")
+    }
+}
+
+private extension Array where Element == WeddingContentEntry {
+    /// Pairs entries for a two-up grid row.
+    func chunkedPairs() -> [[WeddingContentEntry]] {
+        stride(from: 0, to: count, by: 2).map { Array(self[$0..<Swift.min($0 + 2, count)]) }
     }
 }

@@ -45,7 +45,7 @@ public struct LoginView: View {
             WeddingFloralBackground(opacity: 0.08)
 
             VStack(spacing: 14) {
-                WeddingBrandMark()
+                WewedLogo()
 
                 Text("Welcome back")
                     .font(.system(size: 30, weight: .medium, design: .serif))

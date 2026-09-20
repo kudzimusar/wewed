@@ -27,6 +27,7 @@ import pro.wewed.app.navigation.LaunchRouter
 import pro.wewed.app.navigation.NativeAppEntryState
 import pro.wewed.app.ui.auth.LoginScreen
 import pro.wewed.app.ui.entry.ShadowEntryOption
+import pro.wewed.app.ui.entry.SplashDestination
 import pro.wewed.app.ui.entry.WewedAnimatedSplash
 import pro.wewed.app.ui.entry.WewedWelcomeScreen
 import pro.wewed.app.ui.invitation.GuestInvitationJourneyScreen
@@ -89,7 +90,20 @@ fun RootScreen(
     // returning session and a new account alike. The app used to have one splash for the guest
     // journey and a bare window for everything else.
     if (!splashComplete) {
-        WewedAnimatedSplash(onFinished = { splashComplete = true })
+        // The splash leaves differently depending on what it hands over to. An invitation is
+        // REVEALED — the stage lifts away leaving the ivory and ornament for the card to arrive
+        // into — where a workspace is entered and the stage simply recedes. A splash that always
+        // exits the same way reads as a loader.
+        val splashDestination = when {
+            pendingInvitationDeepLink != null || deepLinkedInvitation != null ->
+                SplashDestination.INVITATION
+            isAuthenticated -> SplashDestination.WORKSPACE
+            else -> SplashDestination.WELCOME
+        }
+        WewedAnimatedSplash(
+            destination = splashDestination,
+            onFinished = { splashComplete = true }
+        )
         return
     }
 

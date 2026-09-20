@@ -75,7 +75,15 @@ public struct RootView: View {
             // a returning session and a new account alike. The app used to have one splash for the
             // guest journey and a bare white window for everything else.
             if !splashComplete {
-                WewedAnimatedSplash(onFinished: { splashComplete = true })
+                // The splash leaves differently depending on what it hands over to. An invitation
+                // is REVEALED — the stage lifts away leaving the ivory and ornament for the card
+                // to arrive into — where a workspace is entered and the stage simply recedes.
+                WewedAnimatedSplash(
+                    destination: appState.pendingInvitationDeepLink != nil || deepLinkedInvitation != nil
+                        ? .invitation
+                        : (session.isAuthenticated ? .workspace : .welcome),
+                    onFinished: { splashComplete = true }
+                )
             } else if let deepLinkedInvitation {
                 // An invitation outranks everything. No account, no sign-in, no role chooser: the
                 // invitation token IS the guest's authorization, and a confirmed guest goes

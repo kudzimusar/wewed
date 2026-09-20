@@ -19,7 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import pro.wewed.app.models.NativeDataEnvironment
 import pro.wewed.app.state.SessionViewModel
-import pro.wewed.app.theme.WeddingBrandMark
+import pro.wewed.app.theme.WewedLogo
 import pro.wewed.app.theme.WeddingIdentityPalette
 import pro.wewed.app.theme.WeddingOrnamentBackdrop
 
@@ -68,7 +68,7 @@ fun LoginScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            WeddingBrandMark()
+            WewedLogo()
             Text(
                 "Welcome back",
                 fontSize = 30.sp,

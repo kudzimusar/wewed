@@ -194,3 +194,28 @@ fun WeddingHeaderOrnament(modifier: Modifier = Modifier) {
             .alpha(0.24f)
     )
 }
+
+/**
+ * The official Wewed logo, on transparency.
+ *
+ * [WeddingBrandMark] is two rotated rounded rectangles approximating interlocking rings. As a
+ * small decorative accent inside the wedding hero that is fine — it reads as ornament. As "the
+ * Wewed brand mark" on the splash, the welcome and the sign-in surfaces it was a placeholder
+ * standing in for an asset the repository already ships, so the OS launch screen showed the real
+ * logo and the very next frame showed a geometric approximation of it.
+ *
+ * Brand surfaces use this. Decorative ring accents keep using [WeddingBrandMark].
+ */
+@Composable
+fun WewedLogo(
+    modifier: Modifier = Modifier,
+    size: Int = 96,
+    contentDescription: String? = "Wewed"
+) {
+    androidx.compose.foundation.Image(
+        painter = androidx.compose.ui.res.painterResource(id = pro.wewed.app.R.drawable.wewed_logo),
+        contentDescription = contentDescription,
+        contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+        modifier = modifier.size(size.dp)
+    )
+}
