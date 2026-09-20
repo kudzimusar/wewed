@@ -7,11 +7,16 @@ public struct WeddingReferenceHomeView: View {
     @State private var guests: [Guest] = []
     @State private var budget: BudgetSummary?
     @State private var vendors: [VendorPresence] = []
-    @State private var invitation: InvitationContext?
-    @State private var showingInvitation = false
     @State private var isLoading = true
 
-    public init() {}
+    /// Invoked by the notifications control. P0-11: Couple Home must not open an arbitrary
+    /// guest's invitation — a specific guest invitation may only open after the couple selects
+    /// that guest, so this routes to the couple-facing Guests -> RSVP surface.
+    private let onOpenPendingRsvps: (() -> Void)?
+
+    public init(onOpenPendingRsvps: (() -> Void)? = nil) {
+        self.onOpenPendingRsvps = onOpenPendingRsvps
+    }
 
     public var body: some View {
         NavigationStack {
@@ -38,19 +43,6 @@ public struct WeddingReferenceHomeView: View {
             .toolbar(.hidden, for: .navigationBar)
             #endif
             .task { await load() }
-            .sheet(isPresented: $showingInvitation) {
-                if let invitation {
-                    GuestInvitationJourneyView(
-                        reference: GuestJourneyReference(
-                            invitation: invitation,
-                            initialStage: .splash
-                        )
-                    )
-                } else {
-                    ProgressView("Preparing invitation…")
-                        .padding(40)
-                }
-            }
         }
         .accessibilityIdentifier("home-root")
     }
@@ -80,7 +72,7 @@ public struct WeddingReferenceHomeView: View {
                     HStack {
                         Spacer()
                         Button {
-                            showingInvitation = true
+                            onOpenPendingRsvps?()
                         } label: {
                             Image(systemName: "bell")
                                 .font(.system(size: 18, weight: .semibold))
@@ -261,10 +253,6 @@ public struct WeddingReferenceHomeView: View {
             guests = try await g
             budget = try await b
             vendors = try await v
-            invitation = try? await appState.repository.resolveInvitation(
-                weddingSlug: loadedWedding.id,
-                token: "shadow-pending-guest"
-            )
             isLoading = false
         } catch {
             isLoading = false

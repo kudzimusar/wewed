@@ -729,27 +729,62 @@ public struct AdminAuditSection: View {
     }
 }
 
-/// System health reads real local state rather than hard-coded counters.
+/// Admin dashboard (P0-13).
+///
+/// Reads the **system** projection, not the wedding graph: a global administrative session must be
+/// able to open Dashboard/Cases/Accounts/Audit without an active wedding. Wedding-scoped data is
+/// loaded only when an administrator drills into a specific wedding.
 public struct AdminDashboardContent: View {
-    @ObservedObject var graph: WeddingGraphState
+    let adminRepository: AdminSystemRepositoryProtocol
     let context: NavigationContext
+    @State private var snapshot: AdminSystemSnapshot?
+    @State private var loading = true
 
-    public init(graph: WeddingGraphState, context: NavigationContext) {
-        self.graph = graph
+    public init(adminRepository: AdminSystemRepositoryProtocol, context: NavigationContext) {
+        self.adminRepository = adminRepository
         self.context = context
     }
 
     public var body: some View {
-        if graph.loading {
-            IALoading()
-        } else {
-            IASectionList("Dashboard", "Administrative overview for the active scope") {
-                IACard("Active wedding in scope", context.activeWeddingTitle, testId: "admin-active-wedding")
-                IACard("Data environment", "Native client is bound to this environment", trailing: context.environment.title)
-                IACard("Admission records", "Recorded check-ins in scope", trailing: "\(graph.auditRecords.count)")
-                IACard("Unsynced admissions", "Awaiting reconciliation", trailing: "\(graph.auditRecords.filter { !$0.isSynced }.count)")
-                IACard("Guest households in scope", "From the canonical wedding graph", trailing: "\(graph.guests.count)")
+        Group {
+            if loading {
+                IALoading()
+            } else if let snapshot {
+                IASectionList("Dashboard", "Platform overview — not scoped to a single wedding") {
+                    IACard(
+                        "Data environment",
+                        "Native client is bound to this environment",
+                        trailing: snapshot.environment.title,
+                        testId: "admin-environment"
+                    )
+                    IACard(
+                        "Weddings in administrative scope",
+                        "Available to this administrator",
+                        trailing: "\(snapshot.weddingsInScope)",
+                        testId: "admin-weddings-in-scope"
+                    )
+                    IACard(
+                        context.activeWeddingId.isEmpty ? "No wedding selected" : context.activeWeddingTitle,
+                        context.activeWeddingId.isEmpty
+                            ? "Select a wedding to inspect its graph. The console does not require one."
+                            : "Currently drilled into this wedding",
+                        testId: "admin-active-wedding"
+                    )
+                    ForEach(snapshot.unsupportedStreams, id: \.self) { stream in
+                        IACard(stream, "No native contract exists in this environment", trailing: "Unsupported")
+                    }
+                }
+            } else {
+                IAUnsupportedSection(
+                    "Dashboard",
+                    "The administrative projection is unavailable in this environment.",
+                    context.environment
+                )
             }
+        }
+        .task(id: context.actorId) {
+            snapshot = await adminRepository.snapshot()
+            loading = false
         }
     }
 }

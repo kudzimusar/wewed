@@ -44,8 +44,16 @@ public struct WeddingReferenceMoreView: View {
                                 )
                             }
 
-                            menuLink(title: "Honeymoon", subtitle: "Contributions and plans", icon: "airplane.departure", identifier: "more-honeymoon") {
-                                ShadowPlannerContributionsView()
+                            // P0-12: the four Private Real Shadow contributions are
+                            // blessing/wish/story/memory records, not monetary honeymoon gifts.
+                            // Routing Honeymoon at them presented guest messages as honeymoon
+                            // funding. No honeymoon/gift contract exists natively yet.
+                            menuLink(title: "Honeymoon", subtitle: "Gift and honeymoon fund", icon: "airplane.departure", identifier: "more-honeymoon") {
+                                ReferenceEmptyFeatureView(
+                                    title: "Honeymoon",
+                                    message: "Honeymoon and gift contributions are not configured for this wedding. The wedding graph records guest messages and memories, which are shown under Plan → Contributions; it holds no honeymoon fund.",
+                                    coupleNames: wedding.coupleNames
+                                )
                             }
 
                             // P0-10: Documents and Account are declared in the IA V2 Couple More

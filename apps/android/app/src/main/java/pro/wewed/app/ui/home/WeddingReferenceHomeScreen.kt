@@ -37,14 +37,20 @@ import java.util.Locale
 import kotlin.math.max
 
 @Composable
-fun WeddingReferenceHomeScreen(appViewModel: AppViewModel) {
+/**
+ * @param onOpenPendingRsvps invoked by the notifications control. P0-11: Couple Home must not
+ * open an arbitrary guest's invitation — a specific guest invitation may only open after the
+ * couple selects that guest, so this routes to the couple-facing Guests -> RSVP surface.
+ */
+fun WeddingReferenceHomeScreen(
+    appViewModel: AppViewModel,
+    onOpenPendingRsvps: (() -> Unit)? = null
+) {
     var wedding by remember { mutableStateOf<Wedding?>(null) }
     var tasks by remember { mutableStateOf<List<PlannerTask>>(emptyList()) }
     var guests by remember { mutableStateOf<List<Guest>>(emptyList()) }
     var budget by remember { mutableStateOf<BudgetSummary?>(null) }
     var vendors by remember { mutableStateOf<List<VendorPresence>>(emptyList()) }
-    var invitation by remember { mutableStateOf<InvitationContext?>(null) }
-    var showInvitation by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
@@ -55,29 +61,11 @@ fun WeddingReferenceHomeScreen(appViewModel: AppViewModel) {
             guests = appViewModel.scopedRepository().getGuests()
             budget = appViewModel.scopedRepository().getBudget()
             vendors = appViewModel.scopedRepository().getVendors()
-            invitation = runCatching {
-                appViewModel.repository.resolveInvitation(loadedWedding.id, "shadow-pending-guest")
-            }.getOrNull()
         } finally {
             isLoading = false
         }
     }
 
-    if (showInvitation) {
-        invitation?.let { context ->
-            GuestInvitationJourneyScreen(
-                reference = GuestJourneyReference(context, GuestJourneyStage.SPLASH),
-                appViewModel = appViewModel,
-                onExit = { showInvitation = false }
-            )
-        } ?: Box(
-            modifier = Modifier.fillMaxSize().background(WeddingIdentityPalette.Ivory),
-            contentAlignment = Alignment.Center
-        ) {
-            CircularProgressIndicator(color = WeddingIdentityPalette.ChampagneDeep)
-        }
-        return
-    }
 
     Box(
         modifier = Modifier
@@ -101,7 +89,7 @@ fun WeddingReferenceHomeScreen(appViewModel: AppViewModel) {
                 ) {
                     ReferenceHero(
                         wedding = currentWedding,
-                        onInvitation = { showInvitation = true }
+                        onInvitation = { onOpenPendingRsvps?.invoke() }
                     )
 
                     ReferenceContinuePlanning(
@@ -236,7 +224,7 @@ private fun ReferenceHero(
                 ) {
                     Icon(
                         Icons.Default.NotificationsNone,
-                        contentDescription = "Open invitation",
+                        contentDescription = "Pending RSVPs",
                         tint = Color.White
                     )
                 }

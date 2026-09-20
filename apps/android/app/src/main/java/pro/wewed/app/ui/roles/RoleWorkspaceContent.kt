@@ -21,6 +21,8 @@ import androidx.compose.ui.unit.sp
 import pro.wewed.app.models.*
 import pro.wewed.app.navigation.NavigationContext
 import pro.wewed.app.navigation.PrimaryDestination
+import pro.wewed.app.services.AdminSystemRepository
+import pro.wewed.app.services.AdminSystemSnapshot
 import pro.wewed.app.services.WeddingScopeMismatch
 import pro.wewed.app.services.forWedding
 import pro.wewed.app.state.AppViewModel
@@ -641,37 +643,61 @@ fun AdminAuditSection(section: String, graph: WeddingGraphState, environment: Na
     }
 }
 
-/** System health reads real local state rather than hard-coded counters. */
+/**
+ * Admin dashboard (P0-13).
+ *
+ * Reads the **system** projection, not the wedding graph: a global administrative session must be
+ * able to open Dashboard/Cases/Accounts/Audit without an active wedding. Wedding-scoped data is
+ * loaded only when an administrator drills into a specific wedding.
+ */
 @Composable
-fun AdminDashboardContent(graph: WeddingGraphState, context: NavigationContext) {
-    if (graph.loading) return IALoading()
-    IASectionList("Dashboard", "Administrative overview for the active scope") {
-        IACard(
-            title = "Active wedding in scope",
-            subtitle = context.activeWeddingTitle,
-            trailing = null,
-            testTag = "admin-active-wedding"
-        )
+fun AdminDashboardContent(
+    adminRepository: AdminSystemRepository,
+    context: NavigationContext
+) {
+    var snapshot by remember(context.actorId) { mutableStateOf<AdminSystemSnapshot?>(null) }
+    var loading by remember(context.actorId) { mutableStateOf(true) }
+    LaunchedEffect(context.actorId) {
+        snapshot = runCatching { adminRepository.snapshot() }.getOrNull()
+        loading = false
+    }
+
+    if (loading) return IALoading()
+    val snap = snapshot ?: return IAUnsupportedSection(
+        "Dashboard",
+        "The administrative projection is unavailable in this environment.",
+        context.environment
+    )
+
+    IASectionList("Dashboard", "Platform overview — not scoped to a single wedding") {
         IACard(
             title = "Data environment",
             subtitle = "Native client is bound to this environment",
-            trailing = context.environment.title
+            trailing = snap.environment.title,
+            testTag = "admin-environment"
         )
         IACard(
-            title = "Admission records",
-            subtitle = "Recorded check-ins in scope",
-            trailing = "${graph.auditRecords.size}"
+            title = "Weddings in administrative scope",
+            subtitle = "Available to this administrator",
+            trailing = "${snap.weddingsInScope}",
+            testTag = "admin-weddings-in-scope"
         )
         IACard(
-            title = "Unsynced admissions",
-            subtitle = "Awaiting reconciliation",
-            trailing = "${graph.auditRecords.count { !it.isSynced }}"
+            title = if (context.activeWeddingId.isBlank()) "No wedding selected" else context.activeWeddingTitle,
+            subtitle = if (context.activeWeddingId.isBlank()) {
+                "Select a wedding to inspect its graph. The console does not require one."
+            } else {
+                "Currently drilled into this wedding"
+            },
+            testTag = "admin-active-wedding"
         )
-        IACard(
-            title = "Guest households in scope",
-            subtitle = "From the canonical wedding graph",
-            trailing = "${graph.guests.size}"
-        )
+        snap.unsupportedStreams.forEach { stream ->
+            IACard(
+                title = stream,
+                subtitle = "No native contract exists in this environment",
+                trailing = "Unsupported"
+            )
+        }
     }
 }
 

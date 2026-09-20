@@ -958,6 +958,7 @@ struct GuestMoreSection: View {
 // MARK: - Admin Shell — Dashboard | Cases | Accounts | Audit | More
 public struct AdminShellView: View {
     @EnvironmentObject private var session: SessionStore
+    @EnvironmentObject private var appState: AppState
     let context: NavigationContext
     var onSwitchPersona: (() -> Void)?
     var pendingDeepLink: NativeDeepLink?
@@ -976,6 +977,14 @@ public struct AdminShellView: View {
         self.onDeepLinkHandled = onDeepLinkHandled
     }
 
+    /// P0-13: Admin reads a system projection. The wedding graph is only consulted for surfaces
+    /// that genuinely drill into a wedding.
+    private var adminRepository: AdminSystemRepositoryProtocol {
+        ShadowAdminSystemRepository(
+            weddingRepository: appState.repository,
+            environment: appState.dataEnvironment
+        )
+    }
     public var body: some View {
         RoleShellScaffold(
             context: context,
@@ -987,7 +996,7 @@ public struct AdminShellView: View {
             RoleWorkspaceHost(context: ctx) { graph in
                 switch destination.id {
                 case "dashboard":
-                    AdminDashboardContent(graph: graph, context: ctx)
+                    AdminDashboardContent(adminRepository: adminRepository, context: ctx)
                 case "cases":
                     IAUnsupportedSection(
                         "Cases",
@@ -1010,7 +1019,7 @@ public struct AdminShellView: View {
                     }
                 case "more":
                     WorkspaceSurface(destination: destination, testIdPrefix: "admin", context: ctx, sectionMemory: sectionMemory) { section in
-                        AdminMoreSection(section: section, graph: graph, context: ctx)
+                        AdminMoreSection(section: section, adminRepository: adminRepository, graph: graph, context: ctx)
                     }
                 default:
                     IAUnsupportedSection(destination.label, "Unknown destination.", ctx.environment)
@@ -1022,12 +1031,13 @@ public struct AdminShellView: View {
 
 struct AdminMoreSection: View {
     let section: String
+    let adminRepository: AdminSystemRepositoryProtocol
     @ObservedObject var graph: WeddingGraphState
     let context: NavigationContext
 
     var body: some View {
         switch section {
-        case "System Health": AdminDashboardContent(graph: graph, context: context)
+        case "System Health": AdminDashboardContent(adminRepository: adminRepository, context: context)
         case "Announcements": WeddingDaySection(section: "Announcements", graph: graph, environment: context.environment)
         case "Admin Profile": AccountPrivacyView()
         case "Help":
@@ -1049,6 +1059,9 @@ public struct CoupleShellView: View {
     var pendingDeepLink: NativeDeepLink?
     var onDeepLinkHandled: (() -> Void)?
     @StateObject private var sectionMemory = WorkspaceSectionMemory()
+    /// Internal navigation requests travel the same gated path as an external deep link, so an
+    /// in-app jump is authorized exactly like a link (IA V2 §13.4).
+    @State private var internalRequest: NativeDeepLink?
 
     public init(
         context: NavigationContext,
@@ -1066,14 +1079,27 @@ public struct CoupleShellView: View {
         RoleShellScaffold(
             context: context,
             onSwitchPersona: onSwitchPersona,
-            pendingDeepLink: pendingDeepLink,
+            pendingDeepLink: pendingDeepLink ?? internalRequest,
             sectionMemory: sectionMemory,
-            onDeepLinkHandled: onDeepLinkHandled
+            onDeepLinkHandled: {
+                internalRequest = nil
+                onDeepLinkHandled?()
+            }
         ) { destination, ctx in
             RoleWorkspaceHost(context: ctx) { graph in
                 switch destination.id {
                 case "home":
-                    WeddingReferenceHomeView()
+                    WeddingReferenceHomeView {
+                        // P0-11: the notifications control opens the couple's own pending-RSVP
+                        // list, never a specific guest's invitation.
+                        internalRequest = .workspace(
+                            WorkspaceDeepLink(
+                                weddingId: ctx.activeWeddingId,
+                                destinationId: "guests",
+                                section: "RSVP"
+                            )
+                        )
+                    }
                 case "plan":
                     WorkspaceSurface(destination: destination, testIdPrefix: "couple", context: ctx, sectionMemory: sectionMemory) { section in
                         CouplePlanSection(section: section, context: ctx, sectionMemory: sectionMemory)

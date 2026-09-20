@@ -55,8 +55,15 @@ fun WeddingReferenceMoreScreen(appViewModel: AppViewModel) {
                     ReferenceMoreEmptyScreen("Wedding", "Wedding details are unavailable.", "") { destination = null }
                 }
             }
+            // P0-12: the four Private Real Shadow contributions are blessing/wish/story/memory
+            // records, not monetary honeymoon gifts. Routing Honeymoon at them presented guest
+            // messages as honeymoon funding. No honeymoon/gift contract exists natively yet.
             ReferenceMoreDestination.HONEYMOON ->
-                ShadowContributionsDestination(appViewModel) { destination = null }
+                ReferenceMoreEmptyScreen(
+                    "Honeymoon",
+                    "Honeymoon and gift contributions are not configured for this wedding. The wedding graph records guest messages and memories, which are shown under Plan → Contributions; it holds no honeymoon fund.",
+                    wedding?.coupleNames ?: ""
+                ) { destination = null }
             ReferenceMoreDestination.STORY ->
                 ReferenceMoreEmptyScreen("Our Story", "Our wedding story, photo highlights, and milestones will appear here as updates are posted.", wedding?.coupleNames ?: "") { destination = null }
             ReferenceMoreDestination.GALLERY ->
@@ -169,7 +176,7 @@ fun WeddingReferenceMoreScreen(appViewModel: AppViewModel) {
                 ReferenceMoreRow("Gallery", "Wedding photos and inspiration", Icons.Default.Collections, "more-gallery") {
                     destination = ReferenceMoreDestination.GALLERY
                 }
-                ReferenceMoreRow("Honeymoon", "Contributions and plans", Icons.Default.FlightTakeoff, "more-honeymoon") {
+                ReferenceMoreRow("Honeymoon", "Gift and honeymoon fund", Icons.Default.FlightTakeoff, "more-honeymoon") {
                     destination = ReferenceMoreDestination.HONEYMOON
                 }
                 // P0-10: Documents and Account are declared in the IA V2 Couple More contract and

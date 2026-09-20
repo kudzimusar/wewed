@@ -13,6 +13,8 @@ import pro.wewed.app.models.NativeDeepLink
 import kotlinx.coroutines.launch
 import pro.wewed.app.navigation.IANavigationContract
 import pro.wewed.app.navigation.NavigationContext
+import pro.wewed.app.services.AdminSystemRepository
+import pro.wewed.app.services.ShadowAdminSystemRepository
 import pro.wewed.app.services.forWedding
 import pro.wewed.app.navigation.PrimaryDestination
 import pro.wewed.app.state.AppViewModel
@@ -828,6 +830,11 @@ fun AdminShell(
     onDeepLinkHandled: (() -> Unit)? = null,
     onOpenPersonaPicker: (() -> Unit)? = null
 ) {
+    // P0-13: Admin reads a system projection. The wedding graph is only consulted for surfaces
+    // that genuinely drill into a wedding.
+    val adminRepository = remember(appViewModel) {
+        ShadowAdminSystemRepository(appViewModel.repository, appViewModel.dataEnvironment)
+    }
     val sectionMemory = rememberWorkspaceSectionMemory()
     RoleShellScaffold(
         context = context,
@@ -838,7 +845,7 @@ fun AdminShell(
     ) { destination, ctx ->
         val graph = rememberWeddingGraph(appViewModel, ctx)
         when (destination.id) {
-            "dashboard" -> AdminDashboardContent(graph, ctx)
+            "dashboard" -> AdminDashboardContent(adminRepository, ctx)
             "cases" -> IAUnsupportedSection(
                 "Cases",
                 "No native support-case contract exists yet. No cases are fabricated.",
@@ -851,7 +858,7 @@ fun AdminShell(
                 AdminAuditSection(section, graph, ctx.environment)
             }
             "more" -> WorkspaceSurface(destination, "admin", ctx, sectionMemory) { section ->
-                AdminMoreSection(section, sessionViewModel, graph, ctx)
+                AdminMoreSection(section, sessionViewModel, adminRepository, graph, ctx)
             }
             else -> IAUnsupportedSection(destination.label, "Unknown destination.", ctx.environment)
         }
@@ -873,11 +880,12 @@ private fun AdminAccountsSection(section: String, context: NavigationContext) {
 private fun AdminMoreSection(
     section: String,
     sessionViewModel: SessionViewModel,
+    adminRepository: AdminSystemRepository,
     graph: WeddingGraphState,
     context: NavigationContext
 ) {
     when (section) {
-        "System Health" -> AdminDashboardContent(graph, context)
+        "System Health" -> AdminDashboardContent(adminRepository, context)
         "Announcements" -> WeddingDaySection("Announcements", graph, context.environment)
         "Admin Profile" -> AccountPrivacyScreen()
         "Help" -> IASectionList("Help", "Administrator support") {
@@ -904,16 +912,31 @@ fun CoupleShell(
     onOpenPersonaPicker: (() -> Unit)? = null
 ) {
     val sectionMemory = rememberWorkspaceSectionMemory()
+    // Internal navigation requests travel the same gated path as an external deep link, so an
+    // in-app jump is authorized exactly like a link (IA V2 §13.4).
+    var internalRequest by remember { mutableStateOf<NativeDeepLink?>(null) }
+
     RoleShellScaffold(
         context = context,
         onSwitchPersona = onOpenPersonaPicker,
-        pendingDeepLink = pendingDeepLink,
+        pendingDeepLink = pendingDeepLink ?: internalRequest,
         sectionMemory = sectionMemory,
-        onDeepLinkHandled = onDeepLinkHandled
+        onDeepLinkHandled = {
+            internalRequest = null
+            onDeepLinkHandled?.invoke()
+        }
     ) { destination, ctx ->
         val graph = rememberWeddingGraph(appViewModel, ctx)
         when (destination.id) {
-            "home" -> WeddingReferenceHomeScreen(appViewModel)
+            "home" -> WeddingReferenceHomeScreen(appViewModel) {
+                // P0-11: the notifications control opens the couple's own pending-RSVP list,
+                // never a specific guest's invitation.
+                internalRequest = NativeDeepLink.Workspace(
+                    weddingId = ctx.activeWeddingId,
+                    destinationId = "guests",
+                    section = "RSVP"
+                )
+            }
             "plan" -> WorkspaceSurface(destination, "couple", ctx, sectionMemory) { section ->
                 CouplePlanSection(section, appViewModel, ctx, sectionMemory)
             }
