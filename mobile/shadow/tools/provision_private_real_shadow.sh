@@ -29,8 +29,11 @@ if command -v adb >/dev/null 2>&1; then
     provisioned=0
     for package_id in pro.wewed.app.dev pro.wewed.app.uatdev; do
       if adb shell pm path "$package_id" >/dev/null 2>&1; then
-        if adb shell run-as "$package_id" sh -c \
-          "mkdir -p files && cp '$staging' files/charity-kudzie-private-real-shadow.json && chmod 600 files/charity-kudzie-private-real-shadow.json"; then
+        # The command crosses two shells (host -> adb shell -> run-as sh), so the inner script is
+        # single-quoted as one argument. The previous form lost its quoting and failed with
+        # "mkdir: Needs 1 argument", silently leaving the device unprovisioned.
+        if adb shell "run-as $package_id sh -c 'mkdir -p files; cp \"$staging\" files/charity-kudzie-private-real-shadow.json; chmod 600 files/charity-kudzie-private-real-shadow.json'" 2>/dev/null \
+           && adb shell "run-as $package_id sh -c 'test -s files/charity-kudzie-private-real-shadow.json'" 2>/dev/null; then
           echo "PASS: Android $package_id app-private snapshot provisioned"
           provisioned=1
         fi

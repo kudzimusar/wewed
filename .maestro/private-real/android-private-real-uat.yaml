@@ -1,0 +1,69 @@
+# Android Private Real UAT walkthrough — local only, never committed CI.
+# Launches the protected production-derived graph and asserts structure, not private values.
+appId: pro.wewed.app.dev
+---
+# NOTE: clearState must stay false in this lane. The protected snapshot lives in the app's
+# private storage, and clearing state deletes it, silently dropping the app back to Sanitized
+# Shadow. Run the provisioner immediately before this flow instead.
+- launchApp:
+    clearState: false
+    arguments:
+      wewed_native_env: "private_real_shadow"
+      wewed_native_persona: "couple_owner"
+
+# The environment badge proves this is the real UAT lane, not Sanitized Shadow.
+- assertVisible: "Private Real Shadow"
+- assertVisible:
+    id: "role-shell-couple"
+- assertVisible: "Charity & Kudzie"
+
+# Couple journey across the IA V2 taxonomy.
+- tapOn: "Plan"
+- assertVisible:
+    id: "couple-plan"
+- scrollUntilVisible:
+    element:
+      id: "planner-module-vendors"
+    direction: DOWN
+
+- tapOn: "Guests"
+- assertVisible:
+    id: "couple-guests"
+# Real identities must be present and pseudonyms absent.
+- assertNotVisible: "Guest G001"
+- assertNotVisible: "Guest G011"
+
+- tapOn: "Wedding Day"
+- assertVisible:
+    id: "couple-wedding_day"
+
+- tapOn: "More"
+- assertVisible:
+    id: "more-root"
+- assertVisible:
+    id: "more-documents"
+- assertVisible:
+    id: "more-account"
+
+# Planner context against the same real wedding.
+- launchApp:
+    clearState: false
+    arguments:
+      wewed_native_env: "private_real_shadow"
+      wewed_native_persona: "pro_planner"
+- assertVisible: "Private Real Shadow"
+- assertVisible:
+    id: "role-shell-planner"
+- assertVisible: "Workspace"
+- assertVisible: "Clients"
+
+# Admin is system-scoped and must open without a wedding context.
+- launchApp:
+    clearState: false
+    arguments:
+      wewed_native_env: "private_real_shadow"
+      wewed_native_persona: "administrator"
+- assertVisible:
+    id: "role-shell-admin"
+- assertVisible:
+    id: "admin-weddings-in-scope"

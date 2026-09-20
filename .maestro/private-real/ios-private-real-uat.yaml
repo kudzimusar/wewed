@@ -1,0 +1,48 @@
+# iOS Private Real UAT walkthrough — local only, never committed CI.
+# On iOS an accessibility identifier on a container propagates to its descendants, so these
+# assertions use leaf identifiers and visible taxonomy labels rather than nested container ids.
+appId: pro.wewed.app.dev
+---
+# NOTE: clearState must stay false in this lane. The protected snapshot lives in the app's
+# private storage, and clearing state deletes it, silently dropping the app back to Sanitized
+# Shadow. Run the provisioner immediately before this flow instead.
+- launchApp:
+    clearState: false
+    arguments:
+      wewed_native_env: "private_real_shadow"
+      wewed_native_persona: "couple_owner"
+
+- assertVisible: "Private Real Shadow"
+- assertVisible:
+    id: "role-shell-couple"
+- assertVisible: "Charity & Kudzie"
+
+- tapOn: "Plan"
+- assertVisible: "Overview"
+- assertVisible: "Tasks"
+
+- tapOn: "Guests"
+- assertNotVisible: "Guest G001"
+- assertNotVisible: "Guest G011"
+
+- tapOn: "Wedding Day"
+- tapOn: "More"
+
+- launchApp:
+    clearState: false
+    arguments:
+      wewed_native_env: "private_real_shadow"
+      wewed_native_persona: "pro_planner"
+- assertVisible: "Private Real Shadow"
+- assertVisible:
+    id: "role-shell-planner"
+- assertVisible: "Workspace"
+
+- launchApp:
+    clearState: false
+    arguments:
+      wewed_native_env: "private_real_shadow"
+      wewed_native_persona: "administrator"
+- assertVisible:
+    id: "role-shell-admin"
+- assertVisible: "Dashboard"
