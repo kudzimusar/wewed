@@ -103,3 +103,6 @@ apps/ios/*.xcworkspace/xcuserdata/
 mobile/fixtures/private/
 apps/ios/**/PrivateRealShadow*Data.swift
 apps/android/**/PrivateRealShadow*Data.kt
+# Python bytecode from the shadow tooling
+__pycache__/
+*.pyc
