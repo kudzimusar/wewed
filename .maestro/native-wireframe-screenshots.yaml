@@ -53,6 +53,15 @@ appId: pro.wewed.app.dev
       wewed_native_env: "shadow"
       wewed_native_persona: "attending_guest"
 # The persona launch argument authenticates the session directly, so no sign-in tap is required.
+# Guest Ceremonial Entry Contract: a recognised Guest meets their card BEFORE the Guest
+# workspace, on every new entry session. Continuing from the card ends the ceremony for this
+# session and hands over to the workspace.
+- assertVisible:
+    id: "guest-ceremonial-card"
+- assertVisible:
+    id: "guest-card-status"
+- tapOn:
+    id: "guest-card-continue"
 - assertVisible:
     id: "role-shell-guest"
 - tapOn: "Pass"

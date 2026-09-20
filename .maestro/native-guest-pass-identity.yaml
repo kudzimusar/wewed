@@ -12,6 +12,15 @@ appId: pro.wewed.app.dev
       wewed_native_persona: "attending_guest"
 
 # Guest Home names the bound guest.
+# Guest Ceremonial Entry Contract: a recognised Guest meets their card BEFORE the Guest
+# workspace, on every new entry session. Continuing from the card ends the ceremony for this
+# session and hands over to the workspace.
+- assertVisible:
+    id: "guest-ceremonial-card"
+- assertVisible:
+    id: "guest-card-status"
+- tapOn:
+    id: "guest-card-continue"
 - assertVisible:
     id: "role-shell-guest"
 - assertVisible:
@@ -54,6 +63,13 @@ appId: pro.wewed.app.dev
     arguments:
       wewed_native_env: "shadow"
       wewed_native_persona: "attending_guest_party4"
+
+# A fresh launch is a new entry session, so the second guest meets their own card. The identity
+# on it must be the SECOND guest's: this is where a positional read would show the first guest's.
+- assertVisible:
+    id: "guest-ceremonial-card"
+- tapOn:
+    id: "guest-card-continue"
 
 - assertVisible:
     id: "guest-home-identity-shadow_guest_007"
