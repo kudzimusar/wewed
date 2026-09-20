@@ -134,6 +134,28 @@ class AppViewModel(
     }
 
     companion object {
+        /**
+         * Builds the repositories for an environment, or reports why it could not.
+         *
+         * Constructing a PRIVATE_REAL_SHADOW repository on a device where the protected snapshot
+         * is not provisioned threw out of `MainActivity.onCreate` and killed the process — the app
+         * simply vanished back to the launcher, with nothing to tell anyone what was wrong. The
+         * refusal to fall back to demo data is correct and stays; the crash is not.
+         *
+         * Returns null on failure, with [lastEnvironmentFailure] carrying the reason.
+         */
+        @Volatile
+        var lastEnvironmentFailure: String? = null
+            private set
+
+        fun fromEnvironmentOrNull(
+            environment: NativeDataEnvironment,
+            baseUrl: String? = null
+        ): AppViewModel? = runCatching { fromEnvironment(environment, baseUrl) }
+            .onSuccess { lastEnvironmentFailure = null }
+            .onFailure { lastEnvironmentFailure = it.message ?: "This data environment could not be opened." }
+            .getOrNull()
+
         fun fromEnvironment(
             environment: NativeDataEnvironment,
             baseUrl: String? = null

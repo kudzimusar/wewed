@@ -55,5 +55,10 @@ data class InvitationContext(
     val venueName: String,
     val venueCity: String,
     val cardStyle: String = "ivory-floral-gold",
-    var isConfirmed: Boolean = false
+    var isConfirmed: Boolean = false,
+    /**
+     * A declined invitation is a third state, not merely "not confirmed". Collapsing the two sends
+     * a guest who already said no back to the RSVP form to answer again.
+     */
+    var isDeclined: Boolean = false
 )

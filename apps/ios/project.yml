@@ -31,6 +31,9 @@ targets:
     settings:
       base:
         INFOPLIST_FILE: Wewed/AppTarget/Info.plist
+        # The app icon and the launch-screen brand mark live in the target's asset catalogue.
+        # Without ASSETCATALOG_COMPILER_APPICON_NAME the home screen shows the grey placeholder.
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_ENTITLEMENTS: Wewed/AppTarget/Wewed.entitlements
         PRODUCT_NAME: Wewed
         MARKETING_VERSION: 2.0.0

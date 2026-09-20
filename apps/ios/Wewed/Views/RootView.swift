@@ -12,6 +12,11 @@ public struct RootView: View {
     /// The context resolved from verified assignments (P0-3). Nil while resolving.
     @State private var resolvedContext: NavigationContext?
     @State private var deepLinkedInvitation: InvitationContext?
+    // Entry lifecycle. Launch decisions used to be a chain of `else if` branches, so the rule that
+    // an invitation outranks a sign-in form was a property of branch ORDER rather than a stated
+    // one. LaunchRouter states it, and tests assert it without a device.
+    @State private var splashComplete = false
+    @State private var authMode: AuthenticationMode?
     @State private var resolvingDeepLinkedInvitation = false
 
     public init() {}
@@ -54,13 +59,31 @@ public struct RootView: View {
         }
     }
 
+    /// Where an invited guest lands. A confirmed guest goes to their pass; a guest who already
+    /// declined sees their response, not the RSVP form again.
+    private static func journeyStage(for invitation: InvitationContext) -> GuestJourneyStage {
+        switch LaunchRouter.stage(for: invitation) {
+        case .confirmed: return .confirmedAttending
+        case .declined: return .declined
+        case .pending: return .invitation
+        }
+    }
+
     public var body: some View {
         Group {
-            if let deepLinkedInvitation {
+            // The Wewed animated splash is global: it plays on an icon launch, an invitation link,
+            // a returning session and a new account alike. The app used to have one splash for the
+            // guest journey and a bare white window for everything else.
+            if !splashComplete {
+                WewedAnimatedSplash(onFinished: { splashComplete = true })
+            } else if let deepLinkedInvitation {
+                // An invitation outranks everything. No account, no sign-in, no role chooser: the
+                // invitation token IS the guest's authorization, and a confirmed guest goes
+                // straight to their pass rather than being asked to RSVP a second time.
                 GuestInvitationJourneyView(
                     reference: GuestJourneyReference(
                         invitation: deepLinkedInvitation,
-                        initialStage: .splash
+                        initialStage: Self.journeyStage(for: deepLinkedInvitation)
                     ),
                     onExit: {
                         self.deepLinkedInvitation = nil
@@ -70,6 +93,7 @@ public struct RootView: View {
                 ProgressView("Preparing invitation…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(WeddingIdentityPalette.ivory)
+                    .accessibilityIdentifier("entry-resolving-deep-link")
             } else if session.isAuthenticated {
                 roleShell
                     .task(id: "\(session.currentRole.roleId)|\(session.activePersona?.id ?? "")") {
@@ -92,8 +116,19 @@ public struct RootView: View {
                                 "shadow-source-" + appState.dataEnvironment.rawValue.replacingOccurrences(of: "_", with: "-")
                             )
                     }
+            } else if authMode == nil {
+                WewedWelcomeView(
+                    onOpenInvitation: { authMode = .signIn },
+                    onSignIn: { authMode = .signIn },
+                    onCreateAccount: { authMode = .createAccount },
+                    shadowEntry: appState.dataEnvironment.allowsDevelopmentPersonaSwitching
+                        ? ShadowEntryOption(environmentName: appState.dataEnvironment.displayName) {
+                            session.enterShadowSession()
+                        }
+                        : nil
+                )
             } else {
-                LoginView()
+                LoginView(onBack: { authMode = nil })
             }
         }
         .onOpenURL { url in

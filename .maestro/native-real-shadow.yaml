@@ -5,76 +5,21 @@ appId: pro.wewed.app.dev
     arguments:
       wewed_native_env: "private_real_shadow"
 
-# 1. Sign In and prove the explicitly requested data source loaded.
-- assertVisible: "WEWED"
-- tapOn: "Sign In"
+# Private Real Shadow with no provisioned snapshot.
+#
+# clearState deletes the app-private snapshot, so this lane deliberately starts WITHOUT one. The
+# property under test is the refusal: a Private Real environment that cannot load its protected
+# graph must say so and substitute nothing. Silently falling back to fixture rows here would be
+# the most dangerous failure the app could have, because the badge would still read "Private Real".
+#
+# The provisioned counterpart of this lane lives in .maestro/private-real/, runs locally only, and
+# uses clearState: false for exactly this reason.
 - assertVisible:
-    id: "shadow-source-private-real-shadow"
-
-# 2. Home / real wedding graph
+    id: "environment-unavailable"
 - assertVisible:
+    id: "environment-unavailable-no-fallback"
+- assertVisible: "No demonstration data is substituted."
+# Nothing from any other wedding graph may appear on a refusal screen.
+- assertNotVisible:
     id: "home-root"
-- assertVisible: "OUR WEDDING JOURNEY"
-- assertVisible:
-    id: "home-metrics"
-
-# 3. Planner / same real wedding graph
-- tapOn: "Plan"
-- assertVisible:
-    id: "planner-root"
-- assertVisible: "Our Wedding Plan"
-- assertVisible:
-    id: "planner-module-tasks"
-- assertVisible:
-    id: "planner-module-budget"
-- assertVisible:
-    id: "planner-module-contributions"
-- assertVisible:
-    id: "planner-module-vendors"
-
-# 4. Detailed budget must render values, never an escaped template literal.
-- tapOn:
-    id: "planner-module-budget"
-- assertVisible:
-    id: "planner-budget-root"
-- assertNotVisible: "{amount.toInt()}"
-- back
-
-# 5. Contributions are real non-monetary records, not an invented cash total.
-- tapOn:
-    id: "planner-module-contributions"
-- assertVisible:
-    id: "planner-contributions-root"
-- assertVisible: "memories, blessings & stories"
-- back
-
-# 6. Documents/contracts are connected to the same graph; current account is honestly empty.
-- scroll
-- tapOn:
-    id: "planner-module-documents"
-- assertVisible:
-    id: "planner-documents-root"
-- assertVisible: "No contracts or documents recorded for this wedding."
-- back
-
-# 7. Guests / do not bind Git tests to private names.
-- tapOn: "Guests"
-- assertVisible:
-    id: "guests-root"
-- assertVisible:
-    id: "guests-search"
-- assertNotVisible: "Guest G001"
-- assertNotVisible: "Guest G011"
-
-# 8. Wedding Day / same real runtime graph.
-# IA V2 moved My Pass inside Wedding Day, and a couple holds no guest pass credential, so the
-# pass surface is exercised from the guest persona in native-guest-pass-identity.yaml.
-- tapOn: "Wedding Day"
-- assertVisible:
-    id: "couple-wedding_day"
-- assertNotVisible: "Guest G011"
-
-# 9. More
-- tapOn: "More"
-- assertVisible:
-    id: "more-root"
+- assertNotVisible: "Tariro & Shadreck"

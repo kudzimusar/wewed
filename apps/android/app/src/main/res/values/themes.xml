@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Wewed platform themes.
+
+  The app previously used @android:style/Theme.Material.NoActionBar, which meant the system launch
+  window was a grey Material surface and the first frame of the app was ivory — a visible flash on
+  every cold start, and nothing branded at all before it.
+
+  Theme.Wewed.Starting is deliberately simple: ivory, the brand mark, nothing moving. The OS draws
+  it before any application code runs, so it cannot animate. The Wewed animated splash belongs to
+  the app and takes over the moment the first frame is drawn.
+-->
+<resources>
+    <style name="Theme.Wewed" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/wewed_ivory</item>
+        <item name="android:statusBarColor">@color/wewed_ivory</item>
+        <item name="android:navigationBarColor">@color/wewed_ivory</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+
+    <!-- Pre-API-31 launch window: an ivory window with the brand mark centred. -->
+    <style name="Theme.Wewed.Starting" parent="Theme.Wewed">
+        <item name="android:windowBackground">@drawable/wewed_launch_background</item>
+    </style>
+</resources>

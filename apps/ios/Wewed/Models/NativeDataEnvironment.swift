@@ -8,6 +8,9 @@ public enum NativeDataEnvironment: String, Codable, CaseIterable, Sendable {
     case productionReadVerify = "production_read_verify"
     case production
 
+    /// The environment name as it is shown to a person, e.g. on the welcome surface.
+    public var displayName: String { title }
+
     public var title: String {
         switch self {
         case .fixture: return "Fixture"

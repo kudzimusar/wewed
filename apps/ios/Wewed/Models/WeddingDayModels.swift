@@ -92,6 +92,9 @@ public struct InvitationContext: Codable, Identifiable, Equatable, Sendable {
     public let venueCity: String
     public let cardStyle: String
     public var isConfirmed: Bool
+    /// A declined invitation is a third state, not merely "not confirmed". Collapsing the two
+    /// sends a guest who already said no back to the RSVP form to answer again.
+    public var isDeclined: Bool
 
     public init(
         weddingSlug: String,
@@ -104,7 +107,8 @@ public struct InvitationContext: Codable, Identifiable, Equatable, Sendable {
         venueName: String,
         venueCity: String,
         cardStyle: String = "ivory-floral-gold",
-        isConfirmed: Bool = false
+        isConfirmed: Bool = false,
+        isDeclined: Bool = false
     ) {
         self.weddingSlug = weddingSlug
         self.guestToken = guestToken
@@ -117,5 +121,6 @@ public struct InvitationContext: Codable, Identifiable, Equatable, Sendable {
         self.venueCity = venueCity
         self.cardStyle = cardStyle
         self.isConfirmed = isConfirmed
+        self.isDeclined = isDeclined
     }
 }

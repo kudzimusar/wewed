@@ -8,6 +8,9 @@ enum class NativeDataEnvironment(val title: String) {
     PRODUCTION_READ_VERIFY("Production Read Verify"),
     PRODUCTION("Production");
 
+    /** The environment name as it is shown to a person, e.g. on the sign-in surface. */
+    val displayName: String get() = title
+
     val allowsMutableNativeDevelopment: Boolean
         get() = this == FIXTURE || this == SHADOW || this == SANITIZED_SHADOW || this == PRIVATE_REAL_SHADOW
 

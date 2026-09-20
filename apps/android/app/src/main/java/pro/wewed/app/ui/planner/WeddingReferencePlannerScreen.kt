@@ -138,7 +138,7 @@ fun WeddingReferencePlannerScreen(
                                                 fontSize = 16.sp
                                             )
                                             Text(
-                                                "${(ratio * 100).toInt()}% complete • ${snap.taskCompletionLabel} tasks",
+                                                "${Math.round(ratio * 100).toInt()}% complete • ${snap.taskCompletionLabel} tasks",
                                                 color = WeddingIdentityPalette.Muted,
                                                 fontSize = 12.sp
                                             )

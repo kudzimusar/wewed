@@ -21,7 +21,14 @@ import pro.wewed.app.navigation.NavigationContext
 import pro.wewed.app.state.AppViewModel
 import pro.wewed.app.state.SessionViewModel
 import pro.wewed.app.theme.WeddingIdentityPalette
+import pro.wewed.app.navigation.AuthenticationMode
+import pro.wewed.app.navigation.InvitationEntryStage
+import pro.wewed.app.navigation.LaunchRouter
+import pro.wewed.app.navigation.NativeAppEntryState
 import pro.wewed.app.ui.auth.LoginScreen
+import pro.wewed.app.ui.entry.ShadowEntryOption
+import pro.wewed.app.ui.entry.WewedAnimatedSplash
+import pro.wewed.app.ui.entry.WewedWelcomeScreen
 import pro.wewed.app.ui.invitation.GuestInvitationJourneyScreen
 import pro.wewed.app.ui.pass.UsherScannerScreen
 import pro.wewed.app.ui.roles.*
@@ -53,6 +60,18 @@ fun RootScreen(
     var deepLinkedInvitation by remember { mutableStateOf<InvitationContext?>(null) }
     var resolvingDeepLinkedInvitation by remember { mutableStateOf(false) }
 
+    // -----------------------------------------------------------------------------------------
+    // Entry lifecycle.
+    //
+    // Launch decisions used to be a sequence of early returns: resolve a link, then check
+    // authentication, then resolve a context. Nothing named the lifecycle, so the rule that an
+    // invitation outranks a sign-in form was a property of statement ORDER — a reordering would
+    // have silently sent an invited guest to a login screen. The state is now explicit, and
+    // LaunchRouter decides it as a pure function that tests can assert directly.
+    // -----------------------------------------------------------------------------------------
+    var splashComplete by remember { mutableStateOf(false) }
+    var authMode by remember { mutableStateOf<AuthenticationMode?>(null) }
+
     LaunchedEffect(pendingInvitationDeepLink) {
         val pending = pendingInvitationDeepLink ?: return@LaunchedEffect
         resolvingDeepLinkedInvitation = true
@@ -66,7 +85,38 @@ fun RootScreen(
         resolvingDeepLinkedInvitation = false
     }
 
-    deepLinkedInvitation?.let { invitation ->
+    // The Wewed animated splash is global: it plays on an icon launch, an invitation link, a
+    // returning session and a new account alike. The app used to have one splash for the guest
+    // journey and a bare window for everything else.
+    if (!splashComplete) {
+        WewedAnimatedSplash(onFinished = { splashComplete = true })
+        return
+    }
+
+    if (resolvingDeepLinkedInvitation || pendingInvitationDeepLink != null) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(WeddingIdentityPalette.Ivory)
+                .testTag("entry-resolving-deep-link"),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = WeddingIdentityPalette.ChampagneDeep)
+        }
+        return
+    }
+
+    val entryState = LaunchRouter.route(
+        invitation = deepLinkedInvitation,
+        hasValidSession = isAuthenticated,
+        authorizedRoles = if (isAuthenticated) listOf(currentRole) else emptyList(),
+        hasResolvedContext = true
+    )
+
+    // An invitation outranks everything. No account, no sign-in, no role chooser: the invitation
+    // token IS the guest's authorization, and a confirmed guest goes straight to their pass rather
+    // than being asked to RSVP a second time.
+    (entryState as? NativeAppEntryState.Invitation)?.let { invitationState ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -74,8 +124,12 @@ fun RootScreen(
         ) {
             GuestInvitationJourneyScreen(
                 reference = GuestJourneyReference(
-                    invitation,
-                    GuestJourneyStage.SPLASH
+                    invitationState.invitation,
+                    when (invitationState.stage) {
+                        InvitationEntryStage.CONFIRMED -> GuestJourneyStage.CONFIRMED_ATTENDING
+                        InvitationEntryStage.DECLINED -> GuestJourneyStage.DECLINED
+                        InvitationEntryStage.PENDING -> GuestJourneyStage.INVITATION
+                    }
                 ),
                 appViewModel = appViewModel,
                 onExit = { deepLinkedInvitation = null }
@@ -84,20 +138,26 @@ fun RootScreen(
         return
     }
 
-    if (resolvingDeepLinkedInvitation) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(WeddingIdentityPalette.Ivory),
-            contentAlignment = Alignment.Center
-        ) {
-            CircularProgressIndicator(color = WeddingIdentityPalette.ChampagneDeep)
-        }
+    if (entryState is NativeAppEntryState.Welcome && authMode == null) {
+        WewedWelcomeScreen(
+            onOpenInvitation = { authMode = AuthenticationMode.SIGN_IN },
+            onSignIn = { authMode = AuthenticationMode.SIGN_IN },
+            onCreateAccount = { authMode = AuthenticationMode.CREATE_ACCOUNT },
+            shadowEntry = appViewModel.dataEnvironment
+                .takeIf { it.allowsDevelopmentPersonaSwitching }
+                ?.let { environment ->
+                    ShadowEntryOption(environment.displayName) { sessionViewModel.enterShadowSession() }
+                }
+        )
         return
     }
 
     if (!isAuthenticated) {
-        LoginScreen(sessionViewModel = sessionViewModel)
+        LoginScreen(
+            sessionViewModel = sessionViewModel,
+            environment = appViewModel.dataEnvironment,
+            onBack = { authMode = null }
+        )
         return
     }
 

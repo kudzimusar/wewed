@@ -3,107 +3,199 @@ package pro.wewed.app.ui.auth
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import pro.wewed.app.models.NativeDataEnvironment
 import pro.wewed.app.state.SessionViewModel
-import pro.wewed.app.theme.WewedColors
-import pro.wewed.app.theme.WewedRadius
-import pro.wewed.app.theme.WewedSpacing
+import pro.wewed.app.theme.WeddingBrandMark
+import pro.wewed.app.theme.WeddingIdentityPalette
+import pro.wewed.app.theme.WeddingOrnamentBackdrop
 
+/**
+ * Wewed sign in.
+ *
+ * What this replaces, and why each part had to go:
+ *
+ *   * A pre-filled address and a real password compiled into the binary. Anyone with the APK had
+ *     the credential. Shipping a password is not a convenience, it is a disclosure.
+ *   * "Native Android Division" — an internal label on the product's front door.
+ *   * Couple / Usher / Planner chips. A person choosing their own role is not authentication; it
+ *     is self-service authorization. Role is what the server answers AFTER it knows who you are.
+ *
+ * What remains is the whole of sign in: who you are, and proof. Everything else follows from the
+ * authorization the server returns.
+ */
 @Composable
-fun LoginScreen(sessionViewModel: SessionViewModel) {
-    var email by remember { mutableStateOf("tariro@wewed.pro") }
-    var password by remember { mutableStateOf("wewed-admin-2026") }
-    var selectedRole by remember { mutableStateOf("couple") }
+fun LoginScreen(
+    sessionViewModel: SessionViewModel,
+    environment: NativeDataEnvironment,
+    onBack: (() -> Unit)? = null,
+    onForgotPassword: (() -> Unit)? = null,
+    onCreateAccount: (() -> Unit)? = null
+) {
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var submitting by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    val canSubmit = email.isNotBlank() && password.isNotBlank() && !submitting
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(WewedColors.Ivory),
+            .background(WeddingIdentityPalette.Ivory)
+            .testTag("sign-in-root"),
         contentAlignment = Alignment.Center
     ) {
+        WeddingOrnamentBackdrop(modifier = Modifier.matchParentSize(), alpha = 0.08f)
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = WewedSpacing.xl),
+                .padding(horizontal = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(WewedSpacing.lg)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            WeddingBrandMark()
             Text(
-                text = "WEWED",
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
+                "Welcome back",
+                fontSize = 30.sp,
+                fontWeight = FontWeight.Medium,
                 fontFamily = FontFamily.Serif,
-                color = WewedColors.Gold
+                color = WeddingIdentityPalette.Ink
             )
             Text(
-                text = "Native Android Division",
-                style = MaterialTheme.typography.bodyMedium,
-                color = WewedColors.TextSecondaryLight
+                "Sign in to your Wewed account",
+                fontSize = 14.sp,
+                color = WeddingIdentityPalette.Muted,
+                textAlign = TextAlign.Center
             )
 
             OutlinedTextField(
                 value = email,
-                onValueChange = { email = it },
-                label = { Text("Email Address") },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(WewedRadius.md)
+                onValueChange = { email = it; error = null },
+                label = { Text("Email") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Email,
+                    imeAction = ImeAction.Next
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("sign-in-email"),
+                shape = RoundedCornerShape(12.dp)
             )
 
             OutlinedTextField(
                 value = password,
-                onValueChange = { password = it },
+                onValueChange = { password = it; error = null },
                 label = { Text("Password") },
+                singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(WewedRadius.md)
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    imeAction = ImeAction.Done
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("sign-in-password"),
+                shape = RoundedCornerShape(12.dp)
             )
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                FilterChip(
-                    selected = selectedRole == "couple",
-                    onClick = { selectedRole = "couple" },
-                    label = { Text("Couple") }
-                )
-                FilterChip(
-                    selected = selectedRole == "usher",
-                    onClick = { selectedRole = "usher" },
-                    label = { Text("Usher") }
-                )
-                FilterChip(
-                    selected = selectedRole == "planner",
-                    onClick = { selectedRole = "planner" },
-                    label = { Text("Planner") }
+            error?.let {
+                Text(
+                    it,
+                    color = WeddingIdentityPalette.ChampagneDeep,
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.testTag("sign-in-error")
                 )
             }
 
             Button(
-                onClick = { sessionViewModel.login(email, selectedRole) },
+                onClick = {
+                    submitting = true
+                    error = null
+                    // Role is deliberately NOT passed. The session resolves authorization from the
+                    // identity; a caller cannot assert what it is allowed to be.
+                    val outcome = runCatching { sessionViewModel.signIn(email.trim(), password) }
+                    submitting = false
+                    error = outcome.exceptionOrNull()?.message
+                },
+                enabled = canSubmit,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(50.dp),
-                shape = RoundedCornerShape(WewedRadius.lg),
-                colors = ButtonDefaults.buttonColors(containerColor = WewedColors.Gold)
+                    .height(52.dp)
+                    .testTag("sign-in-submit"),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = WeddingIdentityPalette.Forest,
+                    contentColor = WeddingIdentityPalette.IvorySoft
+                )
             ) {
-                Text("Sign In", color = Color.White, fontWeight = FontWeight.Bold)
+                Text(
+                    if (submitting) "Signing in…" else "Sign In",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
 
-            Text(
-                text = "Zimbabwe-First Wedding Ecosystem",
-                style = MaterialTheme.typography.bodySmall,
-                color = WewedColors.TextSecondaryLight
-            )
+            onForgotPassword?.let {
+                TextButton(onClick = it, modifier = Modifier.testTag("sign-in-forgot-password")) {
+                    Text(
+                        "Forgot password?",
+                        fontSize = 13.sp,
+                        color = WeddingIdentityPalette.ChampagneDeep
+                    )
+                }
+            }
+
+            onCreateAccount?.let {
+                TextButton(onClick = it, modifier = Modifier.testTag("sign-in-create-account")) {
+                    Text(
+                        "Create an account",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = WeddingIdentityPalette.ChampagneDeep
+                    )
+                }
+            }
+
+            onBack?.let {
+                TextButton(onClick = it, modifier = Modifier.testTag("sign-in-back")) {
+                    Text("Back", fontSize = 13.sp, color = WeddingIdentityPalette.Muted)
+                }
+            }
+
+            // Shadow and UAT lanes need a way in without a production credential. The affordance
+            // is named for what it is, appears only where persona switching is already permitted,
+            // and carries no credential of any kind.
+            if (environment.allowsDevelopmentPersonaSwitching) {
+                Spacer(Modifier.height(4.dp))
+                TextButton(
+                    onClick = { sessionViewModel.enterShadowSession() },
+                    modifier = Modifier.testTag("sign-in-shadow-entry")
+                ) {
+                    Text(
+                        "Continue in ${environment.displayName}",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = WeddingIdentityPalette.Muted
+                    )
+                }
+            }
         }
     }
 }

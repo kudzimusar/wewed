@@ -6,8 +6,12 @@ appId: pro.wewed.app.dev
       wewed_native_env: "shadow"
 
 # 1. Sign In
-- assertVisible: "WEWED"
-- tapOn: "Sign In"
+# Entry now runs through the Wewed welcome surface rather than a development login form with
+# a role chooser and a shipped password. Shadow and UAT lanes enter through the environment
+# affordance, which carries no credential and exists only where persona switching is permitted.
+- assertVisible: "Wewed"
+- tapOn:
+    id: "welcome-shadow-entry"
 
 # 2. Home
 - assertVisible:
