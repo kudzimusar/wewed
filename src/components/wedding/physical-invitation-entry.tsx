@@ -266,7 +266,7 @@ export function PhysicalInvitationEntry({
 
           {!deferredInstallEnabled && mode === 'android-web' && (
             <p role="alert" className="rounded-2xl border border-[#c97866]/50 bg-[#3a201c] px-4 py-3 text-sm leading-6 text-[#f3d8d1]">
-              Secure invitation download handoff is being prepared for this UAT build. Your private invitation remains locked until it is enabled.
+              Secure Android invitation handoff is not available yet. Your private invitation remains locked until the production Wewed release is available.
             </p>
           )}
           {error && (

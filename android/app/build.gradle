@@ -28,6 +28,15 @@ def hasUploadSigning = uploadStorePath && uploadStorePassword && uploadKeyAlias 
 
 def uatPlayVersionCode = (System.getenv('WEWED_ANDROID_VERSION_CODE') ?: '3').toInteger()
 def uatPlayVersionName = System.getenv('WEWED_ANDROID_VERSION_NAME') ?: '3'
+def productionVersionCodeRaw = System.getenv('WEWED_ANDROID_PRODUCTION_VERSION_CODE')
+def productionVersionName = System.getenv('WEWED_ANDROID_PRODUCTION_VERSION_NAME')
+if ((productionVersionCodeRaw && !productionVersionName) || (!productionVersionCodeRaw && productionVersionName)) {
+    throw new GradleException('WEWED_ANDROID_PRODUCTION_VERSION_CODE and WEWED_ANDROID_PRODUCTION_VERSION_NAME must be set together')
+}
+def productionVersionCode = productionVersionCodeRaw ? productionVersionCodeRaw.toInteger() : null
+if (productionVersionCode != null && productionVersionCode < 1) {
+    throw new GradleException('WEWED_ANDROID_PRODUCTION_VERSION_CODE must be a positive integer')
+}
 def uatResumeOrigin = System.getenv('WEWED_ANDROID_UAT_RESUME_ORIGIN') ?: 'https://uat.wewed.pro'
 if (!(uatResumeOrigin in ['https://uat.wewed.pro', 'http://10.0.2.2:3000'])) {
     throw new GradleException("Unsupported WEWED_ANDROID_UAT_RESUME_ORIGIN: " + uatResumeOrigin)
@@ -176,6 +185,16 @@ androidComponents {
         variant.outputs.each { output ->
             output.versionCode.set(uatPlayVersionCode)
             output.versionName.set("${uatPlayVersionName}-uat")
+        }
+    }
+    // A Play production wrapper has a different trusted-web host and resume origin
+    // from the UAT wrapper. Only the release variant can take this explicit override.
+    onVariants(selector().withBuildType('release')) { variant ->
+        if (productionVersionCode != null) {
+            variant.outputs.each { output ->
+                output.versionCode.set(productionVersionCode)
+                output.versionName.set(productionVersionName)
+            }
         }
     }
 }
