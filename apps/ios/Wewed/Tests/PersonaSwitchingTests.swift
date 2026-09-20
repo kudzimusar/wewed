@@ -5,7 +5,10 @@ final class PersonaSwitchingTests: XCTestCase {
     @MainActor
     func testAllPersonasMappedToValidRoles() {
         let personas = DevelopmentPersona.allPersonas
-        XCTAssertEqual(personas.count, 8)
+        XCTAssertEqual(personas.count, 9)
+        // Two guest personas exist deliberately, so guest identity binding cannot pass by
+        // collection order (P0-4).
+        XCTAssertEqual(personas.filter { $0.role == .guest }.count, 2)
         for persona in personas {
             XCTAssertFalse(persona.role.roleId.isEmpty)
             XCTAssertFalse(persona.name.isEmpty)

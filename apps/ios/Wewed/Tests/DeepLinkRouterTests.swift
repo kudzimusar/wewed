@@ -4,14 +4,8 @@ import XCTest
 /// IA V2 §14 — a deep link must never bypass entitlement checks. Mirrors the Android suite.
 final class DeepLinkRouterTests: XCTestCase {
 
-    private func context(_ role: AppRole, weddingId: String = "wed_1") -> NavigationContext {
-        NavigationContext(
-            actorId: "actor_test",
-            activeRole: role,
-            activeWeddingId: weddingId,
-            activeWeddingTitle: "Charity & Kudzie",
-            environment: .fixture
-        )
+    private func context(_ role: AppRole, weddingId: String = AuthorizedContexts.wedding) -> NavigationContext {
+        AuthorizedContexts.authorized(role, weddingId: weddingId)
     }
 
     func testCanonicalWorkspaceDeepLinksParseToDocumentedDestination() throws {
@@ -74,7 +68,7 @@ final class DeepLinkRouterTests: XCTestCase {
     }
 
     func testUnauthorizedDeepLinkIsDeniedWithSafeReturn() {
-        let link = NativeDeepLink.workspace(WorkspaceDeepLink(weddingId: "wed_1", destinationId: "workspace"))
+        let link = NativeDeepLink.workspace(WorkspaceDeepLink(weddingId: AuthorizedContexts.wedding, destinationId: "workspace"))
         guard case let .denied(_, safeReturn) = DeepLinkRouter.resolve(link, context: context(.guest)) else {
             return XCTFail("Guest must not reach the planner workspace via a link")
         }
@@ -95,18 +89,18 @@ final class DeepLinkRouterTests: XCTestCase {
 
     func testLinkNamingDifferentWeddingNeverRebindsActiveContext() {
         let foreign = NativeDeepLink.workspace(WorkspaceDeepLink(weddingId: "wed_OTHER", destinationId: "plan"))
-        guard case let .denied(reason, _) = DeepLinkRouter.resolve(foreign, context: context(.couple, weddingId: "wed_1")) else {
+        guard case let .denied(reason, _) = DeepLinkRouter.resolve(foreign, context: context(.couple)) else {
             return XCTFail("A link for another wedding must be denied")
         }
         XCTAssertTrue(reason.contains("different wedding"))
     }
 
     func testAuthorizedDeepLinkResolvesWithoutChangingActiveWedding() {
-        let link = NativeDeepLink.workspace(WorkspaceDeepLink(weddingId: "wed_1", destinationId: "plan"))
-        guard case let .allowed(destination, resolved) = DeepLinkRouter.resolve(link, context: context(.couple, weddingId: "wed_1")) else {
+        let link = NativeDeepLink.workspace(WorkspaceDeepLink(weddingId: AuthorizedContexts.wedding, destinationId: "plan"))
+        guard case let .allowed(destination, resolved) = DeepLinkRouter.resolve(link, context: context(.couple)) else {
             return XCTFail("Couple should reach their own plan workspace")
         }
         XCTAssertEqual(destination.id, "plan")
-        XCTAssertEqual(resolved.activeWeddingId, "wed_1")
+        XCTAssertEqual(resolved.activeWeddingId, AuthorizedContexts.wedding)
     }
 }

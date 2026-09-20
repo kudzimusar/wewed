@@ -30,13 +30,31 @@ public enum ContextScope: String, Equatable, Sendable {
     case client
     case engagement
     case gate
+    /// Which guest record the actor *is* (P0-4).
+    case guest
+    /// Global administrative scope, not tied to one wedding (P0-15).
+    case system
 }
 
 public struct RoleNavigation: Equatable, Sendable {
     public let role: AppRole
     public let displayName: String
-    public let contextScopes: [ContextScope]
+    /// Context dimensions this role uses, and how strongly it depends on each (P0-3).
+    public let scopes: [ScopeDeclaration]
     public let primary: [PrimaryDestination]
+
+    public var contextScopes: [ContextScope] { scopes.map(\.scope) }
+
+    public func requirement(_ scope: ContextScope) -> ScopeRequirement? {
+        scopes.first { $0.scope == scope }?.requirement
+    }
+
+    public var requiredScopes: [ContextScope] {
+        scopes.filter { $0.requirement == .required }.map(\.scope)
+    }
+
+    /// True when this role operates at system level rather than inside one wedding.
+    public var isSystemScoped: Bool { scopes.contains { $0.scope == .system } }
 
     /// Level-1 labels in order — the bottom-navigation contract.
     public var labels: [String] { primary.map(\.label) }
@@ -57,7 +75,7 @@ public enum IANavigationContract {
     private static let couple = RoleNavigation(
         role: .couple,
         displayName: "Couple",
-        contextScopes: [.wedding],
+        scopes: [ScopeDeclaration(.wedding, .required)],
         primary: [
             PrimaryDestination(id: "home", label: "Home"),
             PrimaryDestination(
@@ -82,7 +100,7 @@ public enum IANavigationContract {
     private static let planner = RoleNavigation(
         role: .planner,
         displayName: "Professional Planner",
-        contextScopes: [.wedding, .client],
+        scopes: [ScopeDeclaration(.wedding, .required), ScopeDeclaration(.client, .optional)],
         primary: [
             PrimaryDestination(
                 id: "workspace", label: "Workspace",
@@ -110,7 +128,7 @@ public enum IANavigationContract {
     private static let guest = RoleNavigation(
         role: .guest,
         displayName: "Attending Guest",
-        contextScopes: [.wedding],
+        scopes: [ScopeDeclaration(.wedding, .required), ScopeDeclaration(.guest, .required)],
         primary: [
             PrimaryDestination(id: "home", label: "Home"),
             PrimaryDestination(
@@ -135,7 +153,7 @@ public enum IANavigationContract {
     private static let vendor = RoleNavigation(
         role: .vendor,
         displayName: "Vendor & Staff",
-        contextScopes: [.wedding, .engagement],
+        scopes: [ScopeDeclaration(.wedding, .required), ScopeDeclaration(.engagement, .required)],
         primary: [
             PrimaryDestination(id: "home", label: "Home"),
             PrimaryDestination(
@@ -157,7 +175,7 @@ public enum IANavigationContract {
     private static let usher = RoleNavigation(
         role: .usher,
         displayName: "Gate Team",
-        contextScopes: [.wedding, .gate],
+        scopes: [ScopeDeclaration(.wedding, .required), ScopeDeclaration(.gate, .required)],
         primary: [
             PrimaryDestination(id: "scan", label: "Scan"),
             PrimaryDestination(
@@ -179,7 +197,7 @@ public enum IANavigationContract {
     private static let coordinator = RoleNavigation(
         role: .coordinator,
         displayName: "Day-of Coordinator",
-        contextScopes: [.wedding],
+        scopes: [ScopeDeclaration(.wedding, .required)],
         primary: [
             PrimaryDestination(id: "today", label: "Today"),
             PrimaryDestination(id: "run_sheet", label: "Run Sheet"),
@@ -201,7 +219,11 @@ public enum IANavigationContract {
     private static let admin = RoleNavigation(
         role: .admin,
         displayName: "Support / Admin",
-        contextScopes: [.wedding, .client],
+        scopes: [
+            ScopeDeclaration(.system, .required),
+            ScopeDeclaration(.wedding, .optional),
+            ScopeDeclaration(.client, .optional)
+        ],
         primary: [
             PrimaryDestination(id: "dashboard", label: "Dashboard"),
             PrimaryDestination(id: "cases", label: "Cases"),

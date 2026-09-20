@@ -56,6 +56,14 @@ final class WeddingScopeTests: XCTestCase {
         }
 
         func availableWeddingIds() async throws -> [String] { graphs.keys.sorted() }
+        func resolveGuestIdentity(token: String) async throws -> GuestIdentity? {
+            for (weddingId, g) in graphs {
+                if let guest = g.guests.first(where: { $0.passSerial == token }) {
+                    return GuestIdentity(guestId: guest.id, guestName: guest.name, weddingId: weddingId, passToken: token)
+                }
+            }
+            return nil
+        }
         func getWedding(weddingId: String) async throws -> Wedding { try graph(weddingId).wedding }
         func getTasks(weddingId: String) async throws -> [PlannerTask] { try graph(weddingId).tasks }
         func getGuests(weddingId: String) async throws -> [Guest] { try graph(weddingId).guests }

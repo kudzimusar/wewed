@@ -29,48 +29,50 @@ public struct PlannerShellView: View {
     @EnvironmentObject private var appState: AppState
     let context: NavigationContext
     var onSwitchPersona: (() -> Void)?
-    var requestedDestinationId: String?
-    var onRequestedDestinationHandled: (() -> Void)?
+    var pendingDeepLink: NativeDeepLink?
+    var onDeepLinkHandled: (() -> Void)?
+    @StateObject private var sectionMemory = WorkspaceSectionMemory()
 
     public init(
         context: NavigationContext,
         onSwitchPersona: (() -> Void)? = nil,
-        requestedDestinationId: String? = nil,
-        onRequestedDestinationHandled: (() -> Void)? = nil
+        pendingDeepLink: NativeDeepLink? = nil,
+        onDeepLinkHandled: (() -> Void)? = nil
     ) {
         self.context = context
         self.onSwitchPersona = onSwitchPersona
-        self.requestedDestinationId = requestedDestinationId
-        self.onRequestedDestinationHandled = onRequestedDestinationHandled
+        self.pendingDeepLink = pendingDeepLink
+        self.onDeepLinkHandled = onDeepLinkHandled
     }
 
     public var body: some View {
         RoleShellScaffold(
             context: context,
             onSwitchPersona: onSwitchPersona,
-            requestedDestinationId: requestedDestinationId,
-            onRequestedDestinationHandled: onRequestedDestinationHandled
+            pendingDeepLink: pendingDeepLink,
+            sectionMemory: sectionMemory,
+            onDeepLinkHandled: onDeepLinkHandled
         ) { destination, ctx in
             RoleWorkspaceHost(context: ctx) { graph in
                 switch destination.id {
                 case "workspace":
-                    WorkspaceSurface(destination: destination, testIdPrefix: "planner") { section in
+                    WorkspaceSurface(destination: destination, testIdPrefix: "planner", context: ctx, sectionMemory: sectionMemory) { section in
                         PlannerWorkspaceSection(section: section, context: ctx)
                     }
                 case "clients":
-                    WorkspaceSurface(destination: destination, testIdPrefix: "planner") { section in
+                    WorkspaceSurface(destination: destination, testIdPrefix: "planner", context: ctx, sectionMemory: sectionMemory) { section in
                         PlannerClientsSection(section: section, context: ctx)
                     }
                 case "daily_ops":
-                    WorkspaceSurface(destination: destination, testIdPrefix: "planner") { section in
+                    WorkspaceSurface(destination: destination, testIdPrefix: "planner", context: ctx, sectionMemory: sectionMemory) { section in
                         PlannerDailyOpsSection(section: section, graph: graph, context: ctx)
                     }
                 case "wedding_day":
-                    WorkspaceSurface(destination: destination, testIdPrefix: "planner") { section in
+                    WorkspaceSurface(destination: destination, testIdPrefix: "planner", context: ctx, sectionMemory: sectionMemory) { section in
                         PlannerWeddingDaySection(section: section, graph: graph, context: ctx)
                     }
                 case "more":
-                    WorkspaceSurface(destination: destination, testIdPrefix: "planner") { section in
+                    WorkspaceSurface(destination: destination, testIdPrefix: "planner", context: ctx, sectionMemory: sectionMemory) { section in
                         PlannerMoreSection(section: section, context: ctx)
                     }
                 default:
@@ -280,27 +282,29 @@ public struct CoordinatorShellView: View {
     @EnvironmentObject private var session: SessionStore
     let context: NavigationContext
     var onSwitchPersona: (() -> Void)?
-    var requestedDestinationId: String?
-    var onRequestedDestinationHandled: (() -> Void)?
+    var pendingDeepLink: NativeDeepLink?
+    var onDeepLinkHandled: (() -> Void)?
+    @StateObject private var sectionMemory = WorkspaceSectionMemory()
 
     public init(
         context: NavigationContext,
         onSwitchPersona: (() -> Void)? = nil,
-        requestedDestinationId: String? = nil,
-        onRequestedDestinationHandled: (() -> Void)? = nil
+        pendingDeepLink: NativeDeepLink? = nil,
+        onDeepLinkHandled: (() -> Void)? = nil
     ) {
         self.context = context
         self.onSwitchPersona = onSwitchPersona
-        self.requestedDestinationId = requestedDestinationId
-        self.onRequestedDestinationHandled = onRequestedDestinationHandled
+        self.pendingDeepLink = pendingDeepLink
+        self.onDeepLinkHandled = onDeepLinkHandled
     }
 
     public var body: some View {
         RoleShellScaffold(
             context: context,
             onSwitchPersona: onSwitchPersona,
-            requestedDestinationId: requestedDestinationId,
-            onRequestedDestinationHandled: onRequestedDestinationHandled
+            pendingDeepLink: pendingDeepLink,
+            sectionMemory: sectionMemory,
+            onDeepLinkHandled: onDeepLinkHandled
         ) { destination, ctx in
             RoleWorkspaceHost(context: ctx) { graph in
                 switch destination.id {
@@ -309,15 +313,15 @@ public struct CoordinatorShellView: View {
                 case "run_sheet":
                     WeddingDaySection(section: "Programme", graph: graph, environment: ctx.environment)
                 case "team":
-                    WorkspaceSurface(destination: destination, testIdPrefix: "coordinator") { section in
+                    WorkspaceSurface(destination: destination, testIdPrefix: "coordinator", context: ctx, sectionMemory: sectionMemory) { section in
                         CoordinatorTeamSection(section: section, graph: graph, context: ctx)
                     }
                 case "wedding_day":
-                    WorkspaceSurface(destination: destination, testIdPrefix: "coordinator") { section in
+                    WorkspaceSurface(destination: destination, testIdPrefix: "coordinator", context: ctx, sectionMemory: sectionMemory) { section in
                         CoordinatorWeddingDaySection(section: section, graph: graph, context: ctx)
                     }
                 case "more":
-                    WorkspaceSurface(destination: destination, testIdPrefix: "coordinator") { section in
+                    WorkspaceSurface(destination: destination, testIdPrefix: "coordinator", context: ctx, sectionMemory: sectionMemory) { section in
                         CoordinatorMoreSection(section: section, graph: graph, context: ctx)
                     }
                 default:
@@ -426,44 +430,46 @@ public struct VendorShellView: View {
     @EnvironmentObject private var session: SessionStore
     let context: NavigationContext
     var onSwitchPersona: (() -> Void)?
-    var requestedDestinationId: String?
-    var onRequestedDestinationHandled: (() -> Void)?
+    var pendingDeepLink: NativeDeepLink?
+    var onDeepLinkHandled: (() -> Void)?
+    @StateObject private var sectionMemory = WorkspaceSectionMemory()
 
     public init(
         context: NavigationContext,
         onSwitchPersona: (() -> Void)? = nil,
-        requestedDestinationId: String? = nil,
-        onRequestedDestinationHandled: (() -> Void)? = nil
+        pendingDeepLink: NativeDeepLink? = nil,
+        onDeepLinkHandled: (() -> Void)? = nil
     ) {
         self.context = context
         self.onSwitchPersona = onSwitchPersona
-        self.requestedDestinationId = requestedDestinationId
-        self.onRequestedDestinationHandled = onRequestedDestinationHandled
+        self.pendingDeepLink = pendingDeepLink
+        self.onDeepLinkHandled = onDeepLinkHandled
     }
 
     public var body: some View {
         RoleShellScaffold(
             context: context,
             onSwitchPersona: onSwitchPersona,
-            requestedDestinationId: requestedDestinationId,
-            onRequestedDestinationHandled: onRequestedDestinationHandled
+            pendingDeepLink: pendingDeepLink,
+            sectionMemory: sectionMemory,
+            onDeepLinkHandled: onDeepLinkHandled
         ) { destination, ctx in
             RoleWorkspaceHost(context: ctx) { graph in
                 switch destination.id {
                 case "home":
                     VendorHomeContent(graph: graph, context: ctx)
                 case "jobs":
-                    WorkspaceSurface(destination: destination, testIdPrefix: "vendor") { section in
+                    WorkspaceSurface(destination: destination, testIdPrefix: "vendor", context: ctx, sectionMemory: sectionMemory) { section in
                         VendorJobsSection(section: section, graph: graph, context: ctx)
                     }
                 case "schedule":
-                    WorkspaceSurface(destination: destination, testIdPrefix: "vendor") { section in
+                    WorkspaceSurface(destination: destination, testIdPrefix: "vendor", context: ctx, sectionMemory: sectionMemory) { section in
                         VendorScheduleSection(section: section, graph: graph, context: ctx)
                     }
                 case "messages":
                     MessagesInboxView()
                 case "more":
-                    WorkspaceSurface(destination: destination, testIdPrefix: "vendor") { section in
+                    WorkspaceSurface(destination: destination, testIdPrefix: "vendor", context: ctx, sectionMemory: sectionMemory) { section in
                         VendorMoreSection(section: section, context: ctx)
                     }
                 default:
@@ -535,41 +541,43 @@ public struct UsherShellView: View {
     @EnvironmentObject private var session: SessionStore
     let context: NavigationContext
     var onSwitchPersona: (() -> Void)?
-    var requestedDestinationId: String?
-    var onRequestedDestinationHandled: (() -> Void)?
+    var pendingDeepLink: NativeDeepLink?
+    var onDeepLinkHandled: (() -> Void)?
+    @StateObject private var sectionMemory = WorkspaceSectionMemory()
     @State private var showingScanner = false
 
     public init(
         context: NavigationContext,
         onSwitchPersona: (() -> Void)? = nil,
-        requestedDestinationId: String? = nil,
-        onRequestedDestinationHandled: (() -> Void)? = nil
+        pendingDeepLink: NativeDeepLink? = nil,
+        onDeepLinkHandled: (() -> Void)? = nil
     ) {
         self.context = context
         self.onSwitchPersona = onSwitchPersona
-        self.requestedDestinationId = requestedDestinationId
-        self.onRequestedDestinationHandled = onRequestedDestinationHandled
+        self.pendingDeepLink = pendingDeepLink
+        self.onDeepLinkHandled = onDeepLinkHandled
     }
 
     public var body: some View {
         RoleShellScaffold(
             context: context,
             onSwitchPersona: onSwitchPersona,
-            requestedDestinationId: requestedDestinationId,
-            onRequestedDestinationHandled: onRequestedDestinationHandled
+            pendingDeepLink: pendingDeepLink,
+            sectionMemory: sectionMemory,
+            onDeepLinkHandled: onDeepLinkHandled
         ) { destination, ctx in
             RoleWorkspaceHost(context: ctx) { graph in
                 switch destination.id {
                 case "scan":
                     GateScanContent(context: ctx) { showingScanner = true }
                 case "admissions":
-                    WorkspaceSurface(destination: destination, testIdPrefix: "gate") { section in
+                    WorkspaceSurface(destination: destination, testIdPrefix: "gate", context: ctx, sectionMemory: sectionMemory) { section in
                         GateAdmissionsSection(section: section, graph: graph, environment: ctx.environment)
                     }
                 case "guests":
                     GateGuestLookup(graph: graph)
                 case "incidents":
-                    WorkspaceSurface(destination: destination, testIdPrefix: "gate") { section in
+                    WorkspaceSurface(destination: destination, testIdPrefix: "gate", context: ctx, sectionMemory: sectionMemory) { section in
                         // Incidents have no native contract yet; the taxonomy is present so the
                         // workspace is navigable, but no incident record is invented (playbook §11).
                         IAUnsupportedSection(
@@ -579,7 +587,7 @@ public struct UsherShellView: View {
                         )
                     }
                 case "more":
-                    WorkspaceSurface(destination: destination, testIdPrefix: "gate") { section in
+                    WorkspaceSurface(destination: destination, testIdPrefix: "gate", context: ctx, sectionMemory: sectionMemory) { section in
                         GateMoreSection(section: section, graph: graph, context: ctx)
                     }
                 default:
@@ -654,46 +662,48 @@ public struct GuestShellView: View {
     @EnvironmentObject private var session: SessionStore
     let context: NavigationContext
     var onSwitchPersona: (() -> Void)?
-    var requestedDestinationId: String?
-    var onRequestedDestinationHandled: (() -> Void)?
+    var pendingDeepLink: NativeDeepLink?
+    var onDeepLinkHandled: (() -> Void)?
+    @StateObject private var sectionMemory = WorkspaceSectionMemory()
 
     public init(
         context: NavigationContext,
         onSwitchPersona: (() -> Void)? = nil,
-        requestedDestinationId: String? = nil,
-        onRequestedDestinationHandled: (() -> Void)? = nil
+        pendingDeepLink: NativeDeepLink? = nil,
+        onDeepLinkHandled: (() -> Void)? = nil
     ) {
         self.context = context
         self.onSwitchPersona = onSwitchPersona
-        self.requestedDestinationId = requestedDestinationId
-        self.onRequestedDestinationHandled = onRequestedDestinationHandled
+        self.pendingDeepLink = pendingDeepLink
+        self.onDeepLinkHandled = onDeepLinkHandled
     }
 
     public var body: some View {
         RoleShellScaffold(
             context: context,
             onSwitchPersona: onSwitchPersona,
-            requestedDestinationId: requestedDestinationId,
-            onRequestedDestinationHandled: onRequestedDestinationHandled
+            pendingDeepLink: pendingDeepLink,
+            sectionMemory: sectionMemory,
+            onDeepLinkHandled: onDeepLinkHandled
         ) { destination, ctx in
             RoleWorkspaceHost(context: ctx) { graph in
                 switch destination.id {
                 case "home":
                     GuestHomeContent(graph: graph, context: ctx)
                 case "invitation":
-                    WorkspaceSurface(destination: destination, testIdPrefix: "guest") { section in
+                    WorkspaceSurface(destination: destination, testIdPrefix: "guest", context: ctx, sectionMemory: sectionMemory) { section in
                         GuestInvitationSection(section: section, graph: graph, context: ctx)
                     }
                 case "pass":
-                    WorkspaceSurface(destination: destination, testIdPrefix: "guest") { section in
+                    WorkspaceSurface(destination: destination, testIdPrefix: "guest", context: ctx, sectionMemory: sectionMemory) { section in
                         GuestPassSection(section: section, graph: graph, context: ctx)
                     }
                 case "wedding_day":
-                    WorkspaceSurface(destination: destination, testIdPrefix: "guest") { section in
+                    WorkspaceSurface(destination: destination, testIdPrefix: "guest", context: ctx, sectionMemory: sectionMemory) { section in
                         GuestWeddingDaySection(section: section, graph: graph, context: ctx)
                     }
                 case "more":
-                    WorkspaceSurface(destination: destination, testIdPrefix: "guest") { section in
+                    WorkspaceSurface(destination: destination, testIdPrefix: "guest", context: ctx, sectionMemory: sectionMemory) { section in
                         GuestMoreSection(section: section, context: ctx)
                     }
                 default:
@@ -720,6 +730,9 @@ struct GuestHomeContent: View {
                 if let announcement = graph.announcements.first {
                     IACard("Announcement", announcement.message, status: "\(announcement.urgency)")
                 }
+                if let mine = context.boundGuest(graph) {
+                    IACard("Your invitation", mine.name, trailing: "Party of \(mine.partySize)", testId: "guest-home-identity-\(mine.id)")
+                }
                 IACard("Your pass", "Open the Pass workspace for your QR and table")
             }
         }
@@ -734,32 +747,23 @@ struct GuestInvitationSection: View {
     var body: some View {
         if graph.loading {
             IALoading()
-        } else {
-            // A guest resolves only their own record — never the roster (IA V2 §6).
-            let mine = graph.guests.first
+        } else if let mine = context.boundGuest(graph) {
+            // P0-4: "me" is the guest the credential resolved to, not the first row in the roster.
             switch section {
             case "Invitation":
                 IASectionList("Invitation", graph.wedding?.coupleNames) {
                     if let wedding = graph.wedding {
                         IACard(wedding.coupleNames, "\(wedding.venueName) • \(wedding.city)", trailing: wedding.date)
                     }
-                    if let mine {
-                        IACard("Invited", mine.name, trailing: "Party of \(mine.partySize)")
-                    }
+                    IACard("Invited", mine.name, trailing: "Party of \(mine.partySize)", testId: "guest-identity-\(mine.id)")
                 }
             case "RSVP":
                 IASectionList("RSVP", "Your response") {
-                    if let mine {
-                        IACard("Your RSVP", mine.name, trailing: mine.rsvpStatus.title, testId: "guest-rsvp-state")
-                    } else {
-                        IACard("No invitation resolved", "No guest record is bound to this session.")
-                    }
+                    IACard("Your RSVP", mine.name, trailing: mine.rsvpStatus.title, testId: "guest-rsvp-state")
                 }
             case "Party Members":
-                IASectionList("Party Members", mine?.householdName) {
-                    if let mine {
-                        IACard(mine.householdName ?? mine.name, "Party of \(mine.partySize)")
-                    }
+                IASectionList("Party Members", mine.householdName) {
+                    IACard(mine.householdName ?? mine.name, "Party of \(mine.partySize)")
                 }
             default:
                 IAUnsupportedSection(
@@ -768,6 +772,12 @@ struct GuestInvitationSection: View {
                     context.environment
                 )
             }
+        } else {
+            IAUnsupportedSection(
+                section,
+                "No guest invitation is bound to this session, so no invitation details can be shown.",
+                context.environment
+            )
         }
     }
 }
@@ -779,27 +789,30 @@ struct GuestPassSection: View {
 
     var body: some View {
         switch section {
+        // P0-5: the pass is fetched with THIS actor's credential; there is no default guest.
         case "Wedding Pass", "QR":
-            WeddingReferencePassView()
+            WeddingReferencePassView(passToken: context.activePassToken)
         case "Party Size", "Table", "Admission State":
             if graph.loading {
                 IALoading()
-            } else {
-                let mine = graph.guests.first
-                IASectionList(section, mine?.name) {
+            } else if let mine = context.boundGuest(graph) {
+                IASectionList(section, mine.name) {
                     switch section {
                     case "Party Size":
-                        IACard("Party size", mine?.householdName ?? "—", trailing: "\(mine?.partySize ?? 0)")
+                        IACard("Party size", mine.householdName ?? "—", trailing: "\(mine.partySize)", testId: "guest-party-\(mine.id)")
                     case "Table":
-                        IACard("Table", mine?.tableName ?? "Not yet assigned", trailing: mine?.tableNumber.map(String.init))
+                        IACard("Table", mine.tableName ?? "Not yet assigned", trailing: mine.tableNumber.map(String.init), testId: "guest-table-\(mine.id)")
                     default:
                         IACard(
                             "Admission",
-                            (mine?.checkedIn ?? false) ? "Admitted at the gate" : "Not yet admitted",
-                            trailing: "\(mine?.checkedInCount ?? 0)/\(mine?.partySize ?? 0)"
+                            mine.checkedIn ? "Admitted at the gate" : "Not yet admitted",
+                            trailing: "\(mine.checkedInCount)/\(mine.partySize)",
+                            testId: "guest-admission-\(mine.id)"
                         )
                     }
                 }
+            } else {
+                IAUnsupportedSection(section, "No guest invitation is bound to this session.", context.environment)
             }
         case "Open in Maps":
             IASectionList("Open in Maps", graph.wedding?.venueName) {
@@ -829,7 +842,7 @@ struct GuestWeddingDaySection: View {
                 context.environment
             )
         default:
-            WeddingDaySection(section: section, graph: graph, environment: context.environment)
+            WeddingDaySection(section: section, graph: graph, environment: context.environment, boundGuestId: context.activeGuestId)
         }
     }
 }
@@ -861,27 +874,29 @@ public struct AdminShellView: View {
     @EnvironmentObject private var session: SessionStore
     let context: NavigationContext
     var onSwitchPersona: (() -> Void)?
-    var requestedDestinationId: String?
-    var onRequestedDestinationHandled: (() -> Void)?
+    var pendingDeepLink: NativeDeepLink?
+    var onDeepLinkHandled: (() -> Void)?
+    @StateObject private var sectionMemory = WorkspaceSectionMemory()
 
     public init(
         context: NavigationContext,
         onSwitchPersona: (() -> Void)? = nil,
-        requestedDestinationId: String? = nil,
-        onRequestedDestinationHandled: (() -> Void)? = nil
+        pendingDeepLink: NativeDeepLink? = nil,
+        onDeepLinkHandled: (() -> Void)? = nil
     ) {
         self.context = context
         self.onSwitchPersona = onSwitchPersona
-        self.requestedDestinationId = requestedDestinationId
-        self.onRequestedDestinationHandled = onRequestedDestinationHandled
+        self.pendingDeepLink = pendingDeepLink
+        self.onDeepLinkHandled = onDeepLinkHandled
     }
 
     public var body: some View {
         RoleShellScaffold(
             context: context,
             onSwitchPersona: onSwitchPersona,
-            requestedDestinationId: requestedDestinationId,
-            onRequestedDestinationHandled: onRequestedDestinationHandled
+            pendingDeepLink: pendingDeepLink,
+            sectionMemory: sectionMemory,
+            onDeepLinkHandled: onDeepLinkHandled
         ) { destination, ctx in
             RoleWorkspaceHost(context: ctx) { graph in
                 switch destination.id {
@@ -894,7 +909,7 @@ public struct AdminShellView: View {
                         ctx.environment
                     )
                 case "accounts":
-                    WorkspaceSurface(destination: destination, testIdPrefix: "admin") { section in
+                    WorkspaceSurface(destination: destination, testIdPrefix: "admin", context: ctx, sectionMemory: sectionMemory) { section in
                         // Account administration has no native contract; showing invented account
                         // rows here would be a privileged data fabrication (playbook §13).
                         IAUnsupportedSection(
@@ -904,11 +919,11 @@ public struct AdminShellView: View {
                         )
                     }
                 case "audit":
-                    WorkspaceSurface(destination: destination, testIdPrefix: "admin") { section in
+                    WorkspaceSurface(destination: destination, testIdPrefix: "admin", context: ctx, sectionMemory: sectionMemory) { section in
                         AdminAuditSection(section: section, graph: graph, environment: ctx.environment)
                     }
                 case "more":
-                    WorkspaceSurface(destination: destination, testIdPrefix: "admin") { section in
+                    WorkspaceSurface(destination: destination, testIdPrefix: "admin", context: ctx, sectionMemory: sectionMemory) { section in
                         AdminMoreSection(section: section, graph: graph, context: ctx)
                     }
                 default:
@@ -945,38 +960,40 @@ public struct CoupleShellView: View {
     @EnvironmentObject private var appState: AppState
     let context: NavigationContext
     var onSwitchPersona: (() -> Void)?
-    var requestedDestinationId: String?
-    var onRequestedDestinationHandled: (() -> Void)?
+    var pendingDeepLink: NativeDeepLink?
+    var onDeepLinkHandled: (() -> Void)?
+    @StateObject private var sectionMemory = WorkspaceSectionMemory()
 
     public init(
         context: NavigationContext,
         onSwitchPersona: (() -> Void)? = nil,
-        requestedDestinationId: String? = nil,
-        onRequestedDestinationHandled: (() -> Void)? = nil
+        pendingDeepLink: NativeDeepLink? = nil,
+        onDeepLinkHandled: (() -> Void)? = nil
     ) {
         self.context = context
         self.onSwitchPersona = onSwitchPersona
-        self.requestedDestinationId = requestedDestinationId
-        self.onRequestedDestinationHandled = onRequestedDestinationHandled
+        self.pendingDeepLink = pendingDeepLink
+        self.onDeepLinkHandled = onDeepLinkHandled
     }
 
     public var body: some View {
         RoleShellScaffold(
             context: context,
             onSwitchPersona: onSwitchPersona,
-            requestedDestinationId: requestedDestinationId,
-            onRequestedDestinationHandled: onRequestedDestinationHandled
+            pendingDeepLink: pendingDeepLink,
+            sectionMemory: sectionMemory,
+            onDeepLinkHandled: onDeepLinkHandled
         ) { destination, ctx in
             RoleWorkspaceHost(context: ctx) { graph in
                 switch destination.id {
                 case "home":
                     WeddingReferenceHomeView()
                 case "plan":
-                    WorkspaceSurface(destination: destination, testIdPrefix: "couple") { section in
+                    WorkspaceSurface(destination: destination, testIdPrefix: "couple", context: ctx, sectionMemory: sectionMemory) { section in
                         CouplePlanSection(section: section, context: ctx)
                     }
                 case "guests":
-                    WorkspaceSurface(destination: destination, testIdPrefix: "couple") { section in
+                    WorkspaceSurface(destination: destination, testIdPrefix: "couple", context: ctx, sectionMemory: sectionMemory) { section in
                         if section == "Guest List" {
                             WeddingReferenceGuestsView()
                         } else {
@@ -984,9 +1001,12 @@ public struct CoupleShellView: View {
                         }
                     }
                 case "wedding_day":
-                    WorkspaceSurface(destination: destination, testIdPrefix: "couple") { section in
-                        WeddingDaySection(section: section, graph: graph, environment: ctx.environment) {
-                            WeddingReferencePassView()
+                    WorkspaceSurface(destination: destination, testIdPrefix: "couple", context: ctx, sectionMemory: sectionMemory) { section in
+                        WeddingDaySection(
+                            section: section, graph: graph, environment: ctx.environment,
+                            boundGuestId: ctx.activeGuestId
+                        ) {
+                            WeddingReferencePassView(passToken: ctx.activePassToken)
                         }
                     }
                 case "more":

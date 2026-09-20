@@ -8,9 +8,10 @@ import SwiftUI
 public struct RoleShellScaffold<Content: View>: View {
     private let context: NavigationContext
     private let onSwitchPersona: (() -> Void)?
-    /// A deep link / notification target, already parsed but not yet authorized.
-    private let requestedDestinationId: String?
-    private let onRequestedDestinationHandled: (() -> Void)?
+    /// A parsed but not yet authorized deep link / notification target (P0-8).
+    private let pendingDeepLink: NativeDeepLink?
+    private let onDeepLinkHandled: (() -> Void)?
+    @ObservedObject private var sectionMemory: WorkspaceSectionMemory
     private let content: (PrimaryDestination, NavigationContext) -> Content
 
     @State private var selectedId: String
@@ -33,14 +34,16 @@ public struct RoleShellScaffold<Content: View>: View {
     public init(
         context: NavigationContext,
         onSwitchPersona: (() -> Void)? = nil,
-        requestedDestinationId: String? = nil,
-        onRequestedDestinationHandled: (() -> Void)? = nil,
+        pendingDeepLink: NativeDeepLink? = nil,
+        sectionMemory: WorkspaceSectionMemory,
+        onDeepLinkHandled: (() -> Void)? = nil,
         @ViewBuilder content: @escaping (PrimaryDestination, NavigationContext) -> Content
     ) {
         self.context = context
         self.onSwitchPersona = onSwitchPersona
-        self.requestedDestinationId = requestedDestinationId
-        self.onRequestedDestinationHandled = onRequestedDestinationHandled
+        self.pendingDeepLink = pendingDeepLink
+        self.sectionMemory = sectionMemory
+        self.onDeepLinkHandled = onDeepLinkHandled
         self.content = content
         _selectedId = State(initialValue: IANavigationContract.forRole(context.activeRole).primary[0].id)
     }
@@ -86,19 +89,29 @@ public struct RoleShellScaffold<Content: View>: View {
         }
         .background(WeddingIdentityPalette.ivory)
         .accessibilityIdentifier("role-shell-\(context.activeRole.roleId)")
-        // Deep links land here rather than setting the tab directly, so an external link is gated
-        // by exactly the same check as a tap (IA V2 §14).
-        .onChange(of: requestedDestinationId) { _, requested in
-            guard let requested else { return }
-            switch Entitlements.resolve(context, destinationId: requested) {
+        // P0-8: the WHOLE deep link is resolved here — target wedding, destination, Level-2
+        // section and entity id — through the same gate as a tap. Nothing is discarded before
+        // authorization.
+        .onChange(of: pendingDeepLink) { _, link in
+            guard let link else { return }
+            switch DeepLinkRouter.resolve(link, context: context) {
             case let .allowed(destination, _):
                 denialReason = nil
                 selectedId = destination.id
+                if case let .workspace(workspace) = link {
+                    // Level-2 deep links land on the requested section, not the workspace default.
+                    sectionMemory.applyRequested(
+                        context: context,
+                        destinationId: destination.id,
+                        requested: workspace.section,
+                        available: destination.sections
+                    )
+                }
             case let .denied(reason, safeReturn):
                 denialReason = reason
                 selectedId = safeReturn
             }
-            onRequestedDestinationHandled?()
+            onDeepLinkHandled?()
         }
     }
 

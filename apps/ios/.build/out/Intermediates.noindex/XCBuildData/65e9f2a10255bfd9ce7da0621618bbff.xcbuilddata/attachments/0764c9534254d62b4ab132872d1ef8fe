@@ -1,4 +1,0 @@
-module WewedKit {
-header "WewedKit-Swift.h"
-export *
-}

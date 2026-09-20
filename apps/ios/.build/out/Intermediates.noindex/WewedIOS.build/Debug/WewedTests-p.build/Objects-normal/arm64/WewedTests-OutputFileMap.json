@@ -16,6 +16,16 @@
     "swift-dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/test_entry_point.swiftdeps",
     "swiftmodule" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/test_entry_point~partial.swiftmodule"
   },
+  "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/Wewed/Tests/AuthorizedContexts.swift" : {
+    "const-values" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/AuthorizedContexts.swiftconstvalues",
+    "dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/AuthorizedContexts.d",
+    "diagnostics" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/AuthorizedContexts.dia",
+    "index-unit-output-path" : "/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/AuthorizedContexts.o",
+    "llvm-bc" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/AuthorizedContexts.bc",
+    "object" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/AuthorizedContexts.o",
+    "swift-dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/AuthorizedContexts.swiftdeps",
+    "swiftmodule" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/AuthorizedContexts~partial.swiftmodule"
+  },
   "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/Wewed/Tests/DeepLinkRouterTests.swift" : {
     "const-values" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/DeepLinkRouterTests.swiftconstvalues",
     "dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/DeepLinkRouterTests.d",
@@ -95,6 +105,16 @@
     "object" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/PlannerDashboardRepositoryTests.o",
     "swift-dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/PlannerDashboardRepositoryTests.swiftdeps",
     "swiftmodule" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/PlannerDashboardRepositoryTests~partial.swiftmodule"
+  },
+  "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/Wewed/Tests/RelationshipAuthorizationTests.swift" : {
+    "const-values" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/RelationshipAuthorizationTests.swiftconstvalues",
+    "dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/RelationshipAuthorizationTests.d",
+    "diagnostics" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/RelationshipAuthorizationTests.dia",
+    "index-unit-output-path" : "/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/RelationshipAuthorizationTests.o",
+    "llvm-bc" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/RelationshipAuthorizationTests.bc",
+    "object" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/RelationshipAuthorizationTests.o",
+    "swift-dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/RelationshipAuthorizationTests.swiftdeps",
+    "swiftmodule" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/RelationshipAuthorizationTests~partial.swiftmodule"
   },
   "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/Wewed/Tests/RoleJourneyTests.swift" : {
     "const-values" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/RoleJourneyTests.swiftconstvalues",

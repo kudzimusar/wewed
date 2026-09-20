@@ -14,10 +14,13 @@
 /Users/shadreckmusarurwa/Project\ AI/wewed-p0/apps/ios/Wewed/Models/Wedding.swift
 /Users/shadreckmusarurwa/Project\ AI/wewed-p0/apps/ios/Wewed/Models/WeddingDayModels.swift
 /Users/shadreckmusarurwa/Project\ AI/wewed-p0/apps/ios/Wewed/Models/WeddingPass.swift
+/Users/shadreckmusarurwa/Project\ AI/wewed-p0/apps/ios/Wewed/Navigation/ActorAssignment.swift
+/Users/shadreckmusarurwa/Project\ AI/wewed-p0/apps/ios/Wewed/Navigation/ContextScopeModel.swift
 /Users/shadreckmusarurwa/Project\ AI/wewed-p0/apps/ios/Wewed/Navigation/DeepLinkRouter.swift
 /Users/shadreckmusarurwa/Project\ AI/wewed-p0/apps/ios/Wewed/Navigation/Entitlements.swift
 /Users/shadreckmusarurwa/Project\ AI/wewed-p0/apps/ios/Wewed/Navigation/IANavigationContract.swift
 /Users/shadreckmusarurwa/Project\ AI/wewed-p0/apps/ios/Wewed/Navigation/NavigationContext.swift
+/Users/shadreckmusarurwa/Project\ AI/wewed-p0/apps/ios/Wewed/Navigation/ShadowActorAssignmentSource.swift
 /Users/shadreckmusarurwa/Project\ AI/wewed-p0/apps/ios/Wewed/Services/KeychainService.swift
 /Users/shadreckmusarurwa/Project\ AI/wewed-p0/apps/ios/Wewed/Services/NativeEnvironmentGuard.swift
 /Users/shadreckmusarurwa/Project\ AI/wewed-p0/apps/ios/Wewed/Services/NativeRepositoryFactory.swift
@@ -57,6 +60,7 @@
 /Users/shadreckmusarurwa/Project\ AI/wewed-p0/apps/ios/Wewed/Views/Roles/RoleShellScaffold.swift
 /Users/shadreckmusarurwa/Project\ AI/wewed-p0/apps/ios/Wewed/Views/Roles/RoleWorkspaceContent.swift
 /Users/shadreckmusarurwa/Project\ AI/wewed-p0/apps/ios/Wewed/Views/Roles/RoleWorkspaces.swift
+/Users/shadreckmusarurwa/Project\ AI/wewed-p0/apps/ios/Wewed/Views/Roles/WorkspaceSectionMemory.swift
 /Users/shadreckmusarurwa/Project\ AI/wewed-p0/apps/ios/Wewed/Views/RootView.swift
 /Users/shadreckmusarurwa/Project\ AI/wewed-p0/apps/ios/Wewed/Views/Shared/WeddingReferenceMoreView.swift
 /Users/shadreckmusarurwa/Project\ AI/wewed-p0/apps/ios/Wewed/Views/Shared/WholeProductViews.swift

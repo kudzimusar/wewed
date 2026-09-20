@@ -27,15 +27,9 @@ final class EntitlementsTests: XCTestCase {
 
     private func context(
         _ role: AppRole,
-        weddingId: String = "cmqos70cb0004q6vxe9g9aiu5"
+        weddingId: String = AuthorizedContexts.wedding
     ) -> NavigationContext {
-        NavigationContext(
-            actorId: "actor_test",
-            activeRole: role,
-            activeWeddingId: weddingId,
-            activeWeddingTitle: "Charity & Kudzie",
-            environment: .fixture
-        )
+        AuthorizedContexts.authorized(role, weddingId: weddingId)
     }
 
     func testGrantedCapabilitiesMatchSharedContract() throws {
@@ -105,7 +99,8 @@ final class EntitlementsTests: XCTestCase {
     }
 
     func testMissingActiveWeddingBlocksRepositoryBackedDestinations() {
-        let resolution = Entitlements.resolve(context(.couple, weddingId: ""), destinationId: "plan")
+        let broken = AuthorizedContexts.mutate(context(.couple), weddingId: "")
+        let resolution = Entitlements.resolve(broken, destinationId: "plan")
         guard case .denied = resolution else {
             return XCTFail("A blank active wedding must not resolve to a repository-backed workspace")
         }
@@ -129,7 +124,12 @@ final class EntitlementsTests: XCTestCase {
     }
 
     func testSwitchingWeddingKeepsNewIdentityAcrossWholeWorkspace() {
-        let switched = context(.planner).withWedding(id: "wed_other_001", title: "Other Wedding")
+        let base = context(.planner)
+        // A wedding switch invalidates the old assignment, so the new wedding must be re-authorized.
+        let switched = AuthorizedContexts.mutate(
+            base.withWedding(id: "wed_other_001", title: "Other Wedding"),
+            assignment: .some(AuthorizedContexts.assignment(.planner, actorId: base.actorId, weddingId: "wed_other_001"))
+        )
         for destination in IANavigationContract.forRole(.planner).primary {
             guard case let .allowed(_, resolved) = Entitlements.resolve(switched, destinationId: destination.id) else {
                 XCTFail("Planner should reach \(destination.id)")
@@ -143,7 +143,7 @@ final class EntitlementsTests: XCTestCase {
         let planner = NavigationContext(
             actorId: "actor_test",
             activeRole: .planner,
-            activeWeddingId: "cmqos70cb0004q6vxe9g9aiu5",
+            activeWeddingId: AuthorizedContexts.wedding,
             activeWeddingTitle: "Charity & Kudzie",
             environment: .fixture,
             activeClientId: "client_1",
@@ -171,6 +171,8 @@ final class EntitlementsTests: XCTestCase {
             activeGateId: "Gate A"
         )
         XCTAssertEqual(ctx.withRole(.usher).activeGateId, "Gate A")
+        // The previous role's assignment must not carry over as authorization.
+        XCTAssertNil(ctx.withRole(.usher).assignment)
     }
 
     func testContextLabelNamesRoleAndActiveWedding() {

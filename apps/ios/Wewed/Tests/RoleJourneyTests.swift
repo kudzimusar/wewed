@@ -9,15 +9,7 @@ import XCTest
 final class RoleJourneyTests: XCTestCase {
 
     private func context(_ role: AppRole) -> NavigationContext {
-        NavigationContext(
-            actorId: "actor_journey",
-            activeRole: role,
-            activeWeddingId: "cmqos70cb0004q6vxe9g9aiu5",
-            activeWeddingTitle: "Charity & Kudzie",
-            environment: .privateRealShadow,
-            activeClientId: "cmqos70cb0004q6vxe9g9aiu5",
-            activeGateId: "Gate A — Main Entrance"
-        )
+        AuthorizedContexts.authorized(role, environment: .privateRealShadow)
     }
 
     /// Walks destinations, asserting each resolves and never changes the wedding identity.
@@ -122,10 +114,10 @@ final class RoleJourneyTests: XCTestCase {
 
     func testWeddingIdentitySurvivesEntireMultiRoleJourney() {
         // Simulates switching roles on the same wedding, as a planner-owned account would.
-        var ctx = context(.planner)
-        let original = ctx.activeWeddingId
+        let original = AuthorizedContexts.wedding
         for role in [AppRole.planner, .coordinator, .usher, .couple] {
-            ctx = ctx.withRole(role)
+            // Each role re-resolves its own assignment; nothing is inherited from the previous role.
+            let ctx = context(role)
             for destination in IANavigationContract.forRole(role).primary {
                 guard case .allowed = Entitlements.resolve(ctx, destinationId: destination.id) else {
                     XCTFail("\(role.roleId)/\(destination.id) unreachable after role switch")

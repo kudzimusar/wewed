@@ -7,9 +7,14 @@ public struct WeddingReferencePassView: View {
     @State private var showingGuestDetails = false
     @State private var isLoading = true
     private let providedPass: WeddingPass?
+    /// The credential of the *current authorized actor*. P0-5: there is no fallback token list —
+    /// guessing an attending guest would resolve a different person than the Invitation, RSVP and
+    /// Table surfaces, which is precisely the identity break this view must not reintroduce.
+    private let passToken: String?
 
-    public init(pass: WeddingPass? = nil) {
+    public init(pass: WeddingPass? = nil, passToken: String? = nil) {
         self.providedPass = pass
+        self.passToken = passToken
     }
 
     public var body: some View {
@@ -30,7 +35,7 @@ public struct WeddingReferencePassView: View {
                             ContentUnavailableView(
                                 "Wedding Pass unavailable",
                                 systemImage: "qrcode",
-                                description: Text("No attending Shadow guest pass is available.")
+                                description: Text("No Wedding Pass is issued to this account for the active wedding.")
                             )
                             .padding(.top, 80)
                         }
@@ -214,11 +219,8 @@ public struct WeddingReferencePassView: View {
     }
 
     private func loadPass() async {
-        if let found = try? await appState.repository.getWeddingPass(token: "shadow-attending-guest") {
-            pass = found
-        } else if let found = try? await appState.repository.getWeddingPass(token: "native-reference-guest") {
-            pass = found
-        } else if let found = try? await appState.repository.getWeddingPass(token: "w1-j8doe-7x9") {
+        // P0-5: only this actor's credential resolves a pass. No default guest is guessed.
+        if let passToken, let found = try? await appState.repository.getWeddingPass(token: passToken) {
             pass = found
         }
         isLoading = false

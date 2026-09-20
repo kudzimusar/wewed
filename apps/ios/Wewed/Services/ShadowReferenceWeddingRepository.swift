@@ -474,6 +474,18 @@ public actor ShadowReferenceWeddingRepository: WeddingRepositoryProtocol {
 
         return attending ? makePass(for: current) : makeNonAdmissionPass(for: current)
     }
+    public func resolveGuestIdentity(token: String) async throws -> GuestIdentity? {
+        guard let index = guestIndexForToken(token) else { return nil }
+        let guest = guests[index]
+        return GuestIdentity(
+            guestId: guest.id,
+            guestName: guest.name,
+            weddingId: wedding.id,
+            passToken: token
+        )
+    }
+
+
 
     private func guestIndexForToken(_ token: String) -> Int? {
         let guestId: String

@@ -69,19 +69,26 @@ public final class WeddingGraphState: ObservableObject {
 public struct WorkspaceSurface<SectionContent: View>: View {
     private let destination: PrimaryDestination
     private let testIdPrefix: String
+    private let context: NavigationContext
+    @ObservedObject private var sectionMemory: WorkspaceSectionMemory
     private let sectionContent: (String) -> SectionContent
-
-    @State private var selectedSection: String
 
     public init(
         destination: PrimaryDestination,
         testIdPrefix: String,
+        context: NavigationContext,
+        sectionMemory: WorkspaceSectionMemory,
         @ViewBuilder sectionContent: @escaping (String) -> SectionContent
     ) {
         self.destination = destination
         self.testIdPrefix = testIdPrefix
+        self.context = context
+        self.sectionMemory = sectionMemory
         self.sectionContent = sectionContent
-        _selectedSection = State(initialValue: destination.sections.first ?? destination.label)
+    }
+
+    private var selectedSection: String {
+        sectionMemory.selected(context, destination.id, default: destination.sections.first ?? destination.label)
     }
 
     public var body: some View {
@@ -90,7 +97,7 @@ public struct WorkspaceSurface<SectionContent: View>: View {
                 sections: destination.sections,
                 selected: selectedSection,
                 testIdPrefix: "\(testIdPrefix)-\(destination.id)"
-            ) { selectedSection = $0 }
+            ) { sectionMemory.select(context, destination.id, $0) }
 
             sectionContent(selectedSection)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -341,17 +348,21 @@ public struct WeddingDaySection<PassContent: View>: View {
     let section: String
     @ObservedObject var graph: WeddingGraphState
     let environment: NativeDataEnvironment
+    /// The guest whose table may be shown. Nil means no guest identity is bound (P0-4).
+    let boundGuestId: String?
     let passContent: (() -> PassContent)?
 
     public init(
         section: String,
         graph: WeddingGraphState,
         environment: NativeDataEnvironment,
+        boundGuestId: String? = nil,
         passContent: (() -> PassContent)? = nil
     ) {
         self.section = section
         self.graph = graph
         self.environment = environment
+        self.boundGuestId = boundGuestId
         self.passContent = passContent
     }
 
@@ -403,9 +414,14 @@ public struct WeddingDaySection<PassContent: View>: View {
                     }
                 }
             case "Table":
+                // P0-4: only the bound guest's own table may be shown here. Falling back to the
+                // first seated guest would show another household's name and table.
+                let mine = boundGuestId.flatMap { id in graph.guests.first { $0.id == id } }
                 IASectionList("Table", "Your seating assignment") {
-                    if let seated = graph.guests.first(where: { $0.tableName != nil }), let table = seated.tableName {
-                        IACard(table, seated.name)
+                    if let mine, let table = mine.tableName {
+                        IACard(table, mine.name, testId: "wedding-day-table-\(mine.id)")
+                    } else if mine == nil {
+                        IACard("No invitation bound", "No guest identity is bound to this session.")
                     } else {
                         IACard("Not yet assigned", "Seating has not been published.")
                     }
@@ -440,8 +456,26 @@ public struct WeddingDaySection<PassContent: View>: View {
 }
 
 extension WeddingDaySection where PassContent == EmptyView {
-    public init(section: String, graph: WeddingGraphState, environment: NativeDataEnvironment) {
-        self.init(section: section, graph: graph, environment: environment, passContent: nil)
+    public init(
+        section: String,
+        graph: WeddingGraphState,
+        environment: NativeDataEnvironment,
+        boundGuestId: String? = nil
+    ) {
+        self.init(
+            section: section, graph: graph, environment: environment,
+            boundGuestId: boundGuestId, passContent: nil
+        )
+    }
+}
+
+public extension NavigationContext {
+    /// The guest record this context is bound to (P0-4). Nil means unbound, and callers must
+    /// render an honest state rather than falling back to an arbitrary row.
+    @MainActor
+    func boundGuest(_ graph: WeddingGraphState) -> Guest? {
+        guard let guestId = activeGuestId else { return nil }
+        return graph.guests.first { $0.id == guestId }
     }
 }
 
@@ -669,8 +703,11 @@ public struct VendorJobsSection: View {
         self.context = context
     }
 
+    /// P0-6: only the engagement this vendor is authorized for. There is no "first vendor"
+    /// fallback — that would show another company's engagement.
     private var engagement: VendorPresence? {
-        graph.vendors.first { $0.id == context.activeEngagementId } ?? graph.vendors.first
+        guard let engagementId = context.activeEngagementId else { return nil }
+        return graph.vendors.first { $0.id == engagementId }
     }
 
     public var body: some View {
@@ -726,7 +763,8 @@ public struct VendorScheduleSection: View {
     }
 
     private var engagement: VendorPresence? {
-        graph.vendors.first { $0.id == context.activeEngagementId } ?? graph.vendors.first
+        guard let engagementId = context.activeEngagementId else { return nil }
+        return graph.vendors.first { $0.id == engagementId }
     }
 
     public var body: some View {

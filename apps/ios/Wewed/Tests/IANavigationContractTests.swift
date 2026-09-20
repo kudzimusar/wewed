@@ -15,7 +15,7 @@ final class IANavigationContractTests: XCTestCase {
         }
         struct Role: Decodable {
             let displayName: String
-            let contextScopes: [String]
+            let contextScopes: [String: String]
             let primary: [Destination]
         }
         let contractId: String
@@ -89,14 +89,22 @@ final class IANavigationContractTests: XCTestCase {
         }
     }
 
-    func testContextScopesMatchSharedContract() throws {
+    func testContextScopesAndRequirementsMatchSharedContract() throws {
         for (role, navigation) in IANavigationContract.all {
             let expected = try XCTUnwrap(contract.roles[role.roleId])
             XCTAssertEqual(
-                expected.contextScopes,
-                navigation.contextScopes.map(\.rawValue),
+                Set(expected.contextScopes.keys),
+                Set(navigation.contextScopes.map(\.rawValue)),
                 "Context scopes diverged for \(role.roleId)"
             )
+            for (scopeKey, requirementKey) in expected.contextScopes {
+                let scope = try XCTUnwrap(ContextScope(rawValue: scopeKey))
+                XCTAssertEqual(
+                    ScopeRequirement.fromKey(requirementKey),
+                    navigation.requirement(scope),
+                    "Scope requirement diverged for \(role.roleId)/\(scopeKey)"
+                )
+            }
         }
     }
 
@@ -155,12 +163,30 @@ final class IANavigationContractTests: XCTestCase {
         }
     }
 
-    func testEveryRoleDeclaresTheWeddingContextScope() {
+    func testEveryWeddingScopedRoleRequiresAWeddingAndAdminDoesNot() {
+        // P0-15: Admin is a system-scope console. Requiring a wedding to open Admin Dashboard was
+        // exactly what forced a fabricated Charity & Kudzie context.
         for (role, navigation) in IANavigationContract.all {
-            XCTAssertTrue(
-                navigation.contextScopes.contains(.wedding),
-                "\(role.roleId) must operate within a wedding context"
-            )
+            if role == .admin {
+                XCTAssertTrue(navigation.isSystemScoped, "Admin must be system-scoped")
+                XCTAssertFalse(
+                    navigation.requiredScopes.contains(.wedding),
+                    "Admin must not require a wedding"
+                )
+            } else {
+                XCTAssertTrue(
+                    navigation.requiredScopes.contains(.wedding),
+                    "\(role.roleId) must require a wedding context"
+                )
+            }
         }
+    }
+
+    func testRolesWithASubScopeDeclareItRequired() {
+        // A vendor without an engagement, an usher without a gate and a guest without an identity
+        // must not be treated as authorized (P0-3).
+        XCTAssertTrue(IANavigationContract.forRole(.vendor).requiredScopes.contains(.engagement))
+        XCTAssertTrue(IANavigationContract.forRole(.usher).requiredScopes.contains(.gate))
+        XCTAssertTrue(IANavigationContract.forRole(.guest).requiredScopes.contains(.guest))
     }
 }

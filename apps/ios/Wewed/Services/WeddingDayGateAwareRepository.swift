@@ -11,6 +11,9 @@ public actor WeddingDayGateAwareRepository: WeddingRepositoryProtocol {
     }
 
     public func availableWeddingIds() async throws -> [String] { try await base.availableWeddingIds() }
+    public func resolveGuestIdentity(token: String) async throws -> GuestIdentity? {
+        try await base.resolveGuestIdentity(token: token)
+    }
     public func getWedding(weddingId: String) async throws -> Wedding { try await base.getWedding(weddingId: weddingId) }
     public func getTasks(weddingId: String) async throws -> [PlannerTask] { try await base.getTasks(weddingId: weddingId) }
     public func createTask(weddingId: String, title: String, priority: TaskPriority, category: String) async throws -> PlannerTask {

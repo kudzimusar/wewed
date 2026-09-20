@@ -22,9 +22,31 @@ public struct WeddingScopeMismatch: Error, Equatable {
 ///
 /// Token-addressed reads (pass, invitation, RSVP) are credential-scoped rather than wedding-scoped:
 /// the token itself identifies both the wedding and the guest.
+/// Who a credential belongs to (P0-4/P0-5).
+///
+/// Guest identity originates here — from an invitation or pass token resolved by the repository —
+/// and never from the position of a row in a collection.
+public struct GuestIdentity: Equatable, Sendable {
+    public let guestId: String
+    public let guestName: String
+    public let weddingId: String
+    public let passToken: String
+
+    public init(guestId: String, guestName: String, weddingId: String, passToken: String) {
+        self.guestId = guestId
+        self.guestName = guestName
+        self.weddingId = weddingId
+        self.passToken = passToken
+    }
+}
+
 public protocol WeddingRepositoryProtocol: Sendable {
     /// Wedding identities this source can serve for the current actor.
     func availableWeddingIds() async throws -> [String]
+
+    /// Resolves the guest a credential identifies, or nil when the token is not recognised.
+    /// This is the only sanctioned origin of guest identity.
+    func resolveGuestIdentity(token: String) async throws -> GuestIdentity?
 
     func getWedding(weddingId: String) async throws -> Wedding
     func getTasks(weddingId: String) async throws -> [PlannerTask]
@@ -87,6 +109,9 @@ public struct ScopedWeddingRepository: Sendable {
         try await source.postAnnouncement(weddingId: weddingId, title: title, message: message, urgency: urgency)
     }
 
+    public func resolveGuestIdentity(token: String) async throws -> GuestIdentity? {
+        try await source.resolveGuestIdentity(token: token)
+    }
     public func getWeddingPass(token: String) async throws -> WeddingPass { try await source.getWeddingPass(token: token) }
     public func resolveInvitation(weddingSlug: String, token: String) async throws -> InvitationContext {
         try await source.resolveInvitation(weddingSlug: weddingSlug, token: token)
@@ -120,6 +145,16 @@ public extension WeddingRepositoryProtocol {
 public actor FixtureWeddingRepository: WeddingRepositoryProtocol {
 
     public func availableWeddingIds() async throws -> [String] { [wedding.id] }
+
+    public func resolveGuestIdentity(token: String) async throws -> GuestIdentity? {
+        // The fixture issues exactly one pass; only its token identifies a guest.
+        guard token == pass.token else { return nil }
+        guard let guest = guests.first(where: { g in
+            guard let serial = g.passSerial else { return false }
+            return pass.qrPayload.contains(serial)
+        }) else { return nil }
+        return GuestIdentity(guestId: guest.id, guestName: guest.name, weddingId: wedding.id, passToken: token)
+    }
 
     /// Rejects a request for any wedding this source does not hold (P0-1).
     private func requireScope(_ weddingId: String) throws {

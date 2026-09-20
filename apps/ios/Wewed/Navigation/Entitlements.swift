@@ -86,11 +86,49 @@ public enum Entitlements {
         capabilities(role).contains(capability)
     }
 
-    /// Outcome of resolving a requested route against actor, role, context and entitlement.
+    /// Outcome of resolving a requested route against actor, role, context and relationship.
     public enum Resolution: Equatable {
         case allowed(destination: PrimaryDestination, context: NavigationContext)
         /// Unauthorized: explain the boundary, leak no destination data, offer a safe return (IA V2 §14).
         case denied(reason: String, safeReturnDestinationId: String)
+    }
+
+    /// P0-2 — authorization is actor + role + scope + relationship, never role alone.
+    ///
+    /// Static `capabilitiesByRole` is policy: it says what a planner *may* do. It cannot say that
+    /// THIS actor is the planner for THIS wedding. That is what `ActorAssignment` decides, and both
+    /// layers must agree before a destination opens.
+    public static func relationshipHolds(_ context: NavigationContext) -> Bool {
+        guard let assignment = context.assignment else { return false }
+        guard assignment.actorId == context.actorId, assignment.role == context.activeRole else {
+            return false
+        }
+
+        let navigation = IANavigationContract.forRole(context.activeRole)
+
+        // System-scope roles are not bound to one wedding.
+        if navigation.isSystemScoped {
+            return assignment.isSystemScope || assignment.weddingId == context.activeWeddingId
+        }
+
+        // Every other role must be assigned to the wedding it is operating in.
+        guard assignment.weddingId == context.activeWeddingId else { return false }
+
+        // Required sub-scopes must match the assignment exactly, not merely be present.
+        for declaration in navigation.scopes where declaration.requirement == .required {
+            guard let held = context.value(for: declaration.scope) else { return false }
+            let authorized: String?
+            switch declaration.scope {
+            case .wedding: authorized = assignment.weddingId
+            case .client: authorized = assignment.clientId
+            case .engagement: authorized = assignment.engagementId
+            case .gate: authorized = assignment.gateId
+            case .guest: authorized = assignment.guestId
+            case .system: authorized = context.actorId
+            }
+            guard let authorized, held == authorized else { return false }
+        }
+        return true
     }
 
     /// IA V2 §13.4 / §14. Deep links and notifications resolve through this same path, so an
@@ -106,13 +144,24 @@ public enum Entitlements {
             )
         }
 
-        guard context.isComplete else {
+        // 1. Required context must be resolved (P0-3): an absent engagement/gate/guest is not
+        //    silently treated as satisfied.
+        if let missing = context.missingRequiredScopes.first {
             return .denied(
-                reason: "No active wedding is selected for this workspace.",
+                reason: missingScopeReason(navigation.displayName, missing),
                 safeReturnDestinationId: safeReturn
             )
         }
 
+        // 2. The actor must actually hold the relationship it is claiming (P0-2).
+        guard relationshipHolds(context) else {
+            return .denied(
+                reason: "You are not assigned to this \(navigation.displayName.lowercased()) workspace.",
+                safeReturnDestinationId: safeReturn
+            )
+        }
+
+        // 3. Static role policy is the last gate, not the only one.
         if let required = destinationCapability["\(context.activeRole.roleId)/\(destinationId)"],
            !can(context.activeRole, required) {
             return .denied(
@@ -122,5 +171,16 @@ public enum Entitlements {
         }
 
         return .allowed(destination: destination, context: context)
+    }
+
+    private static func missingScopeReason(_ roleName: String, _ scope: ContextScope) -> String {
+        switch scope {
+        case .wedding: return "No active wedding is selected for this workspace."
+        case .client: return "No client is selected for this \(roleName) workspace."
+        case .engagement: return "You have no assigned engagement for this wedding."
+        case .gate: return "You have no gate assignment for this wedding."
+        case .guest: return "No guest invitation is bound to this session."
+        case .system: return "This account does not hold administrative access."
+        }
     }
 }
