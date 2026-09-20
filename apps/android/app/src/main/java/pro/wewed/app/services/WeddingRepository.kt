@@ -5,27 +5,111 @@ import kotlinx.coroutines.sync.withLock
 import pro.wewed.app.models.*
 import java.util.UUID
 
+/**
+ * Raised when a repository is asked for a wedding graph it does not serve.
+ *
+ * This is the mechanism that makes [NavigationContext.activeWeddingId] a real scope rather than a
+ * reload key: a source holding wedding A cannot answer a request for wedding B by returning A.
+ */
+class WeddingScopeMismatch(
+    val requestedWeddingId: String,
+    val availableWeddingIds: List<String>
+) : IllegalStateException(
+    "Repository does not serve wedding '$requestedWeddingId' (serves: ${availableWeddingIds.joinToString()})"
+)
+
+/**
+ * Wedding-scoped data source.
+ *
+ * Every graph read takes the wedding it belongs to, and implementations must reject a wedding they
+ * do not hold. Screens never call this directly — they go through [ScopedWeddingRepository], which
+ * binds exactly one wedding for the lifetime of a workspace.
+ *
+ * Token-addressed reads (pass, invitation, RSVP) are credential-scoped rather than wedding-scoped:
+ * the token itself identifies both the wedding and the guest.
+ */
 interface WeddingRepository {
-    suspend fun getWedding(): Wedding
-    suspend fun getTasks(): List<PlannerTask>
-    suspend fun createTask(title: String, priority: TaskPriority, category: String): PlannerTask
-    suspend fun toggleTask(taskId: String): PlannerTask
-    suspend fun getGuests(): List<Guest>
-    suspend fun getBudget(): BudgetSummary
+    /** Wedding identities this source can serve for the current actor. */
+    suspend fun availableWeddingIds(): List<String>
+
+    suspend fun getWedding(weddingId: String): Wedding
+    suspend fun getTasks(weddingId: String): List<PlannerTask>
+    suspend fun createTask(weddingId: String, title: String, priority: TaskPriority, category: String): PlannerTask
+    suspend fun toggleTask(weddingId: String, taskId: String): PlannerTask
+    suspend fun getGuests(weddingId: String): List<Guest>
+    suspend fun getBudget(weddingId: String): BudgetSummary
+    suspend fun searchGuests(weddingId: String, query: String): List<Guest>
+    suspend fun checkInGuest(weddingId: String, qrPayload: String, count: Int, usherId: String): CheckInVerificationResult
+    suspend fun getAuditRecords(weddingId: String): List<CheckInAuditRecord>
+    suspend fun getVendors(weddingId: String): List<VendorPresence>
+    suspend fun updateVendorState(weddingId: String, id: String, state: VendorPresenceState): VendorPresence
+    suspend fun getAnnouncements(weddingId: String): List<WeddingAnnouncement>
+    suspend fun postAnnouncement(weddingId: String, title: String, message: String, urgency: AnnouncementUrgency): WeddingAnnouncement
+
+    // Credential-scoped: the token identifies the wedding and the guest.
     suspend fun getWeddingPass(token: String): WeddingPass
-    suspend fun searchGuests(query: String): List<Guest>
-    suspend fun checkInGuest(qrPayload: String, count: Int, usherId: String): CheckInVerificationResult
-    suspend fun getAuditRecords(): List<CheckInAuditRecord>
-    suspend fun getVendors(): List<VendorPresence>
-    suspend fun updateVendorState(id: String, state: VendorPresenceState): VendorPresence
-    suspend fun getAnnouncements(): List<WeddingAnnouncement>
-    suspend fun postAnnouncement(title: String, message: String, urgency: AnnouncementUrgency): WeddingAnnouncement
     suspend fun resolveInvitation(weddingSlug: String, token: String): InvitationContext
     suspend fun confirmRsvp(weddingSlug: String, token: String, attending: Boolean): WeddingPass
 }
 
+/**
+ * A repository bound to one wedding.
+ *
+ * Constructed through [WeddingRepository.forWedding], which verifies up front that the source
+ * actually serves that wedding. Because the workspace UI only ever holds one of these, a screen
+ * cannot accidentally read an unscoped graph, and a context switch cannot keep rendering the
+ * previous wedding.
+ */
+class ScopedWeddingRepository internal constructor(
+    private val source: WeddingRepository,
+    val weddingId: String
+) {
+    suspend fun getWedding(): Wedding = source.getWedding(weddingId)
+    suspend fun getTasks(): List<PlannerTask> = source.getTasks(weddingId)
+    suspend fun createTask(title: String, priority: TaskPriority, category: String): PlannerTask =
+        source.createTask(weddingId, title, priority, category)
+    suspend fun toggleTask(taskId: String): PlannerTask = source.toggleTask(weddingId, taskId)
+    suspend fun getGuests(): List<Guest> = source.getGuests(weddingId)
+    suspend fun getBudget(): BudgetSummary = source.getBudget(weddingId)
+    suspend fun searchGuests(query: String): List<Guest> = source.searchGuests(weddingId, query)
+    suspend fun checkInGuest(qrPayload: String, count: Int, usherId: String): CheckInVerificationResult =
+        source.checkInGuest(weddingId, qrPayload, count, usherId)
+    suspend fun getAuditRecords(): List<CheckInAuditRecord> = source.getAuditRecords(weddingId)
+    suspend fun getVendors(): List<VendorPresence> = source.getVendors(weddingId)
+    suspend fun updateVendorState(id: String, state: VendorPresenceState): VendorPresence =
+        source.updateVendorState(weddingId, id, state)
+    suspend fun getAnnouncements(): List<WeddingAnnouncement> = source.getAnnouncements(weddingId)
+    suspend fun postAnnouncement(title: String, message: String, urgency: AnnouncementUrgency): WeddingAnnouncement =
+        source.postAnnouncement(weddingId, title, message, urgency)
+
+    suspend fun getWeddingPass(token: String): WeddingPass = source.getWeddingPass(token)
+    suspend fun resolveInvitation(weddingSlug: String, token: String): InvitationContext =
+        source.resolveInvitation(weddingSlug, token)
+    suspend fun confirmRsvp(weddingSlug: String, token: String, attending: Boolean): WeddingPass =
+        source.confirmRsvp(weddingSlug, token, attending)
+}
+
+/**
+ * Binds this source to one wedding, failing fast when the source cannot serve it.
+ * @throws WeddingScopeMismatch when [weddingId] is not among [WeddingRepository.availableWeddingIds].
+ */
+suspend fun WeddingRepository.forWedding(weddingId: String): ScopedWeddingRepository {
+    val available = availableWeddingIds()
+    if (weddingId !in available) throw WeddingScopeMismatch(weddingId, available)
+    return ScopedWeddingRepository(this, weddingId)
+}
+
 class FixtureWeddingRepository : WeddingRepository {
     private val mutex = Mutex()
+
+    override suspend fun availableWeddingIds(): List<String> = listOf(wedding.id)
+
+    /** Rejects a request for any wedding this source does not hold (P0-1). */
+    private fun requireScope(weddingId: String) {
+        if (weddingId != wedding.id) {
+            throw WeddingScopeMismatch(weddingId, listOf(wedding.id))
+        }
+    }
 
     private var wedding = Wedding(
         id = "wed_tariro_shadreck_2026",
@@ -93,11 +177,16 @@ class FixtureWeddingRepository : WeddingRepository {
 
     private val auditRecords = mutableListOf<CheckInAuditRecord>()
 
-    override suspend fun getWedding(): Wedding = mutex.withLock { wedding }
+    override suspend fun getWedding(weddingId: String): Wedding = mutex.withLock {
+        requireScope(weddingId)
+        wedding }
 
-    override suspend fun getTasks(): List<PlannerTask> = mutex.withLock { tasks.toList() }
+    override suspend fun getTasks(weddingId: String): List<PlannerTask> = mutex.withLock {
+        requireScope(weddingId)
+        tasks.toList() }
 
-    override suspend fun createTask(title: String, priority: TaskPriority, category: String): PlannerTask = mutex.withLock {
+    override suspend fun createTask(weddingId: String, title: String, priority: TaskPriority, category: String): PlannerTask = mutex.withLock {
+        requireScope(weddingId)
         val newTask = PlannerTask(
             id = "task_${UUID.randomUUID().toString().take(8)}",
             title = title,
@@ -109,7 +198,8 @@ class FixtureWeddingRepository : WeddingRepository {
         newTask
     }
 
-    override suspend fun toggleTask(taskId: String): PlannerTask = mutex.withLock {
+    override suspend fun toggleTask(weddingId: String, taskId: String): PlannerTask = mutex.withLock {
+        requireScope(weddingId)
         val index = tasks.indexOfFirst { it.id == taskId }
         if (index == -1) throw IllegalArgumentException("Task not found")
         val current = tasks[index]
@@ -120,15 +210,22 @@ class FixtureWeddingRepository : WeddingRepository {
         updated
     }
 
-    override suspend fun getGuests(): List<Guest> = mutex.withLock { guests.toList() }
+    override suspend fun getGuests(weddingId: String): List<Guest> = mutex.withLock {
+        requireScope(weddingId)
+        guests.toList() }
 
-    override suspend fun getBudget(): BudgetSummary = mutex.withLock { budget }
+    override suspend fun getBudget(weddingId: String): BudgetSummary = mutex.withLock {
+        requireScope(weddingId)
+        budget }
 
     override suspend fun getWeddingPass(token: String): WeddingPass = mutex.withLock { pass }
 
-    override suspend fun getAuditRecords(): List<CheckInAuditRecord> = mutex.withLock { auditRecords.toList() }
+    override suspend fun getAuditRecords(weddingId: String): List<CheckInAuditRecord> = mutex.withLock {
+        requireScope(weddingId)
+        auditRecords.toList() }
 
-    override suspend fun searchGuests(query: String): List<Guest> = mutex.withLock {
+    override suspend fun searchGuests(weddingId: String, query: String): List<Guest> = mutex.withLock {
+        requireScope(weddingId)
         if (query.isBlank()) return@withLock guests.toList()
         val lower = query.lowercase()
         guests.filter {
@@ -138,7 +235,8 @@ class FixtureWeddingRepository : WeddingRepository {
         }
     }
 
-    override suspend fun checkInGuest(qrPayload: String, count: Int, usherId: String): CheckInVerificationResult = mutex.withLock {
+    override suspend fun checkInGuest(weddingId: String, qrPayload: String, count: Int, usherId: String): CheckInVerificationResult = mutex.withLock {
+        requireScope(weddingId)
         val index = guests.indexOfFirst { it.passSerial != null && qrPayload.contains(it.passSerial) }
         if (index == -1) {
             return@withLock CheckInVerificationResult(
@@ -233,11 +331,13 @@ class FixtureWeddingRepository : WeddingRepository {
         WeddingAnnouncement("a2", "Ceremony Seating", "All guests please make your way to the Chapel on the Hill. Doors open at 13:15.", AnnouncementUrgency.ACTION)
     )
 
-    override suspend fun getVendors(): List<VendorPresence> = mutex.withLock {
+    override suspend fun getVendors(weddingId: String): List<VendorPresence> = mutex.withLock {
+        requireScope(weddingId)
         vendors.toList()
     }
 
-    override suspend fun updateVendorState(id: String, state: VendorPresenceState): VendorPresence = mutex.withLock {
+    override suspend fun updateVendorState(weddingId: String, id: String, state: VendorPresenceState): VendorPresence = mutex.withLock {
+        requireScope(weddingId)
         val index = vendors.indexOfFirst { it.id == id }
         if (index == -1) throw NoSuchElementException("Vendor not found")
         val updated = vendors[index].copy(state = state, lastUpdatedMillis = System.currentTimeMillis())
@@ -245,11 +345,13 @@ class FixtureWeddingRepository : WeddingRepository {
         updated
     }
 
-    override suspend fun getAnnouncements(): List<WeddingAnnouncement> = mutex.withLock {
+    override suspend fun getAnnouncements(weddingId: String): List<WeddingAnnouncement> = mutex.withLock {
+        requireScope(weddingId)
         announcements.toList()
     }
 
-    override suspend fun postAnnouncement(title: String, message: String, urgency: AnnouncementUrgency): WeddingAnnouncement = mutex.withLock {
+    override suspend fun postAnnouncement(weddingId: String, title: String, message: String, urgency: AnnouncementUrgency): WeddingAnnouncement = mutex.withLock {
+        requireScope(weddingId)
         val ann = WeddingAnnouncement(title = title, message = message, urgency = urgency)
         announcements.add(0, ann)
         ann
@@ -276,3 +378,18 @@ class FixtureWeddingRepository : WeddingRepository {
     }
 }
 
+
+/**
+ * Binds a single-wedding source to the one wedding it serves.
+ *
+ * This is a convenience for callers that already know the source holds exactly one wedding
+ * (fixtures, shadow snapshots, tests). It still goes through [forWedding], so the scope is
+ * resolved and validated rather than bypassed.
+ */
+suspend fun WeddingRepository.forOnlyWedding(): ScopedWeddingRepository {
+    val available = availableWeddingIds()
+    check(available.size == 1) {
+        "forOnlyWedding() requires a single-wedding source; this one serves ${available.size}."
+    }
+    return forWedding(available.first())
+}

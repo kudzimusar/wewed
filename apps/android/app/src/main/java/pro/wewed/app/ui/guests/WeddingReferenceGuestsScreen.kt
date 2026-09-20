@@ -47,8 +47,8 @@ fun WeddingReferenceGuestsScreen(appViewModel: AppViewModel) {
 
     LaunchedEffect(Unit) {
         try {
-            guests = appViewModel.repository.getGuests()
-            wedding = appViewModel.repository.getWedding()
+            guests = appViewModel.scopedRepository().getGuests()
+            wedding = appViewModel.scopedRepository().getWedding()
         } finally {
             loading = false
         }

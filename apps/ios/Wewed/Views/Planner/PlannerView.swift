@@ -96,7 +96,7 @@ public struct PlannerView: View {
             .sheet(isPresented: $showingCreateSheet) {
                 CreateTaskSheet { title, priority, category in
                     Task {
-                        if let created = try? await appState.repository.createTask(title: title, priority: priority, category: category) {
+                        if let created = try? await appState.scopedRepository().createTask(title: title, priority: priority, category: category) {
                             tasks.append(created)
                         }
                     }
@@ -373,7 +373,7 @@ public struct PlannerView: View {
     private func loadWorkspace() async {
         do {
             async let dashboardTask = appState.plannerRepository.getDashboard()
-            async let tasksTask = appState.repository.getTasks()
+            async let tasksTask = appState.scopedRepository().getTasks()
             dashboard = try await dashboardTask
             tasks = try await tasksTask
             isLoading = false
@@ -384,7 +384,7 @@ public struct PlannerView: View {
 
     private func toggleTask(_ taskId: String) {
         Task {
-            if let updated = try? await appState.repository.toggleTask(taskId: taskId),
+            if let updated = try? await appState.scopedRepository().toggleTask(taskId: taskId),
                let idx = tasks.firstIndex(where: { $0.id == taskId }) {
                 tasks[idx] = updated
             }

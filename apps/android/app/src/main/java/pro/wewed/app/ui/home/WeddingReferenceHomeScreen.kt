@@ -49,12 +49,12 @@ fun WeddingReferenceHomeScreen(appViewModel: AppViewModel) {
 
     LaunchedEffect(Unit) {
         try {
-            val loadedWedding = appViewModel.repository.getWedding()
+            val loadedWedding = appViewModel.scopedRepository().getWedding()
             wedding = loadedWedding
-            tasks = appViewModel.repository.getTasks()
-            guests = appViewModel.repository.getGuests()
-            budget = appViewModel.repository.getBudget()
-            vendors = appViewModel.repository.getVendors()
+            tasks = appViewModel.scopedRepository().getTasks()
+            guests = appViewModel.scopedRepository().getGuests()
+            budget = appViewModel.scopedRepository().getBudget()
+            vendors = appViewModel.scopedRepository().getVendors()
             invitation = runCatching {
                 appViewModel.repository.resolveInvitation(loadedWedding.id, "shadow-pending-guest")
             }.getOrNull()

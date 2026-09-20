@@ -244,7 +244,7 @@ public struct WeddingReferencePlannerView: View {
     private func load() async {
         do {
             async let d = appState.plannerRepository.getDashboard()
-            async let t = appState.repository.getTasks()
+            async let t = appState.scopedRepository().getTasks()
             dashboard = try await d
             tasks = try await t
         } catch {

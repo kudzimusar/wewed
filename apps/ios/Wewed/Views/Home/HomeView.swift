@@ -465,8 +465,8 @@ public struct HomeView: View {
     private func loadData() {
         Task {
             do {
-                async let weddingTask = appState.repository.getWedding()
-                async let announcementsTask = appState.repository.getAnnouncements()
+                async let weddingTask = appState.scopedRepository().getWedding()
+                async let announcementsTask = appState.scopedRepository().getAnnouncements()
                 async let plannerTask = appState.plannerRepository.getDashboard()
 
                 let loadedWedding = try await weddingTask

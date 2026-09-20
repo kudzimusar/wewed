@@ -14,6 +14,15 @@ import java.util.UUID
  */
 class ShadowReferenceWeddingRepository : WeddingRepository {
     private val mutex = Mutex()
+
+    override suspend fun availableWeddingIds(): List<String> = listOf(wedding.id)
+
+    /** Rejects a request for any wedding this source does not hold (P0-1). */
+    private fun requireScope(weddingId: String) {
+        if (weddingId != wedding.id) {
+            throw WeddingScopeMismatch(weddingId, listOf(wedding.id))
+        }
+    }
     private val primaryPassSerial = "SHDWGSTA01"
     private val attendingToken = "shadow-attending-guest"
     private val pendingToken = "shadow-pending-guest"
@@ -303,15 +312,30 @@ class ShadowReferenceWeddingRepository : WeddingRepository {
 
     private val auditRecords = mutableListOf<CheckInAuditRecord>()
 
-    override suspend fun getWedding(): Wedding = mutex.withLock { wedding }
-    override suspend fun getTasks(): List<PlannerTask> = mutex.withLock { tasks.toList() }
-    override suspend fun getGuests(): List<Guest> = mutex.withLock { guests.toList() }
-    override suspend fun getBudget(): BudgetSummary = mutex.withLock { budget }
-    override suspend fun getAuditRecords(): List<CheckInAuditRecord> = mutex.withLock { auditRecords.toList() }
-    override suspend fun getVendors(): List<VendorPresence> = mutex.withLock { vendors.toList() }
-    override suspend fun getAnnouncements(): List<WeddingAnnouncement> = mutex.withLock { announcements.toList() }
+    override suspend fun getWedding(weddingId: String): Wedding = mutex.withLock {
+        requireScope(weddingId)
+        wedding }
+    override suspend fun getTasks(weddingId: String): List<PlannerTask> = mutex.withLock {
+        requireScope(weddingId)
+        tasks.toList() }
+    override suspend fun getGuests(weddingId: String): List<Guest> = mutex.withLock {
+        requireScope(weddingId)
+        guests.toList() }
+    override suspend fun getBudget(weddingId: String): BudgetSummary = mutex.withLock {
+        requireScope(weddingId)
+        budget }
+    override suspend fun getAuditRecords(weddingId: String): List<CheckInAuditRecord> = mutex.withLock {
+        requireScope(weddingId)
+        auditRecords.toList() }
+    override suspend fun getVendors(weddingId: String): List<VendorPresence> = mutex.withLock {
+        requireScope(weddingId)
+        vendors.toList() }
+    override suspend fun getAnnouncements(weddingId: String): List<WeddingAnnouncement> = mutex.withLock {
+        requireScope(weddingId)
+        announcements.toList() }
 
-    override suspend fun createTask(title: String, priority: TaskPriority, category: String): PlannerTask = mutex.withLock {
+    override suspend fun createTask(weddingId: String, title: String, priority: TaskPriority, category: String): PlannerTask = mutex.withLock {
+        requireScope(weddingId)
         val task = PlannerTask(
             id = "shadow_task_${UUID.randomUUID().toString().take(8)}",
             title = title,
@@ -323,7 +347,8 @@ class ShadowReferenceWeddingRepository : WeddingRepository {
         task
     }
 
-    override suspend fun toggleTask(taskId: String): PlannerTask = mutex.withLock {
+    override suspend fun toggleTask(weddingId: String, taskId: String): PlannerTask = mutex.withLock {
+        requireScope(weddingId)
         val index = tasks.indexOfFirst { it.id == taskId }
         if (index == -1) error("Task not found")
         val current = tasks[index]
@@ -342,7 +367,8 @@ class ShadowReferenceWeddingRepository : WeddingRepository {
         makePass(guest)
     }
 
-    override suspend fun searchGuests(query: String): List<Guest> = mutex.withLock {
+    override suspend fun searchGuests(weddingId: String, query: String): List<Guest> = mutex.withLock {
+        requireScope(weddingId)
         val normalized = query.trim().lowercase()
         if (normalized.isEmpty()) return@withLock guests.toList()
         guests.filter {
@@ -352,7 +378,8 @@ class ShadowReferenceWeddingRepository : WeddingRepository {
         }
     }
 
-    override suspend fun checkInGuest(qrPayload: String, count: Int, usherId: String): CheckInVerificationResult = mutex.withLock {
+    override suspend fun checkInGuest(weddingId: String, qrPayload: String, count: Int, usherId: String): CheckInVerificationResult = mutex.withLock {
+        requireScope(weddingId)
         val index = guests.indexOfFirst { guest ->
             val serial = guest.passSerial ?: return@indexOfFirst false
             qrPayload.contains(serial)
@@ -431,7 +458,8 @@ class ShadowReferenceWeddingRepository : WeddingRepository {
         )
     }
 
-    override suspend fun updateVendorState(id: String, state: VendorPresenceState): VendorPresence = mutex.withLock {
+    override suspend fun updateVendorState(weddingId: String, id: String, state: VendorPresenceState): VendorPresence = mutex.withLock {
+        requireScope(weddingId)
         val index = vendors.indexOfFirst { it.id == id }
         if (index == -1) error("Vendor not found")
         val updated = vendors[index].copy(state = state)
@@ -439,7 +467,8 @@ class ShadowReferenceWeddingRepository : WeddingRepository {
         updated
     }
 
-    override suspend fun postAnnouncement(title: String, message: String, urgency: AnnouncementUrgency): WeddingAnnouncement = mutex.withLock {
+    override suspend fun postAnnouncement(weddingId: String, title: String, message: String, urgency: AnnouncementUrgency): WeddingAnnouncement = mutex.withLock {
+        requireScope(weddingId)
         val announcement = WeddingAnnouncement(title = title, message = message, urgency = urgency)
         announcements.add(0, announcement)
         announcement

@@ -1,0 +1,30 @@
+{
+  "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/Wewed/Views/RootView.swift" : {
+    "const-values" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/RootView.swiftconstvalues",
+    "dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/RootView.d",
+    "diagnostics" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/RootView.dia",
+    "object" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/RootView.o",
+    "swift-dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/RootView.swiftdeps"
+  },
+  "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/Wewed/Views/Shared/WeddingReferenceMoreView.swift" : {
+    "const-values" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/WeddingReferenceMoreView.swiftconstvalues",
+    "dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/WeddingReferenceMoreView.d",
+    "diagnostics" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/WeddingReferenceMoreView.dia",
+    "object" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/WeddingReferenceMoreView.o",
+    "swift-dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/WeddingReferenceMoreView.swiftdeps"
+  },
+  "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/Wewed/Views/Shared/WholeProductViews.swift" : {
+    "const-values" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/WholeProductViews.swiftconstvalues",
+    "dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/WholeProductViews.d",
+    "diagnostics" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/WholeProductViews.dia",
+    "object" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/WholeProductViews.o",
+    "swift-dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/WholeProductViews.swiftdeps"
+  },
+  "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/Wewed/Views/Vendor/VendorPresenceView.swift" : {
+    "const-values" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/VendorPresenceView.swiftconstvalues",
+    "dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/VendorPresenceView.d",
+    "diagnostics" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/VendorPresenceView.dia",
+    "object" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/VendorPresenceView.o",
+    "swift-dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/VendorPresenceView.swiftdeps"
+  }
+}

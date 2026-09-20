@@ -1,0 +1,37 @@
+{
+  "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/Wewed/Views/Invitation/GuestInvitationJourneyView.swift" : {
+    "const-values" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/GuestInvitationJourneyView.swiftconstvalues",
+    "dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/GuestInvitationJourneyView.d",
+    "diagnostics" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/GuestInvitationJourneyView.dia",
+    "object" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/GuestInvitationJourneyView.o",
+    "swift-dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/GuestInvitationJourneyView.swiftdeps"
+  },
+  "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/Wewed/Views/Invitation/IvoryInvitationView.swift" : {
+    "const-values" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/IvoryInvitationView.swiftconstvalues",
+    "dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/IvoryInvitationView.d",
+    "diagnostics" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/IvoryInvitationView.dia",
+    "object" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/IvoryInvitationView.o",
+    "swift-dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/IvoryInvitationView.swiftdeps"
+  },
+  "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/Wewed/Views/LiveWall/LiveWallView.swift" : {
+    "const-values" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/LiveWallView.swiftconstvalues",
+    "dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/LiveWallView.d",
+    "diagnostics" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/LiveWallView.dia",
+    "object" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/LiveWallView.o",
+    "swift-dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/LiveWallView.swiftdeps"
+  },
+  "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/Wewed/Views/Pass/CameraBarcodeScannerView.swift" : {
+    "const-values" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/CameraBarcodeScannerView.swiftconstvalues",
+    "dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/CameraBarcodeScannerView.d",
+    "diagnostics" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/CameraBarcodeScannerView.dia",
+    "object" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/CameraBarcodeScannerView.o",
+    "swift-dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/CameraBarcodeScannerView.swiftdeps"
+  },
+  "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/Wewed/Views/Pass/PassView.swift" : {
+    "const-values" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/PassView.swiftconstvalues",
+    "dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/PassView.d",
+    "diagnostics" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/PassView.dia",
+    "object" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/PassView.o",
+    "swift-dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/PassView.swiftdeps"
+  }
+}

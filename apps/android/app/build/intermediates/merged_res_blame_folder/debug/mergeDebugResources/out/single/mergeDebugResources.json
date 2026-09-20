@@ -1,0 +1,10 @@
+[
+    {
+        "merged": "pro.wewed.app-debug-47:/drawable_ornament_frame.jpg.flat",
+        "source": "pro.wewed.app-main-49:/drawable/ornament_frame.jpg"
+    },
+    {
+        "merged": "pro.wewed.app-debug-47:/drawable_hero_wedding.jpg.flat",
+        "source": "pro.wewed.app-main-49:/drawable/hero_wedding.jpg"
+    }
+]

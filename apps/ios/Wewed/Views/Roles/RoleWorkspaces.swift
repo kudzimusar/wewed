@@ -17,7 +17,8 @@ struct RoleWorkspaceHost<Content: View>: View {
     var body: some View {
         content(graph)
             .task(id: context.activeWeddingId) {
-                await graph.load(repository: appState.repository, weddingId: context.activeWeddingId)
+                appState.bindActiveWedding(context.activeWeddingId)
+                await graph.load(source: appState.repository, weddingId: context.activeWeddingId)
             }
     }
 }

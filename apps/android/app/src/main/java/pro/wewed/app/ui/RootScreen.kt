@@ -126,6 +126,11 @@ fun RootScreen(
     }
     val onRequestedDestinationHandled = { appViewModel.consumePendingRouteDeepLink() }
 
+    // Legacy screens that still read ambiently resolve through the same bound wedding.
+    LaunchedEffect(context.activeWeddingId) {
+        appViewModel.bindActiveWedding(context.activeWeddingId)
+    }
+
     if (isScannerOpen) {
         UsherScannerScreen(
             appViewModel = appViewModel,

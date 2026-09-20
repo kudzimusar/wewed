@@ -183,7 +183,7 @@ public struct WeddingReferenceMoreView: View {
 
     private func load() async {
         do {
-            wedding = try await appState.repository.getWedding()
+            wedding = try await appState.scopedRepository().getWedding()
         } catch {
             wedding = nil
         }

@@ -8,6 +8,15 @@ import Foundation
 /// - Gate credentials are development-only placeholders; canonical production
 ///   pass verification remains WW2 ECDSA and is not replaced by this repository.
 public actor ShadowReferenceWeddingRepository: WeddingRepositoryProtocol {
+
+    public func availableWeddingIds() async throws -> [String] { [wedding.id] }
+
+    /// Rejects a request for any wedding this source does not hold (P0-1).
+    private func requireScope(_ weddingId: String) throws {
+        guard weddingId == wedding.id else {
+            throw WeddingScopeMismatch(requestedWeddingId: weddingId, availableWeddingIds: [wedding.id])
+        }
+    }
     private var wedding: Wedding
     private var tasks: [PlannerTask]
     private var guests: [Guest]
@@ -305,21 +314,44 @@ public actor ShadowReferenceWeddingRepository: WeddingRepositoryProtocol {
         ]
     }
 
-    public func getWedding() async throws -> Wedding { wedding }
-    public func getTasks() async throws -> [PlannerTask] { tasks }
-    public func getGuests() async throws -> [Guest] { guests }
-    public func getBudget() async throws -> BudgetSummary { budget }
-    public func getAuditRecords() async throws -> [CheckInAuditRecord] { auditRecords }
-    public func getVendors() async throws -> [VendorPresence] { vendors }
-    public func getAnnouncements() async throws -> [WeddingAnnouncement] { announcements }
+    public func getWedding(weddingId: String) async throws -> Wedding {
+        try requireScope(weddingId)
+        return wedding
+    }
+    public func getTasks(weddingId: String) async throws -> [PlannerTask] {
+        try requireScope(weddingId)
+        return tasks
+    }
+    public func getGuests(weddingId: String) async throws -> [Guest] {
+        try requireScope(weddingId)
+        return guests
+    }
+    public func getBudget(weddingId: String) async throws -> BudgetSummary {
+        try requireScope(weddingId)
+        return budget
+    }
+    public func getAuditRecords(weddingId: String) async throws -> [CheckInAuditRecord] {
+        try requireScope(weddingId)
+        return auditRecords
+    }
+    public func getVendors(weddingId: String) async throws -> [VendorPresence] {
+        try requireScope(weddingId)
+        return vendors
+    }
+    public func getAnnouncements(weddingId: String) async throws -> [WeddingAnnouncement] {
+        try requireScope(weddingId)
+        return announcements
+    }
 
-    public func createTask(title: String, priority: TaskPriority, category: String) async throws -> PlannerTask {
+    public func createTask(weddingId: String, title: String, priority: TaskPriority, category: String) async throws -> PlannerTask {
+        try requireScope(weddingId)
         let task = PlannerTask(id: "shadow_task_\(UUID().uuidString.prefix(8))", title: title, status: .todo, priority: priority, category: category)
         tasks.append(task)
         return task
     }
 
-    public func toggleTask(taskId: String) async throws -> PlannerTask {
+    public func toggleTask(weddingId: String, taskId: String) async throws -> PlannerTask {
+        try requireScope(weddingId)
         guard let index = tasks.firstIndex(where: { $0.id == taskId }) else {
             throw NSError(domain: "ShadowReferenceWeddingRepository", code: 404, userInfo: [NSLocalizedDescriptionKey: "Task not found"])
         }
@@ -339,7 +371,8 @@ public actor ShadowReferenceWeddingRepository: WeddingRepositoryProtocol {
         return makePass(for: guest)
     }
 
-    public func searchGuests(query: String) async throws -> [Guest] {
+    public func searchGuests(weddingId: String, query: String) async throws -> [Guest] {
+        try requireScope(weddingId)
         let normalized = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !normalized.isEmpty else { return guests }
         return guests.filter {
@@ -349,7 +382,8 @@ public actor ShadowReferenceWeddingRepository: WeddingRepositoryProtocol {
         }
     }
 
-    public func checkInGuest(qrPayload: String, count: Int, usherId: String) async throws -> CheckInVerificationResult {
+    public func checkInGuest(weddingId: String, qrPayload: String, count: Int, usherId: String) async throws -> CheckInVerificationResult {
+        try requireScope(weddingId)
         guard let index = guests.firstIndex(where: { guest in
             guard let serial = guest.passSerial else { return false }
             return qrPayload.contains(serial)
@@ -388,7 +422,8 @@ public actor ShadowReferenceWeddingRepository: WeddingRepositoryProtocol {
         )
     }
 
-    public func updateVendorState(id: String, state: VendorPresenceState) async throws -> VendorPresence {
+    public func updateVendorState(weddingId: String, id: String, state: VendorPresenceState) async throws -> VendorPresence {
+        try requireScope(weddingId)
         guard let index = vendors.firstIndex(where: { $0.id == id }) else {
             throw NSError(domain: "ShadowReferenceWeddingRepository", code: 404, userInfo: [NSLocalizedDescriptionKey: "Vendor not found"])
         }
@@ -397,7 +432,8 @@ public actor ShadowReferenceWeddingRepository: WeddingRepositoryProtocol {
         return vendors[index]
     }
 
-    public func postAnnouncement(title: String, message: String, urgency: AnnouncementUrgency) async throws -> WeddingAnnouncement {
+    public func postAnnouncement(weddingId: String, title: String, message: String, urgency: AnnouncementUrgency) async throws -> WeddingAnnouncement {
+        try requireScope(weddingId)
         let announcement = WeddingAnnouncement(title: title, message: message, urgency: urgency)
         announcements.insert(announcement, at: 0)
         return announcement

@@ -1,0 +1,37 @@
+{
+  "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/Wewed/Services/OfflineManifestStore.swift" : {
+    "const-values" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/OfflineManifestStore.swiftconstvalues",
+    "dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/OfflineManifestStore.d",
+    "diagnostics" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/OfflineManifestStore.dia",
+    "object" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/OfflineManifestStore.o",
+    "swift-dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/OfflineManifestStore.swiftdeps"
+  },
+  "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/Wewed/Services/PlannerDashboardRepository.swift" : {
+    "const-values" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/PlannerDashboardRepository.swiftconstvalues",
+    "dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/PlannerDashboardRepository.d",
+    "diagnostics" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/PlannerDashboardRepository.dia",
+    "object" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/PlannerDashboardRepository.o",
+    "swift-dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/PlannerDashboardRepository.swiftdeps"
+  },
+  "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/Wewed/Services/PrivateRealShadowPlannerRepository.swift" : {
+    "const-values" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/PrivateRealShadowPlannerRepository.swiftconstvalues",
+    "dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/PrivateRealShadowPlannerRepository.d",
+    "diagnostics" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/PrivateRealShadowPlannerRepository.dia",
+    "object" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/PrivateRealShadowPlannerRepository.o",
+    "swift-dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/PrivateRealShadowPlannerRepository.swiftdeps"
+  },
+  "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/Wewed/Services/WeddingDayManifestTrustStore.swift" : {
+    "const-values" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/WeddingDayManifestTrustStore.swiftconstvalues",
+    "dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/WeddingDayManifestTrustStore.d",
+    "diagnostics" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/WeddingDayManifestTrustStore.dia",
+    "object" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/WeddingDayManifestTrustStore.o",
+    "swift-dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/WeddingDayManifestTrustStore.swiftdeps"
+  },
+  "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/Wewed/Services/WeddingDaySyncService.swift" : {
+    "const-values" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/WeddingDaySyncService.swiftconstvalues",
+    "dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/WeddingDaySyncService.d",
+    "diagnostics" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/WeddingDaySyncService.dia",
+    "object" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/WeddingDaySyncService.o",
+    "swift-dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedKit-t.build/Objects-normal/arm64/WeddingDaySyncService.swiftdeps"
+  }
+}

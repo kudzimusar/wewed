@@ -41,7 +41,7 @@ fun VendorPresenceScreen(
 
     fun refreshVendors() {
         scope.launch {
-            vendors = appViewModel.repository.getVendors()
+            vendors = appViewModel.scopedRepository().getVendors()
             if (vendors.none { it.id == selectedVendorId }) {
                 selectedVendorId = vendors.firstOrNull()?.id.orEmpty()
             }
@@ -138,7 +138,7 @@ fun VendorPresenceScreen(
                         OutlinedButton(
                             onClick = {
                                 scope.launch {
-                                    appViewModel.repository.updateVendorState(currentVendor.id, VendorPresenceState.EN_ROUTE)
+                                    appViewModel.scopedRepository().updateVendorState(currentVendor.id, VendorPresenceState.EN_ROUTE)
                                     refreshVendors()
                                 }
                             },
@@ -158,7 +158,7 @@ fun VendorPresenceScreen(
                         OutlinedButton(
                             onClick = {
                                 scope.launch {
-                                    appViewModel.repository.updateVendorState(currentVendor.id, VendorPresenceState.ARRIVED)
+                                    appViewModel.scopedRepository().updateVendorState(currentVendor.id, VendorPresenceState.ARRIVED)
                                     refreshVendors()
                                 }
                             },
@@ -178,7 +178,7 @@ fun VendorPresenceScreen(
                         OutlinedButton(
                             onClick = {
                                 scope.launch {
-                                    appViewModel.repository.updateVendorState(currentVendor.id, VendorPresenceState.SERVICE_ACTIVE)
+                                    appViewModel.scopedRepository().updateVendorState(currentVendor.id, VendorPresenceState.SERVICE_ACTIVE)
                                     refreshVendors()
                                 }
                             },

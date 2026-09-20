@@ -47,9 +47,9 @@ fun HomeScreen(appViewModel: AppViewModel) {
     var showDirectionsDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        val loadedWedding = appViewModel.repository.getWedding()
+        val loadedWedding = appViewModel.scopedRepository().getWedding()
         wedding = loadedWedding
-        announcements = appViewModel.repository.getAnnouncements()
+        announcements = appViewModel.scopedRepository().getAnnouncements()
         plannerDashboard = appViewModel.plannerRepository.getDashboard()
         invitationContext = runCatching {
             appViewModel.repository.resolveInvitation(loadedWedding.id, "shadow-pending-guest")

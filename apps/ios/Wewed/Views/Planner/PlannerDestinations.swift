@@ -49,7 +49,7 @@ public struct PlannerTasksView: View {
         .background(WewedColors.ivory)
         .navigationTitle("Tasks Checklist")
         .task {
-            if let items = try? await appState.repository.getTasks() {
+            if let items = try? await appState.scopedRepository().getTasks() {
                 tasks = items
             }
         }
@@ -147,7 +147,7 @@ public struct PlannerBudgetView: View {
         .background(WewedColors.ivory)
         .navigationTitle("Budget Allocation")
         .task {
-            if let b = try? await appState.repository.getBudget() {
+            if let b = try? await appState.scopedRepository().getBudget() {
                 budget = b
             }
             if let lines = try? await appState.plannerRepository.getBudgetLines() {
@@ -316,7 +316,7 @@ public struct PlannerVendorsView: View {
         .background(WewedColors.ivory)
         .navigationTitle("Vendors")
         .task {
-            if let list = try? await appState.repository.getVendors() {
+            if let list = try? await appState.scopedRepository().getVendors() {
                 vendors = list
             }
             if let engs = try? await appState.plannerRepository.getVendorEngagements() {
@@ -459,7 +459,7 @@ public struct PlannerGuestsBridgeView: View {
         .background(WewedColors.ivory)
         .navigationTitle("Guest List Bridge")
         .task {
-            if let list = try? await appState.repository.getGuests() {
+            if let list = try? await appState.scopedRepository().getGuests() {
                 guests = list
             }
         }
@@ -510,10 +510,10 @@ public struct ClientProfileView: View {
         .background(WewedColors.ivory)
         .navigationTitle("Client Profile")
         .task {
-            if let w = try? await appState.repository.getWedding() {
+            if let w = try? await appState.scopedRepository().getWedding() {
                 wedding = w
             }
-            if let g = try? await appState.repository.getGuests() {
+            if let g = try? await appState.scopedRepository().getGuests() {
                 guestCount = g.count
             }
         }
@@ -625,7 +625,7 @@ public struct PlannerInvitationToolsView: View {
         .background(WewedColors.ivory)
         .navigationTitle("Invitations & QR Tools")
         .task {
-            if let list = try? await appState.repository.getGuests() {
+            if let list = try? await appState.scopedRepository().getGuests() {
                 guests = list
             }
         }
@@ -659,7 +659,7 @@ public struct EventCommandView: View {
         .background(WewedColors.ivory)
         .navigationTitle("Event Command")
         .task {
-            if let w = try? await appState.repository.getWedding() {
+            if let w = try? await appState.scopedRepository().getWedding() {
                 wedding = w
             }
         }
@@ -712,7 +712,7 @@ public struct WeddingBriefView: View {
         .background(WewedColors.ivory)
         .navigationTitle("Wedding Brief")
         .task {
-            if let w = try? await appState.repository.getWedding() {
+            if let w = try? await appState.scopedRepository().getWedding() {
                 wedding = w
             }
         }
@@ -811,10 +811,10 @@ public struct PlannerPortfolioView: View {
         .background(WewedColors.ivory)
         .navigationTitle("Planner Portfolio")
         .task {
-            if let w = try? await appState.repository.getWedding() {
+            if let w = try? await appState.scopedRepository().getWedding() {
                 wedding = w
             }
-            if let t = try? await appState.repository.getTasks() {
+            if let t = try? await appState.scopedRepository().getTasks() {
                 totalTasks = t.count
                 doneTasks = t.filter { $0.status == .done }.count
             }

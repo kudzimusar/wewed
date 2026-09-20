@@ -249,11 +249,11 @@ public struct WeddingReferenceHomeView: View {
 
     private func load() async {
         do {
-            async let w = appState.repository.getWedding()
-            async let t = appState.repository.getTasks()
-            async let g = appState.repository.getGuests()
-            async let b = appState.repository.getBudget()
-            async let v = appState.repository.getVendors()
+            async let w = appState.scopedRepository().getWedding()
+            async let t = appState.scopedRepository().getTasks()
+            async let g = appState.scopedRepository().getGuests()
+            async let b = appState.scopedRepository().getBudget()
+            async let v = appState.scopedRepository().getVendors()
 
             let loadedWedding = try await w
             wedding = loadedWedding

@@ -1,25 +1,132 @@
 import Foundation
 
+/// Raised when a repository is asked for a wedding graph it does not serve.
+///
+/// This is the mechanism that makes `NavigationContext.activeWeddingId` a real scope rather than a
+/// reload key: a source holding wedding A cannot answer a request for wedding B by returning A.
+public struct WeddingScopeMismatch: Error, Equatable {
+    public let requestedWeddingId: String
+    public let availableWeddingIds: [String]
+
+    public init(requestedWeddingId: String, availableWeddingIds: [String]) {
+        self.requestedWeddingId = requestedWeddingId
+        self.availableWeddingIds = availableWeddingIds
+    }
+}
+
+/// Wedding-scoped data source.
+///
+/// Every graph read takes the wedding it belongs to, and implementations must reject a wedding they
+/// do not hold. Views never call this directly — they go through `ScopedWeddingRepository`, which
+/// binds exactly one wedding for the lifetime of a workspace.
+///
+/// Token-addressed reads (pass, invitation, RSVP) are credential-scoped rather than wedding-scoped:
+/// the token itself identifies both the wedding and the guest.
 public protocol WeddingRepositoryProtocol: Sendable {
-    func getWedding() async throws -> Wedding
-    func getTasks() async throws -> [PlannerTask]
-    func createTask(title: String, priority: TaskPriority, category: String) async throws -> PlannerTask
-    func toggleTask(taskId: String) async throws -> PlannerTask
-    func getGuests() async throws -> [Guest]
-    func getBudget() async throws -> BudgetSummary
+    /// Wedding identities this source can serve for the current actor.
+    func availableWeddingIds() async throws -> [String]
+
+    func getWedding(weddingId: String) async throws -> Wedding
+    func getTasks(weddingId: String) async throws -> [PlannerTask]
+    func createTask(weddingId: String, title: String, priority: TaskPriority, category: String) async throws -> PlannerTask
+    func toggleTask(weddingId: String, taskId: String) async throws -> PlannerTask
+    func getGuests(weddingId: String) async throws -> [Guest]
+    func getBudget(weddingId: String) async throws -> BudgetSummary
+    func checkInGuest(weddingId: String, qrPayload: String, count: Int, usherId: String) async throws -> CheckInVerificationResult
+    func searchGuests(weddingId: String, query: String) async throws -> [Guest]
+    func getAuditRecords(weddingId: String) async throws -> [CheckInAuditRecord]
+    func getVendors(weddingId: String) async throws -> [VendorPresence]
+    func updateVendorState(weddingId: String, id: String, state: VendorPresenceState) async throws -> VendorPresence
+    func getAnnouncements(weddingId: String) async throws -> [WeddingAnnouncement]
+    func postAnnouncement(weddingId: String, title: String, message: String, urgency: AnnouncementUrgency) async throws -> WeddingAnnouncement
+
+    // Credential-scoped: the token identifies the wedding and the guest.
     func getWeddingPass(token: String) async throws -> WeddingPass
-    func checkInGuest(qrPayload: String, count: Int, usherId: String) async throws -> CheckInVerificationResult
-    func searchGuests(query: String) async throws -> [Guest]
-    func getAuditRecords() async throws -> [CheckInAuditRecord]
-    func getVendors() async throws -> [VendorPresence]
-    func updateVendorState(id: String, state: VendorPresenceState) async throws -> VendorPresence
-    func getAnnouncements() async throws -> [WeddingAnnouncement]
-    func postAnnouncement(title: String, message: String, urgency: AnnouncementUrgency) async throws -> WeddingAnnouncement
     func resolveInvitation(weddingSlug: String, token: String) async throws -> InvitationContext
     func confirmRsvp(weddingSlug: String, token: String, attending: Bool) async throws -> WeddingPass
 }
 
+/// A repository bound to one wedding.
+///
+/// Constructed through `WeddingRepositoryProtocol.forWedding(_:)`, which verifies up front that the
+/// source actually serves that wedding. Because the workspace UI only ever holds one of these, a
+/// view cannot accidentally read an unscoped graph, and a context switch cannot keep rendering the
+/// previous wedding.
+public struct ScopedWeddingRepository: Sendable {
+    private let source: WeddingRepositoryProtocol
+    public let weddingId: String
+
+    init(source: WeddingRepositoryProtocol, weddingId: String) {
+        self.source = source
+        self.weddingId = weddingId
+    }
+
+    public func getWedding() async throws -> Wedding { try await source.getWedding(weddingId: weddingId) }
+    public func getTasks() async throws -> [PlannerTask] { try await source.getTasks(weddingId: weddingId) }
+    public func createTask(title: String, priority: TaskPriority, category: String) async throws -> PlannerTask {
+        try await source.createTask(weddingId: weddingId, title: title, priority: priority, category: category)
+    }
+    public func toggleTask(taskId: String) async throws -> PlannerTask {
+        try await source.toggleTask(weddingId: weddingId, taskId: taskId)
+    }
+    public func getGuests() async throws -> [Guest] { try await source.getGuests(weddingId: weddingId) }
+    public func getBudget() async throws -> BudgetSummary { try await source.getBudget(weddingId: weddingId) }
+    public func checkInGuest(qrPayload: String, count: Int, usherId: String) async throws -> CheckInVerificationResult {
+        try await source.checkInGuest(weddingId: weddingId, qrPayload: qrPayload, count: count, usherId: usherId)
+    }
+    public func searchGuests(query: String) async throws -> [Guest] {
+        try await source.searchGuests(weddingId: weddingId, query: query)
+    }
+    public func getAuditRecords() async throws -> [CheckInAuditRecord] { try await source.getAuditRecords(weddingId: weddingId) }
+    public func getVendors() async throws -> [VendorPresence] { try await source.getVendors(weddingId: weddingId) }
+    public func updateVendorState(id: String, state: VendorPresenceState) async throws -> VendorPresence {
+        try await source.updateVendorState(weddingId: weddingId, id: id, state: state)
+    }
+    public func getAnnouncements() async throws -> [WeddingAnnouncement] { try await source.getAnnouncements(weddingId: weddingId) }
+    public func postAnnouncement(title: String, message: String, urgency: AnnouncementUrgency) async throws -> WeddingAnnouncement {
+        try await source.postAnnouncement(weddingId: weddingId, title: title, message: message, urgency: urgency)
+    }
+
+    public func getWeddingPass(token: String) async throws -> WeddingPass { try await source.getWeddingPass(token: token) }
+    public func resolveInvitation(weddingSlug: String, token: String) async throws -> InvitationContext {
+        try await source.resolveInvitation(weddingSlug: weddingSlug, token: token)
+    }
+    public func confirmRsvp(weddingSlug: String, token: String, attending: Bool) async throws -> WeddingPass {
+        try await source.confirmRsvp(weddingSlug: weddingSlug, token: token, attending: attending)
+    }
+}
+
+public extension WeddingRepositoryProtocol {
+    /// Binds this source to one wedding, failing fast when the source cannot serve it.
+    func forWedding(_ weddingId: String) async throws -> ScopedWeddingRepository {
+        let available = try await availableWeddingIds()
+        guard available.contains(weddingId) else {
+            throw WeddingScopeMismatch(requestedWeddingId: weddingId, availableWeddingIds: available)
+        }
+        return ScopedWeddingRepository(source: self, weddingId: weddingId)
+    }
+
+    /// Binds a single-wedding source to the one wedding it serves.
+    /// Still resolved and validated through `forWedding`, never bypassed.
+    func forOnlyWedding() async throws -> ScopedWeddingRepository {
+        let available = try await availableWeddingIds()
+        guard available.count == 1, let only = available.first else {
+            throw WeddingScopeMismatch(requestedWeddingId: "<single>", availableWeddingIds: available)
+        }
+        return try await forWedding(only)
+    }
+}
+
 public actor FixtureWeddingRepository: WeddingRepositoryProtocol {
+
+    public func availableWeddingIds() async throws -> [String] { [wedding.id] }
+
+    /// Rejects a request for any wedding this source does not hold (P0-1).
+    private func requireScope(_ weddingId: String) throws {
+        guard weddingId == wedding.id else {
+            throw WeddingScopeMismatch(requestedWeddingId: weddingId, availableWeddingIds: [wedding.id])
+        }
+    }
     private var wedding: Wedding
     private var tasks: [PlannerTask]
     private var guests: [Guest]
@@ -93,15 +200,18 @@ public actor FixtureWeddingRepository: WeddingRepositoryProtocol {
         )
     }
 
-    public func getWedding() async throws -> Wedding {
+    public func getWedding(weddingId: String) async throws -> Wedding {
+        try requireScope(weddingId)
         return wedding
     }
 
-    public func getTasks() async throws -> [PlannerTask] {
+    public func getTasks(weddingId: String) async throws -> [PlannerTask] {
+        try requireScope(weddingId)
         return tasks
     }
 
-    public func createTask(title: String, priority: TaskPriority, category: String) async throws -> PlannerTask {
+    public func createTask(weddingId: String, title: String, priority: TaskPriority, category: String) async throws -> PlannerTask {
+        try requireScope(weddingId)
         let newTask = PlannerTask(
             id: "task_\(UUID().uuidString.prefix(8))",
             title: title,
@@ -113,7 +223,8 @@ public actor FixtureWeddingRepository: WeddingRepositoryProtocol {
         return newTask
     }
 
-    public func toggleTask(taskId: String) async throws -> PlannerTask {
+    public func toggleTask(weddingId: String, taskId: String) async throws -> PlannerTask {
+        try requireScope(weddingId)
         guard let index = tasks.firstIndex(where: { $0.id == taskId }) else {
             throw NSError(domain: "Wewed", code: 404, userInfo: [NSLocalizedDescriptionKey: "Task not found"])
         }
@@ -123,11 +234,13 @@ public actor FixtureWeddingRepository: WeddingRepositoryProtocol {
         return tasks[index]
     }
 
-    public func getGuests() async throws -> [Guest] {
+    public func getGuests(weddingId: String) async throws -> [Guest] {
+        try requireScope(weddingId)
         return guests
     }
 
-    public func getBudget() async throws -> BudgetSummary {
+    public func getBudget(weddingId: String) async throws -> BudgetSummary {
+        try requireScope(weddingId)
         return budget
     }
 
@@ -135,11 +248,13 @@ public actor FixtureWeddingRepository: WeddingRepositoryProtocol {
         return pass
     }
 
-    public func getAuditRecords() async throws -> [CheckInAuditRecord] {
+    public func getAuditRecords(weddingId: String) async throws -> [CheckInAuditRecord] {
+        try requireScope(weddingId)
         return auditRecords
     }
 
-    public func searchGuests(query: String) async throws -> [Guest] {
+    public func searchGuests(weddingId: String, query: String) async throws -> [Guest] {
+        try requireScope(weddingId)
         if query.trimmingCharacters(in: .whitespaces).isEmpty {
             return guests
         }
@@ -151,7 +266,8 @@ public actor FixtureWeddingRepository: WeddingRepositoryProtocol {
         }
     }
 
-    public func checkInGuest(qrPayload: String, count: Int, usherId: String) async throws -> CheckInVerificationResult {
+    public func checkInGuest(weddingId: String, qrPayload: String, count: Int, usherId: String) async throws -> CheckInVerificationResult {
+        try requireScope(weddingId)
         guard let index = guests.firstIndex(where: { $0.passSerial != nil && qrPayload.contains($0.passSerial!) }) else {
             return CheckInVerificationResult(
                 status: .invalidPass,
@@ -244,11 +360,13 @@ public actor FixtureWeddingRepository: WeddingRepositoryProtocol {
         WeddingAnnouncement(id: "a2", title: "Ceremony Seating", message: "All guests please make your way to the Chapel on the Hill. Doors open at 13:15.", urgency: .action, timestamp: Date())
     ]
 
-    public func getVendors() async throws -> [VendorPresence] {
+    public func getVendors(weddingId: String) async throws -> [VendorPresence] {
+        try requireScope(weddingId)
         return vendors
     }
 
-    public func updateVendorState(id: String, state: VendorPresenceState) async throws -> VendorPresence {
+    public func updateVendorState(weddingId: String, id: String, state: VendorPresenceState) async throws -> VendorPresence {
+        try requireScope(weddingId)
         guard let index = vendors.firstIndex(where: { $0.id == id }) else {
             throw NSError(domain: "WeddingRepository", code: 404, userInfo: [NSLocalizedDescriptionKey: "Vendor not found"])
         }
@@ -259,11 +377,13 @@ public actor FixtureWeddingRepository: WeddingRepositoryProtocol {
         return updated
     }
 
-    public func getAnnouncements() async throws -> [WeddingAnnouncement] {
+    public func getAnnouncements(weddingId: String) async throws -> [WeddingAnnouncement] {
+        try requireScope(weddingId)
         return announcements
     }
 
-    public func postAnnouncement(title: String, message: String, urgency: AnnouncementUrgency) async throws -> WeddingAnnouncement {
+    public func postAnnouncement(weddingId: String, title: String, message: String, urgency: AnnouncementUrgency) async throws -> WeddingAnnouncement {
+        try requireScope(weddingId)
         let ann = WeddingAnnouncement(title: title, message: message, urgency: urgency, timestamp: Date())
         announcements.insert(ann, at: 0)
         return ann

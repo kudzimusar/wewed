@@ -42,7 +42,7 @@ fun UsherScannerScreen(appViewModel: AppViewModel, onClose: () -> Unit) {
 
     fun refreshAudit() {
         scope.launch {
-            auditRecords = appViewModel.repository.getAuditRecords()
+            auditRecords = appViewModel.scopedRepository().getAuditRecords()
         }
     }
 
@@ -91,7 +91,7 @@ fun UsherScannerScreen(appViewModel: AppViewModel, onClose: () -> Unit) {
                         modifier = Modifier.matchParentSize(),
                         onScanned = { token ->
                             scope.launch {
-                                scanResult = appViewModel.repository.checkInGuest(token, checkInCount, "usher_android_gate1")
+                                scanResult = appViewModel.scopedRepository().checkInGuest(token, checkInCount, "usher_android_gate1")
                                 refreshAudit()
                             }
                         }
@@ -243,7 +243,7 @@ fun UsherScannerScreen(appViewModel: AppViewModel, onClose: () -> Unit) {
                         onValueChange = { q ->
                             manualQuery = q
                             scope.launch {
-                                searchResults = appViewModel.repository.searchGuests(q)
+                                searchResults = appViewModel.scopedRepository().searchGuests(q)
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -279,7 +279,7 @@ fun UsherScannerScreen(appViewModel: AppViewModel, onClose: () -> Unit) {
                                 onClick = {
                                     scope.launch {
                                         val dummy = "WW1.wedts26.${g.passSerial ?: "WW0000"}.0e.66f001ab.sig"
-                                        scanResult = appViewModel.repository.checkInGuest(dummy, checkInCount, "usher_android_gate1")
+                                        scanResult = appViewModel.scopedRepository().checkInGuest(dummy, checkInCount, "usher_android_gate1")
                                         manualQuery = ""
                                         searchResults = emptyList()
                                         refreshAudit()

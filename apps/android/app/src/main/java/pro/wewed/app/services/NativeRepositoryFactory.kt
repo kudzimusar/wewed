@@ -68,3 +68,11 @@ object NativeRepositoryFactory {
         }
     }
 }
+
+/**
+ * Binds this bundle's wedding source to the single wedding it serves.
+ *
+ * Shadow and fixture bundles each carry exactly one wedding graph, so this resolves that identity
+ * explicitly instead of letting a caller read the source unscoped.
+ */
+suspend fun NativeRepositoryBundle.scopedWedding(): ScopedWeddingRepository = wedding.forOnlyWedding()

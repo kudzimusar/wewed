@@ -36,7 +36,7 @@ fun WeddingReferencePlannerScreen(appViewModel: AppViewModel) {
     LaunchedEffect(Unit) {
         try {
             dashboard = appViewModel.plannerRepository.getDashboard()
-            tasks = appViewModel.repository.getTasks()
+            tasks = appViewModel.scopedRepository().getTasks()
         } finally {
             loading = false
         }

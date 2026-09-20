@@ -56,7 +56,7 @@ fun PlannerScreen(appViewModel: AppViewModel) {
 
     LaunchedEffect(Unit) {
         dashboard = appViewModel.plannerRepository.getDashboard()
-        tasks = appViewModel.repository.getTasks()
+        tasks = appViewModel.scopedRepository().getTasks()
     }
 
     val filteredTasks = when (selectedFilter) {
@@ -102,7 +102,7 @@ fun PlannerScreen(appViewModel: AppViewModel) {
                     modifier = Modifier.clickable {
                         scope.launch {
                             dashboard = appViewModel.plannerRepository.getDashboard()
-                            tasks = appViewModel.repository.getTasks()
+                            tasks = appViewModel.scopedRepository().getTasks()
                             showPlannerActions = false
                         }
                     }
@@ -179,7 +179,7 @@ fun PlannerScreen(appViewModel: AppViewModel) {
             FloatingActionButton(
                 onClick = {
                     scope.launch {
-                        val created = appViewModel.repository.createTask(
+                        val created = appViewModel.scopedRepository().createTask(
                             "New Task",
                             TaskPriority.MEDIUM,
                             "Logistics"
@@ -251,7 +251,7 @@ fun PlannerScreen(appViewModel: AppViewModel) {
                     ) {
                         IconButton(onClick = {
                             scope.launch {
-                                val updated = appViewModel.repository.toggleTask(task.id)
+                                val updated = appViewModel.scopedRepository().toggleTask(task.id)
                                 tasks = tasks.map { if (it.id == task.id) updated else it }
                             }
                         }) {

@@ -7,6 +7,7 @@ import pro.wewed.app.models.CheckInStatus
 import pro.wewed.app.models.RSVPStatus
 import pro.wewed.app.models.TaskPriority
 import pro.wewed.app.models.TaskStatus
+import pro.wewed.app.services.forOnlyWedding
 import pro.wewed.app.services.FixtureWeddingRepository
 import pro.wewed.app.services.InMemorySecureStorage
 import pro.wewed.app.services.TokenVerificationResult
@@ -47,8 +48,7 @@ class WewedTests {
 
     @Test
     fun testFixtureRepositoryLifecycle() = runBlocking {
-        val repo = FixtureWeddingRepository()
-
+        val repo = FixtureWeddingRepository().forOnlyWedding()
         // 1. Get Wedding
         val wedding = repo.getWedding()
         assertEquals("Tariro & Shadreck", wedding.coupleNames)
@@ -76,7 +76,7 @@ class WewedTests {
 
     @Test
     fun testGateCheckInFullParty() = runBlocking {
-        val repo = FixtureWeddingRepository()
+        val repo = FixtureWeddingRepository().forOnlyWedding()
         val tokenJane = "WW1.wedts26.WWJD0824.0e.66f001ab.3f9a7c2b4d1e809f"
 
         // Admit entire party of 2
@@ -96,7 +96,7 @@ class WewedTests {
 
     @Test
     fun testGateCheckInPartialHouseholdAndCapacityLimits() = runBlocking {
-        val repo = FixtureWeddingRepository()
+        val repo = FixtureWeddingRepository().forOnlyWedding()
         val tokenMusarurwa = "WW1.wedts26.WWMF0104.0e.77a002bc.5a8c9e1f2b3d4e6a"
 
         // Step 1: Partial arrival of 2 out of 4
@@ -132,7 +132,7 @@ class WewedTests {
 
     @Test
     fun testGateCheckInInvalidPass() = runBlocking {
-        val repo = FixtureWeddingRepository()
+        val repo = FixtureWeddingRepository().forOnlyWedding()
         val fakeToken = "WW1.wedts26.FAKE9999.0e.00000000.signature"
         val res = repo.checkInGuest(fakeToken, 1, "usher_gate")
         assertEquals(CheckInStatus.INVALID_PASS, res.status)
@@ -159,7 +159,7 @@ class WewedTests {
 
     @Test
     fun testBudgetCalculations() = runBlocking {
-        val repo = FixtureWeddingRepository()
+        val repo = FixtureWeddingRepository().forOnlyWedding()
         val budget = repo.getBudget()
 
         assertEquals(35000.0, budget.totalBudget, 0.001)
@@ -174,7 +174,7 @@ class WewedTests {
 
     @Test
     fun testGuestRosterAggregation() = runBlocking {
-        val repo = FixtureWeddingRepository()
+        val repo = FixtureWeddingRepository().forOnlyWedding()
         val guests = repo.getGuests()
 
         val attending = guests.filter { it.rsvpStatus == RSVPStatus.ATTENDING }
@@ -276,7 +276,7 @@ class WewedTests {
 
     @Test
     fun testIvoryInvitationResolutionAndRsvpLifecycle() = runBlocking {
-        val repo = FixtureWeddingRepository()
+        val repo = FixtureWeddingRepository().forOnlyWedding()
         val slug = "tariro-shadreck-2026"
         val token = "tok_jane_doe_2026"
 
@@ -298,8 +298,7 @@ class WewedTests {
 
     @Test
     fun testVendorPresenceLifecycle() = runBlocking {
-        val repo = FixtureWeddingRepository()
-
+        val repo = FixtureWeddingRepository().forOnlyWedding()
         // 1. Initial list
         val initialVendors = repo.getVendors()
         assertEquals(3, initialVendors.size)
@@ -319,8 +318,7 @@ class WewedTests {
 
     @Test
     fun testWeddingAnnouncementsBroadcast() = runBlocking {
-        val repo = FixtureWeddingRepository()
-
+        val repo = FixtureWeddingRepository().forOnlyWedding()
         val initial = repo.getAnnouncements()
         assertEquals(2, initial.size)
 

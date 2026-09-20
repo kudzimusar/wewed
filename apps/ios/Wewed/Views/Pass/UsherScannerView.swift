@@ -289,7 +289,7 @@ public struct UsherScannerView: View {
     private func performScan(token: String) {
         Task {
             do {
-                let res = try await appState.repository.checkInGuest(qrPayload: token, count: checkInCount, usherId: "gate_usher_1")
+                let res = try await appState.scopedRepository().checkInGuest(qrPayload: token, count: checkInCount, usherId: "gate_usher_1")
                 scanResult = res
                 loadAuditRecords()
             } catch {
@@ -310,7 +310,7 @@ public struct UsherScannerView: View {
 
     private func search(query: String) {
         Task {
-            if let results = try? await appState.repository.searchGuests(query: query) {
+            if let results = try? await appState.scopedRepository().searchGuests(query: query) {
                 searchResults = results
             }
         }
@@ -325,7 +325,7 @@ public struct UsherScannerView: View {
 
     private func loadAuditRecords() {
         Task {
-            if let records = try? await appState.repository.getAuditRecords() {
+            if let records = try? await appState.scopedRepository().getAuditRecords() {
                 auditRecords = records
             }
         }

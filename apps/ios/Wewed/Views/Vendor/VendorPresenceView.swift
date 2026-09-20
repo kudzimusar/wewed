@@ -232,7 +232,7 @@ public struct VendorPresenceView: View {
 
     private func loadVendors() {
         Task {
-            if let list = try? await appState.repository.getVendors() {
+            if let list = try? await appState.scopedRepository().getVendors() {
                 vendors = list
                 if !list.contains(where: { $0.id == selectedVendorId }) {
                     selectedVendorId = list.first?.id ?? ""
@@ -243,7 +243,7 @@ public struct VendorPresenceView: View {
 
     private func updateStatus(id: String, state: VendorPresenceState) {
         Task {
-            if let updated = try? await appState.repository.updateVendorState(id: id, state: state) {
+            if let updated = try? await appState.scopedRepository().updateVendorState(id: id, state: state) {
                 if let idx = vendors.firstIndex(where: { $0.id == id }) {
                     vendors[idx] = updated
                 }

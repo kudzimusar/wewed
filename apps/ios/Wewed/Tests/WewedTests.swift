@@ -32,7 +32,7 @@ final class WewedTests: XCTestCase {
     }
 
     func testFixtureRepositoryLifecycle() async throws {
-        let repo = FixtureWeddingRepository()
+        let repo = try await FixtureWeddingRepository().forOnlyWedding()
 
         // 1. Get Wedding
         let wedding = try await repo.getWedding()
@@ -60,7 +60,7 @@ final class WewedTests: XCTestCase {
     }
 
     func testGateCheckInFullParty() async throws {
-        let repo = FixtureWeddingRepository()
+        let repo = try await FixtureWeddingRepository().forOnlyWedding()
         let tokenJane = "WW1.wedts26.WWJD0824.0e.66f001ab.3f9a7c2b4d1e809f"
 
         // Admit entire party of 2
@@ -79,7 +79,7 @@ final class WewedTests: XCTestCase {
     }
 
     func testGateCheckInPartialHouseholdAndCapacityLimits() async throws {
-        let repo = FixtureWeddingRepository()
+        let repo = try await FixtureWeddingRepository().forOnlyWedding()
         let tokenMusarurwa = "WW1.wedts26.WWMF0104.0e.77a002bc.5a8c9e1f2b3d4e6a"
 
         // Step 1: Partial arrival of 2 out of 4
@@ -114,7 +114,7 @@ final class WewedTests: XCTestCase {
     }
 
     func testGateCheckInInvalidPass() async throws {
-        let repo = FixtureWeddingRepository()
+        let repo = try await FixtureWeddingRepository().forOnlyWedding()
         let fakeToken = "WW1.wedts26.FAKE9999.0e.00000000.signature"
         let res = try await repo.checkInGuest(qrPayload: fakeToken, count: 1, usherId: "usher_gate")
         XCTAssertEqual(res.status, .invalidPass)
@@ -139,7 +139,7 @@ final class WewedTests: XCTestCase {
     }
 
     func testBudgetCalculations() async throws {
-        let repo = FixtureWeddingRepository()
+        let repo = try await FixtureWeddingRepository().forOnlyWedding()
         let budget = try await repo.getBudget()
 
         XCTAssertEqual(budget.totalBudget, 35000.0)
@@ -153,7 +153,7 @@ final class WewedTests: XCTestCase {
     }
 
     func testGuestRosterAggregation() async throws {
-        let repo = FixtureWeddingRepository()
+        let repo = try await FixtureWeddingRepository().forOnlyWedding()
         let guests = try await repo.getGuests()
 
         let attending = guests.filter { $0.rsvpStatus == .attending }
@@ -251,7 +251,7 @@ final class WewedTests: XCTestCase {
     }
 
     func testIvoryInvitationResolutionAndRsvpLifecycle() async throws {
-        let repo = FixtureWeddingRepository()
+        let repo = try await FixtureWeddingRepository().forOnlyWedding()
         let slug = "tariro-shadreck-2026"
         let token = "tok_jane_doe_2026"
 
@@ -272,7 +272,7 @@ final class WewedTests: XCTestCase {
     }
 
     func testVendorPresenceLifecycle() async throws {
-        let repo = FixtureWeddingRepository()
+        let repo = try await FixtureWeddingRepository().forOnlyWedding()
 
         // 1. Initial list
         let initialVendors = try await repo.getVendors()
@@ -292,7 +292,7 @@ final class WewedTests: XCTestCase {
     }
 
     func testWeddingAnnouncementsBroadcast() async throws {
-        let repo = FixtureWeddingRepository()
+        let repo = try await FixtureWeddingRepository().forOnlyWedding()
 
         let initial = try await repo.getAnnouncements()
         XCTAssertEqual(initial.count, 2)

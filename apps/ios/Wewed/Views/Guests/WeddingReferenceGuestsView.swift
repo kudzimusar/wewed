@@ -297,8 +297,8 @@ public struct WeddingReferenceGuestsView: View {
 
     private func load() async {
         do {
-            async let loadedGuests = appState.repository.getGuests()
-            async let loadedWedding = appState.repository.getWedding()
+            async let loadedGuests = appState.scopedRepository().getGuests()
+            async let loadedWedding = appState.scopedRepository().getWedding()
             guests = try await loadedGuests
             wedding = try await loadedWedding
         } catch {

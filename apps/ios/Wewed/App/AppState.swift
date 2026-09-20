@@ -50,12 +50,31 @@ public final class AppState: ObservableObject, @unchecked Sendable {
     /// against the active role and context; parsing alone never navigates.
     @Published public var pendingRouteDeepLink: NativeDeepLink? = nil
 
+    /// The wedding every graph read is scoped to (P0-1).
+    ///
+    /// Bound once by the root from the resolved NavigationContext. Deliberately not defaulted: an
+    /// unbound state cannot read a wedding graph at all, so no view can rely on an ambient fallback.
+    @Published public private(set) var activeWeddingId: String?
+
     public let repository: WeddingRepositoryProtocol
     public let plannerRepository: PlannerDashboardRepositoryProtocol
     public let dataEnvironment: NativeDataEnvironment
     public let dataBaseURL: URL?
     /// Nil by default. Isolated integration builds/tests may inject a manifest-backed runtime.
     public let weddingDayGate: WeddingDayGateOperations?
+
+    public func bindActiveWedding(_ weddingId: String) {
+        activeWeddingId = weddingId.isEmpty ? nil : weddingId
+    }
+
+    /// The only way a view reads the wedding graph. Throws if no wedding is bound, and
+    /// `forWedding` rejects a wedding this source does not serve.
+    public func scopedRepository() async throws -> ScopedWeddingRepository {
+        guard let weddingId = activeWeddingId else {
+            throw WeddingScopeMismatch(requestedWeddingId: "<unbound>", availableWeddingIds: [])
+        }
+        return try await repository.forWedding(weddingId)
+    }
 
     public func handleIncomingURL(_ url: URL) {
         guard let deepLink = NativeDeepLinkParser.parse(url.absoluteString) else { return }

@@ -28,7 +28,7 @@ fun GuestsScreen(appViewModel: AppViewModel) {
     var searchQuery by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
-        guests = appViewModel.repository.getGuests()
+        guests = appViewModel.scopedRepository().getGuests()
     }
 
     val filteredGuests = remember(guests, searchQuery) {

@@ -6,14 +6,14 @@ final class ShadowReferenceRepositoryTests: XCTestCase {
         let bundle = try NativeRepositoryFactory.make(environment: .shadow)
         XCTAssertEqual(bundle.environment, .shadow)
 
-        let wedding = try await bundle.wedding.getWedding()
+        let wedding = try await bundle.wedding.forOnlyWedding().getWedding()
         let dashboard = try await bundle.planner.getDashboard()
         let invitation = try await bundle.wedding.resolveInvitation(
             weddingSlug: wedding.id,
             token: "native-reference-guest"
         )
         let pass = try await bundle.wedding.getWeddingPass(token: "native-reference-guest")
-        let guests = try await bundle.wedding.getGuests()
+        let guests = try await bundle.wedding.forOnlyWedding().getGuests()
 
         XCTAssertEqual(wedding.coupleNames, "Charity & Kudzie")
         XCTAssertEqual(dashboard.coupleNames, wedding.coupleNames)
@@ -28,7 +28,7 @@ final class ShadowReferenceRepositoryTests: XCTestCase {
     }
 
     func testShadowDeclineChangesGuestStateWithoutGrantingAdmissionStage() async throws {
-        let repository = ShadowReferenceWeddingRepository()
+        let repository = try await ShadowReferenceWeddingRepository().forOnlyWedding()
 
         let returned = try await repository.confirmRsvp(
             weddingSlug: "shadow_ref_charity_kudzie",
@@ -63,7 +63,7 @@ final class ShadowReferenceRepositoryTests: XCTestCase {
     }
 
     func testPendingInvitationTransitionsToAttendingPassWithoutChangingAttendingFixtureGuest() async throws {
-        let repository = ShadowReferenceWeddingRepository()
+        let repository = try await ShadowReferenceWeddingRepository().forOnlyWedding()
 
         let invitation = try await repository.resolveInvitation(
             weddingSlug: "shadow_ref_charity_kudzie",
@@ -89,7 +89,7 @@ final class ShadowReferenceRepositoryTests: XCTestCase {
     }
 
     func testPartyOfFourCheckInLifecycle() async throws {
-        let repository = ShadowReferenceWeddingRepository()
+        let repository = try await ShadowReferenceWeddingRepository().forOnlyWedding()
         let guests = try await repository.getGuests()
         let party4Guest = try XCTUnwrap(guests.first(where: { $0.id == "shadow_guest_007" }))
         XCTAssertEqual(party4Guest.partySize, 4)
@@ -161,12 +161,12 @@ final class ShadowReferenceRepositoryTests: XCTestCase {
         let bundle = try NativeRepositoryFactory.make(environment: .privateRealShadow)
         XCTAssertEqual(bundle.environment, .privateRealShadow)
 
-        let wedding = try await bundle.wedding.getWedding()
-        let guests = try await bundle.wedding.getGuests()
-        let tasks = try await bundle.wedding.getTasks()
-        let budget = try await bundle.wedding.getBudget()
-        let vendors = try await bundle.wedding.getVendors()
-        let announcements = try await bundle.wedding.getAnnouncements()
+        let wedding = try await bundle.wedding.forOnlyWedding().getWedding()
+        let guests = try await bundle.wedding.forOnlyWedding().getGuests()
+        let tasks = try await bundle.wedding.forOnlyWedding().getTasks()
+        let budget = try await bundle.wedding.forOnlyWedding().getBudget()
+        let vendors = try await bundle.wedding.forOnlyWedding().getVendors()
+        let announcements = try await bundle.wedding.forOnlyWedding().getAnnouncements()
         let dashboard = try await bundle.planner.getDashboard()
         let budgetLines = try await bundle.planner.getBudgetLines()
         let contributions = try await bundle.planner.getContributions()
@@ -257,7 +257,7 @@ final class ShadowReferenceRepositoryTests: XCTestCase {
         guard FileManager.default.fileExists(atPath: snapshotPath) else { return }
 
         let bundle = try NativeRepositoryFactory.make(environment: .privateRealShadow)
-        let wedding = try await bundle.wedding.getWedding()
+        let wedding = try await bundle.wedding.forOnlyWedding().getWedding()
 
         // 1. Resolve pending invitation
         let invitation = try await bundle.wedding.resolveInvitation(
@@ -285,7 +285,7 @@ final class ShadowReferenceRepositoryTests: XCTestCase {
         XCTAssertEqual(pass.qrPayload, retrievedPass.qrPayload)
 
         // 4. Verify guest roster state
-        let guests = try await bundle.wedding.getGuests()
+        let guests = try await bundle.wedding.forOnlyWedding().getGuests()
         let updatedGuest = try XCTUnwrap(guests.first(where: { $0.name == invitation.guestName }))
         XCTAssertEqual(updatedGuest.rsvpStatus, .attending)
         XCTAssertNotNil(updatedGuest.passSerial)

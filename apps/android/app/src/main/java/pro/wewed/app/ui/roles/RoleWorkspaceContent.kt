@@ -21,6 +21,8 @@ import androidx.compose.ui.unit.sp
 import pro.wewed.app.models.*
 import pro.wewed.app.navigation.NavigationContext
 import pro.wewed.app.navigation.PrimaryDestination
+import pro.wewed.app.services.WeddingScopeMismatch
+import pro.wewed.app.services.forWedding
 import pro.wewed.app.state.AppViewModel
 import pro.wewed.app.state.SessionViewModel
 import pro.wewed.app.theme.WeddingIdentityPalette
@@ -46,6 +48,21 @@ class WeddingGraphState {
     var auditRecords by mutableStateOf<List<CheckInAuditRecord>>(emptyList())
     var loading by mutableStateOf(true)
     var error by mutableStateOf<String?>(null)
+
+    /** The wedding this graph was actually loaded for; null until a scoped load succeeds. */
+    var scopedWeddingId by mutableStateOf<String?>(null)
+
+    /** Drops every row so a failed scope can never keep rendering the previous wedding. */
+    fun clearGraph() {
+        wedding = null
+        tasks = emptyList()
+        guests = emptyList()
+        budget = null
+        vendors = emptyList()
+        announcements = emptyList()
+        auditRecords = emptyList()
+        scopedWeddingId = null
+    }
 }
 
 /**
@@ -61,15 +78,26 @@ fun rememberWeddingGraph(
     LaunchedEffect(context.activeWeddingId) {
         state.loading = true
         state.error = null
-        runCatching {
-            state.wedding = appViewModel.repository.getWedding()
-            state.tasks = appViewModel.repository.getTasks()
-            state.guests = appViewModel.repository.getGuests()
-            state.budget = appViewModel.repository.getBudget()
-            state.vendors = appViewModel.repository.getVendors()
-            state.announcements = appViewModel.repository.getAnnouncements()
-            state.auditRecords = appViewModel.repository.getAuditRecords()
-        }.onFailure { state.error = it.message ?: "Unable to load this wedding." }
+        state.scopedWeddingId = null
+        try {
+            // P0-1: the graph is read through a repository bound to THIS wedding. If the source
+            // cannot serve it, forWedding throws rather than returning another wedding's rows.
+            val scoped = appViewModel.repository.forWedding(context.activeWeddingId)
+            state.wedding = scoped.getWedding()
+            state.tasks = scoped.getTasks()
+            state.guests = scoped.getGuests()
+            state.budget = scoped.getBudget()
+            state.vendors = scoped.getVendors()
+            state.announcements = scoped.getAnnouncements()
+            state.auditRecords = scoped.getAuditRecords()
+            state.scopedWeddingId = scoped.weddingId
+        } catch (mismatch: WeddingScopeMismatch) {
+            state.clearGraph()
+            state.error = "This workspace is not available for the selected wedding."
+        } catch (failure: Exception) {
+            state.clearGraph()
+            state.error = failure.message ?: "Unable to load this wedding."
+        }
         state.loading = false
     }
     return state

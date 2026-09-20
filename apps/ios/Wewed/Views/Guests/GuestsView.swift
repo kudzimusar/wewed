@@ -88,7 +88,7 @@ public struct GuestsView: View {
             .navigationTitle("Guest List")
             .task {
                 do {
-                    guests = try await appState.repository.getGuests()
+                    guests = try await appState.scopedRepository().getGuests()
                     isLoading = false
                 } catch {
                     isLoading = false

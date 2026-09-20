@@ -85,7 +85,7 @@ fun TasksDestination(appViewModel: AppViewModel, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
-        tasks = appViewModel.repository.getTasks()
+        tasks = appViewModel.scopedRepository().getTasks()
     }
 
     val filteredTasks = when (selectedFilter) {
@@ -131,7 +131,7 @@ fun TasksDestination(appViewModel: AppViewModel, onBack: () -> Unit) {
                     ) {
                         IconButton(onClick = {
                             scope.launch {
-                                val updated = appViewModel.repository.toggleTask(task.id)
+                                val updated = appViewModel.scopedRepository().toggleTask(task.id)
                                 tasks = tasks.map { if (it.id == task.id) updated else it }
                             }
                         }) {
@@ -220,7 +220,7 @@ fun SeatingDestination(appViewModel: AppViewModel? = null, onBack: () -> Unit) {
 fun GuestsBridgeDestination(appViewModel: AppViewModel, onBack: () -> Unit) {
     var guests by remember { mutableStateOf<List<Guest>>(emptyList()) }
     LaunchedEffect(Unit) {
-        guests = appViewModel.repository.getGuests()
+        guests = appViewModel.scopedRepository().getGuests()
     }
     PlannerSubScreenScaffold(title = "Guests Roster Bridge", onBack = onBack) { padding ->
         LazyColumn(

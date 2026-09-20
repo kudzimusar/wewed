@@ -21,24 +21,44 @@ public final class WeddingGraphState: ObservableObject {
     @Published public var loading = true
     @Published public var error: String?
 
-    /// Loaded for one specific wedding id; a change re-resolves rather than reusing stale rows.
-    public private(set) var loadedWeddingId: String?
+    /// The wedding this graph was actually loaded for; nil until a scoped load succeeds.
+    @Published public private(set) var scopedWeddingId: String?
 
     public init() {}
 
-    public func load(repository: WeddingRepositoryProtocol, weddingId: String) async {
+    /// Drops every row so a failed scope can never keep rendering the previous wedding.
+    private func clearGraph() {
+        wedding = nil
+        tasks = []
+        guests = []
+        budget = nil
+        vendors = []
+        announcements = []
+        auditRecords = []
+        scopedWeddingId = nil
+    }
+
+    public func load(source: WeddingRepositoryProtocol, weddingId: String) async {
         loading = true
         error = nil
+        scopedWeddingId = nil
         do {
-            wedding = try await repository.getWedding()
-            tasks = try await repository.getTasks()
-            guests = try await repository.getGuests()
-            budget = try await repository.getBudget()
-            vendors = try await repository.getVendors()
-            announcements = try await repository.getAnnouncements()
-            auditRecords = try await repository.getAuditRecords()
-            loadedWeddingId = weddingId
+            // P0-1: the graph is read through a repository bound to THIS wedding. If the source
+            // cannot serve it, forWedding throws rather than returning another wedding's rows.
+            let scoped = try await source.forWedding(weddingId)
+            wedding = try await scoped.getWedding()
+            tasks = try await scoped.getTasks()
+            guests = try await scoped.getGuests()
+            budget = try await scoped.getBudget()
+            vendors = try await scoped.getVendors()
+            announcements = try await scoped.getAnnouncements()
+            auditRecords = try await scoped.getAuditRecords()
+            scopedWeddingId = scoped.weddingId
+        } catch is WeddingScopeMismatch {
+            clearGraph()
+            error = "This workspace is not available for the selected wedding."
         } catch {
+            clearGraph()
             self.error = error.localizedDescription
         }
         loading = false

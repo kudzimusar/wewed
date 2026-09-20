@@ -37,7 +37,7 @@ fun WeddingReferenceMoreScreen(appViewModel: AppViewModel) {
 
     LaunchedEffect(Unit) {
         try {
-            wedding = appViewModel.repository.getWedding()
+            wedding = appViewModel.scopedRepository().getWedding()
         } finally {
             loading = false
         }

@@ -1,7 +1,6 @@
 import Foundation
 
-/// Repository adapter that preserves every existing native surface while routing only Gate QR
-/// admission through the explicitly injected manifest-backed Wedding Day runtime.
+/// Preserves all existing native surfaces while routing Gate QR admission through Wedding Day.
 public actor WeddingDayGateAwareRepository: WeddingRepositoryProtocol {
     private let base: WeddingRepositoryProtocol
     private let gate: WeddingDayGateOperations
@@ -11,24 +10,33 @@ public actor WeddingDayGateAwareRepository: WeddingRepositoryProtocol {
         self.gate = gate
     }
 
-    public func getWedding() async throws -> Wedding { try await base.getWedding() }
-    public func getTasks() async throws -> [PlannerTask] { try await base.getTasks() }
-    public func createTask(title: String, priority: TaskPriority, category: String) async throws -> PlannerTask {
-        try await base.createTask(title: title, priority: priority, category: category)
+    public func availableWeddingIds() async throws -> [String] { try await base.availableWeddingIds() }
+    public func getWedding(weddingId: String) async throws -> Wedding { try await base.getWedding(weddingId: weddingId) }
+    public func getTasks(weddingId: String) async throws -> [PlannerTask] { try await base.getTasks(weddingId: weddingId) }
+    public func createTask(weddingId: String, title: String, priority: TaskPriority, category: String) async throws -> PlannerTask {
+        try await base.createTask(weddingId: weddingId, title: title, priority: priority, category: category)
     }
-    public func toggleTask(taskId: String) async throws -> PlannerTask { try await base.toggleTask(taskId: taskId) }
-    public func getGuests() async throws -> [Guest] { try await base.getGuests() }
-    public func getBudget() async throws -> BudgetSummary { try await base.getBudget() }
+    public func toggleTask(weddingId: String, taskId: String) async throws -> PlannerTask {
+        try await base.toggleTask(weddingId: weddingId, taskId: taskId)
+    }
+    public func getGuests(weddingId: String) async throws -> [Guest] { try await base.getGuests(weddingId: weddingId) }
+    public func getBudget(weddingId: String) async throws -> BudgetSummary { try await base.getBudget(weddingId: weddingId) }
     public func getWeddingPass(token: String) async throws -> WeddingPass { try await base.getWeddingPass(token: token) }
-    public func searchGuests(query: String) async throws -> [Guest] { try await base.searchGuests(query: query) }
-    public func getAuditRecords() async throws -> [CheckInAuditRecord] { try await base.getAuditRecords() }
-    public func getVendors() async throws -> [VendorPresence] { try await base.getVendors() }
-    public func updateVendorState(id: String, state: VendorPresenceState) async throws -> VendorPresence {
-        try await base.updateVendorState(id: id, state: state)
+    public func searchGuests(weddingId: String, query: String) async throws -> [Guest] {
+        try await base.searchGuests(weddingId: weddingId, query: query)
     }
-    public func getAnnouncements() async throws -> [WeddingAnnouncement] { try await base.getAnnouncements() }
-    public func postAnnouncement(title: String, message: String, urgency: AnnouncementUrgency) async throws -> WeddingAnnouncement {
-        try await base.postAnnouncement(title: title, message: message, urgency: urgency)
+    public func getAuditRecords(weddingId: String) async throws -> [CheckInAuditRecord] {
+        try await base.getAuditRecords(weddingId: weddingId)
+    }
+    public func getVendors(weddingId: String) async throws -> [VendorPresence] { try await base.getVendors(weddingId: weddingId) }
+    public func updateVendorState(weddingId: String, id: String, state: VendorPresenceState) async throws -> VendorPresence {
+        try await base.updateVendorState(weddingId: weddingId, id: id, state: state)
+    }
+    public func getAnnouncements(weddingId: String) async throws -> [WeddingAnnouncement] {
+        try await base.getAnnouncements(weddingId: weddingId)
+    }
+    public func postAnnouncement(weddingId: String, title: String, message: String, urgency: AnnouncementUrgency) async throws -> WeddingAnnouncement {
+        try await base.postAnnouncement(weddingId: weddingId, title: title, message: message, urgency: urgency)
     }
     public func resolveInvitation(weddingSlug: String, token: String) async throws -> InvitationContext {
         try await base.resolveInvitation(weddingSlug: weddingSlug, token: token)
@@ -37,7 +45,12 @@ public actor WeddingDayGateAwareRepository: WeddingRepositoryProtocol {
         try await base.confirmRsvp(weddingSlug: weddingSlug, token: token, attending: attending)
     }
 
-    public func checkInGuest(qrPayload: String, count: Int, usherId: String) async throws -> CheckInVerificationResult {
-        try await gate.checkIn(qrPayload: qrPayload, count: count, usherId: usherId)
+    /// Gate admission stays routed through Wedding Day, but still inside the wedding scope.
+    public func checkInGuest(weddingId: String, qrPayload: String, count: Int, usherId: String) async throws -> CheckInVerificationResult {
+        let available = try await base.availableWeddingIds()
+        guard available.contains(weddingId) else {
+            throw WeddingScopeMismatch(requestedWeddingId: weddingId, availableWeddingIds: available)
+        }
+        return try await gate.checkIn(qrPayload: qrPayload, count: count, usherId: usherId)
     }
 }

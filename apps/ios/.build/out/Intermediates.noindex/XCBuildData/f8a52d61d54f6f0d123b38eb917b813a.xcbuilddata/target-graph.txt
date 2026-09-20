@@ -1,0 +1,18 @@
+Target dependency graph (6 targets)
+Target 'AllIncludingTests' in project 'Aggregate'
+➜ Explicit dependency on target 'WewedTests-product' in project 'WewedIOS'
+➜ Dependency on target 'WewedTests-product' in project 'WewedIOS' via transitive dependency through 'WewedTests-test-runner'
+➜ Explicit dependency on target 'WewedKit-product' in project 'WewedIOS'
+➜ Explicit dependency on target 'WewedApp-product' in project 'WewedIOS'
+➜ Explicit dependency on target 'WewedKit' in project 'WewedIOS'
+➜ Explicit dependency on target 'WewedIOS_WewedKit' in project 'WewedIOS'
+Target 'WewedApp-product' in project 'WewedIOS'
+➜ Explicit dependency on target 'WewedKit' in project 'WewedIOS'
+Target 'WewedKit-product' in project 'WewedIOS'
+➜ Explicit dependency on target 'WewedKit' in project 'WewedIOS'
+➜ Explicit dependency on target 'WewedIOS_WewedKit' in project 'WewedIOS'
+Target 'WewedTests-product' in project 'WewedIOS'
+➜ Explicit dependency on target 'WewedKit' in project 'WewedIOS'
+Target 'WewedKit' in project 'WewedIOS'
+➜ Explicit dependency on target 'WewedIOS_WewedKit' in project 'WewedIOS'
+Target 'WewedIOS_WewedKit' in project 'WewedIOS' (no dependencies)

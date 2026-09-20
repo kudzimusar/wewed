@@ -7,6 +7,8 @@ import pro.wewed.app.models.CheckInStatus
 import pro.wewed.app.models.NativeDataEnvironment
 import pro.wewed.app.models.PassStage
 import pro.wewed.app.models.RSVPStatus
+import pro.wewed.app.services.scopedWedding
+import pro.wewed.app.services.forOnlyWedding
 import pro.wewed.app.services.NativeEnvironmentGuardError
 import pro.wewed.app.services.NativeRepositoryFactory
 import pro.wewed.app.services.NativeRepositoryFactoryError
@@ -19,11 +21,11 @@ class ShadowReferenceRepositoryTest {
         val bundle = NativeRepositoryFactory.make(NativeDataEnvironment.SHADOW)
         assertEquals(NativeDataEnvironment.SHADOW, bundle.environment)
 
-        val wedding = bundle.wedding.getWedding()
+        val wedding = bundle.scopedWedding().getWedding()
         val dashboard = bundle.planner.getDashboard()
-        val invitation = bundle.wedding.resolveInvitation(wedding.id, "native-reference-guest")
-        val pass = bundle.wedding.getWeddingPass("native-reference-guest")
-        val guests = bundle.wedding.getGuests()
+        val invitation = bundle.scopedWedding().resolveInvitation(wedding.id, "native-reference-guest")
+        val pass = bundle.scopedWedding().getWeddingPass("native-reference-guest")
+        val guests = bundle.scopedWedding().getGuests()
 
         assertEquals("Charity & Kudzie", wedding.coupleNames)
         assertEquals(wedding.coupleNames, dashboard.coupleNames)
@@ -39,8 +41,7 @@ class ShadowReferenceRepositoryTest {
 
     @Test
     fun shadowDeclineChangesGuestStateWithoutGrantingAdmissionStage() = runBlocking {
-        val repository = ShadowReferenceWeddingRepository()
-
+        val repository = ShadowReferenceWeddingRepository().forOnlyWedding()
         val returned = repository.confirmRsvp(
             "shadow_ref_charity_kudzie",
             "native-reference-guest",
@@ -75,8 +76,7 @@ class ShadowReferenceRepositoryTest {
 
     @Test
     fun pendingInvitationTransitionsToAttendingPassWithoutChangingExistingAttendee() = runBlocking {
-        val repository = ShadowReferenceWeddingRepository()
-
+        val repository = ShadowReferenceWeddingRepository().forOnlyWedding()
         val invitation = repository.resolveInvitation(
             "shadow_ref_charity_kudzie",
             "shadow-pending-guest"
@@ -102,7 +102,7 @@ class ShadowReferenceRepositoryTest {
 
     @Test
     fun partyOfFourCheckInLifecycle() = runBlocking {
-        val repository = ShadowReferenceWeddingRepository()
+        val repository = ShadowReferenceWeddingRepository().forOnlyWedding()
         val guests = repository.getGuests()
         val party4Guest = guests.first { it.id == "shadow_guest_007" }
         assertEquals(4, party4Guest.partySize)
@@ -163,12 +163,12 @@ class ShadowReferenceRepositoryTest {
         val bundle = NativeRepositoryFactory.make(NativeDataEnvironment.PRIVATE_REAL_SHADOW)
         assertEquals(NativeDataEnvironment.PRIVATE_REAL_SHADOW, bundle.environment)
 
-        val wedding = bundle.wedding.getWedding()
-        val tasks = bundle.wedding.getTasks()
-        val guests = bundle.wedding.getGuests()
-        val budget = bundle.wedding.getBudget()
-        val vendors = bundle.wedding.getVendors()
-        val announcements = bundle.wedding.getAnnouncements()
+        val wedding = bundle.scopedWedding().getWedding()
+        val tasks = bundle.scopedWedding().getTasks()
+        val guests = bundle.scopedWedding().getGuests()
+        val budget = bundle.scopedWedding().getBudget()
+        val vendors = bundle.scopedWedding().getVendors()
+        val announcements = bundle.scopedWedding().getAnnouncements()
         val dashboard = bundle.planner.getDashboard()
         val budgetLines = bundle.planner.getBudgetLines()
         val contributions = bundle.planner.getContributions()
@@ -258,26 +258,26 @@ class ShadowReferenceRepositoryTest {
         if (!java.io.File(path).exists()) return@runBlocking
 
         val bundle = NativeRepositoryFactory.make(NativeDataEnvironment.PRIVATE_REAL_SHADOW)
-        val wedding = bundle.wedding.getWedding()
+        val wedding = bundle.scopedWedding().getWedding()
 
         // 1. Resolve pending invitation
-        val invitation = bundle.wedding.resolveInvitation(wedding.id, "shadow-pending-guest")
+        val invitation = bundle.scopedWedding().resolveInvitation(wedding.id, "shadow-pending-guest")
         assertFalse(invitation.isConfirmed)
         assertFalse("Invitation guest name must not be generic pseudonym", Regex("""Guest G\d+""").containsMatchIn(invitation.guestName))
 
         // 2. Accept RSVP
-        val pass = bundle.wedding.confirmRsvp(wedding.id, "shadow-pending-guest", true)
+        val pass = bundle.scopedWedding().confirmRsvp(wedding.id, "shadow-pending-guest", true)
         assertEquals(invitation.guestName, pass.guestName)
         assertEquals(PassStage.ATTENDING, pass.currentStage)
         assertTrue(pass.qrPayload.startsWith("REAL_SHADOW_ONLY"))
 
         // 3. Get wedding pass
-        val retrievedPass = bundle.wedding.getWeddingPass(pass.token)
+        val retrievedPass = bundle.scopedWedding().getWeddingPass(pass.token)
         assertEquals(invitation.guestName, retrievedPass.guestName)
         assertEquals(pass.qrPayload, retrievedPass.qrPayload)
 
         // 4. Verify guest roster state
-        val updatedGuest = bundle.wedding.getGuests().first { it.name == invitation.guestName }
+        val updatedGuest = bundle.scopedWedding().getGuests().first { it.name == invitation.guestName }
         assertEquals(RSVPStatus.ATTENDING, updatedGuest.rsvpStatus)
         assertNotNull(updatedGuest.passSerial)
     }

@@ -13,7 +13,9 @@ import pro.wewed.app.services.PlannerDashboardRepository
 import pro.wewed.app.services.NativeEnvironmentGuard
 import pro.wewed.app.services.WeddingDayGateAwareRepository
 import pro.wewed.app.services.WeddingDayGateOperations
+import pro.wewed.app.services.ScopedWeddingRepository
 import pro.wewed.app.services.WeddingRepository
+import pro.wewed.app.services.forWedding
 
 /**
  * Couple Level-1 destinations, mirroring the IA V2 couple taxonomy
@@ -50,6 +52,30 @@ class AppViewModel(
         WeddingDayGateAwareRepository(baseRepository, weddingDayGate)
     } else {
         baseRepository
+    }
+
+    /**
+     * The wedding every graph read is scoped to (P0-1).
+     *
+     * Bound once by the root from the resolved NavigationContext. It is deliberately not defaulted:
+     * an unbound view model cannot read a wedding graph at all, so there is no ambient fallback for
+     * a screen to accidentally rely on.
+     */
+    private val _activeWeddingId = MutableStateFlow<String?>(null)
+    val activeWeddingId: StateFlow<String?> = _activeWeddingId.asStateFlow()
+
+    fun bindActiveWedding(weddingId: String) {
+        _activeWeddingId.value = weddingId.takeIf { it.isNotBlank() }
+    }
+
+    /**
+     * The only way a screen reads the wedding graph. Throws if no wedding is bound, and
+     * [forWedding] rejects a wedding this source does not serve.
+     */
+    suspend fun scopedRepository(): ScopedWeddingRepository {
+        val weddingId = _activeWeddingId.value
+            ?: error("No active wedding is bound; a wedding graph cannot be read without a scope.")
+        return repository.forWedding(weddingId)
     }
 
     private val _selectedTab = MutableStateFlow(AppTab.HOME)
