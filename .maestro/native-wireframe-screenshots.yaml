@@ -28,11 +28,9 @@ appId: pro.wewed.app.dev
     id: "more-root"
 - takeScreenshot: wireframe-more
 
-- tapOn: "Home"
-- assertVisible:
-    id: "home-root"
-- tapOn:
-    id: "home-open-invitation"
+# The invitation is captured from its own scoped guest link: Couple Home no longer opens an
+# arbitrary guest's invitation (P0-11).
+- openLink: "wewed://invite/shadow_ref_charity_kudzie?rsvp=shadow-pending-guest"
 - extendedWaitUntil:
     visible:
       id: "ivory-invitation-root"

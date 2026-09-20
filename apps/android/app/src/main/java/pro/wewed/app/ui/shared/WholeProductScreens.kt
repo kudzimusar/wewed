@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import pro.wewed.app.state.SessionViewModel
+import pro.wewed.app.theme.WeddingIdentityPalette
 import pro.wewed.app.theme.WewedColors
 import pro.wewed.app.theme.WewedRadius
 import pro.wewed.app.theme.WewedSpacing
@@ -244,43 +245,31 @@ fun MarketplaceDirectoryScreen(onBack: (() -> Unit)? = null) {
 // 4. Messages Inbox Screen (COMM-01)
 @Composable
 fun MessagesInboxScreen(onBack: (() -> Unit)? = null) {
-    SharedScaffold(title = "Messages & Shared Inbox", onBack = onBack) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = WewedSpacing.base),
-            verticalArrangement = Arrangement.spacedBy(WewedSpacing.md)
+    // P0-14 fixture leak: this screen previously hard-coded a planner conversation with a
+    // timestamp, which read as a real thread. No message or thread entity exists in the wedding
+    // graph in any Shadow environment, so the honest answer is that the capability is unsupported.
+    SharedScaffold(title = "Messages", onBack = onBack) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(WewedSpacing.base),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            val threads = listOf(
-                Triple("Eleven Eleven Testing (Lead Planner)", "Planning coordination for Charity & Kudzie active.", "10:42 AM")
+            Text(
+                "Messages",
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                color = WeddingIdentityPalette.Ink
             )
-            items(threads) { (sender, preview, time) ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(WewedRadius.md),
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(WewedSpacing.base),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .background(WewedColors.GoldLight.copy(alpha = 0.3f), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(sender.take(1), fontWeight = FontWeight.Bold, color = Color.Black)
-                        }
-                        Spacer(modifier = Modifier.width(WewedSpacing.sm))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                                Text(sender, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                                Text(time, fontSize = 11.sp, color = Color.Gray)
-                            }
-                            Text(preview, fontSize = 12.sp, color = Color.Gray)
-                        }
-                    }
-                }
-            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                "Native messaging has no contract in this environment. No conversations are recorded in the wedding graph, so none are shown.",
+                fontSize = 12.sp,
+                color = WeddingIdentityPalette.Muted,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
         }
     }
 }

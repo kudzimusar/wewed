@@ -5,15 +5,10 @@ appId: pro.wewed.app.dev
     arguments:
       wewed_native_env: "shadow"
 
-# 1. Sign In
-- assertVisible: "WEWED"
-- tapOn: "Sign In"
-
-# 2. Open the invitation from the Home hero
-- assertVisible:
-    id: "home-root"
-- tapOn:
-    id: "home-open-invitation"
+# 1. Open the guest's own invitation via its scoped link.
+# Couple Home no longer opens an arbitrary guest's invitation (P0-11), so the invitation is
+# reached the legitimate way: the credential-scoped link the guest actually receives.
+- openLink: "wewed://invite/shadow_ref_charity_kudzie?rsvp=shadow-pending-guest"
 
 # 3. Splash -> Ivory Floral Gold invitation
 # Splash is intentionally transient; verify the destination after the branded transition.

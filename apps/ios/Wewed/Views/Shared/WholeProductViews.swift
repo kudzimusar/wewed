@@ -264,15 +264,23 @@ private struct MarketplaceCard: View {
 public struct MessagesInboxView: View {
     public init() {}
 
+    // P0-14 fixture leak: this view previously hard-coded a planner conversation with a
+    // timestamp, which read as a real thread. No message or thread entity exists in the wedding
+    // graph in any Shadow environment, so the honest answer is that the capability is unsupported.
     public var body: some View {
-        ScrollView {
-            VStack(spacing: 10) {
-                MessageThreadRow(sender: "Eleven Eleven Testing (Lead Planner)", preview: "Planning coordination for Charity & Kudzie active.", time: "10:42 AM", unreadCount: 1)
-            }
-            .padding()
+        VStack(spacing: 6) {
+            Text("Messages")
+                .font(.system(size: 18, weight: .semibold, design: .serif))
+                .foregroundColor(WeddingIdentityPalette.ink)
+            Text("Native messaging has no contract in this environment. No conversations are recorded in the wedding graph, so none are shown.")
+                .font(.system(size: 12))
+                .foregroundColor(WeddingIdentityPalette.muted)
+                .multilineTextAlignment(.center)
         }
-        .background(WewedColors.ivory)
-        .navigationTitle("Messages & Inbox")
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(WeddingIdentityPalette.ivory)
+        .accessibilityIdentifier("messages-unsupported")
     }
 }
 
