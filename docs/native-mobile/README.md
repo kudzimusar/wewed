@@ -52,9 +52,11 @@ and defines the non-simulator local qualification gate that must pass before sim
 
 ## Product authority and information architecture
 
+- **WEWED_NATIVE_INFORMATION_ARCHITECTURE_V2.md — current authoritative role taxonomy, 4–5 destination bottom navigation contract, workspace depth, cross-role utilities, entity ownership, context and data-pipeline rules.**
+- **WEWED_NATIVE_IA_V2_IMPLEMENTATION_PLAYBOOK.md — mandatory step-by-step build and qualification sequence for implementing IA V2 without rewriting the existing native product.**
 - NATIVE_PRODUCT_AUTHORITY_LEDGER.md — capability lifecycle status by platform.
-- NATIVE_ROLE_CAPABILITY_MATRIX.md — Couple, Planner, Coordinator, Vendor, Usher, Guest and Admin capability boundaries.
-- NATIVE_INFORMATION_ARCHITECTURE.md — role shells, navigation and deep-link topology.
+- NATIVE_ROLE_CAPABILITY_MATRIX.md — historical/current capability-boundary reference; IA V2 is authoritative for current navigation topology.
+- NATIVE_INFORMATION_ARCHITECTURE.md — V1 role-shell/navigation reference retained for history; superseded by IA V2 for current navigation design.
 - NATIVE_SHELL_IMPLEMENTATION_PLAN.md — fixture-backed shell implementation history and shell gates.
 - MOBILE_FEATURE_PARITY_MATRIX.md — historical/earlier parity matrix; do not use broad legacy PASS claims as proof of whole-product production parity.
 
@@ -69,12 +71,14 @@ and defines the non-simulator local qualification gate that must pass before sim
 1. README.md
 2. WEWED_NATIVE_SHADOW_INTEGRATION_REAL_WEDDING_PARITY_PLAN_2026-09-18.md
 3. MASTER_MOBILE_SPRINT_PLAN.md
-4. NATIVE_PRODUCT_AUTHORITY_LEDGER.md
-5. NATIVE_ROLE_CAPABILITY_MATRIX.md
-6. NATIVE_INFORMATION_ARCHITECTURE.md
-7. NATIVE_CONTRACT_GAP_REGISTER.md
-8. WEDDING_DAY_INTEGRATION_IMPACT_REGISTER.md
-9. relevant implementation/test files for the current phase
+4. **WEWED_NATIVE_INFORMATION_ARCHITECTURE_V2.md**
+5. **WEWED_NATIVE_IA_V2_IMPLEMENTATION_PLAYBOOK.md**
+6. NATIVE_PRODUCT_AUTHORITY_LEDGER.md
+7. NATIVE_ROLE_CAPABILITY_MATRIX.md
+8. NATIVE_INFORMATION_ARCHITECTURE.md (historical V1 reference only)
+9. NATIVE_CONTRACT_GAP_REGISTER.md
+10. WEDDING_DAY_INTEGRATION_IMPACT_REGISTER.md
+11. relevant implementation/test files for the current phase
 
 ## Mandatory repository Gate 0
 
