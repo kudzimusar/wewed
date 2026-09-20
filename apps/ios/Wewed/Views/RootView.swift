@@ -16,6 +16,11 @@ public struct RootView: View {
     // an invitation outranks a sign-in form was a property of branch ORDER rather than a stated
     // one. LaunchRouter states it, and tests assert it without a device.
     @State private var splashComplete = false
+    /// The Guest Ceremonial Entry Contract's session boundary: a recognised Guest meets their
+    /// card once per app-entry session, not once per lifetime and not on every glance back.
+    @State private var entrySessionPresentedCard = false
+    @State private var recognisedGuestInvitation: InvitationContext?
+    @State private var graphWeddingDate: String?
     @State private var authMode: AuthenticationMode?
     @State private var resolvingDeepLinkedInvitation = false
 
@@ -69,6 +74,62 @@ public struct RootView: View {
         }
     }
 
+    /// The card a recognised Guest meets on entry, in whichever state they left it.
+    @ViewBuilder
+    private func guestCeremonialEntry(_ card: InvitationContext) -> some View {
+        let stage = LaunchRouter.stage(for: card)
+        if stage == .pending {
+            // Still to answer: the full Ivory invitation, which carries the RSVP.
+            GuestInvitationJourneyView(
+                reference: GuestJourneyReference(invitation: card, initialStage: .invitation),
+                onExit: { entrySessionPresentedCard = true }
+            )
+        } else {
+            // Already answered. The card stays — a guest who has replied is never asked again —
+            // and its actions adapt to the answer and to where the wedding is in its own life.
+            let days = Self.daysUntil(graphWeddingDate)
+            GuestCeremonialCardView(
+                invitation: card,
+                presentation: GuestCeremonialEntry.presentation(
+                    rsvp: stage == .confirmed ? .attending : .declined,
+                    lifecycle: GuestCeremonialEntry.phase(daysRemaining: days)
+                ),
+                countdownLabel: GuestCeremonialEntry.countdownLabel(daysRemaining: days),
+                onAction: { _ in entrySessionPresentedCard = true },
+                // Continuing ends the ceremony for THIS entry session; the next cold launch
+                // stages it again.
+                onContinue: { entrySessionPresentedCard = true }
+            )
+        }
+    }
+
+    /// Days between now and the wedding. The card's lifecycle phase and its reminder line are
+    /// both derived from this, so neither has to be maintained by hand.
+    private static func daysUntil(_ rawDate: String?) -> Int {
+        guard let rawDate, rawDate.count >= 10 else { return Int.max }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        guard let target = formatter.date(from: String(rawDate.prefix(10))) else { return Int.max }
+        let day = 86_400.0
+        return Int((target.timeIntervalSince1970 / day).rounded(.down)
+                   - (Date().timeIntervalSince1970 / day).rounded(.down))
+    }
+
+    /// Resolves the active Guest's own card, keyed on their credential so switching guests
+    /// resolves a different card rather than reusing the previous one.
+    private func resolveRecognisedGuestCard() async {
+        guard session.currentRole == .guest, let token = session.passToken else {
+            recognisedGuestInvitation = nil
+            return
+        }
+        let slug = (try? await appState.repository.weddingSlug(weddingId: session.weddingId)) ?? ""
+        recognisedGuestInvitation = try? await appState.repository.resolveInvitation(
+            weddingSlug: slug ?? "", token: token
+        )
+        graphWeddingDate = try? await appState.repository.getWedding(weddingId: session.weddingId).date
+    }
+
     public var body: some View {
         Group {
             // The Wewed animated splash is global: it plays on an icon launch, an invitation link,
@@ -102,6 +163,14 @@ public struct RootView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(WeddingIdentityPalette.ivory)
                     .accessibilityIdentifier("entry-resolving-deep-link")
+            } else if let card = recognisedGuestInvitation,
+                      !entrySessionPresentedCard,
+                      session.currentRole == .guest {
+                // Guest Ceremonial Entry. The Couple recognised this person; the card is that
+                // recognition, and it opens every visit — before the Guest workspace, before the
+                // wedding site, before the pass. What changes with RSVP state is what the card
+                // ASKS, never whether it appears.
+                guestCeremonialEntry(card)
             } else if session.isAuthenticated {
                 roleShell
                     .task(id: "\(session.currentRole.roleId)|\(session.activePersona?.id ?? "")") {
@@ -151,6 +220,9 @@ public struct RootView: View {
         }
         .task(id: appState.pendingInvitationDeepLink) {
             await resolvePendingInvitationDeepLink()
+        }
+        .task(id: "\(session.currentRole.roleId)|\(session.passToken ?? "")") {
+            await resolveRecognisedGuestCard()
         }
     }
 

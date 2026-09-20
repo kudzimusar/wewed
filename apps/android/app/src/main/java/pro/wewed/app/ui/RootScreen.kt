@@ -23,6 +23,7 @@ import pro.wewed.app.state.SessionViewModel
 import pro.wewed.app.theme.WeddingIdentityPalette
 import pro.wewed.app.navigation.AuthenticationMode
 import pro.wewed.app.navigation.InvitationEntryStage
+import pro.wewed.app.navigation.GuestCeremonialEntry
 import pro.wewed.app.navigation.LaunchRouter
 import pro.wewed.app.navigation.NativeAppEntryState
 import pro.wewed.app.ui.auth.LoginScreen
@@ -30,6 +31,8 @@ import pro.wewed.app.ui.entry.ShadowEntryOption
 import pro.wewed.app.ui.entry.SplashDestination
 import pro.wewed.app.ui.entry.WewedAnimatedSplash
 import pro.wewed.app.ui.entry.WewedWelcomeScreen
+import pro.wewed.app.models.RSVPStatus
+import pro.wewed.app.ui.invitation.GuestCeremonialCardScreen
 import pro.wewed.app.ui.invitation.GuestInvitationJourneyScreen
 import pro.wewed.app.ui.pass.UsherScannerScreen
 import pro.wewed.app.ui.roles.*
@@ -72,6 +75,12 @@ fun RootScreen(
     // -----------------------------------------------------------------------------------------
     var splashComplete by remember { mutableStateOf(false) }
     var authMode by remember { mutableStateOf<AuthenticationMode?>(null) }
+
+    // The Guest Ceremonial Entry Contract. `remember` without keys is exactly the right scope:
+    // it survives recomposition and a return from the background, but not a cold launch, a
+    // relaunch after termination or a restore after process death — precisely the entry-session
+    // boundary the contract describes.
+    var entrySessionPresentedCard by remember { mutableStateOf(false) }
 
     LaunchedEffect(pendingInvitationDeepLink) {
         val pending = pendingInvitationDeepLink ?: return@LaunchedEffect
@@ -255,6 +264,91 @@ fun RootScreen(
         return
     }
 
+    // -----------------------------------------------------------------------------------------
+    // Guest Ceremonial Entry.
+    //
+    // The Couple recognised this person; the card is that recognition, and it opens every visit —
+    // before the Guest workspace, before the wedding site, before the pass. What changes with
+    // RSVP state is what the card ASKS, never whether it appears. A guest who has already replied
+    // is not asked again.
+    // -----------------------------------------------------------------------------------------
+    var recognisedGuestInvitation by remember(context.activePassToken) {
+        mutableStateOf<InvitationContext?>(null)
+    }
+    val guestPassToken = context.activePassToken
+    var graphWeddingDate by remember(context.activeWeddingId) { mutableStateOf<String?>(null) }
+    LaunchedEffect(context.activeWeddingId) {
+        graphWeddingDate = runCatching {
+            appViewModel.repository.getWedding(context.activeWeddingId).date
+        }.getOrNull()
+    }
+
+    LaunchedEffect(guestPassToken, context.activeRole) {
+        recognisedGuestInvitation =
+            if (context.activeRole == AppRole.GUEST && guestPassToken != null) {
+                runCatching {
+                    appViewModel.repository.resolveInvitation(
+                        appViewModel.repository.weddingSlug(context.activeWeddingId).orEmpty(),
+                        guestPassToken
+                    )
+                }.getOrNull()
+            } else {
+                null
+            }
+    }
+
+    recognisedGuestInvitation
+        ?.takeIf {
+            GuestCeremonialEntry.shouldPresentCard(
+                isRecognisedGuest = true,
+                entrySessionPresentedCard = entrySessionPresentedCard
+            )
+        }
+        ?.let { card ->
+            val stage = LaunchRouter.stageFor(card)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .semantics { testTagsAsResourceId = true }
+            ) {
+                if (stage == InvitationEntryStage.PENDING) {
+                    // Still to answer: the full Ivory invitation, which carries the RSVP.
+                    GuestInvitationJourneyScreen(
+                        reference = GuestJourneyReference(card, GuestJourneyStage.INVITATION),
+                        appViewModel = appViewModel,
+                        onExit = { entrySessionPresentedCard = true }
+                    )
+                } else {
+                    // Already answered. The card stays — a guest who has replied is never asked
+                    // again — and its actions adapt to the answer and to where the wedding is in
+                    // its own life. Sending them straight to the Pass would treat the invitation
+                    // as a form they had finished with.
+                    val rsvp = if (stage == InvitationEntryStage.CONFIRMED) {
+                        RSVPStatus.ATTENDING
+                    } else {
+                        RSVPStatus.DECLINED
+                    }
+                    val daysRemaining = remember(graphWeddingDate) {
+                        daysUntil(graphWeddingDate)
+                    }
+                    val presentation = GuestCeremonialEntry.presentation(
+                        rsvp,
+                        GuestCeremonialEntry.phaseFor(daysRemaining)
+                    )
+                    GuestCeremonialCardScreen(
+                        invitation = card,
+                        presentation = presentation,
+                        countdownLabel = GuestCeremonialEntry.countdownLabel(daysRemaining),
+                        onAction = { entrySessionPresentedCard = true },
+                        // Continuing ends the ceremony for THIS entry session; the next cold
+                        // launch stages it again.
+                        onContinue = { entrySessionPresentedCard = true }
+                    )
+                }
+            }
+            return
+        }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -321,4 +415,22 @@ fun RootScreen(
             )
         }
     }
+}
+
+
+/**
+ * Days between now and the wedding.
+ *
+ * The card's lifecycle phase and its reminder line are both derived from this, so neither has to
+ * be maintained by hand as the date approaches and passes.
+ */
+private fun daysUntil(rawDate: String?): Int {
+    val trimmed = rawDate?.trim().orEmpty().take(10)
+    if (trimmed.isEmpty()) return Int.MAX_VALUE
+    val target = runCatching {
+        java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(trimmed)
+    }.getOrNull() ?: return Int.MAX_VALUE
+    val millisPerDay = 86_400_000L
+    val today = System.currentTimeMillis() / millisPerDay
+    return (target.time / millisPerDay - today).toInt()
 }
