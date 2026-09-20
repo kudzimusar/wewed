@@ -37,6 +37,42 @@ class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath:
     private val vendors: MutableList<VendorPresence>
     private val announcements: MutableList<WeddingAnnouncement>
 
+    /**
+     * Local UAT changes, layered over the snapshot rather than written into it.
+     *
+     * `baseTasks`, `baseGuests` and `baseVendors` stay exactly as the authorized production read
+     * produced them, so provenance is answerable per record and reset is a clear rather than a
+     * reload. Nothing recorded here reaches production; there is no write path.
+     */
+    private val mutations = ShadowMutationOverlay()
+    private val baseTasks: List<PlannerTask>
+    private val baseGuests: List<Guest>
+    private val baseVendors: List<VendorPresence>
+
+    /** True while the view still equals the production-derived snapshot. */
+    suspend fun isPristine(): Boolean = mutex.withLock { mutations.isPristine }
+
+    /** Counts of what this UAT session changed. No private values. */
+    suspend fun mutationSummary(): Map<String, Int> = mutex.withLock { mutations.summary() }
+
+    /** Discards every local change, returning the view to the production-derived snapshot. */
+    suspend fun resetMutations() = mutex.withLock {
+        mutations.reset()
+        tasks.clear(); tasks.addAll(baseTasks)
+        guests.clear(); guests.addAll(baseGuests)
+        vendors.clear(); vendors.addAll(baseVendors)
+        auditRecords.clear()
+        announcements.clear()
+    }
+
+    /** Where a task's current value came from. */
+    suspend fun provenanceForTask(taskId: String): DataProvenance =
+        mutex.withLock { mutations.provenanceForTask(taskId) }
+
+    /** Where a guest's current value came from. */
+    suspend fun provenanceForGuest(guestId: String): DataProvenance =
+        mutex.withLock { mutations.provenanceForGuest(guestId) }
+
     // Production-derived graph loaded from the canonical Private Real UAT snapshot.
     private val manifest: UatSnapshotManifest
     private val rsvpDetails: Map<String, GuestRsvpDetail>
@@ -479,6 +515,11 @@ class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath:
         }
 
         announcements = mutableListOf()
+
+        // Freeze the production-derived truth. Everything after this point is overlay.
+        baseTasks = tasks.toList()
+        baseGuests = guests.toList()
+        baseVendors = vendors.toList()
     }
 
     override suspend fun getWedding(weddingId: String): Wedding = mutex.withLock {
@@ -514,6 +555,7 @@ class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath:
             dueDate = null
         )
         tasks.add(task)
+        mutations.recordTaskCreated(task.id)
         task
     }
 
@@ -524,6 +566,7 @@ class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath:
         val current = tasks[index]
         val updated = current.copy(status = if (current.status == TaskStatus.DONE) TaskStatus.TODO else TaskStatus.DONE)
         tasks[index] = updated
+        mutations.recordTaskStatus(updated.id, updated.status.value)
         updated
     }
 
@@ -601,6 +644,7 @@ class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath:
             checkedIn = updatedCheckedInCount > 0
         )
         guests[index] = updated
+        mutations.recordCheckIn(guest.id, count)
 
         auditRecords.add(
             CheckInAuditRecord(
@@ -633,6 +677,7 @@ class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath:
         if (index == -1) throw NoSuchElementException("Vendor not found")
         val updated = vendors[index].copy(state = state, lastUpdatedMillis = System.currentTimeMillis())
         vendors[index] = updated
+        mutations.recordVendorState(updated.id, state.name)
         updated
     }
 
@@ -645,6 +690,7 @@ class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath:
             urgency = urgency
         )
         announcements.add(0, announcement)
+        mutations.recordAnnouncement(announcement.id)
         announcement
     }
 
@@ -672,6 +718,7 @@ class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath:
         val passSerial = if (attending && current.passSerial == null) "SHDW${current.id.uppercase().takeLast(8)}" else current.passSerial
         val updated = current.copy(rsvpStatus = updatedRsvp, passSerial = passSerial)
         guests[index] = updated
+        mutations.recordRsvp(updated.id, attending)
 
         if (attending) makePass(updated) else makeNonAdmissionPass(updated)
     }

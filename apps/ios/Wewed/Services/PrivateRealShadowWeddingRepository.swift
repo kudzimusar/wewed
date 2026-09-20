@@ -21,6 +21,16 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
     private var vendors: [VendorPresence]
     private var announcements: [WeddingAnnouncement]
 
+    /// Local UAT changes, layered over the snapshot rather than written into it.
+    ///
+    /// `baseTasks`, `baseGuests` and `baseVendors` stay exactly as the authorized production read
+    /// produced them, so provenance is answerable per record and reset is a clear rather than a
+    /// reload. Nothing recorded here reaches production; there is no write path.
+    private let mutations = ShadowMutationOverlay()
+    private var baseTasks: [PlannerTask] = []
+    private var baseGuests: [Guest] = []
+    private var baseVendors: [VendorPresence] = []
+
     // Production-derived graph loaded from the canonical Private Real UAT snapshot.
     private let manifest: UatSnapshotManifest
     private let rsvpDetails: [String: GuestRsvpDetail]
@@ -480,6 +490,37 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
         }
 
         self.announcements = []
+
+        // Freeze the production-derived truth. Everything after this point is overlay.
+        self.baseTasks = self.tasks
+        self.baseGuests = self.guests
+        self.baseVendors = self.vendors
+    }
+
+    /// True while the view still equals the production-derived snapshot.
+    public func isPristine() -> Bool { mutations.isPristine }
+
+    /// Counts of what this UAT session changed. No private values.
+    public func mutationSummary() -> [String: Int] { mutations.summary() }
+
+    /// Discards every local change, returning the view to the production-derived snapshot.
+    public func resetMutations() {
+        mutations.reset()
+        tasks = baseTasks
+        guests = baseGuests
+        vendors = baseVendors
+        auditRecords = []
+        announcements = []
+    }
+
+    /// Where a task's current value came from.
+    public func provenanceForTask(_ taskId: String) -> DataProvenance {
+        mutations.provenanceForTask(taskId)
+    }
+
+    /// Where a guest's current value came from.
+    public func provenanceForGuest(_ guestId: String) -> DataProvenance {
+        mutations.provenanceForGuest(guestId)
     }
 
     public func getWedding(weddingId: String) async throws -> Wedding {
@@ -515,6 +556,7 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
         try requireScope(weddingId)
         let task = PlannerTask(id: "real_task_\(UUID().uuidString.prefix(8))", title: title, status: .todo, priority: priority, category: category)
         tasks.append(task)
+        mutations.recordTaskCreated(task.id)
         return task
     }
 
@@ -524,6 +566,7 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
             throw NSError(domain: "PrivateRealShadowWeddingRepository", code: 404, userInfo: [NSLocalizedDescriptionKey: "Task not found"])
         }
         tasks[index].status = tasks[index].status == .done ? .todo : .done
+        mutations.recordTaskStatus(tasks[index].id, status: tasks[index].status.rawValue)
         return tasks[index]
     }
 
@@ -573,6 +616,7 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
         guest.checkedInCount += count
         guest.checkedIn = guest.checkedInCount > 0
         guests[index] = guest
+        mutations.recordCheckIn(guest.id, admitted: count)
 
         auditRecords.append(CheckInAuditRecord(passSerial: guest.passSerial ?? "REAL_SHADOW", guestName: guest.name, countAdmitted: count, gateName: "Main Gate", usherId: usherId, isSynced: false))
 
@@ -597,6 +641,7 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
         }
         vendors[index].state = state
         vendors[index].lastUpdated = Date()
+        mutations.recordVendorState(vendors[index].id, state: String(describing: state))
         return vendors[index]
     }
 
@@ -604,6 +649,7 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
         try requireScope(weddingId)
         let announcement = WeddingAnnouncement(title: title, message: message, urgency: urgency)
         announcements.insert(announcement, at: 0)
+        mutations.recordAnnouncement(announcement.id)
         return announcement
     }
 
@@ -639,6 +685,7 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
             current.passSerial = "SHDW\(current.id.uppercased().suffix(8))"
         }
         guests[index] = current
+        mutations.recordRsvp(current.id, attending: attending)
 
         return attending ? makePass(for: current) : makeNonAdmissionPass(for: current)
     }
