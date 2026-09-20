@@ -67,7 +67,10 @@ public struct RoleShellScaffold<Content: View>: View {
             } else {
                 TabView(selection: tabSelection) {
                     ForEach(navigation.primary) { destination in
-                        Group {
+                        // Every workspace renders inside the Wewed screen container, which
+                        // publishes an explicit bounded width. Media then fills that width
+                        // instead of dictating the screen's width (P0 responsive contract).
+                        WewedScreenContainer {
                             if let denialReason {
                                 AccessBoundaryNotice(reason: denialReason) {
                                     self.denialReason = nil

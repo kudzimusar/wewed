@@ -30,6 +30,9 @@ public struct WeddingReferenceHomeView: View {
                             continuePlanning
                             metrics
                         }
+                        // Pin the screen body to the bounded content width so no single child
+                        // can widen the page (P0 responsive contract).
+                        .wewedBoundedWidth(horizontalInset: 28)
                         .padding(.horizontal, 14)
                         .padding(.top, 8)
                         .padding(.bottom, 22)
@@ -52,8 +55,9 @@ public struct WeddingReferenceHomeView: View {
             Image("hero-wedding", bundle: .module)
                 .resizable()
                 .scaledToFill()
-                .frame(height: 390)
-                .clipped()
+                // Parent width controls media: the hero fills the measured container width
+                // instead of reporting its own aspect-driven width to the layout.
+                .wewedMedia(height: 390, horizontalInset: 28)
 
             LinearGradient(
                 colors: [
@@ -120,7 +124,7 @@ public struct WeddingReferenceHomeView: View {
             }
             .padding(16)
         }
-        .frame(height: 390)
+        .wewedMedia(height: 390, horizontalInset: 28)
         .clipShape(RoundedRectangle(cornerRadius: 23))
         .overlay(
             RoundedRectangle(cornerRadius: 23)

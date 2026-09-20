@@ -245,7 +245,7 @@ private struct ReferenceWeddingProfileView: View {
                     Image("hero-wedding", bundle: .module)
                         .resizable()
                         .scaledToFill()
-                        .frame(height: 260)
+                        .wewedMedia(height: 260, horizontalInset: 28)
                         .clipped()
                         .clipShape(RoundedRectangle(cornerRadius: 22))
 
