@@ -117,7 +117,9 @@ public struct RootView: View {
                             )
                     }
             } else if authMode == nil {
-                WewedWelcomeView(
+                // Entry surfaces sit outside the role shell, so nothing else publishes a bounded
+                // content width for them.
+                WewedScreenContainer { WewedWelcomeView(
                     onOpenInvitation: { authMode = .signIn },
                     onSignIn: { authMode = .signIn },
                     onCreateAccount: { authMode = .createAccount },
@@ -126,9 +128,9 @@ public struct RootView: View {
                             session.enterShadowSession()
                         }
                         : nil
-                )
+                ) }
             } else {
-                LoginView(onBack: { authMode = nil })
+                WewedScreenContainer { LoginView(onBack: { authMode = nil }) }
             }
         }
         .onOpenURL { url in

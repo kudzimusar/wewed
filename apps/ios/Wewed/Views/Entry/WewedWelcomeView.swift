@@ -106,7 +106,7 @@ public struct WewedWelcomeView: View {
                     .accessibilityIdentifier("welcome-shadow-entry")
                 }
             }
-            .padding(.horizontal, 28)
+            .wewedBoundedWidth(horizontalInset: 28)
         }
         .accessibilityIdentifier("welcome-root")
     }

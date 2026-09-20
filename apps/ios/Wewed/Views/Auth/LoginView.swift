@@ -150,7 +150,7 @@ public struct LoginView: View {
                     .accessibilityIdentifier("sign-in-shadow-entry")
                 }
             }
-            .padding(.horizontal, 28)
+            .wewedBoundedWidth(horizontalInset: 28)
         }
         .accessibilityIdentifier("sign-in-root")
     }
