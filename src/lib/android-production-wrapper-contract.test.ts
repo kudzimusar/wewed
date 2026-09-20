@@ -42,8 +42,21 @@ describe('production Android invitation wrapper contract', () => {
     expect(workflow).toContain('INVITATION_RESUME_ORIGIN = "https://wewed.pro";')
     expect(workflow).toContain('EXPECTED_UPLOAD_CERT_SHA256')
     expect(workflow).toContain('WEWED_ANDROID_UPLOAD_KEYSTORE_BASE64')
+    expect(workflow).toContain("if: github.ref == 'refs/heads/main'")
+    expect(workflow).toContain('ref: ${{ github.sha }}')
+    expect(workflow).not.toContain('pull_request:')
     expect(workflow).not.toContain('upload-google-play')
     expect(workflow).not.toContain('GOOGLE_PLAY_SERVICE_ACCOUNT')
+  })
+
+  test('keeps UAT contract checks on pull requests but reserves signing for manual main runs', () => {
+    const workflow = source('.github/workflows/android-invitation-uat-play-aab.yml')
+
+    expect(workflow).toContain('bundle-contract:')
+    expect(workflow).toContain('pull_request:')
+    expect(workflow).toContain("if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'")
+    expect(workflow).not.toContain('GOOGLE_PLAY_SERVICE_ACCOUNT')
+    expect(workflow).not.toContain('upload-google-play')
   })
 
   test('does not falsely label a disabled production handoff as a UAT build', () => {

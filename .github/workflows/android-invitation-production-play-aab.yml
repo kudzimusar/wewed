@@ -1,18 +1,6 @@
 name: Android Invitation Production Play AAB
 
 on:
-  pull_request:
-    paths:
-      - 'android/**'
-      - 'src/app/api/invitations/**'
-      - 'src/app/invite/**'
-      - 'src/components/wedding/invitation-app-handoff.tsx'
-      - 'src/components/wedding/physical-invitation-entry.tsx'
-      - 'src/lib/invitation-links.ts'
-      - 'src/lib/invitation-links.test.ts'
-      - 'src/lib/android-production-wrapper-contract.test.ts'
-      - 'public/.well-known/assetlinks.json'
-      - '.github/workflows/android-invitation-production-play-aab.yml'
   workflow_dispatch:
     inputs:
       version_code:
@@ -30,27 +18,29 @@ permissions:
   contents: read
 
 concurrency:
-  group: android-invitation-production-play-aab-${{ github.ref }}
+  group: android-invitation-production-play-aab-main
   cancel-in-progress: false
 
 env:
-  WEWED_ANDROID_PRODUCTION_VERSION_CODE: ${{ github.event_name == 'workflow_dispatch' && inputs.version_code || '8' }}
-  WEWED_ANDROID_PRODUCTION_VERSION_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.version_name || '2.0.5' }}
+  WEWED_ANDROID_PRODUCTION_VERSION_CODE: ${{ inputs.version_code }}
+  WEWED_ANDROID_PRODUCTION_VERSION_NAME: ${{ inputs.version_name }}
 
 jobs:
   signed-candidate:
+    # Secrets may only be read by a deliberate release run from protected main.
+    if: github.ref == 'refs/heads/main'
     name: Build signed production AAB without Play publication
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Check out exact candidate
+      - name: Check out exact main candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.sha }}
       - name: Verify exact candidate SHA
         shell: bash
         env:
-          EXPECTED_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_CANDIDATE_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           actual="$(git rev-parse HEAD)"
@@ -58,7 +48,7 @@ jobs:
             echo "::error::Checked out $actual but expected $EXPECTED_CANDIDATE_SHA"
             exit 1
           }
-          echo "Android production AAB exact candidate SHA=$actual"
+          echo "Android production AAB exact main SHA=$actual"
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
       - name: Verify production wrapper and invitation handoff regressions
@@ -110,8 +100,8 @@ jobs:
       - name: Verify signed production bundle contract
         shell: bash
         env:
-          EXPECTED_VERSION_CODE: ${{ github.event_name == 'workflow_dispatch' && inputs.version_code || '8' }}
-          EXPECTED_VERSION_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.version_name || '2.0.5' }}
+          EXPECTED_VERSION_CODE: ${{ inputs.version_code }}
+          EXPECTED_VERSION_NAME: ${{ inputs.version_name }}
         run: |
           set -euo pipefail
           AAB='android/app/build/outputs/bundle/release/app-release.aab'
