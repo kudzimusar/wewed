@@ -550,6 +550,16 @@ public struct IAEmptySourceSection: View {
 
 // MARK: - Helpers
 
+public extension Double {
+    /// Groups thousands so a budget reads as money rather than as a raw number.
+    func asMoney() -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.maximumFractionDigits = 0
+        return formatter.string(from: NSNumber(value: self)) ?? String(Int(self))
+    }
+}
+
 public extension String {
     /// Formats a production timestamp for display.
     ///
@@ -650,7 +660,7 @@ public struct PlannerClientProfileSection: View {
                        testId: "client-profile-guests")
                 if let budget = graph.budget {
                     IACard("Budget",
-                           "Estimated \(budget.currency) \(Int(budget.totalBudget)) · paid \(budget.currency) \(Int(budget.totalPaid))",
+                           "Estimated \(budget.currency) \(budget.totalBudget.asMoney()) · paid \(budget.currency) \(budget.totalPaid.asMoney())",
                            testId: "client-profile-budget")
                 }
                 // How this planner reaches the wedding is stated, not implied. Production holds no
@@ -710,12 +720,12 @@ public struct PlannerIntelligenceSection: View {
                        testId: "intelligence-seating")
                 if dietary > 0 {
                     IACard("Dietary requirements",
-                           "\(dietary) guests recorded a dietary or accessibility need",
+                           "\(dietary) \(dietary == 1 ? "guest" : "guests") recorded a dietary or accessibility need",
                            status: "Action", testId: "intelligence-dietary")
                 }
                 if let budget = graph.budget {
                     IACard("Budget remaining",
-                           "\(budget.currency) \(Int(budget.totalBudget - budget.totalPaid)) of \(budget.currency) \(Int(budget.totalBudget)) unpaid",
+                           "\(budget.currency) \((budget.totalBudget - budget.totalPaid).asMoney()) of \(budget.currency) \(budget.totalBudget.asMoney()) unpaid",
                            testId: "intelligence-budget")
                 }
                 Text("These figures are calculated from the loaded wedding graph. No model or external service is involved.")

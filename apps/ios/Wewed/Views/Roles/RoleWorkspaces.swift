@@ -1004,6 +1004,9 @@ public struct AdminShellView: View {
     var pendingDeepLink: NativeDeepLink?
     var onDeepLinkHandled: (() -> Void)?
     @StateObject private var sectionMemory = WorkspaceSectionMemory()
+    /// Admin is system-scoped, so its access context is read from the source directly rather than
+    /// through a wedding-bound graph that a global administrative session never loads.
+    @State private var adminAccess: AdminAccessContext?
 
     public init(
         context: NavigationContext,
@@ -1055,7 +1058,7 @@ public struct AdminShellView: View {
                     }
                 case "audit":
                     WorkspaceSurface(destination: destination, testIdPrefix: "admin", context: ctx, sectionMemory: sectionMemory) { section in
-                        AdminAuditSection(section: section, graph: graph, environment: ctx.environment)
+                        AdminAuditSection(section: section, graph: graph, environment: ctx.environment, adminAccess: adminAccess)
                     }
                 case "more":
                     WorkspaceSurface(destination: destination, testIdPrefix: "admin", context: ctx, sectionMemory: sectionMemory) { section in
@@ -1065,6 +1068,9 @@ public struct AdminShellView: View {
                     IAUnsupportedSection(destination.label, "Unknown destination.", ctx.environment)
                 }
             }
+        }
+        .task {
+            adminAccess = try? await appState.repository.adminAccessContext()
         }
     }
 }

@@ -663,7 +663,7 @@ fun PlannerClientProfileSection(graph: WeddingGraphState) {
         graph.budget?.let {
             IACard(
                 title = "Budget",
-                subtitle = "Estimated ${it.currency} ${it.totalBudget.toLong()} · paid ${it.currency} ${it.totalPaid.toLong()}",
+                subtitle = "Estimated ${it.currency} ${it.totalBudget.asMoney()} · paid ${it.currency} ${it.totalPaid.asMoney()}",
                 testTag = "client-profile-budget"
             )
         }
@@ -720,7 +720,7 @@ fun PlannerIntelligenceSection(graph: WeddingGraphState) {
         if (dietary > 0) {
             IACard(
                 title = "Dietary requirements",
-                subtitle = "$dietary guests recorded a dietary or accessibility need",
+                subtitle = "$dietary ${if (dietary == 1) "guest" else "guests"} recorded a dietary or accessibility need",
                 status = "Action",
                 testTag = "intelligence-dietary"
             )
@@ -729,7 +729,7 @@ fun PlannerIntelligenceSection(graph: WeddingGraphState) {
             val remaining = it.totalBudget - it.totalPaid
             IACard(
                 title = "Budget remaining",
-                subtitle = "${it.currency} ${remaining.toLong()} of ${it.currency} ${it.totalBudget.toLong()} unpaid",
+                subtitle = "${it.currency} ${remaining.asMoney()} of ${it.currency} ${it.totalBudget.asMoney()} unpaid",
                 testTag = "intelligence-budget"
             )
         }
@@ -921,3 +921,6 @@ fun VendorServicesSection(graph: WeddingGraphState, context: pro.wewed.app.navig
         }
     }
 }
+
+/** Groups thousands so a budget reads as money rather than as a raw number. */
+internal fun Double.asMoney(): String = String.format(java.util.Locale.US, "%,d", toLong())

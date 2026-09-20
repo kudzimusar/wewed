@@ -778,16 +778,29 @@ public struct GateGuestLookup: View {
 
 // MARK: - Admin workspace — IA V2 §10
 
+/// Admin audit.
+///
+/// Admin is system-scoped: it opens without an active wedding, so the wedding graph is empty here
+/// and `graph.adminAccess` is nil. Reading the audit stream from that empty graph reported
+/// "Nothing recorded" — which is the one thing that is certainly untrue. Production holds a real
+/// wedding-scoped audit trail; what is missing is the authorization to read it as an administrator.
+/// The access context is therefore resolved from the system-scoped source, independently of any
+/// wedding binding, so a missing grant reads as a missing grant.
 public struct AdminAuditSection: View {
     let section: String
     @ObservedObject var graph: WeddingGraphState
     let environment: NativeDataEnvironment
+    var adminAccess: AdminAccessContext?
 
-    public init(section: String, graph: WeddingGraphState, environment: NativeDataEnvironment) {
+    public init(section: String, graph: WeddingGraphState, environment: NativeDataEnvironment,
+                adminAccess: AdminAccessContext? = nil) {
         self.section = section
         self.graph = graph
         self.environment = environment
+        self.adminAccess = adminAccess
     }
+
+    private var resolvedAdminAccess: AdminAccessContext? { adminAccess ?? graph.adminAccess }
 
     public var body: some View {
         if graph.loading {
@@ -821,7 +834,7 @@ public struct AdminAuditSection: View {
                         let action = $0.action.lowercased()
                         return action.contains("update") || action.contains("create") || action.contains("delete")
                     },
-                    adminAccess: graph.adminAccess,
+                    adminAccess: resolvedAdminAccess,
                     testIdPrefix: "audit-data-changes"
                 )
             case "Access Events":
@@ -830,11 +843,11 @@ public struct AdminAuditSection: View {
                         let action = $0.action.lowercased()
                         return action.contains("access") || action.contains("login") || action.contains("view")
                     },
-                    adminAccess: graph.adminAccess,
+                    adminAccess: resolvedAdminAccess,
                     testIdPrefix: "audit-access-events"
                 )
             case "Admin Actions":
-                AuditEventsSection(events: graph.auditEvents, adminAccess: graph.adminAccess,
+                AuditEventsSection(events: graph.auditEvents, adminAccess: resolvedAdminAccess,
                                    testIdPrefix: "audit-admin-actions")
             case "Payments", "Contracts":
                 IAUnsupportedSection(

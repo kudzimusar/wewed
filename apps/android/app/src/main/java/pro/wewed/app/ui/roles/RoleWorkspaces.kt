@@ -883,6 +883,17 @@ fun AdminShell(
         ShadowAdminSystemRepository(appViewModel.repository, appViewModel.dataEnvironment)
     }
     val sectionMemory = rememberWorkspaceSectionMemory()
+    // Admin is system-scoped, so its access context is read from the source directly rather than
+    // through a wedding-bound graph that a global administrative session never loads. Without
+    // this, the audit stream reported "Nothing recorded" — the one thing that is certainly untrue,
+    // because production holds a real wedding-scoped trail that this reader is not yet authorized
+    // to read as an administrator.
+    var adminAccess by remember(appViewModel) {
+        mutableStateOf<pro.wewed.app.models.AdminAccessContext?>(null)
+    }
+    LaunchedEffect(appViewModel) {
+        adminAccess = runCatching { appViewModel.repository.adminAccessContext() }.getOrNull()
+    }
     RoleShellScaffold(
         context = context,
         onSwitchPersona = onOpenPersonaPicker,
@@ -902,7 +913,7 @@ fun AdminShell(
                 AdminAccountsSection(section, ctx)
             }
             "audit" -> WorkspaceSurface(destination, "admin", ctx, sectionMemory) { section ->
-                AdminAuditSection(section, graph, ctx.environment)
+                AdminAuditSection(section, graph, ctx.environment, adminAccess)
             }
             "more" -> WorkspaceSurface(destination, "admin", ctx, sectionMemory) { section ->
                 AdminMoreSection(section, sessionViewModel, adminRepository, graph, ctx)

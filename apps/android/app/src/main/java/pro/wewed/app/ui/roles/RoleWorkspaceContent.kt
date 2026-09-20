@@ -737,8 +737,23 @@ fun GateGuestLookup(graph: WeddingGraphState) {
 // Admin workspace — IA V2 §10
 // ---------------------------------------------------------------------------
 
+/**
+ * Admin audit.
+ *
+ * Admin is system-scoped: it opens without an active wedding, so the wedding graph is empty here
+ * and `graph.adminAccess` is null. Reading the audit stream from that empty graph reported
+ * "Nothing recorded" — which is the one thing that is certainly untrue. Production holds a real
+ * wedding-scoped audit trail; what is missing is the authorization to read it as an administrator.
+ * The access context is therefore resolved from the system-scoped source, independently of any
+ * wedding binding, so a missing grant reads as a missing grant.
+ */
 @Composable
-fun AdminAuditSection(section: String, graph: WeddingGraphState, environment: NativeDataEnvironment) {
+fun AdminAuditSection(
+    section: String,
+    graph: WeddingGraphState,
+    environment: NativeDataEnvironment,
+    adminAccess: AdminAccessContext? = null
+) {
     if (graph.loading) return IALoading()
     when (section) {
         "Check-ins" -> IASectionList("Check-ins", "${graph.auditRecords.size} admission records") {
@@ -762,17 +777,17 @@ fun AdminAuditSection(section: String, graph: WeddingGraphState, environment: Na
         // instead of showing rows the reader is not authorized to interpret as an admin record.
         "Data Changes" -> AuditEventsSection(
             events = graph.auditEvents.filter { it.action.contains("update", true) || it.action.contains("create", true) || it.action.contains("delete", true) },
-            adminAccess = graph.adminAccess,
+            adminAccess = adminAccess ?: graph.adminAccess,
             testTagPrefix = "audit-data-changes"
         )
         "Access Events" -> AuditEventsSection(
             events = graph.auditEvents.filter { it.action.contains("access", true) || it.action.contains("login", true) || it.action.contains("view", true) },
-            adminAccess = graph.adminAccess,
+            adminAccess = adminAccess ?: graph.adminAccess,
             testTagPrefix = "audit-access-events"
         )
         "Admin Actions" -> AuditEventsSection(
             events = graph.auditEvents,
-            adminAccess = graph.adminAccess,
+            adminAccess = adminAccess ?: graph.adminAccess,
             testTagPrefix = "audit-admin-actions"
         )
         "Payments", "Contracts" -> IAUnsupportedSection(
