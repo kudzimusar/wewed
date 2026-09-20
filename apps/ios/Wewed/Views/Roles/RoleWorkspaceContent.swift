@@ -258,19 +258,27 @@ public struct IACard: View {
     var trailing: String?
     var status: String?
     var testId: String?
+    /// Makes the whole row open a detail surface.
+    ///
+    /// A list of 175 guests with a separate "Open detail" line under each card reads as noise.
+    /// When a card leads somewhere, the card itself is the affordance and carries a chevron,
+    /// matching the Guest List and Android.
+    var onTap: (() -> Void)?
 
     public init(
         _ title: String,
         _ subtitle: String? = nil,
         trailing: String? = nil,
         status: String? = nil,
-        testId: String? = nil
+        testId: String? = nil,
+        onTap: (() -> Void)? = nil
     ) {
         self.title = title
         self.subtitle = subtitle
         self.trailing = trailing
         self.status = status
         self.testId = testId
+        self.onTap = onTap
     }
 
     public var body: some View {
@@ -297,6 +305,12 @@ public struct IACard: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(WeddingIdentityPalette.champagneDeep)
             }
+            if onTap != nil {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(WeddingIdentityPalette.champagneDeep)
+                    .accessibilityHidden(true)
+            }
         }
         .padding(.horizontal, 13)
         .padding(.vertical, 11)
@@ -307,7 +321,10 @@ public struct IACard: View {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(WeddingIdentityPalette.hairline, lineWidth: 1)
         )
+        .contentShape(Rectangle())
+        .onTapGesture { onTap?() }
         .accessibilityIdentifier(testId ?? "ia-card")
+        .accessibilityAddTraits(onTap != nil ? .isButton : [])
     }
 }
 

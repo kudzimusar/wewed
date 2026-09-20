@@ -92,11 +92,25 @@ public struct GalleryContentSection: View {
                            "The couple has published gallery text but no images yet.",
                            testId: "\(testIdPrefix)-no-previews")
                 }
+                // A gallery shows pictures. Listing file paths is a manifest, not a gallery, so
+                // each reference the native bundle can resolve is rendered as the image itself; a
+                // reference it cannot resolve says so plainly rather than being hidden or faked.
                 ForEach(previews) { entry in
                     let assetName = entry.value.assetBaseName()
-                    IACard(entry.field.humanisedContentField(), entry.value,
-                           status: bundledMedia.contains(assetName) ? "Available" : "Not bundled",
-                           testId: "\(testIdPrefix)-\(entry.field)")
+                    if bundledMedia.contains(assetName) {
+                        WewedMediaImage(assetName)
+                            .aspectRatio(contentMode: .fill)
+                            .frame(height: 180)
+                            .clipped()
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .accessibilityLabel(entry.field.humanisedContentField())
+                            .accessibilityIdentifier("\(testIdPrefix)-\(entry.field)")
+                    } else {
+                        IACard(entry.field.humanisedContentField(),
+                               "This image is published for the web experience and is not bundled with the app.",
+                               status: "Not bundled",
+                               testId: "\(testIdPrefix)-\(entry.field)")
+                    }
                 }
             }
         }
@@ -225,7 +239,7 @@ public struct RecentImportsSection: View {
                     IACard(job.moduleTitle,
                            [job.fileName, counts.isEmpty ? "\(job.totalRows) rows" : counts]
                                .compactMap { $0 }.joined(separator: " — "),
-                           trailing: job.performedAt.map { String($0.prefix(10)) },
+                           trailing: job.performedAt?.asDisplayDate(),
                            status: job.status.capitalizedFirst(),
                            testId: "\(testIdPrefix)-\(job.id)")
                 }
@@ -262,7 +276,7 @@ public struct LiveWallMessagesSection: View {
                 ForEach(publicMessages) { message in
                     IACard((message.authorName?.isEmpty == false) ? message.authorName! : "A guest",
                            message.content,
-                           trailing: message.createdAt.map { String($0.prefix(10)) },
+                           trailing: message.createdAt?.asDisplayDate(),
                            testId: "\(testIdPrefix)-\(message.id)")
                 }
             }
@@ -324,10 +338,10 @@ public struct ContentRevisionsSection: View {
                 ForEach(revisions) { revision in
                     let state: String = {
                         if revision.isPublished {
-                            return "Published" + (revision.publishedAt.map { " " + String($0.prefix(10)) } ?? "")
+                            return "Published" + (revision.publishedAt.map { " " + $0.asDisplayDate() } ?? "")
                         }
                         if revision.isScheduled {
-                            return "Scheduled for " + (revision.scheduledFor.map { String($0.prefix(10)) } ?? "")
+                            return "Scheduled for " + (revision.scheduledFor?.asDisplayDate() ?? "")
                         }
                         return "Draft"
                     }()
@@ -380,7 +394,7 @@ public struct AuditEventsSection: View {
                     IACard(event.action.replacingOccurrences(of: "_", with: " ").capitalizedFirst(),
                            [event.resourceType, event.resourceId.map { String($0.prefix(12)) }]
                                .compactMap { $0 }.joined(separator: " · "),
-                           trailing: event.createdAt.map { String($0.prefix(10)) },
+                           trailing: event.createdAt?.asDisplayDate(),
                            testId: "\(testIdPrefix)-\(event.id)")
                 }
                 if events.count > 100 {
@@ -446,7 +460,7 @@ public struct GuestRsvpDetailSection: View {
                 }
                 IACard("Check-in",
                        rsvp.checkedIn
-                           ? "Checked in" + (rsvp.checkedInAt.map { " at " + String($0.prefix(16)) } ?? "")
+                           ? "Checked in" + (rsvp.checkedInAt.map { " on " + $0.asDisplayDateTime() } ?? "")
                            : "Not checked in",
                        testId: "\(testIdPrefix)-check-in")
 
@@ -537,18 +551,58 @@ public struct IAEmptySourceSection: View {
 // MARK: - Helpers
 
 public extension String {
+    /// Formats a production timestamp for display.
+    ///
+    /// The graph stores ISO-8601 (`2026-06-22T05:35:00`). Printing the raw string leaks the
+    /// storage format onto the screen, which is how a check-in read
+    /// "Checked in at 2026-06-22T05:35".
+    func asDisplayDate() -> String {
+        let input = DateFormatter()
+        input.locale = Locale(identifier: "en_US_POSIX")
+        input.dateFormat = "yyyy-MM-dd"
+        guard let date = input.date(from: String(prefix(10))) else { return self }
+        let output = DateFormatter()
+        output.locale = Locale(identifier: "en_US_POSIX")
+        output.dateFormat = "d MMM yyyy"
+        return output.string(from: date)
+    }
+
+    /// Formats a production timestamp with its time of day.
+    func asDisplayDateTime() -> String {
+        let normalised = String(replacingOccurrences(of: "T", with: " ").prefix(16))
+        let input = DateFormatter()
+        input.locale = Locale(identifier: "en_US_POSIX")
+        input.dateFormat = "yyyy-MM-dd HH:mm"
+        guard let date = input.date(from: normalised) else { return asDisplayDate() }
+        let output = DateFormatter()
+        output.locale = Locale(identifier: "en_US_POSIX")
+        output.dateFormat = "d MMM yyyy, HH:mm"
+        return output.string(from: date)
+    }
+
     /// Turns a production content field key into a readable label.
+    ///
+    /// Content keys come in three shapes: camelCase (`previewImage0`), hyphenated (`milestone-0`)
+    /// and snake_case. All three reached the screen verbatim, so a couple's story read
+    /// "Milestone-0". Repeated fields are zero-indexed in storage and are shown one-indexed,
+    /// because "Milestone 0" is a storage detail, not how anyone counts their own milestones.
     func humanisedContentField() -> String {
         guard !isEmpty else { return "Detail" }
         var spaced = ""
-        for (index, character) in enumerated() {
-            if index > 0, character.isUppercase || character.isNumber {
-                let previous = self[self.index(startIndex, offsetBy: index - 1)]
-                if previous.isLowercase { spaced.append(" ") }
+        for (offset, character) in enumerated() {
+            if offset > 0, character.isUppercase || character.isNumber {
+                let previous = self[index(startIndex, offsetBy: offset - 1)]
+                if previous.isLowercase || previous.isLetter { spaced.append(" ") }
             }
-            spaced.append(character == "_" ? " " : character)
+            spaced.append(character == "_" || character == "-" ? " " : character)
         }
-        return spaced.capitalizedFirst()
+        var label = spaced.trimmingCharacters(in: .whitespaces)
+        // Show a trailing zero-based index one-indexed.
+        let parts = label.split(separator: " ")
+        if parts.count > 1, let last = parts.last, let index = Int(last) {
+            label = parts.dropLast().joined(separator: " ") + " \(index + 1)"
+        }
+        return label.capitalizedFirst()
     }
 
     /// The base filename of a media reference, used to match against bundled assets.
@@ -586,7 +640,7 @@ public struct PlannerClientProfileSection: View {
         if let wedding = graph.wedding {
             IASectionList("Client Profile", wedding.coupleNames) {
                 IACard("Wedding", wedding.coupleNames, testId: "client-profile-couple")
-                IACard("Date", String(wedding.date.prefix(10)), testId: "client-profile-date")
+                IACard("Date", wedding.date.asDisplayDate(), testId: "client-profile-date")
                 IACard("Venue", "\(wedding.venueName) — \(wedding.city), \(wedding.country)",
                        testId: "client-profile-venue")
                 IACard("Planning stage", wedding.lifecycle.capitalizedFirst(),
@@ -864,17 +918,8 @@ public struct CoupleRsvpWorksheet: View {
                            ["Party of \(guest.partySize)", markers]
                                .filter { !$0.isEmpty }.joined(separator: " — "),
                            trailing: guest.rsvpStatus.title,
-                           testId: "rsvp-row-\(guest.id)")
-
-                    Button("Open RSVP detail") { openGuestId = guest.id }
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(WeddingIdentityPalette.champagneDeep)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(WeddingIdentityPalette.ivory)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                        .accessibilityIdentifier("rsvp-open-\(guest.id)")
+                           testId: "rsvp-row-\(guest.id)",
+                           onTap: { openGuestId = guest.id })
                 }
             }
         }

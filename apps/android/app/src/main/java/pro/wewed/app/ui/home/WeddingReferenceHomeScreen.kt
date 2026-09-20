@@ -370,9 +370,38 @@ private data class ReferenceCountdown(
     val seconds: Int
 )
 
+/**
+ * Parses a wedding date from the repository.
+ *
+ * The wedding graph stores dates as ISO-8601 (`2026-12-23T14:00:00`), sometimes with a timezone
+ * and sometimes with fractional seconds; a flattened snapshot used to hand over a space-separated
+ * form instead. A parser that accepted only one of those silently failed on the others, and the
+ * failure was invisible: the hero fell back to printing the raw timestamp and the countdown simply
+ * did not render. Accept every shape the graph actually produces.
+ */
+private fun parseWeddingDate(raw: String): java.util.Date? {
+    val trimmed = raw.trim()
+    if (trimmed.isEmpty()) return null
+    val patterns = listOf(
+        "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
+        "yyyy-MM-dd'T'HH:mm:ssXXX",
+        "yyyy-MM-dd'T'HH:mm:ss.SSS",
+        "yyyy-MM-dd'T'HH:mm:ss",
+        "yyyy-MM-dd'T'HH:mm",
+        "yyyy-MM-dd HH:mm:ss",
+        "yyyy-MM-dd"
+    )
+    for (pattern in patterns) {
+        val parsed = runCatching {
+            SimpleDateFormat(pattern, Locale.US).apply { isLenient = false }.parse(trimmed)
+        }.getOrNull()
+        if (parsed != null) return parsed
+    }
+    return null
+}
+
 private fun countdownFrom(raw: String): ReferenceCountdown? {
-    val parser = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
-    val target = runCatching { parser.parse(raw) }.getOrNull() ?: return null
+    val target = parseWeddingDate(raw) ?: return null
     val totalSeconds = max(0L, (target.time - System.currentTimeMillis()) / 1000L)
     return ReferenceCountdown(
         days = (totalSeconds / 86_400L).toInt(),
@@ -383,8 +412,7 @@ private fun countdownFrom(raw: String): ReferenceCountdown? {
 }
 
 private fun displayWeddingDate(raw: String): String {
-    val parser = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
-    val date = runCatching { parser.parse(raw) }.getOrNull() ?: return raw.uppercase()
+    val date = parseWeddingDate(raw) ?: return raw.uppercase()
     return SimpleDateFormat("dd MMM yyyy", Locale.US).format(date).uppercase()
 }
 

@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -266,12 +267,21 @@ fun IACard(
     subtitle: String? = null,
     trailing: String? = null,
     status: String? = null,
-    testTag: String? = null
+    testTag: String? = null,
+    /**
+     * Makes the whole row open a detail surface.
+     *
+     * A list of 175 guests with a separate "Open detail" line under each card reads as noise. When
+     * a card leads somewhere, the card itself is the affordance and carries a chevron, matching the
+     * Guest List.
+     */
+    onClick: (() -> Unit)? = null
 ) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .then(if (testTag != null) Modifier.testTag(testTag) else Modifier),
+            .then(if (testTag != null) Modifier.testTag(testTag) else Modifier)
+            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
         shape = RoundedCornerShape(12.dp),
         color = WeddingIdentityPalette.IvorySoft,
         border = androidx.compose.foundation.BorderStroke(1.dp, WeddingIdentityPalette.Hairline)
@@ -292,6 +302,15 @@ fun IACard(
             }
             trailing?.let {
                 Text(it, color = WeddingIdentityPalette.ChampagneDeep, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            }
+            if (onClick != null) {
+                Spacer(Modifier.width(8.dp))
+                Icon(
+                    Icons.Default.ChevronRight,
+                    contentDescription = "Open detail",
+                    tint = WeddingIdentityPalette.ChampagneDeep,
+                    modifier = Modifier.size(18.dp)
+                )
             }
         }
     }
@@ -413,9 +432,9 @@ fun CoupleGuestsSection(section: String, graph: WeddingGraphState, environment: 
                             .filter { it.isNotBlank() }
                             .joinToString(" — "),
                         trailing = guest.rsvpStatus.title,
-                        testTag = "rsvp-row-${guest.id}"
+                        testTag = "rsvp-row-${guest.id}",
+                        onClick = { openGuestId = guest.id }
                     )
-                    IAOpenRow("Open RSVP detail", "rsvp-open-${guest.id}") { openGuestId = guest.id }
                 }
             }
         }

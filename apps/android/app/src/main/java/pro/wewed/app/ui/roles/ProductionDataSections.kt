@@ -1,11 +1,15 @@
 package pro.wewed.app.ui.roles
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -107,15 +111,31 @@ fun GalleryContentSection(
                 testTag = "$testTagPrefix-no-previews"
             )
         }
+        // A gallery shows pictures. Listing file paths is a manifest, not a gallery, so each
+        // reference the native bundle can resolve is rendered as the image itself; a reference it
+        // cannot resolve says so plainly rather than being hidden or faked.
         previews.forEach { entry ->
             val assetName = entry.value.substringAfterLast('/').substringBeforeLast('.')
-            val available = assetName in bundledMedia
-            IACard(
-                title = entry.field.humanisedContentField(),
-                subtitle = entry.value,
-                status = if (available) "Available" else "Not bundled",
-                testTag = "$testTagPrefix-${entry.field}"
-            )
+            val drawable = BundledWeddingMedia.drawableFor(assetName)
+            if (drawable != null) {
+                Image(
+                    painter = painterResource(id = drawable),
+                    contentDescription = entry.field.humanisedContentField(),
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .testTag("$testTagPrefix-${entry.field}")
+                )
+            } else {
+                IACard(
+                    title = entry.field.humanisedContentField(),
+                    subtitle = "This image is published for the web experience and is not bundled with the app.",
+                    status = "Not bundled",
+                    testTag = "$testTagPrefix-${entry.field}"
+                )
+            }
         }
     }
 }
@@ -247,7 +267,7 @@ fun RecentImportsSection(
             IACard(
                 title = job.moduleTitle,
                 subtitle = listOfNotNull(job.fileName, counts).joinToString(" — "),
-                trailing = job.performedAt?.take(10),
+                trailing = job.performedAt?.asDisplayDate(),
                 status = job.status.replaceFirstChar { it.uppercase() },
                 testTag = "$testTagPrefix-${job.id}"
             )
@@ -282,7 +302,7 @@ fun LiveWallMessagesSection(
             IACard(
                 title = message.authorName?.takeIf { it.isNotBlank() } ?: "A guest",
                 subtitle = message.content,
-                trailing = message.createdAt?.take(10),
+                trailing = message.createdAt?.asDisplayDate(),
                 testTag = "$testTagPrefix-${message.id}"
             )
         }
@@ -344,8 +364,8 @@ fun ContentRevisionsSection(
             IACard(
                 title = "${WeddingContentSection.titleFor(revision.section)} · ${revision.fieldKey}",
                 subtitle = when {
-                    revision.isPublished -> "Published${revision.publishedAt?.let { " ${it.take(10)}" } ?: ""}"
-                    revision.isScheduled -> "Scheduled for ${revision.scheduledFor?.take(10)}"
+                    revision.isPublished -> "Published${revision.publishedAt?.let { " ${it.asDisplayDate()}" } ?: ""}"
+                    revision.isScheduled -> "Scheduled for ${revision.scheduledFor?.asDisplayDate()}"
                     else -> "Draft"
                 },
                 status = revision.status.replaceFirstChar { it.uppercase() },
@@ -397,7 +417,7 @@ fun AuditEventsSection(
                 title = event.action.replace('_', ' ').replaceFirstChar { it.uppercase() },
                 subtitle = listOfNotNull(event.resourceType, event.resourceId?.take(12))
                     .joinToString(" · "),
-                trailing = event.createdAt?.take(10),
+                trailing = event.createdAt?.asDisplayDate(),
                 testTag = "$testTagPrefix-${event.id}"
             )
         }
@@ -468,7 +488,7 @@ fun GuestRsvpDetailSection(
         IACard(
             title = "Check-in",
             subtitle = if (rsvp.checkedIn) {
-                "Checked in${rsvp.checkedInAt?.let { " at ${it.take(16)}" } ?: ""}"
+                "Checked in${rsvp.checkedInAt?.let { " on ${it.asDisplayDateTime()}" } ?: ""}"
             } else {
                 "Not checked in"
             },
@@ -544,16 +564,63 @@ fun IAEmptySourceSection(title: String, reason: String, testTagPrefix: String) {
     }
 }
 
-/** Turns a production content field key into a readable label. */
-internal fun String.humanisedContentField(): String {
-    if (isBlank()) return "Detail"
-    val spaced = replace(Regex("([a-z])([A-Z0-9])"), "$1 $2").replace('_', ' ')
-    return spaced.replaceFirstChar { it.uppercase() }
+/**
+ * Formats a production timestamp for display.
+ *
+ * The graph stores ISO-8601 (`2026-06-22T05:35:00`). Printing the raw string leaks the storage
+ * format onto the screen, which is how a check-in read "Checked in at 2026-06-22T05:35".
+ */
+internal fun String.asDisplayDate(): String {
+    val date = runCatching {
+        java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(take(10))
+    }.getOrNull() ?: return this
+    return java.text.SimpleDateFormat("d MMM yyyy", java.util.Locale.US).format(date)
 }
 
-/** Media the native bundle actually carries, keyed by asset base name. */
+/** Formats a production timestamp with its time of day. */
+internal fun String.asDisplayDateTime(): String {
+    val normalised = replace('T', ' ').take(16)
+    val date = runCatching {
+        java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US).parse(normalised)
+    }.getOrNull() ?: return asDisplayDate()
+    return java.text.SimpleDateFormat("d MMM yyyy, HH:mm", java.util.Locale.US).format(date)
+}
+
+/**
+ * Turns a production content field key into a readable label.
+ *
+ * Content keys come in three shapes: camelCase (`previewImage0`), hyphenated (`milestone-0`) and
+ * snake_case. All three reached the screen verbatim, so a couple's story read "Milestone-0".
+ * Repeated fields are zero-indexed in storage and are shown one-indexed, because "Milestone 0" is
+ * a storage detail, not how anyone counts their own milestones.
+ */
+internal fun String.humanisedContentField(): String {
+    if (isBlank()) return "Detail"
+    val spaced = replace(Regex("([a-z])([A-Z])"), "$1 $2")
+        .replace(Regex("([A-Za-z])(\\d)"), "$1 $2")
+        .replace('_', ' ')
+        .replace('-', ' ')
+        .trim()
+    val oneIndexed = Regex("^(.*?)\\s(\\d+)$").find(spaced)?.let { match ->
+        val (label, index) = match.destructured
+        "$label ${index.toInt() + 1}"
+    } ?: spaced
+    return oneIndexed.replaceFirstChar { it.uppercase() }
+}
+
+/**
+ * Media the native bundle actually carries, keyed by the asset base name used in the wedding
+ * content graph. A reference outside this set is a real published reference the app cannot
+ * resolve — it is reported as such, never hidden and never substituted.
+ */
 object BundledWeddingMedia {
     val names: Set<String> = setOf("hero-wedding", "ornament-frame")
+
+    fun drawableFor(assetName: String): Int? = when (assetName) {
+        "hero-wedding" -> pro.wewed.app.R.drawable.hero_wedding
+        "ornament-frame" -> pro.wewed.app.R.drawable.ornament_frame
+        else -> null
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -577,7 +644,7 @@ fun PlannerClientProfileSection(graph: WeddingGraphState) {
 
     IASectionList("Client Profile", wedding.coupleNames) {
         IACard("Wedding", wedding.coupleNames, testTag = "client-profile-couple")
-        IACard("Date", wedding.date.take(10), testTag = "client-profile-date")
+        IACard("Date", wedding.date.asDisplayDate(), testTag = "client-profile-date")
         IACard(
             title = "Venue",
             subtitle = "${wedding.venueName} — ${wedding.city}, ${wedding.country}",

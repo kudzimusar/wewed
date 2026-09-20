@@ -275,12 +275,37 @@ public struct WeddingReferenceHomeView: View {
         return formatter.string(from: NSNumber(value: amount)) ?? String(format: "$%.0f", amount)
     }
 
-    private func displayWeddingDate(_ raw: String) -> String {
-        let input = DateFormatter()
-        input.locale = Locale(identifier: "en_US_POSIX")
-        input.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        guard let date = input.date(from: raw) else { return raw.uppercased() }
+    /// Parses a wedding date from the repository.
+    ///
+    /// The wedding graph stores dates as ISO-8601 (`2026-12-23T14:00:00`), sometimes with a
+    /// timezone and sometimes with fractional seconds; a flattened snapshot used to hand over a
+    /// space-separated form instead. A parser that accepted only one of those silently failed on
+    /// the others, and the failure was invisible: the hero fell back to printing the raw timestamp
+    /// and the countdown simply did not render. Accept every shape the graph actually produces.
+    private static let weddingDatePatterns = [
+        "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
+        "yyyy-MM-dd'T'HH:mm:ssXXX",
+        "yyyy-MM-dd'T'HH:mm:ss.SSS",
+        "yyyy-MM-dd'T'HH:mm:ss",
+        "yyyy-MM-dd'T'HH:mm",
+        "yyyy-MM-dd HH:mm:ss",
+        "yyyy-MM-dd"
+    ]
 
+    private func parseWeddingDate(_ raw: String) -> Date? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        for pattern in Self.weddingDatePatterns {
+            formatter.dateFormat = pattern
+            if let date = formatter.date(from: trimmed) { return date }
+        }
+        return nil
+    }
+
+    private func displayWeddingDate(_ raw: String) -> String {
+        guard let date = parseWeddingDate(raw) else { return raw.uppercased() }
         let output = DateFormatter()
         output.locale = Locale(identifier: "en_US_POSIX")
         output.dateFormat = "dd MMM yyyy"
@@ -288,10 +313,7 @@ public struct WeddingReferenceHomeView: View {
     }
 
     private func countdown(from raw: String) -> (days: Int, hours: Int, minutes: Int, seconds: Int)? {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        guard let date = formatter.date(from: raw) else { return nil }
+        guard let date = parseWeddingDate(raw) else { return nil }
 
         let interval = max(0, Int(date.timeIntervalSinceNow))
         return (
