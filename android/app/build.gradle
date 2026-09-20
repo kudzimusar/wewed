@@ -176,9 +176,13 @@ android {
 }
 
 androidComponents {
+    // Google Play automatic protection rejects every Play artifact below API 24.
+    // Keep local/debug compatibility at API 21; raise only the signed Play wrapper.
+    beforeVariants(selector().withBuildType('release')) { variantBuilder ->
+        variantBuilder.minSdk = 24
+    }
     beforeVariants(selector().withBuildType('uatPlay')) { variantBuilder ->
-        // Google Play automatic protection requires API 24+. Keep production
-        // compatibility at API 21 and raise only the closed-testing Play UAT AAB.
+        // The closed-testing UAT wrapper is likewise protected by Play.
         variantBuilder.minSdk = 24
     }
     onVariants(selector().withBuildType('uatPlay')) { variant ->

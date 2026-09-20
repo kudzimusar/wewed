@@ -25,6 +25,8 @@ describe('production Android invitation wrapper contract', () => {
     expect(gradle).toContain('buildConfigField "boolean", "UAT", "false"')
     expect(gradle).toContain(`buildConfigField "String", "INVITATION_RESUME_ORIGIN", '"https://wewed.pro"'`)
     expect(gradle).toContain("onVariants(selector().withBuildType('release'))")
+    expect(gradle).toContain("beforeVariants(selector().withBuildType('release'))")
+    expect(gradle).toContain('variantBuilder.minSdk = 24')
     expect(gradle).toContain('WEWED_ANDROID_PRODUCTION_VERSION_CODE')
     expect(gradle).toContain('WEWED_ANDROID_PRODUCTION_VERSION_NAME')
     expect(gradle).toContain('uatPlay {')
