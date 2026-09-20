@@ -230,5 +230,32 @@
       "ivory-card-view-pass"
     ],
     "maxStageWidthPx": 430.0
+  },
+  "typography": {
+    "note": "The invitation script is part of the design, not a styling choice. Substituting an 'elegant-looking' system face is the same class of error as redrawing the flowers.",
+    "scriptFamily": "IvoryScript",
+    "scriptSource": "origin/main:public/fonts/GreatVibes-Regular.ttf",
+    "scriptSha256": "8d509802186f1b51572531ecf313e8098f9a5bfdfaca93f0c9b34467f9982d15",
+    "scriptLicence": "origin/main:public/fonts/GreatVibes-OFL.txt",
+    "android": "res/font/great_vibes_regular.ttf",
+    "ios": "Wewed/Resources/GreatVibes-Regular.ttf",
+    "postScriptName": "GreatVibes-Regular",
+    "bodyFamily": "Georgia, serif",
+    "scriptRegions": [
+      "names",
+      "tagline"
+    ],
+    "bodyRegions": [
+      "message",
+      "date",
+      "location",
+      "guest",
+      "monogram",
+      "detailCouple",
+      "detailVenue",
+      "detailNote"
+    ],
+    "androidLicence": "assets/fonts/GreatVibes-OFL.txt",
+    "iosLicence": "Wewed/Resources/GreatVibes-OFL.txt"
   }
 }

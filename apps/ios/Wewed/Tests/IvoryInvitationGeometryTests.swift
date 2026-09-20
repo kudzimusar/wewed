@@ -1,4 +1,5 @@
 import XCTest
+import CommonCrypto
 @testable import WewedKit
 
 /// The Ivory Floral Gold renderer must reproduce the approved stationery, not resemble it.
@@ -30,10 +31,21 @@ final class IvoryInvitationGeometryTests: XCTestCase {
         let testIdentifiers: [String]
     }
 
+    private struct Typography: Decodable {
+        let scriptFamily: String
+        let scriptSource: String
+        let scriptSha256: String
+        let postScriptName: String
+        let android: String
+        let ios: String
+        let scriptRegions: [String]
+    }
+
     private struct Contract: Decodable {
         let style: String
         let assets: [String: Asset]
         let geometry: Geometry
+        let typography: Typography
     }
 
     private static func loadContract() throws -> Contract {
@@ -171,5 +183,47 @@ final class IvoryInvitationGeometryTests: XCTestCase {
         XCTAssertNotNil(attending.statusLabel)
         XCTAssertNotNil(declined.statusLabel)
         XCTAssertNil(ivoryRsvpState(from: .pending).statusLabel)
+    }
+
+    /// The invitation script is part of the design.
+    ///
+    /// A missing font does not crash — it silently falls back to a system face, which is exactly
+    /// the regression this asserts against. `.custom` would render the couple's names in the wrong
+    /// typeface and everything else would still look plausible.
+    func testTheApprovedScriptFaceIsBundledAndRegistered() throws {
+        XCTAssertEqual(contract.typography.scriptFamily, "IvoryScript")
+        XCTAssertEqual(IvoryTypography.scriptPostScriptName, contract.typography.postScriptName)
+        XCTAssertTrue(
+            IvoryTypography.isScriptAvailable,
+            "GreatVibes-Regular is not registered; the couple's names would fall back to a system face"
+        )
+    }
+
+    /// The bundled file is the approved one, byte for byte.
+    func testTheBundledScriptFaceMatchesTheApprovedFile() throws {
+        var root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        while root.path != "/",
+              !FileManager.default.fileExists(
+                atPath: root.appendingPathComponent("apps/ios/Package.swift").path) {
+            root = root.deletingLastPathComponent()
+        }
+        let font = root.appendingPathComponent("apps/ios").appendingPathComponent(contract.typography.ios)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: font.path),
+                      "\(contract.typography.ios) is declared but not present")
+        let data = try Data(contentsOf: font)
+        XCTAssertEqual(Self.sha256(data), contract.typography.scriptSha256)
+    }
+
+    /// Only the couple's names and their line are script; the seal inherits the roman face.
+    func testOnlyNamesAndTaglineUseTheScriptFace() {
+        XCTAssertEqual(contract.typography.scriptRegions, ["names", "tagline"])
+    }
+
+    private static func sha256(_ data: Data) -> String {
+        var hash = [UInt8](repeating: 0, count: 32)
+        data.withUnsafeBytes { buffer in
+            _ = CC_SHA256(buffer.baseAddress, CC_LONG(buffer.count), &hash)
+        }
+        return hash.map { String(format: "%02x", $0) }.joined()
     }
 }

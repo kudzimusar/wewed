@@ -293,19 +293,23 @@ fun IvoryFloralGoldNative(
                         Text(
                             data.coupleNames,
                             color = IvoryPalette.Ink,
-                            fontFamily = FontFamily.Serif,
-                            fontSize = (stageWidth.value * 0.072f).sp,
-                            lineHeight = (stageWidth.value * 0.084f).sp,
+                            // `.ivory-names { font-family: IvoryScript }` — the couple's names are
+                            // the one place the script face carries the whole design.
+                            fontFamily = IvoryTypography.Script,
+                            fontSize = (stageWidth.value * 0.112f).sp,
+                            lineHeight = (stageWidth.value * 0.118f).sp,
                             textAlign = TextAlign.Center
                         )
                     }
                     IvoryRegion(IvoryGeometry.MESSAGE, stageWidth, stageHeight) {
                         Text(
-                            data.message,
-                            color = IvoryPalette.InkSoft,
-                            fontFamily = FontFamily.Serif,
+                            // `.ivory-message { text-transform: uppercase; letter-spacing: .13em }`
+                            data.message.uppercase(),
+                            color = IvoryPalette.Ink,
+                            fontFamily = IvoryTypography.Body,
                             fontSize = (stageWidth.value * 0.030f).sp,
-                            lineHeight = (stageWidth.value * 0.046f).sp,
+                            letterSpacing = (stageWidth.value * 0.030f * 0.13f).sp,
+                            lineHeight = (stageWidth.value * 0.030f * 1.7f).sp,
                             textAlign = TextAlign.Center
                         )
                     }
@@ -319,31 +323,34 @@ fun IvoryFloralGoldNative(
                                     letterSpacing = (stageWidth.value * 0.006f).sp
                                 )
                             }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            // `.ivory-date-parts { justify-content: space-between; width: 100% }`
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
                                 data.monthLabel?.let {
                                     Text(
                                         it.uppercase(),
                                         color = IvoryPalette.Ink,
-                                        fontFamily = FontFamily.Serif,
+                                        fontFamily = IvoryTypography.Body,
                                         fontSize = (stageWidth.value * 0.030f).sp
                                     )
                                 }
-                                Spacer(Modifier.width(stageWidth * 0.02f))
                                 data.dayLabel?.let {
                                     Text(
                                         it,
                                         color = IvoryPalette.Ink,
-                                        fontFamily = FontFamily.Serif,
+                                        fontFamily = IvoryTypography.Body,
                                         fontWeight = FontWeight.SemiBold,
                                         fontSize = (stageWidth.value * 0.050f).sp
                                     )
                                 }
-                                Spacer(Modifier.width(stageWidth * 0.02f))
                                 data.yearLabel?.let {
                                     Text(
                                         it,
                                         color = IvoryPalette.Ink,
-                                        fontFamily = FontFamily.Serif,
+                                        fontFamily = IvoryTypography.Body,
                                         fontSize = (stageWidth.value * 0.030f).sp
                                     )
                                 }
@@ -353,11 +360,11 @@ fun IvoryFloralGoldNative(
                     IvoryRegion(IvoryGeometry.LOCATION, stageWidth, stageHeight, "ivory-card-venue") {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                data.venue,
+                                // `.ivory-location strong { text-transform: uppercase }`
+                                data.venue.uppercase(),
                                 color = IvoryPalette.Ink,
-                                fontFamily = FontFamily.Serif,
-                                fontWeight = FontWeight.Medium,
-                                fontSize = (stageWidth.value * 0.030f).sp,
+                                fontFamily = IvoryTypography.Body,
+                                fontSize = (stageWidth.value * 0.038f).sp,
                                 textAlign = TextAlign.Center
                             )
                             data.venueAddress?.let {
@@ -381,8 +388,9 @@ fun IvoryFloralGoldNative(
                             Text(
                                 it,
                                 color = IvoryPalette.Gold,
-                                fontFamily = FontFamily.Serif,
-                                fontSize = (stageWidth.value * 0.026f).sp,
+                                // `.ivory-tagline { font-family: IvoryScript }`.
+                                fontFamily = IvoryTypography.Script,
+                                fontSize = (stageWidth.value * 0.050f).sp,
                                 textAlign = TextAlign.Center
                             )
                         }
@@ -392,21 +400,32 @@ fun IvoryFloralGoldNative(
                         IvoryGeometry.GUEST, stageWidth, stageHeight,
                         "ivory-card-guest-personalization"
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        // `.ivory-guest { gap: .25cqw; font-size: 2.2cqw; line-height: 1.4 }`.
+                        // The line height is explicit: the authored box holds two lines only at the
+                        // web's spacing, and the platform default silently pushed the RSVP deadline
+                        // out of it.
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(stageWidth * 0.0025f)
+                        ) {
                             data.guestName?.takeIf { it.isNotBlank() }?.let {
                                 Text(
                                     "Especially for $it",
                                     color = IvoryPalette.Ink,
-                                    fontFamily = FontFamily.Serif,
-                                    fontSize = (stageWidth.value * 0.026f).sp,
+                                    fontFamily = IvoryTypography.Body,
+                                    fontSize = (stageWidth.value * 0.022f).sp,
+                                    lineHeight = (stageWidth.value * 0.022f * 1.4f).sp,
                                     textAlign = TextAlign.Center
                                 )
                             }
                             data.rsvpDeadlineLabel?.let {
                                 Text(
                                     "RSVP by $it",
-                                    color = IvoryPalette.InkSoft,
-                                    fontSize = (stageWidth.value * 0.022f).sp
+                                    color = IvoryPalette.Ink,
+                                    fontFamily = IvoryTypography.Body,
+                                    fontSize = (stageWidth.value * 0.022f).sp,
+                                    lineHeight = (stageWidth.value * 0.022f * 1.4f).sp,
+                                    textAlign = TextAlign.Center
                                 )
                             }
                         }
@@ -427,7 +446,7 @@ fun IvoryFloralGoldNative(
                             Text(
                                 rsvp.statusLabel ?: "Wedding details ↓",
                                 color = IvoryPalette.Gold,
-                                fontFamily = FontFamily.Serif,
+                                fontFamily = IvoryTypography.Body,
                                 fontSize = (stageWidth.value * 0.030f).sp,
                                 modifier = Modifier.testTag(
                                     when (rsvp.answer) {
@@ -459,7 +478,7 @@ fun IvoryFloralGoldNative(
                         Text(
                             data.coupleNames,
                             color = IvoryPalette.Ink,
-                            fontFamily = FontFamily.Serif,
+                            fontFamily = IvoryTypography.Body,
                             fontSize = (stageWidth.value * 0.030f).sp,
                             textAlign = TextAlign.Center
                         )
@@ -471,9 +490,8 @@ fun IvoryFloralGoldNative(
                             Text(
                                 it,
                                 color = IvoryPalette.Gold,
-                                fontFamily = FontFamily.Serif,
-                                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                                fontSize = (stageWidth.value * 0.042f).sp,
+                                fontFamily = IvoryTypography.Script,
+                                fontSize = (stageWidth.value * 0.052f).sp,
                                 textAlign = TextAlign.Center
                             )
                         }
@@ -630,7 +648,7 @@ fun IvoryFloralGoldNative(
                         Text(
                             data.monogram.replace(Regex("[·|]"), " "),
                             color = IvoryPalette.Ink,
-                            fontFamily = FontFamily.Serif,
+                            fontFamily = IvoryTypography.Body,
                             fontSize = (stageWidth.value * 0.055f).sp,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.graphicsLayer {
@@ -723,9 +741,22 @@ private suspend fun launchAll(vararg blocks: suspend () -> Unit) {
 }
 
 /** Ink and gold sampled from the approved stationery. */
+/**
+ * The stationery's own colours, taken from `ivory-floral-gold.css` rather than chosen.
+ *
+ * The whole open face inherits one warm gold-brown from `.ivory-stage { color: #70501f }`. Using a
+ * darker "ink" instead is subtle enough to survive review and still be the wrong invitation.
+ */
 object IvoryPalette {
+    /** The surface the card sits on. */
     val Stage = Color(0xFF15100B)
-    val Ink = Color(0xFF4A3B27)
-    val InkSoft = Color(0xFF6B5A44)
-    val Gold = Color(0xFF9C7A3C)
+
+    /** `.ivory-stage { color: #70501f }` — inherited by every region on the open face. */
+    val Ink = Color(0xFF70501F)
+
+    /** `.ivory-detail-venue, .ivory-detail-note { color: #322b22 }` on the details surface. */
+    val InkSoft = Color(0xFF322B22)
+
+    /** The footer actions on the details surface, `#76501d`. */
+    val Gold = Color(0xFF76501D)
 }

@@ -139,11 +139,19 @@ public struct IvoryRsvpState: Equatable {
 }
 
 /// Ink and gold sampled from the approved stationery.
+/// The stationery's own colours, taken from `ivory-floral-gold.css` rather than chosen.
+///
+/// The whole open face inherits one warm gold-brown from `.ivory-stage { color: #70501f }`. Using a
+/// darker "ink" instead is subtle enough to survive review and still be the wrong invitation.
 public enum IvoryPalette {
+    /// The surface the card sits on.
     public static let stage = Color(red: 0x15 / 255, green: 0x10 / 255, blue: 0x0B / 255)
-    public static let ink = Color(red: 0x4A / 255, green: 0x3B / 255, blue: 0x27 / 255)
-    public static let inkSoft = Color(red: 0x6B / 255, green: 0x5A / 255, blue: 0x44 / 255)
-    public static let gold = Color(red: 0x9C / 255, green: 0x7A / 255, blue: 0x3C / 255)
+    /// `.ivory-stage { color: #70501f }` — inherited by every region on the open face.
+    public static let ink = Color(red: 0x70 / 255, green: 0x50 / 255, blue: 0x1F / 255)
+    /// `.ivory-detail-venue, .ivory-detail-note { color: #322b22 }` on the details surface.
+    public static let inkSoft = Color(red: 0x32 / 255, green: 0x2B / 255, blue: 0x22 / 255)
+    /// The footer actions on the details surface, `#76501d`.
+    public static let gold = Color(red: 0x76 / 255, green: 0x50 / 255, blue: 0x1D / 255)
 }
 
 /// The invitation.
@@ -225,16 +233,20 @@ public struct IvoryFloralGoldNative: View {
 
             region(IvoryGeometry.names, w, h) {
                 Text(data.coupleNames)
-                    .font(.system(size: w * 0.072, design: .serif))
+                    // `.ivory-names { font-family: IvoryScript }`.
+                    .font(IvoryTypography.script(size: w * 0.112))
                     .foregroundStyle(IvoryPalette.ink)
                     .multilineTextAlignment(.center)
             }
             .accessibilityIdentifier("ivory-card-couple-names")
 
             region(IvoryGeometry.message, w, h) {
-                Text(data.message)
-                    .font(.system(size: w * 0.030, design: .serif))
-                    .foregroundStyle(IvoryPalette.inkSoft)
+                // `.ivory-message { text-transform: uppercase; letter-spacing: .13em }`
+                Text(data.message.uppercased())
+                    .font(IvoryTypography.body(size: w * 0.030))
+                    .tracking(w * 0.030 * 0.13)
+                    .lineSpacing(w * 0.030 * 0.7)
+                    .foregroundStyle(IvoryPalette.ink)
                     .multilineTextAlignment(.center)
             }
 
@@ -242,44 +254,49 @@ public struct IvoryFloralGoldNative: View {
                 VStack(spacing: 2) {
                     if let weekday = data.weekdayLabel {
                         Text(weekday.uppercased())
-                            .font(.system(size: w * 0.026))
+                            .font(IvoryTypography.body(size: w * 0.026))
                             .tracking(w * 0.006)
                             .foregroundStyle(IvoryPalette.gold)
                     }
-                    HStack(spacing: w * 0.02) {
+                    // `.ivory-date-parts { justify-content: space-between; width: 100% }`
+                    HStack {
                         if let month = data.monthLabel {
                             Text(month.uppercased())
-                                .font(.system(size: w * 0.030, design: .serif))
+                                .font(IvoryTypography.body(size: w * 0.030))
                                 .foregroundStyle(IvoryPalette.ink)
                         }
+                        Spacer(minLength: 0)
                         if let day = data.dayLabel {
                             Text(day)
-                                .font(.system(size: w * 0.050, weight: .semibold, design: .serif))
+                                .font(IvoryTypography.body(size: w * 0.050, weight: .semibold))
                                 .foregroundStyle(IvoryPalette.ink)
                         }
+                        Spacer(minLength: 0)
                         if let year = data.yearLabel {
                             Text(year)
-                                .font(.system(size: w * 0.030, design: .serif))
+                                .font(IvoryTypography.body(size: w * 0.030))
                                 .foregroundStyle(IvoryPalette.ink)
                         }
                     }
+                    .frame(maxWidth: .infinity)
                 }
             }
             .accessibilityIdentifier("ivory-card-date")
 
             region(IvoryGeometry.location, w, h) {
                 VStack(spacing: 1) {
-                    Text(data.venue)
-                        .font(.system(size: w * 0.030, weight: .medium, design: .serif))
+                    // `.ivory-location strong { text-transform: uppercase; font-size: 3.8cqw }`
+                    Text(data.venue.uppercased())
+                        .font(IvoryTypography.body(size: w * 0.038))
                         .foregroundStyle(IvoryPalette.ink)
                     if let address = data.venueAddress {
                         Text(address)
-                            .font(.system(size: w * 0.024))
-                            .foregroundStyle(IvoryPalette.inkSoft)
+                            .font(IvoryTypography.body(size: w * 0.030))
+                            .foregroundStyle(IvoryPalette.ink)
                     }
                     Text(data.venueCityCountry)
-                        .font(.system(size: w * 0.024))
-                        .foregroundStyle(IvoryPalette.inkSoft)
+                        .font(IvoryTypography.body(size: w * 0.030))
+                        .foregroundStyle(IvoryPalette.ink)
                 }
                 .multilineTextAlignment(.center)
             }
@@ -288,23 +305,25 @@ public struct IvoryFloralGoldNative: View {
             if let tagline = data.tagline, !tagline.isEmpty {
                 region(IvoryGeometry.tagline, w, h) {
                     Text(tagline)
-                        .font(.system(size: w * 0.026, design: .serif))
+                        // `.ivory-tagline { font-family: IvoryScript }`.
+                        .font(IvoryTypography.script(size: w * 0.050))
                         .foregroundStyle(IvoryPalette.gold)
                 }
             }
 
             // The personalisation. Without it this is a template, not an invitation.
             region(IvoryGeometry.guest, w, h) {
-                VStack(spacing: 1) {
+                // `.ivory-guest { gap: .25cqw; font-size: 2.2cqw; line-height: 1.4 }`
+                VStack(spacing: w * 0.0025) {
                     if let guest = data.guestName, !guest.isEmpty {
                         Text("Especially for \(guest)")
-                            .font(.system(size: w * 0.026, design: .serif))
+                            .font(IvoryTypography.body(size: w * 0.022))
                             .foregroundStyle(IvoryPalette.ink)
                     }
                     if let deadline = data.rsvpDeadlineLabel {
                         Text("RSVP by \(deadline)")
-                            .font(.system(size: w * 0.022))
-                            .foregroundStyle(IvoryPalette.inkSoft)
+                            .font(IvoryTypography.body(size: w * 0.022))
+                            .foregroundStyle(IvoryPalette.ink)
                     }
                 }
                 .multilineTextAlignment(.center)
@@ -316,7 +335,7 @@ public struct IvoryFloralGoldNative: View {
                     Spacer()
                     Button { view = .details } label: {
                         Text(rsvp.statusLabel ?? "Wedding details ↓")
-                            .font(.system(size: w * 0.030, design: .serif))
+                            .font(IvoryTypography.body(size: w * 0.030))
                             .foregroundStyle(IvoryPalette.gold)
                             .frame(maxWidth: .infinity, minHeight: h * 0.075)
                     }
@@ -350,7 +369,7 @@ public struct IvoryFloralGoldNative: View {
 
             region(IvoryGeometry.detailCouple, w, h) {
                 Text(data.coupleNames)
-                    .font(.system(size: w * 0.030, design: .serif))
+                    .font(IvoryTypography.body(size: w * 0.030))
                     .foregroundStyle(IvoryPalette.ink)
             }
             // The artwork's own sample copy is erased in these regions; leaving them empty showed
@@ -358,28 +377,27 @@ public struct IvoryFloralGoldNative: View {
             if let tagline = data.tagline, !tagline.isEmpty {
                 region(IvoryGeometry.detailNoteIntro, w, h) {
                     Text(tagline)
-                        .font(.system(size: w * 0.042, design: .serif))
-                        .italic()
+                        .font(IvoryTypography.script(size: w * 0.052))
                         .foregroundStyle(IvoryPalette.gold)
                         .multilineTextAlignment(.center)
                 }
             }
             region(IvoryGeometry.detailVenue, w, h) {
                 VStack(spacing: 1) {
-                    Text(data.venue).font(.system(size: w * 0.024))
+                    Text(data.venue).font(IvoryTypography.body(size: w * 0.024))
                         .foregroundStyle(IvoryPalette.ink)
                     if let address = data.venueAddress, !address.isEmpty {
-                        Text(address).font(.system(size: w * 0.022))
+                        Text(address).font(IvoryTypography.body(size: w * 0.022))
                             .foregroundStyle(IvoryPalette.inkSoft)
                     }
-                    Text(data.venueCityCountry).font(.system(size: w * 0.022))
+                    Text(data.venueCityCountry).font(IvoryTypography.body(size: w * 0.022))
                         .foregroundStyle(IvoryPalette.inkSoft)
                 }
                 .multilineTextAlignment(.center)
             }
             region(IvoryGeometry.detailNote, w, h) {
                 Text("A special message from us")
-                    .font(.system(size: w * 0.024))
+                    .font(IvoryTypography.body(size: w * 0.024))
                     .foregroundStyle(IvoryPalette.inkSoft)
                     .multilineTextAlignment(.center)
             }
@@ -400,18 +418,18 @@ public struct IvoryFloralGoldNative: View {
                 Spacer()
                 HStack(spacing: 20) {
                     Button("View invitation") { view = .open }
-                        .font(.system(size: w * 0.026))
+                        .font(IvoryTypography.body(size: w * 0.026))
                         .foregroundStyle(IvoryPalette.gold)
                         .accessibilityIdentifier("ivory-card-view-invitation")
                     if rsvp.offersPass, let onViewPass = actions.onViewPass {
                         Button("Guest Pass", action: onViewPass)
-                            .font(.system(size: w * 0.026))
+                            .font(IvoryTypography.body(size: w * 0.026))
                             .foregroundStyle(IvoryPalette.gold)
                             .accessibilityIdentifier("ivory-card-view-pass")
                     }
                     if let onContinue = actions.onContinue {
                         Button("Continue", action: onContinue)
-                            .font(.system(size: w * 0.026))
+                            .font(IvoryTypography.body(size: w * 0.026))
                             .foregroundStyle(IvoryPalette.inkSoft)
                             .accessibilityIdentifier("ivory-card-continue")
                     }
@@ -440,7 +458,7 @@ public struct IvoryFloralGoldNative: View {
             region(IvoryGeometry.monogram, w, h) {
                 Text(data.monogram.replacingOccurrences(of: "·", with: " ")
                         .replacingOccurrences(of: "|", with: " "))
-                    .font(.system(size: w * 0.055, design: .serif))
+                    .font(IvoryTypography.body(size: w * 0.055))
                     .foregroundStyle(IvoryPalette.ink)
                     .opacity(max(0, min(1, 1 - doorProgress * 6)))
             }

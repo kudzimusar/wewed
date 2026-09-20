@@ -157,4 +157,62 @@ class IvoryInvitationGeometryTest {
         assertNotNull(declined.statusLabel)
         assertNull(ivoryRsvpStateFrom(RSVPStatus.PENDING).statusLabel)
     }
+
+    /**
+     * The invitation script is part of the design.
+     *
+     * A missing font does not crash — Compose silently falls back to a system face, which is
+     * exactly the regression this asserts against: the couple's names would render in the wrong
+     * typeface and everything else would still look plausible.
+     */
+    @Test
+    fun theApprovedScriptFaceIsBundledByteForByte() {
+        val typography = contract.getJSONObject("typography")
+        assertEquals("IvoryScript", typography.getString("scriptFamily"))
+        assertEquals("GreatVibes-Regular", typography.getString("postScriptName"))
+
+        var root: File? = contractFile().parentFile?.parentFile?.parentFile
+        while (root != null && !File(root, "apps/android/app/build.gradle.kts").isFile) {
+            root = root.parentFile
+        }
+        assertNotNull("repository root not found", root)
+        val font = File(File(root, "apps/android/app/src/main"), typography.getString("android"))
+        assertTrue("${typography.getString("android")} is declared but not present", font.isFile)
+
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(font.readBytes())
+            .joinToString("") { "%02x".format(it) }
+        assertEquals(typography.getString("scriptSha256"), digest)
+    }
+
+    /** Only the couple's names and their line are script; the seal inherits the roman face. */
+    @Test
+    fun onlyNamesAndTaglineUseTheScriptFace() {
+        val regions = contract.getJSONObject("typography").getJSONArray("scriptRegions")
+        assertEquals(listOf("names", "tagline"), (0 until regions.length()).map { regions.getString(it) })
+    }
+
+    /**
+     * The renderer must not reach for a generic face directly. Every size goes through the
+     * typography tokens so a substitution is a visible edit rather than a default.
+     */
+    @Test
+    fun theRendererUsesTypographyTokensRatherThanGenericFaces() {
+        var root: File? = contractFile().parentFile?.parentFile?.parentFile
+        while (root != null && !File(root, "apps/android/app/build.gradle.kts").isFile) {
+            root = root.parentFile
+        }
+        val renderer = File(
+            root,
+            "apps/android/app/src/main/java/pro/wewed/app/ui/invitation/ivory/IvoryFloralGoldNative.kt"
+        )
+        assertTrue(renderer.isFile)
+        val source = renderer.readText()
+        assertFalse(
+            "the invitation must not fall back to FontFamily.Serif directly",
+            source.contains("FontFamily.Serif")
+        )
+        assertTrue(source.contains("IvoryTypography.Script"))
+        assertTrue(source.contains("IvoryTypography.Body"))
+    }
 }
