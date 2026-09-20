@@ -109,8 +109,7 @@ public struct WeddingReferencePassView: View {
 
     private func passCard(_ pass: WeddingPass) -> some View {
         ZStack {
-            Image("ornament-frame", bundle: .module)
-                .resizable()
+            WewedMediaImage(WewedAsset.ornamentFrame)
                 .scaledToFill()
                 .opacity(0.12)
 

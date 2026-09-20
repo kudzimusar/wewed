@@ -14,6 +14,10 @@ The flows use `clearState: false` deliberately: the protected snapshot lives in 
 storage, and clearing state deletes it, which silently drops the app back to Sanitized Shadow.
 Provision immediately before running.
 
+**Ordering matters.** Any sanitized flow that uses `clearState: true` wipes the app container and
+deletes the provisioned snapshot. Always run the sanitized CI flows first, then provision, then run
+this lane. Re-installing the app has the same effect, so provision after every install.
+
 Prerequisites:
 
     bash mobile/shadow/tools/provision_private_real_shadow.sh

@@ -22,8 +22,7 @@ public struct WeddingFloralBackground: View {
     public var body: some View {
         ZStack {
             WeddingIdentityPalette.ivory
-            Image("ornament-frame", bundle: .module)
-                .resizable()
+            WewedMediaImage(WewedAsset.ornamentFrame)
                 .scaledToFill()
                 .opacity(opacity)
                 .ignoresSafeArea()
@@ -35,8 +34,7 @@ public struct WeddingHeaderOrnament: View {
     public init() {}
 
     public var body: some View {
-        Image("ornament-frame", bundle: .module)
-            .resizable()
+        WewedMediaImage(WewedAsset.ornamentFrame)
             .scaledToFill()
             .frame(width: 112, height: 92, alignment: .topTrailing)
             .clipped()
@@ -82,8 +80,7 @@ public struct WeddingMonogramBadge: View {
             Circle()
                 .fill(WeddingIdentityPalette.ivorySoft)
 
-            Image("ornament-frame", bundle: .module)
-                .resizable()
+            WewedMediaImage(WewedAsset.ornamentFrame)
                 .scaledToFill()
                 .opacity(0.09)
                 .clipShape(Circle())

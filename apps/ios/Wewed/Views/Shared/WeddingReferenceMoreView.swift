@@ -124,8 +124,7 @@ public struct WeddingReferenceMoreView: View {
 
     private func weddingCard(_ wedding: Wedding) -> some View {
         HStack(spacing: 12) {
-            Image("hero-wedding", bundle: .module)
-                .resizable()
+            WewedMediaImage(WewedAsset.heroWedding)
                 .scaledToFill()
                 .frame(width: 58, height: 58)
                 .clipShape(Circle())
@@ -243,8 +242,7 @@ private struct ReferenceWeddingProfileView: View {
             WeddingFloralBackground(opacity: 0.06)
             ScrollView {
                 VStack(spacing: 18) {
-                    Image("hero-wedding", bundle: .module)
-                        .resizable()
+                    WewedMediaImage(WewedAsset.heroWedding)
                         .scaledToFill()
                         .wewedMedia(height: 260, horizontalInset: 28)
                         .clipped()

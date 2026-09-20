@@ -80,8 +80,7 @@ public struct IvoryInvitationView: View {
 
     private var invitationCard: some View {
         ZStack {
-            Image("ornament-frame", bundle: .module)
-                .resizable()
+            WewedMediaImage(WewedAsset.ornamentFrame)
                 .scaledToFill()
                 .opacity(0.15)
 

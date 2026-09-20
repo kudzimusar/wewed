@@ -52,8 +52,7 @@ public struct WeddingReferenceHomeView: View {
 
     private func hero(_ wedding: Wedding) -> some View {
         ZStack(alignment: .bottomLeading) {
-            Image("hero-wedding", bundle: .module)
-                .resizable()
+            WewedMediaImage(WewedAsset.heroWedding)
                 .scaledToFill()
                 // Parent width controls media: the hero fills the measured container width
                 // instead of reporting its own aspect-driven width to the layout.
@@ -106,14 +105,18 @@ public struct WeddingReferenceHomeView: View {
                     .tracking(2.2)
                     .foregroundStyle(.white)
 
-                if let countdown = countdown(from: wedding.date) {
-                    HStack(spacing: 7) {
-                        countdownTile(countdown.days, "Days")
-                        countdownTile(countdown.hours, "Hours")
-                        countdownTile(countdown.minutes, "Mins")
-                        countdownTile(countdown.seconds, "Secs")
+                // Live countdown, matching the Android implementation which recomputes every
+                // second. Previously this was evaluated once at render and never moved.
+                TimelineView(.periodic(from: .now, by: 1)) { _ in
+                    if let countdown = countdown(from: wedding.date) {
+                        HStack(spacing: 7) {
+                            countdownTile(countdown.days, "Days")
+                            countdownTile(countdown.hours, "Hours")
+                            countdownTile(countdown.minutes, "Mins")
+                            countdownTile(countdown.seconds, "Secs")
+                        }
+                        .padding(.top, 5)
                     }
-                    .padding(.top, 5)
                 }
 
                 Text("“Two hearts, one beautiful tomorrow.”")
