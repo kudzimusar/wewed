@@ -855,3 +855,91 @@ public struct VendorScheduleSection: View {
         }
     }
 }
+
+/// A Planner Action that performs a real operation (P0-11).
+///
+/// Rendered as an actual control so that "tappable" and "does something" agree.
+public struct IAActionRow: View {
+    let title: String
+    let subtitle: String
+    var enabled: Bool = true
+    var testId: String?
+    let action: () -> Void
+
+    public init(title: String, subtitle: String, enabled: Bool = true, testId: String? = nil, action: @escaping () -> Void) {
+        self.title = title
+        self.subtitle = subtitle
+        self.enabled = enabled
+        self.testId = testId
+        self.action = action
+    }
+
+    public var body: some View {
+        Button(action: action) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(WeddingIdentityPalette.ink)
+                    Text(subtitle)
+                        .font(.system(size: 11))
+                        .foregroundColor(WeddingIdentityPalette.muted)
+                        .multilineTextAlignment(.leading)
+                }
+                Spacer()
+                Text(enabled ? "Run" : "…")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(WeddingIdentityPalette.champagneDeep)
+            }
+            .padding(.horizontal, 13)
+            .padding(.vertical, 11)
+            .frame(maxWidth: .infinity)
+            .background(WeddingIdentityPalette.ivorySoft)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(WeddingIdentityPalette.hairline, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .accessibilityIdentifier(testId ?? "ia-action-row")
+    }
+}
+
+/// A Planner Action that is deliberately not connected (P0-11).
+///
+/// It is not tappable and says why, rather than presenting an inert card that implies capability.
+public struct IAUnsupportedActionRow: View {
+    let title: String
+    let reason: String
+    var testId: String?
+
+    public init(title: String, reason: String, testId: String? = nil) {
+        self.title = title
+        self.reason = reason
+        self.testId = testId
+    }
+
+    public var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 14))
+                    .foregroundColor(WeddingIdentityPalette.muted)
+                Text(reason)
+                    .font(.system(size: 11))
+                    .foregroundColor(WeddingIdentityPalette.muted)
+                    .multilineTextAlignment(.leading)
+            }
+            Spacer()
+            Text("Not connected")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(WeddingIdentityPalette.muted)
+        }
+        .padding(.horizontal, 13)
+        .padding(.vertical, 11)
+        .frame(maxWidth: .infinity)
+        .background(WeddingIdentityPalette.ivory)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(WeddingIdentityPalette.hairline, lineWidth: 1))
+        .accessibilityIdentifier(testId ?? "ia-unsupported-action-row")
+    }
+}

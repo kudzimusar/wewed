@@ -71,8 +71,10 @@ public struct RootView: View {
                         await resolveContext()
                     }
                     .sheet(isPresented: $showingPersonaPicker) {
-                        PersonaPickerSheet()
-                            .environmentObject(session)
+                        if appState.dataEnvironment.allowsDevelopmentPersonaSwitching {
+                            PersonaPickerSheet()
+                                .environmentObject(session)
+                        }
                     }
                     .accessibilityIdentifier(
                         "shadow-source-" + appState.dataEnvironment.rawValue.replacingOccurrences(of: "_", with: "-")
@@ -107,7 +109,10 @@ public struct RootView: View {
 
     @ViewBuilder
     private func authorizedShell(_ context: NavigationContext) -> some View {
-        let switchPersona: () -> Void = { showingPersonaPicker = true }
+        // P0-16: production/verify builds must not expose an arbitrary role switcher.
+        let switchPersona: (() -> Void)? = appState.dataEnvironment.allowsDevelopmentPersonaSwitching
+            ? { showingPersonaPicker = true }
+            : nil
         // P0-8: the parsed link is handed to the shell intact; the shell resolves it against the
         // active context through DeepLinkRouter rather than reducing it to a destination id here.
         let link = appState.pendingRouteDeepLink

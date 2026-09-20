@@ -10,7 +10,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import pro.wewed.app.models.AppRole
 import pro.wewed.app.models.NativeDeepLink
+import kotlinx.coroutines.launch
+import pro.wewed.app.navigation.IANavigationContract
 import pro.wewed.app.navigation.NavigationContext
+import pro.wewed.app.services.forWedding
 import pro.wewed.app.navigation.PrimaryDestination
 import pro.wewed.app.state.AppViewModel
 import pro.wewed.app.state.SessionViewModel
@@ -41,7 +44,7 @@ fun PlannerShell(
     context: NavigationContext,
     pendingDeepLink: NativeDeepLink? = null,
     onDeepLinkHandled: (() -> Unit)? = null,
-    onOpenPersonaPicker: () -> Unit
+    onOpenPersonaPicker: (() -> Unit)? = null
 ) {
     val sectionMemory = rememberWorkspaceSectionMemory()
     RoleShellScaffold(
@@ -66,7 +69,7 @@ fun PlannerShell(
                 PlannerWeddingDaySection(section, graph, ctx)
             }
             "more" -> WorkspaceSurface(destination, "planner", ctx, sectionMemory) { section ->
-                PlannerMoreSection(section, sessionViewModel, ctx)
+                PlannerMoreSection(section, sessionViewModel, appViewModel, sectionMemory, ctx)
             }
             else -> IAUnsupportedSection(destination.label, "Unknown destination.", ctx.environment)
         }
@@ -235,6 +238,8 @@ private fun PlannerWeddingDaySection(
 private fun PlannerMoreSection(
     section: String,
     sessionViewModel: SessionViewModel,
+    appViewModel: AppViewModel,
+    sectionMemory: WorkspaceSectionMemory,
     context: NavigationContext
 ) {
     when (section) {
@@ -243,7 +248,7 @@ private fun PlannerMoreSection(
         "Intelligence" -> AIWorkspaceDestination {}
         "Team Hub" -> CollaborationDestination {}
         "Files / Documents" -> MediaArchiveDestination {}
-        "Planner Actions" -> PlannerActionsSection(context)
+        "Planner Actions" -> PlannerActionsSection(appViewModel, context, sectionMemory) {}
         "Settings" -> SettingsScreen(sessionViewModel = sessionViewModel)
         "Account" -> AccountPrivacyScreen()
         "Help & Support" -> IASectionList("Help & Support", "Wewed planner support") {
@@ -253,21 +258,75 @@ private fun PlannerMoreSection(
     }
 }
 
-/** IA V2 §5 — Planner Actions are contextual operations, deliberately not bottom tabs. */
+/**
+ * IA V2 §5 — Planner Actions are contextual operations, deliberately not bottom tabs.
+ *
+ * P0-11: an action either performs a real native operation or states plainly that it is not
+ * connected. Rendering an inert card that looks tappable claims a capability the app does not have.
+ */
 @Composable
-private fun PlannerActionsSection(context: NavigationContext) {
+private fun PlannerActionsSection(
+    appViewModel: AppViewModel,
+    context: NavigationContext,
+    sectionMemory: WorkspaceSectionMemory,
+    onRefreshed: () -> Unit
+) {
+    var lastResult by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val worksheets = IANavigationContract.forRole(context.activeRole).sections("workspace")
+
     IASectionList("Planner Actions", "Contextual operations for ${context.activeWeddingTitle}") {
+        lastResult?.let {
+            IACard(title = "Last action", subtitle = it, testTag = "planner-action-result")
+        }
+
+        // --- Implemented natively ---
+        IAActionRow(
+            title = "Refresh",
+            subtitle = "Re-read the active wedding graph from the repository",
+            enabled = !busy,
+            testTag = "planner-action-refresh"
+        ) {
+            busy = true
+            scope.launch {
+                val outcome = runCatching {
+                    val scoped = appViewModel.repository.forWedding(context.activeWeddingId)
+                    "${scoped.getTasks().size} tasks, ${scoped.getGuests().size} guest records reloaded"
+                }
+                lastResult = outcome.getOrElse { "Refresh failed: ${it.message}" }
+                busy = false
+                onRefreshed()
+            }
+        }
+
+        IAActionRow(
+            title = "Switch Worksheet",
+            subtitle = "Jump straight to a Workspace worksheet",
+            enabled = worksheets.isNotEmpty(),
+            testTag = "planner-action-switch-worksheet"
+        ) {
+            // Real navigation: selects the next worksheet in the Workspace section memory.
+            val current = sectionMemory.selected(context, "workspace", worksheets.first())
+            val next = worksheets[(worksheets.indexOf(current).coerceAtLeast(0) + 1) % worksheets.size]
+            sectionMemory.select(context, "workspace", next)
+            lastResult = "Workspace worksheet set to $next"
+        }
+
+        // --- Honestly unsupported ---
         listOf(
-            "Print / Arrange / Select" to "Produce printable guest, seating and programme output",
-            "Refresh" to "Re-read the active wedding graph",
-            "Switch Worksheet" to "Jump between Workspace worksheets",
-            "Templates" to "Apply a planning template",
-            "Export" to "Export the active wedding data",
-            "Import" to "Import guests or tasks",
-            "Recent Imports" to "Review the last import batches",
-            "Edit Wedding Details" to "Amend core wedding identity"
-        ).forEach { (title, subtitle) ->
-            IACard(title = title, subtitle = subtitle, testTag = "planner-action-${title.slug()}")
+            "Print / Arrange / Select" to "Printable guest, seating and programme output has no native contract yet.",
+            "Templates" to "Planning templates are not exposed to the native client yet.",
+            "Export" to "No native export contract exists for the wedding graph.",
+            "Import" to "Guest and task import is not available natively; no import endpoint is wired.",
+            "Recent Imports" to "No import history is recorded for the native client.",
+            "Edit Wedding Details" to "Wedding identity is read-only during Shadow qualification; no native write path exists."
+        ).forEach { (title, why) ->
+            IAUnsupportedActionRow(
+                title = title,
+                reason = why,
+                testTag = "planner-action-${title.slug()}"
+            )
         }
     }
 }
@@ -280,7 +339,7 @@ fun CoordinatorShell(
     context: NavigationContext,
     pendingDeepLink: NativeDeepLink? = null,
     onDeepLinkHandled: (() -> Unit)? = null,
-    onOpenPersonaPicker: () -> Unit
+    onOpenPersonaPicker: (() -> Unit)? = null
 ) {
     val sectionMemory = rememberWorkspaceSectionMemory()
     RoleShellScaffold(
@@ -399,7 +458,7 @@ fun VendorShell(
     context: NavigationContext,
     pendingDeepLink: NativeDeepLink? = null,
     onDeepLinkHandled: (() -> Unit)? = null,
-    onOpenPersonaPicker: () -> Unit
+    onOpenPersonaPicker: (() -> Unit)? = null
 ) {
     val sectionMemory = rememberWorkspaceSectionMemory()
     RoleShellScaffold(
@@ -477,7 +536,7 @@ fun UsherShell(
     context: NavigationContext,
     pendingDeepLink: NativeDeepLink? = null,
     onDeepLinkHandled: (() -> Unit)? = null,
-    onOpenPersonaPicker: () -> Unit
+    onOpenPersonaPicker: (() -> Unit)? = null
 ) {
     var isScannerOpen by remember { mutableStateOf(false) }
     if (isScannerOpen) {
@@ -588,7 +647,7 @@ fun GuestShell(
     context: NavigationContext,
     pendingDeepLink: NativeDeepLink? = null,
     onDeepLinkHandled: (() -> Unit)? = null,
-    onOpenPersonaPicker: () -> Unit
+    onOpenPersonaPicker: (() -> Unit)? = null
 ) {
     val sectionMemory = rememberWorkspaceSectionMemory()
     RoleShellScaffold(
@@ -759,7 +818,7 @@ fun AdminShell(
     context: NavigationContext,
     pendingDeepLink: NativeDeepLink? = null,
     onDeepLinkHandled: (() -> Unit)? = null,
-    onOpenPersonaPicker: () -> Unit
+    onOpenPersonaPicker: (() -> Unit)? = null
 ) {
     val sectionMemory = rememberWorkspaceSectionMemory()
     RoleShellScaffold(

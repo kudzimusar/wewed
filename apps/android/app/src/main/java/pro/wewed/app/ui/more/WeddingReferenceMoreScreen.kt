@@ -26,6 +26,8 @@ import androidx.compose.ui.unit.sp
 import pro.wewed.app.R
 import pro.wewed.app.models.Wedding
 import pro.wewed.app.state.AppViewModel
+import pro.wewed.app.ui.planner.ShadowDocumentsDestination
+import pro.wewed.app.ui.shared.AccountPrivacyScreen
 import pro.wewed.app.theme.*
 import pro.wewed.app.ui.planner.ShadowContributionsDestination
 
@@ -61,6 +63,10 @@ fun WeddingReferenceMoreScreen(appViewModel: AppViewModel) {
                 ReferenceMoreEmptyScreen("Gallery", "The shared wedding photo gallery will be available during and after the wedding celebrations.", wedding?.coupleNames ?: "") { destination = null }
             ReferenceMoreDestination.SETTINGS ->
                 ReferenceMoreEmptyScreen("Settings", "Manage notification preferences, display style, and offline credentials cache.", wedding?.coupleNames ?: "") { destination = null }
+            ReferenceMoreDestination.DOCUMENTS ->
+                ShadowDocumentsDestination(appViewModel) { destination = null }
+            ReferenceMoreDestination.ACCOUNT ->
+                AccountPrivacyScreen { destination = null }
             ReferenceMoreDestination.SUPPORT ->
                 ReferenceMoreEmptyScreen("Help & Support", "Need assistance? Contact the wedding team at support@wewed.pro • Version 1.0.0 (ECDSA P-256 Offline Active)", wedding?.coupleNames ?: "") { destination = null }
         }
@@ -166,11 +172,19 @@ fun WeddingReferenceMoreScreen(appViewModel: AppViewModel) {
                 ReferenceMoreRow("Honeymoon", "Contributions and plans", Icons.Default.FlightTakeoff, "more-honeymoon") {
                     destination = ReferenceMoreDestination.HONEYMOON
                 }
+                // P0-10: Documents and Account are declared in the IA V2 Couple More contract and
+                // must exist at runtime, not only in the contract declaration.
+                ReferenceMoreRow("Documents", "Contracts and wedding files", Icons.Default.Description, "more-documents") {
+                    destination = ReferenceMoreDestination.DOCUMENTS
+                }
                 ReferenceMoreRow("Settings", "App preferences", Icons.Default.Settings, "more-settings") {
                     destination = ReferenceMoreDestination.SETTINGS
                 }
                 ReferenceMoreRow("Help & Support", "Get in touch", Icons.Default.HelpOutline, "more-support") {
                     destination = ReferenceMoreDestination.SUPPORT
+                }
+                ReferenceMoreRow("Account", "Identity, privacy and sign out", Icons.Default.AccountCircle, "more-account") {
+                    destination = ReferenceMoreDestination.ACCOUNT
                 }
 
                 Spacer(modifier = Modifier.weight(1f))
@@ -317,5 +331,7 @@ private enum class ReferenceMoreDestination {
     GALLERY,
     HONEYMOON,
     SETTINGS,
-    SUPPORT
+    SUPPORT,
+    DOCUMENTS,
+    ACCOUNT
 }

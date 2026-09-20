@@ -24,4 +24,11 @@ public enum NativeDataEnvironment: String, Codable, CaseIterable, Sendable {
         case .productionReadVerify, .production: return false
         }
     }
+
+    /// Whether development persona switching may be offered (P0-16).
+    ///
+    /// Persona switching hands an actor an arbitrary role. That is a development and Shadow
+    /// qualification affordance only: in production the available roles must come from the actor's
+    /// real authorizations, never from a picker.
+    public var allowsDevelopmentPersonaSwitching: Bool { allowsMutableNativeDevelopment }
 }

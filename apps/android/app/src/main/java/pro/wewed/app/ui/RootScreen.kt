@@ -101,7 +101,12 @@ fun RootScreen(
         return
     }
 
-    if (showPersonaPicker) {
+    // P0-16: production/verify builds must not expose an arbitrary role switcher.
+    val personaSwitchingAllowed = appViewModel.dataEnvironment.allowsDevelopmentPersonaSwitching
+    val onOpenPersonaPicker: (() -> Unit)? =
+        if (personaSwitchingAllowed) ({ showPersonaPicker = true }) else null
+
+    if (showPersonaPicker && personaSwitchingAllowed) {
         PersonaPickerDialog(
             sessionViewModel = sessionViewModel,
             onDismiss = { showPersonaPicker = false }
@@ -185,7 +190,7 @@ fun RootScreen(
                 pendingDeepLink = pendingRouteDeepLink,
                 onDeepLinkHandled = onDeepLinkHandled,
                 onOpenScanner = { isScannerOpen = true },
-                onOpenPersonaPicker = { showPersonaPicker = true }
+                onOpenPersonaPicker = onOpenPersonaPicker
             )
             AppRole.PLANNER -> PlannerShell(
                 sessionViewModel = sessionViewModel,
@@ -193,7 +198,7 @@ fun RootScreen(
                 context = context,
                 pendingDeepLink = pendingRouteDeepLink,
                 onDeepLinkHandled = onDeepLinkHandled,
-                onOpenPersonaPicker = { showPersonaPicker = true }
+                onOpenPersonaPicker = onOpenPersonaPicker
             )
             AppRole.COORDINATOR -> CoordinatorShell(
                 sessionViewModel = sessionViewModel,
@@ -201,7 +206,7 @@ fun RootScreen(
                 context = context,
                 pendingDeepLink = pendingRouteDeepLink,
                 onDeepLinkHandled = onDeepLinkHandled,
-                onOpenPersonaPicker = { showPersonaPicker = true }
+                onOpenPersonaPicker = onOpenPersonaPicker
             )
             AppRole.VENDOR -> VendorShell(
                 sessionViewModel = sessionViewModel,
@@ -209,7 +214,7 @@ fun RootScreen(
                 context = context,
                 pendingDeepLink = pendingRouteDeepLink,
                 onDeepLinkHandled = onDeepLinkHandled,
-                onOpenPersonaPicker = { showPersonaPicker = true }
+                onOpenPersonaPicker = onOpenPersonaPicker
             )
             AppRole.USHER -> UsherShell(
                 sessionViewModel = sessionViewModel,
@@ -217,7 +222,7 @@ fun RootScreen(
                 context = context,
                 pendingDeepLink = pendingRouteDeepLink,
                 onDeepLinkHandled = onDeepLinkHandled,
-                onOpenPersonaPicker = { showPersonaPicker = true }
+                onOpenPersonaPicker = onOpenPersonaPicker
             )
             AppRole.GUEST -> GuestShell(
                 sessionViewModel = sessionViewModel,
@@ -225,7 +230,7 @@ fun RootScreen(
                 context = context,
                 pendingDeepLink = pendingRouteDeepLink,
                 onDeepLinkHandled = onDeepLinkHandled,
-                onOpenPersonaPicker = { showPersonaPicker = true }
+                onOpenPersonaPicker = onOpenPersonaPicker
             )
             AppRole.ADMIN -> AdminShell(
                 sessionViewModel = sessionViewModel,
@@ -233,7 +238,7 @@ fun RootScreen(
                 context = context,
                 pendingDeepLink = pendingRouteDeepLink,
                 onDeepLinkHandled = onDeepLinkHandled,
-                onOpenPersonaPicker = { showPersonaPicker = true }
+                onOpenPersonaPicker = onOpenPersonaPicker
             )
         }
     }

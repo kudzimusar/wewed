@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="pro.wewed.app.services.WeddingScopeTest" tests="8" skipped="0" failures="0" errors="0" timestamp="2026-09-20T03:17:08" hostname="usernoMacBook-Pro.local" time="0.031">
+<testsuite name="pro.wewed.app.services.WeddingScopeTest" tests="8" skipped="0" failures="0" errors="0" timestamp="2026-09-20T03:19:53" hostname="usernoMacBook-Pro.local" time="0.019">
   <properties/>
-  <testcase name="switching context cannot continue rendering the previous wedding" classname="pro.wewed.app.services.WeddingScopeTest" time="0.002"/>
-  <testcase name="wedding B context loads the wedding B graph" classname="pro.wewed.app.services.WeddingScopeTest" time="0.001"/>
-  <testcase name="requesting an unserved wedding is rejected rather than silently substituted" classname="pro.wewed.app.services.WeddingScopeTest" time="0.009"/>
-  <testcase name="a single wedding source rejects any other wedding" classname="pro.wewed.app.services.WeddingScopeTest" time="0.004"/>
-  <testcase name="shadow reference source rejects a foreign wedding" classname="pro.wewed.app.services.WeddingScopeTest" time="0.002"/>
-  <testcase name="wedding A context loads the wedding A graph" classname="pro.wewed.app.services.WeddingScopeTest" time="0.0"/>
-  <testcase name="a scoped repository always reports the wedding it is bound to" classname="pro.wewed.app.services.WeddingScopeTest" time="0.001"/>
-  <testcase name="direct source calls for a foreign wedding are refused at every read" classname="pro.wewed.app.services.WeddingScopeTest" time="0.01"/>
+  <testcase name="switching context cannot continue rendering the previous wedding" classname="pro.wewed.app.services.WeddingScopeTest" time="0.001"/>
+  <testcase name="wedding B context loads the wedding B graph" classname="pro.wewed.app.services.WeddingScopeTest" time="0.0"/>
+  <testcase name="requesting an unserved wedding is rejected rather than silently substituted" classname="pro.wewed.app.services.WeddingScopeTest" time="0.007"/>
+  <testcase name="a single wedding source rejects any other wedding" classname="pro.wewed.app.services.WeddingScopeTest" time="0.002"/>
+  <testcase name="shadow reference source rejects a foreign wedding" classname="pro.wewed.app.services.WeddingScopeTest" time="0.001"/>
+  <testcase name="wedding A context loads the wedding A graph" classname="pro.wewed.app.services.WeddingScopeTest" time="0.001"/>
+  <testcase name="a scoped repository always reports the wedding it is bound to" classname="pro.wewed.app.services.WeddingScopeTest" time="0.0"/>
+  <testcase name="direct source calls for a foreign wedding are refused at every read" classname="pro.wewed.app.services.WeddingScopeTest" time="0.006"/>
   <system-out><![CDATA[]]></system-out>
   <system-err><![CDATA[]]></system-err>
 </testsuite>

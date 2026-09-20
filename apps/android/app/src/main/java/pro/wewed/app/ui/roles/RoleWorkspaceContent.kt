@@ -777,3 +777,77 @@ fun NavigationContext.boundGuest(graph: WeddingGraphState): Guest? {
     val guestId = activeGuestId ?: return null
     return graph.guests.firstOrNull { it.id == guestId }
 }
+
+/**
+ * A Planner Action that performs a real operation (P0-11).
+ *
+ * Rendered as an actual control so that "tappable" and "does something" agree.
+ */
+@Composable
+fun IAActionRow(
+    title: String,
+    subtitle: String,
+    enabled: Boolean = true,
+    testTag: String? = null,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (testTag != null) Modifier.testTag(testTag) else Modifier),
+        shape = RoundedCornerShape(12.dp),
+        color = WeddingIdentityPalette.IvorySoft,
+        border = androidx.compose.foundation.BorderStroke(1.dp, WeddingIdentityPalette.Hairline),
+        enabled = enabled,
+        onClick = onClick
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 13.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, color = WeddingIdentityPalette.Ink, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Text(subtitle, color = WeddingIdentityPalette.Muted, fontSize = 11.sp)
+            }
+            Text(
+                if (enabled) "Run" else "…",
+                color = WeddingIdentityPalette.ChampagneDeep,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
+
+/**
+ * A Planner Action that is deliberately not connected (P0-11).
+ *
+ * It is not tappable and says why, rather than presenting an inert card that implies capability.
+ */
+@Composable
+fun IAUnsupportedActionRow(title: String, reason: String, testTag: String? = null) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (testTag != null) Modifier.testTag(testTag) else Modifier),
+        shape = RoundedCornerShape(12.dp),
+        color = WeddingIdentityPalette.Ivory,
+        border = androidx.compose.foundation.BorderStroke(1.dp, WeddingIdentityPalette.Hairline)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 13.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, color = WeddingIdentityPalette.Muted, fontSize = 14.sp)
+                Text(reason, color = WeddingIdentityPalette.Muted, fontSize = 11.sp)
+            }
+            Text(
+                "Not connected",
+                color = WeddingIdentityPalette.Muted,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}

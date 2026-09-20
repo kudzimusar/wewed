@@ -73,7 +73,7 @@ public struct PlannerShellView: View {
                     }
                 case "more":
                     WorkspaceSurface(destination: destination, testIdPrefix: "planner", context: ctx, sectionMemory: sectionMemory) { section in
-                        PlannerMoreSection(section: section, context: ctx)
+                        PlannerMoreSection(section: section, context: ctx, sectionMemory: sectionMemory)
                     }
                 default:
                     IAUnsupportedSection(destination.label, "Unknown destination.", ctx.environment)
@@ -253,6 +253,7 @@ struct PlannerWeddingDaySection: View {
 struct PlannerMoreSection: View {
     let section: String
     let context: NavigationContext
+    @ObservedObject var sectionMemory: WorkspaceSectionMemory
 
     var body: some View {
         switch section {
@@ -261,7 +262,7 @@ struct PlannerMoreSection: View {
         case "Intelligence": WewedAIWorkspaceView()
         case "Team Hub": CollaborationHubView()
         case "Files / Documents": MediaArchiveView()
-        case "Planner Actions": PlannerActionsSection(context: context)
+        case "Planner Actions": PlannerActionsSection(context: context, sectionMemory: sectionMemory)
         case "Settings": SettingsView()
         case "Account": AccountPrivacyView()
         case "Help & Support":
@@ -275,24 +276,78 @@ struct PlannerMoreSection: View {
 }
 
 /// IA V2 §5 — Planner Actions are contextual operations, deliberately not bottom tabs.
+///
+/// P0-11: an action either performs a real native operation or states plainly that it is not
+/// connected. Rendering an inert card that looks tappable claims a capability the app does not have.
 struct PlannerActionsSection: View {
     let context: NavigationContext
+    @ObservedObject var sectionMemory: WorkspaceSectionMemory
+    @EnvironmentObject private var appState: AppState
+    @State private var lastResult: String?
+    @State private var busy = false
 
-    private static let actions: [(String, String)] = [
-        ("Print / Arrange / Select", "Produce printable guest, seating and programme output"),
-        ("Refresh", "Re-read the active wedding graph"),
-        ("Switch Worksheet", "Jump between Workspace worksheets"),
-        ("Templates", "Apply a planning template"),
-        ("Export", "Export the active wedding data"),
-        ("Import", "Import guests or tasks"),
-        ("Recent Imports", "Review the last import batches"),
-        ("Edit Wedding Details", "Amend core wedding identity")
+    private static let unsupported: [(String, String)] = [
+        ("Print / Arrange / Select", "Printable guest, seating and programme output has no native contract yet."),
+        ("Templates", "Planning templates are not exposed to the native client yet."),
+        ("Export", "No native export contract exists for the wedding graph."),
+        ("Import", "Guest and task import is not available natively; no import endpoint is wired."),
+        ("Recent Imports", "No import history is recorded for the native client."),
+        ("Edit Wedding Details", "Wedding identity is read-only during Shadow qualification; no native write path exists.")
     ]
+
+    private var worksheets: [String] {
+        IANavigationContract.forRole(context.activeRole).sections("workspace")
+    }
 
     var body: some View {
         IASectionList("Planner Actions", "Contextual operations for \(context.activeWeddingTitle)") {
-            ForEach(Self.actions, id: \.0) { action in
-                IACard(action.0, action.1, testId: "planner-action-\(action.0.iaSlug)")
+            if let lastResult {
+                IACard("Last action", lastResult, testId: "planner-action-result")
+            }
+
+            // --- Implemented natively ---
+            IAActionRow(
+                title: "Refresh",
+                subtitle: "Re-read the active wedding graph from the repository",
+                enabled: !busy,
+                testId: "planner-action-refresh"
+            ) {
+                busy = true
+                Task {
+                    do {
+                        let scoped = try await appState.repository.forWedding(context.activeWeddingId)
+                        let tasks = try await scoped.getTasks().count
+                        let guests = try await scoped.getGuests().count
+                        lastResult = "\(tasks) tasks, \(guests) guest records reloaded"
+                    } catch {
+                        lastResult = "Refresh failed: \(error.localizedDescription)"
+                    }
+                    busy = false
+                }
+            }
+
+            IAActionRow(
+                title: "Switch Worksheet",
+                subtitle: "Jump straight to a Workspace worksheet",
+                enabled: !worksheets.isEmpty,
+                testId: "planner-action-switch-worksheet"
+            ) {
+                // Real navigation: selects the next worksheet in the Workspace section memory.
+                guard let first = worksheets.first else { return }
+                let current = sectionMemory.selected(context, "workspace", default: first)
+                let index = worksheets.firstIndex(of: current) ?? 0
+                let next = worksheets[(index + 1) % worksheets.count]
+                sectionMemory.select(context, "workspace", next)
+                lastResult = "Workspace worksheet set to \(next)"
+            }
+
+            // --- Honestly unsupported ---
+            ForEach(Self.unsupported, id: \.0) { action in
+                IAUnsupportedActionRow(
+                    title: action.0,
+                    reason: action.1,
+                    testId: "planner-action-\(action.0.iaSlug)"
+                )
             }
         }
     }

@@ -48,6 +48,12 @@ public struct WeddingReferenceMoreView: View {
                                 ShadowPlannerContributionsView()
                             }
 
+                            // P0-10: Documents and Account are declared in the IA V2 Couple More
+                            // contract and must exist at runtime, not only in the declaration.
+                            menuLink(title: "Documents", subtitle: "Contracts and wedding files", icon: "doc.text", identifier: "more-documents") {
+                                ShadowPlannerDocumentsView()
+                            }
+
                             menuLink(title: "Settings", subtitle: "App preferences", icon: "gearshape", identifier: "more-settings") {
                                 SettingsView()
                             }
@@ -58,6 +64,10 @@ public struct WeddingReferenceMoreView: View {
                                     message: "Need assistance? Contact the wedding team at support@wewed.pro • Version 1.0.0 (ECDSA P-256 Offline Active)",
                                     coupleNames: wedding.coupleNames
                                 )
+                            }
+
+                            menuLink(title: "Account", subtitle: "Identity, privacy and sign out", icon: "person.crop.circle", identifier: "more-account") {
+                                AccountPrivacyView()
                             }
                         }
                     }
