@@ -66,6 +66,61 @@ public protocol WeddingRepositoryProtocol: Sendable {
     func getWeddingPass(token: String) async throws -> WeddingPass
     func resolveInvitation(weddingSlug: String, token: String) async throws -> InvitationContext
     func confirmRsvp(weddingSlug: String, token: String, attending: Bool) async throws -> WeddingPass
+
+    // -------------------------------------------------------------------------------------
+    // Production-derived domains (Private Real UAT graph).
+    //
+    // These default to "this source holds none", which is the honest answer for the fixture and
+    // sanitized sources. A source that DOES hold the rows overrides them. The distinction between
+    // an empty list here and a missing adapter is carried by `snapshotManifest()`: when a manifest
+    // reports a non-zero count for a domain that reads back empty, that is a defect, and the
+    // runtime tests assert exactly that.
+    // -------------------------------------------------------------------------------------
+
+    /// Identifies the snapshot actually loaded, or nil for sources that are not snapshot-backed.
+    func snapshotManifest() async throws -> UatSnapshotManifest?
+    /// The full RSVP record behind a guest, including meal, dietary, plus-one and kids detail.
+    func getRsvpDetail(weddingId: String, guestId: String) async throws -> GuestRsvpDetail?
+    /// Authorized contact/profile fields for a guest. Role gating is applied by the caller.
+    func getGuestContact(weddingId: String, guestId: String) async throws -> GuestContactDetail?
+    /// Every wedding-content row: story, gallery, venue, FAQ, travel, the day, after, memory.
+    func getWeddingContent(weddingId: String) async throws -> [WeddingContentEntry]
+    /// Content-management revision history. Never surfaced to guests.
+    func getContentRevisions(weddingId: String) async throws -> [ContentRevisionRecord]
+    /// The couple's songbook.
+    func getSongs(weddingId: String) async throws -> [SongEntry]
+    /// Real scan destinations. Routing configuration only — never pass signing material.
+    func getQrDestinations(weddingId: String) async throws -> [QrDestination]
+    /// Completed data imports, without rollback or preview payloads.
+    func getImportJobs(weddingId: String) async throws -> [ImportJobRecord]
+    /// Public wedding-wall messages. Not planner correspondence.
+    func getWallMessages(weddingId: String) async throws -> [WallMessage]
+    /// Named parties to the wedding's service engagements.
+    func getEngagementParties(weddingId: String) async throws -> [EngagementPartyRecord]
+    /// Wedding-scoped audit trail. Gated on Admin authorization by the caller.
+    func getAuditEvents(weddingId: String) async throws -> [AuditEventRecord]
+    /// How the active planner reaches this wedding, or nil when no planner context applies.
+    func plannerAccessContext(weddingId: String) async throws -> PlannerAccessContext?
+    /// Why Admin surfaces have nothing to show, when that is an authorization boundary.
+    func adminAccessContext() async throws -> AdminAccessContext?
+}
+
+/// Default "this source holds none" implementations, so the fixture and sanitized sources are not
+/// forced to restate an empty answer for every production-derived domain.
+public extension WeddingRepositoryProtocol {
+    func snapshotManifest() async throws -> UatSnapshotManifest? { nil }
+    func getRsvpDetail(weddingId: String, guestId: String) async throws -> GuestRsvpDetail? { nil }
+    func getGuestContact(weddingId: String, guestId: String) async throws -> GuestContactDetail? { nil }
+    func getWeddingContent(weddingId: String) async throws -> [WeddingContentEntry] { [] }
+    func getContentRevisions(weddingId: String) async throws -> [ContentRevisionRecord] { [] }
+    func getSongs(weddingId: String) async throws -> [SongEntry] { [] }
+    func getQrDestinations(weddingId: String) async throws -> [QrDestination] { [] }
+    func getImportJobs(weddingId: String) async throws -> [ImportJobRecord] { [] }
+    func getWallMessages(weddingId: String) async throws -> [WallMessage] { [] }
+    func getEngagementParties(weddingId: String) async throws -> [EngagementPartyRecord] { [] }
+    func getAuditEvents(weddingId: String) async throws -> [AuditEventRecord] { [] }
+    func plannerAccessContext(weddingId: String) async throws -> PlannerAccessContext? { nil }
+    func adminAccessContext() async throws -> AdminAccessContext? { nil }
 }
 
 /// A repository bound to one wedding.
@@ -107,6 +162,66 @@ public struct ScopedWeddingRepository: Sendable {
     public func getAnnouncements() async throws -> [WeddingAnnouncement] { try await source.getAnnouncements(weddingId: weddingId) }
     public func postAnnouncement(title: String, message: String, urgency: AnnouncementUrgency) async throws -> WeddingAnnouncement {
         try await source.postAnnouncement(weddingId: weddingId, title: title, message: message, urgency: urgency)
+    }
+
+    public func snapshotManifest() async throws -> UatSnapshotManifest? {
+        try await source.snapshotManifest()
+    }
+    public func getRsvpDetail(guestId: String) async throws -> GuestRsvpDetail? {
+        try await source.getRsvpDetail(weddingId: weddingId, guestId: guestId)
+    }
+    public func getGuestContact(guestId: String) async throws -> GuestContactDetail? {
+        try await source.getGuestContact(weddingId: weddingId, guestId: guestId)
+    }
+    public func getWeddingContent() async throws -> [WeddingContentEntry] {
+        try await source.getWeddingContent(weddingId: weddingId)
+    }
+    public func getContentRevisions() async throws -> [ContentRevisionRecord] {
+        try await source.getContentRevisions(weddingId: weddingId)
+    }
+    public func getSongs() async throws -> [SongEntry] { try await source.getSongs(weddingId: weddingId) }
+    public func getQrDestinations() async throws -> [QrDestination] {
+        try await source.getQrDestinations(weddingId: weddingId)
+    }
+    public func getImportJobs() async throws -> [ImportJobRecord] {
+        try await source.getImportJobs(weddingId: weddingId)
+    }
+    public func getWallMessages() async throws -> [WallMessage] {
+        try await source.getWallMessages(weddingId: weddingId)
+    }
+    public func getEngagementParties() async throws -> [EngagementPartyRecord] {
+        try await source.getEngagementParties(weddingId: weddingId)
+    }
+    public func getAuditEvents() async throws -> [AuditEventRecord] {
+        try await source.getAuditEvents(weddingId: weddingId)
+    }
+    public func plannerAccessContext() async throws -> PlannerAccessContext? {
+        try await source.plannerAccessContext(weddingId: weddingId)
+    }
+    public func adminAccessContext() async throws -> AdminAccessContext? {
+        try await source.adminAccessContext()
+    }
+
+    /// Content for one section, ordered, with a display title.
+    public func getWeddingContentSection(_ section: String) async throws -> WeddingContentSection {
+        let entries = try await getWeddingContent()
+            .filter { $0.section == section }
+            .sorted { $0.order < $1.order }
+        return WeddingContentSection(section: section,
+                                     title: WeddingContentSection.titleFor(section),
+                                     entries: entries)
+    }
+
+    /// Every populated content section, in the couple's order.
+    public func getWeddingContentSections() async throws -> [WeddingContentSection] {
+        let grouped = Dictionary(grouping: try await getWeddingContent()) { $0.section }
+        return grouped
+            .map { section, entries in
+                WeddingContentSection(section: section,
+                                      title: WeddingContentSection.titleFor(section),
+                                      entries: entries.sorted { $0.order < $1.order })
+            }
+            .sorted { $0.section < $1.section }
     }
 
     public func resolveGuestIdentity(token: String) async throws -> GuestIdentity? {

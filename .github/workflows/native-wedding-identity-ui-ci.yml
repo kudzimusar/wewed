@@ -99,7 +99,25 @@ jobs:
             exit 1
           fi
 
-          grep -F 'run-as "$package_id"' "$provisioner"
+          # The Android copy must cross host -> adb -> run-as without losing its quoting, so the
+          # guard asserts the SECURE BEHAVIOUR (run-as, app-private files/, mode 600, isolated
+          # identities) rather than one literal quoting style. A previous literal
+          # `run-as "$package_id"` check failed the correctly-quoted script while a broken,
+          # silently-unprovisioning form would have passed it.
+          grep -Eq 'adb shell "run-as \$package_id sh -c' "$provisioner" \
+            || { echo "FAIL: Android provisioning does not go through run-as into app-private storage."; exit 1; }
+          grep -Eq 'cp [^;]* files/' "$provisioner" \
+            || { echo "FAIL: Android snapshot is not copied into the app-private files/ directory."; exit 1; }
+          grep -Eq 'chmod 600 files/' "$provisioner" \
+            || { echo "FAIL: Android app-private snapshot is not restricted to mode 600."; exit 1; }
+          # Only isolated debug/UAT identities may ever hold a private snapshot. Every package
+          # identity the provisioner names must carry a .dev or .uatdev suffix; a bare
+          # pro.wewed.app (the Play identity) is rejected wherever it appears.
+          if grep -oE 'pro\.wewed\.app(\.[A-Za-z0-9]+)*' "$provisioner" \
+               | grep -vE '^pro\.wewed\.app\.(dev|uatdev)$' | grep .; then
+            echo "FAIL: provisioner names a package identity that is not .dev/.uatdev (Play identity is prohibited)."
+            exit 1
+          fi
           grep -F 'Library/Application Support/wewed' "$provisioner"
           grep -F 'trap cleanup_android_staging EXIT' "$provisioner"
           grep -F 'trap - EXIT' "$provisioner"

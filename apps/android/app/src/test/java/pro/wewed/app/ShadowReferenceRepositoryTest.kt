@@ -189,16 +189,34 @@ class ShadowReferenceRepositoryTest {
         assertEquals(7, tasks.count { it.status == pro.wewed.app.models.TaskStatus.DONE })
         assertEquals(13, tasks.count { it.priority == pro.wewed.app.models.TaskPriority.HIGH })
 
-        // 3. Guests (174 guests, 177 invited capacity)
-        assertEquals(174, guests.size)
+        // 3. Guests.
+        //
+        // Reconciled 2026-09-20: production moved from 174 to 175 guests because one bridal-party
+        // guest was created on 2026-09-19, after the September-18 export. All 175 are scoped to
+        // this wedding, all 175 have exactly one RSVP row, and there are no orphans. 175 rows
+        // carry 174 distinct names: one name is held by two separate production rows created six
+        // minutes apart with different sides and roles. Both are rendered — deduplicating them
+        // here would hide a production fact.
+        //
+        // The count is asserted against the snapshot's own manifest as well as the reconciled
+        // number, so a stale snapshot fails loudly instead of quietly re-baselining.
+        val manifest = bundle.scopedWedding().snapshotManifest()
+        assertNotNull("Private Real UAT snapshot must carry a manifest", manifest)
+        assertEquals("private-real-uat/2", manifest!!.schemaVersion)
+        assertEquals(manifest.count("guests"), guests.size)
+        assertEquals(175, guests.size)
+        assertEquals(174, guests.map { it.name }.toSet().size)
+
         val guestPseudonymRegex = Regex("""Guest G\d+""")
         guests.forEach { guest ->
             assertFalse("Private real shadow guest name '${guest.name}' must not match pseudonym pattern", guestPseudonymRegex.containsMatchIn(guest.name))
         }
+        // Party size is derived from the real RSVP row (guest + confirmed plus-one + children),
+        // because production's Guest table has no partySize column.
         val totalInvitedCapacity = guests.sumOf { it.partySize }
-        assertEquals(177, totalInvitedCapacity)
+        assertEquals(178, totalInvitedCapacity)
         assertEquals(2, guests.count { it.rsvpStatus == RSVPStatus.ATTENDING })
-        assertEquals(172, guests.count { it.rsvpStatus == RSVPStatus.PENDING })
+        assertEquals(173, guests.count { it.rsvpStatus == RSVPStatus.PENDING })
         assertEquals(0, guests.count { it.rsvpStatus == RSVPStatus.DECLINED })
         val attendingPassSerials = guests
             .filter { it.rsvpStatus == RSVPStatus.ATTENDING }

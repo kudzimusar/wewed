@@ -38,13 +38,26 @@ class PrivateRealShadowPlannerRepository(jsonString: String? = null, customPath:
         val raw = jsonString ?: PrivateRealShadowWeddingRepository.loadSnapshotString(
             customPath ?: PrivateRealShadowWeddingRepository.defaultSnapshotPath()
         )
-        val root = JSONObject(raw)
+        val envelope = JSONObject(raw)
 
-        val weddingObj = root.optJSONObject("wedding")
+        // Both repositories read ONE canonical snapshot. Reading the same schema here is what
+        // stops the planner workspace and the couple workspace from disagreeing about the same
+        // wedding, which is exactly what happened while two "real" snapshots coexisted.
+        val schemaVersion = envelope.optJSONObject("metadata")?.optString("schemaVersion")
+        if (schemaVersion != PrivateRealShadowWeddingRepository.REQUIRED_SCHEMA_VERSION) {
+            throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing(
+                "Private Real UAT snapshot schema is '$schemaVersion' but this build requires " +
+                    "'${PrivateRealShadowWeddingRepository.REQUIRED_SCHEMA_VERSION}'. Re-provision the device."
+            )
+        }
+        val root = envelope.optJSONObject("domains")
+            ?: throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Snapshot has no domains block.")
+
+        val weddingObj = envelope.optJSONObject("wedding")
             ?: throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required wedding metadata missing in private real shadow fixture.")
         weddingId = weddingObj.optString("id")
         weddingTitle = weddingObj.optString("title")
-        weddingDate = weddingObj.optString("dateRaw")
+        weddingDate = weddingObj.optString("date")
         weddingVenue = weddingObj.optString("venue")
         weddingLifecycle = weddingObj.optString("lifecycle")
 
@@ -52,11 +65,14 @@ class PrivateRealShadowPlannerRepository(jsonString: String? = null, customPath:
             throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required wedding fields missing in private real shadow fixture.")
         }
 
-        val plannerObj = root.optJSONObject("planner")
-            ?: throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required planner metadata missing in private real shadow fixture.")
-        plannerTitle = plannerObj.optString("displayName").ifEmpty { plannerObj.optString("businessName") }
+        // The planner identity is the real PlannerProfile production holds for this wedding's
+        // enquiry — Eleven Eleven Testing — not a name invented for the workspace header.
+        val plannerContext = envelope.optJSONObject("plannerContext")
+            ?: throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required planner context missing in Private Real UAT snapshot.")
+        val plannerProfile = plannerContext.optJSONObject("profile")
+        plannerTitle = plannerProfile?.optString("displayName").orEmpty()
         if (plannerTitle.isEmpty()) {
-            throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required planner metadata missing in private real shadow fixture.")
+            throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required planner metadata missing in Private Real UAT snapshot.")
         }
 
         // Tasks stats
@@ -135,6 +151,21 @@ class PrivateRealShadowPlannerRepository(jsonString: String? = null, customPath:
         totalActBudget = totalAct
         totalPdBudget = totalPd
 
+        // RSVP is its own production table keyed by guest; attendance and party size are read from
+        // there rather than from a flattened field that production never had.
+        val rsvpArray = root.optJSONArray("rsvps") ?: org.json.JSONArray()
+        val attendingByGuest = mutableMapOf<String, Boolean?>()
+        val partySizeByGuest = mutableMapOf<String, Int>()
+        for (i in 0 until rsvpArray.length()) {
+            val r = rsvpArray.getJSONObject(i)
+            val gId = r.optString("guestId")
+            if (gId.isEmpty()) continue
+            attendingByGuest[gId] = if (r.isNull("attending")) null else r.optBoolean("attending")
+            partySizeByGuest[gId] = 1 +
+                (if (r.optBoolean("plusOne", false)) 1 else 0) +
+                r.optInt("kidsCount", 0)
+        }
+
         // Guest Map for name resolution
         val gArray = root.optJSONArray("guests")
             ?: throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required guests list missing in private real shadow fixture.")
@@ -149,15 +180,15 @@ class PrivateRealShadowPlannerRepository(jsonString: String? = null, customPath:
             val g = gArray.getJSONObject(i)
             val gId = g.optString("id")
             val gName = g.optString("name")
-            val rsvpRaw = g.optString("rsvpStatus")
-            if (gId.isEmpty() || gName.isEmpty() || rsvpRaw.isEmpty() || !g.has("partySize")) {
+            if (gId.isEmpty() || gName.isEmpty()) {
                 throw NativeRepositoryFactoryError.PrivateRealShadowFixtureMissing("Required guest fields missing in private real shadow fixture.")
             }
-            val partySize = g.optInt("partySize", 1)
+            val attending = attendingByGuest[gId]
+            val partySize = partySizeByGuest[gId] ?: 1
             guestNameMap[gId] = gName
-            if (rsvpRaw.equals("attending", ignoreCase = true) || rsvpRaw.equals("confirmed", ignoreCase = true)) {
+            if (attending == true) {
                 attendingCount++
-            } else if (!rsvpRaw.equals("declined", ignoreCase = true)) {
+            } else if (attending == null) {
                 pendingCount++
             }
 

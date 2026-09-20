@@ -69,6 +69,55 @@ interface WeddingRepository {
     suspend fun getWeddingPass(token: String): WeddingPass
     suspend fun resolveInvitation(weddingSlug: String, token: String): InvitationContext
     suspend fun confirmRsvp(weddingSlug: String, token: String, attending: Boolean): WeddingPass
+
+    // ---------------------------------------------------------------------------------------
+    // Production-derived domains (Private Real UAT graph).
+    //
+    // These default to "this source holds none", which is the honest answer for the fixture and
+    // sanitized sources. A source that DOES hold the rows overrides them. The distinction between
+    // an empty list here and a missing adapter is carried by [snapshotManifest]: when a manifest
+    // reports a non-zero count for a domain that reads back empty, that is a defect, and the
+    // runtime tests assert exactly that.
+    // ---------------------------------------------------------------------------------------
+
+    /** Identifies the snapshot actually loaded, or null for sources that are not snapshot-backed. */
+    suspend fun snapshotManifest(): UatSnapshotManifest? = null
+
+    /** The full RSVP record behind a guest, including meal, dietary, plus-one and kids detail. */
+    suspend fun getRsvpDetail(weddingId: String, guestId: String): GuestRsvpDetail? = null
+
+    /** Authorized contact/profile fields for a guest. Role gating is applied by the caller. */
+    suspend fun getGuestContact(weddingId: String, guestId: String): GuestContactDetail? = null
+
+    /** Every wedding-content row: story, gallery, venue, FAQ, travel, the day, after, memory. */
+    suspend fun getWeddingContent(weddingId: String): List<WeddingContentEntry> = emptyList()
+
+    /** Content-management revision history. Never surfaced to guests. */
+    suspend fun getContentRevisions(weddingId: String): List<ContentRevisionRecord> = emptyList()
+
+    /** The couple's songbook. */
+    suspend fun getSongs(weddingId: String): List<SongEntry> = emptyList()
+
+    /** Real scan destinations. Routing configuration only — never pass signing material. */
+    suspend fun getQrDestinations(weddingId: String): List<QrDestination> = emptyList()
+
+    /** Completed data imports, without rollback or preview payloads. */
+    suspend fun getImportJobs(weddingId: String): List<ImportJobRecord> = emptyList()
+
+    /** Public wedding-wall messages. Not planner correspondence. */
+    suspend fun getWallMessages(weddingId: String): List<WallMessage> = emptyList()
+
+    /** Named parties to the wedding's service engagements. */
+    suspend fun getEngagementParties(weddingId: String): List<EngagementPartyRecord> = emptyList()
+
+    /** Wedding-scoped audit trail. Gated on Admin authorization by the caller. */
+    suspend fun getAuditEvents(weddingId: String): List<AuditEventRecord> = emptyList()
+
+    /** How the active planner reaches this wedding, or null when no planner context applies. */
+    suspend fun plannerAccessContext(weddingId: String): PlannerAccessContext? = null
+
+    /** Why Admin surfaces have nothing to show, when that is an authorization boundary. */
+    suspend fun adminAccessContext(): AdminAccessContext? = null
 }
 
 /**
@@ -100,6 +149,39 @@ class ScopedWeddingRepository internal constructor(
     suspend fun getAnnouncements(): List<WeddingAnnouncement> = source.getAnnouncements(weddingId)
     suspend fun postAnnouncement(title: String, message: String, urgency: AnnouncementUrgency): WeddingAnnouncement =
         source.postAnnouncement(weddingId, title, message, urgency)
+
+    suspend fun snapshotManifest(): UatSnapshotManifest? = source.snapshotManifest()
+    suspend fun getRsvpDetail(guestId: String): GuestRsvpDetail? = source.getRsvpDetail(weddingId, guestId)
+    suspend fun getGuestContact(guestId: String): GuestContactDetail? = source.getGuestContact(weddingId, guestId)
+    suspend fun getWeddingContent(): List<WeddingContentEntry> = source.getWeddingContent(weddingId)
+    suspend fun getContentRevisions(): List<ContentRevisionRecord> = source.getContentRevisions(weddingId)
+    suspend fun getSongs(): List<SongEntry> = source.getSongs(weddingId)
+    suspend fun getQrDestinations(): List<QrDestination> = source.getQrDestinations(weddingId)
+    suspend fun getImportJobs(): List<ImportJobRecord> = source.getImportJobs(weddingId)
+    suspend fun getWallMessages(): List<WallMessage> = source.getWallMessages(weddingId)
+    suspend fun getEngagementParties(): List<EngagementPartyRecord> = source.getEngagementParties(weddingId)
+    suspend fun getAuditEvents(): List<AuditEventRecord> = source.getAuditEvents(weddingId)
+    suspend fun plannerAccessContext(): PlannerAccessContext? = source.plannerAccessContext(weddingId)
+    suspend fun adminAccessContext(): AdminAccessContext? = source.adminAccessContext()
+
+    /** Content for one section, ordered, with a display title. */
+    suspend fun getWeddingContentSection(section: String): WeddingContentSection {
+        val entries = getWeddingContent().filter { it.section == section }.sortedBy { it.order }
+        return WeddingContentSection(section, WeddingContentSection.titleFor(section), entries)
+    }
+
+    /** Every populated content section, in the couple's order. */
+    suspend fun getWeddingContentSections(): List<WeddingContentSection> =
+        getWeddingContent()
+            .groupBy { it.section }
+            .map { (section, entries) ->
+                WeddingContentSection(
+                    section,
+                    WeddingContentSection.titleFor(section),
+                    entries.sortedBy { it.order }
+                )
+            }
+            .sortedBy { it.section }
 
     suspend fun resolveGuestIdentity(token: String): GuestIdentity? = source.resolveGuestIdentity(token)
     suspend fun getWeddingPass(token: String): WeddingPass = source.getWeddingPass(token)

@@ -36,7 +36,13 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from uat_field_allowlist import (  # noqa: E402
+    ALLOWED_FIELDS, DENIED_FIELDS, assert_allowlist_is_safe, audit_rows, select_columns,
+)
+
 PROTECTED_DIR = Path.home() / ".wewed-shadow" / "charity-kudzie"
+UAT_SCHEMA_VERSION = "private-real-uat/2"
 DEFAULT_WEDDING = "cmqos70cb0004q6vxe9g9aiu5"
 
 # Domains extracted for the UAT graph. `scope` says how the rows are reached:
@@ -84,7 +90,11 @@ def psql_json(dsn: str, sql: str) -> object:
 def try_domain(dsn: str, table: str, wedding_id: str):
     """Extract one wedding-scoped domain, distinguishing absence from lack of authorization."""
     try:
-        rows = psql_json(dsn, f'SELECT * FROM "{table}" WHERE "weddingId" = {sql_literal(wedding_id)}')
+        rows = psql_json(
+            dsn,
+            f'SELECT {select_columns(table)} FROM "{table}" '
+            f'WHERE "weddingId" = {sql_literal(wedding_id)}',
+        )
         return rows, "ok"
     except RuntimeError as exc:
         message = str(exc)
@@ -109,6 +119,8 @@ def main() -> int:
     parser.add_argument("--out", default=str(PROTECTED_DIR / "charity-kudzie-private-real-uat.json"))
     args = parser.parse_args()
 
+    assert_allowlist_is_safe()
+
     dsn = os.environ.get("WEWED_READONLY_DATABASE_URL")
     if not dsn:
         print("FAIL: WEWED_READONLY_DATABASE_URL is not set. Load the protected read-only credential.")
@@ -126,6 +138,7 @@ def main() -> int:
 
     snapshot: dict[str, object] = {
         "mode": "PRIVATE_REAL_UAT",
+        "schemaVersion": UAT_SCHEMA_VERSION,
         "weddingId": args.wedding,
         "generatedAt": datetime.now(timezone.utc).isoformat(),
         "provenance": {"source": "production-read-only", "role": who[0]["u"]},
@@ -134,7 +147,10 @@ def main() -> int:
     counts: dict[str, int] = {}
     statuses: dict[str, str] = {}
 
-    wedding = psql_json(dsn, f'SELECT * FROM "Wedding" WHERE id = {sql_literal(args.wedding)}')
+    wedding = psql_json(
+        dsn,
+        f'SELECT {select_columns("Wedding")} FROM "Wedding" WHERE id = {sql_literal(args.wedding)}',
+    )
     if not wedding:
         print("FAIL: wedding not found or not authorized for this reader.")
         return 3
@@ -150,7 +166,7 @@ def main() -> int:
     # It carries the real RSVP state, dietary notes and check-in flags the Guest surfaces need.
     rsvps = psql_json(
         dsn,
-        'SELECT r.* FROM "RSVP" r WHERE r."guestId" IN '
+        f'SELECT {select_columns("RSVP")} FROM "RSVP" WHERE "guestId" IN '
         f'(SELECT id FROM "Guest" WHERE "weddingId" = {sql_literal(args.wedding)})',
     )
     snapshot["domains"]["RSVP"] = rsvps
@@ -160,12 +176,27 @@ def main() -> int:
     # Planner graph: profile and enquiry reached through the wedding's enquiry.
     planner_profiles = psql_json(
         dsn,
-        'SELECT p.* FROM "PlannerProfile" p WHERE p.id IN '
+        f'SELECT {select_columns("PlannerProfile")} FROM "PlannerProfile" WHERE id IN '
         f'(SELECT "plannerProfileId" FROM "PlannerEnquiry" WHERE "weddingId" = {sql_literal(args.wedding)})',
     )
     snapshot["plannerProfiles"] = planner_profiles
     counts["PlannerProfile"] = len(planner_profiles)
     statuses["PlannerProfile"] = "ok"
+
+    # Column-level boundary: prove no denied or unlisted column survived into any domain.
+    column_violations: list[str] = []
+    for table, rows in snapshot["domains"].items():
+        if rows:
+            column_violations.extend(audit_rows(table, rows))
+    if snapshot.get("wedding"):
+        column_violations.extend(audit_rows("Wedding", [snapshot["wedding"]]))
+    if snapshot.get("plannerProfiles"):
+        column_violations.extend(audit_rows("PlannerProfile", snapshot["plannerProfiles"]))
+    if column_violations:
+        print("FAIL: non-allowlisted column reached the UAT snapshot; refusing to write.")
+        for violation in column_violations:
+            print(f"   {violation}")
+        return 5
 
     blob = json.dumps(snapshot, default=str)
     leaks = scan_for_secrets(blob)
@@ -192,6 +223,11 @@ def main() -> int:
     manifest = {
         "generatedAt": snapshot["generatedAt"],
         "target": "PRIVATE_REAL_UAT",
+        "schemaVersion": UAT_SCHEMA_VERSION,
+        "allowlistedColumns": sum(len(v) for v in ALLOWED_FIELDS.values()),
+        "deniedColumns": sorted(
+            f"{t}.{f}" for t, fs in DENIED_FIELDS.items() for f in fs
+        ),
         "weddingId": args.wedding,
         "file": out_path.name,
         "sha256": digest,

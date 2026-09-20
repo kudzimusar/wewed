@@ -21,6 +21,27 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
     private var vendors: [VendorPresence]
     private var announcements: [WeddingAnnouncement]
 
+    // Production-derived graph loaded from the canonical Private Real UAT snapshot.
+    private let manifest: UatSnapshotManifest
+    private let rsvpDetails: [String: GuestRsvpDetail]
+    private let guestContacts: [String: GuestContactDetail]
+    private let weddingContent: [WeddingContentEntry]
+    private let contentRevisions: [ContentRevisionRecord]
+    private let songs: [SongEntry]
+    private let qrDestinations: [QrDestination]
+    private let importJobs: [ImportJobRecord]
+    private let wallMessages: [WallMessage]
+    private let engagementParties: [EngagementPartyRecord]
+    private let auditEvents: [AuditEventRecord]
+    private let plannerAccess: PlannerAccessContext?
+    private let adminAccess: AdminAccessContext?
+
+    /// The only snapshot schema this build accepts. Bumping it forces a re-provision.
+    public static let requiredSchemaVersion = "private-real-uat/2"
+
+    /// Canonical Private Real UAT snapshot filename, shared with Android and the provisioner.
+    public static let snapshotFilename = "charity-kudzie-private-real-uat-v2.json"
+
     private let attendingToken = "shadow-attending-guest"
     private let pendingToken = "shadow-pending-guest"
     private let declinedToken = "shadow-declined-guest"
@@ -34,7 +55,7 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
         // Check Application Support Directory. Private production-derived
         // Shadow snapshots are intentionally excluded from Documents/iCloud.
         if let appSupportDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
-            let appSupportPath = appSupportDir.appendingPathComponent("wewed/charity-kudzie-private-real-shadow.json").path
+            let appSupportPath = appSupportDir.appendingPathComponent("wewed/\(snapshotFilename)").path
             if FileManager.default.fileExists(atPath: appSupportPath) {
                 return appSupportPath
             }
@@ -43,14 +64,14 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
         #if os(iOS)
         if let appSupportDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
             return appSupportDir
-                .appendingPathComponent("wewed/charity-kudzie-private-real-shadow.json")
+                .appendingPathComponent("wewed/\(snapshotFilename)")
                 .path
         }
-        return ProcessInfo.processInfo.environment["WEWED_PRIVATE_SHADOW_PATH"] ?? "charity-kudzie-private-real-shadow.json"
+        return ProcessInfo.processInfo.environment["WEWED_PRIVATE_SHADOW_PATH"] ?? snapshotFilename
         #else
         // Desktop test tooling may use the operator's protected home-directory snapshot.
         let homePath = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".wewed-shadow/charity-kudzie/charity-kudzie-private-real-shadow.json")
+            .appendingPathComponent(".wewed-shadow/charity-kudzie/\(snapshotFilename)")
             .path
         if FileManager.default.fileExists(atPath: homePath) {
             return homePath
@@ -93,36 +114,62 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
             data = try Self.loadSnapshotData(path: path)
         }
 
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+        guard let envelope = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Invalid JSON format in private real shadow fixture.")
         }
 
+        // The canonical Private Real UAT snapshot is versioned. A stale or differently-shaped file
+        // is rejected loudly here rather than parsed partially: provisioning has failed silently
+        // before, leaving the device on an older graph while the environment badge still read
+        // "Private Real".
+        guard let metadata = envelope["metadata"] as? [String: Any] else {
+            throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing(
+                "Private Real UAT snapshot has no metadata block. Expected schema \(Self.requiredSchemaVersion); re-run the extract/build pipeline and re-provision."
+            )
+        }
+        let schemaVersion = (metadata["schemaVersion"] as? String) ?? ""
+        guard schemaVersion == Self.requiredSchemaVersion else {
+            throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing(
+                "Private Real UAT snapshot schema is '\(schemaVersion)' but this build requires '\(Self.requiredSchemaVersion)'. Re-run build_canonical_uat_snapshot.py and re-provision."
+            )
+        }
+        guard let json = envelope["domains"] as? [String: Any] else {
+            throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Snapshot has no domains block.")
+        }
+
+        self.manifest = UatSnapshotManifest(
+            schemaVersion: schemaVersion,
+            sourceWeddingId: (metadata["sourceWeddingId"] as? String) ?? "",
+            generatedAt: (metadata["generatedAt"] as? String) ?? "",
+            contentHashPrefix: String(((metadata["contentHash"] as? String) ?? "").prefix(16)),
+            domainCounts: (metadata["domainCounts"] as? [String: Int]) ?? [:]
+        )
+
         // 1. Wedding
-        guard let weddingDict = json["wedding"] as? [String: Any],
+        guard let weddingDict = envelope["wedding"] as? [String: Any],
               let weddingId = weddingDict["id"] as? String, !weddingId.isEmpty,
               let coupleTitle = weddingDict["title"] as? String, !coupleTitle.isEmpty,
-              let dateStr = weddingDict["dateRaw"] as? String, !dateStr.isEmpty,
+              let dateStr = weddingDict["date"] as? String, !dateStr.isEmpty,
               let venueStr = weddingDict["venue"] as? String, !venueStr.isEmpty,
               let cityStr = weddingDict["venueCity"] as? String, !cityStr.isEmpty,
               let countryStr = weddingDict["venueCountry"] as? String, !countryStr.isEmpty,
               let lifecycleStr = weddingDict["lifecycle"] as? String, !lifecycleStr.isEmpty else {
-            throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required wedding metadata missing in private real shadow fixture.")
+            throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required wedding metadata missing in Private Real UAT snapshot.")
         }
 
         // 2. Programme
-        guard let progRaw = json["programme"] as? [[String: Any]] else {
-            throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required programme list missing in private real shadow fixture.")
-        }
-        let progItems: [ProgrammeItem] = try progRaw.map { item in
+        let progRaw = (json["programme"] as? [[String: Any]]) ?? []
+        let progItems: [ProgrammeItem] = progRaw.compactMap { item in
             guard let id = item["id"] as? String, !id.isEmpty,
-                  let title = item["title"] as? String, !title.isEmpty,
-                  let time = item["time"] as? String, !time.isEmpty else {
-                throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required programme item fields missing in private real shadow fixture.")
-            }
-            let loc = (item["location"] as? String) ?? venueStr
-            let desc = (item["description"] as? String) ?? ""
-            return ProgrammeItem(id: id, title: title, time: time, location: loc, description: desc)
-        }
+                  let title = item["title"] as? String, !title.isEmpty else { return nil }
+            return ProgrammeItem(
+                id: id,
+                title: title,
+                time: (item["time"] as? String) ?? "",
+                location: (item["location"] as? String) ?? venueStr,
+                description: (item["description"] as? String) ?? ""
+            )
+        }.sorted { $0.time < $1.time }
 
         self.wedding = Wedding(
             id: weddingId,
@@ -137,39 +184,30 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
         )
 
         // 3. Tasks
-        guard let tasksRaw = json["tasks"] as? [[String: Any]] else {
-            throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required tasks list missing in private real shadow fixture.")
-        }
-        self.tasks = try tasksRaw.map { item in
+        let tasksRaw = (json["tasks"] as? [[String: Any]]) ?? []
+        self.tasks = tasksRaw.compactMap { item in
             guard let id = item["id"] as? String, !id.isEmpty,
-                  let title = item["title"] as? String, !title.isEmpty,
-                  let statusRaw = item["status"] as? String, !statusRaw.isEmpty,
-                  let priorityRaw = item["priority"] as? String, !priorityRaw.isEmpty,
-                  let category = item["category"] as? String, !category.isEmpty else {
-                throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required task fields missing in private real shadow fixture.")
-            }
-            let dueDate = item["dueDate"] as? String
-
+                  let title = item["title"] as? String, !title.isEmpty else { return nil }
             let status: TaskStatus
-            switch statusRaw.lowercased() {
+            switch ((item["status"] as? String) ?? "").lowercased() {
             case "done", "completed": status = .done
             case "in_progress", "inprogress": status = .inProgress
             case "blocked": status = .blocked
             default: status = .todo
             }
-
             let priority: TaskPriority
-            switch priorityRaw.lowercased() {
+            switch ((item["priority"] as? String) ?? "").lowercased() {
             case "high", "urgent": priority = .high
             case "low": priority = .low
             default: priority = .medium
             }
-
-            return PlannerTask(id: id, title: title, status: status, priority: priority, category: category, dueDate: dueDate)
+            let category = (item["category"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "General"
+            return PlannerTask(id: id, title: title, status: status, priority: priority,
+                               category: category, dueDate: item["dueDate"] as? String)
         }
 
-        // Table mapping
-        let tablesRaw = json["seatingTables"] as? [[String: Any]] ?? []
+        // 4. Seating tables
+        let tablesRaw = (json["seatingTables"] as? [[String: Any]]) ?? []
         var tableMap: [String: String] = [:]
         for tbl in tablesRaw {
             if let tId = tbl["id"] as? String, let tName = tbl["name"] as? String {
@@ -177,57 +215,83 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
             }
         }
 
-        // 4. Guests
-        guard let guestsRaw = json["guests"] as? [[String: Any]] else {
-            throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required guests list missing in private real shadow fixture.")
+        // 5. RSVP graph, keyed by guest. Every production guest has exactly one RSVP row; the
+        // detail here (meal, dietary, plus-one, kids, song request, message) is what the old flat
+        // snapshot discarded entirely.
+        let rsvpRaw = (json["rsvps"] as? [[String: Any]]) ?? []
+        var rsvpByGuest: [String: GuestRsvpDetail] = [:]
+        for row in rsvpRaw {
+            guard let guestId = row["guestId"] as? String, !guestId.isEmpty else { continue }
+            rsvpByGuest[guestId] = GuestRsvpDetail(
+                id: (row["id"] as? String) ?? "",
+                guestId: guestId,
+                attending: row["attending"] as? Bool,
+                mealChoice: row["mealChoice"] as? String,
+                plusOne: (row["plusOne"] as? Bool) ?? false,
+                plusOneName: row["plusOneName"] as? String,
+                plusOneMeal: row["plusOneMeal"] as? String,
+                kidsAttending: (row["kidsAttending"] as? Bool) ?? false,
+                kidsCount: (row["kidsCount"] as? Int) ?? 0,
+                songRequests: row["songRequests"] as? String,
+                dietaryNotes: row["dietaryNotes"] as? String,
+                message: row["message"] as? String,
+                checkedIn: (row["checkedIn"] as? Bool) ?? false,
+                checkedInAt: row["checkedInAt"] as? String
+            )
         }
+        self.rsvpDetails = rsvpByGuest
+
+        // 6. Guests
+        guard let guestsRaw = json["guests"] as? [[String: Any]] else {
+            throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required guests list missing in Private Real UAT snapshot.")
+        }
+        var contacts: [String: GuestContactDetail] = [:]
         self.guests = try guestsRaw.map { item in
             guard let id = item["id"] as? String, !id.isEmpty,
-                  let name = item["name"] as? String, !name.isEmpty,
-                  let rsvpRaw = item["rsvpStatus"] as? String, !rsvpRaw.isEmpty,
-                  let partySize = item["partySize"] as? Int,
-                  let checkedIn = item["checkedIn"] as? Bool else {
-                throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required guest fields missing in private real shadow fixture.")
+                  let name = item["name"] as? String, !name.isEmpty else {
+                throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required guest fields missing in Private Real UAT snapshot.")
             }
-            let rawSide = (item["side"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let side = (rawSide?.isEmpty == false) ? rawSide! : "Not recorded"
-            let checkedInCount = (item["checkedInCount"] as? Int) ?? (checkedIn ? 1 : 0)
-            let seatingTableId = item["seatingTableId"] as? String
-            let tableName = seatingTableId.flatMap { tableMap[$0] }
-
+            let rsvpRow = rsvpByGuest[id]
             let rsvp: RSVPStatus
-            switch rsvpRaw.lowercased() {
-            case "attending", "confirmed": rsvp = .attending
-            case "declined": rsvp = .declined
+            switch rsvpRow?.attending {
+            case .some(true): rsvp = .attending
+            case .some(false): rsvp = .declined
             default: rsvp = .pending
             }
+            // Production records no partySize column; the real party size is the guest plus their
+            // confirmed plus-one and children. That is DERIVED, not invented.
+            let partySize = 1 + ((rsvpRow?.plusOne == true) ? 1 : 0) + (rsvpRow?.kidsCount ?? 0)
+            let checkedIn = rsvpRow?.checkedIn == true
+            let rawSide = (item["side"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let side = (rawSide?.isEmpty == false) ? rawSide!.prefix(1).uppercased() + rawSide!.dropFirst() : "Not recorded"
+            let seatingTableId = item["seatingTableId"] as? String
 
-            let passSerial: String?
-            if rsvp == .attending {
-                passSerial = "SHDW" + String(id.uppercased().suffix(8))
-            } else {
-                passSerial = nil
-            }
+            contacts[id] = GuestContactDetail(
+                guestId: id,
+                email: item["email"] as? String,
+                phone: item["phone"] as? String,
+                role: item["role"] as? String,
+                roleDetail: item["roleDetail"] as? String
+            )
 
             return Guest(
                 id: id,
                 name: name,
                 householdName: nil,
                 partySize: partySize,
-                side: side,
+                side: String(side),
                 rsvpStatus: rsvp,
-                tableNumber: nil,
-                tableName: tableName,
+                tableNumber: (item["tableNumber"] as? Int).flatMap { $0 > 0 ? $0 : nil },
+                tableName: seatingTableId.flatMap { tableMap[$0] },
                 checkedIn: checkedIn,
-                checkedInCount: checkedInCount,
-                passSerial: passSerial
+                checkedInCount: checkedIn ? partySize : 0,
+                passSerial: rsvp == .attending ? "SHDW" + String(id.uppercased().suffix(8)) : nil
             )
         }
+        self.guestContacts = contacts
 
-        // 5. Budget
-        guard let budgetRaw = json["budgetItems"] as? [[String: Any]] else {
-            throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required budgetItems missing in private real shadow fixture.")
-        }
+        // 7. Budget
+        let budgetRaw = (json["budgetItems"] as? [[String: Any]]) ?? []
         var catAllocated: [String: Double] = [:]
         var catSpent: [String: Double] = [:]
         var totalEst: Double = 0
@@ -235,25 +299,15 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
         var totalPd: Double = 0
 
         for b in budgetRaw {
-            guard let id = b["id"] as? String, !id.isEmpty,
-                  let cat = b["category"] as? String, !cat.isEmpty,
-                  let estNum = b["estimatedCost"] as? NSNumber,
-                  let actNum = b["actualCost"] as? NSNumber,
-                  let pdNum = b["paidAmount"] as? NSNumber else {
-                throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required budget item fields missing in private real shadow fixture.")
-            }
-            let est = estNum.doubleValue
-            let act = actNum.doubleValue
-            let pd = pdNum.doubleValue
+            let cat = ((b["category"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "Uncategorised").capitalized
+            let est = (b["estimatedCost"] as? NSNumber)?.doubleValue ?? 0
+            let act = (b["actualCost"] as? NSNumber)?.doubleValue ?? 0
+            let pd = (b["paidAmount"] as? NSNumber)?.doubleValue ?? 0
             totalEst += est
             totalAct += act
             totalPd += pd
-            catAllocated[cat.capitalized, default: 0] += act > 0 ? act : est
-            catSpent[cat.capitalized, default: 0] += pd
-        }
-
-        let categories = catAllocated.keys.sorted().map { cat in
-            BudgetCategory(name: cat, allocated: catAllocated[cat] ?? 0, spent: catSpent[cat] ?? 0)
+            catAllocated[cat, default: 0] += act > 0 ? act : est
+            catSpent[cat, default: 0] += pd
         }
 
         self.budget = BudgetSummary(
@@ -261,19 +315,17 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
             totalBudget: totalEst,
             totalAllocated: totalAct,
             totalPaid: totalPd,
-            categories: categories
+            categories: catAllocated.keys.sorted().map {
+                BudgetCategory(name: $0, allocated: catAllocated[$0] ?? 0, spent: catSpent[$0] ?? 0)
+            }
         )
 
-        // 6. Vendors
-        guard let vendorsRaw = json["vendors"] as? [[String: Any]] else {
-            throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required vendors list missing in private real shadow fixture.")
-        }
-        self.vendors = try vendorsRaw.map { item in
+        // 8. Vendors
+        let vendorsRaw = (json["vendors"] as? [[String: Any]]) ?? []
+        self.vendors = vendorsRaw.compactMap { item in
             guard let id = item["id"] as? String, !id.isEmpty,
-                  let name = item["name"] as? String, !name.isEmpty,
-                  let cat = item["category"] as? String, !cat.isEmpty else {
-                throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required vendor fields missing in private real shadow fixture.")
-            }
+                  let name = item["name"] as? String, !name.isEmpty else { return nil }
+            let cat = (item["category"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "Service"
             return VendorPresence(
                 id: id,
                 vendorName: name,
@@ -283,6 +335,146 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
                 expectedTime: "Not recorded",
                 lastUpdated: Date()
             )
+        }
+
+        // 9. Production-derived domains the old snapshot dropped entirely.
+        self.weddingContent = ((json["weddingContent"] as? [[String: Any]]) ?? []).compactMap { c in
+            guard let id = c["id"] as? String, let section = c["section"] as? String,
+                  let field = c["field"] as? String else { return nil }
+            return WeddingContentEntry(
+                id: id, section: section, field: field,
+                value: (c["value"] as? String) ?? "",
+                order: (c["order"] as? Int) ?? 0,
+                metadata: c["metadata"] as? String
+            )
+        }
+
+        self.contentRevisions = ((json["contentRevisions"] as? [[String: Any]]) ?? []).compactMap { r in
+            guard let id = r["id"] as? String else { return nil }
+            return ContentRevisionRecord(
+                id: id,
+                section: (r["section"] as? String) ?? "",
+                fieldKey: (r["fieldKey"] as? String) ?? "",
+                status: (r["status"] as? String) ?? "draft",
+                publishedAt: r["publishedAt"] as? String,
+                scheduledFor: r["scheduledFor"] as? String,
+                authorId: r["authorId"] as? String,
+                hasPreviousValue: r["previousValue"] is String
+            )
+        }
+
+        self.songs = ((json["songs"] as? [[String: Any]]) ?? []).compactMap { s in
+            guard let id = s["id"] as? String, let title = s["title"] as? String else { return nil }
+            return SongEntry(
+                id: id, title: title,
+                artist: s["artist"] as? String,
+                phase: s["phase"] as? String,
+                moment: s["moment"] as? String,
+                order: (s["order"] as? Int) ?? 0,
+                votes: (s["votes"] as? Int) ?? 0,
+                notes: s["notes"] as? String,
+                playedAt: s["playedAt"] as? String,
+                spotifyUrl: s["spotifyUrl"] as? String,
+                appleUrl: s["appleUrl"] as? String
+            )
+        }.sorted { $0.order < $1.order }
+
+        self.qrDestinations = ((json["qrDestinations"] as? [[String: Any]]) ?? []).compactMap { q in
+            guard let id = q["id"] as? String else { return nil }
+            return QrDestination(
+                id: id,
+                label: (q["label"] as? String) ?? "",
+                type: (q["type"] as? String) ?? "",
+                url: (q["url"] as? String) ?? "",
+                isActive: (q["isActive"] as? Bool) ?? true,
+                scanCount: (q["scanCount"] as? Int) ?? 0
+            )
+        }
+
+        self.importJobs = ((json["importJobs"] as? [[String: Any]]) ?? []).compactMap { j in
+            guard let id = j["id"] as? String else { return nil }
+            return ImportJobRecord(
+                id: id,
+                moduleKey: (j["moduleKey"] as? String) ?? "",
+                fileName: j["fileName"] as? String,
+                status: (j["status"] as? String) ?? "unknown",
+                totalRows: (j["totalRows"] as? Int) ?? 0,
+                createdCount: (j["createdCount"] as? Int) ?? 0,
+                updatedCount: (j["updatedCount"] as? Int) ?? 0,
+                skippedCount: (j["skippedCount"] as? Int) ?? 0,
+                errorCount: (j["errorCount"] as? Int) ?? 0,
+                performedAt: j["createdAt"] as? String
+            )
+        }.sorted { ($0.performedAt ?? "") > ($1.performedAt ?? "") }
+
+        self.wallMessages = ((json["messages"] as? [[String: Any]]) ?? []).compactMap { m in
+            guard let id = m["id"] as? String else { return nil }
+            return WallMessage(
+                id: id,
+                authorName: m["authorName"] as? String,
+                content: (m["content"] as? String) ?? "",
+                type: (m["type"] as? String) ?? "wall",
+                isPublic: (m["isPublic"] as? Bool) ?? false,
+                revealedAt: m["revealedAt"] as? String,
+                createdAt: m["createdAt"] as? String
+            )
+        }
+
+        self.engagementParties = ((json["engagementParties"] as? [[String: Any]]) ?? []).compactMap { e in
+            guard let id = e["id"] as? String else { return nil }
+            return EngagementPartyRecord(
+                id: id,
+                serviceEngagementId: (e["serviceEngagementId"] as? String) ?? "",
+                partyKind: (e["partyKind"] as? String) ?? "",
+                partyRole: (e["partyRole"] as? String) ?? "",
+                displayName: (e["displayName"] as? String) ?? "",
+                legalName: e["legalName"] as? String,
+                email: e["email"] as? String,
+                phone: e["phone"] as? String,
+                authorityBasis: e["authorityBasis"] as? String,
+                status: e["status"] as? String,
+                requiredForReview: (e["requiredForReview"] as? Bool) ?? false
+            )
+        }
+
+        self.auditEvents = ((json["auditEvents"] as? [[String: Any]]) ?? []).compactMap { a in
+            guard let id = a["id"] as? String else { return nil }
+            return AuditEventRecord(
+                id: id,
+                action: (a["action"] as? String) ?? "",
+                actorId: a["actorId"] as? String,
+                resourceType: a["resourceType"] as? String,
+                resourceId: a["resourceId"] as? String,
+                createdAt: a["createdAt"] as? String
+            )
+        }.sorted { ($0.createdAt ?? "") > ($1.createdAt ?? "") }
+
+        // 10. Planner and Admin context, carried as facts rather than inferred at the UI.
+        if let pc = envelope["plannerContext"] as? [String: Any] {
+            let profile = pc["profile"] as? [String: Any]
+            self.plannerAccess = PlannerAccessContext(
+                businessName: profile?["displayName"] as? String,
+                profileStatus: profile?["status"] as? String,
+                teamSize: profile?["teamSize"] as? Int,
+                completedWeddings: profile?["completedWeddings"] as? Int,
+                enquiryStatus: (pc["enquiry"] as? [String: Any])?["status"] as? String,
+                productionEngagementCount: (pc["productionEngagementCount"] as? Int) ?? 0,
+                productionMembershipCount: (pc["productionMembershipCount"] as? Int) ?? 0,
+                accessBasis: (pc["accessBasis"] as? String) == "PRODUCTION_ENGAGEMENT" ? .productionDerived : .uatOverlay
+            )
+        } else {
+            self.plannerAccess = nil
+        }
+
+        if let ac = envelope["adminContext"] as? [String: Any] {
+            self.adminAccess = AdminAccessContext(
+                status: (ac["status"] as? String) ?? "",
+                deniedDomains: (ac["deniedDomains"] as? [String]) ?? [],
+                emptyDomains: (ac["emptyDomains"] as? [String]) ?? [],
+                note: (ac["note"] as? String) ?? ""
+            )
+        } else {
+            self.adminAccess = nil
         }
 
         self.announcements = []
@@ -528,4 +720,71 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
             qrPayload: "DECLINED_NO_ADMISSION"
         )
     }
+
+    // -------------------------------------------------------------------------------------
+    // Production-derived domains.
+    //
+    // Each of these was previously reported as "unsupported" because the September snapshot did
+    // not carry it. Production did. Role gating is applied by the caller, except where a model
+    // exposes an explicitly narrowed projection (see GuestRsvpDetail.operationalOnly()).
+    // -------------------------------------------------------------------------------------
+
+    public func snapshotManifest() async throws -> UatSnapshotManifest? { manifest }
+
+    public func getRsvpDetail(weddingId: String, guestId: String) async throws -> GuestRsvpDetail? {
+        try requireScope(weddingId)
+        return rsvpDetails[guestId]
+    }
+
+    public func getGuestContact(weddingId: String, guestId: String) async throws -> GuestContactDetail? {
+        try requireScope(weddingId)
+        return guestContacts[guestId]
+    }
+
+    public func getWeddingContent(weddingId: String) async throws -> [WeddingContentEntry] {
+        try requireScope(weddingId)
+        return weddingContent
+    }
+
+    public func getContentRevisions(weddingId: String) async throws -> [ContentRevisionRecord] {
+        try requireScope(weddingId)
+        return contentRevisions
+    }
+
+    public func getSongs(weddingId: String) async throws -> [SongEntry] {
+        try requireScope(weddingId)
+        return songs
+    }
+
+    public func getQrDestinations(weddingId: String) async throws -> [QrDestination] {
+        try requireScope(weddingId)
+        return qrDestinations
+    }
+
+    public func getImportJobs(weddingId: String) async throws -> [ImportJobRecord] {
+        try requireScope(weddingId)
+        return importJobs
+    }
+
+    public func getWallMessages(weddingId: String) async throws -> [WallMessage] {
+        try requireScope(weddingId)
+        return wallMessages
+    }
+
+    public func getEngagementParties(weddingId: String) async throws -> [EngagementPartyRecord] {
+        try requireScope(weddingId)
+        return engagementParties
+    }
+
+    public func getAuditEvents(weddingId: String) async throws -> [AuditEventRecord] {
+        try requireScope(weddingId)
+        return auditEvents
+    }
+
+    public func plannerAccessContext(weddingId: String) async throws -> PlannerAccessContext? {
+        try requireScope(weddingId)
+        return plannerAccess
+    }
+
+    public func adminAccessContext() async throws -> AdminAccessContext? { adminAccess }
 }

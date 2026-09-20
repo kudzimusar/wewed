@@ -37,17 +37,30 @@ public actor PrivateRealShadowPlannerRepository: PlannerDashboardRepositoryProto
             data = try PrivateRealShadowWeddingRepository.loadSnapshotData(path: path)
         }
 
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+        guard let envelope = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Invalid JSON format in private real shadow fixture.")
         }
 
-        guard let weddingDict = json["wedding"] as? [String: Any],
+        // Both repositories read ONE canonical snapshot. Reading the same schema here is what
+        // stops the planner workspace and the couple workspace from disagreeing about the same
+        // wedding, which is exactly what happened while two "real" snapshots coexisted.
+        let schemaVersion = (envelope["metadata"] as? [String: Any])?["schemaVersion"] as? String
+        guard schemaVersion == PrivateRealShadowWeddingRepository.requiredSchemaVersion else {
+            throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing(
+                "Private Real UAT snapshot schema is '\(schemaVersion ?? "none")' but this build requires '\(PrivateRealShadowWeddingRepository.requiredSchemaVersion)'. Re-provision the device."
+            )
+        }
+        guard let json = envelope["domains"] as? [String: Any] else {
+            throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Snapshot has no domains block.")
+        }
+
+        guard let weddingDict = envelope["wedding"] as? [String: Any],
               let wId = weddingDict["id"] as? String, !wId.isEmpty,
               let coupleTitle = weddingDict["title"] as? String, !coupleTitle.isEmpty,
-              let dateStr = weddingDict["dateRaw"] as? String, !dateStr.isEmpty,
+              let dateStr = weddingDict["date"] as? String, !dateStr.isEmpty,
               let venueStr = weddingDict["venue"] as? String, !venueStr.isEmpty,
               let lifecycleStr = weddingDict["lifecycle"] as? String, !lifecycleStr.isEmpty else {
-            throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required wedding metadata missing in private real shadow fixture.")
+            throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required wedding metadata missing in Private Real UAT snapshot.")
         }
         self.weddingId = wId
         self.weddingTitle = coupleTitle
@@ -55,9 +68,12 @@ public actor PrivateRealShadowPlannerRepository: PlannerDashboardRepositoryProto
         self.weddingVenue = venueStr
         self.weddingLifecycle = lifecycleStr
 
-        guard let plannerDict = json["planner"] as? [String: Any],
-              let pTitle = (plannerDict["displayName"] as? String ?? plannerDict["businessName"] as? String), !pTitle.isEmpty else {
-            throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required planner metadata missing in private real shadow fixture.")
+        // The planner identity is the real PlannerProfile production holds for this wedding's
+        // enquiry — Eleven Eleven Testing — not a name invented for the workspace header.
+        guard let plannerContext = envelope["plannerContext"] as? [String: Any],
+              let plannerDict = plannerContext["profile"] as? [String: Any],
+              let pTitle = plannerDict["displayName"] as? String, !pTitle.isEmpty else {
+            throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required planner metadata missing in Private Real UAT snapshot.")
         }
         self.plannerTitle = pTitle
 
@@ -131,9 +147,20 @@ public actor PrivateRealShadowPlannerRepository: PlannerDashboardRepositoryProto
         self.totalActBudget = totalAct
         self.totalPdBudget = totalPd
 
+        // RSVP is its own production table keyed by guest; attendance and party size are read from
+        // there rather than from a flattened field that production never had.
+        let rsvpRows = (json["rsvps"] as? [[String: Any]]) ?? []
+        var attendingByGuest: [String: Bool?] = [:]
+        var partySizeByGuest: [String: Int] = [:]
+        for r in rsvpRows {
+            guard let gId = r["guestId"] as? String, !gId.isEmpty else { continue }
+            attendingByGuest[gId] = r["attending"] as? Bool
+            partySizeByGuest[gId] = 1 + (((r["plusOne"] as? Bool) == true) ? 1 : 0) + ((r["kidsCount"] as? Int) ?? 0)
+        }
+
         // Guest Map for name resolution
         guard let guestsRaw = json["guests"] as? [[String: Any]] else {
-            throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required guests list missing in private real shadow fixture.")
+            throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required guests list missing in Private Real UAT snapshot.")
         }
         self.totalGuestsCount = guestsRaw.count
         var guestNameMap: [String: String] = [:]
@@ -144,17 +171,15 @@ public actor PrivateRealShadowPlannerRepository: PlannerDashboardRepositoryProto
 
         for g in guestsRaw {
             guard let gId = g["id"] as? String, !gId.isEmpty,
-                  let gName = g["name"] as? String, !gName.isEmpty,
-                  let partySize = g["partySize"] as? Int,
-                  let rsvpRaw = g["rsvpStatus"] as? String else {
-                throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required guest fields missing in private real shadow fixture.")
+                  let gName = g["name"] as? String, !gName.isEmpty else {
+                throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Required guest fields missing in Private Real UAT snapshot.")
             }
+            let attending = attendingByGuest[gId] ?? nil
+            let partySize = partySizeByGuest[gId] ?? 1
             guestNameMap[gId] = gName
-            if rsvpRaw.lowercased() == "attending" || rsvpRaw.lowercased() == "confirmed" {
+            if attending == true {
                 attendingCount += 1
-            } else if rsvpRaw.lowercased() == "declined" {
-                // declined
-            } else {
+            } else if attending == nil {
                 pendingCount += 1
             }
 

@@ -187,17 +187,34 @@ final class ShadowReferenceRepositoryTests: XCTestCase {
         XCTAssertEqual(tasks.filter { $0.status == .done }.count, 7)
         XCTAssertEqual(tasks.filter { $0.priority == .high }.count, 13)
 
-        // 3. Guests (174 guests, 177 invited capacity)
-        XCTAssertEqual(guests.count, 174)
+        // 3. Guests.
+        //
+        // Reconciled 2026-09-20: production moved from 174 to 175 guests because one bridal-party
+        // guest was created on 2026-09-19, after the September-18 export. All 175 are scoped to
+        // this wedding, all 175 have exactly one RSVP row, and there are no orphans. 175 rows
+        // carry 174 distinct names: one name is held by two separate production rows created six
+        // minutes apart with different sides and roles. Both are rendered — deduplicating them
+        // here would hide a production fact.
+        //
+        // The count is asserted against the snapshot's own manifest as well as the reconciled
+        // number, so a stale snapshot fails loudly instead of quietly re-baselining.
+        let manifest = try await bundle.wedding.forOnlyWedding().snapshotManifest()
+        XCTAssertNotNil(manifest, "Private Real UAT snapshot must carry a manifest")
+        XCTAssertEqual(manifest?.schemaVersion, "private-real-uat/2")
+        XCTAssertEqual(manifest?.count("guests"), guests.count)
+        XCTAssertEqual(guests.count, 175)
+        XCTAssertEqual(Set(guests.map { $0.name }).count, 174)
         let guestPseudonymRegex = try NSRegularExpression(pattern: #"Guest G\d+"#)
         for guest in guests {
             let range = NSRange(location: 0, length: guest.name.utf16.count)
             XCTAssertNil(guestPseudonymRegex.firstMatch(in: guest.name, options: [], range: range), "Guest name \(guest.name) must not match pseudonym pattern")
         }
         let totalInvitedCapacity = guests.reduce(0) { $0 + $1.partySize }
-        XCTAssertEqual(totalInvitedCapacity, 177)
+        // Party size is derived from the real RSVP row (guest + confirmed plus-one + children),
+        // because production's Guest table has no partySize column.
+        XCTAssertEqual(totalInvitedCapacity, 178)
         XCTAssertEqual(guests.filter { $0.rsvpStatus == .attending }.count, 2)
-        XCTAssertEqual(guests.filter { $0.rsvpStatus == .pending }.count, 172)
+        XCTAssertEqual(guests.filter { $0.rsvpStatus == .pending }.count, 173)
         XCTAssertEqual(guests.filter { $0.rsvpStatus == .declined }.count, 0)
         let attendingPassSerials = guests
             .filter { $0.rsvpStatus == .attending }
