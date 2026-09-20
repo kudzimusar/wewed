@@ -13,6 +13,18 @@ sealed interface NativeDeepLink {
     data class Invitation(val value: InvitationDeepLink) : NativeDeepLink
     data object Pass : NativeDeepLink
     data class Wedding(val weddingSlug: String) : NativeDeepLink
+
+    /**
+     * Canonical IA V2 §14 workspace link, e.g. `wewed://wedding/{id}/plan/tasks`.
+     * Carries the requested entity/context only; authorization is resolved separately by
+     * `DeepLinkRouter` so a link can never be its own permission.
+     */
+    data class Workspace(
+        val weddingId: String?,
+        val destinationId: String,
+        val section: String? = null,
+        val entityId: String? = null
+    ) : NativeDeepLink
 }
 
 object NativeDeepLinkParser {
@@ -54,6 +66,58 @@ object NativeDeepLinkParser {
                     )
                 }
                 "pass" -> NativeDeepLink.Pass
+                // IA V2 §14 canonical workspace routes. Parsing only — never authorization.
+                "wedding" -> {
+                    val weddingId = route.getOrNull(1)?.trim().orEmpty()
+                    val requested = route.getOrNull(2)?.trim()?.lowercase()
+                    if (weddingId.isEmpty() || requested.isNullOrEmpty()) null
+                    else when (requested) {
+                        "invitation" -> route.getOrNull(3)?.trim()?.takeIf { it.isNotEmpty() }?.let {
+                            NativeDeepLink.Invitation(InvitationDeepLink(weddingId, it))
+                        }
+                        else -> NativeDeepLink.Workspace(
+                            weddingId = weddingId,
+                            destinationId = if (requested == "day") "wedding_day" else requested,
+                            section = route.getOrNull(3)?.trim()?.takeIf { it.isNotEmpty() }
+                        )
+                    }
+                }
+                "planner" -> route.getOrNull(1)?.trim()?.lowercase()
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let {
+                        NativeDeepLink.Workspace(
+                            weddingId = route.getOrNull(2)?.trim(),
+                            destinationId = it
+                        )
+                    }
+                "vendor" -> route.getOrNull(1)?.trim()?.lowercase()
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let {
+                        NativeDeepLink.Workspace(
+                            weddingId = null,
+                            destinationId = it,
+                            entityId = route.getOrNull(2)?.trim()
+                        )
+                    }
+                "gate" -> {
+                    val gateId = route.getOrNull(1)?.trim()
+                    val requested = route.getOrNull(2)?.trim()?.lowercase() ?: "scan"
+                    if (gateId.isNullOrEmpty()) null
+                    else NativeDeepLink.Workspace(
+                        weddingId = null,
+                        destinationId = requested,
+                        entityId = gateId
+                    )
+                }
+                "admin" -> route.getOrNull(1)?.trim()?.lowercase()
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let {
+                        NativeDeepLink.Workspace(
+                            weddingId = null,
+                            destinationId = it,
+                            entityId = route.getOrNull(2)?.trim()
+                        )
+                    }
                 "w" -> route.getOrNull(1)?.trim()
                     ?.takeIf { it.isNotEmpty() }
                     ?.let { NativeDeepLink.Wedding(it) }

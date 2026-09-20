@@ -10,10 +10,28 @@ public struct InvitationDeepLink: Hashable, Sendable {
     }
 }
 
+/// Canonical IA V2 §14 workspace link target, e.g. `wewed://wedding/{id}/plan/tasks`.
+/// Carries the requested entity/context only; authorization is resolved separately by
+/// `DeepLinkRouter` so a link can never be its own permission.
+public struct WorkspaceDeepLink: Equatable, Sendable {
+    public let weddingId: String?
+    public let destinationId: String
+    public let section: String?
+    public let entityId: String?
+
+    public init(weddingId: String?, destinationId: String, section: String? = nil, entityId: String? = nil) {
+        self.weddingId = weddingId
+        self.destinationId = destinationId
+        self.section = section
+        self.entityId = entityId
+    }
+}
+
 public enum NativeDeepLink: Equatable, Sendable {
     case invitation(InvitationDeepLink)
     case pass
     case wedding(String)
+    case workspace(WorkspaceDeepLink)
 }
 
 public enum NativeDeepLinkParser {
@@ -60,6 +78,70 @@ public enum NativeDeepLinkParser {
 
         case "pass":
             return .pass
+
+        // IA V2 §14 canonical workspace routes. Parsing only — never authorization.
+        case "wedding":
+            guard route.count >= 3 else { return nil }
+            let weddingId = route[1].trimmingCharacters(in: .whitespacesAndNewlines)
+            let requested = route[2].trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard !weddingId.isEmpty, !requested.isEmpty else { return nil }
+            if requested == "invitation" {
+                guard route.count >= 4 else { return nil }
+                let token = route[3].trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !token.isEmpty else { return nil }
+                return .invitation(InvitationDeepLink(weddingSlug: weddingId, rsvpToken: token))
+            }
+            return .workspace(
+                WorkspaceDeepLink(
+                    weddingId: weddingId,
+                    destinationId: requested == "day" ? "wedding_day" : requested,
+                    section: route.count >= 4 ? route[3] : nil
+                )
+            )
+
+        case "planner":
+            guard route.count >= 2 else { return nil }
+            let requested = route[1].lowercased()
+            guard !requested.isEmpty else { return nil }
+            return .workspace(
+                WorkspaceDeepLink(
+                    weddingId: route.count >= 3 ? route[2] : nil,
+                    destinationId: requested
+                )
+            )
+
+        case "vendor":
+            guard route.count >= 2 else { return nil }
+            let requested = route[1].lowercased()
+            guard !requested.isEmpty else { return nil }
+            return .workspace(
+                WorkspaceDeepLink(
+                    weddingId: nil,
+                    destinationId: requested,
+                    entityId: route.count >= 3 ? route[2] : nil
+                )
+            )
+
+        case "gate":
+            guard route.count >= 2 else { return nil }
+            let gateId = route[1].trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !gateId.isEmpty else { return nil }
+            let requested = route.count >= 3 ? route[2].lowercased() : "scan"
+            return .workspace(
+                WorkspaceDeepLink(weddingId: nil, destinationId: requested, entityId: gateId)
+            )
+
+        case "admin":
+            guard route.count >= 2 else { return nil }
+            let requested = route[1].lowercased()
+            guard !requested.isEmpty else { return nil }
+            return .workspace(
+                WorkspaceDeepLink(
+                    weddingId: nil,
+                    destinationId: requested,
+                    entityId: route.count >= 3 ? route[2] : nil
+                )
+            )
 
         case "w":
             guard route.count >= 2 else { return nil }

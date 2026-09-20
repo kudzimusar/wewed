@@ -84,7 +84,7 @@ class NativeDeepLinkTest {
         state.handleIncomingUrl("wewed://pass/example")
 
         assertNull(state.pendingInvitationDeepLink.value)
-        assertEquals(AppTab.PASS, state.selectedTab.value)
+        assertEquals(AppTab.WEDDING_DAY, state.selectedTab.value)
     }
 
     @Test

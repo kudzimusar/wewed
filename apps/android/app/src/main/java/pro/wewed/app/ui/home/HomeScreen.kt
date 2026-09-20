@@ -278,7 +278,7 @@ fun HomeScreen(appViewModel: AppViewModel) {
                                 }
 
                                 Button(
-                                    onClick = { appViewModel.selectTab(AppTab.PASS) },
+                                    onClick = { appViewModel.selectTab(AppTab.WEDDING_DAY) },
                                     colors = ButtonDefaults.buttonColors(containerColor = WewedColors.Gold),
                                     shape = RoundedCornerShape(WewedRadius.pill),
                                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
@@ -343,7 +343,7 @@ fun HomeScreen(appViewModel: AppViewModel) {
                                 title = "Live Wall",
                                 icon = Icons.Default.PhotoLibrary,
                                 modifier = Modifier.weight(1f)
-                            ) { appViewModel.selectTab(AppTab.LIVE) }
+                            ) { appViewModel.selectTab(AppTab.MORE) }
 
                             QuickActionItem(
                                 title = "Vendors",

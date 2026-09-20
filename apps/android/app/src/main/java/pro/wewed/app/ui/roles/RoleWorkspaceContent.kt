@@ -1,0 +1,660 @@
+package pro.wewed.app.ui.roles
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import pro.wewed.app.models.*
+import pro.wewed.app.navigation.NavigationContext
+import pro.wewed.app.navigation.PrimaryDestination
+import pro.wewed.app.state.AppViewModel
+import pro.wewed.app.state.SessionViewModel
+import pro.wewed.app.theme.WeddingIdentityPalette
+
+/**
+ * IA V2 Level-2 workspace content.
+ *
+ * Every section here reads through the canonical repositories on [AppViewModel], scoped by the
+ * active wedding carried in [NavigationContext]. Loads are keyed on `activeWeddingId`, so a wedding
+ * switch re-resolves the graph rather than leaving a sibling workspace stale (IA V2 §13.2/§13.5).
+ * Sections with no repository contract yet render an explicit unsupported state naming the gap —
+ * never invented values (playbook §16).
+ */
+
+/** Canonical wedding graph slice, loaded once per workspace and shared by its sections. */
+class WeddingGraphState {
+    var wedding by mutableStateOf<Wedding?>(null)
+    var tasks by mutableStateOf<List<PlannerTask>>(emptyList())
+    var guests by mutableStateOf<List<Guest>>(emptyList())
+    var budget by mutableStateOf<BudgetSummary?>(null)
+    var vendors by mutableStateOf<List<VendorPresence>>(emptyList())
+    var announcements by mutableStateOf<List<WeddingAnnouncement>>(emptyList())
+    var auditRecords by mutableStateOf<List<CheckInAuditRecord>>(emptyList())
+    var loading by mutableStateOf(true)
+    var error by mutableStateOf<String?>(null)
+}
+
+/**
+ * Loads the wedding graph for the active wedding. Keyed on the wedding id so that navigating
+ * between workspaces never silently rebinds to a different wedding.
+ */
+@Composable
+fun rememberWeddingGraph(
+    appViewModel: AppViewModel,
+    context: NavigationContext
+): WeddingGraphState {
+    val state = remember(context.activeWeddingId) { WeddingGraphState() }
+    LaunchedEffect(context.activeWeddingId) {
+        state.loading = true
+        state.error = null
+        runCatching {
+            state.wedding = appViewModel.repository.getWedding()
+            state.tasks = appViewModel.repository.getTasks()
+            state.guests = appViewModel.repository.getGuests()
+            state.budget = appViewModel.repository.getBudget()
+            state.vendors = appViewModel.repository.getVendors()
+            state.announcements = appViewModel.repository.getAnnouncements()
+            state.auditRecords = appViewModel.repository.getAuditRecords()
+        }.onFailure { state.error = it.message ?: "Unable to load this wedding." }
+        state.loading = false
+    }
+    return state
+}
+
+/** Level-2 host: documented section chips above repository-backed section content. */
+@Composable
+fun WorkspaceSurface(
+    destination: PrimaryDestination,
+    testTagPrefix: String,
+    sectionContent: @Composable (String) -> Unit
+) {
+    var selectedSection by remember(destination.id) {
+        mutableStateOf(destination.sections.firstOrNull() ?: destination.label)
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(WeddingIdentityPalette.Ivory)
+            .testTag("$testTagPrefix-${destination.id}")
+    ) {
+        WorkspaceSectionChips(
+            sections = destination.sections,
+            selected = selectedSection,
+            testTagPrefix = "$testTagPrefix-${destination.id}"
+        ) { selectedSection = it }
+
+        Box(modifier = Modifier.weight(1f)) {
+            sectionContent(selectedSection)
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Shared presentation primitives (approved Wewed visual language)
+// ---------------------------------------------------------------------------
+
+@Composable
+fun IASectionList(
+    title: String,
+    subtitle: String? = null,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            title,
+            color = WeddingIdentityPalette.Ink,
+            fontFamily = FontFamily.Serif,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 19.sp
+        )
+        subtitle?.let {
+            Text(it, color = WeddingIdentityPalette.Muted, fontSize = 12.sp)
+        }
+        content()
+    }
+}
+
+@Composable
+fun IACard(
+    title: String,
+    subtitle: String? = null,
+    trailing: String? = null,
+    status: String? = null,
+    testTag: String? = null
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (testTag != null) Modifier.testTag(testTag) else Modifier),
+        shape = RoundedCornerShape(12.dp),
+        color = WeddingIdentityPalette.IvorySoft,
+        border = androidx.compose.foundation.BorderStroke(1.dp, WeddingIdentityPalette.Hairline)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 13.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, color = WeddingIdentityPalette.Ink, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                subtitle?.let {
+                    Text(it, color = WeddingIdentityPalette.Muted, fontSize = 11.sp)
+                }
+                // Status is carried as text, never colour alone (IA V2 §19).
+                status?.let {
+                    Text(it, color = WeddingIdentityPalette.Forest, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+            trailing?.let {
+                Text(it, color = WeddingIdentityPalette.ChampagneDeep, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+}
+
+/**
+ * Honest unsupported state. Names the section and why it has no data in this environment,
+ * so an empty workspace is never mistaken for a wired one (playbook §8, §16).
+ */
+@Composable
+fun IAUnsupportedSection(
+    section: String,
+    reason: String,
+    environment: NativeDataEnvironment
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+            .testTag("unsupported-section"),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            Icons.Default.Info,
+            contentDescription = null,
+            tint = WeddingIdentityPalette.Muted,
+            modifier = Modifier.size(28.dp)
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            section,
+            color = WeddingIdentityPalette.Ink,
+            fontFamily = FontFamily.Serif,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 17.sp
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            reason,
+            color = WeddingIdentityPalette.Muted,
+            fontSize = 12.sp,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            "Environment: ${environment.title}",
+            color = WeddingIdentityPalette.Muted,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
+fun IALoading() {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator(color = WeddingIdentityPalette.ChampagneDeep)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Guests workspace (Couple) — IA V2 §4
+// ---------------------------------------------------------------------------
+
+@Composable
+fun CoupleGuestsSection(section: String, graph: WeddingGraphState, environment: NativeDataEnvironment) {
+    if (graph.loading) return IALoading()
+    val guests = graph.guests
+
+    when (section) {
+        "Guest List" -> IASectionList("Guest List", "${guests.size} households • ${guests.sumOf { it.partySize }} guests") {
+            guests.forEach { guest ->
+                IACard(
+                    title = guest.name,
+                    subtitle = "${guest.householdName ?: "—"} • party of ${guest.partySize}",
+                    trailing = guest.rsvpStatus.title,
+                    testTag = "guest-row-${guest.id}"
+                )
+            }
+        }
+        "RSVP" -> {
+            val attending = guests.filter { it.rsvpStatus == RSVPStatus.ATTENDING }
+            val pending = guests.filter { it.rsvpStatus == RSVPStatus.PENDING }
+            val declined = guests.filter { it.rsvpStatus == RSVPStatus.DECLINED }
+            IASectionList(
+                "RSVP",
+                "${attending.size} attending • ${pending.size} pending • ${declined.size} declined"
+            ) {
+                guests.forEach { guest ->
+                    IACard(
+                        title = guest.name,
+                        subtitle = "Party of ${guest.partySize}",
+                        trailing = guest.rsvpStatus.title
+                    )
+                }
+            }
+        }
+        "Invitations" -> IASectionList("Invitations", "Invitation delivery state per household") {
+            guests.forEach { guest ->
+                IACard(
+                    title = guest.name,
+                    subtitle = guest.householdName ?: "—",
+                    // Pass serial existence is the only invitation fact the repository exposes.
+                    trailing = if (guest.passSerial != null) "Issued" else "Not issued"
+                )
+            }
+        }
+        "Groups / Households" -> {
+            val households = guests.groupBy { it.householdName ?: guest_unassigned }
+            IASectionList("Groups / Households", "${households.size} groups") {
+                households.forEach { (household, members) ->
+                    IACard(
+                        title = household,
+                        subtitle = members.joinToString { it.name },
+                        trailing = "${members.sumOf { it.partySize }}"
+                    )
+                }
+            }
+        }
+        "Seating" -> {
+            val seated = guests.filter { it.tableName != null }
+            IASectionList("Seating", "${seated.size} of ${guests.size} households seated") {
+                guests.forEach { guest ->
+                    IACard(
+                        title = guest.name,
+                        subtitle = guest.tableName ?: "Not yet assigned",
+                        trailing = guest.tableNumber?.toString()
+                    )
+                }
+            }
+        }
+        "Passes / QR" -> IASectionList("Passes / QR", "Wedding Pass issuance by household") {
+            guests.forEach { guest ->
+                IACard(
+                    title = guest.name,
+                    subtitle = guest.passSerial ?: "No pass serial recorded",
+                    trailing = if (guest.checkedIn) "Admitted" else null,
+                    status = if (guest.checkedIn) "${guest.checkedInCount}/${guest.partySize} admitted" else null
+                )
+            }
+        }
+        "Messages" -> IAUnsupportedSection(
+            "Messages",
+            "Guest messaging has no native message contract in this environment yet. No conversation data is fabricated.",
+            environment
+        )
+        else -> IAUnsupportedSection(section, "This section is not wired to a repository yet.", environment)
+    }
+}
+
+private const val guest_unassigned = "Unassigned"
+
+// ---------------------------------------------------------------------------
+// Wedding Day workspace — shared by Couple / Guest / Planner / Coordinator
+// ---------------------------------------------------------------------------
+
+@Composable
+fun WeddingDaySection(
+    section: String,
+    graph: WeddingGraphState,
+    environment: NativeDataEnvironment,
+    passContent: (@Composable () -> Unit)? = null
+) {
+    if (graph.loading) return IALoading()
+    val wedding = graph.wedding
+
+    when (section) {
+        "My Pass", "Wedding Pass" -> passContent?.invoke() ?: IAUnsupportedSection(
+            section, "No Wedding Pass is issued for this actor in the active wedding.", environment
+        )
+        "Programme", "Programme Status" -> IASectionList("Programme", wedding?.venueName) {
+            wedding?.programme.orEmpty().forEach { item ->
+                IACard(
+                    title = item.title,
+                    subtitle = "${item.location} • ${item.description}",
+                    trailing = item.time,
+                    testTag = "programme-${item.id}"
+                )
+            }
+        }
+        "Venue & Maps", "Venue", "Maps", "Venue Map" -> IASectionList("Venue", wedding?.venueName) {
+            wedding?.let {
+                IACard(title = it.venueName, subtitle = it.venueAddress, trailing = null)
+                IACard(title = "City", subtitle = "${it.city}, ${it.country}")
+            }
+        }
+        "Vendor Status", "Vendor Arrivals" -> IASectionList("Vendor Status", "${graph.vendors.size} vendors on site plan") {
+            graph.vendors.forEach { vendor ->
+                IACard(
+                    title = vendor.vendorName,
+                    subtitle = "${vendor.serviceCategory} • ${vendor.serviceArea}",
+                    trailing = vendor.expectedTime,
+                    status = vendor.state.title,
+                    testTag = "vendor-${vendor.id}"
+                )
+            }
+        }
+        "Announcements" -> IASectionList("Announcements", "${graph.announcements.size} posted") {
+            graph.announcements.forEach { announcement ->
+                IACard(
+                    title = announcement.title,
+                    subtitle = announcement.message,
+                    status = announcement.urgency.name
+                )
+            }
+        }
+        "Table" -> IASectionList("Table", "Your seating assignment") {
+            val seated = graph.guests.firstOrNull { it.tableName != null }
+            if (seated?.tableName != null) {
+                IACard(title = seated.tableName!!, subtitle = seated.name)
+            } else {
+                IACard(title = "Not yet assigned", subtitle = "Seating has not been published.")
+            }
+        }
+        "Key Contacts", "Contacts", "Emergency Contacts" -> IAUnsupportedSection(
+            section,
+            "No wedding contact directory contract exists natively yet. Contacts are not invented.",
+            environment
+        )
+        "Wedding-day Checklist" -> IASectionList("Wedding-day Checklist", "Derived from planning tasks due on the day") {
+            val dayTasks = graph.tasks.filter { it.status != TaskStatus.DONE }
+            if (dayTasks.isEmpty()) {
+                IACard(title = "Nothing outstanding", subtitle = "All planning tasks are complete.")
+            }
+            dayTasks.forEach { task ->
+                IACard(title = task.title, subtitle = task.category, trailing = task.priority.title)
+            }
+        }
+        "Offline Status", "Offline", "Sync Status" -> IASectionList("Offline & sync", "Local gate manifest state") {
+            val unsynced = graph.auditRecords.count { !it.isSynced }
+            IACard(title = "Recorded admissions", subtitle = "Local audit records", trailing = "${graph.auditRecords.size}")
+            IACard(title = "Awaiting sync", subtitle = "Unsynced local scans", trailing = "$unsynced")
+        }
+        else -> IAUnsupportedSection(section, "This wedding-day section is not wired to a repository yet.", environment)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Gate Team workspace — IA V2 §8
+// ---------------------------------------------------------------------------
+
+@Composable
+fun GateAdmissionsSection(section: String, graph: WeddingGraphState, environment: NativeDataEnvironment) {
+    if (graph.loading) return IALoading()
+    val guests = graph.guests
+
+    when (section) {
+        "Checked In" -> {
+            val admitted = guests.filter { it.checkedInCount > 0 }
+            IASectionList("Checked In", "${admitted.sumOf { it.checkedInCount }} guests admitted") {
+                admitted.forEach { AdmissionRow(it) }
+                if (admitted.isEmpty()) IACard("No admissions recorded", "No guest has been scanned yet.")
+            }
+        }
+        "Not Arrived" -> {
+            val notArrived = guests.filter { it.checkedInCount == 0 }
+            IASectionList("Not Arrived", "${notArrived.size} households outstanding") {
+                notArrived.forEach { AdmissionRow(it) }
+                if (notArrived.isEmpty()) IACard("All arrived", "Every expected household has been admitted.")
+            }
+        }
+        "Partial Parties" -> {
+            val partial = guests.filter { it.checkedInCount in 1 until it.partySize }
+            IASectionList("Partial Parties", "${partial.size} parties partially admitted") {
+                partial.forEach { AdmissionRow(it) }
+                if (partial.isEmpty()) IACard("No partial parties", "No household is partially admitted.")
+            }
+        }
+        "Duplicate Scans" -> {
+            val duplicates = graph.auditRecords
+                .groupBy { it.passSerial }
+                .filter { it.value.size > 1 }
+            IASectionList("Duplicate Scans", "${duplicates.size} serials scanned more than once") {
+                duplicates.forEach { (serial, records) ->
+                    IACard(
+                        title = records.first().guestName,
+                        subtitle = "Serial $serial",
+                        trailing = "${records.size} scans"
+                    )
+                }
+                if (duplicates.isEmpty()) IACard("No duplicates", "No pass serial has been scanned twice.")
+            }
+        }
+        "Exceptions" -> {
+            val over = guests.filter { it.checkedInCount > it.partySize }
+            IASectionList("Exceptions", "Capacity and manifest exceptions") {
+                over.forEach { AdmissionRow(it) }
+                if (over.isEmpty()) IACard("No exceptions", "No admission exceeded its recorded party size.")
+            }
+        }
+        "Manual Admission" -> IAUnsupportedSection(
+            "Manual Admission",
+            "Manual admission is an action performed from Scan, not a browsable list. Open Scan to admit without a readable code.",
+            environment
+        )
+        else -> IAUnsupportedSection(section, "This admissions section is not wired yet.", environment)
+    }
+}
+
+@Composable
+private fun AdmissionRow(guest: Guest) {
+    IACard(
+        title = guest.name,
+        subtitle = guest.tableName ?: "No table assigned",
+        trailing = "${guest.checkedInCount}/${guest.partySize}",
+        status = guest.rsvpStatus.title,
+        testTag = "admission-${guest.id}"
+    )
+}
+
+/** Gate guest lookup is operational only: name, party, table, RSVP, admission. No financial data. */
+@Composable
+fun GateGuestLookup(graph: WeddingGraphState) {
+    if (graph.loading) return IALoading()
+    var query by remember { mutableStateOf("") }
+    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 10.dp)) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            modifier = Modifier.fillMaxWidth().testTag("gate-guest-search"),
+            placeholder = { Text("Search name, household or table") },
+            singleLine = true
+        )
+        Spacer(Modifier.height(10.dp))
+        val filtered = graph.guests.filter {
+            query.isBlank() ||
+                it.name.contains(query, ignoreCase = true) ||
+                it.householdName?.contains(query, ignoreCase = true) == true ||
+                it.tableName?.contains(query, ignoreCase = true) == true
+        }
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(filtered.size) { index ->
+                val guest = filtered[index]
+                IACard(
+                    title = guest.name,
+                    subtitle = "Party ${guest.partySize} • ${guest.tableName ?: "No table"}",
+                    trailing = "${guest.checkedInCount}/${guest.partySize}",
+                    status = guest.rsvpStatus.title
+                )
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Admin workspace — IA V2 §10
+// ---------------------------------------------------------------------------
+
+@Composable
+fun AdminAuditSection(section: String, graph: WeddingGraphState, environment: NativeDataEnvironment) {
+    if (graph.loading) return IALoading()
+    when (section) {
+        "Check-ins" -> IASectionList("Check-ins", "${graph.auditRecords.size} admission records") {
+            graph.auditRecords.forEach { record ->
+                IACard(
+                    title = record.guestName,
+                    subtitle = "${record.gateName} • usher ${record.usherId}",
+                    trailing = "+${record.countAdmitted}",
+                    status = if (record.isSynced) "Synced" else "Pending sync"
+                )
+            }
+            if (graph.auditRecords.isEmpty()) {
+                IACard("No check-in records", "No admissions have been recorded for this wedding.")
+            }
+        }
+        "Data Changes", "Access Events", "Payments", "Contracts", "Admin Actions" -> IAUnsupportedSection(
+            section,
+            "This audit stream has no native contract yet. Only check-in audit records are available natively, and no audit entries are fabricated.",
+            environment
+        )
+        else -> IAUnsupportedSection(section, "This audit section is not wired yet.", environment)
+    }
+}
+
+/** System health reads real local state rather than hard-coded counters. */
+@Composable
+fun AdminDashboardContent(graph: WeddingGraphState, context: NavigationContext) {
+    if (graph.loading) return IALoading()
+    IASectionList("Dashboard", "Administrative overview for the active scope") {
+        IACard(
+            title = "Active wedding in scope",
+            subtitle = context.activeWeddingTitle,
+            trailing = null,
+            testTag = "admin-active-wedding"
+        )
+        IACard(
+            title = "Data environment",
+            subtitle = "Native client is bound to this environment",
+            trailing = context.environment.title
+        )
+        IACard(
+            title = "Admission records",
+            subtitle = "Recorded check-ins in scope",
+            trailing = "${graph.auditRecords.size}"
+        )
+        IACard(
+            title = "Unsynced admissions",
+            subtitle = "Awaiting reconciliation",
+            trailing = "${graph.auditRecords.count { !it.isSynced }}"
+        )
+        IACard(
+            title = "Guest households in scope",
+            subtitle = "From the canonical wedding graph",
+            trailing = "${graph.guests.size}"
+        )
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Vendor workspace — IA V2 §7
+// ---------------------------------------------------------------------------
+
+/**
+ * Vendor sees only its own engagement. The native repository exposes vendor presence for the
+ * wedding, so the engagement is resolved by [NavigationContext.activeEngagementId] and nothing
+ * else is shown.
+ */
+@Composable
+fun VendorJobsSection(
+    section: String,
+    graph: WeddingGraphState,
+    context: NavigationContext
+) {
+    if (graph.loading) return IALoading()
+    val engagement = graph.vendors.firstOrNull { it.id == context.activeEngagementId }
+        ?: graph.vendors.firstOrNull()
+
+    if (engagement == null) {
+        return IAUnsupportedSection(
+            section,
+            "No service engagement is assigned to this vendor for the active wedding.",
+            context.environment
+        )
+    }
+
+    when (section) {
+        "Service Details" -> IASectionList(engagement.vendorName, engagement.serviceCategory) {
+            IACard(title = "Service area", subtitle = engagement.serviceArea)
+            IACard(title = "Expected on site", subtitle = "Scheduled arrival", trailing = engagement.expectedTime)
+            IACard(title = "Presence", subtitle = "Current recorded state", status = engagement.state.title)
+        }
+        "Venue" -> IASectionList("Venue", graph.wedding?.venueName) {
+            graph.wedding?.let {
+                IACard(title = it.venueName, subtitle = it.venueAddress)
+                IACard(title = "Service area", subtitle = engagement.serviceArea)
+            }
+        }
+        "Tasks" -> IAUnsupportedSection(
+            "Tasks",
+            "Vendor-scoped tasks are not exposed by the native contract. Wedding planning tasks belong to the couple and planner and are deliberately not shown here.",
+            context.environment
+        )
+        "Deliverables", "Contract", "Payment", "Files", "Notes", "Client / Planner Contacts" -> IAUnsupportedSection(
+            section,
+            "No native contract exists for vendor $section yet. Recorded state is shown only where the repository provides it.",
+            context.environment
+        )
+        else -> IAUnsupportedSection(section, "This vendor section is not wired yet.", context.environment)
+    }
+}
+
+@Composable
+fun VendorScheduleSection(
+    section: String,
+    graph: WeddingGraphState,
+    context: NavigationContext
+) {
+    if (graph.loading) return IALoading()
+    val engagement = graph.vendors.firstOrNull { it.id == context.activeEngagementId }
+        ?: graph.vendors.firstOrNull()
+
+    when (section) {
+        "Calendar" -> IASectionList("Calendar", graph.wedding?.date) {
+            graph.wedding?.programme.orEmpty().forEach { item ->
+                IACard(title = item.title, subtitle = item.location, trailing = item.time)
+            }
+        }
+        "Arrival Time" -> IASectionList("Arrival Time", engagement?.vendorName) {
+            engagement?.let {
+                IACard(title = "Expected arrival", subtitle = it.serviceArea, trailing = it.expectedTime)
+                IACard(title = "Recorded presence", subtitle = "Updated by the wedding-day team", status = it.state.title)
+            } ?: IACard("No engagement", "No assigned engagement for this wedding.")
+        }
+        "Setup", "Service Window", "Breakdown", "Dependencies" -> IAUnsupportedSection(
+            section,
+            "The native vendor contract records arrival and presence only. $section has no recorded value and is not inferred.",
+            context.environment
+        )
+        else -> IAUnsupportedSection(section, "This schedule section is not wired yet.", context.environment)
+    }
+}

@@ -2,41 +2,35 @@ package pro.wewed.app.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import pro.wewed.app.models.AppRole
 import pro.wewed.app.models.GuestJourneyReference
 import pro.wewed.app.models.GuestJourneyStage
 import pro.wewed.app.models.InvitationContext
-import pro.wewed.app.state.AppTab
+import pro.wewed.app.navigation.DeepLinkRouter
+import pro.wewed.app.navigation.NavigationContext
 import pro.wewed.app.state.AppViewModel
 import pro.wewed.app.state.SessionViewModel
 import pro.wewed.app.theme.WeddingIdentityPalette
-import pro.wewed.app.theme.WewedColors
 import pro.wewed.app.ui.auth.LoginScreen
-import pro.wewed.app.ui.guests.WeddingReferenceGuestsScreen
-import pro.wewed.app.ui.home.WeddingReferenceHomeScreen
 import pro.wewed.app.ui.invitation.GuestInvitationJourneyScreen
-import pro.wewed.app.ui.more.WeddingReferenceMoreScreen
 import pro.wewed.app.ui.pass.UsherScannerScreen
-import pro.wewed.app.ui.pass.WeddingReferencePassScreen
-import pro.wewed.app.ui.planner.WeddingReferencePlannerScreen
 import pro.wewed.app.ui.roles.*
 
+/**
+ * IA V2 root.
+ *
+ * Resolves the active [NavigationContext] once and hands it to the role shell. Every role — Couple
+ * included — now renders through [RoleShellScaffold], so no role shell can invent its own
+ * bottom-navigation topology.
+ */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun RootScreen(
@@ -46,8 +40,12 @@ fun RootScreen(
     val isAuthenticated by sessionViewModel.isAuthenticated.collectAsState()
     val currentRole by sessionViewModel.currentRole.collectAsState()
     val currentUserName by sessionViewModel.currentUserName.collectAsState()
-    val selectedTab by appViewModel.selectedTab.collectAsState()
+    val activePersonaId by sessionViewModel.activePersonaId.collectAsState()
+    val weddingId by sessionViewModel.weddingId.collectAsState()
+    val weddingTitle by sessionViewModel.weddingTitle.collectAsState()
     val pendingInvitationDeepLink by appViewModel.pendingInvitationDeepLink.collectAsState()
+    val pendingRouteDeepLink by appViewModel.pendingRouteDeepLink.collectAsState()
+
     var isScannerOpen by remember { mutableStateOf(false) }
     var showPersonaPicker by remember { mutableStateOf(false) }
     var deepLinkedInvitation by remember { mutableStateOf<InvitationContext?>(null) }
@@ -108,203 +106,97 @@ fun RootScreen(
         )
     }
 
-    if (currentRole == AppRole.COUPLE) {
-        if (isScannerOpen) {
-            UsherScannerScreen(
-                appViewModel = appViewModel,
-                onClose = { isScannerOpen = false }
-            )
-        } else {
-            Scaffold(
-                modifier = Modifier
-                    .semantics { testTagsAsResourceId = true }
-                    .testTag("shadow-source-${appViewModel.dataEnvironment.name.lowercase().replace('_', '-')}"),
-                containerColor = WeddingIdentityPalette.Ivory,
-                bottomBar = {
-                    Column(
-                        modifier = Modifier.background(WeddingIdentityPalette.IvorySoft)
-                    ) {
-                        HorizontalDivider(
-                            thickness = 1.dp,
-                            color = WeddingIdentityPalette.Hairline
-                        )
-                        NavigationBar(
-                            containerColor = WeddingIdentityPalette.IvorySoft,
-                            tonalElevation = 0.dp
-                        ) {
-                            ReferenceNavItem(
-                            selected = selectedTab == AppTab.HOME,
-                            label = "Home",
-                            icon = Icons.Default.Home
-                        ) { appViewModel.selectTab(AppTab.HOME) }
+    // IA V2 §13.1 — one context envelope, resolved once, handed to every role shell.
+    val context = remember(currentRole, weddingId, weddingTitle, activePersonaId) {
+        NavigationContext(
+            actorId = activePersonaId,
+            activeRole = currentRole,
+            activeWeddingId = weddingId,
+            activeWeddingTitle = weddingTitle,
+            environment = appViewModel.dataEnvironment,
+            // Scoped context the role owns; resolved from the active actor rather than guessed.
+            activeClientId = if (currentRole == AppRole.PLANNER) weddingId else null,
+            activeGateId = if (currentRole == AppRole.USHER) "Gate A — Main Entrance" else null
+        )
+    }
 
-                        ReferenceNavItem(
-                            selected = selectedTab == AppTab.PLAN,
-                            label = "Plan",
-                            icon = Icons.Default.CalendarMonth
-                        ) { appViewModel.selectTab(AppTab.PLAN) }
+    // IA V2 §14 — a deep link resolves to a destination *request*; the shell then gates it.
+    val requestedDestinationId = pendingRouteDeepLink?.let {
+        DeepLinkRouter.destinationFor(it, currentRole)
+    }
+    val onRequestedDestinationHandled = { appViewModel.consumePendingRouteDeepLink() }
 
-                        ReferenceNavItem(
-                            selected = selectedTab == AppTab.GUESTS,
-                            label = "Guests",
-                            icon = Icons.Default.Group
-                        ) { appViewModel.selectTab(AppTab.GUESTS) }
-
-                        ReferenceNavItem(
-                            selected = selectedTab == AppTab.PASS,
-                            label = "Pass",
-                            icon = Icons.Default.QrCode
-                        ) { appViewModel.selectTab(AppTab.PASS) }
-
-                            ReferenceNavItem(
-                                selected = selectedTab == AppTab.LIVE,
-                                label = "More",
-                                icon = Icons.Default.Menu
-                            ) { appViewModel.selectTab(AppTab.LIVE) }
-                        }
-                    }
-                }
-            ) { innerPadding ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding)
-                ) {
-                    when (selectedTab) {
-                        AppTab.HOME -> WeddingReferenceHomeScreen(appViewModel)
-                        AppTab.PLAN -> WeddingReferencePlannerScreen(appViewModel)
-                        AppTab.GUESTS -> WeddingReferenceGuestsScreen(appViewModel)
-                        AppTab.PASS -> WeddingReferencePassScreen(
-                            appViewModel = appViewModel,
-                            onOpenScanner = { isScannerOpen = true }
-                        )
-                        AppTab.LIVE -> WeddingReferenceMoreScreen(appViewModel)
-                    }
-                }
-            }
-        }
+    if (isScannerOpen) {
+        UsherScannerScreen(
+            appViewModel = appViewModel,
+            onClose = { isScannerOpen = false }
+        )
         return
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        DeveloperPersonaBanner(
-            currentUserName = currentUserName,
-            currentRole = currentRole,
-            appViewModel = appViewModel,
-            onSwitch = { showPersonaPicker = true }
-        )
-
-        Box(modifier = Modifier.weight(1f)) {
-            when (currentRole) {
-                AppRole.PLANNER -> PlannerShell(
-                    sessionViewModel = sessionViewModel,
-                    appViewModel = appViewModel,
-                    onOpenPersonaPicker = { showPersonaPicker = true }
-                )
-                AppRole.COORDINATOR -> CoordinatorShell(
-                    sessionViewModel = sessionViewModel,
-                    appViewModel = appViewModel,
-                    onOpenPersonaPicker = { showPersonaPicker = true }
-                )
-                AppRole.VENDOR -> VendorShell(
-                    sessionViewModel = sessionViewModel,
-                    appViewModel = appViewModel,
-                    onOpenPersonaPicker = { showPersonaPicker = true }
-                )
-                AppRole.USHER -> UsherShell(
-                    sessionViewModel = sessionViewModel,
-                    appViewModel = appViewModel,
-                    onOpenPersonaPicker = { showPersonaPicker = true }
-                )
-                AppRole.GUEST -> GuestShell(
-                    sessionViewModel = sessionViewModel,
-                    appViewModel = appViewModel,
-                    onOpenPersonaPicker = { showPersonaPicker = true }
-                )
-                AppRole.ADMIN -> AdminShell(
-                    sessionViewModel = sessionViewModel,
-                    appViewModel = appViewModel,
-                    onOpenPersonaPicker = { showPersonaPicker = true }
-                )
-                AppRole.COUPLE -> Unit
-            }
-        }
-    }
-}
-
-@Composable
-private fun RowScope.ReferenceNavItem(
-    selected: Boolean,
-    label: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    onClick: () -> Unit
-) {
-    NavigationBarItem(
-        selected = selected,
-        onClick = onClick,
-        icon = { Icon(icon, contentDescription = label) },
-        label = { Text(label, fontSize = 11.sp) },
-        colors = NavigationBarItemDefaults.colors(
-            selectedIconColor = WeddingIdentityPalette.ChampagneDeep,
-            selectedTextColor = WeddingIdentityPalette.ChampagneDeep,
-            indicatorColor = Color.Transparent,
-            unselectedIconColor = WeddingIdentityPalette.Muted,
-            unselectedTextColor = WeddingIdentityPalette.Muted
-        )
-    )
-}
-
-@Composable
-private fun DeveloperPersonaBanner(
-    currentUserName: String?,
-    currentRole: AppRole,
-    appViewModel: AppViewModel,
-    onSwitch: () -> Unit
-) {
-    Row(
+    Box(
         modifier = Modifier
-            .fillMaxWidth()
-            .background(Color.Black.copy(alpha = 0.85f))
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+            .fillMaxSize()
+            .semantics { testTagsAsResourceId = true }
+            .testTag("shadow-source-${appViewModel.dataEnvironment.name.lowercase().replace('_', '-')}")
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .background(Color.Green, CircleShape)
+        when (currentRole) {
+            AppRole.COUPLE -> CoupleShell(
+                sessionViewModel = sessionViewModel,
+                appViewModel = appViewModel,
+                context = context,
+                requestedDestinationId = requestedDestinationId,
+                onRequestedDestinationHandled = onRequestedDestinationHandled,
+                onOpenScanner = { isScannerOpen = true },
+                onOpenPersonaPicker = { showPersonaPicker = true }
             )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                currentUserName ?: "Active User",
-                color = Color.White,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold
+            AppRole.PLANNER -> PlannerShell(
+                sessionViewModel = sessionViewModel,
+                appViewModel = appViewModel,
+                context = context,
+                requestedDestinationId = requestedDestinationId,
+                onRequestedDestinationHandled = onRequestedDestinationHandled,
+                onOpenPersonaPicker = { showPersonaPicker = true }
             )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(currentRole.title, color = WewedColors.Gold, fontSize = 11.sp)
-            Spacer(modifier = Modifier.width(6.dp))
-            Surface(
-                shape = RoundedCornerShape(50),
-                color = Color.White.copy(alpha = 0.12f)
-            ) {
-                Text(
-                    appViewModel.dataEnvironment.title.uppercase(),
-                    color = if (appViewModel.dataEnvironment.name == "PRODUCTION") Color.Red else WewedColors.Emerald,
-                    fontSize = 8.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                )
-            }
-        }
-
-        TextButton(onClick = onSwitch) {
-            Text(
-                "Switch",
-                color = WewedColors.Gold,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold
+            AppRole.COORDINATOR -> CoordinatorShell(
+                sessionViewModel = sessionViewModel,
+                appViewModel = appViewModel,
+                context = context,
+                requestedDestinationId = requestedDestinationId,
+                onRequestedDestinationHandled = onRequestedDestinationHandled,
+                onOpenPersonaPicker = { showPersonaPicker = true }
+            )
+            AppRole.VENDOR -> VendorShell(
+                sessionViewModel = sessionViewModel,
+                appViewModel = appViewModel,
+                context = context,
+                requestedDestinationId = requestedDestinationId,
+                onRequestedDestinationHandled = onRequestedDestinationHandled,
+                onOpenPersonaPicker = { showPersonaPicker = true }
+            )
+            AppRole.USHER -> UsherShell(
+                sessionViewModel = sessionViewModel,
+                appViewModel = appViewModel,
+                context = context,
+                requestedDestinationId = requestedDestinationId,
+                onRequestedDestinationHandled = onRequestedDestinationHandled,
+                onOpenPersonaPicker = { showPersonaPicker = true }
+            )
+            AppRole.GUEST -> GuestShell(
+                sessionViewModel = sessionViewModel,
+                appViewModel = appViewModel,
+                context = context,
+                requestedDestinationId = requestedDestinationId,
+                onRequestedDestinationHandled = onRequestedDestinationHandled,
+                onOpenPersonaPicker = { showPersonaPicker = true }
+            )
+            AppRole.ADMIN -> AdminShell(
+                sessionViewModel = sessionViewModel,
+                appViewModel = appViewModel,
+                context = context,
+                requestedDestinationId = requestedDestinationId,
+                onRequestedDestinationHandled = onRequestedDestinationHandled,
+                onOpenPersonaPicker = { showPersonaPicker = true }
             )
         }
     }

@@ -74,7 +74,7 @@ final class NativeDeepLinkTests: XCTestCase {
         state.handleIncomingURL(URL(string: "wewed://pass/example")!)
 
         XCTAssertNil(state.pendingInvitationDeepLink)
-        XCTAssertEqual(state.selectedTab, .pass)
+        XCTAssertEqual(state.selectedTab, .weddingDay)
     }
 
     func testParsesCustomSchemeInvitation() {

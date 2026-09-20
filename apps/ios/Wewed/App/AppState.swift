@@ -1,22 +1,41 @@
 import Foundation
 import Combine
 
+/// Couple Level-1 destinations, mirroring the IA V2 couple taxonomy
+/// (Home | Plan | Guests | Wedding Day | More).
+///
+/// `destinationId` ties each tab to the shared navigation contract so deep links resolve to a
+/// contract destination rather than a screen name.
 public enum AppTab: String, CaseIterable, Identifiable, Sendable {
     case home = "Home"
     case plan = "Plan"
     case guests = "Guests"
-    case pass = "Pass"
-    case live = "More"
+    case weddingDay = "Wedding Day"
+    case more = "More"
 
     public var id: String { rawValue }
+
+    public var destinationId: String {
+        switch self {
+        case .home: return "home"
+        case .plan: return "plan"
+        case .guests: return "guests"
+        case .weddingDay: return "wedding_day"
+        case .more: return "more"
+        }
+    }
+
+    public static func from(destinationId: String) -> AppTab {
+        allCases.first { $0.destinationId == destinationId } ?? .home
+    }
 
     public var systemImage: String {
         switch self {
         case .home: return "heart.fill"
         case .plan: return "checklist"
         case .guests: return "person.2.fill"
-        case .pass: return "qrcode"
-        case .live: return "line.3.horizontal"
+        case .weddingDay: return "sparkles"
+        case .more: return "line.3.horizontal"
         }
     }
 }
@@ -27,6 +46,9 @@ public final class AppState: ObservableObject, @unchecked Sendable {
     @Published public var pendingSyncCount: Int = 0
     @Published public var lastSyncTime: Date? = nil
     @Published public var pendingInvitationDeepLink: InvitationDeepLink? = nil
+    /// A parsed but *unauthorized* route request. The root resolves it through `DeepLinkRouter`
+    /// against the active role and context; parsing alone never navigates.
+    @Published public var pendingRouteDeepLink: NativeDeepLink? = nil
 
     public let repository: WeddingRepositoryProtocol
     public let plannerRepository: PlannerDashboardRepositoryProtocol
@@ -41,13 +63,20 @@ public final class AppState: ObservableObject, @unchecked Sendable {
         switch deepLink {
         case .invitation(let invitation):
             pendingInvitationDeepLink = invitation
+            pendingRouteDeepLink = nil
             selectedTab = .home
         case .pass:
             pendingInvitationDeepLink = nil
-            selectedTab = .pass
+            pendingRouteDeepLink = deepLink
+            selectedTab = .weddingDay
         case .wedding:
             pendingInvitationDeepLink = nil
+            pendingRouteDeepLink = deepLink
             selectedTab = .home
+        case .workspace:
+            // Held unresolved: the root gates it against role/context before navigating.
+            pendingInvitationDeepLink = nil
+            pendingRouteDeepLink = deepLink
         }
     }
 

@@ -15,12 +15,24 @@ import pro.wewed.app.services.WeddingDayGateAwareRepository
 import pro.wewed.app.services.WeddingDayGateOperations
 import pro.wewed.app.services.WeddingRepository
 
-enum class AppTab(val title: String) {
-    HOME("Home"),
-    PLAN("Plan"),
-    GUESTS("Guests"),
-    PASS("Pass"),
-    LIVE("More")
+/**
+ * Couple Level-1 destinations, mirroring the IA V2 couple taxonomy
+ * (Home | Plan | Guests | Wedding Day | More).
+ *
+ * [destinationId] ties each tab to the shared navigation contract so deep links resolve to a
+ * contract destination rather than a screen name.
+ */
+enum class AppTab(val title: String, val destinationId: String) {
+    HOME("Home", "home"),
+    PLAN("Plan", "plan"),
+    GUESTS("Guests", "guests"),
+    WEDDING_DAY("Wedding Day", "wedding_day"),
+    MORE("More", "more");
+
+    companion object {
+        fun fromDestinationId(id: String): AppTab =
+            entries.find { it.destinationId == id } ?: HOME
+    }
 }
 
 class AppViewModel(
@@ -50,19 +62,34 @@ class AppViewModel(
     val pendingInvitationDeepLink: StateFlow<InvitationDeepLink?> =
         _pendingInvitationDeepLink.asStateFlow()
 
+    /**
+     * A parsed but *unauthorized* route request. The root resolves it through
+     * `DeepLinkRouter` against the active role and context; parsing alone never navigates.
+     */
+    private val _pendingRouteDeepLink = MutableStateFlow<NativeDeepLink?>(null)
+    val pendingRouteDeepLink: StateFlow<NativeDeepLink?> = _pendingRouteDeepLink.asStateFlow()
+
     fun handleIncomingUrl(rawUrl: String?) {
         when (val deepLink = NativeDeepLinkParser.parse(rawUrl)) {
             is NativeDeepLink.Invitation -> {
                 _pendingInvitationDeepLink.value = deepLink.value
+                _pendingRouteDeepLink.value = null
                 _selectedTab.value = AppTab.HOME
             }
             NativeDeepLink.Pass -> {
                 _pendingInvitationDeepLink.value = null
-                _selectedTab.value = AppTab.PASS
+                _pendingRouteDeepLink.value = deepLink
+                _selectedTab.value = AppTab.WEDDING_DAY
             }
             is NativeDeepLink.Wedding -> {
                 _pendingInvitationDeepLink.value = null
+                _pendingRouteDeepLink.value = deepLink
                 _selectedTab.value = AppTab.HOME
+            }
+            is NativeDeepLink.Workspace -> {
+                // Held unresolved: the root gates it against role/context before navigating.
+                _pendingInvitationDeepLink.value = null
+                _pendingRouteDeepLink.value = deepLink
             }
             null -> Unit
         }
@@ -70,6 +97,10 @@ class AppViewModel(
 
     fun consumePendingInvitationDeepLink() {
         _pendingInvitationDeepLink.value = null
+    }
+
+    fun consumePendingRouteDeepLink() {
+        _pendingRouteDeepLink.value = null
     }
 
     fun selectTab(tab: AppTab) {

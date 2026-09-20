@@ -1,442 +1,835 @@
 package pro.wewed.app.ui.roles
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import pro.wewed.app.models.AppRole
+import pro.wewed.app.navigation.NavigationContext
+import pro.wewed.app.navigation.PrimaryDestination
 import pro.wewed.app.state.AppViewModel
 import pro.wewed.app.state.SessionViewModel
-import pro.wewed.app.theme.WewedColors
-import pro.wewed.app.theme.WewedRadius
-import pro.wewed.app.theme.WewedSpacing
-import pro.wewed.app.ui.guests.GuestsScreen
+import pro.wewed.app.theme.WeddingIdentityPalette
+import pro.wewed.app.ui.guests.WeddingReferenceGuestsScreen
+import pro.wewed.app.ui.home.WeddingReferenceHomeScreen
+import pro.wewed.app.ui.invitation.IvoryInvitationScreen
 import pro.wewed.app.ui.live.LiveWallScreen
-import pro.wewed.app.ui.pass.PassScreen
+import pro.wewed.app.ui.more.WeddingReferenceMoreScreen
 import pro.wewed.app.ui.pass.UsherScannerScreen
+import pro.wewed.app.ui.pass.WeddingReferencePassScreen
 import pro.wewed.app.ui.planner.*
 import pro.wewed.app.ui.shared.*
-import pro.wewed.app.ui.vendor.VendorPresenceScreen
 
-// MARK: - Planner Shell
+/**
+ * IA V2 role shells.
+ *
+ * Each shell is now a thin binding of the shared navigation contract to this role's existing
+ * screens; the bottom bar itself lives in [RoleShellScaffold]. Screens are reused, not rebuilt —
+ * IA V2 §21 is explicit that this is an upgrade of the existing product, not a reset.
+ */
+
+// MARK: - Planner Shell — Workspace | Clients | Daily Ops | Wedding Day | More
 @Composable
 fun PlannerShell(
     sessionViewModel: SessionViewModel,
     appViewModel: AppViewModel,
+    context: NavigationContext,
+    requestedDestinationId: String? = null,
+    onRequestedDestinationHandled: (() -> Unit)? = null,
     onOpenPersonaPicker: () -> Unit
 ) {
-    var selectedTab by remember { mutableStateOf(0) }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Planner Workspace", fontWeight = FontWeight.SemiBold) },
-                actions = {
-                    IconButton(onClick = onOpenPersonaPicker) {
-                        Icon(Icons.Default.ManageAccounts, contentDescription = "Switch Persona", tint = WewedColors.Emerald)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = WewedColors.Ivory)
-            )
-        },
-        bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                NavigationBarItem(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    icon = { Icon(Icons.Default.FolderSpecial, contentDescription = "Portfolio") },
-                    label = { Text("Portfolio") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Default.Checklist, contentDescription = "Plan & Tools") },
-                    label = { Text("Plan & Tools") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 },
-                    icon = { Icon(Icons.Default.Email, contentDescription = "Messages") },
-                    label = { Text("Messages") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 3,
-                    onClick = { selectedTab = 3 },
-                    icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-                    label = { Text("Settings") }
-                )
+    RoleShellScaffold(
+        context = context,
+        onSwitchPersona = onOpenPersonaPicker,
+        requestedDestinationId = requestedDestinationId,
+        onRequestedDestinationHandled = onRequestedDestinationHandled
+    ) { destination, ctx ->
+        val graph = rememberWeddingGraph(appViewModel, ctx)
+        when (destination.id) {
+            "workspace" -> WorkspaceSurface(destination, "planner") { section ->
+                PlannerWorkspaceSection(section, appViewModel, graph, ctx)
             }
-        }
-    ) { innerPadding ->
-        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            when (selectedTab) {
-                0 -> PortfolioDestination(onBack = { selectedTab = 1 })
-                1 -> PlannerScreen(appViewModel = appViewModel)
-                2 -> MessagesInboxScreen()
-                3 -> SettingsScreen(sessionViewModel = sessionViewModel)
+            "clients" -> WorkspaceSurface(destination, "planner") { section ->
+                PlannerClientsSection(section, ctx)
             }
+            "daily_ops" -> WorkspaceSurface(destination, "planner") { section ->
+                PlannerDailyOpsSection(section, appViewModel, graph, ctx)
+            }
+            "wedding_day" -> WorkspaceSurface(destination, "planner") { section ->
+                PlannerWeddingDaySection(section, graph, ctx)
+            }
+            "more" -> WorkspaceSurface(destination, "planner") { section ->
+                PlannerMoreSection(section, sessionViewModel, ctx)
+            }
+            else -> IAUnsupportedSection(destination.label, "Unknown destination.", ctx.environment)
         }
     }
 }
 
-// MARK: - Coordinator Shell
+@Composable
+private fun PlannerWorkspaceSection(
+    section: String,
+    appViewModel: AppViewModel,
+    graph: WeddingGraphState,
+    context: NavigationContext
+) {
+    // Each worksheet reads the same selected wedding graph (IA V2 §5 Workspace).
+    when (section) {
+        "Overview" -> WeddingReferencePlannerScreen(appViewModel)
+        "Tasks" -> TasksDestination(appViewModel) {}
+        "Budget" -> ShadowBudgetDestination(appViewModel) {}
+        "Guests" -> GuestsBridgeDestination(appViewModel) {}
+        "Vendors" -> ShadowVendorsDestination(appViewModel) {}
+        "Contributions" -> ShadowContributionsDestination(appViewModel) {}
+        "Seating" -> ShadowSeatingDestination(appViewModel) {}
+        "Timeline" -> ShadowTimelineDestination(appViewModel) {}
+        "Documents" -> ShadowDocumentsDestination(appViewModel) {}
+        else -> IAUnsupportedSection(section, "This worksheet is not wired yet.", context.environment)
+    }
+}
+
+@Composable
+private fun PlannerClientsSection(section: String, context: NavigationContext) {
+    // The native contract exposes exactly one planner engagement: the active wedding. Other client
+    // states are not invented (playbook §8 — "Never fabricate a PlannerEngagement").
+    when (section) {
+        "Active Weddings" -> IASectionList("Active Weddings", "Weddings in your planner scope") {
+            IACard(
+                title = context.activeWeddingTitle,
+                subtitle = "Active planner engagement",
+                trailing = "Selected",
+                testTag = "planner-active-client"
+            )
+        }
+        "Upcoming Weddings", "Enquiries", "Archived Weddings", "Team Assignment" -> IAUnsupportedSection(
+            section,
+            "The native planner contract exposes only the active engagement. No $section records exist to read, and none are fabricated.",
+            context.environment
+        )
+        "Client Profiles" -> ClientProfileDestination {}
+        else -> IAUnsupportedSection(section, "This clients section is not wired yet.", context.environment)
+    }
+}
+
+@Composable
+private fun PlannerDailyOpsSection(
+    section: String,
+    appViewModel: AppViewModel,
+    graph: WeddingGraphState,
+    context: NavigationContext
+) {
+    if (graph.loading) return IALoading()
+    // Daily Ops is an attention projection over canonical entities — it never copies them
+    // into a second model (playbook §15).
+    var dashboard by remember(context.activeWeddingId) {
+        mutableStateOf<pro.wewed.app.models.PlannerDashboardSnapshot?>(null)
+    }
+    LaunchedEffect(context.activeWeddingId) {
+        dashboard = runCatching { appViewModel.plannerRepository.getDashboard() }.getOrNull()
+    }
+
+    when (section) {
+        "Today" -> IASectionList("Today", context.activeWeddingTitle) {
+            dashboard?.attentionItems.orEmpty().forEach { item ->
+                IACard(title = item.title, subtitle = item.detail, status = item.severity.name)
+            }
+            if (dashboard?.attentionItems.isNullOrEmpty()) {
+                IACard("Nothing needs attention", "No attention items are recorded for this wedding.")
+            }
+        }
+        "Overdue" -> {
+            val overdue = graph.tasks.filter {
+                it.status != pro.wewed.app.models.TaskStatus.DONE &&
+                    it.priority == pro.wewed.app.models.TaskPriority.URGENT
+            }
+            IASectionList("Overdue", "${overdue.size} urgent open tasks") {
+                overdue.forEach { IACard(it.title, it.category, it.dueDate, it.status.title) }
+                if (overdue.isEmpty()) IACard("Nothing overdue", "No urgent task is outstanding.")
+            }
+        }
+        "Upcoming Deadlines" -> {
+            val open = graph.tasks.filter { it.status != pro.wewed.app.models.TaskStatus.DONE }
+            IASectionList("Upcoming Deadlines", "${open.size} open tasks") {
+                open.forEach { IACard(it.title, it.category, it.dueDate, it.priority.title) }
+            }
+        }
+        "Vendor Follow-ups" -> IASectionList("Vendor Follow-ups", "${graph.vendors.size} vendors") {
+            graph.vendors.forEach { IACard(it.vendorName, it.serviceCategory, it.expectedTime, it.state.title) }
+        }
+        "Guest Issues" -> {
+            val pending = graph.guests.filter {
+                it.rsvpStatus == pro.wewed.app.models.RSVPStatus.PENDING
+            }
+            IASectionList("Guest Issues", "${pending.size} households awaiting RSVP") {
+                pending.forEach { IACard(it.name, it.householdName ?: "—", "Party ${it.partySize}", it.rsvpStatus.title) }
+                if (pending.isEmpty()) IACard("No outstanding guest issues", "Every household has responded.")
+            }
+        }
+        "Team Activity" -> IASectionList("Team Activity", "Recent changes on this wedding") {
+            dashboard?.recentActivity.orEmpty().forEach { activity ->
+                IACard(activity.title, activity.detail, activity.relativeTime)
+            }
+            if (dashboard?.recentActivity.isNullOrEmpty()) {
+                IACard("No recorded activity", "No planner activity has been recorded.")
+            }
+        }
+        "Approvals", "Payments Requiring Attention" -> IAUnsupportedSection(
+            section,
+            "No native approval or payment-action contract exists yet. Budget and contribution state is readable in Workspace; no approval queue is fabricated.",
+            context.environment
+        )
+        "Messages" -> MessagesInboxScreen()
+        else -> IAUnsupportedSection(section, "This Daily Ops section is not wired yet.", context.environment)
+    }
+}
+
+@Composable
+private fun PlannerWeddingDaySection(
+    section: String,
+    graph: WeddingGraphState,
+    context: NavigationContext
+) {
+    when (section) {
+        "Run Sheet" -> WeddingDaySection("Programme", graph, context.environment)
+        "Gate / Admissions" -> GateAdmissionsSection("Checked In", graph, context.environment)
+        "Coordinator Tasks" -> WeddingDaySection("Wedding-day Checklist", graph, context.environment)
+        "Guest Issues" -> GateAdmissionsSection("Not Arrived", graph, context.environment)
+        "Incidents", "Live Notes" -> IAUnsupportedSection(
+            section,
+            "No native incident or live-note contract exists yet. Nothing is recorded, so nothing is displayed.",
+            context.environment
+        )
+        else -> WeddingDaySection(section, graph, context.environment)
+    }
+}
+
+@Composable
+private fun PlannerMoreSection(
+    section: String,
+    sessionViewModel: SessionViewModel,
+    context: NavigationContext
+) {
+    when (section) {
+        "Client Profile" -> ClientProfileDestination {}
+        "Invitations & QR" -> InvitationsDestination {}
+        "Intelligence" -> AIWorkspaceDestination {}
+        "Team Hub" -> CollaborationDestination {}
+        "Files / Documents" -> MediaArchiveDestination {}
+        "Planner Actions" -> PlannerActionsSection(context)
+        "Settings" -> SettingsScreen(sessionViewModel = sessionViewModel)
+        "Account" -> AccountPrivacyScreen()
+        "Help & Support" -> IASectionList("Help & Support", "Wewed planner support") {
+            IACard("Contact support", "support@wewed.pro")
+        }
+        else -> IAUnsupportedSection(section, "This section is not wired yet.", context.environment)
+    }
+}
+
+/** IA V2 §5 — Planner Actions are contextual operations, deliberately not bottom tabs. */
+@Composable
+private fun PlannerActionsSection(context: NavigationContext) {
+    IASectionList("Planner Actions", "Contextual operations for ${context.activeWeddingTitle}") {
+        listOf(
+            "Print / Arrange / Select" to "Produce printable guest, seating and programme output",
+            "Refresh" to "Re-read the active wedding graph",
+            "Switch Worksheet" to "Jump between Workspace worksheets",
+            "Templates" to "Apply a planning template",
+            "Export" to "Export the active wedding data",
+            "Import" to "Import guests or tasks",
+            "Recent Imports" to "Review the last import batches",
+            "Edit Wedding Details" to "Amend core wedding identity"
+        ).forEach { (title, subtitle) ->
+            IACard(title = title, subtitle = subtitle, testTag = "planner-action-${title.slug()}")
+        }
+    }
+}
+
+// MARK: - Coordinator Shell — Today | Run Sheet | Team | Wedding Day | More
 @Composable
 fun CoordinatorShell(
     sessionViewModel: SessionViewModel,
     appViewModel: AppViewModel,
+    context: NavigationContext,
+    requestedDestinationId: String? = null,
+    onRequestedDestinationHandled: (() -> Unit)? = null,
     onOpenPersonaPicker: () -> Unit
 ) {
-    var selectedTab by remember { mutableStateOf(0) }
-    var isScannerOpen by remember { mutableStateOf(false) }
-
-    if (isScannerOpen) {
-        UsherScannerScreen(appViewModel = appViewModel, onClose = { isScannerOpen = false })
-        return
-    }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Ground Operations", fontWeight = FontWeight.SemiBold) },
-                actions = {
-                    IconButton(onClick = onOpenPersonaPicker) {
-                        Icon(Icons.Default.ManageAccounts, contentDescription = "Switch Persona", tint = WewedColors.Burgundy)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = WewedColors.Ivory)
-            )
-        },
-        bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                NavigationBarItem(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    icon = { Icon(Icons.Default.Schedule, contentDescription = "Timeline") },
-                    label = { Text("Timeline") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Default.Bolt, contentDescription = "Operations") },
-                    label = { Text("Operations") }
-                )
-                NavigationBarItem(
-                    selected = false,
-                    onClick = { isScannerOpen = true },
-                    icon = { Icon(Icons.Default.QrCodeScanner, contentDescription = "Gate") },
-                    label = { Text("Gate") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 },
-                    icon = { Icon(Icons.Default.Sensors, contentDescription = "Radio") },
-                    label = { Text("Radio") }
-                )
+    RoleShellScaffold(
+        context = context,
+        onSwitchPersona = onOpenPersonaPicker,
+        requestedDestinationId = requestedDestinationId,
+        onRequestedDestinationHandled = onRequestedDestinationHandled
+    ) { destination, ctx ->
+        val graph = rememberWeddingGraph(appViewModel, ctx)
+        when (destination.id) {
+            "today" -> CoordinatorTodayContent(graph, ctx)
+            "run_sheet" -> WeddingDaySection("Programme", graph, ctx.environment)
+            "team" -> WorkspaceSurface(destination, "coordinator") { section ->
+                CoordinatorTeamSection(section, graph, ctx)
             }
-        }
-    ) { innerPadding ->
-        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            when (selectedTab) {
-                0 -> TimelineDestination(appViewModel = appViewModel, onBack = {})
-                1 -> OperationsDestination(onBack = {})
-                2 -> MessagesInboxScreen()
+            "wedding_day" -> WorkspaceSurface(destination, "coordinator") { section ->
+                CoordinatorWeddingDaySection(section, graph, ctx)
             }
+            "more" -> WorkspaceSurface(destination, "coordinator") { section ->
+                CoordinatorMoreSection(section, sessionViewModel, graph, ctx)
+            }
+            else -> IAUnsupportedSection(destination.label, "Unknown destination.", ctx.environment)
         }
     }
 }
 
-// MARK: - Vendor Shell
+@Composable
+private fun CoordinatorTodayContent(graph: WeddingGraphState, context: NavigationContext) {
+    if (graph.loading) return IALoading()
+    IASectionList("Today", context.activeWeddingTitle) {
+        graph.wedding?.programme?.firstOrNull()?.let { next ->
+            IACard("Next milestone", "${next.title} • ${next.location}", next.time, testTag = "coordinator-next-milestone")
+        }
+        val openTasks = graph.tasks.filter { it.status != pro.wewed.app.models.TaskStatus.DONE }
+        IACard("Open tasks", "Outstanding wedding tasks", "${openTasks.size}")
+        val lateVendors = graph.vendors.filter {
+            it.state == pro.wewed.app.models.VendorPresenceState.NOT_RECORDED ||
+                it.state == pro.wewed.app.models.VendorPresenceState.SCHEDULED
+        }
+        IACard("Vendors not yet on site", "Awaiting arrival", "${lateVendors.size}")
+        val notArrived = graph.guests.count { it.checkedInCount == 0 }
+        IACard("Households not arrived", "Gate admission state", "$notArrived")
+    }
+}
+
+@Composable
+private fun CoordinatorTeamSection(
+    section: String,
+    graph: WeddingGraphState,
+    context: NavigationContext
+) {
+    if (graph.loading) return IALoading()
+    when (section) {
+        "Tasks" -> IASectionList("Team Tasks", "${graph.tasks.size} tasks on this wedding") {
+            graph.tasks.forEach { IACard(it.title, it.category, it.dueDate, it.status.title) }
+        }
+        "Vendors" -> IASectionList("Vendors", "${graph.vendors.size} vendors") {
+            graph.vendors.forEach { IACard(it.vendorName, it.serviceCategory, it.expectedTime, it.state.title) }
+        }
+        "Ushers", "Staff", "Assignments", "Contacts" -> IAUnsupportedSection(
+            section,
+            "No native team-roster contract exists yet. Assignments are not invented (playbook §12).",
+            context.environment
+        )
+        else -> IAUnsupportedSection(section, "This team section is not wired yet.", context.environment)
+    }
+}
+
+@Composable
+private fun CoordinatorWeddingDaySection(
+    section: String,
+    graph: WeddingGraphState,
+    context: NavigationContext
+) {
+    when (section) {
+        "Gate", "Admissions" -> GateAdmissionsSection("Checked In", graph, context.environment)
+        "Venue Zones" -> WeddingDaySection("Venue", graph, context.environment)
+        "Incidents" -> IAUnsupportedSection(
+            "Incidents",
+            "No native incident contract exists yet. No incident records are fabricated.",
+            context.environment
+        )
+        else -> WeddingDaySection(section, graph, context.environment)
+    }
+}
+
+@Composable
+private fun CoordinatorMoreSection(
+    section: String,
+    sessionViewModel: SessionViewModel,
+    graph: WeddingGraphState,
+    context: NavigationContext
+) {
+    when (section) {
+        "Maps" -> WeddingDaySection("Venue", graph, context.environment)
+        "Offline" -> WeddingDaySection("Offline Status", graph, context.environment)
+        "Account" -> AccountPrivacyScreen()
+        "Support" -> IASectionList("Support", "Coordinator support") {
+            IACard("Contact support", "support@wewed.pro")
+        }
+        "Documents", "Notes" -> IAUnsupportedSection(
+            section,
+            "No native coordinator $section contract exists yet.",
+            context.environment
+        )
+        else -> IAUnsupportedSection(section, "This section is not wired yet.", context.environment)
+    }
+}
+
+// MARK: - Vendor Shell — Home | Jobs | Schedule | Messages | More
 @Composable
 fun VendorShell(
     sessionViewModel: SessionViewModel,
     appViewModel: AppViewModel,
+    context: NavigationContext,
+    requestedDestinationId: String? = null,
+    onRequestedDestinationHandled: (() -> Unit)? = null,
     onOpenPersonaPicker: () -> Unit
 ) {
-    var selectedTab by remember { mutableStateOf(0) }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Vendor Operations", fontWeight = FontWeight.SemiBold) },
-                actions = {
-                    IconButton(onClick = onOpenPersonaPicker) {
-                        Icon(Icons.Default.ManageAccounts, contentDescription = "Switch Persona", tint = Color(0xFF1976D2))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = WewedColors.Ivory)
-            )
-        },
-        bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                NavigationBarItem(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    icon = { Icon(Icons.Default.Storefront, contentDescription = "Job Day") },
-                    label = { Text("Job Day") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Default.Description, contentDescription = "Catalog & Vault") },
-                    label = { Text("Catalog & Vault") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 },
-                    icon = { Icon(Icons.Default.Email, contentDescription = "Crew Inbox") },
-                    label = { Text("Crew Inbox") }
-                )
+    RoleShellScaffold(
+        context = context,
+        onSwitchPersona = onOpenPersonaPicker,
+        requestedDestinationId = requestedDestinationId,
+        onRequestedDestinationHandled = onRequestedDestinationHandled
+    ) { destination, ctx ->
+        val graph = rememberWeddingGraph(appViewModel, ctx)
+        when (destination.id) {
+            "home" -> VendorHomeContent(graph, ctx)
+            "jobs" -> WorkspaceSurface(destination, "vendor") { section ->
+                VendorJobsSection(section, graph, ctx)
             }
-        }
-    ) { innerPadding ->
-        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            when (selectedTab) {
-                0 -> VendorPresenceScreen(appViewModel = appViewModel, onClose = {})
-                1 -> VendorCatalogScreen()
-                2 -> MessagesInboxScreen()
+            "schedule" -> WorkspaceSurface(destination, "vendor") { section ->
+                VendorScheduleSection(section, graph, ctx)
             }
+            "messages" -> MessagesInboxScreen()
+            "more" -> WorkspaceSurface(destination, "vendor") { section ->
+                VendorMoreSection(section, sessionViewModel, ctx)
+            }
+            else -> IAUnsupportedSection(destination.label, "Unknown destination.", ctx.environment)
         }
     }
 }
 
-// MARK: - Usher Shell
+@Composable
+private fun VendorHomeContent(graph: WeddingGraphState, context: NavigationContext) {
+    if (graph.loading) return IALoading()
+    val engagement = graph.vendors.firstOrNull { it.id == context.activeEngagementId }
+        ?: graph.vendors.firstOrNull()
+    IASectionList("Home", engagement?.vendorName ?: "No assigned engagement") {
+        if (engagement == null) {
+            IACard("No engagement assigned", "This vendor has no recorded engagement for the active wedding.")
+        } else {
+            IACard("Today's job", "${engagement.serviceCategory} • ${engagement.serviceArea}", engagement.expectedTime, engagement.state.title)
+            graph.wedding?.let { IACard("Wedding", it.coupleNames, it.venueName) }
+            IACard(
+                "Outstanding documents",
+                "Contract and payment state are not exposed by the native contract yet",
+                "Not recorded"
+            )
+        }
+    }
+}
+
+@Composable
+private fun VendorMoreSection(
+    section: String,
+    sessionViewModel: SessionViewModel,
+    context: NavigationContext
+) {
+    when (section) {
+        "Services", "Company Profile" -> VendorCatalogScreen()
+        "Settings" -> SettingsScreen(sessionViewModel = sessionViewModel)
+        "Account" -> AccountPrivacyScreen()
+        "Support" -> IASectionList("Support", "Vendor support") {
+            IACard("Contact support", "support@wewed.pro")
+        }
+        "Contracts", "Payments", "Files" -> IAUnsupportedSection(
+            section,
+            "No native vendor $section contract exists yet. Recorded state is shown only where the repository provides it.",
+            context.environment
+        )
+        else -> IAUnsupportedSection(section, "This section is not wired yet.", context.environment)
+    }
+}
+
+// MARK: - Gate Team Shell — Scan | Admissions | Guests | Incidents | More
 @Composable
 fun UsherShell(
     sessionViewModel: SessionViewModel,
     appViewModel: AppViewModel,
+    context: NavigationContext,
+    requestedDestinationId: String? = null,
+    onRequestedDestinationHandled: (() -> Unit)? = null,
     onOpenPersonaPicker: () -> Unit
 ) {
-    var selectedTab by remember { mutableStateOf(0) }
     var isScannerOpen by remember { mutableStateOf(false) }
-
     if (isScannerOpen) {
         UsherScannerScreen(appViewModel = appViewModel, onClose = { isScannerOpen = false })
         return
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Gate Usher Console", fontWeight = FontWeight.SemiBold) },
-                actions = {
-                    IconButton(onClick = onOpenPersonaPicker) {
-                        Icon(Icons.Default.ManageAccounts, contentDescription = "Switch Persona", tint = Color(0xFF7B1FA2))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = WewedColors.Ivory)
-            )
-        },
-        bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                NavigationBarItem(
-                    selected = false,
-                    onClick = { isScannerOpen = true },
-                    icon = { Icon(Icons.Default.QrCodeScanner, contentDescription = "Scanner") },
-                    label = { Text("Scanner") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    icon = { Icon(Icons.Default.Group, contentDescription = "Roster") },
-                    label = { Text("Roster") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Default.Sync, contentDescription = "Sync Status") },
-                    label = { Text("Sync Status") }
-                )
+    RoleShellScaffold(
+        context = context,
+        onSwitchPersona = onOpenPersonaPicker,
+        requestedDestinationId = requestedDestinationId,
+        onRequestedDestinationHandled = onRequestedDestinationHandled
+    ) { destination, ctx ->
+        val graph = rememberWeddingGraph(appViewModel, ctx)
+        when (destination.id) {
+            "scan" -> GateScanContent(ctx) { isScannerOpen = true }
+            "admissions" -> WorkspaceSurface(destination, "gate") { section ->
+                GateAdmissionsSection(section, graph, ctx.environment)
             }
-        }
-    ) { innerPadding ->
-        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            when (selectedTab) {
-                0 -> GuestsScreen(appViewModel = appViewModel)
-                1 -> UsherGateStatusScreen()
+            "guests" -> GateGuestLookup(graph)
+            "incidents" -> WorkspaceSurface(destination, "gate") { section ->
+                GateIncidentsSection(section, ctx)
             }
+            "more" -> WorkspaceSurface(destination, "gate") { section ->
+                GateMoreSection(section, graph, ctx)
+            }
+            else -> IAUnsupportedSection(destination.label, "Unknown destination.", ctx.environment)
         }
     }
 }
 
 @Composable
-fun UsherGateStatusScreen() {
+private fun GateScanContent(context: NavigationContext, onOpenScanner: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(WewedColors.Ivory)
-            .padding(WewedSpacing.base),
-        verticalArrangement = Arrangement.spacedBy(WewedSpacing.md)
+            .background(WeddingIdentityPalette.Ivory)
+            .padding(24.dp)
+            .testTag("gate-scan-surface"),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
     ) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(WewedRadius.md),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
+        Text(
+            "Gate scanning",
+            color = WeddingIdentityPalette.Ink,
+            fontSize = 20.sp
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            context.activeGateId ?: "Gate assignment not set",
+            color = WeddingIdentityPalette.Muted,
+            fontSize = 12.sp
+        )
+        Spacer(Modifier.height(18.dp))
+        Button(
+            onClick = onOpenScanner,
+            modifier = Modifier.testTag("gate-open-scanner"),
+            colors = ButtonDefaults.buttonColors(containerColor = WeddingIdentityPalette.ChampagneDeep)
         ) {
-            Column(modifier = Modifier.padding(WewedSpacing.base)) {
-                Text("Gate A — Main Entrance", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Spacer(modifier = Modifier.height(4.dp))
-                Text("Cryptographic Engine: WW2 ECDSA P-256 Offline Active", fontSize = 12.sp, color = WewedColors.Emerald)
-                Text("Manifest Cache: 4 Guest records loaded", fontSize = 12.sp, color = Color.Gray)
-                Text("Unsynced Local Scans: 0 pending", fontSize = 12.sp, color = Color.Gray)
-            }
+            Text("Open scanner")
         }
     }
 }
 
-// MARK: - Guest Shell
+@Composable
+private fun GateIncidentsSection(section: String, context: NavigationContext) {
+    // Incidents have no native contract yet; the taxonomy is present so the workspace is
+    // navigable, but no incident record is invented (playbook §11).
+    IAUnsupportedSection(
+        section,
+        "No incident has been recorded under \"$section\" for this gate. Incident capture has no native contract yet.",
+        context.environment
+    )
+}
+
+@Composable
+private fun GateMoreSection(
+    section: String,
+    graph: WeddingGraphState,
+    context: NavigationContext
+) {
+    when (section) {
+        "Gate Assignment" -> IASectionList("Gate Assignment", context.activeWeddingTitle) {
+            IACard(
+                "Assigned gate",
+                "Current gate for this actor",
+                context.activeGateId ?: "Not assigned",
+                testTag = "gate-assignment"
+            )
+        }
+        "Offline Status", "Sync Status" -> WeddingDaySection("Offline Status", graph, context.environment)
+        "Venue Map" -> WeddingDaySection("Venue", graph, context.environment)
+        "Account" -> AccountPrivacyScreen()
+        "Help" -> IASectionList("Help", "Gate team support") {
+            IACard("Contact coordinator", "Escalate from Incidents")
+        }
+        else -> IAUnsupportedSection(section, "This section is not wired yet.", context.environment)
+    }
+}
+
+// MARK: - Guest Shell — Home | Invitation | Pass | Wedding Day | More
 @Composable
 fun GuestShell(
     sessionViewModel: SessionViewModel,
     appViewModel: AppViewModel,
+    context: NavigationContext,
+    requestedDestinationId: String? = null,
+    onRequestedDestinationHandled: (() -> Unit)? = null,
     onOpenPersonaPicker: () -> Unit
 ) {
-    var selectedTab by remember { mutableStateOf(0) }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Wedding Guest Pass", fontWeight = FontWeight.SemiBold) },
-                actions = {
-                    IconButton(onClick = onOpenPersonaPicker) {
-                        Icon(Icons.Default.ManageAccounts, contentDescription = "Switch Persona", tint = Color(0xFFE65100))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = WewedColors.Ivory)
-            )
-        },
-        bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                NavigationBarItem(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    icon = { Icon(Icons.Default.QrCode, contentDescription = "My Pass") },
-                    label = { Text("My Pass") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Default.Forum, contentDescription = "Live Wall") },
-                    label = { Text("Live Wall") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 },
-                    icon = { Icon(Icons.Default.Email, contentDescription = "Messages") },
-                    label = { Text("Messages") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 3,
-                    onClick = { selectedTab = 3 },
-                    icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-                    label = { Text("Settings") }
-                )
+    RoleShellScaffold(
+        context = context,
+        onSwitchPersona = onOpenPersonaPicker,
+        requestedDestinationId = requestedDestinationId,
+        onRequestedDestinationHandled = onRequestedDestinationHandled
+    ) { destination, ctx ->
+        val graph = rememberWeddingGraph(appViewModel, ctx)
+        when (destination.id) {
+            "home" -> GuestHomeContent(graph, ctx)
+            "invitation" -> WorkspaceSurface(destination, "guest") { section ->
+                GuestInvitationSection(section, appViewModel, graph, ctx)
             }
-        }
-    ) { innerPadding ->
-        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            when (selectedTab) {
-                0 -> PassScreen(appViewModel = appViewModel, onOpenScanner = {})
-                1 -> LiveWallScreen()
-                2 -> MessagesInboxScreen()
-                3 -> SettingsScreen(sessionViewModel = sessionViewModel)
+            "pass" -> WorkspaceSurface(destination, "guest") { section ->
+                GuestPassSection(section, appViewModel, graph, ctx)
             }
+            "wedding_day" -> WorkspaceSurface(destination, "guest") { section ->
+                GuestWeddingDaySection(section, graph, ctx)
+            }
+            "more" -> WorkspaceSurface(destination, "guest") { section ->
+                GuestMoreSection(section, ctx)
+            }
+            else -> IAUnsupportedSection(destination.label, "Unknown destination.", ctx.environment)
         }
     }
 }
 
-// MARK: - Admin Shell
+@Composable
+private fun GuestHomeContent(graph: WeddingGraphState, context: NavigationContext) {
+    if (graph.loading) return IALoading()
+    IASectionList(graph.wedding?.coupleNames ?: context.activeWeddingTitle, graph.wedding?.date) {
+        graph.wedding?.let {
+            IACard("Venue", it.venueName, null, testTag = "guest-home-venue")
+            IACard("Where", "${it.city}, ${it.country}")
+        }
+        graph.announcements.firstOrNull()?.let {
+            IACard("Announcement", it.message, null, it.urgency.name)
+        }
+        IACard("Your pass", "Open the Pass workspace for your QR and table", null)
+    }
+}
+
+@Composable
+private fun GuestInvitationSection(
+    section: String,
+    appViewModel: AppViewModel,
+    graph: WeddingGraphState,
+    context: NavigationContext
+) {
+    if (graph.loading) return IALoading()
+    // A guest resolves only their own record — never the roster (IA V2 §6).
+    val self = graph.guests.firstOrNull()
+    when (section) {
+        "Invitation" -> IASectionList("Invitation", graph.wedding?.coupleNames) {
+            graph.wedding?.let {
+                IACard(it.coupleNames, "${it.venueName} • ${it.city}", it.date)
+            }
+            self?.let { IACard("Invited", it.name, "Party of ${it.partySize}") }
+        }
+        "RSVP" -> IASectionList("RSVP", "Your response") {
+            self?.let {
+                IACard("Your RSVP", it.name, it.rsvpStatus.title, testTag = "guest-rsvp-state")
+            } ?: IACard("No invitation resolved", "No guest record is bound to this session.")
+        }
+        "Party Members" -> IASectionList("Party Members", self?.householdName) {
+            self?.let { IACard(it.householdName ?: it.name, "Party of ${it.partySize}") }
+        }
+        "Dietary / Accessibility", "Message to Couple", "Contribution / Memory" -> IAUnsupportedSection(
+            section,
+            "No native contract exists for $section yet. Nothing is recorded against your invitation.",
+            context.environment
+        )
+        else -> IAUnsupportedSection(section, "This invitation section is not wired yet.", context.environment)
+    }
+}
+
+@Composable
+private fun GuestPassSection(
+    section: String,
+    appViewModel: AppViewModel,
+    graph: WeddingGraphState,
+    context: NavigationContext
+) {
+    when (section) {
+        "Wedding Pass", "QR" -> WeddingReferencePassScreen(appViewModel = appViewModel, onOpenScanner = {})
+        "Party Size", "Table", "Admission State" -> {
+            if (graph.loading) return IALoading()
+            val self = graph.guests.firstOrNull()
+            IASectionList(section, self?.name) {
+                when (section) {
+                    "Party Size" -> IACard("Party size", self?.householdName ?: "—", "${self?.partySize ?: 0}")
+                    "Table" -> IACard("Table", self?.tableName ?: "Not yet assigned", self?.tableNumber?.toString())
+                    else -> IACard(
+                        "Admission",
+                        if (self?.checkedIn == true) "Admitted at the gate" else "Not yet admitted",
+                        "${self?.checkedInCount ?: 0}/${self?.partySize ?: 0}"
+                    )
+                }
+            }
+        }
+        "Open in Maps" -> IASectionList("Open in Maps", graph.wedding?.venueName) {
+            graph.wedding?.let { IACard(it.venueName, it.venueAddress, "Open") }
+        }
+        else -> IAUnsupportedSection(section, "This pass section is not wired yet.", context.environment)
+    }
+}
+
+@Composable
+private fun GuestWeddingDaySection(
+    section: String,
+    graph: WeddingGraphState,
+    context: NavigationContext
+) {
+    when (section) {
+        "Gallery / Live Wall" -> LiveWallScreen()
+        "Contacts" -> IAUnsupportedSection(
+            "Contacts",
+            "No guest-visible contact directory exists in the native contract.",
+            context.environment
+        )
+        else -> WeddingDaySection(section, graph, context.environment)
+    }
+}
+
+@Composable
+private fun GuestMoreSection(section: String, context: NavigationContext) {
+    when (section) {
+        "Gallery" -> LiveWallScreen()
+        "Account", "Privacy" -> AccountPrivacyScreen()
+        "Help" -> IASectionList("Help", "Guest support") {
+            IACard("Contact the wedding team", "support@wewed.pro")
+        }
+        "Our Story", "Contribution / Gift Info" -> IAUnsupportedSection(
+            section,
+            "The couple has not published $section for this wedding.",
+            context.environment
+        )
+        else -> IAUnsupportedSection(section, "This section is not wired yet.", context.environment)
+    }
+}
+
+// MARK: - Admin Shell — Dashboard | Cases | Accounts | Audit | More
 @Composable
 fun AdminShell(
     sessionViewModel: SessionViewModel,
     appViewModel: AppViewModel,
+    context: NavigationContext,
+    requestedDestinationId: String? = null,
+    onRequestedDestinationHandled: (() -> Unit)? = null,
     onOpenPersonaPicker: () -> Unit
 ) {
-    var selectedTab by remember { mutableStateOf(0) }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Admin Supervisor", fontWeight = FontWeight.SemiBold) },
-                actions = {
-                    IconButton(onClick = onOpenPersonaPicker) {
-                        Icon(Icons.Default.ManageAccounts, contentDescription = "Switch Persona", tint = Color(0xFFD32F2F))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = WewedColors.Ivory)
+    RoleShellScaffold(
+        context = context,
+        onSwitchPersona = onOpenPersonaPicker,
+        requestedDestinationId = requestedDestinationId,
+        onRequestedDestinationHandled = onRequestedDestinationHandled
+    ) { destination, ctx ->
+        val graph = rememberWeddingGraph(appViewModel, ctx)
+        when (destination.id) {
+            "dashboard" -> AdminDashboardContent(graph, ctx)
+            "cases" -> IAUnsupportedSection(
+                "Cases",
+                "No native support-case contract exists yet. No cases are fabricated.",
+                ctx.environment
             )
-        },
-        bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                NavigationBarItem(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    icon = { Icon(Icons.Default.Dns, contentDescription = "System") },
-                    label = { Text("System") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Default.Shield, contentDescription = "Governance") },
-                    label = { Text("Governance") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 },
-                    icon = { Icon(Icons.Default.Public, contentDescription = "Live Wall") },
-                    label = { Text("Live Wall") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 3,
-                    onClick = { selectedTab = 3 },
-                    icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-                    label = { Text("Settings") }
-                )
+            "accounts" -> WorkspaceSurface(destination, "admin") { section ->
+                AdminAccountsSection(section, ctx)
             }
-        }
-    ) { innerPadding ->
-        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            when (selectedTab) {
-                0 -> AdminHealthScreen()
-                1 -> AdminGovernanceScreen()
-                2 -> LiveWallScreen()
-                3 -> SettingsScreen(sessionViewModel = sessionViewModel)
+            "audit" -> WorkspaceSurface(destination, "admin") { section ->
+                AdminAuditSection(section, graph, ctx.environment)
             }
+            "more" -> WorkspaceSurface(destination, "admin") { section ->
+                AdminMoreSection(section, sessionViewModel, graph, ctx)
+            }
+            else -> IAUnsupportedSection(destination.label, "Unknown destination.", ctx.environment)
         }
     }
 }
 
 @Composable
-fun AdminHealthScreen() {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(WewedColors.Ivory)
-            .padding(WewedSpacing.base),
-        verticalArrangement = Arrangement.spacedBy(WewedSpacing.md)
-    ) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(WewedRadius.md),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
-        ) {
-            Column(modifier = Modifier.padding(WewedSpacing.base)) {
-                Text("Global System Operations", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Spacer(modifier = Modifier.height(4.dp))
-                Text("Database & Sync Engine: Operational", fontSize = 12.sp, color = WewedColors.Emerald)
-                Text("Offline Key Trust Anchors: 1 active", fontSize = 12.sp, color = Color.Gray)
-                Text("Active Weddings Monitored: 8", fontSize = 12.sp, color = Color.Gray)
-            }
+private fun AdminAccountsSection(section: String, context: NavigationContext) {
+    // Account administration has no native contract; showing invented account rows here would be
+    // a privileged data fabrication, so the boundary is stated instead (playbook §13).
+    IAUnsupportedSection(
+        section,
+        "Account administration has no native contract yet. No $section records are read or fabricated in this environment.",
+        context.environment
+    )
+}
+
+@Composable
+private fun AdminMoreSection(
+    section: String,
+    sessionViewModel: SessionViewModel,
+    graph: WeddingGraphState,
+    context: NavigationContext
+) {
+    when (section) {
+        "System Health" -> AdminDashboardContent(graph, context)
+        "Announcements" -> WeddingDaySection("Announcements", graph, context.environment)
+        "Admin Profile" -> AccountPrivacyScreen()
+        "Help" -> IASectionList("Help", "Administrator support") {
+            IACard("Internal escalation", "Use Cases to record an escalation")
         }
+        "Integrations", "Templates", "Configuration" -> IAUnsupportedSection(
+            section,
+            "No native administrative $section contract exists yet.",
+            context.environment
+        )
+        else -> IAUnsupportedSection(section, "This section is not wired yet.", context.environment)
+    }
+}
+
+// MARK: - Couple Shell — Home | Plan | Guests | Wedding Day | More
+@Composable
+fun CoupleShell(
+    sessionViewModel: SessionViewModel,
+    appViewModel: AppViewModel,
+    context: NavigationContext,
+    onOpenScanner: () -> Unit,
+    requestedDestinationId: String? = null,
+    onRequestedDestinationHandled: (() -> Unit)? = null,
+    onOpenPersonaPicker: (() -> Unit)? = null
+) {
+    RoleShellScaffold(
+        context = context,
+        onSwitchPersona = onOpenPersonaPicker,
+        requestedDestinationId = requestedDestinationId,
+        onRequestedDestinationHandled = onRequestedDestinationHandled
+    ) { destination, ctx ->
+        val graph = rememberWeddingGraph(appViewModel, ctx)
+        when (destination.id) {
+            "home" -> WeddingReferenceHomeScreen(appViewModel)
+            "plan" -> WorkspaceSurface(destination, "couple") { section ->
+                CouplePlanSection(section, appViewModel, ctx)
+            }
+            "guests" -> WorkspaceSurface(destination, "couple") { section ->
+                if (section == "Guest List") {
+                    WeddingReferenceGuestsScreen(appViewModel)
+                } else {
+                    CoupleGuestsSection(section, graph, ctx.environment)
+                }
+            }
+            "wedding_day" -> WorkspaceSurface(destination, "couple") { section ->
+                WeddingDaySection(section, graph, ctx.environment) {
+                    WeddingReferencePassScreen(appViewModel = appViewModel, onOpenScanner = onOpenScanner)
+                }
+            }
+            "more" -> WeddingReferenceMoreScreen(appViewModel)
+            else -> IAUnsupportedSection(destination.label, "Unknown destination.", ctx.environment)
+        }
+    }
+}
+
+@Composable
+private fun CouplePlanSection(
+    section: String,
+    appViewModel: AppViewModel,
+    context: NavigationContext
+) {
+    // The couple's Plan worksheets read the same repositories as the planner Workspace —
+    // one canonical pipeline, two role presentations (IA V2 §13.3).
+    when (section) {
+        "Overview" -> WeddingReferencePlannerScreen(appViewModel)
+        "Tasks" -> TasksDestination(appViewModel) {}
+        "Budget" -> ShadowBudgetDestination(appViewModel) {}
+        "Contributions" -> ShadowContributionsDestination(appViewModel) {}
+        "Vendors" -> ShadowVendorsDestination(appViewModel) {}
+        "Seating" -> ShadowSeatingDestination(appViewModel) {}
+        "Timeline" -> ShadowTimelineDestination(appViewModel) {}
+        "Documents" -> ShadowDocumentsDestination(appViewModel) {}
+        else -> IAUnsupportedSection(section, "This worksheet is not wired yet.", context.environment)
     }
 }

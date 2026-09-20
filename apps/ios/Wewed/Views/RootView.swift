@@ -1,5 +1,10 @@
 import SwiftUI
 
+/// IA V2 root.
+///
+/// Resolves the active `NavigationContext` once and hands it to the role shell. Every role —
+/// Couple included — now renders through `RoleShellScaffold`, so no role shell can invent its own
+/// bottom-navigation topology.
 public struct RootView: View {
     @EnvironmentObject private var session: SessionStore
     @EnvironmentObject private var appState: AppState
@@ -8,6 +13,21 @@ public struct RootView: View {
     @State private var resolvingDeepLinkedInvitation = false
 
     public init() {}
+
+    /// IA V2 §13.1 — one context envelope, resolved once, handed to every role shell.
+    private var navigationContext: NavigationContext {
+        NavigationContext(
+            actorId: session.activePersona?.id ?? "couple_owner",
+            activeRole: session.currentRole,
+            activeWeddingId: session.weddingId,
+            activeWeddingTitle: session.weddingTitle,
+            environment: appState.dataEnvironment,
+            // Scoped context the role owns; resolved from the active actor rather than guessed.
+            activeClientId: session.currentRole == .planner ? session.weddingId : nil,
+            activeEngagementId: nil,
+            activeGateId: session.currentRole == .usher ? "Gate A — Main Entrance" : nil
+        )
+    }
 
     public var body: some View {
         Group {
@@ -26,38 +46,14 @@ public struct RootView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(WeddingIdentityPalette.ivory)
             } else if session.isAuthenticated {
-                if session.currentRole == .couple {
-                    coupleShell
-                        .sheet(isPresented: $showingPersonaPicker) {
-                            PersonaPickerSheet()
-                                .environmentObject(session)
-                        }
-                } else {
-                    VStack(spacing: 0) {
-                        personaBanner
-
-                        switch session.currentRole {
-                        case .couple:
-                            coupleShell
-                        case .planner:
-                            PlannerShellView()
-                        case .coordinator:
-                            CoordinatorShellView()
-                        case .vendor:
-                            VendorShellView()
-                        case .usher:
-                            UsherShellView()
-                        case .guest:
-                            GuestShellView()
-                        case .admin:
-                            AdminShellView()
-                        }
-                    }
+                roleShell
                     .sheet(isPresented: $showingPersonaPicker) {
                         PersonaPickerSheet()
                             .environmentObject(session)
                     }
-                }
+                    .accessibilityIdentifier(
+                        "shadow-source-" + appState.dataEnvironment.rawValue.replacingOccurrences(of: "_", with: "-")
+                    )
             } else {
                 LoginView()
             }
@@ -75,6 +71,69 @@ public struct RootView: View {
         }
     }
 
+    @ViewBuilder
+    private var roleShell: some View {
+        let context = navigationContext
+        let switchPersona: () -> Void = { showingPersonaPicker = true }
+        // IA V2 §14 — a deep link resolves to a destination *request*; the shell then gates it.
+        let requested = appState.pendingRouteDeepLink.flatMap {
+            DeepLinkRouter.destinationFor($0, role: session.currentRole)
+        }
+        let handled: () -> Void = { appState.pendingRouteDeepLink = nil }
+
+        switch session.currentRole {
+        case .couple:
+            CoupleShellView(
+                context: context,
+                onSwitchPersona: switchPersona,
+                requestedDestinationId: requested,
+                onRequestedDestinationHandled: handled
+            )
+        case .planner:
+            PlannerShellView(
+                context: context,
+                onSwitchPersona: switchPersona,
+                requestedDestinationId: requested,
+                onRequestedDestinationHandled: handled
+            )
+        case .coordinator:
+            CoordinatorShellView(
+                context: context,
+                onSwitchPersona: switchPersona,
+                requestedDestinationId: requested,
+                onRequestedDestinationHandled: handled
+            )
+        case .vendor:
+            VendorShellView(
+                context: context,
+                onSwitchPersona: switchPersona,
+                requestedDestinationId: requested,
+                onRequestedDestinationHandled: handled
+            )
+        case .usher:
+            UsherShellView(
+                context: context,
+                onSwitchPersona: switchPersona,
+                requestedDestinationId: requested,
+                onRequestedDestinationHandled: handled
+            )
+        case .guest:
+            GuestShellView(
+                context: context,
+                onSwitchPersona: switchPersona,
+                requestedDestinationId: requested,
+                onRequestedDestinationHandled: handled
+            )
+        case .admin:
+            AdminShellView(
+                context: context,
+                onSwitchPersona: switchPersona,
+                requestedDestinationId: requested,
+                onRequestedDestinationHandled: handled
+            )
+        }
+    }
+
     private func resolvePendingInvitationDeepLink() async {
         guard let pending = appState.pendingInvitationDeepLink else { return }
 
@@ -86,104 +145,5 @@ public struct RootView: View {
         appState.pendingInvitationDeepLink = nil
         resolvingDeepLinkedInvitation = false
         deepLinkedInvitation = resolved
-    }
-
-    private var personaBanner: some View {
-        HStack {
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(Color.green)
-                    .frame(width: 8, height: 8)
-                Text(session.currentUserName ?? "Active User")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.white)
-                    .lineLimit(1)
-                Text(session.currentRole.title)
-                    .font(.caption2)
-                    .foregroundColor(WewedColors.gold)
-                    .lineLimit(1)
-
-                Text(appState.dataEnvironment.title.uppercased())
-                    .font(.system(size: 8, weight: .bold))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.white.opacity(0.12))
-                    .foregroundColor(appState.dataEnvironment == .production ? .red : WewedColors.emerald)
-                    .clipShape(Capsule())
-                    .accessibilityLabel("Data environment \(appState.dataEnvironment.title)")
-            }
-
-            Spacer()
-
-            Button(action: {
-                showingPersonaPicker = true
-            }) {
-                Text("Switch")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Color.secondary.opacity(0.15))
-                    .foregroundColor(WewedColors.gold)
-                    .cornerRadius(WewedRadius.pill)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("dev-persona-switcher-button")
-        }
-        .padding(.horizontal, WewedSpacing.base)
-        .padding(.top, 48)
-        .padding(.bottom, 8)
-        .background(Color.black.opacity(0.85))
-        .ignoresSafeArea(edges: .top)
-    }
-
-    @ViewBuilder
-    private var coupleShell: some View {
-        #if os(iOS)
-        coupleTabs
-            .toolbarBackground(WeddingIdentityPalette.ivorySoft, for: .tabBar)
-            .toolbarBackground(.visible, for: .tabBar)
-            .toolbarColorScheme(.light, for: .tabBar)
-        #else
-        coupleTabs
-        #endif
-    }
-
-    private var coupleTabs: some View {
-        TabView(selection: $appState.selectedTab) {
-            WeddingReferenceHomeView()
-                .tabItem {
-                    Label(AppTab.home.rawValue, systemImage: "house.fill")
-                }
-                .tag(AppTab.home)
-
-            WeddingReferencePlannerView()
-                .tabItem {
-                    Label(AppTab.plan.rawValue, systemImage: "calendar.badge.checkmark")
-                }
-                .tag(AppTab.plan)
-
-            WeddingReferenceGuestsView()
-                .tabItem {
-                    Label(AppTab.guests.rawValue, systemImage: "person.2.fill")
-                }
-                .tag(AppTab.guests)
-
-            WeddingReferencePassView()
-                .tabItem {
-                    Label(AppTab.pass.rawValue, systemImage: "qrcode")
-                }
-                .tag(AppTab.pass)
-
-            WeddingReferenceMoreView()
-                .tabItem {
-                    Label(AppTab.live.rawValue, systemImage: "line.3.horizontal")
-                }
-                .tag(AppTab.live)
-        }
-        .tint(WeddingIdentityPalette.champagneDeep)
-        .accessibilityIdentifier("shadow-source-" + appState.dataEnvironment.rawValue.replacingOccurrences(of: "_", with: "-"))
     }
 }

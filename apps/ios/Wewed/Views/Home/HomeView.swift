@@ -307,7 +307,7 @@ public struct HomeView: View {
             Spacer()
 
             Button {
-                appState.selectedTab = .pass
+                appState.selectedTab = .weddingDay
             } label: {
                 Text("View")
                     .font(.caption)
@@ -374,7 +374,7 @@ public struct HomeView: View {
             }
 
             quickActionButton(title: "Live Wall", icon: "photo.stack.fill") {
-                appState.selectedTab = .live
+                appState.selectedTab = .more
             }
 
             quickActionButton(title: "Vendors", icon: "truck.box.fill") {
