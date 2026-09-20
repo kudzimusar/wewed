@@ -11,10 +11,13 @@ on:
       - 'src/components/wedding/invitation-app-handoff.tsx'
       - 'src/lib/invitation-links.ts'
       - 'src/lib/invitation-links.test.ts'
+      - 'src/lib/android-production-wrapper-contract.test.ts'
       - 'src/lib/pending-invitation.ts'
       - 'src/lib/personal-invitation-access.ts'
       - 'src/lib/reminder-delivery.ts'
       - 'public/manifest.json'
+      - '.github/workflows/android-invitation-production-play-aab.yml'
+      - '.github/workflows/android-invitation-uat-play-aab.yml'
       - '.github/workflows/smart-invitation-ci.yml'
   push:
     branches:
@@ -26,10 +29,13 @@ on:
       - 'src/components/wedding/invitation-app-handoff.tsx'
       - 'src/lib/invitation-links.ts'
       - 'src/lib/invitation-links.test.ts'
+      - 'src/lib/android-production-wrapper-contract.test.ts'
       - 'src/lib/pending-invitation.ts'
       - 'src/lib/personal-invitation-access.ts'
       - 'src/lib/reminder-delivery.ts'
       - 'public/manifest.json'
+      - '.github/workflows/android-invitation-production-play-aab.yml'
+      - '.github/workflows/android-invitation-uat-play-aab.yml'
       - '.github/workflows/smart-invitation-ci.yml'
   workflow_dispatch:
 
@@ -61,8 +67,8 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Run smart invitation link tests
-        run: bun test src/lib/invitation-links.test.ts
+      - name: Run smart invitation and Android release-contract tests
+        run: bun test src/lib/invitation-links.test.ts src/lib/android-production-wrapper-contract.test.ts
 
       - name: Reject TypeScript errors in smart invitation files
         shell: bash

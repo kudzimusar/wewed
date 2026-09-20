@@ -23,16 +23,6 @@ on:
         required: true
         default: '2.0.4'
         type: string
-      play_track:
-        description: 'Existing Google Play closed-testing track id (normally alpha).'
-        required: true
-        default: 'alpha'
-        type: string
-      publish_to_play:
-        description: 'Upload the signed AAB to the existing closed-testing track.'
-        required: true
-        default: false
-        type: boolean
 
 permissions:
   contents: read
@@ -116,7 +106,10 @@ jobs:
           retention-days: 7
 
   signed-candidate:
-    name: Build signed Google Play UAT candidate when credentials exist
+    # Keep upload-key secrets out of all pull-request runs. A trusted operator
+    # must dispatch this workflow from protected main to create a signed artifact.
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    name: Build signed Google Play UAT candidate without Play publication
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -144,7 +137,6 @@ jobs:
           STORE_PASSWORD: ${{ secrets.WEWED_UPLOAD_STORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.WEWED_UPLOAD_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.WEWED_UPLOAD_KEY_PASSWORD }}
-          PLAY_SERVICE_ACCOUNT: ${{ secrets.WEWED_GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
         run: |
           set -euo pipefail
           if [[ -n "$KEYSTORE_BASE64" && -n "$STORE_PASSWORD" && -n "$KEY_ALIAS" && -n "$KEY_PASSWORD" ]]; then
@@ -152,11 +144,6 @@ jobs:
           else
             echo 'signing=false' >> "$GITHUB_OUTPUT"
             echo '::notice::Signed Play UAT AAB skipped because one or more WEWED Android upload-key secrets are not configured.'
-          fi
-          if [[ -n "$PLAY_SERVICE_ACCOUNT" ]]; then
-            echo 'publisher=true' >> "$GITHUB_OUTPUT"
-          else
-            echo 'publisher=false' >> "$GITHUB_OUTPUT"
           fi
       - name: Set up Java 17
         if: steps.credentials.outputs.signing == 'true'
@@ -219,24 +206,3 @@ jobs:
           path: android/app/build/outputs/bundle/uatPlay/app-uatPlay.aab
           if-no-files-found: error
           retention-days: 14
-      - name: Require publisher credential for requested Play upload
-        if: github.event_name == 'workflow_dispatch' && inputs.publish_to_play && steps.credentials.outputs.publisher != 'true'
-        shell: bash
-        run: |
-          echo 'WEWED_GOOGLE_PLAY_SERVICE_ACCOUNT_JSON is required to publish to the closed-testing track.' >&2
-          exit 1
-      - name: Require signed candidate for requested Play upload
-        if: github.event_name == 'workflow_dispatch' && inputs.publish_to_play && steps.credentials.outputs.signing != 'true'
-        shell: bash
-        run: |
-          echo 'Android upload-key secrets are required before a Google Play upload can occur.' >&2
-          exit 1
-      - name: Upload signed candidate to Google Play closed testing
-        if: github.event_name == 'workflow_dispatch' && inputs.publish_to_play && steps.credentials.outputs.signing == 'true' && steps.credentials.outputs.publisher == 'true'
-        uses: r0adkll/upload-google-play@935ef9c68bb393a8e6116b1575626a7f5be3a7fb
-        with:
-          serviceAccountJsonPlainText: ${{ secrets.WEWED_GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
-          packageName: pro.wewed.app
-          releaseFiles: android/app/build/outputs/bundle/uatPlay/app-uatPlay.aab
-          track: ${{ inputs.play_track }}
-          status: completed
