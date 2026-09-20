@@ -1,5 +1,11 @@
 # Android Private Real UAT walkthrough — local only, never committed CI.
-# Launches the protected production-derived graph and asserts structure, not private values.
+#
+# This lane proves the production-derived graph is actually CONSUMED, not merely present.
+# An earlier version asserted that two pseudonyms were absent, which an empty app also satisfies.
+# The assertions here are aggregate counts and stable database identifiers: they prove the real
+# graph reached the screen without putting a single private name in a committed file.
+#
+# Counts below are the reconciled 2026-09-20 truth. A stale snapshot fails this lane loudly.
 appId: pro.wewed.app.dev
 ---
 # NOTE: clearState must stay false in this lane. The protected snapshot lives in the app's
@@ -17,27 +23,60 @@ appId: pro.wewed.app.dev
     id: "role-shell-couple"
 - assertVisible: "Charity & Kudzie"
 
-# Couple journey across the IA V2 taxonomy.
-- tapOn: "Plan"
-- assertVisible:
-    id: "couple-plan"
-- scrollUntilVisible:
-    element:
-      id: "planner-module-vendors"
-    direction: DOWN
+# --- Home: the wedding graph's headline figures -------------------------------------------
+# 175 guests and 7 vendors are production counts; 35 open tasks is 42 minus 7 done.
+- assertVisible: "175"
+- assertVisible: "35 left"
+- assertVisible: "7"
+# The date must be formatted, and the countdown must be running: a raw ISO timestamp here means
+# the date parser rejected the production format and the countdown silently disappeared.
+- assertVisible: "23 DEC 2026"
+- assertVisible: "Days"
+- assertVisible: "Secs"
+- assertNotVisible: "2026-12-23T14:00:00"
 
-- tapOn: "Guests"
-- assertVisible:
-    id: "couple-guests"
-# Real identities must be present and pseudonyms absent.
+# --- Guests: reconciled RSVP distribution --------------------------------------------------
+- tapOn:
+    id: "nav-couple-guests"
+- assertVisible: "All (175)"
+- assertVisible: "Attending (2)"
+- assertVisible: "Pending (173)"
+- assertVisible: "Declined (0)"
+# Sanitized pseudonyms must be absent; this is necessary but far from sufficient on its own.
 - assertNotVisible: "Guest G001"
 - assertNotVisible: "Guest G011"
 
-- tapOn: "Wedding Day"
+# --- RSVP detail: the fields the old flat snapshot discarded entirely ----------------------
+- tapOn: "RSVP"
+- assertVisible: "2 attending • 173 pending • 0 declined • 1 dietary"
+# Open the one guest whose production RSVP carries full detail, addressed by database id.
+- tapOn:
+    id: "rsvp-row-cmqos77iw001lq6vx2qmxcbu7"
 - assertVisible:
-    id: "couple-wedding_day"
+    id: "rsvp-detail-status"
+- assertVisible:
+    id: "rsvp-detail-plus-one"
+- assertVisible:
+    id: "rsvp-detail-kids"
+- assertVisible:
+    id: "rsvp-detail-meal"
+- assertVisible:
+    id: "rsvp-detail-dietary"
+- assertVisible:
+    id: "rsvp-detail-message"
+- assertVisible:
+    id: "rsvp-detail-check-in"
+# A formatted check-in timestamp, not the storage format.
+- assertNotVisible: "2026-06-22T05:35"
+- back
 
-- tapOn: "More"
+# --- Wedding Day ---------------------------------------------------------------------------
+- tapOn:
+    id: "nav-couple-wedding_day"
+
+# --- More: the published wedding content graph ----------------------------------------------
+- tapOn:
+    id: "nav-couple-more"
 - assertVisible:
     id: "more-root"
 - assertVisible:
@@ -45,7 +84,24 @@ appId: pro.wewed.app.dev
 - assertVisible:
     id: "more-account"
 
-# Planner context against the same real wedding.
+# Our Story: 9 real published entries, no longer "will appear here as updates are posted".
+- tapOn: "Our Story"
+- assertVisible: "9 published entries"
+- assertNotVisible: "will appear here as updates are posted"
+# Field labels are humanised and one-indexed, never raw storage keys.
+- assertNotVisible: "Milestone-0"
+- back
+
+# Gallery: MediaItem holds 0 rows, but the gallery is NOT empty — it is published content.
+- tapOn: "Gallery"
+- assertVisible:
+    id: "more-gallery-previewImage0"
+- assertVisible:
+    id: "more-gallery-previewImage2"
+- assertNotVisible: "will be available during and after the wedding"
+- back
+
+# --- Planner context against the same real wedding -----------------------------------------
 - launchApp:
     clearState: false
     arguments:
@@ -57,7 +113,28 @@ appId: pro.wewed.app.dev
 - assertVisible: "Workspace"
 - assertVisible: "Clients"
 
-# Admin is system-scoped and must open without a wedding context.
+- tapOn:
+    id: "nav-planner-more"
+# Team Hub carries the real planner profile, and states that UAT access is not a production
+# engagement. Production holds PlannerEngagement = 0 and WeddingMembership = 0 for this pairing.
+- assertVisible:
+    id: "team-hub-size"
+- assertVisible:
+    id: "team-hub-access"
+- assertVisible: "UAT test access — no production engagement on record"
+
+# Invitations & QR is backed by the real QRDestination row, not a fixture.
+- tapOn: "Invitations & QR"
+- assertVisible: "1 scan destinations"
+- assertVisible: "Scan destinations route a scan. They are not Wedding Pass credentials."
+
+# Intelligence is derived from the repository, and says so. No "AI active" claim.
+- tapOn: "Intelligence"
+- assertVisible: "173 of 175 guests have not responded"
+- assertVisible: "22 of 175 guests are seated"
+- assertVisible: "These figures are calculated from the loaded wedding graph. No model or external service is involved."
+
+# --- Admin is system-scoped and blocked by authorization, not empty -------------------------
 - launchApp:
     clearState: false
     arguments:
@@ -67,3 +144,11 @@ appId: pro.wewed.app.dev
     id: "role-shell-admin"
 - assertVisible:
     id: "admin-weddings-in-scope"
+- tapOn:
+    id: "nav-admin-audit"
+- assertVisible:
+    id: "audit-data-changes-blocked"
+- assertVisible:
+    id: "audit-data-changes-denied"
+# The one thing that is certainly untrue: production holds 275 wedding-scoped audit rows.
+- assertNotVisible: "No audit activity is recorded for this wedding."

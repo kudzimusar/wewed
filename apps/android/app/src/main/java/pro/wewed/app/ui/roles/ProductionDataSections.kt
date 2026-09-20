@@ -710,7 +710,10 @@ fun PlannerIntelligenceSection(graph: WeddingGraphState) {
     val awaiting = guests.count { it.rsvpStatus == RSVPStatus.PENDING }
     val seated = guests.count { !it.tableName.isNullOrBlank() }
     val dietary = graph.rsvpDetails.values.count { it.hasDietaryRequirement }
-    val completion = if (tasks.isEmpty()) 0 else (tasks.count { it.status == TaskStatus.DONE } * 100) / tasks.size
+    // Same rounding rule as the Couple home surface, so the two never disagree.
+    val completion = if (tasks.isEmpty()) 0 else {
+        Math.round(tasks.count { it.status == TaskStatus.DONE } * 100.0 / tasks.size).toInt()
+    }
 
     IASectionList("Intelligence", "Derived from this wedding's graph") {
         IACard("Planning completion", "$completion% of ${tasks.size} tasks complete", testTag = "intelligence-completion")

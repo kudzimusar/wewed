@@ -341,7 +341,7 @@ private fun ReferenceContinuePlanning(
                     fontSize = 17.sp
                 )
                 Text(
-                    "You’re ${(ratio * 100).toInt()}% there",
+                    "You’re ${Math.round(ratio * 100).toInt()}% there",
                     color = WeddingIdentityPalette.Muted,
                     fontSize = 12.sp
                 )

@@ -707,7 +707,10 @@ public struct PlannerIntelligenceSection: View {
             let awaiting = guests.filter { $0.rsvpStatus == .pending }.count
             let seated = guests.filter { !($0.tableName ?? "").isEmpty }.count
             let dietary = graph.rsvpDetails.values.filter { $0.hasDietaryRequirement }.count
-            let completion = tasks.isEmpty ? 0 : (tasks.filter { $0.status == .done }.count * 100) / tasks.count
+            // Same rounding rule as the Couple home surface, so the two never disagree.
+            let completion = tasks.isEmpty
+                ? 0
+                : Int((Double(tasks.filter { $0.status == .done }.count) * 100 / Double(tasks.count)).rounded())
 
             IASectionList("Intelligence", "Derived from this wedding's graph") {
                 IACard("Planning completion", "\(completion)% of \(tasks.count) tasks complete",

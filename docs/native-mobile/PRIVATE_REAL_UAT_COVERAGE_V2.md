@@ -1,129 +1,183 @@
-# Private Real UAT Coverage V2
+# Private Real UAT Coverage — V2
 
-**Document ID:** WW-NATIVE-PRIVATE-REAL-UAT-COVERAGE-V2-2026-09-20-01
-**Status:** EVIDENCE RECORD — read-only discovery, no production writes
-**Supersedes the narrow reading of:** `PRIVATE_REAL_SHADOW_ENTITY_COVERAGE_2026-09-20.md`
-**Discovery credential:** `wewed_shadow_reader` — `default_transaction_read_only=on`, `CREATE TABLE` refused
-**Wedding:** `cmqos70cb0004q6vxe9g9aiu5` (Charity & Kudzie)
+**Environment:** `PRIVATE_REAL_SHADOW` · **Wedding:** Charity & Kudzie (`cmqos70cb0004q6vxe9g9aiu5`)
+**Snapshot schema:** `private-real-uat/2` · **Reconciled:** 2026-09-20
 
-No private values appear in this document. Counts, domain names and statuses only.
+This ledger records, for every domain, what production holds, what the protected snapshot carries,
+and whether each platform models and renders it. It is the answer to a specific failure: the
+September-18 export omitted several populated tables, and because nothing reconciled the two, the
+app reported those domains as "unsupported" while production held thousands of rows.
 
----
-
-## 1. Correction to the previous interpretation
-
-The September-18 snapshot was treated as a statement of what production contains. It is not — it
-is a partial export. Production holds real rows for several domains previously recorded as absent
-or unsupported:
-
-| Domain | Previously recorded | Production truth |
-|---|---|---|
-| AuditEvent | "zero complete audit stream" | **275 rows** for this wedding (359 platform-wide) |
-| Message | "no message contract" | **3 rows** (type `wall`, all public) |
-| WeddingContent | not inventoried | **107 rows** across 12 sections |
-| Song | not inventoried | **27 rows** |
-| ImportJob | "no import history" | **40 rows** |
-| QRDestination | not inventoried | **1 row** |
-| EngagementParty | not inventoried | **3 rows** |
-| ContentRevision | not inventoried | **7 rows** |
-| RSVP | folded into Guest | **175 rows** (guest-scoped) |
-| Guest | 174 | **175** — the snapshot was one short |
-
-`ABSENT_FROM_CURRENT_SNAPSHOT` and `GENUINELY_UNSUPPORTED` are therefore not equivalent, and this
-document keeps them apart.
+No private value appears in this file. Counts, schema and status only.
 
 ---
 
-## 2. Domain reconciliation
-
-`P` = production rows · `S` = rows in the refreshed protected UAT snapshot · `N` = native repository support
-
-| Domain | P | S | N | Android UI | iOS UI | Classification |
-|---|--:|--:|---|---|---|---|
-| Wedding | 1 | 1 | yes | yes | yes | PRODUCTION_DATA_EXISTS |
-| Guest | 175 | 175 | yes | yes | yes | PRODUCTION_DATA_EXISTS |
-| RSVP | 175 | 175 | partial (status only) | partial | partial | NATIVE_ADAPTER_GAP — dietary notes, meal choice, plus-one, song requests unused |
-| PlannerTask | 42 | 42 | yes | yes | yes | PRODUCTION_DATA_EXISTS |
-| BudgetItem | 22 | 22 | yes | yes | yes | PRODUCTION_DATA_EXISTS |
-| GuestContribution | 4 | 4 | yes | yes | yes | PRODUCTION_DATA_EXISTS — non-monetary, contributor identity resolves |
-| SeatingTable | 8 | 8 | yes | yes | yes | PRODUCTION_DATA_EXISTS — 22 seated, 0 orphans |
-| ProgrammeItem | 13 | 13 | yes | yes | yes | PRODUCTION_DATA_EXISTS |
-| Vendor | 7 | 7 | yes | yes | yes | PRODUCTION_DATA_EXISTS |
-| ServiceEngagement | 8 | 8 | yes | yes | yes | PRODUCTION_DATA_EXISTS — 7 historical, 1 current |
-| EngagementParty | 3 | 3 | no | no | no | NATIVE_ADAPTER_GAP |
-| Song | 27 | 27 | no | no | no | NATIVE_ADAPTER_GAP — songbook |
-| WeddingContent | 107 | 107 | no | no | no | NATIVE_ADAPTER_GAP — Our Story, Gallery, Venue, FAQ, Travel, The Day |
-| ContentRevision | 7 | 7 | no | no | no | NATIVE_ADAPTER_GAP |
-| Message | 3 | 3 | no | no | no | NATIVE_ADAPTER_GAP — Live Wall messages |
-| ImportJob | 40 | 40 | no | no | no | NATIVE_ADAPTER_GAP — Recent Imports |
-| QRDestination | 1 | 1 | no | no | no | NATIVE_ADAPTER_GAP — Invitations & QR |
-| AuditEvent | 275 | 275 | no | no | no | NATIVE_ADAPTER_GAP — Admin Audit |
-| PlannerEnquiry | 1 | 1 | partial | partial | partial | PRODUCTION_DATA_EXISTS |
-| PlannerProfile | 1 | 1 | partial | partial | partial | PRODUCTION_DATA_EXISTS |
-| MediaItem | 0 | 0 | no | honest empty | honest empty | PRODUCTION_ZERO_ROWS |
-| Contract / ContractVersion | 0 | 0 | no | honest empty | honest empty | PRODUCTION_ZERO_ROWS |
-| Comment | 0 | 0 | no | — | — | PRODUCTION_ZERO_ROWS |
-| Notification | 0 | 0 | no | — | — | PRODUCTION_ZERO_ROWS |
-| VaultObject / VaultLink | 0 | 0 | no | honest empty | honest empty | PRODUCTION_ZERO_ROWS |
-| Reminder | 0 | 0 | no | — | — | PRODUCTION_ZERO_ROWS |
-| PlannerEngagement | **0** | 0 | n/a | stated explicitly | stated explicitly | PRODUCTION_ZERO_ROWS — relationship is `accepted_interest` |
-| WeddingMembership | **0** | 0 | n/a | — | — | PRODUCTION_ZERO_ROWS |
-| SupportCase | ? | — | no | unsupported | unsupported | **NOT_AUTHORIZED** for this reader |
-| BusinessAuditLog | ? | — | no | — | — | **NOT_AUTHORIZED** |
-| PlannerShortlist | ? | — | no | — | — | **NOT_AUTHORIZED** |
-| ProviderEnquiry | ? | — | no | — | — | **NOT_AUTHORIZED** |
-| BusinessAccount | 0 visible | — | no | — | — | NOT_AUTHORIZED / row-filtered |
-
-### WeddingContent sections (107 rows)
-
-`venue` 25 · `theday` 18 · `faq` 10 · `guests` 10 · `story` 9 · `hero` 6 · `vendors` 6 ·
-`gallery` 6 · `songbook` 5 · `travel` 5 · `memory` 4 · `after` 3
-
-This is the couple's real Our Story / Gallery / Venue / FAQ content. It is the single largest
-native adapter gap.
-
----
-
-## 3. Actor contexts
-
-| Actor | Status | Evidence |
-|---|---|---|
-| **Couple — Charity & Kudzie** | VERIFIED | wedding id and couple graph resolve; real identities render in both runtimes |
-| **Planner — Eleven Eleven Testing** | PARTIALLY VERIFIED | real `PlannerProfile` (`uat-planner-profile-eleven-eleven`, status `suspended`, teamSize 300, completedWeddings 40) and real `PlannerEnquiry` (`accepted_interest`) resolve. The referenced `BusinessAccount` is **not visible** to this reader, so business-account fields, team records and planner messages could not be discovered. |
-| **Admin — real corporate administrator** | NOT VERIFIED | 4 users with `role='admin'` exist and are discoverable, but `SupportCase`, `BusinessAuditLog` and `BusinessAccount` are not readable by this credential. The Admin UAT graph cannot be assembled without a broader authorized read-only grant. |
-
----
-
-## 4. Identity fidelity (measured, not asserted)
-
-Checked without printing any value:
-
-| Check | Result |
-|---|---|
-| Snapshot guests matching `Guest G###` | **0** |
-| Snapshot distinct guest names | 173 of 174 |
-| Snapshot vendors with generic names | **0** |
-| Contributions resolving a real `guestId` | **4 of 4** |
-| Android runtime (`PRIVATE_REAL_SHADOW`) pseudonyms visible | **0** |
-| iOS runtime (`PRIVATE_REAL_SHADOW`) pseudonyms visible | **0** |
-
-The `Guest G###` values seen in earlier evidence came from **Sanitized Shadow**, which is the
-committed-CI lane and is expected to use pseudonyms.
-
----
-
-## 5. Refresh procedure
-
-`mobile/shadow/tools/extract_private_real_uat_snapshot.py` makes the export repeatable:
+## 1. How the graph reaches the app
 
 ```
 READ-ONLY PRODUCTION
-  -> extract authorized UAT graph   (every statement inside BEGIN TRANSACTION READ ONLY)
-  -> schema validation              (absence vs not-authorized distinguished per domain)
-  -> secret scan                    (refuses to write if secret-like material is found)
-  -> relationship integrity audit   (orphan contributions / orphan seating)
-  -> protected local snapshot + manifest (mode 600, outside the repository)
+  → extract_private_real_uat_snapshot.py     explicit column allowlist, never SELECT *
+  → build_canonical_uat_snapshot.py          one versioned schema, content hash, domain counts
+  → protected local snapshot (mode 600, outside the repository)
+  → provision_private_real_shadow.sh         app-private storage on both platforms
+  → Android + iOS read the SAME logical schema
 ```
 
-The script refuses to write anywhere inside the repository. Provisioning to devices uses
-`mobile/shadow/tools/provision_private_real_shadow.sh`.
+A snapshot whose `metadata.schemaVersion` is not `private-real-uat/2` is **rejected at load** on both
+platforms rather than parsed partially. Provisioning has failed silently before, leaving a device on
+an older graph while the environment badge still read "Private Real"; the version check and the
+runtime manifest (`UatSnapshotManifest`) make the loaded graph testable instead of assumed.
+
+---
+
+## 2. Guest reconciliation (174 → 175)
+
+| Question | Answer |
+|---|---|
+| Production Guest rows | **175** |
+| Snapshot Guest rows | **175** |
+| Why the count rose | One bridal-party guest created **2026-09-19**, after the September-18 export |
+| Does the new row belong to this wedding | **Yes** — `weddingId` matches, side `bride`, role `bridal_party` |
+| Guests scoped to another wedding | **0** |
+| Guests with an RSVP row | **175 of 175** |
+| Orphan RSVP rows | **0** |
+| Distinct names | **174 across 175 rows** |
+| Duplicate-name explanation | Two separate production rows share one name — created six minutes apart on 2026-09-12, different `side` (neutral / groom) and `role` (guest / family), neither with an email. Both are rendered. Deduplicating them in the app would hide a production data-quality fact that belongs to the couple, not to us. |
+| Quarantined rows | **0** |
+| Seated guests | **22** (8 tables, capacity 64) |
+| Derived party capacity | **178** — guest + confirmed plus-one + children, since production's `Guest` table has no `partySize` column |
+| Attending / pending / declined | **2 / 173 / 0** |
+| Checked in | **1** |
+
+The earlier claim of "173 distinct of 174" is superseded. Both platforms assert **175** *and* assert
+it against the snapshot's own manifest, so a stale snapshot fails loudly instead of re-baselining.
+
+---
+
+## 3. Domain ledger
+
+Legend — **Model**: a native type exists. **Rendered**: it reaches a screen.
+
+### Consumed and rendered
+
+| Domain | Production | Snapshot | Android model | Android rendered | iOS model | iOS rendered |
+|---|---:|---:|---|---|---|---|
+| Guest | 175 | 175 | ✅ | ✅ Guest List, RSVP, Seating | ✅ | ✅ |
+| RSVP | 175 | 175 | ✅ `GuestRsvpDetail` | ✅ RSVP detail | ✅ | ✅ |
+| WeddingContent | 107 | 107 | ✅ `WeddingContentEntry` | ✅ 12 sections | ✅ | ✅ |
+| PlannerTask | 42 | 42 | ✅ | ✅ Tasks, Intelligence | ✅ | ✅ |
+| ImportJob | 40 | 40 | ✅ `ImportJobRecord` | ✅ Recent Imports | ✅ | ✅ |
+| Song | 27 | 27 | ✅ `SongEntry` | ✅ Songbook | ✅ | ✅ |
+| BudgetItem | 22 | 22 | ✅ | ✅ Budget | ✅ | ✅ |
+| ProgrammeItem | 13 | 13 | ✅ | ✅ Programme | ✅ | ✅ |
+| SeatingTable | 8 | 8 | ✅ | ✅ Seating | ✅ | ✅ |
+| ServiceEngagement | 8 | 8 | ✅ | ✅ Vendors | ✅ | ✅ |
+| Vendor | 7 | 7 | ✅ | ✅ Vendors, Services | ✅ | ✅ |
+| ContentRevision | 7 | 7 | ✅ `ContentRevisionRecord` | ✅ Content History | ✅ | ✅ |
+| GuestContribution | 4 | 4 | ✅ | ✅ Contributions | ✅ | ✅ |
+| EngagementParty | 3 | 3 | ✅ `EngagementPartyRecord` | ✅ Vendor Services | ✅ | ✅ |
+| Message | 3 | 3 | ✅ `WallMessage` | ✅ Live Wall | ✅ | ✅ |
+| QRDestination | 1 | 1 | ✅ `QrDestination` | ✅ Invitations & QR | ✅ | ✅ |
+| PlannerEnquiry | 1 | 1 | ✅ `PlannerAccessContext` | ✅ Client Profile, Team Hub | ✅ | ✅ |
+| PlannerProfile | 1 | 1 | ✅ | ✅ Team Hub | ✅ | ✅ |
+
+### Gated by authorization — not absent
+
+| Domain | Production | Status |
+|---|---|---|
+| AuditEvent | 275 | Extracted and modelled (`AuditEventRecord`); Admin surface **gated** until the read-only grant exists. Both platforms name the blocker rather than reporting "Nothing recorded". |
+| SupportCase | unknown | `permission denied` for `wewed_shadow_reader` |
+| BusinessAuditLog | unknown | `permission denied` |
+| PlannerShortlist | unknown | `permission denied` |
+| ProviderEnquiry | unknown | `permission denied` |
+| BusinessAccount | 0 visible | No rows visible to this reader |
+
+### Production genuinely holds zero — honest empty, not a gap
+
+`MediaItem` · `Contract` · `ContractVersion` · `Comment` · `Notification` · `VaultObject` ·
+`VaultLink` · `Reminder` · `PlannerEngagement` · `WeddingMembership`
+
+`MediaItem = 0` is the reason Gallery was reported empty. **Gallery is not empty**: the couple's
+media lives in `WeddingContent`, which carries a real heading, subtitle and four preview references.
+
+---
+
+## 4. WeddingContent by section
+
+| Section | Rows | Native surface |
+|---|---:|---|
+| venue | 25 | Wedding Day → Venue |
+| theday | 18 | Wedding Day → The Day |
+| faq | 10 | Wedding Day → FAQ |
+| guests | 10 | Guest-facing wedding info |
+| story | 9 | Couple More → Our Story · Guest More → Our Story |
+| hero | 6 | Home hero |
+| gallery | 6 | Couple More → Gallery · Guest More → Gallery · Media Archive |
+| vendors | 6 | Vendors |
+| songbook | 5 | Songbook |
+| travel | 5 | Wedding Day → Travel |
+| memory | 4 | Memory |
+| after | 3 | After / post-wedding |
+
+Gallery references resolve against the native bundle: `hero-wedding` and `ornament-frame` render as
+images; `couple-silhouette` and `icon-512` are published for the web experience and are marked
+**Not bundled**. A published reference the app cannot resolve is stated, never hidden or faked.
+
+---
+
+## 5. Planner — Eleven Eleven Testing
+
+| Fact | Value |
+|---|---|
+| PlannerProfile | Real. Status `suspended`, teamSize 300, completedWeddings 40 |
+| PlannerEnquiry | Real, `accepted_interest` |
+| PlannerEngagement | **0** |
+| WeddingMembership | **0** |
+| Access basis | **`UAT_OVERLAY`** |
+| Shown to the user as | "UAT test access — no production engagement on record" |
+
+The UAT overlay authorizes this planner to exercise Charity & Kudzie. The app says so. Rendering it
+as a client relationship would be a fabrication, and both platforms assert `UAT_OVERLAY` in tests.
+
+**Still not discovered through the authorized read:** planner↔couple private correspondence,
+per-member team roster, planner documents, planner notifications. Classified
+**NOT YET DISCOVERED / NOT AUTHORIZED** — *not* "solved by Message = 3", which are public wall posts.
+
+---
+
+## 6. Privacy boundary
+
+| Check | Result |
+|---|---|
+| `SELECT *` in the extraction path | **0** |
+| Allowlisted columns | 366 across 30 tables |
+| Credential / forensics values dropped | **1,378** |
+| `RSVP.token` in the snapshot | **0** (was 175) |
+| `Guest.contributionToken` | **0** (was 175) |
+| `Message.authorToken` | **0** (was 3) |
+| `ImportJob.rollbackToken` / `rollbackData` / `previewData` | **0** each (was 40) |
+| `AuditEvent.ipAddress` / `userAgent` / `beforeValue` / `afterValue` | **0** each (was 275) |
+| Private names in committed Maestro YAML | **0** |
+| Private PII committed to Git | **No** |
+
+Both platforms assert the provisioned file on disk carries none of these.
+
+---
+
+## 7. Runtime verification
+
+| Lane | Result |
+|---|---|
+| Android unit tests | 144 pass |
+| iOS unit tests | 146 pass |
+| Private Real fidelity tests | 13 per platform, all pass against the real graph |
+| Android UAT flow | 68 assertions, exit 0 |
+| iOS UAT flow | 57 assertions, exit 0 |
+
+Both UAT lanes assert the same counts, which is what makes cross-platform data parity a test rather
+than a claim. The fidelity suite includes an **adapter-gap detector**: every domain the manifest
+counts must be readable through the repository, so a domain present in the snapshot but unread
+fails rather than rendering as an honest-looking empty screen.
+
+**Operational rule:** `clearState: true` and app re-installs both wipe the app-private snapshot.
+Run sanitized flows first, then provision, then the UAT lane.

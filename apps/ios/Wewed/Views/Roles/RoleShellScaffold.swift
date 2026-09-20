@@ -80,10 +80,15 @@ public struct RoleShellScaffold<Content: View>: View {
                             }
                         }
                         .tabItem {
+                            // The identifier must sit on the tab BUTTON, not on the tab's content
+                            // view. Applied outside .tabItem it lands on the page, leaving the bar
+                            // itself addressable only by its SF Symbol name — so a UI flow could
+                            // not tap a tab at all, and "Guests" matched the Home metric tile
+                            // instead. Android exposes the same nav-<role>-<destination> ids.
                             Label(destination.label, systemImage: Self.iconFor(destination.id))
+                                .accessibilityIdentifier("nav-\(context.activeRole.roleId)-\(destination.id)")
                         }
                         .tag(destination.id)
-                        .accessibilityIdentifier("nav-\(context.activeRole.roleId)-\(destination.id)")
                     }
                 }
                 .tint(WeddingIdentityPalette.champagneDeep)
