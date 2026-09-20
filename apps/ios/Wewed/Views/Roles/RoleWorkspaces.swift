@@ -113,12 +113,21 @@ struct PlannerClientsSection: View {
         // client states are not invented (playbook §8 — "Never fabricate a PlannerEngagement").
         switch section {
         case "Active Weddings":
+            // P0-13: the Private Real Shadow snapshot contains no PlannerEngagement. The planner
+            // relationship is an accepted enquiry against a profile whose status is suspended, so
+            // calling it an "active engagement" would invent a production relationship.
             IASectionList("Active Weddings", "Weddings in your planner scope") {
                 IACard(
                     context.activeWeddingTitle,
-                    "Active planner engagement",
-                    trailing: "Selected",
+                    "Accepted enquiry — no planner engagement record exists",
+                    trailing: context.assignment?.isShadowTestAccess == true ? "Test access only" : nil,
+                    status: "Shadow test authorization",
                     testId: "planner-active-client"
+                )
+                IACard(
+                    "Engagement record",
+                    "No PlannerEngagement or WeddingMembership exists for this wedding",
+                    trailing: "Absent"
                 )
             }
         case "Client Profiles":
@@ -157,16 +166,28 @@ struct PlannerDailyOpsSection: View {
                             IACard("Nothing needs attention", "No attention items are recorded for this wedding.")
                         }
                     }
+                // P0-14: overdue means a due date in the past — not "urgent and unfinished".
                 case "Overdue":
-                    let overdue = graph.tasks.filter { $0.status != .done && $0.priority == .urgent }
-                    IASectionList("Overdue", "\(overdue.count) urgent open tasks") {
-                        ForEach(overdue) { IACard($0.title, $0.category, trailing: $0.dueDate, status: $0.status.title) }
-                        if overdue.isEmpty { IACard("Nothing overdue", "No urgent task is outstanding.") }
+                    let overdue = TaskDeadlines.overdue(graph.tasks)
+                    let undated = TaskDeadlines.undated(graph.tasks)
+                    IASectionList("Overdue", "\(overdue.count) tasks past their due date") {
+                        ForEach(overdue) { IACard($0.title, $0.category, trailing: $0.dueDate, status: $0.priority.title) }
+                        if overdue.isEmpty { IACard("Nothing overdue", "No task has passed its due date.") }
+                        if !undated.isEmpty {
+                            IACard(
+                                "\(undated.count) open tasks have no due date",
+                                "Undated tasks cannot be overdue and are not counted here."
+                            )
+                        }
                     }
+                // P0-14: a date-windowed view, not simply "every open task".
                 case "Upcoming Deadlines":
-                    let open = graph.tasks.filter { $0.status != .done }
-                    IASectionList("Upcoming Deadlines", "\(open.count) open tasks") {
-                        ForEach(open) { IACard($0.title, $0.category, trailing: $0.dueDate, status: $0.priority.title) }
+                    let upcoming = TaskDeadlines.upcoming(graph.tasks)
+                    IASectionList("Upcoming Deadlines", "\(upcoming.count) tasks due in the next 30 days") {
+                        ForEach(upcoming) { IACard($0.title, $0.category, trailing: $0.dueDate, status: $0.priority.title) }
+                        if upcoming.isEmpty {
+                            IACard("No deadlines in the next 30 days", "Only tasks with a recorded due date appear here.")
+                        }
                     }
                 case "Vendor Follow-ups":
                     IASectionList("Vendor Follow-ups", "\(graph.vendors.count) vendors") {

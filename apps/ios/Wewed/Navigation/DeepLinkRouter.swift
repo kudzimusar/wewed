@@ -39,6 +39,16 @@ public enum DeepLinkRouter {
     /// Resolves a link against the active context. Returns `.denied` with a safe return route when
     /// the actor may not open the target, so an unauthorized link neither navigates nor leaks what
     /// lives there.
+    /// The credential a link carries, if any. P0-9: a pass link's token must reach the Pass
+    /// workspace so it resolves *that* pass rather than a default guest.
+    public static func credentialToken(_ deepLink: NativeDeepLink) -> String? {
+        switch deepLink {
+        case let .pass(token): return token
+        case let .invitation(invitation): return invitation.rsvpToken
+        default: return nil
+        }
+    }
+
     public static func resolve(_ deepLink: NativeDeepLink, context: NavigationContext) -> Entitlements.Resolution {
         let navigation = IANavigationContract.forRole(context.activeRole)
         let safeReturn = navigation.primary[0].id
@@ -57,6 +67,17 @@ public enum DeepLinkRouter {
            targetWeddingId != context.activeWeddingId {
             return .denied(
                 reason: "This link belongs to a different wedding than the one currently open.",
+                safeReturnDestinationId: safeReturn
+            )
+        }
+
+        // P0-9: a pass link carrying someone else's credential must not open this actor's pass.
+        if case let .pass(token) = deepLink,
+           let linkToken = token,
+           let heldToken = context.activePassToken,
+           linkToken != heldToken {
+            return .denied(
+                reason: "This Wedding Pass link belongs to a different guest.",
                 safeReturnDestinationId: safeReturn
             )
         }

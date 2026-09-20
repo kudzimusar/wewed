@@ -27,7 +27,7 @@ object DeepLinkRouter {
             AppRole.PLANNER -> "workspace"
             else -> null
         }
-        NativeDeepLink.Pass -> when (role) {
+        is NativeDeepLink.Pass -> when (role) {
             AppRole.GUEST -> "pass"
             AppRole.COUPLE -> "wedding_day"
             AppRole.PLANNER -> "wedding_day"
@@ -43,6 +43,16 @@ object DeepLinkRouter {
      * safe return route when the actor may not open the target, so an unauthorized link neither
      * navigates nor leaks what lives there.
      */
+    /**
+     * The credential a link carries, if any. P0-9: a pass link's token must reach the Pass
+     * workspace so it resolves *that* pass rather than a default guest.
+     */
+    fun credentialToken(deepLink: NativeDeepLink): String? = when (deepLink) {
+        is NativeDeepLink.Pass -> deepLink.token
+        is NativeDeepLink.Invitation -> deepLink.value.rsvpToken
+        else -> null
+    }
+
     fun resolve(deepLink: NativeDeepLink, context: NavigationContext): Entitlements.Resolution {
         val navigation = IANavigationContract.forRole(context.activeRole)
         val safeReturn = navigation.primary.first().id
@@ -60,6 +70,18 @@ object DeepLinkRouter {
                 "This link belongs to a different wedding than the one currently open.",
                 safeReturn
             )
+        }
+
+        // P0-9: a pass link carrying someone else's credential must not open this actor's pass.
+        if (deepLink is NativeDeepLink.Pass) {
+            val linkToken = deepLink.token
+            val heldToken = context.activePassToken
+            if (linkToken != null && heldToken != null && linkToken != heldToken) {
+                return Entitlements.Resolution.Denied(
+                    "This Wedding Pass link belongs to a different guest.",
+                    safeReturn
+                )
+            }
         }
 
         return Entitlements.resolve(context, destinationId)

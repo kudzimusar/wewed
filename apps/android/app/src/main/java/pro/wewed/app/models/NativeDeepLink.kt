@@ -11,7 +11,11 @@ data class InvitationDeepLink(
 
 sealed interface NativeDeepLink {
     data class Invitation(val value: InvitationDeepLink) : NativeDeepLink
-    data object Pass : NativeDeepLink
+    /**
+     * A Wedding Pass link. [token] is the credential that identifies *which* pass — P0-9: it must
+     * be carried through resolution, never discarded and replaced with a default guest.
+     */
+    data class Pass(val token: String? = null) : NativeDeepLink
     data class Wedding(val weddingSlug: String) : NativeDeepLink
 
     /**
@@ -65,7 +69,9 @@ object NativeDeepLinkParser {
                         )
                     )
                 }
-                "pass" -> NativeDeepLink.Pass
+                "pass" -> NativeDeepLink.Pass(
+                    route.getOrNull(1)?.trim()?.takeIf { it.isNotEmpty() }
+                )
                 // IA V2 §14 canonical workspace routes. Parsing only — never authorization.
                 "wedding" -> {
                     val weddingId = route.getOrNull(1)?.trim().orEmpty()

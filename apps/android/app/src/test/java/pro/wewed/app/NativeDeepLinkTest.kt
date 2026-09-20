@@ -27,9 +27,14 @@ class NativeDeepLinkTest {
 
     @Test
     fun parsesPassAndWeddingLinks() {
+        // P0-9: the pass credential must survive parsing rather than being discarded.
         assertEquals(
-            NativeDeepLink.Pass,
+            NativeDeepLink.Pass("example"),
             NativeDeepLinkParser.parse("https://wewed.pro/pass/example")
+        )
+        assertEquals(
+            NativeDeepLink.Pass(null),
+            NativeDeepLinkParser.parse("https://wewed.pro/pass")
         )
         assertEquals(
             NativeDeepLink.Wedding("charity-and-kudzie"),

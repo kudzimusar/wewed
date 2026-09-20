@@ -29,7 +29,9 @@ public struct WorkspaceDeepLink: Equatable, Sendable {
 
 public enum NativeDeepLink: Equatable, Sendable {
     case invitation(InvitationDeepLink)
-    case pass
+    /// A Wedding Pass link with the credential that identifies *which* pass — P0-9: it must be
+    /// carried through resolution, never discarded and replaced with a default guest.
+    case pass(token: String?)
     case wedding(String)
     case workspace(WorkspaceDeepLink)
 }
@@ -77,7 +79,10 @@ public enum NativeDeepLinkParser {
             )
 
         case "pass":
-            return .pass
+            let token = route.count >= 2
+                ? route[1].trimmingCharacters(in: .whitespacesAndNewlines)
+                : ""
+            return .pass(token: token.isEmpty ? nil : token)
 
         // IA V2 §14 canonical workspace routes. Parsing only — never authorization.
         case "wedding":

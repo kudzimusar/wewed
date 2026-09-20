@@ -122,7 +122,7 @@ final class RelationshipAuthorizationTests: XCTestCase {
 
     func testShadowSourceResolvesVendorEngagementFromRepository() async throws {
         let repository = ShadowReferenceWeddingRepository()
-        let source = ShadowActorAssignmentSource(repository: repository)
+        let source = ShadowActorAssignmentSource(repository: repository, environment: .sanitizedShadow)
         let vendorAssignments = await source.assignments(actorId: "vendor_owner")
         let vendor = try XCTUnwrap(vendorAssignments.first)
         let scoped = try await repository.forOnlyWedding()
@@ -132,7 +132,7 @@ final class RelationshipAuthorizationTests: XCTestCase {
     }
 
     func testShadowSourceNeverSetsClientIdToWeddingId() async throws {
-        let source = ShadowActorAssignmentSource(repository: ShadowReferenceWeddingRepository())
+        let source = ShadowActorAssignmentSource(repository: ShadowReferenceWeddingRepository(), environment: .sanitizedShadow)
         let plannerAssignments = await source.assignments(actorId: "pro_planner")
         let planner = try XCTUnwrap(plannerAssignments.first)
         XCTAssertNil(planner.clientId, "Client id must not be fabricated from the wedding id")
@@ -140,7 +140,7 @@ final class RelationshipAuthorizationTests: XCTestCase {
     }
 
     func testShadowSourceResolvesGuestIdentityFromCredential() async throws {
-        let source = ShadowActorAssignmentSource(repository: ShadowReferenceWeddingRepository())
+        let source = ShadowActorAssignmentSource(repository: ShadowReferenceWeddingRepository(), environment: .sanitizedShadow)
         let guestAssignments = await source.assignments(actorId: "attending_guest")
         let guest = try XCTUnwrap(guestAssignments.first)
         XCTAssertEqual(guest.guestId, "shadow_guest_011")
@@ -149,7 +149,7 @@ final class RelationshipAuthorizationTests: XCTestCase {
 
     func testTwoShadowGuestsResolveToDifferentIdentities() async throws {
         // P0-4: with two guests declared, an identity bug cannot pass by collection order.
-        let source = ShadowActorAssignmentSource(repository: ShadowReferenceWeddingRepository())
+        let source = ShadowActorAssignmentSource(repository: ShadowReferenceWeddingRepository(), environment: .sanitizedShadow)
         let firstAssignments = await source.assignments(actorId: "attending_guest")
         let secondAssignments = await source.assignments(actorId: "attending_guest_party4")
         let first = try XCTUnwrap(firstAssignments.first)
@@ -161,13 +161,13 @@ final class RelationshipAuthorizationTests: XCTestCase {
     }
 
     func testUnknownActorGetsNoAssignment() async {
-        let source = ShadowActorAssignmentSource(repository: ShadowReferenceWeddingRepository())
+        let source = ShadowActorAssignmentSource(repository: ShadowReferenceWeddingRepository(), environment: .sanitizedShadow)
         let result = await source.assignments(actorId: "not_a_real_actor")
         XCTAssertTrue(result.isEmpty)
     }
 
     func testGateAssignmentComesFromDeclaredTable() async throws {
-        let source = ShadowActorAssignmentSource(repository: ShadowReferenceWeddingRepository())
+        let source = ShadowActorAssignmentSource(repository: ShadowReferenceWeddingRepository(), environment: .sanitizedShadow)
         let usherAssignments = await source.assignments(actorId: "gate_usher")
         let usher = try XCTUnwrap(usherAssignments.first)
         XCTAssertEqual(usher.gateId, "gate_main_entrance")
@@ -175,6 +175,7 @@ final class RelationshipAuthorizationTests: XCTestCase {
         // An actor absent from the gate table has no gate and therefore no Gate workspace.
         let noGate = ShadowActorAssignmentSource(
             repository: ShadowReferenceWeddingRepository(),
+            environment: .sanitizedShadow,
             gateAssignments: [:]
         )
         let empty = await noGate.assignments(actorId: "gate_usher")
@@ -182,7 +183,7 @@ final class RelationshipAuthorizationTests: XCTestCase {
     }
 
     func testAdminAssignmentIsSystemScoped() async throws {
-        let source = ShadowActorAssignmentSource(repository: ShadowReferenceWeddingRepository())
+        let source = ShadowActorAssignmentSource(repository: ShadowReferenceWeddingRepository(), environment: .sanitizedShadow)
         let adminAssignments = await source.assignments(actorId: "administrator")
         let admin = try XCTUnwrap(adminAssignments.first)
         XCTAssertNil(admin.weddingId)

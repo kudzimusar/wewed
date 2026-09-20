@@ -20,7 +20,7 @@ public struct RootView: View {
     /// assembled from convenient defaults. No client id, gate id, engagement id or guest identity
     /// is invented here; an unresolved scope stays nil and the shell denies the workspace.
     private func resolveContext() async {
-        let source = ShadowActorAssignmentSource(repository: appState.repository)
+        let source = ShadowActorAssignmentSource(repository: appState.repository, environment: appState.dataEnvironment)
         let actorId = session.activePersona?.id ?? "couple_owner"
         let assignment = await source.assignments(actorId: actorId)
             .first { $0.role == session.currentRole }

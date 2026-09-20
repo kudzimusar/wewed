@@ -61,10 +61,10 @@ final class DeepLinkRouterTests: XCTestCase {
     }
 
     func testPassLinkLandsInWorkspaceThatOwnsThePassForEachRole() {
-        XCTAssertEqual(DeepLinkRouter.destinationFor(.pass, role: .guest), "pass")
-        XCTAssertEqual(DeepLinkRouter.destinationFor(.pass, role: .couple), "wedding_day")
-        XCTAssertEqual(DeepLinkRouter.destinationFor(.pass, role: .usher), "scan")
-        XCTAssertNil(DeepLinkRouter.destinationFor(.pass, role: .admin))
+        XCTAssertEqual(DeepLinkRouter.destinationFor(.pass(token: nil), role: .guest), "pass")
+        XCTAssertEqual(DeepLinkRouter.destinationFor(.pass(token: nil), role: .couple), "wedding_day")
+        XCTAssertEqual(DeepLinkRouter.destinationFor(.pass(token: nil), role: .usher), "scan")
+        XCTAssertNil(DeepLinkRouter.destinationFor(.pass(token: nil), role: .admin))
     }
 
     func testUnauthorizedDeepLinkIsDeniedWithSafeReturn() {

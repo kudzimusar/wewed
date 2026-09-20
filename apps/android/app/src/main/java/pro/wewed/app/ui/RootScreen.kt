@@ -111,7 +111,7 @@ fun RootScreen(
     // IA V2 §13.1 / P0-3 — the context envelope is *resolved from verified assignments*, never
     // assembled from convenient defaults. No client id, gate id, engagement id or guest identity
     // is invented here; an unresolved scope stays null and the shell denies the workspace.
-    val assignmentSource = remember(appViewModel) { ShadowActorAssignmentSource(appViewModel.repository) }
+    val assignmentSource = remember(appViewModel) { ShadowActorAssignmentSource(appViewModel.repository, appViewModel.dataEnvironment) }
     var resolvedContext by remember { mutableStateOf<NavigationContext?>(null) }
     var resolvingContext by remember { mutableStateOf(true) }
 

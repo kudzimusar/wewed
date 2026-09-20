@@ -56,10 +56,10 @@ class DeepLinkRouterTest {
 
     @Test
     fun `a pass link lands in the workspace that owns the pass for each role`() {
-        assertEquals("pass", DeepLinkRouter.destinationFor(NativeDeepLink.Pass, AppRole.GUEST))
-        assertEquals("wedding_day", DeepLinkRouter.destinationFor(NativeDeepLink.Pass, AppRole.COUPLE))
-        assertEquals("scan", DeepLinkRouter.destinationFor(NativeDeepLink.Pass, AppRole.USHER))
-        assertNull(DeepLinkRouter.destinationFor(NativeDeepLink.Pass, AppRole.ADMIN))
+        assertEquals("pass", DeepLinkRouter.destinationFor(NativeDeepLink.Pass(), AppRole.GUEST))
+        assertEquals("wedding_day", DeepLinkRouter.destinationFor(NativeDeepLink.Pass(), AppRole.COUPLE))
+        assertEquals("scan", DeepLinkRouter.destinationFor(NativeDeepLink.Pass(), AppRole.USHER))
+        assertNull(DeepLinkRouter.destinationFor(NativeDeepLink.Pass(), AppRole.ADMIN))
     }
 
     @Test

@@ -5,11 +5,11 @@
       "name" : "WewedIOS",
       "path" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios",
       "projects" : [
-        "8857cb2429812ea8eb5f16e516d213e1665ae6cb0bf0d2f33a5116ed42347424",
+        "bbb39b08ba15776172b5d9505c98d3a1ac102cae0a181e43f7111f812d58e4db",
         "c83b04900eaf2e7a39ecf673bf9bc273c7680c8acf101d0f2615218bf84ebae9"
       ]
     },
-    "signature" : "c0cfa746a0d95efab43fe671296b7431cc9f0f622b9bf9e60e9f9aa2ca6521c1",
+    "signature" : "90f8f485a5c3a6fc5bef4c38824ca3664c1b250166a02eaaf0f985a2184b897a",
     "type" : "workspace"
   },
   {
@@ -231,6 +231,14 @@
               {
                 "fileType" : "sourcecode.swift",
                 "guid" : "PACKAGE:ios::MAINGROUP::REF_2::REF_3",
+                "name" : "EnvironmentWeddingDirectoryTests.swift",
+                "path" : "EnvironmentWeddingDirectoryTests.swift",
+                "sourceTree" : "<group>",
+                "type" : "file"
+              },
+              {
+                "fileType" : "sourcecode.swift",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_2::REF_4",
                 "name" : "IANavigationContractTests.swift",
                 "path" : "IANavigationContractTests.swift",
                 "sourceTree" : "<group>",
@@ -238,7 +246,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_2::REF_4",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_2::REF_5",
                 "name" : "NativeDeepLinkTests.swift",
                 "path" : "NativeDeepLinkTests.swift",
                 "sourceTree" : "<group>",
@@ -246,7 +254,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_2::REF_5",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_2::REF_6",
                 "name" : "NativeEnvironmentGuardTests.swift",
                 "path" : "NativeEnvironmentGuardTests.swift",
                 "sourceTree" : "<group>",
@@ -254,7 +262,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_2::REF_6",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_2::REF_7",
                 "name" : "NativeLaunchConfigurationTests.swift",
                 "path" : "NativeLaunchConfigurationTests.swift",
                 "sourceTree" : "<group>",
@@ -262,7 +270,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_2::REF_7",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_2::REF_8",
                 "name" : "PersonaSwitchingTests.swift",
                 "path" : "PersonaSwitchingTests.swift",
                 "sourceTree" : "<group>",
@@ -270,7 +278,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_2::REF_8",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_2::REF_9",
                 "name" : "PlannerDashboardRepositoryTests.swift",
                 "path" : "PlannerDashboardRepositoryTests.swift",
                 "sourceTree" : "<group>",
@@ -278,7 +286,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_2::REF_9",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_2::REF_10",
                 "name" : "RelationshipAuthorizationTests.swift",
                 "path" : "RelationshipAuthorizationTests.swift",
                 "sourceTree" : "<group>",
@@ -286,7 +294,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_2::REF_10",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_2::REF_11",
                 "name" : "RoleJourneyTests.swift",
                 "path" : "RoleJourneyTests.swift",
                 "sourceTree" : "<group>",
@@ -294,7 +302,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_2::REF_11",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_2::REF_12",
                 "name" : "ShadowReferenceRepositoryTests.swift",
                 "path" : "ShadowReferenceRepositoryTests.swift",
                 "sourceTree" : "<group>",
@@ -302,7 +310,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_2::REF_12",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_2::REF_13",
                 "name" : "WeddingDayOfflineTests.swift",
                 "path" : "WeddingDayOfflineTests.swift",
                 "sourceTree" : "<group>",
@@ -310,7 +318,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_2::REF_13",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_2::REF_14",
                 "name" : "WeddingScopeTests.swift",
                 "path" : "WeddingScopeTests.swift",
                 "sourceTree" : "<group>",
@@ -318,7 +326,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_2::REF_14",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_2::REF_15",
                 "name" : "WewedTests.swift",
                 "path" : "WewedTests.swift",
                 "sourceTree" : "<group>",
@@ -529,6 +537,14 @@
               {
                 "fileType" : "sourcecode.swift",
                 "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_19",
+                "name" : "Navigation/EnvironmentWeddingDirectory.swift",
+                "path" : "Navigation/EnvironmentWeddingDirectory.swift",
+                "sourceTree" : "<group>",
+                "type" : "file"
+              },
+              {
+                "fileType" : "sourcecode.swift",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_20",
                 "name" : "Navigation/IANavigationContract.swift",
                 "path" : "Navigation/IANavigationContract.swift",
                 "sourceTree" : "<group>",
@@ -536,7 +552,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_20",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_21",
                 "name" : "Navigation/NavigationContext.swift",
                 "path" : "Navigation/NavigationContext.swift",
                 "sourceTree" : "<group>",
@@ -544,7 +560,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_21",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_22",
                 "name" : "Navigation/ShadowActorAssignmentSource.swift",
                 "path" : "Navigation/ShadowActorAssignmentSource.swift",
                 "sourceTree" : "<group>",
@@ -552,7 +568,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_22",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_23",
                 "name" : "Services/KeychainService.swift",
                 "path" : "Services/KeychainService.swift",
                 "sourceTree" : "<group>",
@@ -560,7 +576,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_23",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_24",
                 "name" : "Services/NativeEnvironmentGuard.swift",
                 "path" : "Services/NativeEnvironmentGuard.swift",
                 "sourceTree" : "<group>",
@@ -568,7 +584,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_24",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_25",
                 "name" : "Services/NativeRepositoryFactory.swift",
                 "path" : "Services/NativeRepositoryFactory.swift",
                 "sourceTree" : "<group>",
@@ -576,7 +592,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_25",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_26",
                 "name" : "Services/OfflineManifestStore.swift",
                 "path" : "Services/OfflineManifestStore.swift",
                 "sourceTree" : "<group>",
@@ -584,7 +600,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_26",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_27",
                 "name" : "Services/PlannerDashboardRepository.swift",
                 "path" : "Services/PlannerDashboardRepository.swift",
                 "sourceTree" : "<group>",
@@ -592,7 +608,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_27",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_28",
                 "name" : "Services/PrivateRealShadowPlannerRepository.swift",
                 "path" : "Services/PrivateRealShadowPlannerRepository.swift",
                 "sourceTree" : "<group>",
@@ -600,7 +616,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_28",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_29",
                 "name" : "Services/PrivateRealShadowWeddingRepository.swift",
                 "path" : "Services/PrivateRealShadowWeddingRepository.swift",
                 "sourceTree" : "<group>",
@@ -608,7 +624,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_29",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_30",
                 "name" : "Services/ShadowHTTPContracts.swift",
                 "path" : "Services/ShadowHTTPContracts.swift",
                 "sourceTree" : "<group>",
@@ -616,7 +632,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_30",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_31",
                 "name" : "Services/ShadowReferencePlannerRepository.swift",
                 "path" : "Services/ShadowReferencePlannerRepository.swift",
                 "sourceTree" : "<group>",
@@ -624,7 +640,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_31",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_32",
                 "name" : "Services/ShadowReferenceWeddingRepository.swift",
                 "path" : "Services/ShadowReferenceWeddingRepository.swift",
                 "sourceTree" : "<group>",
@@ -632,7 +648,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_32",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_33",
                 "name" : "Services/TokenVerifier.swift",
                 "path" : "Services/TokenVerifier.swift",
                 "sourceTree" : "<group>",
@@ -640,7 +656,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_33",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_34",
                 "name" : "Services/WeddingDayGateAwareRepository.swift",
                 "path" : "Services/WeddingDayGateAwareRepository.swift",
                 "sourceTree" : "<group>",
@@ -648,7 +664,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_34",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_35",
                 "name" : "Services/WeddingDayGateOperations.swift",
                 "path" : "Services/WeddingDayGateOperations.swift",
                 "sourceTree" : "<group>",
@@ -656,7 +672,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_35",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_36",
                 "name" : "Services/WeddingDayManifestTrustStore.swift",
                 "path" : "Services/WeddingDayManifestTrustStore.swift",
                 "sourceTree" : "<group>",
@@ -664,7 +680,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_36",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_37",
                 "name" : "Services/WeddingDaySyncService.swift",
                 "path" : "Services/WeddingDaySyncService.swift",
                 "sourceTree" : "<group>",
@@ -672,7 +688,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_37",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_38",
                 "name" : "Services/WeddingRepository.swift",
                 "path" : "Services/WeddingRepository.swift",
                 "sourceTree" : "<group>",
@@ -680,7 +696,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_38",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_39",
                 "name" : "Theme/Tokens.swift",
                 "path" : "Theme/Tokens.swift",
                 "sourceTree" : "<group>",
@@ -688,7 +704,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_39",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_40",
                 "name" : "Theme/WeddingIdentityStyle.swift",
                 "path" : "Theme/WeddingIdentityStyle.swift",
                 "sourceTree" : "<group>",
@@ -696,7 +712,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_40",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_41",
                 "name" : "Theme/WeddingQRCodeView.swift",
                 "path" : "Theme/WeddingQRCodeView.swift",
                 "sourceTree" : "<group>",
@@ -704,7 +720,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_41",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_42",
                 "name" : "Views/Auth/LoginView.swift",
                 "path" : "Views/Auth/LoginView.swift",
                 "sourceTree" : "<group>",
@@ -712,7 +728,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_42",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_43",
                 "name" : "Views/Components/PersonaPickerSheet.swift",
                 "path" : "Views/Components/PersonaPickerSheet.swift",
                 "sourceTree" : "<group>",
@@ -720,7 +736,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_43",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_44",
                 "name" : "Views/Guests/GuestsView.swift",
                 "path" : "Views/Guests/GuestsView.swift",
                 "sourceTree" : "<group>",
@@ -728,7 +744,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_44",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_45",
                 "name" : "Views/Guests/WeddingReferenceGuestsView.swift",
                 "path" : "Views/Guests/WeddingReferenceGuestsView.swift",
                 "sourceTree" : "<group>",
@@ -736,7 +752,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_45",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_46",
                 "name" : "Views/Home/HomeView.swift",
                 "path" : "Views/Home/HomeView.swift",
                 "sourceTree" : "<group>",
@@ -744,7 +760,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_46",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_47",
                 "name" : "Views/Home/WeddingReferenceHomeView.swift",
                 "path" : "Views/Home/WeddingReferenceHomeView.swift",
                 "sourceTree" : "<group>",
@@ -752,7 +768,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_47",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_48",
                 "name" : "Views/Invitation/GuestInvitationJourneyView.swift",
                 "path" : "Views/Invitation/GuestInvitationJourneyView.swift",
                 "sourceTree" : "<group>",
@@ -760,7 +776,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_48",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_49",
                 "name" : "Views/Invitation/IvoryInvitationView.swift",
                 "path" : "Views/Invitation/IvoryInvitationView.swift",
                 "sourceTree" : "<group>",
@@ -768,7 +784,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_49",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_50",
                 "name" : "Views/LiveWall/LiveWallView.swift",
                 "path" : "Views/LiveWall/LiveWallView.swift",
                 "sourceTree" : "<group>",
@@ -776,7 +792,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_50",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_51",
                 "name" : "Views/Pass/CameraBarcodeScannerView.swift",
                 "path" : "Views/Pass/CameraBarcodeScannerView.swift",
                 "sourceTree" : "<group>",
@@ -784,7 +800,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_51",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_52",
                 "name" : "Views/Pass/PassView.swift",
                 "path" : "Views/Pass/PassView.swift",
                 "sourceTree" : "<group>",
@@ -792,7 +808,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_52",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_53",
                 "name" : "Views/Pass/UsherScannerView.swift",
                 "path" : "Views/Pass/UsherScannerView.swift",
                 "sourceTree" : "<group>",
@@ -800,7 +816,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_53",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_54",
                 "name" : "Views/Pass/WeddingReferencePassView.swift",
                 "path" : "Views/Pass/WeddingReferencePassView.swift",
                 "sourceTree" : "<group>",
@@ -808,7 +824,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_54",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_55",
                 "name" : "Views/Planner/PlannerDestinations.swift",
                 "path" : "Views/Planner/PlannerDestinations.swift",
                 "sourceTree" : "<group>",
@@ -816,7 +832,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_55",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_56",
                 "name" : "Views/Planner/PlannerView.swift",
                 "path" : "Views/Planner/PlannerView.swift",
                 "sourceTree" : "<group>",
@@ -824,7 +840,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_56",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_57",
                 "name" : "Views/Planner/ShadowPlannerDestinations.swift",
                 "path" : "Views/Planner/ShadowPlannerDestinations.swift",
                 "sourceTree" : "<group>",
@@ -832,7 +848,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_57",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_58",
                 "name" : "Views/Planner/WeddingReferencePlannerView.swift",
                 "path" : "Views/Planner/WeddingReferencePlannerView.swift",
                 "sourceTree" : "<group>",
@@ -840,7 +856,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_58",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_59",
                 "name" : "Views/Roles/RoleShellScaffold.swift",
                 "path" : "Views/Roles/RoleShellScaffold.swift",
                 "sourceTree" : "<group>",
@@ -848,7 +864,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_59",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_60",
                 "name" : "Views/Roles/RoleWorkspaceContent.swift",
                 "path" : "Views/Roles/RoleWorkspaceContent.swift",
                 "sourceTree" : "<group>",
@@ -856,7 +872,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_60",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_61",
                 "name" : "Views/Roles/RoleWorkspaces.swift",
                 "path" : "Views/Roles/RoleWorkspaces.swift",
                 "sourceTree" : "<group>",
@@ -864,7 +880,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_61",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_62",
                 "name" : "Views/Roles/WorkspaceSectionMemory.swift",
                 "path" : "Views/Roles/WorkspaceSectionMemory.swift",
                 "sourceTree" : "<group>",
@@ -872,7 +888,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_62",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_63",
                 "name" : "Views/RootView.swift",
                 "path" : "Views/RootView.swift",
                 "sourceTree" : "<group>",
@@ -880,7 +896,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_63",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_64",
                 "name" : "Views/Shared/WeddingReferenceMoreView.swift",
                 "path" : "Views/Shared/WeddingReferenceMoreView.swift",
                 "sourceTree" : "<group>",
@@ -888,7 +904,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_64",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_65",
                 "name" : "Views/Shared/WholeProductViews.swift",
                 "path" : "Views/Shared/WholeProductViews.swift",
                 "sourceTree" : "<group>",
@@ -896,7 +912,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_65",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_7::REF_66",
                 "name" : "Views/Vendor/VendorPresenceView.swift",
                 "path" : "Views/Vendor/VendorPresenceView.swift",
                 "sourceTree" : "<group>",
@@ -1066,6 +1082,14 @@
               {
                 "fileType" : "sourcecode.swift",
                 "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_19",
+                "name" : "Navigation/EnvironmentWeddingDirectory.swift",
+                "path" : "Navigation/EnvironmentWeddingDirectory.swift",
+                "sourceTree" : "<group>",
+                "type" : "file"
+              },
+              {
+                "fileType" : "sourcecode.swift",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_20",
                 "name" : "Navigation/IANavigationContract.swift",
                 "path" : "Navigation/IANavigationContract.swift",
                 "sourceTree" : "<group>",
@@ -1073,7 +1097,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_20",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_21",
                 "name" : "Navigation/NavigationContext.swift",
                 "path" : "Navigation/NavigationContext.swift",
                 "sourceTree" : "<group>",
@@ -1081,7 +1105,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_21",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_22",
                 "name" : "Navigation/ShadowActorAssignmentSource.swift",
                 "path" : "Navigation/ShadowActorAssignmentSource.swift",
                 "sourceTree" : "<group>",
@@ -1089,7 +1113,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_22",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_23",
                 "name" : "Services/KeychainService.swift",
                 "path" : "Services/KeychainService.swift",
                 "sourceTree" : "<group>",
@@ -1097,7 +1121,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_23",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_24",
                 "name" : "Services/NativeEnvironmentGuard.swift",
                 "path" : "Services/NativeEnvironmentGuard.swift",
                 "sourceTree" : "<group>",
@@ -1105,7 +1129,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_24",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_25",
                 "name" : "Services/NativeRepositoryFactory.swift",
                 "path" : "Services/NativeRepositoryFactory.swift",
                 "sourceTree" : "<group>",
@@ -1113,7 +1137,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_25",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_26",
                 "name" : "Services/OfflineManifestStore.swift",
                 "path" : "Services/OfflineManifestStore.swift",
                 "sourceTree" : "<group>",
@@ -1121,7 +1145,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_26",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_27",
                 "name" : "Services/PlannerDashboardRepository.swift",
                 "path" : "Services/PlannerDashboardRepository.swift",
                 "sourceTree" : "<group>",
@@ -1129,7 +1153,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_27",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_28",
                 "name" : "Services/PrivateRealShadowPlannerRepository.swift",
                 "path" : "Services/PrivateRealShadowPlannerRepository.swift",
                 "sourceTree" : "<group>",
@@ -1137,7 +1161,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_28",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_29",
                 "name" : "Services/PrivateRealShadowWeddingRepository.swift",
                 "path" : "Services/PrivateRealShadowWeddingRepository.swift",
                 "sourceTree" : "<group>",
@@ -1145,7 +1169,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_29",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_30",
                 "name" : "Services/ShadowHTTPContracts.swift",
                 "path" : "Services/ShadowHTTPContracts.swift",
                 "sourceTree" : "<group>",
@@ -1153,7 +1177,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_30",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_31",
                 "name" : "Services/ShadowReferencePlannerRepository.swift",
                 "path" : "Services/ShadowReferencePlannerRepository.swift",
                 "sourceTree" : "<group>",
@@ -1161,7 +1185,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_31",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_32",
                 "name" : "Services/ShadowReferenceWeddingRepository.swift",
                 "path" : "Services/ShadowReferenceWeddingRepository.swift",
                 "sourceTree" : "<group>",
@@ -1169,7 +1193,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_32",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_33",
                 "name" : "Services/TokenVerifier.swift",
                 "path" : "Services/TokenVerifier.swift",
                 "sourceTree" : "<group>",
@@ -1177,7 +1201,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_33",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_34",
                 "name" : "Services/WeddingDayGateAwareRepository.swift",
                 "path" : "Services/WeddingDayGateAwareRepository.swift",
                 "sourceTree" : "<group>",
@@ -1185,7 +1209,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_34",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_35",
                 "name" : "Services/WeddingDayGateOperations.swift",
                 "path" : "Services/WeddingDayGateOperations.swift",
                 "sourceTree" : "<group>",
@@ -1193,7 +1217,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_35",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_36",
                 "name" : "Services/WeddingDayManifestTrustStore.swift",
                 "path" : "Services/WeddingDayManifestTrustStore.swift",
                 "sourceTree" : "<group>",
@@ -1201,7 +1225,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_36",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_37",
                 "name" : "Services/WeddingDaySyncService.swift",
                 "path" : "Services/WeddingDaySyncService.swift",
                 "sourceTree" : "<group>",
@@ -1209,7 +1233,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_37",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_38",
                 "name" : "Services/WeddingRepository.swift",
                 "path" : "Services/WeddingRepository.swift",
                 "sourceTree" : "<group>",
@@ -1217,7 +1241,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_38",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_39",
                 "name" : "Theme/Tokens.swift",
                 "path" : "Theme/Tokens.swift",
                 "sourceTree" : "<group>",
@@ -1225,7 +1249,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_39",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_40",
                 "name" : "Theme/WeddingIdentityStyle.swift",
                 "path" : "Theme/WeddingIdentityStyle.swift",
                 "sourceTree" : "<group>",
@@ -1233,7 +1257,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_40",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_41",
                 "name" : "Theme/WeddingQRCodeView.swift",
                 "path" : "Theme/WeddingQRCodeView.swift",
                 "sourceTree" : "<group>",
@@ -1241,7 +1265,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_41",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_42",
                 "name" : "Views/Auth/LoginView.swift",
                 "path" : "Views/Auth/LoginView.swift",
                 "sourceTree" : "<group>",
@@ -1249,7 +1273,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_42",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_43",
                 "name" : "Views/Components/PersonaPickerSheet.swift",
                 "path" : "Views/Components/PersonaPickerSheet.swift",
                 "sourceTree" : "<group>",
@@ -1257,7 +1281,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_43",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_44",
                 "name" : "Views/Guests/GuestsView.swift",
                 "path" : "Views/Guests/GuestsView.swift",
                 "sourceTree" : "<group>",
@@ -1265,7 +1289,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_44",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_45",
                 "name" : "Views/Guests/WeddingReferenceGuestsView.swift",
                 "path" : "Views/Guests/WeddingReferenceGuestsView.swift",
                 "sourceTree" : "<group>",
@@ -1273,7 +1297,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_45",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_46",
                 "name" : "Views/Home/HomeView.swift",
                 "path" : "Views/Home/HomeView.swift",
                 "sourceTree" : "<group>",
@@ -1281,7 +1305,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_46",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_47",
                 "name" : "Views/Home/WeddingReferenceHomeView.swift",
                 "path" : "Views/Home/WeddingReferenceHomeView.swift",
                 "sourceTree" : "<group>",
@@ -1289,7 +1313,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_47",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_48",
                 "name" : "Views/Invitation/GuestInvitationJourneyView.swift",
                 "path" : "Views/Invitation/GuestInvitationJourneyView.swift",
                 "sourceTree" : "<group>",
@@ -1297,7 +1321,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_48",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_49",
                 "name" : "Views/Invitation/IvoryInvitationView.swift",
                 "path" : "Views/Invitation/IvoryInvitationView.swift",
                 "sourceTree" : "<group>",
@@ -1305,7 +1329,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_49",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_50",
                 "name" : "Views/LiveWall/LiveWallView.swift",
                 "path" : "Views/LiveWall/LiveWallView.swift",
                 "sourceTree" : "<group>",
@@ -1313,7 +1337,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_50",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_51",
                 "name" : "Views/Pass/CameraBarcodeScannerView.swift",
                 "path" : "Views/Pass/CameraBarcodeScannerView.swift",
                 "sourceTree" : "<group>",
@@ -1321,7 +1345,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_51",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_52",
                 "name" : "Views/Pass/PassView.swift",
                 "path" : "Views/Pass/PassView.swift",
                 "sourceTree" : "<group>",
@@ -1329,7 +1353,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_52",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_53",
                 "name" : "Views/Pass/UsherScannerView.swift",
                 "path" : "Views/Pass/UsherScannerView.swift",
                 "sourceTree" : "<group>",
@@ -1337,7 +1361,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_53",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_54",
                 "name" : "Views/Pass/WeddingReferencePassView.swift",
                 "path" : "Views/Pass/WeddingReferencePassView.swift",
                 "sourceTree" : "<group>",
@@ -1345,7 +1369,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_54",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_55",
                 "name" : "Views/Planner/PlannerDestinations.swift",
                 "path" : "Views/Planner/PlannerDestinations.swift",
                 "sourceTree" : "<group>",
@@ -1353,7 +1377,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_55",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_56",
                 "name" : "Views/Planner/PlannerView.swift",
                 "path" : "Views/Planner/PlannerView.swift",
                 "sourceTree" : "<group>",
@@ -1361,7 +1385,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_56",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_57",
                 "name" : "Views/Planner/ShadowPlannerDestinations.swift",
                 "path" : "Views/Planner/ShadowPlannerDestinations.swift",
                 "sourceTree" : "<group>",
@@ -1369,7 +1393,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_57",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_58",
                 "name" : "Views/Planner/WeddingReferencePlannerView.swift",
                 "path" : "Views/Planner/WeddingReferencePlannerView.swift",
                 "sourceTree" : "<group>",
@@ -1377,7 +1401,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_58",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_59",
                 "name" : "Views/Roles/RoleShellScaffold.swift",
                 "path" : "Views/Roles/RoleShellScaffold.swift",
                 "sourceTree" : "<group>",
@@ -1385,7 +1409,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_59",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_60",
                 "name" : "Views/Roles/RoleWorkspaceContent.swift",
                 "path" : "Views/Roles/RoleWorkspaceContent.swift",
                 "sourceTree" : "<group>",
@@ -1393,7 +1417,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_60",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_61",
                 "name" : "Views/Roles/RoleWorkspaces.swift",
                 "path" : "Views/Roles/RoleWorkspaces.swift",
                 "sourceTree" : "<group>",
@@ -1401,7 +1425,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_61",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_62",
                 "name" : "Views/Roles/WorkspaceSectionMemory.swift",
                 "path" : "Views/Roles/WorkspaceSectionMemory.swift",
                 "sourceTree" : "<group>",
@@ -1409,7 +1433,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_62",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_63",
                 "name" : "Views/RootView.swift",
                 "path" : "Views/RootView.swift",
                 "sourceTree" : "<group>",
@@ -1417,7 +1441,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_63",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_64",
                 "name" : "Views/Shared/WeddingReferenceMoreView.swift",
                 "path" : "Views/Shared/WeddingReferenceMoreView.swift",
                 "sourceTree" : "<group>",
@@ -1425,7 +1449,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_64",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_65",
                 "name" : "Views/Shared/WholeProductViews.swift",
                 "path" : "Views/Shared/WholeProductViews.swift",
                 "sourceTree" : "<group>",
@@ -1433,7 +1457,7 @@
               },
               {
                 "fileType" : "sourcecode.swift",
-                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_65",
+                "guid" : "PACKAGE:ios::MAINGROUP::REF_8::REF_66",
                 "name" : "Views/Vendor/VendorPresenceView.swift",
                 "path" : "Views/Vendor/VendorPresenceView.swift",
                 "sourceTree" : "<group>",
@@ -1476,18 +1500,18 @@
       "projectIsPackage" : "true",
       "projectName" : "WewedIOS",
       "targets" : [
-        "f879f4b895ddba6f442513e829c2f31851385f4baeb1bf01e966ec23a13b86d2",
+        "de7194c53384b060181eee9d67dd94852033b1e5196b56fd4d720163cb1c7521",
         "d376da11714c059a791991c455629b5a7c5cbf275a3d64a65af62e2097dc61e6",
         "483261a385fd2957f0e61741d611e8d64dc0467a4c0c1439173e71851c8f37a4",
         "e1474a49ba4153eb21d1f916b7857561d03086d911aab785c580fe40c540954b",
-        "66403edc66750bfbd8f6159a5de293b26c1554c8f219912a4d582c6df5602724",
+        "94e1764827ecf27391b077cc934d6bfe317f9657dd3a5fe738dfc357a0bd4397",
         "e17cacfef90c37b94a5ea45089b3d1dfe56ed6924eeefcce3391f6d55714f36e",
-        "f93f9783d0c6e69b1196c669ffa1ca70cb004cd367832bad618555a1cd9dfa71",
+        "528ec07ec447fde7aa824d64ed436d1912444a8759d8ce8ebeb45c1037086921",
         "50e4c2f674958420ad1aeed8fc62aa5075afcce6628133a71de9e6454d8d9b90",
         "7e3811f56480084efbab535adbf0bf511fd8a7a509c90cf6d17cf73fa58e7f58"
       ]
     },
-    "signature" : "8857cb2429812ea8eb5f16e516d213e1665ae6cb0bf0d2f33a5116ed42347424",
+    "signature" : "bbb39b08ba15776172b5d9505c98d3a1ac102cae0a181e43f7111f812d58e4db",
     "type" : "project"
   },
   {
@@ -1796,6 +1820,15 @@
 
               ],
               "removeHeadersOnCopy" : "false"
+            },
+            {
+              "codeSignOnCopy" : "false",
+              "fileReference" : "PACKAGE:ios::MAINGROUP::REF_2::REF_15",
+              "guid" : "PACKAGE-PRODUCT:ios_WewedTests.WewedTests::BUILDPHASE_0::15",
+              "platformFilters" : [
+
+              ],
+              "removeHeadersOnCopy" : "false"
             }
           ],
           "guid" : "PACKAGE-PRODUCT:ios_WewedTests.WewedTests::BUILDPHASE_0",
@@ -1839,7 +1872,7 @@
       "productTypeIdentifier" : "com.apple.product-type.bundle.unit-test",
       "type" : "standard"
     },
-    "signature" : "f879f4b895ddba6f442513e829c2f31851385f4baeb1bf01e966ec23a13b86d2",
+    "signature" : "de7194c53384b060181eee9d67dd94852033b1e5196b56fd4d720163cb1c7521",
     "type" : "target"
   },
   {
@@ -2936,6 +2969,15 @@
 
               ],
               "removeHeadersOnCopy" : "false"
+            },
+            {
+              "codeSignOnCopy" : "false",
+              "fileReference" : "PACKAGE:ios::MAINGROUP::REF_7::REF_66",
+              "guid" : "PACKAGE-TARGET:WewedKit::BUILDPHASE_0::66",
+              "platformFilters" : [
+
+              ],
+              "removeHeadersOnCopy" : "false"
             }
           ],
           "guid" : "PACKAGE-TARGET:WewedKit::BUILDPHASE_0",
@@ -2967,7 +3009,7 @@
       "productTypeIdentifier" : "org.swift.product-type.library.static",
       "type" : "standard"
     },
-    "signature" : "66403edc66750bfbd8f6159a5de293b26c1554c8f219912a4d582c6df5602724",
+    "signature" : "94e1764827ecf27391b077cc934d6bfe317f9657dd3a5fe738dfc357a0bd4397",
     "type" : "target"
   },
   {
@@ -4025,6 +4067,15 @@
 
               ],
               "removeHeadersOnCopy" : "false"
+            },
+            {
+              "codeSignOnCopy" : "false",
+              "fileReference" : "PACKAGE:ios::MAINGROUP::REF_8::REF_66",
+              "guid" : "PACKAGE-TARGET:WewedKit--18D38C964E77BFD4-dynamic::BUILDPHASE_0::66",
+              "platformFilters" : [
+
+              ],
+              "removeHeadersOnCopy" : "false"
             }
           ],
           "guid" : "PACKAGE-TARGET:WewedKit--18D38C964E77BFD4-dynamic::BUILDPHASE_0",
@@ -4055,7 +4106,7 @@
       "productTypeIdentifier" : "com.apple.product-type.library.dynamic",
       "type" : "standard"
     },
-    "signature" : "f93f9783d0c6e69b1196c669ffa1ca70cb004cd367832bad618555a1cd9dfa71",
+    "signature" : "528ec07ec447fde7aa824d64ed436d1912444a8759d8ce8ebeb45c1037086921",
     "type" : "target"
   },
   {

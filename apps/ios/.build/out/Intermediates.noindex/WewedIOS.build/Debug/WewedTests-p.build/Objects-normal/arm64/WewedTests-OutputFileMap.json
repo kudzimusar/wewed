@@ -46,6 +46,16 @@
     "swift-dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/EntitlementsTests.swiftdeps",
     "swiftmodule" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/EntitlementsTests~partial.swiftmodule"
   },
+  "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/Wewed/Tests/EnvironmentWeddingDirectoryTests.swift" : {
+    "const-values" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/EnvironmentWeddingDirectoryTests.swiftconstvalues",
+    "dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/EnvironmentWeddingDirectoryTests.d",
+    "diagnostics" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/EnvironmentWeddingDirectoryTests.dia",
+    "index-unit-output-path" : "/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/EnvironmentWeddingDirectoryTests.o",
+    "llvm-bc" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/EnvironmentWeddingDirectoryTests.bc",
+    "object" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/EnvironmentWeddingDirectoryTests.o",
+    "swift-dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/EnvironmentWeddingDirectoryTests.swiftdeps",
+    "swiftmodule" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/EnvironmentWeddingDirectoryTests~partial.swiftmodule"
+  },
   "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/Wewed/Tests/IANavigationContractTests.swift" : {
     "const-values" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/IANavigationContractTests.swiftconstvalues",
     "dependencies" : "/Users/shadreckmusarurwa/Project AI/wewed-p0/apps/ios/.build/out/Intermediates.noindex/WewedIOS.build/Debug/WewedTests-p.build/Objects-normal/arm64/IANavigationContractTests.d",

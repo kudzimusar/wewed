@@ -102,7 +102,7 @@ class AppViewModel(
                 _pendingRouteDeepLink.value = null
                 _selectedTab.value = AppTab.HOME
             }
-            NativeDeepLink.Pass -> {
+            is NativeDeepLink.Pass -> {
                 _pendingInvitationDeepLink.value = null
                 _pendingRouteDeepLink.value = deepLink
                 _selectedTab.value = AppTab.WEDDING_DAY

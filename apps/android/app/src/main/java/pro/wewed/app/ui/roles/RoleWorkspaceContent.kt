@@ -37,6 +37,43 @@ import pro.wewed.app.theme.WeddingIdentityPalette
  * never invented values (playbook §16).
  */
 
+/**
+ * Task due-date semantics (P0-14).
+ *
+ * "Overdue" means a due date in the past, not "urgent and unfinished". Tasks without a due date
+ * are deliberately excluded from both overdue and upcoming views: an undated task has no deadline
+ * to be late for, and counting it as either would overstate what the graph records.
+ */
+object TaskDeadlines {
+    private val isoDate = Regex("""^(\d{4})-(\d{2})-(\d{2})""")
+
+    fun dueEpochDay(task: PlannerTask): Long? {
+        val match = isoDate.find(task.dueDate.orEmpty()) ?: return null
+        val (y, m, d) = match.destructured
+        return runCatching { java.time.LocalDate.of(y.toInt(), m.toInt(), d.toInt()).toEpochDay() }
+            .getOrNull()
+    }
+
+    fun overdue(tasks: List<PlannerTask>, today: Long = java.time.LocalDate.now().toEpochDay()): List<PlannerTask> =
+        tasks.filter { it.status != TaskStatus.DONE }
+            .filter { task -> dueEpochDay(task)?.let { it < today } == true }
+
+    /** Open, dated tasks falling inside the next [windowDays] days, in date order. */
+    fun upcoming(
+        tasks: List<PlannerTask>,
+        today: Long = java.time.LocalDate.now().toEpochDay(),
+        windowDays: Long = 30
+    ): List<PlannerTask> =
+        tasks.filter { it.status != TaskStatus.DONE }
+            .mapNotNull { task -> dueEpochDay(task)?.let { due -> task to due } }
+            .filter { (_, due) -> due >= today && due <= today + windowDays }
+            .sortedBy { it.second }
+            .map { it.first }
+
+    fun undated(tasks: List<PlannerTask>): List<PlannerTask> =
+        tasks.filter { it.status != TaskStatus.DONE && dueEpochDay(it) == null }
+}
+
 /** Canonical wedding graph slice, loaded once per workspace and shared by its sections. */
 class WeddingGraphState {
     var wedding by mutableStateOf<Wedding?>(null)
@@ -427,13 +464,23 @@ fun WeddingDaySection(
             "No wedding contact directory contract exists natively yet. Contacts are not invented.",
             environment
         )
-        "Wedding-day Checklist" -> IASectionList("Wedding-day Checklist", "Derived from planning tasks due on the day") {
-            val dayTasks = graph.tasks.filter { it.status != TaskStatus.DONE }
-            if (dayTasks.isEmpty()) {
+        // P0-14: the graph has no wedding-day flag on tasks, so this cannot claim to be "tasks
+        // due on the day". It is named for what it actually is: every open planning task.
+        "Wedding-day Checklist" -> IASectionList(
+            "Open planning tasks",
+            "All incomplete tasks. The wedding graph does not mark tasks as wedding-day specific."
+        ) {
+            val open = graph.tasks.filter { it.status != TaskStatus.DONE }
+            if (open.isEmpty()) {
                 IACard(title = "Nothing outstanding", subtitle = "All planning tasks are complete.")
             }
-            dayTasks.forEach { task ->
-                IACard(title = task.title, subtitle = task.category, trailing = task.priority.title)
+            open.forEach { task ->
+                IACard(
+                    title = task.title,
+                    subtitle = task.category,
+                    trailing = task.dueDate ?: "No due date",
+                    status = task.priority.title
+                )
             }
         }
         "Offline Status", "Offline", "Sync Status" -> IASectionList("Offline & sync", "Local gate manifest state") {
@@ -477,18 +524,30 @@ fun GateAdmissionsSection(section: String, graph: WeddingGraphState, environment
             }
         }
         "Duplicate Scans" -> {
-            val duplicates = graph.auditRecords
+            // P0-14: multiple audit rows for one serial are normal — a household of four can be
+            // admitted in several partial scans. A genuine duplicate is an admission beyond the
+            // recorded party size, which is what is reported here.
+            val admittedBySerial = graph.auditRecords
                 .groupBy { it.passSerial }
-                .filter { it.value.size > 1 }
-            IASectionList("Duplicate Scans", "${duplicates.size} serials scanned more than once") {
-                duplicates.forEach { (serial, records) ->
+                .mapValues { (_, records) -> records.sumOf { it.countAdmitted } }
+            val overAdmitted = graph.guests.filter { guest ->
+                val serial = guest.passSerial ?: return@filter false
+                (admittedBySerial[serial] ?: 0) > guest.partySize
+            }
+            IASectionList("Duplicate Scans", "Admissions beyond the recorded party size") {
+                overAdmitted.forEach { guest ->
                     IACard(
-                        title = records.first().guestName,
-                        subtitle = "Serial $serial",
-                        trailing = "${records.size} scans"
+                        title = guest.name,
+                        subtitle = "Party of ${guest.partySize}",
+                        trailing = "${admittedBySerial[guest.passSerial] ?: 0} admitted"
                     )
                 }
-                if (duplicates.isEmpty()) IACard("No duplicates", "No pass serial has been scanned twice.")
+                if (overAdmitted.isEmpty()) {
+                    IACard(
+                        "No over-admissions",
+                        "No pass has admitted more guests than its recorded party size. Rejected duplicate attempts are not stored in the audit log, so they cannot be listed here."
+                    )
+                }
             }
         }
         "Exceptions" -> {

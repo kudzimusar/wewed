@@ -8,6 +8,53 @@ import SwiftUI
 /// Sections with no repository contract yet render an explicit unsupported state naming the gap —
 /// never invented values (playbook §16).
 
+/// Task due-date semantics (P0-14).
+///
+/// "Overdue" means a due date in the past, not "urgent and unfinished". Tasks without a due date
+/// are deliberately excluded from both overdue and upcoming views: an undated task has no deadline
+/// to be late for, and counting it as either would overstate what the graph records.
+public enum TaskDeadlines {
+    public static func dueEpochDay(_ task: PlannerTask) -> Int? {
+        guard let raw = task.dueDate, raw.count >= 10 else { return nil }
+        let parts = raw.prefix(10).split(separator: "-")
+        guard parts.count == 3,
+              let y = Int(parts[0]), let m = Int(parts[1]), let d = Int(parts[2]) else { return nil }
+        var components = DateComponents()
+        components.year = y; components.month = m; components.day = d
+        guard let date = Calendar(identifier: .gregorian).date(from: components) else { return nil }
+        return Int(date.timeIntervalSince1970 / 86_400)
+    }
+
+    public static func today() -> Int { Int(Date().timeIntervalSince1970 / 86_400) }
+
+    public static func overdue(_ tasks: [PlannerTask], today: Int = TaskDeadlines.today()) -> [PlannerTask] {
+        tasks.filter { $0.status != .done }.filter { task in
+            guard let due = dueEpochDay(task) else { return false }
+            return due < today
+        }
+    }
+
+    /// Open, dated tasks falling inside the next `windowDays` days, in date order.
+    public static func upcoming(
+        _ tasks: [PlannerTask],
+        today: Int = TaskDeadlines.today(),
+        windowDays: Int = 30
+    ) -> [PlannerTask] {
+        tasks.filter { $0.status != .done }
+            .compactMap { task -> (PlannerTask, Int)? in
+                guard let due = dueEpochDay(task) else { return nil }
+                return (task, due)
+            }
+            .filter { $0.1 >= today && $0.1 <= today + windowDays }
+            .sorted { $0.1 < $1.1 }
+            .map(\.0)
+    }
+
+    public static func undated(_ tasks: [PlannerTask]) -> [PlannerTask] {
+        tasks.filter { $0.status != .done && dueEpochDay($0) == nil }
+    }
+}
+
 /// Canonical wedding graph slice, loaded once per workspace and shared by its sections.
 @MainActor
 public final class WeddingGraphState: ObservableObject {
@@ -284,17 +331,14 @@ public struct CoupleGuestsSection: View {
                         IACard(guest.name, "Party of \(guest.partySize)", trailing: guest.rsvpStatus.title)
                     }
                 }
+            // P0-14: a Wedding Pass serial is not proof that an invitation was delivered, and no
+            // invitation entity exists in the wedding graph, so delivery state cannot be claimed.
             case "Invitations":
-                IASectionList("Invitations", "Invitation delivery state per household") {
-                    ForEach(graph.guests) { guest in
-                        IACard(
-                            guest.name,
-                            guest.householdName ?? "—",
-                            // Pass serial existence is the only invitation fact the repository exposes.
-                            trailing: guest.passSerial != nil ? "Issued" : "Not issued"
-                        )
-                    }
-                }
+                IAUnsupportedSection(
+                    "Invitations",
+                    "Invitation delivery is not recorded in the wedding graph. A Wedding Pass serial only shows that a pass exists, which is not evidence that an invitation was sent or received.",
+                    environment
+                )
             case "Groups / Households":
                 let households = Dictionary(grouping: graph.guests) { $0.householdName ?? "Unassigned" }
                 IASectionList("Groups / Households", "\(households.count) groups") {
@@ -432,14 +476,19 @@ public struct WeddingDaySection<PassContent: View>: View {
                     "No wedding contact directory contract exists natively yet. Contacts are not invented.",
                     environment
                 )
+            // P0-14: the graph has no wedding-day flag on tasks, so this cannot claim to be
+            // "tasks due on the day". It is named for what it actually is: every open task.
             case "Wedding-day Checklist":
-                let dayTasks = graph.tasks.filter { $0.status != .done }
-                IASectionList("Wedding-day Checklist", "Derived from planning tasks due on the day") {
-                    if dayTasks.isEmpty {
+                let openTasks = graph.tasks.filter { $0.status != .done }
+                IASectionList(
+                    "Open planning tasks",
+                    "All incomplete tasks. The wedding graph does not mark tasks as wedding-day specific."
+                ) {
+                    if openTasks.isEmpty {
                         IACard("Nothing outstanding", "All planning tasks are complete.")
                     }
-                    ForEach(dayTasks) { task in
-                        IACard(task.title, task.category, trailing: task.priority.title)
+                    ForEach(openTasks) { task in
+                        IACard(task.title, task.category, trailing: task.dueDate ?? "No due date", status: task.priority.title)
                     }
                 }
             case "Offline Status", "Offline", "Sync Status":
@@ -521,20 +570,29 @@ public struct GateAdmissionsSection: View {
                         IACard("No partial parties", "No household is partially admitted.")
                     }
                 }
+            // P0-14: multiple audit rows for one serial are normal — a household of four can be
+            // admitted in several partial scans. A genuine duplicate is an admission beyond the
+            // recorded party size, which is what is reported here.
             case "Duplicate Scans":
-                let duplicates = Dictionary(grouping: graph.auditRecords) { $0.passSerial }
-                    .filter { $0.value.count > 1 }
-                IASectionList("Duplicate Scans", "\(duplicates.count) serials scanned more than once") {
-                    ForEach(duplicates.keys.sorted(), id: \.self) { serial in
-                        let records = duplicates[serial] ?? []
+                let admittedBySerial = Dictionary(grouping: graph.auditRecords) { $0.passSerial }
+                    .mapValues { $0.reduce(0) { $0 + $1.countAdmitted } }
+                let overAdmitted = graph.guests.filter { guest in
+                    guard let serial = guest.passSerial else { return false }
+                    return (admittedBySerial[serial] ?? 0) > guest.partySize
+                }
+                IASectionList("Duplicate Scans", "Admissions beyond the recorded party size") {
+                    ForEach(overAdmitted) { guest in
                         IACard(
-                            records.first?.guestName ?? serial,
-                            "Serial \(serial)",
-                            trailing: "\(records.count) scans"
+                            guest.name,
+                            "Party of \(guest.partySize)",
+                            trailing: "\(admittedBySerial[guest.passSerial ?? ""] ?? 0) admitted"
                         )
                     }
-                    if duplicates.isEmpty {
-                        IACard("No duplicates", "No pass serial has been scanned twice.")
+                    if overAdmitted.isEmpty {
+                        IACard(
+                            "No over-admissions",
+                            "No pass has admitted more guests than its recorded party size. Rejected duplicate attempts are not stored in the audit log, so they cannot be listed here."
+                        )
                     }
                 }
             case "Exceptions":

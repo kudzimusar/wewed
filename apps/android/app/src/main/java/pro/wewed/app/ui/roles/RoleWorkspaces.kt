@@ -101,11 +101,20 @@ private fun PlannerClientsSection(section: String, context: NavigationContext) {
     // states are not invented (playbook §8 — "Never fabricate a PlannerEngagement").
     when (section) {
         "Active Weddings" -> IASectionList("Active Weddings", "Weddings in your planner scope") {
+            // P0-13: the Private Real Shadow snapshot contains no PlannerEngagement. The planner
+            // relationship is an accepted enquiry against a profile whose status is suspended, so
+            // calling it an "active engagement" would invent a production relationship.
             IACard(
                 title = context.activeWeddingTitle,
-                subtitle = "Active planner engagement",
-                trailing = "Selected",
+                subtitle = "Accepted enquiry — no planner engagement record exists",
+                trailing = if (context.assignment?.isShadowTestAccess == true) "Test access only" else null,
+                status = "Shadow test authorization",
                 testTag = "planner-active-client"
+            )
+            IACard(
+                title = "Engagement record",
+                subtitle = "No PlannerEngagement or WeddingMembership exists for this wedding",
+                trailing = "Absent"
             )
         }
         "Upcoming Weddings", "Enquiries", "Archived Weddings", "Team Assignment" -> IAUnsupportedSection(
@@ -144,20 +153,32 @@ private fun PlannerDailyOpsSection(
                 IACard("Nothing needs attention", "No attention items are recorded for this wedding.")
             }
         }
+        // P0-14: overdue means a due date in the past — not "urgent and unfinished".
         "Overdue" -> {
-            val overdue = graph.tasks.filter {
-                it.status != pro.wewed.app.models.TaskStatus.DONE &&
-                    it.priority == pro.wewed.app.models.TaskPriority.URGENT
-            }
-            IASectionList("Overdue", "${overdue.size} urgent open tasks") {
-                overdue.forEach { IACard(it.title, it.category, it.dueDate, it.status.title) }
-                if (overdue.isEmpty()) IACard("Nothing overdue", "No urgent task is outstanding.")
+            val overdue = TaskDeadlines.overdue(graph.tasks)
+            val undated = TaskDeadlines.undated(graph.tasks)
+            IASectionList("Overdue", "${overdue.size} tasks past their due date") {
+                overdue.forEach { IACard(it.title, it.category, it.dueDate, it.priority.title) }
+                if (overdue.isEmpty()) IACard("Nothing overdue", "No task has passed its due date.")
+                if (undated.isNotEmpty()) {
+                    IACard(
+                        "${undated.size} open tasks have no due date",
+                        "Undated tasks cannot be overdue and are not counted here."
+                    )
+                }
             }
         }
+        // P0-14: a date-windowed view, not simply "every open task".
         "Upcoming Deadlines" -> {
-            val open = graph.tasks.filter { it.status != pro.wewed.app.models.TaskStatus.DONE }
-            IASectionList("Upcoming Deadlines", "${open.size} open tasks") {
-                open.forEach { IACard(it.title, it.category, it.dueDate, it.priority.title) }
+            val upcoming = TaskDeadlines.upcoming(graph.tasks)
+            IASectionList("Upcoming Deadlines", "${upcoming.size} tasks due in the next 30 days") {
+                upcoming.forEach { IACard(it.title, it.category, it.dueDate, it.priority.title) }
+                if (upcoming.isEmpty()) {
+                    IACard(
+                        "No deadlines in the next 30 days",
+                        "Only tasks with a recorded due date appear here."
+                    )
+                }
             }
         }
         "Vendor Follow-ups" -> IASectionList("Vendor Follow-ups", "${graph.vendors.size} vendors") {

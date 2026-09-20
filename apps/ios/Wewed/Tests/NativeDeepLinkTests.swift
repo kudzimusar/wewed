@@ -20,7 +20,8 @@ final class NativeDeepLinkTests: XCTestCase {
     func testParsesPassAndWeddingLinks() {
         XCTAssertEqual(
             NativeDeepLinkParser.parse("https://wewed.pro/pass/example"),
-            .pass
+            // P0-9: the pass credential must survive parsing rather than being discarded.
+            .pass(token: "example")
         )
         XCTAssertEqual(
             NativeDeepLinkParser.parse("https://wewed.pro/w/charity-and-kudzie"),

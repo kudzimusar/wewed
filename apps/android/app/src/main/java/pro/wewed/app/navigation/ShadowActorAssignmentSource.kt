@@ -2,6 +2,7 @@ package pro.wewed.app.navigation
 
 import pro.wewed.app.models.AppRole
 import pro.wewed.app.models.DevelopmentPersona
+import pro.wewed.app.models.NativeDataEnvironment
 import pro.wewed.app.services.WeddingRepository
 import pro.wewed.app.services.forWedding
 
@@ -20,7 +21,9 @@ import pro.wewed.app.services.forWedding
  */
 class ShadowActorAssignmentSource(
     private val repository: WeddingRepository,
+    private val environment: NativeDataEnvironment,
     private val personas: List<DevelopmentPersona> = DevelopmentPersona.allPersonas,
+    private val scenario: AuthorizedScenario = AuthorizedScenario.CHARITY_AND_KUDZIE,
     private val gateAssignments: Map<String, String> = SHADOW_GATE_ASSIGNMENTS,
     private val guestCredentials: Map<String, String> = SHADOW_GUEST_CREDENTIALS
 ) : ActorAssignmentSource {
@@ -28,10 +31,11 @@ class ShadowActorAssignmentSource(
     override suspend fun assignments(actorId: String): List<ActorAssignment> {
         val persona = personas.firstOrNull { it.id == actorId } ?: return emptyList()
 
-        // The wedding identity is whatever the environment's repository actually serves. A persona
-        // carries the production wedding id, which a Shadow snapshot deliberately does not use, so
-        // trusting the persona's id would bind the context to a wedding no source can answer for.
-        val weddingId = runCatching { repository.availableWeddingIds() }.getOrNull()?.firstOrNull()
+        // The persona names an authorized scenario and actor, never a wedding id: the same real
+        // wedding has a different identity in fixture, sanitized Shadow and Private Real Shadow.
+        // The environment-canonical id is declared per environment and must also be served by the
+        // loaded repository, so a misprovisioned environment yields no assignment at all.
+        val weddingId = EnvironmentWeddingDirectory.resolveWeddingId(repository, scenario, environment)
             ?: return emptyList()
         val scoped = runCatching { repository.forWedding(weddingId) }.getOrNull() ?: return emptyList()
         val shadowTest = persona.role != AppRole.COUPLE
@@ -66,6 +70,10 @@ class ShadowActorAssignmentSource(
             }
 
             AppRole.GUEST -> {
+                // The Private Real Shadow snapshot carries no invitation or pass credentials, so a
+                // documented Shadow-only overlay supplies them. The overlay uses the stable
+                // id-addressed form (`real-pass-<guestId>`) rather than a predicate token such as
+                // "first attending guest", which would reintroduce order-dependent identity.
                 val token = guestCredentials[actorId] ?: return emptyList()
                 // Identity comes from the credential, resolved by the repository (P0-4/P0-5).
                 val identity = runCatching { scoped.resolveGuestIdentity(token) }.getOrNull()

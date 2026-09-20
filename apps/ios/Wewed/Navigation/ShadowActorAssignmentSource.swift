@@ -25,18 +25,24 @@ public struct ShadowActorAssignmentSource: ActorAssignmentSource {
     ]
 
     private let repository: WeddingRepositoryProtocol
+    private let environment: NativeDataEnvironment
     private let personas: [DevelopmentPersona]
+    private let scenario: AuthorizedScenario
     private let gateAssignments: [String: String]
     private let guestCredentials: [String: String]
 
     public init(
         repository: WeddingRepositoryProtocol,
+        environment: NativeDataEnvironment,
         personas: [DevelopmentPersona] = DevelopmentPersona.allPersonas,
+        scenario: AuthorizedScenario = .charityAndKudzie,
         gateAssignments: [String: String] = ShadowActorAssignmentSource.shadowGateAssignments,
         guestCredentials: [String: String] = ShadowActorAssignmentSource.shadowGuestCredentials
     ) {
         self.repository = repository
+        self.environment = environment
         self.personas = personas
+        self.scenario = scenario
         self.gateAssignments = gateAssignments
         self.guestCredentials = guestCredentials
     }
@@ -44,11 +50,13 @@ public struct ShadowActorAssignmentSource: ActorAssignmentSource {
     public func assignments(actorId: String) async -> [ActorAssignment] {
         guard let persona = personas.first(where: { $0.id == actorId }) else { return [] }
 
-        // The wedding identity is whatever the environment's repository actually serves. A persona
-        // carries the production wedding id, which a Shadow snapshot deliberately does not use, so
-        // trusting the persona's id would bind the context to a wedding no source can answer for.
-        guard let weddingId = try? await repository.availableWeddingIds().first,
-              let scoped = try? await repository.forWedding(weddingId) else {
+        // The persona names an authorized scenario and actor, never a wedding id: the same real
+        // wedding has a different identity in fixture, sanitized Shadow and Private Real Shadow.
+        // The environment-canonical id is declared per environment and must also be served by the
+        // loaded repository, so a misprovisioned environment yields no assignment at all.
+        guard let weddingId = await EnvironmentWeddingDirectory.resolveWeddingId(
+            repository: repository, scenario: scenario, environment: environment
+        ), let scoped = try? await repository.forWedding(weddingId) else {
             return []
         }
         let shadowTest = persona.role != .couple
@@ -84,6 +92,10 @@ public struct ShadowActorAssignmentSource: ActorAssignmentSource {
             ]
 
         case .guest:
+            // The Private Real Shadow snapshot carries no invitation or pass credentials, so a
+            // documented Shadow-only overlay supplies them. The overlay uses the stable
+            // id-addressed form (`real-pass-<guestId>`) rather than a predicate token such as
+            // "first attending guest", which would reintroduce order-dependent identity.
             guard let token = guestCredentials[actorId],
                   // Identity comes from the credential, resolved by the repository (P0-4/P0-5).
                   let identity = try? await scoped.resolveGuestIdentity(token: token),
