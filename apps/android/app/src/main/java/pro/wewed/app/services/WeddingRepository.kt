@@ -118,6 +118,9 @@ interface WeddingRepository {
 
     /** Why Admin surfaces have nothing to show, when that is an authorization boundary. */
     suspend fun adminAccessContext(): AdminAccessContext? = null
+
+    /** The wedding's public slug — where its wedding site is published — when the source has one. */
+    suspend fun weddingSlug(weddingId: String): String? = null
 }
 
 /**
@@ -163,6 +166,7 @@ class ScopedWeddingRepository internal constructor(
     suspend fun getAuditEvents(): List<AuditEventRecord> = source.getAuditEvents(weddingId)
     suspend fun plannerAccessContext(): PlannerAccessContext? = source.plannerAccessContext(weddingId)
     suspend fun adminAccessContext(): AdminAccessContext? = source.adminAccessContext()
+    suspend fun weddingSlug(): String? = source.weddingSlug(weddingId)
 
     /** Content for one section, ordered, with a display title. */
     suspend fun getWeddingContentSection(section: String): WeddingContentSection {

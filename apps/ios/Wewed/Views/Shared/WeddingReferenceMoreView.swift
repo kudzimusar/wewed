@@ -7,6 +7,7 @@ public struct WeddingReferenceMoreView: View {
     // Our Story and Gallery are published through the wedding content graph, which the couple's
     // More screen previously never read — so two populated sections rendered as "will appear here".
     @State private var contentSections: [WeddingContentSection] = []
+    @State private var weddingSlug: String?
 
     public init() {}
 
@@ -30,6 +31,17 @@ public struct WeddingReferenceMoreView: View {
                                 weddingCard(wedding)
                             }
                             .buttonStyle(.plain)
+
+                            // The couple's published site lives in the same graph as the app, so
+                            // it belongs in the app rather than being treated as a separate
+                            // product elsewhere.
+                            menuLink(title: "Wedding Site", subtitle: "Your published wedding site", icon: "globe", identifier: "more-wedding-site") {
+                                WeddingSiteView(
+                                    coupleNames: wedding.coupleNames,
+                                    weddingSlug: weddingSlug,
+                                    sections: contentSections
+                                )
+                            }
 
                             menuLink(title: "Our Story", subtitle: "Photos, videos and milestones", icon: "photo.on.rectangle.angled", identifier: "more-story") {
                                 WeddingContentSectionView(
@@ -210,6 +222,7 @@ public struct WeddingReferenceMoreView: View {
             let scoped = try await appState.scopedRepository()
             wedding = try await scoped.getWedding()
             contentSections = try await scoped.getWeddingContentSections()
+            weddingSlug = try await scoped.weddingSlug()
         } catch {
             wedding = nil
         }

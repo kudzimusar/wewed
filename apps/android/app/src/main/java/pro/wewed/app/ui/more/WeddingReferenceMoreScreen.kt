@@ -43,12 +43,14 @@ fun WeddingReferenceMoreScreen(appViewModel: AppViewModel) {
     // Our Story and Gallery are published through the wedding content graph, which the couple's
     // More screen previously never read — so two populated sections rendered as "will appear here".
     var contentSections by remember { mutableStateOf<List<WeddingContentSection>>(emptyList()) }
+    var weddingSlug by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         try {
             val scoped = appViewModel.scopedRepository()
             wedding = scoped.getWedding()
             contentSections = scoped.getWeddingContentSections()
+            weddingSlug = scoped.weddingSlug()
         } finally {
             loading = false
         }
@@ -77,6 +79,11 @@ fun WeddingReferenceMoreScreen(appViewModel: AppViewModel) {
                     "Honeymoon and gift contributions are not configured for this wedding. The wedding graph records guest messages and memories, which are shown under Plan → Contributions; it holds no honeymoon fund.",
                     wedding?.coupleNames ?: ""
                 ) { destination = null }
+            ReferenceMoreDestination.WEDDING_SITE -> WeddingSiteScreen(
+                coupleNames = wedding?.coupleNames.orEmpty(),
+                weddingSlug = weddingSlug,
+                sections = contentSections
+            ) { destination = null }
             ReferenceMoreDestination.STORY -> {
                 BackHandler { destination = null }
                 WeddingContentSectionView(contentSection("story"), "more-story")
@@ -191,6 +198,11 @@ fun WeddingReferenceMoreScreen(appViewModel: AppViewModel) {
                     }
                 }
 
+                // The couple's published site lives in the same graph as the app, so it belongs
+                // in the app rather than being treated as a separate product elsewhere.
+                ReferenceMoreRow("Wedding Site", "Your published wedding site", Icons.Default.Language, "more-wedding-site") {
+                    destination = ReferenceMoreDestination.WEDDING_SITE
+                }
                 ReferenceMoreRow("Our Story", "Photos, videos and milestones", Icons.Default.PhotoLibrary, "more-story") {
                     destination = ReferenceMoreDestination.STORY
                 }
@@ -355,6 +367,7 @@ private fun ReferenceWeddingProfileScreen(
 
 private enum class ReferenceMoreDestination {
     PROFILE,
+    WEDDING_SITE,
     STORY,
     GALLERY,
     HONEYMOON,

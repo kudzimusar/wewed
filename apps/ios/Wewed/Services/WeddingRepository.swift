@@ -103,6 +103,8 @@ public protocol WeddingRepositoryProtocol: Sendable {
     func plannerAccessContext(weddingId: String) async throws -> PlannerAccessContext?
     /// Why Admin surfaces have nothing to show, when that is an authorization boundary.
     func adminAccessContext() async throws -> AdminAccessContext?
+    /// The wedding's public slug — where its wedding site is published — when the source has one.
+    func weddingSlug(weddingId: String) async throws -> String?
 }
 
 /// Default "this source holds none" implementations, so the fixture and sanitized sources are not
@@ -121,6 +123,7 @@ public extension WeddingRepositoryProtocol {
     func getAuditEvents(weddingId: String) async throws -> [AuditEventRecord] { [] }
     func plannerAccessContext(weddingId: String) async throws -> PlannerAccessContext? { nil }
     func adminAccessContext() async throws -> AdminAccessContext? { nil }
+    func weddingSlug(weddingId: String) async throws -> String? { nil }
 }
 
 /// A repository bound to one wedding.
@@ -200,6 +203,9 @@ public struct ScopedWeddingRepository: Sendable {
     }
     public func adminAccessContext() async throws -> AdminAccessContext? {
         try await source.adminAccessContext()
+    }
+    public func weddingSlug() async throws -> String? {
+        try await source.weddingSlug(weddingId: weddingId)
     }
 
     /// Content for one section, ordered, with a display title.

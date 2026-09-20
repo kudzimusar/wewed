@@ -861,6 +861,11 @@ class PrivateRealShadowWeddingRepository(jsonString: String? = null, customPath:
     }
 
     override suspend fun adminAccessContext(): AdminAccessContext? = mutex.withLock { adminAccess }
+
+    override suspend fun weddingSlug(weddingId: String): String? = mutex.withLock {
+        requireScope(weddingId)
+        weddingSlug.takeIf { it.isNotBlank() }
+    }
 }
 
 

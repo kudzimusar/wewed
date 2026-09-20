@@ -32,6 +32,8 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
     private var baseVendors: [VendorPresence] = []
 
     // Production-derived graph loaded from the canonical Private Real UAT snapshot.
+    /// Where this wedding's site is published.
+    private var publishedSlug: String = ""
     private let manifest: UatSnapshotManifest
     private let rsvpDetails: [String: GuestRsvpDetail]
     private let guestContacts: [String: GuestContactDetail]
@@ -147,6 +149,7 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
             throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Snapshot has no domains block.")
         }
 
+        self.publishedSlug = (envelope["wedding"] as? [String: Any])?["slug"] as? String ?? ""
         self.manifest = UatSnapshotManifest(
             schemaVersion: schemaVersion,
             sourceWeddingId: (metadata["sourceWeddingId"] as? String) ?? "",
@@ -836,4 +839,9 @@ public actor PrivateRealShadowWeddingRepository: WeddingRepositoryProtocol {
     }
 
     public func adminAccessContext() async throws -> AdminAccessContext? { adminAccess }
+
+    public func weddingSlug(weddingId: String) async throws -> String? {
+        try requireScope(weddingId)
+        return publishedSlug.isEmpty ? nil : publishedSlug
+    }
 }
