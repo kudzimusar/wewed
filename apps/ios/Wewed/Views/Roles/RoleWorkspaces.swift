@@ -73,7 +73,7 @@ public struct PlannerShellView: View {
                     }
                 case "more":
                     WorkspaceSurface(destination: destination, testIdPrefix: "planner", context: ctx, sectionMemory: sectionMemory) { section in
-                        PlannerMoreSection(section: section, context: ctx, sectionMemory: sectionMemory)
+                        PlannerMoreSection(section: section, context: ctx, sectionMemory: sectionMemory, graph: graph)
                     }
                 default:
                     IAUnsupportedSection(destination.label, "Unknown destination.", ctx.environment)
@@ -259,15 +259,20 @@ struct PlannerMoreSection: View {
     let section: String
     let context: NavigationContext
     @ObservedObject var sectionMemory: WorkspaceSectionMemory
+    // Every route below reads the wedding graph. The six legacy fixture destinations
+    // (Client Profile, Team Hub, Invitations & QR, Intelligence, Media Archive, Vendor Catalog)
+    // used to render static copy here — insurance lines, rate sheets, "AI active" claims — which
+    // is why Private Real UAT could show a real wedding alongside invented operational facts.
+    @ObservedObject var graph: WeddingGraphState
 
     var body: some View {
         switch section {
-        case "Client Profile": ClientProfileView()
-        case "Invitations & QR": PlannerInvitationToolsView()
-        case "Intelligence": WewedAIWorkspaceView()
-        case "Team Hub": CollaborationHubView()
-        case "Files / Documents": MediaArchiveView()
-        case "Planner Actions": PlannerActionsSection(context: context, sectionMemory: sectionMemory)
+        case "Client Profile": PlannerClientProfileSection(graph: graph)
+        case "Invitations & QR": InvitationsQrSection(destinations: graph.qrDestinations)
+        case "Intelligence": PlannerIntelligenceSection(graph: graph)
+        case "Team Hub": PlannerTeamHubSection(graph: graph)
+        case "Files / Documents": PlannerMediaArchiveSection(graph: graph)
+        case "Planner Actions": PlannerActionsSection(context: context, sectionMemory: sectionMemory, graph: graph)
         case "Settings": SettingsView()
         case "Account": AccountPrivacyView()
         case "Help & Support":
@@ -287,16 +292,17 @@ struct PlannerMoreSection: View {
 struct PlannerActionsSection: View {
     let context: NavigationContext
     @ObservedObject var sectionMemory: WorkspaceSectionMemory
+    @ObservedObject var graph: WeddingGraphState
     @EnvironmentObject private var appState: AppState
     @State private var lastResult: String?
     @State private var busy = false
+    @State private var showImports = false
 
     private static let unsupported: [(String, String)] = [
         ("Print / Arrange / Select", "Printable guest, seating and programme output has no native contract yet."),
         ("Templates", "Planning templates are not exposed to the native client yet."),
         ("Export", "No native export contract exists for the wedding graph."),
         ("Import", "Guest and task import is not available natively; no import endpoint is wired."),
-        ("Recent Imports", "No import history is recorded for the native client."),
         ("Edit Wedding Details", "Wedding identity is read-only during Shadow qualification; no native write path exists.")
     ]
 
@@ -344,6 +350,24 @@ struct PlannerActionsSection: View {
                 let next = worksheets[(index + 1) % worksheets.count]
                 sectionMemory.select(context, "workspace", next)
                 lastResult = "Workspace worksheet set to \(next)"
+            }
+
+            // Recent Imports is no longer "not connected": production holds a real ImportJob
+            // history for this wedding, and it is rendered from that history rather than declared
+            // absent.
+            IAActionRow(
+                title: "Recent Imports",
+                subtitle: graph.importJobs.isEmpty
+                    ? "No imports are recorded for this wedding"
+                    : "\(graph.importJobs.count) imports recorded",
+                enabled: !graph.importJobs.isEmpty,
+                testId: "planner-action-recent-imports"
+            ) {
+                showImports.toggle()
+            }
+
+            if showImports {
+                RecentImportsSection(jobs: graph.importJobs)
             }
 
             // --- Honestly unsupported ---
@@ -551,7 +575,7 @@ public struct VendorShellView: View {
                     MessagesInboxView()
                 case "more":
                     WorkspaceSurface(destination: destination, testIdPrefix: "vendor", context: ctx, sectionMemory: sectionMemory) { section in
-                        VendorMoreSection(section: section, context: ctx)
+                        VendorMoreSection(section: section, context: ctx, graph: graph)
                     }
                 default:
                     IAUnsupportedSection(destination.label, "Unknown destination.", ctx.environment)
@@ -602,10 +626,15 @@ struct VendorHomeContent: View {
 struct VendorMoreSection: View {
     let section: String
     let context: NavigationContext
+    @ObservedObject var graph: WeddingGraphState
 
     var body: some View {
         switch section {
-        case "Services", "Company Profile": VendorCatalogView()
+        // The vendor catalog previously listed an invented public-liability policy, an invented
+        // tax clearance certificate and an invented rate sheet, all marked "Verified". Against a
+        // real wedding those read as facts about a real business. Replaced with the vendor and
+        // service-engagement rows the graph actually holds.
+        case "Services", "Company Profile": VendorServicesSection(graph: graph, context: context)
         case "Settings": SettingsView()
         case "Account": AccountPrivacyView()
         case "Support":
@@ -790,7 +819,7 @@ public struct GuestShellView: View {
                     }
                 case "more":
                     WorkspaceSurface(destination: destination, testIdPrefix: "guest", context: ctx, sectionMemory: sectionMemory) { section in
-                        GuestMoreSection(section: section, context: ctx)
+                        GuestMoreSection(section: section, context: ctx, graph: graph)
                     }
                 default:
                     IAUnsupportedSection(destination.label, "Unknown destination.", ctx.environment)
@@ -920,7 +949,7 @@ struct GuestWeddingDaySection: View {
     var body: some View {
         switch section {
         case "Gallery / Live Wall":
-            LiveWallView()
+            LiveWallView(realMessages: graph.wallMessages)
         case "Contacts":
             IAUnsupportedSection(
                 "Contacts",
@@ -936,21 +965,32 @@ struct GuestWeddingDaySection: View {
 struct GuestMoreSection: View {
     let section: String
     let context: NavigationContext
+    @ObservedObject var graph: WeddingGraphState
 
     var body: some View {
         switch section {
-        case "Gallery": LiveWallView()
+        // Our Story and Gallery are published content, and this wedding has published both. The
+        // guest surface previously declared them unpublished without ever reading the graph.
+        case "Our Story":
+            WeddingContentSectionView(section: graph.section("story"), testIdPrefix: "guest-more-story")
+        case "Gallery":
+            GalleryContentSection(section: graph.section("gallery"), testIdPrefix: "guest-more-gallery")
         case "Account", "Privacy": AccountPrivacyView()
         case "Help":
             IASectionList("Help", "Guest support") {
                 IACard("Contact the wedding team", "support@wewed.pro")
             }
-        default:
+        // Contributions are guest blessings, wishes, stories and memories — not monetary gifts.
+        // No gift or honeymoon-fund contract exists in this wedding's graph, so the section says
+        // that rather than presenting memories as gift information.
+        case "Contribution / Gift Info":
             IAUnsupportedSection(
                 section,
-                "The couple has not published \(section) for this wedding.",
+                "No gift or contribution fund is configured for this wedding.",
                 context.environment
             )
+        default:
+            IAUnsupportedSection(section, "This section is not wired yet.", context.environment)
         }
     }
 }

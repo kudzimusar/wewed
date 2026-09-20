@@ -65,8 +65,31 @@ public final class WeddingGraphState: ObservableObject {
     @Published public var vendors: [VendorPresence] = []
     @Published public var announcements: [WeddingAnnouncement] = []
     @Published public var auditRecords: [CheckInAuditRecord] = []
+
+    // Production-derived domains. Empty here means "this source holds none", which the manifest
+    // can confirm; it is not the same as "the app has no adapter for it".
+    @Published public var manifest: UatSnapshotManifest?
+    @Published public var contentSections: [WeddingContentSection] = []
+    @Published public var songs: [SongEntry] = []
+    @Published public var qrDestinations: [QrDestination] = []
+    @Published public var importJobs: [ImportJobRecord] = []
+    @Published public var wallMessages: [WallMessage] = []
+    @Published public var engagementParties: [EngagementPartyRecord] = []
+    @Published public var contentRevisions: [ContentRevisionRecord] = []
+    @Published public var auditEvents: [AuditEventRecord] = []
+    @Published public var rsvpDetails: [String: GuestRsvpDetail] = [:]
+    @Published public var guestContacts: [String: GuestContactDetail] = [:]
+    @Published public var plannerAccess: PlannerAccessContext?
+    @Published public var adminAccess: AdminAccessContext?
+
     @Published public var loading = true
     @Published public var error: String?
+
+    /// Content for one production section key, or an empty section when the couple published none.
+    public func section(_ key: String) -> WeddingContentSection {
+        contentSections.first { $0.section == key }
+            ?? WeddingContentSection(section: key, title: WeddingContentSection.titleFor(key), entries: [])
+    }
 
     /// The wedding this graph was actually loaded for; nil until a scoped load succeeds.
     @Published public private(set) var scopedWeddingId: String?
@@ -82,6 +105,19 @@ public final class WeddingGraphState: ObservableObject {
         vendors = []
         announcements = []
         auditRecords = []
+        manifest = nil
+        contentSections = []
+        songs = []
+        qrDestinations = []
+        importJobs = []
+        wallMessages = []
+        engagementParties = []
+        contentRevisions = []
+        auditEvents = []
+        rsvpDetails = [:]
+        guestContacts = [:]
+        plannerAccess = nil
+        adminAccess = nil
         scopedWeddingId = nil
     }
 
@@ -100,6 +136,34 @@ public final class WeddingGraphState: ObservableObject {
             vendors = try await scoped.getVendors()
             announcements = try await scoped.getAnnouncements()
             auditRecords = try await scoped.getAuditRecords()
+
+            // Production-derived graph. A source that holds none of this returns empty arrays
+            // through the protocol defaults, so this is safe for every environment.
+            manifest = try await scoped.snapshotManifest()
+            contentSections = try await scoped.getWeddingContentSections()
+            songs = try await scoped.getSongs()
+            qrDestinations = try await scoped.getQrDestinations()
+            importJobs = try await scoped.getImportJobs()
+            wallMessages = try await scoped.getWallMessages()
+            engagementParties = try await scoped.getEngagementParties()
+            contentRevisions = try await scoped.getContentRevisions()
+            auditEvents = try await scoped.getAuditEvents()
+            plannerAccess = try await scoped.plannerAccessContext()
+            adminAccess = try await scoped.adminAccessContext()
+
+            var details: [String: GuestRsvpDetail] = [:]
+            var contacts: [String: GuestContactDetail] = [:]
+            for guest in guests {
+                if let detail = try await scoped.getRsvpDetail(guestId: guest.id) {
+                    details[guest.id] = detail
+                }
+                if let contact = try await scoped.getGuestContact(guestId: guest.id) {
+                    contacts[guest.id] = contact
+                }
+            }
+            rsvpDetails = details
+            guestContacts = contacts
+
             scopedWeddingId = scoped.weddingId
         } catch is WeddingScopeMismatch {
             clearGraph()
@@ -322,15 +386,10 @@ public struct CoupleGuestsSection: View {
                         )
                     }
                 }
+            // The RSVP worksheet opens the real RSVP record, which is where meal, dietary,
+            // plus-one, kids, song request and the guest's own message actually live.
             case "RSVP":
-                let attending = graph.guests.filter { $0.rsvpStatus == .attending }.count
-                let pending = graph.guests.filter { $0.rsvpStatus == .pending }.count
-                let declined = graph.guests.filter { $0.rsvpStatus == .declined }.count
-                IASectionList("RSVP", "\(attending) attending • \(pending) pending • \(declined) declined") {
-                    ForEach(graph.guests) { guest in
-                        IACard(guest.name, "Party of \(guest.partySize)", trailing: guest.rsvpStatus.title)
-                    }
-                }
+                CoupleRsvpWorksheet(graph: graph)
             // P0-14: a Wedding Pass serial is not proof that an invitation was delivered, and no
             // invitation entity exists in the wedding graph, so delivery state cannot be claimed.
             case "Invitations":
@@ -432,13 +491,29 @@ public struct WeddingDaySection<PassContent: View>: View {
                         )
                     }
                 }
+            // Venue is the largest published content section for this wedding (25 rows). Rendering
+            // only the name and address discarded everything the couple actually wrote about it.
             case "Venue & Maps", "Venue", "Maps", "Venue Map":
                 IASectionList("Venue", graph.wedding?.venueName) {
                     if let wedding = graph.wedding {
                         IACard(wedding.venueName, wedding.venueAddress)
                         IACard("City", "\(wedding.city), \(wedding.country)")
                     }
+                    ForEach(graph.section("venue").proseEntries) { entry in
+                        IACard(entry.field.humanisedContentField(), entry.value,
+                               testId: "venue-\(entry.field)")
+                    }
                 }
+            case "Travel":
+                WeddingContentSectionView(section: graph.section("travel"), testIdPrefix: "travel")
+            case "FAQ":
+                WeddingContentSectionView(section: graph.section("faq"), testIdPrefix: "faq")
+            case "The Day", "Wedding Info":
+                WeddingContentSectionView(section: graph.section("theday"), testIdPrefix: "theday")
+            case "After":
+                WeddingContentSectionView(section: graph.section("after"), testIdPrefix: "after")
+            case "Songbook", "Music":
+                SongbookSection(songs: graph.songs, guestVisible: boundGuestId != nil)
             case "Vendor Status", "Vendor Arrivals":
                 IASectionList("Vendor Status", "\(graph.vendors.count) vendors on site plan") {
                     ForEach(graph.vendors) { vendor in
@@ -716,10 +791,38 @@ public struct AdminAuditSection: View {
                         IACard("No check-in records", "No admissions have been recorded for this wedding.")
                     }
                 }
-            case "Data Changes", "Access Events", "Payments", "Contracts", "Admin Actions":
+            // Production holds a real wedding-scoped AuditEvent trail. The native model carries
+            // only the fields this surface needs; IP address, user agent and before/after values
+            // are not part of it, so they cannot leak through a list of activity.
+            //
+            // Access remains gated: while the Admin read-only grant is missing, the section says
+            // so instead of showing rows the reader is not authorized to interpret as an admin
+            // record.
+            case "Data Changes":
+                AuditEventsSection(
+                    events: graph.auditEvents.filter {
+                        let action = $0.action.lowercased()
+                        return action.contains("update") || action.contains("create") || action.contains("delete")
+                    },
+                    adminAccess: graph.adminAccess,
+                    testIdPrefix: "audit-data-changes"
+                )
+            case "Access Events":
+                AuditEventsSection(
+                    events: graph.auditEvents.filter {
+                        let action = $0.action.lowercased()
+                        return action.contains("access") || action.contains("login") || action.contains("view")
+                    },
+                    adminAccess: graph.adminAccess,
+                    testIdPrefix: "audit-access-events"
+                )
+            case "Admin Actions":
+                AuditEventsSection(events: graph.auditEvents, adminAccess: graph.adminAccess,
+                                   testIdPrefix: "audit-admin-actions")
+            case "Payments", "Contracts":
                 IAUnsupportedSection(
                     section,
-                    "This audit stream has no native contract yet. Only check-in audit records are available natively, and no audit entries are fabricated.",
+                    "Production records no payment or contract audit rows for this wedding, and no audit entries are fabricated.",
                     environment
                 )
             default:

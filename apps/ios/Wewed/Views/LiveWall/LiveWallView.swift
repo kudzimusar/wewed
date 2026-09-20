@@ -7,13 +7,22 @@ public struct LiveWallMessage: Identifiable, Codable, Equatable, Sendable {
     public let time: String
 }
 
+/// The wedding wall.
+///
+/// Production holds this wedding's wall posts as `Message` rows with `type = "wall"` and
+/// `isPublic = true`. The view previously started from an empty array and never read them, so three
+/// real messages rendered as an empty wall. Private posts are filtered out here, not merely
+/// unshown: a non-public row must not reach this surface at all.
 public struct LiveWallView: View {
+    private let realMessages: [WallMessage]
     @State private var messages: [LiveWallMessage] = []
     @State private var applauseCount: Int = 0
     @State private var showingComposeSheet: Bool = false
     @State private var newMessageText: String = ""
 
-    public init() {}
+    public init(realMessages: [WallMessage] = []) {
+        self.realMessages = realMessages
+    }
 
     public var body: some View {
         NavigationStack {
@@ -135,6 +144,22 @@ public struct LiveWallView: View {
                     }
                 }
             }
+            .onAppear(perform: seedFromProduction)
         }
+    }
+
+    /// Seeds the wall from the wedding's real public messages.
+    private func seedFromProduction() {
+        guard messages.isEmpty else { return }
+        messages = realMessages
+            .filter { $0.isPublic }
+            .map {
+                LiveWallMessage(
+                    id: $0.id,
+                    author: ($0.authorName?.isEmpty == false) ? $0.authorName! : "A guest",
+                    content: $0.content,
+                    time: $0.createdAt.map { created in String(created.prefix(10)) } ?? ""
+                )
+            }
     }
 }

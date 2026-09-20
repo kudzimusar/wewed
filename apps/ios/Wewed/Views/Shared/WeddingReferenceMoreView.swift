@@ -4,6 +4,9 @@ public struct WeddingReferenceMoreView: View {
     @EnvironmentObject private var appState: AppState
     @State private var wedding: Wedding?
     @State private var isLoading = true
+    // Our Story and Gallery are published through the wedding content graph, which the couple's
+    // More screen previously never read — so two populated sections rendered as "will appear here".
+    @State private var contentSections: [WeddingContentSection] = []
 
     public init() {}
 
@@ -29,18 +32,16 @@ public struct WeddingReferenceMoreView: View {
                             .buttonStyle(.plain)
 
                             menuLink(title: "Our Story", subtitle: "Photos, videos and milestones", icon: "photo.on.rectangle.angled", identifier: "more-story") {
-                                ReferenceEmptyFeatureView(
-                                    title: "Our Story",
-                                    message: "Our wedding story, photo highlights, and milestones will appear here as updates are posted.",
-                                    coupleNames: wedding.coupleNames
+                                WeddingContentSectionView(
+                                    section: contentSection("story"),
+                                    testIdPrefix: "more-story"
                                 )
                             }
 
                             menuLink(title: "Gallery", subtitle: "Wedding photos and inspiration", icon: "photo.stack", identifier: "more-gallery") {
-                                ReferenceEmptyFeatureView(
-                                    title: "Gallery",
-                                    message: "The shared wedding photo gallery will be available during and after the wedding celebrations.",
-                                    coupleNames: wedding.coupleNames
+                                GalleryContentSection(
+                                    section: contentSection("gallery"),
+                                    testIdPrefix: "more-gallery"
                                 )
                             }
 
@@ -199,9 +200,16 @@ public struct WeddingReferenceMoreView: View {
         .accessibilityIdentifier(identifier ?? "more-\(title.lowercased().replacingOccurrences(of: " ", with: "-"))")
     }
 
+    private func contentSection(_ key: String) -> WeddingContentSection {
+        contentSections.first { $0.section == key }
+            ?? WeddingContentSection(section: key, title: WeddingContentSection.titleFor(key), entries: [])
+    }
+
     private func load() async {
         do {
-            wedding = try await appState.scopedRepository().getWedding()
+            let scoped = try await appState.scopedRepository()
+            wedding = try await scoped.getWedding()
+            contentSections = try await scoped.getWeddingContentSections()
         } catch {
             wedding = nil
         }
