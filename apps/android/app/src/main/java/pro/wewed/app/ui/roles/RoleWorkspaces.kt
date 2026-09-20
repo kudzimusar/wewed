@@ -57,7 +57,7 @@ fun PlannerShell(
         val graph = rememberWeddingGraph(appViewModel, ctx)
         when (destination.id) {
             "workspace" -> WorkspaceSurface(destination, "planner", ctx, sectionMemory) { section ->
-                PlannerWorkspaceSection(section, appViewModel, graph, ctx)
+                PlannerWorkspaceSection(section, appViewModel, graph, ctx, sectionMemory)
             }
             "clients" -> WorkspaceSurface(destination, "planner", ctx, sectionMemory) { section ->
                 PlannerClientsSection(section, ctx)
@@ -81,11 +81,15 @@ private fun PlannerWorkspaceSection(
     section: String,
     appViewModel: AppViewModel,
     graph: WeddingGraphState,
-    context: NavigationContext
+    context: NavigationContext,
+    sectionMemory: WorkspaceSectionMemory
 ) {
     // Each worksheet reads the same selected wedding graph (IA V2 §5 Workspace).
     when (section) {
-        "Overview" -> WeddingReferencePlannerScreen(appViewModel)
+        // IA V2 owns Level-2 here too; the Overview surface only reports the target section.
+        "Overview" -> WeddingReferencePlannerScreen(appViewModel) { target ->
+            sectionMemory.select(context, "workspace", target)
+        }
         "Tasks" -> TasksDestination(appViewModel) {}
         "Budget" -> ShadowBudgetDestination(appViewModel) {}
         "Guests" -> GuestsBridgeDestination(appViewModel) {}
@@ -907,7 +911,7 @@ fun CoupleShell(
         when (destination.id) {
             "home" -> WeddingReferenceHomeScreen(appViewModel)
             "plan" -> WorkspaceSurface(destination, "couple", ctx, sectionMemory) { section ->
-                CouplePlanSection(section, appViewModel, ctx)
+                CouplePlanSection(section, appViewModel, ctx, sectionMemory)
             }
             "guests" -> WorkspaceSurface(destination, "couple", ctx, sectionMemory) { section ->
                 if (section == "Guest List") {
@@ -935,12 +939,17 @@ fun CoupleShell(
 private fun CouplePlanSection(
     section: String,
     appViewModel: AppViewModel,
-    context: NavigationContext
+    context: NavigationContext,
+    sectionMemory: WorkspaceSectionMemory
 ) {
     // The couple's Plan worksheets read the same repositories as the planner Workspace —
     // one canonical pipeline, two role presentations (IA V2 §13.3).
     when (section) {
-        "Overview" -> WeddingReferencePlannerScreen(appViewModel)
+        // IA V2 owns Level-2: the Overview surface reports which section a module represents and
+        // the shell moves the selection, rather than the screen navigating internally.
+        "Overview" -> WeddingReferencePlannerScreen(appViewModel) { target ->
+            sectionMemory.select(context, "plan", target)
+        }
         "Tasks" -> TasksDestination(appViewModel) {}
         "Budget" -> ShadowBudgetDestination(appViewModel) {}
         "Contributions" -> ShadowContributionsDestination(appViewModel) {}

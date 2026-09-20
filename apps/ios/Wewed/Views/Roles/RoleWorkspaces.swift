@@ -57,7 +57,7 @@ public struct PlannerShellView: View {
                 switch destination.id {
                 case "workspace":
                     WorkspaceSurface(destination: destination, testIdPrefix: "planner", context: ctx, sectionMemory: sectionMemory) { section in
-                        PlannerWorkspaceSection(section: section, context: ctx)
+                        PlannerWorkspaceSection(section: section, context: ctx, sectionMemory: sectionMemory)
                     }
                 case "clients":
                     WorkspaceSurface(destination: destination, testIdPrefix: "planner", context: ctx, sectionMemory: sectionMemory) { section in
@@ -86,11 +86,16 @@ public struct PlannerShellView: View {
 struct PlannerWorkspaceSection: View {
     let section: String
     let context: NavigationContext
+    @ObservedObject var sectionMemory: WorkspaceSectionMemory
 
     var body: some View {
         // Each worksheet reads the same selected wedding graph (IA V2 §5 Workspace).
         switch section {
-        case "Overview": WeddingReferencePlannerView()
+        // IA V2 owns Level-2 here too; the Overview surface only reports the target section.
+        case "Overview":
+            WeddingReferencePlannerView { target in
+                sectionMemory.select(context, "workspace", target)
+            }
         case "Tasks": PlannerTasksView()
         case "Budget": ShadowPlannerBudgetView()
         case "Guests": PlannerGuestsBridgeView()
@@ -1066,7 +1071,7 @@ public struct CoupleShellView: View {
                     WeddingReferenceHomeView()
                 case "plan":
                     WorkspaceSurface(destination: destination, testIdPrefix: "couple", context: ctx, sectionMemory: sectionMemory) { section in
-                        CouplePlanSection(section: section, context: ctx)
+                        CouplePlanSection(section: section, context: ctx, sectionMemory: sectionMemory)
                     }
                 case "guests":
                     WorkspaceSurface(destination: destination, testIdPrefix: "couple", context: ctx, sectionMemory: sectionMemory) { section in
@@ -1098,12 +1103,18 @@ public struct CoupleShellView: View {
 struct CouplePlanSection: View {
     let section: String
     let context: NavigationContext
+    @ObservedObject var sectionMemory: WorkspaceSectionMemory
 
     var body: some View {
         // The couple's Plan worksheets read the same repositories as the planner Workspace —
         // one canonical pipeline, two role presentations (IA V2 §13.3).
         switch section {
-        case "Overview": WeddingReferencePlannerView()
+        // IA V2 owns Level-2: the Overview surface reports which section a module represents and
+        // the shell moves the selection, rather than the view navigating internally.
+        case "Overview":
+            WeddingReferencePlannerView { target in
+                sectionMemory.select(context, "plan", target)
+            }
         case "Tasks": PlannerTasksView()
         case "Budget": ShadowPlannerBudgetView()
         case "Contributions": ShadowPlannerContributionsView()

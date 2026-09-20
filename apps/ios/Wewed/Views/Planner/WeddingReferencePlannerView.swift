@@ -4,10 +4,18 @@ public struct WeddingReferencePlannerView: View {
     @EnvironmentObject private var appState: AppState
     @State private var dashboard: PlannerDashboardSnapshot?
     @State private var tasks: [PlannerTask] = []
-    @State private var selectedSection: PlannerReferenceSection = .overview
     @State private var isLoading = true
 
-    public init() {}
+    /// Receives an IA V2 Level-2 section label (for example "Tasks", "Budget").
+    ///
+    /// IA V2 is the sole owner of Level-2 navigation, so this view no longer carries its own
+    /// Overview/Tasks/Budget/Vendors picker or internal routing — that produced a second, nested
+    /// taxonomy stacked underneath the IA V2 chips.
+    private let onOpenSection: ((String) -> Void)?
+
+    public init(onOpenSection: ((String) -> Void)? = nil) {
+        self.onOpenSection = onOpenSection
+    }
 
     public var body: some View {
         NavigationStack {
@@ -17,26 +25,13 @@ public struct WeddingReferencePlannerView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 14) {
                         header
-                        sectionPicker
 
                         if isLoading {
                             ProgressView("Loading planner…")
                                 .frame(maxWidth: .infinity)
                                 .padding(.top, 80)
                         } else {
-                            switch selectedSection {
-                            case .overview:
-                                overview
-                            case .tasks:
-                                PlannerTasksView()
-                                    .frame(minHeight: 520)
-                            case .budget:
-                                ShadowPlannerBudgetView()
-                                    .frame(minHeight: 520)
-                            case .vendors:
-                                ShadowPlannerVendorsView()
-                                    .frame(minHeight: 520)
-                            }
+                            overview
                         }
                     }
                     .padding(.horizontal, 14)
@@ -70,30 +65,6 @@ public struct WeddingReferencePlannerView: View {
         .accessibilityIdentifier("planner-identity-card")
     }
 
-    private var sectionPicker: some View {
-        HStack(spacing: 7) {
-            ForEach(PlannerReferenceSection.allCases) { section in
-                Button {
-                    selectedSection = section
-                } label: {
-                    Text(section.title)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(selectedSection == section ? .white : WeddingIdentityPalette.muted)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(selectedSection == section ? WeddingIdentityPalette.forest : WeddingIdentityPalette.ivorySoft)
-                        .clipShape(Capsule())
-                        .overlay(
-                            Capsule()
-                                .stroke(WeddingIdentityPalette.hairline, lineWidth: selectedSection == section ? 0 : 1)
-                        )
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
     @ViewBuilder
     private var overview: some View {
         if let dashboard {
@@ -119,47 +90,23 @@ public struct WeddingReferencePlannerView: View {
 
             VStack(spacing: 8) {
                 plannerRow(title: "Tasks", subtitle: taskSubtitle, icon: "checklist", identifier: "planner-module-tasks") {
-                    selectedSection = .tasks
+                    onOpenSection?("Tasks")
                 }
                 plannerRow(title: "Budget", subtitle: moduleSubtitle("budget"), icon: "wallet.pass", identifier: "planner-module-budget") {
-                    selectedSection = .budget
+                    onOpenSection?("Budget")
                 }
 
-                NavigationLink {
-                    ShadowPlannerContributionsView()
-                } label: {
-                    referenceRow(title: "Contributions", subtitle: moduleSubtitle("contributions"), icon: "gift")
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("planner-module-contributions")
+                plannerRow(title: "Contributions", subtitle: moduleSubtitle("contributions"), icon: "gift", identifier: "planner-module-contributions") { onOpenSection?("Contributions") }
 
                 plannerRow(title: "Vendors", subtitle: moduleSubtitle("vendors"), icon: "storefront", identifier: "planner-module-vendors") {
-                    selectedSection = .vendors
+                    onOpenSection?("Vendors")
                 }
 
-                NavigationLink {
-                    ShadowPlannerSeatingView()
-                } label: {
-                    referenceRow(title: "Seating", subtitle: moduleSubtitle("seating"), icon: "table.furniture")
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("planner-module-seating")
+                plannerRow(title: "Seating", subtitle: moduleSubtitle("seating"), icon: "table.furniture", identifier: "planner-module-seating") { onOpenSection?("Seating") }
 
-                NavigationLink {
-                    ShadowPlannerTimelineView()
-                } label: {
-                    referenceRow(title: "Timeline", subtitle: moduleSubtitle("timeline"), icon: "calendar")
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("planner-module-timeline")
+                plannerRow(title: "Timeline", subtitle: moduleSubtitle("timeline"), icon: "calendar", identifier: "planner-module-timeline") { onOpenSection?("Timeline") }
 
-                NavigationLink {
-                    ShadowPlannerDocumentsView()
-                } label: {
-                    referenceRow(title: "Documents", subtitle: "Contracts, notes, files", icon: "doc.text")
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("planner-module-documents")
+                plannerRow(title: "Documents", subtitle: "Contracts, notes, files", icon: "doc.text", identifier: "planner-module-documents") { onOpenSection?("Documents") }
             }
         } else {
             ContentUnavailableView(

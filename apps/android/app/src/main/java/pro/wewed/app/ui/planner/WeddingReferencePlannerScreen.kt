@@ -25,12 +25,23 @@ import pro.wewed.app.models.*
 import pro.wewed.app.state.AppViewModel
 import pro.wewed.app.theme.*
 
+/**
+ * Plan / Workspace **Overview** surface.
+ *
+ * IA V2 is the sole owner of Level-2 navigation, so this screen no longer carries its own
+ * Overview/Tasks/Budget/Vendors chip row or internal routing — that produced a second, nested
+ * taxonomy stacked underneath the IA V2 chips. Module rows now report the IA V2 section they
+ * represent through [onOpenSection]; the shell moves the workspace selection.
+ *
+ * @param onOpenSection receives an IA V2 Level-2 section label (for example "Tasks", "Budget").
+ */
 @Composable
-fun WeddingReferencePlannerScreen(appViewModel: AppViewModel) {
+fun WeddingReferencePlannerScreen(
+    appViewModel: AppViewModel,
+    onOpenSection: ((String) -> Unit)? = null
+) {
     var dashboard by remember { mutableStateOf<PlannerDashboardSnapshot?>(null) }
     var tasks by remember { mutableStateOf<List<PlannerTask>>(emptyList()) }
-    var selectedSection by remember { mutableStateOf(ReferencePlannerSection.OVERVIEW) }
-    var destination by remember { mutableStateOf<ReferencePlannerDestination?>(null) }
     var loading by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
@@ -40,32 +51,6 @@ fun WeddingReferencePlannerScreen(appViewModel: AppViewModel) {
         } finally {
             loading = false
         }
-    }
-
-    destination?.let { current ->
-        when (current) {
-            ReferencePlannerDestination.SEATING ->
-                ShadowSeatingDestination(appViewModel) { destination = null }
-            ReferencePlannerDestination.TIMELINE ->
-                ShadowTimelineDestination(appViewModel) { destination = null }
-            ReferencePlannerDestination.CONTRIBUTIONS ->
-                ShadowContributionsDestination(appViewModel) { destination = null }
-            ReferencePlannerDestination.DOCUMENTS ->
-                ShadowDocumentsDestination(appViewModel) { destination = null }
-        }
-        return
-    }
-
-    when (selectedSection) {
-        ReferencePlannerSection.BUDGET -> {
-            ShadowBudgetDestination(appViewModel) { selectedSection = ReferencePlannerSection.OVERVIEW }
-            return
-        }
-        ReferencePlannerSection.VENDORS -> {
-            ShadowVendorsDestination(appViewModel) { selectedSection = ReferencePlannerSection.OVERVIEW }
-            return
-        }
-        else -> Unit
     }
 
     Box(
@@ -115,39 +100,7 @@ fun WeddingReferencePlannerScreen(appViewModel: AppViewModel) {
                     }
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    ReferencePlannerSection.entries.forEach { section ->
-                        val selected = selectedSection == section
-                        Text(
-                            text = section.title,
-                            color = if (selected) Color.White else WeddingIdentityPalette.Muted,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier
-                                .clip(CircleShape)
-                                .background(if (selected) WeddingIdentityPalette.Forest else WeddingIdentityPalette.IvorySoft)
-                                .border(
-                                    if (selected) 0.dp else 1.dp,
-                                    WeddingIdentityPalette.Hairline,
-                                    CircleShape
-                                )
-                                .clickable { selectedSection = section }
-                                .padding(horizontal = 14.dp, vertical = 8.dp)
-                        )
-                    }
-                }
-
-                if (selectedSection == ReferencePlannerSection.TASKS) {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = PaddingValues(bottom = 24.dp)
-                    ) {
-                        items(tasks) { task ->
-                            ReferenceTaskRow(task)
-                        }
-                    }
-                } else {
+                run {
                     val snap = dashboard
                     if (snap == null) {
                         Text(
@@ -211,7 +164,7 @@ fun WeddingReferencePlannerScreen(appViewModel: AppViewModel) {
                                     subtitle = "${tasks.count { it.status != TaskStatus.DONE }} remaining",
                                     icon = Icons.Default.Checklist,
                                     identifier = "planner-module-tasks"
-                                ) { selectedSection = ReferencePlannerSection.TASKS }
+                                ) { onOpenSection?.invoke("Tasks") }
                             }
                             item {
                                 ReferencePlannerRow(
@@ -219,7 +172,7 @@ fun WeddingReferencePlannerScreen(appViewModel: AppViewModel) {
                                     subtitle = moduleSubtitle(snap, "budget"),
                                     icon = Icons.Default.AccountBalanceWallet,
                                     identifier = "planner-module-budget"
-                                ) { selectedSection = ReferencePlannerSection.BUDGET }
+                                ) { onOpenSection?.invoke("Budget") }
                             }
                             item {
                                 ReferencePlannerRow(
@@ -227,7 +180,7 @@ fun WeddingReferencePlannerScreen(appViewModel: AppViewModel) {
                                     subtitle = moduleSubtitle(snap, "contributions"),
                                     icon = Icons.Default.CardGiftcard,
                                     identifier = "planner-module-contributions"
-                                ) { destination = ReferencePlannerDestination.CONTRIBUTIONS }
+                                ) { onOpenSection?.invoke("Contributions") }
                             }
                             item {
                                 ReferencePlannerRow(
@@ -235,7 +188,7 @@ fun WeddingReferencePlannerScreen(appViewModel: AppViewModel) {
                                     subtitle = moduleSubtitle(snap, "vendors"),
                                     icon = Icons.Default.Storefront,
                                     identifier = "planner-module-vendors"
-                                ) { selectedSection = ReferencePlannerSection.VENDORS }
+                                ) { onOpenSection?.invoke("Vendors") }
                             }
                             item {
                                 ReferencePlannerRow(
@@ -243,7 +196,7 @@ fun WeddingReferencePlannerScreen(appViewModel: AppViewModel) {
                                     subtitle = moduleSubtitle(snap, "seating"),
                                     icon = Icons.Default.TableRestaurant,
                                     identifier = "planner-module-seating"
-                                ) { destination = ReferencePlannerDestination.SEATING }
+                                ) { onOpenSection?.invoke("Seating") }
                             }
                             item {
                                 ReferencePlannerRow(
@@ -251,7 +204,7 @@ fun WeddingReferencePlannerScreen(appViewModel: AppViewModel) {
                                     subtitle = moduleSubtitle(snap, "timeline"),
                                     icon = Icons.Default.CalendarMonth,
                                     identifier = "planner-module-timeline"
-                                ) { destination = ReferencePlannerDestination.TIMELINE }
+                                ) { onOpenSection?.invoke("Timeline") }
                             }
                             item {
                                 ReferencePlannerRow(
@@ -259,7 +212,7 @@ fun WeddingReferencePlannerScreen(appViewModel: AppViewModel) {
                                     subtitle = "Contracts, notes, files",
                                     icon = Icons.Default.Description,
                                     identifier = "planner-module-documents"
-                                ) { destination = ReferencePlannerDestination.DOCUMENTS }
+                                ) { onOpenSection?.invoke("Documents") }
                             }
                         }
                     }
@@ -385,16 +338,3 @@ private fun moduleSubtitle(snapshot: PlannerDashboardSnapshot, id: String): Stri
     return if (!module.attention.isNullOrBlank()) "${module.value} • ${module.attention}" else module.value
 }
 
-private enum class ReferencePlannerSection(val title: String) {
-    OVERVIEW("Overview"),
-    TASKS("Tasks"),
-    BUDGET("Budget"),
-    VENDORS("Vendors")
-}
-
-private enum class ReferencePlannerDestination {
-    SEATING,
-    TIMELINE,
-    CONTRIBUTIONS,
-    DOCUMENTS
-}
