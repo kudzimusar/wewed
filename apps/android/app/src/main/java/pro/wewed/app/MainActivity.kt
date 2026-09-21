@@ -62,11 +62,23 @@ class MainActivity : ComponentActivity() {
                 rawUrl = intent?.dataString,
                 intentExtra = intent?.getStringExtra(InvitationEntryParser.ANDROID_INTENT_EXTRA)
             )
-            if (hasInvitation) {
+            // An invited Guest should not need WhatsApp every time they open the app. If this
+            // device already holds a Guest session, an ordinary icon launch restores their wedding
+            // — the same decision a returning account holder gets, by a different credential.
+            val hasRememberedGuest =
+                GuestInvitationBootstrap.hasGuestSession(applicationContext)
+            if (hasInvitation || hasRememberedGuest) {
                 setContent {
                     WewedTheme {
                         Box(modifier = Modifier.semantics { testTagsAsResourceId = true }) {
                             GuestOnlyInvitationShell(
+                                hasIncomingInvitation = hasInvitation,
+                                onForgetWedding = {
+                                    // Ends the wedding relationship on this device. Deliberately
+                                    // not Sign Out: no account session is touched.
+                                    GuestInvitationBootstrap.forgetGuest(applicationContext)
+                                    finish()
+                                },
                                 coordinator = GuestInvitationBootstrap.coordinator(
                                     context = applicationContext,
                                     // Debug builds only, and never read in a release binary: this

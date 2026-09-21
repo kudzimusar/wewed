@@ -36,8 +36,8 @@ object GuestOnlyEntryState {
         return true
     }
 
-    /** Test seam. Never called by the app. */
-    internal fun reset() {
+    /** Clears the pending entry. Used when forgetting a wedding, and by tests. */
+    fun reset() {
         _entry.value = null
     }
 }

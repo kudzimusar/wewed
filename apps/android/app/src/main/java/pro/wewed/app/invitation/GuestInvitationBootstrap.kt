@@ -64,9 +64,26 @@ object GuestInvitationBootstrap {
         AndroidKeystoreSecureStorage(context.applicationContext)
             .get("wewed.guest.session") != null
 
+    /**
+     * Ends the Guest relationship on this device.
+     *
+     * Deliberately separate from account Sign Out: it clears the Guest session and nothing else,
+     * so forgetting a wedding on a planner's phone cannot log the planner out of Wewed.
+     */
+    @Synchronized
+    fun forgetGuest(context: Context) {
+        AndroidKeystoreSecureStorage(context.applicationContext).apply {
+            delete("wewed.guest.session")
+            delete("wewed.guest.session.slug")
+        }
+        coordinator = null
+        storage = null
+        GuestOnlyEntryState.reset()
+    }
+
     /** Test seam. Never called by the app. */
     @Synchronized
-    internal fun reset() {
+    fun reset() {
         coordinator = null
         storage = null
     }

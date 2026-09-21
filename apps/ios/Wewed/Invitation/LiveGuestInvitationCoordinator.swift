@@ -155,6 +155,16 @@ public actor LiveGuestInvitationCoordinator {
         }
     }
 
+    /// Ends the Guest relationship on this device.
+    ///
+    /// Clears the stored session and the coordinator's own memory of who was presented, so nothing
+    /// can answer on behalf of a guest who has been forgotten.
+    public func forgetGuest() async {
+        await client.clearSession()
+        activeWeddingSlug = nil
+        presentedGuestId = nil
+    }
+
     /// Re-reads the card after an answer, so what is shown is what the server stored.
     public func refresh() async -> LiveInvitationState {
         guard let slug = activeWeddingSlug else { return .idle }

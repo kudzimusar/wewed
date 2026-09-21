@@ -55,6 +55,14 @@ an active guest before the server has validated the new one.
 The shapes and endpoints are generated from `origin/main` into
 `mobile/contracts/invitation-protocol.json` and asserted on both platforms.
 
+### 1d. Binding rule — the invitation-bound Guest Profile
+
+INVITATION_BOUND_GUEST_PROFILE.md
+
+A private invitation is both a wedding invitation and the onboarding credential for a Guest
+Profile. A verified Guest never sees email, password or role selection. The Guest session restores
+their wedding on ordinary relaunch; RSVP decides what is inside, not whether they may enter.
+
 ### 1c. Open backend blocker — the Guest Pass
 
 GUEST_PASS_BACKEND_CONTRACT_PROPOSAL.md

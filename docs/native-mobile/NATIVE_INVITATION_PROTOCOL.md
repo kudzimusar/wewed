@@ -289,3 +289,28 @@ while Guest A's card was open therefore re-ran `onCreate` in a fresh instance, a
 
 `singleTask` makes the running instance receive the link, which is both what the guest expects (one
 Wewed, not a stack of them) and what makes replacement observable at all.
+
+---
+
+## 11. The invitation is onboarding, not a gate
+
+**Added by `WW-NATIVE-INVITATION-BOUND-GUEST-PROFILE-2026-09-21-01`.**
+
+This document describes how a guest is *identified*. What happens afterwards is the
+invitation-bound Guest Profile, and it has its own authority:
+[INVITATION_BOUND_GUEST_PROFILE.md](./INVITATION_BOUND_GUEST_PROFILE.md).
+
+The short version, because it changes what "success" means for this protocol:
+
+- A verified Guest **never** sees email, password or role selection. The private invitation was the
+  onboarding.
+- `Continue` enters the Guest's own wedding. It used to be `onContinue = {}` on both platforms,
+  which is where the guest journey actually ended.
+- An **ordinary app-icon launch** restores the remembered Guest session through
+  `restoreRememberedGuest()`. A guest should not need WhatsApp every time they check their table.
+- The ceremonial opening belongs to an **explicit link**. A relaunch goes to Guest Home, with the
+  invitation one tap away and reopened from the current session snapshot — never by re-exchanging
+  the raw credential.
+- RSVP decides capability, not entry. `GuestCapabilityPolicy` holds that rule as a pure function on
+  both platforms.
+

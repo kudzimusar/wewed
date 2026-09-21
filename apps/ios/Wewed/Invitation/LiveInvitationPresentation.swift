@@ -29,10 +29,22 @@ public struct LiveInvitationPresentation: Equatable, Sendable {
     public let rsvpDeadline: String?
     public let childrenPolicy: String?
 
+    public let email: String?
+    public let tableNumber: Int?
+    /// e.g. "Table 1 — Family". Server-projected; never another guest's record.
+    public let tableName: String?
+
     public let attending: Bool?
+    public let mealChoice: String?
+    public let plusOne: Bool
+    public let plusOneName: String?
+    public let plusOneMeal: String?
+    public let kidsAttending: Bool
+    public let kidsCount: Int?
     public let dietaryNotes: String?
     public let message: String?
     public let checkedIn: Bool
+    public let checkedInAt: String?
 
     /// Three states, because "not attending" is not "not answered".
     public var rsvpStatus: RSVPStatus {
@@ -71,10 +83,20 @@ public struct LiveInvitationPresentation: Equatable, Sendable {
             invitationCardMessage: snapshot.invitationCardMessage,
             rsvpDeadline: snapshot.rsvpDeadline,
             childrenPolicy: snapshot.childrenPolicy,
+            email: snapshot.email,
+            tableNumber: snapshot.tableNumber,
+            tableName: snapshot.tableName,
             attending: snapshot.attending,
+            mealChoice: snapshot.mealChoice,
+            plusOne: snapshot.plusOne,
+            plusOneName: snapshot.plusOneName,
+            plusOneMeal: snapshot.plusOneMeal,
+            kidsAttending: snapshot.kidsAttending,
+            kidsCount: snapshot.kidsCount,
             dietaryNotes: snapshot.dietaryNotes,
             message: snapshot.message,
-            checkedIn: snapshot.checkedIn
+            checkedIn: snapshot.checkedIn,
+            checkedInAt: snapshot.checkedInAt
         )
     }
 }

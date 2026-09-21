@@ -32,10 +32,21 @@ data class GuestInvitationSnapshot(
     val childrenPolicy: String?,
     val guestId: String,
     val guestName: String,
+    val email: String?,
+    val tableNumber: Int?,
+    /** e.g. "Table 1 — Family". Server-projected; never another guest's record. */
+    val tableName: String?,
     val attending: Boolean?,
+    val mealChoice: String?,
+    val plusOne: Boolean,
+    val plusOneName: String?,
+    val plusOneMeal: String?,
+    val kidsAttending: Boolean,
+    val kidsCount: Int?,
     val dietaryNotes: String?,
     val message: String?,
-    val checkedIn: Boolean
+    val checkedIn: Boolean,
+    val checkedInAt: String?
 )
 
 /** What happened when a guest answered. */
@@ -250,10 +261,20 @@ class GuestSessionClient(
             childrenPolicy = wedding.optStringOrNull("childrenPolicy"),
             guestId = guest.optStringOrNull("id").orEmpty(),
             guestName = guest.optStringOrNull("name").orEmpty(),
+            email = guest.optStringOrNull("email"),
+            tableNumber = if (guest.isNull("tableNumber")) null else guest.optInt("tableNumber"),
+            tableName = guest.optStringOrNull("tableName"),
             attending = if (rsvp.isNull("attending")) null else rsvp.optBoolean("attending"),
+            mealChoice = rsvp.optStringOrNull("mealChoice"),
+            plusOne = rsvp.optBoolean("plusOne"),
+            plusOneName = rsvp.optStringOrNull("plusOneName"),
+            plusOneMeal = rsvp.optStringOrNull("plusOneMeal"),
+            kidsAttending = rsvp.optBoolean("kidsAttending"),
+            kidsCount = if (rsvp.isNull("kidsCount")) null else rsvp.optInt("kidsCount"),
             dietaryNotes = rsvp.optStringOrNull("dietaryNotes"),
             message = rsvp.optStringOrNull("message"),
-            checkedIn = rsvp.optBoolean("checkedIn")
+            checkedIn = rsvp.optBoolean("checkedIn"),
+            checkedInAt = rsvp.optStringOrNull("checkedInAt")
         )
     }
 

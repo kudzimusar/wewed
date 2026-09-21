@@ -34,10 +34,22 @@ data class LiveInvitationPresentation(
     val rsvpDeadline: String?,
     val childrenPolicy: String?,
 
+    val email: String?,
+    val tableNumber: Int?,
+    /** e.g. "Table 1 — Family". Server-projected; never another guest's record. */
+    val tableName: String?,
+
     val attending: Boolean?,
+    val mealChoice: String?,
+    val plusOne: Boolean,
+    val plusOneName: String?,
+    val plusOneMeal: String?,
+    val kidsAttending: Boolean,
+    val kidsCount: Int?,
     val dietaryNotes: String?,
     val message: String?,
-    val checkedIn: Boolean
+    val checkedIn: Boolean,
+    val checkedInAt: String?
 ) {
     /** Three states, because "not attending" is not "not answered". */
     val rsvpStatus: RSVPStatus
@@ -78,10 +90,20 @@ data class LiveInvitationPresentation(
                 invitationCardMessage = snapshot.invitationCardMessage,
                 rsvpDeadline = snapshot.rsvpDeadline,
                 childrenPolicy = snapshot.childrenPolicy,
+                email = snapshot.email,
+                tableNumber = snapshot.tableNumber,
+                tableName = snapshot.tableName,
                 attending = snapshot.attending,
+                mealChoice = snapshot.mealChoice,
+                plusOne = snapshot.plusOne,
+                plusOneName = snapshot.plusOneName,
+                plusOneMeal = snapshot.plusOneMeal,
+                kidsAttending = snapshot.kidsAttending,
+                kidsCount = snapshot.kidsCount,
                 dietaryNotes = snapshot.dietaryNotes,
                 message = snapshot.message,
-                checkedIn = snapshot.checkedIn
+                checkedIn = snapshot.checkedIn,
+                checkedInAt = snapshot.checkedInAt
             )
     }
 }

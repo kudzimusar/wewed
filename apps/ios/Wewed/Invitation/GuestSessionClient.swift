@@ -24,10 +24,21 @@ public struct GuestInvitationSnapshot: Equatable, Sendable {
     public let childrenPolicy: String?
     public let guestId: String
     public let guestName: String
+    public let email: String?
+    public let tableNumber: Int?
+    /// e.g. "Table 1 — Family". Server-projected; never another guest's record.
+    public let tableName: String?
     public let attending: Bool?
+    public let mealChoice: String?
+    public let plusOne: Bool
+    public let plusOneName: String?
+    public let plusOneMeal: String?
+    public let kidsAttending: Bool
+    public let kidsCount: Int?
     public let dietaryNotes: String?
     public let message: String?
     public let checkedIn: Bool
+    public let checkedInAt: String?
 }
 
 /// What happened when a guest answered.
@@ -220,10 +231,20 @@ public actor GuestSessionClient {
             childrenPolicy: text(wedding, "childrenPolicy"),
             guestId: text(guest, "id") ?? "",
             guestName: text(guest, "name") ?? "",
+            email: text(guest, "email"),
+            tableNumber: guest["tableNumber"] as? Int,
+            tableName: text(guest, "tableName"),
             attending: rsvp["attending"] as? Bool,
+            mealChoice: text(rsvp, "mealChoice"),
+            plusOne: rsvp["plusOne"] as? Bool ?? false,
+            plusOneName: text(rsvp, "plusOneName"),
+            plusOneMeal: text(rsvp, "plusOneMeal"),
+            kidsAttending: rsvp["kidsAttending"] as? Bool ?? false,
+            kidsCount: rsvp["kidsCount"] as? Int,
             dietaryNotes: text(rsvp, "dietaryNotes"),
             message: text(rsvp, "message"),
-            checkedIn: rsvp["checkedIn"] as? Bool ?? false
+            checkedIn: rsvp["checkedIn"] as? Bool ?? false,
+            checkedInAt: text(rsvp, "checkedInAt")
         )
     }
 
