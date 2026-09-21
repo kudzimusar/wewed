@@ -130,7 +130,11 @@ export async function signedNativeWeddingDayManifest(weddingId: string) {
               c."eventBitmask",
               c."issuedAt",
               c."expiresAt",
-              c."revokedAt",
+              -- A superseded credential is a dead credential at the gate: it was replaced by a
+              -- later issue and its token must never admit anyone. Folding it into the field the
+              -- manifest already publishes means every offline device that honours revocation
+              -- honours supersession too, with no client change and no second concept to teach.
+              COALESCE(c."revokedAt", c."supersededAt") AS "revokedAt",
               pk."keyId",
               r.attending,
               COALESCE(r."plusOne", FALSE) AS "plusOne",

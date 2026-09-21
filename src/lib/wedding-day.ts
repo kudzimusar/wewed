@@ -66,10 +66,12 @@ interface CredentialRow {
   nonce: string
   signatureHex: string
   token: string
+  issueSeq: number
   issuedAt: Date
   expiresAt: Date | null
   revokedAt: Date | null
   revocationReason: string | null
+  supersededAt: Date | null
 }
 
 interface GuestEligibilityRow {
@@ -198,13 +200,69 @@ export function weddingShortId(weddingId: string): string {
   return createHash('sha256').update(weddingId).digest('hex').slice(0, 8)
 }
 
-function deterministicPassSerial(weddingId: string, guestId: string): string {
+const HOUR_MS = 60 * 60 * 1000
+const DAY_MS = 24 * HOUR_MS
+
+/** Issuance opens this far before the wedding date. */
+export const WEDDING_PASS_OPENS_BEFORE_MS = 14 * DAY_MS
+/** No new credential may be issued after wedding date + this. */
+export const WEDDING_PASS_ISSUANCE_CUTOFF_AFTER_MS = 24 * HOUR_MS
+/** Every credential for a wedding expires at wedding date + this, whenever it was issued. */
+export const WEDDING_PASS_EXPIRES_AFTER_MS = 36 * HOUR_MS
+
+export interface WeddingPassIssuanceWindow {
+  opensAt: Date
+  cutoffAt: Date
+  expiresAt: Date
+}
+
+/**
+ * The wedding pass issuance policy, stated once.
+ *
+ * Every bound is anchored to the wedding date, never to the moment of the request:
+ *
+ * - **opens**   wedding − 14 days. Before that there is nothing to admit anyone to.
+ * - **cutoff**  wedding + 24 hours. After it, no *new* credential is issued at all.
+ * - **expires** wedding + 36 hours, always.
+ *
+ * The expiry deliberately does not depend on when the pass was asked for. The previous behaviour
+ * was `max(weddingDate + 36h, now + 12h)`, which had two consequences nobody chose: a guest who
+ * requested a pass late could be issued one *after* the celebration had ended, and that pass then
+ * outlived the event by a further twelve hours. A guest asking at the last moment now gets a pass
+ * that expires with the wedding like everyone else's — short-lived, but never extending the event.
+ */
+export function weddingPassIssuanceWindow(weddingDate: Date): WeddingPassIssuanceWindow {
+  const day = weddingDate.getTime()
+  return {
+    opensAt: new Date(day - WEDDING_PASS_OPENS_BEFORE_MS),
+    cutoffAt: new Date(day + WEDDING_PASS_ISSUANCE_CUTOFF_AFTER_MS),
+    expiresAt: new Date(day + WEDDING_PASS_EXPIRES_AFTER_MS),
+  }
+}
+
+/** Whether a *new* credential may be issued now. Reuse of a live credential is not gated by this. */
+export function weddingPassIssuanceAllowedAt(weddingDate: Date, now: Date = new Date()): boolean {
+  const window = weddingPassIssuanceWindow(weddingDate)
+  // Inclusive of both bounds: exactly at the cutoff is still inside the window.
+  return now.getTime() >= window.opensAt.getTime() && now.getTime() <= window.cutoffAt.getTime()
+}
+
+/**
+ * The serial for one *issue*, not for one guest.
+ *
+ * The guest half stays deterministic so a serial remains recognisably theirs across reissues, but
+ * the sequence number makes each issue a distinct immutable identity. It has to: the table is
+ * unique on (weddingId, passSerial), and when the serial depended on the guest alone, a reissue
+ * after revocation collided with the revoked row and the upsert handed the caller back the dead
+ * credential it was trying to replace.
+ */
+function passSerialForIssue(weddingId: string, guestId: string, issueSeq: number): string {
   const suffix = createHash('sha256')
     .update(`${weddingId}:${guestId}`)
     .digest('hex')
     .slice(0, 8)
     .toUpperCase()
-  return `WW${suffix}`
+  return `WW${suffix}-${String(issueSeq).padStart(3, '0')}`
 }
 
 export function canonicalWw2Payload(input: {
@@ -403,70 +461,162 @@ async function ensurePassKey(weddingId: string): Promise<PassKeyRow> {
   return key
 }
 
+/** Postgres unique-violation. A concurrent issuer won the race for this guest's live slot. */
+function isUniqueViolation(error: unknown): boolean {
+  const code = (error as { code?: unknown } | null)?.code
+  return code === '23505' || code === 'P2010'
+}
+
+/**
+ * The guest's live credential, if one exists and has not expired.
+ *
+ * "Live" is the database's definition, not this function's: the partial unique index
+ * `(weddingId, guestId) WHERE revokedAt IS NULL AND supersededAt IS NULL` permits exactly one
+ * such row, so this can never legitimately return more than one.
+ */
+async function liveCredential(
+  tx: Pick<typeof db, '$queryRawUnsafe'>,
+  weddingId: string,
+  guestId: string,
+  lock: boolean,
+): Promise<CredentialRow | null> {
+  const rows = await tx.$queryRawUnsafe<CredentialRow[]>(
+    `SELECT * FROM public."WeddingPassCredential"
+      WHERE "weddingId" = $1
+        AND "guestId" = $2
+        AND "revokedAt" IS NULL
+        AND "supersededAt" IS NULL
+      ORDER BY "issueSeq" DESC
+      LIMIT 1
+      ${lock ? 'FOR UPDATE' : ''}`,
+    weddingId,
+    guestId,
+  )
+  return rows[0] ?? null
+}
+
+function credentialIsUsable(credential: CredentialRow, now: number): boolean {
+  if (credential.revokedAt || credential.supersededAt) return false
+  return !credential.expiresAt || credential.expiresAt.getTime() > now
+}
+
+/**
+ * Issues, reuses or replaces a guest's wedding pass.
+ *
+ * The lifecycle, which the previous implementation could not express:
+ *
+ * - a **live, unexpired** credential is returned as-is;
+ * - a **revoked** credential is never returned, never un-revoked, and never mutated — a fresh
+ *   credential is issued alongside it with its own id, nonce, serial and token;
+ * - an **expired** credential is marked `supersededAt` rather than altered or deleted, which both
+ *   preserves it for audit and frees the one live slot the partial unique index allows;
+ * - issuance past the wedding's cutoff is refused outright rather than quietly extending the event.
+ *
+ * Concurrency is enforced by the database, not by checking first and hoping:
+ *
+ * 1. the live row is selected `FOR UPDATE`, so a second caller blocks rather than racing it;
+ * 2. `WeddingPassCredential_weddingId_guestId_live_key`, a partial unique index over
+ *    `(weddingId, guestId) WHERE revokedAt IS NULL AND supersededAt IS NULL`, makes a second
+ *    *live* credential for one guest impossible even if the lock is somehow bypassed;
+ * 3. a caller that loses the race sees `23505`, re-reads, and returns the winner's credential.
+ *
+ * The whole sequence runs in one transaction, so a crash between superseding the old credential
+ * and inserting the new one cannot leave a guest with no live pass and no way to obtain one.
+ */
 export async function ensureWeddingPassCredential(input: {
   weddingId: string
   guestId: string
+  now?: Date
 }): Promise<CredentialRow> {
   const eligibility = await guestEligibility(input.weddingId, input.guestId)
   if (!eligibility || eligibility.attending !== true) {
     throw new Error('Wedding Pass is available only after an accepted RSVP.')
   }
 
-  const existing = await db.$queryRawUnsafe<CredentialRow[]>(
-    `SELECT * FROM public."WeddingPassCredential"
-      WHERE "weddingId" = $1
-        AND "guestId" = $2
-        AND "revokedAt" IS NULL
-        AND ("expiresAt" IS NULL OR "expiresAt" > CURRENT_TIMESTAMP)
-      ORDER BY "issuedAt" DESC
-      LIMIT 1`,
-    input.weddingId,
-    input.guestId,
-  )
-  if (existing[0]) return existing[0]
+  const now = input.now ?? new Date()
+  const window = weddingPassIssuanceWindow(eligibility.weddingDate)
 
-  const passKey = await ensurePassKey(input.weddingId)
-  const material = ww2KeyMaterial()
-  const shortId = weddingShortId(input.weddingId)
-  const passSerial = deterministicPassSerial(input.weddingId, input.guestId)
-  const nonce = randomBytes(4).toString('hex')
-  const eventBitmask = DEFAULT_WW2_EVENT_MASK
-  const payload = canonicalWw2Payload({
-    weddingShortId: shortId,
-    passSerial,
-    eventBitmask,
-    nonce,
-  })
-  const signatureHex = p1363HexSign(payload, material.privateKeyPem)
-  const token = `${payload}.${signatureHex}`
-  const weddingExpiry = eligibility.weddingDate.getTime() + 36 * 60 * 60 * 1000
-  const expiresAt = new Date(Math.max(weddingExpiry, Date.now() + 12 * 60 * 60 * 1000))
+  const issue = async (): Promise<CredentialRow> =>
+    db.$transaction(async (tx) => {
+      const existing = await liveCredential(tx, input.weddingId, input.guestId, true)
+      if (existing && credentialIsUsable(existing, now.getTime())) return existing
 
-  const id = randomUUID()
-  const rows = await db.$queryRawUnsafe<CredentialRow[]>(
-    `INSERT INTO public."WeddingPassCredential"
-      (id, "weddingId", "guestId", "passKeyId", "weddingShortId", "passSerial",
-       "tokenVersion", "eventBitmask", nonce, "signatureHex", token, "issuedAt",
-       "expiresAt", "createdAt", "updatedAt")
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-             CURRENT_TIMESTAMP, $12, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-     ON CONFLICT ("weddingId", "passSerial") DO UPDATE
-       SET "updatedAt" = CURRENT_TIMESTAMP
-     RETURNING *`,
-    id,
-    input.weddingId,
-    input.guestId,
-    passKey.id,
-    shortId,
-    passSerial,
-    WW2_VERSION,
-    eventBitmask,
-    nonce,
-    signatureHex,
-    token,
-    expiresAt,
-  )
-  return rows[0]
+      // Only *new* issuance is gated by the window. A guest holding a live pass keeps it even
+      // after the cutoff; what the cutoff stops is minting another one.
+      if (!weddingPassIssuanceAllowedAt(eligibility.weddingDate, now)) {
+        throw new Error('PASS_ISSUANCE_CLOSED')
+      }
+
+      if (existing) {
+        // Expired. Retire it explicitly so the audit trail shows a replacement rather than an
+        // edit, and so the live slot is free for the row inserted below.
+        await tx.$queryRawUnsafe(
+          `UPDATE public."WeddingPassCredential"
+              SET "supersededAt" = $1, "updatedAt" = $1
+            WHERE id = $2`,
+          now,
+          existing.id,
+        )
+      }
+
+      const seqRows = await tx.$queryRawUnsafe<Array<{ next: number }>>(
+        `SELECT COALESCE(MAX("issueSeq"), 0) + 1 AS next
+           FROM public."WeddingPassCredential"
+          WHERE "weddingId" = $1 AND "guestId" = $2`,
+        input.weddingId,
+        input.guestId,
+      )
+      const issueSeq = Number(seqRows[0]?.next ?? 1)
+
+      const passKey = await ensurePassKey(input.weddingId)
+      const material = ww2KeyMaterial()
+      const shortId = weddingShortId(input.weddingId)
+      const passSerial = passSerialForIssue(input.weddingId, input.guestId, issueSeq)
+      const nonce = randomBytes(8).toString('hex')
+      const eventBitmask = DEFAULT_WW2_EVENT_MASK
+      const payload = canonicalWw2Payload({
+        weddingShortId: shortId,
+        passSerial,
+        eventBitmask,
+        nonce,
+      })
+      const signatureHex = p1363HexSign(payload, material.privateKeyPem)
+      const token = `${payload}.${signatureHex}`
+
+      const rows = await tx.$queryRawUnsafe<CredentialRow[]>(
+        `INSERT INTO public."WeddingPassCredential"
+          (id, "weddingId", "guestId", "passKeyId", "weddingShortId", "passSerial", "issueSeq",
+           "tokenVersion", "eventBitmask", nonce, "signatureHex", token, "issuedAt",
+           "expiresAt", "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $13, $13)
+         RETURNING *`,
+        randomUUID(),
+        input.weddingId,
+        input.guestId,
+        passKey.id,
+        shortId,
+        passSerial,
+        issueSeq,
+        WW2_VERSION,
+        eventBitmask,
+        nonce,
+        signatureHex,
+        token,
+        now,
+        window.expiresAt,
+      )
+      return rows[0]
+    })
+
+  try {
+    return await issue()
+  } catch (error) {
+    if (!isUniqueViolation(error)) throw error
+    // A concurrent caller created this guest's live credential first. Theirs is as good as ours.
+    const winner = await liveCredential(db, input.weddingId, input.guestId, false)
+    if (winner) return winner
+    throw error
+  }
 }
 
 export async function verifyWeddingPassToken(input: {
@@ -498,6 +648,8 @@ export async function verifyWeddingPassToken(input: {
   if (
     !credential ||
     credential.revokedAt ||
+    // Superseded: replaced by a later issue. The row survives for audit, the token does not.
+    credential.supersededAt ||
     (credential.expiresAt && credential.expiresAt.getTime() <= now) ||
     credential.keyStatus !== 'active' ||
     credential.keyRevokedAt ||
@@ -561,7 +713,11 @@ export async function guestPassForRequest(request: NextRequest) {
   if (!guest) return null
   if (guest.rsvp?.attending !== true) throw new Error('ATTENDANCE_REQUIRED')
   const credential = await ensureWeddingPassCredential({ weddingId: guest.weddingId, guestId: guest.id })
-  if (credential.revokedAt || (credential.expiresAt && credential.expiresAt.getTime() <= Date.now())) {
+  if (
+    credential.revokedAt ||
+    credential.supersededAt ||
+    (credential.expiresAt && credential.expiresAt.getTime() <= Date.now())
+  ) {
     throw new Error('PASS_UNAVAILABLE')
   }
   const keys = await db.$queryRawUnsafe<PassKeyRow[]>(
@@ -930,7 +1086,11 @@ export async function signedWeddingDayManifest(weddingId: string) {
       nonce: credential.nonce,
       eventBitmask: credential.eventBitmask,
       expiresAt: credential.expiresAt?.toISOString() ?? null,
-      revokedAt: credential.revokedAt?.toISOString() ?? null,
+      // Superseded credentials are published as revoked. An offline gate holding this manifest
+      // must refuse a replaced pass exactly as it refuses a revoked one, and it should not need
+      // to learn a second word for "this token is dead" to do it.
+      revokedAt:
+        (credential.revokedAt ?? credential.supersededAt)?.toISOString() ?? null,
     })),
   }
   const canonicalPayload = JSON.stringify(payload)
