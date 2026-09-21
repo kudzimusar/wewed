@@ -70,7 +70,7 @@ jobs:
             exit 1
           fi
       - name: Set up Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
@@ -135,7 +135,7 @@ jobs:
           test "$actual_upload_cert_sha256" = "$EXPECTED_UPLOAD_CERT_SHA256"
           unzip -t "$AAB" >/dev/null
       - name: Upload signed production candidate
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wewed-production-play-signed-aab
           path: android/app/build/outputs/bundle/release/app-release.aab
