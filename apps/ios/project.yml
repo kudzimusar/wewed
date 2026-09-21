@@ -50,3 +50,20 @@ targets:
           PRODUCT_BUNDLE_IDENTIFIER: pro.wewed.app
     scheme:
       gatherCoverageData: false
+      testTargets:
+        - GuestProfileUITests
+
+  GuestProfileUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: GuestProfileUITests
+    dependencies:
+      - target: Wewed
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: pro.wewed.app.dev.guestuitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Wewed
+        CODE_SIGN_STYLE: Automatic

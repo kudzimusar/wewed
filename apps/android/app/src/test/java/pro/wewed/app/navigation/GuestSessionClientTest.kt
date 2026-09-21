@@ -142,6 +142,23 @@ class GuestSessionClientTest {
         )
     }
 
+    @Test fun refreshedCredentialsPersistAndRevocationClearsStorage() = runBlocking {
+        exchangeSucceeds("synthetic", "a", "Synthetic", "v1-session")
+        client.exchangePrivateInvitation("synthetic", "private-fixture")
+        invitationReads("synthetic", "a", "Synthetic", null)
+        val get = "GET /api/weddings/synthetic/guest-session"
+        routes[get] = Reply(200, routes[get]!!.body, session = "v2-session")
+        client.loadInvitation()
+        assertEquals("v2-session", storage.get("wewed.guest.session"))
+        routes["PUT /api/weddings/synthetic/guest-session"] = Reply(200, """{"success":true,"rsvp":{"attending":true}}""", session = "v2-refreshed")
+        client.saveRsvp("synthetic", "a", true)
+        assertEquals("v2-refreshed", storage.get("wewed.guest.session"))
+        routes[get] = Reply(401)
+        try { client.loadInvitation(); fail("revoked session accepted") } catch (_: GuestSessionException) { }
+        assertFalse(client.hasActiveSession())
+        assertNull(client.activeSessionSlug())
+    }
+
     // --- The credential rules -------------------------------------------------------------
 
     /** The raw credential opens the door once. It must never become stored identity. */

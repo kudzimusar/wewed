@@ -120,6 +120,23 @@ final class GuestSessionClientTests: XCTestCase {
         )
     }
 
+    func testRefreshedCredentialsPersistAndRevocationClearsStorage() async throws {
+        exchangeSucceeds(slug: "synthetic", guestId: "a", name: "Synthetic", session: "v1-session")
+        _ = try await client.exchangePrivateInvitation(weddingSlug: "synthetic", rsvpToken: "private-fixture")
+        invitationReads(slug: "synthetic", guestId: "a", name: "Synthetic", attending: "null")
+        let get = "GET /api/weddings/synthetic/guest-session"
+        Stub.routes[get] = Reply(status: 200, body: Stub.routes[get]!.body, session: "v2-session")
+        _ = try await client.loadInvitation()
+        XCTAssertEqual(storage.get(key: "wewed.guest.session"), "v2-session")
+        Stub.routes["PUT /api/weddings/synthetic/guest-session"] = Reply(status: 200, body: #"{"success":true,"rsvp":{"attending":true}}"#, session: "v2-refreshed")
+        _ = try await client.saveRsvp(weddingSlug: "synthetic", originGuestId: "a", attending: true)
+        XCTAssertEqual(storage.get(key: "wewed.guest.session"), "v2-refreshed")
+        Stub.routes[get] = Reply(status: 401)
+        do { _ = try await client.loadInvitation(); XCTFail("revoked session accepted") } catch { }
+        let active = await client.hasActiveSession()
+        XCTAssertFalse(active)
+    }
+
     // MARK: - The credential rules
 
     /// The raw credential opens the door once. It must never become stored identity.
