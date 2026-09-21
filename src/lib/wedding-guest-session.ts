@@ -44,10 +44,20 @@ export function guestSessionMatchesInvitation(session: WeddingGuestSession, inpu
 }
 
 function getSigningSecret(): string {
-  const secret =
-    process.env.WEWED_SESSION_SECRET?.trim() ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
+  const isProduction =
+    process.env.NODE_ENV === 'production' && !isLocalCiBrowserMode()
+  const dedicated = process.env.WEWED_SESSION_SECRET?.trim()
 
+  if (isProduction) {
+    if (!dedicated) {
+      throw new Error(
+        '[wewed] Missing dedicated WEWED_SESSION_SECRET in production.',
+      )
+    }
+    return dedicated
+  }
+
+  const secret = dedicated || process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
   if (!secret) {
     throw new Error(
       '[wewed] Missing WEWED_SESSION_SECRET or SUPABASE_SERVICE_ROLE_KEY.',
@@ -70,7 +80,7 @@ function isLocalCiBrowserMode(): boolean {
   )
 }
 
-function useSecureCookie(): boolean {
+function shouldUseSecureCookie(): boolean {
   return process.env.NODE_ENV === 'production' && !isLocalCiBrowserMode()
 }
 
@@ -158,7 +168,7 @@ export function setWeddingGuestSessionCookie(
     createWeddingGuestSessionToken(input),
     {
       httpOnly: true,
-      secure: useSecureCookie(),
+      secure: shouldUseSecureCookie(),
       sameSite: 'lax',
       path: '/',
       maxAge: Math.floor((Math.min(input.expiresAt ?? Infinity, weddingGuestSessionExpiry(input.weddingDate)) - Date.now()) / 1000),
@@ -169,7 +179,7 @@ export function setWeddingGuestSessionCookie(
 export function clearWeddingGuestSessionCookie(response: NextResponse): void {
   response.cookies.set(WEDDING_GUEST_SESSION_COOKIE, '', {
     httpOnly: true,
-    secure: useSecureCookie(),
+    secure: shouldUseSecureCookie(),
     sameSite: 'lax',
     path: '/',
     maxAge: 0,

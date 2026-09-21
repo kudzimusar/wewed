@@ -26,10 +26,20 @@ export interface WeddingGuestPortfolio {
 }
 
 function getSigningSecret(): string {
-  const secret =
-    process.env.WEWED_SESSION_SECRET?.trim() ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
+  const isProduction =
+    process.env.NODE_ENV === 'production' && !isLocalCiBrowserMode()
+  const dedicated = process.env.WEWED_SESSION_SECRET?.trim()
 
+  if (isProduction) {
+    if (!dedicated) {
+      throw new Error(
+        '[wewed] Missing dedicated WEWED_SESSION_SECRET in production.',
+      )
+    }
+    return dedicated
+  }
+
+  const secret = dedicated || process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
   if (!secret) {
     throw new Error(
       '[wewed] Missing WEWED_SESSION_SECRET or SUPABASE_SERVICE_ROLE_KEY.',
@@ -52,7 +62,7 @@ function isLocalCiBrowserMode(): boolean {
   )
 }
 
-function useSecureCookie(): boolean {
+function shouldUseSecureCookie(): boolean {
   return process.env.NODE_ENV === 'production' && !isLocalCiBrowserMode()
 }
 
@@ -213,7 +223,7 @@ export function setWeddingGuestPortfolioCookie(
     createWeddingGuestPortfolioToken(portfolio),
     {
       httpOnly: true,
-      secure: useSecureCookie(),
+      secure: shouldUseSecureCookie(),
       sameSite: 'lax',
       path: '/',
       maxAge: WEDDING_GUEST_PORTFOLIO_TTL_SECONDS,
@@ -224,7 +234,7 @@ export function setWeddingGuestPortfolioCookie(
 export function clearWeddingGuestPortfolioCookie(response: NextResponse): void {
   response.cookies.set(WEDDING_GUEST_PORTFOLIO_COOKIE, '', {
     httpOnly: true,
-    secure: useSecureCookie(),
+    secure: shouldUseSecureCookie(),
     sameSite: 'lax',
     path: '/',
     maxAge: 0,

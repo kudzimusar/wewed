@@ -40,7 +40,7 @@ function isLocalCiBrowserMode(): boolean {
   )
 }
 
-function useSecureCookie(): boolean {
+function shouldUseSecureCookie(): boolean {
   return process.env.NODE_ENV === 'production' && !isLocalCiBrowserMode()
 }
 
@@ -117,7 +117,7 @@ export function setWeddingSharedInvitationCookie(
     createWeddingSharedInvitationSessionToken(input),
     {
       httpOnly: true,
-      secure: useSecureCookie(),
+      secure: shouldUseSecureCookie(),
       sameSite: 'lax',
       path: '/',
       maxAge: WEDDING_SHARED_INVITATION_TTL_SECONDS,
@@ -130,7 +130,7 @@ export function clearWeddingSharedInvitationCookie(
 ): void {
   response.cookies.set(WEDDING_SHARED_INVITATION_COOKIE, '', {
     httpOnly: true,
-    secure: useSecureCookie(),
+    secure: shouldUseSecureCookie(),
     sameSite: 'lax',
     path: '/',
     maxAge: 0,
