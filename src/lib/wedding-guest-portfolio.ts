@@ -13,6 +13,8 @@ export interface WeddingGuestPortfolioEntry {
   weddingSlug: string
   guestId: string
   invitationCardStyle: InvitationCardStyle
+  invitationVersionFingerprint?: string
+  accessExpiresAt?: number
   lastUsedAt: number
 }
 
