@@ -63,6 +63,10 @@ public struct GuestInvitationJourneyView: View {
     }
 
     private func submit(attending: Bool) async {
+        // The Shadow journey writes RSVP through the repository. In live mode that write belongs
+        // to the guest-session authority via `LiveGuestInvitationView`, and must never happen
+        // here — a fixture write that looks successful is worse than no write at all.
+        guard appState.dataEnvironment.allowsMutableNativeDevelopment else { return }
         isSubmitting = true
         defer { isSubmitting = false }
         do {

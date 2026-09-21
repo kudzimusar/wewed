@@ -37,6 +37,13 @@ import pro.wewed.app.ui.invitation.ivory.IvoryActions
 import pro.wewed.app.ui.invitation.ivoryDataFrom
 import pro.wewed.app.ui.invitation.ivoryRsvpStateFrom
 import pro.wewed.app.ui.invitation.GuestInvitationJourneyScreen
+import androidx.compose.ui.platform.LocalContext
+import pro.wewed.app.invitation.GuestInvitationBootstrap
+import pro.wewed.app.invitation.InvitationEntry
+import pro.wewed.app.invitation.LiveInvitationPresentation
+import pro.wewed.app.invitation.LiveInvitationState
+import pro.wewed.app.ui.invitation.InvitationUnavailableScreen
+import pro.wewed.app.ui.invitation.LiveGuestInvitationScreen
 import pro.wewed.app.ui.invitation.InvitationRefusedScreen
 import pro.wewed.app.ui.pass.UsherScannerScreen
 import pro.wewed.app.ui.roles.*
@@ -62,6 +69,7 @@ fun RootScreen(
     val weddingTitle by sessionViewModel.weddingTitle.collectAsState()
     val pendingInvitationDeepLink by appViewModel.pendingInvitationDeepLink.collectAsState()
     val rejectedInvitation by appViewModel.rejectedInvitation.collectAsState()
+    val pendingInvitationEntry by appViewModel.pendingInvitationEntry.collectAsState()
     val pendingRouteDeepLink by appViewModel.pendingRouteDeepLink.collectAsState()
 
     var isScannerOpen by remember { mutableStateOf(false) }
@@ -87,8 +95,36 @@ fun RootScreen(
     // boundary the contract describes.
     var entrySessionPresentedCard by remember { mutableStateOf(false) }
 
+    // --- The live guest invitation path -------------------------------------------------------
+    //
+    // A credential-bearing launch is resolved by the guest-session authority, not by a repository.
+    // The coordinator is created once per process by `GuestInvitationBootstrap`, deliberately
+    // outside `NativeRepositoryFactory`: an invited guest needs the guest-session API and nothing
+    // about tasks, budgets or admin, so their invitation must not wait on the whole production
+    // workspace being enabled.
+    val androidContext = LocalContext.current
+    val liveCoordinator = remember {
+        GuestInvitationBootstrap.coordinator(androidContext)
+    }
+    var liveInvitation by remember { mutableStateOf<LiveInvitationState>(LiveInvitationState.Idle) }
+
+    LaunchedEffect(pendingInvitationEntry) {
+        // Consumed exactly once: an exchange is not idempotent, and a recomposition must not
+        // replay it.
+        val entry = appViewModel.consumePendingInvitationEntry() ?: return@LaunchedEffect
+        liveInvitation = LiveInvitationState.Exchanging
+        liveInvitation = liveCoordinator.enter(entry)
+    }
+
+    // The Shadow-era resolution stays, but only for Shadow. It is never a fallback for the live
+    // path: if the guest-session authority refuses or cannot be reached, the guest is told, rather
+    // than being shown fixture data that looks like their invitation.
     LaunchedEffect(pendingInvitationDeepLink) {
         val pending = pendingInvitationDeepLink ?: return@LaunchedEffect
+        if (!appViewModel.dataEnvironment.allowsMutableNativeDevelopment) {
+            appViewModel.consumePendingInvitationDeepLink()
+            return@LaunchedEffect
+        }
         resolvingDeepLinkedInvitation = true
         deepLinkedInvitation = runCatching {
             appViewModel.repository.resolveInvitation(
@@ -119,6 +155,71 @@ fun RootScreen(
             onFinished = { splashComplete = true }
         )
         return
+    }
+
+    // The live invitation outranks everything that follows. It is the guest's front door, and it
+    // must be reached before Home, the couple site, a login or a workspace.
+    when (val live = liveInvitation) {
+        is LiveInvitationState.Exchanging -> {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(WeddingIdentityPalette.Ivory)
+                    .semantics { testTagsAsResourceId = true }
+                    .testTag("invitation-exchanging"),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = WeddingIdentityPalette.ChampagneDeep)
+            }
+            return
+        }
+
+        is LiveInvitationState.Presenting -> {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .semantics { testTagsAsResourceId = true }
+            ) {
+                LiveGuestInvitationScreen(
+                    presentation = LiveInvitationPresentation.from(live.snapshot),
+                    coordinator = liveCoordinator,
+                    onRefreshed = { liveInvitation = it },
+                    onContinue = { liveInvitation = LiveInvitationState.Idle }
+                )
+            }
+            return
+        }
+
+        // Refused and Unavailable mean opposite things to a guest, so they are never merged:
+        // one says "this link is not yours", the other says "try again in a moment".
+        is LiveInvitationState.Refused -> {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .semantics { testTagsAsResourceId = true }
+            ) {
+                InvitationRefusedScreen(
+                    reason = live.reason ?: InvitationEntry.Reason.MALFORMED_HANDOFF,
+                    onDismiss = { liveInvitation = LiveInvitationState.Idle }
+                )
+            }
+            return
+        }
+
+        is LiveInvitationState.Unavailable -> {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .semantics { testTagsAsResourceId = true }
+            ) {
+                InvitationUnavailableScreen(
+                    onRetry = { liveInvitation = LiveInvitationState.Idle }
+                )
+            }
+            return
+        }
+
+        LiveInvitationState.Idle -> Unit
     }
 
     // A refused invitation outranks everything that follows. It must not fall through to the
@@ -298,6 +399,16 @@ fun RootScreen(
     // The wedding's SAVED invitation style decides the design. Hard-coding Ivory would be right
     // for Charity & Kudzie today and wrong for the next wedding.
     LaunchedEffect(guestPassToken, context.activeRole) {
+        // In live mode the recognised guest is restored from the server-issued session, not from a
+        // repository and not from a stored credential. The Shadow path below stays for Shadow
+        // qualification only, so no live surface can reach `resolveInvitation`.
+        if (!appViewModel.dataEnvironment.allowsMutableNativeDevelopment) {
+            recognisedGuestInvitation = null
+            if (context.activeRole == AppRole.GUEST) {
+                liveInvitation = liveCoordinator.restoreRememberedGuest()
+            }
+            return@LaunchedEffect
+        }
         recognisedGuestInvitation =
             if (context.activeRole == AppRole.GUEST && guestPassToken != null) {
                 runCatching {

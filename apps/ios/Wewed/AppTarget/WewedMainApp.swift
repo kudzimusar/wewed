@@ -18,24 +18,31 @@ struct WewedMainApp: App {
         }
         _session = StateObject(wrappedValue: store)
 
-        let resolvedAppState: AppState
-        do {
-            resolvedAppState = try AppState.make(
-                environment: launch.environment,
-                baseURL: launch.baseURL
-            )
-        } catch {
-            preconditionFailure("Unsafe or unsupported Wewed native launch environment: \(error)")
-        }
-
-        _appState = StateObject(wrappedValue: resolvedAppState)
+        // A production launch cannot build the general repository yet. That used to crash the app
+        // outright; an invited guest deserves their card rather than a termination, so the failure
+        // degrades to the guest-only shell instead.
+        let resolvedAppState = try? AppState.make(
+            environment: launch.environment,
+            baseURL: launch.baseURL
+        )
+        _appState = StateObject(wrappedValue: resolvedAppState ?? AppState.unavailable())
+        self.workspaceAvailable = resolvedAppState != nil
     }
+
+    /// Whether the general repository could be built. False means guest-only.
+    private let workspaceAvailable: Bool
 
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .environmentObject(session)
-                .environmentObject(appState)
+            if workspaceAvailable {
+                RootView()
+                    .environmentObject(session)
+                    .environmentObject(appState)
+            } else {
+                // Guest-only: no planner, couple, vendor or admin surface exists in this shell,
+                // because it has no repository with which to reach one.
+                GuestOnlyInvitationShellView()
+            }
         }
     }
 }

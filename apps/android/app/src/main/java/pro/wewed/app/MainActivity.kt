@@ -14,6 +14,9 @@ import androidx.core.view.WindowCompat
 import pro.wewed.app.models.DevelopmentPersona
 import pro.wewed.app.state.AppViewModel
 import pro.wewed.app.BuildConfig
+import pro.wewed.app.invitation.GuestInvitationBootstrap
+import pro.wewed.app.invitation.InvitationEntryParser
+import pro.wewed.app.ui.invitation.GuestOnlyInvitationShell
 import pro.wewed.app.state.NativeLaunchConfiguration
 import pro.wewed.app.state.SessionViewModel
 import pro.wewed.app.theme.WewedTheme
@@ -48,6 +51,30 @@ class MainActivity : ComponentActivity() {
             baseUrl = launch.baseUrl
         )
         if (resolved == null) {
+            // An invited guest does not need the whole production workspace to open their card.
+            //
+            // The general repository is deliberately still disabled in production, and a launch
+            // that carries a credential must not die behind that. The guest-only shell is built
+            // from `GuestInvitationBootstrap`, which depends on nothing but the guest-session
+            // authority — so this unlocks the invitation slice and nothing else.
+            val entry = InvitationEntryParser.fromUrl(intent?.dataString)
+                ?: InvitationEntryParser.fromIntentExtra(
+                    intent?.getStringExtra(InvitationEntryParser.ANDROID_INTENT_EXTRA)
+                )
+            if (entry != null) {
+                setContent {
+                    WewedTheme {
+                        Box(modifier = Modifier.semantics { testTagsAsResourceId = true }) {
+                            GuestOnlyInvitationShell(
+                                entry = entry,
+                                coordinator = GuestInvitationBootstrap.coordinator(applicationContext)
+                            )
+                        }
+                    }
+                }
+                return
+            }
+
             val reason = AppViewModel.lastEnvironmentFailure
                 ?: "This data environment could not be opened."
             setContent {

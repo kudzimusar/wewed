@@ -88,6 +88,13 @@ fun GuestInvitationJourneyScreen(
 
     LaunchedEffect(pendingAttendance) {
         val attending = pendingAttendance ?: return@LaunchedEffect
+        // The Shadow journey writes RSVP through the repository. In live mode that write belongs
+        // to the guest-session authority via `LiveGuestInvitationScreen`, and must never happen
+        // here — a fixture write that looks successful is worse than no write at all.
+        if (!appViewModel.dataEnvironment.allowsMutableNativeDevelopment) {
+            pendingAttendance = null
+            return@LaunchedEffect
+        }
         try {
             val pass = appViewModel.repository.confirmRsvp(
                 invitation.weddingSlug,

@@ -33,6 +33,15 @@ public struct RootView: View {
     @State private var authMode: AuthenticationMode?
     @State private var resolvingDeepLinkedInvitation = false
 
+    /// The live guest invitation, resolved by the guest-session authority rather than a repository.
+    ///
+    /// The coordinator is created once by `GuestInvitationBootstrap`, deliberately outside
+    /// `NativeRepositoryFactory`: an invited guest needs the guest-session API and nothing about
+    /// tasks, budgets or admin, so their invitation must not wait on the whole production
+    /// workspace being enabled.
+    @State private var liveInvitation: LiveInvitationState = .idle
+    private let liveCoordinator = GuestInvitationBootstrap.coordinator()
+
     public init() {}
 
     /// IA V2 §13.1 / P0-3 — the context envelope is *resolved from verified assignments*, never
@@ -95,6 +104,16 @@ public struct RootView: View {
     /// resolves a different card rather than reusing the previous one.
     private func resolveRecognisedGuestCard() async {
         defer { guestCardResolved = true }
+        // In live mode the recognised guest is restored from the server-issued session, not from a
+        // repository and not from a stored credential. The Shadow path below stays for Shadow
+        // qualification only, so no live surface can reach `resolveInvitation`.
+        guard appState.dataEnvironment.allowsMutableNativeDevelopment else {
+            recognisedGuestInvitation = nil
+            if session.currentRole == .guest {
+                liveInvitation = await liveCoordinator.restoreRememberedGuest()
+            }
+            return
+        }
         guard session.currentRole == .guest else {
             recognisedGuestInvitation = nil
             guestPassToken = nil
@@ -138,6 +157,29 @@ public struct RootView: View {
                         : (session.isAuthenticated ? .workspace : .welcome),
                     onFinished: { splashComplete = true }
                 )
+            } else if case .exchanging = liveInvitation {
+                ZStack {
+                    WeddingIdentityPalette.ivory.ignoresSafeArea()
+                    AccessibilityMarker("invitation-exchanging", label: "Opening your invitation")
+                    ProgressView().tint(WeddingIdentityPalette.champagneDeep)
+                }
+            } else if case let .presenting(snapshot) = liveInvitation {
+                // The guest's front door. Reached before Home, the couple site, a login or a
+                // workspace.
+                LiveGuestInvitationView(
+                    presentation: LiveInvitationPresentation.from(snapshot),
+                    coordinator: liveCoordinator,
+                    onRefreshed: { liveInvitation = $0 },
+                    onContinue: { liveInvitation = .idle }
+                )
+            } else if case let .refused(reason) = liveInvitation {
+                // Refused and unavailable mean opposite things to a guest, so they are never
+                // merged: one says "this link is not yours", the other says "try again".
+                InvitationRefusedView(reason: reason ?? .malformedHandoff) {
+                    liveInvitation = .idle
+                }
+            } else if case .unavailable = liveInvitation {
+                InvitationUnavailableView { liveInvitation = .idle }
             } else if let reason = appState.rejectedInvitation {
                 // A refused invitation outranks everything that follows. It must not fall through
                 // to the ordinary launch and quietly present whoever was already active.
@@ -227,7 +269,18 @@ public struct RootView: View {
                 appState.handleIncomingURL(url)
             }
         }
+        .task(id: appState.pendingInvitationEntry) {
+            // Consumed exactly once: an exchange is not idempotent, and a view rebuild must not
+            // replay it.
+            guard let entry = appState.consumePendingInvitationEntry() else { return }
+            liveInvitation = .exchanging
+            liveInvitation = await liveCoordinator.enter(entry)
+        }
         .task(id: appState.pendingInvitationDeepLink) {
+            // The Shadow-era resolution stays, but only for Shadow. It is never a fallback for the
+            // live path: if the guest-session authority refuses or cannot be reached, the guest is
+            // told, rather than being shown fixture data that looks like their invitation.
+            guard appState.dataEnvironment.allowsMutableNativeDevelopment else { return }
             await resolvePendingInvitationDeepLink()
         }
         .task(id: "\(session.currentRole.roleId)|\(session.activePersona?.id ?? "")") {
@@ -312,6 +365,9 @@ public struct RootView: View {
     }
 
     private func resolvePendingInvitationDeepLink() async {
+        // Guarded here as well as at the call site: a Shadow-only path should be unreachable in
+        // live mode however it is entered, not only through the one caller that remembered.
+        guard appState.dataEnvironment.allowsMutableNativeDevelopment else { return }
         guard let pending = appState.pendingInvitationDeepLink else { return }
 
         resolvingDeepLinkedInvitation = true

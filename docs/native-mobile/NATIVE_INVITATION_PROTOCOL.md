@@ -181,3 +181,89 @@ Verified on a Pixel 8 emulator and an iPhone 17 simulator:
 The client is written and tested against the real contract, but the app still runs on the SHADOW and
 PRIVATE_REAL snapshot repositories. Selecting it as the live data source is a production-read
 activation decision, not a code gap.
+
+---
+
+## 10. The live runtime path
+
+**Added by `WW-NATIVE-LIVE-GUEST-INVITATION-UAT-2026-09-21-02`.**
+
+An earlier revision of this document described the client and claimed the wiring was done. It was
+not: the client had good unit coverage and the running app never called it. The correction below is
+the architecture that makes the claim true, and the test that keeps it true.
+
+### 10.1 The path
+
+```
+incoming URL
+  → AppState.handleIncomingUrl        parses with InvitationEntryParser
+  → pendingInvitationEntry            carried, not dropped
+  → Root consumes it exactly once     an exchange is not idempotent
+  → LiveGuestInvitationCoordinator.enter()
+      ├── PrivateInvitation → GuestSessionClient.exchangePrivateInvitation()
+      └── Handoff           → GuestSessionClient.redeemHandoff()
+  → GuestSessionClient.loadInvitation()
+  → LiveInvitationState.Presenting(snapshot)
+  → LiveInvitationPresentation        no credential survives here
+  → NativeInvitationExperience
+```
+
+RSVP goes `LiveGuestInvitationScreen/View → coordinator.answer() →
+GuestSessionClient.saveRsvp(weddingSlug, originGuestId, attending)`.
+
+### 10.2 Guest-only production bootstrap
+
+`GuestInvitationBootstrap` builds `SecureStorage → GuestSessionClient → coordinator` **outside**
+`NativeRepositoryFactory`, one instance per process.
+
+An invited guest needs the guest-session authority and nothing about tasks, budgets, vendors or
+admin. Routing the invitation through the repository factory would mean a guest could not open
+their card until the entire production workspace was enabled — far more production surface than the
+invitation slice is authorized to turn on.
+
+| Launch | Result |
+|---|---|
+| production + incoming invitation | guest-only live shell |
+| production + ordinary launch | still unavailable, as before |
+
+On Android the guest-only shell replaces the environment-unavailable screen when the launch carries
+a credential. On iOS the app used to `preconditionFailure` on a production launch; it now degrades
+to the same guest-only shell, because an invited guest deserves their card rather than a
+termination.
+
+### 10.3 Shadow and live never fall back to each other
+
+Every legacy `repository.resolveInvitation` / `confirmRsvp` call is now guarded by
+`allowsMutableNativeDevelopment`, at the function rather than only at the call site. If the live
+guest-session authority refuses or cannot be reached, the guest is told — they are never shown
+fixture data that looks like their invitation.
+
+`Refused` and `Unavailable` are separate states throughout, because "this link is not yours" and
+"try again in a moment" are opposite messages and showing the wrong one abandons a working
+invitation.
+
+### 10.4 The test that keeps it honest
+
+`LiveInvitationRuntimePathTest` / `Tests` drive the same sequence the app does against a stub of the
+real API, with a repository spy whose every legacy method **throws**. A plausible return value is
+what let the old path masquerade as working, so the spy refuses to provide one. If anyone
+reintroduces the repository into the live path, those tests go red.
+
+### 10.5 iOS Keychain
+
+`GuestSessionClient` stated the issued session was held in the Keychain. Until this task that was
+false — the only implementation was in-memory, so the session did not survive a launch.
+`KeychainSecureStorage` is now real, `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` (a guest
+session is bound to the device that redeemed the invitation and must never sync), and round-tripped
+by a test.
+
+### 10.6 Guest Pass — an explicit backend gap
+
+Traced on `origin/main@ba4b08f8`. `wedding-guest-pass-dialog.tsx` reads
+`/api/weddings/{slug}/guest-session` and renders the guest's name, table number and a
+checked-in/ready badge. Its `QrCode` is a **lucide icon, `aria-hidden`** — decoration, not a code.
+`guest-session` returns no QR, serial or admission token, and there is no pass endpoint on main.
+
+**There is no production Guest Pass QR authority.** Native's `WeddingPass.qrPayload` has no
+counterpart. Per the standing rule, native does not generate one from the RSVP token, guest id,
+email or name. This is a backend contract to be designed, not a native gap to be filled.

@@ -150,6 +150,20 @@ public final class AppState: ObservableObject, @unchecked Sendable {
         }
     }
 
+    /// A placeholder for a launch where no repository could be built.
+    ///
+    /// Held only so the app can construct its scene; nothing reads from it, because the guest-only
+    /// shell has no workspace surfaces. It carries the unavailable production environment so that
+    /// anything which did read from it would fail rather than quietly serve fixture data.
+    public static func unavailable() -> AppState {
+        AppState(
+            repository: UnavailableWeddingRepository(),
+            plannerRepository: UnavailablePlannerRepository(),
+            dataEnvironment: .production,
+            dataBaseURL: nil
+        )
+    }
+
     public static func make(
         environment: NativeDataEnvironment,
         baseURL: URL? = nil
