@@ -107,3 +107,37 @@ public extension NativeLaunchConfiguration {
         return nil
     }
 }
+
+public enum AppLaunchMode {
+    case workspace(AppState)
+    case guestOnly
+}
+
+public enum AppLaunchModeResolver {
+    /// Resolves the launch mode for the given launch configuration.
+    ///
+    /// - In production: general repository unavailability degrades cleanly to `.guestOnly`.
+    /// - In explicitly selected non-production environments: repository failures throw visibly
+    ///   to qualification rather than silently degrading to guest-only.
+    public static func resolve(
+        configuration: NativeLaunchConfiguration
+    ) throws -> AppLaunchMode {
+        if configuration.environment == .production {
+            do {
+                let appState = try AppState.make(
+                    environment: configuration.environment,
+                    baseURL: configuration.baseURL
+                )
+                return .workspace(appState)
+            } catch {
+                return .guestOnly
+            }
+        } else {
+            let appState = try AppState.make(
+                environment: configuration.environment,
+                baseURL: configuration.baseURL
+            )
+            return .workspace(appState)
+        }
+    }
+}

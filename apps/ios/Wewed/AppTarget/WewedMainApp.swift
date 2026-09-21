@@ -1,11 +1,6 @@
 import SwiftUI
 import WewedKit
 
-private enum AppLaunchMode {
-    case workspace(AppState)
-    case guestOnly
-}
-
 private struct WorkspaceHostView: View {
     @StateObject private var appState: AppState
     @ObservedObject var session: SessionStore
@@ -39,15 +34,10 @@ struct WewedMainApp: App {
         }
         _session = StateObject(wrappedValue: store)
 
-        // A production launch cannot build the general repository yet.
-        // That failure degrades cleanly to the guest-only shell without constructing an AppState.
-        if let resolvedAppState = try? AppState.make(
-            environment: launch.environment,
-            baseURL: launch.baseURL
-        ) {
-            self.mode = .workspace(resolvedAppState)
-        } else {
-            self.mode = .guestOnly
+        do {
+            self.mode = try AppLaunchModeResolver.resolve(configuration: launch)
+        } catch {
+            preconditionFailure("Wewed repository initialization failed for \(launch.environment): \(error)")
         }
     }
 
