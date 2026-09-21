@@ -78,6 +78,7 @@ public actor GuestSessionClient {
     private static let storedSession = "wewed.guest.session"
     private static let storedSlug = "wewed.guest.session.slug"
 
+    private var entryGeneration = 0
     private let baseUrl: URL
     private let storage: SecureStorageProtocol
     private let session: URLSession
@@ -102,6 +103,7 @@ public actor GuestSessionClient {
 
     /// Ends the guest session on this device. Used by Sign Out, never by a failed exchange.
     public func clearSession() {
+        entryGeneration += 1
         storage.delete(key: Self.storedSession)
         storage.delete(key: Self.storedSlug)
     }
@@ -115,6 +117,8 @@ public actor GuestSessionClient {
         weddingSlug: String,
         rsvpToken: String
     ) async throws -> GuestSessionIdentity {
+        entryGeneration += 1
+        let generation = entryGeneration
         let body = try JSONSerialization.data(withJSONObject: ["token": rsvpToken])
         // The exchange must not present an existing session: this call is how a *different* guest
         // takes over, and sending Guest A's cookie invites the server to keep them.
@@ -138,6 +142,7 @@ public actor GuestSessionClient {
             throw GuestSessionError.transport(status: response.status)
         }
         let slug = (json["wedding"] as? [String: Any])?["slug"] as? String ?? weddingSlug
+        guard entryGeneration == generation else { throw GuestSessionError.unauthorized }
         storage.save(key: Self.storedSession, value: issued)
         storage.save(key: Self.storedSlug, value: slug)
 
@@ -155,6 +160,8 @@ public actor GuestSessionClient {
     /// the destination is a web page this app has no use for. What matters is the credential on the
     /// response, and the fact that the server has just decided who the guest is.
     public func redeemHandoff(_ secret: String) async throws -> GuestSessionIdentity {
+        entryGeneration += 1
+        let generation = entryGeneration
         guard InvitationEntryParser.isValidHandoff(secret) else {
             throw GuestSessionError.unauthorized
         }
@@ -183,6 +190,7 @@ public actor GuestSessionClient {
 
         // Persisted only once everything has validated. Writing the session earlier would let a
         // half-successful redemption overwrite the guest who was already here.
+        guard entryGeneration == generation else { throw GuestSessionError.unauthorized }
         storage.save(key: Self.storedSession, value: issued)
         storage.save(key: Self.storedSlug, value: slug)
 
@@ -292,6 +300,44 @@ public actor GuestSessionClient {
         }
     }
 
+    public func publishedStory(slug: String) async throws -> String {
+        let response = try await perform(method: "GET", path: "/api/wedding-content?slug=\(encode(slug))", body: nil, withSession: true)
+        guard response.status == 200, let body = response.body,
+              let json = try JSONSerialization.jsonObject(with: body) as? [String: Any],
+              let data = json["data"] as? [String: Any] else { throw GuestSessionError.transport(status: response.status) }
+        let story = (data["content"] as? [String: Any])?["story"] as? [String: String] ?? [:]
+        return ["heading", "title", "subtitle", "body", "introduction"].compactMap { story[$0] }.filter { !$0.isEmpty }.joined(separator: "\n\n")
+    }
+
+    public func loadWeddingDay(originGuestId: String) async throws -> GuestWeddingDay {
+        let response = try await perform(method: "GET", path: "/api/wedding-day/guest", body: nil, withSession: true)
+        guard response.status == 200, let body = response.body else { throw GuestSessionError.transport(status: response.status) }
+        let value = try JSONDecoder().decode(GuestWeddingDayEnvelope.self, from: body).data
+        guard value.guest.id == originGuestId else { throw GuestSessionError.unauthorized }
+        return value
+    }
+
+    public func loadWeddingPass(originGuestId: String) async throws -> WeddingPass {
+        let snapshot = try await loadInvitation()
+        guard snapshot.guestId == originGuestId, snapshot.attending == true else { throw GuestSessionError.unauthorized }
+        let response = try await perform(method: "GET", path: "/api/wedding-day/pass", body: nil, withSession: true)
+        guard response.status == 200, let body = response.body,
+              let json = try JSONSerialization.jsonObject(with: body) as? [String: Any],
+              let data = json["data"] as? [String: Any],
+              data["guestId"] as? String == originGuestId,
+              let weddingId = data["weddingId"] as? String,
+              let token = data["token"] as? String, token.hasPrefix("WW2."),
+              let key = data["publicKeyDerBase64"] as? String,
+              case .success = TokenVerifier.verifyAsymmetric(token: token, publicKeyDerBase64: key)
+        else { throw GuestSessionError.transport(status: response.status) }
+        return WeddingPass(token: token, weddingId: weddingId, coupleNames: snapshot.title,
+            weddingDate: snapshot.date ?? "", venueName: snapshot.venue ?? "",
+            venueAddress: [snapshot.venueCity, snapshot.venueCountry].compactMap { $0 }.joined(separator: ", "),
+            guestName: snapshot.guestName,
+            partySize: 1 + (snapshot.plusOne ? 1 : 0) + (snapshot.kidsAttending ? snapshot.kidsCount ?? 0 : 0),
+            tableNumber: snapshot.tableNumber, tableName: snapshot.tableName, qrPayload: token)
+    }
+
     private struct Response {
         let status: Int
         let body: Data?
@@ -315,7 +361,8 @@ public actor GuestSessionClient {
         request.timeoutInterval = 20
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("native", forHTTPHeaderField: "x-wewed-client")
-        if withSession, let stored = storage.get(key: Self.storedSession) {
+        let sentSession = withSession ? storage.get(key: Self.storedSession) : nil
+        if let stored = sentSession {
             request.setValue("\(Self.sessionCookie)=\(stored)", forHTTPHeaderField: "Cookie")
         }
         if let body {
@@ -328,8 +375,19 @@ public actor GuestSessionClient {
         guard let http = raw as? HTTPURLResponse else {
             throw GuestSessionError.transport(status: -1)
         }
+        let refreshed = Self.issuedSessionCookie(http)
+        if withSession {
+            // Actor reentrancy: a delayed A response cannot replace, clear or render over B.
+            guard storage.get(key: Self.storedSession) == sentSession else {
+                throw GuestSessionError.unauthorized
+            }
+            if http.statusCode == 401 { clearSession() }
+            else if (200...299).contains(http.statusCode), let refreshed {
+                storage.save(key: Self.storedSession, value: refreshed)
+            }
+        }
         return Response(status: http.statusCode, body: data,
-                        issuedSession: Self.issuedSessionCookie(http),
+                        issuedSession: refreshed,
                         location: http.value(forHTTPHeaderField: "Location"))
     }
 
@@ -404,3 +462,20 @@ private extension String {
         hasSuffix("/") ? String(dropLast()) : self
     }
 }
+
+public struct GuestWeddingDay: Decodable, Sendable {
+    public struct Guest: Decodable, Sendable {
+        public let id: String
+        public let tableNumber: Int?
+        public let tableName: String?
+        public let checkedIn: Bool
+        public let household: [Member]
+    }
+    public struct Member: Decodable, Sendable { public let attendeeKey: String; public let attendeeName: String }
+    public struct Programme: Decodable, Sendable { public let id: String; public let time: String; public let title: String; public let description: String?; public let location: String? }
+    public struct Announcement: Decodable, Sendable { public let id: String; public let title: String?; public let body: String }
+    public let guest: Guest
+    public let programme: [Programme]
+    public let announcements: [Announcement]
+}
+private struct GuestWeddingDayEnvelope: Decodable { let data: GuestWeddingDay }

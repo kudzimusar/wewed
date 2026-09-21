@@ -45,10 +45,11 @@ import java.util.Locale
  * RSVP and Table surfaces, which is precisely the identity break this screen must not reintroduce.
  */
 fun WeddingReferencePassScreen(
-    appViewModel: AppViewModel,
+    appViewModel: AppViewModel? = null,
     onOpenScanner: () -> Unit,
     passToken: String? = null,
-    providedPass: WeddingPass? = null
+    providedPass: WeddingPass? = null,
+    showScanner: Boolean = true
 ) {
     var pass by remember { mutableStateOf<WeddingPass?>(null) }
     var showGuestDetails by remember { mutableStateOf(false) }
@@ -61,7 +62,7 @@ fun WeddingReferencePassScreen(
             return@LaunchedEffect
         }
         pass = passToken?.let { token ->
-            runCatching { appViewModel.repository.getWeddingPass(token) }.getOrNull()
+            runCatching { appViewModel?.repository?.getWeddingPass(token) }.getOrNull()
         }
         loading = false
     }
@@ -118,7 +119,7 @@ fun WeddingReferencePassScreen(
                             fontSize = 22.sp,
                             modifier = Modifier.align(Alignment.Center)
                         )
-                        IconButton(
+                        if (showScanner) IconButton(
                             onClick = onOpenScanner,
                             modifier = Modifier.align(Alignment.CenterEnd).testTag("pass-open-scanner")
                         ) {
@@ -197,7 +198,7 @@ fun WeddingReferencePassScreen(
                                     .background(Color.White),
                                 contentAlignment = Alignment.Center
                             ) {
-                                WeddingQrCode(payload = p.qrPayload)
+                                Box(Modifier.testTag("wedding-pass-qr")) { WeddingQrCode(payload = p.qrPayload) }
                             }
 
                             val productionCredential = p.qrPayload.startsWith("WW2.")

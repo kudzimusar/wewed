@@ -11,7 +11,9 @@ import SwiftUI
 /// for the link itself, since on iOS a Universal Link arrives after launch rather than at init.
 public struct GuestOnlyInvitationShellView: View {
     private let coordinator: LiveGuestInvitationCoordinator
+    private let initialURL: URL?
 
+    @State private var requestVersion = 0
     @State private var state: LiveInvitationState = .idle
     @State private var splashComplete = false
     /// The entry currently on screen, so a replacement can restage the opening for the new guest.
@@ -21,9 +23,28 @@ public struct GuestOnlyInvitationShellView: View {
     /// An explicit link opens on the invitation, because that is the ceremony. An ordinary
     /// relaunch opens on Home, because replaying the whole card every time someone checks their
     /// table would be tiresome rather than ceremonial. The invitation is always one tap away.
-    @State private var showingInvitation = true
+    @State private var selectedDestination: GuestSection = .invitation
+    @State private var returnDestination: GuestSection = .home
+    @State private var ceremonial = true
 
-    public init(coordinator: LiveGuestInvitationCoordinator = GuestInvitationBootstrap.coordinator()) {
+    private func openGuestInvitation() {
+        if selectedDestination != .invitation { returnDestination = selectedDestination }
+        selectedDestination = .invitation
+        ceremonial = false
+        let version = requestVersion
+        Task {
+            let refreshed = await coordinator.refresh()
+            if version == requestVersion { state = refreshed }
+        }
+    }
+
+    private func backToWedding() {
+        selectedDestination = returnDestination
+        ceremonial = false
+    }
+
+    public init(coordinator: LiveGuestInvitationCoordinator = GuestInvitationBootstrap.coordinator(), initialURL: URL? = nil) {
+        self.initialURL = initialURL
         self.coordinator = coordinator
     }
 
@@ -32,11 +53,16 @@ public struct GuestOnlyInvitationShellView: View {
         // A replacement link is a new arrival. Dropping Guest B straight into a card that just
         // said Guest A's name reads as a glitch, so the opening is restaged.
         if entry != currentEntry { splashComplete = false }
+        requestVersion += 1
+        let version = requestVersion
         currentEntry = entry
-        showingInvitation = true
+        selectedDestination = .invitation
+        returnDestination = .home
+        ceremonial = true
         Task {
             state = .exchanging
-            state = await coordinator.enter(entry)
+            let entered = await coordinator.enter(entry)
+            if version == requestVersion { state = entered }
         }
     }
 
@@ -72,10 +98,11 @@ public struct GuestOnlyInvitationShellView: View {
             // An ordinary launch: the app icon, not a link. A Guest who opened their invitation
             // last month should find their wedding, not be told to go back to WhatsApp.
             guard currentEntry == nil, case .idle = state else { return }
+            if let initialURL { handle(initialURL); return }
             state = .exchanging
             let restored = await coordinator.restoreRememberedGuest()
             // A restored session opens on Home; only an explicit link earns the ceremony.
-            if case .presenting = restored { showingInvitation = false }
+            if case .presenting = restored { selectedDestination = .home; ceremonial = false }
             state = restored
         }
     }
@@ -88,7 +115,9 @@ public struct GuestOnlyInvitationShellView: View {
         Task {
             await coordinator.forgetGuest()
             currentEntry = nil
-            showingInvitation = true
+            selectedDestination = .invitation
+        returnDestination = .home
+        ceremonial = true
             state = .idle
         }
     }
@@ -98,19 +127,32 @@ public struct GuestOnlyInvitationShellView: View {
         switch state {
         case let .presenting(snapshot):
             let profile = LiveInvitationPresentation.from(snapshot)
-            if showingInvitation {
+            if ceremonial {
                 LiveGuestInvitationView(
                     presentation: profile,
                     coordinator: coordinator,
                     onRefreshed: { state = $0 },
                     // The dead end this replaces: Continue used to do nothing, which is why a
                     // guest could open their invitation and then have nowhere to go.
-                    onContinue: { showingInvitation = false }
+                    onContinue: { selectedDestination = .home; ceremonial = false },
+                    onViewPass: { selectedDestination = .pass; ceremonial = false }
                 )
             } else {
                 LiveGuestShellView(
                     profile: profile,
-                    onOpenInvitation: { showingInvitation = true },
+                    coordinator: coordinator,
+                    onOpenInvitation: openGuestInvitation,
+                    section: selectedDestination,
+                    onSelect: { selectedDestination = $0 },
+                    invitationContent: {
+                        AnyView(LiveGuestInvitationView(
+                            presentation: profile, coordinator: coordinator,
+                            onRefreshed: { state = $0 },
+                            onContinue: backToWedding,
+                            onBackToWedding: backToWedding,
+                            onViewPass: { selectedDestination = .pass; ceremonial = false }
+                        ))
+                    },
                     onForgetWedding: forgetWedding
                 )
             }

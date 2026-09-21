@@ -14,7 +14,7 @@ public struct WeddingQRCodeView: View {
     public var body: some View {
         Group {
             if let image = qrImage {
-                Image(decorative: image, scale: 1)
+                Image(image, scale: 1, label: Text("Wedding pass QR code"))
                     .interpolation(.none)
                     .resizable()
                     .scaledToFit()
@@ -26,6 +26,7 @@ public struct WeddingQRCodeView: View {
             }
         }
         .frame(width: size, height: size)
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel("Wedding pass QR code")
         .accessibilityIdentifier("wedding-pass-qr")
     }

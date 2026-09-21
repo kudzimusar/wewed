@@ -6,13 +6,15 @@ public struct WeddingReferencePassView: View {
     @State private var showingScanner = false
     @State private var showingGuestDetails = false
     @State private var isLoading = true
+    private let showScanner: Bool
     private let providedPass: WeddingPass?
     /// The credential of the *current authorized actor*. P0-5: there is no fallback token list —
     /// guessing an attending guest would resolve a different person than the Invitation, RSVP and
     /// Table surfaces, which is precisely the identity break this view must not reintroduce.
     private let passToken: String?
 
-    public init(pass: WeddingPass? = nil, passToken: String? = nil) {
+    public init(pass: WeddingPass? = nil, passToken: String? = nil, showScanner: Bool = true) {
+        self.showScanner = showScanner
         self.providedPass = pass
         self.passToken = passToken
     }
@@ -90,6 +92,7 @@ public struct WeddingReferencePassView: View {
                 .font(.system(size: 22, weight: .semibold, design: .serif))
                 .foregroundStyle(WeddingIdentityPalette.ink)
 
+            if showScanner {
             HStack {
                 Spacer()
                 Button {
@@ -102,6 +105,7 @@ public struct WeddingReferencePassView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("pass-open-scanner")
+            }
             }
         }
         .frame(maxWidth: .infinity)
@@ -143,6 +147,7 @@ public struct WeddingReferencePassView: View {
                         .fill(.white)
                         .frame(width: 174, height: 174)
                     WeddingQRCodeView(payload: pass.qrPayload, size: 146)
+                        .accessibilityIdentifier("wedding-pass-qr")
                 }
 
                 let productionCredential = pass.qrPayload.hasPrefix("WW2.")
@@ -206,7 +211,9 @@ public struct WeddingReferencePassView: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: 22))
         .shadow(color: Color.black.opacity(0.06), radius: 14, x: 0, y: 5)
-        .accessibilityIdentifier("wedding-pass-card")
+        .overlay(alignment: .topLeading) {
+            AccessibilityMarker("wedding-pass-card", label: "Wedding pass card")
+        }
     }
 
     private func preparePass() async {

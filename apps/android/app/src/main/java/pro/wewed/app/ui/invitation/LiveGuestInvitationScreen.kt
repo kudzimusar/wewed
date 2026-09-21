@@ -41,7 +41,9 @@ fun LiveGuestInvitationScreen(
     presentation: LiveInvitationPresentation,
     coordinator: LiveGuestInvitationCoordinator,
     onRefreshed: (LiveInvitationState) -> Unit,
-    onContinue: () -> Unit
+    onContinue: () -> Unit,
+    onBackToWedding: (() -> Unit)? = null,
+    onViewPass: (() -> Unit)? = null
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -101,12 +103,19 @@ fun LiveGuestInvitationScreen(
                 // Deliberately absent, and it is a release blocker rather than an oversight: no
                 // production authority issues a guest admission credential, and this app will not
                 // manufacture one out of a token, an id, an email or a name.
-                onViewPass = null,
+                onViewPass = if (presentation.attending == true) onViewPass else null,
                 // The public page, never the private invitation link.
                 onVisitCoupleSite = { openCoupleSite(context, presentation.weddingSlug, null) },
                 onContinue = onContinue
             )
         )
+
+        if (onBackToWedding != null) {
+            androidx.compose.material3.TextButton(
+                onClick = onBackToWedding,
+                modifier = Modifier.align(Alignment.TopStart).testTag("invitation-back-to-wedding")
+            ) { Text("Back to My Wedding") }
+        }
 
         if (rsvpPrompt) {
             LiveRsvpPrompt(

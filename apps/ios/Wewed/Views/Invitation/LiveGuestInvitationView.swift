@@ -17,6 +17,8 @@ public struct LiveGuestInvitationView: View {
     private let coordinator: LiveGuestInvitationCoordinator
     private let onRefreshed: (LiveInvitationState) -> Void
     private let onContinue: () -> Void
+    private let onBackToWedding: (() -> Void)?
+    private let onViewPass: (() -> Void)?
 
     @State private var rsvpPrompt = false
     @State private var submitting = false
@@ -27,12 +29,16 @@ public struct LiveGuestInvitationView: View {
         presentation: LiveInvitationPresentation,
         coordinator: LiveGuestInvitationCoordinator,
         onRefreshed: @escaping (LiveInvitationState) -> Void,
-        onContinue: @escaping () -> Void
+        onContinue: @escaping () -> Void,
+        onBackToWedding: (() -> Void)? = nil,
+        onViewPass: (() -> Void)? = nil
     ) {
         self.presentation = presentation
         self.coordinator = coordinator
         self.onRefreshed = onRefreshed
         self.onContinue = onContinue
+        self.onBackToWedding = onBackToWedding
+        self.onViewPass = onViewPass
     }
 
     private func answer(attending: Bool) {
@@ -77,13 +83,23 @@ public struct LiveGuestInvitationView: View {
                     // Deliberately absent, and it is a release blocker rather than an oversight: no
                     // production authority issues a guest admission credential, and this app will
                     // not manufacture one out of a token, an id, an email or a name.
-                    onViewPass: nil,
+                    onViewPass: presentation.attending == true ? onViewPass : nil,
                     // The public page, never the private invitation link.
                     onVisitCoupleSite: { open(coupleSite(fragment: nil)) },
                     onContinue: onContinue
                 )
             )
 
+            if let onBackToWedding {
+                VStack {
+                    HStack {
+                        Button("Back to My Wedding", action: onBackToWedding)
+                            .accessibilityIdentifier("invitation-back-to-wedding")
+                        Spacer()
+                    }.padding()
+                    Spacer()
+                }
+            }
             if rsvpPrompt { rsvpPromptView }
             if reopenRequired { reopenRequiredView }
             if showNote, let note = presentation.invitationCardMessage, !note.isEmpty {

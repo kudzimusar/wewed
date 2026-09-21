@@ -99,13 +99,17 @@ class GuestSessionClient(
         private const val STORED_SLUG = "wewed.guest.session.slug"
     }
 
+    private val sessionLock = Any()
+    private val entryGeneration = java.util.concurrent.atomic.AtomicLong()
+
     /** The active session credential, if this device currently holds one. */
     fun activeSessionSlug(): String? = secureStorage.get(STORED_SLUG)
 
     fun hasActiveSession(): Boolean = secureStorage.get(STORED_SESSION) != null
 
     /** Ends the guest session on this device. Used by Sign Out, never by a failed exchange. */
-    fun clearSession() {
+    fun clearSession() = synchronized(sessionLock) {
+        entryGeneration.incrementAndGet()
         secureStorage.delete(STORED_SESSION)
         secureStorage.delete(STORED_SLUG)
     }
@@ -121,6 +125,7 @@ class GuestSessionClient(
         weddingSlug: String,
         rsvpToken: String
     ): GuestSessionIdentity = withContext(Dispatchers.IO) {
+        val generation = entryGeneration.incrementAndGet()
         val body = JSONObject().put("token", rsvpToken).toString()
         val (status, payload, cookie) = request(
             method = "POST",
@@ -142,8 +147,11 @@ class GuestSessionClient(
         // Only now — after the server has accepted Guest B — is Guest A replaced.
         val issued = cookie ?: throw GuestSessionException(GuestSessionError.Transport(status))
         val slug = json.optJSONObject("wedding")?.optString("slug").orEmpty().ifEmpty { weddingSlug }
-        secureStorage.save(STORED_SESSION, issued)
-        secureStorage.save(STORED_SLUG, slug)
+        synchronized(sessionLock) {
+            if (entryGeneration.get() != generation) throw GuestSessionException(GuestSessionError.Unauthorized)
+            secureStorage.save(STORED_SESSION, issued)
+            secureStorage.save(STORED_SLUG, slug)
+        }
 
         val guest = json.optJSONObject("guest")
         GuestSessionIdentity(
@@ -161,6 +169,7 @@ class GuestSessionClient(
      * response, and the fact that the server has just decided who the guest is.
      */
     suspend fun redeemHandoff(secret: String): GuestSessionIdentity = withContext(Dispatchers.IO) {
+        val generation = entryGeneration.incrementAndGet()
         if (!InvitationEntryParser.isValidHandoff(secret)) {
             throw GuestSessionException(GuestSessionError.Unauthorized)
         }
@@ -189,8 +198,11 @@ class GuestSessionClient(
 
         // Persisted only once everything has validated. Writing the session earlier would let a
         // half-successful redemption overwrite the guest who was already here.
-        secureStorage.save(STORED_SESSION, issued)
-        secureStorage.save(STORED_SLUG, slug)
+        synchronized(sessionLock) {
+            if (entryGeneration.get() != generation) throw GuestSessionException(GuestSessionError.Unauthorized)
+            secureStorage.save(STORED_SESSION, issued)
+            secureStorage.save(STORED_SLUG, slug)
+        }
 
         val snapshot = loadInternal(slug)
         GuestSessionIdentity(snapshot.weddingSlug, snapshot.guestId, snapshot.guestName)
@@ -322,6 +334,41 @@ class GuestSessionClient(
         }
     }
 
+    suspend fun publishedStory(slug: String): String = withContext(Dispatchers.IO) {
+        val content = guestData("/api/wedding-content?slug=${encode(slug)}").optJSONObject("content")?.optJSONObject("story")
+        listOf("heading", "title", "subtitle", "body", "introduction").mapNotNull { content?.optStringOrNull(it) }.distinct().joinToString("\n\n")
+    }
+
+    suspend fun loadWeddingDay(originGuestId: String): JSONObject = withContext(Dispatchers.IO) {
+        val data = guestData("/api/wedding-day/guest")
+        if (data.optJSONObject("guest")?.optString("id") != originGuestId) {
+            throw GuestSessionException(GuestSessionError.Unauthorized)
+        }
+        data
+    }
+
+    suspend fun loadWeddingPass(originGuestId: String): pro.wewed.app.models.WeddingPass = withContext(Dispatchers.IO) {
+        val snapshot = loadInternal(null)
+        if (snapshot.guestId != originGuestId || snapshot.attending != true) throw GuestSessionException(GuestSessionError.Unauthorized)
+        val data = guestData("/api/wedding-day/pass")
+        val token = data.optString("token")
+        if (data.optString("guestId") != originGuestId || !token.startsWith("WW2.") ||
+            pro.wewed.app.services.TokenVerifier.verifyAsymmetric(token, data.optString("publicKeyDerBase64")) !is pro.wewed.app.services.TokenVerificationResult.Success) {
+            throw GuestSessionException(GuestSessionError.Unauthorized)
+        }
+        pro.wewed.app.models.WeddingPass(token = token, weddingId = data.getString("weddingId"),
+            coupleNames = snapshot.title, weddingDate = snapshot.date.orEmpty(), venueName = snapshot.venue.orEmpty(),
+            venueAddress = listOfNotNull(snapshot.venueCity, snapshot.venueCountry).joinToString(", "),
+            guestName = snapshot.guestName, partySize = 1 + (if (snapshot.plusOne) 1 else 0) + (if (snapshot.kidsAttending) snapshot.kidsCount ?: 0 else 0),
+            tableNumber = snapshot.tableNumber, tableName = snapshot.tableName, qrPayload = token)
+    }
+
+    private fun guestData(path: String): JSONObject {
+        val response = request("GET", path, null, true)
+        if (response.status != 200 || response.body == null) throw GuestSessionException(GuestSessionError.Transport(response.status))
+        return JSONObject(response.body).getJSONObject("data")
+    }
+
     private data class Response(
         val status: Int,
         val body: String?,
@@ -371,8 +418,9 @@ class GuestSessionClient(
             connection.readTimeout = 20_000
             connection.setRequestProperty("Accept", "application/json")
             connection.setRequestProperty("x-wewed-client", "native")
+            val sentSession = synchronized(sessionLock) { if (withSession) secureStorage.get(STORED_SESSION) else null }
             if (withSession) {
-                secureStorage.get(STORED_SESSION)?.let {
+                sentSession?.let {
                     connection.setRequestProperty("Cookie", "$sessionCookieName=$it")
                 }
             }
@@ -388,10 +436,19 @@ class GuestSessionClient(
                     ?.bufferedReader()
                     ?.use(BufferedReader::readText)
             }.getOrNull()
+            val refreshed = issuedSessionCookie(connection)
+            if (withSession) synchronized(sessionLock) {
+                // A delayed response for A must neither render A nor replace/clear B.
+                if (secureStorage.get(STORED_SESSION) != sentSession) {
+                    throw GuestSessionException(GuestSessionError.Unauthorized)
+                }
+                if (status == 401) clearSession()
+                else if (status in 200..299 && refreshed != null) secureStorage.save(STORED_SESSION, refreshed)
+            }
             return Response(
                 status = status,
                 body = payload,
-                issuedSession = issuedSessionCookie(connection),
+                issuedSession = refreshed,
                 location = connection.getHeaderField("Location")
             )
         } finally {

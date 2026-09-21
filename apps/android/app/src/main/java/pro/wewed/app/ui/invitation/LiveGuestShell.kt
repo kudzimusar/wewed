@@ -9,6 +9,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,11 +40,14 @@ import pro.wewed.app.theme.WewedColors
 @Composable
 fun LiveGuestShell(
     profile: LiveInvitationPresentation,
+    coordinator: LiveGuestInvitationCoordinator,
     onOpenInvitation: () -> Unit,
+    section: GuestSection,
+    onSelect: (GuestSection) -> Unit,
+    invitationContent: @Composable () -> Unit,
     onForgetWedding: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var section by remember { mutableStateOf(GuestSection.HOME) }
     val capabilities = remember(profile.attending) {
         GuestCapabilityPolicy.capabilities(profile.attending)
     }
@@ -57,16 +62,30 @@ fun LiveGuestShell(
                         selected = section == candidate,
                         onClick = {
                             if (candidate == GuestSection.INVITATION) onOpenInvitation()
-                            else section = candidate
+                            else onSelect(candidate)
                         },
-                        icon = {},
+                        icon = { Icon(when (candidate) {
+                            GuestSection.HOME -> Icons.Outlined.Home
+                            GuestSection.INVITATION -> Icons.Outlined.MailOutline
+                            GuestSection.PASS -> Icons.Outlined.QrCode
+                            GuestSection.WEDDING_DAY -> Icons.Outlined.Event
+                            GuestSection.MORE -> Icons.Outlined.PersonOutline
+                        }, contentDescription = null) },
                         label = { Text(candidate.label, fontSize = 11.sp) },
-                        modifier = Modifier.testTag("live-guest-tab-${candidate.id}")
+                        modifier = Modifier.testTag("nav-guest-${candidate.id}")
                     )
                 }
             }
         }
     ) { padding ->
+        if (section == GuestSection.INVITATION) {
+            Box(Modifier.fillMaxSize().padding(padding)) { invitationContent() }
+            return@Scaffold
+        }
+        if (section == GuestSection.PASS && profile.attending == true) {
+            Box(Modifier.fillMaxSize().padding(padding)) { LiveIssuedGuestPass(profile, coordinator) }
+            return@Scaffold
+        }
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -76,11 +95,11 @@ fun LiveGuestShell(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             when (section) {
-                GuestSection.HOME -> LiveGuestHome(profile, capabilities)
-                GuestSection.INVITATION -> LiveGuestHome(profile, capabilities)
+                GuestSection.HOME -> LiveGuestHome(profile, capabilities, onOpenInvitation)
+                GuestSection.INVITATION -> LiveGuestHome(profile, capabilities, onOpenInvitation)
                 GuestSection.PASS -> LiveGuestPass(profile, capabilities)
-                GuestSection.WEDDING_DAY -> LiveGuestWeddingDay(profile, capabilities)
-                GuestSection.MORE -> LiveGuestProfile(profile, onForgetWedding)
+                GuestSection.WEDDING_DAY -> LiveGuestWeddingDay(profile, capabilities, coordinator)
+                GuestSection.MORE -> LiveGuestProfile(profile, onForgetWedding, onOpenInvitation, coordinator)
             }
         }
     }
@@ -104,7 +123,8 @@ enum class GuestSection(val id: String, val label: String) {
 @Composable
 private fun LiveGuestHome(
     profile: LiveInvitationPresentation,
-    capabilities: Set<GuestCapability>
+    capabilities: Set<GuestCapability>,
+    onOpenInvitation: () -> Unit
 ) {
     Text(
         profile.coupleNames,
@@ -127,6 +147,13 @@ private fun LiveGuestHome(
         modifier = Modifier.testTag("live-guest-rsvp-status")
     )
 
+    Card(onClick = onOpenInvitation, modifier = Modifier.fillMaxWidth().testTag("guest-home-digital-invitation")) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("MY DIGITAL INVITATION", style = MaterialTheme.typography.labelMedium)
+            Text(profile.coupleNames, fontFamily = FontFamily.Serif, fontSize = 22.sp)
+            Text("View invitation →")
+        }
+    }
     GuestFact("When", formatWeddingDate(profile.weddingDate), "live-guest-date")
     GuestFact(
         "Where",
@@ -186,7 +213,8 @@ private fun LiveGuestPass(
 @Composable
 private fun LiveGuestWeddingDay(
     profile: LiveInvitationPresentation,
-    capabilities: Set<GuestCapability>
+    capabilities: Set<GuestCapability>,
+    coordinator: LiveGuestInvitationCoordinator
 ) {
     Text("Wedding Day", fontFamily = FontFamily.Serif, fontSize = 22.sp,
          color = WeddingIdentityPalette.Ink)
@@ -199,6 +227,36 @@ private fun LiveGuestWeddingDay(
             "live-guest-day-locked"
         )
         return
+    }
+
+    var day by remember(profile.guestId) { mutableStateOf<org.json.JSONObject?>(null) }
+    var failed by remember(profile.guestId) { mutableStateOf(false) }
+    LaunchedEffect(profile.guestId) {
+        try { day = coordinator.weddingDay(profile.guestId) }
+        catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (_: Exception) { failed = true }
+    }
+    if (failed) GuestFact("Unavailable", "We couldn't load the day's details. Please try again.", "guest-day-unavailable")
+    if (day == null && !failed) CircularProgressIndicator()
+    day?.let { data ->
+        val programme = data.optJSONArray("programme")
+        Text("Programme", modifier = Modifier.testTag("guest-day-programme"))
+        for (index in 0 until (programme?.length() ?: 0)) {
+            val item = programme!!.getJSONObject(index)
+            GuestFact(item.optString("time"), item.optString("title"), "guest-programme-${item.optString("id")}")
+        }
+        Text("Announcements", modifier = Modifier.testTag("guest-day-announcements"))
+        val announcements = data.optJSONArray("announcements")
+        for (index in 0 until (announcements?.length() ?: 0)) {
+            val item = announcements!!.getJSONObject(index)
+            GuestFact(item.optString("title"), item.optString("body"), "guest-announcement-${item.optString("id")}")
+        }
+        val guest = data.getJSONObject("guest")
+        val party = guest.optJSONArray("household")
+        Text("My Party", modifier = Modifier.testTag("guest-day-party"))
+        for (index in 0 until (party?.length() ?: 0)) Text(party!!.getJSONObject(index).optString("attendeeName"))
+        if (!guest.isNull("tableName")) GuestFact("My Table", guest.getString("tableName"), "guest-day-table")
+        GuestFact("Admission", if (guest.optBoolean("checkedIn")) "Checked in" else "Not yet checked in", "guest-day-check-in")
     }
 
     GuestFact("When", formatWeddingDate(profile.weddingDate), "live-guest-day-date")
@@ -220,8 +278,20 @@ private fun LiveGuestWeddingDay(
 @Composable
 private fun LiveGuestProfile(
     profile: LiveInvitationPresentation,
-    onForgetWedding: () -> Unit
+    onForgetWedding: () -> Unit,
+    onOpenInvitation: () -> Unit,
+    coordinator: LiveGuestInvitationCoordinator
 ) {
+    val context = LocalContext.current
+    var story by remember(profile.guestId) { mutableStateOf("") }
+    LaunchedEffect(profile.guestId) {
+        try { story = coordinator.publishedStory(profile.weddingSlug) }
+        catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (_: Exception) { }
+    }
+    TextButton(onClick = onOpenInvitation, modifier = Modifier.testTag("guest-profile-digital-invitation")) {
+        Text("View my Digital Invitation")
+    }
     Text("Your details", fontFamily = FontFamily.Serif, fontSize = 22.sp,
          color = WeddingIdentityPalette.Ink,
          modifier = Modifier.testTag("live-guest-profile"))
@@ -241,6 +311,10 @@ private fun LiveGuestProfile(
     profile.tableName?.takeIf { it.isNotBlank() }
         ?.let { GuestFact("Table", it, "live-guest-profile-table") }
 
+    if (story.isNotBlank()) GuestFact("Our Story", story, "guest-published-story")
+    TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://wewed.pro/w/${Uri.encode(profile.weddingSlug)}"))) }) {
+        Text("Back to Wewed Couple Site")
+    }
     Spacer(Modifier.height(8.dp))
 
     // Guest access is device-persistent, so there has to be a way to remove it. Deliberately not
@@ -292,4 +366,18 @@ private fun formatWeddingDate(raw: String?): String {
     val month = parts[1].toIntOrNull()?.minus(1)?.let { months.getOrNull(it) } ?: return raw.orEmpty()
     val day = parts[2].toIntOrNull() ?: return raw.orEmpty()
     return "$day $month ${parts[0]}"
+}
+
+@Composable
+private fun LiveIssuedGuestPass(profile: LiveInvitationPresentation, coordinator: LiveGuestInvitationCoordinator) {
+    var pass by remember(profile.guestId) { mutableStateOf<pro.wewed.app.models.WeddingPass?>(null) }
+    var failed by remember(profile.guestId) { mutableStateOf(false) }
+    LaunchedEffect(profile.guestId) {
+        try { pass = coordinator.weddingPass(profile.guestId) }
+        catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (_: Exception) { failed = true }
+    }
+    if (pass != null) pro.wewed.app.ui.pass.WeddingReferencePassScreen(onOpenScanner = {}, providedPass = pass, showScanner = false)
+    else if (failed) Text("Your Wedding Pass is unavailable. Please try again later.", modifier = Modifier.padding(20.dp).testTag("live-guest-pass-unavailable"))
+    else Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
 }

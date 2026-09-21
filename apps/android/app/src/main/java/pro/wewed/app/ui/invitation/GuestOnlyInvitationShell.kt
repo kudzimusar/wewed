@@ -4,7 +4,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -73,24 +75,47 @@ fun GuestOnlyInvitationShell(
     // An explicit link opens on the invitation, because that is the ceremony. An ordinary relaunch
     // opens on Home, because replaying the whole card every time someone checks their table would
     // be tiresome rather than ceremonial. The invitation is always one tap away either way.
-    var showingInvitation by remember(entry) { mutableStateOf(hasIncomingInvitation) }
+    var navigation by remember(entry) { mutableStateOf(GuestNavigation(
+        selected = if (hasIncomingInvitation) GuestSection.INVITATION else GuestSection.HOME,
+        ceremonial = hasIncomingInvitation
+    )) }
+    BackHandler(navigation.selected == GuestSection.INVITATION && !navigation.ceremonial) {
+        navigation = navigation.back()
+    }
 
+    val scope = rememberCoroutineScope()
     when (val current = state) {
         is LiveInvitationState.Presenting -> {
             val profile = LiveInvitationPresentation.from(current.snapshot)
-            if (showingInvitation) {
+            if (navigation.ceremonial) {
                 LiveGuestInvitationScreen(
                     presentation = profile,
                     coordinator = coordinator,
                     onRefreshed = { state = it },
                     // The dead end this replaces: Continue used to do nothing, which is why a
                     // guest could open their invitation and then have nowhere to go.
-                    onContinue = { showingInvitation = false }
+                    onContinue = { navigation = navigation.select(GuestSection.HOME) },
+                    onViewPass = { navigation = navigation.select(GuestSection.PASS) }
                 )
             } else {
                 LiveGuestShell(
                     profile = profile,
-                    onOpenInvitation = { showingInvitation = true },
+                    coordinator = coordinator,
+                    section = navigation.selected,
+                    onSelect = { navigation = navigation.select(it) },
+                    onOpenInvitation = {
+                        navigation = navigation.openInvitation()
+                        scope.launch { state = coordinator.refresh() }
+                    },
+                    invitationContent = {
+                        LiveGuestInvitationScreen(
+                            presentation = profile, coordinator = coordinator,
+                            onRefreshed = { state = it },
+                            onContinue = { navigation = navigation.back() },
+                            onBackToWedding = { navigation = navigation.back() },
+                            onViewPass = { navigation = navigation.select(GuestSection.PASS) }
+                        )
+                    },
                     onForgetWedding = onForgetWedding
                 )
             }

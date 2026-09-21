@@ -48,6 +48,10 @@ public enum RsvpOutcome: Equatable, Sendable {
 /// coordinator only ever sees what the server said about the guest.
 public actor LiveGuestInvitationCoordinator {
 
+    public func publishedStory(slug: String) async throws -> String { try await client.publishedStory(slug: slug) }
+    public func weddingDay(guestId: String) async throws -> GuestWeddingDay { try await client.loadWeddingDay(originGuestId: guestId) }
+    public func weddingPass(guestId: String) async throws -> WeddingPass { try await client.loadWeddingPass(originGuestId: guestId) }
+
     private let client: GuestSessionClient
 
     /// The wedding the active session belongs to, once one exists.

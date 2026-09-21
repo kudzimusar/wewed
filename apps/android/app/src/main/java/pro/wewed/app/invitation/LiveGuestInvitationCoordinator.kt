@@ -67,6 +67,10 @@ class LiveGuestInvitationCoordinator(
     private val client: GuestSessionClient
 ) {
 
+    suspend fun publishedStory(slug: String) = client.publishedStory(slug)
+    suspend fun weddingDay(guestId: String) = client.loadWeddingDay(guestId)
+    suspend fun weddingPass(guestId: String) = client.loadWeddingPass(guestId)
+
     /** The wedding the active session belongs to, once one exists. */
     private var activeWeddingSlug: String? = null
 
