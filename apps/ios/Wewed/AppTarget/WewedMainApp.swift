@@ -34,6 +34,23 @@ struct WewedMainApp: App {
 
     var body: some Scene {
         WindowGroup {
+            #if DEBUG
+            if let origin = ProcessInfo.processInfo.environment["WEWED_GUEST_UI_ORIGIN"],
+               let url = URL(string: origin), url.host == "127.0.0.1" {
+                GuestOnlyInvitationShellView(
+                    coordinator: GuestInvitationBootstrap.coordinator(baseURL: url),
+                    initialURL: ProcessInfo.processInfo.environment["WEWED_GUEST_UI_LINK"].flatMap(URL.init(string:))
+                )
+            } else {
+                normalContent
+            }
+            #else
+            normalContent
+            #endif
+        }
+    }
+
+    @ViewBuilder private var normalContent: some View {
             if workspaceAvailable {
                 RootView()
                     .environmentObject(session)
@@ -43,6 +60,5 @@ struct WewedMainApp: App {
                 // because it has no repository with which to reach one.
                 GuestOnlyInvitationShellView()
             }
-        }
     }
 }
