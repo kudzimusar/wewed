@@ -56,10 +56,12 @@ public struct NativeLaunchConfiguration: Equatable, Sendable {
             // was not. Private Real Shadow is a qualification configuration and is now entered
             // only when it is explicitly asked for.
             //
-            // A release build falls through to `.production`, which the repository factory
-            // currently refuses — loudly and on purpose. Refusing to start is the correct
-            // behaviour for a release build with no live data path; silently showing a real guest
-            // demo data is not.
+            // A release build falls through to `.production`. The general repository is
+            // deliberately unavailable there — the repository factory refuses to build one — but
+            // the *app* does not refuse to start: `AppLaunchModeResolver` degrades that one
+            // expected refusal to the guest-only shell, so an invited guest still gets their card.
+            // What must not happen is showing that guest a real wedding's demo data, which is why
+            // there is no fixture/Shadow fallback here — only guest-only, or nothing.
             dataEnvironment = isDebugBuild ? .sanitizedShadow : .production
         }
 
@@ -116,28 +118,54 @@ public enum AppLaunchMode {
 public enum AppLaunchModeResolver {
     /// Resolves the launch mode for the given launch configuration.
     ///
-    /// - In production: general repository unavailability degrades cleanly to `.guestOnly`.
-    /// - In explicitly selected non-production environments: repository failures throw visibly
-    ///   to qualification rather than silently degrading to guest-only.
+    /// Exactly one failure is allowed to degrade production to `.guestOnly`:
+    /// `NativeRepositoryFactoryError.productionDisabled`, the general repository being
+    /// deliberately unavailable. That is a known, intentional shutdown, and the guest-only shell
+    /// exists precisely so an invited guest still reaches their card when it happens.
+    ///
+    /// Every other failure — in production or anywhere else — throws visibly instead of being
+    /// swallowed. A `catch { return .guestOnly }` that ignored the error's *identity* used to sit
+    /// here: it caught `productionDisabled` correctly, but it would just as happily have caught a
+    /// guard rejection, a decoding bug, or any other unexpected production failure and shown the
+    /// exact same guest-only screen for all of them. That made a real defect indistinguishable
+    /// from a deliberate shutdown from the outside — the one case this resolver must not allow.
+    ///
+    /// `productionReadVerify`, `shadow`, `privateRealShadow` and `sanitizedShadow` are all entered
+    /// deliberately, for qualification. A failure there belongs on screen, not degraded.
+    ///
+    /// - Parameter makeAppState: how the workspace is constructed. Defaults to `AppState.make`;
+    ///   overridden only by tests, so an unexpected error can be simulated without a mocking
+    ///   framework or weakening `NativeEnvironmentGuard`/`NativeRepositoryFactory` themselves.
     public static func resolve(
-        configuration: NativeLaunchConfiguration
+        configuration: NativeLaunchConfiguration,
+        makeAppState: (NativeDataEnvironment, URL?) throws -> AppState = {
+            try AppState.make(environment: $0, baseURL: $1)
+        }
     ) throws -> AppLaunchMode {
-        if configuration.environment == .production {
-            do {
-                let appState = try AppState.make(
-                    environment: configuration.environment,
-                    baseURL: configuration.baseURL
-                )
-                return .workspace(appState)
-            } catch {
-                return .guestOnly
-            }
-        } else {
-            let appState = try AppState.make(
-                environment: configuration.environment,
-                baseURL: configuration.baseURL
-            )
-            return .workspace(appState)
+        do {
+            return .workspace(try makeAppState(configuration.environment, configuration.baseURL))
+        } catch let error where configuration.environment == .production && isExpectedProductionShutdown(error) {
+            // The one expected shutdown. Guest-only carries no AppState at all — there is nothing
+            // to construct, and nothing here manufactures a fixture, Shadow or placeholder one.
+            return .guestOnly
+        }
+    }
+
+    /// The general repository being deliberately unavailable in production, and nothing else.
+    ///
+    /// Two layers can say this, not one: `NativeEnvironmentGuard.validate` rejects `.production`
+    /// before `NativeRepositoryFactory.make`'s own switch ever reaches its `.production` case, so
+    /// in the real path today the error is always `NativeEnvironmentGuardError.productionDisabled`
+    /// — the factory's own `NativeRepositoryFactoryError.productionDisabled` is presently
+    /// unreachable for this environment, but is kept recognized here as defence-in-depth: if the
+    /// guard's check were ever loosened, the factory's still stands, and either one continues to
+    /// mean exactly the same thing. Nothing else — a guard rejection for a different reason, an
+    /// unexpected construction failure, a bug — matches, and so nothing else is swallowed.
+    private static func isExpectedProductionShutdown(_ error: Error) -> Bool {
+        switch error {
+        case NativeEnvironmentGuardError.productionDisabled: return true
+        case NativeRepositoryFactoryError.productionDisabled: return true
+        default: return false
         }
     }
 }
