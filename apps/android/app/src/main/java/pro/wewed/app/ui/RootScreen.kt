@@ -109,6 +109,11 @@ fun RootScreen(
     var liveInvitation by remember { mutableStateOf<LiveInvitationState>(LiveInvitationState.Idle) }
 
     LaunchedEffect(pendingInvitationEntry) {
+        // The separation runs both ways. The legacy path is barred from live mode, and the live
+        // path is equally barred from Shadow: a Shadow slug is not a real wedding, so sending it
+        // to the production authority produced a refusal for a link that is perfectly valid in
+        // the environment it belongs to.
+        if (appViewModel.dataEnvironment.allowsMutableNativeDevelopment) return@LaunchedEffect
         // Consumed exactly once: an exchange is not idempotent, and a recomposition must not
         // replay it.
         val entry = appViewModel.consumePendingInvitationEntry() ?: return@LaunchedEffect

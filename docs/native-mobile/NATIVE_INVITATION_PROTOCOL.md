@@ -233,6 +233,18 @@ termination.
 
 ### 10.3 Shadow and live never fall back to each other
 
+The separation runs **both ways**, and getting only one direction was a real defect caught by the
+lane sweep: guarding the legacy path out of live mode while leaving the live path free to run in
+Shadow meant every Shadow invitation link was sent to the production authority, which refused it.
+Seven lanes went red showing `invitation-refused` for links that are perfectly valid in the
+environment they belong to.
+
+| Environment | Invitation path |
+|---|---|
+| Shadow / sanitized / private-real | repository-backed journey only |
+| Production / production-read-verify | `GuestSessionClient`-backed journey only |
+
+
 Every legacy `repository.resolveInvitation` / `confirmRsvp` call is now guarded by
 `allowsMutableNativeDevelopment`, at the function rather than only at the call site. If the live
 guest-session authority refuses or cannot be reached, the guest is told — they are never shown

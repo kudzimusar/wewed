@@ -270,6 +270,11 @@ public struct RootView: View {
             }
         }
         .task(id: appState.pendingInvitationEntry) {
+            // The separation runs both ways. The legacy path is barred from live mode, and the
+            // live path is equally barred from Shadow: a Shadow slug is not a real wedding, so
+            // sending it to the production authority produced a refusal for a link that is
+            // perfectly valid in the environment it belongs to.
+            guard !appState.dataEnvironment.allowsMutableNativeDevelopment else { return }
             // Consumed exactly once: an exchange is not idempotent, and a view rebuild must not
             // replay it.
             guard let entry = appState.consumePendingInvitationEntry() else { return }
