@@ -1,10 +1,31 @@
 import SwiftUI
 import WewedKit
 
+private enum AppLaunchMode {
+    case workspace(AppState)
+    case guestOnly
+}
+
+private struct WorkspaceHostView: View {
+    @StateObject private var appState: AppState
+    @ObservedObject var session: SessionStore
+
+    init(appState: AppState, session: SessionStore) {
+        _appState = StateObject(wrappedValue: appState)
+        self.session = session
+    }
+
+    var body: some View {
+        RootView()
+            .environmentObject(session)
+            .environmentObject(appState)
+    }
+}
+
 @main
 struct WewedMainApp: App {
     @StateObject private var session: SessionStore
-    @StateObject private var appState: AppState
+    private let mode: AppLaunchMode
 
     init() {
         let store = SessionStore()
@@ -18,19 +39,17 @@ struct WewedMainApp: App {
         }
         _session = StateObject(wrappedValue: store)
 
-        // A production launch cannot build the general repository yet. That used to crash the app
-        // outright; an invited guest deserves their card rather than a termination, so the failure
-        // degrades to the guest-only shell instead.
-        let resolvedAppState = try? AppState.make(
+        // A production launch cannot build the general repository yet.
+        // That failure degrades cleanly to the guest-only shell without constructing an AppState.
+        if let resolvedAppState = try? AppState.make(
             environment: launch.environment,
             baseURL: launch.baseURL
-        )
-        _appState = StateObject(wrappedValue: resolvedAppState ?? AppState.unavailable())
-        self.workspaceAvailable = resolvedAppState != nil
+        ) {
+            self.mode = .workspace(resolvedAppState)
+        } else {
+            self.mode = .guestOnly
+        }
     }
-
-    /// Whether the general repository could be built. False means guest-only.
-    private let workspaceAvailable: Bool
 
     var body: some Scene {
         WindowGroup {
@@ -51,14 +70,13 @@ struct WewedMainApp: App {
     }
 
     @ViewBuilder private var normalContent: some View {
-            if workspaceAvailable {
-                RootView()
-                    .environmentObject(session)
-                    .environmentObject(appState)
-            } else {
-                // Guest-only: no planner, couple, vendor or admin surface exists in this shell,
-                // because it has no repository with which to reach one.
-                GuestOnlyInvitationShellView()
-            }
+        switch mode {
+        case let .workspace(appState):
+            WorkspaceHostView(appState: appState, session: session)
+        case .guestOnly:
+            // Guest-only: no planner, couple, vendor or admin surface exists in this shell,
+            // because it has no repository with which to reach one.
+            GuestOnlyInvitationShellView()
+        }
     }
 }

@@ -64,4 +64,18 @@ final class GuestProfileUITests: XCTestCase {
             app.terminate()
         }
     }
+    func testProductionGuestOnlyLaunchSurvivesWithoutCrash() {
+        let prodApp = XCUIApplication()
+        prodApp.launchEnvironment["WEWED_NATIVE_ENV"] = "production"
+        prodApp.launchEnvironment.removeValue(forKey: "WEWED_GUEST_UI_ORIGIN")
+        prodApp.launchEnvironment.removeValue(forKey: "WEWED_GUEST_UI_LINK")
+        prodApp.launch()
+        XCTAssertTrue(prodApp.wait(for: .runningForeground, timeout: 15))
+        let unavailable = prodApp.descendants(matching: .any).matching(identifier: "invitation-unavailable").firstMatch
+        let awaitingLink = prodApp.descendants(matching: .any).matching(identifier: "invitation-awaiting-link").firstMatch
+        let shell = prodApp.descendants(matching: .any).matching(identifier: "live-guest-shell").firstMatch
+        let exchanging = prodApp.descendants(matching: .any).matching(identifier: "invitation-exchanging").firstMatch
+        XCTAssertTrue(unavailable.waitForExistence(timeout: 10) || awaitingLink.waitForExistence(timeout: 5) || shell.waitForExistence(timeout: 5) || exchanging.waitForExistence(timeout: 5))
+    }
 }
+
