@@ -112,24 +112,45 @@ class AppViewModel(
         _rejectedInvitation.value = null
     }
 
+    /**
+     * The invitation entry this launch carries, waiting to be exchanged.
+     *
+     * Both credential-bearing shapes travel through here — a private link and an opaque handoff —
+     * because after exchange the two are indistinguishable and the coordinator treats them the
+     * same. The handoff in particular used to be recognised and then dropped on the floor, so the
+     * parser tests passed while the app never redeemed it. Carrying it as state is what makes the
+     * journey completable.
+     */
+    private val _pendingInvitationEntry = MutableStateFlow<InvitationEntry?>(null)
+    val pendingInvitationEntry: StateFlow<InvitationEntry?> = _pendingInvitationEntry.asStateFlow()
+
+    /** Consumed by the coordinator once, so a re-render cannot replay an exchange. */
+    fun consumePendingInvitationEntry(): InvitationEntry? =
+        _pendingInvitationEntry.value.also { _pendingInvitationEntry.value = null }
+
     fun handleIncomingUrl(rawUrl: String?) {
         // Invitation entry is resolved first and by its own parser, because it is the only launch
         // shape that carries a credential and the only one with refusals of its own.
         when (val entry = InvitationEntryParser.fromUrl(rawUrl)) {
             is InvitationEntry.Rejected -> {
                 _rejectedInvitation.value = entry.reason
+                _pendingInvitationEntry.value = null
                 _pendingInvitationDeepLink.value = null
                 _pendingRouteDeepLink.value = null
                 return
             }
             is InvitationEntry.Handoff -> {
-                // The opaque handoff is redeemed by the entry coordinator against the server; it
-                // names nobody here, so there is nothing to route on yet.
+                // Handed to the coordinator to redeem. It names nobody here, so there is nothing
+                // to route on yet — but it must not be dropped, which is what used to happen.
                 _rejectedInvitation.value = null
+                _pendingInvitationEntry.value = entry
                 _pendingRouteDeepLink.value = null
                 return
             }
-            is InvitationEntry.PrivateInvitation -> _rejectedInvitation.value = null
+            is InvitationEntry.PrivateInvitation -> {
+                _rejectedInvitation.value = null
+                _pendingInvitationEntry.value = entry
+            }
             null -> Unit
         }
 

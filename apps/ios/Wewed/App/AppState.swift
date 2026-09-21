@@ -88,23 +88,42 @@ public final class AppState: ObservableObject, @unchecked Sendable {
         rejectedInvitation = nil
     }
 
+    /// The invitation entry this launch carries, waiting to be exchanged.
+    ///
+    /// Both credential-bearing shapes travel through here — a private link and an opaque handoff —
+    /// because after exchange the two are indistinguishable and the coordinator treats them the
+    /// same. The handoff in particular used to be recognised and then dropped on the floor, so the
+    /// parser tests passed while the app never redeemed it. Carrying it as state is what makes the
+    /// journey completable.
+    @Published public var pendingInvitationEntry: InvitationEntry?
+
+    /// Consumed by the coordinator once, so a re-render cannot replay an exchange.
+    public func consumePendingInvitationEntry() -> InvitationEntry? {
+        let entry = pendingInvitationEntry
+        pendingInvitationEntry = nil
+        return entry
+    }
+
     public func handleIncomingURL(_ url: URL) {
         // Invitation entry is resolved first and by its own parser, because it is the only launch
         // shape that carries a credential and the only one with refusals of its own.
         switch InvitationEntryParser.entry(from: url.absoluteString) {
         case let .rejected(reason):
             rejectedInvitation = reason
+            pendingInvitationEntry = nil
             pendingInvitationDeepLink = nil
             pendingRouteDeepLink = nil
             return
-        case .handoff:
-            // The opaque handoff is redeemed against the server; it names nobody here, so there is
-            // nothing to route on yet.
+        case let .handoff(secret):
+            // Handed to the coordinator to redeem. It names nobody here, so there is nothing to
+            // route on yet — but it must not be dropped, which is what used to happen.
             rejectedInvitation = nil
+            pendingInvitationEntry = .handoff(secret: secret)
             pendingRouteDeepLink = nil
             return
-        case .privateInvitation:
+        case let .privateInvitation(slug, token):
             rejectedInvitation = nil
+            pendingInvitationEntry = .privateInvitation(weddingSlug: slug, rsvpToken: token)
         case .none:
             break
         }
