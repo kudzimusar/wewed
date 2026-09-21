@@ -1,3 +1,5 @@
+import { weddingGuestSessionExpiry } from '@/lib/wedding-guest-session'
+import { invitationVersionFingerprint } from '@/lib/wedding-guest-session'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { normalizeInvitationCardStyle } from '@/lib/digital-invitation-card'
@@ -110,6 +112,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     where: { slug },
     select: {
       id: true,
+      date: true,
       slug: true,
       privacy: true,
       invitationCardStyle: true,
@@ -194,10 +197,13 @@ export async function POST(request: NextRequest, { params }: Params) {
     weddingId: wedding.id,
     guestId: guest.id,
     rsvpToken,
+    weddingDate: wedding.date,
   })
   setWeddingGuestPortfolioCookie(
     response,
     mergeWeddingGuestPortfolio(readWeddingGuestPortfolio(request), {
+      accessExpiresAt: weddingGuestSessionExpiry(wedding.date),
+      invitationVersionFingerprint: invitationVersionFingerprint({ weddingId: wedding.id, guestId: guest.id, rsvpToken }),
       weddingId: wedding.id,
       weddingSlug: wedding.slug,
       guestId: guest.id,

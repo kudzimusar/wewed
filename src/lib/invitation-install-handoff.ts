@@ -38,6 +38,7 @@ export type ConsumedInvitationInstallHandoff =
       ok: true
       handoffId: string
       weddingId: string
+      weddingDate: Date
       weddingSlug: string
       guestId: string
       rsvpToken: string
@@ -303,7 +304,7 @@ export async function consumeInvitationInstallHandoff(input: {
       guest: {
         include: {
           wedding: {
-            select: { id: true, slug: true, privacy: true },
+            select: { id: true, slug: true, privacy: true, date: true },
           },
         },
       },
@@ -365,6 +366,7 @@ export async function consumeInvitationInstallHandoff(input: {
     handoffId: handoff.id,
     weddingId: handoff.weddingId,
     weddingSlug: rsvp.guest.wedding.slug,
+    weddingDate: rsvp.guest.wedding.date,
     guestId: handoff.guestId,
     rsvpToken: rsvp.token,
     card: normalizeInvitationCardStyle(handoff.card),

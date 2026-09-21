@@ -11,6 +11,7 @@ import {
 import {
   WEDDING_GUEST_SESSION_COOKIE,
   verifyWeddingGuestSessionToken,
+  guestSessionMatchesInvitation,
   type WeddingGuestSession,
 } from '@/lib/wedding-guest-session'
 import {
@@ -54,6 +55,7 @@ export interface WeddingGuestIdentity {
   name: string
   email: string | null
   tableNumber: number | null
+  tableName: string | null
   rsvpToken: string
   attending: boolean | null
   mealChoice: string | null
@@ -190,7 +192,7 @@ export async function resolveGuestSessionForWedding(
   if (!session || session.weddingId !== wedding.id) return null
 
   const rsvp = await db.rSVP.findUnique({
-    where: { token: session.rsvpToken },
+    where: session.version === 1 ? { token: session.rsvpToken } : { guestId: session.guestId },
     include: {
       guest: {
         select: {
@@ -199,6 +201,7 @@ export async function resolveGuestSessionForWedding(
           name: true,
           email: true,
           tableNumber: true,
+          seatingTable: { select: { name: true, weddingId: true } },
         },
       },
     },
@@ -207,7 +210,8 @@ export async function resolveGuestSessionForWedding(
   if (
     !rsvp ||
     rsvp.guest.id !== session.guestId ||
-    rsvp.guest.weddingId !== wedding.id
+    rsvp.guest.weddingId !== wedding.id ||
+    !guestSessionMatchesInvitation(session, { weddingId: wedding.id, guestId: rsvp.guest.id, rsvpToken: rsvp.token })
   ) {
     return null
   }
@@ -217,6 +221,7 @@ export async function resolveGuestSessionForWedding(
     name: rsvp.guest.name,
     email: rsvp.guest.email,
     tableNumber: rsvp.guest.tableNumber,
+    tableName: rsvp.guest.seatingTable?.weddingId === wedding.id ? rsvp.guest.seatingTable.name : null,
     rsvpToken: rsvp.token,
     attending: rsvp.attending,
     mealChoice: rsvp.mealChoice,

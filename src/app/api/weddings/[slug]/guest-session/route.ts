@@ -1,3 +1,5 @@
+import { weddingGuestSessionExpiry } from '@/lib/wedding-guest-session'
+import { invitationVersionFingerprint } from '@/lib/wedding-guest-session'
 import { previewWriteError } from '@/lib/preview-write-response'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
@@ -77,8 +79,7 @@ export async function GET(request: NextRequest, { params }: Params) {
 
   const childrenPolicy = await loadChildrenPolicy(wedding.id)
 
-  return noStore(
-    NextResponse.json({
+  const response = NextResponse.json({
       success: true,
       authorized: true,
       wedding: {
@@ -105,6 +106,7 @@ export async function GET(request: NextRequest, { params }: Params) {
         name: guest.name,
         email: guest.email,
         tableNumber: guest.tableNumber,
+        tableName: guest.tableName,
       },
       rsvp: {
         attending: guest.attending,
@@ -119,8 +121,12 @@ export async function GET(request: NextRequest, { params }: Params) {
         checkedIn: guest.checkedIn,
         checkedInAt: guest.checkedInAt,
       },
-    }),
-  )
+    })
+  // Validate against the current invitation before migrating a legacy cookie.
+  if (session?.version === 1) setWeddingGuestSessionCookie(response, {
+    weddingId: wedding.id, guestId: guest.id, rsvpToken: guest.rsvpToken, weddingDate: wedding.date,
+  })
+  return noStore(response)
 }
 
 export async function POST(request: NextRequest, { params }: Params) {
@@ -142,6 +148,7 @@ export async function POST(request: NextRequest, { params }: Params) {
           wedding: {
             select: {
               id: true,
+              date: true,
               slug: true,
               privacy: true,
               invitationCardStyle: true,
@@ -173,10 +180,13 @@ export async function POST(request: NextRequest, { params }: Params) {
     weddingId: rsvp.guest.wedding.id,
     guestId: rsvp.guest.id,
     rsvpToken: rsvp.token,
+    weddingDate: rsvp.guest.wedding.date,
   })
   setWeddingGuestPortfolioCookie(
     response,
     mergeWeddingGuestPortfolio(readWeddingGuestPortfolio(request), {
+      accessExpiresAt: weddingGuestSessionExpiry(rsvp.guest.wedding.date),
+      invitationVersionFingerprint: invitationVersionFingerprint({ weddingId: rsvp.guest.wedding.id, guestId: rsvp.guest.id, rsvpToken: rsvp.token }),
       weddingId: rsvp.guest.wedding.id,
       weddingSlug: rsvp.guest.wedding.slug,
       guestId: rsvp.guest.id,
@@ -275,7 +285,11 @@ export async function PUT(request: NextRequest, { params }: Params) {
     },
   })
 
-  return noStore(NextResponse.json({ success: true, rsvp: updated }))
+  const response = noStore(NextResponse.json({ success: true, rsvp: updated }))
+  if (readWeddingGuestSession(request)?.version === 1) setWeddingGuestSessionCookie(response, {
+    weddingId: wedding.id, guestId: guest.id, rsvpToken: guest.rsvpToken, weddingDate: wedding.date,
+  })
+  return response
 }
 
 export async function PATCH(request: NextRequest, { params }: Params) {
@@ -296,7 +310,11 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     select: { checkedIn: true, checkedInAt: true },
   })
 
-  return noStore(NextResponse.json({ success: true, rsvp: updated }))
+  const response = noStore(NextResponse.json({ success: true, rsvp: updated }))
+  if (readWeddingGuestSession(request)?.version === 1) setWeddingGuestSessionCookie(response, {
+    weddingId: wedding.id, guestId: guest.id, rsvpToken: guest.rsvpToken, weddingDate: wedding.date,
+  })
+  return response
 }
 
 export async function DELETE(request: NextRequest, { params }: Params) {

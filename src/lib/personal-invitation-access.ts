@@ -7,6 +7,7 @@ import {
 } from '@/lib/digital-invitation-card'
 
 export interface ResolvedPersonalInvitation {
+  weddingDate: Date
   weddingId: string
   weddingSlug: string
   weddingTitle: string
@@ -31,6 +32,7 @@ export async function resolvePersonalInvitation({
           wedding: {
             select: {
               id: true,
+              date: true,
               slug: true,
               title: true,
               privacy: true,
@@ -52,6 +54,7 @@ export async function resolvePersonalInvitation({
 
   return {
     weddingId: rsvp.guest.wedding.id,
+    weddingDate: rsvp.guest.wedding.date,
     weddingSlug: rsvp.guest.wedding.slug,
     weddingTitle: rsvp.guest.wedding.title,
     guestId: rsvp.guest.id,

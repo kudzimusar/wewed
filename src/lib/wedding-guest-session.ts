@@ -4,14 +4,43 @@ import { createHmac, timingSafeEqual } from 'node:crypto'
 import type { NextRequest, NextResponse } from 'next/server'
 
 export const WEDDING_GUEST_SESSION_COOKIE = 'wewed_wedding_guest'
-export const WEDDING_GUEST_SESSION_TTL_SECONDS = 7 * 24 * 60 * 60
+const DAY = 24 * 60 * 60 * 1000
+export const WEDDING_GUEST_SESSION_TTL_SECONDS = 30 * 24 * 60 * 60
 
-export interface WeddingGuestSession {
+/** No sliding renewal: 30-day minimum, wedding + 90 days, capped at 400 days. */
+export function weddingGuestSessionExpiry(weddingDate?: Date | string | null, now = Date.now()): number {
+  const date = weddingDate ? new Date(weddingDate).getTime() : NaN
+  const end = Number.isFinite(date) ? date + 90 * DAY : now + 30 * DAY
+  return Math.min(now + 400 * DAY, Math.max(now + 30 * DAY, end))
+}
+
+export interface LegacyWeddingGuestSession {
   version: 1
   weddingId: string
   guestId: string
   rsvpToken: string
   expiresAt: number
+}
+
+export interface WeddingGuestSessionV2 {
+  version: 2
+  weddingId: string
+  guestId: string
+  invitationVersionFingerprint: string
+  expiresAt: number
+}
+export type WeddingGuestSession = LegacyWeddingGuestSession | WeddingGuestSessionV2
+
+export function invitationVersionFingerprint(input: { weddingId: string; guestId: string; rsvpToken: string }): string {
+  return createHmac('sha256', getSigningSecret())
+    .update(JSON.stringify(['wewed.guest.invitation-version.v2', input.weddingId, input.guestId, input.rsvpToken]))
+    .digest('base64url')
+}
+
+export function guestSessionMatchesInvitation(session: WeddingGuestSession, input: { weddingId: string; guestId: string; rsvpToken: string }): boolean {
+  if (session.weddingId !== input.weddingId || session.guestId !== input.guestId || session.expiresAt <= Date.now()) return false
+  const actual = session.version === 1 ? invitationVersionFingerprint({ ...input, rsvpToken: session.rsvpToken }) : session.invitationVersionFingerprint
+  return signaturesMatch(actual, invitationVersionFingerprint(input))
 }
 
 function getSigningSecret(): string {
@@ -68,13 +97,15 @@ export function createWeddingGuestSessionToken(input: {
   weddingId: string
   guestId: string
   rsvpToken: string
+  weddingDate?: Date | string | null
+  expiresAt?: number
 }): string {
-  const payload: WeddingGuestSession = {
-    version: 1,
+  const payload: WeddingGuestSessionV2 = {
+    version: 2,
     weddingId: input.weddingId,
     guestId: input.guestId,
-    rsvpToken: input.rsvpToken,
-    expiresAt: Date.now() + WEDDING_GUEST_SESSION_TTL_SECONDS * 1000,
+    invitationVersionFingerprint: invitationVersionFingerprint(input),
+    expiresAt: Math.min(input.expiresAt ?? Infinity, weddingGuestSessionExpiry(input.weddingDate)),
   }
   const encoded = Buffer.from(JSON.stringify(payload), 'utf8').toString(
     'base64url',
@@ -92,14 +123,14 @@ export function verifyWeddingGuestSessionToken(
 
     const payload = JSON.parse(
       Buffer.from(encoded, 'base64url').toString('utf8'),
-    ) as Partial<WeddingGuestSession>
+    ) as { version?: number; weddingId?: string; guestId?: string; rsvpToken?: string; invitationVersionFingerprint?: string; expiresAt?: number }
 
     if (
-      payload.version !== 1 ||
+      (payload.version !== 1 && payload.version !== 2) ||
       typeof payload.weddingId !== 'string' ||
       typeof payload.guestId !== 'string' ||
-      typeof payload.rsvpToken !== 'string' ||
-      typeof payload.expiresAt !== 'number' ||
+      (payload.version === 1 ? typeof payload.rsvpToken !== 'string' : (typeof payload.invitationVersionFingerprint !== 'string' || 'rsvpToken' in payload)) ||
+      typeof payload.expiresAt !== 'number' || !Number.isFinite(payload.expiresAt) ||
       payload.expiresAt <= Date.now()
     ) {
       return null
@@ -120,7 +151,7 @@ export function readWeddingGuestSession(
 
 export function setWeddingGuestSessionCookie(
   response: NextResponse,
-  input: { weddingId: string; guestId: string; rsvpToken: string },
+  input: { weddingId: string; guestId: string; rsvpToken: string; weddingDate?: Date | string | null; expiresAt?: number },
 ): void {
   response.cookies.set(
     WEDDING_GUEST_SESSION_COOKIE,
@@ -130,7 +161,7 @@ export function setWeddingGuestSessionCookie(
       secure: useSecureCookie(),
       sameSite: 'lax',
       path: '/',
-      maxAge: WEDDING_GUEST_SESSION_TTL_SECONDS,
+      maxAge: Math.floor((Math.min(input.expiresAt ?? Infinity, weddingGuestSessionExpiry(input.weddingDate)) - Date.now()) / 1000),
     },
   )
 }
