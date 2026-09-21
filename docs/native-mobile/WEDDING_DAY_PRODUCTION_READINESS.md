@@ -117,13 +117,43 @@ prefer leaving the tables in place with the feature disabled. STEP 0's index is 
 reversed by default — it is harmless, and dropping it is another concurrent operation on a core
 table.
 
+## Round 3 (2026-09-22): deletion policy, RLS serviceability, production access
+
+Three changes, each forced by measurement rather than review:
+
+**The check-in → credential foreign key is now `ON DELETE RESTRICT`.** It was `SET NULL`, which on
+a composite key nulls every referencing column — it would have attempted to erase the admission
+record's wedding and guest identity, and was stopped only by those columns being NOT NULL.
+Credentials are security evidence and the application never deletes one, so refusal costs nothing.
+A post-migration assertion pins `confdeltype = 'r'`.
+
+**The migration now refuses to run without being told the server role.** RLS with no policy does not
+error for a role without BYPASSRLS — it returns zero rows. The previous version would have committed
+a Wedding Day domain that an ordinary application role read as permanently empty: no credential for
+any guest, the gate admitting nobody, and no error anywhere. Pass
+`-v wedding_day_server_role=<role>` and the migration creates an explicit policy and grants for that
+role; omit it and the migration aborts before any DDL. Measured afterwards: the named ordinary role
+can select and insert, while `anon` and `authenticated` get `permission denied`.
+
+**The disposable qualification database is now built from `prisma/schema.prisma`** (45 tables, real
+types, real NOT NULL, real referential actions) instead of a hand-written approximation. That change
+surfaced all of the above plus the fact that this schema deletes by `RESTRICT` throughout, so a
+wedding holding guests already cannot be deleted and Wedding Day adds no new step to the existing
+teardown sequence.
+
 ## Still outstanding before this may be applied
 
-1. **Production catalog comparison: NOT DONE.** The read-only preflight
-   (`scripts/wedding-day-production-preflight.sql`) is written and has been executed end-to-end
-   against the isolated database with zero errors, but never against production: the Supabase
-   connector available to this workspace exposes only an unrelated project (`church-os-dev`), which
-   was not queried. Production identity and read-only access must be established first. The
+1. **Production catalog comparison: STILL NOT DONE, and this is now the single gating item.** The
+   read-only preflight (`scripts/wedding-day-production-preflight.sql`) has been executed end to end
+   against a database built from the real Prisma schema, with zero errors, and it correctly reports
+   `Guest(id, weddingId)` absent while `Vendor` and `ServiceEngagement` have theirs. It has never
+   been run against production. Re-checked on 2026-09-22: the Supabase connector available to this
+   workspace exposes exactly one organization ("Church OS Development") and one project
+   (`church-os-dev`), neither of which is Wewed; it was not queried. Wewed's own Supabase project
+   reference could not be determined from public sources either — the production site keeps its
+   Supabase access server-side, so no `NEXT_PUBLIC_SUPABASE_URL` is reachable in the client bundle.
+   **The repository's Prisma schema is not evidence of what production contains**, and everything
+   qualified so far is qualified against that schema, not against the catalog. The
    preflight refuses to be useful without it — section 0 prints database identity, connected role,
    version and corroborating row counts precisely so an operator can confirm what they are looking
    at before trusting anything below.

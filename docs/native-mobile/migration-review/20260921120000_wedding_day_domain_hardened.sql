@@ -304,11 +304,31 @@ ALTER TABLE "WeddingCheckIn"
 
 -- The credential must belong to THIS wedding AND to THIS guest. This is the one
 -- that makes "admitted Guest A on Guest B's pass" unrepresentable.
+--
+-- ON DELETE RESTRICT, and emphatically not SET NULL. A credential is security
+-- evidence: it records which pass admitted which person to which wedding. The
+-- application never deletes one — it revokes or supersedes — so nothing
+-- legitimate is blocked by refusing the delete outright.
+--
+-- SET NULL was not merely ambiguous here, it was wrong. On a composite foreign
+-- key Postgres nulls EVERY referencing column, not just the one that names the
+-- parent: deleting a credential emits
+--     UPDATE "WeddingCheckIn" SET "credentialId"=NULL, "weddingId"=NULL, "guestId"=NULL
+-- which erases the check-in's wedding and guest identity outright. Today that is
+-- caught only because both columns happen to be NOT NULL, so the attempt fails
+-- with a confusing not-null violation rather than a deliberate refusal — and if
+-- either column were ever relaxed it would succeed and silently orphan the
+-- admission record. Verified against PostgreSQL 16; see
+-- WEDDING_DAY_ISOLATED_DB_QUALIFICATION.md.
+--
+-- Whole-wedding deletion still works: the cascade from "Wedding" removes the
+-- referencing check-ins before this constraint is evaluated, which was tested
+-- rather than assumed.
 ALTER TABLE "WeddingCheckIn"
     ADD CONSTRAINT "WeddingCheckIn_credentialId_weddingId_guestId_fkey"
     FOREIGN KEY ("credentialId", "weddingId", "guestId")
     REFERENCES "WeddingPassCredential"("id", "weddingId", "guestId")
-    ON DELETE SET NULL ON UPDATE CASCADE;
+    ON DELETE RESTRICT ON UPDATE CASCADE;
 
 ALTER TABLE "WeddingAnnouncement"
     ADD CONSTRAINT "WeddingAnnouncement_weddingId_fkey"
@@ -352,11 +372,77 @@ ALTER TABLE "WeddingCheckIn" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "WeddingAnnouncement" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "WeddingServicePresence" ENABLE ROW LEVEL SECURITY;
 
--- Belt and braces: FORCE applies RLS to the table owner too, so a mistaken
--- query as the owner cannot quietly bypass the empty policy set.
+-- FORCE applies RLS to the table owner too, so a mistaken query as the owner
+-- cannot quietly bypass the policy set.
 ALTER TABLE "WeddingPassKey" FORCE ROW LEVEL SECURITY;
 ALTER TABLE "WeddingPassCredential" FORCE ROW LEVEL SECURITY;
 ALTER TABLE "WeddingCheckIn" FORCE ROW LEVEL SECURITY;
+
+-- ── The server role, which MUST be decided before this migration runs ───────
+--
+-- Read this even if you skim everything else. RLS enabled with no policy does
+-- not raise an error for a role that lacks BYPASSRLS — it silently returns zero
+-- rows. Verified on PostgreSQL 16: an ordinary role holding SELECT on
+-- "WeddingPassCredential" reads 0 of 2 existing rows, with no warning. If the
+-- Wewed server connects as such a role, Wedding Day does not fail loudly; it
+-- finds no credential for any guest and the gate admits nobody, which is the
+-- worst possible way for this to be wrong.
+--
+-- Three supported postures. Choose deliberately; do not leave it to chance:
+--
+--   1. The server role has BYPASSRLS (Supabase's `postgres` does). RLS then
+--      constrains browser roles only, and the policies below are belt-and-braces.
+--   2. The server role is an ordinary role. It NEEDS the policies below, or the
+--      domain is silently unreadable.
+--   3. The server role owns the tables but lacks BYPASSRLS. FORCE above means it
+--      is still subject to RLS, so it also NEEDS the policies below.
+--
+-- Set the role before running, e.g.
+--     psql -v wedding_day_server_role=wewed_app ...
+-- The guard refuses to proceed if it is unset or does not exist, because the
+-- alternative is committing a domain nobody can read.
+
+\if :{?wedding_day_server_role}
+\else
+\echo '!! ABORT: -v wedding_day_server_role=<role> is required. See the note above.'
+\quit 1
+\endif
+
+-- psql does not interpolate :variables inside dollar-quoted bodies, so the role
+-- is handed to the block through a session setting instead.
+SELECT set_config('wewed.wedding_day_server_role', :'wedding_day_server_role', true);
+
+DO $server_policies$
+DECLARE
+    server_role TEXT := current_setting('wewed.wedding_day_server_role', true);
+    target      TEXT;
+BEGIN
+    IF server_role IS NULL OR btrim(server_role) = '' THEN
+        RAISE EXCEPTION 'wedding_day_server_role must name the role the Wewed server connects as';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = server_role) THEN
+        RAISE EXCEPTION 'wedding_day_server_role % does not exist in this database', server_role;
+    END IF;
+
+    FOREACH target IN ARRAY ARRAY[
+        'WeddingPassKey', 'WeddingPassCredential', 'WeddingCheckIn',
+        'WeddingAnnouncement', 'WeddingServicePresence'
+    ] LOOP
+        -- Full access for the server, and only for the server. This is not a
+        -- weakening of RLS: no browser role is named here, and PUBLIC/anon/
+        -- authenticated remain revoked below.
+        EXECUTE format(
+            'CREATE POLICY %I ON %I FOR ALL TO %I USING (true) WITH CHECK (true)',
+            target || '_server_all', target, server_role
+        );
+        EXECUTE format(
+            'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE %I TO %I', target, server_role
+        );
+    END LOOP;
+
+    RAISE NOTICE 'Wedding Day server access granted to role %', server_role;
+END
+$server_policies$;
 
 REVOKE ALL ON TABLE "WeddingPassKey", "WeddingPassCredential", "WeddingCheckIn",
   "WeddingAnnouncement", "WeddingServicePresence" FROM PUBLIC;
@@ -420,6 +506,29 @@ BEGIN
         SELECT 1 FROM pg_class WHERE relname = 'WeddingPassCredential' AND relrowsecurity
     ) THEN
         RAISE EXCEPTION 'Post-migration assertion failed: RLS not enabled on WeddingPassCredential';
+    END IF;
+
+    -- confdeltype 'r' = RESTRICT. Anything else here (notably 'n' = SET NULL)
+    -- would put the check-in's wedding/guest identity at risk; refuse to commit.
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+         WHERE conname = 'WeddingCheckIn_credentialId_weddingId_guestId_fkey'
+           AND confdeltype = 'r'
+    ) THEN
+        RAISE EXCEPTION 'Post-migration assertion failed: check-in credential FK is not ON DELETE RESTRICT';
+    END IF;
+
+    -- The failure this catches is silent by nature, so it is asserted rather
+    -- than trusted: every Wedding Day table must carry a policy for the server
+    -- role. Without one an ordinary role reads zero rows and reports no error.
+    IF (
+        SELECT count(DISTINCT polrelid) FROM pg_policy
+         WHERE polrelid IN (
+             '"WeddingPassKey"'::regclass, '"WeddingPassCredential"'::regclass,
+             '"WeddingCheckIn"'::regclass, '"WeddingAnnouncement"'::regclass,
+             '"WeddingServicePresence"'::regclass)
+    ) <> 5 THEN
+        RAISE EXCEPTION 'Post-migration assertion failed: a Wedding Day table has no server policy; the domain would read as empty';
     END IF;
 END
 $assert$;

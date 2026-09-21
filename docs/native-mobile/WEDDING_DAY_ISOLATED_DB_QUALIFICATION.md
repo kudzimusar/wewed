@@ -4,6 +4,13 @@ Evidence that the hardened review migration applies cleanly and that the databas
 application, is what rejects cross-wedding data. Run against a disposable local PostgreSQL 16
 cluster. **No production database was contacted.**
 
+> **Second round (2026-09-22).** The disposable database is now built by `prisma db push` from
+> `prisma/schema.prisma` — 45 tables with their real column types, NOT NULL constraints and
+> referential actions — rather than the hand-written 9-table approximation used first. That change
+> alone surfaced three defects the simplified schema had hidden; they are recorded under
+> "Findings" below. It is still **not** the production catalog: production has not been read, and
+> the repository schema is not proof of what production contains.
+
 ## How to reproduce
 
 ```bash
@@ -106,3 +113,92 @@ logically redundant — `id` is already the primary key, so the pair is unique f
 exists and the build cannot fail on data — but Postgres still requires a matching unique index as
 the target of a composite foreign key. It is therefore STEP 0, run `CONCURRENTLY` and outside a
 transaction, so a core table is not held under `ACCESS EXCLUSIVE` while the index builds.
+
+
+---
+
+# Second round — findings the simplified schema had hidden
+
+## 1. `ON DELETE SET NULL` on a composite FK erases more than the reference
+
+The check-in → credential foreign key was proposed as `ON DELETE SET NULL`. On a *composite*
+foreign key Postgres nulls **every** referencing column, not just the one naming the parent.
+Deleting a credential emits:
+
+```
+UPDATE "WeddingCheckIn" SET "credentialId"=NULL, "weddingId"=NULL, "guestId"=NULL ...
+ERROR:  null value in column "weddingId" of relation "WeddingCheckIn" violates not-null constraint
+DETAIL:  Failing row contains (k1, null, null, null).
+```
+
+It tries to erase the admission record's wedding and guest identity outright, and is stopped only
+because both columns happen to be `NOT NULL` — a confusing runtime error standing in for a design
+decision. If either column were ever relaxed, it would succeed silently.
+
+`RESTRICT` and `NO ACTION` were both measured and both behave correctly. `RESTRICT` is adopted: it
+states the intent ("this may not be deleted") and cannot be deferred.
+
+| policy | delete referenced active | delete referenced revoked | identity preserved |
+|---|---|---|---|
+| `SET NULL` | error (not-null violation) | error (not-null violation) | only by accident |
+| `RESTRICT` | **rejected by FK** | **rejected by FK** | yes |
+| `NO ACTION` | rejected by FK | rejected by FK | yes |
+
+Proven against the production-shaped schema for all three credential states — active, revoked and
+superseded — with the check-in's `weddingId`, `guestId` and `credentialId` intact after each.
+
+## 2. RLS with no policy is silently empty, not loudly refused
+
+`ENABLE`/`FORCE ROW LEVEL SECURITY` with zero policies does not raise an error for a role lacking
+`BYPASSRLS`. It returns **zero rows**:
+
+```
+app_plain   -> 0      (ordinary role holding SELECT, 2 rows present)
+app_bypass  -> 2      (BYPASSRLS)
+```
+
+Had the Wewed server connected as an ordinary role, Wedding Day would not have failed loudly — it
+would have found no credential for any guest and the gate would have admitted nobody. The migration
+now **requires** the server role to be named (`-v wedding_day_server_role=…`), creates an explicit
+`FOR ALL` policy plus grants for exactly that role, and asserts before commit that all five tables
+carry one. Verified afterwards:
+
+```
+app_plain      SELECT sees 1 credential, INSERT ok      <- server functions
+anon           ERROR: permission denied for table       <- browser denied
+authenticated  ERROR: permission denied for table       <- browser denied
+```
+
+Without the variable the migration aborts before any DDL, so the decision cannot be skipped.
+
+## 3. This schema deletes by `RESTRICT`, and always has
+
+`Guest → Wedding`, `RSVP → Guest` and most dependants are `RESTRICT` in the real schema. A wedding
+holding guests **already** cannot be deleted; removing one has always meant removing its children
+first. Wedding Day adds no step to that sequence — verified end to end:
+
+```
+DELETE RSVP  ->  DELETE Guest (cascades credential + check-in together)  ->  DELETE Wedding
+```
+
+The credential's `RESTRICT` does not fire during that cascade because the referencing check-in is
+removed in the same statement.
+
+**Open question for review, not changed here:** the Wedding Day tables use `ON DELETE CASCADE` for
+their own `weddingId` foreign keys, which is *more permissive* than the surrounding convention.
+Given admissions records are audit evidence, `RESTRICT` may be the more consistent choice. Flagged
+rather than changed, because it was not in scope and deserves a deliberate decision.
+
+## 4. Rollback rehearsal
+
+The documented rollback ran clean on the production-shaped database: five tables dropped in reverse
+dependency order, **0** orphan policies left behind, all 6 core tables and their data intact, and
+`Guest_id_weddingId_key` retained by design. The migration then **re-applied with zero errors**,
+so a rollback leaves a re-runnable state rather than a half-broken one.
+
+## 5. Test fixtures must match the real schema
+
+The lifecycle tests used positional inserts (`INSERT INTO "Couple" VALUES ($1,'P1','P2')`) that
+passed against the simplified schema and failed immediately against the real one, which has further
+NOT NULL columns. They now name every column. Positional inserts rot silently when a column is
+added; that is precisely how a test suite comes to prove less than it appears to.
