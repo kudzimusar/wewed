@@ -48,7 +48,7 @@ local-*
 *.log
 dev.log
 dev.out.log
-test
+/test
 prompt
 
 # The bare `test` rule above matches ANY directory named `test`, which silently swallowed the

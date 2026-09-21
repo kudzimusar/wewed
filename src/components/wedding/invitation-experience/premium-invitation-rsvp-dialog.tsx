@@ -122,8 +122,22 @@ export function PremiumInvitationRsvpDialog({
         {data && !loading && (
           <form onSubmit={submit} className="space-y-5">
             {saved && (
-              <div className="flex items-center gap-2 rounded-xl border px-3 py-2 text-sm" style={{ borderColor: `${theme.palette.primary}66`, background: `${theme.palette.primary}12` }}>
-                <CheckCircle2 className="size-4" /> Your RSVP has been saved.
+              <div className="space-y-3 rounded-xl border px-3 py-3 text-sm" style={{ borderColor: `${theme.palette.primary}66`, background: `${theme.palette.primary}12` }} data-testid="premium-rsvp-saved">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="size-4" /> Your RSVP has been saved.
+                </div>
+                {data.rsvp.attending && (
+                  <Button
+                    type="button"
+                    asChild
+                    size="sm"
+                    style={{ background: theme.palette.primary, color: theme.palette.paper }}
+                  >
+                    <a href={`/w/${encodeURIComponent(slug)}/pass`} data-testid="open-wedding-pass">
+                      Open Wewed Wedding Pass
+                    </a>
+                  </Button>
+                )}
               </div>
             )}
 

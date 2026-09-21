@@ -238,7 +238,7 @@ public struct UsherScannerView: View {
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.secondary)
-                TextField("Search by guest or table...", text: $manualSearchQuery)
+                TextField("Search by guest or household name...", text: $manualSearchQuery)
                     .onChange(of: manualSearchQuery) { _, query in
                         search(query: query)
                     }

@@ -179,22 +179,17 @@ export async function PUT(request: NextRequest, { params }: Params) {
   return noStore(NextResponse.json({ success: true, rsvp: updated }))
 }
 
-export async function PATCH(request: NextRequest, { params }: Params) {
+export async function PATCH(_request: NextRequest, { params }: Params) {
   const { slug } = await params
-  const { wedding, guest } = await currentGuest(request, slug)
-  if (!wedding || !guest) {
-    return noStore(
-      NextResponse.json({ success: false, error: 'Guest access is not active.' }, { status: 401 }),
-    )
-  }
-
-  const updated = await db.rSVP.update({
-    where: { token: guest.rsvpToken },
-    data: { checkedIn: true, checkedInAt: guest.checkedInAt ?? new Date() },
-    select: { checkedIn: true, checkedInAt: true },
-  })
-
-  return noStore(NextResponse.json({ success: true, rsvp: updated }))
+  return noStore(
+    NextResponse.json(
+      {
+        success: false,
+        error: `Guest self check-in is disabled for ${slug}. Admission must be recorded by an authorized Wedding Day operator.`,
+      },
+      { status: 403 },
+    ),
+  )
 }
 
 export async function DELETE(_request: NextRequest) {

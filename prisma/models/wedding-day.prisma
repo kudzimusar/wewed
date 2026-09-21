@@ -1,0 +1,110 @@
+// Wedding Day operational domain.
+//
+// These models intentionally keep existing Wedding/Guest/Vendor/ServiceEngagement
+// identity columns as scalar foreign identifiers during the isolated phase. The
+// accompanying migration enforces the database foreign keys. This prevents the
+// Wedding Day branch from rewriting core models merely to add Prisma back-relations.
+// Controlled integration can add those back-relations after baseline approval.
+
+model WeddingPassKey {
+  id                 String   @id @default(cuid())
+  weddingId          String
+  keyId              String
+  algorithm          String   @default("ECDSA_P256_SHA256")
+  publicKeyPem       String   @db.Text
+  publicKeyDerBase64 String
+  status             String   @default("active")
+  activeFrom         DateTime @default(now())
+  expiresAt          DateTime?
+  revokedAt          DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([weddingId, keyId], map: "WeddingPassKey_weddingId_keyId_key")
+  @@index([weddingId, status], map: "WeddingPassKey_weddingId_status_idx")
+}
+
+model WeddingPassCredential {
+  id               String   @id @default(cuid())
+  weddingId        String
+  guestId          String
+  passKeyId        String
+  weddingShortId   String
+  passSerial       String
+  tokenVersion     String   @default("WW2")
+  eventBitmask     Int
+  nonce            String
+  signatureHex     String
+  token            String   @unique(map: "WeddingPassCredential_token_key")
+  issuedAt         DateTime @default(now())
+  expiresAt        DateTime?
+  revokedAt        DateTime?
+  revocationReason String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([weddingId, passSerial], map: "WeddingPassCredential_weddingId_passSerial_key")
+  @@index([weddingId, guestId, revokedAt], map: "WeddingPassCredential_weddingId_guestId_revokedAt_idx")
+  @@index([passKeyId], map: "WeddingPassCredential_passKeyId_idx")
+}
+
+model WeddingCheckIn {
+  id               String   @id @default(cuid())
+  weddingId        String
+  guestId          String
+  credentialId     String?
+  eventKey         String   @default("wedding-day")
+  attendeeKey      String
+  attendeeKind     String   @default("primary")
+  attendeeName     String
+  source           String   @default("qr")
+  gateId           String?
+  deviceId         String?
+  clientEventId    String?
+  admittedByUserId String?
+  admittedAt       DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([weddingId, eventKey, guestId, attendeeKey], map: "WeddingCheckIn_weddingId_eventKey_guestId_attendeeKey_key")
+  @@unique([weddingId, clientEventId], map: "WeddingCheckIn_weddingId_clientEventId_key")
+  @@index([weddingId, eventKey, admittedAt], map: "WeddingCheckIn_weddingId_eventKey_admittedAt_idx")
+  @@index([guestId], map: "WeddingCheckIn_guestId_idx")
+  @@index([credentialId], map: "WeddingCheckIn_credentialId_idx")
+}
+
+model WeddingAnnouncement {
+  id           String   @id @default(cuid())
+  weddingId    String
+  authorUserId String?
+  audience     String   @default("all")
+  title        String?
+  body         String
+  status       String   @default("published")
+  metadata     Json?    @db.JsonB
+  publishedAt  DateTime @default(now())
+  expiresAt    DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([weddingId, status, publishedAt(sort: Desc)], map: "WeddingAnnouncement_weddingId_status_publishedAt_idx")
+  @@index([weddingId, expiresAt], map: "WeddingAnnouncement_weddingId_expiresAt_idx")
+}
+
+model WeddingServicePresence {
+  id                  String   @id @default(cuid())
+  weddingId           String
+  vendorId            String
+  serviceEngagementId String
+  state               String   @default("CONFIRMED")
+  changedByUserId     String?
+  changedAt           DateTime @default(now())
+  notes               String?
+  version             Int      @default(1)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([weddingId, serviceEngagementId], map: "WeddingServicePresence_weddingId_serviceEngagementId_key")
+  @@index([weddingId, state], map: "WeddingServicePresence_weddingId_state_idx")
+  @@index([vendorId, weddingId], map: "WeddingServicePresence_vendorId_weddingId_idx")
+}
