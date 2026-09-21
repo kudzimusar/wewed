@@ -67,6 +67,14 @@ export const PRIVACY_LABELS: Record<PrivacyLevel, string> = {
   private: 'Private Vault',
 }
 
+/**
+ * Guest-facing summaries, not the authorization policy.
+ *
+ * `private` is described here as "only the couple" because that is what it means to the reader of
+ * this sentence — someone without a member session. The actual rule admits any user holding an
+ * active WeddingMembership, planners included. Do not quote these strings as the policy;
+ * `resolveWeddingAccessFromTokens` in `wedding-public-access.ts` is the policy.
+ */
 export const PRIVACY_DESCRIPTIONS: Record<PrivacyLevel, string> = {
   public: 'Anyone with the link can view this wedding.',
   link_only:

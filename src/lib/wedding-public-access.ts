@@ -256,6 +256,31 @@ async function resolveSharedInvitationForWedding(
   return Boolean(destination)
 }
 
+/**
+ * Who may see a wedding, and on what credential.
+ *
+ * This function *is* the privacy policy; everything else defers to it. Read it as three tiers of
+ * credential rather than three tiers of secrecy:
+ *
+ * | privacy     | active WeddingMembership | personal guest invitation | shared/physical invitation | anonymous |
+ * |-------------|--------------------------|---------------------------|----------------------------|-----------|
+ * | `public`    | allowed                  | allowed (`invited_guest`) | allowed                    | allowed   |
+ * | `link_only` | allowed                  | allowed (`invited_guest`) | allowed (as `public`)      | denied    |
+ * | `private`   | **allowed**              | denied (403)              | denied (403)              | denied    |
+ *
+ * The row that is routinely described wrongly is `private`. It does **not** mean "couple only".
+ * Membership is resolved first and returns immediately, so *any* user holding an active
+ * `WeddingMembership` — a planner, a second partner, any member — is admitted to a private
+ * wedding, exactly as they are to a public one. What `private` closes is the **invitation**
+ * surface: it is the one value under which a legitimate personal guest session or a valid
+ * shared/physical invitation is refused. A guest locked out of a private wedding is locked out by
+ * design; a planner is not locked out at all.
+ *
+ * `normalizePrivacy` fails closed, so an unrecognized or null column value is treated as
+ * `private`, never as `public`.
+ *
+ * Pinned by `wedding-privacy-semantics.test.ts`, which asserts every cell above.
+ */
 export async function resolveWeddingAccessFromTokens(input: {
   slug: string
   appSessionToken?: string | null
