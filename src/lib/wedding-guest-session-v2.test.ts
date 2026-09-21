@@ -43,4 +43,21 @@ describe('guest session v2 security', () => {
     expect(weddingGuestSessionExpiry('2030-01-01', now)).toBe(now + 400 * day)
     expect(weddingGuestSessionExpiry('2020-01-01', now)).toBe(now + 30 * day)
   })
+  test('production strictly requires dedicated WEWED_SESSION_SECRET and rejects SUPABASE fallback', () => {
+    const origEnv = process.env.NODE_ENV
+    const origSecret = process.env.WEWED_SESSION_SECRET
+    const origSupa = process.env.SUPABASE_SERVICE_ROLE_KEY
+    try {
+      process.env.NODE_ENV = 'production'
+      delete process.env.WEWED_SESSION_SECRET
+      process.env.SUPABASE_SERVICE_ROLE_KEY = 'supabase-fallback-secret'
+      expect(() => createWeddingGuestSessionToken(identity)).toThrow('Missing dedicated WEWED_SESSION_SECRET in production.')
+    } finally {
+      process.env.NODE_ENV = origEnv
+      process.env.WEWED_SESSION_SECRET = origSecret
+      if (origSupa) process.env.SUPABASE_SERVICE_ROLE_KEY = origSupa
+      else delete process.env.SUPABASE_SERVICE_ROLE_KEY
+    }
+  })
 })
+

@@ -23,16 +23,19 @@ export function createClient() {
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!url || !anonKey) {
-    // During build or before env vars are set, return a no-op client that
-    // will throw clear errors if actually used. This prevents crashes during
-    // SSR when env vars aren't available yet.
+    // During build or before env vars are set, return a safe client that
+    // prevents crashes during SSR/prerendering when env vars aren't available yet.
     if (typeof window !== 'undefined') {
       console.warn(
         '[wewed] Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. ' +
           'Set these in your .env file. See SUPABASE_SETUP.md for instructions.'
       )
     }
+    return createBrowserClient(
+      url || 'https://placeholder.supabase.co',
+      anonKey || 'placeholder-anon-key'
+    )
   }
 
-  return createBrowserClient(url ?? '', anonKey ?? '')
+  return createBrowserClient(url, anonKey)
 }
