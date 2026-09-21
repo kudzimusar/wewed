@@ -9,9 +9,19 @@ public struct NativeLaunchConfiguration: Equatable, Sendable {
         self.baseURL = baseURL
     }
 
+    /// Whether this binary is a development build.
+    public static var isDebugBuildDefault: Bool {
+        #if DEBUG
+        return true
+        #else
+        return false
+        #endif
+    }
+
     public static func resolve(
         environment: [String: String] = ProcessInfo.processInfo.environment,
-        arguments: [String] = ProcessInfo.processInfo.arguments
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        isDebugBuild: Bool = NativeLaunchConfiguration.isDebugBuildDefault
     ) -> NativeLaunchConfiguration {
         let environmentValue = environment["WEWED_NATIVE_ENV"]?
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -36,10 +46,21 @@ public struct NativeLaunchConfiguration: Equatable, Sendable {
         case "fixture":
             dataEnvironment = .fixture
         default:
-            let privatePath = PrivateRealShadowWeddingRepository.defaultSnapshotPath()
-            dataEnvironment = FileManager.default.fileExists(atPath: privatePath)
-                ? .privateRealShadow
-                : .sanitizedShadow
+            // An ordinary launch — a Universal Link from Safari, a tap in WhatsApp, the home
+            // screen icon — must not have its data source decided by whether a file happens to
+            // exist on the device.
+            //
+            // It used to. The resolver checked for the Private Real Shadow snapshot and silently
+            // selected that environment when it found one, so the guest invitation journey
+            // depended on a qualification artefact being present, and changed behaviour when it
+            // was not. Private Real Shadow is a qualification configuration and is now entered
+            // only when it is explicitly asked for.
+            //
+            // A release build falls through to `.production`, which the repository factory
+            // currently refuses — loudly and on purpose. Refusing to start is the correct
+            // behaviour for a release build with no live data path; silently showing a real guest
+            // demo data is not.
+            dataEnvironment = isDebugBuild ? .sanitizedShadow : .production
         }
 
         let argumentBaseURL = launchArgumentValue(named: "wewed_shadow_base_url", arguments: arguments)

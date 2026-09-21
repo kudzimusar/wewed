@@ -13,6 +13,7 @@ import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.core.view.WindowCompat
 import pro.wewed.app.models.DevelopmentPersona
 import pro.wewed.app.state.AppViewModel
+import pro.wewed.app.BuildConfig
 import pro.wewed.app.state.NativeLaunchConfiguration
 import pro.wewed.app.state.SessionViewModel
 import pro.wewed.app.theme.WewedTheme
@@ -36,7 +37,8 @@ class MainActivity : ComponentActivity() {
 
         val launch = NativeLaunchConfiguration.resolve(
             rawEnvironment = intent.getStringExtra(EXTRA_NATIVE_ENV),
-            shadowBaseUrl = intent.getStringExtra(EXTRA_SHADOW_BASE_URL)
+            shadowBaseUrl = intent.getStringExtra(EXTRA_SHADOW_BASE_URL),
+            isDebugBuild = BuildConfig.DEBUG
         )
         // A missing protected snapshot must not take the process down. The app refuses to fall
         // back to demo data — that refusal is the point — but it says so on screen instead of
