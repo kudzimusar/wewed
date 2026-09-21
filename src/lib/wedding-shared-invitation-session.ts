@@ -14,10 +14,20 @@ export interface WeddingSharedInvitationSession {
 }
 
 function getSigningSecret(): string {
-  const secret =
-    process.env.WEWED_SESSION_SECRET?.trim() ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
+  const isProduction =
+    process.env.NODE_ENV === 'production' && !isLocalCiBrowserMode()
+  const dedicated = process.env.WEWED_SESSION_SECRET?.trim()
 
+  if (isProduction) {
+    if (!dedicated) {
+      throw new Error(
+        '[wewed] Missing dedicated WEWED_SESSION_SECRET in production.',
+      )
+    }
+    return dedicated
+  }
+
+  const secret = dedicated || process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
   if (!secret) {
     throw new Error(
       '[wewed] Missing WEWED_SESSION_SECRET or SUPABASE_SERVICE_ROLE_KEY.',
