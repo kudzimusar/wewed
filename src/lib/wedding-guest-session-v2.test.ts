@@ -59,5 +59,47 @@ describe('guest session v2 security', () => {
       else delete process.env.SUPABASE_SERVICE_ROLE_KEY
     }
   })
+  test('shared invitation session strictly requires dedicated WEWED_SESSION_SECRET in production', async () => {
+    const { createWeddingSharedInvitationSessionToken } = await import('./wedding-shared-invitation-session')
+    const origEnv = process.env.NODE_ENV
+    const origSecret = process.env.WEWED_SESSION_SECRET
+    const origSupa = process.env.SUPABASE_SERVICE_ROLE_KEY
+    try {
+      process.env.NODE_ENV = 'production'
+      delete process.env.WEWED_SESSION_SECRET
+      process.env.SUPABASE_SERVICE_ROLE_KEY = 'supabase-fallback-secret'
+      expect(() =>
+        createWeddingSharedInvitationSessionToken({
+          weddingId: 'synthetic-wedding',
+          destinationId: 'home',
+        })
+      ).toThrow('Missing dedicated WEWED_SESSION_SECRET in production.')
+    } finally {
+      process.env.NODE_ENV = origEnv
+      process.env.WEWED_SESSION_SECRET = origSecret
+      if (origSupa) process.env.SUPABASE_SERVICE_ROLE_KEY = origSupa
+      else delete process.env.SUPABASE_SERVICE_ROLE_KEY
+    }
+  })
+  test('cookie and token share identical computed effectiveExpiresAt and cookie never outlives token', async () => {
+    const { setWeddingGuestSessionCookie, computeWeddingGuestSessionExpiresAt } = await import('./wedding-guest-session')
+    const { NextResponse } = await import('next/server')
+    const response = new NextResponse()
+    const now = Date.now()
+    const result = setWeddingGuestSessionCookie(response, {
+      ...identity,
+      weddingDate: '2026-12-23',
+      now,
+    })
+    const payload = verifyWeddingGuestSessionToken(result.token)!
+    expect(payload.expiresAt).toBe(result.effectiveExpiresAt)
+    expect(result.effectiveExpiresAt).toBe(
+      computeWeddingGuestSessionExpiresAt({ weddingDate: '2026-12-23', now })
+    )
+    expect(now + result.maxAge * 1000).toBeLessThanOrEqual(result.effectiveExpiresAt)
+    const cookie = response.cookies.get('wewed_wedding_guest')
+    expect(cookie?.value).toBe(result.token)
+    expect(cookie?.maxAge).toBe(result.maxAge)
+  })
 })
 

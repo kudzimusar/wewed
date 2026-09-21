@@ -103,19 +103,37 @@ function signaturesMatch(actual: string, expected: string): boolean {
   }
 }
 
+export function computeWeddingGuestSessionExpiresAt(input: {
+  weddingDate?: Date | string | null
+  expiresAt?: number
+  now?: number
+}): number {
+  const current = input.now ?? Date.now()
+  const cappedExpiry = weddingGuestSessionExpiry(input.weddingDate, current)
+  return Math.min(input.expiresAt ?? Infinity, cappedExpiry)
+}
+
 export function createWeddingGuestSessionToken(input: {
   weddingId: string
   guestId: string
   rsvpToken: string
   weddingDate?: Date | string | null
   expiresAt?: number
+  effectiveExpiresAt?: number
 }): string {
+  const effectiveExpiresAt =
+    input.effectiveExpiresAt ??
+    computeWeddingGuestSessionExpiresAt({
+      weddingDate: input.weddingDate,
+      expiresAt: input.expiresAt,
+    })
+
   const payload: WeddingGuestSessionV2 = {
     version: 2,
     weddingId: input.weddingId,
     guestId: input.guestId,
     invitationVersionFingerprint: invitationVersionFingerprint(input),
-    expiresAt: Math.min(input.expiresAt ?? Infinity, weddingGuestSessionExpiry(input.weddingDate)),
+    expiresAt: effectiveExpiresAt,
   }
   const encoded = Buffer.from(JSON.stringify(payload), 'utf8').toString(
     'base64url',
@@ -161,19 +179,43 @@ export function readWeddingGuestSession(
 
 export function setWeddingGuestSessionCookie(
   response: NextResponse,
-  input: { weddingId: string; guestId: string; rsvpToken: string; weddingDate?: Date | string | null; expiresAt?: number },
-): void {
+  input: {
+    weddingId: string
+    guestId: string
+    rsvpToken: string
+    weddingDate?: Date | string | null
+    expiresAt?: number
+    now?: number
+  },
+): { token: string; effectiveExpiresAt: number; maxAge: number } {
+  const currentTime = input.now ?? Date.now()
+  const effectiveExpiresAt = computeWeddingGuestSessionExpiresAt({
+    weddingDate: input.weddingDate,
+    expiresAt: input.expiresAt,
+    now: currentTime,
+  })
+  const token = createWeddingGuestSessionToken({
+    ...input,
+    effectiveExpiresAt,
+  })
+  const maxAge = Math.max(
+    0,
+    Math.floor((effectiveExpiresAt - currentTime) / 1000),
+  )
+
   response.cookies.set(
     WEDDING_GUEST_SESSION_COOKIE,
-    createWeddingGuestSessionToken(input),
+    token,
     {
       httpOnly: true,
       secure: shouldUseSecureCookie(),
       sameSite: 'lax',
       path: '/',
-      maxAge: Math.floor((Math.min(input.expiresAt ?? Infinity, weddingGuestSessionExpiry(input.weddingDate)) - Date.now()) / 1000),
+      maxAge,
     },
   )
+
+  return { token, effectiveExpiresAt, maxAge }
 }
 
 export function clearWeddingGuestSessionCookie(response: NextResponse): void {
