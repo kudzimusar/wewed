@@ -55,6 +55,15 @@ an active guest before the server has validated the new one.
 The shapes and endpoints are generated from `origin/main` into
 `mobile/contracts/invitation-protocol.json` and asserted on both platforms.
 
+### 1c. Open backend blocker — the Guest Pass
+
+GUEST_PASS_BACKEND_CONTRACT_PROPOSAL.md
+
+No production authority issues a guest admission credential. Native already *verifies* the `WW2.`
+format and refuses to render anything else; nothing on `origin/main` issues one. The invitation's
+Guest Pass CTA is therefore deliberately absent on the live path, and the live UAT's Guest Pass lane
+cannot pass until the endpoint in that document exists.
+
 ### 2. Current sprint authority — Shadow Real-Wedding Parity
 
 WEWED_NATIVE_SHADOW_INTEGRATION_REAL_WEDDING_PARITY_PLAN_2026-09-18.md

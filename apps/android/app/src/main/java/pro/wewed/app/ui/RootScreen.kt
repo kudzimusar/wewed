@@ -150,6 +150,12 @@ fun RootScreen(
         // into — where a workspace is entered and the stage simply recedes. A splash that always
         // exits the same way reads as a loader.
         val splashDestination = when {
+            // A live invitation counts: the splash should hand over to a card, not recede into a
+            // workspace, whichever path resolved the guest.
+            pendingInvitationEntry != null ||
+                liveInvitation is LiveInvitationState.Exchanging ||
+                liveInvitation is LiveInvitationState.Presenting ->
+                SplashDestination.INVITATION
             pendingInvitationDeepLink != null || deepLinkedInvitation != null ->
                 SplashDestination.INVITATION
             isAuthenticated -> SplashDestination.WORKSPACE

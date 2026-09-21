@@ -121,14 +121,22 @@ final class LiveGuestInvitationCoordinatorTests: XCTestCase {
 
     /// The regression this class exists for: a handoff used to be recognised and then dropped.
     func testAHandoffIsActuallyRedeemedRatherThanAcknowledged() async {
-        Stub.routes["GET /invite/resume"] =
-            Reply(status: 303, session: "SESSION-2", location: "/w/x")
+        // The redirect names the wedding, exactly as production's `/invite/resume` does. Nothing
+        // is seeded: a deferred install has no previous session to read a slug out of.
+        Stub.routes["GET /invite/resume"] = Reply(
+            status: 303, session: "SESSION-2",
+            location: "/w/charity-and-kudzie?invitation=1&card=ivory-floral-gold")
         invitationReads(slug: "charity-and-kudzie", guestId: "guest_live",
                         name: "Live Guest", attending: "null")
 
-        _ = await coordinator.enter(.handoff(secret: String(repeating: "A", count: 43)))
+        let state = await coordinator.enter(.handoff(secret: String(repeating: "A", count: 43)))
         XCTAssertTrue(Stub.seenPaths.contains { $0.hasPrefix("GET /invite/resume") },
                       "the handoff must reach the server")
+        guard case let .presenting(snapshot) = state else {
+            return XCTFail("a redeemed handoff must end in a presented card, got \(state)")
+        }
+        XCTAssertEqual(snapshot.guestName, "Live Guest")
+        XCTAssertEqual(snapshot.weddingSlug, "charity-and-kudzie")
     }
 
     /// A refused entry fails closed, and never reads a card belonging to anyone else.

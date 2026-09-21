@@ -21,6 +21,7 @@ public struct LiveGuestInvitationView: View {
     @State private var rsvpPrompt = false
     @State private var submitting = false
     @State private var reopenRequired = false
+    @State private var showNote = false
 
     public init(
         presentation: LiveInvitationPresentation,
@@ -63,10 +64,19 @@ public struct LiveGuestInvitationView: View {
                 rsvp: ivoryRsvpState(from: presentation.rsvpStatus),
                 actions: IvoryActions(
                     onRsvp: presentation.rsvpStatus == .pending ? { rsvpPrompt = true } : nil,
-                    onAddToCalendar: nil,
+                    // The snapshot already carries the date and venue, so there was never a reason
+                    // to withhold this. An .ics the guest saves themselves, so the app needs no
+                    // calendar permission.
+                    onAddToCalendar: { addWeddingToCalendar() },
                     onOpenVenue: { open(venueDestination) },
                     onGifts: { open(coupleSite(fragment: "#registry")) },
-                    onNote: nil,
+                    // The couple's own words, offered only when they wrote some. An invitation that
+                    // always has "a note from us" is inventing words on their behalf.
+                    onNote: (presentation.invitationCardMessage?.isEmpty == false)
+                        ? { showNote = true } : nil,
+                    // Deliberately absent, and it is a release blocker rather than an oversight: no
+                    // production authority issues a guest admission credential, and this app will
+                    // not manufacture one out of a token, an id, an email or a name.
                     onViewPass: nil,
                     // The public page, never the private invitation link.
                     onVisitCoupleSite: { open(coupleSite(fragment: nil)) },
@@ -76,6 +86,9 @@ public struct LiveGuestInvitationView: View {
 
             if rsvpPrompt { rsvpPromptView }
             if reopenRequired { reopenRequiredView }
+            if showNote, let note = presentation.invitationCardMessage, !note.isEmpty {
+                noteFromTheCouple(note)
+            }
         }
     }
 
@@ -86,6 +99,71 @@ public struct LiveGuestInvitationView: View {
             .joined(separator: ", ")
             .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         return "http://maps.apple.com/?q=\(query)"
+    }
+
+    /// Hands the wedding to the phone's calendar.
+    ///
+    /// The date arrives as ISO from the graph; older shapes use a space separator. Both are the
+    /// same instant, and a parser that accepted only one silently produced no event at all.
+    private func addWeddingToCalendar() {
+        guard let start = Self.weddingInstant(presentation.weddingDate ?? "") else { return }
+        let stamp = DateFormatter()
+        stamp.locale = Locale(identifier: "en_US_POSIX")
+        stamp.dateFormat = "yyyyMMdd'T'HHmmss"
+        let location = [presentation.venue, presentation.venueCityCountry]
+            .compactMap { $0?.isEmpty == false ? $0 : nil }
+            .joined(separator: ", ")
+        let ics = """
+        BEGIN:VCALENDAR\r
+        VERSION:2.0\r
+        BEGIN:VEVENT\r
+        SUMMARY:\(presentation.coupleNames)\r
+        LOCATION:\(location)\r
+        DTSTART:\(stamp.string(from: start))\r
+        DTEND:\(stamp.string(from: start.addingTimeInterval(6 * 3600)))\r
+        END:VEVENT\r
+        END:VCALENDAR\r
+        """
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("wedding.ics")
+        try? ics.data(using: .utf8)?.write(to: url)
+        open(url.absoluteString)
+    }
+
+    static func weddingInstant(_ raw: String) -> Date? {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        for pattern in ["yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd HH:mm:ss",
+                        "yyyy-MM-dd'T'HH:mm", "yyyy-MM-dd"] {
+            formatter.dateFormat = pattern
+            if let date = formatter.date(from: raw.trimmingCharacters(in: .whitespaces)) {
+                return date
+            }
+        }
+        return nil
+    }
+
+    /// The couple's own note. Shown only when `invitationCardMessage` is set, because the
+    /// alternative is putting words in their mouth.
+    private func noteFromTheCouple(_ note: String) -> some View {
+        ZStack {
+            Color.black.opacity(0.45)
+                .ignoresSafeArea()
+                .onTapGesture { showNote = false }
+            VStack(spacing: 12) {
+                Text("A note from us")
+                    .font(.system(size: 13))
+                    .tracking(1.8)
+                    .foregroundStyle(WeddingIdentityPalette.muted)
+                Text(note)
+                    .font(.system(size: 16, design: .serif))
+                    .foregroundStyle(WeddingIdentityPalette.ink)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(24)
+            .background(WeddingIdentityPalette.ivory)
+            .padding(32)
+        }
+        .accessibilityIdentifier("invitation-note-sheet")
     }
 
     /// The public couple site. Safe to share; the private invitation link is not.

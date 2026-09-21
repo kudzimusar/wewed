@@ -34,6 +34,11 @@ object GuestInvitationBootstrap {
     @Volatile
     private var storage: SecureStorage? = null
 
+    /** The origin the live coordinator was built against, for diagnostics and tests. */
+    @Volatile
+    var activeBaseUrl: String = PRODUCTION_BASE_URL
+        private set
+
     /**
      * The live coordinator, created once.
      *
@@ -46,6 +51,7 @@ object GuestInvitationBootstrap {
         baseUrl: String = PRODUCTION_BASE_URL
     ): LiveGuestInvitationCoordinator {
         coordinator?.let { return it }
+        activeBaseUrl = baseUrl
         val secure = AndroidKeystoreSecureStorage(context.applicationContext)
         storage = secure
         return LiveGuestInvitationCoordinator(

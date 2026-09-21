@@ -13,6 +13,9 @@ public struct GuestOnlyInvitationShellView: View {
     private let coordinator: LiveGuestInvitationCoordinator
 
     @State private var state: LiveInvitationState = .idle
+    @State private var splashComplete = false
+    /// The entry currently on screen, so a replacement can restage the opening for the new guest.
+    @State private var currentEntry: InvitationEntry?
 
     public init(coordinator: LiveGuestInvitationCoordinator = GuestInvitationBootstrap.coordinator()) {
         self.coordinator = coordinator
@@ -20,6 +23,23 @@ public struct GuestOnlyInvitationShellView: View {
 
     private func handle(_ url: URL) {
         guard let entry = InvitationEntryParser.entry(from: url.absoluteString) else { return }
+        // A replacement link is a new arrival. Dropping Guest B straight into a card that just
+        // said Guest A's name reads as a glitch, so the opening is restaged.
+        if entry != currentEntry { splashComplete = false }
+        currentEntry = entry
+        Task {
+            state = .exchanging
+            state = await coordinator.enter(entry)
+        }
+    }
+
+    private func retry() {
+        // A visible retry has to actually retry. Resetting the state alone left an indefinite
+        // spinner, which is a worse outcome than the error it replaced.
+        guard let entry = currentEntry else {
+            state = .idle
+            return
+        }
         Task {
             state = .exchanging
             state = await coordinator.enter(entry)
@@ -27,11 +47,20 @@ public struct GuestOnlyInvitationShellView: View {
     }
 
     public var body: some View {
-        content
-            .onOpenURL(perform: handle)
-            .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
-                if let url = activity.webpageURL { handle(url) }
+        Group {
+            // The branded opening belongs to the real guest path too. The exchange runs underneath
+            // it, so the splash costs nothing, and after it the first wedding UI is the configured
+            // invitation — never Home, a login or a workspace.
+            if currentEntry != nil && !splashComplete {
+                WewedAnimatedSplash(destination: .invitation) { splashComplete = true }
+            } else {
+                content
             }
+        }
+        .onOpenURL(perform: handle)
+        .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+            if let url = activity.webpageURL { handle(url) }
+        }
     }
 
     @ViewBuilder
@@ -51,7 +80,7 @@ public struct GuestOnlyInvitationShellView: View {
             InvitationRefusedView(reason: reason ?? .malformedHandoff) { state = .idle }
 
         case .unavailable:
-            InvitationUnavailableView { state = .idle }
+            InvitationUnavailableView(onRetry: retry)
 
         case .exchanging:
             ZStack {

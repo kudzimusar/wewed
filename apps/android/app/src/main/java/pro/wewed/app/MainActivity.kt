@@ -15,6 +15,7 @@ import pro.wewed.app.models.DevelopmentPersona
 import pro.wewed.app.state.AppViewModel
 import pro.wewed.app.BuildConfig
 import pro.wewed.app.invitation.GuestInvitationBootstrap
+import pro.wewed.app.invitation.GuestOnlyEntryState
 import pro.wewed.app.invitation.InvitationEntryParser
 import pro.wewed.app.ui.invitation.GuestOnlyInvitationShell
 import pro.wewed.app.state.NativeLaunchConfiguration
@@ -57,17 +58,28 @@ class MainActivity : ComponentActivity() {
             // that carries a credential must not die behind that. The guest-only shell is built
             // from `GuestInvitationBootstrap`, which depends on nothing but the guest-session
             // authority — so this unlocks the invitation slice and nothing else.
-            val entry = InvitationEntryParser.fromUrl(intent?.dataString)
-                ?: InvitationEntryParser.fromIntentExtra(
-                    intent?.getStringExtra(InvitationEntryParser.ANDROID_INTENT_EXTRA)
-                )
-            if (entry != null) {
+            val hasInvitation = GuestOnlyEntryState.publish(
+                rawUrl = intent?.dataString,
+                intentExtra = intent?.getStringExtra(InvitationEntryParser.ANDROID_INTENT_EXTRA)
+            )
+            if (hasInvitation) {
                 setContent {
                     WewedTheme {
                         Box(modifier = Modifier.semantics { testTagsAsResourceId = true }) {
                             GuestOnlyInvitationShell(
-                                entry = entry,
-                                coordinator = GuestInvitationBootstrap.coordinator(applicationContext)
+                                coordinator = GuestInvitationBootstrap.coordinator(
+                                    context = applicationContext,
+                                    // Debug builds only, and never read in a release binary: this
+                                    // is how the guest-only shell can be driven end to end against
+                                    // a stub instead of production. A release build has no way to
+                                    // be pointed anywhere but wewed.pro.
+                                    baseUrl = if (BuildConfig.DEBUG) {
+                                        intent?.getStringExtra(EXTRA_GUEST_BASE_URL)
+                                            ?: GuestInvitationBootstrap.PRODUCTION_BASE_URL
+                                    } else {
+                                        GuestInvitationBootstrap.PRODUCTION_BASE_URL
+                                    }
+                                )
                             )
                         }
                     }
@@ -119,6 +131,13 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        // Published unconditionally, before the view-model check. In production the general
+        // repository is never built, so `appViewModel` is never initialised — and a warm Guest B
+        // link used to be received and then dropped because the only listener did not exist.
+        GuestOnlyEntryState.publish(
+            rawUrl = intent.dataString,
+            intentExtra = intent.getStringExtra(InvitationEntryParser.ANDROID_INTENT_EXTRA)
+        )
         if (::appViewModel.isInitialized) {
             appViewModel.handleIncomingUrl(intent.dataString)
         }
@@ -128,5 +147,14 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_NATIVE_ENV = "wewed_native_env"
         const val EXTRA_SHADOW_BASE_URL = "wewed_shadow_base_url"
         const val EXTRA_NATIVE_PERSONA = "wewed_native_persona"
+
+        /**
+         * Debug-only origin override for the guest-only shell.
+         *
+         * It exists so the real Activity and shell can be exercised against a stub server. A
+         * release build ignores it entirely, so it cannot become a way to point a guest's
+         * invitation somewhere other than Wewed.
+         */
+        const val EXTRA_GUEST_BASE_URL = "wewed_guest_base_url"
     }
 }

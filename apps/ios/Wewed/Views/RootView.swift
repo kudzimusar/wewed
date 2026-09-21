@@ -16,6 +16,17 @@ public struct RootView: View {
     // an invitation outranks a sign-in form was a property of branch ORDER rather than a stated
     // one. LaunchRouter states it, and tests assert it without a device.
     @State private var splashComplete = false
+
+    /// Whether this launch is handing over to an invitation rather than a workspace.
+    private var isInvitationArrival: Bool {
+        if appState.pendingInvitationEntry != nil { return true }
+        if appState.pendingInvitationDeepLink != nil { return true }
+        if deepLinkedInvitation != nil { return true }
+        switch liveInvitation {
+        case .exchanging, .presenting: return true
+        default: return false
+        }
+    }
     /// The Guest Ceremonial Entry Contract's session boundary: a recognised Guest meets their
     /// card once per app-entry session, not once per lifetime and not on every glance back.
     @State private var entrySessionPresentedCard = false
@@ -152,7 +163,9 @@ public struct RootView: View {
                 // is REVEALED — the stage lifts away leaving the ivory and ornament for the card
                 // to arrive into — where a workspace is entered and the stage simply recedes.
                 WewedAnimatedSplash(
-                    destination: appState.pendingInvitationDeepLink != nil || deepLinkedInvitation != nil
+                    // A live invitation counts: the splash should hand over to a card, not recede
+                    // into a workspace, whichever path resolved the guest.
+                    destination: isInvitationArrival
                         ? .invitation
                         : (session.isAuthenticated ? .workspace : .welcome),
                     onFinished: { splashComplete = true }

@@ -136,10 +136,14 @@ class LiveGuestInvitationCoordinatorTest {
      */
     @Test
     fun aHandoffIsActuallyRedeemedRatherThanAcknowledged() = runBlocking {
-        routes["GET /invite/resume"] = Reply(303, session = "SESSION-2", location = "/w/x")
+        // The redirect names the wedding, exactly as production's `/invite/resume` does. Nothing
+        // is seeded: a deferred install has no previous session to read a slug out of.
+        routes["GET /invite/resume"] = Reply(
+            303,
+            session = "SESSION-2",
+            location = "/w/charity-and-kudzie?invitation=1&card=ivory-floral-gold"
+        )
         invitationReads("charity-and-kudzie", "guest_live", "Live Guest", "null")
-        // The resume response does not name the wedding; the client reads the session back.
-        GuestSessionClient("http://127.0.0.1:${server.localPort}", InMemorySecureStorage())
 
         seenPaths.clear()
         val state = coordinator.enter(InvitationEntry.Handoff("A".repeat(43)))
@@ -148,10 +152,10 @@ class LiveGuestInvitationCoordinatorTest {
             "the handoff must reach the server",
             seenPaths.any { it.startsWith("GET /invite/resume") }
         )
-        assertTrue(
-            "a redeemed handoff must end in a presented card, not silence",
-            state is LiveInvitationState.Presenting || state is LiveInvitationState.Refused
-        )
+        val presenting = state as? LiveInvitationState.Presenting
+        assertNotNull("a redeemed handoff must end in a presented card, not silence", presenting)
+        assertEquals("Live Guest", presenting!!.snapshot.guestName)
+        assertEquals("charity-and-kudzie", presenting.snapshot.weddingSlug)
     }
 
     /** A refused entry fails closed, and never reads a card belonging to anyone else. */

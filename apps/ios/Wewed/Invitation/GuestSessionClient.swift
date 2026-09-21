@@ -161,11 +161,21 @@ public actor GuestSessionClient {
                 ? GuestSessionError.unauthorized
                 : GuestSessionError.transport(status: response.status)
         }
+
+        // The redirect names the wedding: `/w/<slug>?invitation=1&…`. Reading it is what makes a
+        // deferred install work at all — a freshly installed app holds no previous session, so
+        // asking storage which wedding this is would fail for exactly the guest this path exists
+        // to serve.
+        guard let slug = Self.weddingSlugFromResume(response.location) else {
+            throw GuestSessionError.unauthorized
+        }
+
+        // Persisted only once everything has validated. Writing the session earlier would let a
+        // half-successful redemption overwrite the guest who was already here.
         storage.save(key: Self.storedSession, value: issued)
-        // The handoff response does not name the wedding, so the session is read back to find out
-        // who the server decided this is.
-        let snapshot = try await loadInvitation()
-        storage.save(key: Self.storedSlug, value: snapshot.weddingSlug)
+        storage.save(key: Self.storedSlug, value: slug)
+
+        let snapshot = try await loadInvitation(weddingSlug: slug)
         return GuestSessionIdentity(weddingSlug: snapshot.weddingSlug,
                                     guestId: snapshot.guestId,
                                     guestName: snapshot.guestName)
@@ -265,6 +275,8 @@ public actor GuestSessionClient {
         let status: Int
         let body: Data?
         let issuedSession: String?
+        /// Where a redirect pointed. The resume route names the wedding here.
+        let location: String?
     }
 
     private func perform(
@@ -296,7 +308,36 @@ public actor GuestSessionClient {
             throw GuestSessionError.transport(status: -1)
         }
         return Response(status: http.statusCode, body: data,
-                        issuedSession: Self.issuedSessionCookie(http))
+                        issuedSession: Self.issuedSessionCookie(http),
+                        location: http.value(forHTTPHeaderField: "Location"))
+    }
+
+    /// The wedding a successful resume redirected to.
+    ///
+    /// Only a canonical Wewed wedding destination counts. The recovery page a rejected handoff
+    /// redirects to (`/guest-access-help`) deliberately yields nil, and so does anything pointing
+    /// off-origin — a redirect is attacker-influenceable in general, so it is read as a claim to be
+    /// validated rather than as an instruction.
+    static func weddingSlugFromResume(_ location: String?) -> String? {
+        guard let raw = location?.trimmingCharacters(in: .whitespaces), !raw.isEmpty else {
+            return nil
+        }
+        let path: String
+        if raw.hasPrefix("/") {
+            path = raw
+        } else {
+            guard let components = URLComponents(string: raw) else { return nil }
+            if let host = components.host?.lowercased(),
+               host != "wewed.pro", host != "www.wewed.pro" { return nil }
+            path = components.path
+        }
+        let segments = path.split(separator: "?")[0]
+            .split(separator: "/")
+            .map(String.init)
+            .filter { !$0.isEmpty }
+        guard segments.count >= 2, segments[0].lowercased() == "w" else { return nil }
+        let slug = segments[1].removingPercentEncoding ?? segments[1]
+        return slug.isEmpty ? nil : slug
     }
 
     /// Extracts the session the server issued, without touching any other cookie it sets.

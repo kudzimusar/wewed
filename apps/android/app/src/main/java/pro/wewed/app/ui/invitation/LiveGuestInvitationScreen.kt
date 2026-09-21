@@ -48,6 +48,7 @@ fun LiveGuestInvitationScreen(
     var rsvpPrompt by remember { mutableStateOf(false) }
     var submitting by remember { mutableStateOf(false) }
     var reopenRequired by remember { mutableStateOf(false) }
+    var showNote by remember { mutableStateOf(false) }
 
     val status = presentation.rsvpStatus
 
@@ -79,7 +80,10 @@ fun LiveGuestInvitationScreen(
             rsvp = ivoryRsvpStateFrom(status),
             actions = IvoryActions(
                 onRsvp = if (status == RSVPStatus.PENDING) ({ rsvpPrompt = true }) else null,
-                onAddToCalendar = null,
+                // The snapshot already carries the date and venue, so there was never a reason to
+                // withhold this. An insert intent, not a silent write: the guest sees the event and
+                // saves it, and the app needs no calendar permission.
+                onAddToCalendar = { addWeddingToCalendar(context, presentation) },
                 onOpenVenue = {
                     val target = presentation.venueMapUrl?.takeIf { it.isNotBlank() }
                         ?: ("geo:0,0?q=" + Uri.encode(
@@ -89,7 +93,14 @@ fun LiveGuestInvitationScreen(
                     runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target))) }
                 },
                 onGifts = { openCoupleSite(context, presentation.weddingSlug, "#registry") },
-                onNote = null,
+                // The couple's own words, offered only when they wrote some. An invitation that
+                // always has "a note from us" is inventing words on their behalf.
+                onNote = presentation.invitationCardMessage
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { { showNote = true } },
+                // Deliberately absent, and it is a release blocker rather than an oversight: no
+                // production authority issues a guest admission credential, and this app will not
+                // manufacture one out of a token, an id, an email or a name.
                 onViewPass = null,
                 // The public page, never the private invitation link.
                 onVisitCoupleSite = { openCoupleSite(context, presentation.weddingSlug, null) },
@@ -109,6 +120,85 @@ fun LiveGuestInvitationScreen(
 
         if (reopenRequired) {
             ReopenRequiredNotice(onDismiss = { reopenRequired = false })
+        }
+
+        presentation.invitationCardMessage?.takeIf { showNote && it.isNotBlank() }?.let { note ->
+            NoteFromTheCouple(note = note, onDismiss = { showNote = false })
+        }
+    }
+}
+
+/**
+ * Hands the wedding to the phone's calendar.
+ *
+ * The date arrives as ISO from the graph; older shapes use a space separator. Both are the same
+ * instant, and a parser that accepted only one silently produced no event at all.
+ */
+private fun addWeddingToCalendar(
+    context: android.content.Context,
+    presentation: LiveInvitationPresentation
+) {
+    val start = parseWeddingInstant(presentation.weddingDate.orEmpty()) ?: return
+    val intent = Intent(Intent.ACTION_INSERT)
+        .setData(android.provider.CalendarContract.Events.CONTENT_URI)
+        .putExtra(android.provider.CalendarContract.Events.TITLE, presentation.coupleNames)
+        .putExtra(
+            android.provider.CalendarContract.Events.EVENT_LOCATION,
+            listOfNotNull(presentation.venue, presentation.venueCityCountry.takeIf { it.isNotBlank() })
+                .joinToString(", ")
+        )
+        .putExtra(android.provider.CalendarContract.EXTRA_EVENT_BEGIN_TIME, start)
+        .putExtra(android.provider.CalendarContract.EXTRA_EVENT_END_TIME, start + 6 * 60 * 60 * 1000L)
+    runCatching { context.startActivity(intent) }
+}
+
+private fun parseWeddingInstant(raw: String): Long? {
+    listOf("yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd'T'HH:mm", "yyyy-MM-dd")
+        .forEach { pattern ->
+            runCatching {
+                java.text.SimpleDateFormat(pattern, java.util.Locale.US).parse(raw.trim())
+            }.getOrNull()?.let { return it.time }
+        }
+    return null
+}
+
+/**
+ * The couple's own note.
+ *
+ * Shown only when `invitationCardMessage` is set, because the alternative is putting words in
+ * their mouth.
+ */
+@Composable
+private fun NoteFromTheCouple(note: String, onDismiss: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.45f))
+            .clickable(onClick = onDismiss)
+            .testTag("invitation-note-sheet"),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(32.dp)
+                .background(WeddingIdentityPalette.Ivory)
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                "A note from us",
+                fontSize = 13.sp,
+                letterSpacing = 1.8.sp,
+                color = WeddingIdentityPalette.Muted
+            )
+            Text(
+                note,
+                fontSize = 16.sp,
+                fontFamily = FontFamily.Serif,
+                color = WeddingIdentityPalette.Ink,
+                textAlign = TextAlign.Center
+            )
         }
     }
 }

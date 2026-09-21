@@ -11,8 +11,11 @@ android {
         applicationId = "pro.wewed.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        // Must exceed the highest version already on Play, or the upload is rejected outright.
+        // Observed on the Play-installed `pro.wewed.app`: versionCode 7 / 2.0.4-uat. This is the
+        // next deliberate candidate, not an upload — see the Play runbook before publishing.
+        versionCode = 8
+        versionName = "2.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

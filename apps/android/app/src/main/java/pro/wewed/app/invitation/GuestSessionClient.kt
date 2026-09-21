@@ -153,27 +153,64 @@ class GuestSessionClient(
         if (!InvitationEntryParser.isValidHandoff(secret)) {
             throw GuestSessionException(GuestSessionError.Unauthorized)
         }
-        val (status, _, cookie) = request(
+        val response = request(
             method = "GET",
             path = "/invite/resume?h=${encode(secret)}",
             body = null,
             withSession = false,
             followRedirects = false
         )
+
         // A rejected handoff redirects to the recovery page without issuing a session. The active
         // guest is intentionally left alone.
-        val issued = cookie
+        val issued = response.issuedSession
             ?: throw GuestSessionException(
-                if (status in 300..399) GuestSessionError.Unauthorized
-                else GuestSessionError.Transport(status)
+                if (response.status in 300..399) GuestSessionError.Unauthorized
+                else GuestSessionError.Transport(response.status)
             )
-        secureStorage.save(STORED_SESSION, issued)
 
-        // The handoff response does not name the wedding, so the session is read back to find out
-        // who the server decided this is.
-        val snapshot = loadInternal(slug = null)
-        secureStorage.save(STORED_SLUG, snapshot.weddingSlug)
+        // The redirect names the wedding: `/w/<slug>?invitation=1&…`. Reading it is what makes a
+        // deferred install work at all — a freshly installed app holds no previous session, so
+        // asking storage which wedding this is would fail for exactly the guest this path exists
+        // to serve.
+        val slug = weddingSlugFromResume(response.location)
+            ?: throw GuestSessionException(GuestSessionError.Unauthorized)
+
+        // Persisted only once everything has validated. Writing the session earlier would let a
+        // half-successful redemption overwrite the guest who was already here.
+        secureStorage.save(STORED_SESSION, issued)
+        secureStorage.save(STORED_SLUG, slug)
+
+        val snapshot = loadInternal(slug)
         GuestSessionIdentity(snapshot.weddingSlug, snapshot.guestId, snapshot.guestName)
+    }
+
+    /**
+     * The wedding a successful resume redirected to.
+     *
+     * Only a canonical Wewed wedding destination counts. The recovery page a rejected handoff
+     * redirects to (`/guest-access-help`) deliberately yields null, and so does anything pointing
+     * off-origin — a redirect is attacker-influenceable in general, so it is read as a claim to be
+     * validated rather than as an instruction.
+     */
+    internal fun weddingSlugFromResume(location: String?): String? {
+        val raw = location?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        val path = when {
+            raw.startsWith("/") -> raw
+            else -> runCatching {
+                val uri = java.net.URI(raw)
+                val host = uri.host?.lowercase()
+                if (host != null && host != "wewed.pro" && host != "www.wewed.pro") return null
+                uri.path.orEmpty()
+            }.getOrNull() ?: return null
+        }
+        val segments = path.substringBefore('?')
+            .split("/")
+            .filter { it.isNotBlank() }
+        if (segments.size < 2 || segments[0].lowercase() != "w") return null
+        return runCatching {
+            java.net.URLDecoder.decode(segments[1], Charsets.UTF_8.name())
+        }.getOrNull()?.takeIf { it.isNotBlank() }
     }
 
     /** Reads the current guest's invitation from the wedding's own authority. */
@@ -264,7 +301,13 @@ class GuestSessionClient(
         }
     }
 
-    private data class Response(val status: Int, val body: String?, val issuedSession: String?)
+    private data class Response(
+        val status: Int,
+        val body: String?,
+        val issuedSession: String?,
+        /** Where a redirect pointed. The resume route names the wedding here. */
+        val location: String? = null
+    )
 
     private operator fun Response.component1() = status
     private operator fun Response.component2() = body
@@ -276,6 +319,28 @@ class GuestSessionClient(
         body: String?,
         withSession: Boolean,
         followRedirects: Boolean = true
+    ): Response {
+        // Transport failures are converted here rather than allowed to escape.
+        //
+        // They used to propagate out of the IO dispatcher and terminate the process: a guest in
+        // a tunnel, on a captive-portal wifi, or simply offline got a crash instead of "we
+        // couldn't reach Wewed". The Unavailable state existed and was unreachable for the most
+        // common failure there is.
+        return try {
+            perform(method, path, body, withSession, followRedirects)
+        } catch (error: java.io.IOException) {
+            Response(status = -1, body = null, issuedSession = null)
+        } catch (error: SecurityException) {
+            Response(status = -1, body = null, issuedSession = null)
+        }
+    }
+
+    private fun perform(
+        method: String,
+        path: String,
+        body: String?,
+        withSession: Boolean,
+        followRedirects: Boolean
     ): Response {
         val connection = URL(baseUrl.trimEnd('/') + path).openConnection() as HttpURLConnection
         try {
@@ -302,7 +367,12 @@ class GuestSessionClient(
                     ?.bufferedReader()
                     ?.use(BufferedReader::readText)
             }.getOrNull()
-            return Response(status, payload, issuedSessionCookie(connection))
+            return Response(
+                status = status,
+                body = payload,
+                issuedSession = issuedSessionCookie(connection),
+                location = connection.getHeaderField("Location")
+            )
         } finally {
             connection.disconnect()
         }

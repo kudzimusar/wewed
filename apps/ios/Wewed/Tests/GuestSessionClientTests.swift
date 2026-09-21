@@ -243,21 +243,82 @@ final class GuestSessionClientTests: XCTestCase {
         XCTAssertTrue(Stub.seenBodies.isEmpty, "no request should have been made")
     }
 
-    /// A redeemed handoff establishes the guest the server decided on.
-    func testARedeemedHandoffEstablishesTheGuest() async throws {
-        Stub.routes["GET /invite/resume"] =
-            Reply(status: 303, session: guestBSession, location: "/w/charity-and-kudzie")
+    /// A deferred install: no previous session, no stored wedding, nothing but the handoff.
+    ///
+    /// This is the case the whole handoff path exists for, and it used to fail. The client asked
+    /// storage which wedding it was, which on a fresh install answers nothing. An earlier version
+    /// of this test pre-seeded the slug immediately before redeeming, which made the bug invisible.
+    /// Nothing is seeded here.
+    func testAFreshInstallRedeemsAHandoffWithNothingStored() async throws {
+        XCTAssertNil(storage.get(key: "wewed.guest.session"),
+                     "the test must start with empty storage")
+        XCTAssertNil(storage.get(key: "wewed.guest.session.slug"))
+
+        Stub.routes["GET /invite/resume"] = Reply(
+            status: 303,
+            session: guestBSession,
+            location: "/w/charity-and-kudzie?invitation=1&card=ivory-floral-gold&source=android-app"
+        )
         invitationReads(slug: "charity-and-kudzie", guestId: "guest_b",
                         name: "Guest B", attending: "null")
-        // The handoff response does not name the wedding, so the client reads the session back.
-        storage.save(key: "wewed.guest.session.slug", value: "charity-and-kudzie")
 
         let identity = try await client.redeemHandoff(String(repeating: "B", count: 43))
         XCTAssertEqual(identity.guestId, "guest_b")
         XCTAssertEqual(identity.guestName, "Guest B")
+        // The wedding came from the redirect, which is the only place it could have come from.
         XCTAssertEqual(identity.weddingSlug, "charity-and-kudzie")
+        let slug = await client.activeSessionSlug()
+        XCTAssertEqual(slug, "charity-and-kudzie")
     }
 
+    /// A valid second handoff replaces the guest who was already here.
+    func testAValidHandoffReplacesTheActiveGuest() async throws {
+        exchangeSucceeds(slug: "charity-and-kudzie", guestId: "guest_a",
+                         name: "Guest A", session: guestASession)
+        _ = try await client.exchangePrivateInvitation(weddingSlug: "charity-and-kudzie",
+                                                       rsvpToken: rawToken)
+
+        Stub.routes["GET /invite/resume"] = Reply(
+            status: 303, session: guestBSession, location: "/w/charity-and-kudzie?invitation=1")
+        invitationReads(slug: "charity-and-kudzie", guestId: "guest_b",
+                        name: "Guest B", attending: "null")
+
+        let identity = try await client.redeemHandoff(String(repeating: "B", count: 43))
+        XCTAssertEqual(identity.guestId, "guest_b")
+        Stub.seenCookies = []
+        _ = try await client.loadInvitation(weddingSlug: "charity-and-kudzie")
+        XCTAssertEqual(Stub.seenCookies,
+                       ["\(GuestSessionClient.sessionCookie)=\(guestBSession)"])
+    }
+
+    /// A redirect that does not name a wedding is not a successful redemption.
+    ///
+    /// The recovery page is exactly this shape, and treating it as success would establish a
+    /// session pointing at nothing.
+    func testAResumeWithoutAWeddingDestinationIsRefused() async {
+        Stub.routes["GET /invite/resume"] = Reply(
+            status: 303, session: guestBSession,
+            location: "/guest-access-help?reason=invitation-resume")
+        do {
+            _ = try await client.redeemHandoff(String(repeating: "B", count: 43))
+            XCTFail("a resume without a wedding must not succeed")
+        } catch {}
+        let active = await client.hasActiveSession()
+        XCTAssertFalse(active, "nothing may be persisted")
+    }
+
+    /// A redirect pointing off-origin is a claim, not an instruction.
+    func testAResumeRedirectingOffOriginIsRefused() async {
+        Stub.routes["GET /invite/resume"] = Reply(
+            status: 303, session: guestBSession,
+            location: "https://evil.example/w/charity-and-kudzie")
+        do {
+            _ = try await client.redeemHandoff(String(repeating: "B", count: 43))
+            XCTFail("an off-origin redirect must not succeed")
+        } catch {}
+        let active = await client.hasActiveSession()
+        XCTAssertFalse(active)
+    }
     // MARK: - RSVP
 
     /// Accept and decline are both real answers that reach the server.

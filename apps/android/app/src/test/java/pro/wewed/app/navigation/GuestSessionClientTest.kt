@@ -251,6 +251,15 @@ class GuestSessionClientTest {
         assertTrue(failure is GuestSessionException)
         assertTrue("the active session must survive", client.hasActiveSession())
         assertEquals("charity-and-kudzie", client.activeSessionSlug())
+
+        // And it is still Guest A's session, not a half-written one.
+        invitationReads("charity-and-kudzie", "guest_a", "Guest A", null)
+        seenCookies.clear()
+        assertEquals("guest_a", client.loadInvitation("charity-and-kudzie").guestId)
+        assertEquals(
+            listOf("${GuestSessionClient.SESSION_COOKIE}=$guestASession"),
+            seenCookies.toList()
+        )
     }
 
     /** A handoff that is not the server's shape never reaches the network at all. */
@@ -262,19 +271,79 @@ class GuestSessionClientTest {
         assertEquals("no request should have been made", before, seenBodies.size)
     }
 
-    /** A redeemed handoff establishes the guest the server decided on. */
+    /**
+     * A deferred install: no previous session, no stored wedding, nothing but the handoff.
+     *
+     * This is the case the whole handoff path exists for, and it used to fail. The client asked
+     * storage which wedding it was, which on a fresh install answers nothing. An earlier version
+     * of this test pre-seeded the slug immediately before redeeming, which made the bug invisible.
+     * Nothing is seeded here.
+     */
     @Test
-    fun aRedeemedHandoffEstablishesTheGuest() = runBlocking {
-        routes["GET /invite/resume"] =
-            Reply(303, session = guestBSession, location = "/w/charity-and-kudzie")
+    fun aFreshInstallRedeemsAHandoffWithNothingStored() = runBlocking {
+        assertNull("the test must start with empty storage", storage.get("wewed.guest.session"))
+        assertNull(storage.get("wewed.guest.session.slug"))
+
+        routes["GET /invite/resume"] = Reply(
+            303,
+            session = guestBSession,
+            location = "/w/charity-and-kudzie?invitation=1&card=ivory-floral-gold&source=android-app"
+        )
         invitationReads("charity-and-kudzie", "guest_b", "Guest B", null)
-        // The handoff response does not name the wedding, so the client reads the session back.
-        storage.save("wewed.guest.session.slug", "charity-and-kudzie")
 
         val identity = client.redeemHandoff("B".repeat(43))
         assertEquals("guest_b", identity.guestId)
         assertEquals("Guest B", identity.guestName)
+        // The wedding came from the redirect, which is the only place it could have come from.
         assertEquals("charity-and-kudzie", identity.weddingSlug)
+        assertEquals("charity-and-kudzie", client.activeSessionSlug())
+    }
+
+    /** A valid second handoff replaces the guest who was already here. */
+    @Test
+    fun aValidHandoffReplacesTheActiveGuest() = runBlocking {
+        exchangeSucceeds("charity-and-kudzie", "guest_a", "Guest A", guestASession)
+        client.exchangePrivateInvitation("charity-and-kudzie", rawToken)
+
+        routes["GET /invite/resume"] =
+            Reply(303, session = guestBSession, location = "/w/charity-and-kudzie?invitation=1")
+        invitationReads("charity-and-kudzie", "guest_b", "Guest B", null)
+
+        assertEquals("guest_b", client.redeemHandoff("B".repeat(43)).guestId)
+        seenCookies.clear()
+        client.loadInvitation("charity-and-kudzie")
+        assertEquals(
+            listOf("${GuestSessionClient.SESSION_COOKIE}=$guestBSession"),
+            seenCookies.toList()
+        )
+    }
+
+    /**
+     * A redirect that does not name a wedding is not a successful redemption.
+     *
+     * The recovery page is exactly this shape, and treating it as success would establish a
+     * session pointing at nothing.
+     */
+    @Test
+    fun aResumeWithoutAWeddingDestinationIsRefused() = runBlocking {
+        routes["GET /invite/resume"] = Reply(
+            303,
+            session = guestBSession,
+            location = "/guest-access-help?reason=invitation-resume"
+        )
+        val failure = runCatching { client.redeemHandoff("B".repeat(43)) }.exceptionOrNull()
+        assertTrue(failure is GuestSessionException)
+        assertFalse("nothing may be persisted", client.hasActiveSession())
+    }
+
+    /** A redirect pointing off-origin is a claim, not an instruction. */
+    @Test
+    fun aResumeRedirectingOffOriginIsRefused() = runBlocking {
+        routes["GET /invite/resume"] =
+            Reply(303, session = guestBSession, location = "https://evil.example/w/charity-and-kudzie")
+        val failure = runCatching { client.redeemHandoff("B".repeat(43)) }.exceptionOrNull()
+        assertTrue(failure is GuestSessionException)
+        assertFalse(client.hasActiveSession())
     }
 
     // --- RSVP ------------------------------------------------------------------------------

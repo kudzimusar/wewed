@@ -279,3 +279,13 @@ checked-in/ready badge. Its `QrCode` is a **lucide icon, `aria-hidden`** — dec
 **There is no production Guest Pass QR authority.** Native's `WeddingPass.qrPayload` has no
 counterpart. Per the standing rule, native does not generate one from the RSVP token, guest id,
 email or name. This is a backend contract to be designed, not a native gap to be filled.
+
+### 10.7 Warm links need `singleTask`
+
+`MainActivity` had no `launchMode`, so it defaulted to `standard`: every invitation link spawned a
+**new** Activity instance rather than delivering `onNewIntent` to the running one. Guest B arriving
+while Guest A's card was open therefore re-ran `onCreate` in a fresh instance, and `onNewIntent`
+— the thing the warm-replacement fix was written for — almost never fired.
+
+`singleTask` makes the running instance receive the link, which is both what the guest expects (one
+Wewed, not a stack of them) and what makes replacement observable at all.
