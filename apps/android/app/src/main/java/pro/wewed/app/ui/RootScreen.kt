@@ -79,6 +79,7 @@ fun RootScreen(
     val weddingTitle by sessionViewModel.weddingTitle.collectAsState()
     val productionAuthority by sessionViewModel.productionAuthority.collectAsState()
     val selectedGrantIds by sessionViewModel.selectedGrantIds.collectAsState()
+    val selectedEngagementId by sessionViewModel.selectedEngagementId.collectAsState()
     val activeGrantId by sessionViewModel.activeGrantId.collectAsState()
     val productionWorkspace by sessionViewModel.productionWorkspace.collectAsState()
     val pendingInvitationDeepLink by appViewModel.pendingInvitationDeepLink.collectAsState()
@@ -341,13 +342,14 @@ fun RootScreen(
     // Shadow authority only where Shadow personas exist; production/verify resolve a real
     // ProductionActorAssignmentSource once an authority has actually been fetched (master plan
     // §8.9, Phase 5) — until then they still get no assignments at all.
-    val assignmentSource = remember(appViewModel, productionAuthority, selectedGrantIds) {
+    val assignmentSource = remember(appViewModel, productionAuthority, selectedGrantIds, selectedEngagementId) {
         ActorAssignmentSources.forEnvironment(
             appViewModel.dataEnvironment,
             appViewModel.repository,
             appViewModel.plannerRepository,
             productionAuthority,
-            selectedGrantIds
+            selectedGrantIds,
+            selectedEngagementId
         )
     }
 
@@ -410,7 +412,16 @@ fun RootScreen(
     var resolvedContext by remember { mutableStateOf<NavigationContext?>(null) }
     var resolvingContext by remember { mutableStateOf(true) }
 
-    LaunchedEffect(currentRole, activePersonaId, weddingId, weddingTitle, productionAuthority, selectedGrantIds) {
+    LaunchedEffect(
+        currentRole,
+        activePersonaId,
+        weddingId,
+        weddingTitle,
+        productionAuthority,
+        selectedGrantIds,
+        selectedEngagementId,
+        activeGrantId
+    ) {
         resolvingContext = true
         val role = currentRole
         if (role == null) {
