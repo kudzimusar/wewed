@@ -106,8 +106,9 @@ export function weddingSlugFromRequest(
 
 export async function loadWeddingAccessRecord(
   slug: string,
+  database: typeof db = db,
 ): Promise<WeddingAccessRecord | null> {
-  const wedding = await db.wedding.findUnique({
+  const wedding = await database.wedding.findUnique({
     where: { slug },
     select: {
       id: true,
@@ -161,10 +162,11 @@ export async function loadWeddingAccessRecord(
 async function authenticatedWeddingAccessKind(
   wedding: WeddingAccessRecord,
   session: AppSession | null,
+  database: typeof db = db,
 ): Promise<'couple_owner' | 'wedding_member' | null> {
   if (!session || session.activeWeddingId !== wedding.id) return null
 
-  const membership = await db.weddingMembership.findFirst({
+  const membership = await database.weddingMembership.findFirst({
     where: {
       weddingId: wedding.id,
       userId: session.userId,
@@ -188,10 +190,11 @@ async function authenticatedWeddingAccessKind(
 export async function resolveGuestSessionForWedding(
   wedding: WeddingAccessRecord,
   session: WeddingGuestSession | null,
+  database: typeof db = db,
 ): Promise<WeddingGuestIdentity | null> {
   if (!session || session.weddingId !== wedding.id) return null
 
-  const rsvp = await db.rSVP.findUnique({
+  const rsvp = await database.rSVP.findUnique({
     where: session.version === 1 ? { token: session.rsvpToken } : { guestId: session.guestId },
     include: {
       guest: {
@@ -240,10 +243,11 @@ export async function resolveGuestSessionForWedding(
 async function resolveSharedInvitationForWedding(
   wedding: WeddingAccessRecord,
   session: WeddingSharedInvitationSession | null,
+  database: typeof db = db,
 ): Promise<boolean> {
   if (!session || session.weddingId !== wedding.id) return false
 
-  const destination = await db.qRDestination.findFirst({
+  const destination = await database.qRDestination.findFirst({
     where: {
       id: session.destinationId,
       weddingId: wedding.id,
@@ -286,8 +290,8 @@ export async function resolveWeddingAccessFromTokens(input: {
   appSessionToken?: string | null
   guestSessionToken?: string | null
   sharedInvitationSessionToken?: string | null
-}): Promise<WeddingAccessResolution> {
-  const wedding = await loadWeddingAccessRecord(input.slug)
+}, database: typeof db = db): Promise<WeddingAccessResolution> {
+  const wedding = await loadWeddingAccessRecord(input.slug, database)
   if (!wedding) {
     return {
       wedding: null,
@@ -312,10 +316,10 @@ export async function resolveWeddingAccessFromTokens(input: {
     : null
 
   const [memberAccessKind, guest, sharedInvitationAllowed] = await Promise.all([
-    authenticatedWeddingAccessKind(wedding, appSession),
-    resolveGuestSessionForWedding(wedding, guestSession),
+    authenticatedWeddingAccessKind(wedding, appSession, database),
+    resolveGuestSessionForWedding(wedding, guestSession, database),
     wedding.privacy === 'link_only'
-      ? resolveSharedInvitationForWedding(wedding, sharedInvitationSession)
+      ? resolveSharedInvitationForWedding(wedding, sharedInvitationSession, database)
       : Promise.resolve(false),
   ])
 
