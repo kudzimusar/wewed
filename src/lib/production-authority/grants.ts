@@ -203,11 +203,17 @@ export function buildProductionAuthority(
     return { workspaceKind, grantIds, selectionRequired: grantIds.length > 1 }
   }).filter((selection) => selection.grantIds.length > 0)
 
+  // A denied/unverified account must not receive its relationship graph merely because no
+  // workspace grant was issued. Phase 5 will put this contract behind verified auth transport,
+  // but the contract itself remains fail-closed: non-authorized responses expose status only,
+  // not identity PII, memberships, weddings, businesses, engagements or platform evidence.
+  const exposeEvidence = accountStatus === 'authorized'
+
   return {
     contract: PRODUCTION_AUTHORITY_CONTRACT,
     version: PRODUCTION_AUTHORITY_VERSION,
     accountStatus,
-    identity: identity
+    identity: exposeEvidence && identity
       ? {
           accessUserId: identity.accessUserId,
           authUserId: identity.authUserId,
@@ -219,31 +225,45 @@ export function buildProductionAuthority(
           isActive: identity.isActive,
         }
       : null,
-    businessMemberships: evidence.businessMemberships,
-    businessLinks: evidence.businessLinks,
-    weddingMemberships: evidence.weddingMemberships,
-    vendorEngagements: evidence.vendorEngagements,
-    platform: {
-      internalMemberships,
-      registry: evidence.platformRegistry,
-      effectiveRole: admin.role,
-      effectiveSource: admin.source,
-    },
-    onboarding: {
-      userActive: identity?.isActive ?? false,
-      profileBanned: banned,
-      businesses: evidence.businessMemberships.map((m) => ({
-        businessAccountId: m.businessAccountId,
-        businessType: m.businessType,
-        businessStatus: m.businessStatus,
-        onboardingStatus: m.onboardingStatus,
-        subscriptionStatus: m.subscriptionStatus,
-        membershipStatus: m.status,
-      })),
-      invitedWeddingMembershipIds: evidence.weddingMemberships
-        .filter((m) => m.status === 'invited')
-        .map((m) => m.membershipId),
-    },
+    businessMemberships: exposeEvidence ? evidence.businessMemberships : [],
+    businessLinks: exposeEvidence ? evidence.businessLinks : [],
+    weddingMemberships: exposeEvidence ? evidence.weddingMemberships : [],
+    vendorEngagements: exposeEvidence ? evidence.vendorEngagements : [],
+    platform: exposeEvidence
+      ? {
+          internalMemberships,
+          registry: evidence.platformRegistry,
+          effectiveRole: admin.role,
+          effectiveSource: admin.source,
+        }
+      : {
+          internalMemberships: [],
+          registry: { state: 'missing', role: null, status: null, scopes: [] },
+          effectiveRole: null,
+          effectiveSource: null,
+        },
+    onboarding: exposeEvidence
+      ? {
+          userActive: identity?.isActive ?? false,
+          profileBanned: banned,
+          businesses: evidence.businessMemberships.map((m) => ({
+            businessAccountId: m.businessAccountId,
+            businessType: m.businessType,
+            businessStatus: m.businessStatus,
+            onboardingStatus: m.onboardingStatus,
+            subscriptionStatus: m.subscriptionStatus,
+            membershipStatus: m.status,
+          })),
+          invitedWeddingMembershipIds: evidence.weddingMemberships
+            .filter((m) => m.status === 'invited')
+            .map((m) => m.membershipId),
+        }
+      : {
+          userActive: false,
+          profileBanned: accountStatus === 'banned_identity',
+          businesses: [],
+          invitedWeddingMembershipIds: [],
+        },
     workspaceGrants: grants,
     contextSelection,
     nonGrantingRelationships: nonGranting,
