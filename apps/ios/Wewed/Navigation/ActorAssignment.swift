@@ -78,7 +78,8 @@ public enum ActorAssignmentSources {
         repository: WeddingRepositoryProtocol,
         plannerRepository: PlannerDashboardRepositoryProtocol? = nil,
         productionAuthority: ProductionAuthority? = nil,
-        selectedGrantIds: Set<String> = []
+        selectedGrantIds: Set<String> = [],
+        selectedEngagementId: String? = nil
     ) -> ActorAssignmentSource {
         if environment.allowsDevelopmentPersonaSwitching {
             return ShadowActorAssignmentSource(
@@ -88,7 +89,11 @@ public enum ActorAssignmentSources {
             )
         }
         if let productionAuthority {
-            return ProductionActorAssignmentSource(authority: productionAuthority, selectedGrantIds: selectedGrantIds)
+            return ProductionActorAssignmentSource(
+                authority: productionAuthority,
+                selectedGrantIds: selectedGrantIds,
+                selectedEngagementId: selectedEngagementId
+            )
         }
         return EmptyActorAssignmentSource()
     }
