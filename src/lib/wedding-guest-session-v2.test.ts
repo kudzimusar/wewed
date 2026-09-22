@@ -1,9 +1,16 @@
-import { describe, expect, test, mock } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, test, mock } from 'bun:test'
 import { createHmac } from 'node:crypto'
 mock.module('server-only', () => ({}))
-process.env.WEWED_SESSION_SECRET = 'synthetic-session-v2-unit-test-only'
+const originalSessionSecret = process.env.WEWED_SESSION_SECRET
 const { createWeddingGuestSessionToken, verifyWeddingGuestSessionToken, guestSessionMatchesInvitation, weddingGuestSessionExpiry } = await import('./wedding-guest-session')
 const identity = { weddingId: 'synthetic-wedding', guestId: 'synthetic-guest', rsvpToken: 'private-invitation-fixture' }
+beforeEach(() => {
+  process.env.WEWED_SESSION_SECRET = 'synthetic-session-v2-unit-test-only'
+})
+afterEach(() => {
+  if (originalSessionSecret === undefined) delete process.env.WEWED_SESSION_SECRET
+  else process.env.WEWED_SESSION_SECRET = originalSessionSecret
+})
 function signed(payload: object) {
   return signedWith(process.env.WEWED_SESSION_SECRET!, payload)
 }
