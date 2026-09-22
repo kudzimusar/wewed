@@ -29,8 +29,17 @@ class ProductionActorAssignmentSource(
         if (!ProductionGrantMapper.isUsable(authority)) return emptyList()
         if (authority.accessUserId != actorId) return emptyList()
 
+        val ambiguousKinds = authority.grants
+            .filter { it.grantId in selectedGrantIds }
+            .groupBy { it.workspaceKindWire }
+            .filterValues { it.size > 1 }
+            .keys
+
         return authority.grants
-            .filter { grant -> grant.grantId in selectedGrantIds || !requiresExplicitSelection(grant) }
+            .filter { grant ->
+                grant.workspaceKindWire !in ambiguousKinds &&
+                    (grant.grantId in selectedGrantIds || !requiresExplicitSelection(grant))
+            }
             .mapNotNull { grant ->
                 when (val outcome = ProductionGrantMapper.map(authority, grant.grantId)) {
                     is ProductionGrantMapper.Outcome.Assigned -> outcome.assignment
