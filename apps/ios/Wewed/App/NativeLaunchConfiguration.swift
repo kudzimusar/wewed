@@ -61,12 +61,10 @@ public struct NativeLaunchConfiguration: Equatable, Sendable {
             // was not. Private Real Shadow is a qualification configuration and is now entered
             // only when it is explicitly asked for.
             //
-            // A release build never reaches here: it returned `.production` above. The general repository is
-            // deliberately unavailable there — the repository factory refuses to build one — but
-            // the *app* does not refuse to start: `AppLaunchModeResolver` degrades that one
-            // expected refusal to the guest-only shell, so an invited guest still gets their card.
-            // What must not happen is showing that guest a real wedding's demo data, which is why
-            // there is no fixture/Shadow fallback here — only guest-only, or nothing.
+            // A release build never reaches here: it returned `.production` above. Phase 5 now
+            // provides a fail-closed read-only production workspace bootstrap; Guest identity still
+            // uses its separate bootstrap and is chosen before account workspace construction when
+            // a remembered Guest session exists. There is never a fixture/Shadow fallback.
             dataEnvironment = .sanitizedShadow
         }
 
