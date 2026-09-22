@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test'
 mock.module('server-only', () => ({}))
-process.env.WEWED_SESSION_SECRET = 'synthetic-privacy-test-secret'
+const originalSessionSecret = process.env.WEWED_SESSION_SECRET
 
 /**
  * What each Wedding.privacy value actually authorizes.
@@ -26,7 +26,7 @@ const COUPLE_ID = 'couple-a'
 let privacy: 'public' | 'link_only' | 'private' = 'public'
 let membership: { role: string } | null = null
 
-mock.module('@/lib/db', () => ({ db: {
+const fakeDb = {
   wedding: {
     findUnique: async () => ({
       id: WEDDING_ID, slug: 'wedding-a', title: 'Synthetic Wedding', monogram: null, tagline: null,
@@ -58,7 +58,7 @@ mock.module('@/lib/db', () => ({ db: {
     }),
   },
   qRDestination: { findFirst: async () => ({ id: DESTINATION_ID }) },
-} }))
+} as any
 
 const { createWeddingGuestSessionToken } = await import('./wedding-guest-session')
 const { createWeddingSharedInvitationSessionToken } = await import('./wedding-shared-invitation-session')
@@ -77,9 +77,16 @@ const memberToken = () => createAppSessionToken({
 })
 
 const resolve = (tokens: Parameters<typeof resolveWeddingAccessFromTokens>[0]) =>
-  resolveWeddingAccessFromTokens({ slug: 'wedding-a', ...tokens })
+  resolveWeddingAccessFromTokens({ slug: 'wedding-a', ...tokens }, fakeDb)
 
-beforeEach(() => { membership = null })
+beforeEach(() => {
+  membership = null
+  process.env.WEWED_SESSION_SECRET = 'synthetic-privacy-test-secret'
+})
+afterEach(() => {
+  if (originalSessionSecret === undefined) delete process.env.WEWED_SESSION_SECRET
+  else process.env.WEWED_SESSION_SECRET = originalSessionSecret
+})
 
 describe('wedding privacy semantics', () => {
   test('private admits an active wedding member — it is not couple-only', async () => {
@@ -182,14 +189,14 @@ describe('private refuses every personal-invitation exchange path', () => {
   test('resolvePersonalInvitation returns null for a private wedding', async () => {
     const { resolvePersonalInvitation } = await import('./personal-invitation-access')
     privacy = 'private'
-    expect(await resolvePersonalInvitation({ weddingSlug: 'wedding-a', token: RSVP_TOKEN })).toBeNull()
+    expect(await resolvePersonalInvitation({ weddingSlug: 'wedding-a', token: RSVP_TOKEN }, fakeDb)).toBeNull()
   })
 
   test('resolvePersonalInvitation resolves for link_only and public', async () => {
     const { resolvePersonalInvitation } = await import('./personal-invitation-access')
     for (const value of ['link_only', 'public'] as const) {
       privacy = value
-      const resolved = await resolvePersonalInvitation({ weddingSlug: 'wedding-a', token: RSVP_TOKEN })
+      const resolved = await resolvePersonalInvitation({ weddingSlug: 'wedding-a', token: RSVP_TOKEN }, fakeDb)
       expect(resolved?.guestId).toBe(GUEST_ID)
     }
   })
