@@ -41,8 +41,8 @@ class NativeEnvironmentGuardTest {
         NativeEnvironmentGuard.validate("http://127.0.0.1:8787", NativeDataEnvironment.PRIVATE_REAL_SHADOW)
     }
 
-    @Test(expected = NativeEnvironmentGuardError.ProductionDisabled::class)
-    fun productionRuntimeIsDisabledDuringShadowSprint() {
+    @Test
+    fun productionRuntimeIsAllowedForPhase5ReadOnlyBootstrap() {
         NativeEnvironmentGuard.validate("https://wewed.pro", NativeDataEnvironment.PRODUCTION)
     }
 }
