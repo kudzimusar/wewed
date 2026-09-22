@@ -157,6 +157,66 @@ final class ProductionDomainRepositoriesTests: XCTestCase {
         }
     }
 
+    func testDomainClientDistinguishesPermissionMissingRevocationAndInvalidSession() async {
+        var sessionInvalid = 0
+        var revoked: [String] = []
+        let grant = "planner:wedding:wed-1"
+
+        func makeClient(status: Int, body: String) -> NativeDomainApiClient {
+            Stub.reset()
+            Stub.routes["api/native/wedding/tasks"] = Reply(status: status, body: body)
+            let configuration = URLSessionConfiguration.ephemeral
+            configuration.protocolClasses = [Stub.self]
+            return NativeDomainApiClient(
+                baseURL: URL(string: "https://wewed.pro")!,
+                session: URLSession(configuration: configuration),
+                onSessionInvalid: { sessionInvalid += 1 },
+                onGrantRevoked: { revoked.append($0) }
+            )
+        }
+
+        let permission = await makeClient(
+            status: 403,
+            body: #"{"success":false,"code":"PERMISSION_DENIED"}"#
+        ).tasks(sessionToken: token, grantId: grant)
+        if case .forbidden = permission {} else { XCTFail("Permission denial must not revoke the grant") }
+        XCTAssertTrue(revoked.isEmpty)
+
+        let missing = await makeClient(
+            status: 404,
+            body: #"{"success":false,"error":"Task not found"}"#
+        ).tasks(sessionToken: token, grantId: grant)
+        if case .transport(status: 404) = missing {} else { XCTFail("Resource-level 404 must not revoke the grant") }
+        XCTAssertTrue(revoked.isEmpty)
+
+        let revokedFetch = await makeClient(
+            status: 403,
+            body: #"{"success":false,"code":"GRANT_REVOKED"}"#
+        ).tasks(sessionToken: token, grantId: grant)
+        if case .grantRevoked = revokedFetch {} else { XCTFail("Explicit grant revocation must be preserved") }
+        XCTAssertEqual(revoked, [grant])
+
+        let invalid = await makeClient(
+            status: 401,
+            body: #"{"success":false,"code":"SESSION_INVALID"}"#
+        ).tasks(sessionToken: token, grantId: grant)
+        if case .sessionInvalid = invalid {} else { XCTFail("401 must remain a session-invalid signal") }
+        XCTAssertEqual(sessionInvalid, 1)
+    }
+
+    func testLivePlannerDomainFailureThrowsInsteadOfMasqueradingAsEmptyData() async {
+        Stub.routes["api/native/wedding/budget"] = Reply(status: 503, body: #"{"success":false}"#)
+        let repo = ProductionPlannerDashboardRepository(client: client(), sessionToken: token, grantId: grantId)
+        do {
+            _ = try await repo.getBudgetLines()
+            XCTFail("Expected live budget failure to throw instead of returning an empty list")
+        } catch is ProductionReadOnlyDomainError {
+            // Expected.
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
+    }
+
     func testGetBudgetLinesAndGetSeatingTablesAndGetTimelineEntriesAndGetVendorEngagementsMapRealRows() async throws {
         Stub.routes["api/native/wedding/budget"] = Reply(status: 200, body: """
             {"success":true,"count":1,"data":[{"id":"b1","category":"venue","description":"Venue","estimatedCost":1000.0,"actualCost":1000.0,"paidAmount":200.0,"currency":"USD","vendorId":null,"vendorName":null,"notes":null,"dueDate":null,"serviceEngagementId":null,"weddingId":"wed-1"}],"totals":{"currency":"USD","totalEstimated":1000.0,"totalActual":1000.0,"totalPaid":200.0,"categories":[{"category":"venue","estimated":1000.0,"actual":1000.0,"paid":200.0,"count":1}]}}
