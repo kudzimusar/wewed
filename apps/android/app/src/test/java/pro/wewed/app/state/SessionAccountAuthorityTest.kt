@@ -35,6 +35,48 @@ class SessionAccountAuthorityTest {
         }}
     """.trimIndent()
 
+    private val coupleWorkspace = """
+        {"success":true,"workspace":{
+          "grantId":"couple:wedding:A","workspaceKind":"couple","scopeKind":"wedding",
+          "weddingId":"A","weddingTitle":"Wedding A","businessAccountId":null,"vendorId":null,
+          "serviceEngagementIds":[],"permissions":[],"platformRoles":[],
+          "wedding":{"id":"A","slug":"wedding-a","title":"Wedding A","date":"2027-01-01T00:00:00.000Z",
+          "venue":"Real Venue","venueCity":"Harare","venueCountry":"Zimbabwe","lifecycle":"before",
+          "coupleNames":"A & B"}
+        }}
+    """.trimIndent()
+
+    private val multiPlannerAuthority = """
+        {"success": true, "authority": {
+          "contract":"WewedProductionAuthorityV1","version":1,"accountStatus":"authorized",
+          "identity":{"accessUserId":"planner-1","dashboardClass":"planner"},
+          "workspaceGrants":[
+            {"grantId":"planner:wedding:A","workspaceKind":"planner","scopeKind":"wedding",
+             "weddingId":"A","weddingTitle":"Wedding A","coupleId":null,"businessAccountId":null,
+             "vendorId":null,"serviceEngagementIds":[],"permissions":[],"platformRoles":[]},
+            {"grantId":"planner:wedding:B","workspaceKind":"planner","scopeKind":"wedding",
+             "weddingId":"B","weddingTitle":"Wedding B","coupleId":null,"businessAccountId":null,
+             "vendorId":null,"serviceEngagementIds":[],"permissions":[],"platformRoles":[]}
+          ],
+          "contextSelection":[{"workspaceKind":"planner","grantIds":["planner:wedding:A","planner:wedding:B"],"selectionRequired":true}],
+          "unsupported":[],"platform":{"effectiveRole":null}
+        }}
+    """.trimIndent()
+
+    private val plannerPortfolioAuthority = """
+        {"success": true, "authority": {
+          "contract":"WewedProductionAuthorityV1","version":1,"accountStatus":"authorized",
+          "identity":{"accessUserId":"planner-1","dashboardClass":"planner"},
+          "workspaceGrants":[{
+            "grantId":"planner:portfolio:business-1","workspaceKind":"planner","scopeKind":"portfolio",
+            "weddingId":null,"weddingTitle":null,"coupleId":null,"businessAccountId":"business-1",
+            "vendorId":null,"serviceEngagementIds":[],"permissions":[],"platformRoles":[]
+          }],
+          "contextSelection":[{"workspaceKind":"planner","grantIds":["planner:portfolio:business-1"],"selectionRequired":false}],
+          "unsupported":[],"platform":{"effectiveRole":null}
+        }}
+    """.trimIndent()
+
     private val bannedAuthority = """
         {"success": true, "authority": {
           "contract": "WewedProductionAuthorityV1", "version": 1, "accountStatus": "banned_identity",
@@ -51,7 +93,11 @@ class SessionAccountAuthorityTest {
 
         override suspend fun get(path: String, headers: Map<String, String>): WeddingDayHttpResponse {
             lastAuthorizationHeader = headers["Authorization"]
-            return authorityResponse
+            return if (path.startsWith("api/native/account/workspace")) {
+                WeddingDayHttpResponse(200, coupleWorkspace)
+            } else {
+                authorityResponse
+            }
         }
 
         override suspend fun post(path: String, headers: Map<String, String>, body: String): WeddingDayHttpResponse =
@@ -193,6 +239,57 @@ class SessionAccountAuthorityTest {
 
         assertTrue(session.selectedGrantIds.value.isEmpty())
         assertEquals(AppRole.COUPLE, session.currentRole.value)
+    }
+
+    @Test
+    fun signInLoadsARevalidatedReadOnlyWorkspaceSnapshot() {
+        val transport = FakeTransport(
+            signInResponse = WeddingDayHttpResponse(200, """{"success":true,"sessionToken":"session-abc"}"""),
+            authorityResponse = WeddingDayHttpResponse(200, singleCoupleGrantAuthority),
+        )
+        val session = sessionWith(transport)
+        session.signIn("couple@example.com", "correct")
+
+        assertEquals("couple:wedding:A", session.activeGrantId.value)
+        assertEquals("Wedding A", session.productionWorkspace.value?.wedding?.title)
+        assertEquals("Real Venue", session.productionWorkspace.value?.wedding?.venue)
+    }
+
+    @Test
+    fun selectingASecondPlannerWeddingReplacesTheFirstSameKindSelection() {
+        val transport = FakeTransport(
+            signInResponse = WeddingDayHttpResponse(200, """{"success":true,"sessionToken":"session-abc"}"""),
+            authorityResponse = WeddingDayHttpResponse(200, multiPlannerAuthority),
+        )
+        val session = sessionWith(transport)
+        session.signIn("planner@example.com", "correct")
+
+        assertNull(session.currentRole.value)
+        assertNull(session.activeGrantId.value)
+
+        session.selectGrant("planner:wedding:A")
+        assertEquals(setOf("planner:wedding:A"), session.selectedGrantIds.value)
+        assertEquals("A", session.weddingId.value)
+
+        session.selectGrant("planner:wedding:B")
+        assertEquals(setOf("planner:wedding:B"), session.selectedGrantIds.value)
+        assertEquals("planner:wedding:B", session.activeGrantId.value)
+        assertEquals("B", session.weddingId.value)
+    }
+
+    @Test
+    fun solePlannerPortfolioIsRealAuthorityWithoutAFakeWeddingAssignment() {
+        val transport = FakeTransport(
+            signInResponse = WeddingDayHttpResponse(200, """{"success":true,"sessionToken":"session-abc"}"""),
+            authorityResponse = WeddingDayHttpResponse(200, plannerPortfolioAuthority),
+        )
+        val session = sessionWith(transport)
+        session.signIn("planner@example.com", "correct")
+
+        assertTrue(session.isAuthenticated.value)
+        assertNull(session.currentRole.value)
+        assertNull(session.weddingId.value)
+        assertEquals("planner:portfolio:business-1", session.activeGrantId.value)
     }
 
     @Test
