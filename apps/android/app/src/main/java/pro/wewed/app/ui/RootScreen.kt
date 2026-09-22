@@ -708,11 +708,16 @@ fun ContextSwitcherDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 authority.grants.forEach { grant ->
+                    val kindLabel = grant.workspaceKindWire.replaceFirstChar { it.uppercase() }
+                    val safeBusinessName = grant.businessAccountId?.let(authority.businessNamesById::get)
+                    val safeVendorName = grant.vendorId?.let(authority.vendorNamesById::get)
                     val label = when {
-                        grant.scopeKind == GrantScopeKind.SYSTEM -> "${grant.workspaceKindWire.replaceFirstChar { it.uppercase() }} · Wewed platform"
-                        grant.weddingTitle != null -> "${grant.workspaceKindWire.replaceFirstChar { it.uppercase() }} · ${grant.weddingTitle}"
-                        grant.businessAccountId != null -> "${grant.workspaceKindWire.replaceFirstChar { it.uppercase() }} · ${grant.businessAccountId}"
-                        else -> "${grant.workspaceKindWire.replaceFirstChar { it.uppercase() }} · ${grant.grantId}"
+                        grant.scopeKind == GrantScopeKind.SYSTEM -> "$kindLabel · Wewed platform"
+                        grant.weddingTitle != null -> "$kindLabel · ${grant.weddingTitle}"
+                        safeVendorName != null -> "$kindLabel · $safeVendorName"
+                        safeBusinessName != null -> "$kindLabel · $safeBusinessName"
+                        grant.businessAccountId != null -> "$kindLabel · ${grant.businessAccountId}"
+                        else -> "$kindLabel · ${grant.grantId}"
                     }
                     OutlinedButton(
                         onClick = { onSelect(grant.grantId); onDismiss() },
