@@ -63,8 +63,12 @@ object NativeRepositoryFactory {
             NativeDataEnvironment.PRODUCTION_READ_VERIFY ->
                 throw NativeRepositoryFactoryError.ProductionReadVerifyNotConfigured
 
-            NativeDataEnvironment.PRODUCTION ->
-                throw NativeRepositoryFactoryError.ProductionDisabled
+            NativeDataEnvironment.PRODUCTION -> NativeRepositoryBundle(
+                wedding = ProductionBoundaryWeddingRepository(),
+                planner = ProductionBoundaryPlannerRepository(),
+                environment = NativeDataEnvironment.PRODUCTION,
+                baseUrl = baseUrl
+            )
         }
     }
 }
