@@ -137,6 +137,50 @@ class ProductionDomainRepositoriesTest {
     }
 
     @Test
+    fun `domain client distinguishes permission denial resource missing revocation and invalid session`() = runBlocking {
+        var sessionInvalid = 0
+        val revoked = mutableListOf<String>()
+        val grant = "planner:wedding:wed-1"
+
+        fun clientFor(status: Int, body: String) = NativeDomainApiClient(
+            transport = FakeTransport(mapOf("api/native/wedding/tasks" to WeddingDayHttpResponse(status, body))),
+            onSessionInvalid = { sessionInvalid += 1 },
+            onGrantRevoked = { revoked += it },
+        )
+
+        val permission = clientFor(403, """{"success":false,"code":"PERMISSION_DENIED"}""").tasks(token, grant)
+        assertTrue(permission is NativeDomainFetch.Forbidden)
+        assertEquals(0, revoked.size)
+
+        val missing = clientFor(404, """{"success":false,"error":"Task not found"}""").tasks(token, grant)
+        assertTrue(missing is NativeDomainFetch.Transport)
+        assertEquals(0, revoked.size)
+
+        val revokedFetch = clientFor(403, """{"success":false,"code":"GRANT_REVOKED"}""").tasks(token, grant)
+        assertTrue(revokedFetch is NativeDomainFetch.GrantRevoked)
+        assertEquals(listOf(grant), revoked)
+
+        val invalid = clientFor(401, """{"success":false,"code":"SESSION_INVALID"}""").tasks(token, grant)
+        assertTrue(invalid is NativeDomainFetch.SessionInvalid)
+        assertEquals(1, sessionInvalid)
+    }
+
+    @Test
+    fun `live planner domain failure throws instead of masquerading as an empty dataset`() = runBlocking {
+        val repo = ProductionPlannerDashboardRepository(
+            NativeDomainApiClient(FakeTransport(mapOf("api/native/wedding/budget" to WeddingDayHttpResponse(503, """{"success":false}""")))),
+            token,
+            grantId,
+        )
+        try {
+            repo.getBudgetLines()
+            fail("Expected live budget failure to throw instead of returning an empty list")
+        } catch (e: ProductionReadOnlyDomainUnavailable) {
+            // Expected.
+        }
+    }
+
+    @Test
     fun `getBudgetLines and getSeatingTables and getTimelineEntries and getVendorEngagements map real rows`() = runBlocking {
         val transport = FakeTransport(
             mapOf(
