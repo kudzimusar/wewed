@@ -72,11 +72,12 @@ object ActorAssignmentSources {
         plannerRepository: PlannerDashboardRepository? = null,
         productionAuthority: ProductionAuthority? = null,
         selectedGrantIds: Set<String> = emptySet(),
+        selectedEngagementId: String? = null,
     ): ActorAssignmentSource =
         if (environment.allowsDevelopmentPersonaSwitching) {
             ShadowActorAssignmentSource(repository, environment, plannerRepository)
         } else if (productionAuthority != null) {
-            ProductionActorAssignmentSource(productionAuthority, selectedGrantIds)
+            ProductionActorAssignmentSource(productionAuthority, selectedGrantIds, selectedEngagementId)
         } else {
             EmptyActorAssignmentSource
         }
