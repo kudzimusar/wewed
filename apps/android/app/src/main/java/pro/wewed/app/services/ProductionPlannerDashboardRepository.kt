@@ -60,7 +60,7 @@ class ProductionPlannerDashboardRepository(
     override suspend fun getBudgetLines(): List<PlannerBudgetLine> {
         val root = when (val fetch = client.budget(sessionToken, grantId)) {
             is NativeDomainFetch.Success -> fetch.value
-            else -> return emptyList()
+            else -> throw ProductionReadOnlyDomainUnavailable()
         }
         return root.optJSONArray("data")?.toObjectList().orEmpty().map { item ->
             PlannerBudgetLine(
@@ -82,7 +82,7 @@ class ProductionPlannerDashboardRepository(
     override suspend fun getVendorEngagements(): List<PlannerVendorEngagement> {
         val array = when (val fetch = client.vendors(sessionToken, grantId)) {
             is NativeDomainFetch.Success -> fetch.value
-            else -> return emptyList()
+            else -> throw ProductionReadOnlyDomainUnavailable()
         }
         return array.toObjectList().map { item ->
             PlannerVendorEngagement(
@@ -101,7 +101,7 @@ class ProductionPlannerDashboardRepository(
     override suspend fun getSeatingTables(): List<PlannerSeatingTable> {
         val array = when (val fetch = client.seating(sessionToken, grantId)) {
             is NativeDomainFetch.Success -> fetch.value
-            else -> return emptyList()
+            else -> throw ProductionReadOnlyDomainUnavailable()
         }
         return array.toObjectList().map { item ->
             val capacity = item.optInt("capacity", 0)
@@ -120,7 +120,7 @@ class ProductionPlannerDashboardRepository(
     override suspend fun getTimelineEntries(): List<PlannerTimelineEntry> {
         val array = when (val fetch = client.timeline(sessionToken, grantId)) {
             is NativeDomainFetch.Success -> fetch.value
-            else -> return emptyList()
+            else -> throw ProductionReadOnlyDomainUnavailable()
         }
         return array.toObjectList().map { item ->
             PlannerTimelineEntry(
