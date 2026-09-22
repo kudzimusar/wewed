@@ -287,6 +287,25 @@ describe('WewedProductionAuthorityV1 — pure rules', () => {
     expect([unknown.accountStatus, unknown.workspaceGrants]).toEqual(['unknown_identity', []])
   })
 
+  test('identity: non-authorized results redact relationship evidence as well as grants', () => {
+    for (const authority of [
+      buildProductionAuthority({ ...multiAxis, identity: { ...multiAxis.identity!, authUserId: null } }),
+      buildProductionAuthority({ ...multiAxis, profile: { ...multiAxis.profile!, isBanned: true } }),
+      buildProductionAuthority({ ...multiAxis, identity: { ...multiAxis.identity!, isActive: false } }),
+    ]) {
+      expect(authority.identity).toBeNull()
+      expect(authority.businessMemberships).toEqual([])
+      expect(authority.businessLinks).toEqual([])
+      expect(authority.weddingMemberships).toEqual([])
+      expect(authority.vendorEngagements).toEqual([])
+      expect(authority.platform.internalMemberships).toEqual([])
+      expect(authority.platform.effectiveRole).toBeNull()
+      expect(authority.onboarding.businesses).toEqual([])
+      expect(authority.onboarding.invitedWeddingMembershipIds).toEqual([])
+      expect(authority.workspaceGrants).toEqual([])
+    }
+  })
+
   test('admin: an unknown effective platform role never produces an Admin grant', () => {
     for (const role of ['wewed_root', 'admin', 'super_admin', '']) {
       const authority = buildProductionAuthority(evidence({
