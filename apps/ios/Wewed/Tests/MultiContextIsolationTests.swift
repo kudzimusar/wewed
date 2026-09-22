@@ -567,9 +567,12 @@ final class MultiContextIsolationTests: XCTestCase {
         let session = SessionStore(storage: storage, environment: .production, authorityClient: nil)
         await session.restoreFromServer(client: client(), storedToken: "session-user-1")
 
+        XCTAssertEqual(session.selectedGrantIds.filter { $0.hasPrefix("planner:") }, ["planner:wedding:B"])
+        // Another legitimate axis may be the initial active assignment. The owned Planner
+        // preference must survive and become active when explicitly opened.
+        await selectGrantAndAwait(session, "planner:wedding:B")
         XCTAssertEqual(session.activeGrantId, "planner:wedding:B")
         XCTAssertEqual(session.weddingId, "B")
-        XCTAssertEqual(session.selectedGrantIds.filter { $0.hasPrefix("planner:") }, ["planner:wedding:B"])
     }
 
     // MARK: - Multi-axis: an active workspace is not interrupted by an unrelated selectionRequired axis
