@@ -17,6 +17,7 @@ import pro.wewed.app.models.AppRole
 import pro.wewed.app.models.GuestJourneyReference
 import pro.wewed.app.models.GuestJourneyStage
 import pro.wewed.app.models.InvitationContext
+import pro.wewed.app.models.NativeDataEnvironment
 import pro.wewed.app.navigation.DeepLinkRouter
 import pro.wewed.app.navigation.IANavigationContract
 import pro.wewed.app.navigation.ActorAssignmentSources
@@ -77,6 +78,8 @@ fun RootScreen(
     val weddingTitle by sessionViewModel.weddingTitle.collectAsState()
     val productionAuthority by sessionViewModel.productionAuthority.collectAsState()
     val selectedGrantIds by sessionViewModel.selectedGrantIds.collectAsState()
+    val activeGrantId by sessionViewModel.activeGrantId.collectAsState()
+    val productionWorkspace by sessionViewModel.productionWorkspace.collectAsState()
     val pendingInvitationDeepLink by appViewModel.pendingInvitationDeepLink.collectAsState()
     val rejectedInvitation by appViewModel.rejectedInvitation.collectAsState()
     val pendingInvitationEntry by appViewModel.pendingInvitationEntry.collectAsState()
@@ -351,8 +354,8 @@ fun RootScreen(
     // is picked on the person's behalf. A single grant, or a grant kind the contract does not mark
     // selectionRequired, needs no picker and falls straight through to the ordinary context
     // resolution below.
-    val pendingGrantChoice = remember(productionAuthority, currentRole, selectedGrantIds) {
-        pendingGrantSelection(productionAuthority, currentRole, selectedGrantIds)
+    val pendingGrantChoice = remember(productionAuthority, selectedGrantIds) {
+        pendingGrantSelection(productionAuthority, selectedGrantIds)
     }
     if (pendingGrantChoice.isNotEmpty()) {
         GrantSelectionScreen(
@@ -360,6 +363,26 @@ fun RootScreen(
             onSelect = { grantId -> sessionViewModel.selectGrant(grantId) },
             onSignOut = { sessionViewModel.signOut() }
         )
+        return
+    }
+
+    // Portfolio/business authority is a real workspace even though it deliberately has no wedding
+    // ActorAssignment. Render the revalidated server snapshot instead of claiming "no workspace".
+    if (appViewModel.dataEnvironment == NativeDataEnvironment.PRODUCTION &&
+        isAuthenticated && currentRole == null && activeGrantId != null
+    ) {
+        val snapshot = productionWorkspace
+        if (snapshot != null) {
+            ProductionReadOnlyWorkspaceContent(
+                snapshot = snapshot,
+                onSignOut = { sessionViewModel.signOut() }
+            )
+        } else {
+            NativeEnvironmentUnavailableScreen(
+                environmentName = appViewModel.dataEnvironment.displayName,
+                reason = "This authorized workspace could not be refreshed. No cached production data is shown."
+            )
+        }
         return
     }
 
@@ -460,6 +483,30 @@ fun RootScreen(
         }
     }
 
+    // Production Phase 5 renders the existing IA shell around only the minimal, freshly
+    // revalidated read-only snapshot. Legacy mutable repositories remain boundary adapters.
+    if (appViewModel.dataEnvironment == NativeDataEnvironment.PRODUCTION) {
+        val snapshot = productionWorkspace
+        if (snapshot == null || snapshot.grantId != activeGrantId) {
+            NativeEnvironmentUnavailableScreen(
+                environmentName = appViewModel.dataEnvironment.displayName,
+                reason = "The authorized workspace could not be refreshed. No cached production data is shown."
+            )
+            return
+        }
+        val sectionMemory = rememberWorkspaceSectionMemory()
+        RoleShellScaffold(
+            context = context,
+            onSwitchPersona = null,
+            pendingDeepLink = pendingRouteDeepLink,
+            sectionMemory = sectionMemory,
+            onDeepLinkHandled = onDeepLinkHandled
+        ) { destination, _ ->
+            ProductionReadOnlyWorkspaceContent(snapshot = snapshot, destination = destination)
+        }
+        return
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -534,18 +581,21 @@ fun RootScreen(
  */
 private fun pendingGrantSelection(
     authority: ProductionAuthority?,
-    role: AppRole?,
     selectedGrantIds: Set<String>
 ): List<ProductionWorkspaceGrant> {
-    if (authority == null || role == null || !ProductionGrantMapper.isUsable(authority)) return emptyList()
-    val roleGrants = authority.grants.filter { it.workspaceKindWire == role.roleId }
-    if (roleGrants.size <= 1) return emptyList()
-    val requiresSelection = authority.contextSelection
-        .firstOrNull { it.workspaceKindWire == role.roleId }
-        ?.selectionRequired == true
-    if (!requiresSelection) return emptyList()
-    if (roleGrants.any { it.grantId in selectedGrantIds }) return emptyList()
-    return roleGrants
+    if (authority == null || !ProductionGrantMapper.isUsable(authority)) return emptyList()
+
+    // Selection must be possible BEFORE an ActorAssignment/currentRole exists. For example, two
+    // Planner wedding grants both require a choice, so deriving the picker from currentRole creates
+    // a deadlock: no choice -> no role -> no picker.
+    val selection = authority.contextSelection.firstOrNull { context ->
+        context.selectionRequired &&
+            context.grantIds.size > 1 &&
+            context.grantIds.none { it in selectedGrantIds }
+    } ?: return emptyList()
+
+    val ids = selection.grantIds.toSet()
+    return authority.grants.filter { it.grantId in ids }
 }
 
 /**
@@ -574,9 +624,9 @@ private fun GrantSelectionScreen(
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("Choose a wedding", fontSize = 22.sp, fontWeight = FontWeight.Medium)
+            Text("Choose a workspace", fontSize = 22.sp, fontWeight = FontWeight.Medium)
             Text(
-                "Your account has access to more than one wedding in this role. Choose which one to open.",
+                "Your account has more than one authorized context. Choose which workspace to open.",
                 fontSize = 13.sp,
                 color = WeddingIdentityPalette.Muted
             )
@@ -587,7 +637,7 @@ private fun GrantSelectionScreen(
                         .fillMaxWidth()
                         .testTag("grant-option-${grant.grantId}")
                 ) {
-                    Text(grant.weddingTitle ?: grant.weddingId ?: grant.grantId)
+                    Text(grant.weddingTitle ?: grant.businessAccountId ?: grant.grantId)
                 }
             }
             TextButton(onClick = onSignOut, modifier = Modifier.testTag("grant-selection-sign-out")) {
