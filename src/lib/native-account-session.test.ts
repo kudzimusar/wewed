@@ -1,7 +1,7 @@
-import { describe, expect, test, mock } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, test, mock } from 'bun:test'
 import { createHmac } from 'node:crypto'
 mock.module('server-only', () => ({}))
-process.env.WEWED_SESSION_SECRET = 'synthetic-native-account-session-unit-test-only'
+const originalSessionSecret = process.env.WEWED_SESSION_SECRET
 const {
   createNativeAccountSessionToken,
   verifyNativeAccountSessionToken,
@@ -9,6 +9,13 @@ const {
 } = await import('./native-account-session')
 
 const identity = { accessUserId: 'user-1', authUserId: 'auth-1', email: 'planner@example.com' }
+beforeEach(() => {
+  process.env.WEWED_SESSION_SECRET = 'synthetic-native-account-session-unit-test-only'
+})
+afterEach(() => {
+  if (originalSessionSecret === undefined) delete process.env.WEWED_SESSION_SECRET
+  else process.env.WEWED_SESSION_SECRET = originalSessionSecret
+})
 
 function signed(payload: object) {
   return signedWith(process.env.WEWED_SESSION_SECRET!, payload)
