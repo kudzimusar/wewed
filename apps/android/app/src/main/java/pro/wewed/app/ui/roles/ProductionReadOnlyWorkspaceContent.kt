@@ -49,7 +49,7 @@ fun ProductionReadOnlyWorkspaceContent(
             ReadOnlyRow("Venue", listOf(wedding.venue, wedding.venueCity, wedding.venueCountry).filter { it.isNotBlank() }.joinToString(", "))
             ReadOnlyRow("Lifecycle", wedding.lifecycle)
         } ?: run {
-            snapshot.businessAccountId?.let { ReadOnlyRow("Business", it) }
+            (snapshot.businessName ?: snapshot.businessAccountId)?.let { ReadOnlyRow("Business", it) }
             if (snapshot.scopeKind == "system") ReadOnlyRow("Scope", "Wewed platform")
         }
 
