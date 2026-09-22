@@ -1,0 +1,465 @@
+{
+  "contract": "WewedProductionAuthorityV1",
+  "version": 1,
+  "accountStatus": "authorized",
+  "identity": {
+    "accessUserId": "user-1",
+    "authUserId": "auth-1",
+    "email": "actor@example.test",
+    "displayName": "Synthetic Actor",
+    "dashboardClass": "admin",
+    "isDashboardClass": true,
+    "coupleId": "couple-A",
+    "isActive": true
+  },
+  "businessMemberships": [
+    {
+      "membershipId": "bam-planning-1",
+      "businessAccountId": "planning-1",
+      "businessName": "Business planning-1",
+      "businessType": "planning_company",
+      "businessStatus": "active",
+      "onboardingStatus": "complete",
+      "subscriptionStatus": "free",
+      "ownerUserId": "user-1",
+      "role": "business_owner",
+      "status": "active",
+      "permissions": [
+        "weddings.manage"
+      ]
+    },
+    {
+      "membershipId": "bam-vendor-1",
+      "businessAccountId": "vendor-1",
+      "businessName": "Business vendor-1",
+      "businessType": "vendor",
+      "businessStatus": "active",
+      "onboardingStatus": "complete",
+      "subscriptionStatus": "free",
+      "ownerUserId": "user-1",
+      "role": "business_owner",
+      "status": "active",
+      "permissions": []
+    },
+    {
+      "membershipId": "bam-venue-1",
+      "businessAccountId": "venue-1",
+      "businessName": "Business venue-1",
+      "businessType": "venue",
+      "businessStatus": "active",
+      "onboardingStatus": "complete",
+      "subscriptionStatus": "free",
+      "ownerUserId": "user-1",
+      "role": "venue_manager",
+      "status": "active",
+      "permissions": []
+    },
+    {
+      "membershipId": "bam-wewed",
+      "businessAccountId": "wewed",
+      "businessName": "Business wewed",
+      "businessType": "wewed_internal",
+      "businessStatus": "active",
+      "onboardingStatus": "complete",
+      "subscriptionStatus": "free",
+      "ownerUserId": "user-1",
+      "role": "wewed_operations_admin",
+      "status": "active",
+      "permissions": []
+    }
+  ],
+  "businessLinks": [
+    {
+      "linkId": "bal-1",
+      "businessAccountId": "planning-1",
+      "entityType": "wedding",
+      "entityId": "B",
+      "relationship": "manages"
+    },
+    {
+      "linkId": "bal-2",
+      "businessAccountId": "vendor-1",
+      "entityType": "vendor",
+      "entityId": "vendor-row-F",
+      "relationship": "owns"
+    }
+  ],
+  "weddingMemberships": [
+    {
+      "membershipId": "wm-A-owner",
+      "weddingId": "A",
+      "slug": "A",
+      "title": "Wedding A",
+      "date": "2027-06-12T12:00:00.000Z",
+      "coupleId": "couple-A",
+      "role": "owner",
+      "status": "active",
+      "governedAccess": true,
+      "permissions": [
+        "*"
+      ]
+    },
+    {
+      "membershipId": "wm-B-planner",
+      "weddingId": "B",
+      "slug": "B",
+      "title": "Wedding B",
+      "date": "2027-06-12T12:00:00.000Z",
+      "coupleId": "couple-B",
+      "role": "planner",
+      "status": "active",
+      "governedAccess": true,
+      "permissions": [
+        "planner.view"
+      ]
+    },
+    {
+      "membershipId": "wm-C-coordinator",
+      "weddingId": "C",
+      "slug": "C",
+      "title": "Wedding C",
+      "date": "2027-06-12T12:00:00.000Z",
+      "coupleId": "couple-C",
+      "role": "coordinator",
+      "status": "active",
+      "governedAccess": true,
+      "permissions": [
+        "planner.view"
+      ]
+    },
+    {
+      "membershipId": "wm-D-viewer",
+      "weddingId": "D",
+      "slug": "D",
+      "title": "Wedding D",
+      "date": "2027-06-12T12:00:00.000Z",
+      "coupleId": "couple-D",
+      "role": "viewer",
+      "status": "active",
+      "governedAccess": true,
+      "permissions": [
+        "planner.view"
+      ]
+    },
+    {
+      "membershipId": "wm-E-planner",
+      "weddingId": "E",
+      "slug": "E",
+      "title": "Wedding E",
+      "date": "2027-06-12T12:00:00.000Z",
+      "coupleId": "couple-E",
+      "role": "planner",
+      "status": "invited",
+      "governedAccess": true,
+      "permissions": [
+        "planner.view"
+      ]
+    }
+  ],
+  "vendorEngagements": [
+    {
+      "businessAccountId": "vendor-1",
+      "linkId": "bal-2",
+      "linkRelationship": "owns",
+      "vendorId": "vendor-row-F",
+      "vendorName": "Vendor F",
+      "weddingId": "F",
+      "serviceEngagements": [
+        {
+          "serviceEngagementId": "se-1",
+          "lifecycleStatus": "active",
+          "origin": "booking",
+          "recordMode": "live"
+        }
+      ]
+    }
+  ],
+  "platform": {
+    "internalMemberships": [
+      {
+        "membershipId": "bam-wewed",
+        "businessAccountId": "wewed",
+        "role": "wewed_operations_admin",
+        "status": "active",
+        "businessStatus": "active"
+      }
+    ],
+    "registry": {
+      "state": "active",
+      "role": "wewed_operations_admin",
+      "status": "active",
+      "scopes": [
+        {
+          "scopeType": "global",
+          "scopeValue": "*"
+        }
+      ]
+    },
+    "effectiveRole": "wewed_operations_admin",
+    "effectiveSource": "platform_registry"
+  },
+  "onboarding": {
+    "userActive": true,
+    "profileBanned": false,
+    "businesses": [
+      {
+        "businessAccountId": "planning-1",
+        "businessType": "planning_company",
+        "businessStatus": "active",
+        "onboardingStatus": "complete",
+        "subscriptionStatus": "free",
+        "membershipStatus": "active"
+      },
+      {
+        "businessAccountId": "vendor-1",
+        "businessType": "vendor",
+        "businessStatus": "active",
+        "onboardingStatus": "complete",
+        "subscriptionStatus": "free",
+        "membershipStatus": "active"
+      },
+      {
+        "businessAccountId": "venue-1",
+        "businessType": "venue",
+        "businessStatus": "active",
+        "onboardingStatus": "complete",
+        "subscriptionStatus": "free",
+        "membershipStatus": "active"
+      },
+      {
+        "businessAccountId": "wewed",
+        "businessType": "wewed_internal",
+        "businessStatus": "active",
+        "onboardingStatus": "complete",
+        "subscriptionStatus": "free",
+        "membershipStatus": "active"
+      }
+    ],
+    "invitedWeddingMembershipIds": [
+      "wm-E-planner"
+    ]
+  },
+  "workspaceGrants": [
+    {
+      "grantId": "couple:wedding:A",
+      "workspaceKind": "couple",
+      "scopeKind": "wedding",
+      "weddingId": "A",
+      "weddingTitle": "Wedding A",
+      "coupleId": "couple-A",
+      "businessAccountId": null,
+      "vendorId": null,
+      "serviceEngagementIds": [],
+      "permissions": [
+        "*"
+      ],
+      "platformRoles": [],
+      "sources": [
+        {
+          "kind": "wedding_membership",
+          "id": "wm-A-owner"
+        }
+      ]
+    },
+    {
+      "grantId": "planner:portfolio:planning-1",
+      "workspaceKind": "planner",
+      "scopeKind": "portfolio",
+      "weddingId": null,
+      "weddingTitle": null,
+      "coupleId": null,
+      "businessAccountId": "planning-1",
+      "vendorId": null,
+      "serviceEngagementIds": [],
+      "permissions": [
+        "weddings.manage"
+      ],
+      "platformRoles": [],
+      "sources": [
+        {
+          "kind": "business_membership",
+          "id": "bam-planning-1"
+        }
+      ]
+    },
+    {
+      "grantId": "planner:wedding:B",
+      "workspaceKind": "planner",
+      "scopeKind": "wedding",
+      "weddingId": "B",
+      "weddingTitle": "Wedding B",
+      "coupleId": "couple-B",
+      "businessAccountId": null,
+      "vendorId": null,
+      "serviceEngagementIds": [],
+      "permissions": [
+        "planner.view"
+      ],
+      "platformRoles": [],
+      "sources": [
+        {
+          "kind": "wedding_membership",
+          "id": "wm-B-planner"
+        }
+      ]
+    },
+    {
+      "grantId": "coordinator:wedding:C",
+      "workspaceKind": "coordinator",
+      "scopeKind": "wedding",
+      "weddingId": "C",
+      "weddingTitle": "Wedding C",
+      "coupleId": "couple-C",
+      "businessAccountId": null,
+      "vendorId": null,
+      "serviceEngagementIds": [],
+      "permissions": [
+        "planner.view"
+      ],
+      "platformRoles": [],
+      "sources": [
+        {
+          "kind": "wedding_membership",
+          "id": "wm-C-coordinator"
+        }
+      ]
+    },
+    {
+      "grantId": "vendor:business:vendor-1",
+      "workspaceKind": "vendor",
+      "scopeKind": "business",
+      "weddingId": null,
+      "weddingTitle": null,
+      "coupleId": null,
+      "businessAccountId": "vendor-1",
+      "vendorId": null,
+      "serviceEngagementIds": [],
+      "permissions": [],
+      "platformRoles": [],
+      "sources": [
+        {
+          "kind": "business_membership",
+          "id": "bam-vendor-1"
+        }
+      ]
+    },
+    {
+      "grantId": "vendor:wedding:vendor-1:vendor-row-F",
+      "workspaceKind": "vendor",
+      "scopeKind": "wedding",
+      "weddingId": "F",
+      "weddingTitle": null,
+      "coupleId": null,
+      "businessAccountId": "vendor-1",
+      "vendorId": "vendor-row-F",
+      "serviceEngagementIds": [
+        "se-1"
+      ],
+      "permissions": [],
+      "platformRoles": [],
+      "sources": [
+        {
+          "kind": "business_link",
+          "id": "bal-2"
+        },
+        {
+          "kind": "service_engagement",
+          "id": "se-1"
+        }
+      ]
+    },
+    {
+      "grantId": "admin:system",
+      "workspaceKind": "admin",
+      "scopeKind": "system",
+      "weddingId": null,
+      "weddingTitle": null,
+      "coupleId": null,
+      "businessAccountId": null,
+      "vendorId": null,
+      "serviceEngagementIds": [],
+      "permissions": [],
+      "platformRoles": [
+        "wewed_operations_admin"
+      ],
+      "sources": [
+        {
+          "kind": "platform_registry",
+          "id": "user-1"
+        }
+      ]
+    }
+  ],
+  "contextSelection": [
+    {
+      "workspaceKind": "couple",
+      "grantIds": [
+        "couple:wedding:A"
+      ],
+      "selectionRequired": false
+    },
+    {
+      "workspaceKind": "planner",
+      "grantIds": [
+        "planner:portfolio:planning-1",
+        "planner:wedding:B"
+      ],
+      "selectionRequired": true
+    },
+    {
+      "workspaceKind": "coordinator",
+      "grantIds": [
+        "coordinator:wedding:C"
+      ],
+      "selectionRequired": false
+    },
+    {
+      "workspaceKind": "vendor",
+      "grantIds": [
+        "vendor:business:vendor-1",
+        "vendor:wedding:vendor-1:vendor-row-F"
+      ],
+      "selectionRequired": true
+    },
+    {
+      "workspaceKind": "admin",
+      "grantIds": [
+        "admin:system"
+      ],
+      "selectionRequired": false
+    }
+  ],
+  "nonGrantingRelationships": [
+    {
+      "source": {
+        "kind": "wedding_membership",
+        "id": "wm-D-viewer"
+      },
+      "reason": "viewer_relationship"
+    },
+    {
+      "source": {
+        "kind": "wedding_membership",
+        "id": "wm-E-planner"
+      },
+      "reason": "membership_not_active"
+    },
+    {
+      "source": {
+        "kind": "business_membership",
+        "id": "bam-venue-1"
+      },
+      "reason": "business_type_not_workspace"
+    }
+  ],
+  "unsupported": [
+    {
+      "authority": "guest",
+      "reason": "Guest identity is invitation-bound and carried by Guest Session v2; it is never an account workspace grant."
+    },
+    {
+      "authority": "usher_gate",
+      "reason": "No production Usher/Gate authority exists (master plan Phase 10). Nothing is inferred from coordinator, planner or admin relationships."
+    }
+  ]
+}
