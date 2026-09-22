@@ -1,0 +1,62 @@
+name: Phase 8 Native Reviewer Closure
+
+on:
+  push:
+    branches:
+      - native-mobile/workspace-parity-phase8-20260922
+    paths:
+      - 'apps/android/**'
+      - 'apps/ios/**'
+      - '.github/workflows/phase8-native-reviewer-closure.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Unit tests and assemblies
+        working-directory: apps/android
+        run: |
+          chmod +x gradlew
+          ./gradlew testDebugUnitTest assembleDebug assembleRelease --no-daemon --stacktrace
+
+  ios:
+    runs-on: macos-14
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Select Xcode 16.2
+        run: |
+          sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+          xcodebuild -version
+      - name: Swift tests
+        working-directory: apps/ios
+        run: swift test
+      - name: Swift build
+        working-directory: apps/ios
+        run: swift build
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        working-directory: apps/ios
+        run: xcodegen generate --spec project.yml
+      - name: Build simulator
+        working-directory: apps/ios
+        run: >
+          xcodebuild -project Wewed.xcodeproj -scheme Wewed -configuration Debug
+          -sdk iphonesimulator -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO build
+      - name: Build unsigned release
+        working-directory: apps/ios
+        run: >
+          xcodebuild -project Wewed.xcodeproj -scheme Wewed -configuration Release
+          -sdk iphoneos -destination 'generic/platform=iOS'
+          CODE_SIGNING_ALLOWED=NO build
