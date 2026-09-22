@@ -2,6 +2,10 @@ import 'server-only'
 
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import type { NextRequest, NextResponse } from 'next/server'
+import {
+  legacySessionVerificationSecrets,
+  primarySessionSigningSecret,
+} from '@/lib/session-signing-secret'
 
 export const WEDDING_GUEST_SESSION_COOKIE = 'wewed_wedding_guest'
 const DAY = 24 * 60 * 60 * 1000
@@ -32,7 +36,7 @@ export interface WeddingGuestSessionV2 {
 export type WeddingGuestSession = LegacyWeddingGuestSession | WeddingGuestSessionV2
 
 export function invitationVersionFingerprint(input: { weddingId: string; guestId: string; rsvpToken: string }): string {
-  return createHmac('sha256', getSigningSecret())
+  return createHmac('sha256', primarySessionSigningSecret())
     .update(JSON.stringify(['wewed.guest.invitation-version.v2', input.weddingId, input.guestId, input.rsvpToken]))
     .digest('base64url')
 }
@@ -41,30 +45,6 @@ export function guestSessionMatchesInvitation(session: WeddingGuestSession, inpu
   if (session.weddingId !== input.weddingId || session.guestId !== input.guestId || session.expiresAt <= Date.now()) return false
   const actual = session.version === 1 ? invitationVersionFingerprint({ ...input, rsvpToken: session.rsvpToken }) : session.invitationVersionFingerprint
   return signaturesMatch(actual, invitationVersionFingerprint(input))
-}
-
-function getSigningSecret(): string {
-  const isProduction =
-    process.env.NODE_ENV === 'production' && !isLocalCiBrowserMode()
-  const dedicated = process.env.WEWED_SESSION_SECRET?.trim()
-
-  if (isProduction) {
-    if (!dedicated) {
-      throw new Error(
-        '[wewed] Missing dedicated WEWED_SESSION_SECRET in production.',
-      )
-    }
-    return dedicated
-  }
-
-  const secret = dedicated || process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
-  if (!secret) {
-    throw new Error(
-      '[wewed] Missing WEWED_SESSION_SECRET or SUPABASE_SERVICE_ROLE_KEY.',
-    )
-  }
-
-  return secret
 }
 
 function isLocalCiBrowserMode(): boolean {
@@ -84,8 +64,8 @@ function shouldUseSecureCookie(): boolean {
   return process.env.NODE_ENV === 'production' && !isLocalCiBrowserMode()
 }
 
-function sign(encodedPayload: string): string {
-  return createHmac('sha256', getSigningSecret())
+function sign(encodedPayload: string, secret = primarySessionSigningSecret()): string {
+  return createHmac('sha256', secret)
     .update(encodedPayload)
     .digest('base64url')
 }
@@ -147,11 +127,24 @@ export function verifyWeddingGuestSessionToken(
   try {
     const [encoded, signature, extra] = token.split('.')
     if (!encoded || !signature || extra) return null
-    if (!signaturesMatch(signature, sign(encoded))) return null
 
-    const payload = JSON.parse(
-      Buffer.from(encoded, 'base64url').toString('utf8'),
-    ) as { version?: number; weddingId?: string; guestId?: string; rsvpToken?: string; invitationVersionFingerprint?: string; expiresAt?: number }
+    const decodedText = Buffer.from(encoded, 'base64url').toString('utf8')
+    let untrustedVersion: number | undefined
+    try {
+      untrustedVersion = (JSON.parse(decodedText) as { version?: number }).version
+    } catch {
+      return null
+    }
+
+    const verificationSecrets =
+      untrustedVersion === 1
+        ? legacySessionVerificationSecrets()
+        : [primarySessionSigningSecret()]
+    if (!verificationSecrets.some((secret) => signaturesMatch(signature, sign(encoded, secret)))) {
+      return null
+    }
+
+    const payload = JSON.parse(decodedText) as { version?: number; weddingId?: string; guestId?: string; rsvpToken?: string; invitationVersionFingerprint?: string; expiresAt?: number }
 
     if (
       (payload.version !== 1 && payload.version !== 2) ||
