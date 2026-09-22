@@ -2,6 +2,10 @@ import 'server-only'
 
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import type { NextResponse } from 'next/server'
+import {
+  legacySessionVerificationSecrets,
+  primarySessionSigningSecret,
+} from '@/lib/session-signing-secret'
 
 export const WEDDING_SHARED_INVITATION_COOKIE = 'wewed_wedding_shared_invitation'
 export const WEDDING_SHARED_INVITATION_TTL_SECONDS = 180 * 24 * 60 * 60
