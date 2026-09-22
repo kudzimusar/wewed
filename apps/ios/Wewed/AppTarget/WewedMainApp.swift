@@ -24,11 +24,16 @@ struct WewedMainApp: App {
 
     init() {
         let launch = NativeLaunchConfiguration.resolve()
+        // Guest and account identity are separate domains. Decide remembered-Guest ownership
+        // BEFORE constructing the account session store, otherwise a Guest-only launch can still
+        // start restoring an unrelated account token in the background.
+        let rememberedGuest = launch.environment == .production && GuestInvitationBootstrap.hasGuestSession()
+
         // Built once the environment is known, because the environment decides whether a Shadow
         // persona may be applied at all. It starts empty: no identity, role or wedding until
         // something with authority supplies one (master plan §8.2).
         let store: SessionStore
-        if launch.environment == .production {
+        if launch.environment == .production && !rememberedGuest {
             store = SessionStore(
                 storage: KeychainSecureStorage(service: "pro.wewed.app.account-session"),
                 environment: .production,
@@ -51,7 +56,7 @@ struct WewedMainApp: App {
             // Remembered Guest identity stays a separate front door. An ordinary production icon
             // launch with a Guest session goes to Guest Home; otherwise Phase-5 account bootstrap
             // owns the production workspace.
-            if launch.environment == .production && GuestInvitationBootstrap.hasGuestSession() {
+            if rememberedGuest {
                 self.mode = .guestOnly
             } else {
                 self.mode = try AppLaunchModeResolver.resolve(configuration: launch)
