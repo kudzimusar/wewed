@@ -80,7 +80,7 @@ public struct ProductionPlannerDashboardRepository: PlannerDashboardRepositoryPr
     }
 
     public func getBudgetLines() async throws -> [PlannerBudgetLine] {
-        guard case let .success(root) = await client.budget(sessionToken: sessionToken, grantId: grantId) else { return [] }
+        guard case let .success(root) = await client.budget(sessionToken: sessionToken, grantId: grantId) else { throw ProductionReadOnlyDomainError.unavailable }
         return (root.wwArray("data") ?? []).map { item in
             let estimated = item.wwDouble("estimatedCost") ?? 0
             let actual = item.wwDouble("actualCost") ?? estimated
@@ -102,7 +102,7 @@ public struct ProductionPlannerDashboardRepository: PlannerDashboardRepositoryPr
     public func getContributions() async throws -> [PlannerContributionRecord] { [] }
 
     public func getVendorEngagements() async throws -> [PlannerVendorEngagement] {
-        guard case let .success(array) = await client.vendors(sessionToken: sessionToken, grantId: grantId) else { return [] }
+        guard case let .success(array) = await client.vendors(sessionToken: sessionToken, grantId: grantId) else { throw ProductionReadOnlyDomainError.unavailable }
         return array.map { item in
             PlannerVendorEngagement(
                 id: item.wwRequiredString("id"),
@@ -118,7 +118,7 @@ public struct ProductionPlannerDashboardRepository: PlannerDashboardRepositoryPr
     }
 
     public func getSeatingTables() async throws -> [PlannerSeatingTable] {
-        guard case let .success(array) = await client.seating(sessionToken: sessionToken, grantId: grantId) else { return [] }
+        guard case let .success(array) = await client.seating(sessionToken: sessionToken, grantId: grantId) else { throw ProductionReadOnlyDomainError.unavailable }
         return array.map { item in
             let capacity = item.wwInt("capacity") ?? 0
             let assigned = item.wwInt("assigned") ?? 0
@@ -134,7 +134,7 @@ public struct ProductionPlannerDashboardRepository: PlannerDashboardRepositoryPr
     }
 
     public func getTimelineEntries() async throws -> [PlannerTimelineEntry] {
-        guard case let .success(array) = await client.timeline(sessionToken: sessionToken, grantId: grantId) else { return [] }
+        guard case let .success(array) = await client.timeline(sessionToken: sessionToken, grantId: grantId) else { throw ProductionReadOnlyDomainError.unavailable }
         return array.map { item in
             PlannerTimelineEntry(
                 id: item.wwRequiredString("id"),
