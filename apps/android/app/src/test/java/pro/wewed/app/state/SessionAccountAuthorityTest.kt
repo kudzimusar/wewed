@@ -95,7 +95,10 @@ class SessionAccountAuthorityTest {
         override suspend fun get(path: String, headers: Map<String, String>): WeddingDayHttpResponse {
             lastAuthorizationHeader = headers["Authorization"]
             return if (path.startsWith("api/native/account/workspace")) {
-                workspaceResponse ?: WeddingDayHttpResponse(404, "")
+                // Most authority tests are not workspace-data tests. An omitted response models a
+                // transient downstream failure, which must withhold data without revoking the
+                // freshly-proven grant. Explicit revocation tests pass 403/404 themselves.
+                workspaceResponse ?: WeddingDayHttpResponse(503, "Service Unavailable")
             } else {
                 authorityResponse
             }
