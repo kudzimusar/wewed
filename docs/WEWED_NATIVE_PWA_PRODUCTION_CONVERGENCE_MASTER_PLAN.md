@@ -1200,7 +1200,9 @@ Accepted. Status set to LOCKED. Factual corrections C-1 … C-8 and hazards §8.
 Accepted. Phase 1 branches from `native-mobile/guest-profile-invitation-20260921` @ d7c4dddeabb594810a5833b4ac24d356883a8a3b, not from `native-mobile/role-architecture-p0-20260919` (C-8).
 
 ### D-011 — Phase 1 status (2026-09-22)
-**CLOSURE IMPLEMENTED — awaiting independent review (Rule 10).** The Rule-10 review of c6b71eaf found §8.14 and required P1-N1 to be fixed. Both are closed at 83ef10eed8ba896fb5f399101096ede36b8cad51, the proposed accepted ending SHA. Phase 1 is not accepted until independent review confirms this against remote code. Phase 2 has not started.
+**ACCEPTED — independent review passed.** Accepted SHA: 83ef10eed8ba896fb5f399101096ede36b8cad51 (branch `native-mobile/production-authority-foundation-phase1-20260922`). The Rule-10 review confirmed §8.14 and P1-N1 closed against the pushed code. Retained as test-harness debt, not authority defects: the Maestro cold-start rerun flake, and the dev-build `https://wewed.pro` chooser (deferred to Phase 13 signed-link qualification). Phase 2 may begin.
+
+Prior status (superseded): **CLOSURE IMPLEMENTED — awaiting independent review (Rule 10).** The Rule-10 review of c6b71eaf found §8.14 and required P1-N1 to be fixed. Both are closed at 83ef10eed8ba896fb5f399101096ede36b8cad51, the proposed accepted ending SHA. Phase 1 is not accepted until independent review confirms this against remote code. Phase 2 has not started.
 
 Closure evidence (at 83ef10ee):
 - Android unit 301/301; Android instrumentation 6/6;
