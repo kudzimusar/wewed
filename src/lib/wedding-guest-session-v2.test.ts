@@ -42,6 +42,16 @@ describe('guest session v2 security', () => {
     expect(verifyWeddingGuestSessionToken(signed({ version: 1, ...identity, expiresAt: Date.now() - 1 }))).toBeNull()
     expect(verifyWeddingGuestSessionToken(signed({ ...verifyWeddingGuestSessionToken(valid), rsvpToken: 'forbidden' }))).toBeNull()
   })
+  test('unknown/future version numbers fail closed even with a validly signed payload', () => {
+    const futureExpiry = Date.now() + 60_000
+    for (const badVersion of [0, 3, 99, '2', undefined, null]) {
+      expect(
+        verifyWeddingGuestSessionToken(
+          signed({ version: badVersion, ...identity, invitationVersionFingerprint: 'x', expiresAt: futureExpiry }),
+        ),
+      ).toBeNull()
+    }
+  })
   test('wedding-aware expiry has a 30-day floor and 400-day ceiling', () => {
     const now = Date.UTC(2026, 8, 21), day = 86_400_000
     expect(weddingGuestSessionExpiry(null, now)).toBe(now + 30 * day)
