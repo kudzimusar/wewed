@@ -220,6 +220,7 @@ class MultiContextIsolationTest {
     fun twoPersistedSameKindGrantsFailClosedOnRestore() {
         val storage = InMemorySecureStorage()
         storage.save("wewed.account.session", "session-abc")
+        storage.save("wewed.account.selected-grants.owner", "user-1")
         // Corrupted/ambiguous local state: both Planner weddings persisted as "selected" at once.
         storage.save("wewed.account.selected-grants", "planner:wedding:B,planner:wedding:C")
         val transport = FakeTransport(mutableListOf(WeddingDayHttpResponse(200, multiAxisAuthority)))
@@ -506,37 +507,81 @@ class MultiContextIsolationTest {
     }
 
     @Test
-    fun aStaleSelectedGrantFromAccountACannotAuthorizeAccountBEvenWithIdenticalGrantId() {
+    fun aPersistedSelectionOwnedByAccountACannotAutoSelectTheSameGrantIdForAccountB() {
         val sharedGrantId = "planner:wedding:SHARED"
         val storage = InMemorySecureStorage()
-        // Simulate Account A's leftover persisted preference from a prior launch.
-        storage.save("wewed.account.session", "stale-token-not-used-directly")
+        // Persisted preference is explicitly owned by Account A.
+        storage.save("wewed.account.session", "account-b-token")
+        storage.save("wewed.account.selected-grants.owner", "account-a")
         storage.save("wewed.account.selected-grants", sharedGrantId)
 
+        // Account B legitimately has the SAME grant-id text, but also another Planner wedding.
+        // Because this kind requires an explicit choice, inheriting A's preference would auto-open
+        // SHARED for B without B ever selecting it.
         val accountBAuthority = """
             {"success": true, "authority": {
               "contract": "WewedProductionAuthorityV1", "version": 1, "accountStatus": "authorized",
               "identity": {"accessUserId": "account-b", "dashboardClass": "planner"},
-              "workspaceGrants": [{"grantId": "$sharedGrantId", "workspaceKind": "planner", "scopeKind": "wedding",
+              "workspaceGrants": [
+                {"grantId": "$sharedGrantId", "workspaceKind": "planner", "scopeKind": "wedding",
                  "weddingId": "SHARED", "weddingTitle": "Wedding Shared", "coupleId": null, "businessAccountId": null,
-                 "vendorId": null, "serviceEngagementIds": [], "permissions": [], "platformRoles": []}],
-              "contextSelection": [], "unsupported": [], "platform": {"effectiveRole": null}
+                 "vendorId": null, "serviceEngagementIds": [], "permissions": [], "platformRoles": []},
+                {"grantId": "planner:wedding:OTHER", "workspaceKind": "planner", "scopeKind": "wedding",
+                 "weddingId": "OTHER", "weddingTitle": "Wedding Other", "coupleId": null, "businessAccountId": null,
+                 "vendorId": null, "serviceEngagementIds": [], "permissions": [], "platformRoles": []}
+              ],
+              "contextSelection": [{"workspaceKind":"planner","grantIds":["$sharedGrantId","planner:wedding:OTHER"],"selectionRequired":true}],
+              "unsupported": [], "platform": {"effectiveRole": null}
             }}
         """.trimIndent()
-        val transport = FakeTransport(mutableListOf(WeddingDayHttpResponse(200, accountBAuthority)))
-        transport.setWorkspace(sharedGrantId, WeddingDayHttpResponse(200, workspaceFor(sharedGrantId, "SHARED", "Wedding Shared")))
 
-        // A fresh SessionViewModel construction restores from storage exactly like an app relaunch:
-        // there is no in-memory "previous" identity to compare against yet, so this exercises the
-        // OTHER half of revalidation — the stored token itself, not an in-process identity switch.
-        // Whatever account that stored token actually belongs to is authenticated server-side first;
-        // the persisted grant-id preference is applied only once revalidated against THAT account's
-        // own fresh authority (here it happens to also be a real grant of account-b's, so it is
-        // honoured — that is correct revalidation, not a leak from a different account).
-        val session = sessionWith(transport, storage)
+        val transport = FakeTransport(mutableListOf(WeddingDayHttpResponse(200, accountBAuthority)))
+        val session = SessionViewModel(
+            storage = storage,
+            environment = NativeDataEnvironment.PRODUCTION,
+            authorityClient = null,
+            scope = CoroutineScope(Dispatchers.Unconfined),
+        )
+
+        kotlinx.coroutines.runBlocking {
+            session.restoreFromServer(ProductionAuthorityClient(transport), "account-b-token")
+        }
 
         assertEquals("account-b", session.productionAuthority.value?.accessUserId)
-        assertEquals(sharedGrantId, session.activeGrantId.value)
+        assertTrue("Account A's persisted selection must be discarded", session.selectedGrantIds.value.isEmpty())
+        assertNull("Account B must still make its own Planner choice", session.activeGrantId.value)
+        assertNull(session.currentRole.value)
+        assertNull(session.weddingId.value)
+        assertNull(storage.get("wewed.account.selected-grants"))
+        assertNull(storage.get("wewed.account.selected-grants.owner"))
+    }
+
+    @Test
+    fun sameAccountPersistedSelectionRestoresOnlyWhenOwnerMatchesVerifiedIdentity() {
+        val storage = InMemorySecureStorage()
+        storage.save("wewed.account.session", "session-user-1")
+        storage.save("wewed.account.selected-grants.owner", "user-1")
+        storage.save("wewed.account.selected-grants", "planner:wedding:B")
+
+        val transport = FakeTransport(mutableListOf(WeddingDayHttpResponse(200, multiAxisAuthority)))
+        transport.setWorkspace(
+            "planner:wedding:B",
+            WeddingDayHttpResponse(200, workspaceFor("planner:wedding:B", "B", "Wedding B"))
+        )
+        val session = SessionViewModel(
+            storage = storage,
+            environment = NativeDataEnvironment.PRODUCTION,
+            authorityClient = null,
+            scope = CoroutineScope(Dispatchers.Unconfined),
+        )
+
+        kotlinx.coroutines.runBlocking {
+            session.restoreFromServer(ProductionAuthorityClient(transport), "session-user-1")
+        }
+
+        assertEquals("planner:wedding:B", session.activeGrantId.value)
+        assertEquals("B", session.weddingId.value)
+        assertEquals(setOf("planner:wedding:B"), session.selectedGrantIds.value.filter { it.startsWith("planner:") }.toSet())
     }
 
     // ---------------------------------------------------------------------------------------
