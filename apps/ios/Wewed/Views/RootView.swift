@@ -156,7 +156,19 @@ public struct RootView: View {
               let token = session.currentSessionToken(),
               let baseURL = appState.dataBaseURL
         else { return }
-        let client = NativeDomainApiClient(baseURL: baseURL)
+        let client = NativeDomainApiClient(
+            baseURL: baseURL,
+            onSessionInvalid: {
+                Task { @MainActor in
+                    session.handleNativeDomainSessionInvalid()
+                }
+            },
+            onGrantRevoked: { revokedGrantId in
+                Task { @MainActor in
+                    session.handleNativeDomainGrantRevoked(revokedGrantId)
+                }
+            }
+        )
         appState.bindProductionRepositories(
             wedding: ProductionWeddingRepository(client: client, sessionToken: token, grantId: grantId, weddingId: weddingId),
             planner: ProductionPlannerDashboardRepository(client: client, sessionToken: token, grantId: grantId)
