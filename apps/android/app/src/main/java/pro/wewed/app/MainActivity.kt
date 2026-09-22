@@ -23,6 +23,9 @@ import pro.wewed.app.state.SessionViewModel
 import pro.wewed.app.theme.WewedTheme
 import pro.wewed.app.ui.RootScreen
 import pro.wewed.app.ui.entry.NativeEnvironmentUnavailableScreen
+import pro.wewed.app.services.AndroidKeystoreSecureStorage
+import pro.wewed.app.services.ProductionAuthorityClient
+import pro.wewed.app.services.UrlConnectionWeddingDayTransport
 
 @OptIn(ExperimentalComposeUiApi::class)
 class MainActivity : ComponentActivity() {
@@ -43,6 +46,42 @@ class MainActivity : ComponentActivity() {
             shadowBaseUrl = intent.getStringExtra(EXTRA_SHADOW_BASE_URL),
             isDebugBuild = BuildConfig.DEBUG
         )
+        // Guest identity remains independent of account identity. In production an explicit
+        // invitation or a remembered Guest relationship outranks account bootstrap, preserving the
+        // accepted Phase-4 entry contract even though Phase 5 now enables the account workspace.
+        if (launch.environment == pro.wewed.app.models.NativeDataEnvironment.PRODUCTION) {
+            val hasInvitation = GuestOnlyEntryState.publish(
+                rawUrl = intent?.dataString,
+                intentExtra = intent?.getStringExtra(InvitationEntryParser.ANDROID_INTENT_EXTRA)
+            )
+            val hasRememberedGuest = GuestInvitationBootstrap.hasGuestSession(applicationContext)
+            if (hasInvitation || hasRememberedGuest) {
+                setContent {
+                    WewedTheme {
+                        Box(modifier = Modifier.semantics { testTagsAsResourceId = true }) {
+                            GuestOnlyInvitationShell(
+                                hasIncomingInvitation = hasInvitation,
+                                onForgetWedding = {
+                                    GuestInvitationBootstrap.forgetGuest(applicationContext)
+                                    finish()
+                                },
+                                coordinator = GuestInvitationBootstrap.coordinator(
+                                    context = applicationContext,
+                                    baseUrl = if (BuildConfig.DEBUG) {
+                                        intent?.getStringExtra(EXTRA_GUEST_BASE_URL)
+                                            ?: GuestInvitationBootstrap.PRODUCTION_BASE_URL
+                                    } else {
+                                        GuestInvitationBootstrap.PRODUCTION_BASE_URL
+                                    }
+                                )
+                            )
+                        }
+                    }
+                }
+                return
+            }
+        }
+
         // A missing protected snapshot must not take the process down. The app refuses to fall
         // back to demo data — that refusal is the point — but it says so on screen instead of
         // disappearing back to the launcher with no explanation.
@@ -118,7 +157,20 @@ class MainActivity : ComponentActivity() {
         // Built only once the environment is known, because the environment decides whether a
         // Shadow persona may be applied at all. It starts empty: no identity, role or wedding
         // until something with authority supplies one (master plan §8.2).
-        val sessionViewModel = SessionViewModel(environment = launch.environment)
+        val sessionViewModel = if (launch.environment == pro.wewed.app.models.NativeDataEnvironment.PRODUCTION) {
+            SessionViewModel(
+                storage = AndroidKeystoreSecureStorage(
+                    applicationContext,
+                    preferencesName = "wewed_secure_account_session"
+                ),
+                environment = launch.environment,
+                authorityClient = ProductionAuthorityClient(
+                    UrlConnectionWeddingDayTransport(GuestInvitationBootstrap.PRODUCTION_BASE_URL)
+                )
+            )
+        } else {
+            SessionViewModel(environment = launch.environment)
+        }
 
         // Development/Shadow qualification only (P0-16): lets automated role traversal start as a
         // specific authorized persona. Ignored entirely in production and production-read-verify.
