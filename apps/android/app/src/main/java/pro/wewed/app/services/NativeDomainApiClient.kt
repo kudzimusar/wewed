@@ -24,14 +24,29 @@ sealed interface NativeDomainFetch<out T> {
     data class Transport(val status: Int) : NativeDomainFetch<Nothing>
 }
 
-private fun <T> statusToFetch(status: Int): NativeDomainFetch<T>? = when {
-    status == 401 -> NativeDomainFetch.SessionInvalid
-    status == 403 || status == 404 -> NativeDomainFetch.GrantRevoked
-    status !in 200..299 -> NativeDomainFetch.Transport(status)
-    else -> null
-}
-
-class NativeDomainApiClient(private val transport: WeddingDayHttpTransport) {
+class NativeDomainApiClient(
+    private val transport: WeddingDayHttpTransport,
+    private val onSessionInvalid: () -> Unit = {},
+    private val onGrantRevoked: (String) -> Unit = {},
+) {
+    private fun <T> statusToFetch(status: Int, rawBody: String, grantId: String): NativeDomainFetch<T>? {
+        val code = runCatching { JSONObject(rawBody).optString("code") }.getOrDefault("")
+        val result: NativeDomainFetch<T>? = when {
+            status == 401 -> NativeDomainFetch.SessionInvalid
+            status == 403 && (code == "GRANT_REVOKED" || code == "AUTHORITY_UNAVAILABLE") ->
+                NativeDomainFetch.GrantRevoked
+            status == 403 -> NativeDomainFetch.Forbidden
+            status == 404 -> NativeDomainFetch.Transport(status)
+            status !in 200..299 -> NativeDomainFetch.Transport(status)
+            else -> null
+        }
+        when (result) {
+            is NativeDomainFetch.SessionInvalid -> onSessionInvalid()
+            is NativeDomainFetch.GrantRevoked -> onGrantRevoked(grantId)
+            else -> Unit
+        }
+        return result
+    }
 
     private suspend fun get(path: String, sessionToken: String, grantId: String, extraQuery: String = ""): Pair<Int, String> {
         val encodedGrant = URLEncoder.encode(grantId, Charsets.UTF_8.name())
@@ -73,7 +88,7 @@ class NativeDomainApiClient(private val transport: WeddingDayHttpTransport) {
 
     suspend fun updateTask(sessionToken: String, grantId: String, taskId: String, body: JSONObject): NativeDomainFetch<JSONObject> {
         val (status, raw) = patch("api/native/wedding/tasks/$taskId", sessionToken, grantId, body.toString())
-        statusToFetch<JSONObject>(status)?.let { return it }
+        statusToFetch<JSONObject>(status, raw, grantId)?.let { return it }
         return runCatching { NativeDomainFetch.Success(JSONObject(raw).getJSONObject("data")) }
             .getOrElse { NativeDomainFetch.Transport(status) }
     }
@@ -108,7 +123,7 @@ class NativeDomainApiClient(private val transport: WeddingDayHttpTransport) {
     private suspend fun runGet(path: String, sessionToken: String, grantId: String, extraQuery: String = ""): NativeDomainFetch<JSONObject> {
         val (status, body) = runCatching { get(path, sessionToken, grantId, extraQuery) }
             .getOrElse { return NativeDomainFetch.Transport(-1) }
-        statusToFetch<JSONObject>(status)?.let { return it }
+        statusToFetch<JSONObject>(status, body, grantId)?.let { return it }
         return runCatching { NativeDomainFetch.Success(JSONObject(body)) }
             .getOrElse { NativeDomainFetch.Transport(status) }
     }
@@ -116,7 +131,7 @@ class NativeDomainApiClient(private val transport: WeddingDayHttpTransport) {
     private suspend fun runGetArray(path: String, sessionToken: String, grantId: String, arrayField: String, extraQuery: String = ""): NativeDomainFetch<JSONArray> {
         val (status, body) = runCatching { get(path, sessionToken, grantId, extraQuery) }
             .getOrElse { return NativeDomainFetch.Transport(-1) }
-        statusToFetch<JSONArray>(status)?.let { return it }
+        statusToFetch<JSONArray>(status, body, grantId)?.let { return it }
         return runCatching { NativeDomainFetch.Success(JSONObject(body).getJSONArray(arrayField)) }
             .getOrElse { NativeDomainFetch.Transport(status) }
     }
@@ -124,7 +139,7 @@ class NativeDomainApiClient(private val transport: WeddingDayHttpTransport) {
     private suspend fun runPost(path: String, sessionToken: String, grantId: String, requestBody: String, resultField: String): NativeDomainFetch<JSONObject> {
         val (status, body) = runCatching { post(path, sessionToken, grantId, requestBody) }
             .getOrElse { return NativeDomainFetch.Transport(-1) }
-        statusToFetch<JSONObject>(status)?.let { return it }
+        statusToFetch<JSONObject>(status, body, grantId)?.let { return it }
         return runCatching { NativeDomainFetch.Success(JSONObject(body).getJSONObject(resultField)) }
             .getOrElse { NativeDomainFetch.Transport(status) }
     }
