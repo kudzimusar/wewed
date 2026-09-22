@@ -1123,20 +1123,10 @@ public struct AdminShellView: View {
                 case "dashboard":
                     AdminDashboardContent(adminRepository: adminRepository, context: ctx)
                 case "cases":
-                    IAUnsupportedSection(
-                        "Cases",
-                        "No native support-case contract exists yet. No cases are fabricated.",
-                        ctx.environment
-                    )
+                    AdminCasesSection(adminRepository: adminRepository, context: ctx)
                 case "accounts":
                     WorkspaceSurface(destination: destination, testIdPrefix: "admin", context: ctx, sectionMemory: sectionMemory) { section in
-                        // Account administration has no native contract; showing invented account
-                        // rows here would be a privileged data fabrication (playbook §13).
-                        IAUnsupportedSection(
-                            section,
-                            "Account administration has no native contract yet. No \(section) records are read or fabricated in this environment.",
-                            ctx.environment
-                        )
+                        AdminAccountsSection(section: section, adminRepository: adminRepository, context: ctx)
                     }
                 case "audit":
                     WorkspaceSurface(destination: destination, testIdPrefix: "admin", context: ctx, sectionMemory: sectionMemory) { section in
@@ -1153,6 +1143,92 @@ public struct AdminShellView: View {
         }
         .task {
             adminAccess = try? await appState.repository.adminAccessContext()
+        }
+    }
+}
+
+/// Master plan Phase 8 closure §4 — real business-account rows from `AdminSystemRepository.snapshot()`
+/// (the same `loadAdminOverview` engine the PWA's `/api/admin/overview` Accounts tab reads), never a
+/// second, fabricated account list. Non-production/unbound-production repositories answer an empty
+/// `accounts` list, which reads honestly as "none loaded here" rather than a fabricated boundary
+/// message — no separate UNSUPPORTED branch is needed once the data itself is honest.
+struct AdminAccountsSection: View {
+    let section: String
+    let adminRepository: AdminSystemRepositoryProtocol
+    let context: NavigationContext
+    @State private var snapshot: AdminSystemSnapshot?
+
+    var body: some View {
+        Group {
+            let accounts = snapshot?.accounts ?? []
+            if accounts.isEmpty {
+                IAUnsupportedSection(
+                    section,
+                    "No business-account records are loaded in this environment.",
+                    context.environment
+                )
+            } else {
+                IASectionList(section, "\(accounts.count) business accounts") {
+                    ForEach(accounts, id: \.id) { account in
+                        IACard(
+                            account.name,
+                            [account.type, account.onboardingStatus].joined(separator: " · "),
+                            trailing: account.status,
+                            status: account.riskFlags.first,
+                            testId: "admin-account-\(account.id)"
+                        )
+                    }
+                }
+            }
+        }
+        .task(id: context.actorId) {
+            snapshot = await adminRepository.snapshot()
+        }
+    }
+}
+
+/// Master plan Phase 8 closure §4 — real Support Cases and Platform Incidents rows, same reuse
+/// discipline as `AdminAccountsSection`.
+struct AdminCasesSection: View {
+    let adminRepository: AdminSystemRepositoryProtocol
+    let context: NavigationContext
+    @State private var snapshot: AdminSystemSnapshot?
+
+    var body: some View {
+        Group {
+            let supportCases = snapshot?.supportCases ?? []
+            let incidents = snapshot?.incidents ?? []
+            if supportCases.isEmpty && incidents.isEmpty {
+                IAUnsupportedSection(
+                    "Cases",
+                    "No support cases or platform incidents are loaded in this environment.",
+                    context.environment
+                )
+            } else {
+                IASectionList("Cases", "\(supportCases.count) support cases · \(incidents.count) incidents") {
+                    ForEach(supportCases, id: \.id) { supportCase in
+                        IACard(
+                            supportCase.title,
+                            supportCase.businessAccountName ?? "No linked account",
+                            trailing: supportCase.priority,
+                            status: supportCase.status,
+                            testId: "admin-support-case-\(supportCase.id)"
+                        )
+                    }
+                    ForEach(incidents, id: \.id) { incident in
+                        IACard(
+                            incident.title,
+                            "Platform incident",
+                            trailing: incident.severity,
+                            status: incident.status,
+                            testId: "admin-incident-\(incident.id)"
+                        )
+                    }
+                }
+            }
+        }
+        .task(id: context.actorId) {
+            snapshot = await adminRepository.snapshot()
         }
     }
 }

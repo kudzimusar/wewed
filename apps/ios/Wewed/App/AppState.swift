@@ -70,6 +70,23 @@ public final class AppState: ObservableObject, @unchecked Sendable {
     /// `ProductionAdminSystemRepository`.
     public private(set) var adminRepository: AdminSystemRepositoryProtocol
 
+    /// The grantId actually backing `repository`/`plannerRepository` right now, or nil while
+    /// PRODUCTION still holds its unbound `ProductionBoundary*Repository` placeholder.
+    ///
+    /// Master plan Phase 8 closure §1 (NativeRepositoryFactory.PRODUCTION closure) — the rebind in
+    /// `bindProductionRepositories` runs from a `.task(id:)`, which starts asynchronously relative
+    /// to the view body that decided a role shell is eligible to render. Body evaluation continues
+    /// immediately past that `.task` declaration to the shell's own construction in the same pass,
+    /// so a naive "does the workspace snapshot look right" render gate could let a shell begin
+    /// reading `repository` before this rebind actually executes — silently backed by the
+    /// always-throwing Boundary placeholder for one race window. `@Published`, flipped only *after*
+    /// the field assignments below, is what lets `RootView.body` re-evaluate and the render gate
+    /// wait for the confirmed bind instead of assuming `.task` effect-ordering it cannot guarantee.
+    @Published public private(set) var boundProductionGrantId: String? = nil
+
+    /// Same determinism guarantee as `boundProductionGrantId`, for the separate Admin binding.
+    @Published public private(set) var boundAdminGrantId: String? = nil
+
     /// Master plan Phase 8 — rebinds this app state's domain repositories to real, grant-scoped
     /// production adapters once a wedding-scoped grant is active. Only ever called for
     /// `dataEnvironment == .production`; every other environment keeps its constructor-supplied
@@ -77,6 +94,7 @@ public final class AppState: ObservableObject, @unchecked Sendable {
     /// any, is preserved around the new base repository so operational fail-closed behavior is
     /// unchanged.
     public func bindProductionRepositories(
+        grantId: String,
         wedding: WeddingRepositoryProtocol,
         planner: PlannerDashboardRepositoryProtocol
     ) {
@@ -90,15 +108,17 @@ public final class AppState: ObservableObject, @unchecked Sendable {
             self.repository = wedding
         }
         self.plannerRepository = planner
+        self.boundProductionGrantId = grantId
     }
 
-    /// Master plan Phase 8 closure §B — rebinds Admin to a real, grant-scoped production adapter.
-    public func bindProductionAdminRepository(_ admin: AdminSystemRepositoryProtocol) {
+    /// Master plan Phase 8 closure §B/§1 — rebinds Admin to a real, grant-scoped production adapter.
+    public func bindProductionAdminRepository(grantId: String, _ admin: AdminSystemRepositoryProtocol) {
         precondition(
             dataEnvironment == .production,
             "bindProductionAdminRepository is only valid for the PRODUCTION environment."
         )
         adminRepository = admin
+        self.boundAdminGrantId = grantId
     }
 
     public func bindActiveWedding(_ weddingId: String) {

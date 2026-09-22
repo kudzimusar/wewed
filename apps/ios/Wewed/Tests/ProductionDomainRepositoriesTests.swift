@@ -273,10 +273,27 @@ final class ProductionDomainRepositoriesTests: XCTestCase {
         XCTAssertEqual(vendors[0].contractStatus, "signed")
     }
 
-    func testDocumentsIsHonestEmptyNeverFabricatedNoServerAdapterYet() async throws {
+    func testDocumentsMapsRealRowsFromTheSameVaultCatalogThePWAUsesAndThrowsOnLiveFailure() async throws {
+        Stub.routes["api/native/wedding/vault"] = Reply(status: 200, body: """
+            {"success":true,"count":1,"data":[{"id":"doc-1","displayName":"Venue contract.pdf","category":"wedding_document","available":true}]}
+            """)
         let repo = ProductionPlannerDashboardRepository(client: client(), sessionToken: token, grantId: grantId)
         let documents = try await repo.getDocuments()
-        XCTAssertTrue(documents.isEmpty)
+        XCTAssertEqual(documents.count, 1)
+        XCTAssertEqual(documents[0].title, "Venue contract.pdf")
+        XCTAssertEqual(documents[0].kind, "wedding_document")
+        XCTAssertNil(documents[0].statusLabel)
+
+        Stub.reset()
+        let failingRepo = ProductionPlannerDashboardRepository(client: client(), sessionToken: token, grantId: grantId)
+        do {
+            _ = try await failingRepo.getDocuments()
+            XCTFail("Expected a live Documents/Vault failure to throw instead of returning an empty list")
+        } catch is ProductionReadOnlyDomainError {
+            // Expected — matches the same "live failure never masquerades as empty" rule as Budget/Contributions.
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
     }
 
     func testContributionsMapsRealRowsFromTheSameEngineThePWAUsesAndThrowsOnLiveFailure() async throws {
@@ -332,5 +349,45 @@ final class ProductionDomainRepositoriesTests: XCTestCase {
         let repo = ProductionAdminSystemRepository(client: client(), sessionToken: token, grantId: "admin:system")
         let snapshot = await repo.snapshot()
         XCTAssertNil(snapshot.pendingOnboardingCount)
+        XCTAssertTrue(snapshot.accounts.isEmpty)
+        XCTAssertTrue(snapshot.supportCases.isEmpty)
+        XCTAssertTrue(snapshot.incidents.isEmpty)
+    }
+
+    func testProductionAdminSystemRepositoryMapsRealSummaryAccountsSupportCasesAndIncidentsFromTheSameLoadAdminOverviewThePWAUses() async {
+        Stub.routes["api/native/admin/overview"] = Reply(status: 200, body: """
+            {
+              "success": true, "scopeKind": "system", "platformRoles": ["wewed_super_admin"],
+              "counts": {"pendingOnboarding": 3},
+              "summary": {"businessAccounts": 42, "activeAccounts": 30, "pendingReviewAccounts": 5, "openSupportCases": 2, "openIncidents": 1},
+              "accounts": [{"id": "biz-1", "name": "Eleven Eleven", "type": "planning_company", "status": "active", "onboardingStatus": "complete", "riskFlags": ["billing_attention"]}],
+              "supportCases": [{"id": "case-1", "title": "Cannot upload logo", "status": "open", "priority": "urgent", "businessAccountName": "Eleven Eleven"}],
+              "incidents": [{"id": "incident-1", "title": "Elevated API latency", "status": "monitoring", "severity": "minor"}]
+            }
+            """)
+        let repo = ProductionAdminSystemRepository(client: client(), sessionToken: token, grantId: "admin:system")
+        let snapshot = await repo.snapshot()
+
+        XCTAssertEqual(snapshot.businessAccountsTotal, 42)
+        XCTAssertEqual(snapshot.activeAccountsTotal, 30)
+        XCTAssertEqual(snapshot.pendingReviewAccountsTotal, 5)
+        XCTAssertEqual(snapshot.openSupportCasesTotal, 2)
+        XCTAssertEqual(snapshot.openIncidentsTotal, 1)
+
+        XCTAssertEqual(snapshot.accounts.count, 1)
+        XCTAssertEqual(snapshot.accounts[0].name, "Eleven Eleven")
+        XCTAssertEqual(snapshot.accounts[0].riskFlags, ["billing_attention"])
+
+        XCTAssertEqual(snapshot.supportCases.count, 1)
+        XCTAssertEqual(snapshot.supportCases[0].title, "Cannot upload logo")
+        XCTAssertEqual(snapshot.supportCases[0].priority, "urgent")
+
+        XCTAssertEqual(snapshot.incidents.count, 1)
+        XCTAssertEqual(snapshot.incidents[0].title, "Elevated API latency")
+
+        // The two now-connected streams no longer appear in the honest unsupported list.
+        XCTAssertFalse(snapshot.unsupportedStreams.contains { $0.localizedCaseInsensitiveContains("Full overview") })
+        XCTAssertFalse(snapshot.unsupportedStreams.contains { $0.localizedCaseInsensitiveContains("Client operations") })
+        XCTAssertTrue(snapshot.unsupportedStreams.contains { $0.localizedCaseInsensitiveContains("Bookings") })
     }
 }

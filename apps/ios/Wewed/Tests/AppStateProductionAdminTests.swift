@@ -58,9 +58,10 @@ final class AppStateProductionAdminTests: XCTestCase {
         configuration.protocolClasses = [Stub.self]
         let client = NativeDomainApiClient(baseURL: URL(string: "https://example.test")!, session: URLSession(configuration: configuration))
 
-        appState.bindProductionAdminRepository(ProductionAdminSystemRepository(client: client, sessionToken: "token", grantId: "admin:system"))
+        appState.bindProductionAdminRepository(grantId: "admin:system", ProductionAdminSystemRepository(client: client, sessionToken: "token", grantId: "admin:system"))
 
         XCTAssertTrue(appState.adminRepository is ProductionAdminSystemRepository)
+        XCTAssertEqual(appState.boundAdminGrantId, "admin:system")
         let snapshot = await appState.adminRepository.snapshot()
         XCTAssertEqual(snapshot.pendingOnboardingCount, 2)
     }

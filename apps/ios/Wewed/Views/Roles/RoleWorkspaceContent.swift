@@ -910,6 +910,29 @@ public struct AdminDashboardContent: View {
                             : "Currently drilled into this wedding",
                         testId: "admin-active-wedding"
                     )
+                    // Master plan Phase 8 closure §4 — real platform counts from loadAdminOverview,
+                    // when this admin's grant has resolved them. Nil (not shown as zero) means "not
+                    // fetched yet".
+                    if let total = snapshot.businessAccountsTotal {
+                        IACard(
+                            "Business accounts",
+                            "Platform-wide, excluding the Wewed internal account",
+                            trailing: "\(total)",
+                            testId: "admin-business-accounts"
+                        )
+                    }
+                    if let total = snapshot.activeAccountsTotal {
+                        IACard("Active accounts", "Currently active", trailing: "\(total)", testId: "admin-active-accounts")
+                    }
+                    if let total = snapshot.pendingReviewAccountsTotal {
+                        IACard("Pending review", "Accounts awaiting approval", trailing: "\(total)", testId: "admin-pending-review-accounts")
+                    }
+                    if let total = snapshot.openSupportCasesTotal {
+                        IACard("Open support cases", "Not resolved or closed", trailing: "\(total)", testId: "admin-open-support-cases")
+                    }
+                    if let total = snapshot.openIncidentsTotal {
+                        IACard("Open platform incidents", "Not resolved", trailing: "\(total)", testId: "admin-open-incidents")
+                    }
                     ForEach(snapshot.unsupportedStreams, id: \.self) { stream in
                         IACard(stream, "No native contract exists in this environment", trailing: "Unsupported")
                     }

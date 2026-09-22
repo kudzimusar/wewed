@@ -7,6 +7,55 @@ import Foundation
 /// active wedding, which is why Admin previously needed a wedding context just to open.
 ///
 /// Wedding-scoped data is loaded only after an administrator deliberately drills into a wedding.
+/// Master plan Phase 8 closure §4 — one row from the real, shared `loadAdminOverview` engine.
+public struct AdminAccountSummary: Equatable, Sendable {
+    public let id: String
+    public let name: String
+    public let type: String
+    public let status: String
+    public let onboardingStatus: String
+    public let riskFlags: [String]
+
+    public init(id: String, name: String, type: String, status: String, onboardingStatus: String, riskFlags: [String]) {
+        self.id = id
+        self.name = name
+        self.type = type
+        self.status = status
+        self.onboardingStatus = onboardingStatus
+        self.riskFlags = riskFlags
+    }
+}
+
+public struct AdminSupportCaseSummary: Equatable, Sendable {
+    public let id: String
+    public let title: String
+    public let status: String
+    public let priority: String
+    public let businessAccountName: String?
+
+    public init(id: String, title: String, status: String, priority: String, businessAccountName: String?) {
+        self.id = id
+        self.title = title
+        self.status = status
+        self.priority = priority
+        self.businessAccountName = businessAccountName
+    }
+}
+
+public struct AdminIncidentSummary: Equatable, Sendable {
+    public let id: String
+    public let title: String
+    public let status: String
+    public let severity: String
+
+    public init(id: String, title: String, status: String, severity: String) {
+        self.id = id
+        self.title = title
+        self.status = status
+        self.severity = severity
+    }
+}
+
 public struct AdminSystemSnapshot: Equatable, Sendable {
     public let environment: NativeDataEnvironment
     /// Weddings this administrator may act on; the console itself does not require one.
@@ -17,17 +66,46 @@ public struct AdminSystemSnapshot: Equatable, Sendable {
     /// (not zero) means "not fetched from production" — Shadow/fixture callers never set this, so
     /// it stays the honest default rather than looking like a real zero.
     public let pendingOnboardingCount: Int?
+    /// Master plan Phase 8 closure §4 — real platform-wide counts from the SAME `loadAdminOverview`
+    /// function the PWA's `/api/admin/overview` uses. Nil (not zero) means "not fetched", same
+    /// honesty rule as `pendingOnboardingCount`.
+    public let businessAccountsTotal: Int?
+    public let activeAccountsTotal: Int?
+    public let pendingReviewAccountsTotal: Int?
+    public let openSupportCasesTotal: Int?
+    public let openIncidentsTotal: Int?
+    /// Real business-account rows for "client operations" — empty (not fabricated) when unbound.
+    public let accounts: [AdminAccountSummary]
+    /// Real rows for "governance/support" — empty (not fabricated) when unbound.
+    public let supportCases: [AdminSupportCaseSummary]
+    public let incidents: [AdminIncidentSummary]
 
     public init(
         environment: NativeDataEnvironment,
         weddingsInScope: Int,
         unsupportedStreams: [String],
-        pendingOnboardingCount: Int? = nil
+        pendingOnboardingCount: Int? = nil,
+        businessAccountsTotal: Int? = nil,
+        activeAccountsTotal: Int? = nil,
+        pendingReviewAccountsTotal: Int? = nil,
+        openSupportCasesTotal: Int? = nil,
+        openIncidentsTotal: Int? = nil,
+        accounts: [AdminAccountSummary] = [],
+        supportCases: [AdminSupportCaseSummary] = [],
+        incidents: [AdminIncidentSummary] = []
     ) {
         self.environment = environment
         self.weddingsInScope = weddingsInScope
         self.unsupportedStreams = unsupportedStreams
         self.pendingOnboardingCount = pendingOnboardingCount
+        self.businessAccountsTotal = businessAccountsTotal
+        self.activeAccountsTotal = activeAccountsTotal
+        self.pendingReviewAccountsTotal = pendingReviewAccountsTotal
+        self.openSupportCasesTotal = openSupportCasesTotal
+        self.openIncidentsTotal = openIncidentsTotal
+        self.accounts = accounts
+        self.supportCases = supportCases
+        self.incidents = incidents
     }
 }
 
@@ -93,10 +171,14 @@ public struct ProductionBoundaryAdminSystemRepository: AdminSystemRepositoryProt
     }
 }
 
-/// Master plan Phase 8 — the first real Admin production adapter. Only `pendingOnboardingCount` is
-/// live (`/api/native/admin/overview`); every other stream from the PWA's much larger
-/// `/api/admin/overview`/`client-operations`/`command-center`/etc. remains UNSUPPORTED in this
-/// phase and is named here honestly rather than approximated.
+/// Master plan Phase 8, extended by closure §4 — the real Admin production adapter.
+/// `pendingOnboardingCount` plus platform-wide `summary` counts and the real business `accounts`
+/// list are now live, all from the SAME shared `loadAdminOverview` the PWA's `/api/admin/overview`
+/// calls (`/api/native/admin/overview`). Everything else the PWA's much larger admin surface offers
+/// (command center, bookings, service engagements, contract intelligence, contributions analytics,
+/// account identity, productivity, cross-wedding vault browsing) remains UNSUPPORTED in this phase
+/// (see docs/native-mobile/WEWED_NATIVE_PHASE8_FIELD_CLASSIFICATION.md) and is named here honestly
+/// rather than approximated.
 public struct ProductionAdminSystemRepository: AdminSystemRepositoryProtocol {
     private let client: NativeDomainApiClient
     private let sessionToken: String
@@ -109,16 +191,42 @@ public struct ProductionAdminSystemRepository: AdminSystemRepositoryProtocol {
     }
 
     public func snapshot() async -> AdminSystemSnapshot {
-        var pendingOnboarding: Int?
+        var overview: NativeJSONObject?
         if case let .success(json) = await client.adminOverview(sessionToken: sessionToken, grantId: grantId) {
-            pendingOnboarding = json.wwObject("counts")?.wwInt("pendingOnboarding")
+            overview = json
+        }
+        let summary = overview?.wwObject("summary")
+        let accounts = (overview?.wwArray("accounts") ?? []).map { item in
+            AdminAccountSummary(
+                id: item.wwRequiredString("id"),
+                name: item.wwString("name") ?? "",
+                type: item.wwString("type") ?? "",
+                status: item.wwString("status") ?? "",
+                onboardingStatus: item.wwString("onboardingStatus") ?? "",
+                riskFlags: (item["riskFlags"] as? [String]) ?? []
+            )
+        }
+        let supportCases = (overview?.wwArray("supportCases") ?? []).map { item in
+            AdminSupportCaseSummary(
+                id: item.wwRequiredString("id"),
+                title: item.wwString("title") ?? "",
+                status: item.wwString("status") ?? "",
+                priority: item.wwString("priority") ?? "",
+                businessAccountName: item.wwString("businessAccountName")?.wwNilIfBlank
+            )
+        }
+        let incidents = (overview?.wwArray("incidents") ?? []).map { item in
+            AdminIncidentSummary(
+                id: item.wwRequiredString("id"),
+                title: item.wwString("title") ?? "",
+                status: item.wwString("status") ?? "",
+                severity: item.wwString("severity") ?? ""
+            )
         }
         return AdminSystemSnapshot(
             environment: .production,
             weddingsInScope: 0,
             unsupportedStreams: [
-                "Full overview (billing/support/incidents)",
-                "Client operations",
                 "Command center",
                 "Bookings",
                 "Service engagements",
@@ -126,10 +234,25 @@ public struct ProductionAdminSystemRepository: AdminSystemRepositoryProtocol {
                 "Contributions analytics",
                 "Account identity",
                 "Productivity",
-                "Governance",
-                "Vault",
+                "Vault (cross-wedding admin browsing)",
             ],
-            pendingOnboardingCount: pendingOnboarding
+            pendingOnboardingCount: overview?.wwObject("counts")?.wwInt("pendingOnboarding"),
+            businessAccountsTotal: wwHonestInt(summary, "businessAccounts"),
+            activeAccountsTotal: wwHonestInt(summary, "activeAccounts"),
+            pendingReviewAccountsTotal: wwHonestInt(summary, "pendingReviewAccounts"),
+            openSupportCasesTotal: wwHonestInt(summary, "openSupportCases"),
+            openIncidentsTotal: wwHonestInt(summary, "openIncidents"),
+            accounts: accounts,
+            supportCases: supportCases,
+            incidents: incidents
         )
     }
+}
+
+/// `summary`'s counts use the same "absent stays nil, never a fabricated zero" rule as
+/// `pendingOnboardingCount`: a genuinely missing key answers `nil`, while a present-but-wrong-typed
+/// value degrades to `0` exactly like `wwInt`/`optInt` elsewhere in this file.
+private func wwHonestInt(_ dict: NativeJSONObject?, _ key: String) -> Int? {
+    guard let dict, dict[key] != nil else { return nil }
+    return dict.wwInt(key) ?? 0
 }

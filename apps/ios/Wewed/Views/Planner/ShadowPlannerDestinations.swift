@@ -373,74 +373,57 @@ public struct ShadowPlannerDocumentsView: View {
     public init() {}
 
     public var body: some View {
-        // Master plan Phase 8 closure §8/§11 — production has no document/vault adapter yet, so
-        // ProductionPlannerDashboardRepository.getDocuments() always answers an honest empty list.
-        // Reaching the empty-state branch below for that reason would read as "we checked; there
-        // are none", which is exactly the false-empty the moderator's review is watching for. Say
-        // UNSUPPORTED outright instead of calling the repository at all, matching the same static
-        // pattern used elsewhere for a genuinely-unimplemented capability (e.g. Vendor's own
-        // Contracts/Payments/Files sections).
-        if appState.dataEnvironment == .production {
-            IAUnsupportedSection(
-                "Documents",
-                "Documents and contracts are not yet available in the native app for this wedding.",
-                appState.dataEnvironment
-            )
-            .navigationTitle("Documents")
-            .accessibilityIdentifier("planner-documents-root")
-        } else {
-            Group {
-                if loaded && records.isEmpty {
+        Group {
+            if loaded && records.isEmpty {
+                VStack(spacing: WewedSpacing.sm) {
+                    Image(systemName: "doc.text")
+                        .font(.title2)
+                        .foregroundColor(WewedColors.gold)
+                    Text("Documents")
+                        .font(.title3)
+                        .fontWeight(.semibold)
+                    Text("No contracts or documents recorded for this wedding.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding()
+            } else {
+                ScrollView {
                     VStack(spacing: WewedSpacing.sm) {
-                        Image(systemName: "doc.text")
-                            .font(.title2)
-                            .foregroundColor(WewedColors.gold)
-                        Text("Documents")
-                            .font(.title3)
-                            .fontWeight(.semibold)
-                        Text("No contracts or documents recorded for this wedding.")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
+                        ForEach(records) { record in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(record.title)
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                    Text(record.kind)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                if let status = record.statusLabel {
+                                    Text(status)
+                                        .font(.caption2)
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(WewedColors.emerald)
+                                }
+                            }
+                            .padding()
+                            .background(Color.white)
+                            .cornerRadius(WewedRadius.lg)
+                        }
                     }
                     .padding()
-                } else {
-                    ScrollView {
-                        VStack(spacing: WewedSpacing.sm) {
-                            ForEach(records) { record in
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text(record.title)
-                                            .font(.subheadline)
-                                            .fontWeight(.semibold)
-                                        Text(record.kind)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    Spacer()
-                                    if let status = record.statusLabel {
-                                        Text(status)
-                                            .font(.caption2)
-                                            .fontWeight(.semibold)
-                                            .foregroundStyle(WewedColors.emerald)
-                                    }
-                                }
-                                .padding()
-                                .background(Color.white)
-                                .cornerRadius(WewedRadius.lg)
-                            }
-                        }
-                        .padding()
-                    }
-                    .background(WewedColors.ivory)
                 }
+                .background(WewedColors.ivory)
             }
-            .navigationTitle("Documents")
-            .accessibilityIdentifier("planner-documents-root")
-            .task {
-                records = (try? await appState.plannerRepository.getDocuments()) ?? []
-                loaded = true
-            }
+        }
+        .navigationTitle("Documents")
+        .accessibilityIdentifier("planner-documents-root")
+        .task {
+            records = (try? await appState.plannerRepository.getDocuments()) ?? []
+            loaded = true
         }
     }
 }

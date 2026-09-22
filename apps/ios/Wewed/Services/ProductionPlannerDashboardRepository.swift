@@ -10,11 +10,14 @@ import Foundation
 ///
 /// `getContributions` reads the SAME `loadContributionWorkspace` engine the PWA's
 /// `/api/planner/contributions` uses (via `/api/native/wedding/contributions`) — never a
-/// client-recomputed funding truth. `getDocuments` remains UNSUPPORTED in this phase — porting the
-/// real vault/document engine is tracked as separate remaining work, not approximated here. Each
-/// Planner destination view (`Views/Planner/ShadowPlannerDestinations.swift`) calls its own single
-/// repository method independently in its own `.task`, with no shared `try`/`catch` across sections,
-/// so returning an honest empty list for an unwired domain only affects that one section, never
+/// client-recomputed funding truth. `getDocuments` (Phase 8 closure §3) likewise reads the SAME
+/// `listWeddingVaultObjects` catalog the PWA's `/api/vault` uses. The managed-contract lifecycle
+/// (Deal Room, contract versions/review/acceptance) has no native repository or UI surface at all
+/// yet — see docs/native-mobile/WEWED_NATIVE_PHASE8_FIELD_CLASSIFICATION.md for why that is
+/// deliberately out of this pass's scope rather than approximated here. Each Planner destination
+/// view (`Views/Planner/ShadowPlannerDestinations.swift`) calls its own single repository method
+/// independently in its own `.task`, with no shared `try`/`catch` across sections, so a thrown
+/// failure for one unwired domain only affects that one section, never
 /// Tasks/Budget/Seating/Timeline/Vendors.
 public struct ProductionPlannerDashboardRepository: PlannerDashboardRepositoryProtocol {
     private let client: NativeDomainApiClient
@@ -178,7 +181,25 @@ public struct ProductionPlannerDashboardRepository: PlannerDashboardRepositoryPr
         }
     }
 
-    public func getDocuments() async throws -> [PlannerDocumentRecord] { [] }
+    /// Master plan Phase 8 closure §3 — reads the SAME `listWeddingVaultObjects` catalog the PWA's
+    /// `/api/vault` GET uses (via `/api/native/wedding/vault`), never a second document truth. Same
+    /// live-failure-throws contract as `getContributions`: this is only ever consulted once a real
+    /// wedding-scoped grant has rendered a role shell, so a transport/permission failure here is
+    /// genuine, never an honest "no documents" to fabricate.
+    public func getDocuments() async throws -> [PlannerDocumentRecord] {
+        guard case let .success(array) = await client.vault(sessionToken: sessionToken, grantId: grantId) else {
+            throw ProductionReadOnlyDomainError.unavailable
+        }
+        return array.map { item in
+            let available = item.wwBool("available") ?? true
+            return PlannerDocumentRecord(
+                id: item.wwRequiredString("id"),
+                title: item.wwString("displayName") ?? item.wwString("originalFilename") ?? "",
+                kind: item.wwString("category") ?? "wedding_document",
+                statusLabel: available ? nil : "Not yet available"
+            )
+        }
+    }
 }
 
 private func wwFormatCurrency(_ amount: Double) -> String {

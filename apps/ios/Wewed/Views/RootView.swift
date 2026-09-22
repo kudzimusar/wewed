@@ -170,6 +170,7 @@ public struct RootView: View {
             }
         )
         appState.bindProductionRepositories(
+            grantId: grantId,
             wedding: ProductionWeddingRepository(client: client, sessionToken: token, grantId: grantId, weddingId: weddingId),
             planner: ProductionPlannerDashboardRepository(client: client, sessionToken: token, grantId: grantId)
         )
@@ -218,6 +219,7 @@ public struct RootView: View {
             }
         )
         appState.bindProductionAdminRepository(
+            grantId: workspace.grantId,
             ProductionAdminSystemRepository(client: client, sessionToken: token, grantId: workspace.grantId)
         )
     }
@@ -497,37 +499,56 @@ public struct RootView: View {
                 if let snapshot = session.productionWorkspace,
                    snapshot.grantId == session.activeGrantId,
                    weddingScopeMatches {
-                    switch context.activeRole {
-                    case .couple:
-                        CoupleShellView(
-                            context: context,
-                            onSwitchPersona: switchPersona,
-                            pendingDeepLink: link,
-                            onDeepLinkHandled: handled
-                        )
-                    case .planner:
-                        PlannerShellView(
-                            context: context,
-                            onSwitchPersona: switchPersona,
-                            pendingDeepLink: link,
-                            onDeepLinkHandled: handled
-                        )
-                    case .coordinator:
-                        CoordinatorShellView(
-                            context: context,
-                            onSwitchPersona: switchPersona,
-                            pendingDeepLink: link,
-                            onDeepLinkHandled: handled
-                        )
-                    case .admin:
-                        AdminShellView(
-                            context: context,
-                            onSwitchPersona: switchPersona,
-                            pendingDeepLink: link,
-                            onDeepLinkHandled: handled
-                        )
-                    default:
-                        EmptyView()
+                    // Master plan Phase 8 closure §1 (NativeRepositoryFactory.PRODUCTION closure) —
+                    // the snapshot looking right is necessary but not sufficient: it says the
+                    // *context* is authorized, not that appState.repository/plannerRepository/
+                    // adminRepository have actually been swapped from the unbound
+                    // ProductionBoundary*Repository placeholder to the real grant-scoped adapter yet
+                    // (that swap runs from the `.task(id:)` effects above, which start asynchronously
+                    // relative to this body evaluation). Waiting for the confirmed, `@Published` bind
+                    // — rather than assuming `.task` effect-ordering — is what closes the race: no
+                    // role shell that "appears functional" is ever rendered over the always-throwing
+                    // boundary repository.
+                    let boundGrantId = context.activeRole == .admin
+                        ? appState.boundAdminGrantId
+                        : appState.boundProductionGrantId
+                    if boundGrantId == session.activeGrantId {
+                        switch context.activeRole {
+                        case .couple:
+                            CoupleShellView(
+                                context: context,
+                                onSwitchPersona: switchPersona,
+                                pendingDeepLink: link,
+                                onDeepLinkHandled: handled
+                            )
+                        case .planner:
+                            PlannerShellView(
+                                context: context,
+                                onSwitchPersona: switchPersona,
+                                pendingDeepLink: link,
+                                onDeepLinkHandled: handled
+                            )
+                        case .coordinator:
+                            CoordinatorShellView(
+                                context: context,
+                                onSwitchPersona: switchPersona,
+                                pendingDeepLink: link,
+                                onDeepLinkHandled: handled
+                            )
+                        case .admin:
+                            AdminShellView(
+                                context: context,
+                                onSwitchPersona: switchPersona,
+                                pendingDeepLink: link,
+                                onDeepLinkHandled: handled
+                            )
+                        default:
+                            EmptyView()
+                        }
+                    } else {
+                        ProgressView()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(WeddingIdentityPalette.ivory)
                     }
                 } else {
                     productionWorkspaceUnavailable

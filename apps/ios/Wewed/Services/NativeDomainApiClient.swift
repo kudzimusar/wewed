@@ -296,4 +296,10 @@ public struct NativeDomainApiClient: Sendable {
     public func contributions(sessionToken: String, grantId: String) async -> NativeDomainFetch<NativeJSONObject> {
         await runGetObject("api/native/wedding/contributions", sessionToken: sessionToken, grantId: grantId)
     }
+
+    /// Master plan Phase 8 closure §3 — the same `listWeddingVaultObjects` catalog the PWA's
+    /// `/api/vault` GET uses, never a second client-recomputed document truth.
+    public func vault(sessionToken: String, grantId: String) async -> NativeDomainFetch<NativeJSONArray> {
+        await runGetArray("api/native/wedding/vault", sessionToken: sessionToken, grantId: grantId, arrayField: "data")
+    }
 }
