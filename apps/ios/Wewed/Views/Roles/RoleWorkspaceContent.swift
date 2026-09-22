@@ -489,6 +489,13 @@ public struct WeddingDaySection<PassContent: View>: View {
     public var body: some View {
         if graph.loading {
             IALoading()
+        } else if environment == .production,
+                  ["Vendor Status", "Vendor Arrivals", "Announcements", "Offline Status", "Offline", "Sync Status"].contains(section) {
+            IAUnsupportedSection(
+                section,
+                "This Wedding-Day operational stream is not connected to native production in Phase 8. No empty operational state is inferred.",
+                environment
+            )
         } else {
             switch section {
             case "My Pass", "Wedding Pass":
