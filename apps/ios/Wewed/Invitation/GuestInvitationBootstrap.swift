@@ -48,6 +48,11 @@ public enum GuestInvitationBootstrap {
         return created
     }
 
+    /// Whether this device already holds a remembered Guest session.
+    public static func hasGuestSession() -> Bool {
+        KeychainSecureStorage().get(key: "wewed.guest.session") != nil
+    }
+
     /// Test seam. Never called by the app.
     static func reset() {
         lock.lock()
