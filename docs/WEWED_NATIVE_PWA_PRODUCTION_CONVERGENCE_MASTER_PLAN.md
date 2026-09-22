@@ -1,8 +1,12 @@
 # WEWED NATIVE + PWA PRODUCTION CONVERGENCE MASTER PLAN
 
 **Plan ID:** WW-NATIVE-PWA-CONVERGENCE-2026-09-22-01  
-**Status:** AUTHORITATIVE CONCEPT PLAN — change-controlled, pending peer review before LOCKED status  
+**Status:** LOCKED — AUTHORITATIVE IMPLEMENTATION PLAN  
 **Date:** 2026-09-22  
+**Peer review date:** 2026-09-22  
+**Reviewer:** Claude Code (Opus 5), independent repository peer review against remote refs — see §2.1  
+**Verified repository SHAs:** identical to the §2 baseline table (re-fetched and re-verified at review time; plan commit 121b4071bdcfe21a3541d50deee72689970c03d2)  
+**Accepted corrections:** C-1 … C-8 and hazard additions §8.8 … §8.13, recorded in §2.1. None changes the architecture, phase order or any invariant.  
 **Scope:** Wewed PWA, Android, iOS, backend APIs, production database, invitation/Guest identity, stakeholder authority, Wedding Day/WW2, release infrastructure, and production qualification.
 
 ---
@@ -58,6 +62,47 @@ At this baseline:
 - iOS AASA is not production-ready;
 - Android assetlinks is present;
 - Wewed production database catalog has not yet been authoritatively inspected from the current tooling environment.
+
+### 2.1 Peer review record (2026-09-22)
+
+Every foundation below was re-verified against the remote refs in §2 (read-only; `git show` / `git grep` on the refs, no production system touched).
+
+| Claim | Verdict | Evidence |
+| --- | --- | --- |
+| AppRole fail-open | CONFIRMED, both platforms | Android `models/RoleWorkspaceModels.kt` `fromId … ?: COUPLE`; iOS `Models/RoleWorkspaceModels.swift` `from(roleId:) … ?? .couple` |
+| Hardcoded production SessionState / SessionStore | CONFIRMED, both platforms | Android `state/SessionState.kt` defaults role COUPLE, name "Charity & Kudzie", persona `couple_owner`, wedding `cmqos70cb0004q6vxe9g9aiu5`; iOS `App/SessionStore.swift` defaults role `.couple`, same wedding id/title |
+| EnvironmentWeddingDirectory production hardcoding | CONFIRMED, both platforms | `PRODUCTION` and `PRODUCTION_READ_VERIFY` → `cmqos70cb0004q6vxe9g9aiu5` |
+| DevelopmentPersona / AuthorizedScenario reachability | CONFIRMED compiled into release; guarded only by environment checks | persona switching gated by `allowsDevelopmentPersonaSwitching`; the factory refuses mutable environments under `pro.wewed.app` |
+| Production NativeRepositoryFactory disabled | CONFIRMED, both platforms | factory throws `ProductionDisabled`; iOS `NativeEnvironmentGuard` also rejects `.production` |
+| Guest-only production path | CONFIRMED, both platforms | Android `MainActivity` → `GuestOnlyInvitationShell`; iOS `AppLaunchModeResolver` → `.guestOnly` → `GuestOnlyInvitationShellView` |
+| Guest Session v1 vs v2 | CONFIRMED | main `src/lib/wedding-guest-session.ts` v1 payload carries `rsvpToken`, fixed 7-day TTL; v2 branch removes it, fingerprints the invitation, bounds expiry (30-day min, wedding + 90 days, 400-day cap), requires a dedicated `WEWED_SESSION_SECRET` in production, keeps v1 reads |
+| Digital Invitation authority | CONFIRMED | `Wedding.invitationCardStyle` / `invitationCardMessage` + DB CHECK; registry `src/lib/digital-invitation-card.ts` |
+| Returning Guest behaviour | CONFIRMED | both Guest shells: explicit link → splash → card; icon relaunch → Guest Home |
+| Legacy vs modern onboarding | CONFIRMED (see C-7) | `src/app/api/onboarding/route.ts` ungated, local scrypt password, `privacy: "public"`, no Supabase / BusinessAccount / WeddingMembership |
+| Three-axis role structure | CONFIRMED (see C-2, C-3, C-4) | `DashboardRole`; `WeddingMembership.role`; `wewed_admin."BusinessAccountMember".role` |
+| Coordinator authority | CONFIRMED | `api/weddings/members` accepts `coordinator`; admin onboarding grants planner/coordinator membership |
+| Absence of production Usher/Gate authority | CONFIRMED | no usher/gate literal, model or route in `src/` or `prisma/`; check-in is `RSVP.checkedIn` only |
+| PWA Wedding Pass vs WW2 | CONFIRMED (see C-5) | main pass dialog is presentation only (a decorative QR icon, not a credential); WW2 P-256 exists only on the WW2 branch |
+| Single-tenant PWA remnants | CONFIRMED, list extended (see §8.5) | `src/app/page.tsx` RSVP fallback to `charity-and-kudzie`; `api/comments` hardcoded slug; `FLAGSHIP_SLUG` in contributions + royalty routes |
+| Wedding Day migration branch state | CONFIRMED | WW2 branch not merged, 12 commits ahead of main, contains all 7 Guest Session v2 commits |
+
+Accepted corrections (factual precision only):
+
+- **C-1 (§5.2).** v1 already fails closed on rotation, because the RSVP is looked up by the embedded token (`wedding-public-access.ts`). What v2 adds is removing the raw token, bounded wedding-aware expiry, and a dedicated secret that is mandatory in production. main already reads `WEWED_SESSION_SECRET`, but falls back to the service-role key.
+- **C-2 (§7.3).** `BusinessAccountMember` is not in `prisma/schema.prisma`. It exists only in raw SQL (`wewed_admin` schema, migration `20260730173000`). `role` is free TEXT: default `member`, no CHECK. Observed values:
+  - `business_owner`, `planner`, `coordinator`, `couple_owner`, `venue_manager`, `vendor_manager`, `viewer`, `billing_manager`;
+  - five `wewed_*` internal roles.
+- **C-3 (§7.1).** `User.role` / `UserProfile.role` are free-text columns, default `viewer`. The account class is the TS union `DashboardRole = admin | couple | planner | vendor`, and `viewer` is outside it. `PlatformAdministrator` has its own `wewed_*` role set.
+- **C-4 (§7.2).** WeddingMembership `admin` is synthesized in code for global admins and never stored. Stored values: `owner | planner | coordinator | viewer`.
+- **C-5 (§5.3, §8.7, Phase 11).**
+  - The WW2 tables exist only as review SQL in `docs/native-mobile/migration-review/*.sql` on the WW2 branch. `schema.prisma` has no WW2 models on any branch.
+  - The main pass dialog does not render a guest id/token QR.
+  - Merging the WW2 branch also lands Guest Session v2, so the two promotions cannot be separated by merging the branch as-is.
+- **C-6 (§2).** There is no committed AASA file. `src/app/.well-known/apple-app-site-association/route.ts` returns 404 unless `WEWED_APPLE_APPLICATION_IDENTIFIER_PREFIX` is a valid 10-character prefix: fail closed, and consistent with "not production-ready".
+- **C-7 (§8.4).** In the modern path, Supabase identity is created by `/api/auth/register`. `/api/admin/onboarding` (admin-gated) then grants WeddingMembership, BusinessAccountLink and the `couple_owner` BAM role.
+- **C-8 (§11, Phase 1 baseline).** The native Phase 1 baseline is `native-mobile/guest-profile-invitation-20260921`. `native-mobile/role-architecture-p0-20260919` has 8 unmerged commits: a divergent `RoleGrant` / role-shell rewrite. It contains none of the Phase 1 targets (`ActorAssignment`, `DevelopmentPersona`, `AuthorizedScenario`, `EnvironmentWeddingDirectory`, Guest shells), so it is not an implementation base. Its ideas may be mined in Phase 2, but it must not be merged wholesale.
+
+Unresolved questions (listed, not guessed): the real production DB identity and application DB role (Phase 3); the production `WEWED_SESSION_SECRET` state (Phase 4); the Apple Team / Application Identifier Prefix (Phase 13).
 
 ---
 
@@ -383,15 +428,64 @@ Known examples include Charity & Kudzie-specific RSVP fallback and hardcoded fla
 
 **Required:** classify each as live compatibility, dead legacy or defect. Native must never consume these as generalized authority.
 
+Peer-review inventory on main (for Phase 12; not Phase 1 work):
+- `src/app/page.tsx` RSVP fallback;
+- `api/comments` `WEDDING_SLUG`;
+- `FLAGSHIP_SLUG` in `api/contributions` and seven royalty routes (all `/api/royalty*` currently 404 via `src/proxy.ts`);
+- `|| 'charity-and-kudzie'` defaults in `api/wedding` and `api/wedding-content`;
+- `api/internal/bootstrap-physical-invitation` hardcoded slug;
+- admin-dashboard greeting copy;
+- preview/UAT invitation routes.
+
 ### 8.6 Seed posture
 
 Any production-reachable seed route with insufficient admin gating must be audited and locked before full production integration.
+
+Peer-review findings on main (for Phase 12):
+- `POST /api/seed` has no in-handler authorization. The proxy admits any valid dashboard session (couple/planner/vendor), not admin only.
+- `GET /api/internal/bootstrap-physical-invitation` is unauthenticated. It runs only when `VERCEL_ENV === 'production'` and mutates `QRDestination`. It is still present, although its comment says it would be removed after a one-time bootstrap.
 
 ### 8.7 PWA pass naming collision
 
 The existing PWA Wedding Pass is a UI projection, not WW2 admission authority.
 
 **Required:** rename/upgrade semantics when WW2 becomes shared, so clients cannot silently use the wrong contract.
+
+### 8.8 Restored session grants a default role (added at peer review)
+
+Android `SessionViewModel.restoreSession()` and iOS `SessionStore.restoreSession()` treat any stored token as authenticated and grant `[currentRole]`, which defaults to Couple.
+
+**Required (Phase 1):** a restored token without resolved authority grants nothing.
+
+### 8.9 Workspace root always uses Shadow authority, with a default-wedding fallback (added at peer review)
+
+The workspace roots (Android `RootScreen`, iOS `RootView`) construct `ShadowActorAssignmentSource` unconditionally, whatever the environment. For non-system roles, a missing assignment falls back to the session's default wedding id/title. iOS additionally defaults the actor to `"couple_owner"`.
+
+**Required (Phase 1):** the Shadow source is only selectable in development environments; production/verify resolve no assignment until Phase 5 supplies a production source. There is no wedding or actor fallback.
+
+### 8.10 Release builds still read environment/persona launch inputs (added at peer review)
+
+`NativeLaunchConfiguration` honours `wewed_native_env` (Android intent extra; iOS env/argument) in release builds. Today the only barrier is the `pro.wewed.app` identity check in the factory.
+
+**Required (Phase 1):** a release build resolves to Production regardless of launch inputs.
+
+### 8.11 Stale Guest entry contracts in shared routing (added at peer review)
+
+- `InvitationEntryPolicy` has no production caller on either platform.
+- The recognised-guest branch of `LaunchRouter` has no caller on either platform. iOS does not call `LaunchRouter` at all.
+- `GuestCeremonialEntry.shouldPresentCard` ("card on every entry session") is used only by the Shadow workspace root. It contradicts the qualified §6.3 contract.
+
+### 8.12 Workspace-root live Guest path diverges from the Guest shell (Phase 5 blocker, added at peer review)
+
+When the general repository is enabled, Android `MainActivity` no longer uses `GuestOnlyInvitationShell`. Links are then handled by the workspace root's live-invitation branch, which shows the card but has no Guest Home, My Digital Invitation or Back to My Wedding. Continue falls through to Welcome.
+
+**Required (before Phase 5 enables the workspace):** Guest entry stays on the Guest-shell authority, or the root delegates to it. The Phase 1 invariants must be re-proven.
+
+### 8.13 Fabricated content in workspace screens (added at peer review)
+
+Role-workspace screens contain literal Charity & Kudzie weddings, fabricated account e-mail/name fallbacks, and fixture business data. Some are wired into role shells; many are unreferenced. None is production-reachable today, but only because the production repository is disabled.
+
+**Required:** production-reachable fabrication is removed or isolated in Phase 1. Field-level LIVE/EMPTY classification remains Phase 8.
 
 ---
 
@@ -457,7 +551,8 @@ Ensure enabling future production connectivity cannot expose test defaults or pr
 - isolate DevelopmentPersona/AuthorizedScenario/EnvironmentWeddingDirectory to debug/Shadow where appropriate;
 - reconcile dead/stale invitation routing policies with actual Guest shell behavior;
 - preserve production Guest-only entry;
-- audit hardcoded sample metrics/content in role workspaces.
+- audit hardcoded sample metrics/content in role workspaces;
+- close the peer-review hazards that belong to this phase: §8.8, §8.9, §8.10, §8.11 and the production-reachable part of §8.13. §8.12 is recorded as a Phase 5 blocker.
 
 ### Must not do
 - enable production full repository;
@@ -1084,6 +1179,12 @@ Accepted.
 
 ### D-008 — Patches discovered in independent review are closed before issuing the next task
 Accepted.
+
+### D-009 — Plan locked after repository peer review (2026-09-22)
+Accepted. Status set to LOCKED. Factual corrections C-1 … C-8 and hazards §8.8 … §8.13 recorded in §2.1 / §8. No architectural change. Phase 0 exit gate satisfied: review reconciled, plan locked, unresolved questions listed in §2.1.
+
+### D-010 — Native Phase 1 baseline
+Accepted. Phase 1 branches from `native-mobile/guest-profile-invitation-20260921` @ d7c4dddeabb594810a5833b4ac24d356883a8a3b, not from `native-mobile/role-architecture-p0-20260919` (C-8).
 
 ---
 
