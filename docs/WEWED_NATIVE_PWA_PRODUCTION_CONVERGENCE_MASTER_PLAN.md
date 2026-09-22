@@ -1230,7 +1230,13 @@ The patch:
 - refuses a v2 Guest Session signed only by the legacy service-role key;
 - adds regression coverage for that exact rotation boundary.
 
-This patch is a Phase-4 input only. Phase 4 itself has not started, no production secret was changed, and no deployment occurred.
+This patch is a Phase-4 input only. Phase 4 itself has not started, no production secret was changed, and no production deployment occurred.
+
+Reviewer qualification branch:
+- `backend/guest-session-v2-phase4-qualification-20260922` from `e4dc7d14cc5d394c398bd9ceb143b924bb0261fa`;
+- reviewer found and fixed one ordinary branch-local defect before handoff: `wedding-shared-invitation-session.ts` referenced `primarySessionSigningSecret` / `legacySessionVerificationSecrets` without importing them;
+- patched qualification head: `4b6253665573b1bdff2ac153963e99eac576359a`;
+- this branch is the Phase-4 implementation/qualification starting point; the original promotion branch remains preserved for provenance.
 
 ### D-013 — Phase 3 status (2026-09-22)
 **ACCEPTED — independent Rule-10 review passed after reviewer-owned cleanup/corrections.** Phase 4 may begin; it has not started.
