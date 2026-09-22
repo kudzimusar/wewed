@@ -189,6 +189,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Registration is the only writer that may establish the Supabase-auth -> UserProfile link.
+    // Admin completion must prove that exact profile still exists and still belongs to this owner;
+    // it must never recreate/rebind an auth identity from BusinessAccount metadata.
+    const authProfile = await db.userProfile.findUnique({
+      where: { id: authUserId },
+      select: { email: true },
+    })
+    if (!authProfile || authProfile.email.toLowerCase() !== account.ownerEmail.toLowerCase()) {
+      return NextResponse.json(
+        { success: false, error: 'The application authentication identity link is inconsistent and must be reconciled before onboarding.' },
+        { status: 409 },
+      )
+    }
+
     if (!['couple', 'planning_company'].includes(account.type)) {
       return NextResponse.json(
         {
@@ -268,16 +282,9 @@ export async function POST(request: NextRequest) {
             isActive: true,
           },
         })
-        await tx.userProfile.upsert({
+        await tx.userProfile.update({
           where: { id: authUserId },
-          create: {
-            id: authUserId,
-            email: account.ownerEmail,
-            displayName: account.ownerName,
-            role: 'couple',
-            coupleId: couple.id,
-          },
-          update: {
+          data: {
             email: account.ownerEmail,
             displayName: account.ownerName,
             role: 'couple',
@@ -391,15 +398,9 @@ export async function POST(request: NextRequest) {
           isActive: true,
         },
       })
-      await tx.userProfile.upsert({
+      await tx.userProfile.update({
         where: { id: authUserId },
-        create: {
-          id: authUserId,
-          email: account.ownerEmail,
-          displayName: account.ownerName,
-          role: 'planner',
-        },
-        update: {
+        data: {
           email: account.ownerEmail,
           displayName: account.ownerName,
           role: 'planner',
