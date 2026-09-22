@@ -88,13 +88,14 @@ class SessionAccountAuthorityTest {
     private class FakeTransport(
         private val signInResponse: WeddingDayHttpResponse,
         private val authorityResponse: WeddingDayHttpResponse,
+        private val workspaceResponse: WeddingDayHttpResponse? = null,
     ) : WeddingDayHttpTransport {
         var lastAuthorizationHeader: String? = null
 
         override suspend fun get(path: String, headers: Map<String, String>): WeddingDayHttpResponse {
             lastAuthorizationHeader = headers["Authorization"]
             return if (path.startsWith("api/native/account/workspace")) {
-                WeddingDayHttpResponse(200, coupleWorkspace)
+                workspaceResponse ?: WeddingDayHttpResponse(404, "")
             } else {
                 authorityResponse
             }
@@ -246,6 +247,7 @@ class SessionAccountAuthorityTest {
         val transport = FakeTransport(
             signInResponse = WeddingDayHttpResponse(200, """{"success":true,"sessionToken":"session-abc"}"""),
             authorityResponse = WeddingDayHttpResponse(200, singleCoupleGrantAuthority),
+            workspaceResponse = WeddingDayHttpResponse(200, coupleWorkspace),
         )
         val session = sessionWith(transport)
         session.signIn("couple@example.com", "correct")
