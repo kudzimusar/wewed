@@ -48,8 +48,8 @@ final class ProductionActorAssignmentSourceTests: XCTestCase {
           "weddingTitle": \(weddingTitle.map { "\"\($0)\"" } ?? "null"),
           "coupleId": null,
           "businessAccountId": \(businessAccountId.map { "\"\($0)\"" } ?? "null"),
-          "vendorId": null,
-          "serviceEngagementIds": [],
+          "vendorId": (vendorId.map { ""($0)"" } ?? "null"),
+          "serviceEngagementIds": [(serviceEngagementIds.map { ""($0)"" }.joined(separator: ","))],
           "permissions": [],
           "platformRoles": []
         }
