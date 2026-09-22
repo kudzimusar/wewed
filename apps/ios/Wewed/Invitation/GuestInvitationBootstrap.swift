@@ -11,8 +11,8 @@ import Foundation
 /// So the two are independent:
 ///
 /// ```
-/// production + incoming invitation   → this bootstrap, guest-only, live
-/// production + ordinary launch       → still unavailable until broader integration is approved
+/// production + incoming/remembered Guest → this bootstrap, Guest authority wins
+/// production + ordinary account launch    → Phase-5 read-only account workspace bootstrap
 /// ```
 ///
 /// One instance per process. The session must survive view rebuilds, and a second client would
