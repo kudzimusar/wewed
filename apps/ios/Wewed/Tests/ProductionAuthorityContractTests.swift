@@ -68,6 +68,9 @@ final class ProductionAuthorityContractTests: XCTestCase {
             "admin:system",
         ])
         XCTAssertEqual(authority.unsupportedAuthorities, ["guest", "usher_gate"])
+        XCTAssertEqual(authority.businessNamesById["planning-1"], "Business planning-1")
+        XCTAssertEqual(authority.businessNamesById["vendor-1"], "Business vendor-1")
+        XCTAssertEqual(authority.vendorNamesById["vendor-row-F"], "Vendor F")
         XCTAssertTrue(ProductionGrantMapper.isUsable(authority))
     }
 
