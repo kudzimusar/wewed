@@ -1,10 +1,11 @@
 import 'server-only'
 
-import { db } from '@/lib/db'
 import {
   normalizeInvitationCardStyle,
   type InvitationCardStyle,
 } from '@/lib/digital-invitation-card'
+
+type InvitationDatabase = typeof import('@/lib/db').db
 
 export interface ResolvedPersonalInvitation {
   weddingDate: Date
@@ -23,8 +24,9 @@ export async function resolvePersonalInvitation({
   weddingSlug: string
   token: string
   requestedCard?: string | null
-}, database: typeof db = db): Promise<ResolvedPersonalInvitation | null> {
-  const rsvp = await database.rSVP.findUnique({
+}, database?: InvitationDatabase): Promise<ResolvedPersonalInvitation | null> {
+  const activeDb = database ?? (await import('@/lib/db')).db
+  const rsvp = await activeDb.rSVP.findUnique({
     where: { token },
     include: {
       guest: {
