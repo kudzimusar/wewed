@@ -22,6 +22,8 @@ fun ProductionReadOnlyWorkspaceContent(
     snapshot: ProductionWorkspaceSnapshot,
     destination: PrimaryDestination? = null,
     onSignOut: (() -> Unit)? = null,
+    onSwitchContext: (() -> Unit)? = null,
+    onSelectEngagement: ((String) -> Unit)? = null,
 ) {
     Column(
         modifier = Modifier
@@ -60,12 +62,36 @@ fun ProductionReadOnlyWorkspaceContent(
             ReadOnlyRow("Platform role", snapshot.platformRoles.joinToString(", "))
         }
 
+        // Master plan Phase 6 §5 — a Vendor wedding grant with one engagement resolves it
+        // automatically (server-side); with more than one, nothing is rendered as "the" engagement
+        // until the person explicitly picks one from the account's own real options.
+        snapshot.engagement?.let { engagement ->
+            ReadOnlyRow("Engagement", engagement.serviceCategory + (engagement.serviceDescription?.let { " · $it" } ?: ""))
+        }
+        if (snapshot.engagementSelectionRequired && onSelectEngagement != null) {
+            Text("Choose an engagement", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = WeddingIdentityPalette.Ink)
+            snapshot.engagementOptions.forEach { option ->
+                OutlinedButton(
+                    onClick = { onSelectEngagement(option.id) },
+                    modifier = Modifier.fillMaxWidth().testTag("engagement-option-${option.id}"),
+                ) {
+                    Text(option.serviceCategory + (option.serviceDescription?.let { " · $it" } ?: ""))
+                }
+            }
+        }
+
         Text(
             "Read-only production access. Detailed ${destination?.label ?: "workspace"} data is enabled in the feature-parity phase.",
             fontSize = 12.sp,
             color = WeddingIdentityPalette.Muted,
             modifier = Modifier.testTag("production-readonly-boundary")
         )
+
+        onSwitchContext?.let {
+            TextButton(onClick = it, modifier = Modifier.testTag("production-readonly-switch-context")) {
+                Text("Switch context")
+            }
+        }
 
         onSignOut?.let {
             TextButton(onClick = it, modifier = Modifier.testTag("production-readonly-sign-out")) {

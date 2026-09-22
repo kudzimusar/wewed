@@ -6,15 +6,21 @@ public struct ProductionReadOnlyWorkspaceContent: View {
     let snapshot: ProductionWorkspaceSnapshot
     let destination: PrimaryDestination?
     let onSignOut: (() -> Void)?
+    let onSwitchContext: (() -> Void)?
+    let onSelectEngagement: ((String) -> Void)?
 
     public init(
         snapshot: ProductionWorkspaceSnapshot,
         destination: PrimaryDestination? = nil,
-        onSignOut: (() -> Void)? = nil
+        onSignOut: (() -> Void)? = nil,
+        onSwitchContext: (() -> Void)? = nil,
+        onSelectEngagement: ((String) -> Void)? = nil
     ) {
         self.snapshot = snapshot
         self.destination = destination
         self.onSignOut = onSignOut
+        self.onSwitchContext = onSwitchContext
+        self.onSelectEngagement = onSelectEngagement
     }
 
     public var body: some View {
@@ -54,10 +60,39 @@ public struct ProductionReadOnlyWorkspaceContent: View {
                     ReadOnlyRow(label: "Platform role", value: snapshot.platformRoles.joined(separator: ", "))
                 }
 
+                // Master plan Phase 6 §5 — a Vendor wedding grant with one engagement resolves it
+                // automatically (server-side); with more than one, nothing is rendered as "the"
+                // engagement until the person explicitly picks one from the account's own options.
+                if let engagement = snapshot.engagement {
+                    ReadOnlyRow(
+                        label: "Engagement",
+                        value: engagement.serviceDescription.map { "\(engagement.serviceCategory) · \($0)" } ?? engagement.serviceCategory
+                    )
+                }
+                if snapshot.engagementSelectionRequired, let onSelectEngagement {
+                    Text("Choose an engagement")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(WeddingIdentityPalette.ink)
+                    ForEach(snapshot.engagementOptions, id: \.id) { option in
+                        Button {
+                            onSelectEngagement(option.id)
+                        } label: {
+                            Text(option.serviceDescription.map { "\(option.serviceCategory) · \($0)" } ?? option.serviceCategory)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .accessibilityIdentifier("engagement-option-\(option.id)")
+                    }
+                }
+
                 Text("Read-only production access. Detailed \(destination?.label ?? "workspace") data is enabled in the feature-parity phase.")
                     .font(.system(size: 12))
                     .foregroundStyle(WeddingIdentityPalette.muted)
                     .accessibilityIdentifier("production-readonly-boundary")
+
+                if let onSwitchContext {
+                    Button("Switch context", action: onSwitchContext)
+                        .accessibilityIdentifier("production-readonly-switch-context")
+                }
 
                 if let onSignOut {
                     Button("Sign out", action: onSignOut)

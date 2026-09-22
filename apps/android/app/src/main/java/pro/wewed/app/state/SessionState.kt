@@ -116,6 +116,15 @@ class SessionViewModel(
     private val _productionWorkspace = MutableStateFlow<ProductionWorkspaceSnapshot?>(null)
     val productionWorkspace: StateFlow<ProductionWorkspaceSnapshot?> = _productionWorkspace.asStateFlow()
 
+    /**
+     * The engagement the person explicitly chose for a Vendor wedding grant with more than one.
+     * Null means "let the server auto-resolve a single engagement, or report that a choice is
+     * needed" — never a client-side guess. Reset whenever [activeGrantId] changes, since an
+     * engagement id is only ever meaningful for the grant it came from (master plan Phase 6 §5).
+     */
+    private val _selectedEngagementId = MutableStateFlow<String?>(null)
+    val selectedEngagementId: StateFlow<String?> = _selectedEngagementId.asStateFlow()
+
     private val _isSigningIn = MutableStateFlow(false)
     val isSigningIn: StateFlow<Boolean> = _isSigningIn.asStateFlow()
 
@@ -227,6 +236,24 @@ class SessionViewModel(
      * session token exists".
      */
     private fun applyAuthority(authority: ProductionAuthority, revalidateSelection: Boolean) {
+        // A different verified account than whatever this process last held, signing in directly
+        // over it with no prior signOut(). Account A's selection/active grant must never leak into
+        // Account B merely because a grant id happens to coincide, or because in-memory state from
+        // A's session is still sitting in these fields (master plan Phase 6 §4). Ordinary restores
+        // and refreshes of the SAME account never hit this: previousAccessUserId is null on first
+        // application, and unchanged on every subsequent one.
+        val previousAccessUserId = _productionAuthority.value?.accessUserId
+        if (previousAccessUserId != null && previousAccessUserId != authority.accessUserId) {
+            _selectedGrantIds.value = emptySet()
+            storage.delete(selectedGrantsKey)
+            _activeGrantId.value = null
+            _currentRole.value = null
+            _currentUserRole.value = null
+            _weddingId.value = null
+            _weddingTitle.value = null
+            _selectedEngagementId.value = null
+        }
+
         _productionAuthority.value = authority
         _productionWorkspace.value = null
         _isAuthenticated.value = true
@@ -240,6 +267,7 @@ class SessionViewModel(
             _weddingTitle.value = null
             _activeGrantId.value = null
             _selectedGrantIds.value = emptySet()
+            _selectedEngagementId.value = null
             storage.delete(selectedGrantsKey)
             return
         }
@@ -312,7 +340,7 @@ class SessionViewModel(
             _productionWorkspace.value = null
             return
         }
-        when (val fetch = client.fetchWorkspace(sessionToken, grantId)) {
+        when (val fetch = client.fetchWorkspace(sessionToken, grantId, _selectedEngagementId.value)) {
             is ProductionWorkspaceFetch.Success -> {
                 if (_activeGrantId.value == fetch.workspace.grantId) {
                     _productionWorkspace.value = fetch.workspace
@@ -327,6 +355,7 @@ class SessionViewModel(
                 _currentUserRole.value = null
                 _weddingId.value = null
                 _weddingTitle.value = null
+                _selectedEngagementId.value = null
                 if (revoked != null) {
                     val next = _selectedGrantIds.value - revoked
                     _selectedGrantIds.value = next
@@ -334,6 +363,15 @@ class SessionViewModel(
                 }
                 // Do not guess a replacement from stale authority. A fresh authority fetch on the
                 // next restore/refresh decides what remains.
+            }
+            is ProductionWorkspaceFetch.EngagementInvalid -> {
+                // The wedding/business grant underneath is still valid; only the engagement choice
+                // was stale/foreign/revoked. Clear the engagement only and re-fetch so the server
+                // can either auto-resolve a single remaining engagement or report a fresh choice is
+                // needed — never fall back to rendering the rejected engagement.
+                _selectedEngagementId.value = null
+                _productionWorkspace.value = null
+                refreshActiveWorkspace(client, sessionToken)
             }
             is ProductionWorkspaceFetch.Transport -> {
                 _productionWorkspace.value = null
@@ -358,7 +396,31 @@ class SessionViewModel(
         _selectedGrantIds.value = next
         persistSelectedGrantIds(next)
         _activeGrantId.value = grantId
+        // An engagement choice belongs to the grant it was made for; a fresh grant starts with none
+        // (master plan Phase 6 §5). applyAuthority() below already clears the workspace snapshot
+        // synchronously, so no stale data can render while the new one is being fetched (§9, §14).
+        _selectedEngagementId.value = null
         applyAuthority(authority, revalidateSelection = false)
+
+        val client = authorityClient
+        val token = storage.get(accountSessionKey)
+        if (client != null && token != null) {
+            scope.launch { refreshActiveWorkspace(client, token) }
+        }
+    }
+
+    /**
+     * Records the account's explicit choice of engagement for the currently active Vendor wedding
+     * grant. Ignored for an engagement id the current workspace snapshot does not actually list —
+     * the server re-validates it against the fresh grant regardless (master plan Phase 6 §5, §10).
+     */
+    fun selectEngagement(engagementId: String) {
+        val workspace = _productionWorkspace.value ?: return
+        if (engagementId !in workspace.serviceEngagementIds) return
+        _selectedEngagementId.value = engagementId
+        // Clear immediately: the previous engagement's data must never remain visible while the
+        // newly-selected one is being fetched (master plan Phase 6 §14).
+        _productionWorkspace.value = null
 
         val client = authorityClient
         val token = storage.get(accountSessionKey)
@@ -389,6 +451,7 @@ class SessionViewModel(
         _weddingId.value = null
         _weddingTitle.value = null
         _selectedGrantIds.value = emptySet()
+        _selectedEngagementId.value = null
     }
 
     /**
@@ -453,6 +516,7 @@ class SessionViewModel(
         _productionWorkspace.value = null
         _activeGrantId.value = null
         _selectedGrantIds.value = emptySet()
+        _selectedEngagementId.value = null
         _authenticationError.value = null
         _sessionRestored.value = true
     }

@@ -32,6 +32,8 @@ public struct RootView: View {
     @State private var contextResolutionFinished = false
     @State private var authMode: AuthenticationMode?
     @State private var resolvingDeepLinkedInvitation = false
+    /// Master plan Phase 6 §1, §2, §11 — an explicit switcher reachable AFTER a workspace is open.
+    @State private var showingContextSwitcher = false
 
     /// The live guest invitation, resolved by the guest-session authority rather than a repository.
     ///
@@ -113,6 +115,12 @@ public struct RootView: View {
 
         let ids = Set(selection.grantIds)
         return authority.workspaceGrants.filter { ids.contains($0.grantId) }
+    }
+
+    /// Only offered once more than one grant genuinely exists — a single-context account has
+    /// nothing to switch to (master plan Phase 6 §11: minimal UI, no unnecessary chrome).
+    private var canSwitchProductionContext: Bool {
+        appState.dataEnvironment == .production && (session.productionAuthority?.workspaceGrants.count ?? 0) > 1
     }
 
     /// Guest Entry Contract (GuestCeremonialEntry, master plan §6.3).
@@ -208,7 +216,8 @@ public struct RootView: View {
                    snapshot.grantId == session.activeGrantId {
                     ProductionReadOnlyWorkspaceContent(
                         snapshot: snapshot,
-                        onSignOut: { session.signOut() }
+                        onSignOut: { session.signOut() },
+                        onSwitchContext: canSwitchProductionContext ? { showingContextSwitcher = true } : nil
                     )
                 } else {
                     VStack(spacing: 8) {
@@ -291,6 +300,17 @@ public struct RootView: View {
         .task(id: "\(session.currentRole?.roleId ?? "")|\(session.activePersona?.id ?? "")") {
             await restoreLiveGuestIfNeeded()
         }
+        // Attached at the outer level so it works from both authenticated production surfaces: the
+        // role-shell workspace and the Planner-portfolio/Vendor-business read-only landing.
+        .sheet(isPresented: $showingContextSwitcher) {
+            if let authority = session.productionAuthority {
+                ContextSwitcherSheet(
+                    authority: authority,
+                    activeGrantId: session.activeGrantId,
+                    onSelect: { grantId in session.selectGrant(grantId) }
+                )
+            }
+        }
     }
 
     @ViewBuilder
@@ -333,12 +353,16 @@ public struct RootView: View {
                snapshot.grantId == session.activeGrantId {
                 RoleShellScaffold(
                     context: context,
-                    onSwitchPersona: nil,
+                    onSwitchPersona: canSwitchProductionContext ? { showingContextSwitcher = true } : nil,
                     pendingDeepLink: link,
                     sectionMemory: productionSectionMemory,
                     onDeepLinkHandled: handled
                 ) { destination, _ in
-                    ProductionReadOnlyWorkspaceContent(snapshot: snapshot, destination: destination)
+                    ProductionReadOnlyWorkspaceContent(
+                        snapshot: snapshot,
+                        destination: destination,
+                        onSelectEngagement: { engagementId in session.selectEngagement(engagementId) }
+                    )
                 }
             } else {
                 VStack(spacing: 8) {

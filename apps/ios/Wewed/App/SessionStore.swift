@@ -52,6 +52,12 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
     @Published public private(set) var activeGrantId: String? = nil
     @Published public private(set) var productionWorkspace: ProductionWorkspaceSnapshot? = nil
 
+    /// The engagement the person explicitly chose for a Vendor wedding grant with more than one.
+    /// Nil means "let the server auto-resolve a single engagement, or report that a choice is
+    /// needed" — never a client-side guess. Reset whenever `activeGrantId` changes, since an
+    /// engagement id is only ever meaningful for the grant it came from (master plan Phase 6 §5).
+    @Published public private(set) var selectedEngagementId: String? = nil
+
     @Published public private(set) var isSigningIn: Bool = false
     @Published public private(set) var authenticationError: String? = nil
 
@@ -174,6 +180,24 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
     /// "a session token exists".
     @MainActor
     private func applyAuthority(_ authority: ProductionAuthority, revalidateSelection: Bool) {
+        // A different verified account than whatever this process last held, signing in directly
+        // over it with no prior signOut(). Account A's selection/active grant must never leak into
+        // Account B merely because a grant id happens to coincide, or because in-memory state from
+        // A's session is still sitting in these fields (master plan Phase 6 §4). Ordinary restores
+        // and refreshes of the SAME account never hit this: previousAccessUserId is nil on first
+        // application, and unchanged on every subsequent one.
+        let previousAccessUserId = productionAuthority?.accessUserId
+        if let previousAccessUserId, previousAccessUserId != authority.accessUserId {
+            selectedGrantIds = []
+            storage.delete(key: selectedGrantsKey)
+            activeGrantId = nil
+            currentRole = nil
+            currentUserRole = nil
+            weddingId = nil
+            weddingTitle = nil
+            selectedEngagementId = nil
+        }
+
         productionAuthority = authority
         productionWorkspace = nil
         isAuthenticated = true
@@ -187,6 +211,7 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
             weddingTitle = nil
             activeGrantId = nil
             selectedGrantIds = []
+            selectedEngagementId = nil
             storage.delete(key: selectedGrantsKey)
             return
         }
@@ -250,12 +275,12 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
     }
 
     @MainActor
-    private func refreshActiveWorkspace(client: ProductionAuthorityClient, sessionToken: String) async {
+    func refreshActiveWorkspace(client: ProductionAuthorityClient, sessionToken: String) async {
         guard let grantId = activeGrantId else {
             productionWorkspace = nil
             return
         }
-        switch await client.fetchWorkspace(sessionToken: sessionToken, grantId: grantId) {
+        switch await client.fetchWorkspace(sessionToken: sessionToken, grantId: grantId, engagementId: selectedEngagementId) {
         case let .success(workspace):
             if activeGrantId == workspace.grantId { productionWorkspace = workspace }
         case .sessionInvalid:
@@ -268,10 +293,19 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
             currentUserRole = nil
             weddingId = nil
             weddingTitle = nil
+            selectedEngagementId = nil
             if let revoked {
                 selectedGrantIds.remove(revoked)
                 persistSelectedGrantIds(selectedGrantIds)
             }
+        case .engagementInvalid:
+            // The wedding/business grant underneath is still valid; only the engagement choice was
+            // stale/foreign/revoked. Clear the engagement only and re-fetch so the server can either
+            // auto-resolve a single remaining engagement or report a fresh choice is needed — never
+            // fall back to rendering the rejected engagement.
+            selectedEngagementId = nil
+            productionWorkspace = nil
+            await refreshActiveWorkspace(client: client, sessionToken: sessionToken)
         case .transport:
             productionWorkspace = nil
         }
@@ -294,7 +328,30 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
         selectedGrantIds = next
         persistSelectedGrantIds(next)
         activeGrantId = grantId
+        // An engagement choice belongs to the grant it was made for; a fresh grant starts with none
+        // (master plan Phase 6 §5). applyAuthority() below already clears the workspace snapshot
+        // synchronously, so no stale data can render while the new one is being fetched (§9, §14).
+        selectedEngagementId = nil
         applyAuthority(authority, revalidateSelection: false)
+
+        if let client = authorityClient,
+           let token = storage.get(key: accountSessionKey) {
+            Task { @MainActor in
+                await self.refreshActiveWorkspace(client: client, sessionToken: token)
+            }
+        }
+    }
+
+    /// Records the account's explicit choice of engagement for the currently active Vendor wedding
+    /// grant. Ignored for an engagement id the current workspace snapshot does not actually list —
+    /// the server re-validates it against the fresh grant regardless (master plan Phase 6 §5, §10).
+    @MainActor
+    public func selectEngagement(_ engagementId: String) {
+        guard let workspace = productionWorkspace, workspace.serviceEngagementIds.contains(engagementId) else { return }
+        selectedEngagementId = engagementId
+        // Clear immediately: the previous engagement's data must never remain visible while the
+        // newly-selected one is being fetched (master plan Phase 6 §14).
+        productionWorkspace = nil
 
         if let client = authorityClient,
            let token = storage.get(key: accountSessionKey) {
@@ -333,6 +390,7 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
         weddingId = nil
         weddingTitle = nil
         selectedGrantIds = []
+        selectedEngagementId = nil
     }
 
     /// Enters the current Shadow/UAT environment as its default qualification actor.
@@ -393,6 +451,7 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
         self.productionWorkspace = nil
         self.activeGrantId = nil
         self.selectedGrantIds = []
+        self.selectedEngagementId = nil
         self.authenticationError = nil
         self.sessionRestored = true
     }

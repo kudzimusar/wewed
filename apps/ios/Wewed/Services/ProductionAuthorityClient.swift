@@ -24,6 +24,13 @@ public struct ProductionWeddingSummary: Decodable, Equatable, Sendable {
     public let coupleNames: String
 }
 
+public struct ProductionEngagementSummary: Decodable, Equatable, Sendable {
+    public let id: String
+    public let serviceCategory: String
+    public let serviceDescription: String?
+    public let lifecycleStatus: String
+}
+
 public struct ProductionWorkspaceSnapshot: Decodable, Equatable, Sendable {
     public let grantId: String
     public let workspaceKind: String
@@ -34,15 +41,49 @@ public struct ProductionWorkspaceSnapshot: Decodable, Equatable, Sendable {
     public let businessName: String?
     public let vendorId: String?
     public let serviceEngagementIds: [String]
+    /// Resolved automatically for a single-engagement grant, or once explicitly selected.
+    public let engagement: ProductionEngagementSummary?
+    /// True only when the grant has more than one engagement and none has been validly selected.
+    public let engagementSelectionRequired: Bool
+    public let engagementOptions: [ProductionEngagementSummary]
     public let permissions: [String]
     public let platformRoles: [String]
     public let wedding: ProductionWeddingSummary?
+
+    private enum CodingKeys: String, CodingKey {
+        case grantId, workspaceKind, scopeKind, weddingId, weddingTitle, businessAccountId, businessName
+        case vendorId, serviceEngagementIds, engagement, engagementSelectionRequired, engagementOptions
+        case permissions, platformRoles, wedding
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        grantId = try c.decode(String.self, forKey: .grantId)
+        workspaceKind = try c.decode(String.self, forKey: .workspaceKind)
+        scopeKind = try c.decode(String.self, forKey: .scopeKind)
+        weddingId = try c.decodeIfPresent(String.self, forKey: .weddingId)
+        weddingTitle = try c.decodeIfPresent(String.self, forKey: .weddingTitle)
+        businessAccountId = try c.decodeIfPresent(String.self, forKey: .businessAccountId)
+        businessName = try c.decodeIfPresent(String.self, forKey: .businessName)
+        vendorId = try c.decodeIfPresent(String.self, forKey: .vendorId)
+        serviceEngagementIds = try c.decode([String].self, forKey: .serviceEngagementIds)
+        // Absent in a fixture/older server response means "no engagement context at all" — the same
+        // safe default a Vendor-less grant already has, never treated as "selection required".
+        engagement = try c.decodeIfPresent(ProductionEngagementSummary.self, forKey: .engagement)
+        engagementSelectionRequired = try c.decodeIfPresent(Bool.self, forKey: .engagementSelectionRequired) ?? false
+        engagementOptions = try c.decodeIfPresent([ProductionEngagementSummary].self, forKey: .engagementOptions) ?? []
+        permissions = try c.decode([String].self, forKey: .permissions)
+        platformRoles = try c.decode([String].self, forKey: .platformRoles)
+        wedding = try c.decodeIfPresent(ProductionWeddingSummary.self, forKey: .wedding)
+    }
 }
 
 public enum ProductionWorkspaceFetch: Equatable {
     case success(ProductionWorkspaceSnapshot)
     case sessionInvalid
     case grantRevoked
+    /// The selected engagement is no longer part of this (still-valid) grant.
+    case engagementInvalid
     case transport(status: Int)
 }
 
@@ -117,14 +158,16 @@ public struct ProductionAuthorityClient: Sendable {
 
         return .success(authority)
     }
-    public func fetchWorkspace(sessionToken: String, grantId: String) async -> ProductionWorkspaceFetch {
+    public func fetchWorkspace(sessionToken: String, grantId: String, engagementId: String? = nil) async -> ProductionWorkspaceFetch {
         guard var components = URLComponents(
             url: baseURL.appendingPathComponent("api/native/account/workspace"),
             resolvingAgainstBaseURL: false
         ) else {
             return .transport(status: -1)
         }
-        components.queryItems = [URLQueryItem(name: "grantId", value: grantId)]
+        var queryItems = [URLQueryItem(name: "grantId", value: grantId)]
+        if let engagementId { queryItems.append(URLQueryItem(name: "engagementId", value: engagementId)) }
+        components.queryItems = queryItems
         guard let url = components.url else { return .transport(status: -1) }
 
         var request = URLRequest(url: url)
@@ -139,6 +182,7 @@ public struct ProductionAuthorityClient: Sendable {
 
         if http.statusCode == 401 { return .sessionInvalid }
         if http.statusCode == 403 || http.statusCode == 404 { return .grantRevoked }
+        if http.statusCode == 422 { return .engagementInvalid }
         guard (200...299).contains(http.statusCode) else { return .transport(status: http.statusCode) }
 
         struct Envelope: Decodable { let workspace: ProductionWorkspaceSnapshot }
@@ -147,5 +191,4 @@ public struct ProductionAuthorityClient: Sendable {
         }
         return .success(envelope.workspace)
     }
-
 }

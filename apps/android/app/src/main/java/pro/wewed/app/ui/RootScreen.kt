@@ -26,6 +26,7 @@ import pro.wewed.app.navigation.RoleShellAuthorization
 import pro.wewed.app.navigation.ProductionAuthority
 import pro.wewed.app.navigation.ProductionGrantMapper
 import pro.wewed.app.navigation.ProductionWorkspaceGrant
+import pro.wewed.app.navigation.GrantScopeKind
 import pro.wewed.app.state.AppViewModel
 import pro.wewed.app.state.SessionViewModel
 import pro.wewed.app.theme.WeddingIdentityPalette
@@ -366,6 +367,25 @@ fun RootScreen(
         return
     }
 
+    // Master plan Phase 6 §1, §2, §11 — an explicit switcher reachable AFTER a workspace is open,
+    // for every axis the account genuinely holds (Planner A/B/C, a second role such as Admin, a
+    // Coordinator's own wedding). Only offered when more than one grant actually exists; selecting
+    // one calls the same selectGrant() Phase 5 already uses for the forced pre-workspace choice.
+    var showContextSwitcher by remember { mutableStateOf(false) }
+    val canSwitchProductionContext = appViewModel.dataEnvironment == NativeDataEnvironment.PRODUCTION &&
+        (productionAuthority?.grants?.size ?: 0) > 1
+    productionAuthority?.let { authority ->
+        if (showContextSwitcher) {
+            ContextSwitcherDialog(
+                authority = authority,
+                activeGrantId = activeGrantId,
+                onSelect = { grantId -> sessionViewModel.selectGrant(grantId) },
+                onDismiss = { showContextSwitcher = false },
+            )
+        }
+    }
+    val onOpenContextSwitcher: (() -> Unit)? = if (canSwitchProductionContext) ({ showContextSwitcher = true }) else null
+
     // Portfolio/business authority is a real workspace even though it deliberately has no wedding
     // ActorAssignment. Render the revalidated server snapshot instead of claiming "no workspace".
     if (appViewModel.dataEnvironment == NativeDataEnvironment.PRODUCTION &&
@@ -375,7 +395,8 @@ fun RootScreen(
         if (snapshot != null) {
             ProductionReadOnlyWorkspaceContent(
                 snapshot = snapshot,
-                onSignOut = { sessionViewModel.signOut() }
+                onSignOut = { sessionViewModel.signOut() },
+                onSwitchContext = onOpenContextSwitcher,
             )
         } else {
             NativeEnvironmentUnavailableScreen(
@@ -497,12 +518,16 @@ fun RootScreen(
         val sectionMemory = rememberWorkspaceSectionMemory()
         RoleShellScaffold(
             context = context,
-            onSwitchPersona = null,
+            onSwitchPersona = onOpenContextSwitcher,
             pendingDeepLink = pendingRouteDeepLink,
             sectionMemory = sectionMemory,
             onDeepLinkHandled = onDeepLinkHandled
         ) { destination, _ ->
-            ProductionReadOnlyWorkspaceContent(snapshot = snapshot, destination = destination)
+            ProductionReadOnlyWorkspaceContent(
+                snapshot = snapshot,
+                destination = destination,
+                onSelectEngagement = { engagementId -> sessionViewModel.selectEngagement(engagementId) },
+            )
         }
         return
     }
@@ -647,4 +672,52 @@ private fun GrantSelectionScreen(
             }
         }
     }
+}
+
+/**
+ * Explicit production context switcher (master plan Phase 6 §1, §2, §11) — reachable AFTER a
+ * workspace is already open, unlike [GrantSelectionScreen] which only forces a pre-workspace
+ * choice. Lists every grant the account currently holds, of every workspace kind: a Planner's
+ * wedding A/B/C, a second axis such as Admin/system, a Coordinator's assigned wedding, and so on.
+ * Selecting one calls the same [pro.wewed.app.state.SessionViewModel.selectGrant] that already
+ * replaces same-kind selections singularly and clears stale workspace state (§9, §14) — this
+ * dialog only makes that existing, tested mechanism reachable from an open workspace, and adds no
+ * new authority logic. Deliberately minimal; full visual redesign remains Phase 8.
+ */
+@Composable
+fun ContextSwitcherDialog(
+    authority: ProductionAuthority,
+    activeGrantId: String?,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Switch context") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                authority.grants.forEach { grant ->
+                    val label = when {
+                        grant.scopeKind == GrantScopeKind.SYSTEM -> "${grant.workspaceKindWire.replaceFirstChar { it.uppercase() }} · Wewed platform"
+                        grant.weddingTitle != null -> "${grant.workspaceKindWire.replaceFirstChar { it.uppercase() }} · ${grant.weddingTitle}"
+                        grant.businessAccountId != null -> "${grant.workspaceKindWire.replaceFirstChar { it.uppercase() }} · ${grant.businessAccountId}"
+                        else -> "${grant.workspaceKindWire.replaceFirstChar { it.uppercase() }} · ${grant.grantId}"
+                    }
+                    OutlinedButton(
+                        onClick = { onSelect(grant.grantId); onDismiss() },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("context-switch-option-${grant.grantId}"),
+                        enabled = grant.grantId != activeGrantId,
+                    ) {
+                        Text(if (grant.grantId == activeGrantId) "$label (current)" else label)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss, modifier = Modifier.testTag("context-switch-close")) { Text("Close") }
+        },
+        modifier = Modifier.testTag("context-switcher"),
+    )
 }

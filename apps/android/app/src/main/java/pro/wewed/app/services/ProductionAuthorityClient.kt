@@ -32,6 +32,13 @@ data class ProductionWeddingSummary(
     val coupleNames: String,
 )
 
+data class ProductionEngagementSummary(
+    val id: String,
+    val serviceCategory: String,
+    val serviceDescription: String?,
+    val lifecycleStatus: String,
+)
+
 data class ProductionWorkspaceSnapshot(
     val grantId: String,
     val workspaceKind: String,
@@ -42,6 +49,11 @@ data class ProductionWorkspaceSnapshot(
     val businessName: String?,
     val vendorId: String?,
     val serviceEngagementIds: List<String>,
+    /** Resolved automatically for a single-engagement grant, or once explicitly selected. */
+    val engagement: ProductionEngagementSummary?,
+    /** True only when the grant has more than one engagement and none has been validly selected. */
+    val engagementSelectionRequired: Boolean,
+    val engagementOptions: List<ProductionEngagementSummary>,
     val permissions: List<String>,
     val platformRoles: List<String>,
     val wedding: ProductionWeddingSummary?,
@@ -51,6 +63,8 @@ sealed interface ProductionWorkspaceFetch {
     data class Success(val workspace: ProductionWorkspaceSnapshot) : ProductionWorkspaceFetch
     object SessionInvalid : ProductionWorkspaceFetch
     object GrantRevoked : ProductionWorkspaceFetch
+    /** The selected engagement is no longer part of this (still-valid) grant. */
+    object EngagementInvalid : ProductionWorkspaceFetch
     data class Transport(val status: Int) : ProductionWorkspaceFetch
 }
 
@@ -110,17 +124,23 @@ class ProductionAuthorityClient(
 
         return ProductionAuthorityFetch.Success(authority)
     }
-    suspend fun fetchWorkspace(sessionToken: String, grantId: String): ProductionWorkspaceFetch {
+    suspend fun fetchWorkspace(
+        sessionToken: String,
+        grantId: String,
+        engagementId: String? = null,
+    ): ProductionWorkspaceFetch {
         val encodedGrant = URLEncoder.encode(grantId, Charsets.UTF_8.name())
+        val engagementParam = engagementId?.let { "&engagementId=${URLEncoder.encode(it, Charsets.UTF_8.name())}" } ?: ""
         val response = runCatching {
             transport.get(
-                "api/native/account/workspace?grantId=$encodedGrant",
+                "api/native/account/workspace?grantId=$encodedGrant$engagementParam",
                 mapOf("Authorization" to "Bearer $sessionToken"),
             )
         }.getOrElse { return ProductionWorkspaceFetch.Transport(-1) }
 
         if (response.status == 401) return ProductionWorkspaceFetch.SessionInvalid
         if (response.status == 403 || response.status == 404) return ProductionWorkspaceFetch.GrantRevoked
+        if (response.status == 422) return ProductionWorkspaceFetch.EngagementInvalid
         if (response.status !in 200..299) return ProductionWorkspaceFetch.Transport(response.status)
 
         return runCatching {
@@ -139,6 +159,12 @@ class ProductionAuthorityClient(
                     coupleNames = it.getString("coupleNames"),
                 )
             }
+            fun engagement(o: JSONObject) = ProductionEngagementSummary(
+                id = o.getString("id"),
+                serviceCategory = o.getString("serviceCategory"),
+                serviceDescription = o.optString("serviceDescription").takeIf { !o.isNull("serviceDescription") && it.isNotBlank() },
+                lifecycleStatus = o.getString("lifecycleStatus"),
+            )
             ProductionWorkspaceFetch.Success(
                 ProductionWorkspaceSnapshot(
                     grantId = root.getString("grantId"),
@@ -152,6 +178,11 @@ class ProductionAuthorityClient(
                     serviceEngagementIds = root.getJSONArray("serviceEngagementIds").let { array ->
                         (0 until array.length()).map { array.getString(it) }
                     },
+                    engagement = root.optJSONObject("engagement")?.let(::engagement),
+                    engagementSelectionRequired = root.optBoolean("engagementSelectionRequired", false),
+                    engagementOptions = root.optJSONArray("engagementOptions")?.let { array ->
+                        (0 until array.length()).map { engagement(array.getJSONObject(it)) }
+                    } ?: emptyList(),
                     permissions = root.getJSONArray("permissions").let { array ->
                         (0 until array.length()).map { array.getString(it) }
                     },
@@ -163,5 +194,4 @@ class ProductionAuthorityClient(
             )
         }.getOrElse { ProductionWorkspaceFetch.Transport(response.status) }
     }
-
 }
