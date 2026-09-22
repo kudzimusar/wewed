@@ -362,19 +362,7 @@ class SessionViewModel(
             }
             is ProductionWorkspaceFetch.SessionInvalid -> clearAccountSession()
             is ProductionWorkspaceFetch.GrantRevoked -> {
-                val revoked = _activeGrantId.value
-                _productionWorkspace.value = null
-                _activeGrantId.value = null
-                _currentRole.value = null
-                _currentUserRole.value = null
-                _weddingId.value = null
-                _weddingTitle.value = null
-                _selectedEngagementId.value = null
-                if (revoked != null) {
-                    val next = _selectedGrantIds.value - revoked
-                    _selectedGrantIds.value = next
-                    persistSelectedGrantIds(next)
-                }
+                handleNativeDomainGrantRevoked(_activeGrantId.value)
                 // Do not guess a replacement from stale authority. A fresh authority fetch on the
                 // next restore/refresh decides what remains.
             }
@@ -469,6 +457,33 @@ class SessionViewModel(
             storage.save(selectedGrantsOwnerKey, owner)
             storage.save(selectedGrantsKey, ids.joinToString(","))
         }
+    }
+
+    /** Phase 8 domain calls share the same identity lifecycle as the account workspace probe. */
+    internal fun handleNativeDomainSessionInvalid() {
+        clearAccountSession()
+    }
+
+    /**
+     * Clears only the rejected grant/context. Permission denials and resource-level 404s must never
+     * call this; the native domain client invokes it only for an explicit GRANT_REVOKED or
+     * AUTHORITY_UNAVAILABLE server code.
+     */
+    internal fun handleNativeDomainGrantRevoked(grantId: String?) {
+        if (grantId == null) return
+        val next = _selectedGrantIds.value - grantId
+        _selectedGrantIds.value = next
+        persistSelectedGrantIds(next)
+
+        if (_activeGrantId.value != grantId) return
+
+        _productionWorkspace.value = null
+        _activeGrantId.value = null
+        _currentRole.value = null
+        _currentUserRole.value = null
+        _weddingId.value = null
+        _weddingTitle.value = null
+        _selectedEngagementId.value = null
     }
 
     /** The identity session itself is no longer valid server-side: a full, unambiguous sign-out. */
