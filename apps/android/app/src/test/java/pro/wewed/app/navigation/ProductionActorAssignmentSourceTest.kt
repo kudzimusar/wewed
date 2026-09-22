@@ -41,6 +41,8 @@ class ProductionActorAssignmentSourceTest {
         weddingId: String? = null,
         weddingTitle: String? = null,
         businessAccountId: String? = null,
+        vendorId: String? = null,
+        serviceEngagementIds: List<String> = emptyList(),
     ): String = """
         {
           "grantId": "$grantId",
@@ -50,8 +52,8 @@ class ProductionActorAssignmentSourceTest {
           "weddingTitle": ${weddingTitle?.let { "\"$it\"" } ?: "null"},
           "coupleId": null,
           "businessAccountId": ${businessAccountId?.let { "\"$it\"" } ?: "null"},
-          "vendorId": null,
-          "serviceEngagementIds": [],
+          "vendorId": ${vendorId?.let { "\"$it\"" } ?: "null"},
+          "serviceEngagementIds": [${serviceEngagementIds.joinToString(",") { "\"$it\"" }}],
           "permissions": [],
           "platformRoles": []
         }
@@ -123,6 +125,57 @@ class ProductionActorAssignmentSourceTest {
         // an ActorAssignment: ProductionGrantMapper reports RequiresWeddingSelection, not Assigned.
         val withSelection = ProductionActorAssignmentSource(authority, selectedGrantIds = setOf("planner:portfolio:biz-1"))
         assertTrue(withSelection.assignments("user-1").isEmpty())
+    }
+
+    @Test
+    fun selectedVendorEngagementFlowsIntoActorAssignment() = runBlocking {
+        val authority = authority(
+            grants = "[${grant(
+                grantId = "vendor:wedding:biz-1:vendor-1",
+                workspaceKind = "vendor",
+                scopeKind = "wedding",
+                weddingId = "E",
+                businessAccountId = "biz-1",
+                vendorId = "vendor-1",
+                serviceEngagementIds = listOf("eng-1", "eng-2"),
+            )}]",
+        )
+        val source = ProductionActorAssignmentSource(
+            authority = authority,
+            selectedEngagementId = "eng-2",
+        )
+        assertEquals(
+            listOf(
+                ActorAssignment(
+                    actorId = "user-1",
+                    role = AppRole.VENDOR,
+                    weddingId = "E",
+                    vendorId = "vendor-1",
+                    engagementId = "eng-2",
+                )
+            ),
+            source.assignments("user-1"),
+        )
+    }
+
+    @Test
+    fun foreignVendorEngagementFailsClosedAtAssignmentBoundary() = runBlocking {
+        val authority = authority(
+            grants = "[${grant(
+                grantId = "vendor:wedding:biz-1:vendor-1",
+                workspaceKind = "vendor",
+                scopeKind = "wedding",
+                weddingId = "E",
+                businessAccountId = "biz-1",
+                vendorId = "vendor-1",
+                serviceEngagementIds = listOf("eng-1", "eng-2"),
+            )}]",
+        )
+        val source = ProductionActorAssignmentSource(
+            authority = authority,
+            selectedEngagementId = "foreign-engagement",
+        )
+        assertTrue(source.assignments("user-1").isEmpty())
     }
 
     @Test
