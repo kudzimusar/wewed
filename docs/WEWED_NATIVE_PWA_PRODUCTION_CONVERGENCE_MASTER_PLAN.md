@@ -1277,6 +1277,104 @@ Phase gate:
 - Phase 4: **ACCEPTED**;
 - Phase 5: **READY TO BEGIN**.
 
+### D-017 — Phase 6 status (2026-09-22)
+**ACCEPTED — independent Rule-10 review passed after moderator-owned multi-account, engagement-context and test-qualification closure. Phase 7 may begin.**
+
+Accepted server branch:
+- `backend/multi-context-isolation-phase6-20260922`
+- final clean head after temporary qualification-workflow removal: `aa8fe5e02805afcf7f80184b71cb505caa5fe8f0`
+- implementation-agent head reviewed: `7ad797ae6f8b3d9ddd710b39f486680b93e9043c`
+- executable disposable-Postgres qualification head: `94b22c069d8f385ef52f5454b35634601cd47d20`
+
+Accepted native branch:
+- `native-mobile/multi-context-isolation-phase6-20260922`
+- final clean head after temporary native qualification-workflow removal: `d9fd25887b7b4425ffaf710b77bff64d5a148ef4`
+- implementation-agent head reviewed: `38988838f85d7e588df7ef713f6666bb1467551d`
+- final executable qualification head: `052113e7e464bbd115fdeee26b5c0d60aea837e8`
+
+Independent review accepted:
+- explicit context switching after a workspace is already active;
+- Planner switching across three genuine wedding grants A → B → C → A without signing out;
+- one selected grant per workspace kind, with ambiguous persisted same-kind state failing closed;
+- multi-role switching such as Couple ↔ Planner and Planner ↔ Admin/system without flattening authority to role strings;
+- Admin/system remaining wedding-less and clearing prior wedding-scoped state;
+- Coordinator remaining restricted to actual Coordinator wedding grants;
+- account identity retained separately from active context;
+- old workspace snapshot removed synchronously before a new context fetch can render;
+- transient workspace failure withholding data without destroying the identity credential;
+- revoked grants clearing active grant/role/wedding/context rather than guessing a replacement;
+- Guest remaining a separate authority/bootstrap path outside account context switching;
+- Shadow remaining unavailable as production authority.
+
+Moderator-owned defects found and closed:
+1. **Persisted context preference was not actually account-owned across process restart.**
+   - `wewed.account.selected-grants` had no verified-account owner.
+   - An ownerless/stale preference could be inherited by Account B if a grant-id string happened to collide.
+   - Android/iOS now persist the verified `accessUserId` alongside the grant selection; owner mismatch or legacy ownerless storage fails closed and requires reselection.
+   - Identity change, unusable authority and sign-out clear both selection and selection-owner state.
+2. **Vendor engagement selection did not reach navigation authority.**
+   - Session/workspace UI knew the selected engagement, but `ProductionActorAssignmentSource` still mapped the Vendor grant without `selectedEngagementId`.
+   - Android/iOS assignment-source factories now propagate the chosen engagement through `ProductionGrantMapper → ActorAssignment.engagementId → NavigationContext`.
+   - Foreign engagement ids fail closed.
+3. **iOS navigation-context refresh keyed only on selection count.**
+   - A same-count grant switch could leave the old resolved context alive.
+   - iOS now re-resolves on exact active grant, complete selected-grant set and engagement id; Android dependencies were synchronized.
+4. **Context switcher discarded safe presentation names.**
+   - The authority contract already carries `businessMemberships[].businessName` and `vendorEngagements[].vendorName`.
+   - Native decoders/switchers now use those presentation-only names where available rather than exposing raw ids. These fields remain non-authoritative.
+5. **Phase-6 Planner test did not literally prove A → B → C → A.**
+   - Reviewer strengthened Android/iOS fixtures to three genuine Planner wedding grants and pinned singular same-kind selection across the full cycle.
+6. **Reviewer qualification fixtures contained ordinary test defects.**
+   - Fixed invalid iOS Vendor-grant JSON construction/string interpolation.
+   - Fixed account-owned persisted-selection assertions that incorrectly assumed which unrelated legitimate axis must become initially active.
+   - These were test defects only; runtime authority remained fail closed.
+
+Vendor engagement result:
+- server workspace reads re-resolve `WewedProductionAuthorityV1` every time;
+- client-supplied `engagementId` is accepted only if it belongs to the freshly resolved Vendor grant;
+- one engagement may resolve deterministically;
+- multiple engagements require explicit choice;
+- invalid/revoked engagement clears engagement context/snapshot without revoking the still-valid wedding grant;
+- no production Vendor authority was invented and Phase-3 F-3 remains open.
+
+Server qualification:
+- temporary workflow used disposable PostgreSQL 16 only;
+- repository migrations applied successfully;
+- Phase-6 authority/workspace + carried-forward account/Guest regression suites: **129 pass / 0 fail**;
+- migrated-database Vendor engagement selection and foreign-engagement rejection executed rather than remaining source-only;
+- production-equivalent application build passed;
+- no production database, live account graph, production secret value or deployment was touched.
+
+Native qualification on `052113e7...`:
+- iOS `swift test`: **355 tests, 14 expected skips, 0 failures**;
+- iOS `swift build`: PASS;
+- XcodeGen project generation: PASS;
+- iOS simulator app build: PASS;
+- unsigned iOS Release/device build: PASS;
+- Android `testDebugUnitTest assembleDebug assembleRelease`: **BUILD SUCCESSFUL**;
+- exact Phase-6 switching/account-isolation/engagement tests passed on the qualification head.
+
+Carry-forward gates:
+- **F-3 Vendor production link gap remains open**; no synthetic production Vendor wedding grant was created.
+- **F-4 BusinessAccount subscription default remains open** and is now a direct Phase-7 onboarding/write-safety gate.
+- **F-6 legacy PWA global-admin hazard remains open** for Phase 12.
+- **`WEWED_SESSION_SECRET` remains an operational Preview/Production gate**; no secret value was read, created or rotated in Phase 6.
+- no merge to main, production deployment, schema mutation, Play/TestFlight publication, production data write, or WW2 activation was authorized or performed.
+
+Phase gate:
+- multi-wedding isolation: PASS;
+- multi-role isolation: PASS;
+- account A/B persisted-context isolation: PASS;
+- Admin system/wedding separation: PASS;
+- Coordinator wedding isolation: PASS;
+- Vendor engagement isolation: PASS;
+- Wedding A/B stale-data adversarial test: PASS;
+- Android/iOS symmetry: PASS;
+- Guest separation: PASS;
+- server-side revalidation: PASS;
+- Phase 6: **ACCEPTED**;
+- Phase 7: **READY TO BEGIN**.
+
 ### D-016 — Phase 5 status (2026-09-22)
 **ACCEPTED — independent Rule-10 review passed after reviewer-owned activation, isolation, and read-only data closure. Phase 6 may begin.**
 
