@@ -89,7 +89,8 @@ final class ProductionActorAssignmentSourceTests: XCTestCase {
             authority: authority,
             selectedGrantIds: ["planner:wedding:A", "planner:wedding:B"]
         )
-        XCTAssertTrue(await source.assignments(actorId: "user-1").isEmpty)
+        let assignments = await source.assignments(actorId: "user-1")
+        XCTAssertTrue(assignments.isEmpty)
     }
 
     func testASelectedGrantThatNoLongerExistsHasNoEffect() async throws {
