@@ -5,8 +5,14 @@ process.env.WEWED_SESSION_SECRET = 'synthetic-session-v2-unit-test-only'
 const { createWeddingGuestSessionToken, verifyWeddingGuestSessionToken, guestSessionMatchesInvitation, weddingGuestSessionExpiry } = await import('./wedding-guest-session')
 const identity = { weddingId: 'synthetic-wedding', guestId: 'synthetic-guest', rsvpToken: 'private-invitation-fixture' }
 function signed(payload: object) {
+  return signedWith(process.env.WEWED_SESSION_SECRET!, payload)
+}
+function signedWith(secret: string, payload: object, domainPrefix = '') {
   const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url')
-  return `${encoded}.${createHmac('sha256', process.env.WEWED_SESSION_SECRET!).update(encoded).digest('base64url')}`
+  const signer = createHmac('sha256', secret)
+  if (domainPrefix) signer.update(`${domainPrefix}\0${encoded}`, 'utf8')
+  else signer.update(encoded)
+  return `${encoded}.${signer.digest('base64url')}`
 }
 describe('guest session v2 security', () => {
   test('issues v2 without embedding the original invitation credential', () => {
@@ -59,6 +65,62 @@ describe('guest session v2 security', () => {
       else delete process.env.SUPABASE_SERVICE_ROLE_KEY
     }
   })
+  test('secret rotation preserves only legacy v1 cookie formats while v2 requires the dedicated signer', async () => {
+    const { verifyWeddingGuestPortfolioToken } = await import('./wedding-guest-portfolio')
+    const { verifyWeddingSharedInvitationSessionToken } = await import('./wedding-shared-invitation-session')
+    const origEnv = process.env.NODE_ENV
+    const origSecret = process.env.WEWED_SESSION_SECRET
+    const origSupa = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const legacySecret = 'historical-service-role-signer'
+    const dedicatedSecret = 'dedicated-session-v2-signer'
+    try {
+      process.env.NODE_ENV = 'production'
+      process.env.WEWED_SESSION_SECRET = dedicatedSecret
+      process.env.SUPABASE_SERVICE_ROLE_KEY = legacySecret
+      const expiresAt = Date.now() + 60_000
+
+      const legacyGuest = signedWith(legacySecret, { version: 1, ...identity, expiresAt })
+      expect(verifyWeddingGuestSessionToken(legacyGuest)?.version).toBe(1)
+
+      const legacyPortfolio = signedWith(
+        legacySecret,
+        {
+          version: 1,
+          activeWeddingId: identity.weddingId,
+          entries: [{
+            weddingId: identity.weddingId,
+            weddingSlug: 'synthetic',
+            guestId: identity.guestId,
+            invitationCardStyle: 'ivory-floral-gold',
+            lastUsedAt: Date.now(),
+          }],
+          expiresAt,
+        },
+        'wedding-guest-portfolio:v1',
+      )
+      expect(verifyWeddingGuestPortfolioToken(legacyPortfolio)?.activeWeddingId).toBe(identity.weddingId)
+
+      const legacyShared = signedWith(legacySecret, {
+        version: 1,
+        weddingId: identity.weddingId,
+        destinationId: 'physical-card',
+        expiresAt,
+      })
+      expect(verifyWeddingSharedInvitationSessionToken(legacyShared)?.weddingId).toBe(identity.weddingId)
+
+      const v2Payload = JSON.parse(
+        Buffer.from(createWeddingGuestSessionToken(identity).split('.')[0], 'base64url').toString(),
+      )
+      const legacySignedV2 = signedWith(legacySecret, v2Payload)
+      expect(verifyWeddingGuestSessionToken(legacySignedV2)).toBeNull()
+    } finally {
+      process.env.NODE_ENV = origEnv
+      process.env.WEWED_SESSION_SECRET = origSecret
+      if (origSupa) process.env.SUPABASE_SERVICE_ROLE_KEY = origSupa
+      else delete process.env.SUPABASE_SERVICE_ROLE_KEY
+    }
+  })
+
   test('shared invitation session strictly requires dedicated WEWED_SESSION_SECRET in production', async () => {
     const { createWeddingSharedInvitationSessionToken } = await import('./wedding-shared-invitation-session')
     const origEnv = process.env.NODE_ENV
