@@ -15,14 +15,14 @@ class Phase3Rollback extends Error {
   }
 }
 
-interface DatabaseIdentityRow {
+type DatabaseIdentity = {
   databaseName: string
   currentUser: string
   sessionUser: string
   serverVersion: string
 }
 
-interface RoleRow {
+type RoleIdentity = {
   roleName: string
   canLogin: boolean
   superuser: boolean
@@ -30,14 +30,15 @@ interface RoleRow {
   inherit: boolean
 }
 
-interface RequiredObjectRow {
+type RequiredObject = {
   objectName: string
   regclass: string | null
 }
 
-interface SchemaPrivilegeRow {
-  schemaName: string
-  hasUsage: boolean
+type Phase3IdentityAudit = {
+  database: DatabaseIdentity | null
+  role: RoleIdentity | null
+  requiredObjects: RequiredObject[]
 }
 
 function previewOnly(request: NextRequest): boolean {
@@ -50,15 +51,12 @@ function previewOnly(request: NextRequest): boolean {
 }
 
 /**
- * Temporary Phase-3 identity/catalog preflight.
+ * Temporary Phase-3 identity bridge.
  *
- * Safety properties:
- * - exact Preview branch only; production returns 404;
- * - DATABASE_URL is parsed in memory and never returned with password/query string;
- * - no SQL is attempted unless the Supabase project ref matches Wewed;
- * - every database statement runs after SET TRANSACTION READ ONLY;
- * - the transaction is deliberately rolled back;
- * - queries are hardcoded SELECT/catalog reads only.
+ * It exists only on the exact Phase-3 Vercel Preview branch. DATABASE_URL is parsed in memory and
+ * never logged or returned. SQL is impossible unless the URL itself fingerprints to the repository
+ * expected Wewed Supabase ref. The SQL is hard-coded SELECT-only, inside a READ ONLY transaction,
+ * and the callback deliberately throws a sentinel so Prisma rolls it back.
  */
 export async function GET(request: NextRequest) {
   if (!previewOnly(request)) {
@@ -92,38 +90,55 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  let audit: {
-    database: DatabaseIdentityRow | null
-    applicationRole: RoleRow | null
-    schemaPrivileges: SchemaPrivilegeRow[]
-    requiredObjects: RequiredObjectRow[]
-  } | null = null
+  let audit: Phase3IdentityAudit | null = null
 
   try {
     await db.$transaction(
       async (tx) => {
         await tx.$executeRawUnsafe('SET TRANSACTION READ ONLY')
 
-        const identityRows = await tx.$queryRawUnsafe<DatabaseIdentityRow[]>(
-          'SELECT current_database() AS "databaseName", current_user AS "currentUser", session_user AS "sessionUser", current_setting(\'server_version\') AS "serverVersion"',
-        )
+        const databaseRows = await tx.$queryRawUnsafe<DatabaseIdentity[]>(`
+          SELECT
+            current_database() AS "databaseName",
+            current_user AS "currentUser",
+            session_user AS "sessionUser",
+            current_setting('server_version') AS "serverVersion"
+        `)
 
-        const roleRows = await tx.$queryRawUnsafe<RoleRow[]>(
-          'SELECT rolname AS "roleName", rolcanlogin AS "canLogin", rolsuper AS superuser, rolbypassrls AS "bypassRls", rolinherit AS inherit FROM pg_roles WHERE rolname = current_user',
-        )
+        const roleRows = await tx.$queryRawUnsafe<RoleIdentity[]>(`
+          SELECT
+            rolname AS "roleName",
+            rolcanlogin AS "canLogin",
+            rolsuper AS superuser,
+            rolbypassrls AS "bypassRls",
+            rolinherit AS inherit
+          FROM pg_roles
+          WHERE rolname = current_user
+        `)
 
-        const schemaPrivileges = await tx.$queryRawUnsafe<SchemaPrivilegeRow[]>(
-          "SELECT schema_name AS \"schemaName\", has_schema_privilege(current_user, schema_name, 'USAGE') AS \"hasUsage\" FROM (VALUES ('public'), ('wewed_admin'), ('wewed_booking'), ('private')) AS wanted(schema_name) ORDER BY schema_name",
-        )
-
-        const requiredObjects = await tx.$queryRawUnsafe<RequiredObjectRow[]>(
-          "SELECT object_name AS \"objectName\", to_regclass(object_name)::text AS regclass FROM (VALUES ('public.\"User\"'), ('public.\"UserProfile\"'), ('public.\"Couple\"'), ('public.\"Wedding\"'), ('public.\"WeddingMembership\"'), ('public.\"BusinessAccount\"'), ('public.\"BusinessAccountMember\"'), ('public.\"BusinessAccountLink\"'), ('public.\"ProviderProfile\"'), ('public.\"Vendor\"'), ('public.\"ServiceEngagement\"'), ('wewed_admin.\"PlatformAdministrator\"'), ('wewed_admin.\"PlatformAdministratorScope\"')) AS wanted(object_name) ORDER BY object_name",
-        )
+        const requiredObjects = await tx.$queryRawUnsafe<RequiredObject[]>(`
+          SELECT object_name AS "objectName", to_regclass(object_name)::text AS regclass
+          FROM (VALUES
+            ('public."User"'),
+            ('public."UserProfile"'),
+            ('public."Couple"'),
+            ('public."Wedding"'),
+            ('public."WeddingMembership"'),
+            ('public."BusinessAccount"'),
+            ('public."BusinessAccountMember"'),
+            ('public."BusinessAccountLink"'),
+            ('public."ProviderProfile"'),
+            ('public."Vendor"'),
+            ('public."ServiceEngagement"'),
+            ('wewed_admin."PlatformAdministrator"'),
+            ('wewed_admin."PlatformAdministratorScope"')
+          ) AS wanted(object_name)
+          ORDER BY object_name
+        `)
 
         audit = {
-          database: identityRows[0] ?? null,
-          applicationRole: roleRows[0] ?? null,
-          schemaPrivileges,
+          database: databaseRows[0] ?? null,
+          role: roleRows[0] ?? null,
           requiredObjects,
         }
 
@@ -136,7 +151,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          code: 'READ_ONLY_DATABASE_PREFLIGHT_FAILED',
+          code: 'READ_ONLY_IDENTITY_AUDIT_FAILED',
           fingerprint,
           databaseQueryExecuted: true,
         },
@@ -147,8 +162,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     success: true,
-    code: 'WEWED_PRODUCTION_DATABASE_IDENTIFIED',
-    phase: 3,
+    code: 'WEWED_DATABASE_IDENTITY_CONFIRMED',
     expectedProjectRef: EXPECTED_WEWED_SUPABASE_REF,
     fingerprint,
     databaseQueryExecuted: true,
