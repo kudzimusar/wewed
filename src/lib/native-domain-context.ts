@@ -46,26 +46,26 @@ export async function resolveNativeGrantContext(
 ): Promise<NativeGrantContextResult> {
   const session = readBearerNativeAccountSession(request)
   if (!session) {
-    return { ok: false, response: noStoreJson({ success: false, error: 'Your session is no longer valid.' }, 401) }
+    return { ok: false, response: noStoreJson({ success: false, code: 'SESSION_INVALID', error: 'Your session is no longer valid.' }, 401) }
   }
 
   const grantId = (options.grantIdOverride ?? request.nextUrl.searchParams.get('grantId'))?.trim() ?? ''
   if (!grantId) {
-    return { ok: false, response: noStoreJson({ success: false, error: 'A workspace grant is required.' }, 400) }
+    return { ok: false, response: noStoreJson({ success: false, code: 'GRANT_REQUIRED', error: 'A workspace grant is required.' }, 400) }
   }
 
   const authority = await resolveProductionAuthority(session.accessUserId, { authUserId: session.authUserId })
   if (authority.accountStatus !== 'authorized') {
-    return { ok: false, response: noStoreJson({ success: false, error: 'This account has no active workspace authority.' }, 403) }
+    return { ok: false, response: noStoreJson({ success: false, code: 'AUTHORITY_UNAVAILABLE', error: 'This account has no active workspace authority.' }, 403) }
   }
 
   const grant = authority.workspaceGrants.find((item) => item.grantId === grantId)
   if (!grant) {
-    return { ok: false, response: noStoreJson({ success: false, error: 'This workspace is no longer authorized.' }, 403) }
+    return { ok: false, response: noStoreJson({ success: false, code: 'GRANT_REVOKED', error: 'This workspace is no longer authorized.' }, 403) }
   }
 
   if (options.workspaceKind && grant.workspaceKind !== options.workspaceKind) {
-    return { ok: false, response: noStoreJson({ success: false, error: 'This workspace is no longer authorized.' }, 403) }
+    return { ok: false, response: noStoreJson({ success: false, code: 'GRANT_SCOPE_INVALID', error: 'This workspace is no longer authorized.' }, 403) }
   }
 
   return { ok: true, context: { session, authority, grant } }
@@ -84,7 +84,7 @@ export function requireGrantEngagement(
   if (!grant.serviceEngagementIds.includes(requestedEngagementId)) {
     return {
       ok: false,
-      response: noStoreJson({ success: false, error: 'This engagement is not part of this workspace grant.' }, 422),
+      response: noStoreJson({ success: false, code: 'ENGAGEMENT_INVALID', error: 'This engagement is not part of this workspace grant.' }, 422),
     }
   }
   return { ok: true, engagementId: requestedEngagementId }
@@ -95,7 +95,7 @@ export function requireWeddingScope(
   grant: WorkspaceGrant,
 ): { ok: true; weddingId: string } | { ok: false; response: NextResponse } {
   if (grant.scopeKind !== 'wedding' || !grant.weddingId) {
-    return { ok: false, response: noStoreJson({ success: false, error: 'This workspace grant is not wedding-scoped.' }, 403) }
+    return { ok: false, response: noStoreJson({ success: false, code: 'GRANT_SCOPE_INVALID', error: 'This workspace grant is not wedding-scoped.' }, 403) }
   }
   return { ok: true, weddingId: grant.weddingId }
 }
@@ -118,7 +118,7 @@ export function requireGrantPermission(
   }
   return {
     ok: false,
-    response: noStoreJson({ success: false, error: `Forbidden — requires ${permission} permission.` }, 403),
+    response: noStoreJson({ success: false, code: 'PERMISSION_DENIED', error: `Forbidden — requires ${permission} permission.` }, 403),
   }
 }
 
@@ -136,13 +136,13 @@ export function requireGrantAdminPermission(
   permission: WewedAdminPermission,
 ): { ok: true } | { ok: false; response: NextResponse } {
   if (grant.workspaceKind !== 'admin' || grant.scopeKind !== 'system' || grant.platformRoles.length === 0) {
-    return { ok: false, response: noStoreJson({ success: false, error: 'This workspace grant is not admin-scoped.' }, 403) }
+    return { ok: false, response: noStoreJson({ success: false, code: 'GRANT_SCOPE_INVALID', error: 'This workspace grant is not admin-scoped.' }, 403) }
   }
   const permissions = resolveWewedAdminPermissions(grant.platformRoles[0])
   if (!hasWewedAdminPermission(permissions, permission)) {
     return {
       ok: false,
-      response: noStoreJson({ success: false, error: `This administrator role does not have ${permission} permission.` }, 403),
+      response: noStoreJson({ success: false, code: 'PERMISSION_DENIED', error: `This administrator role does not have ${permission} permission.` }, 403),
     }
   }
   return { ok: true }
