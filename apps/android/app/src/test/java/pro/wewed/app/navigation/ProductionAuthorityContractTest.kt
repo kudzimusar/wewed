@@ -62,6 +62,9 @@ class ProductionAuthorityContractTest {
             authority.grants.map { it.grantId }
         )
         assertEquals(listOf("guest", "usher_gate"), authority.unsupportedAuthorities)
+        assertEquals("Business planning-1", authority.businessNamesById["planning-1"])
+        assertEquals("Business vendor-1", authority.businessNamesById["vendor-1"])
+        assertEquals("Vendor F", authority.vendorNamesById["vendor-row-F"])
         assertTrue(ProductionGrantMapper.isUsable(authority))
     }
 
