@@ -290,4 +290,10 @@ public struct NativeDomainApiClient: Sendable {
     public func adminOverview(sessionToken: String, grantId: String) async -> NativeDomainFetch<NativeJSONObject> {
         await runGetObject("api/native/admin/overview", sessionToken: sessionToken, grantId: grantId)
     }
+
+    /// Master plan Phase 8 closure §11 — the same `loadContributionWorkspace` engine the PWA's
+    /// `/api/planner/contributions` uses, never a second client-recomputed funding truth.
+    public func contributions(sessionToken: String, grantId: String) async -> NativeDomainFetch<NativeJSONObject> {
+        await runGetObject("api/native/wedding/contributions", sessionToken: sessionToken, grantId: grantId)
+    }
 }

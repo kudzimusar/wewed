@@ -63,6 +63,13 @@ public final class AppState: ObservableObject, @unchecked Sendable {
     /// Nil by default. Isolated integration builds/tests may inject a manifest-backed runtime.
     public let weddingDayGate: WeddingDayGateOperations?
 
+    /// Master plan Phase 8 closure §B/§12 — never `ShadowAdminSystemRepository` in production.
+    /// Non-production keeps the existing Shadow-over-wedding-graph behavior unchanged; production
+    /// starts honestly unbound (`ProductionBoundaryAdminSystemRepository`) until a real
+    /// `admin:system` grant resolves and `bindProductionAdminRepository` swaps in
+    /// `ProductionAdminSystemRepository`.
+    public private(set) var adminRepository: AdminSystemRepositoryProtocol
+
     /// Master plan Phase 8 — rebinds this app state's domain repositories to real, grant-scoped
     /// production adapters once a wedding-scoped grant is active. Only ever called for
     /// `dataEnvironment == .production`; every other environment keeps its constructor-supplied
@@ -83,6 +90,15 @@ public final class AppState: ObservableObject, @unchecked Sendable {
             self.repository = wedding
         }
         self.plannerRepository = planner
+    }
+
+    /// Master plan Phase 8 closure §B — rebinds Admin to a real, grant-scoped production adapter.
+    public func bindProductionAdminRepository(_ admin: AdminSystemRepositoryProtocol) {
+        precondition(
+            dataEnvironment == .production,
+            "bindProductionAdminRepository is only valid for the PRODUCTION environment."
+        )
+        adminRepository = admin
     }
 
     public func bindActiveWedding(_ weddingId: String) {
@@ -207,6 +223,11 @@ public final class AppState: ObservableObject, @unchecked Sendable {
             self.repository = WeddingDayGateAwareRepository(base: repository, gate: weddingDayGate)
         } else {
             self.repository = repository
+        }
+        if dataEnvironment == .production {
+            self.adminRepository = ProductionBoundaryAdminSystemRepository()
+        } else {
+            self.adminRepository = ShadowAdminSystemRepository(weddingRepository: self.repository, environment: dataEnvironment)
         }
     }
 }

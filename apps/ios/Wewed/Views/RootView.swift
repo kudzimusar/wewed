@@ -175,6 +175,53 @@ public struct RootView: View {
         )
     }
 
+    /// Master plan Phase 8 closure §A — a real, grant-scoped repository for a Vendor business grant
+    /// (`workspaceKind == "vendor" && scopeKind == "business"`, no wedding ActorAssignment). Built
+    /// the same way as `bindProductionRepositoriesIfNeeded`'s client, but never touches the wedding
+    /// graph: it only ever calls `/api/native/vendor/{business,catalog,bookings}`.
+    private func vendorBusinessRepository(for snapshot: ProductionWorkspaceSnapshot) -> VendorBusinessRepositoryProtocol? {
+        guard let token = session.currentSessionToken(), let baseURL = appState.dataBaseURL else { return nil }
+        let client = NativeDomainApiClient(
+            baseURL: baseURL,
+            onSessionInvalid: {
+                Task { @MainActor in
+                    session.handleNativeDomainSessionInvalid()
+                }
+            },
+            onGrantRevoked: { revokedGrantId in
+                Task { @MainActor in
+                    session.handleNativeDomainGrantRevoked(revokedGrantId)
+                }
+            }
+        )
+        return ProductionVendorBusinessRepository(client: client, sessionToken: token, grantId: snapshot.grantId)
+    }
+
+    /// Master plan Phase 8 closure §B — reactively binds the real Admin adapter as soon as an
+    /// admin:system snapshot is available. Admin has no wedding, so this is keyed on the snapshot's
+    /// own workspaceKind rather than a weddingId (which is always nil/absent for this scope).
+    private func bindProductionAdminRepositoryIfNeeded() async {
+        guard appState.dataEnvironment == .production else { return }
+        guard let workspace = session.productionWorkspace, workspace.workspaceKind == "admin" else { return }
+        guard let token = session.currentSessionToken(), let baseURL = appState.dataBaseURL else { return }
+        let client = NativeDomainApiClient(
+            baseURL: baseURL,
+            onSessionInvalid: {
+                Task { @MainActor in
+                    session.handleNativeDomainSessionInvalid()
+                }
+            },
+            onGrantRevoked: { revokedGrantId in
+                Task { @MainActor in
+                    session.handleNativeDomainGrantRevoked(revokedGrantId)
+                }
+            }
+        )
+        appState.bindProductionAdminRepository(
+            ProductionAdminSystemRepository(client: client, sessionToken: token, grantId: workspace.grantId)
+        )
+    }
+
     public var body: some View {
         Group {
             // The Wewed animated splash is global: it plays on an icon launch, an invitation link,
@@ -246,7 +293,34 @@ public struct RootView: View {
             } else if session.isAuthenticated,
                       session.currentRole == nil,
                       session.activeGrantId != nil {
+                // Master plan Phase 8 closure §A — a Vendor business grant (scopeKind "business")
+                // gets its OWN real production shell (identity/catalog/offerings/bookings from
+                // /api/native/vendor/*), never the wedding graph, and never fabricated content. A
+                // Planner portfolio (scopeKind "portfolio") keeps the existing minimal snapshot —
+                // its own domains (Overview/Tasks/etc.) are already reachable once a real wedding
+                // is selected.
                 if let snapshot = session.productionWorkspace,
+                   snapshot.grantId == session.activeGrantId,
+                   snapshot.workspaceKind == "vendor",
+                   snapshot.scopeKind == "business" {
+                    if let vendorRepository = vendorBusinessRepository(for: snapshot) {
+                        ProductionVendorBusinessContent(
+                            repository: vendorRepository,
+                            onSignOut: { session.signOut() },
+                            onSwitchContext: canSwitchProductionContext ? { showingContextSwitcher = true } : nil
+                        )
+                    } else {
+                        VStack(spacing: 8) {
+                            Text("This authorized workspace could not be refreshed.")
+                            Text("No cached production data is shown.")
+                                .font(.system(size: 12))
+                                .foregroundStyle(WeddingIdentityPalette.muted)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(WeddingIdentityPalette.ivory)
+                        .accessibilityIdentifier("production-workspace-unavailable")
+                    }
+                } else if let snapshot = session.productionWorkspace,
                    snapshot.grantId == session.activeGrantId {
                     ProductionReadOnlyWorkspaceContent(
                         snapshot: snapshot,
@@ -339,6 +413,9 @@ public struct RootView: View {
         .task(id: "\(session.productionWorkspace?.grantId ?? "")|\(session.productionWorkspace?.weddingId ?? "")") {
             await bindProductionRepositoriesIfNeeded()
         }
+        .task(id: "\(session.productionWorkspace?.workspaceKind ?? "")|\(session.productionWorkspace?.grantId ?? "")") {
+            await bindProductionAdminRepositoryIfNeeded()
+        }
         // Attached at the outer level so it works from both authenticated production surfaces: the
         // role-shell workspace and the Planner-portfolio/Vendor-business read-only landing.
         .sheet(isPresented: $showingContextSwitcher) {
@@ -403,18 +480,23 @@ public struct RootView: View {
         let handled: () -> Void = { appState.pendingRouteDeepLink = nil }
 
         if appState.dataEnvironment == .production {
-            // Master plan Phase 8 — Couple/Planner/Coordinator now render through the SAME real
-            // role shells every other environment uses, backed by the ProductionWeddingRepository/
-            // ProductionPlannerDashboardRepository bound by `bindProductionRepositoriesIfNeeded()`.
-            // Vendor/Usher/Admin/Guest reaching this point (e.g. a Vendor's wedding-engagement
-            // grant) still render the Phase 5/6 minimal read-only snapshot below — their
-            // mature-domain native UI is not wired yet, and falling back to it here is an honest
-            // "not yet" rather than a broken real shell.
-            let productionRoleWired: [AppRole] = [.couple, .planner, .coordinator]
+            // Master plan Phase 8 closure — Couple/Planner/Coordinator/Admin now render through the
+            // SAME real role shells every other environment uses, backed by the production
+            // repositories bound above (Admin's own admin:system binding is
+            // `bindProductionAdminRepositoryIfNeeded()`). Vendor/Usher/Guest reaching this point
+            // (e.g. a Vendor's wedding-engagement grant) still render the Phase 5/6 minimal
+            // read-only snapshot below — that mature-domain native UI is not wired yet, and falling
+            // back to it here is an honest "not yet" rather than a broken real shell.
+            let productionRoleWired: [AppRole] = [.couple, .planner, .coordinator, .admin]
             if productionRoleWired.contains(context.activeRole) {
+                // Admin has no wedding, so its snapshot's weddingId is always nil while
+                // context.activeWeddingId defaults to "" — the same escape hatch Couple/Planner/
+                // Coordinator do not need, since they always have a real wedding to match against.
+                let weddingScopeMatches = context.activeRole == .admin
+                    || session.productionWorkspace?.weddingId == context.activeWeddingId
                 if let snapshot = session.productionWorkspace,
                    snapshot.grantId == session.activeGrantId,
-                   snapshot.weddingId == context.activeWeddingId {
+                   weddingScopeMatches {
                     switch context.activeRole {
                     case .couple:
                         CoupleShellView(
@@ -432,6 +514,13 @@ public struct RootView: View {
                         )
                     case .coordinator:
                         CoordinatorShellView(
+                            context: context,
+                            onSwitchPersona: switchPersona,
+                            pendingDeepLink: link,
+                            onDeepLinkHandled: handled
+                        )
+                    case .admin:
+                        AdminShellView(
                             context: context,
                             onSwitchPersona: switchPersona,
                             pendingDeepLink: link,

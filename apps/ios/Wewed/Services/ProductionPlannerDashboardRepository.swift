@@ -8,12 +8,14 @@ import Foundation
 /// portfolio case rather than fabricating a wedding, matching master plan §9 ("A Planner portfolio
 /// with zero weddings must still work... must not fabricate a wedding").
 ///
-/// `getContributions`/`getDocuments` are UNSUPPORTED in this phase — porting the real funding-
-/// attribution/vault engines is tracked as separate remaining work, not approximated here. Each
+/// `getContributions` reads the SAME `loadContributionWorkspace` engine the PWA's
+/// `/api/planner/contributions` uses (via `/api/native/wedding/contributions`) — never a
+/// client-recomputed funding truth. `getDocuments` remains UNSUPPORTED in this phase — porting the
+/// real vault/document engine is tracked as separate remaining work, not approximated here. Each
 /// Planner destination view (`Views/Planner/ShadowPlannerDestinations.swift`) calls its own single
 /// repository method independently in its own `.task`, with no shared `try`/`catch` across sections,
-/// so returning an honest empty list here only affects that one section, never Tasks/Budget/Seating/
-/// Timeline/Vendors.
+/// so returning an honest empty list for an unwired domain only affects that one section, never
+/// Tasks/Budget/Seating/Timeline/Vendors.
 public struct ProductionPlannerDashboardRepository: PlannerDashboardRepositoryProtocol {
     private let client: NativeDomainApiClient
     private let sessionToken: String
@@ -99,7 +101,36 @@ public struct ProductionPlannerDashboardRepository: PlannerDashboardRepositoryPr
         }
     }
 
-    public func getContributions() async throws -> [PlannerContributionRecord] { [] }
+    public func getContributions() async throws -> [PlannerContributionRecord] {
+        // Master plan Phase 8 closure §11 — matches the established Budget/Seating/Timeline/Vendor
+        // pattern: this repository is only ever consulted once a real wedding-scoped grant has
+        // rendered a role shell (a Planner-portfolio grant never reaches this call at all — it stays
+        // on the earlier no-role production branch), so a transport/permission failure here is a
+        // genuine live-domain failure, never an honest "zero contributions" to fabricate.
+        guard case let .success(root) = await client.contributions(sessionToken: sessionToken, grantId: grantId) else {
+            throw ProductionReadOnlyDomainError.unavailable
+        }
+        return (root.wwArray("data") ?? []).map { item in
+            let allocatedAmount = item.wwDouble("allocatedAmount") ?? 0
+            let verificationState = item.wwString("verificationState") ?? ""
+            let rawType = item.wwString("type") ?? ""
+            let lowered = rawType.replacingOccurrences(of: "_", with: " ").lowercased()
+            let typeLabel = lowered.isEmpty ? lowered : lowered.prefix(1).uppercased() + lowered.dropFirst()
+            let statusLabel = [item.wwString("commitmentState"), item.wwString("fulfillmentState")]
+                .compactMap { $0 }
+                .filter { !$0.isEmpty }
+                .joined(separator: " · ")
+            return PlannerContributionRecord(
+                id: item.wwRequiredString("id"),
+                contributorLabel: item.wwObject("contributor")?.wwString("displayName") ?? "Unknown contributor",
+                typeLabel: typeLabel,
+                value: item.wwDouble("amount") ?? 0,
+                statusLabel: statusLabel,
+                allocationLabel: allocatedAmount > 0 ? "Allocated \(allocatedAmount)" : "Unallocated",
+                verified: ["CONFIRMED_BY_USER", "EVIDENCE_ATTACHED", "RECONCILED"].contains(verificationState)
+            )
+        }
+    }
 
     public func getVendorEngagements() async throws -> [PlannerVendorEngagement] {
         guard case let .success(array) = await client.vendors(sessionToken: sessionToken, grantId: grantId) else { throw ProductionReadOnlyDomainError.unavailable }

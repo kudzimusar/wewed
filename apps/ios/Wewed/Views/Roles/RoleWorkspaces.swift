@@ -1100,11 +1100,15 @@ public struct AdminShellView: View {
 
     /// P0-13: Admin reads a system projection. The wedding graph is only consulted for surfaces
     /// that genuinely drill into a wedding.
+    ///
+    /// Master plan Phase 8 closure §B — this NEVER constructs `ShadowAdminSystemRepository`
+    /// directly for PRODUCTION anymore. `appState.adminRepository` is
+    /// `ProductionBoundaryAdminSystemRepository` (honestly unbound) until `RootView`'s
+    /// production-domain binder resolves a real `admin:system` grant and swaps in
+    /// `ProductionAdminSystemRepository`; every other environment still gets the existing
+    /// Shadow-over-wedding-graph behavior via that same property's constructor default.
     private var adminRepository: AdminSystemRepositoryProtocol {
-        ShadowAdminSystemRepository(
-            weddingRepository: appState.repository,
-            environment: appState.dataEnvironment
-        )
+        appState.adminRepository
     }
     public var body: some View {
         RoleShellScaffold(

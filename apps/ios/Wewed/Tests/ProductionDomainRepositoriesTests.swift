@@ -273,12 +273,35 @@ final class ProductionDomainRepositoriesTests: XCTestCase {
         XCTAssertEqual(vendors[0].contractStatus, "signed")
     }
 
-    func testContributionsAndDocumentsAreHonestEmptyNeverFabricated() async throws {
+    func testDocumentsIsHonestEmptyNeverFabricatedNoServerAdapterYet() async throws {
+        let repo = ProductionPlannerDashboardRepository(client: client(), sessionToken: token, grantId: grantId)
+        let documents = try await repo.getDocuments()
+        XCTAssertTrue(documents.isEmpty)
+    }
+
+    func testContributionsMapsRealRowsFromTheSameEngineThePWAUsesAndThrowsOnLiveFailure() async throws {
+        Stub.routes["api/native/wedding/contributions"] = Reply(status: 200, body: """
+            {"success":true,"count":1,"data":[{"id":"contrib-1","weddingId":"wed-1","type":"CASH_TO_COUPLE","amount":500.0,"commitmentState":"CONFIRMED","fulfillmentState":"RECEIVED","verificationState":"RECONCILED","allocatedAmount":250.0,"contributor":{"displayName":"Aunt Grace"}}],"summaryByCurrency":{},"counts":{}}
+            """)
         let repo = ProductionPlannerDashboardRepository(client: client(), sessionToken: token, grantId: grantId)
         let contributions = try await repo.getContributions()
-        let documents = try await repo.getDocuments()
-        XCTAssertTrue(contributions.isEmpty)
-        XCTAssertTrue(documents.isEmpty)
+        XCTAssertEqual(contributions.count, 1)
+        XCTAssertEqual(contributions[0].contributorLabel, "Aunt Grace")
+        XCTAssertEqual(contributions[0].typeLabel, "Cash to couple")
+        XCTAssertEqual(contributions[0].value, 500.0, accuracy: 0.001)
+        XCTAssertTrue(contributions[0].verified)
+        XCTAssertTrue(contributions[0].allocationLabel.contains("Allocated"))
+
+        Stub.reset()
+        let failingRepo = ProductionPlannerDashboardRepository(client: client(), sessionToken: token, grantId: grantId)
+        do {
+            _ = try await failingRepo.getContributions()
+            XCTFail("Expected a live Contributions failure to throw instead of returning an empty list")
+        } catch is ProductionReadOnlyDomainError {
+            // Expected — matches the same "live failure never masquerades as empty" rule as Budget.
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
     }
 
     func testGetDashboardNeverFabricatesAWeddingForAPortfolioGrant() async throws {
