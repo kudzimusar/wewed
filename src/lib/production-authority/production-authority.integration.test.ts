@@ -435,6 +435,76 @@ describeLocal('WewedProductionAuthorityV1 against a disposable migrated database
     expect(authority.businessLinks.map((l) => `${l.entityType}:${l.relationship}`).sort()).toEqual(['vendor:represents', 'wedding:serves'])
   })
 
+  test('Phase 6 native workspace endpoint revalidates Vendor engagement selection against the fresh grant', async () => {
+    const { GET } = await import('@/app/api/native/account/workspace/route')
+    const { createNativeAccountSessionToken } = await import('@/lib/native-account-session')
+    const { NextRequest } = await import('next/server')
+
+    const token = createNativeAccountSessionToken({
+      accessUserId: actors.vendor,
+      authUserId: `auth-${actors.vendor}`,
+      email: `${actors.vendor}@example.test`,
+    })
+    const grantId = `vendor:wedding:${ids.V1}:${ids.vendorRowA}`
+
+    const call = async (engagementId?: string) => {
+      const url = new URL('http://localhost/api/native/account/workspace')
+      url.searchParams.set('grantId', grantId)
+      if (engagementId) url.searchParams.set('engagementId', engagementId)
+      return GET(new NextRequest(url, {
+        headers: { authorization: `Bearer ${token}` },
+      }))
+    }
+
+    // Two engagements: server must never auto-pick one.
+    const unresolved = await call()
+    expect(unresolved.status).toBe(200)
+    const unresolvedBody = await unresolved.json()
+    expect(unresolvedBody.workspace.engagement).toBeNull()
+    expect(unresolvedBody.workspace.engagementSelectionRequired).toBe(true)
+    expect(unresolvedBody.workspace.engagementOptions.map((option: { id: string }) => option.id).sort())
+      .toEqual([ids.seA1, ids.seA2].sort())
+
+    // Explicit selection is accepted only because it belongs to the freshly-resolved grant.
+    const selected = await call(ids.seA2)
+    expect(selected.status).toBe(200)
+    const selectedBody = await selected.json()
+    expect(selectedBody.workspace.engagement.id).toBe(ids.seA2)
+    expect(selectedBody.workspace.engagementSelectionRequired).toBe(false)
+
+    // A real engagement belonging to ANOTHER Vendor/business is still foreign to this grant.
+    const foreign = await call(ids.canonicalSe)
+    expect(foreign.status).toBe(422)
+    expect(await foreign.json()).toEqual({
+      success: false,
+      error: 'This engagement is not part of this workspace grant.',
+    })
+  })
+
+  test('Phase 6 native workspace endpoint auto-resolves exactly one real Vendor engagement', async () => {
+    const { GET } = await import('@/app/api/native/account/workspace/route')
+    const { createNativeAccountSessionToken } = await import('@/lib/native-account-session')
+    const { NextRequest } = await import('next/server')
+
+    const token = createNativeAccountSessionToken({
+      accessUserId: actors.canonicalVendor,
+      authUserId: `auth-${actors.canonicalVendor}`,
+      email: `${actors.canonicalVendor}@example.test`,
+    })
+    const grantId = `vendor:wedding:${ids.canonicalBusiness}:${ids.canonicalVendorRow}`
+    const url = new URL('http://localhost/api/native/account/workspace')
+    url.searchParams.set('grantId', grantId)
+
+    const response = await GET(new NextRequest(url, {
+      headers: { authorization: `Bearer ${token}` },
+    }))
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.workspace.engagement.id).toBe(ids.canonicalSe)
+    expect(body.workspace.engagementSelectionRequired).toBe(false)
+    expect(body.workspace.engagementOptions).toEqual([])
+  })
+
   test('Vendor: an unrecognised vendor-link relationship is denied', async () => {
     const authority = await resolve(actors.unknownLinkVendor)
     expect(authority.workspaceGrants.map((g) => g.grantId)).toEqual([`vendor:business:${ids.VU}`])
