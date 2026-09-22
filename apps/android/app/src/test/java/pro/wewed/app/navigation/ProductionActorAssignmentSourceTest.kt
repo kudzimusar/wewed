@@ -86,6 +86,22 @@ class ProductionActorAssignmentSourceTest {
     }
 
     @Test
+    fun twoSelectedGrantsOfTheSameKindFailClosed() = runBlocking {
+        val authority = authority(
+            grants = "[" +
+                grant("planner:wedding:A", "planner", "wedding", weddingId = "A") + "," +
+                grant("planner:wedding:B", "planner", "wedding", weddingId = "B") +
+                "]",
+            contextSelection = """[{"workspaceKind":"planner","grantIds":["planner:wedding:A","planner:wedding:B"],"selectionRequired":true}]""",
+        )
+        val source = ProductionActorAssignmentSource(
+            authority,
+            selectedGrantIds = setOf("planner:wedding:A", "planner:wedding:B"),
+        )
+        assertTrue(source.assignments("user-1").isEmpty())
+    }
+
+    @Test
     fun aSelectedGrantThatNoLongerExistsHasNoEffect() = runBlocking {
         // Only grant A remains in this fresh authority; the previously-selected B has been revoked
         // (or never existed). The source must never invent an assignment for it.
