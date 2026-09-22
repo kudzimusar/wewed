@@ -10,6 +10,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import pro.wewed.app.models.AppRole
 import pro.wewed.app.models.NativeDeepLink
+import pro.wewed.app.models.NativeDataEnvironment
 import kotlinx.coroutines.launch
 import pro.wewed.app.navigation.IANavigationContract
 import pro.wewed.app.navigation.NavigationContext
@@ -113,25 +114,38 @@ private fun PlannerClientsSection(
     // states are not invented (playbook §8 — "Never fabricate a PlannerEngagement").
     when (section) {
         "Active Weddings" -> IASectionList("Active Weddings", "Weddings in your planner scope") {
-            // P0-13: the Private Real Shadow snapshot contains no PlannerEngagement. The planner
-            // relationship is an accepted enquiry against a profile whose status is suspended, so
-            // calling it an "active engagement" would invent a production relationship.
-            IACard(
-                title = context.activeWeddingTitle,
-                subtitle = "Accepted enquiry — no planner engagement record exists",
-                trailing = if (context.assignment?.isShadowTestAccess == true) "Test access only" else null,
-                status = "Shadow test authorization",
-                testTag = "planner-active-client"
-            )
-            IACard(
-                title = "Engagement record",
-                subtitle = "No PlannerEngagement or WeddingMembership exists for this wedding",
-                trailing = "Absent"
-            )
+            if (context.environment == NativeDataEnvironment.PRODUCTION) {
+                // Production authority already proves this exact wedding relationship. Do not
+                // carry Shadow-specific enquiry/profile claims into the live workspace.
+                IACard(
+                    title = context.activeWeddingTitle,
+                    subtitle = "Current authorized wedding workspace",
+                    status = "Live Wewed authority",
+                    testTag = "planner-active-client"
+                )
+            } else {
+                // P0-13: the Private Real Shadow snapshot contains no PlannerEngagement. The
+                // Shadow qualification relationship is deliberately described as test evidence.
+                IACard(
+                    title = context.activeWeddingTitle,
+                    subtitle = "Accepted enquiry — no planner engagement record exists",
+                    trailing = if (context.assignment?.isShadowTestAccess == true) "Test access only" else null,
+                    status = "Shadow test authorization",
+                    testTag = "planner-active-client"
+                )
+                IACard(
+                    title = "Engagement record",
+                    subtitle = "No PlannerEngagement or WeddingMembership exists for this wedding",
+                    trailing = "Absent"
+                )
+            }
         }
         "Upcoming Weddings", "Enquiries", "Archived Weddings", "Team Assignment" -> IAUnsupportedSection(
             section,
-            "The native planner contract exposes only the active engagement. No $section records exist to read, and none are fabricated.",
+            if (context.environment == NativeDataEnvironment.PRODUCTION)
+                "The planner client-portfolio domain for $section is not connected to native production yet. No absence is inferred."
+            else
+                "The native qualification contract exposes only the active engagement. No $section records are fabricated.",
             context.environment
         )
         // One concept must have one route. This pointed at a static legacy screen whose
@@ -151,6 +165,18 @@ private fun PlannerDailyOpsSection(
     context: NavigationContext
 ) {
     if (graph.loading) return IALoading()
+    if (context.environment == NativeDataEnvironment.PRODUCTION) {
+        val unsupportedReason = when (section) {
+            "Today" -> "The planner attention/readiness aggregation is not connected to native production yet. Tasks and deadline views remain live."
+            "Vendor Follow-ups" -> "Planning-side vendors are live in Workspace, but vendor follow-up/arrival state is a separate domain and is not connected here."
+            "Team Activity" -> "The planner activity stream is not connected to native production yet. No empty activity history is inferred."
+            else -> null
+        }
+        if (unsupportedReason != null) {
+            IAUnsupportedSection(section, unsupportedReason, context.environment)
+            return
+        }
+    }
     // Daily Ops is an attention projection over canonical entities — it never copies them
     // into a second model (playbook §15).
     var dashboard by remember(context.activeWeddingId) {
