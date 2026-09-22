@@ -25,6 +25,12 @@ public struct ContextSwitcherSheet: View {
         let kind = grant.workspaceKindWire.prefix(1).uppercased() + grant.workspaceKindWire.dropFirst()
         if grant.scopeKind == .system { return "\(kind) · Wewed platform" }
         if let title = grant.weddingTitle { return "\(kind) · \(title)" }
+        if let vendorId = grant.vendorId, let vendorName = authority.vendorNamesById[vendorId] {
+            return "\(kind) · \(vendorName)"
+        }
+        if let businessId = grant.businessAccountId, let businessName = authority.businessNamesById[businessId] {
+            return "\(kind) · \(businessName)"
+        }
         if let business = grant.businessAccountId { return "\(kind) · \(business)" }
         return "\(kind) · \(grant.grantId)"
     }
