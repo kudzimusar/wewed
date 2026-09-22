@@ -3,29 +3,29 @@
 **Plan ID:** WW-NATIVE-PWA-CONVERGENCE-2026-09-22-01
 **Phase:** 3 — Global read-only production database audit
 **Branch:** `backend/production-database-audit-phase3-20260922`
-**Ending SHA:** `ea08bac4e4843d05f5b641510daf07016e338a6a`
-**Status:** IMPLEMENTATION COMPLETE — awaiting independent Rule-10 review. Not accepted. Phase 4 not started.
+**Audit evidence SHA:** `d4241650bdb398cdefc5bd377ba6265c32e11854`
+**Status:** INDEPENDENT RULE-10 REVIEW COMPLETE — ACCEPTED after reviewer-owned cleanup/corrections. Phase 4 may begin; it has not started.
 
 ## 1. Safety boundary
 
 This phase is read-only. Every finding below was produced by hard-coded `SELECT`/catalog queries run inside a single Postgres transaction, opened with `SET TRANSACTION READ ONLY`, executed once, and then deliberately rolled back by the calling code (a sentinel error is thrown after the queries complete, so Prisma's `$transaction` never commits). No `INSERT`, `UPDATE`, `DELETE`, `UPSERT`, DDL, `GRANT`/`REVOKE`, migration application, secret rotation, or data repair was executed at any point in this phase.
 
-The temporary audit route (`/api/uat/phase3/database-audit`):
-- returns 404 unless `VERCEL_ENV === 'preview'` **and** `VERCEL_GIT_COMMIT_REF` is exactly this branch **and** the request host ends in `.vercel.app` **and** a fixed audit token is present in the query string;
-- parses `DATABASE_URL` in memory only, and never returns or logs the password, the query string, or the full connection string — only host, database name, connection username, and the derived Supabase project ref;
-- refuses to run any SQL at all unless that fingerprint matches the expected Wewed Supabase project ref `kjigkhjdeymukwradoqu`;
-- accepts no request-supplied SQL — every query is a literal string in the route source;
-- is still present in the repository (see §11).
+The temporary audit route (`/api/uat/phase3/database-audit`) was used only on the exact protected Preview branch. It fingerprinted `DATABASE_URL` in memory, refused SQL unless the expected Wewed project ref matched, accepted no request-supplied SQL, executed hard-coded reads under `SET TRANSACTION READ ONLY`, and rolled the transaction back. **The reviewer removed that route and its fingerprint helper/tests after validating the audit evidence.** No audit HTTP surface remains on the accepted Phase-3 branch.
 
 Every value reported below is either: a count, a distinct-value list, a boolean/version/constraint-definition catalog fact, or — for the contract probes in §10 — a grant **shape** (`workspaceKind` + `scopeKind` only). No row of customer data (name, email, phone, token, address, message body) was read or is reproduced anywhere in this document. Verified directly: both raw JSON responses returned zero matches for `postgres://`/`postgresql://`, `password`, `service_role`, `jwt`, `secret`, or an email-address pattern.
 
 ## 1.1 Phase-3 artifacts
 
-- `src/lib/phase3-database-fingerprint.ts` / `.test.ts` — safe `DATABASE_URL` parsing, never exposes the password or full string.
-- `src/lib/production-authority/resolver.ts` — accepted Phase-2 resolver, extended with an optional injectable query client (`ResolveAuthorityOptions.client`) so it can run inside the audit route's own read-only transaction; no change to its rules.
-- `src/app/api/uat/phase3/database-audit/route.ts` — the temporary, guarded, read-only bridge; `?scope=full` runs the complete audit in §4–16, the default (no `scope`) runs the original identity-only check.
-- `scripts/production-authority-catalog-preflight.sql` — the original standalone, rerunnable, `SELECT`-only reference script (identity/topology/RLS/policies/migration-ledger-summary/Usher-Gate discovery). Kept as-is; the additional queries added for this audit (role/permission distributions, business-link combinations, the vendor graph, multi-stakeholder counts, platform-admin parity, the legacy-admin hazard, global integrity, mature-domain counts) live in the route source, since several depend on data only reachable from inside the deployment (see §1).
-- This document.
+Final retained artifacts:
+- `scripts/production-authority-catalog-preflight.sql` — standalone, rerunnable, `SELECT`-only catalog reference.
+- This sanitized audit document.
+
+Temporary reviewer/agent audit scaffolding was removed at closure:
+- `src/app/api/uat/phase3/database-audit/route.ts`;
+- `src/lib/phase3-database-fingerprint.ts` and its test;
+- the audit-only injectable Prisma transaction client added to `src/lib/production-authority/resolver.ts`.
+
+The production-authority resolver has been restored byte-for-byte to the accepted Phase-2 implementation.
 
 ## 2. Database identity (positively confirmed)
 
@@ -102,9 +102,9 @@ Full list read directly (migration filenames are internal catalog metadata, not 
 | **UNRESOLVED** | `20260730173000_wewed_business_admin_console` |
 | FINISHED | `20260910110000_native_deferred_invitation_handoff` |
 
-**Finding F-2 (informational, explains F-3/F-4 — no action in this phase).** Production's `_prisma_migrations` ledger tracks only 11 of the repository's 98 migrations. This is not evidence that 87 migrations are "missing": the schema objects this audit directly observed (the `wewed_admin` schema, the four security-invoker views, RLS flags, the `PlatformAdministrator` CHECK constraint exactly matching the repository migration, real production data shaped exactly like the post-migration schema) are consistent with the full DDL history having been applied — almost certainly via `prisma db push` or direct SQL for most of it, with `prisma migrate deploy` (which writes ledger rows) used for only a handful of migrations. Ledger row **count** alone is therefore not a reliable signal of what schema state production is in; the row **content** for the one migration that matters most here is:
+**Finding F-2 (informational, informs migration hygiene).** Production's `_prisma_migrations` ledger tracks only 11 of the repository's 98 migration folders. That does **not** prove that 87 migrations are missing: the catalog directly contains objects/constraints consistent with later repository DDL. It does prove that migration-ledger history is incomplete as a source of truth. The mechanism by which unledgered DDL reached production (`prisma db push`, manually applied SQL, another deploy path, etc.) was **not established by this audit** and must not be asserted as fact.
 
-**Finding F-3 (MEDIUM severity — Phase 5/8 blocker input, not a Phase 3 blocker).** `20260730173000_wewed_business_admin_console` — the exact migration that creates the `wewed_admin` schema, the four compatibility views, `PlatformAdministrator`/`PlatformAdministratorScope`, **and** the one-time backfill that creates `BusinessAccountLink(entityType='vendor', relationship='represents')` + `BusinessAccountLink(entityType='wedding', relationship='serves')` for every pre-existing `Vendor` row — is recorded as **UNRESOLVED** (`finished_at IS NULL`, not rolled back). Its DDL and its `couple/owns`, `wedding/owns`, and `venue/hosts` backfills clearly did take effect (§6). Its `vendor/represents` and `wedding/serves` backfill produced **zero** rows (§7). The most consistent explanation, given every other backfill in the same migration file succeeded: production's `Vendor` table held **zero rows** at the moment this migration ran, so the vendor-link backfill correctly had nothing to copy — and the ledger's `finished_at` was simply never written (a known consequence of applying a migration by a path other than a clean `prisma migrate deploy`, e.g. a manual SQL apply or an interrupted deploy after the DDL committed). Recommended for a later phase (never in Phase 3): (a) verify this interpretation with the actual `_prisma_migrations.logs` column or deployment history if available; (b) once verified safe, resolve the ledger row (`prisma migrate resolve --applied ...`) so a future `prisma migrate deploy` does not attempt to re-run it; (c) decide, as part of Phase 5/8, whether a new backfill or a live code path is needed to create `BusinessAccountLink(vendor)` rows for `Vendor`s created since.
+**Finding F-3 (MEDIUM severity — Phase 5/8 blocker input, not a Phase 3 blocker).** `20260730173000_wewed_business_admin_console` is recorded as **UNRESOLVED** (`finished_at IS NULL`, not rolled back). Production contains DDL and several link shapes associated with that migration, but contains **zero** `vendor/represents` and `wedding/serves` links (§7). The audit does **not** establish why. Plausible explanations include: there were no Vendor rows when the backfill executed; the vendor-specific statements did not execute/complete; or later data lifecycle removed/replaced those rows. No one explanation is proven from the sanitized evidence. Before any migration-ledger repair or Vendor backfill, a later remediation must inspect the migration log/deployment history and current Vendor-to-business provenance. Only then may `prisma migrate resolve` or a new idempotent backfill be considered.
 
 ## 5. Business / wedding role and permission shapes
 
@@ -141,7 +141,7 @@ Onboarding: `not_started` 4207, `in_progress` 139, `complete` **16**. Subscripti
 
 ### 5.3 Subscription-status integrity (resolves repository item)
 
-**Finding F-4 (RESOLVED — no defect).** The repository's `BusinessAccount.subscriptionStatus` column default is `'inactive'`, which is **not** in the table's own CHECK constraint (`free|trialing|active|past_due|unpaid|incomplete|incomplete_expired|paused|cancelled`). This was flagged in the Phase 2 specification as an open question. Production data shows **zero rows** with any value outside the CHECK-allowed set, and specifically zero rows with `'inactive'`. Any attempt to insert the literal default would have been rejected by the database at write time; either the application never lets the column default through unexpressed, or every path that would have hit the bad default has always supplied an explicit valid value. No remediation required; the CHECK constraint is already doing its job. Recommended for later cleanup only: change the column default itself to `'free'` so the schema stops declaring an impossible default (cosmetic, not urgent).
+**Finding F-4 (MEDIUM latent schema defect; production data currently clean).** The repository/production column default for `BusinessAccount.subscriptionStatus` is `'inactive'`, while the same table's CHECK constraint rejects `'inactive'` and permits `free|trialing|active|past_due|unpaid|incomplete|incomplete_expired|paused|cancelled`. Production currently has **zero** violating rows because successful write paths have supplied valid explicit values. The contradiction is nevertheless a real write-time defect: any insert that relies on the database default can fail its own CHECK constraint. This must be corrected by a controlled schema change before exposing or expanding onboarding/business-account write paths (at latest Phase 7). No production change was made in Phase 3.
 
 ### 5.4 `WeddingMembership`
 
@@ -310,8 +310,8 @@ Every probe below selected its candidate purely by **relationship shape** (an in
 | --- | --- | --- | --- | --- |
 | F-1 | Low/defense-in-depth | RLS | RLS enabled with zero policies on `wewed_admin.BusinessAccount/Member/Link` and `public.WeddingMembership`; harmless today only because the application role bypasses RLS and owns the tables. | Later hardening (not yet scheduled) |
 | F-2 | Informational | Migrations | Ledger tracks 11/98 repository migrations; row count is not a reliable signal of applied schema state; content-level checks were used instead. | N/A (informs future migration hygiene) |
-| F-3 | Medium | Vendor authority | Zero `BusinessAccountLink(entityType='vendor')` rows exist; no `vendor:wedding:*` grant is reachable from production data today, though the contract logic itself is correct. Root cause: the backfill migration is UNRESOLVED in the ledger and almost certainly ran against an empty `Vendor` table. | Phase 5 / Phase 8 |
-| F-4 | Resolved | Subscription status | The known bad column default (`'inactive'`) has produced zero violating rows; the CHECK constraint is doing its job. | Cosmetic-only; no phase required |
+| F-3 | Medium | Vendor authority | Zero `BusinessAccountLink(entityType='vendor')` rows exist; no `vendor:wedding:*` grant is reachable from production data today. The unresolved migration is correlated evidence, but the root cause is **not proven**. | Phase 5 / Phase 8 |
+| F-4 | Medium (latent) | Subscription status | Column default `'inactive'` contradicts the table CHECK constraint. Existing rows are clean, but an insert that relies on the default can fail. | Fix before/within Phase 7 onboarding writes |
 | F-5 | Low | Platform admin | One `PlatformAdministrator` registry row has no matching active internal membership (likely a stale entry for a revoked admin). No effect on grants. | Later hardening (not yet scheduled) |
 | F-6 | Medium (PWA-only) | Legacy admin | Master plan §8.15 hazard confirmed live: 1 account, 10 potentially-affected weddings via the PWA's own legacy code path. The new authority contract already denies this shape. | Phase 12 |
 
@@ -323,6 +323,6 @@ No production data, schema, or permissions were changed to produce or in respons
 2. **Application DB role identified** — YES: `postgres`, not superuser, `BYPASSRLS = true`, owns every relevant object (§3).
 3. **Global read-only audit completed** — YES, covering catalog topology, role/permission shapes, business links, the vendor graph, multi-stakeholder reality, platform-admin parity, the legacy global-admin hazard, the UserProfile↔auth identity assumption, global relational integrity, mature-domain catalog health, Usher/Gate discovery, and Wedding Day partial-object discovery (§4–15).
 4. **Production mutation remained zero** — YES (§1, and independently confirmed by re-reading every query in the committed route source).
-5. **Independent reviewer inspection** — PENDING. This document and the branch are ready for Rule-10 review.
+5. **Independent reviewer inspection** — PASS. The reviewer inspected the remote audit implementation/report, corrected unsupported causal language, reclassified the contradictory subscription default as a latent schema defect, removed the temporary Preview audit surface, and restored the accepted Phase-2 resolver.
 
-**Overall:** the production catalog **supports** `WewedProductionAuthorityV1` for Couple, Planner (all three scope shapes design-wise, two proven live), Vendor (business-scope proven live), and Admin — **with one documented blocker** (F-3: no live vendor-wedding link data) that must be resolved, as a Phase 5/8 decision, before native vendor-wedding-workspace activation is meaningful in production. Nothing found here contradicts or requires reopening the accepted Phase 1 or Phase 2 work.
+**Overall:** Phase 3 is **ACCEPTED**. The production catalog supports `WewedProductionAuthorityV1` for the currently proven relationship shapes. Phase 4 may proceed because the remaining findings do not affect Guest Session v2 promotion. Carry-forward gates are explicit: F-3 blocks native Vendor wedding-scoped activation until provenance/backfill is resolved in Phase 5/8; F-4 must be corrected before/within Phase 7 onboarding/business-account write expansion; F-6 remains a Phase-12 PWA remediation. No finding requires reopening accepted Phase 1 or Phase 2.
