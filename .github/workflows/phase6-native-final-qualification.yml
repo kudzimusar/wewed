@@ -61,4 +61,4 @@ jobs:
           chmod +x gradlew
           ./gradlew testDebugUnitTest assembleDebug assembleRelease --no-daemon --stacktrace
 
-# qualification-pin: current Phase 6 reviewer head
+# qualification-pin: f5cc51708f24cccf3416c6bdd4f03bc1a6b785d0
