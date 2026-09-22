@@ -4,7 +4,6 @@ import java.net.URI
 import pro.wewed.app.models.NativeDataEnvironment
 
 sealed class NativeEnvironmentGuardError(message: String) : IllegalStateException(message) {
-    data object ProductionDisabled : NativeEnvironmentGuardError("Production native runtime is disabled during the shadow parity sprint.")
     data class ShadowPointsToProductionHost(val host: String) :
         NativeEnvironmentGuardError("Shadow runtime cannot target production host: $host")
 }
@@ -18,10 +17,6 @@ object NativeEnvironmentGuard {
     )
 
     fun validate(baseUrl: String?, environment: NativeDataEnvironment) {
-        if (environment == NativeDataEnvironment.PRODUCTION) {
-            throw NativeEnvironmentGuardError.ProductionDisabled
-        }
-
         val shadowFamily = environment == NativeDataEnvironment.SHADOW ||
             environment == NativeDataEnvironment.SANITIZED_SHADOW ||
             environment == NativeDataEnvironment.PRIVATE_REAL_SHADOW
