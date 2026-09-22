@@ -36,6 +36,9 @@ class MultiContextIsolationTest {
             {"grantId": "couple:wedding:A", "workspaceKind": "couple", "scopeKind": "wedding",
              "weddingId": "A", "weddingTitle": "Wedding A", "coupleId": null, "businessAccountId": null,
              "vendorId": null, "serviceEngagementIds": [], "permissions": [], "platformRoles": []},
+            {"grantId": "planner:wedding:A", "workspaceKind": "planner", "scopeKind": "wedding",
+             "weddingId": "A", "weddingTitle": "Wedding A", "coupleId": null, "businessAccountId": null,
+             "vendorId": null, "serviceEngagementIds": [], "permissions": [], "platformRoles": []},
             {"grantId": "planner:wedding:B", "workspaceKind": "planner", "scopeKind": "wedding",
              "weddingId": "B", "weddingTitle": "Wedding B", "coupleId": null, "businessAccountId": null,
              "vendorId": null, "serviceEngagementIds": [], "permissions": [], "platformRoles": []},
@@ -53,7 +56,7 @@ class MultiContextIsolationTest {
              "vendorId": "vendor-1", "serviceEngagementIds": ["eng-1", "eng-2"], "permissions": [], "platformRoles": []}
           ],
           "contextSelection": [
-            {"workspaceKind": "planner", "grantIds": ["planner:wedding:B", "planner:wedding:C"], "selectionRequired": true}
+            {"workspaceKind": "planner", "grantIds": ["planner:wedding:A", "planner:wedding:B", "planner:wedding:C"], "selectionRequired": true}
           ],
           "unsupported": [], "platform": {"effectiveRole": null}
         }}
@@ -160,6 +163,7 @@ class MultiContextIsolationTest {
         val transport = FakeTransport(mutableListOf(WeddingDayHttpResponse(200, multiAxisAuthority)))
         transport.setSignIn("planner@example.com", WeddingDayHttpResponse(200, """{"success":true,"sessionToken":"session-abc"}"""))
         // Any grant the fixture can reach gets a matching workspace so tests can switch freely.
+        transport.setWorkspace("planner:wedding:A", WeddingDayHttpResponse(200, workspaceFor("planner:wedding:A", "A", "Wedding A")))
         transport.setWorkspace("planner:wedding:B", WeddingDayHttpResponse(200, workspaceFor("planner:wedding:B", "B", "Wedding B")))
         transport.setWorkspace("planner:wedding:C", WeddingDayHttpResponse(200, workspaceFor("planner:wedding:C", "C", "Wedding C")))
         transport.setWorkspace("couple:wedding:A", WeddingDayHttpResponse(200, workspaceFor("couple:wedding:A", "A", "Wedding A", workspaceKind = "couple")))
@@ -181,12 +185,17 @@ class MultiContextIsolationTest {
     // ---------------------------------------------------------------------------------------
 
     @Test
-    fun plannerCanSwitchBetweenTwoWeddingsAndBackWithoutSigningOut() {
+    fun plannerCanSwitchAToBToCToAWithoutSigningOut() {
         val (session, _) = signedInMultiAxisSession()
+
+        session.selectGrant("planner:wedding:A")
+        assertEquals("planner:wedding:A", session.activeGrantId.value)
+        assertEquals(AppRole.PLANNER, session.currentRole.value)
+        assertEquals("A", session.weddingId.value)
+        assertEquals("A", session.productionWorkspace.value?.weddingId)
 
         session.selectGrant("planner:wedding:B")
         assertEquals("planner:wedding:B", session.activeGrantId.value)
-        assertEquals(AppRole.PLANNER, session.currentRole.value)
         assertEquals("B", session.weddingId.value)
         assertEquals("B", session.productionWorkspace.value?.weddingId)
 
@@ -194,12 +203,12 @@ class MultiContextIsolationTest {
         assertEquals("planner:wedding:C", session.activeGrantId.value)
         assertEquals("C", session.weddingId.value)
         assertEquals("C", session.productionWorkspace.value?.weddingId)
-        // Never two Planner wedding grants selected simultaneously.
         assertEquals(setOf("planner:wedding:C"), session.selectedGrantIds.value.filter { it.startsWith("planner:wedding:") }.toSet())
 
-        session.selectGrant("planner:wedding:B")
-        assertEquals("B", session.weddingId.value)
-        assertEquals("B", session.productionWorkspace.value?.weddingId)
+        session.selectGrant("planner:wedding:A")
+        assertEquals("A", session.weddingId.value)
+        assertEquals("A", session.productionWorkspace.value?.weddingId)
+        assertEquals(setOf("planner:wedding:A"), session.selectedGrantIds.value.filter { it.startsWith("planner:wedding:") }.toSet())
     }
 
     @Test
