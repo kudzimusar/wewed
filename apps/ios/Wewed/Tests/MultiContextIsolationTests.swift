@@ -246,6 +246,7 @@ final class MultiContextIsolationTests: XCTestCase {
     func testTwoPersistedSameKindGrantsFailClosedOnRestore() async {
         let storage = InMemorySecureStorage()
         storage.save(key: "wewed.account.session", value: "session-abc")
+        storage.save(key: "wewed.account.selected-grants.owner", value: "user-1")
         storage.save(key: "wewed.account.selected-grants", value: "planner:wedding:B,planner:wedding:C")
         Stub.authorityReplies = [Reply(status: 200, body: multiAxisAuthority)]
 
@@ -498,6 +499,67 @@ final class MultiContextIsolationTests: XCTestCase {
         )
         XCTAssertNil(session.weddingId)
         XCTAssertTrue(session.authorizedRoles.isEmpty || session.currentRole == nil)
+    }
+
+    @MainActor
+    func testPersistedSelectionOwnedByAccountACannotAutoSelectTheSameGrantIdForAccountB() async {
+        let sharedGrantId = "planner:wedding:SHARED"
+        let storage = InMemorySecureStorage()
+        storage.save(key: "wewed.account.session", value: "account-b-token")
+        storage.save(key: "wewed.account.selected-grants.owner", value: "account-a")
+        storage.save(key: "wewed.account.selected-grants", value: sharedGrantId)
+
+        let accountBAuthority = """
+        {"success": true, "authority": {
+          "contract": "WewedProductionAuthorityV1", "version": 1, "accountStatus": "authorized",
+          "identity": {"accessUserId": "account-b", "dashboardClass": "planner"},
+          "workspaceGrants": [
+            {"grantId": "\(sharedGrantId)", "workspaceKind": "planner", "scopeKind": "wedding",
+             "weddingId": "SHARED", "weddingTitle": "Wedding Shared", "coupleId": null, "businessAccountId": null,
+             "vendorId": null, "serviceEngagementIds": [], "permissions": [], "platformRoles": []},
+            {"grantId": "planner:wedding:OTHER", "workspaceKind": "planner", "scopeKind": "wedding",
+             "weddingId": "OTHER", "weddingTitle": "Wedding Other", "coupleId": null, "businessAccountId": null,
+             "vendorId": null, "serviceEngagementIds": [], "permissions": [], "platformRoles": []}
+          ],
+          "contextSelection": [{"workspaceKind":"planner","grantIds":["\(sharedGrantId)","planner:wedding:OTHER"],"selectionRequired":true}],
+          "unsupported": [], "platform": {"effectiveRole": null}
+        }}
+        """
+        Stub.authorityReplies = [Reply(status: 200, body: accountBAuthority)]
+
+        // No authorityClient at construction: avoids an automatic restore racing this explicit
+        // deterministic restore seam.
+        let session = SessionStore(storage: storage, environment: .production, authorityClient: nil)
+        await session.restoreFromServer(client: client(), storedToken: "account-b-token")
+
+        XCTAssertEqual(session.productionAuthority?.accessUserId, "account-b")
+        XCTAssertTrue(session.selectedGrantIds.isEmpty)
+        XCTAssertNil(session.activeGrantId)
+        XCTAssertNil(session.currentRole)
+        XCTAssertNil(session.weddingId)
+        XCTAssertNil(storage.get(key: "wewed.account.selected-grants"))
+        XCTAssertNil(storage.get(key: "wewed.account.selected-grants.owner"))
+    }
+
+    @MainActor
+    func testSameAccountPersistedSelectionRestoresOnlyWhenOwnerMatchesVerifiedIdentity() async {
+        let storage = InMemorySecureStorage()
+        storage.save(key: "wewed.account.session", value: "session-user-1")
+        storage.save(key: "wewed.account.selected-grants.owner", value: "user-1")
+        storage.save(key: "wewed.account.selected-grants", value: "planner:wedding:B")
+
+        Stub.authorityReplies = [Reply(status: 200, body: multiAxisAuthority)]
+        Stub.setWorkspace(
+            "planner:wedding:B",
+            Reply(status: 200, body: workspaceFor("planner:wedding:B", weddingId: "B", weddingTitle: "Wedding B"))
+        )
+
+        let session = SessionStore(storage: storage, environment: .production, authorityClient: nil)
+        await session.restoreFromServer(client: client(), storedToken: "session-user-1")
+
+        XCTAssertEqual(session.activeGrantId, "planner:wedding:B")
+        XCTAssertEqual(session.weddingId, "B")
+        XCTAssertEqual(session.selectedGrantIds.filter { $0.hasPrefix("planner:") }, ["planner:wedding:B"])
     }
 
     // MARK: - Multi-axis: an active workspace is not interrupted by an unrelated selectionRequired axis
