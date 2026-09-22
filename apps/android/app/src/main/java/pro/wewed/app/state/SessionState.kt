@@ -294,7 +294,11 @@ class SessionViewModel(
             ProductionGrantMapper.map(authority, it.grantId) is ProductionGrantMapper.Outcome.RequiresWeddingSelection
         }
         val landing = nonWeddingGrants.firstOrNull { it.grantId in liveSelection }
-            ?: nonWeddingGrants.singleOrNull()
+            ?: nonWeddingGrants.singleOrNull()?.takeIf { grant ->
+                authority.contextSelection
+                    .firstOrNull { it.workspaceKindWire == grant.workspaceKindWire }
+                    ?.selectionRequired != true
+            }
 
         _activeGrantId.value = landing?.grantId
         _currentRole.value = null
