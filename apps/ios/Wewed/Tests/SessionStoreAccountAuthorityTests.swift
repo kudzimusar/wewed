@@ -16,7 +16,10 @@ final class SessionStoreAccountAuthorityTests: XCTestCase {
         nonisolated(unsafe) static var lastAuthorizationHeader: String?
 
         static func reset() {
-            routes = [:]
+            // Authority-focused tests do not all configure workspace data. Treat an unspecified
+            // workspace fetch as transient unavailability, not revocation; tests that need a
+            // 403/404 denial override this route explicitly.
+            routes = ["GET /api/native/account/workspace": Reply(status: 503, body: "Service Unavailable")]
             lastAuthorizationHeader = nil
         }
 
