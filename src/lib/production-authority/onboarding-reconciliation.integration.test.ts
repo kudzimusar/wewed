@@ -273,6 +273,59 @@ describeLocal('Phase 7 — onboarding reconciliation against a disposable migrat
     expect((await retry.json()).error).toBe('Onboarding is already complete.')
   })
 
+  test('Identity linking: admin completion refuses corrupted authUserId metadata instead of recreating UserProfile', async () => {
+    const email = emailFor('corrupt-auth-link')
+    const res = await register(baseApplication({
+      email,
+      name: 'Corrupt Identity Applicant',
+      businessName: 'Corrupt Identity Wedding',
+      accountType: 'couple',
+      requestedRole: 'couple_owner',
+    }))
+    expect(res.status).toBe(200)
+    const { applicationId: accountId } = await res.json()
+    await approve(accountId)
+
+    const originalProfile = await db.userProfile.findFirst({ where: { email }, select: { id: true } })
+    expect(originalProfile).not.toBeNull()
+
+    await exec(
+      `UPDATE wewed_admin."BusinessAccount"
+       SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{authUserId}', to_jsonb($2::text), true),
+           "updatedAt" = now()
+       WHERE id = $1`,
+      accountId,
+      id('nonexistent-auth-profile'),
+    )
+
+    const [weddingCountBefore] = await db.$queryRawUnsafe<Array<{ count: string }>>(
+      `SELECT count(*)::text FROM public."Wedding"`,
+    )
+    const complete = await adminRequest(adminUserId, {
+      action: 'complete_onboarding',
+      accountId,
+      partner1: 'Should',
+      partner2: 'Not Exist',
+      weddingTitle: 'Should Not Exist',
+      weddingDate: '2027-06-13',
+      venue: 'Blocked Venue',
+      venueCity: 'Harare',
+      venueCountry: 'Zimbabwe',
+    })
+    expect(complete.status).toBe(409)
+    expect((await complete.json()).error).toContain('authentication identity link is inconsistent')
+
+    const [weddingCountAfter] = await db.$queryRawUnsafe<Array<{ count: string }>>(
+      `SELECT count(*)::text FROM public."Wedding"`,
+    )
+    expect(weddingCountAfter.count).toBe(weddingCountBefore.count)
+
+    const owner = await db.user.findUnique({ where: { email }, select: { coupleId: true, isActive: true } })
+    expect(owner?.coupleId).toBeNull()
+    expect(owner?.isActive).toBe(false)
+    expect(await db.userProfile.findUnique({ where: { id: id('nonexistent-auth-profile') } })).toBeNull()
+    expect(await db.userProfile.findUnique({ where: { id: originalProfile!.id } })).not.toBeNull()
+  })
   // -----------------------------------------------------------------------------------------
   // Planner: zero-wedding portfolio must never fabricate a wedding
   // -----------------------------------------------------------------------------------------
