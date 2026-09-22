@@ -13,30 +13,6 @@ export interface WeddingSharedInvitationSession {
   expiresAt: number
 }
 
-function getSigningSecret(): string {
-  const isProduction =
-    process.env.NODE_ENV === 'production' && !isLocalCiBrowserMode()
-  const dedicated = process.env.WEWED_SESSION_SECRET?.trim()
-
-  if (isProduction) {
-    if (!dedicated) {
-      throw new Error(
-        '[wewed] Missing dedicated WEWED_SESSION_SECRET in production.',
-      )
-    }
-    return dedicated
-  }
-
-  const secret = dedicated || process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
-  if (!secret) {
-    throw new Error(
-      '[wewed] Missing WEWED_SESSION_SECRET or SUPABASE_SERVICE_ROLE_KEY.',
-    )
-  }
-
-  return secret
-}
-
 function isLocalCiBrowserMode(): boolean {
   const databaseUrl = process.env.DATABASE_URL?.toLowerCase() ?? ''
   const localDatabase =
@@ -54,8 +30,8 @@ function shouldUseSecureCookie(): boolean {
   return process.env.NODE_ENV === 'production' && !isLocalCiBrowserMode()
 }
 
-function sign(encodedPayload: string): string {
-  return createHmac('sha256', getSigningSecret())
+function sign(encodedPayload: string, secret = primarySessionSigningSecret()): string {
+  return createHmac('sha256', secret)
     .update(encodedPayload)
     .digest('base64url')
 }
@@ -96,7 +72,13 @@ export function verifyWeddingSharedInvitationSessionToken(
   try {
     const [encoded, signature, extra] = token.split('.')
     if (!encoded || !signature || extra) return null
-    if (!signaturesMatch(signature, sign(encoded))) return null
+    if (
+      !legacySessionVerificationSecrets().some((secret) =>
+        signaturesMatch(signature, sign(encoded, secret)),
+      )
+    ) {
+      return null
+    }
 
     const payload = JSON.parse(
       Buffer.from(encoded, 'base64url').toString('utf8'),
