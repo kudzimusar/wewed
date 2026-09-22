@@ -185,18 +185,24 @@ struct PlannerDailyOpsSection: View {
         Group {
             if graph.loading {
                 IALoading()
-            } else if context.environment == .production,
-                      ["Today", "Vendor Follow-ups", "Team Activity"].contains(section) {
-                let reason: String
-                switch section {
-                case "Today":
-                    reason = "The planner attention/readiness aggregation is not connected to native production yet. Tasks and deadline views remain live."
-                case "Vendor Follow-ups":
-                    reason = "Planning-side vendors are live in Workspace, but vendor follow-up/arrival state is a separate domain and is not connected here."
-                default:
-                    reason = "The planner activity stream is not connected to native production yet. No empty activity history is inferred."
-                }
-                IAUnsupportedSection(section, reason, context.environment)
+            } else if context.environment == .production, section == "Today" {
+                IAUnsupportedSection(
+                    section,
+                    "The planner attention/readiness aggregation is not connected to native production yet. Tasks and deadline views remain live.",
+                    context.environment
+                )
+            } else if context.environment == .production, section == "Vendor Follow-ups" {
+                IAUnsupportedSection(
+                    section,
+                    "Planning-side vendors are live in Workspace, but vendor follow-up/arrival state is a separate domain and is not connected here.",
+                    context.environment
+                )
+            } else if context.environment == .production, section == "Team Activity" {
+                IAUnsupportedSection(
+                    section,
+                    "The planner activity stream is not connected to native production yet. No empty activity history is inferred.",
+                    context.environment
+                )
             } else {
                 switch section {
                 case "Today":
