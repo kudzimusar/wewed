@@ -1216,6 +1216,59 @@ Accepted. Status set to LOCKED. Factual corrections C-1 … C-8 and hazards §8.
 ### D-010 — Native Phase 1 baseline
 Accepted. Phase 1 branches from `native-mobile/guest-profile-invitation-20260921` @ d7c4dddeabb594810a5833b4ac24d356883a8a3b, not from `native-mobile/role-architecture-p0-20260919` (C-8).
 
+### D-015 — Phase 4 reviewer closure (2026-09-22)
+**REVIEWER CLOSURE IMPLEMENTED — execution verification of the reviewer-patched head is still required before final acceptance.**
+
+Independent Rule-10 review verified the implementation-agent head:
+- branch `backend/guest-session-v2-phase4-qualification-20260922`;
+- agent-reported head `c2bea65b4f592933c97e4232dd1b05eac71bec1c`;
+- the branch was exactly one commit ahead of the reviewer starting point `4b6253665573b1bdff2ac153963e99eac576359a`.
+
+The review confirmed from actual remote code:
+- Guest Session v2 payload is exactly `version + weddingId + guestId + invitationVersionFingerprint + expiresAt`, with no raw RSVP token;
+- new v2 credentials use `primarySessionSigningSecret()`;
+- production-like issuance fails closed without `WEWED_SESSION_SECRET`;
+- only legacy v1 Guest Session / Guest portfolio / shared-invitation formats may verify with the historical service-role signer;
+- a v2 credential signed only by the legacy signer is rejected;
+- invitation-token rotation invalidates the remembered Guest session through the live fingerprint check;
+- expiry remains a 30-day floor, wedding+90-day target, 400-day ceiling, with no ordinary sliding renewal;
+- explicit invitation exchange and multi-wedding switching use the wedding's current saved invitation style;
+- accepted Android/iOS Guest clients exchange the raw RSVP credential transiently and persist only the server-issued opaque Guest Session credential.
+
+Reviewer finding and closure:
+- the implementation report attributed the full-suite `+2 fail / +2 error` delta to `mock.module('server-only', ...)` leakage;
+- code inspection found a stronger, direct contaminant: new Phase-4 tests globally replaced `@/lib/db` with incomplete Bun module mocks while unrelated Planner Stage-2 tests use the real Prisma `db` and cleanup hooks in the same test process;
+- this was an ordinary test-isolation defect and was patched by the reviewer rather than returned to the implementation agent;
+- `wedding-public-access.ts` and `personal-invitation-access.ts` now accept an optional database dependency that defaults to the real production `db`;
+- Phase-4 tests inject local fake databases instead of globally mocking `@/lib/db`;
+- synthetic `WEWED_SESSION_SECRET` values in the new tests are now contained by test lifecycle setup/teardown rather than left as top-level process state.
+
+Reviewer-patched qualification head:
+- `d002a8b28555830dfc59617553f8f4deb59f2f31`.
+
+Remote reinspection confirmed:
+- the branch is exactly at that SHA;
+- production call sites remain source-compatible and default to the real Prisma client;
+- the three Phase-4 test files no longer contain a global `mock.module('@/lib/db', ...)`;
+- the three Phase-4 test files no longer set `WEWED_SESSION_SECRET` permanently at module top level.
+
+Execution status:
+- implementation-agent evidence before reviewer closure: focused Guest suites 91/91, production-equivalent build PASS with a synthetic non-committed secret, Android 314/314, iOS 316/316;
+- the reviewer-patched head has been statically re-inspected but has not yet been executable-tested from the review environment;
+- therefore final Phase-4 acceptance remains pending one clean execution-verification pass on `d002a8b...`.
+
+External configuration status:
+- `WEWED_SESSION_SECRET` remains absent from Vercel Preview and Production per the implementation-agent names-only environment check;
+- no secret was created or read;
+- live Vercel Preview HTTP qualification remains blocked until explicit owner authorization permits configuring the dedicated secret;
+- secret strictness must not be weakened to bypass that blocker.
+
+Phase gate:
+- implementation contract review: PASS;
+- reviewer closure: APPLIED;
+- final acceptance: **PENDING EXECUTION VERIFICATION OF `d002a8b...`**;
+- Phase 5: **NOT STARTED**.
+
 ### D-014 — Phase 4 preflight (2026-09-22)
 **READY TO BEGIN — reviewer preflight patch applied before implementation handoff.**
 
