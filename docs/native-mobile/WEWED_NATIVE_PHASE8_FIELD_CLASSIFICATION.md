@@ -29,7 +29,7 @@ Coordinator write those roles don't have — see `DEFAULT_ROLE_PERMISSIONS` in `
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Overview: wedding identity + task/guest/budget/vendor/timeline counts | LIVE/DERIVED | `Wedding`, `PlannerTask`, `Guest`+`RSVP`, `BudgetItem`, `Vendor`, `ProgrammeItem` | `resolveNativeGrantContext` | `/api/native/wedding/overview` (new) | `PlannerDashboardSnapshot` (partial — counts only; `attentionItems`/`recentActivity`/`readinessScore` remain UNSUPPORTED) | `RoleWorkspaces.kt` Planner/Couple "Overview" section | `RoleWorkspaces.swift` equivalent |
 | Overview: Planner-portfolio (zero wedding) business identity | LIVE | `wewed_admin.BusinessAccount`/`BusinessAccountMember` (via `authority.businessMemberships`) | `resolveProductionAuthority` | `/api/native/wedding/overview` (new, `scopeKind=portfolio` branch) | n/a (no wedding fields) | Planner portfolio landing | iOS equivalent |
-| Tasks: title/description/category/status/priority/dueDate/assignee/order | LIVE (read+write) | `PlannerTask` | `@/lib/planner-task-domain` (extracted from `/api/planner/tasks`) | `/api/native/wedding/tasks`, `/api/native/wedding/tasks/[id]` (new) | `PlannerTask` (existing) | `WeddingGraphState`/Tasks section | equivalent |
+| Tasks: title/description/category/status/priority/dueDate/assignee/order | LIVE (read+write) | `PlannerTask` | `@/lib/planner-task-operations` (`createPlannerTaskOperation`/`updatePlannerTaskOperation`/`togglePlannerTaskOperation` — the ONE shared operation both `/api/planner/tasks*` and `/api/native/wedding/tasks*` call; `@/lib/planner-task-domain` supplies formatting/validation to both) | `/api/native/wedding/tasks`, `/api/native/wedding/tasks/[id]` (new) | `PlannerTask` (existing) | `WeddingGraphState`/Tasks section | equivalent |
 | Budget: per-item rows + mechanical aggregate (estimated/actual/paid by category) | LIVE/DERIVED | `BudgetItem` | `@/lib/budget-summary` (new; deliberately NOT the funding-attribution engine) | `/api/native/wedding/budget` (new, read-only) | `BudgetSummary`/`PlannerBudgetLine` | Budget section | equivalent |
 | Budget: funding attribution (couple/contributor/legacy split), linked contributions, documents | UNSUPPORTED | `wewed_contributions.*` (raw SQL) | `@/lib/contributions/store` (not reused this phase) | `/api/planner/budget` (PWA only) | — | — | — |
 | Budget writes (create/edit line items, reclassify funding) | UNSUPPORTED | `BudgetItem` | — | `/api/planner/budget*` (PWA only) | — | — | — |
@@ -37,19 +37,20 @@ Coordinator write those roles don't have — see `DEFAULT_ROLE_PERMISSIONS` in `
 | Seating: table name/capacity/assigned guests | LIVE | `SeatingTable`, `Guest` | — (direct Prisma read) | `/api/native/wedding/seating` (new, read-only) | `PlannerSeatingTable` | Seating section | equivalent |
 | Timeline: time/title/description/location/order | LIVE | `ProgrammeItem` | — (direct Prisma read) | `/api/native/wedding/timeline` (new, read-only) | `PlannerTimelineEntry` | Timeline section | equivalent |
 | Vendors (planning-side): name/category/contractStatus/paymentStatus | LIVE | `Vendor` | — (direct Prisma read) | `/api/native/wedding/vendors` (new, read-only) | `PlannerVendorEngagement` (partial — `bookingStatus`/`nextAction` are not tracked by this model) | Vendors section | equivalent |
-| Contributions | UNSUPPORTED | `wewed_contributions.*` | `@/lib/contributions/store` | `/api/planner/contributions*` (PWA only) | `PlannerContributionRecord` | Contributions section (native: honest "unsupported" state) | equivalent |
-| Contracts / engagement deal-room | UNSUPPORTED | `Contract`, `ContractVersion`, `ServiceEngagement` | `@/lib/contracts/phase2.ts`/`phase3.ts` | `/api/planner/engagements/[id]/deal-room`, `.../contracts` (PWA only) | — | Contract governance/intelligence sections (native: unsupported) | equivalent |
-| Documents / vault | UNSUPPORTED | `VaultObject`/`VaultLink` | `@/lib/vault/*` | various (PWA only) | `PlannerDocumentRecord` | Media archive section (native: unsupported) | equivalent |
+| Contributions: type/amount/commitment/fulfillment/verification state, contributor, allocation | LIVE (read-only) | `wewed_contributions.*` (raw SQL) | `@/lib/contributions/store` (`loadContributionWorkspace` — the SAME engine `/api/planner/contributions` calls; no second funding truth computed anywhere) | `/api/native/wedding/contributions` (new, read-only) | `PlannerContributionRecord` | Contributions section (now reads real rows) | equivalent |
+| Contribution writes (allocate/mark-thanked/mark-verified/mark-received/create-task) | UNSUPPORTED | `wewed_contributions.*` | `@/lib/contributions/store` | `/api/planner/contributions/[id]/actions` (PWA only) | — | — | — |
+| Contracts / engagement deal-room | UNSUPPORTED | `Contract`, `ContractVersion`, `ServiceEngagement` | `@/lib/contracts/phase2.ts`/`phase3.ts` | `/api/planner/engagements/[id]/deal-room`, `.../contracts` (PWA only) | — | Contract governance/intelligence sections (native: unsupported — no adapter built; see §9 for why) | equivalent |
+| Documents / vault | UNSUPPORTED | `VaultObject`/`VaultLink` | `@/lib/vault/*` | various (PWA only) | `PlannerDocumentRecord` | `ShadowDocumentsDestination` now says UNSUPPORTED explicitly for production instead of calling the always-empty repository method (was a false-empty; fixed this pass) | equivalent |
 | Seating auto-assign, guest bulk-move, timeline reorder, task delete | UNSUPPORTED (writes) | various | `@/lib/planner-*` | `/api/planner/seating/auto-assign` etc. (PWA only) | — | — | — |
 
 ## 4. Vendor
 
 | Field/surface | Classification | Model/table | Shared server helper | PWA endpoint | Native DTO | Android screen | iOS screen |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Business portfolio identity (name/type/status/onboarding/role) | LIVE | `wewed_admin.BusinessAccount`/`BusinessAccountMember` (via `authority.businessMemberships`) | `resolveProductionAuthority` | `/api/native/vendor/business` (new) | new (business identity block) | Vendor portfolio header | equivalent |
-| Catalog items + offerings | LIVE (read-only) | `wewed_booking.ProviderCatalogItem`/variants/media/resources/components, `wewed_admin.ProviderServiceOffering` | `@/lib/booking-commerce` (`catalogForBusiness`, extracted from `/api/vendor/catalog`) | `/api/native/vendor/catalog` (new) | new | `VendorCatalogScreen`-equivalent (rebuilt; see §6) | equivalent |
+| Business portfolio identity (name/type/status/onboarding/role) | LIVE | `wewed_admin.BusinessAccount`/`BusinessAccountMember` (via `authority.businessMemberships`) | `resolveProductionAuthority` | `/api/native/vendor/business` (new) | `VendorBusinessIdentity` | `ProductionVendorBusinessRepository`/`ProductionVendorBusinessContent` — a `vendor:business` grant now renders this real shell (was the generic minimal snapshot; fixed this pass) | equivalent |
+| Catalog items + offerings | LIVE (read-only) | `wewed_booking.ProviderCatalogItem`/variants/media/resources/components, `wewed_admin.ProviderServiceOffering` | `@/lib/booking-commerce` (`catalogForBusiness`, extracted from `/api/vendor/catalog`) | `/api/native/vendor/catalog` (new) | `VendorCatalogItem`/`VendorCatalogOffering` | `ProductionVendorBusinessContent` (rebuilt on live data; the old fabricated `VendorCatalogScreen` was deleted in the original Phase 8 pass) | equivalent |
 | Catalog item creation/editing | UNSUPPORTED | same | same | `/api/vendor/catalog` POST (PWA only) | — | — | — |
-| Bookings list | LIVE (read-only) | `wewed_booking.Booking`+lines | `@/lib/booking-commerce` (`bookingsForBusiness`, extracted from `/api/vendor/bookings`) | `/api/native/vendor/bookings` (new) | new | Bookings section | equivalent |
+| Bookings list | LIVE (read-only) | `wewed_booking.Booking`+lines | `@/lib/booking-commerce` (`bookingsForBusiness`, extracted from `/api/vendor/bookings`) | `/api/native/vendor/bookings` (new) | `VendorBooking` | `ProductionVendorBusinessContent` | equivalent |
 | Booking actions (approve/decline/quote/amendments) | UNSUPPORTED | `wewed_booking.Booking`/`BookingAmendment` | `@/lib/booking-governance`, `@/lib/booking-amendments` | `/api/vendor/bookings/[id]/*` (PWA only) | — | — | — |
 | Vendor wedding engagement (Phase 6 grant + selected engagement) | LIVE (identity only; already shipped Phase 5/6) | `ServiceEngagement` | `resolveNativeGrantContext`+`requireGrantEngagement` | `/api/native/account/workspace` (Phase 6) | existing | existing engagement picker | equivalent |
 | Vendor documents (commercial) | UNSUPPORTED | `VaultLink`/`VaultObject` via `EngagementParty` | `@/lib/vault/vendor-commercial-access` | `/api/vendor/documents*` (PWA only) | — | — | — |
@@ -59,8 +60,8 @@ Coordinator write those roles don't have — see `DEFAULT_ROLE_PERMISSIONS` in `
 
 | Field/surface | Classification | Model/table | Shared server helper | PWA endpoint | Native DTO | Android screen | iOS screen |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| System overview: pending-onboarding queue count | LIVE | `wewed_admin.BusinessAccount` | `resolveWewedAdminPermissions`/`hasWewedAdminPermission` (`@/lib/wewed-admin-policy`, same as `requireWewedAdmin`) | `/api/native/admin/overview` (new) | `AdminSystemSnapshot` (extended: real `pendingOnboarding` count in place of the placeholder `weddingsInScope`) | `AdminSystemRepository`/Admin dashboard | equivalent |
-| Full overview (billing/support/incidents), client operations, command center, bookings, service engagements, contract intelligence, contributions analytics, account identity, productivity, governance, vault | UNSUPPORTED | various | `requireWewedAdmin` (cookie-only; no native-safe adapter built this phase) | `/api/admin/*` (PWA only) | — | `AdminGovernanceScreen`-equivalent (rebuilt; see §6), other admin sections | equivalent |
+| System overview: pending-onboarding queue count | LIVE | `wewed_admin.BusinessAccount` | `resolveWewedAdminPermissions`/`hasWewedAdminPermission` (`@/lib/wewed-admin-policy`, same as `requireWewedAdmin`) | `/api/native/admin/overview` (new) | `AdminSystemSnapshot.pendingOnboardingCount` | `AdminShell` now reads `appViewModel.adminRepository`, which is `ProductionAdminSystemRepository` once an `admin:system` grant resolves — it used to construct `ShadowAdminSystemRepository` unconditionally even in production (real defect, fixed this pass); an `admin:system` grant now also renders through the real `AdminShell` instead of the minimal snapshot | equivalent |
+| Full overview (billing/support/incidents), client operations, command center, bookings, service engagements, contract intelligence, contributions analytics, account identity, productivity, governance, vault | UNSUPPORTED | various | `requireWewedAdmin` (cookie-only; no native-safe adapter built this phase) | `/api/admin/*` (PWA only) | — | listed honestly in `ProductionAdminSystemRepository.unsupportedStreams`, never a fabricated count | equivalent |
 | Legacy `User.role='admin'` global-wedding access (F-6) | EXCLUDED (never a grant) | — | `grants.ts` (`legacy_global_admin_wedding_access`) | — | — | — | — |
 
 ## 6. Removed/rebuilt P1-N4 fabricated screens
@@ -108,13 +109,51 @@ Tracked here per master-plan §16 carry-forward P1-N4 ("fabricated screens compi
   stashed pre-Phase-8 baseline) — the extraction work incidentally required updating one pre-existing
   source-text assertion test (`planner-stage2-task-assignment.test.ts`) whose literal string check
   moved with the code it was checking; the invariant itself is unchanged and still proven.
-- Honest, deliberate scope cut for this pass (see §1–§5 UNSUPPORTED rows): Contributions, Contracts/
-  deal-room, Documents/vault, all writes beyond Tasks, and every Admin domain beyond a single real
-  count are NOT wired this phase. Each requires either porting a large, delicate engine
-  (contributions funding-attribution, contract lifecycle, vault access) or building genuinely new
-  native-safe adapters for large PWA routes (900+ lines for `/api/admin/overview` alone) — correctly
-  scoping and testing those is a bigger lift than fits safely alongside the rest of this phase's
-  required work, and is reported here as remaining work rather than approximated.
+- Honest, deliberate scope cut for the original pass (see §1–§5 UNSUPPORTED rows): Contracts/
+  deal-room, Documents/vault, writes beyond Tasks, and every Admin domain beyond a single real
+  count are NOT wired. Each requires either porting a large, delicate engine (contract lifecycle,
+  vault access) or building genuinely new native-safe adapters for large PWA routes (900+ lines for
+  `/api/admin/overview` alone) — correctly scoping and testing those is a bigger lift than fits
+  safely alongside the rest of this phase's required work, and is reported here as remaining work
+  rather than approximated. Contributions was originally in this cut list too; it is now LIVE (see
+  the closure entry below) because the moderator's review made it an explicit, unambiguous exit
+  gate ("Phase 8 cannot finish while Contributions remains merely a native placeholder") and the
+  existing `loadContributionWorkspace` engine was directly reusable without new business logic.
+
+### Phase 8 closure (moderator review response)
+
+An independent moderator reviewed the original Phase 8 pass, found and fixed several defects
+directly (401/403 code semantics, GRANT_REVOKED vs PERMISSION_DENIED vs resource-404, LIVE-domain
+failures no longer masquerading as empty lists, Shadow claims removed from production Planner UI),
+and identified the remaining exit gates closed in this follow-up:
+
+- **Shared task mutation domain (§5).** `src/lib/planner-task-operations.ts` is now the ONE
+  operation both `/api/planner/tasks*` and `/api/native/wedding/tasks*` call for create/update/
+  toggle — the native routes were their own second implementation of this logic before. See §1's
+  Tasks row.
+- **Contributions (§6).** Now LIVE, read-only, via `/api/native/wedding/contributions` calling
+  `loadContributionWorkspace` directly. See §1's Contributions row.
+- **Vendor production shell (§A).** A `vendor:business` grant now renders
+  `ProductionVendorBusinessContent` (real identity/catalog/offerings/bookings) instead of the
+  generic minimal snapshot. See §4.
+- **Admin production shell (§B).** `AdminShell` no longer constructs `ShadowAdminSystemRepository`
+  unconditionally — production defaults to `ProductionBoundaryAdminSystemRepository` (honest,
+  unbound) until a real `admin:system` grant binds `ProductionAdminSystemRepository`, and Admin now
+  renders through the real `AdminShell` in production at all (it previously fell through to the
+  minimal snapshot unconditionally, same as every other unwired role). See §5.
+- **Documents false-empty fix (§11).** `ShadowDocumentsDestination` said "no documents recorded"
+  for production, where the repository always returns empty because no adapter exists — now says
+  UNSUPPORTED explicitly instead of calling the repository at all. See §1's Documents row.
+- **P1-N4 remainder (§10).** Deleted `PlannerDestinations.kt`'s dead `PlannerDestinationRoute` enum
+  (zero references anywhere) and 20 zero-caller composables (individually grep-confirmed before
+  deletion), several of which hardcoded a "Charity & Kudzie" wedding, an "Eleven Eleven Testing"
+  planner, and invented guest/table/contract counts. `GenericToolDestination` (their shared
+  renderer) became dead in turn and was removed with them. The 5 that forwarded to a live
+  `Shadow*Destination` sibling left those siblings untouched.
+- **Still explicitly out of scope, honestly, not silently:** Contracts/deal-room, Documents/vault
+  adapters, Budget/Guest/Seating/Timeline/Vendor writes, Contribution write actions, and every
+  Admin domain beyond the one real count. Each remains a genuinely separate, substantial engine to
+  port safely — see the "Honest, deliberate scope cut" paragraph above.
 
 **Android (branch `native-mobile/workspace-parity-phase8-20260922`):**
 

@@ -24,6 +24,8 @@ mock.module('server-only', () => ({}))
 type Db = typeof import('@/lib/db')['db']
 let db: Db
 let createNativeAccountSessionToken: typeof import('@/lib/native-account-session')['createNativeAccountSessionToken']
+let createAppSessionToken: typeof import('@/lib/app-session')['createAppSessionToken']
+let APP_SESSION_COOKIE: typeof import('@/lib/app-session')['APP_SESSION_COOKIE']
 let NextRequest: typeof import('next/server')['NextRequest']
 
 const run = randomUUID().slice(0, 8)
@@ -168,6 +170,22 @@ async function bearerRequest(url: string, accessUserId: string, authUserId: stri
   })
 }
 
+async function cookieRequest(
+  url: string,
+  userId: string,
+  weddingId: string,
+  role: 'couple' | 'planner' | 'vendor' | 'admin',
+  init: RequestInit = {},
+) {
+  const token = createAppSessionToken({
+    userId, authUserId: `auth-${userId}`, email: `${userId}@example.test`, role, coupleId: null, activeWeddingId: weddingId,
+  })
+  return new NextRequest(url, {
+    ...init,
+    headers: { ...(init.headers ?? {}), cookie: `${APP_SESSION_COOKIE}=${token}` },
+  })
+}
+
 const describeLocal = isLocal ? describe : describe.skip
 
 describeLocal('Phase 8 — native domain adapters against a disposable migrated database', () => {
@@ -184,6 +202,9 @@ describeLocal('Phase 8 — native domain adapters against a disposable migrated 
   let GET_VENDOR_CATALOG: typeof import('@/app/api/native/vendor/catalog/route')['GET']
   let GET_ADMIN_OVERVIEW: typeof import('@/app/api/native/admin/overview/route')['GET']
   let GET_CONTRIBUTIONS: typeof import('@/app/api/native/wedding/contributions/route')['GET']
+  let PWA_GET_TASKS: typeof import('@/app/api/planner/tasks/route')['GET']
+  let PWA_POST_TASKS: typeof import('@/app/api/planner/tasks/route')['POST']
+  let PWA_PATCH_TASK: typeof import('@/app/api/planner/tasks/[id]/route')['PATCH']
 
   const ids: Record<string, string> = {}
   const actors: Record<string, string> = {}
@@ -191,6 +212,7 @@ describeLocal('Phase 8 — native domain adapters against a disposable migrated 
   beforeAll(async () => {
     ;({ db } = await import('@/lib/db'))
     ;({ createNativeAccountSessionToken } = await import('@/lib/native-account-session'))
+    ;({ createAppSessionToken, APP_SESSION_COOKIE } = await import('@/lib/app-session'))
     ;({ NextRequest } = await import('next/server'))
     ;({ GET: GET_TASKS, POST: POST_TASKS } = await import('@/app/api/native/wedding/tasks/route'))
     ;({ PATCH: PATCH_TASK } = await import('@/app/api/native/wedding/tasks/[id]/route'))
@@ -204,6 +226,8 @@ describeLocal('Phase 8 — native domain adapters against a disposable migrated 
     ;({ GET: GET_VENDOR_CATALOG } = await import('@/app/api/native/vendor/catalog/route'))
     ;({ GET: GET_ADMIN_OVERVIEW } = await import('@/app/api/native/admin/overview/route'))
     ;({ GET: GET_CONTRIBUTIONS } = await import('@/app/api/native/wedding/contributions/route'))
+    ;({ GET: PWA_GET_TASKS, POST: PWA_POST_TASKS } = await import('@/app/api/planner/tasks/route'))
+    ;({ PATCH: PWA_PATCH_TASK } = await import('@/app/api/planner/tasks/[id]/route'))
 
     // Wedding A: owner (Couple), planner, coordinator.
     const coupleA = await couple('couple-a')
@@ -435,5 +459,49 @@ describeLocal('Phase 8 — native domain adapters against a disposable migrated 
     const res = await GET_CONTRIBUTIONS(await bearerRequest(`http://localhost/api/native/wedding/contributions?grantId=${gid}`, actors.coordinator, `auth-${actors.coordinator}`))
     expect(res.status).toBe(200)
     expect((await res.json()).data.map((c: { id: string }) => c.id)).toEqual([ids.contributionA])
+  })
+
+  test('Shared task mutation domain: a task created via the native route is visible and editable via the PWA route, and vice versa', async () => {
+    const gid = grantId('couple', 'wedding', ids.A)
+
+    // Native creates it...
+    const createRes = await POST_TASKS(await bearerRequest(`http://localhost/api/native/wedding/tasks?grantId=${gid}`, actors.owner, `auth-${actors.owner}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Cross-transport task' }),
+    }))
+    expect(createRes.status).toBe(201)
+    const created = (await createRes.json()).data
+
+    // ...the PWA's own cookie-session route reads the exact same row, formatted identically.
+    const pwaGetRes = await PWA_GET_TASKS(await cookieRequest('http://localhost/api/planner/tasks', actors.owner, ids.A, 'couple'))
+    const pwaTask = (await pwaGetRes.json()).data.find((t: { id: string }) => t.id === created.id)
+    expect(pwaTask).toEqual(created)
+
+    // The PWA updates it...
+    const pwaPatchRes = await PWA_PATCH_TASK(
+      await cookieRequest(`http://localhost/api/planner/tasks/${created.id}`, actors.owner, ids.A, 'couple', {
+        method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ status: 'in_progress' }),
+      }),
+      { params: Promise.resolve({ id: created.id }) },
+    )
+    expect(pwaPatchRes.status).toBe(200)
+
+    // ...native's own bearer-session route sees the SAME update, proving one shared operation
+    // rather than two independent implementations that could silently drift.
+    const nativeGetRes = await GET_TASKS(await bearerRequest(`http://localhost/api/native/wedding/tasks?grantId=${gid}`, actors.owner, `auth-${actors.owner}`))
+    const nativeTask = (await nativeGetRes.json()).data.find((t: { id: string }) => t.id === created.id)
+    expect(nativeTask.status).toBe('in_progress')
+
+    // Native's toggle shortcut flips it again, and the PWA sees that too.
+    const toggleRes = await PATCH_TASK(
+      await bearerRequest(`http://localhost/api/native/wedding/tasks/${created.id}?grantId=${gid}`, actors.owner, `auth-${actors.owner}`, {
+        method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ toggle: true }),
+      }),
+      { params: Promise.resolve({ id: created.id }) },
+    )
+    expect(toggleRes.status).toBe(200)
+    expect((await toggleRes.json()).data.status).toBe('done')
+    const pwaGetAfterToggle = await PWA_GET_TASKS(await cookieRequest('http://localhost/api/planner/tasks', actors.owner, ids.A, 'couple'))
+    const pwaTaskAfterToggle = (await pwaGetAfterToggle.json()).data.find((t: { id: string }) => t.id === created.id)
+    expect(pwaTaskAfterToggle.status).toBe('done')
   })
 })
