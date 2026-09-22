@@ -1,12 +1,12 @@
 import XCTest
 @testable import WewedKit
 
-/// The Guest Ceremonial Entry Contract, as a set of assertions.
+/// The Guest Entry Contract (master plan §6.2, §6.3), as a set of assertions.
 ///
-/// The invitation was being treated as an onboarding page — shown once, answered, discarded. The
-/// Couple recognised this person; the card is that recognition, and it belongs at the start of
-/// every visit. These tests hold that rule in place, because it is the kind of rule a later
-/// refactor silently undoes.
+/// An explicit invitation arrival opens on the configured card. An ordinary return by a remembered
+/// Guest opens on Guest Home, with the invitation one tap away. The earlier contract here — the card
+/// on EVERY entry session — was never production behaviour, and asserting it only qualified the
+/// Shadow harness against a rule the Guest shell does not follow (master plan §8.11).
 ///
 /// The Android counterpart asserts the same rules in the same order.
 final class GuestCeremonialEntryTests: XCTestCase {
@@ -27,67 +27,47 @@ final class GuestCeremonialEntryTests: XCTestCase {
         )
     }
 
-    // MARK: - The card comes first, on every entry session, whatever was answered
+    // MARK: - Explicit arrival opens on the card; an ordinary return opens on Home
 
-    func testARecognisedPendingGuestMeetsTheCardBeforeTheGuestWorkspace() {
-        let state = LaunchRouter.route(
-            invitation: nil, hasValidSession: true, authorizedRoles: [.guest],
-            hasResolvedContext: true,
-            recognisedGuestInvitation: invitation(), entrySessionPresentedCard: false
-        )
-        guard case .invitation = state else {
-            return XCTFail("the card must precede the Guest workspace, got \(state)")
+    func testAnExplicitInvitationArrivalOpensOnTheCard() {
+        XCTAssertTrue(GuestCeremonialEntry.opensOnInvitation(isExplicitInvitationArrival: true))
+    }
+
+    func testAnOrdinaryReturnOpensOnGuestHomeNotTheCard() {
+        XCTAssertFalse(GuestCeremonialEntry.opensOnInvitation(isExplicitInvitationArrival: false))
+    }
+
+    /// An explicit link meets the card whatever the Guest has already answered.
+    func testAnExplicitLinkMeetsTheCardWhateverWasAnswered() {
+        for card in [invitation(), invitation(confirmed: true), invitation(declined: true)] {
+            let state = LaunchRouter.route(
+                invitation: card, hasValidSession: false, authorizedRoles: [], hasResolvedContext: false
+            )
+            guard case .invitation = state else { return XCTFail("an explicit link must open on the card") }
         }
     }
 
-    /// Having already answered does not retire the card. It changes what the card asks.
-    func testARecognisedAttendingGuestStillMeetsTheCardFirst() {
+    /// A returning Guest workspace is not routed back through the card by the router.
+    func testAReturningGuestWithoutALinkIsNotRoutedToTheCard() {
         let state = LaunchRouter.route(
-            invitation: nil, hasValidSession: true, authorizedRoles: [.guest],
-            hasResolvedContext: true,
-            recognisedGuestInvitation: invitation(confirmed: true), entrySessionPresentedCard: false
-        )
-        guard case let .invitation(_, stage) = state else { return XCTFail("expected the card") }
-        XCTAssertEqual(stage, .confirmed)
-    }
-
-    func testARecognisedDeclinedGuestStillMeetsTheCardFirst() {
-        let state = LaunchRouter.route(
-            invitation: nil, hasValidSession: true, authorizedRoles: [.guest],
-            hasResolvedContext: true,
-            recognisedGuestInvitation: invitation(declined: true), entrySessionPresentedCard: false
-        )
-        guard case let .invitation(_, stage) = state else { return XCTFail("expected the card") }
-        XCTAssertEqual(stage, .declined)
-    }
-
-    /// The ceremony marks a session, not a screen transition.
-    func testTheCardDoesNotRepeatWithinOneEntrySession() {
-        let state = LaunchRouter.route(
-            invitation: nil, hasValidSession: true, authorizedRoles: [.guest],
-            hasResolvedContext: true,
-            recognisedGuestInvitation: invitation(confirmed: true), entrySessionPresentedCard: true
+            invitation: nil, hasValidSession: true, authorizedRoles: [.guest], hasResolvedContext: true
         )
         XCTAssertEqual(state, .workspace(.guest))
     }
 
-    /// Only Guests are recognised this way; nothing here changes how other roles enter.
+    /// Only Guests have an invitation entrance; nothing here changes how other roles enter.
     func testACoupleEntryIsUnaffectedByTheGuestContract() {
         let state = LaunchRouter.route(
-            invitation: nil, hasValidSession: true, authorizedRoles: [.couple],
-            hasResolvedContext: true,
-            recognisedGuestInvitation: nil, entrySessionPresentedCard: false
+            invitation: nil, hasValidSession: true, authorizedRoles: [.couple], hasResolvedContext: true
         )
         XCTAssertEqual(state, .workspace(.couple))
     }
 
-    /// A link being opened now still outranks the standing recognition.
-    func testAnIncomingInvitationOutranksTheRecognisedGuest() {
+    /// A link being opened now outranks an existing session.
+    func testAnIncomingInvitationOutranksAnExistingSession() {
         let state = LaunchRouter.route(
             invitation: invitation(guest: "Guest B"), hasValidSession: true,
-            authorizedRoles: [.guest], hasResolvedContext: true,
-            recognisedGuestInvitation: invitation(confirmed: true, guest: "Guest A"),
-            entrySessionPresentedCard: false
+            authorizedRoles: [.guest], hasResolvedContext: true
         )
         guard case let .invitation(context, _) = state else { return XCTFail("expected the card") }
         XCTAssertEqual(context.guestName, "Guest B")
@@ -153,25 +133,6 @@ final class GuestCeremonialEntryTests: XCTestCase {
         XCTAssertEqual(GuestCeremonialEntry.countdownLabel(daysRemaining: 4), "This week")
         XCTAssertEqual(GuestCeremonialEntry.countdownLabel(daysRemaining: 1), "Tomorrow")
         XCTAssertEqual(GuestCeremonialEntry.countdownLabel(daysRemaining: 0), "Today")
-    }
-
-    // MARK: - Replacing the active guest
-
-    func testOpeningAnotherGuestsInvitationReplacesTheActiveOne() {
-        let outcome = GuestCeremonialEntry.replaceActiveGuest(
-            current: invitation(confirmed: true, guest: "Guest A"),
-            incoming: invitation(guest: "Guest B")
-        )
-        guard case let .activate(context) = outcome else { return XCTFail("expected activation") }
-        XCTAssertEqual(context.guestName, "Guest B")
-    }
-
-    /// The worst outcome available here would be showing one person another person's invitation.
-    func testAnInvalidIncomingClaimNeverFallsBackToThePreviousGuest() {
-        let outcome = GuestCeremonialEntry.replaceActiveGuest(
-            current: invitation(confirmed: true, guest: "Guest A"), incoming: nil
-        )
-        XCTAssertEqual(outcome, .rejectAndClear)
     }
 
     // MARK: - Answering is not admission

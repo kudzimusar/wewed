@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import pro.wewed.app.invitation.*
+import pro.wewed.app.navigation.GuestCeremonialEntry
 import pro.wewed.app.ui.entry.SplashDestination
 import pro.wewed.app.ui.entry.WewedAnimatedSplash
 import pro.wewed.app.theme.WeddingIdentityPalette
@@ -75,9 +76,12 @@ fun GuestOnlyInvitationShell(
     // An explicit link opens on the invitation, because that is the ceremony. An ordinary relaunch
     // opens on Home, because replaying the whole card every time someone checks their table would
     // be tiresome rather than ceremonial. The invitation is always one tap away either way.
+    val opensOnInvitation = GuestCeremonialEntry.opensOnInvitation(
+        isExplicitInvitationArrival = hasIncomingInvitation
+    )
     var navigation by remember(entry) { mutableStateOf(GuestNavigation(
-        selected = if (hasIncomingInvitation) GuestSection.INVITATION else GuestSection.HOME,
-        ceremonial = hasIncomingInvitation
+        selected = if (opensOnInvitation) GuestSection.INVITATION else GuestSection.HOME,
+        ceremonial = opensOnInvitation
     )) }
     BackHandler(navigation.selected == GuestSection.INVITATION && !navigation.ceremonial) {
         navigation = navigation.back()

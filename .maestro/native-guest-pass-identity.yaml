@@ -12,29 +12,9 @@ appId: pro.wewed.app.dev
       wewed_native_persona: "attending_guest"
 
 # Guest Home names the bound guest.
-# Guest Ceremonial Entry Contract: a recognised Guest meets the wedding's configured invitation
-# BEFORE the Guest workspace, on every new entry session — as the approved stationery, never as a
-# summary card. Walking CLOSED -> OPEN -> DETAILS and continuing ends the ceremony for this session.
-- extendedWaitUntil:
-    visible:
-      id: "invitation-trifold"
-    timeout: 8000
-- assertVisible:
-    id: "invitation-closed-cover"
-- tapOn:
-    id: "invitation-open-button"
-- extendedWaitUntil:
-    visible:
-      id: "invitation-panel-centre"
-    timeout: 8000
-- tapOn:
-    id: "invitation-details-button"
-- extendedWaitUntil:
-    visible:
-      id: "invitation-interactive-details"
-    timeout: 5000
-- tapOn:
-    id: "invitation-continue"
+# Guest Entry Contract (master plan §6.3): a persona launch is an ordinary return, not an
+# invitation arrival, so the Guest opens on Guest Home. Only an explicit link opens on the card
+# (see native-shadow-deep-link-invitation / native-invitation-cta-touch).
 - assertVisible:
     id: "role-shell-guest"
 - assertVisible:
@@ -78,31 +58,8 @@ appId: pro.wewed.app.dev
       wewed_native_env: "shadow"
       wewed_native_persona: "attending_guest_party4"
 
-# A fresh launch is a new entry session, so the second guest meets their own invitation. The
-# personalisation on it must be the SECOND guest's: this is where a positional read would show
-# the first guest's.
-- extendedWaitUntil:
-    visible:
-      id: "invitation-trifold"
-    timeout: 8000
-- assertVisible:
-    id: "invitation-closed-cover"
-- tapOn:
-    id: "invitation-open-button"
-- extendedWaitUntil:
-    visible:
-      id: "invitation-panel-centre"
-    timeout: 8000
-- assertVisible:
-    id: "invitation-guest-personalization"
-- tapOn:
-    id: "invitation-details-button"
-- extendedWaitUntil:
-    visible:
-      id: "invitation-interactive-details"
-    timeout: 5000
-- tapOn:
-    id: "invitation-continue"
+# The second guest opens on their own Guest Home (master plan §6.3). Every surface below must
+# resolve the SECOND guest: this is where a positional read would show the first guest's.
 
 - assertVisible:
     id: "guest-home-identity-shadow_guest_007"

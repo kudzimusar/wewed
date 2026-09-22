@@ -155,6 +155,27 @@ final class LiveGuestInvitationCoordinatorTests: XCTestCase {
         guard case .refused = state else { return XCTFail("expected refusal, got \(state)") }
     }
 
+    /// Guest replacement (master plan §6.5): with Guest A presented, an invalid Guest B is
+    /// refused, and the answer to B's entry is never A's card. The dead
+    /// `GuestCeremonialEntry.replaceActiveGuest` only described this; here it is asserted against
+    /// the coordinator the Guest shells actually use.
+    func testAnInvalidSecondGuestIsRefusedAndNeverAnswersWithTheFirstGuestsCard() async {
+        exchangeSucceeds(slug: "wedding-a", guestId: "guest_a", session: "SESSION-A")
+        invitationReads(slug: "wedding-a", guestId: "guest_a", name: "Guest A", attending: "true")
+        let first = await coordinator.enter(
+            .privateInvitation(weddingSlug: "wedding-a", rsvpToken: "CREDENTIAL-A"))
+        guard case let .presenting(snapshot) = first else { return XCTFail("expected Guest A, got \(first)") }
+        XCTAssertEqual(snapshot.guestName, "Guest A")
+
+        Stub.routes["POST /api/weddings/wedding-b/guest-session"] =
+            Reply(status: 401, body: #"{"success":false}"#)
+        let second = await coordinator.enter(
+            .privateInvitation(weddingSlug: "wedding-b", rsvpToken: "INVALID-B"))
+        guard case .refused = second else {
+            return XCTFail("an invalid Guest B must be refused, and never answered with Guest A's card; got \(second)")
+        }
+    }
+
     /// An unreachable Wewed is distinguishable from a refused invitation.
     func testAnUnreachableServerIsNotARefusal() async {
         Stub.routes["POST /api/weddings/charity-and-kudzie/guest-session"] = Reply(status: 503)

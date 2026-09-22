@@ -7,10 +7,8 @@ public struct PersonaPickerSheet: View {
     public init() {}
 
     private func isSelected(_ persona: DevelopmentPersona) -> Bool {
-        if let active = session.activePersona {
-            return active.id == persona.id
-        }
-        return persona.id == "couple_owner"
+        // No active persona means none is selected; nothing is pre-chosen on the actor's behalf.
+        session.activePersona?.id == persona.id
     }
 
     public var body: some View {

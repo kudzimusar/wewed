@@ -25,11 +25,26 @@ public enum AppRole: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    public static func from(roleId: String) -> AppRole {
-        AppRole(rawValue: roleId.lowercased()) ?? .couple
+    /// Parses a NATIVE workspace identifier — exactly one of the raw values above — and nothing
+    /// else. Unknown input is nil, never a default workspace.
+    ///
+    /// This is not a server authority mapper. Wewed authority has several axes (account class,
+    /// BusinessAccountMember, WeddingMembership, operational assignment), and a single server role
+    /// string cannot choose a workspace: `owner`, `viewer`, `business_owner`, `couple_owner`,
+    /// `vendor_manager` and `venue_manager` have no workspace here at all, and `planner` or
+    /// `coordinator` mean different things on different axes. The production grant contract is
+    /// master-plan Phase 2; until it exists, nothing server-supplied reaches a workspace. The old
+    /// `?? .couple` fallback turned any unrecognised string into the Couple workspace (§8.1).
+    public static func from(roleId: String) -> AppRole? {
+        AppRole(rawValue: roleId)
     }
 }
 
+/// A Shadow/fixture qualification actor. Development and Shadow environments only.
+///
+/// Personas are test actors, not accounts: they are applied only where
+/// `NativeDataEnvironment.allowsDevelopmentPersonaSwitching` holds, and `SessionStore` refuses
+/// them anywhere else. Production identity starts unknown and is never seeded from this list.
 public struct DevelopmentPersona: Identifiable, Sendable {
     public let id: String
     public let name: String
@@ -45,6 +60,13 @@ public struct DevelopmentPersona: Identifiable, Sendable {
         self.role = role
         self.weddingId = weddingId
         self.weddingTitle = weddingTitle
+    }
+
+    /// The actor a Shadow session opens as when no specific persona was requested.
+    public static let defaultShadowPersonaId = "couple_owner"
+
+    public static var defaultShadowPersona: DevelopmentPersona {
+        allPersonas.first { $0.id == defaultShadowPersonaId }!
     }
 
     public static let allPersonas: [DevelopmentPersona] = [

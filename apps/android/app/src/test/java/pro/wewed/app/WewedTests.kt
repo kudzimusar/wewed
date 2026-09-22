@@ -4,6 +4,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
 import pro.wewed.app.models.CheckInStatus
+import pro.wewed.app.models.NativeDataEnvironment
 import pro.wewed.app.models.RSVPStatus
 import pro.wewed.app.models.TaskPriority
 import pro.wewed.app.models.TaskStatus
@@ -142,19 +143,21 @@ class WewedTests {
     @Test
     fun testSessionStore() {
         val storage = InMemorySecureStorage()
-        val session = SessionViewModel(storage)
+        val session = SessionViewModel(storage, NativeDataEnvironment.SANITIZED_SHADOW)
         assertFalse(session.isAuthenticated.value)
 
-        session.login("tariro@wewed.pro", "couple")
+        assertTrue(session.enterShadowSession())
         assertTrue(session.isAuthenticated.value)
         assertEquals("couple", session.currentUserRole.value)
 
-        // Restore in new session instance
-        val restoredSession = SessionViewModel(storage)
-        assertTrue(restoredSession.isAuthenticated.value)
-
-        restoredSession.logout()
+        // A stored token alone is not authority: a new session instance restores nothing.
+        val restoredSession = SessionViewModel(storage, NativeDataEnvironment.SANITIZED_SHADOW)
         assertFalse(restoredSession.isAuthenticated.value)
+        assertNull(restoredSession.currentRole.value)
+
+        session.signOut()
+        assertFalse(session.isAuthenticated.value)
+        assertNull(session.currentRole.value)
     }
 
     @Test

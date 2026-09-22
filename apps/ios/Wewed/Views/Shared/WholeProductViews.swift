@@ -105,70 +105,31 @@ public struct AccountPrivacyView: View {
 }
 
 // MARK: - 2. Wedding & Business Context Switcher (WEDD-01)
+//
+// The weddings an actor may switch between are a server answer about that actor (master plan
+// Phases 2, 5 and 6). There is no such source in this build, so this says so. It used to list one
+// hardcoded real wedding — the same one for every actor — as if it were the actor's portfolio
+// (master plan §8.13).
 public struct WeddingContextSwitcherView: View {
-    @State private var selectedWeddingId: String = "cmqos70cb0004q6vxe9g9aiu5"
-
     public init() {}
 
     public var body: some View {
         ScrollView {
-            VStack(spacing: WewedSpacing.base) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Active Wedding & Event Context")
-                        .font(.headline)
-                    Text("Active wedding project on verified ledger.")
-                        .font(.caption).foregroundColor(.secondary)
-                }
-                .padding()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.white)
-                .cornerRadius(WewedRadius.lg)
-
-                VStack(spacing: 10) {
-                    WeddingContextCard(id: "cmqos70cb0004q6vxe9g9aiu5", couple: "Charity & Kudzie", date: "23 December 2026", venue: "Imba Manor, Harare", role: "Primary Couple", isSelected: selectedWeddingId == "cmqos70cb0004q6vxe9g9aiu5") {
-                        selectedWeddingId = "cmqos70cb0004q6vxe9g9aiu5"
-                    }
-                }
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Active Wedding & Event Context")
+                    .font(.headline)
+                Text("Wedding switching is not connected in this build. The weddings you can open come from your Wewed account, and no account authority is available here.")
+                    .font(.caption).foregroundColor(.secondary)
             }
             .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.white)
+            .cornerRadius(WewedRadius.lg)
+            .padding()
+            .accessibilityIdentifier("wedding-context-switcher-unavailable")
         }
         .background(WewedColors.ivory)
         .navigationTitle("Event Switcher")
-    }
-}
-
-private struct WeddingContextCard: View {
-    let id: String
-    let couple: String
-    let date: String
-    let venue: String
-    let role: String
-    let isSelected: Bool
-    let onSelect: () -> Void
-
-    var body: some View {
-        Button(action: onSelect) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(couple).font(.subheadline).fontWeight(.bold).foregroundColor(WewedColors.textPrimaryLight)
-                    Text("\(date) • \(venue)").font(.caption).foregroundColor(.secondary)
-                    Text(role).font(.caption2).fontWeight(.semibold).foregroundColor(WewedColors.gold)
-                }
-                Spacer()
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.title3)
-                        .foregroundColor(WewedColors.emerald)
-                }
-            }
-            .padding()
-            .background(Color.white)
-            .cornerRadius(WewedRadius.md)
-            .overlay(
-                RoundedRectangle(cornerRadius: WewedRadius.md)
-                    .stroke(isSelected ? WewedColors.emerald : Color.clear, lineWidth: 2)
-            )
-        }
     }
 }
 
@@ -409,9 +370,11 @@ public struct SettingsView: View {
     public init() {}
 
     public var body: some View {
-        let name = session.activePersona?.name ?? session.currentUserName ?? "Active User"
-        let subtitle = session.activePersona?.subtitle ?? "Wewed Mobile Member"
-        let roleTitle = session.activePersona?.role.title ?? session.currentRole.title
+        // Only what the session actually holds. No invented account name or membership line: an
+        // unresolved identity is shown as unresolved (master plan Rule 5).
+        let name = session.activePersona?.name ?? session.currentUserName ?? "Identity not resolved"
+        let subtitle = session.activePersona?.subtitle ?? ""
+        let roleTitle = session.activePersona?.role.title ?? session.currentRole?.title ?? "No workspace role"
 
         return ScrollView {
             VStack(spacing: WewedSpacing.base) {

@@ -186,7 +186,7 @@ us" would be inventing words on the couple's behalf.
 
 ## 8. When the card is staged
 
-Per the Guest Ceremonial Entry Contract, on **every entry session**:
+Per the Guest Ceremonial Entry Contract as first written, on **every entry session** *(superseded 2026-09-22 by master plan WW-NATIVE-PWA-CONVERGENCE-2026-09-22-01 §6.3: only an explicit invitation arrival opens on the card; a remembered Guest returning by app icon opens on Guest Home)*:
 
 - ✅ Cold launch · relaunch after process death · invitation deep link · persona launch
 - ✗ Returning from a background switch within the same entry session

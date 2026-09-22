@@ -56,9 +56,11 @@ public struct GuestOnlyInvitationShellView: View {
         requestVersion += 1
         let version = requestVersion
         currentEntry = entry
-        selectedDestination = .invitation
+        // An explicit link is an arrival: it opens on the card (GuestCeremonialEntry).
+        let opensOnCard = GuestCeremonialEntry.opensOnInvitation(isExplicitInvitationArrival: true)
+        selectedDestination = opensOnCard ? .invitation : .home
         returnDestination = .home
-        ceremonial = true
+        ceremonial = opensOnCard
         Task {
             state = .exchanging
             let entered = await coordinator.enter(entry)
@@ -102,7 +104,10 @@ public struct GuestOnlyInvitationShellView: View {
             state = .exchanging
             let restored = await coordinator.restoreRememberedGuest()
             // A restored session opens on Home; only an explicit link earns the ceremony.
-            if case .presenting = restored { selectedDestination = .home; ceremonial = false }
+            if case .presenting = restored,
+               !GuestCeremonialEntry.opensOnInvitation(isExplicitInvitationArrival: false) {
+                selectedDestination = .home; ceremonial = false
+            }
             state = restored
         }
     }

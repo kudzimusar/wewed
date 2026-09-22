@@ -23,10 +23,14 @@ struct WewedMainApp: App {
     private let mode: AppLaunchMode
 
     init() {
-        let store = SessionStore()
         let launch = NativeLaunchConfiguration.resolve()
+        // Built once the environment is known, because the environment decides whether a Shadow
+        // persona may be applied at all. It starts empty: no identity, role or wedding until
+        // something with authority supplies one (master plan §8.2).
+        let store = SessionStore(environment: launch.environment)
 
-        // Development/Shadow qualification only (P0-16): ignored in production builds.
+        // Development/Shadow qualification only (P0-16): ignored in production builds, and refused
+        // by the session itself outside development environments.
         if launch.environment.allowsDevelopmentPersonaSwitching,
            let requested = NativeLaunchConfiguration.requestedPersonaId(),
            let persona = DevelopmentPersona.allPersonas.first(where: { $0.id == requested }) {

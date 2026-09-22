@@ -26,7 +26,6 @@ import pro.wewed.app.ui.entry.NativeEnvironmentUnavailableScreen
 
 @OptIn(ExperimentalComposeUiApi::class)
 class MainActivity : ComponentActivity() {
-    private val sessionViewModel = SessionViewModel()
     private lateinit var appViewModel: AppViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -115,6 +114,11 @@ class MainActivity : ComponentActivity() {
         }
         appViewModel = resolved
         appViewModel.handleIncomingUrl(intent?.dataString)
+
+        // Built only once the environment is known, because the environment decides whether a
+        // Shadow persona may be applied at all. It starts empty: no identity, role or wedding
+        // until something with authority supplies one (master plan §8.2).
+        val sessionViewModel = SessionViewModel(environment = launch.environment)
 
         // Development/Shadow qualification only (P0-16): lets automated role traversal start as a
         // specific authorized persona. Ignored entirely in production and production-read-verify.

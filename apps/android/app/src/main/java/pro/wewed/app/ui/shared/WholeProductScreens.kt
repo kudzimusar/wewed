@@ -14,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -148,42 +149,29 @@ fun AccountPrivacyScreen(onBack: (() -> Unit)? = null) {
 }
 
 // 2. Wedding Context Switcher Screen (WEDD-01)
+//
+// The weddings an actor may switch between are a server answer about that actor (master plan
+// Phases 2, 5 and 6). There is no such source in this build, so this says so. It used to list one
+// hardcoded real wedding — the same one for every actor — as if it were the actor's portfolio
+// (master plan §8.13).
 @Composable
 fun WeddingContextSwitcherScreen(onBack: (() -> Unit)? = null) {
-    var selectedId by remember { mutableStateOf("cmqos70cb0004q6vxe9g9aiu5") }
-
     SharedScaffold(title = "Event Switcher", onBack = onBack) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = WewedSpacing.base),
-            verticalArrangement = Arrangement.spacedBy(WewedSpacing.md)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(WewedSpacing.base)
+                .testTag("wedding-context-switcher-unavailable"),
+            verticalArrangement = Arrangement.spacedBy(WewedSpacing.sm)
         ) {
-            item {
-                Text("Active Event Contexts", fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = WewedSpacing.sm))
-            }
-            val list = listOf(
-                Triple("cmqos70cb0004q6vxe9g9aiu5", "Charity & Kudzie", "23 Dec 2026 • Imba Manor, Harare")
+            Text("Active Event Contexts", fontWeight = FontWeight.Bold)
+            Text(
+                "Wedding switching is not connected in this build. The weddings you can open come " +
+                    "from your Wewed account, and no account authority is available here.",
+                color = Color.Gray,
+                fontSize = 13.sp
             )
-            items(list) { (id, couple, meta) ->
-                Card(
-                    modifier = Modifier.fillMaxWidth().clickable { selectedId = id },
-                    shape = RoundedCornerShape(WewedRadius.md),
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(WewedSpacing.base),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(couple, fontWeight = FontWeight.Bold)
-                            Text(meta, fontSize = 12.sp, color = Color.Gray)
-                        }
-                        if (selectedId == id) {
-                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = WewedColors.Emerald)
-                        }
-                    }
-                }
-            }
         }
     }
 }
@@ -358,7 +346,9 @@ fun SettingsScreen(sessionViewModel: SessionViewModel, onBack: (() -> Unit)? = n
 
     val userName by sessionViewModel.currentUserName.collectAsState()
     val role by sessionViewModel.currentRole.collectAsState()
-    val displayName = userName ?: "Active User"
+    // Only what the session actually holds. No invented account name or e-mail: an unresolved
+    // identity is shown as unresolved (master plan Rule 5).
+    val displayName = userName?.takeIf { it.isNotBlank() } ?: "Identity not resolved"
 
     SharedScaffold(title = "Settings & Profile", onBack = onBack) { padding ->
         LazyColumn(
@@ -381,8 +371,12 @@ fun SettingsScreen(sessionViewModel: SessionViewModel, onBack: (() -> Unit)? = n
                         Spacer(modifier = Modifier.width(WewedSpacing.base))
                         Column {
                             Text(displayName, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                            Text("wewed.mobile@pro.wewed", fontSize = 12.sp, color = Color.Gray)
-                            Text(role.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = WewedColors.Gold)
+                            Text(
+                                role?.title ?: "No workspace role",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = WewedColors.Gold
+                            )
                         }
                     }
                 }

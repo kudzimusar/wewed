@@ -64,6 +64,27 @@ public struct EmptyActorAssignmentSource: ActorAssignmentSource {
     public func assignments(actorId: String) async -> [ActorAssignment] { [] }
 }
 
+/// Chooses where assignments come from for an environment.
+///
+/// Shadow authority exists only where Shadow personas do. Production and production-read-verify
+/// get NO assignments until the production grant source exists (master plan Phase 5), so every
+/// scoped workspace is denied there rather than opened with Shadow test access. The root used to
+/// build the Shadow source unconditionally (master plan §8.9).
+public enum ActorAssignmentSources {
+    public static func forEnvironment(
+        _ environment: NativeDataEnvironment,
+        repository: WeddingRepositoryProtocol,
+        plannerRepository: PlannerDashboardRepositoryProtocol? = nil
+    ) -> ActorAssignmentSource {
+        guard environment.allowsDevelopmentPersonaSwitching else { return EmptyActorAssignmentSource() }
+        return ShadowActorAssignmentSource(
+            repository: repository,
+            environment: environment,
+            plannerRepository: plannerRepository
+        )
+    }
+}
+
 /// A fixed set of assignments, used by fixtures, Shadow provisioning and tests.
 public struct StaticActorAssignmentSource: ActorAssignmentSource {
     private let all: [ActorAssignment]

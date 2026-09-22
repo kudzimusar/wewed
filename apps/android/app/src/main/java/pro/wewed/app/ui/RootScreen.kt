@@ -16,14 +16,14 @@ import pro.wewed.app.models.GuestJourneyStage
 import pro.wewed.app.models.InvitationContext
 import pro.wewed.app.navigation.DeepLinkRouter
 import pro.wewed.app.navigation.IANavigationContract
-import pro.wewed.app.navigation.ShadowActorAssignmentSource
+import pro.wewed.app.navigation.ActorAssignmentSources
 import pro.wewed.app.navigation.NavigationContext
 import pro.wewed.app.state.AppViewModel
 import pro.wewed.app.state.SessionViewModel
 import pro.wewed.app.theme.WeddingIdentityPalette
 import pro.wewed.app.navigation.AuthenticationMode
 import pro.wewed.app.navigation.InvitationEntryStage
-import pro.wewed.app.navigation.GuestCeremonialEntry
+import pro.wewed.app.ui.entry.NativeEnvironmentUnavailableScreen
 import pro.wewed.app.navigation.LaunchRouter
 import pro.wewed.app.navigation.NativeAppEntryState
 import pro.wewed.app.ui.auth.LoginScreen
@@ -63,6 +63,7 @@ fun RootScreen(
 ) {
     val isAuthenticated by sessionViewModel.isAuthenticated.collectAsState()
     val currentRole by sessionViewModel.currentRole.collectAsState()
+    val authorizedRoles by sessionViewModel.authorizedRoles.collectAsState()
     val currentUserName by sessionViewModel.currentUserName.collectAsState()
     val activePersonaId by sessionViewModel.activePersonaId.collectAsState()
     val weddingId by sessionViewModel.weddingId.collectAsState()
@@ -88,12 +89,6 @@ fun RootScreen(
     // -----------------------------------------------------------------------------------------
     var splashComplete by remember { mutableStateOf(false) }
     var authMode by remember { mutableStateOf<AuthenticationMode?>(null) }
-
-    // The Guest Ceremonial Entry Contract. `remember` without keys is exactly the right scope:
-    // it survives recomposition and a return from the background, but not a cold launch, a
-    // relaunch after termination or a restore after process death — precisely the entry-session
-    // boundary the contract describes.
-    var entrySessionPresentedCard by remember { mutableStateOf(false) }
 
     // --- The live guest invitation path -------------------------------------------------------
     //
@@ -265,7 +260,7 @@ fun RootScreen(
     val entryState = LaunchRouter.route(
         invitation = deepLinkedInvitation,
         hasValidSession = isAuthenticated,
-        authorizedRoles = if (isAuthenticated) listOf(currentRole) else emptyList(),
+        authorizedRoles = if (isAuthenticated) authorizedRoles else emptyList(),
         hasResolvedContext = true
     )
 
@@ -330,30 +325,41 @@ fun RootScreen(
     // IA V2 §13.1 / P0-3 — the context envelope is *resolved from verified assignments*, never
     // assembled from convenient defaults. No client id, gate id, engagement id or guest identity
     // is invented here; an unresolved scope stays null and the shell denies the workspace.
-    val assignmentSource = remember(appViewModel) { ShadowActorAssignmentSource(
-            appViewModel.repository,
+    // Shadow authority only where Shadow personas exist; production/verify resolve nothing until
+    // the production grant source exists (master plan §8.9, Phase 5).
+    val assignmentSource = remember(appViewModel) {
+        ActorAssignmentSources.forEnvironment(
             appViewModel.dataEnvironment,
+            appViewModel.repository,
             appViewModel.plannerRepository
-        ) }
+        )
+    }
     var resolvedContext by remember { mutableStateOf<NavigationContext?>(null) }
     var resolvingContext by remember { mutableStateOf(true) }
 
     LaunchedEffect(currentRole, activePersonaId, weddingId, weddingTitle) {
         resolvingContext = true
-        val assignment = runCatching { assignmentSource.assignments(activePersonaId) }
+        val role = currentRole
+        if (role == null) {
+            // Authenticated with no resolved role: there is no workspace to open, and none is
+            // chosen on the person's behalf.
+            resolvedContext = null
+            resolvingContext = false
+            return@LaunchedEffect
+        }
+        val actorId = activePersonaId.orEmpty()
+        val assignment = runCatching { assignmentSource.assignments(actorId) }
             .getOrDefault(emptyList())
-            .firstOrNull { it.role == currentRole }
+            .firstOrNull { it.role == role }
 
-        val systemScoped = IANavigationContract.forRole(currentRole).isSystemScoped
         resolvedContext = NavigationContext(
-            actorId = activePersonaId,
-            activeRole = currentRole,
-            // A system-scoped role opens without a wedding; everyone else uses the assigned one.
-            activeWeddingId = when {
-                systemScoped -> assignment?.weddingId.orEmpty()
-                else -> assignment?.weddingId ?: weddingId
-            },
-            activeWeddingTitle = if (systemScoped && assignment?.weddingId == null) "" else weddingTitle,
+            actorId = actorId,
+            activeRole = role,
+            // The wedding comes from the verified assignment and nowhere else. There is no
+            // fallback to a session default: an actor without an assignment has no wedding, and
+            // the shell denies every wedding-scoped destination (master plan §8.9).
+            activeWeddingId = assignment?.weddingId.orEmpty(),
+            activeWeddingTitle = if (assignment?.weddingId == null) "" else weddingTitle.orEmpty(),
             environment = appViewModel.dataEnvironment,
             activeClientId = assignment?.clientId,
             activeVendorId = assignment?.vendorId,
@@ -376,7 +382,13 @@ fun RootScreen(
         return
     }
 
-    val context = resolvedContext ?: return
+    val context = resolvedContext ?: run {
+        NativeEnvironmentUnavailableScreen(
+            environmentName = appViewModel.dataEnvironment.displayName,
+            reason = "No Wewed workspace is authorized for this session."
+        )
+        return
+    }
 
     // P0-8: the parsed link is handed to the shell intact; the shell resolves it against the
     // active context through DeepLinkRouter rather than reducing it to a destination id here.
@@ -396,70 +408,25 @@ fun RootScreen(
     }
 
     // -----------------------------------------------------------------------------------------
-    // Guest Ceremonial Entry.
+    // Guest Entry Contract (GuestCeremonialEntry, master plan §6.3).
     //
-    // The Couple recognised this person; the card is that recognition, and it opens every visit —
-    // before the Guest workspace, before the wedding site, before the pass. What changes with
-    // RSVP state is what the card ASKS, never whether it appears. A guest who has already replied
-    // is not asked again.
+    // A Guest actor reaching the workspace root has not arrived through a link — links are handled
+    // above and always open on the card. So this is an ordinary return, and it opens on Guest
+    // Home with the invitation one tap away, exactly as the production Guest shell does. This root
+    // used to replay the card on every entry session, which only Shadow did: the harness was
+    // qualifying behaviour production did not have (master plan §8.11).
     // -----------------------------------------------------------------------------------------
-    var recognisedGuestInvitation by remember(context.activePassToken) {
-        mutableStateOf<InvitationContext?>(null)
+    LaunchedEffect(context.activeRole) {
+        // Live mode restores the remembered Guest from the server-issued session. Unreachable
+        // today — production resolves no assignments and applies no personas — and recorded as a
+        // Phase 5 blocker: before the workspace is enabled, Guest entry must stay on the Guest
+        // shell's authority (master plan §8.12).
+        if (!appViewModel.dataEnvironment.allowsMutableNativeDevelopment &&
+            context.activeRole == AppRole.GUEST
+        ) {
+            liveInvitation = liveCoordinator.restoreRememberedGuest()
+        }
     }
-    val guestPassToken = context.activePassToken
-    // The wedding's SAVED invitation style decides the design. Hard-coding Ivory would be right
-    // for Charity & Kudzie today and wrong for the next wedding.
-    LaunchedEffect(guestPassToken, context.activeRole) {
-        // In live mode the recognised guest is restored from the server-issued session, not from a
-        // repository and not from a stored credential. The Shadow path below stays for Shadow
-        // qualification only, so no live surface can reach `resolveInvitation`.
-        if (!appViewModel.dataEnvironment.allowsMutableNativeDevelopment) {
-            recognisedGuestInvitation = null
-            if (context.activeRole == AppRole.GUEST) {
-                liveInvitation = liveCoordinator.restoreRememberedGuest()
-            }
-            return@LaunchedEffect
-        }
-        recognisedGuestInvitation =
-            if (context.activeRole == AppRole.GUEST && guestPassToken != null) {
-                runCatching {
-                    appViewModel.repository.resolveInvitation(
-                        appViewModel.repository.weddingSlug(context.activeWeddingId).orEmpty(),
-                        guestPassToken
-                    )
-                }.getOrNull()
-            } else {
-                null
-            }
-    }
-
-    recognisedGuestInvitation
-        ?.takeIf {
-            GuestCeremonialEntry.shouldPresentCard(
-                isRecognisedGuest = true,
-                entrySessionPresentedCard = entrySessionPresentedCard
-            )
-        }
-        ?.let { card ->
-            // The invitation is the wedding's configured product object. RSVP state changes what
-            // it OFFERS; it never changes which object is shown, and it never skips the card.
-            // Presentation (CLOSED/OPENING/OPEN/DETAILS) and RSVP state are orthogonal: a
-            // returning confirmed guest is CLOSED + ATTENDING, which is ordinary and correct.
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .semantics { testTagsAsResourceId = true }
-            ) {
-                GuestInvitationJourneyScreen(
-                    reference = GuestJourneyReference(card, GuestJourneyStage.INVITATION),
-                    appViewModel = appViewModel,
-                    // Continuing ends the ceremony for THIS entry session; the next cold launch
-                    // stages it again.
-                    onExit = { entrySessionPresentedCard = true }
-                )
-            }
-            return
-        }
 
     Box(
         modifier = Modifier
@@ -467,7 +434,7 @@ fun RootScreen(
             .semantics { testTagsAsResourceId = true }
             .testTag("shadow-source-${appViewModel.dataEnvironment.name.lowercase().replace('_', '-')}")
     ) {
-        when (currentRole) {
+        when (context.activeRole) {
             AppRole.COUPLE -> CoupleShell(
                 sessionViewModel = sessionViewModel,
                 appViewModel = appViewModel,

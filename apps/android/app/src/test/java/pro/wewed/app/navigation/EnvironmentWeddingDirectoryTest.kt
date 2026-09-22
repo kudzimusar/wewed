@@ -40,10 +40,29 @@ class EnvironmentWeddingDirectoryTest {
             "cmqos70cb0004q6vxe9g9aiu5",
             EnvironmentWeddingDirectory.declaredWeddingId(scenario, NativeDataEnvironment.PRIVATE_REAL_SHADOW)
         )
-        assertEquals(
-            "cmqos70cb0004q6vxe9g9aiu5",
-            EnvironmentWeddingDirectory.declaredWeddingId(scenario, NativeDataEnvironment.PRODUCTION)
-        )
+    }
+
+    /**
+     * Production has no "the" wedding (master plan §8.2). Which weddings an actor may open is a
+     * server answer about that actor, never a constant in the binary.
+     */
+    @Test
+    fun `production and production-read-verify declare no wedding at all`() = runBlocking {
+        for (environment in listOf(NativeDataEnvironment.PRODUCTION, NativeDataEnvironment.PRODUCTION_READ_VERIFY)) {
+            assertNull(EnvironmentWeddingDirectory.declaredWeddingId(scenario, environment))
+            // Even a repository that happens to serve the old id resolves nothing.
+            assertNull(
+                EnvironmentWeddingDirectory.resolveWeddingId(
+                    PrivateRealIdRepository(), scenario, environment
+                )
+            )
+        }
+    }
+
+    /** Serves the production-derived id, as a misconfigured production source might. */
+    private class PrivateRealIdRepository : pro.wewed.app.services.WeddingRepository by
+        pro.wewed.app.services.ShadowReferenceWeddingRepository() {
+        override suspend fun availableWeddingIds(): List<String> = listOf("cmqos70cb0004q6vxe9g9aiu5")
     }
 
     @Test

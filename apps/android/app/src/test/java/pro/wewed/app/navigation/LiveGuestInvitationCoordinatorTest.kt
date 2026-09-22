@@ -171,6 +171,29 @@ class LiveGuestInvitationCoordinatorTest {
         assertFalse(seenPaths.any { it.contains("guest-session") })
     }
 
+    /**
+     * Guest replacement (master plan §6.5): with Guest A presented, an invalid Guest B is refused,
+     * and the answer to B's entry is never A's card. The dead
+     * `GuestCeremonialEntry.replaceActiveGuest` only described this; here it is asserted against the
+     * coordinator the Guest shells actually use.
+     */
+    @Test
+    fun anInvalidSecondGuestIsRefusedAndNeverAnswersWithTheFirstGuestsCard() = runBlocking {
+        exchangeSucceeds("wedding-a", "guest_a", "SESSION-A")
+        invitationReads("wedding-a", "guest_a", "Guest A", "true")
+        val first = coordinator.enter(InvitationEntry.PrivateInvitation("wedding-a", "CREDENTIAL-A"))
+        assertEquals("Guest A", (first as LiveInvitationState.Presenting).snapshot.guestName)
+
+        routes["POST /api/weddings/wedding-b/guest-session"] = Reply(401, """{"success":false}""")
+        val second = coordinator.enter(InvitationEntry.PrivateInvitation("wedding-b", "INVALID-B"))
+
+        assertTrue("an invalid Guest B must be refused", second is LiveInvitationState.Refused)
+        assertFalse(
+            "Guest A's card must never answer Guest B's entry",
+            second is LiveInvitationState.Presenting
+        )
+    }
+
     /** A credential the server declines is a refusal, not an unavailable server. */
     @Test
     fun aDeclinedCredentialIsARefusal() = runBlocking {

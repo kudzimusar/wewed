@@ -24,8 +24,8 @@ data class NativeLaunchConfiguration(
          * explicitly asked for.
          *
          * @param isDebugBuild development builds fall back to the sanitized Shadow graph. A release
-         *   build falls through to [NativeDataEnvironment.PRODUCTION], which the repository factory
-         *   currently refuses — loudly and on purpose. Refusing to start is the correct behaviour
+         *   build is always [NativeDataEnvironment.PRODUCTION] — launch inputs are ignored — which
+         *   the repository factory currently refuses, loudly and on purpose. Refusing to start is the correct behaviour
          *   for a release build with no live data path; silently showing a real guest demo data is
          *   not.
          */
@@ -34,6 +34,13 @@ data class NativeLaunchConfiguration(
             shadowBaseUrl: String?,
             isDebugBuild: Boolean = true
         ): NativeLaunchConfiguration {
+            // A release binary is Production, whatever it is launched with. The environment extra
+            // is a qualification input, and MainActivity is exported: honouring it in a release
+            // build left the Play identity check in the repository factory as the only thing
+            // between an arbitrary intent and a Shadow runtime (master plan §8.10).
+            if (!isDebugBuild) {
+                return NativeLaunchConfiguration(environment = NativeDataEnvironment.PRODUCTION)
+            }
             val environment = when (rawEnvironment?.trim()?.lowercase()) {
                 "private_real_shadow", "private-real-shadow", "private_shadow", "private" ->
                     NativeDataEnvironment.PRIVATE_REAL_SHADOW
@@ -43,9 +50,7 @@ data class NativeLaunchConfiguration(
                     NativeDataEnvironment.PRODUCTION_READ_VERIFY
                 "production" -> NativeDataEnvironment.PRODUCTION
                 "fixture" -> NativeDataEnvironment.FIXTURE
-                else ->
-                    if (isDebugBuild) NativeDataEnvironment.SANITIZED_SHADOW
-                    else NativeDataEnvironment.PRODUCTION
+                else -> NativeDataEnvironment.SANITIZED_SHADOW
             }
             return NativeLaunchConfiguration(environment = environment, baseUrl = shadowBaseUrl)
         }

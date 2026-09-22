@@ -1,6 +1,9 @@
 package pro.wewed.app.navigation
 
 import pro.wewed.app.models.AppRole
+import pro.wewed.app.models.NativeDataEnvironment
+import pro.wewed.app.services.PlannerDashboardRepository
+import pro.wewed.app.services.WeddingRepository
 
 /**
  * A verified relationship between an actor and the scope it may operate in (P0-2).
@@ -50,6 +53,27 @@ interface ActorAssignmentSource {
 /** An assignment source with no relationships at all — every scoped workspace is denied. */
 object EmptyActorAssignmentSource : ActorAssignmentSource {
     override suspend fun assignments(actorId: String): List<ActorAssignment> = emptyList()
+}
+
+/**
+ * Chooses where assignments come from for an environment.
+ *
+ * Shadow authority exists only where Shadow personas do. Production and production-read-verify get
+ * NO assignments until the production grant source exists (master plan Phase 5), so every scoped
+ * workspace is denied there rather than opened with Shadow test access. The root used to build the
+ * Shadow source unconditionally (master plan §8.9).
+ */
+object ActorAssignmentSources {
+    fun forEnvironment(
+        environment: NativeDataEnvironment,
+        repository: WeddingRepository,
+        plannerRepository: PlannerDashboardRepository? = null
+    ): ActorAssignmentSource =
+        if (environment.allowsDevelopmentPersonaSwitching) {
+            ShadowActorAssignmentSource(repository, environment, plannerRepository)
+        } else {
+            EmptyActorAssignmentSource
+        }
 }
 
 /** A fixed set of assignments, used by fixtures, Shadow provisioning and tests. */

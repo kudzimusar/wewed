@@ -32,6 +32,9 @@ class ShadowActorAssignmentSource(
 ) : ActorAssignmentSource {
 
     override suspend fun assignments(actorId: String): List<ActorAssignment> {
+        // Shadow authority is test access, and exists only where Shadow personas do. Refusing here
+        // as well as in [ActorAssignmentSources] means no caller can reach it in production.
+        if (!environment.allowsDevelopmentPersonaSwitching) return emptyList()
         val persona = personas.firstOrNull { it.id == actorId } ?: return emptyList()
 
         // The persona names an authorized scenario and actor, never a wedding id: the same real

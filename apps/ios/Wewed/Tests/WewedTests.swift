@@ -123,19 +123,21 @@ final class WewedTests: XCTestCase {
 
     func testSessionStore() {
         let storage = InMemorySecureStorage()
-        let session = SessionStore(storage: storage)
+        let session = SessionStore(storage: storage, environment: .sanitizedShadow)
         XCTAssertFalse(session.isAuthenticated)
 
-        session.login(email: "tariro@wewed.pro", role: "couple")
+        XCTAssertTrue(session.enterShadowSession())
         XCTAssertTrue(session.isAuthenticated)
         XCTAssertEqual(session.currentUserRole, "couple")
 
-        // Restore in new session instance
-        let restoredSession = SessionStore(storage: storage)
-        XCTAssertTrue(restoredSession.isAuthenticated)
-
-        restoredSession.logout()
+        // A stored token alone is not authority: a new session instance restores nothing.
+        let restoredSession = SessionStore(storage: storage, environment: .sanitizedShadow)
         XCTAssertFalse(restoredSession.isAuthenticated)
+        XCTAssertNil(restoredSession.currentRole)
+
+        session.signOut()
+        XCTAssertFalse(session.isAuthenticated)
+        XCTAssertNil(session.currentRole)
     }
 
     func testBudgetCalculations() async throws {

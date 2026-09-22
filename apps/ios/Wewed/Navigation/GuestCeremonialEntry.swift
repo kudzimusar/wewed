@@ -38,43 +38,37 @@ public struct GuestCardPresentation: Equatable {
     }
 }
 
-/// The outcome of opening an invitation while another guest is active.
-public enum GuestReplacement: Equatable {
-    /// The incoming guest becomes active. Everything belonging to the previous one is dropped.
-    case activate(InvitationContext)
-    /// The incoming claim is invalid. The previous guest is cleared and never restored.
-    case rejectAndClear
-}
-
-/// The Guest Ceremonial Entry Contract.
+/// The Guest Entry Contract (master plan §6.2, §6.3).
 ///
-/// The invitation was being treated as an onboarding page: shown once, answered, then discarded.
-/// That is wrong about what the card *is*. The Couple recognised this person; the card is that
-/// recognition. It is the Guest's entrance to the wedding, and it belongs at the start of every
-/// visit — not only the first.
+/// The invitation is the Guest's entrance to the wedding — the Couple's recognition of this person
+/// — and the explicit arrival is where that ceremony happens:
 ///
-/// So for a recognised Guest:
+///     private invitation link -> Wewed splash -> the configured Digital Invitation FIRST -> RSVP
 ///
-///     Wewed launch -> motion splash -> the personalised card -> the Guest continues from it
+/// An ordinary return is not a new arrival:
 ///
-/// The card does not disappear once RSVP is answered. What changes is what it ASKS. A guest who
-/// has already replied is never asked again; the same card becomes their reminder, then their
-/// admission on the day, then a thank-you afterwards. One card, one identity, a whole lifecycle.
+///     app icon -> remembered Guest validated -> Guest Home
 ///
-/// This is a release invariant, asserted in tests on both platforms.
+/// and "My Digital Invitation" stays one tap away, reopening the same saved card. Replaying the
+/// whole card every time someone checks their table would be tiresome rather than ceremonial.
+///
+/// This file used to state a different rule — the card at the start of EVERY entry session —
+/// which the production Guest shell never implemented; only the Shadow workspace root did. Two
+/// contracts meant the Shadow harness qualified behaviour production did not have (master plan
+/// §8.3, §8.11). There is now one, and both the production Guest shells and the Shadow root read it
+/// from here.
+///
+/// The card does not disappear once RSVP is answered. What changes is what it ASKS: a guest who has
+/// already replied is never asked again, and the same card becomes their reminder, their admission
+/// on the day, then a thank-you afterwards.
 public enum GuestCeremonialEntry {
 
-    /// Whether this app-entry session must open with the card.
+    /// Whether a Guest entry opens on the invitation (true) or on Guest Home (false).
     ///
-    /// "Every time the app opens" means every new ENTRY SESSION — a cold launch, a relaunch after
-    /// termination, a fresh deep link, or a restore after process death. It does not mean every
-    /// return from the background: interrupting someone with a ceremony every time they glance at
-    /// another app would be an irritation, not a welcome.
-    public static func shouldPresentCard(
-        isRecognisedGuest: Bool,
-        entrySessionPresentedCard: Bool
-    ) -> Bool {
-        isRecognisedGuest && !entrySessionPresentedCard
+    /// Only an explicit invitation arrival — a private link, a redeemed handoff — opens on the
+    /// card. A remembered Guest returning through the app icon opens on Home.
+    public static func opensOnInvitation(isExplicitInvitationArrival: Bool) -> Bool {
+        isExplicitInvitationArrival
     }
 
     /// What the card should say, given what the guest has already answered and where the wedding
@@ -177,19 +171,5 @@ public enum GuestCeremonialEntry {
         if daysRemaining > 0 { return .before }
         if daysRemaining == 0 { return .weddingDay }
         return .after
-    }
-
-    /// Replacing the active guest.
-    ///
-    /// Opening Guest B's invitation while Guest A is active must leave nothing of A behind — not
-    /// their party, not their table, not their pass, not a half-filled RSVP form. And if B's claim
-    /// turns out to be invalid, the app must NOT quietly fall back to A: showing one person
-    /// another person's invitation is the worst outcome available here.
-    public static func replaceActiveGuest(
-        current: InvitationContext?,
-        incoming: InvitationContext?
-    ) -> GuestReplacement {
-        if let incoming { return .activate(incoming) }
-        return .rejectAndClear
     }
 }

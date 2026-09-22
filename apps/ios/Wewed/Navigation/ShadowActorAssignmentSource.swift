@@ -52,6 +52,9 @@ public struct ShadowActorAssignmentSource: ActorAssignmentSource {
     }
 
     public func assignments(actorId: String) async -> [ActorAssignment] {
+        // Shadow authority is test access, and exists only where Shadow personas do. Refusing here
+        // as well as in `ActorAssignmentSources` means no caller can reach it in production.
+        guard environment.allowsDevelopmentPersonaSwitching else { return [] }
         guard let persona = personas.first(where: { $0.id == actorId }) else { return [] }
 
         // The persona names an authorized scenario and actor, never a wedding id: the same real

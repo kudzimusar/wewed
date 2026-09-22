@@ -18,10 +18,10 @@ final class PersonaSwitchingTests: XCTestCase {
 
     @MainActor
     func testPersonaSwitchingUpdatesSession() {
-        let session = SessionStore()
-        
-        // Initial couple
-        XCTAssertEqual(session.currentRole, .couple)
+        let session = SessionStore(environment: .sanitizedShadow)
+
+        // No role until a persona is chosen: the session never starts as a Couple.
+        XCTAssertNil(session.currentRole)
 
         // Switch to planner
         if let planner = DevelopmentPersona.allPersonas.first(where: { $0.role == .planner }) {
@@ -37,7 +37,7 @@ final class PersonaSwitchingTests: XCTestCase {
         if let vendor = DevelopmentPersona.allPersonas.first(where: { $0.role == .vendor }) {
             session.switchPersona(vendor)
             XCTAssertEqual(session.currentRole, .vendor)
-            XCTAssertEqual(session.currentRole.title, "Vendor & Staff")
+            XCTAssertEqual(session.currentRole?.title, "Vendor & Staff")
         } else {
             XCTFail("Vendor persona not found")
         }

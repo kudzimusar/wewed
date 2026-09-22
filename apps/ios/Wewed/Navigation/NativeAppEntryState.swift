@@ -77,32 +77,16 @@ public enum LaunchRouter {
         hasValidSession: Bool,
         authorizedRoles: [AppRole],
         hasResolvedContext: Bool,
-        needsOnboarding: Bool = false,
-        /// The card the active Guest is recognised by, if any.
-        ///
-        /// Distinct from `invitation`, which is a link being opened right now. This is the
-        /// standing recognition of a Guest who has already been admitted to a wedding — and under
-        /// the Guest Ceremonial Entry Contract it opens every new entry session, whatever they
-        /// answered.
-        recognisedGuestInvitation: InvitationContext? = nil,
-        /// True once this entry session has already presented the card.
-        entrySessionPresentedCard: Bool = false
+        needsOnboarding: Bool = false
     ) -> NativeAppEntryState {
         if let invitation {
             return .invitation(invitation, stage(for: invitation))
         }
 
-        // The Guest Ceremonial Entry Contract. A recognised Guest meets their card before the
-        // Guest workspace, before the wedding site, and before their pass — on every new entry
-        // session, not only the first. The card is how the Couple recognised them; it is the way
-        // in, not a form they have finished with.
-        //
-        // It outranks a session because it IS their session's front door. It does not repeat
-        // within one entry session, so a glance at another app does not restage the ceremony.
-        if let recognised = recognisedGuestInvitation, !entrySessionPresentedCard {
-            return .invitation(recognised, stage(for: recognised))
-        }
-
+        // A remembered Guest returning without a link is NOT an invitation arrival: under the
+        // Guest Entry Contract (GuestCeremonialEntry) they open on Guest Home, with their invitation
+        // one tap away. This router used to route every such return to the card, a rule no caller
+        // used and the production Guest shell contradicts (master plan §8.11).
         guard hasValidSession else { return .welcome }
 
         // Authenticated but the server authorized nothing this build can open.

@@ -23,6 +23,11 @@ public struct NativeLaunchConfiguration: Equatable, Sendable {
         arguments: [String] = ProcessInfo.processInfo.arguments,
         isDebugBuild: Bool = NativeLaunchConfiguration.isDebugBuildDefault
     ) -> NativeLaunchConfiguration {
+        // A release binary is Production, whatever it is launched with. The environment variable
+        // and launch argument are qualification inputs; honouring them in a release build left the
+        // store-identity check in the repository factory as the only barrier between a launch
+        // input and a Shadow runtime (master plan §8.10).
+        guard isDebugBuild else { return NativeLaunchConfiguration(environment: .production) }
         let environmentValue = environment["WEWED_NATIVE_ENV"]?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
@@ -56,13 +61,13 @@ public struct NativeLaunchConfiguration: Equatable, Sendable {
             // was not. Private Real Shadow is a qualification configuration and is now entered
             // only when it is explicitly asked for.
             //
-            // A release build falls through to `.production`. The general repository is
+            // A release build never reaches here: it returned `.production` above. The general repository is
             // deliberately unavailable there — the repository factory refuses to build one — but
             // the *app* does not refuse to start: `AppLaunchModeResolver` degrades that one
             // expected refusal to the guest-only shell, so an invited guest still gets their card.
             // What must not happen is showing that guest a real wedding's demo data, which is why
             // there is no fixture/Shadow fallback here — only guest-only, or nothing.
-            dataEnvironment = isDebugBuild ? .sanitizedShadow : .production
+            dataEnvironment = .sanitizedShadow
         }
 
         let argumentBaseURL = launchArgumentValue(named: "wewed_shadow_base_url", arguments: arguments)

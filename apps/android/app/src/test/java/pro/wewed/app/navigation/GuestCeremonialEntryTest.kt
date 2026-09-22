@@ -8,12 +8,12 @@ import pro.wewed.app.models.RSVPStatus
 import pro.wewed.app.models.RsvpSubmissionResult
 
 /**
- * The Guest Ceremonial Entry Contract, as a set of assertions.
+ * The Guest Entry Contract (master plan §6.2, §6.3), as a set of assertions.
  *
- * The invitation was being treated as an onboarding page — shown once, answered, discarded. The
- * Couple recognised this person; the card is that recognition, and it belongs at the start of
- * every visit. These tests hold that rule in place, because it is the kind of rule a later
- * refactor silently undoes.
+ * An explicit invitation arrival opens on the configured card. An ordinary return by a remembered
+ * Guest opens on Guest Home, with the invitation one tap away. The earlier contract here — the card
+ * on EVERY entry session — was never production behaviour, and asserting it only qualified the
+ * Shadow harness against a rule the Guest shell does not follow (master plan §8.11).
  */
 class GuestCeremonialEntryTest {
 
@@ -35,99 +35,65 @@ class GuestCeremonialEntryTest {
     )
 
     // -----------------------------------------------------------------------------------
-    // The card comes first — on every entry session, whatever was answered
+    // Explicit arrival opens on the card; an ordinary return opens on Home
     // -----------------------------------------------------------------------------------
 
     @Test
-    fun aRecognisedPendingGuestMeetsTheCardBeforeTheGuestWorkspace() {
-        val state = LaunchRouter.route(
-            invitation = null,
-            hasValidSession = true,
-            authorizedRoles = listOf(AppRole.GUEST),
-            hasResolvedContext = true,
-            recognisedGuestInvitation = invitation(),
-            entrySessionPresentedCard = false
-        )
-        assertTrue("the card must precede the Guest workspace", state is NativeAppEntryState.Invitation)
-    }
-
-    /** Having already answered does not retire the card. It changes what the card asks. */
-    @Test
-    fun aRecognisedAttendingGuestStillMeetsTheCardFirst() {
-        val state = LaunchRouter.route(
-            invitation = null,
-            hasValidSession = true,
-            authorizedRoles = listOf(AppRole.GUEST),
-            hasResolvedContext = true,
-            recognisedGuestInvitation = invitation(confirmed = true),
-            entrySessionPresentedCard = false
-        )
-        assertTrue(state is NativeAppEntryState.Invitation)
-        assertEquals(
-            InvitationEntryStage.CONFIRMED,
-            (state as NativeAppEntryState.Invitation).stage
-        )
+    fun anExplicitInvitationArrivalOpensOnTheCard() {
+        assertTrue(GuestCeremonialEntry.opensOnInvitation(isExplicitInvitationArrival = true))
     }
 
     @Test
-    fun aRecognisedDeclinedGuestStillMeetsTheCardFirst() {
-        val state = LaunchRouter.route(
-            invitation = null,
-            hasValidSession = true,
-            authorizedRoles = listOf(AppRole.GUEST),
-            hasResolvedContext = true,
-            recognisedGuestInvitation = invitation(declined = true),
-            entrySessionPresentedCard = false
-        )
-        assertTrue(state is NativeAppEntryState.Invitation)
-        assertEquals(
-            InvitationEntryStage.DECLINED,
-            (state as NativeAppEntryState.Invitation).stage
-        )
+    fun anOrdinaryReturnOpensOnGuestHomeNotTheCard() {
+        assertFalse(GuestCeremonialEntry.opensOnInvitation(isExplicitInvitationArrival = false))
     }
 
-    /**
-     * The ceremony marks a session, not a screen transition. Once the card has been presented in
-     * this entry session, the Guest continues into the workspace and is not restaged.
-     */
+    /** An explicit link meets the card whatever the Guest has already answered. */
     @Test
-    fun theCardDoesNotRepeatWithinOneEntrySession() {
+    fun anExplicitLinkMeetsTheCardWhateverWasAnswered() {
+        listOf(invitation(), invitation(confirmed = true), invitation(declined = true)).forEach {
+            val state = LaunchRouter.route(
+                invitation = it,
+                hasValidSession = false,
+                authorizedRoles = emptyList(),
+                hasResolvedContext = false
+            )
+            assertTrue("an explicit link must open on the card", state is NativeAppEntryState.Invitation)
+        }
+    }
+
+    /** A returning Guest workspace is not routed back through the card by the router. */
+    @Test
+    fun aReturningGuestWithoutALinkIsNotRoutedToTheCard() {
         val state = LaunchRouter.route(
             invitation = null,
             hasValidSession = true,
             authorizedRoles = listOf(AppRole.GUEST),
-            hasResolvedContext = true,
-            recognisedGuestInvitation = invitation(confirmed = true),
-            entrySessionPresentedCard = true
+            hasResolvedContext = true
         )
         assertEquals(NativeAppEntryState.Workspace(AppRole.GUEST), state)
     }
 
-    /** Only Guests are recognised this way; nothing here changes how other roles enter. */
+    /** Only Guests have an invitation entrance; nothing here changes how other roles enter. */
     @Test
     fun aCoupleEntryIsUnaffectedByTheGuestContract() {
         val state = LaunchRouter.route(
             invitation = null,
             hasValidSession = true,
             authorizedRoles = listOf(AppRole.COUPLE),
-            hasResolvedContext = true,
-            recognisedGuestInvitation = null,
-            entrySessionPresentedCard = false
+            hasResolvedContext = true
         )
         assertEquals(NativeAppEntryState.Workspace(AppRole.COUPLE), state)
     }
 
-    /** A link being opened now still outranks the standing recognition. */
+    /** A link being opened now outranks an existing session. */
     @Test
-    fun anIncomingInvitationOutranksTheRecognisedGuest() {
-        val incoming = invitation(guest = "Guest B")
+    fun anIncomingInvitationOutranksAnExistingSession() {
         val state = LaunchRouter.route(
-            invitation = incoming,
+            invitation = invitation(guest = "Guest B"),
             hasValidSession = true,
             authorizedRoles = listOf(AppRole.GUEST),
-            hasResolvedContext = true,
-            recognisedGuestInvitation = invitation(guest = "Guest A", confirmed = true),
-            entrySessionPresentedCard = false
+            hasResolvedContext = true
         ) as NativeAppEntryState.Invitation
         assertEquals("Guest B", state.invitation.guestName)
     }
@@ -202,33 +168,6 @@ class GuestCeremonialEntryTest {
         assertEquals("This week", GuestCeremonialEntry.countdownLabel(4))
         assertEquals("Tomorrow", GuestCeremonialEntry.countdownLabel(1))
         assertEquals("Today", GuestCeremonialEntry.countdownLabel(0))
-    }
-
-    // -----------------------------------------------------------------------------------
-    // Replacing the active guest
-    // -----------------------------------------------------------------------------------
-
-    @Test
-    fun openingAnotherGuestsInvitationReplacesTheActiveOne() {
-        val outcome = GuestCeremonialEntry.replaceActiveGuest(
-            current = invitation(guest = "Guest A", confirmed = true),
-            incoming = invitation(guest = "Guest B")
-        )
-        assertTrue(outcome is GuestReplacement.Activate)
-        assertEquals("Guest B", (outcome as GuestReplacement.Activate).invitation.guestName)
-    }
-
-    /**
-     * The worst outcome available here would be showing one person another person's invitation.
-     * An invalid incoming claim clears the previous guest and restores nothing.
-     */
-    @Test
-    fun anInvalidIncomingClaimNeverFallsBackToThePreviousGuest() {
-        val outcome = GuestCeremonialEntry.replaceActiveGuest(
-            current = invitation(guest = "Guest A", confirmed = true),
-            incoming = null
-        )
-        assertEquals(GuestReplacement.RejectAndClear, outcome)
     }
 
     // -----------------------------------------------------------------------------------

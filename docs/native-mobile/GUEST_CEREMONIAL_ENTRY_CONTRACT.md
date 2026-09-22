@@ -1,6 +1,21 @@
 # Guest Ceremonial Entry Contract
 
-**Status: release invariant.** Asserted by 20 tests on Android and 20 on iOS.
+> **SUPERSEDED IN PART — 2026-09-22, master plan `WW-NATIVE-PWA-CONVERGENCE-2026-09-22-01` §6.2, §6.3,
+> §8.11 (Phase 1).**
+>
+> The "card on each new Guest app-entry session" rule below was never production behaviour. Only the
+> Shadow workspace root implemented it, while the production Guest shell opened remembered Guests on
+> Home. The single contract is now:
+>
+> - explicit private invitation → splash → configured Digital Invitation FIRST → Guest journey;
+> - ordinary app-icon return by a remembered Guest → Guest Home;
+> - My Digital Invitation stays one tap away and reopens the same saved card.
+>
+> It is stated once in `GuestCeremonialEntry.opensOnInvitation` on both platforms and read by the
+> production Guest shells and the Shadow root alike. The RSVP-dependent *presentation* rules in this
+> document (what the card asks, pass eligibility, lifecycle phases) remain in force.
+
+**Status: release invariant (entry-session rule superseded — see banner).**
 Added to the Master Plan release gate 2026-09-20.
 
 > **Amended 2026-09-20 by `WW-NATIVE-INVITATION-EXACT-PARITY-RULE-2026-09-20-08`.**

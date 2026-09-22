@@ -10,11 +10,30 @@ enum class AppRole(val roleId: String, val title: String) {
     ADMIN("admin", "Administrator");
 
     companion object {
-        fun fromId(id: String): AppRole =
-            entries.find { it.roleId.equals(id, ignoreCase = true) } ?: COUPLE
+        /**
+         * Parses a NATIVE workspace identifier — exactly one of the [roleId] values above — and
+         * nothing else. Unknown input is `null`, never a default workspace.
+         *
+         * This is not a server authority mapper. Wewed authority has several axes (account class,
+         * BusinessAccountMember, WeddingMembership, operational assignment), and a single server
+         * role string cannot choose a workspace: `owner`, `viewer`, `business_owner`,
+         * `couple_owner`, `vendor_manager` and `venue_manager` have no workspace here at all, and
+         * `planner` or `coordinator` mean different things on different axes. The production
+         * grant contract is master-plan Phase 2; until it exists, nothing server-supplied reaches
+         * a workspace. The old `?: COUPLE` fallback turned any unrecognised string into the
+         * Couple workspace (master plan §8.1).
+         */
+        fun fromId(id: String): AppRole? = entries.firstOrNull { it.roleId == id }
     }
 }
 
+/**
+ * A Shadow/fixture qualification actor. Development and Shadow environments only.
+ *
+ * Personas are test actors, not accounts: they are applied only where
+ * [NativeDataEnvironment.allowsDevelopmentPersonaSwitching] holds, and [SessionViewModel] refuses
+ * them anywhere else. Production identity starts unknown and is never seeded from this list.
+ */
 data class DevelopmentPersona(
     val id: String,
     val name: String,
@@ -24,6 +43,12 @@ data class DevelopmentPersona(
     val weddingTitle: String
 ) {
     companion object {
+        /** The actor a Shadow session opens as when no specific persona was requested. */
+        const val DEFAULT_SHADOW_PERSONA_ID = "couple_owner"
+
+        val defaultShadowPersona: DevelopmentPersona
+            get() = allPersonas.first { it.id == DEFAULT_SHADOW_PERSONA_ID }
+
         val allPersonas = listOf(
             DevelopmentPersona(
                 id = "couple_owner",

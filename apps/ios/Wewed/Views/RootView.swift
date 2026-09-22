@@ -27,20 +27,8 @@ public struct RootView: View {
         default: return false
         }
     }
-    /// The Guest Ceremonial Entry Contract's session boundary: a recognised Guest meets their
-    /// card once per app-entry session, not once per lifetime and not on every glance back.
-    @State private var entrySessionPresentedCard = false
-    @State private var recognisedGuestInvitation: InvitationContext?
-    /// The Guest's own pass credential, resolved from their verified assignment.
-    ///
-    /// It deliberately does NOT come from `SessionStore.passToken`, which nothing assigns: reading
-    /// it there meant the ceremonial entry could never find a credential, so the workspace always
-    /// won and the invitation was silently skipped.
-    @State private var guestPassToken: String?
-    /// Whether the Guest's card has been looked for yet. Until it has, the root holds rather than
-    /// committing to the workspace — otherwise a slow repository skips the ceremony.
-    @State private var guestCardResolved = false
-    /// The wedding's SAVED invitation style decides the design.
+    /// True once `resolveContext` has answered, so "no workspace" is shown rather than a spinner.
+    @State private var contextResolutionFinished = false
     @State private var authMode: AuthenticationMode?
     @State private var resolvingDeepLinkedInvitation = false
 
@@ -59,26 +47,35 @@ public struct RootView: View {
     /// assembled from convenient defaults. No client id, gate id, engagement id or guest identity
     /// is invented here; an unresolved scope stays nil and the shell denies the workspace.
     private func resolveContext() async {
-        let source = ShadowActorAssignmentSource(
+        defer { contextResolutionFinished = true }
+        guard let role = session.currentRole else {
+            // Authenticated with no resolved role: there is no workspace to open, and none is
+            // chosen on the person's behalf.
+            resolvedContext = nil
+            return
+        }
+        // Shadow authority only where Shadow personas exist; production/verify resolve nothing
+        // until the production grant source exists (master plan §8.9, Phase 5).
+        let source = ActorAssignmentSources.forEnvironment(
+            appState.dataEnvironment,
             repository: appState.repository,
-            environment: appState.dataEnvironment,
             plannerRepository: appState.plannerRepository
         )
-        let actorId = session.activePersona?.id ?? "couple_owner"
+        // No default actor: the actor is whoever the session holds, or nobody.
+        let actorId = session.activePersona?.id ?? ""
         let assignment = await source.assignments(actorId: actorId)
-            .first { $0.role == session.currentRole }
+            .first { $0.role == role }
 
-        let systemScoped = IANavigationContract.forRole(session.currentRole).isSystemScoped
-        let weddingId: String = {
-            if systemScoped { return assignment?.weddingId ?? "" }
-            return assignment?.weddingId ?? session.weddingId
-        }()
+        // The wedding comes from the verified assignment and nowhere else. There is no fallback to
+        // a session default: an actor without an assignment has no wedding, and the shell denies
+        // every wedding-scoped destination (master plan §8.9).
+        let weddingId = assignment?.weddingId ?? ""
 
         resolvedContext = NavigationContext(
             actorId: actorId,
-            activeRole: session.currentRole,
+            activeRole: role,
             activeWeddingId: weddingId,
-            activeWeddingTitle: (systemScoped && assignment?.weddingId == nil) ? "" : session.weddingTitle,
+            activeWeddingTitle: assignment?.weddingId == nil ? "" : (session.weddingTitle ?? ""),
             environment: appState.dataEnvironment,
             activeClientId: assignment?.clientId,
             activeVendorId: assignment?.vendorId,
@@ -93,64 +90,22 @@ public struct RootView: View {
         }
     }
 
-    /// Where an invited guest lands. A confirmed guest goes to their pass; a guest who already
-    /// declined sees their response, not the RSVP form again.
-    /// The card a recognised Guest meets on entry.
+    /// Guest Entry Contract (GuestCeremonialEntry, master plan §6.3).
     ///
-    /// The invitation is the wedding's configured product object. RSVP state changes what it
-    /// OFFERS; it never changes which object is shown, and it never skips the card. Presentation
-    /// (closed/opening/open/details) and RSVP state are orthogonal: a returning confirmed guest is
-    /// .closed + .attending, which is ordinary and correct.
-    @ViewBuilder
-    private func guestCeremonialEntry(_ card: InvitationContext) -> some View {
-        GuestInvitationJourneyView(
-            reference: GuestJourneyReference(invitation: card, initialStage: .invitation),
-            // Continuing ends the ceremony for THIS entry session; the next cold launch stages it
-            // again.
-            onExit: { entrySessionPresentedCard = true }
-        )
-    }
-
-    /// Resolves the active Guest's own card, keyed on their credential so switching guests
-    /// resolves a different card rather than reusing the previous one.
-    private func resolveRecognisedGuestCard() async {
-        defer { guestCardResolved = true }
-        // In live mode the recognised guest is restored from the server-issued session, not from a
-        // repository and not from a stored credential. The Shadow path below stays for Shadow
-        // qualification only, so no live surface can reach `resolveInvitation`.
-        guard appState.dataEnvironment.allowsMutableNativeDevelopment else {
-            recognisedGuestInvitation = nil
-            if session.currentRole == .guest {
-                liveInvitation = await liveCoordinator.restoreRememberedGuest()
-            }
-            return
-        }
-        guard session.currentRole == .guest else {
-            recognisedGuestInvitation = nil
-            guestPassToken = nil
-            return
-        }
-        // The credential comes from the verified assignment, the same place the Guest workspace
-        // gets it. Resolving it here rather than inside the workspace is what lets the invitation
-        // precede the workspace at all.
-        let source = ShadowActorAssignmentSource(
-            repository: appState.repository,
-            environment: appState.dataEnvironment,
-            plannerRepository: appState.plannerRepository
-        )
-        let actorId = session.activePersona?.id ?? "couple_owner"
-        let assignment = await source.assignments(actorId: actorId)
-            .first { $0.role == .guest }
-        guestPassToken = assignment?.passToken
-        guard let token = guestPassToken else {
-            recognisedGuestInvitation = nil
-            return
-        }
-        let weddingId = assignment?.weddingId ?? session.weddingId
-        let slug = (try? await appState.repository.weddingSlug(weddingId: weddingId)) ?? nil
-        recognisedGuestInvitation = try? await appState.repository.resolveInvitation(
-            weddingSlug: slug ?? "", token: token
-        )
+    /// A Guest actor reaching the workspace root has not arrived through a link — links are handled
+    /// in `body` and always open on the card. So this is an ordinary return, and it opens on Guest
+    /// Home with the invitation one tap away, exactly as the production Guest shell does. This root
+    /// used to replay the card on every entry session, which only Shadow did: the harness was
+    /// qualifying behaviour production did not have (master plan §8.11).
+    ///
+    /// Live mode restores the remembered Guest from the server-issued session. Unreachable today —
+    /// production resolves no assignments and applies no personas — and recorded as a Phase 5
+    /// blocker: before the workspace is enabled, Guest entry must stay on the Guest shell's
+    /// authority (master plan §8.12).
+    private func restoreLiveGuestIfNeeded() async {
+        guard !appState.dataEnvironment.allowsMutableNativeDevelopment,
+              session.currentRole == .guest else { return }
+        liveInvitation = await liveCoordinator.restoreRememberedGuest()
     }
 
     public var body: some View {
@@ -215,29 +170,10 @@ public struct RootView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(WeddingIdentityPalette.ivory)
                     .accessibilityIdentifier("entry-resolving-deep-link")
-            } else if session.isAuthenticated,
-                      session.currentRole == .guest,
-                      !entrySessionPresentedCard,
-                      !guestCardResolved {
-                // Holding, not skipping. The workspace must not win this race: a Guest whose card
-                // is still resolving has not yet been offered their invitation.
-                ZStack {
-                    WeddingIdentityPalette.ivory.ignoresSafeArea()
-                    ProgressView()
-                        .tint(WeddingIdentityPalette.champagneDeep)
-                }
-                .accessibilityIdentifier("entry-staging-invitation")
-            } else if let card = recognisedGuestInvitation,
-                      !entrySessionPresentedCard,
-                      session.currentRole == .guest {
-                // Guest Ceremonial Entry. The Couple recognised this person; the card is that
-                // recognition, and it opens every visit — before the Guest workspace, before the
-                // wedding site, before the pass. What changes with RSVP state is what the card
-                // ASKS, never whether it appears.
-                guestCeremonialEntry(card)
             } else if session.isAuthenticated {
                 roleShell
-                    .task(id: "\(session.currentRole.roleId)|\(session.activePersona?.id ?? "")") {
+                    .task(id: "\(session.currentRole?.roleId ?? "")|\(session.activePersona?.id ?? "")") {
+                        contextResolutionFinished = false
                         await resolveContext()
                     }
                     .sheet(isPresented: $showingPersonaPicker) {
@@ -301,9 +237,8 @@ public struct RootView: View {
             guard appState.dataEnvironment.allowsMutableNativeDevelopment else { return }
             await resolvePendingInvitationDeepLink()
         }
-        .task(id: "\(session.currentRole.roleId)|\(session.activePersona?.id ?? "")") {
-            guestCardResolved = false
-            await resolveRecognisedGuestCard()
+        .task(id: "\(session.currentRole?.roleId ?? "")|\(session.activePersona?.id ?? "")") {
+            await restoreLiveGuestIfNeeded()
         }
     }
 
@@ -311,6 +246,16 @@ public struct RootView: View {
     private var roleShell: some View {
         if let context = resolvedContext {
             authorizedShell(context)
+        } else if contextResolutionFinished {
+            VStack(spacing: 8) {
+                Text("No Wewed workspace is authorized for this session.")
+                    .font(.system(size: 15))
+                    .multilineTextAlignment(.center)
+            }
+            .padding(32)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(WeddingIdentityPalette.ivory)
+            .accessibilityIdentifier("workspace-not-authorized")
         } else {
             ProgressView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -329,7 +274,7 @@ public struct RootView: View {
         let link = appState.pendingRouteDeepLink
         let handled: () -> Void = { appState.pendingRouteDeepLink = nil }
 
-        switch session.currentRole {
+        switch context.activeRole {
         case .couple:
             CoupleShellView(
                 context: context,

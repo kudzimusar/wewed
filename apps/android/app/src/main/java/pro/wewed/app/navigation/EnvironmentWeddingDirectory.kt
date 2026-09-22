@@ -11,7 +11,13 @@ import pro.wewed.app.services.WeddingRepository
  *   FIXTURE                → the offline demo wedding (a different couple entirely)
  *   SHADOW / SANITIZED     → `shadow_ref_charity_kudzie`
  *   PRIVATE_REAL_SHADOW    → `cmqos70cb0004q6vxe9g9aiu5` (production-derived snapshot)
- *   PRODUCTION*            → `cmqos70cb0004q6vxe9g9aiu5`
+ *   PRODUCTION*            → nothing. Deliberately.
+ *
+ * Production and production-read-verify declare no wedding at all. A production app does not have
+ * "the" wedding: which weddings an actor may open is a server answer about that actor (master plan
+ * Phases 2 and 5), never a constant compiled into the binary. This table used to map both to one
+ * real wedding id, which meant the first production connection would have opened that couple's
+ * wedding for whoever asked (master plan §8.2).
  *
  * A development persona therefore represents an **authorized scenario and actor**, not a wedding
  * id. Binding the runtime to an id from a different identity space is what previously produced a
@@ -23,6 +29,7 @@ import pro.wewed.app.services.WeddingRepository
  * If they disagree the environment is misprovisioned, and no wedding is resolved — rather than
  * silently adopting whatever the repository happens to hold.
  */
+/** A Shadow/fixture qualification scenario. It has no production meaning and no production mapping. */
 enum class AuthorizedScenario(val key: String) {
     /** The Charity & Kudzie reference wedding used throughout Shadow qualification. */
     CHARITY_AND_KUDZIE("charity-and-kudzie")
@@ -41,9 +48,7 @@ object EnvironmentWeddingDirectory {
             NativeDataEnvironment.FIXTURE to "wed_tariro_shadreck_2026",
             NativeDataEnvironment.SHADOW to "shadow_ref_charity_kudzie",
             NativeDataEnvironment.SANITIZED_SHADOW to "shadow_ref_charity_kudzie",
-            NativeDataEnvironment.PRIVATE_REAL_SHADOW to "cmqos70cb0004q6vxe9g9aiu5",
-            NativeDataEnvironment.PRODUCTION_READ_VERIFY to "cmqos70cb0004q6vxe9g9aiu5",
-            NativeDataEnvironment.PRODUCTION to "cmqos70cb0004q6vxe9g9aiu5"
+            NativeDataEnvironment.PRIVATE_REAL_SHADOW to "cmqos70cb0004q6vxe9g9aiu5"
         )
     )
 

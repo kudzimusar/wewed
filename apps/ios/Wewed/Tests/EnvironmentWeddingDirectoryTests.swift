@@ -28,10 +28,14 @@ final class EnvironmentWeddingDirectoryTests: XCTestCase {
             EnvironmentWeddingDirectory.declaredWeddingId(scenario: scenario, environment: .privateRealShadow),
             "cmqos70cb0004q6vxe9g9aiu5"
         )
-        XCTAssertEqual(
-            EnvironmentWeddingDirectory.declaredWeddingId(scenario: scenario, environment: .production),
-            "cmqos70cb0004q6vxe9g9aiu5"
-        )
+    }
+
+    /// Production has no "the" wedding (master plan §8.2). Which weddings an actor may open is a
+    /// server answer about that actor, never a constant in the binary.
+    func testProductionAndProductionReadVerifyDeclareNoWeddingAtAll() {
+        for environment in [NativeDataEnvironment.production, .productionReadVerify] {
+            XCTAssertNil(EnvironmentWeddingDirectory.declaredWeddingId(scenario: scenario, environment: environment))
+        }
     }
 
     func testSanitizedAndPrivateRealIdentitiesAreNeverInterchangeable() {
