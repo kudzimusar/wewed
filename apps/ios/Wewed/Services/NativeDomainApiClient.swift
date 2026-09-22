@@ -19,6 +19,7 @@ public enum NativeDomainFetch<T> {
     case success(T)
     case sessionInvalid
     case grantRevoked
+    case forbidden
     case transport(status: Int)
 }
 
@@ -66,17 +67,48 @@ extension Dictionary where Key == String, Value == Any {
 public struct NativeDomainApiClient: Sendable {
     private let baseURL: URL
     private let session: URLSession
+    private let onSessionInvalid: @Sendable () -> Void
+    private let onGrantRevoked: @Sendable (String) -> Void
 
-    public init(baseURL: URL, session: URLSession = .shared) {
+    public init(
+        baseURL: URL,
+        session: URLSession = .shared,
+        onSessionInvalid: @escaping @Sendable () -> Void = {},
+        onGrantRevoked: @escaping @Sendable (String) -> Void = { _ in }
+    ) {
         self.baseURL = baseURL
         self.session = session
+        self.onSessionInvalid = onSessionInvalid
+        self.onGrantRevoked = onGrantRevoked
     }
 
-    private func statusToFetch<T>(_ status: Int) -> NativeDomainFetch<T>? {
-        if status == 401 { return .sessionInvalid }
-        if status == 403 || status == 404 { return .grantRevoked }
-        if !(200...299).contains(status) { return .transport(status: status) }
-        return nil
+    private func statusToFetch<T>(_ status: Int, data: Data, grantId: String) -> NativeDomainFetch<T>? {
+        let envelope = (try? JSONSerialization.jsonObject(with: data)) as? NativeJSONObject
+        let code = envelope?.wwString("code") ?? ""
+        let result: NativeDomainFetch<T>?
+        if status == 401 {
+            result = .sessionInvalid
+        } else if status == 403 && (code == "GRANT_REVOKED" || code == "AUTHORITY_UNAVAILABLE") {
+            result = .grantRevoked
+        } else if status == 403 {
+            result = .forbidden
+        } else if status == 404 {
+            result = .transport(status: status)
+        } else if !(200...299).contains(status) {
+            result = .transport(status: status)
+        } else {
+            result = nil
+        }
+
+        switch result {
+        case .sessionInvalid:
+            onSessionInvalid()
+        case .grantRevoked:
+            onGrantRevoked(grantId)
+        default:
+            break
+        }
+        return result
     }
 
     private func buildURL(path: String, grantId: String, extraQueryItems: [URLQueryItem] = []) -> URL? {
@@ -140,7 +172,7 @@ public struct NativeDomainApiClient: Sendable {
         extraQueryItems: [URLQueryItem] = []
     ) async -> NativeDomainFetch<NativeJSONObject> {
         let (status, data) = await get(path: path, sessionToken: sessionToken, grantId: grantId, extraQueryItems: extraQueryItems)
-        if let fetch: NativeDomainFetch<NativeJSONObject> = statusToFetch(status) { return fetch }
+        if let fetch: NativeDomainFetch<NativeJSONObject> = statusToFetch(status, data: data, grantId: grantId) { return fetch }
         guard let json = (try? JSONSerialization.jsonObject(with: data)) as? NativeJSONObject else {
             return .transport(status: status)
         }
@@ -155,7 +187,7 @@ public struct NativeDomainApiClient: Sendable {
         extraQueryItems: [URLQueryItem] = []
     ) async -> NativeDomainFetch<NativeJSONArray> {
         let (status, data) = await get(path: path, sessionToken: sessionToken, grantId: grantId, extraQueryItems: extraQueryItems)
-        if let fetch: NativeDomainFetch<NativeJSONArray> = statusToFetch(status) { return fetch }
+        if let fetch: NativeDomainFetch<NativeJSONArray> = statusToFetch(status, data: data, grantId: grantId) { return fetch }
         guard let json = (try? JSONSerialization.jsonObject(with: data)) as? NativeJSONObject,
               let array = json.wwArray(arrayField)
         else {
@@ -175,7 +207,7 @@ public struct NativeDomainApiClient: Sendable {
             return .transport(status: -1)
         }
         let (status, data) = await send(method: "POST", path: path, sessionToken: sessionToken, grantId: grantId, body: bodyData)
-        if let fetch: NativeDomainFetch<NativeJSONObject> = statusToFetch(status) { return fetch }
+        if let fetch: NativeDomainFetch<NativeJSONObject> = statusToFetch(status, data: data, grantId: grantId) { return fetch }
         guard let json = (try? JSONSerialization.jsonObject(with: data)) as? NativeJSONObject,
               let result = json.wwObject(resultField)
         else {
@@ -212,7 +244,7 @@ public struct NativeDomainApiClient: Sendable {
             grantId: grantId,
             body: bodyData
         )
-        if let fetch: NativeDomainFetch<NativeJSONObject> = statusToFetch(status) { return fetch }
+        if let fetch: NativeDomainFetch<NativeJSONObject> = statusToFetch(status, data: data, grantId: grantId) { return fetch }
         guard let json = (try? JSONSerialization.jsonObject(with: data)) as? NativeJSONObject,
               let result = json.wwObject("data")
         else {
