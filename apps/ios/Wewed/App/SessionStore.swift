@@ -219,7 +219,7 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
             return
         }
 
-        let storedSelection = revalidateSelection ? readSelectedGrantIds(for: authority.accessUserId) : selectedGrantIds
+        let storedSelection = revalidateSelection ? readSelectedGrantIds(for: authority.accessUserId!) : selectedGrantIds
         let liveGrants = storedSelection.compactMap { id in authority.workspaceGrants.first { $0.grantId == id } }
         let grouped = Dictionary(grouping: liveGrants) { $0.workspaceKindWire }
         let liveSelection = Set(grouped.values.compactMap { grants in grants.count == 1 ? grants[0].grantId : nil })
