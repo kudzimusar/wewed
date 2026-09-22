@@ -118,9 +118,12 @@ final class ShadowReferenceRepositoryTests: XCTestCase {
         XCTAssertEqual(duplicate.remainingCount, 0)
     }
 
-    func testProductionRepositoryModesRemainLocked() {
+    func testProductionReadVerifyStaysLockedWhilePhase5ProductionUsesBoundaryRepositories() throws {
         XCTAssertThrowsError(try NativeRepositoryFactory.make(environment: .productionReadVerify))
-        XCTAssertThrowsError(try NativeRepositoryFactory.make(environment: .production))
+
+        let production = try NativeRepositoryFactory.make(environment: .production)
+        XCTAssertTrue(production.wedding is ProductionBoundaryWeddingRepository)
+        XCTAssertTrue(production.planner is ProductionBoundaryPlannerRepository)
     }
 
     func testShadowHTTPContractRejectsProductionHostAndDefaultsToNoTransport() async throws {
