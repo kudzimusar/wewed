@@ -1217,22 +1217,39 @@ Accepted. Status set to LOCKED. Factual corrections C-1 … C-8 and hazards §8.
 Accepted. Phase 1 branches from `native-mobile/guest-profile-invitation-20260921` @ d7c4dddeabb594810a5833b4ac24d356883a8a3b, not from `native-mobile/role-architecture-p0-20260919` (C-8).
 
 ### D-013 — Phase 3 status (2026-09-22)
-**IN PROGRESS — database identity gate instrumented, awaiting protected Preview execution.** No production mutation has occurred and Phase 4 has not started.
+**ACCEPTED — independent Rule-10 review passed after reviewer-owned cleanup/corrections.** Phase 4 may begin; it has not started.
 
-The original blocker remains: Vercel stores the live `DATABASE_URL` as a Sensitive value and will not return it through CLI/API reads. The currently connected Supabase account does not have access to the expected Wewed project `kjigkhjdeymukwradoqu`.
+Accepted Phase-3 branch:
+- `backend/production-database-audit-phase3-20260922`
+- final review/cleanup head: `f2585bb6066d91777d63c810cffe5b3fe925d32a`
+- audit evidence head supplied by the implementation agent: `d4241650bdb398cdefc5bd377ba6265c32e11854`
 
-Reviewer-owned unblock work now exists on:
-- branch `backend/production-database-audit-phase3-20260922`;
-- safe in-memory `DATABASE_URL` fingerprinting with password/query-string redaction;
-- a Preview-only audit route that returns 404 in Production;
-- SQL execution refused unless the parsed Supabase ref matches `kjigkhjdeymukwradoqu`;
-- once matched, only hardcoded identity/catalog SELECTs run after `SET TRANSACTION READ ONLY` and the transaction is deliberately rolled back;
-- reusable SELECT-only catalog preflight SQL;
-- a sanitized Phase-3 audit record.
+Verified production facts:
+- Wewed Supabase project ref `kjigkhjdeymukwradoqu` was positively identified from the Vercel-injected database connection inside the protected Preview audit bridge;
+- application role is `postgres`, not SUPERUSER, with `BYPASSRLS = true`;
+- the global relationship graph checks returned zero core orphans/cross-wedding mismatches for the audited Couple/Wedding/WeddingMembership/Guest/RSVP/Seating/Vendor/ServiceEngagement/link relationships;
+- no production Usher/Gate authority objects exist;
+- no Wedding Day/WW2 production objects are partially present;
+- `Guest(id,weddingId)` composite uniqueness is absent, matching the expected pre-Wedding-Day state;
+- controlled production authority probes proved Couple, Planner one/multiple weddings, Vendor business scope, Admin and a multi-axis relationship shape; Planner zero-wedding portfolio and Coordinator had no live production example and therefore remain production-unproven, not fabricated.
 
-The current Phase-3 audit branch head is `52877d41136566bf84f895a15a1cd954c51c4452`. It contains the fingerprint gate, safe read-only identity audit, SELECT-only catalog preflight, tests and sanitized audit record. The corresponding Vercel Preview deployment is READY. The remaining access boundary is Vercel Deployment Protection: the current reviewer tooling can create a temporary share link but cannot complete the browser SSO cookie redirect itself. The implementation agent's authenticated local Vercel CLI can invoke the protected Preview route without exposing credentials. This is an external-access exception under the governance rule, not a code defect.
+Reviewer corrections/closure:
+- removed the temporary Preview audit route and its DATABASE_URL fingerprint helper/tests;
+- restored `src/lib/production-authority/resolver.ts` byte-for-byte to the accepted Phase-2 implementation, leaving no audit-only runtime code in the accepted branch;
+- retained only the sanitized audit document and the SELECT-only catalog preflight script;
+- corrected unsupported causal language around the unresolved `20260730173000_wewed_business_admin_console` ledger row: the missing Vendor links are proven, but the historical root cause is not;
+- reclassified the `BusinessAccount.subscriptionStatus` default `inactive` vs CHECK-constraint contradiction as a real latent write-time schema defect, despite current rows being clean.
 
-No production INSERT/UPDATE/DELETE/DDL, migration, deployment-to-production, secret disclosure, or data repair has been performed.
+Carry-forward gates:
+- **F-3 Vendor authority:** zero `BusinessAccountLink(entityType='vendor')` rows means no production `vendor/wedding` grant is currently reachable. Root cause/provenance must be established and remediation approved before Vendor wedding-scoped native activation in Phase 5/8.
+- **F-4 BusinessAccount default:** the contradictory `subscriptionStatus` default must be fixed by controlled schema work before/within Phase 7 onboarding/business-account write expansion.
+- **F-6 legacy global-admin hazard:** 1 active legacy admin-class account can synthesize access to all 10 weddings through the current PWA path; remediation remains owned by Phase 12.
+- RLS zero-policy and stale PlatformAdministrator registry findings remain hardening items but do not block Phase 4.
+
+Safety result:
+- production INSERT/UPDATE/DELETE/DDL/GRANT/REVOKE/data repair: **ZERO**;
+- no production secret was committed or exposed;
+- Phase 3 accepted with the above deferred, explicitly owned remediation items.
 
 ### D-012 — Phase 2 status (2026-09-22)
 **ACCEPTED — independent Rule-10 review passed after reviewer-owned closure patch.** Phase 3 may begin; it has not started.
