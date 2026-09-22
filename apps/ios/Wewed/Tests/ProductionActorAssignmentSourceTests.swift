@@ -77,6 +77,21 @@ final class ProductionActorAssignmentSourceTests: XCTestCase {
         XCTAssertEqual(assignments, [ActorAssignment(actorId: "user-1", role: .planner, weddingId: "B")])
     }
 
+    func testTwoSelectedGrantsOfTheSameKindFailClosed() async throws {
+        let authority = try authority(
+            grants: "[\(grant("planner:wedding:A", workspaceKind: "planner", scopeKind: "wedding", weddingId: "A")),"
+                + "\(grant("planner:wedding:B", workspaceKind: "planner", scopeKind: "wedding", weddingId: "B"))]",
+            contextSelection: """
+            [{"workspaceKind":"planner","grantIds":["planner:wedding:A","planner:wedding:B"],"selectionRequired":true}]
+            """
+        )
+        let source = ProductionActorAssignmentSource(
+            authority: authority,
+            selectedGrantIds: ["planner:wedding:A", "planner:wedding:B"]
+        )
+        XCTAssertTrue(await source.assignments(actorId: "user-1").isEmpty)
+    }
+
     func testASelectedGrantThatNoLongerExistsHasNoEffect() async throws {
         // Only grant A remains in this fresh authority; the previously-selected B has been revoked
         // (or never existed). The source must never invent an assignment for it.
