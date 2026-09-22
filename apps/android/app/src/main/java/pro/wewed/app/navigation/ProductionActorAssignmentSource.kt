@@ -23,6 +23,7 @@ package pro.wewed.app.navigation
 class ProductionActorAssignmentSource(
     private val authority: ProductionAuthority,
     private val selectedGrantIds: Set<String> = emptySet(),
+    private val selectedEngagementId: String? = null,
 ) : ActorAssignmentSource {
 
     override suspend fun assignments(actorId: String): List<ActorAssignment> {
@@ -41,7 +42,7 @@ class ProductionActorAssignmentSource(
                     (grant.grantId in selectedGrantIds || !requiresExplicitSelection(grant))
             }
             .mapNotNull { grant ->
-                when (val outcome = ProductionGrantMapper.map(authority, grant.grantId)) {
+                when (val outcome = ProductionGrantMapper.map(authority, grant.grantId, selectedEngagementId)) {
                     is ProductionGrantMapper.Outcome.Assigned -> outcome.assignment
                     is ProductionGrantMapper.Outcome.RequiresWeddingSelection -> null
                     is ProductionGrantMapper.Outcome.Denied -> null
