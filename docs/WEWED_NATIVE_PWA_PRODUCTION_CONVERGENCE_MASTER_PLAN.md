@@ -1216,6 +1216,22 @@ Accepted. Status set to LOCKED. Factual corrections C-1 … C-8 and hazards §8.
 ### D-010 — Native Phase 1 baseline
 Accepted. Phase 1 branches from `native-mobile/guest-profile-invitation-20260921` @ d7c4dddeabb594810a5833b4ac24d356883a8a3b, not from `native-mobile/role-architecture-p0-20260919` (C-8).
 
+### D-014 — Phase 4 preflight (2026-09-22)
+**READY TO BEGIN — reviewer preflight patch applied before implementation handoff.**
+
+Before issuing Phase 4, the reviewer inspected the existing `backend/guest-session-v2-promotion-20260921` candidate and found a migration-compatibility gap: production Guest Session v1, Guest portfolio and shared-invitation cookies historically could be signed by the `SUPABASE_SERVICE_ROLE_KEY` fallback when `WEWED_SESSION_SECRET` was absent. Configuring a new dedicated `WEWED_SESSION_SECRET` and verifying only against that key would have invalidated those remembered legacy cookies immediately, contradicting Phase 4's v1-read-compatibility requirement.
+
+Reviewer-owned correction is now on:
+- `backend/guest-session-v2-promotion-20260921` @ `e4dc7d14cc5d394c398bd9ceb143b924bb0261fa`.
+
+The patch:
+- requires the dedicated `WEWED_SESSION_SECRET` for all newly-signed production credentials;
+- permits the historical service-role signer only as a verification key for legacy v1 Guest Session / Guest portfolio / shared-invitation cookie formats during migration;
+- refuses a v2 Guest Session signed only by the legacy service-role key;
+- adds regression coverage for that exact rotation boundary.
+
+This patch is a Phase-4 input only. Phase 4 itself has not started, no production secret was changed, and no deployment occurred.
+
 ### D-013 — Phase 3 status (2026-09-22)
 **ACCEPTED — independent Rule-10 review passed after reviewer-owned cleanup/corrections.** Phase 4 may begin; it has not started.
 
