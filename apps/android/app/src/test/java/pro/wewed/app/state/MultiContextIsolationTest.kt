@@ -588,9 +588,15 @@ class MultiContextIsolationTest {
             session.restoreFromServer(ProductionAuthorityClient(transport), "session-user-1")
         }
 
+        assertEquals(
+            setOf("planner:wedding:B"),
+            session.selectedGrantIds.value.filter { it.startsWith("planner:") }.toSet()
+        )
+        // A different legitimate axis may be the initial active assignment. The account-owned
+        // Planner preference must nevertheless survive and become active when the person opens it.
+        session.selectGrant("planner:wedding:B")
         assertEquals("planner:wedding:B", session.activeGrantId.value)
         assertEquals("B", session.weddingId.value)
-        assertEquals(setOf("planner:wedding:B"), session.selectedGrantIds.value.filter { it.startsWith("planner:") }.toSet())
     }
 
     // ---------------------------------------------------------------------------------------
