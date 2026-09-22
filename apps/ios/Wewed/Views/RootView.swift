@@ -54,12 +54,15 @@ public struct RootView: View {
             resolvedContext = nil
             return
         }
-        // Shadow authority only where Shadow personas exist; production/verify resolve nothing
-        // until the production grant source exists (master plan §8.9, Phase 5).
+        // Shadow authority only where Shadow personas exist; production/verify resolve a real
+        // ProductionActorAssignmentSource once an authority has actually been fetched (master plan
+        // §8.9, Phase 5) — until then they still get no assignments at all.
         let source = ActorAssignmentSources.forEnvironment(
             appState.dataEnvironment,
             repository: appState.repository,
-            plannerRepository: appState.plannerRepository
+            plannerRepository: appState.plannerRepository,
+            productionAuthority: session.productionAuthority,
+            selectedGrantIds: session.selectedGrantIds
         )
         // No default actor: the actor is whoever the session holds, or nobody.
         let actorId = session.activePersona?.id ?? ""
@@ -88,6 +91,22 @@ public struct RootView: View {
         if !weddingId.isEmpty {
             appState.bindActiveWedding(weddingId)
         }
+    }
+
+    /// Grants of the current role's kind that require an explicit choice and have none yet (master
+    /// plan §9). A single grant, or a kind the contract does not mark `selectionRequired`, needs no
+    /// picker.
+    private var pendingGrantSelection: [ProductionWorkspaceGrant] {
+        guard let authority = session.productionAuthority,
+              let role = session.currentRole,
+              ProductionGrantMapper.isUsable(authority)
+        else { return [] }
+        let roleGrants = authority.workspaceGrants.filter { $0.workspaceKindWire == role.roleId }
+        guard roleGrants.count > 1 else { return [] }
+        guard authority.contextSelection.first(where: { $0.workspaceKind == role.roleId })?.selectionRequired == true
+        else { return [] }
+        guard !roleGrants.contains(where: { session.selectedGrantIds.contains($0.grantId) }) else { return [] }
+        return roleGrants
     }
 
     /// Guest Entry Contract (GuestCeremonialEntry, master plan §6.3).
@@ -170,9 +189,15 @@ public struct RootView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(WeddingIdentityPalette.ivory)
                     .accessibilityIdentifier("entry-resolving-deep-link")
+            } else if session.isAuthenticated && !pendingGrantSelection.isEmpty {
+                GrantSelectionView(
+                    grants: pendingGrantSelection,
+                    onSelect: { grantId in session.selectGrant(grantId) },
+                    onSignOut: { session.signOut() }
+                )
             } else if session.isAuthenticated {
                 roleShell
-                    .task(id: "\(session.currentRole?.roleId ?? "")|\(session.activePersona?.id ?? "")") {
+                    .task(id: "\(session.currentRole?.roleId ?? "")|\(session.activePersona?.id ?? "")|\(session.selectedGrantIds.count)") {
                         contextResolutionFinished = false
                         await resolveContext()
                     }

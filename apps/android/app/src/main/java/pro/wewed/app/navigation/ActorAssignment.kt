@@ -59,18 +59,24 @@ object EmptyActorAssignmentSource : ActorAssignmentSource {
  * Chooses where assignments come from for an environment.
  *
  * Shadow authority exists only where Shadow personas do. Production and production-read-verify get
- * NO assignments until the production grant source exists (master plan Phase 5), so every scoped
- * workspace is denied there rather than opened with Shadow test access. The root used to build the
- * Shadow source unconditionally (master plan §8.9).
+ * a real [ProductionActorAssignmentSource] once a [ProductionAuthority] has actually been fetched
+ * and verified server-side (master plan Phase 5); until then — no identity session, no successful
+ * authority fetch yet — they still get [EmptyActorAssignmentSource], so every scoped workspace is
+ * denied rather than opened with Shadow test access. The root used to build the Shadow source
+ * unconditionally (master plan §8.9).
  */
 object ActorAssignmentSources {
     fun forEnvironment(
         environment: NativeDataEnvironment,
         repository: WeddingRepository,
-        plannerRepository: PlannerDashboardRepository? = null
+        plannerRepository: PlannerDashboardRepository? = null,
+        productionAuthority: ProductionAuthority? = null,
+        selectedGrantIds: Set<String> = emptySet(),
     ): ActorAssignmentSource =
         if (environment.allowsDevelopmentPersonaSwitching) {
             ShadowActorAssignmentSource(repository, environment, plannerRepository)
+        } else if (productionAuthority != null) {
+            ProductionActorAssignmentSource(productionAuthority, selectedGrantIds)
         } else {
             EmptyActorAssignmentSource
         }

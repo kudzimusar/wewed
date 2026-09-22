@@ -1,12 +1,21 @@
 package pro.wewed.app.state
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import pro.wewed.app.models.AppRole
 import pro.wewed.app.models.DevelopmentPersona
 import pro.wewed.app.models.NativeDataEnvironment
+import pro.wewed.app.navigation.ProductionAuthority
+import pro.wewed.app.navigation.ProductionGrantMapper
 import pro.wewed.app.services.InMemorySecureStorage
+import pro.wewed.app.services.NativeAccountSignInOutcome
+import pro.wewed.app.services.ProductionAuthorityClient
+import pro.wewed.app.services.ProductionAuthorityFetch
 import pro.wewed.app.services.SecureStorage
 import java.util.UUID
 
@@ -14,20 +23,37 @@ import java.util.UUID
  * The account session.
  *
  * It starts EMPTY: no identity, no role, no persona, no wedding. Every one of those is an answer
- * that has to come from somewhere — a Shadow persona in a development environment today, the
- * production grant contract later (master plan Phases 2 and 5). It used to start as the Charity &
- * Kudzie couple on a real production wedding id, so anything that read the session before
- * authority resolved saw a real couple's workspace (master plan §8.2).
+ * that has to come from somewhere — a Shadow persona in a development environment, or (master plan
+ * Phase 5) the real, server-resolved `WewedProductionAuthorityV1` for a signed-in account. It used
+ * to start as the Charity & Kudzie couple on a real production wedding id, so anything that read
+ * the session before authority resolved saw a real couple's workspace (master plan §8.2).
+ *
+ * A stored identity credential is never itself authority (master plan §8, §8.8): every restore
+ * re-fetches and re-resolves the account's grants from the server. Nothing here ever calls
+ * `AppRole.fromId` on server data or invents a wedding for a Planner-portfolio/Vendor-business
+ * grant with none selected — that is [ProductionGrantMapper]'s job, unchanged from Phase 2.
+ *
+ * Guest Session v2 is a completely separate identity path (its own secure-storage keys, its own
+ * client) and is never touched from here.
  *
  * @param environment decides whether Shadow personas may be applied at all. It defaults to
  *   [NativeDataEnvironment.PRODUCTION] so a session built without thinking about it is the
  *   fail-closed one.
+ * @param authorityClient the Phase-5 native identity + authority client. Null means production
+ *   sign-in/restore is not connected in this build (e.g. Fixture/Shadow), matching the previous
+ *   always-refuses behaviour exactly.
+ * @param scope where the async sign-in/restore work runs. The actual network I/O always happens on
+ *   `Dispatchers.IO` inside the transport regardless of this scope's own dispatcher.
  */
 class SessionViewModel(
     private val storage: SecureStorage = InMemorySecureStorage(),
-    private val environment: NativeDataEnvironment = NativeDataEnvironment.PRODUCTION
+    private val environment: NativeDataEnvironment = NativeDataEnvironment.PRODUCTION,
+    private val authorityClient: ProductionAuthorityClient? = null,
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
 ) {
     private val tokenKey = "wewed_session_token"
+    private val accountSessionKey = "wewed.account.session"
+    private val selectedGrantsKey = "wewed.account.selected-grants"
 
     private val _isAuthenticated = MutableStateFlow(false)
     val isAuthenticated: StateFlow<Boolean> = _isAuthenticated.asStateFlow()
@@ -65,6 +91,27 @@ class SessionViewModel(
     private val _sessionRestored = MutableStateFlow(false)
     val sessionRestored: StateFlow<Boolean> = _sessionRestored.asStateFlow()
 
+    /**
+     * The full, freshly-resolved `WewedProductionAuthorityV1` for a signed-in production account.
+     * Null in every Shadow/Fixture path and whenever no successful authority fetch has completed.
+     */
+    private val _productionAuthority = MutableStateFlow<ProductionAuthority?>(null)
+    val productionAuthority: StateFlow<ProductionAuthority?> = _productionAuthority.asStateFlow()
+
+    /**
+     * Grant ids the person has explicitly chosen, for workspace kinds where more than one grant
+     * exists. Persisted only as a preference (master plan §9): it is revalidated against every
+     * fresh [productionAuthority] fetch, and a grant id that no longer exists there has no effect.
+     */
+    private val _selectedGrantIds = MutableStateFlow<Set<String>>(emptySet())
+    val selectedGrantIds: StateFlow<Set<String>> = _selectedGrantIds.asStateFlow()
+
+    private val _isSigningIn = MutableStateFlow(false)
+    val isSigningIn: StateFlow<Boolean> = _isSigningIn.asStateFlow()
+
+    private val _authenticationError = MutableStateFlow<String?>(null)
+    val authenticationError: StateFlow<String?> = _authenticationError.asStateFlow()
+
     /** Whether this session may apply Shadow qualification personas. */
     val allowsDevelopmentPersonas: Boolean get() = environment.allowsDevelopmentPersonaSwitching
 
@@ -73,32 +120,172 @@ class SessionViewModel(
     }
 
     /**
-     * Reads the stored session.
+     * Reads the stored identity session.
      *
-     * A stored token is NOT authority. Production must validate it with the server before any role
-     * is trusted, because authorization can be revoked between launches; that validation is master
-     * plan Phase 5 and is not wired. Until it is, a restored token grants nothing: no role, no
-     * wedding, not authenticated. It used to grant whatever `currentRole` held — which defaulted to
-     * Couple — to anyone holding any token (master plan §8.8).
+     * A stored token is NOT authority. It only re-identifies the account; production validates it
+     * with the server on every restore, because authorization can be revoked between launches. No
+     * role, wedding or grant is ever trusted from local storage alone (master plan §8, §8.8) — it
+     * used to grant whatever `currentRole` held, which defaulted to Couple, to anyone holding any
+     * token.
+     *
+     * With no stored session, or no [authorityClient] configured for this build, this resolves
+     * synchronously to "nothing to restore" — exactly the previous behaviour. With a stored session
+     * and a client, it launches the real server round trip and only then marks the session
+     * restored, so a caller observing [sessionRestored] never sees a false "signed out" flash before
+     * the server has actually been asked.
      */
     fun restoreSession() {
-        _sessionRestored.value = true
+        val storedToken = storage.get(accountSessionKey)
+        val client = authorityClient
+        if (storedToken == null || client == null) {
+            _sessionRestored.value = true
+            return
+        }
+        scope.launch {
+            restoreFromServer(client, storedToken)
+            _sessionRestored.value = true
+        }
+    }
+
+    internal suspend fun restoreFromServer(client: ProductionAuthorityClient, storedToken: String) {
+        when (val fetch = client.fetchAuthority(storedToken)) {
+            is ProductionAuthorityFetch.Success -> applyAuthority(fetch.authority, revalidateSelection = true)
+            is ProductionAuthorityFetch.SessionInvalid -> clearAccountSession()
+            is ProductionAuthorityFetch.Transport -> {
+                // A transient failure proves nothing either way. Do not open a workspace from an
+                // unreachable server, and do not throw away a possibly-good credential over a
+                // network blip. Neither authenticated-with-a-workspace nor signed-out; the caller
+                // may call restoreSession() again once connectivity returns.
+            }
+        }
     }
 
     /**
      * Signs in with an identity and a secret. No role parameter, by design.
      *
-     * Production wiring is NOT yet in place (master plan Phase 5); until it is, this refuses rather
-     * than minting a token, because a sign-in that always succeeds is worse than one that is
-     * honestly unavailable — it teaches everyone the app is authenticated when it is not.
+     * With no [authorityClient] configured for this build (Fixture/Shadow), this still refuses
+     * exactly as before: a sign-in that always succeeds is worse than one that is honestly
+     * unavailable. With a client, it verifies the credential against Supabase server-side, stores
+     * only the resulting opaque identity session, then immediately resolves real authority for it —
+     * never a role chosen by the caller.
      */
     fun signIn(email: String, password: String) {
         require(email.isNotBlank()) { "Enter your email address." }
         require(password.isNotBlank()) { "Enter your password." }
-        throw IllegalStateException(
-            "Wewed account sign-in is not connected in this build. Use an invitation link, or " +
-                "continue in the current Shadow environment."
-        )
+        val client = authorityClient
+            ?: throw IllegalStateException(
+                "Wewed account sign-in is not connected in this build. Use an invitation link, or " +
+                    "continue in the current Shadow environment."
+            )
+        scope.launch { signInWithServer(client, email, password) }
+    }
+
+    internal suspend fun signInWithServer(client: ProductionAuthorityClient, email: String, password: String) {
+        _isSigningIn.value = true
+        _authenticationError.value = null
+        when (val outcome = client.signIn(email, password)) {
+            is NativeAccountSignInOutcome.Success -> {
+                storage.save(accountSessionKey, outcome.sessionToken)
+                when (val fetch = client.fetchAuthority(outcome.sessionToken)) {
+                    is ProductionAuthorityFetch.Success -> applyAuthority(fetch.authority, revalidateSelection = false)
+                    is ProductionAuthorityFetch.SessionInvalid -> clearAccountSession()
+                    is ProductionAuthorityFetch.Transport ->
+                        _authenticationError.value = "Signed in, but Wewed could not be reached. Please try again."
+                }
+            }
+            is NativeAccountSignInOutcome.InvalidCredentials ->
+                _authenticationError.value = "Invalid email or password."
+            is NativeAccountSignInOutcome.Transport ->
+                _authenticationError.value = "Wewed could not be reached. Please try again."
+        }
+        _isSigningIn.value = false
+    }
+
+    /**
+     * Applies a freshly-fetched, server-verified authority document.
+     *
+     * `accountStatus != "authorized"` (unknown/inactive/unverified/banned/any future status) keeps
+     * the identity session (it may recover — a transient ban lift, a completed verification) but
+     * grants nothing: empty roles, no current role, no wedding, no selection. This is the one place
+     * that decides what "authenticated" means for a workspace, and it is never widened to "a
+     * session token exists".
+     */
+    private fun applyAuthority(authority: ProductionAuthority, revalidateSelection: Boolean) {
+        _productionAuthority.value = authority
+        _isAuthenticated.value = true
+
+        if (!ProductionGrantMapper.isUsable(authority)) {
+            _authorizedRoles.value = emptyList()
+            _currentRole.value = null
+            _activePersonaId.value = null
+            _weddingId.value = null
+            _weddingTitle.value = null
+            _selectedGrantIds.value = emptySet()
+            storage.delete(selectedGrantsKey)
+            return
+        }
+
+        _activePersonaId.value = authority.accessUserId
+
+        val storedSelection = if (revalidateSelection) readSelectedGrantIds() else _selectedGrantIds.value
+        // Revalidated against the FRESH authority: a grant id that no longer exists there is
+        // silently dropped, never carried forward as if it still held (master plan §9).
+        val liveSelection = storedSelection.filterTo(mutableSetOf()) { id -> authority.grants.any { it.grantId == id } }
+        _selectedGrantIds.value = liveSelection
+        persistSelectedGrantIds(liveSelection)
+
+        val assignments = authority.grants.mapNotNull { grant ->
+            val requiresSelection = authority.contextSelection
+                .firstOrNull { it.workspaceKindWire == grant.workspaceKindWire }
+                ?.selectionRequired == true
+            if (requiresSelection && grant.grantId !in liveSelection) return@mapNotNull null
+            (ProductionGrantMapper.map(authority, grant.grantId) as? ProductionGrantMapper.Outcome.Assigned)?.assignment
+        }
+
+        _authorizedRoles.value = assignments.map { it.role }.distinct()
+
+        val previousRole = _currentRole.value
+        val nextAssignment = assignments.firstOrNull { it.role == previousRole } ?: assignments.firstOrNull()
+        _currentRole.value = nextAssignment?.role
+        _currentUserRole.value = nextAssignment?.role?.roleId
+        _weddingId.value = nextAssignment?.weddingId
+        _weddingTitle.value = nextAssignment?.weddingId
+            ?.let { id -> authority.grants.firstOrNull { it.weddingId == id }?.weddingTitle }
+    }
+
+    /**
+     * Records the account's explicit choice among several grants of one workspace kind (master
+     * plan §9). Ignored for a grant id the current authority does not actually hold.
+     */
+    fun selectGrant(grantId: String) {
+        val authority = _productionAuthority.value ?: return
+        if (authority.grants.none { it.grantId == grantId }) return
+        val next = _selectedGrantIds.value + grantId
+        _selectedGrantIds.value = next
+        persistSelectedGrantIds(next)
+        applyAuthority(authority, revalidateSelection = false)
+    }
+
+    private fun readSelectedGrantIds(): Set<String> =
+        storage.get(selectedGrantsKey)?.split(',')?.filter { it.isNotBlank() }?.toSet() ?: emptySet()
+
+    private fun persistSelectedGrantIds(ids: Set<String>) {
+        if (ids.isEmpty()) storage.delete(selectedGrantsKey) else storage.save(selectedGrantsKey, ids.joinToString(","))
+    }
+
+    /** The identity session itself is no longer valid server-side: a full, unambiguous sign-out. */
+    private fun clearAccountSession() {
+        storage.delete(accountSessionKey)
+        storage.delete(selectedGrantsKey)
+        _isAuthenticated.value = false
+        _productionAuthority.value = null
+        _authorizedRoles.value = emptyList()
+        _currentRole.value = null
+        _currentUserRole.value = null
+        _activePersonaId.value = null
+        _weddingId.value = null
+        _weddingTitle.value = null
+        _selectedGrantIds.value = emptySet()
     }
 
     /**
@@ -138,15 +325,19 @@ class SessionViewModel(
     /**
      * Signs out.
      *
-     * Clears the stored credential AND every resolved answer — role, persona, wedding. Dropping only
-     * the token would leave a role and a wedding context behind, so the next reader could see a
-     * shell the person is no longer entitled to.
+     * Clears every stored credential (Shadow placeholder AND the real account session) and every
+     * resolved answer — role, persona, wedding, authority, selection. Dropping only one token would
+     * leave a role and a wedding context behind, so the next reader could see a shell the person is
+     * no longer entitled to.
      *
      * The protected Shadow/UAT snapshot is app-private data governed by the environment security
-     * rules, not session state, and is deliberately left alone.
+     * rules, not session state, and is deliberately left alone. Guest Session v2's own secure
+     * storage is a separate identity path and is never touched here.
      */
     fun signOut() {
         storage.delete(tokenKey)
+        storage.delete(accountSessionKey)
+        storage.delete(selectedGrantsKey)
         _isAuthenticated.value = false
         _currentUserRole.value = null
         _currentRole.value = null
@@ -155,6 +346,9 @@ class SessionViewModel(
         _weddingId.value = null
         _weddingTitle.value = null
         _authorizedRoles.value = emptyList()
+        _productionAuthority.value = null
+        _selectedGrantIds.value = emptySet()
+        _authenticationError.value = null
         _sessionRestored.value = true
     }
 

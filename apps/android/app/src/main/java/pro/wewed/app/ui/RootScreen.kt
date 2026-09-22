@@ -10,6 +10,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import pro.wewed.app.models.AppRole
 import pro.wewed.app.models.GuestJourneyReference
 import pro.wewed.app.models.GuestJourneyStage
@@ -19,6 +22,9 @@ import pro.wewed.app.navigation.IANavigationContract
 import pro.wewed.app.navigation.ActorAssignmentSources
 import pro.wewed.app.navigation.NavigationContext
 import pro.wewed.app.navigation.RoleShellAuthorization
+import pro.wewed.app.navigation.ProductionAuthority
+import pro.wewed.app.navigation.ProductionGrantMapper
+import pro.wewed.app.navigation.ProductionWorkspaceGrant
 import pro.wewed.app.state.AppViewModel
 import pro.wewed.app.state.SessionViewModel
 import pro.wewed.app.theme.WeddingIdentityPalette
@@ -69,6 +75,8 @@ fun RootScreen(
     val activePersonaId by sessionViewModel.activePersonaId.collectAsState()
     val weddingId by sessionViewModel.weddingId.collectAsState()
     val weddingTitle by sessionViewModel.weddingTitle.collectAsState()
+    val productionAuthority by sessionViewModel.productionAuthority.collectAsState()
+    val selectedGrantIds by sessionViewModel.selectedGrantIds.collectAsState()
     val pendingInvitationDeepLink by appViewModel.pendingInvitationDeepLink.collectAsState()
     val rejectedInvitation by appViewModel.rejectedInvitation.collectAsState()
     val pendingInvitationEntry by appViewModel.pendingInvitationEntry.collectAsState()
@@ -326,19 +334,39 @@ fun RootScreen(
     // IA V2 §13.1 / P0-3 — the context envelope is *resolved from verified assignments*, never
     // assembled from convenient defaults. No client id, gate id, engagement id or guest identity
     // is invented here; an unresolved scope stays null and the shell denies the workspace.
-    // Shadow authority only where Shadow personas exist; production/verify resolve nothing until
-    // the production grant source exists (master plan §8.9, Phase 5).
-    val assignmentSource = remember(appViewModel) {
+    // Shadow authority only where Shadow personas exist; production/verify resolve a real
+    // ProductionActorAssignmentSource once an authority has actually been fetched (master plan
+    // §8.9, Phase 5) — until then they still get no assignments at all.
+    val assignmentSource = remember(appViewModel, productionAuthority, selectedGrantIds) {
         ActorAssignmentSources.forEnvironment(
             appViewModel.dataEnvironment,
             appViewModel.repository,
-            appViewModel.plannerRepository
+            appViewModel.plannerRepository,
+            productionAuthority,
+            selectedGrantIds
         )
     }
+
+    // Master plan §9 — multiple grants of the current role's kind require an explicit choice; none
+    // is picked on the person's behalf. A single grant, or a grant kind the contract does not mark
+    // selectionRequired, needs no picker and falls straight through to the ordinary context
+    // resolution below.
+    val pendingGrantChoice = remember(productionAuthority, currentRole, selectedGrantIds) {
+        pendingGrantSelection(productionAuthority, currentRole, selectedGrantIds)
+    }
+    if (pendingGrantChoice.isNotEmpty()) {
+        GrantSelectionScreen(
+            grants = pendingGrantChoice,
+            onSelect = { grantId -> sessionViewModel.selectGrant(grantId) },
+            onSignOut = { sessionViewModel.signOut() }
+        )
+        return
+    }
+
     var resolvedContext by remember { mutableStateOf<NavigationContext?>(null) }
     var resolvingContext by remember { mutableStateOf(true) }
 
-    LaunchedEffect(currentRole, activePersonaId, weddingId, weddingTitle) {
+    LaunchedEffect(currentRole, activePersonaId, weddingId, weddingTitle, productionAuthority, selectedGrantIds) {
         resolvingContext = true
         val role = currentRole
         if (role == null) {
@@ -500,4 +528,71 @@ fun RootScreen(
     }
 }
 
+/**
+ * Grants of [role]'s kind that require an explicit choice and have none yet (master plan §9).
+ * A single grant, or a kind the contract does not mark `selectionRequired`, needs no picker.
+ */
+private fun pendingGrantSelection(
+    authority: ProductionAuthority?,
+    role: AppRole?,
+    selectedGrantIds: Set<String>
+): List<ProductionWorkspaceGrant> {
+    if (authority == null || role == null || !ProductionGrantMapper.isUsable(authority)) return emptyList()
+    val roleGrants = authority.grants.filter { it.workspaceKindWire == role.roleId }
+    if (roleGrants.size <= 1) return emptyList()
+    val requiresSelection = authority.contextSelection
+        .firstOrNull { it.workspaceKindWire == role.roleId }
+        ?.selectionRequired == true
+    if (!requiresSelection) return emptyList()
+    if (roleGrants.any { it.grantId in selectedGrantIds }) return emptyList()
+    return roleGrants
+}
 
+/**
+ * The real context selector master plan §9 requires: the account holds more than one grant of the
+ * same kind (typically a Planner or Coordinator on several weddings), and none is chosen on their
+ * behalf. Deliberately minimal — a plain, functional list rather than a designed surface; visual
+ * polish for this screen belongs to Phase 8, same as the rest of native feature parity.
+ */
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun GrantSelectionScreen(
+    grants: List<ProductionWorkspaceGrant>,
+    onSelect: (String) -> Unit,
+    onSignOut: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(WeddingIdentityPalette.Ivory)
+            .semantics { testTagsAsResourceId = true }
+            .testTag("grant-selection"),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text("Choose a wedding", fontSize = 22.sp, fontWeight = FontWeight.Medium)
+            Text(
+                "Your account has access to more than one wedding in this role. Choose which one to open.",
+                fontSize = 13.sp,
+                color = WeddingIdentityPalette.Muted
+            )
+            grants.forEach { grant ->
+                OutlinedButton(
+                    onClick = { onSelect(grant.grantId) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("grant-option-${grant.grantId}")
+                ) {
+                    Text(grant.weddingTitle ?: grant.weddingId ?: grant.grantId)
+                }
+            }
+            TextButton(onClick = onSignOut, modifier = Modifier.testTag("grant-selection-sign-out")) {
+                Text("Sign out")
+            }
+        }
+    }
+}

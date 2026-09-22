@@ -67,21 +67,30 @@ public struct EmptyActorAssignmentSource: ActorAssignmentSource {
 /// Chooses where assignments come from for an environment.
 ///
 /// Shadow authority exists only where Shadow personas do. Production and production-read-verify
-/// get NO assignments until the production grant source exists (master plan Phase 5), so every
-/// scoped workspace is denied there rather than opened with Shadow test access. The root used to
-/// build the Shadow source unconditionally (master plan §8.9).
+/// get a real `ProductionActorAssignmentSource` once a `ProductionAuthority` has actually been
+/// fetched and verified server-side (master plan Phase 5); until then — no identity session, no
+/// successful authority fetch yet — they still get `EmptyActorAssignmentSource`, so every scoped
+/// workspace is denied rather than opened with Shadow test access. The root used to build the
+/// Shadow source unconditionally (master plan §8.9).
 public enum ActorAssignmentSources {
     public static func forEnvironment(
         _ environment: NativeDataEnvironment,
         repository: WeddingRepositoryProtocol,
-        plannerRepository: PlannerDashboardRepositoryProtocol? = nil
+        plannerRepository: PlannerDashboardRepositoryProtocol? = nil,
+        productionAuthority: ProductionAuthority? = nil,
+        selectedGrantIds: Set<String> = []
     ) -> ActorAssignmentSource {
-        guard environment.allowsDevelopmentPersonaSwitching else { return EmptyActorAssignmentSource() }
-        return ShadowActorAssignmentSource(
-            repository: repository,
-            environment: environment,
-            plannerRepository: plannerRepository
-        )
+        if environment.allowsDevelopmentPersonaSwitching {
+            return ShadowActorAssignmentSource(
+                repository: repository,
+                environment: environment,
+                plannerRepository: plannerRepository
+            )
+        }
+        if let productionAuthority {
+            return ProductionActorAssignmentSource(authority: productionAuthority, selectedGrantIds: selectedGrantIds)
+        }
+        return EmptyActorAssignmentSource()
     }
 }
 
