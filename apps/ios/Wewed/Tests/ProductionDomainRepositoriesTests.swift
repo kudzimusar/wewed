@@ -158,8 +158,31 @@ final class ProductionDomainRepositoriesTests: XCTestCase {
     }
 
     func testDomainClientDistinguishesPermissionMissingRevocationAndInvalidSession() async {
-        var sessionInvalid = 0
-        var revoked: [String] = []
+        final class CallbackRecorder: @unchecked Sendable {
+            private let lock = NSLock()
+            private var invalidCount = 0
+            private var revokedGrantIds: [String] = []
+
+            func recordInvalid() {
+                lock.lock()
+                invalidCount += 1
+                lock.unlock()
+            }
+
+            func recordRevoked(_ grantId: String) {
+                lock.lock()
+                revokedGrantIds.append(grantId)
+                lock.unlock()
+            }
+
+            func snapshot() -> (Int, [String]) {
+                lock.lock()
+                defer { lock.unlock() }
+                return (invalidCount, revokedGrantIds)
+            }
+        }
+
+        let recorder = CallbackRecorder()
         let grant = "planner:wedding:wed-1"
 
         func makeClient(status: Int, body: String) -> NativeDomainApiClient {
@@ -170,8 +193,8 @@ final class ProductionDomainRepositoriesTests: XCTestCase {
             return NativeDomainApiClient(
                 baseURL: URL(string: "https://wewed.pro")!,
                 session: URLSession(configuration: configuration),
-                onSessionInvalid: { sessionInvalid += 1 },
-                onGrantRevoked: { revoked.append($0) }
+                onSessionInvalid: { recorder.recordInvalid() },
+                onGrantRevoked: { recorder.recordRevoked($0) }
             )
         }
 
@@ -180,28 +203,28 @@ final class ProductionDomainRepositoriesTests: XCTestCase {
             body: #"{"success":false,"code":"PERMISSION_DENIED"}"#
         ).tasks(sessionToken: token, grantId: grant)
         if case .forbidden = permission {} else { XCTFail("Permission denial must not revoke the grant") }
-        XCTAssertTrue(revoked.isEmpty)
+        XCTAssertTrue(recorder.snapshot().1.isEmpty)
 
         let missing = await makeClient(
             status: 404,
             body: #"{"success":false,"error":"Task not found"}"#
         ).tasks(sessionToken: token, grantId: grant)
         if case .transport(status: 404) = missing {} else { XCTFail("Resource-level 404 must not revoke the grant") }
-        XCTAssertTrue(revoked.isEmpty)
+        XCTAssertTrue(recorder.snapshot().1.isEmpty)
 
         let revokedFetch = await makeClient(
             status: 403,
             body: #"{"success":false,"code":"GRANT_REVOKED"}"#
         ).tasks(sessionToken: token, grantId: grant)
         if case .grantRevoked = revokedFetch {} else { XCTFail("Explicit grant revocation must be preserved") }
-        XCTAssertEqual(revoked, [grant])
+        XCTAssertEqual(recorder.snapshot().1, [grant])
 
         let invalid = await makeClient(
             status: 401,
             body: #"{"success":false,"code":"SESSION_INVALID"}"#
         ).tasks(sessionToken: token, grantId: grant)
         if case .sessionInvalid = invalid {} else { XCTFail("401 must remain a session-invalid signal") }
-        XCTAssertEqual(sessionInvalid, 1)
+        XCTAssertEqual(recorder.snapshot().0, 1)
     }
 
     func testLivePlannerDomainFailureThrowsInsteadOfMasqueradingAsEmptyData() async {
