@@ -64,15 +64,16 @@ final class LiveGuestInvitationCoordinatorTests: XCTestCase {
     }
 
     private var coordinator: LiveGuestInvitationCoordinator!
+    private var client: GuestSessionClient!
 
     override func setUp() {
         super.setUp()
         Stub.reset()
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [Stub.self]
-        let client = GuestSessionClient(baseUrl: URL(string: "https://wewed.pro")!,
-                                        storage: InMemorySecureStorage(),
-                                        session: URLSession(configuration: configuration))
+        client = GuestSessionClient(baseUrl: URL(string: "https://wewed.pro")!,
+                                    storage: InMemorySecureStorage(),
+                                    session: URLSession(configuration: configuration))
         coordinator = LiveGuestInvitationCoordinator(client: client)
     }
 
@@ -155,25 +156,73 @@ final class LiveGuestInvitationCoordinatorTests: XCTestCase {
         guard case .refused = state else { return XCTFail("expected refusal, got \(state)") }
     }
 
-    /// Guest replacement (master plan §6.5): with Guest A presented, an invalid Guest B is
-    /// refused, and the answer to B's entry is never A's card. The dead
-    /// `GuestCeremonialEntry.replaceActiveGuest` only described this; here it is asserted against
-    /// the coordinator the Guest shells actually use.
-    func testAnInvalidSecondGuestIsRefusedAndNeverAnswersWithTheFirstGuestsCard() async {
+    private func presentGuestA() async {
         exchangeSucceeds(slug: "wedding-a", guestId: "guest_a", session: "SESSION-A")
         invitationReads(slug: "wedding-a", guestId: "guest_a", name: "Guest A", attending: "true")
         let first = await coordinator.enter(
             .privateInvitation(weddingSlug: "wedding-a", rsvpToken: "CREDENTIAL-A"))
         guard case let .presenting(snapshot) = first else { return XCTFail("expected Guest A, got \(first)") }
         XCTAssertEqual(snapshot.guestName, "Guest A")
+    }
+
+    /// Nothing may act as Guest A while a replacement is refused or unreachable (master plan §6.5).
+    private func assertGuestAIsNotActionable() async {
+        Stub.seenPaths = []
+        let outcome = await coordinator.answer(attending: false)
+        XCTAssertEqual(outcome, .reopenRequired, "answering must not target the previously presented Guest")
+        XCTAssertFalse(Stub.seenPaths.contains { $0.hasPrefix("PUT ") }, "no RSVP write for Guest A")
+
+        let refreshed = await coordinator.refresh()
+        guard case .idle = refreshed else {
+            return XCTFail("refresh must not re-present the previously presented Guest; got \(refreshed)")
+        }
+        XCTAssertTrue(Stub.seenPaths.isEmpty, "no request at all — in particular no read of Guest A")
+    }
+
+    /// Guest replacement (master plan §6.5). With Guest A presented, an invalid Guest B is
+    /// refused; from that moment nothing answers or refreshes as A. A's SECURE session is not
+    /// destroyed, so an explicit restore can still bring A back.
+    func testAnInvalidSecondGuestIsRefusedAndNeverAnswersWithTheFirstGuestsCard() async {
+        await presentGuestA()
 
         Stub.routes["POST /api/weddings/wedding-b/guest-session"] =
             Reply(status: 401, body: #"{"success":false}"#)
         let second = await coordinator.enter(
             .privateInvitation(weddingSlug: "wedding-b", rsvpToken: "INVALID-B"))
-        guard case .refused = second else {
-            return XCTFail("an invalid Guest B must be refused, and never answered with Guest A's card; got \(second)")
+        guard case .refused = second else { return XCTFail("an invalid Guest B must be refused; got \(second)") }
+
+        await assertGuestAIsNotActionable()
+
+        // Presentation binding != remembered session: A's stored session survived the refusal.
+        let storedSlug = await client.activeSessionSlug()
+        XCTAssertEqual(storedSlug, "wedding-a")
+        let restored = await coordinator.restoreRememberedGuest()
+        guard case let .presenting(snapshot) = restored else {
+            return XCTFail("an explicit restore may bring back the still-valid Guest A; got \(restored)")
         }
+        XCTAssertEqual(snapshot.guestName, "Guest A")
+    }
+
+    /// An unreachable Wewed during B's entry leaves A exactly as unactionable as a refusal does.
+    func testATransportFailedSecondGuestLeavesTheFirstGuestUnactionable() async {
+        await presentGuestA()
+
+        Stub.routes["POST /api/weddings/wedding-b/guest-session"] = Reply(status: 503)
+        let second = await coordinator.enter(
+            .privateInvitation(weddingSlug: "wedding-b", rsvpToken: "CREDENTIAL-B"))
+        guard case .unavailable = second else { return XCTFail("expected unavailable; got \(second)") }
+
+        await assertGuestAIsNotActionable()
+        let storedSlug = await client.activeSessionSlug()
+        XCTAssertEqual(storedSlug, "wedding-a")
+    }
+
+    /// A rejected entry (malformed link) ends the presentation too, without any request.
+    func testARejectedSecondEntryAlsoEndsTheFirstGuestsPresentation() async {
+        await presentGuestA()
+        let second = await coordinator.enter(.rejected(.resumeCarriedRawCredential))
+        guard case .refused = second else { return XCTFail("expected refusal; got \(second)") }
+        await assertGuestAIsNotActionable()
     }
 
     /// An unreachable Wewed is distinguishable from a refused invitation.

@@ -28,6 +28,7 @@ import pro.wewed.app.navigation.Entitlements
 import pro.wewed.app.navigation.IANavigationContract
 import pro.wewed.app.navigation.NavigationContext
 import pro.wewed.app.navigation.PrimaryDestination
+import pro.wewed.app.navigation.RoleShellAuthorization
 import pro.wewed.app.theme.WeddingIdentityPalette
 
 /**
@@ -49,8 +50,11 @@ fun RoleShellScaffold(
     content: @Composable (destination: PrimaryDestination, context: NavigationContext) -> Unit
 ) {
     val navigation = remember(context.activeRole) { IANavigationContract.forRole(context.activeRole) }
-    var selectedId by remember(context.activeRole) { mutableStateOf(navigation.primary.first().id) }
-    var denial by remember(context.activeRole) { mutableStateOf<Entitlements.Resolution.Denied?>(null) }
+    // Keyed on the whole context: a different wedding, assignment or scope is re-resolved from
+    // the start rather than inheriting an authorization granted to another context.
+    var authorization by remember(context) { mutableStateOf(RoleShellAuthorization.initial(context)) }
+    // The tab that reads as selected is the last AUTHORIZED one — never an unresolved safe return.
+    val selectedId = authorization.authorizedDestinationId
 
     val roleTag = context.activeRole.roleId
 
@@ -60,8 +64,7 @@ fun RoleShellScaffold(
         val link = pendingDeepLink ?: return@LaunchedEffect
         when (val resolution = DeepLinkRouter.resolve(link, context)) {
             is Entitlements.Resolution.Allowed -> {
-                denial = null
-                selectedId = resolution.destination.id
+                authorization = authorization.applying(resolution)
                 // Level-2 deep links land on the requested section, not the workspace default.
                 sectionMemory.applyRequested(
                     context = context,
@@ -70,10 +73,7 @@ fun RoleShellScaffold(
                     available = resolution.destination.sections
                 )
             }
-            is Entitlements.Resolution.Denied -> {
-                denial = resolution
-                selectedId = resolution.safeReturnDestinationId
-            }
+            is Entitlements.Resolution.Denied -> authorization = authorization.applying(resolution)
         }
         onDeepLinkHandled?.invoke()
     }
@@ -84,23 +84,26 @@ fun RoleShellScaffold(
         val useRail = maxWidth >= TABLET_RAIL_BREAKPOINT
 
         val onSelect: (PrimaryDestination) -> Unit = { destination ->
-            when (val resolution = Entitlements.resolve(context, destination.id)) {
-                is Entitlements.Resolution.Allowed -> {
-                    denial = null
-                    selectedId = resolution.destination.id
-                }
-                is Entitlements.Resolution.Denied -> {
-                    denial = resolution
-                    selectedId = resolution.safeReturnDestinationId
-                }
-            }
+            authorization = authorization.selecting(context, destination.id)
         }
 
+        // Content renders ONLY for a destination Entitlements.resolve allowed for this context.
+        // Anything else is the access boundary, including when nothing was ever authorized.
         val workspace: @Composable () -> Unit = {
-            val current = navigation.destination(selectedId) ?: navigation.primary.first()
-            denial?.let { blocked ->
-                AccessBoundaryNotice(blocked.reason) { denial = null }
-            } ?: content(current, context)
+            val visible = authorization.visibleDestinationId?.let { navigation.destination(it) }
+            if (visible != null) {
+                content(visible, context)
+            } else {
+                AccessBoundaryNotice(
+                    reason = authorization.denial?.reason
+                        ?: "This workspace is not authorized for this session.",
+                    onDismiss = if (authorization.canDismissDenial) {
+                        { authorization = authorization.dismissingDenial() }
+                    } else {
+                        null
+                    }
+                )
+            }
         }
 
         Scaffold(
@@ -297,7 +300,7 @@ private fun RoleContextBar(
 
 /** IA V2 §14 — explain the boundary, leak no destination data, offer a safe return. */
 @Composable
-private fun AccessBoundaryNotice(reason: String, onDismiss: () -> Unit) {
+private fun AccessBoundaryNotice(reason: String, onDismiss: (() -> Unit)?) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -327,8 +330,11 @@ private fun AccessBoundaryNotice(reason: String, onDismiss: () -> Unit) {
             fontSize = 13.sp
         )
         Spacer(modifier = Modifier.height(16.dp))
-        TextButton(onClick = onDismiss) {
-            Text("Go back", color = WeddingIdentityPalette.ChampagneDeep, fontWeight = FontWeight.SemiBold)
+        // Offered only when there is an authorized destination to go back to.
+        if (onDismiss != null) {
+            TextButton(onClick = onDismiss, modifier = Modifier.testTag("access-boundary-dismiss")) {
+                Text("Go back", color = WeddingIdentityPalette.ChampagneDeep, fontWeight = FontWeight.SemiBold)
+            }
         }
     }
 }

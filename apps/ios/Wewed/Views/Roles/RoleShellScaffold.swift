@@ -14,8 +14,13 @@ public struct RoleShellScaffold<Content: View>: View {
     @ObservedObject private var sectionMemory: WorkspaceSectionMemory
     private let content: (PrimaryDestination, NavigationContext) -> Content
 
-    @State private var selectedId: String
-    @State private var denialReason: String?
+    /// Every render decision comes from here; see `RoleShellAuthorization`.
+    @State private var authorization: RoleShellAuthorization
+
+    /// The tab that reads as selected: the last AUTHORIZED one, never an unresolved safe return.
+    private var selectedId: String {
+        authorization.authorizedDestinationId ?? navigation.primary[0].id
+    }
 
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -45,7 +50,9 @@ public struct RoleShellScaffold<Content: View>: View {
         self.sectionMemory = sectionMemory
         self.onDeepLinkHandled = onDeepLinkHandled
         self.content = content
-        _selectedId = State(initialValue: IANavigationContract.forRole(context.activeRole).primary[0].id)
+        // The initial destination is resolved through Entitlements like any other. It used to be
+        // rendered directly, before any authorization had run (Phase 1 independent review).
+        _authorization = State(initialValue: RoleShellAuthorization.initial(context))
     }
 
     private var navigation: RoleNavigation {
@@ -71,12 +78,12 @@ public struct RoleShellScaffold<Content: View>: View {
                         // publishes an explicit bounded width. Media then fills that width
                         // instead of dictating the screen's width (P0 responsive contract).
                         WewedScreenContainer {
-                            if let denialReason {
-                                AccessBoundaryNotice(reason: denialReason) {
-                                    self.denialReason = nil
-                                }
-                            } else {
+                            // Only the destination Entitlements allowed renders content; every
+                            // other tab page is the access boundary.
+                            if authorization.visibleDestinationId == destination.id {
                                 content(destination, context)
+                            } else {
+                                accessBoundary
                             }
                         }
                         .tabItem {
@@ -100,12 +107,16 @@ public struct RoleShellScaffold<Content: View>: View {
         // P0-8: the WHOLE deep link is resolved here — target wedding, destination, Level-2
         // section and entity id — through the same gate as a tap. Nothing is discarded before
         // authorization.
+        // A different wedding, assignment or scope is re-resolved from the start rather than
+        // inheriting an authorization granted to another context (matches Android's keyed state).
+        .onChange(of: context) { _, updated in
+            authorization = RoleShellAuthorization.initial(updated)
+        }
         .onChange(of: pendingDeepLink) { _, link in
             guard let link else { return }
-            switch DeepLinkRouter.resolve(link, context: context) {
-            case let .allowed(destination, _):
-                denialReason = nil
-                selectedId = destination.id
+            let resolution = DeepLinkRouter.resolve(link, context: context)
+            authorization = authorization.applying(resolution)
+            if case let .allowed(destination, _) = resolution {
                 if case let .workspace(workspace) = link {
                     // Level-2 deep links land on the requested section, not the workspace default.
                     sectionMemory.applyRequested(
@@ -115,9 +126,6 @@ public struct RoleShellScaffold<Content: View>: View {
                         available: destination.sections
                     )
                 }
-            case let .denied(reason, safeReturn):
-                denialReason = reason
-                selectedId = safeReturn
             }
             onDeepLinkHandled?()
         }
@@ -159,13 +167,23 @@ public struct RoleShellScaffold<Content: View>: View {
 
     @ViewBuilder
     private var workspace: some View {
-        if let denialReason {
-            AccessBoundaryNotice(reason: denialReason) {
-                self.denialReason = nil
-            }
+        // Content renders ONLY for a destination Entitlements.resolve allowed for this context.
+        if let visible = authorization.visibleDestinationId.flatMap(navigation.destination) {
+            content(visible, context)
         } else {
-            content(navigation.destination(selectedId) ?? navigation.primary[0], context)
+            accessBoundary
         }
+    }
+
+    /// The boundary, with "Go back" offered only when there is an authorized destination to return
+    /// to. Dismissing never reveals a destination that has not been resolved.
+    private var accessBoundary: some View {
+        AccessBoundaryNotice(
+            reason: authorization.denialReason ?? "This workspace is not authorized for this session.",
+            onDismiss: authorization.canDismissDenial
+                ? { authorization = authorization.dismissingDenial() }
+                : nil
+        )
     }
 
     /// Every tab change passes through the entitlement gate before the destination is shown.
@@ -173,14 +191,7 @@ public struct RoleShellScaffold<Content: View>: View {
         Binding(
             get: { selectedId },
             set: { requested in
-                switch Entitlements.resolve(context, destinationId: requested) {
-                case let .allowed(destination, _):
-                    denialReason = nil
-                    selectedId = destination.id
-                case let .denied(reason, safeReturn):
-                    denialReason = reason
-                    selectedId = safeReturn
-                }
+                authorization = authorization.selecting(context, destinationId: requested)
             }
         )
     }
@@ -266,7 +277,8 @@ struct RoleContextBar: View {
 /// IA V2 §14 — explain the boundary, leak no destination data, offer a safe return.
 struct AccessBoundaryNotice: View {
     let reason: String
-    let onDismiss: () -> Void
+    /// Nil when there is nowhere authorized to go back to.
+    let onDismiss: (() -> Void)?
 
     var body: some View {
         VStack(spacing: 10) {
@@ -280,9 +292,12 @@ struct AccessBoundaryNotice: View {
                 .font(.system(size: 13))
                 .foregroundColor(WeddingIdentityPalette.muted)
                 .multilineTextAlignment(.center)
-            Button("Go back", action: onDismiss)
-                .foregroundColor(WeddingIdentityPalette.champagneDeep)
-                .fontWeight(.semibold)
+            if let onDismiss {
+                Button("Go back", action: onDismiss)
+                    .foregroundColor(WeddingIdentityPalette.champagneDeep)
+                    .fontWeight(.semibold)
+                    .accessibilityIdentifier("access-boundary-dismiss")
+            }
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)

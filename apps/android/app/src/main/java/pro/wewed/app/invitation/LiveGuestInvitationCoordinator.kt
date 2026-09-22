@@ -71,7 +71,10 @@ class LiveGuestInvitationCoordinator(
     suspend fun weddingDay(guestId: String) = client.loadWeddingDay(guestId)
     suspend fun weddingPass(guestId: String) = client.loadWeddingPass(guestId)
 
-    /** The wedding the active session belongs to, once one exists. */
+    /**
+     * The wedding of the card currently presented — the presentation, not the stored session.
+     * Set only when a card is actually presented; cleared the moment a new entry begins.
+     */
     private var activeWeddingSlug: String? = null
 
     /** The guest the presented card belongs to. It is what binds an answer to the right record. */
@@ -85,6 +88,15 @@ class LiveGuestInvitationCoordinator(
      * indistinguishable and should be.
      */
     suspend fun enter(entry: InvitationEntry): LiveInvitationState {
+        // A new explicit entry ends the current presentation before anything else happens. The
+        // binding below names the card on screen, and from this moment that card is no longer
+        // what the guest is acting on: if the new entry is refused or cannot reach Wewed, nothing
+        // may still answer or refresh as the previously presented Guest (master plan §6.5).
+        //
+        // This clears the PRESENTATION only. The remembered secure session is untouched — the
+        // client writes a session only after a new one is issued — so a refused Guest B never
+        // deletes Guest A's session, and an explicit restore can bring A back.
+        endPresentation()
         return when (entry) {
             is InvitationEntry.Rejected -> LiveInvitationState.Refused(entry.reason)
 
@@ -95,6 +107,12 @@ class LiveGuestInvitationCoordinator(
             // The path that used to be acknowledged and then dropped.
             is InvitationEntry.Handoff -> exchange { client.redeemHandoff(entry.secret) }
         }
+    }
+
+    /** Drops the presented-card binding. Never touches the stored session. */
+    private fun endPresentation() {
+        activeWeddingSlug = null
+        presentedGuestId = null
     }
 
     /** Restores the guest this device already holds a session for, without any credential. */

@@ -244,7 +244,10 @@ public struct RootView: View {
 
     @ViewBuilder
     private var roleShell: some View {
-        if let context = resolvedContext {
+        // A workspace is composed only for a context that holds a verified assignment, every
+        // required scope, and a relationship that actually holds (Phase 1 independent review).
+        // Nothing missing is filled in: without that, the actor is at the no-workspace boundary.
+        if let context = resolvedContext, RoleShellAuthorization.admitsWorkspace(context) {
             authorizedShell(context)
         } else if contextResolutionFinished {
             VStack(spacing: 8) {

@@ -18,6 +18,7 @@ import pro.wewed.app.navigation.DeepLinkRouter
 import pro.wewed.app.navigation.IANavigationContract
 import pro.wewed.app.navigation.ActorAssignmentSources
 import pro.wewed.app.navigation.NavigationContext
+import pro.wewed.app.navigation.RoleShellAuthorization
 import pro.wewed.app.state.AppViewModel
 import pro.wewed.app.state.SessionViewModel
 import pro.wewed.app.theme.WeddingIdentityPalette
@@ -382,7 +383,10 @@ fun RootScreen(
         return
     }
 
-    val context = resolvedContext ?: run {
+    // A workspace is composed only for a context that holds a verified assignment, every required
+    // scope, and a relationship that actually holds (Phase 1 independent review). Nothing missing
+    // is filled in: an actor without that is at the no-workspace boundary.
+    val context = resolvedContext?.takeIf { RoleShellAuthorization.admitsWorkspace(it) } ?: run {
         NativeEnvironmentUnavailableScreen(
             environmentName = appViewModel.dataEnvironment.displayName,
             reason = "No Wewed workspace is authorized for this session."

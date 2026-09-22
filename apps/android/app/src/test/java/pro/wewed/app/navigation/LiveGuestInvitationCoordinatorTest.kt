@@ -171,27 +171,78 @@ class LiveGuestInvitationCoordinatorTest {
         assertFalse(seenPaths.any { it.contains("guest-session") })
     }
 
-    /**
-     * Guest replacement (master plan §6.5): with Guest A presented, an invalid Guest B is refused,
-     * and the answer to B's entry is never A's card. The dead
-     * `GuestCeremonialEntry.replaceActiveGuest` only described this; here it is asserted against the
-     * coordinator the Guest shells actually use.
-     */
-    @Test
-    fun anInvalidSecondGuestIsRefusedAndNeverAnswersWithTheFirstGuestsCard() = runBlocking {
+    private fun presentGuestA() = runBlocking {
         exchangeSucceeds("wedding-a", "guest_a", "SESSION-A")
         invitationReads("wedding-a", "guest_a", "Guest A", "true")
         val first = coordinator.enter(InvitationEntry.PrivateInvitation("wedding-a", "CREDENTIAL-A"))
         assertEquals("Guest A", (first as LiveInvitationState.Presenting).snapshot.guestName)
+    }
+
+    /** Nothing may act as Guest A while a replacement is refused or unreachable (master plan §6.5). */
+    private fun assertGuestAIsNotActionable() = runBlocking {
+        seenPaths.clear()
+        assertEquals(
+            "answering must not target the previously presented Guest",
+            RsvpOutcome.ReopenRequired,
+            coordinator.answer(attending = false)
+        )
+        assertFalse("no RSVP write for Guest A", seenPaths.any { it.startsWith("PUT ") })
+
+        assertEquals(
+            "refresh must not re-present the previously presented Guest",
+            LiveInvitationState.Idle,
+            coordinator.refresh()
+        )
+        assertTrue("no request at all — in particular no read of Guest A", seenPaths.isEmpty())
+    }
+
+    /**
+     * Guest replacement (master plan §6.5). With Guest A presented, an invalid Guest B is refused;
+     * from that moment nothing answers or refreshes as A. A's SECURE session is not destroyed, so an
+     * explicit restore can still bring A back.
+     */
+    @Test
+    fun anInvalidSecondGuestIsRefusedAndNeverAnswersWithTheFirstGuestsCard() = runBlocking {
+        presentGuestA()
 
         routes["POST /api/weddings/wedding-b/guest-session"] = Reply(401, """{"success":false}""")
         val second = coordinator.enter(InvitationEntry.PrivateInvitation("wedding-b", "INVALID-B"))
-
         assertTrue("an invalid Guest B must be refused", second is LiveInvitationState.Refused)
-        assertFalse(
-            "Guest A's card must never answer Guest B's entry",
-            second is LiveInvitationState.Presenting
+
+        assertGuestAIsNotActionable()
+
+        // Presentation binding != remembered session: A's stored session survived the refusal.
+        assertEquals("wedding-a", client.activeSessionSlug())
+        val restored = coordinator.restoreRememberedGuest()
+        assertEquals(
+            "an explicit restore may bring back the still-valid Guest A",
+            "Guest A",
+            (restored as LiveInvitationState.Presenting).snapshot.guestName
         )
+    }
+
+    /** An unreachable Wewed during B's entry leaves A exactly as unactionable as a refusal does. */
+    @Test
+    fun aTransportFailedSecondGuestLeavesTheFirstGuestUnactionable() = runBlocking {
+        presentGuestA()
+
+        routes["POST /api/weddings/wedding-b/guest-session"] = Reply(503)
+        val second = coordinator.enter(InvitationEntry.PrivateInvitation("wedding-b", "CREDENTIAL-B"))
+        assertTrue(second is LiveInvitationState.Unavailable)
+
+        assertGuestAIsNotActionable()
+        assertEquals("wedding-a", client.activeSessionSlug())
+    }
+
+    /** A rejected entry (malformed link) ends the presentation too, without any request. */
+    @Test
+    fun aRejectedSecondEntryAlsoEndsTheFirstGuestsPresentation() = runBlocking {
+        presentGuestA()
+        val second = coordinator.enter(
+            InvitationEntry.Rejected(InvitationEntry.Reason.RESUME_CARRIED_RAW_CREDENTIAL)
+        )
+        assertTrue(second is LiveInvitationState.Refused)
+        assertGuestAIsNotActionable()
     }
 
     /** A credential the server declines is a refusal, not an unavailable server. */

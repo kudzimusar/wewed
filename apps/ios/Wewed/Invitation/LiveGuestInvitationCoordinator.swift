@@ -54,7 +54,8 @@ public actor LiveGuestInvitationCoordinator {
 
     private let client: GuestSessionClient
 
-    /// The wedding the active session belongs to, once one exists.
+    /// The wedding of the card currently presented — the presentation, not the stored session.
+    /// Set only when a card is actually presented; cleared the moment a new entry begins.
     private var activeWeddingSlug: String?
 
     /// The guest the presented card belongs to. It is what binds an answer to the right record.
@@ -70,6 +71,15 @@ public actor LiveGuestInvitationCoordinator {
     /// server-issued session and a snapshot read back from it — because after entry the two are
     /// indistinguishable and should be.
     public func enter(_ entry: InvitationEntry) async -> LiveInvitationState {
+        // A new explicit entry ends the current presentation before anything else happens. The
+        // binding names the card on screen, and from this moment that card is no longer what the
+        // guest is acting on: if the new entry is refused or cannot reach Wewed, nothing may still
+        // answer or refresh as the previously presented Guest (master plan §6.5).
+        //
+        // This clears the PRESENTATION only. The remembered secure session is untouched — the
+        // client writes a session only after a new one is issued — so a refused Guest B never
+        // deletes Guest A's session, and an explicit restore can bring A back.
+        endPresentation()
         switch entry {
         case let .rejected(reason):
             return .refused(reason)
@@ -82,6 +92,12 @@ public actor LiveGuestInvitationCoordinator {
             // The path that used to be acknowledged and then dropped.
             return await exchange { try await self.client.redeemHandoff(secret) }
         }
+    }
+
+    /// Drops the presented-card binding. Never touches the stored session.
+    private func endPresentation() {
+        activeWeddingSlug = nil
+        presentedGuestId = nil
     }
 
     /// Restores the guest this device already holds a session for, without any credential.
