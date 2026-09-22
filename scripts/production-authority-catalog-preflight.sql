@@ -97,6 +97,31 @@ WHERE n.nspname = 'public'
   )
 ORDER BY c.relname;
 
+-- 5b. Verify security_invoker reloptions on public compatibility views
+SELECT
+  n.nspname AS schema_name,
+  c.relname AS relation_name,
+  COALESCE(
+    (
+      SELECT option_value
+      FROM pg_options_to_table(COALESCE(c.reloptions, ARRAY[]::text[]))
+      WHERE option_name = 'security_invoker'
+      LIMIT 1
+    ),
+    'false'
+  ) AS security_invoker
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public'
+  AND c.relkind = 'v'
+  AND c.relname IN (
+    'BusinessAccount',
+    'BusinessAccountMember',
+    'BusinessAccountLink',
+    'ProviderProfile'
+  )
+ORDER BY c.relname;
+
 -- 6. Policies on authority objects
 SELECT
   schemaname,
@@ -159,7 +184,7 @@ WHERE n.nspname NOT IN ('pg_catalog','information_schema')
   )
 ORDER BY n.nspname, c.relname;
 
--- 9. Migration ledger summary only
+-- 9. Migration ledger summary
 SELECT
   COUNT(*)::int AS migration_rows,
   COUNT(*) FILTER (WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL)::int AS finished_rows,
@@ -168,5 +193,16 @@ SELECT
   MIN(migration_name) AS first_migration,
   MAX(migration_name) AS last_migration
 FROM public._prisma_migrations;
+
+-- 9b. Migration ledger detail (internal metadata only; no customer data)
+SELECT
+  migration_name,
+  CASE
+    WHEN rolled_back_at IS NOT NULL THEN 'ROLLED_BACK'
+    WHEN finished_at IS NOT NULL THEN 'FINISHED'
+    ELSE 'UNRESOLVED'
+  END AS migration_status
+FROM public._prisma_migrations
+ORDER BY started_at NULLS LAST, migration_name;
 
 ROLLBACK;
