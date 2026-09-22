@@ -3,7 +3,8 @@
 **Plan ID:** WW-NATIVE-PWA-CONVERGENCE-2026-09-22-01
 **Phase:** 3 — Global read-only production database audit
 **Branch:** `backend/production-database-audit-phase3-20260922`
-**Audit evidence SHA:** `d4241650bdb398cdefc5bd377ba6265c32e11854`
+**Audit evidence SHA:** `d4241650bdb398cdefc5bd377ba6265c32e11854`  
+**Accepted Phase-3 closure SHA:** `81c77884b8fe4d84a17918b9310d53bf4541791d`
 **Status:** INDEPENDENT RULE-10 REVIEW COMPLETE — ACCEPTED after reviewer-owned cleanup/corrections. Phase 4 may begin; it has not started.
 
 ## 1. Safety boundary
@@ -17,7 +18,7 @@ Every value reported below is either: a count, a distinct-value list, a boolean/
 ## 1.1 Phase-3 artifacts
 
 Final retained artifacts:
-- `scripts/production-authority-catalog-preflight.sql` — standalone, rerunnable, `SELECT`-only catalog reference.
+- `scripts/production-authority-catalog-preflight.sql` — standalone, rerunnable, `SELECT`-only catalog reference, including the follow-up `security_invoker` reloption check and full migration-ledger status list used during the audit.
 - This sanitized audit document.
 
 Temporary reviewer/agent audit scaffolding was removed at closure:
