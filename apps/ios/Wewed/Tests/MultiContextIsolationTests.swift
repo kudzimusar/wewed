@@ -98,6 +98,9 @@ final class MultiContextIsolationTests: XCTestCase {
         {"grantId": "couple:wedding:A", "workspaceKind": "couple", "scopeKind": "wedding",
          "weddingId": "A", "weddingTitle": "Wedding A", "coupleId": null, "businessAccountId": null,
          "vendorId": null, "serviceEngagementIds": [], "permissions": [], "platformRoles": []},
+        {"grantId": "planner:wedding:A", "workspaceKind": "planner", "scopeKind": "wedding",
+         "weddingId": "A", "weddingTitle": "Wedding A", "coupleId": null, "businessAccountId": null,
+         "vendorId": null, "serviceEngagementIds": [], "permissions": [], "platformRoles": []},
         {"grantId": "planner:wedding:B", "workspaceKind": "planner", "scopeKind": "wedding",
          "weddingId": "B", "weddingTitle": "Wedding B", "coupleId": null, "businessAccountId": null,
          "vendorId": null, "serviceEngagementIds": [], "permissions": [], "platformRoles": []},
@@ -194,6 +197,7 @@ final class MultiContextIsolationTests: XCTestCase {
     private func signedInMultiAxisSession() async -> SessionStore {
         Stub.authorityReplies = [Reply(status: 200, body: multiAxisAuthority)]
         Stub.signInReplies["planner@example.com"] = Reply(status: 200, body: #"{"success":true,"sessionToken":"session-abc"}"#)
+        Stub.setWorkspace("planner:wedding:A", Reply(status: 200, body: workspaceFor("planner:wedding:A", weddingId: "A", weddingTitle: "Wedding A")))
         Stub.setWorkspace("planner:wedding:B", Reply(status: 200, body: workspaceFor("planner:wedding:B", weddingId: "B", weddingTitle: "Wedding B")))
         Stub.setWorkspace("planner:wedding:C", Reply(status: 200, body: workspaceFor("planner:wedding:C", weddingId: "C", weddingTitle: "Wedding C")))
         Stub.setWorkspace("couple:wedding:A", Reply(status: 200, body: workspaceFor("couple:wedding:A", weddingId: "A", weddingTitle: "Wedding A", workspaceKind: "couple")))
@@ -211,12 +215,17 @@ final class MultiContextIsolationTests: XCTestCase {
     // MARK: - 1. Planner A -> B -> C -> A (here: switching among Planner grants and back to Couple)
 
     @MainActor
-    func testPlannerCanSwitchBetweenTwoWeddingsAndBackWithoutSigningOut() async {
+    func testPlannerCanSwitchAToBToCToAWithoutSigningOut() async {
         let session = await signedInMultiAxisSession()
+
+        await selectGrantAndAwait(session, "planner:wedding:A")
+        XCTAssertEqual(session.activeGrantId, "planner:wedding:A")
+        XCTAssertEqual(session.currentRole, .planner)
+        XCTAssertEqual(session.weddingId, "A")
+        XCTAssertEqual(session.productionWorkspace?.weddingId, "A")
 
         await selectGrantAndAwait(session, "planner:wedding:B")
         XCTAssertEqual(session.activeGrantId, "planner:wedding:B")
-        XCTAssertEqual(session.currentRole, .planner)
         XCTAssertEqual(session.weddingId, "B")
         XCTAssertEqual(session.productionWorkspace?.weddingId, "B")
 
@@ -226,9 +235,10 @@ final class MultiContextIsolationTests: XCTestCase {
         XCTAssertEqual(session.productionWorkspace?.weddingId, "C")
         XCTAssertEqual(session.selectedGrantIds.filter { $0.hasPrefix("planner:wedding:") }, ["planner:wedding:C"])
 
-        await selectGrantAndAwait(session, "planner:wedding:B")
-        XCTAssertEqual(session.weddingId, "B")
-        XCTAssertEqual(session.productionWorkspace?.weddingId, "B")
+        await selectGrantAndAwait(session, "planner:wedding:A")
+        XCTAssertEqual(session.weddingId, "A")
+        XCTAssertEqual(session.productionWorkspace?.weddingId, "A")
+        XCTAssertEqual(session.selectedGrantIds.filter { $0.hasPrefix("planner:wedding:") }, ["planner:wedding:A"])
     }
 
     @MainActor
