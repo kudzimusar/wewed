@@ -53,6 +53,48 @@ final class SessionStoreAccountAuthorityTests: XCTestCase {
     }}
     """
 
+    private let coupleWorkspace = """
+    {"success":true,"workspace":{
+      "grantId":"couple:wedding:A","workspaceKind":"couple","scopeKind":"wedding",
+      "weddingId":"A","weddingTitle":"Wedding A","businessAccountId":null,"vendorId":null,
+      "serviceEngagementIds":[],"permissions":[],"platformRoles":[],
+      "wedding":{"id":"A","slug":"wedding-a","title":"Wedding A","date":"2027-01-01T00:00:00.000Z",
+      "venue":"Real Venue","venueCity":"Harare","venueCountry":"Zimbabwe","lifecycle":"before",
+      "coupleNames":"A & B"}
+    }}
+    """
+
+    private let multiPlannerAuthority = """
+    {"success": true, "authority": {
+      "contract":"WewedProductionAuthorityV1","version":1,"accountStatus":"authorized",
+      "identity":{"accessUserId":"planner-1","dashboardClass":"planner"},
+      "workspaceGrants":[
+        {"grantId":"planner:wedding:A","workspaceKind":"planner","scopeKind":"wedding",
+         "weddingId":"A","weddingTitle":"Wedding A","coupleId":null,"businessAccountId":null,
+         "vendorId":null,"serviceEngagementIds":[],"permissions":[],"platformRoles":[]},
+        {"grantId":"planner:wedding:B","workspaceKind":"planner","scopeKind":"wedding",
+         "weddingId":"B","weddingTitle":"Wedding B","coupleId":null,"businessAccountId":null,
+         "vendorId":null,"serviceEngagementIds":[],"permissions":[],"platformRoles":[]}
+      ],
+      "contextSelection":[{"workspaceKind":"planner","grantIds":["planner:wedding:A","planner:wedding:B"],"selectionRequired":true}],
+      "unsupported":[],"platform":{"effectiveRole":null}
+    }}
+    """
+
+    private let plannerPortfolioAuthority = """
+    {"success": true, "authority": {
+      "contract":"WewedProductionAuthorityV1","version":1,"accountStatus":"authorized",
+      "identity":{"accessUserId":"planner-1","dashboardClass":"planner"},
+      "workspaceGrants":[{
+        "grantId":"planner:portfolio:business-1","workspaceKind":"planner","scopeKind":"portfolio",
+        "weddingId":null,"weddingTitle":null,"coupleId":null,"businessAccountId":"business-1",
+        "vendorId":null,"serviceEngagementIds":[],"permissions":[],"platformRoles":[]
+      }],
+      "contextSelection":[{"workspaceKind":"planner","grantIds":["planner:portfolio:business-1"],"selectionRequired":false}],
+      "unsupported":[],"platform":{"effectiveRole":null}
+    }}
+    """
+
     private let bannedAuthority = """
     {"success": true, "authority": {
       "contract": "WewedProductionAuthorityV1", "version": 1, "accountStatus": "banned_identity",
@@ -177,6 +219,56 @@ final class SessionStoreAccountAuthorityTests: XCTestCase {
 
         XCTAssertTrue(session.selectedGrantIds.isEmpty)
         XCTAssertEqual(session.currentRole, .couple)
+    }
+
+    @MainActor
+    func testSignInLoadsARevalidatedReadOnlyWorkspaceSnapshot() async {
+        Stub.routes["POST /api/native/account/signin"] = Reply(status: 200, body: #"{"success":true,"sessionToken":"session-abc"}"#)
+        Stub.routes["GET /api/native/account/authority"] = Reply(status: 200, body: singleCoupleGrantAuthority)
+        Stub.routes["GET /api/native/account/workspace"] = Reply(status: 200, body: coupleWorkspace)
+        let api = client()
+        let session = SessionStore(storage: InMemorySecureStorage(), environment: .production, authorityClient: api)
+
+        await session.signInWithServer(client: api, email: "couple@example.com", password: "correct")
+
+        XCTAssertEqual(session.activeGrantId, "couple:wedding:A")
+        XCTAssertEqual(session.productionWorkspace?.wedding?.title, "Wedding A")
+        XCTAssertEqual(session.productionWorkspace?.wedding?.venue, "Real Venue")
+    }
+
+    @MainActor
+    func testSelectingASecondPlannerWeddingReplacesTheFirstSameKindSelection() async {
+        Stub.routes["POST /api/native/account/signin"] = Reply(status: 200, body: #"{"success":true,"sessionToken":"session-abc"}"#)
+        Stub.routes["GET /api/native/account/authority"] = Reply(status: 200, body: multiPlannerAuthority)
+        let api = client()
+        let session = SessionStore(storage: InMemorySecureStorage(), environment: .production, authorityClient: api)
+        await session.signInWithServer(client: api, email: "planner@example.com", password: "correct")
+
+        XCTAssertNil(session.currentRole)
+        XCTAssertNil(session.activeGrantId)
+
+        session.selectGrant("planner:wedding:A")
+        XCTAssertEqual(session.selectedGrantIds, ["planner:wedding:A"])
+        XCTAssertEqual(session.weddingId, "A")
+
+        session.selectGrant("planner:wedding:B")
+        XCTAssertEqual(session.selectedGrantIds, ["planner:wedding:B"])
+        XCTAssertEqual(session.activeGrantId, "planner:wedding:B")
+        XCTAssertEqual(session.weddingId, "B")
+    }
+
+    @MainActor
+    func testSolePlannerPortfolioIsRealAuthorityWithoutAFakeWeddingAssignment() async {
+        Stub.routes["POST /api/native/account/signin"] = Reply(status: 200, body: #"{"success":true,"sessionToken":"session-abc"}"#)
+        Stub.routes["GET /api/native/account/authority"] = Reply(status: 200, body: plannerPortfolioAuthority)
+        let api = client()
+        let session = SessionStore(storage: InMemorySecureStorage(), environment: .production, authorityClient: api)
+        await session.signInWithServer(client: api, email: "planner@example.com", password: "correct")
+
+        XCTAssertTrue(session.isAuthenticated)
+        XCTAssertNil(session.currentRole)
+        XCTAssertNil(session.weddingId)
+        XCTAssertEqual(session.activeGrantId, "planner:portfolio:business-1")
     }
 
     func testSignInWithNoAuthorityClientConfiguredStillThrowsExactlyAsBefore() {
