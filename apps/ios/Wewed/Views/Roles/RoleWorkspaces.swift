@@ -119,22 +119,32 @@ struct PlannerClientsSection: View {
         // client states are not invented (playbook §8 — "Never fabricate a PlannerEngagement").
         switch section {
         case "Active Weddings":
-            // P0-13: the Private Real Shadow snapshot contains no PlannerEngagement. The planner
-            // relationship is an accepted enquiry against a profile whose status is suspended, so
-            // calling it an "active engagement" would invent a production relationship.
             IASectionList("Active Weddings", "Weddings in your planner scope") {
-                IACard(
-                    context.activeWeddingTitle,
-                    "Accepted enquiry — no planner engagement record exists",
-                    trailing: context.assignment?.isShadowTestAccess == true ? "Test access only" : nil,
-                    status: "Shadow test authorization",
-                    testId: "planner-active-client"
-                )
-                IACard(
-                    "Engagement record",
-                    "No PlannerEngagement or WeddingMembership exists for this wedding",
-                    trailing: "Absent"
-                )
+                if context.environment == .production {
+                    // Production authority already proves this exact wedding relationship. Do not
+                    // carry Shadow-specific enquiry/profile claims into the live workspace.
+                    IACard(
+                        context.activeWeddingTitle,
+                        "Current authorized wedding workspace",
+                        status: "Live Wewed authority",
+                        testId: "planner-active-client"
+                    )
+                } else {
+                    // P0-13: the Private Real Shadow snapshot contains no PlannerEngagement. The
+                    // Shadow qualification relationship is deliberately described as test evidence.
+                    IACard(
+                        context.activeWeddingTitle,
+                        "Accepted enquiry — no planner engagement record exists",
+                        trailing: context.assignment?.isShadowTestAccess == true ? "Test access only" : nil,
+                        status: "Shadow test authorization",
+                        testId: "planner-active-client"
+                    )
+                    IACard(
+                        "Engagement record",
+                        "No PlannerEngagement or WeddingMembership exists for this wedding",
+                        trailing: "Absent"
+                    )
+                }
             }
         // One concept must have one route. This pointed at a static legacy screen while a
         // repository-backed Client Profile existed in Planner -> More.
@@ -143,7 +153,9 @@ struct PlannerClientsSection: View {
         default:
             IAUnsupportedSection(
                 section,
-                "The native planner contract exposes only the active engagement. No \(section) records exist to read, and none are fabricated.",
+                context.environment == .production
+                    ? "The planner client-portfolio domain for \(section) is not connected to native production yet. No absence is inferred."
+                    : "The native qualification contract exposes only the active engagement. No \(section) records are fabricated.",
                 context.environment
             )
         }
@@ -163,6 +175,18 @@ struct PlannerDailyOpsSection: View {
         Group {
             if graph.loading {
                 IALoading()
+            } else if context.environment == .production,
+                      ["Today", "Vendor Follow-ups", "Team Activity"].contains(section) {
+                let reason: String
+                switch section {
+                case "Today":
+                    reason = "The planner attention/readiness aggregation is not connected to native production yet. Tasks and deadline views remain live."
+                case "Vendor Follow-ups":
+                    reason = "Planning-side vendors are live in Workspace, but vendor follow-up/arrival state is a separate domain and is not connected here."
+                default:
+                    reason = "The planner activity stream is not connected to native production yet. No empty activity history is inferred."
+                }
+                IAUnsupportedSection(section, reason, context.environment)
             } else {
                 switch section {
                 case "Today":
