@@ -118,7 +118,7 @@ final class MultiContextIsolationTests: XCTestCase {
          "vendorId": "vendor-1", "serviceEngagementIds": ["eng-1", "eng-2"], "permissions": [], "platformRoles": []}
       ],
       "contextSelection": [
-        {"workspaceKind": "planner", "grantIds": ["planner:wedding:B", "planner:wedding:C"], "selectionRequired": true}
+        {"workspaceKind": "planner", "grantIds": ["planner:wedding:A", "planner:wedding:B", "planner:wedding:C"], "selectionRequired": true}
       ],
       "unsupported": [], "platform": {"effectiveRole": null}
     }}
