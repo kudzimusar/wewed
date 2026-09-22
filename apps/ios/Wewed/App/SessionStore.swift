@@ -67,6 +67,7 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
     private let tokenKey = "wewed_session_token"
     private let accountSessionKey = "wewed.account.session"
     private let selectedGrantsKey = "wewed.account.selected-grants"
+    private let selectedGrantsOwnerKey = "wewed.account.selected-grants.owner"
 
     /// Whether this session may apply Shadow qualification personas.
     public var allowsDevelopmentPersonas: Bool { environment.allowsDevelopmentPersonaSwitching }
@@ -190,6 +191,7 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
         if let previousAccessUserId, previousAccessUserId != authority.accessUserId {
             selectedGrantIds = []
             storage.delete(key: selectedGrantsKey)
+            storage.delete(key: selectedGrantsOwnerKey)
             activeGrantId = nil
             currentRole = nil
             currentUserRole = nil
@@ -213,10 +215,11 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
             selectedGrantIds = []
             selectedEngagementId = nil
             storage.delete(key: selectedGrantsKey)
+            storage.delete(key: selectedGrantsOwnerKey)
             return
         }
 
-        let storedSelection = revalidateSelection ? readSelectedGrantIds() : selectedGrantIds
+        let storedSelection = revalidateSelection ? readSelectedGrantIds(for: authority.accessUserId) : selectedGrantIds
         let liveGrants = storedSelection.compactMap { id in authority.workspaceGrants.first { $0.grantId == id } }
         let grouped = Dictionary(grouping: liveGrants) { $0.workspaceKindWire }
         let liveSelection = Set(grouped.values.compactMap { grants in grants.count == 1 ? grants[0].grantId : nil })
@@ -361,17 +364,27 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
         }
     }
 
-    private func readSelectedGrantIds() -> Set<String> {
+    private func readSelectedGrantIds(for accessUserId: String) -> Set<String> {
+        guard storage.get(key: selectedGrantsOwnerKey) == accessUserId else {
+            // Ownerless selections are legacy Phase-5 preferences. They cannot safely be
+            // attributed after a process restart, so fail closed once rather than letting Account
+            // B inherit Account A's coincidentally identical grant id.
+            storage.delete(key: selectedGrantsKey)
+            storage.delete(key: selectedGrantsOwnerKey)
+            return []
+        }
         guard let stored = storage.get(key: selectedGrantsKey) else { return [] }
         return Set(stored.split(separator: ",").map(String.init).filter { !$0.isEmpty })
     }
 
     private func persistSelectedGrantIds(_ ids: Set<String>) {
-        if ids.isEmpty {
+        guard !ids.isEmpty, let owner = productionAuthority?.accessUserId else {
             storage.delete(key: selectedGrantsKey)
-        } else {
-            storage.save(key: selectedGrantsKey, value: ids.joined(separator: ","))
+            storage.delete(key: selectedGrantsOwnerKey)
+            return
         }
+        storage.save(key: selectedGrantsOwnerKey, value: owner)
+        storage.save(key: selectedGrantsKey, value: ids.joined(separator: ","))
     }
 
     /// The identity session itself is no longer valid server-side: a full, unambiguous sign-out.
@@ -379,6 +392,7 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
     private func clearAccountSession() {
         storage.delete(key: accountSessionKey)
         storage.delete(key: selectedGrantsKey)
+        storage.delete(key: selectedGrantsOwnerKey)
         isAuthenticated = false
         productionAuthority = nil
         productionWorkspace = nil
@@ -439,6 +453,7 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
         storage.delete(key: tokenKey)
         storage.delete(key: accountSessionKey)
         storage.delete(key: selectedGrantsKey)
+        storage.delete(key: selectedGrantsOwnerKey)
         self.isAuthenticated = false
         self.currentUserRole = nil
         self.currentRole = nil
