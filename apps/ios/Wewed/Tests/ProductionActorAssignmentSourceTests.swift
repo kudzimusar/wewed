@@ -123,17 +123,16 @@ final class ProductionActorAssignmentSourceTests: XCTestCase {
     }
 
     func testSelectedVendorEngagementFlowsIntoActorAssignment() async throws {
-        let authority = try authority(
-            grants: "[\(grant(
-                "vendor:wedding:biz-1:vendor-1",
-                workspaceKind: "vendor",
-                scopeKind: "wedding",
-                weddingId: "E",
-                businessAccountId: "biz-1",
-                vendorId: "vendor-1",
-                serviceEngagementIds: ["eng-1", "eng-2"]
-            ))]"
+        let vendorGrant = grant(
+            "vendor:wedding:biz-1:vendor-1",
+            workspaceKind: "vendor",
+            scopeKind: "wedding",
+            weddingId: "E",
+            businessAccountId: "biz-1",
+            vendorId: "vendor-1",
+            serviceEngagementIds: ["eng-1", "eng-2"]
         )
+        let authority = try authority(grants: "[\(vendorGrant)]")
         let source = ProductionActorAssignmentSource(
             authority: authority,
             selectedEngagementId: "eng-2"
@@ -152,17 +151,16 @@ final class ProductionActorAssignmentSourceTests: XCTestCase {
     }
 
     func testForeignVendorEngagementFailsClosedAtAssignmentBoundary() async throws {
-        let authority = try authority(
-            grants: "[\(grant(
-                "vendor:wedding:biz-1:vendor-1",
-                workspaceKind: "vendor",
-                scopeKind: "wedding",
-                weddingId: "E",
-                businessAccountId: "biz-1",
-                vendorId: "vendor-1",
-                serviceEngagementIds: ["eng-1", "eng-2"]
-            ))]"
+        let vendorGrant = grant(
+            "vendor:wedding:biz-1:vendor-1",
+            workspaceKind: "vendor",
+            scopeKind: "wedding",
+            weddingId: "E",
+            businessAccountId: "biz-1",
+            vendorId: "vendor-1",
+            serviceEngagementIds: ["eng-1", "eng-2"]
         )
+        let authority = try authority(grants: "[\(vendorGrant)]")
         let source = ProductionActorAssignmentSource(
             authority: authority,
             selectedEngagementId: "foreign-engagement"
