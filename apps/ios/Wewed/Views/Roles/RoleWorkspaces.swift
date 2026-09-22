@@ -100,10 +100,20 @@ struct PlannerWorkspaceSection: View {
         case "Budget": ShadowPlannerBudgetView()
         case "Guests": PlannerGuestsBridgeView()
         case "Vendors": ShadowPlannerVendorsView()
-        case "Contributions": ShadowPlannerContributionsView()
+        case "Contributions":
+            if context.environment == .production {
+                IAUnsupportedSection("Contributions", "The mature contributions/funding-attribution domain is not connected to native production yet. No empty contribution ledger is inferred.", context.environment)
+            } else {
+                ShadowPlannerContributionsView()
+            }
         case "Seating": ShadowPlannerSeatingView()
         case "Timeline": ShadowPlannerTimelineView()
-        case "Documents": ShadowPlannerDocumentsView()
+        case "Documents":
+            if context.environment == .production {
+                IAUnsupportedSection("Documents", "The mature contracts/vault document domain is not connected to native production yet. No empty document vault is inferred.", context.environment)
+            } else {
+                ShadowPlannerDocumentsView()
+            }
         default: IAUnsupportedSection(section, "This worksheet is not wired yet.", context.environment)
         }
     }
@@ -261,23 +271,32 @@ struct PlannerWeddingDaySection: View {
     let context: NavigationContext
 
     var body: some View {
-        switch section {
-        case "Run Sheet":
-            WeddingDaySection(section: "Programme", graph: graph, environment: context.environment)
-        case "Gate / Admissions":
-            GateAdmissionsSection(section: "Checked In", graph: graph, environment: context.environment)
-        case "Coordinator Tasks":
-            WeddingDaySection(section: "Wedding-day Checklist", graph: graph, environment: context.environment)
-        case "Guest Issues":
-            GateAdmissionsSection(section: "Not Arrived", graph: graph, environment: context.environment)
-        case "Incidents", "Live Notes":
+        if context.environment == .production,
+           ["Gate / Admissions", "Vendor Arrivals", "Guest Issues", "Incidents", "Live Notes", "Emergency Contacts", "Offline Status"].contains(section) {
             IAUnsupportedSection(
                 section,
-                "No native incident or live-note contract exists yet. Nothing is recorded, so nothing is displayed.",
+                "Wedding-Day operational authority/data for this section is not connected in Phase 8. No empty gate, arrival, incident or sync state is inferred.",
                 context.environment
             )
-        default:
-            WeddingDaySection(section: section, graph: graph, environment: context.environment)
+        } else {
+            switch section {
+            case "Run Sheet":
+                WeddingDaySection(section: "Programme", graph: graph, environment: context.environment)
+            case "Gate / Admissions":
+                GateAdmissionsSection(section: "Checked In", graph: graph, environment: context.environment)
+            case "Coordinator Tasks":
+                WeddingDaySection(section: "Wedding-day Checklist", graph: graph, environment: context.environment)
+            case "Guest Issues":
+                GateAdmissionsSection(section: "Not Arrived", graph: graph, environment: context.environment)
+            case "Incidents", "Live Notes":
+                IAUnsupportedSection(
+                    section,
+                    "No native incident or live-note contract exists yet. Nothing is recorded, so nothing is displayed.",
+                    context.environment
+                )
+            default:
+                WeddingDaySection(section: section, graph: graph, environment: context.environment)
+            }
         }
     }
 }
@@ -477,9 +496,17 @@ struct CoordinatorTodayContent: View {
                     IACard("Next milestone", "\(next.title) • \(next.location)", trailing: next.time, testId: "coordinator-next-milestone")
                 }
                 IACard("Open tasks", "Outstanding wedding tasks", trailing: "\(graph.tasks.filter { $0.status != .done }.count)")
-                let lateVendors = graph.vendors.filter { $0.state == .notRecorded || $0.state == .scheduled }
-                IACard("Vendors not yet on site", "Awaiting arrival", trailing: "\(lateVendors.count)")
-                IACard("Households not arrived", "Gate admission state", trailing: "\(graph.guests.filter { $0.checkedInCount == 0 }.count)")
+                if context.environment == .production {
+                    IACard(
+                        "Wedding-Day operations",
+                        "Vendor-arrival and gate-admission state is not connected to native production in Phase 8.",
+                        status: "Unsupported"
+                    )
+                } else {
+                    let lateVendors = graph.vendors.filter { $0.state == .notRecorded || $0.state == .scheduled }
+                    IACard("Vendors not yet on site", "Awaiting arrival", trailing: "\(lateVendors.count)")
+                    IACard("Households not arrived", "Gate admission state", trailing: "\(graph.guests.filter { $0.checkedInCount == 0 }.count)")
+                }
             }
         }
     }
@@ -500,8 +527,12 @@ struct CoordinatorTeamSection: View {
                     ForEach(graph.tasks) { IACard($0.title, $0.category, trailing: $0.dueDate, status: $0.status.title) }
                 }
             case "Vendors":
-                IASectionList("Vendors", "\(graph.vendors.count) vendors") {
-                    ForEach(graph.vendors) { IACard($0.vendorName, $0.serviceCategory, trailing: $0.expectedTime, status: $0.state.title) }
+                if context.environment == .production {
+                    IAUnsupportedSection("Vendors", "Coordinator vendor-arrival/presence data is not connected to native production yet. No zero-vendor state is inferred.", context.environment)
+                } else {
+                    IASectionList("Vendors", "\(graph.vendors.count) vendors") {
+                        ForEach(graph.vendors) { IACard($0.vendorName, $0.serviceCategory, trailing: $0.expectedTime, status: $0.state.title) }
+                    }
                 }
             default:
                 IAUnsupportedSection(
@@ -520,19 +551,28 @@ struct CoordinatorWeddingDaySection: View {
     let context: NavigationContext
 
     var body: some View {
-        switch section {
-        case "Gate", "Admissions":
-            GateAdmissionsSection(section: "Checked In", graph: graph, environment: context.environment)
-        case "Venue Zones":
-            WeddingDaySection(section: "Venue", graph: graph, environment: context.environment)
-        case "Incidents":
+        if context.environment == .production,
+           ["Gate", "Admissions", "Vendor Arrivals", "Incidents", "Announcements"].contains(section) {
             IAUnsupportedSection(
-                "Incidents",
-                "No native incident contract exists yet. No incident records are fabricated.",
+                section,
+                "Wedding-Day operational authority/data for this section is not connected in Phase 8. No empty operational state is inferred.",
                 context.environment
             )
-        default:
-            WeddingDaySection(section: section, graph: graph, environment: context.environment)
+        } else {
+            switch section {
+            case "Gate", "Admissions":
+                GateAdmissionsSection(section: "Checked In", graph: graph, environment: context.environment)
+            case "Venue Zones":
+                WeddingDaySection(section: "Venue", graph: graph, environment: context.environment)
+            case "Incidents":
+                IAUnsupportedSection(
+                    "Incidents",
+                    "No native incident contract exists yet. No incident records are fabricated.",
+                    context.environment
+                )
+            default:
+                WeddingDaySection(section: section, graph: graph, environment: context.environment)
+            }
         }
     }
 }
@@ -545,7 +585,12 @@ struct CoordinatorMoreSection: View {
     var body: some View {
         switch section {
         case "Maps": WeddingDaySection(section: "Venue", graph: graph, environment: context.environment)
-        case "Offline": WeddingDaySection(section: "Offline Status", graph: graph, environment: context.environment)
+        case "Offline":
+            if context.environment == .production {
+                IAUnsupportedSection("Offline", "Wedding-Day offline/sync audit state is not connected to native production in Phase 8.", context.environment)
+            } else {
+                WeddingDaySection(section: "Offline Status", graph: graph, environment: context.environment)
+            }
         case "Account": AccountPrivacyView()
         case "Support":
             IASectionList("Support", "Coordinator support") {
@@ -1221,11 +1266,21 @@ struct CouplePlanSection: View {
             }
         case "Tasks": PlannerTasksView()
         case "Budget": ShadowPlannerBudgetView()
-        case "Contributions": ShadowPlannerContributionsView()
+        case "Contributions":
+            if context.environment == .production {
+                IAUnsupportedSection("Contributions", "The mature contributions/funding-attribution domain is not connected to native production yet. No empty contribution ledger is inferred.", context.environment)
+            } else {
+                ShadowPlannerContributionsView()
+            }
         case "Vendors": ShadowPlannerVendorsView()
         case "Seating": ShadowPlannerSeatingView()
         case "Timeline": ShadowPlannerTimelineView()
-        case "Documents": ShadowPlannerDocumentsView()
+        case "Documents":
+            if context.environment == .production {
+                IAUnsupportedSection("Documents", "The mature contracts/vault document domain is not connected to native production yet. No empty document vault is inferred.", context.environment)
+            } else {
+                ShadowPlannerDocumentsView()
+            }
         default: IAUnsupportedSection(section, "This worksheet is not wired yet.", context.environment)
         }
     }
