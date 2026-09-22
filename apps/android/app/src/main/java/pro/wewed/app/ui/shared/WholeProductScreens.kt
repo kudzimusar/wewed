@@ -176,60 +176,6 @@ fun WeddingContextSwitcherScreen(onBack: (() -> Unit)? = null) {
     }
 }
 
-// 3. Marketplace Directory Screen (PLAN-05)
-@Composable
-fun MarketplaceDirectoryScreen(onBack: (() -> Unit)? = null) {
-    var searchQuery by remember { mutableStateOf("") }
-
-    SharedScaffold(title = "Marketplace Directory", onBack = onBack) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = WewedSpacing.base),
-            verticalArrangement = Arrangement.spacedBy(WewedSpacing.md)
-        ) {
-            item {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    placeholder = { Text("Search verified vendors & venues...") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    modifier = Modifier.fillMaxWidth().padding(top = WewedSpacing.sm),
-                    shape = RoundedCornerShape(WewedRadius.md),
-                    colors = OutlinedTextFieldDefaults.colors(unfocusedContainerColor = Color.White, focusedContainerColor = Color.White)
-                )
-            }
-
-            val providers = listOf(
-                Triple("Eleven Eleven Testing", "Planners • Harare", "5.00 (Accepted Interest) • $$$"),
-                Triple("Imba Manor", "Venues • Glen Lorne", "5.00 (Verified Venue) • $$$$"),
-                Triple("FAUME MEDIA", "Photographers • Harare", "4.95 (Cinematography) • $$$"),
-                Triple("The Glass Petal Atelier", "Florals • Harare", "4.90 (Floral Design) • $$"),
-                Triple("Cake Gourmet", "Catering • Harare", "4.85 (Cake & Desserts) • $$"),
-                Triple("MC Aloe The Avangelist", "Master of Ceremonies • Harare", "5.00 (Sound & MC) • $$")
-            )
-            items(providers) { (name, category, meta) ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(WewedRadius.md),
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(WewedSpacing.base),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(name, fontWeight = FontWeight.Bold)
-                            Text(category, fontSize = 12.sp, color = Color.Gray)
-                            Text(meta, fontSize = 11.sp, color = WewedColors.Gold, fontWeight = FontWeight.SemiBold)
-                        }
-                        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.Gray)
-                    }
-                }
-            }
-        }
-    }
-}
-
 // 4. Messages Inbox Screen (COMM-01)
 @Composable
 fun MessagesInboxScreen(onBack: (() -> Unit)? = null) {
@@ -276,38 +222,6 @@ fun NotificationsCenterScreen(onBack: (() -> Unit)? = null) {
                     contentAlignment = Alignment.Center
                 ) {
                     Text("No notifications recorded.", color = Color.Gray, fontSize = 14.sp)
-                }
-            }
-        }
-    }
-}
-
-// 6. Master Calendar Screen (CALN-01)
-@Composable
-fun MasterCalendarScreen(onBack: (() -> Unit)? = null) {
-    SharedScaffold(title = "Master Calendar", onBack = onBack) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = WewedSpacing.base),
-            verticalArrangement = Arrangement.spacedBy(WewedSpacing.md)
-        ) {
-            val events = listOf(
-                Triple("DEC 22", "Florist Delivery & Setup", "Imba Manor"),
-                Triple("DEC 23", "WEDDING DAY — CHARITY & KUDZIE", "Imba Manor, Harare")
-            )
-            items(events) { (date, title, location) ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(WewedRadius.md),
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
-                ) {
-                    Row(modifier = Modifier.padding(WewedSpacing.base), verticalAlignment = Alignment.CenterVertically) {
-                        Text(date, fontWeight = FontWeight.Bold, color = WewedColors.Gold, fontSize = 14.sp, modifier = Modifier.width(60.dp))
-                        Spacer(modifier = Modifier.width(WewedSpacing.sm))
-                        Column {
-                            Text(title, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                            Text(location, fontSize = 12.sp, color = Color.Gray)
-                        }
-                    }
                 }
             }
         }
@@ -413,75 +327,10 @@ fun SettingsScreen(sessionViewModel: SessionViewModel, onBack: (() -> Unit)? = n
     }
 }
 
-// 8. Vendor Catalog Screen (VBIZ-01)
-@Composable
-fun VendorCatalogScreen(onBack: (() -> Unit)? = null) {
-    SharedScaffold(title = "Vendor Catalog & Vault", onBack = onBack) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = WewedSpacing.base),
-            verticalArrangement = Arrangement.spacedBy(WewedSpacing.md)
-        ) {
-            val docs = listOf(
-                Triple("Public Liability Insurance Policy", "Valid thru Dec 2026", "Verified"),
-                Triple("Zimbabwe Tax Clearance Certificate", "ITF262 Active", "Verified"),
-                Triple("Master Services & Rate Sheet v2", "2026/2027 Season", "Published")
-            )
-            items(docs) { (title, expiry, status) ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(WewedRadius.md),
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(WewedSpacing.base),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(title, fontWeight = FontWeight.SemiBold)
-                            Text(expiry, fontSize = 12.sp, color = Color.Gray)
-                        }
-                        Text(
-                            status,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = WewedColors.Emerald,
-                            modifier = Modifier
-                                .background(WewedColors.Emerald.copy(alpha = 0.15f), RoundedCornerShape(WewedRadius.sm))
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-// 9. Admin Governance Screen (ADMN-01)
-@Composable
-fun AdminGovernanceScreen(onBack: (() -> Unit)? = null) {
-    SharedScaffold(title = "Admin Governance Console", onBack = onBack) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = WewedSpacing.base),
-            verticalArrangement = Arrangement.spacedBy(WewedSpacing.md)
-        ) {
-            val stats = listOf(
-                Pair("ECDSA Pass Key Anchor", "ww2-2026-prod (Active)"),
-                Pair("Offline Sync Queues", "0 stuck messages across 8 weddings"),
-                Pair("System Security Level", "Strict ECDSA P-256 Enforced")
-            )
-            items(stats) { (label, value) ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(WewedRadius.md),
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
-                ) {
-                    Column(modifier = Modifier.padding(WewedSpacing.base)) {
-                        Text(label, fontSize = 12.sp, color = Color.Gray)
-                        Text(value, fontWeight = FontWeight.Bold, color = WewedColors.Emerald)
-                    }
-                }
-            }
-        }
-    }
-}
+// Master plan Phase 8 (P1-N4): MarketplaceDirectoryScreen, MasterCalendarScreen,
+// VendorCatalogScreen and AdminGovernanceScreen were removed here — all four were compiled into
+// release with zero callers and hardcoded fabricated content (a named "Charity & Kudzie" wedding,
+// invented vendor ratings, invented compliance documents). Their real domains are wired instead
+// through ProductionWeddingRepository/ProductionPlannerDashboardRepository/
+// ProductionAdminSystemRepository and the existing role-shell architecture; see
+// docs/native-mobile/WEWED_NATIVE_PHASE8_FIELD_CLASSIFICATION.md for what is LIVE vs UNSUPPORTED.

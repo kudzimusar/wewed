@@ -41,7 +41,7 @@ enum class AppTab(val title: String, val destinationId: String) {
 
 class AppViewModel(
     baseRepository: WeddingRepository = FixtureWeddingRepository(),
-    val plannerRepository: PlannerDashboardRepository = FixturePlannerDashboardRepository(),
+    plannerRepository: PlannerDashboardRepository = FixturePlannerDashboardRepository(),
     val dataEnvironment: NativeDataEnvironment = NativeDataEnvironment.FIXTURE,
     val dataBaseUrl: String? = null,
     val weddingDayGate: WeddingDayGateOperations? = null
@@ -50,10 +50,30 @@ class AppViewModel(
         NativeEnvironmentGuard.validate(dataBaseUrl, dataEnvironment)
     }
 
-    val repository: WeddingRepository = if (weddingDayGate != null) {
+    var repository: WeddingRepository = if (weddingDayGate != null) {
         WeddingDayGateAwareRepository(baseRepository, weddingDayGate)
     } else {
         baseRepository
+    }
+        private set
+
+    var plannerRepository: PlannerDashboardRepository = plannerRepository
+        private set
+
+    /**
+     * Master plan Phase 8 — rebinds this view model's domain repositories to real, grant-scoped
+     * production adapters once a wedding-scoped grant is active. Only ever called for
+     * `dataEnvironment == PRODUCTION`; every other environment keeps its constructor-supplied
+     * repositories for the whole app lifetime, exactly as before. The Wedding Day gate wrapper, if
+     * any, is preserved around the new base repository so operational fail-closed behavior is
+     * unchanged.
+     */
+    fun bindProductionRepositories(wedding: WeddingRepository, planner: PlannerDashboardRepository) {
+        check(dataEnvironment == NativeDataEnvironment.PRODUCTION) {
+            "bindProductionRepositories is only valid for the PRODUCTION environment."
+        }
+        repository = if (weddingDayGate != null) WeddingDayGateAwareRepository(wedding, weddingDayGate) else wedding
+        plannerRepository = planner
     }
 
     /**

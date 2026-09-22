@@ -16,7 +16,13 @@ data class AdminSystemSnapshot(
     /** Weddings this administrator may act on; the console itself does not require one. */
     val weddingsInScope: Int,
     /** Native contracts that do not exist yet, surfaced as honest unsupported states. */
-    val unsupportedStreams: List<String>
+    val unsupportedStreams: List<String>,
+    /**
+     * Master plan Phase 8 — a real count from `/api/native/admin/overview`, when available. Null
+     * (not zero) means "not fetched from production" — Shadow/fixture callers never set this, so
+     * it stays the honest default rather than looking like a real zero.
+     */
+    val pendingOnboardingCount: Int? = null,
 )
 
 interface AdminSystemRepository {
@@ -45,4 +51,42 @@ class ShadowAdminSystemRepository(
             "Data-change and access audit streams"
         )
     )
+}
+
+/**
+ * Master plan Phase 8 — the first real Admin production adapter. Only `pendingOnboardingCount` is
+ * live (`/api/native/admin/overview`); every other stream from the PWA's much larger
+ * `/api/admin/overview`/`client-operations`/`command-center`/etc. remains UNSUPPORTED in this
+ * phase (see docs/native-mobile/WEWED_NATIVE_PHASE8_FIELD_CLASSIFICATION.md) and is named here
+ * honestly rather than approximated.
+ */
+class ProductionAdminSystemRepository(
+    private val client: NativeDomainApiClient,
+    private val sessionToken: String,
+    private val grantId: String,
+) : AdminSystemRepository {
+    override suspend fun snapshot(): AdminSystemSnapshot {
+        val pendingOnboarding = when (val fetch = client.adminOverview(sessionToken, grantId)) {
+            is NativeDomainFetch.Success -> fetch.value.optJSONObject("counts")?.optInt("pendingOnboarding")
+            else -> null
+        }
+        return AdminSystemSnapshot(
+            environment = NativeDataEnvironment.PRODUCTION,
+            weddingsInScope = 0,
+            unsupportedStreams = listOf(
+                "Full overview (billing/support/incidents)",
+                "Client operations",
+                "Command center",
+                "Bookings",
+                "Service engagements",
+                "Contract intelligence",
+                "Contributions analytics",
+                "Account identity",
+                "Productivity",
+                "Governance",
+                "Vault",
+            ),
+            pendingOnboardingCount = pendingOnboarding,
+        )
+    }
 }

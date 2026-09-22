@@ -15,6 +15,14 @@ data class WeddingDayHttpResponse(val status: Int, val body: String)
 interface WeddingDayHttpTransport {
     suspend fun get(path: String, headers: Map<String, String>): WeddingDayHttpResponse
     suspend fun post(path: String, headers: Map<String, String>, body: String): WeddingDayHttpResponse
+
+    /**
+     * Master plan Phase 8 — added for `NativeDomainApiClient`'s task-update call. Defaulted so the
+     * existing fake transports in `SessionAccountAuthorityTest`/`MultiContextIsolationTest`, which
+     * never exercise PATCH, need no change; only a caller that actually invokes it must override.
+     */
+    suspend fun patch(path: String, headers: Map<String, String>, body: String): WeddingDayHttpResponse =
+        throw UnsupportedOperationException("patch is not implemented by this transport")
 }
 
 class UrlConnectionWeddingDayTransport(private val baseUrl: String) : WeddingDayHttpTransport {
@@ -23,6 +31,9 @@ class UrlConnectionWeddingDayTransport(private val baseUrl: String) : WeddingDay
 
     override suspend fun post(path: String, headers: Map<String, String>, body: String): WeddingDayHttpResponse =
         execute("POST", path, headers, body)
+
+    override suspend fun patch(path: String, headers: Map<String, String>, body: String): WeddingDayHttpResponse =
+        execute("PATCH", path, headers, body)
 
     private suspend fun execute(
         method: String,

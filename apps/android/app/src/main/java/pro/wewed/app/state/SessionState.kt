@@ -58,6 +58,13 @@ class SessionViewModel(
     private val selectedGrantsKey = "wewed.account.selected-grants"
     private val selectedGrantsOwnerKey = "wewed.account.selected-grants.owner"
 
+    /**
+     * Master plan Phase 8 — the same bearer token [ProductionAuthorityClient] already uses
+     * internally (`storage.get(accountSessionKey)`), exposed read-only so a production domain
+     * repository can be constructed with it. Returns null exactly when no account is signed in.
+     */
+    fun currentSessionToken(): String? = storage.get(accountSessionKey)
+
     private val _isAuthenticated = MutableStateFlow(false)
     val isAuthenticated: StateFlow<Boolean> = _isAuthenticated.asStateFlow()
 

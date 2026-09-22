@@ -27,6 +27,10 @@ import pro.wewed.app.navigation.ProductionAuthority
 import pro.wewed.app.navigation.ProductionGrantMapper
 import pro.wewed.app.navigation.ProductionWorkspaceGrant
 import pro.wewed.app.navigation.GrantScopeKind
+import pro.wewed.app.services.NativeDomainApiClient
+import pro.wewed.app.services.ProductionPlannerDashboardRepository
+import pro.wewed.app.services.ProductionWeddingRepository
+import pro.wewed.app.services.UrlConnectionWeddingDayTransport
 import pro.wewed.app.state.AppViewModel
 import pro.wewed.app.state.SessionViewModel
 import pro.wewed.app.theme.WeddingIdentityPalette
@@ -353,6 +357,27 @@ fun RootScreen(
         )
     }
 
+    // Master plan Phase 8 — rebinds appViewModel's domain repositories to real, grant-scoped
+    // production adapters as soon as a wedding-scoped workspace snapshot is available. Keyed on
+    // the snapshot's own grantId/weddingId (already freshly revalidated by Phase 5/6's
+    // refreshActiveWorkspace), not on context resolution below, so the swap is ready before
+    // RoleWorkspaces/rememberWeddingGraph ever read appViewModel.repository for this wedding. A
+    // portfolio/business/system snapshot (weddingId null) does nothing here — those render through
+    // ProductionReadOnlyWorkspaceContent exactly as before (see the branch above, line ~393).
+    if (appViewModel.dataEnvironment == NativeDataEnvironment.PRODUCTION) {
+        val snapshotWeddingId = productionWorkspace?.weddingId
+        val snapshotGrantId = productionWorkspace?.grantId
+        LaunchedEffect(snapshotGrantId, snapshotWeddingId, sessionViewModel) {
+            if (snapshotGrantId == null || snapshotWeddingId == null) return@LaunchedEffect
+            val token = sessionViewModel.currentSessionToken() ?: return@LaunchedEffect
+            val client = NativeDomainApiClient(UrlConnectionWeddingDayTransport(appViewModel.dataBaseUrl ?: return@LaunchedEffect))
+            appViewModel.bindProductionRepositories(
+                wedding = ProductionWeddingRepository(client, token, snapshotGrantId, snapshotWeddingId),
+                planner = ProductionPlannerDashboardRepository(client, token, snapshotGrantId),
+            )
+        }
+    }
+
     // Master plan §9 — multiple grants of the current role's kind require an explicit choice; none
     // is picked on the person's behalf. A single grant, or a grant kind the contract does not mark
     // selectionRequired, needs no picker and falls straight through to the ordinary context
@@ -513,6 +538,63 @@ fun RootScreen(
         ) {
             liveInvitation = liveCoordinator.restoreRememberedGuest()
         }
+    }
+
+    // Master plan Phase 8 — Couple/Planner/Coordinator now render through the SAME real role
+    // shells every other environment uses, backed by the ProductionWeddingRepository/
+    // ProductionPlannerDashboardRepository bound above. Vendor/Usher/Admin/Guest reaching this
+    // point (e.g. a Vendor's wedding-engagement grant) still render the Phase 5/6 minimal
+    // read-only snapshot below — their mature-domain native UI is not wired yet (see
+    // docs/native-mobile/WEWED_NATIVE_PHASE8_FIELD_CLASSIFICATION.md), and falling back to it here
+    // is an honest "not yet" rather than a broken real shell.
+    val productionRoleWired = appViewModel.dataEnvironment == NativeDataEnvironment.PRODUCTION &&
+        context.activeRole in setOf(AppRole.COUPLE, AppRole.PLANNER, AppRole.COORDINATOR)
+
+    if (productionRoleWired) {
+        val snapshot = productionWorkspace
+        if (snapshot == null || snapshot.grantId != activeGrantId || snapshot.weddingId != context.activeWeddingId) {
+            NativeEnvironmentUnavailableScreen(
+                environmentName = appViewModel.dataEnvironment.displayName,
+                reason = "The authorized workspace could not be refreshed. No cached production data is shown."
+            )
+            return
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .semantics { testTagsAsResourceId = true }
+                .testTag("shadow-source-${appViewModel.dataEnvironment.name.lowercase().replace('_', '-')}")
+        ) {
+            when (context.activeRole) {
+                AppRole.COUPLE -> CoupleShell(
+                    sessionViewModel = sessionViewModel,
+                    appViewModel = appViewModel,
+                    context = context,
+                    pendingDeepLink = pendingRouteDeepLink,
+                    onDeepLinkHandled = onDeepLinkHandled,
+                    onOpenScanner = { isScannerOpen = true },
+                    onOpenPersonaPicker = onOpenPersonaPicker
+                )
+                AppRole.PLANNER -> PlannerShell(
+                    sessionViewModel = sessionViewModel,
+                    appViewModel = appViewModel,
+                    context = context,
+                    pendingDeepLink = pendingRouteDeepLink,
+                    onDeepLinkHandled = onDeepLinkHandled,
+                    onOpenPersonaPicker = onOpenPersonaPicker
+                )
+                AppRole.COORDINATOR -> CoordinatorShell(
+                    sessionViewModel = sessionViewModel,
+                    appViewModel = appViewModel,
+                    context = context,
+                    pendingDeepLink = pendingRouteDeepLink,
+                    onDeepLinkHandled = onDeepLinkHandled,
+                    onOpenPersonaPicker = onOpenPersonaPicker
+                )
+                else -> Unit
+            }
+        }
+        return
     }
 
     // Production Phase 5 renders the existing IA shell around only the minimal, freshly
