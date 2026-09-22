@@ -2,59 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireWeddingPermission } from '@/lib/wedding-access'
 import { normalizePlannerTitle, plannerTitleError } from '@/lib/planner-task-validation'
-
-const CATEGORIES = [
-  'timeline_12_18',
-  'timeline_9_12',
-  'timeline_6_9',
-  'timeline_3_6',
-  'timeline_2mo',
-  'timeline_1mo',
-  'timeline_2wk',
-  'timeline_1wk',
-  'wedding_day',
-  'spiritual',
-  'venue',
-  'catering',
-  'attire',
-  'roora',
-  'magumo',
-  'transport',
-  'stationery',
-  'decor',
-  'photo_video',
-  'music',
-  'other',
-] as const
-const STATUSES = ['todo', 'in_progress', 'done', 'blocked'] as const
-const PRIORITIES = ['low', 'medium', 'high'] as const
-
-type Category = (typeof CATEGORIES)[number]
-type Status = (typeof STATUSES)[number]
-type Priority = (typeof PRIORITIES)[number]
-
-function formatTask(task: {
-  id: string
-  title: string
-  description: string | null
-  category: string
-  status: string
-  priority: string
-  dueDate: Date | null
-  assignee: string | null
-  assigneeUserId: string | null
-  order: number
-  weddingId: string
-  createdAt: Date
-  updatedAt: Date
-}) {
-  return {
-    ...task,
-    dueDate: task.dueDate?.toISOString() ?? null,
-    createdAt: task.createdAt.toISOString(),
-    updatedAt: task.updatedAt.toISOString(),
-  }
-}
+import {
+  formatPlannerTask as formatTask,
+  normalizeTaskCategory,
+  normalizeTaskPriority,
+  normalizeTaskStatus,
+} from '@/lib/planner-task-domain'
 
 export async function GET(request: NextRequest) {
   const access = await requireWeddingPermission(request, 'planner.view')
@@ -102,15 +55,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: titleError, field: 'title' }, { status: 400 })
     }
 
-    const category: Category = CATEGORIES.includes(body.category as Category)
-      ? (body.category as Category)
-      : 'other'
-    const status: Status = STATUSES.includes(body.status as Status)
-      ? (body.status as Status)
-      : 'todo'
-    const priority: Priority = PRIORITIES.includes(body.priority as Priority)
-      ? (body.priority as Priority)
-      : 'medium'
+    const category = normalizeTaskCategory(body.category)
+    const status = normalizeTaskStatus(body.status)
+    const priority = normalizeTaskPriority(body.priority)
 
     let dueDate: Date | null = null
     if (body.dueDate) {

@@ -2,32 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireWeddingPermission } from '@/lib/wedding-access'
 import { normalizePlannerTitle, plannerTitleError } from '@/lib/planner-task-validation'
-
-const CATEGORIES = [
-  'timeline_12_18',
-  'timeline_9_12',
-  'timeline_6_9',
-  'timeline_3_6',
-  'timeline_2mo',
-  'timeline_1mo',
-  'timeline_2wk',
-  'timeline_1wk',
-  'wedding_day',
-  'spiritual',
-  'venue',
-  'catering',
-  'attire',
-  'roora',
-  'magumo',
-  'transport',
-  'stationery',
-  'decor',
-  'photo_video',
-  'music',
-  'other',
-] as const
-const STATUSES = ['todo', 'in_progress', 'done', 'blocked'] as const
-const PRIORITIES = ['low', 'medium', 'high'] as const
+import {
+  formatPlannerTask as formatTask,
+  isValidTaskCategory,
+  isValidTaskPriority,
+  isValidTaskStatus,
+  PLANNER_TASK_CATEGORIES as CATEGORIES,
+  PLANNER_TASK_PRIORITIES as PRIORITIES,
+  PLANNER_TASK_STATUSES as STATUSES,
+} from '@/lib/planner-task-domain'
 
 interface PatchTaskPayload {
   title?: string
@@ -38,29 +21,6 @@ interface PatchTaskPayload {
   dueDate?: string | null
   assignee?: string | null
   order?: number
-}
-
-function formatTask(task: {
-  id: string
-  title: string
-  description: string | null
-  category: string
-  status: string
-  priority: string
-  dueDate: Date | null
-  assignee: string | null
-  assigneeUserId: string | null
-  order: number
-  weddingId: string
-  createdAt: Date
-  updatedAt: Date
-}) {
-  return {
-    ...task,
-    dueDate: task.dueDate?.toISOString() ?? null,
-    createdAt: task.createdAt.toISOString(),
-    updatedAt: task.updatedAt.toISOString(),
-  }
 }
 
 export async function PATCH(
@@ -97,7 +57,7 @@ export async function PATCH(
       updates.description = body.description?.trim() || null
     }
     if (body.category !== undefined) {
-      if (!CATEGORIES.includes(body.category as (typeof CATEGORIES)[number])) {
+      if (!isValidTaskCategory(body.category)) {
         return NextResponse.json(
           { success: false, error: `Invalid category. Allowed: ${CATEGORIES.join(', ')}` },
           { status: 400 },
@@ -106,7 +66,7 @@ export async function PATCH(
       updates.category = body.category
     }
     if (body.status !== undefined) {
-      if (!STATUSES.includes(body.status as (typeof STATUSES)[number])) {
+      if (!isValidTaskStatus(body.status)) {
         return NextResponse.json(
           { success: false, error: `Invalid status. Allowed: ${STATUSES.join(', ')}` },
           { status: 400 },
@@ -115,7 +75,7 @@ export async function PATCH(
       updates.status = body.status
     }
     if (body.priority !== undefined) {
-      if (!PRIORITIES.includes(body.priority as (typeof PRIORITIES)[number])) {
+      if (!isValidTaskPriority(body.priority)) {
         return NextResponse.json(
           { success: false, error: `Invalid priority. Allowed: ${PRIORITIES.join(', ')}` },
           { status: 400 },

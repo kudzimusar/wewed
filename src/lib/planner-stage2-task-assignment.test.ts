@@ -275,15 +275,19 @@ describe('Stage 2 normalized task team assignment', () => {
   })
 
   test('task APIs expose team ownership without replacing free-text editing', async () => {
-    const [collectionRoute, itemRoute] = await Promise.all([
+    // Master plan Phase 8 §7: the shared PlannerTask shape (including this pair of fields) moved
+    // out of the two PWA route files into `@/lib/planner-task-domain` so the native-safe adapter
+    // (`/api/native/wedding/tasks`) can reuse it too, rather than duplicating it a third time.
+    const [collectionRoute, itemRoute, sharedDomain] = await Promise.all([
       source('src/app/api/planner/tasks/route.ts'),
       source('src/app/api/planner/tasks/[id]/route.ts'),
+      source('src/lib/planner-task-domain.ts'),
     ])
 
-    expect(collectionRoute).toContain('assignee: string | null')
-    expect(collectionRoute).toContain('assigneeUserId: string | null')
+    expect(sharedDomain).toContain('assignee: string | null')
+    expect(sharedDomain).toContain('assigneeUserId: string | null')
     expect(collectionRoute).toContain('assignee: body.assignee?.trim() || null')
-    expect(itemRoute).toContain('assigneeUserId: string | null')
+    expect(itemRoute).toContain('stored separately in assigneeUserId')
     expect(itemRoute).toContain('original free-text planning label')
     expect(itemRoute).toContain('updates.assignee = body.assignee?.trim() || null')
   })

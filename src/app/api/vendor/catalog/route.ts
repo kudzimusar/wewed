@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { readAppSession } from '@/lib/app-session'
-import { BookingCommerceError, providerBusinessForUser } from '@/lib/booking-commerce'
+import { BookingCommerceError, catalogForBusiness, providerBusinessForUser } from '@/lib/booking-commerce'
 import { db } from '@/lib/db'
 
 const ARCHETYPES = new Set(['individual_rental','quantity_rental','appointment','timed_service','event_day_service','capacity','transport','package','custom','hybrid'])
@@ -41,26 +41,8 @@ async function vendorSession(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const { business } = await vendorSession(request)
-    const rows = await db.$queryRawUnsafe<Array<Record<string, unknown>>>(
-      `SELECT i.*,o.category,o."displayName" AS "offeringName",
-              COALESCE((SELECT jsonb_agg(jsonb_build_object('id',v.id,'sku',v.sku,'name',v.name,'optionValues',v."optionValues",'status',v.status,'priceOverrideCents',v."priceOverrideCents",'inventoryMode',v."inventoryMode",'replacementValueCents',v."replacementValueCents") ORDER BY v.name) FROM wewed_booking."ProviderCatalogVariant" v WHERE v."catalogItemId"=i.id),'[]'::jsonb) AS variants,
-              COALESCE((SELECT jsonb_agg(jsonb_build_object('id',m.id,'variantId',m."variantId",'type',m.type,'url',m.url,'thumbnailUrl',m."thumbnailUrl",'altText',m."altText",'caption',m.caption,'sortOrder',m."sortOrder",'isPublished',m."isPublished") ORDER BY m."sortOrder") FROM wewed_booking."ProviderCatalogMedia" m WHERE m."catalogItemId"=i.id),'[]'::jsonb) AS media,
-              COALESCE((SELECT jsonb_agg(jsonb_build_object('id',r.id,'variantId',r."variantId",'name',r.name,'resourceType',r."resourceType",'serialReference',r."serialReference",'capacity',r.capacity,'status',r.status,'metadata',r.metadata) ORDER BY r.name) FROM wewed_booking."BookingResource" r WHERE r."catalogItemId"=i.id),'[]'::jsonb) AS resources,
-              COALESCE((SELECT jsonb_agg(jsonb_build_object('id',c.id,'childCatalogItemId',c."childCatalogItemId",'childVariantId',c."childVariantId",'componentKind',c."componentKind",'selectionKey',c."selectionKey",'name',c.name,'quantity',c.quantity,'isOptional',c."isOptional",'status',c.status) ORDER BY c."componentKind",c.name) FROM wewed_booking."ProviderCatalogComponent" c WHERE c."parentCatalogItemId"=i.id),'[]'::jsonb) AS components,
-              (SELECT count(*)::integer FROM wewed_booking."AvailabilityRule" ar JOIN wewed_booking."BookingResource" rr ON rr.id=ar."resourceId" WHERE rr."catalogItemId"=i.id) AS "availabilityRuleCount"
-         FROM wewed_booking."ProviderCatalogItem" i
-         JOIN wewed_admin."ProviderServiceOffering" o ON o.id=i."offeringId"
-        WHERE o."businessAccountId"=$1
-        ORDER BY o.category,i."sortOrder",i.name`,
-      business.businessAccountId,
-    )
-    const offerings = await db.$queryRawUnsafe<Array<Record<string, unknown>>>(
-      `SELECT id,category,"displayName",status,"pricingVisibility","startingPriceCents",currency,"pricingModel","aiReadinessStatus"
-         FROM wewed_admin."ProviderServiceOffering"
-        WHERE "businessAccountId"=$1 AND status IN ('draft','published') ORDER BY category`,
-      business.businessAccountId,
-    )
-    return NextResponse.json({ success: true, data: { business, offerings, items: rows } })
+    const { items, offerings } = await catalogForBusiness(business.businessAccountId)
+    return NextResponse.json({ success: true, data: { business, offerings, items } })
   } catch (error) {
     if (error instanceof BookingCommerceError) return NextResponse.json({ success: false, code: error.code, error: error.message }, { status: error.status })
     console.error('[VENDOR CATALOG GET] error:', error)
