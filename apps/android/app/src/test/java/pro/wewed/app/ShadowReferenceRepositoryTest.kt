@@ -10,6 +10,8 @@ import pro.wewed.app.models.RSVPStatus
 import pro.wewed.app.services.scopedWedding
 import pro.wewed.app.services.forOnlyWedding
 import pro.wewed.app.services.NativeEnvironmentGuardError
+import pro.wewed.app.services.ProductionBoundaryWeddingRepository
+import pro.wewed.app.services.ProductionBoundaryPlannerRepository
 import pro.wewed.app.services.NativeRepositoryFactory
 import pro.wewed.app.services.NativeRepositoryFactoryError
 import pro.wewed.app.services.ShadowReferenceWeddingRepository
@@ -136,9 +138,11 @@ class ShadowReferenceRepositoryTest {
         NativeRepositoryFactory.make(NativeDataEnvironment.PRODUCTION_READ_VERIFY)
     }
 
-    @Test(expected = NativeEnvironmentGuardError.ProductionDisabled::class)
-    fun productionRepositoryRemainsLocked() {
-        NativeRepositoryFactory.make(NativeDataEnvironment.PRODUCTION)
+    @Test
+    fun phase5ProductionUsesOnlyFailClosedBoundaryRepositories() {
+        val production = NativeRepositoryFactory.make(NativeDataEnvironment.PRODUCTION)
+        assertTrue(production.wedding is ProductionBoundaryWeddingRepository)
+        assertTrue(production.planner is ProductionBoundaryPlannerRepository)
     }
 
     @Test
