@@ -1,31 +1,15 @@
 import { NextRequest } from 'next/server'
-import { db } from '@/lib/db'
 import { resolveNativeGrantContext, requireGrantPermission, requireWeddingScope, noStoreJson } from '@/lib/native-domain-context'
-import {
-  formatPlannerTask,
-  isValidTaskCategory,
-  isValidTaskPriority,
-  isValidTaskStatus,
-} from '@/lib/planner-task-domain'
-import { normalizePlannerTitle, plannerTitleError } from '@/lib/planner-task-validation'
+import { togglePlannerTaskOperation, updatePlannerTaskOperation } from '@/lib/planner-task-operations'
 import { shouldBlockPreviewWrite, PREVIEW_WRITE_BLOCK_MESSAGE } from '@/lib/preview-write-safety'
 
-interface PatchTaskPayload {
-  title?: string
-  description?: string | null
-  category?: string
-  status?: string
-  priority?: string
-  dueDate?: string | null
-  assignee?: string | null
-  order?: number
-}
-
 /**
- * Master plan Phase 8 §9 — one task, scoped to the freshly-resolved grant's wedding, never to a
+ * Master plan Phase 8 §9/§5 — one task, scoped to the freshly-resolved grant's wedding, never to a
  * client-supplied weddingId. Native `toggleTask(weddingId, taskId)` is a `status` PATCH through
  * this same route — there is no separate toggle endpoint, matching "do not implement a separate
- * native task schema" (§9).
+ * native task schema" (§9). Calls `updatePlannerTaskOperation` — the SAME shared domain operation
+ * `/api/planner/tasks/[id]` calls — so a resource-missing 404 here means exactly what it means on
+ * the PWA route, never a grant/authorization signal (§11).
  */
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const result = await resolveNativeGrantContext(request)
@@ -42,53 +26,21 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   const { id } = await params
-  const existing = await db.plannerTask.findFirst({ where: { id, weddingId: scope.weddingId } })
-  if (!existing) return noStoreJson({ success: false, error: 'Task not found' }, 404)
-
-  const body = (await request.json().catch(() => null)) as PatchTaskPayload | null
+  const body = await request.json().catch(() => null)
   if (!body) return noStoreJson({ success: false, error: 'A valid JSON body is required.' }, 400)
 
-  const updates: Record<string, unknown> = {}
-
-  if (body.title !== undefined) {
-    const titleError = plannerTitleError(body.title)
-    if (titleError) return noStoreJson({ success: false, error: titleError, field: 'title' }, 400)
-    updates.title = normalizePlannerTitle(body.title)
+  // `{"toggle": true}` is the one status-flip shortcut native offers (done <-> todo) — the flip
+  // itself is computed server-side by togglePlannerTaskOperation, never by the client re-deriving
+  // "the opposite of whatever it last saw" (master plan §5: status/toggle mutation is a shared
+  // operation, not client business logic).
+  const operation = body.toggle === true
+    ? await togglePlannerTaskOperation(scope.weddingId, id)
+    : await updatePlannerTaskOperation(scope.weddingId, id, body)
+  if (!operation.ok) {
+    return noStoreJson(
+      { success: false, error: operation.error, ...(operation.field ? { field: operation.field } : {}) },
+      operation.status,
+    )
   }
-  if (body.description !== undefined) updates.description = body.description?.trim() || null
-  if (body.category !== undefined) {
-    if (!isValidTaskCategory(body.category)) return noStoreJson({ success: false, error: 'Invalid category.' }, 400)
-    updates.category = body.category
-  }
-  if (body.status !== undefined) {
-    if (!isValidTaskStatus(body.status)) return noStoreJson({ success: false, error: 'Invalid status.' }, 400)
-    updates.status = body.status
-  }
-  if (body.priority !== undefined) {
-    if (!isValidTaskPriority(body.priority)) return noStoreJson({ success: false, error: 'Invalid priority.' }, 400)
-    updates.priority = body.priority
-  }
-  if (body.dueDate !== undefined) {
-    if (body.dueDate === null || body.dueDate === '') {
-      updates.dueDate = null
-    } else {
-      const parsed = new Date(body.dueDate)
-      if (Number.isNaN(parsed.getTime())) return noStoreJson({ success: false, error: 'Invalid dueDate' }, 400)
-      updates.dueDate = parsed
-    }
-  }
-  if (body.assignee !== undefined) updates.assignee = body.assignee?.trim() || null
-  if (body.order !== undefined) {
-    if (typeof body.order !== 'number' || !Number.isFinite(body.order)) {
-      return noStoreJson({ success: false, error: 'order must be a number' }, 400)
-    }
-    updates.order = body.order
-  }
-
-  if (Object.keys(updates).length === 0) {
-    return noStoreJson({ success: false, error: 'No updates provided' }, 400)
-  }
-
-  const updated = await db.plannerTask.update({ where: { id: existing.id }, data: updates })
-  return noStoreJson({ success: true, data: formatPlannerTask(updated) })
+  return noStoreJson({ success: true, data: operation.value })
 }

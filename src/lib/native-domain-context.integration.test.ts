@@ -142,6 +142,24 @@ async function providerProfile(name: string, businessAccountId: string) {
   )
 }
 
+async function contributor(name: string, weddingId: string) {
+  await exec(
+    `INSERT INTO wewed_contributions.contributors (id, wedding_id, display_name, kind) VALUES ($1, $2, $3, 'individual')`,
+    id(name), weddingId, `Contributor ${name}`,
+  )
+  return id(name)
+}
+
+async function contribution(name: string, weddingId: string, contributorId: string) {
+  await exec(
+    `INSERT INTO wewed_contributions.wedding_contributions
+       (id, wedding_id, contributor_id, type, title, amount, currency, route, commitment_state, fulfillment_state)
+     VALUES ($1, $2, $3, 'CASH_TO_COUPLE', $4, 500, 'USD', 'PUBLIC', 'CONFIRMED', 'RECEIVED')`,
+    id(name), weddingId, contributorId, `Contribution ${name}`,
+  )
+  return id(name)
+}
+
 async function bearerRequest(url: string, accessUserId: string, authUserId: string, init: RequestInit = {}) {
   const token = createNativeAccountSessionToken({ accessUserId, authUserId, email: `${accessUserId}@example.test` })
   return new NextRequest(url, {
@@ -165,6 +183,7 @@ describeLocal('Phase 8 — native domain adapters against a disposable migrated 
   let GET_VENDOR_BUSINESS: typeof import('@/app/api/native/vendor/business/route')['GET']
   let GET_VENDOR_CATALOG: typeof import('@/app/api/native/vendor/catalog/route')['GET']
   let GET_ADMIN_OVERVIEW: typeof import('@/app/api/native/admin/overview/route')['GET']
+  let GET_CONTRIBUTIONS: typeof import('@/app/api/native/wedding/contributions/route')['GET']
 
   const ids: Record<string, string> = {}
   const actors: Record<string, string> = {}
@@ -184,6 +203,7 @@ describeLocal('Phase 8 — native domain adapters against a disposable migrated 
     ;({ GET: GET_VENDOR_BUSINESS } = await import('@/app/api/native/vendor/business/route'))
     ;({ GET: GET_VENDOR_CATALOG } = await import('@/app/api/native/vendor/catalog/route'))
     ;({ GET: GET_ADMIN_OVERVIEW } = await import('@/app/api/native/admin/overview/route'))
+    ;({ GET: GET_CONTRIBUTIONS } = await import('@/app/api/native/wedding/contributions/route'))
 
     // Wedding A: owner (Couple), planner, coordinator.
     const coupleA = await couple('couple-a')
@@ -216,6 +236,8 @@ describeLocal('Phase 8 — native domain adapters against a disposable migrated 
     ids.tableA = await seatingTable('table-a', ids.A)
     ids.programmeA = await programmeItem('programme-a', ids.A)
     ids.vendorA = await vendorRow('vendor-a', ids.A)
+    const contributorA = await contributor('contributor-a', ids.A)
+    ids.contributionA = await contribution('contribution-a', ids.A, contributorA)
 
     // Domain rows for B (to prove A never reads them).
     await task('task-b', ids.B)
@@ -224,6 +246,8 @@ describeLocal('Phase 8 — native domain adapters against a disposable migrated 
     await seatingTable('table-b', ids.B)
     await programmeItem('programme-b', ids.B)
     await vendorRow('vendor-b', ids.B)
+    const contributorB = await contributor('contributor-b', ids.B)
+    await contribution('contribution-b', ids.B, contributorB)
 
     // Vendor business V1, with a published listing so it qualifies for a vendor/business grant.
     actors.vendorOwner = await user('vendor-owner', 'vendor')
@@ -382,5 +406,34 @@ describeLocal('Phase 8 — native domain adapters against a disposable migrated 
     const guessedRes = await GET_TASKS(await bearerRequest(`http://localhost/api/native/wedding/tasks?grantId=${guessedGid}`, actors.coordinator, `auth-${actors.coordinator}`))
     expect(guessedRes.status).toBe(403)
     expect((await guessedRes.json()).code).toBe('GRANT_REVOKED')
+  })
+
+  test('Contributions: reuses the mature engine, reads exactly wedding A, preserves funding-state distinctions', async () => {
+    const gid = grantId('couple', 'wedding', ids.A)
+    const res = await GET_CONTRIBUTIONS(await bearerRequest(`http://localhost/api/native/wedding/contributions?grantId=${gid}`, actors.owner, `auth-${actors.owner}`))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.data.map((c: { id: string }) => c.id)).toEqual([ids.contributionA])
+    // The exact fields loadContributionWorkspace derives — proof this route did not recompute a
+    // second, simplified funding truth of its own.
+    expect(body.data[0].type).toBe('CASH_TO_COUPLE')
+    expect(body.data[0].commitmentState).toBe('CONFIRMED')
+    expect(body.data[0].fulfillmentState).toBe('RECEIVED')
+    expect(typeof body.data[0].allocatedAmount).toBe('number')
+    expect(body.summaryByCurrency).toBeDefined()
+    expect(body.counts).toBeDefined()
+
+    // Never wedding B's contributor/contribution rows, and a foreign grant is refused outright.
+    expect(body.data.every((c: { weddingId: string }) => c.weddingId === ids.A)).toBe(true)
+    const foreignRes = await GET_CONTRIBUTIONS(await bearerRequest(`http://localhost/api/native/wedding/contributions?grantId=${grantId('couple', 'wedding', ids.B)}`, actors.owner, `auth-${actors.owner}`))
+    expect(foreignRes.status).toBe(403)
+    expect((await foreignRes.json()).code).toBe('GRANT_REVOKED')
+  })
+
+  test('Contributions: a coordinator (budget.view, not budget.edit) can read the same authoritative state as a planner', async () => {
+    const gid = grantId('coordinator', 'wedding', ids.A)
+    const res = await GET_CONTRIBUTIONS(await bearerRequest(`http://localhost/api/native/wedding/contributions?grantId=${gid}`, actors.coordinator, `auth-${actors.coordinator}`))
+    expect(res.status).toBe(200)
+    expect((await res.json()).data.map((c: { id: string }) => c.id)).toEqual([ids.contributionA])
   })
 })

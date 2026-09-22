@@ -275,21 +275,25 @@ describe('Stage 2 normalized task team assignment', () => {
   })
 
   test('task APIs expose team ownership without replacing free-text editing', async () => {
-    // Master plan Phase 8 §7: the shared PlannerTask shape (including this pair of fields) moved
-    // out of the two PWA route files into `@/lib/planner-task-domain` so the native-safe adapter
-    // (`/api/native/wedding/tasks`) can reuse it too, rather than duplicating it a third time.
-    const [collectionRoute, itemRoute, sharedDomain] = await Promise.all([
+    // Master plan Phase 8 §5/§7: the shared PlannerTask shape moved into `@/lib/planner-task-domain`,
+    // and the actual create/update orchestration (including this exact invariant) moved into
+    // `@/lib/planner-task-operations` — the ONE shared operation both `/api/planner/tasks*` (cookie
+    // session) and `/api/native/wedding/tasks*` (bearer session) call. Neither route file re-derives
+    // this behavior itself anymore.
+    const [collectionRoute, itemRoute, sharedDomain, sharedOperations] = await Promise.all([
       source('src/app/api/planner/tasks/route.ts'),
       source('src/app/api/planner/tasks/[id]/route.ts'),
       source('src/lib/planner-task-domain.ts'),
+      source('src/lib/planner-task-operations.ts'),
     ])
 
     expect(sharedDomain).toContain('assignee: string | null')
     expect(sharedDomain).toContain('assigneeUserId: string | null')
-    expect(collectionRoute).toContain('assignee: body.assignee?.trim() || null')
-    expect(itemRoute).toContain('stored separately in assigneeUserId')
-    expect(itemRoute).toContain('original free-text planning label')
-    expect(itemRoute).toContain('updates.assignee = body.assignee?.trim() || null')
+    expect(sharedOperations).toContain('stored separately in assigneeUserId')
+    expect(sharedOperations).toContain('original free-text planning label')
+    expect(sharedOperations).toContain("updates.assignee = typeof input.assignee === 'string' ? input.assignee.trim() || null : null")
+    expect(collectionRoute).toContain('createPlannerTaskOperation')
+    expect(itemRoute).toContain('updatePlannerTaskOperation')
   })
 
   test('the original planner still contains its free-text assignee workflow', async () => {
