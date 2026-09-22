@@ -162,3 +162,30 @@ Tracked here per master-plan §16 carry-forward P1-N4 ("fabricated screens compi
 **iOS (branch `native-mobile/workspace-parity-phase8-20260922`):** see the completion report for
 current status (delegated as a faithful port of the Android change above, given the codebases are
 a confirmed 1:1 mirror at every prior phase).
+
+## 10. Independent moderator review — Phase 8 remains open
+
+Independent review was performed against the pushed Phase-8 server/native branches rather than the implementation report alone.
+
+Reviewer closure patches completed before the next implementation pass:
+
+- Native-domain HTTP failures now carry explicit server error codes. 401 is a session-invalid signal; only explicit GRANT_REVOKED/AUTHORITY_UNAVAILABLE responses clear the selected grant; permission denials and resource-level 404 responses do not masquerade as revocation.
+- Android/iOS production-domain clients now propagate session invalidation and explicit grant revocation into the existing account-session state instead of collapsing every non-success into a generic repository error.
+- LIVE planner/timeline calls no longer convert transport/authority failures into empty collections. "No rows" and "the live call failed" remain distinct states.
+- Production-reachable Planner UI no longer carries Shadow-only authorization claims or infers empty attention/activity/Wedding-Day operational streams from unsupported production domains.
+- Focused server authority-error tests and Android/iOS transport/repository tests pin those distinctions.
+
+Independent qualification:
+- Server reviewer CI at product SHA a0ead1f1bd16e2321b13a82ea4fcc4dc9be4a4e9: PASS (disposable Postgres migrations, Phase-8 domain integration, carried Phase-2/7 authority tests, Guest Session v2/portfolio/projection tests, production build). Temporary workflow was removed; server branch then advanced only by that workflow removal.
+- Native reviewer CI at product SHA b34ee8524ca1aa122228a769825e22372faba5a7: PASS (Android unit tests + debug/release assembly; iOS Swift tests/build + generated-project simulator build + unsigned device Release build). Temporary workflow was removed; native branch then advanced only by that workflow removal.
+
+**Phase-8 acceptance: NOT YET. Phase 9 remains closed.**
+
+Remaining Phase-8 exit-gate work:
+
+1. Wire the already-created Vendor business/catalog/bookings production repositories into the actual production Vendor role shell on both platforms; the current role shell still operates from the wedding graph/minimal workspace path.
+2. Wire the real Admin system repository into the production Admin role shell on both platforms; the current Admin shell still constructs ShadowAdminSystemRepository.
+3. Finish the mature domains explicitly marked UNSUPPORTED above where Phase-8 parity requires them: Contributions/funding attribution, Contracts/deal-room, Documents/vault, and the agreed mature Planner/Couple/Coordinator write surfaces. Reuse the existing PWA/server engines; do not create mobile-only business rules.
+4. Move Planner task create/update orchestration itself behind a shared server-domain operation. Phase 8 currently shares validation/formatting constants but still has parallel PWA/native route mutation code.
+5. Remove or prove unreachable the remaining P1-N4 dead Planner destination surfaces and re-audit all newly production-reachable role-shell copy for fixture/Shadow assumptions and false-empty states.
+6. Preserve F-3, F-4, F-6 and the production/Preview WEWED_SESSION_SECRET gate exactly as carry-forward constraints. Do not weaken authority to make Vendor/Admin UI wiring pass.
