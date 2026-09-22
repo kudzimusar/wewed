@@ -35,7 +35,9 @@ final class ProductionActorAssignmentSourceTests: XCTestCase {
         scopeKind: String,
         weddingId: String? = nil,
         weddingTitle: String? = nil,
-        businessAccountId: String? = nil
+        businessAccountId: String? = nil,
+        vendorId: String? = nil,
+        serviceEngagementIds: [String] = []
     ) -> String {
         """
         {
@@ -118,6 +120,55 @@ final class ProductionActorAssignmentSourceTests: XCTestCase {
         let withSelection = ProductionActorAssignmentSource(authority: authority, selectedGrantIds: ["planner:portfolio:biz-1"])
         let stillEmpty = await withSelection.assignments(actorId: "user-1")
         XCTAssertTrue(stillEmpty.isEmpty)
+    }
+
+    func testSelectedVendorEngagementFlowsIntoActorAssignment() async throws {
+        let authority = try authority(
+            grants: "[\(grant(
+                "vendor:wedding:biz-1:vendor-1",
+                workspaceKind: "vendor",
+                scopeKind: "wedding",
+                weddingId: "E",
+                businessAccountId: "biz-1",
+                vendorId: "vendor-1",
+                serviceEngagementIds: ["eng-1", "eng-2"]
+            ))]"
+        )
+        let source = ProductionActorAssignmentSource(
+            authority: authority,
+            selectedEngagementId: "eng-2"
+        )
+        let assignments = await source.assignments(actorId: "user-1")
+        XCTAssertEqual(
+            assignments,
+            [ActorAssignment(
+                actorId: "user-1",
+                role: .vendor,
+                weddingId: "E",
+                vendorId: "vendor-1",
+                engagementId: "eng-2"
+            )]
+        )
+    }
+
+    func testForeignVendorEngagementFailsClosedAtAssignmentBoundary() async throws {
+        let authority = try authority(
+            grants: "[\(grant(
+                "vendor:wedding:biz-1:vendor-1",
+                workspaceKind: "vendor",
+                scopeKind: "wedding",
+                weddingId: "E",
+                businessAccountId: "biz-1",
+                vendorId: "vendor-1",
+                serviceEngagementIds: ["eng-1", "eng-2"]
+            ))]"
+        )
+        let source = ProductionActorAssignmentSource(
+            authority: authority,
+            selectedEngagementId: "foreign-engagement"
+        )
+        let assignments = await source.assignments(actorId: "user-1")
+        XCTAssertTrue(assignments.isEmpty)
     }
 
     func testAnUnusableAuthorityYieldsNothing() async throws {
