@@ -77,6 +77,27 @@ class AppViewModel(
         private set
 
     /**
+     * The grantId actually backing [repository]/[plannerRepository] right now, or null while
+     * PRODUCTION still holds its unbound `ProductionBoundary*Repository` placeholder.
+     *
+     * Master plan Phase 8 closure §1 (NativeRepositoryFactory.PRODUCTION closure) — the rebind in
+     * [bindProductionRepositories] runs from a `LaunchedEffect`, which starts asynchronously
+     * relative to the composition that decided a role shell is eligible to render. Composition
+     * itself continues immediately past that `LaunchedEffect` call to the shell's own body in the
+     * same pass, so a naive "does the workspace snapshot look right" render gate could let a shell
+     * begin reading `repository` before this rebind actually executes — silently backed by the
+     * always-throwing Boundary placeholder for one race window. Exposing the bind as its own
+     * observable `StateFlow`, flipped only *after* the field assignment below, lets the render gate
+     * wait for the confirmed bind instead of assuming effect-ordering it cannot guarantee.
+     */
+    private val _boundProductionGrantId = MutableStateFlow<String?>(null)
+    val boundProductionGrantId: StateFlow<String?> = _boundProductionGrantId.asStateFlow()
+
+    /** Same determinism guarantee as [boundProductionGrantId], for the separate Admin binding. */
+    private val _boundAdminGrantId = MutableStateFlow<String?>(null)
+    val boundAdminGrantId: StateFlow<String?> = _boundAdminGrantId.asStateFlow()
+
+    /**
      * Master plan Phase 8 — rebinds this view model's domain repositories to real, grant-scoped
      * production adapters once a wedding-scoped grant is active. Only ever called for
      * `dataEnvironment == PRODUCTION`; every other environment keeps its constructor-supplied
@@ -84,20 +105,22 @@ class AppViewModel(
      * any, is preserved around the new base repository so operational fail-closed behavior is
      * unchanged.
      */
-    fun bindProductionRepositories(wedding: WeddingRepository, planner: PlannerDashboardRepository) {
+    fun bindProductionRepositories(grantId: String, wedding: WeddingRepository, planner: PlannerDashboardRepository) {
         check(dataEnvironment == NativeDataEnvironment.PRODUCTION) {
             "bindProductionRepositories is only valid for the PRODUCTION environment."
         }
         repository = if (weddingDayGate != null) WeddingDayGateAwareRepository(wedding, weddingDayGate) else wedding
         plannerRepository = planner
+        _boundProductionGrantId.value = grantId
     }
 
-    /** Master plan Phase 8 closure §B — rebinds Admin to a real, grant-scoped production adapter. */
-    fun bindProductionAdminRepository(admin: AdminSystemRepository) {
+    /** Master plan Phase 8 closure §B/§1 — rebinds Admin to a real, grant-scoped production adapter. */
+    fun bindProductionAdminRepository(grantId: String, admin: AdminSystemRepository) {
         check(dataEnvironment == NativeDataEnvironment.PRODUCTION) {
             "bindProductionAdminRepository is only valid for the PRODUCTION environment."
         }
         adminRepository = admin
+        _boundAdminGrantId.value = grantId
     }
 
     /**

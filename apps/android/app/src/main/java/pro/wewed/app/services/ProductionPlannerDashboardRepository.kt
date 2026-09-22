@@ -14,11 +14,14 @@ import pro.wewed.app.models.*
  *
  * [getContributions] reads the SAME `loadContributionWorkspace` engine the PWA's
  * `/api/planner/contributions` uses (via `/api/native/wedding/contributions`) — never a
- * client-recomputed funding truth. [getDocuments] remains UNSUPPORTED in this phase (see
- * docs/native-mobile/WEWED_NATIVE_PHASE8_FIELD_CLASSIFICATION.md) — the vault/document engine is
- * separate remaining work, not approximated here. Each Shadow*Destination composable calls its own
- * single method independently with no shared try/catch, so returning an honest empty list for an
- * unwired domain only affects that one section, never Tasks/Budget/Seating/Timeline/Vendors.
+ * client-recomputed funding truth. [getDocuments] (Phase 8 closure §3) likewise reads the SAME
+ * `listWeddingVaultObjects` catalog the PWA's `/api/vault` uses. The managed-contract lifecycle
+ * (Deal Room, contract versions/review/acceptance) has no native repository or UI surface at all
+ * yet — see docs/native-mobile/WEWED_NATIVE_PHASE8_FIELD_CLASSIFICATION.md for why that is
+ * deliberately out of this pass's scope rather than approximated here. Each Shadow*Destination
+ * composable calls its own single method independently with no shared try/catch, so a thrown
+ * failure for one unwired domain only affects that one section, never Tasks/Budget/Seating/
+ * Timeline/Vendors.
  */
 class ProductionPlannerDashboardRepository(
     private val client: NativeDomainApiClient,
@@ -160,7 +163,28 @@ class ProductionPlannerDashboardRepository(
         }
     }
 
-    override suspend fun getDocuments(): List<PlannerDocumentRecord> = emptyList()
+    /**
+     * Master plan Phase 8 closure §3 — reads the SAME `listWeddingVaultObjects` catalog the PWA's
+     * `/api/vault` GET uses (via `/api/native/wedding/vault`), never a second document truth. Same
+     * live-failure-throws contract as [getContributions]: this is only ever consulted once a real
+     * wedding-scoped grant has rendered a role shell, so a transport/permission failure here is
+     * genuine, never an honest "no documents" to fabricate.
+     */
+    override suspend fun getDocuments(): List<PlannerDocumentRecord> {
+        val array = when (val fetch = client.vault(sessionToken, grantId)) {
+            is NativeDomainFetch.Success -> fetch.value
+            else -> throw ProductionReadOnlyDomainUnavailable()
+        }
+        return array.toObjectList().map { item ->
+            val available = item.optBoolean("available", true)
+            PlannerDocumentRecord(
+                id = item.getString("id"),
+                title = item.optString("displayName", item.optString("originalFilename")),
+                kind = item.optString("category", "wedding_document"),
+                statusLabel = if (available) null else "Not yet available",
+            )
+        }
+    }
 }
 
 private fun formatCurrency(amount: Double): String {

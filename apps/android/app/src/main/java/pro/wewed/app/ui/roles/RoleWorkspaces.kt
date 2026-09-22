@@ -15,6 +15,7 @@ import kotlinx.coroutines.launch
 import pro.wewed.app.navigation.IANavigationContract
 import pro.wewed.app.navigation.NavigationContext
 import pro.wewed.app.services.AdminSystemRepository
+import pro.wewed.app.services.AdminSystemSnapshot
 import pro.wewed.app.services.forWedding
 import pro.wewed.app.navigation.PrimaryDestination
 import pro.wewed.app.state.AppViewModel
@@ -1045,13 +1046,9 @@ fun AdminShell(
         val graph = rememberWeddingGraph(appViewModel, ctx)
         when (destination.id) {
             "dashboard" -> AdminDashboardContent(adminRepository, ctx)
-            "cases" -> IAUnsupportedSection(
-                "Cases",
-                "No native support-case contract exists yet. No cases are fabricated.",
-                ctx.environment
-            )
+            "cases" -> AdminCasesSection(adminRepository, ctx)
             "accounts" -> WorkspaceSurface(destination, "admin", ctx, sectionMemory) { section ->
-                AdminAccountsSection(section, ctx)
+                AdminAccountsSection(section, adminRepository, ctx)
             }
             "audit" -> WorkspaceSurface(destination, "admin", ctx, sectionMemory) { section ->
                 AdminAuditSection(section, graph, ctx.environment, adminAccess)
@@ -1064,15 +1061,79 @@ fun AdminShell(
     }
 }
 
+/**
+ * Master plan Phase 8 closure §4 — real business-account rows from `AdminSystemRepository.snapshot()`
+ * (the same `loadAdminOverview` engine the PWA's `/api/admin/overview` Accounts tab reads), never a
+ * second, fabricated account list. Non-production/unbound-production repositories answer an empty
+ * `accounts` list, which reads honestly as "none loaded here" rather than a fabricated boundary
+ * message — no separate UNSUPPORTED branch is needed once the data itself is honest.
+ */
 @Composable
-private fun AdminAccountsSection(section: String, context: NavigationContext) {
-    // Account administration has no native contract; showing invented account rows here would be
-    // a privileged data fabrication, so the boundary is stated instead (playbook §13).
-    IAUnsupportedSection(
-        section,
-        "Account administration has no native contract yet. No $section records are read or fabricated in this environment.",
-        context.environment
-    )
+private fun AdminAccountsSection(section: String, adminRepository: AdminSystemRepository, context: NavigationContext) {
+    var snapshot by remember(context.actorId) { mutableStateOf<AdminSystemSnapshot?>(null) }
+    LaunchedEffect(context.actorId) {
+        snapshot = runCatching { adminRepository.snapshot() }.getOrNull()
+    }
+    val accounts = snapshot?.accounts.orEmpty()
+    if (accounts.isEmpty()) {
+        return IAUnsupportedSection(
+            section,
+            "No business-account records are loaded in this environment.",
+            context.environment
+        )
+    }
+    IASectionList(section, "${accounts.size} business accounts") {
+        accounts.forEach { account ->
+            IACard(
+                title = account.name,
+                subtitle = listOf(account.type, account.onboardingStatus).joinToString(" · "),
+                trailing = account.status,
+                status = account.riskFlags.firstOrNull(),
+                testTag = "admin-account-${account.id}"
+            )
+        }
+    }
+}
+
+/**
+ * Master plan Phase 8 closure §4 — real Support Cases and Platform Incidents rows, same reuse
+ * discipline as [AdminAccountsSection].
+ */
+@Composable
+private fun AdminCasesSection(adminRepository: AdminSystemRepository, context: NavigationContext) {
+    var snapshot by remember(context.actorId) { mutableStateOf<AdminSystemSnapshot?>(null) }
+    LaunchedEffect(context.actorId) {
+        snapshot = runCatching { adminRepository.snapshot() }.getOrNull()
+    }
+    val supportCases = snapshot?.supportCases.orEmpty()
+    val incidents = snapshot?.incidents.orEmpty()
+    if (supportCases.isEmpty() && incidents.isEmpty()) {
+        return IAUnsupportedSection(
+            "Cases",
+            "No support cases or platform incidents are loaded in this environment.",
+            context.environment
+        )
+    }
+    IASectionList("Cases", "${supportCases.size} support cases · ${incidents.size} incidents") {
+        supportCases.forEach { case ->
+            IACard(
+                title = case.title,
+                subtitle = case.businessAccountName ?: "No linked account",
+                trailing = case.priority,
+                status = case.status,
+                testTag = "admin-support-case-${case.id}"
+            )
+        }
+        incidents.forEach { incident ->
+            IACard(
+                title = incident.title,
+                subtitle = "Platform incident",
+                trailing = incident.severity,
+                status = incident.status,
+                testTag = "admin-incident-${incident.id}"
+            )
+        }
+    }
 }
 
 @Composable

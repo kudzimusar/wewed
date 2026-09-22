@@ -220,9 +220,28 @@ class ProductionDomainRepositoriesTest {
     }
 
     @Test
-    fun `Documents is honest empty, never fabricated (no server adapter yet)`() = runBlocking {
-        val repo = ProductionPlannerDashboardRepository(NativeDomainApiClient(FakeTransport(emptyMap())), token, grantId)
-        assertTrue(repo.getDocuments().isEmpty())
+    fun `Documents maps real rows from the same Vault catalog the PWA uses, and throws on live failure`() = runBlocking {
+        val transport = FakeTransport(
+            mapOf(
+                "api/native/wedding/vault" to WeddingDayHttpResponse(200, """
+                    {"success":true,"count":1,"data":[{"id":"doc-1","displayName":"Venue contract.pdf","category":"wedding_document","available":true}]}
+                """.trimIndent()),
+            ),
+        )
+        val repo = ProductionPlannerDashboardRepository(NativeDomainApiClient(transport), token, grantId)
+        val documents = repo.getDocuments()
+        assertEquals(1, documents.size)
+        assertEquals("Venue contract.pdf", documents[0].title)
+        assertEquals("wedding_document", documents[0].kind)
+        assertEquals(null, documents[0].statusLabel)
+
+        val failingRepo = ProductionPlannerDashboardRepository(NativeDomainApiClient(FakeTransport(emptyMap())), token, grantId)
+        try {
+            failingRepo.getDocuments()
+            fail("Expected a live Documents/Vault failure to throw instead of returning an empty list")
+        } catch (e: ProductionReadOnlyDomainUnavailable) {
+            // Expected — matches the same "live failure never masquerades as empty" rule as Budget/Contributions.
+        }
     }
 
     @Test
@@ -293,5 +312,50 @@ class ProductionDomainRepositoriesTest {
         val repo = ProductionAdminSystemRepository(NativeDomainApiClient(FakeTransport(emptyMap())), token, "admin:system")
         val snapshot = repo.snapshot()
         assertEquals(null, snapshot.pendingOnboardingCount)
+        assertTrue(snapshot.accounts.isEmpty())
+        assertTrue(snapshot.supportCases.isEmpty())
+        assertTrue(snapshot.incidents.isEmpty())
+    }
+
+    @Test
+    fun `ProductionAdminSystemRepository maps real summary, accounts, support cases and incidents from the same loadAdminOverview the PWA uses`() = runBlocking {
+        val transport = FakeTransport(
+            mapOf(
+                "api/native/admin/overview" to WeddingDayHttpResponse(200, """
+                    {
+                      "success": true, "scopeKind": "system", "platformRoles": ["wewed_super_admin"],
+                      "counts": {"pendingOnboarding": 3},
+                      "summary": {"businessAccounts": 42, "activeAccounts": 30, "pendingReviewAccounts": 5, "openSupportCases": 2, "openIncidents": 1},
+                      "accounts": [{"id": "biz-1", "name": "Eleven Eleven", "type": "planning_company", "status": "active", "onboardingStatus": "complete", "riskFlags": ["billing_attention"]}],
+                      "supportCases": [{"id": "case-1", "title": "Cannot upload logo", "status": "open", "priority": "urgent", "businessAccountName": "Eleven Eleven"}],
+                      "incidents": [{"id": "incident-1", "title": "Elevated API latency", "status": "monitoring", "severity": "minor"}]
+                    }
+                """.trimIndent()),
+            ),
+        )
+        val repo = ProductionAdminSystemRepository(NativeDomainApiClient(transport), token, "admin:system")
+        val snapshot = repo.snapshot()
+
+        assertEquals(42, snapshot.businessAccountsTotal)
+        assertEquals(30, snapshot.activeAccountsTotal)
+        assertEquals(5, snapshot.pendingReviewAccountsTotal)
+        assertEquals(2, snapshot.openSupportCasesTotal)
+        assertEquals(1, snapshot.openIncidentsTotal)
+
+        assertEquals(1, snapshot.accounts.size)
+        assertEquals("Eleven Eleven", snapshot.accounts[0].name)
+        assertEquals(listOf("billing_attention"), snapshot.accounts[0].riskFlags)
+
+        assertEquals(1, snapshot.supportCases.size)
+        assertEquals("Cannot upload logo", snapshot.supportCases[0].title)
+        assertEquals("urgent", snapshot.supportCases[0].priority)
+
+        assertEquals(1, snapshot.incidents.size)
+        assertEquals("Elevated API latency", snapshot.incidents[0].title)
+
+        // The two now-connected streams no longer appear in the honest unsupported list.
+        assertFalse(snapshot.unsupportedStreams.any { it.contains("Full overview", ignoreCase = true) })
+        assertFalse(snapshot.unsupportedStreams.any { it.contains("Client operations", ignoreCase = true) })
+        assertTrue(snapshot.unsupportedStreams.any { it.contains("Bookings", ignoreCase = true) })
     }
 }

@@ -881,6 +881,23 @@ fun AdminDashboardContent(
             },
             testTag = "admin-active-wedding"
         )
+        // Master plan Phase 8 closure §4 — real platform counts from loadAdminOverview, when this
+        // admin's grant has resolved them. Null (not shown as zero) means "not fetched yet".
+        snap.businessAccountsTotal?.let {
+            IACard(title = "Business accounts", subtitle = "Platform-wide, excluding the Wewed internal account", trailing = "$it", testTag = "admin-business-accounts")
+        }
+        snap.activeAccountsTotal?.let {
+            IACard(title = "Active accounts", subtitle = "Currently active", trailing = "$it", testTag = "admin-active-accounts")
+        }
+        snap.pendingReviewAccountsTotal?.let {
+            IACard(title = "Pending review", subtitle = "Accounts awaiting approval", trailing = "$it", testTag = "admin-pending-review-accounts")
+        }
+        snap.openSupportCasesTotal?.let {
+            IACard(title = "Open support cases", subtitle = "Not resolved or closed", trailing = "$it", testTag = "admin-open-support-cases")
+        }
+        snap.openIncidentsTotal?.let {
+            IACard(title = "Open platform incidents", subtitle = "Not resolved", trailing = "$it", testTag = "admin-open-incidents")
+        }
         snap.unsupportedStreams.forEach { stream ->
             IACard(
                 title = stream,

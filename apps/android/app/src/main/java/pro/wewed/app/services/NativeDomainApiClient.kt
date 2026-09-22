@@ -123,6 +123,9 @@ class NativeDomainApiClient(
     suspend fun contributions(sessionToken: String, grantId: String): NativeDomainFetch<JSONObject> =
         runGet("api/native/wedding/contributions", sessionToken, grantId)
 
+    suspend fun vault(sessionToken: String, grantId: String): NativeDomainFetch<JSONArray> =
+        runGetArray("api/native/wedding/vault", sessionToken, grantId, "data")
+
     private suspend fun runGet(path: String, sessionToken: String, grantId: String, extraQuery: String = ""): NativeDomainFetch<JSONObject> {
         val (status, body) = runCatching { get(path, sessionToken, grantId, extraQuery) }
             .getOrElse { return NativeDomainFetch.Transport(-1) }

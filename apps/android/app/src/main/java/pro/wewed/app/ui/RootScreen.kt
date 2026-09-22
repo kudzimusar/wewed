@@ -378,6 +378,7 @@ fun RootScreen(
                 onGrantRevoked = { revokedGrantId -> sessionViewModel.handleNativeDomainGrantRevoked(revokedGrantId) },
             )
             appViewModel.bindProductionRepositories(
+                grantId = snapshotGrantId,
                 wedding = ProductionWeddingRepository(client, token, snapshotGrantId, snapshotWeddingId),
                 planner = ProductionPlannerDashboardRepository(client, token, snapshotGrantId),
             )
@@ -607,7 +608,10 @@ fun RootScreen(
                 onSessionInvalid = { sessionViewModel.handleNativeDomainSessionInvalid() },
                 onGrantRevoked = { revokedGrantId -> sessionViewModel.handleNativeDomainGrantRevoked(revokedGrantId) },
             )
-            appViewModel.bindProductionAdminRepository(ProductionAdminSystemRepository(client, token, adminSnapshotGrantId))
+            appViewModel.bindProductionAdminRepository(
+                grantId = adminSnapshotGrantId,
+                admin = ProductionAdminSystemRepository(client, token, adminSnapshotGrantId),
+            )
         }
     }
 
@@ -619,6 +623,29 @@ fun RootScreen(
                 environmentName = appViewModel.dataEnvironment.displayName,
                 reason = "The authorized workspace could not be refreshed. No cached production data is shown."
             )
+            return
+        }
+
+        // Master plan Phase 8 closure §1 (NativeRepositoryFactory.PRODUCTION closure) — the
+        // snapshot looking right is necessary but not sufficient: it says the *context* is
+        // authorized, not that appViewModel.repository/plannerRepository/adminRepository have
+        // actually been swapped from the unbound ProductionBoundary*Repository placeholder to the
+        // real grant-scoped adapter yet (that swap runs from a LaunchedEffect above, which starts
+        // asynchronously relative to this composition). Waiting for the confirmed bind — rather
+        // than the swap's own effect ordering — is what makes this deterministic: no role shell
+        // that "appears functional" is ever composed over the always-throwing boundary repository.
+        val boundGrantId by if (context.activeRole == AppRole.ADMIN) {
+            appViewModel.boundAdminGrantId
+        } else {
+            appViewModel.boundProductionGrantId
+        }.collectAsState()
+        if (boundGrantId != activeGrantId) {
+            Box(
+                modifier = Modifier.fillMaxSize().background(WeddingIdentityPalette.Ivory),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = WeddingIdentityPalette.ChampagneDeep)
+            }
             return
         }
         Box(

@@ -46,10 +46,11 @@ class AppViewModelProductionAdminTest {
         val appViewModel = AppViewModel(dataEnvironment = NativeDataEnvironment.PRODUCTION, dataBaseUrl = "https://example.test")
         val response = WeddingDayHttpResponse(200, """{"success":true,"scopeKind":"system","platformRoles":["wewed_super_admin"],"counts":{"pendingOnboarding":2}}""")
         val client = NativeDomainApiClient(FakeTransport(response))
-        appViewModel.bindProductionAdminRepository(ProductionAdminSystemRepository(client, "token", "admin:system"))
+        appViewModel.bindProductionAdminRepository("admin:system", ProductionAdminSystemRepository(client, "token", "admin:system"))
 
         assertTrue(appViewModel.adminRepository is ProductionAdminSystemRepository)
         assertEquals(2, appViewModel.adminRepository.snapshot().pendingOnboardingCount)
+        assertEquals("admin:system", appViewModel.boundAdminGrantId.value)
     }
 
     @Test
@@ -61,6 +62,27 @@ class AppViewModelProductionAdminTest {
     @Test(expected = IllegalStateException::class)
     fun `bindProductionAdminRepository is refused outside production`() {
         val appViewModel = AppViewModel(dataEnvironment = NativeDataEnvironment.SHADOW)
-        appViewModel.bindProductionAdminRepository(ProductionBoundaryAdminSystemRepository())
+        appViewModel.bindProductionAdminRepository("admin:system", ProductionBoundaryAdminSystemRepository())
+    }
+
+    /**
+     * Master plan Phase 8 closure §1 (NativeRepositoryFactory.PRODUCTION closure). RootScreen's
+     * render gate for AppRole.ADMIN now waits for `boundAdminGrantId == activeGrantId` before
+     * composing AdminShell, specifically so a shell that "appears functional" can never be backed
+     * by the always-throwing boundary repository during the async window between a workspace
+     * snapshot resolving and this bind actually executing. This test proves the flag itself is an
+     * honest, order-correct signal: null before any bind, and only ever the grantId of a
+     * completed bind afterward.
+     */
+    @Test
+    fun `boundAdminGrantId is null until bound and then reflects the bound grant exactly`() {
+        val appViewModel = AppViewModel(dataEnvironment = NativeDataEnvironment.PRODUCTION, dataBaseUrl = "https://example.test")
+        assertNull(appViewModel.boundAdminGrantId.value)
+
+        val response = WeddingDayHttpResponse(200, """{"success":true,"scopeKind":"system","platformRoles":["wewed_super_admin"],"counts":{"pendingOnboarding":0}}""")
+        val client = NativeDomainApiClient(FakeTransport(response))
+        appViewModel.bindProductionAdminRepository("admin:system:acct-9", ProductionAdminSystemRepository(client, "token", "admin:system:acct-9"))
+
+        assertEquals("admin:system:acct-9", appViewModel.boundAdminGrantId.value)
     }
 }
