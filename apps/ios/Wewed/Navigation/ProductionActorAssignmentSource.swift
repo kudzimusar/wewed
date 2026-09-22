@@ -32,7 +32,19 @@ public struct ProductionActorAssignmentSource: ActorAssignmentSource {
         guard ProductionGrantMapper.isUsable(authority) else { return [] }
         guard authority.accessUserId == actorId else { return [] }
 
+        let ambiguousKinds = Set(
+            Dictionary(
+                grouping: authority.workspaceGrants.filter { selectedGrantIds.contains($0.grantId) },
+                by: \.workspaceKindWire
+            )
+            .filter { $0.value.count > 1 }
+            .map(\.key)
+        )
+
         return authority.workspaceGrants.compactMap { grant in
+            if ambiguousKinds.contains(grant.workspaceKindWire) {
+                return nil
+            }
             if requiresExplicitSelection(grant) && !selectedGrantIds.contains(grant.grantId) {
                 return nil
             }
