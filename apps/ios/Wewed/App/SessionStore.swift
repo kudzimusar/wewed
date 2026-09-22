@@ -49,6 +49,8 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
     /// exists. Persisted only as a preference (master plan §9): it is revalidated against every
     /// fresh `productionAuthority` fetch, and a grant id that no longer exists there has no effect.
     @Published public private(set) var selectedGrantIds: Set<String> = []
+    @Published public private(set) var activeGrantId: String? = nil
+    @Published public private(set) var productionWorkspace: ProductionWorkspaceSnapshot? = nil
 
     @Published public private(set) var isSigningIn: Bool = false
     @Published public private(set) var authenticationError: String? = nil
@@ -106,6 +108,7 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
         switch await client.fetchAuthority(sessionToken: storedToken) {
         case let .success(authority):
             applyAuthority(authority, revalidateSelection: true)
+            await refreshActiveWorkspace(client: client, sessionToken: storedToken)
         case .sessionInvalid:
             clearAccountSession()
         case .transport:
@@ -148,6 +151,7 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
             switch await client.fetchAuthority(sessionToken: sessionToken) {
             case let .success(authority):
                 applyAuthority(authority, revalidateSelection: false)
+                await refreshActiveWorkspace(client: client, sessionToken: sessionToken)
             case .sessionInvalid:
                 clearAccountSession()
             case .transport:
@@ -171,6 +175,7 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
     @MainActor
     private func applyAuthority(_ authority: ProductionAuthority, revalidateSelection: Bool) {
         productionAuthority = authority
+        productionWorkspace = nil
         isAuthenticated = true
 
         guard ProductionGrantMapper.isUsable(authority) else {
@@ -180,51 +185,108 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
             activePersona = nil
             weddingId = nil
             weddingTitle = nil
+            activeGrantId = nil
             selectedGrantIds = []
             storage.delete(key: selectedGrantsKey)
             return
         }
 
         let storedSelection = revalidateSelection ? readSelectedGrantIds() : selectedGrantIds
-        // Revalidated against the FRESH authority: a grant id that no longer exists there is
-        // silently dropped, never carried forward as if it still held (master plan §9).
-        let liveSelection = Set(storedSelection.filter { id in authority.workspaceGrants.contains { $0.grantId == id } })
+        let liveGrants = storedSelection.compactMap { id in authority.workspaceGrants.first { $0.grantId == id } }
+        let grouped = Dictionary(grouping: liveGrants) { $0.workspaceKindWire }
+        let liveSelection = Set(grouped.values.compactMap { grants in grants.count == 1 ? grants[0].grantId : nil })
         selectedGrantIds = liveSelection
         persistSelectedGrantIds(liveSelection)
 
-        let assignments: [ActorAssignment] = authority.workspaceGrants.compactMap { grant in
+        let assignmentPairs: [(ProductionWorkspaceGrant, ActorAssignment)] = authority.workspaceGrants.compactMap { grant in
             let requiresSelection = authority.contextSelection
                 .first { $0.workspaceKind == grant.workspaceKindWire }?
                 .selectionRequired == true
             if requiresSelection && !liveSelection.contains(grant.grantId) { return nil }
             if case let .assigned(assignment) = ProductionGrantMapper.map(authority, grantId: grant.grantId) {
-                return assignment
+                return (grant, assignment)
             }
             return nil
         }
 
         var seenRoles: [AppRole] = []
-        for assignment in assignments where !seenRoles.contains(assignment.role) { seenRoles.append(assignment.role) }
+        for pair in assignmentPairs where !seenRoles.contains(pair.1.role) { seenRoles.append(pair.1.role) }
         authorizedRoles = seenRoles
 
-        let nextAssignment = assignments.first { $0.role == currentRole } ?? assignments.first
-        currentRole = nextAssignment?.role
-        currentUserRole = nextAssignment?.role.roleId
-        weddingId = nextAssignment?.weddingId
-        weddingTitle = nextAssignment?.weddingId
-            .flatMap { id in authority.workspaceGrants.first { $0.weddingId == id }?.weddingTitle }
+        let next = assignmentPairs.first { $0.0.grantId == activeGrantId }
+            ?? assignmentPairs.first { $0.1.role == currentRole }
+            ?? assignmentPairs.first
+
+        if let next {
+            activeGrantId = next.0.grantId
+            currentRole = next.1.role
+            currentUserRole = next.1.role.roleId
+            weddingId = next.1.weddingId
+            weddingTitle = next.1.weddingId
+                .flatMap { id in authority.workspaceGrants.first { $0.weddingId == id }?.weddingTitle }
+            return
+        }
+
+        let nonWeddingGrants = authority.workspaceGrants.filter {
+            if case .requiresWeddingSelection = ProductionGrantMapper.map(authority, grantId: $0.grantId) {
+                return true
+            }
+            return false
+        }
+        let landing = nonWeddingGrants.first { liveSelection.contains($0.grantId) }
+            ?? (nonWeddingGrants.count == 1 ? nonWeddingGrants[0] : nil)
+
+        activeGrantId = landing?.grantId
+        currentRole = nil
+        currentUserRole = nil
+        weddingId = nil
+        weddingTitle = landing?.weddingTitle
+    }
+
+    @MainActor
+    private func refreshActiveWorkspace(client: ProductionAuthorityClient, sessionToken: String) async {
+        guard let grantId = activeGrantId else {
+            productionWorkspace = nil
+            return
+        }
+        switch await client.fetchWorkspace(sessionToken: sessionToken, grantId: grantId) {
+        case let .success(workspace):
+            if activeGrantId == workspace.grantId { productionWorkspace = workspace }
+        case .sessionInvalid:
+            clearAccountSession()
+        case .grantRevoked:
+            productionWorkspace = nil
+            activeGrantId = nil
+        case .transport:
+            productionWorkspace = nil
+        }
     }
 
     /// Records the account's explicit choice among several grants of one workspace kind (master
     /// plan §9). Ignored for a grant id the current authority does not actually hold.
     @MainActor
     public func selectGrant(_ grantId: String) {
-        guard let authority = productionAuthority else { return }
-        guard authority.workspaceGrants.contains(where: { $0.grantId == grantId }) else { return }
-        let next = selectedGrantIds.union([grantId])
+        guard let authority = productionAuthority,
+              let selected = authority.workspaceGrants.first(where: { $0.grantId == grantId })
+        else { return }
+
+        let sameKindIds = Set(
+            authority.workspaceGrants
+                .filter { $0.workspaceKindWire == selected.workspaceKindWire }
+                .map(\.grantId)
+        )
+        let next = selectedGrantIds.subtracting(sameKindIds).union([grantId])
         selectedGrantIds = next
         persistSelectedGrantIds(next)
+        activeGrantId = grantId
         applyAuthority(authority, revalidateSelection: false)
+
+        if let client = authorityClient,
+           let token = storage.get(key: accountSessionKey) {
+            Task { @MainActor in
+                await self.refreshActiveWorkspace(client: client, sessionToken: token)
+            }
+        }
     }
 
     private func readSelectedGrantIds() -> Set<String> {
@@ -247,6 +309,8 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
         storage.delete(key: selectedGrantsKey)
         isAuthenticated = false
         productionAuthority = nil
+        productionWorkspace = nil
+        activeGrantId = nil
         authorizedRoles = []
         currentRole = nil
         currentUserRole = nil
@@ -311,6 +375,8 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
         self.activePersona = nil
         self.authorizedRoles = []
         self.productionAuthority = nil
+        self.productionWorkspace = nil
+        self.activeGrantId = nil
         self.selectedGrantIds = []
         self.authenticationError = nil
         self.sessionRestored = true
