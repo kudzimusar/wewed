@@ -108,6 +108,7 @@ public struct RootView: View {
             context.selectionRequired
                 && context.grantIds.count > 1
                 && !context.grantIds.contains(where: session.selectedGrantIds.contains)
+                && (session.currentRole == nil || context.workspaceKind == session.currentRole?.roleId)
         }) else { return [] }
 
         let ids = Set(selection.grantIds)
