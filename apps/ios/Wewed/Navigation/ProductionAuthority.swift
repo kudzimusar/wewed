@@ -113,6 +113,16 @@ public struct ProductionAuthority: Decodable, Equatable, Sendable {
         public let effectiveRole: String?
     }
 
+    public struct BusinessMembershipPresentation: Decodable, Equatable, Sendable {
+        public let businessAccountId: String
+        public let businessName: String
+    }
+
+    public struct VendorEngagementPresentation: Decodable, Equatable, Sendable {
+        public let vendorId: String
+        public let vendorName: String
+    }
+
     public let contract: String
     public let version: Int
     public let accountStatus: String
@@ -121,9 +131,43 @@ public struct ProductionAuthority: Decodable, Equatable, Sendable {
     public let contextSelection: [ProductionContextSelection]
     public let unsupported: [Unsupported]
     public let platform: Platform?
+    /// Presentation-only evidence already carried by the server contract; never authority.
+    public let businessMemberships: [BusinessMembershipPresentation]
+    public let vendorEngagements: [VendorEngagementPresentation]
 
     public var accessUserId: String? { identity?.accessUserId }
     public var unsupportedAuthorities: [String] { unsupported.map(\.authority) }
+    public var businessNamesById: [String: String] {
+        Dictionary(uniqueKeysWithValues: businessMemberships.map { ($0.businessAccountId, $0.businessName) })
+    }
+    public var vendorNamesById: [String: String] {
+        Dictionary(uniqueKeysWithValues: vendorEngagements.map { ($0.vendorId, $0.vendorName) })
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case contract, version, accountStatus, identity, workspaceGrants, contextSelection, unsupported, platform
+        case businessMemberships, vendorEngagements
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        contract = try c.decode(String.self, forKey: .contract)
+        version = try c.decode(Int.self, forKey: .version)
+        accountStatus = try c.decode(String.self, forKey: .accountStatus)
+        identity = try c.decodeIfPresent(Identity.self, forKey: .identity)
+        workspaceGrants = try c.decode([ProductionWorkspaceGrant].self, forKey: .workspaceGrants)
+        contextSelection = try c.decode([ProductionContextSelection].self, forKey: .contextSelection)
+        unsupported = try c.decode([Unsupported].self, forKey: .unsupported)
+        platform = try c.decodeIfPresent(Platform.self, forKey: .platform)
+        businessMemberships = try c.decodeIfPresent(
+            [BusinessMembershipPresentation].self,
+            forKey: .businessMemberships
+        ) ?? []
+        vendorEngagements = try c.decodeIfPresent(
+            [VendorEngagementPresentation].self,
+            forKey: .vendorEngagements
+        ) ?? []
+    }
 
     /// Decodes the contract. Returns nil for malformed JSON; it never guesses missing fields.
     public static func decode(_ data: Data) -> ProductionAuthority? {
