@@ -1230,7 +1230,7 @@ Reviewer-owned unblock work now exists on:
 - reusable SELECT-only catalog preflight SQL;
 - a sanitized Phase-3 audit record.
 
-The Preview route compiled successfully at commit `9e499e54302d79d789b1775b702a5e756027d593`. The remaining access boundary is Vercel Deployment Protection: the current reviewer tooling can create a temporary share link but cannot complete the browser SSO cookie redirect itself. This is an external-access exception under the governance rule, not a code defect.
+The current Phase-3 audit branch head is `52877d41136566bf84f895a15a1cd954c51c4452`. It contains the fingerprint gate, safe read-only identity audit, SELECT-only catalog preflight, tests and sanitized audit record. The corresponding Vercel Preview deployment is READY. The remaining access boundary is Vercel Deployment Protection: the current reviewer tooling can create a temporary share link but cannot complete the browser SSO cookie redirect itself. The implementation agent's authenticated local Vercel CLI can invoke the protected Preview route without exposing credentials. This is an external-access exception under the governance rule, not a code defect.
 
 No production INSERT/UPDATE/DELETE/DDL, migration, deployment-to-production, secret disclosure, or data repair has been performed.
 
