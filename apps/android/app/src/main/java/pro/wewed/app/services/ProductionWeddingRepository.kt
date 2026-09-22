@@ -47,7 +47,7 @@ class ProductionWeddingRepository(
         val wedding = overview.optJSONObject("wedding") ?: throw ProductionReadOnlyDomainUnavailable()
         val programme = when (val fetch = client.timeline(sessionToken, grantId)) {
             is NativeDomainFetch.Success -> fetch.value.toObjectList().map { it.toProgrammeItem() }
-            else -> emptyList()
+            else -> throw ProductionReadOnlyDomainUnavailable()
         }
         return Wedding(
             id = wedding.getString("id"),
