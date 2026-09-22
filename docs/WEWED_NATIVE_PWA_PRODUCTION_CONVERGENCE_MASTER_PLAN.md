@@ -1219,8 +1219,8 @@ Accepted. Phase 1 branches from `native-mobile/guest-profile-invitation-20260921
 ### D-012 — Phase 2 status (2026-09-22)
 **ACCEPTED — independent Rule-10 review passed after reviewer-owned closure patch.** Phase 3 may begin; it has not started.
 
-- **Accepted server branch:** `backend/shared-production-authority-phase2-20260922` @ `18f3561655607ef0679404b2f8ef5eadbe6dfbdd`.
-- **Accepted native branch:** `native-mobile/shared-production-authority-phase2-20260922` @ `996550b4d679eff554d2fc0d7a836fa9efa6d563`.
+- **Accepted server branch:** `backend/shared-production-authority-phase2-20260922` @ `ebf18558916a0dd27f6ef172d54e3dd40f8169f6` (authority code accepted at `18f3561655607ef0679404b2f8ef5eadbe6dfbdd`; later commit adds only the root governance pointer).
+- **Accepted native branch:** `native-mobile/shared-production-authority-phase2-20260922` @ `6d8d9b71c17beff9c32f626a798ac989ba0014b1` (native contract accepted at `996550b4d679eff554d2fc0d7a836fa9efa6d563`; later commit adds only the root governance pointer).
 - **Agent closure before review:** server 7dcfab3e → 15603eba; native 311b085a → d9839417.
 - **Reviewer-owned patch:** the independent review found that non-`authorized` contract results still returned identity and relationship evidence even though they issued no grants. The server contract now redacts identity PII, memberships, business links, weddings, vendor engagements, platform evidence and onboarding relationship lists for unverified/inactive/banned results. A pure regression test and matching specification update were added. The native fixture did not change; the native branch received the synchronized specification only.
 - **Verification:** reviewer re-inspected the final remote code and shared-document blobs. The agent's pre-review execution evidence remains 24/24 pure, 22/22 integration, Android 314/314 and iOS 316/316; the reviewer patch adds one pure regression test but was not independently executed in this environment.
