@@ -1245,7 +1245,8 @@ Reviewer finding and closure:
 
 Reviewer-patched qualification head:
 - initial closure head: `d002a8b28555830dfc59617553f8f4deb59f2f31`;
-- follow-up synchronized-test closure head: `62a4cfa154359532ab9a08c1f4849b54015a6a41`.
+- synchronized-test closure head: `62a4cfa154359532ab9a08c1f4849b54015a6a41`;
+- eager-Prisma test-isolation closure head: `3205332488ed22d27c738333032396e04c2cb47e`.
 
 Remote reinspection confirmed:
 - the branch is exactly at that SHA;
@@ -1257,8 +1258,11 @@ Execution status:
 - implementation-agent evidence before reviewer closure: focused Guest suites 91/91, production-equivalent build PASS with a synthetic non-committed secret, Android 314/314, iOS 316/316;
 - the reviewer-patched head was executable-checked by the implementation agent and exposed one synchronized source-assertion defect in `src/lib/unified-navigation-privacy.test.ts`: it still required the old literal `db.weddingMembership.findFirst` after the reviewer introduced the production-neutral `database` dependency parameter;
 - the moderator closed that ordinary defect directly by making the assertion identifier-agnostic (`weddingMembership.findFirst`) rather than coupling it to the local parameter name;
-- follow-up reviewer patch head: `62a4cfa154359532ab9a08c1f4849b54015a6a41`;
-- final Phase-4 acceptance remains pending one clean execution-verification pass on `62a4cfa...`, including the previously deferred targeted Planner Stage-2, full-suite parity, production-equivalent build, Android and iOS checks.
+- execution at `62a4cfa154359532ab9a08c1f4849b54015a6a41` then proved the focused suite clean (91/91), Planner Stage-2 named failures identical to `main`, production build PASS, Android 314/314 and iOS 316/316, but full-suite parity still differed by two content-empty Bun "Unhandled error between tests" blocks attributed one each to `wedding-guest-projection-v2.test.ts` and `wedding-privacy-semantics.test.ts`;
+- moderator reinspection found those tests no longer globally mocked `@/lib/db`, but their imported production modules still eagerly imported the real Prisma singleton at module evaluation time; therefore injected tests still initialized production DB infrastructure even though every test call supplied `fakeDb`;
+- the moderator closed that ordinary test-isolation gap by removing the eager runtime `@/lib/db` imports from `wedding-public-access.ts` and `personal-invitation-access.ts`: injected tests now never load Prisma, while production callers lazily import and use the same real `db` singleton when no database override is supplied;
+- current reviewer-patched Phase-4 head: `3205332488ed22d27c738333032396e04c2cb47e`;
+- final Phase-4 acceptance remains pending one clean execution-verification pass on `32053324...`, with the acceptance target of no branch-only named failures or errors relative to fresh `main`, plus focused/build/native regression checks.
 
 External configuration status:
 - `WEWED_SESSION_SECRET` remains absent from Vercel Preview and Production per the implementation-agent names-only environment check;
@@ -1269,7 +1273,7 @@ External configuration status:
 Phase gate:
 - implementation contract review: PASS;
 - reviewer closure: APPLIED;
-- final acceptance: **PENDING EXECUTION VERIFICATION OF `d002a8b...`**;
+- final acceptance: **PENDING EXECUTION VERIFICATION OF `32053324...`**;
 - Phase 5: **NOT STARTED**.
 
 ### D-014 — Phase 4 preflight (2026-09-22)
