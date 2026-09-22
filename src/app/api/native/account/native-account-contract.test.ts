@@ -68,6 +68,33 @@ describe('native account sign-in stays read-only (master plan Phase 5)', () => {
     expect(workspace).not.toContain('acceptPendingMemberships')
   })
 
+  test('a client-supplied engagement id is validated against the fresh grant before use (master plan Phase 6)', () => {
+    const workspace = source('src/app/api/native/account/workspace/route.ts')
+
+    expect(workspace).toContain("searchParams.get('engagementId')")
+    // Membership in the FRESH grant's own serviceEngagementIds is the only thing that makes an
+    // engagement id usable; a foreign or stale one is rejected outright, not merely ignored.
+    expect(workspace).toContain('!grant.serviceEngagementIds.includes(requestedEngagementId)')
+    expect(workspace).toContain("error: 'This engagement is not part of this workspace grant.'")
+    // A distinct status from a revoked grant (403/404), so the client clears only the stale
+    // engagement choice rather than the still-valid workspace underneath it.
+    const engagementErrorIndex = workspace.indexOf('This engagement is not part of this workspace grant.')
+    expect(workspace.slice(engagementErrorIndex, engagementErrorIndex + 80)).toContain('422')
+
+    // A single real engagement resolves deterministically; more than one requires an explicit
+    // choice and is never auto-selected.
+    expect(workspace).toContain('grant.serviceEngagementIds.length === 1')
+    expect(workspace).toContain('resolvedEngagementId = grant.serviceEngagementIds[0]')
+    expect(workspace).toContain('engagementSelectionRequired = true')
+
+    // Every engagement summary returned to the client is re-scoped by the grant's own vendorId AND
+    // weddingId, never trusted merely because its id was already found in serviceEngagementIds.
+    expect(workspace).toContain('vendorId: grant.vendorId,')
+    expect(workspace).toContain('weddingId: grant.weddingId,')
+    expect(workspace).not.toContain('.update(')
+    expect(workspace).not.toContain('.upsert(')
+  })
+
   test('the native identity session never appears alongside the Guest Session identity path', () => {
     const session = source('src/lib/native-account-session.ts')
     expect(session).not.toContain('wedding-guest-session')
