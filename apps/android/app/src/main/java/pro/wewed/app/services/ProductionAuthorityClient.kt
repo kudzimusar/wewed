@@ -1,6 +1,7 @@
 package pro.wewed.app.services
 
 import org.json.JSONObject
+import java.net.URLEncoder
 import pro.wewed.app.navigation.ProductionAuthority
 import pro.wewed.app.navigation.ProductionAuthorityDecoder
 
@@ -18,6 +19,40 @@ import pro.wewed.app.navigation.ProductionAuthorityDecoder
  * already a plain, injectable get/post-with-headers seam with nothing Wedding-Day specific in its
  * shape, and it is the one HTTP abstraction the app already tests against a fake transport.
  */
+
+data class ProductionWeddingSummary(
+    val id: String,
+    val slug: String,
+    val title: String,
+    val date: String,
+    val venue: String,
+    val venueCity: String,
+    val venueCountry: String,
+    val lifecycle: String,
+    val coupleNames: String,
+)
+
+data class ProductionWorkspaceSnapshot(
+    val grantId: String,
+    val workspaceKind: String,
+    val scopeKind: String,
+    val weddingId: String?,
+    val weddingTitle: String?,
+    val businessAccountId: String?,
+    val vendorId: String?,
+    val serviceEngagementIds: List<String>,
+    val permissions: List<String>,
+    val platformRoles: List<String>,
+    val wedding: ProductionWeddingSummary?,
+)
+
+sealed interface ProductionWorkspaceFetch {
+    data class Success(val workspace: ProductionWorkspaceSnapshot) : ProductionWorkspaceFetch
+    object SessionInvalid : ProductionWorkspaceFetch
+    object GrantRevoked : ProductionWorkspaceFetch
+    data class Transport(val status: Int) : ProductionWorkspaceFetch
+}
+
 sealed interface NativeAccountSignInOutcome {
     data class Success(val sessionToken: String) : NativeAccountSignInOutcome
     object InvalidCredentials : NativeAccountSignInOutcome
@@ -74,4 +109,57 @@ class ProductionAuthorityClient(
 
         return ProductionAuthorityFetch.Success(authority)
     }
+    suspend fun fetchWorkspace(sessionToken: String, grantId: String): ProductionWorkspaceFetch {
+        val encodedGrant = URLEncoder.encode(grantId, Charsets.UTF_8.name())
+        val response = runCatching {
+            transport.get(
+                "api/native/account/workspace?grantId=$encodedGrant",
+                mapOf("Authorization" to "Bearer $sessionToken"),
+            )
+        }.getOrElse { return ProductionWorkspaceFetch.Transport(-1) }
+
+        if (response.status == 401) return ProductionWorkspaceFetch.SessionInvalid
+        if (response.status == 403 || response.status == 404) return ProductionWorkspaceFetch.GrantRevoked
+        if (response.status !in 200..299) return ProductionWorkspaceFetch.Transport(response.status)
+
+        return runCatching {
+            val root = JSONObject(response.body).getJSONObject("workspace")
+            val weddingJson = root.optJSONObject("wedding")
+            val wedding = weddingJson?.let {
+                ProductionWeddingSummary(
+                    id = it.getString("id"),
+                    slug = it.getString("slug"),
+                    title = it.getString("title"),
+                    date = it.getString("date"),
+                    venue = it.getString("venue"),
+                    venueCity = it.getString("venueCity"),
+                    venueCountry = it.getString("venueCountry"),
+                    lifecycle = it.getString("lifecycle"),
+                    coupleNames = it.getString("coupleNames"),
+                )
+            }
+            ProductionWorkspaceFetch.Success(
+                ProductionWorkspaceSnapshot(
+                    grantId = root.getString("grantId"),
+                    workspaceKind = root.getString("workspaceKind"),
+                    scopeKind = root.getString("scopeKind"),
+                    weddingId = root.optString("weddingId").takeIf { !root.isNull("weddingId") && it.isNotBlank() },
+                    weddingTitle = root.optString("weddingTitle").takeIf { !root.isNull("weddingTitle") && it.isNotBlank() },
+                    businessAccountId = root.optString("businessAccountId").takeIf { !root.isNull("businessAccountId") && it.isNotBlank() },
+                    vendorId = root.optString("vendorId").takeIf { !root.isNull("vendorId") && it.isNotBlank() },
+                    serviceEngagementIds = root.getJSONArray("serviceEngagementIds").let { array ->
+                        (0 until array.length()).map { array.getString(it) }
+                    },
+                    permissions = root.getJSONArray("permissions").let { array ->
+                        (0 until array.length()).map { array.getString(it) }
+                    },
+                    platformRoles = root.getJSONArray("platformRoles").let { array ->
+                        (0 until array.length()).map { array.getString(it) }
+                    },
+                    wedding = wedding,
+                )
+            )
+        }.getOrElse { ProductionWorkspaceFetch.Transport(response.status) }
+    }
+
 }
