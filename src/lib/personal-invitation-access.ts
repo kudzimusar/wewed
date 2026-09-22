@@ -23,8 +23,8 @@ export async function resolvePersonalInvitation({
   weddingSlug: string
   token: string
   requestedCard?: string | null
-}): Promise<ResolvedPersonalInvitation | null> {
-  const rsvp = await db.rSVP.findUnique({
+}, database: typeof db = db): Promise<ResolvedPersonalInvitation | null> {
+  const rsvp = await database.rSVP.findUnique({
     where: { token },
     include: {
       guest: {
