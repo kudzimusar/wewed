@@ -1,8 +1,15 @@
-import { describe, expect, test } from 'bun:test'
-import {
+import { describe, expect, mock, test } from 'bun:test'
+
+// `server-only` is a Next.js build-time marker, not an installed package; `bun test` runs outside
+// that pipeline, so the import must be mocked before the module under test is loaded (same pattern
+// as production-authority.integration.test.ts / grants.test.ts). Test-harness fix only — no
+// assertion or fingerprint-logic change.
+mock.module('server-only', () => ({}))
+
+const {
   EXPECTED_WEWED_SUPABASE_REF,
   fingerprintDatabaseUrl,
-} from './phase3-database-fingerprint'
+} = await import('./phase3-database-fingerprint')
 
 describe('Phase 3 database fingerprint', () => {
   test('extracts the Wewed project ref from a Supabase pooler username without exposing the password', () => {

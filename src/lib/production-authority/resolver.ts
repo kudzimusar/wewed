@@ -32,9 +32,21 @@ import { buildProductionAuthority } from './grants'
  * pass BOTH ids. `authUserId` is required: when it is missing or blank the result is
  * `unverified_auth_identity` with no grants. Native transport is master plan Phase 5.
  */
+/**
+ * Anything that can run a raw SELECT: the shared Prisma client, or a transaction client when the
+ * caller must bound every read inside its own READ ONLY transaction (Phase 3 audit probes).
+ */
+export type AuthorityQueryClient = Pick<typeof db, '$queryRawUnsafe'>
+
+export interface ResolveAuthorityOptions {
+  authUserId: string | null
+  /** Defaults to the shared Prisma client. */
+  client?: AuthorityQueryClient
+}
+
 export async function resolveProductionAuthority(
   accessUserId: string,
-  options: { authUserId: string | null },
+  options: ResolveAuthorityOptions,
 ): Promise<WewedProductionAuthorityV1> {
   return buildProductionAuthority(await loadProductionAuthorityEvidence(accessUserId, options))
 }
@@ -55,22 +67,23 @@ function stringArray(value: unknown): string[] {
 
 export async function loadProductionAuthorityEvidence(
   accessUserId: string,
-  options: { authUserId: string | null },
+  options: ResolveAuthorityOptions,
 ): Promise<ProductionAuthorityEvidence> {
   const authUserId = options.authUserId?.trim() || null
+  const q: AuthorityQueryClient = options.client ?? db
 
   const [identityRows, profileRows, businessRows, weddingRows, registry] = await Promise.all([
-    db.$queryRawUnsafe<Array<Omit<IdentityEvidence, 'accessUserId' | 'authUserId' | 'userRole'> & { id: string; role: string }>>(
+    q.$queryRawUnsafe<Array<Omit<IdentityEvidence, 'accessUserId' | 'authUserId' | 'userRole'> & { id: string; role: string }>>(
       `SELECT id, email, name, role, "coupleId", "isActive" FROM public."User" WHERE id = $1`,
       accessUserId,
     ),
     authUserId
-      ? db.$queryRawUnsafe<Array<{ displayName: string | null; role: string | null; isBanned: boolean }>>(
+      ? q.$queryRawUnsafe<Array<{ displayName: string | null; role: string | null; isBanned: boolean }>>(
           `SELECT "displayName", role, "isBanned" FROM public."UserProfile" WHERE id = $1`,
           authUserId,
         )
       : Promise.resolve([]),
-    db.$queryRawUnsafe<Array<Omit<BusinessMembershipEvidence, 'permissions'> & { permissions: unknown }>>(
+    q.$queryRawUnsafe<Array<Omit<BusinessMembershipEvidence, 'permissions'> & { permissions: unknown }>>(
       `SELECT bam.id AS "membershipId", bam."businessAccountId", ba.name AS "businessName",
               ba.type AS "businessType", ba.status AS "businessStatus", ba."onboardingStatus",
               ba."subscriptionStatus", ba."ownerUserId", bam.role, bam.status, bam.permissions
@@ -80,7 +93,7 @@ export async function loadProductionAuthorityEvidence(
         ORDER BY ba."createdAt" ASC, bam.id ASC`,
       accessUserId,
     ),
-    db.$queryRawUnsafe<Array<{
+    q.$queryRawUnsafe<Array<{
       membershipId: string; weddingId: string; slug: string; title: string; date: Date; coupleId: string
       role: string; status: string; permissions: string | null; governedAccess: boolean; businessCanManageMembers: boolean
     }>>(
@@ -94,28 +107,28 @@ export async function loadProductionAuthorityEvidence(
         ORDER BY w.date ASC, w."createdAt" ASC, m.id ASC`,
       accessUserId,
     ),
-    loadPlatformRegistry(accessUserId),
+    loadPlatformRegistry(q, accessUserId),
   ])
 
   const activeBusinessIds = businessRows.filter((row) => row.status === 'active').map((row) => row.businessAccountId)
 
   const [linkRows, profileEvidenceRows, vendorRows] = activeBusinessIds.length
     ? await Promise.all([
-        db.$queryRawUnsafe<BusinessLinkEvidence[]>(
+        q.$queryRawUnsafe<BusinessLinkEvidence[]>(
           `SELECT id AS "linkId", "businessAccountId", "entityType", "entityId", relationship
              FROM public."BusinessAccountLink"
             WHERE "businessAccountId" = ANY($1::text[])
             ORDER BY "businessAccountId", "entityType", "entityId"`,
           activeBusinessIds,
         ),
-        db.$queryRawUnsafe<ProviderProfileEvidence[]>(
+        q.$queryRawUnsafe<ProviderProfileEvidence[]>(
           `SELECT "businessAccountId", "listingStatus", visibility, "isClaimable"
              FROM public."ProviderProfile"
             WHERE "businessAccountId" = ANY($1::text[])
             ORDER BY "businessAccountId"`,
           activeBusinessIds,
         ),
-        db.$queryRawUnsafe<Array<Omit<VendorEngagementEvidence, 'serviceEngagements'> & { serviceEngagements: unknown }>>(
+        q.$queryRawUnsafe<Array<Omit<VendorEngagementEvidence, 'serviceEngagements'> & { serviceEngagements: unknown }>>(
           `SELECT bal.id AS "linkId", bal."businessAccountId", bal.relationship AS "linkRelationship",
                   v.id AS "vendorId", v.name AS "vendorName", v."weddingId",
                   COALESCE(
@@ -191,15 +204,15 @@ export async function loadProductionAuthorityEvidence(
 }
 
 /** Reads the platform registry the way `readPlatformRegistry` (wewed-admin.ts) does. */
-async function loadPlatformRegistry(userId: string): Promise<PlatformRegistryEvidence> {
+async function loadPlatformRegistry(q: AuthorityQueryClient, userId: string): Promise<PlatformRegistryEvidence> {
   try {
-    const rows = await db.$queryRawUnsafe<Array<{ role: string; status: string }>>(
+    const rows = await q.$queryRawUnsafe<Array<{ role: string; status: string }>>(
       `SELECT role, status FROM wewed_admin."PlatformAdministrator" WHERE "userId" = $1 LIMIT 1`,
       userId,
     )
     const row = rows[0]
     if (!row) return { state: 'missing', role: null, status: null, scopes: [] }
-    const scopes = await db.$queryRawUnsafe<Array<{ scopeType: string; scopeValue: string }>>(
+    const scopes = await q.$queryRawUnsafe<Array<{ scopeType: string; scopeValue: string }>>(
       `SELECT "scopeType", "scopeValue" FROM wewed_admin."PlatformAdministratorScope"
         WHERE "administratorUserId" = $1 ORDER BY "scopeType", "scopeValue"`,
       userId,
