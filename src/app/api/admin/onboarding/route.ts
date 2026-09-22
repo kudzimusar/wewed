@@ -29,9 +29,25 @@ function objectValue(value: unknown): Record<string, unknown> {
     : {}
 }
 
+/**
+ * Thrown when the row-lock re-check (master plan Phase 7 §13) finds the account already
+ * completed by a request that won a genuine race. Distinct from the pre-transaction
+ * `onboardingStatus === 'complete'` check above: that one catches a sequential retry after a
+ * prior request has already committed and returned; this one catches two near-simultaneous
+ * completions racing each other, where both pass the pre-transaction check before either commits.
+ */
+class OnboardingAlreadyInProgressError extends Error {
+  constructor() {
+    super('Onboarding for this application was just completed by another request. Refresh and check its current status.')
+  }
+}
+
 function errorResponse(error: unknown) {
   if (error instanceof WewedAdminAccessError) {
     return NextResponse.json({ success: false, error: error.message }, { status: error.status })
+  }
+  if (error instanceof OnboardingAlreadyInProgressError) {
+    return NextResponse.json({ success: false, error: error.message }, { status: 409 })
   }
 
   console.error('[api/admin/onboarding] Error:', error)
@@ -200,6 +216,26 @@ export async function POST(request: NextRequest) {
       }
 
       const result = await db.$transaction(async (tx) => {
+        // Master plan Phase 7 §13 — the pre-transaction reads above (account.onboardingStatus,
+        // account.status) are an ordinary SELECT, not SELECT ... FOR UPDATE: two near-simultaneous
+        // admin completions for the SAME accountId can both pass them before either commits.
+        // `wewed_admin."BusinessAccount"."onboardingStatus" = 'in_progress'` is NOT a free value
+        // to repurpose as a claim marker: the pre-existing `validate_business_lifecycle` trigger
+        // already sets it the moment an admin approves a public-registration account
+        // (pending_review -> active), so every real approved-but-incomplete account already sits
+        // at 'in_progress' before this route ever runs — reusing it as a claim would make the
+        // claim fail unconditionally. Instead, take a real row lock as the first statement in the
+        // transaction and re-read the committed value after acquiring it: the loser of a genuine
+        // race blocks on FOR UPDATE until the winner commits, then observes 'complete' and aborts
+        // before creating anything duplicate.
+        const [locked] = await tx.$queryRawUnsafe<Array<{ onboardingStatus: string }>>(
+          `SELECT "onboardingStatus" FROM wewed_admin."BusinessAccount" WHERE id = $1 FOR UPDATE`,
+          account.id,
+        )
+        if (!locked || locked.onboardingStatus === 'complete') {
+          throw new OnboardingAlreadyInProgressError()
+        }
+
         const suffix = account.id.slice(-8)
         const couple = await tx.couple.create({
           data: {
@@ -334,6 +370,18 @@ export async function POST(request: NextRequest) {
 
     const weddingRole = account.memberRole === 'coordinator' ? 'coordinator' : 'planner'
     await db.$transaction(async (tx) => {
+      // Same row-lock re-check as the Couple branch (master plan Phase 7 §13), applied uniformly
+      // even though every other write in this branch is already an upsert: it keeps the
+      // onboardingStatus transition itself race-free and prevents a duplicate BusinessAuditLog
+      // entry from a genuine concurrent double-submit.
+      const [locked] = await tx.$queryRawUnsafe<Array<{ onboardingStatus: string }>>(
+        `SELECT "onboardingStatus" FROM wewed_admin."BusinessAccount" WHERE id = $1 FOR UPDATE`,
+        account.id,
+      )
+      if (!locked || locked.onboardingStatus === 'complete') {
+        throw new OnboardingAlreadyInProgressError()
+      }
+
       await tx.user.update({
         where: { id: account.ownerUserId },
         data: {
