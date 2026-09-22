@@ -90,6 +90,10 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  const business = grant.businessAccountId
+    ? authority.businessMemberships.find((item) => item.businessAccountId === grant.businessAccountId) ?? null
+    : null
+
   return noStore({
     success: true,
     workspace: {
@@ -99,6 +103,7 @@ export async function GET(request: NextRequest) {
       weddingId: grant.weddingId,
       weddingTitle: grant.weddingTitle,
       businessAccountId: grant.businessAccountId,
+      businessName: business?.businessName ?? null,
       vendorId: grant.vendorId,
       serviceEngagementIds: grant.serviceEngagementIds,
       permissions: grant.permissions,
