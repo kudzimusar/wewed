@@ -233,8 +233,14 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
             }
             return false
         }
-        let landing = nonWeddingGrants.first { liveSelection.contains($0.grantId) }
-            ?? (nonWeddingGrants.count == 1 ? nonWeddingGrants[0] : nil)
+        let explicitlySelectedLanding = nonWeddingGrants.first { liveSelection.contains($0.grantId) }
+        let soleUnambiguousLanding = nonWeddingGrants.count == 1
+            && authority.contextSelection.first(where: {
+                $0.workspaceKind == nonWeddingGrants[0].workspaceKindWire
+            })?.selectionRequired != true
+            ? nonWeddingGrants[0]
+            : nil
+        let landing = explicitlySelectedLanding ?? soleUnambiguousLanding
 
         activeGrantId = landing?.grantId
         currentRole = nil
