@@ -56,6 +56,7 @@ class SessionViewModel(
     private val tokenKey = "wewed_session_token"
     private val accountSessionKey = "wewed.account.session"
     private val selectedGrantsKey = "wewed.account.selected-grants"
+    private val selectedGrantsOwnerKey = "wewed.account.selected-grants.owner"
 
     private val _isAuthenticated = MutableStateFlow(false)
     val isAuthenticated: StateFlow<Boolean> = _isAuthenticated.asStateFlow()
@@ -246,6 +247,7 @@ class SessionViewModel(
         if (previousAccessUserId != null && previousAccessUserId != authority.accessUserId) {
             _selectedGrantIds.value = emptySet()
             storage.delete(selectedGrantsKey)
+            storage.delete(selectedGrantsOwnerKey)
             _activeGrantId.value = null
             _currentRole.value = null
             _currentUserRole.value = null
@@ -274,7 +276,11 @@ class SessionViewModel(
 
         _activePersonaId.value = authority.accessUserId
 
-        val storedSelection = if (revalidateSelection) readSelectedGrantIds() else _selectedGrantIds.value
+        val storedSelection = if (revalidateSelection) {
+            readSelectedGrantIds(authority.accessUserId)
+        } else {
+            _selectedGrantIds.value
+        }
         // Revalidate against the fresh contract and fail closed if stale storage somehow contains
         // more than one selected grant for the same workspace kind. One kind may have ONE active
         // selection; never let a historical union make two weddings active simultaneously.
@@ -429,17 +435,39 @@ class SessionViewModel(
         }
     }
 
-    private fun readSelectedGrantIds(): Set<String> =
-        storage.get(selectedGrantsKey)?.split(',')?.filter { it.isNotBlank() }?.toSet() ?: emptySet()
+    private fun readSelectedGrantIds(accessUserId: String): Set<String> {
+        val owner = storage.get(selectedGrantsOwnerKey)
+        if (owner != accessUserId) {
+            // Ownerless selections are legacy Phase-5 preferences. They cannot safely be attributed
+            // after a process restart, so fail closed once rather than letting Account B inherit
+            // Account A's coincidentally identical grant id.
+            storage.delete(selectedGrantsKey)
+            storage.delete(selectedGrantsOwnerKey)
+            return emptySet()
+        }
+        return storage.get(selectedGrantsKey)
+            ?.split(',')
+            ?.filter { it.isNotBlank() }
+            ?.toSet()
+            ?: emptySet()
+    }
 
     private fun persistSelectedGrantIds(ids: Set<String>) {
-        if (ids.isEmpty()) storage.delete(selectedGrantsKey) else storage.save(selectedGrantsKey, ids.joinToString(","))
+        val owner = _productionAuthority.value?.accessUserId
+        if (ids.isEmpty() || owner == null) {
+            storage.delete(selectedGrantsKey)
+            storage.delete(selectedGrantsOwnerKey)
+        } else {
+            storage.save(selectedGrantsOwnerKey, owner)
+            storage.save(selectedGrantsKey, ids.joinToString(","))
+        }
     }
 
     /** The identity session itself is no longer valid server-side: a full, unambiguous sign-out. */
     private fun clearAccountSession() {
         storage.delete(accountSessionKey)
         storage.delete(selectedGrantsKey)
+        storage.delete(selectedGrantsOwnerKey)
         _isAuthenticated.value = false
         _productionAuthority.value = null
         _productionWorkspace.value = null
@@ -504,6 +532,7 @@ class SessionViewModel(
         storage.delete(tokenKey)
         storage.delete(accountSessionKey)
         storage.delete(selectedGrantsKey)
+        storage.delete(selectedGrantsOwnerKey)
         _isAuthenticated.value = false
         _currentUserRole.value = null
         _currentRole.value = null
