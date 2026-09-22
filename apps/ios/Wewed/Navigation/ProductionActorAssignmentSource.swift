@@ -22,10 +22,16 @@ import Foundation
 public struct ProductionActorAssignmentSource: ActorAssignmentSource {
     private let authority: ProductionAuthority
     private let selectedGrantIds: Set<String>
+    private let selectedEngagementId: String?
 
-    public init(authority: ProductionAuthority, selectedGrantIds: Set<String> = []) {
+    public init(
+        authority: ProductionAuthority,
+        selectedGrantIds: Set<String> = [],
+        selectedEngagementId: String? = nil
+    ) {
         self.authority = authority
         self.selectedGrantIds = selectedGrantIds
+        self.selectedEngagementId = selectedEngagementId
     }
 
     public func assignments(actorId: String) async -> [ActorAssignment] {
@@ -48,7 +54,7 @@ public struct ProductionActorAssignmentSource: ActorAssignmentSource {
             if requiresExplicitSelection(grant) && !selectedGrantIds.contains(grant.grantId) {
                 return nil
             }
-            switch ProductionGrantMapper.map(authority, grantId: grant.grantId) {
+            switch ProductionGrantMapper.map(authority, grantId: grant.grantId, selectedEngagementId: selectedEngagementId) {
             case let .assigned(assignment): return assignment
             case .requiresWeddingSelection, .denied: return nil
             }
