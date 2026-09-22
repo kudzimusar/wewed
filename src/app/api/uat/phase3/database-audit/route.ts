@@ -103,6 +103,20 @@ async function runFullAudit(tx: AuthorityQueryClient) {
     ORDER BY 1
   `)
 
+  // pg_get_viewdef() prints only the view body, not its reloptions, so security_invoker must be
+  // read separately from pg_class.reloptions.
+  const publicViewSecurityInvoker = await q<{ relationName: string; securityInvoker: string }>(`
+    SELECT c.relname AS "relationName",
+           COALESCE(
+             (SELECT option_value FROM pg_options_to_table(c.reloptions) WHERE option_name = 'security_invoker'),
+             'not_set'
+           ) AS "securityInvoker"
+    FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relkind = 'v'
+      AND c.relname IN ('BusinessAccount','BusinessAccountMember','BusinessAccountLink','ProviderProfile')
+    ORDER BY 1
+  `)
+
   const policies = await q<{ schemaName: string; tableName: string; policyName: string; permissive: string; cmd: string }>(`
     SELECT schemaname AS "schemaName", tablename AS "tableName", policyname AS "policyName",
            permissive, cmd
@@ -144,6 +158,16 @@ async function runFullAudit(tx: AuthorityQueryClient) {
     FROM public._prisma_migrations
   `)
   )[0]
+
+  // Migration filenames are internal catalog metadata, not customer data. This is needed to
+  // interpret the ledger-row-count vs repository-migration-count discrepancy, and specifically
+  // whether the vendor-link backfill migration is among the applied rows.
+  const migrationNames = await q<{ migrationName: string; finished: boolean; rolledBack: boolean }>(`
+    SELECT migration_name AS "migrationName",
+           (finished_at IS NOT NULL AND rolled_back_at IS NULL) AS finished,
+           (rolled_back_at IS NOT NULL) AS "rolledBack"
+    FROM public._prisma_migrations ORDER BY started_at
+  `)
 
   // ---- 3. Business/wedding role & permission shapes -----------------------------------------
   const businessMemberRoleCounts = await q<{ role: string; status: string; count: number }>(`
@@ -466,8 +490,9 @@ async function runFullAudit(tx: AuthorityQueryClient) {
   `)
 
   return {
-    identity, role, schemas, objectTopology, publicViewDefinitions, policies, rolePrivileges,
-    authReadable: authReadable[0]?.canReadAuthUsers ?? false, migrationLedger,
+    identity, role, schemas, objectTopology, publicViewDefinitions, publicViewSecurityInvoker,
+    policies, rolePrivileges,
+    authReadable: authReadable[0]?.canReadAuthUsers ?? false, migrationLedger, migrationNames,
     businessMemberRoleCounts, businessAccountTypeCounts, businessOnboardingCounts,
     subscriptionStatusCounts, subscriptionStatusCheck, businessPermissionShapes,
     weddingMembershipRoleCounts, weddingPermissionShapes, businessLinkCombinations,
