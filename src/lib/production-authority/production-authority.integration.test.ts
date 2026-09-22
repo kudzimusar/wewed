@@ -145,6 +145,21 @@ async function platformRegistry(userId: string, role: string, status: string) {
   )
 }
 
+/**
+ * Resolves as a verified caller would: `authUserId` is the Supabase identity the caller verified.
+ * In this fixture it follows the same `auth-<accessUserId>` convention the PWA tests use.
+ */
+function resolve(accessUserId: string, authUserId: string | null = `auth-${accessUserId}`) {
+  return resolveProductionAuthority(accessUserId, { authUserId })
+}
+
+async function userProfile(authUserId: string, isBanned: boolean) {
+  await exec(
+    `INSERT INTO public."UserProfile" (id, email, "isBanned", "updatedAt") VALUES ($1, $2, $3, now())`,
+    authUserId, `${authUserId}@example.test`, isBanned,
+  )
+}
+
 const actors: Record<string, string> = {}
 const ids: Record<string, string> = {}
 
@@ -220,8 +235,9 @@ describeLocal('WewedProductionAuthorityV1 against a disposable migrated database
     ids.vendorRowB = await vendor('vendor-row-B', ids.B)
     ids.seA1 = await engagement('se-A1', ids.vendorRowA, ids.A)
     ids.seA2 = await engagement('se-A2', ids.vendorRowA, ids.A)
-    await link('V1-vendorA', ids.V1, 'vendor', ids.vendorRowA)
-    await link('V2-vendorB', ids.V2, 'vendor', ids.vendorRowB)
+    // Canonical vendor entity links (20260730173000_wewed_business_admin_console): `represents`.
+    await link('V1-vendorA', ids.V1, 'vendor', ids.vendorRowA, 'represents')
+    await link('V2-vendorB', ids.V2, 'vendor', ids.vendorRowB, 'represents')
 
     // Suspended business membership and an invited (pending) wedding membership.
     actors.pending = await user('pending', 'planner')
@@ -236,6 +252,44 @@ describeLocal('WewedProductionAuthorityV1 against a disposable migrated database
     await member('suspended-registry-bam', ids.W, actors.suspendedRegistryAdmin, 'wewed_super_admin')
     await platformRegistry(actors.suspendedRegistryAdmin, 'wewed_super_admin', 'suspended')
 
+    // Canonical migrated Vendor: the backfill shape exactly — business `vendor-<Vendor.id>`
+    // (vendor, active, complete, sourceType vendor), `represents` link to the Vendor row and a
+    // `serves` link to its wedding — plus the eligibility the backfill does not create (an
+    // operating member and a published listing).
+    ids.canonicalVendorRow = await vendor('canonical-row', ids.C)
+    ids.canonicalSe = await engagement('canonical-se', ids.canonicalVendorRow, ids.C)
+    actors.canonicalVendor = await user('canonical-vendor', 'vendor')
+    ids.canonicalBusiness = `vendor-${ids.canonicalVendorRow}`
+    await db.$transaction([
+      db.$executeRawUnsafe(
+        `INSERT INTO wewed_admin."BusinessAccount" (id, name, slug, type, status, "sourceType", "sourceId", "onboardingStatus", "subscriptionPlan", "subscriptionStatus", "ownerUserId")
+         VALUES ($1, 'Canonical Vendor', $1, 'vendor', 'active', 'vendor', $2, 'complete', 'free', 'free', $3)`,
+        ids.canonicalBusiness, ids.canonicalVendorRow, actors.canonicalVendor,
+      ),
+      db.$executeRawUnsafe(
+        `INSERT INTO wewed_admin."BusinessAccountMember" (id, "businessAccountId", "userId", role, status)
+         VALUES ($1, $2, $3, 'business_owner', 'active')`,
+        id('canonical-owner'), ids.canonicalBusiness, actors.canonicalVendor,
+      ),
+    ])
+    await link('canonical-represents', ids.canonicalBusiness, 'vendor', ids.canonicalVendorRow, 'represents')
+    await link('canonical-serves', ids.canonicalBusiness, 'wedding', ids.C, 'serves')
+    await providerProfile('canonical-profile', ids.canonicalBusiness)
+
+    // A vendor business whose Vendor link carries an unrecognised relationship.
+    actors.unknownLinkVendor = await user('unknown-link-vendor', 'vendor')
+    ids.VU = await business('vendor-unknown-link', 'vendor', { userId: actors.unknownLinkVendor, role: 'business_owner' })
+    await providerProfile('vendor-unknown-link-profile', ids.VU)
+    ids.unknownLinkRow = await vendor('unknown-link-row', ids.D)
+    await link('VU-vendor', ids.VU, 'vendor', ids.unknownLinkRow, 'partner_of')
+
+    // Identity: a verified identity with a banned profile, and one with no profile row at all.
+    actors.bannedCouple = await user('banned-couple', 'couple')
+    await membership('banned-owner-C', actors.bannedCouple, ids.C, 'owner')
+    await userProfile(`auth-${actors.bannedCouple}`, true)
+    actors.noProfileCouple = await user('no-profile-couple', 'couple')
+    await membership('no-profile-owner-D', actors.noProfileCouple, ids.D, 'owner')
+
     actors.inactive = await user('inactive', 'couple', { isActive: false })
     await membership('inactive-owner-B', actors.inactive, ids.B, 'owner')
   })
@@ -245,7 +299,7 @@ describeLocal('WewedProductionAuthorityV1 against a disposable migrated database
   })
 
   const grantIds = async (actor: string) =>
-    (await resolveProductionAuthority(actors[actor])).workspaceGrants.map((g) => g.grantId)
+    (await resolve(actors[actor])).workspaceGrants.map((g) => g.grantId)
 
   test('Couple: an active owner membership grants a Couple workspace on that wedding', async () => {
     expect(await grantIds('couple')).toEqual([`couple:wedding:${ids.A}`])
@@ -256,21 +310,21 @@ describeLocal('WewedProductionAuthorityV1 against a disposable migrated database
   })
 
   test('Planner with multiple weddings: every real wedding survives, none is chosen for them', async () => {
-    const authority = await resolveProductionAuthority(actors.plannerMany)
+    const authority = await resolve(actors.plannerMany)
     const weddings = authority.workspaceGrants.filter((g) => g.scopeKind === 'wedding').map((g) => g.weddingId)
     expect(weddings.sort()).toEqual([ids.A, ids.B, ids.C].sort())
     expect(authority.contextSelection.find((s) => s.workspaceKind === 'planner')?.selectionRequired).toBe(true)
   })
 
   test('Planner with zero weddings: a portfolio grant and no wedding at all, real or fake', async () => {
-    const authority = await resolveProductionAuthority(actors.plannerZero)
+    const authority = await resolve(actors.plannerZero)
     expect(authority.workspaceGrants).toHaveLength(1)
     const [portfolio] = authority.workspaceGrants
     expect(portfolio).toMatchObject({ workspaceKind: 'planner', scopeKind: 'portfolio', weddingId: null, businessAccountId: ids.PZ })
   })
 
   test('Coordinator: derived from WeddingMembership, not from a planner grant or the dashboard class', async () => {
-    const authority = await resolveProductionAuthority(actors.coordinator)
+    const authority = await resolve(actors.coordinator)
     expect(authority.identity?.dashboardClass).toBe('planner')
     expect(authority.workspaceGrants.map((g) => g.grantId)).toEqual([`coordinator:wedding:${ids.B}`])
     expect(authority.nonGrantingRelationships).toContainEqual({
@@ -289,14 +343,14 @@ describeLocal('WewedProductionAuthorityV1 against a disposable migrated database
   })
 
   test('Viewer: visible as evidence, no native workspace', async () => {
-    const authority = await resolveProductionAuthority(actors.viewer)
+    const authority = await resolve(actors.viewer)
     expect(authority.workspaceGrants).toEqual([])
     expect(authority.weddingMemberships.map((m) => m.role)).toEqual(['viewer'])
     expect(authority.nonGrantingRelationships.map((r) => r.reason)).toEqual(['viewer_relationship'])
   })
 
   test('Vendor: two businesses both survive; wedding work maps only through real links and engagements', async () => {
-    const authority = await resolveProductionAuthority(actors.vendor)
+    const authority = await resolve(actors.vendor)
     expect(authority.workspaceGrants.map((g) => g.grantId)).toEqual([
       `vendor:business:${ids.V1}`,
       `vendor:business:${ids.V2}`,
@@ -311,7 +365,7 @@ describeLocal('WewedProductionAuthorityV1 against a disposable migrated database
   })
 
   test('Suspended business membership and invited wedding membership grant nothing, and stay unchanged', async () => {
-    const authority = await resolveProductionAuthority(actors.pending)
+    const authority = await resolve(actors.pending)
     expect(authority.workspaceGrants).toEqual([])
     expect(authority.onboarding.invitedWeddingMembershipIds).toEqual([id('pending-A')])
     // Read-only: the resolver never accepts a pending membership (unlike /api/auth/me).
@@ -322,11 +376,11 @@ describeLocal('WewedProductionAuthorityV1 against a disposable migrated database
   })
 
   test('Platform Admin: the admin class alone is not enough; exact internal role is preserved', async () => {
-    const classOnly = await resolveProductionAuthority(actors.adminClassOnly)
+    const classOnly = await resolve(actors.adminClassOnly)
     expect(classOnly.workspaceGrants).toEqual([])
     expect(classOnly.nonGrantingRelationships.map((r) => r.reason)).toContain('legacy_global_admin_wedding_access')
 
-    const admin = await resolveProductionAuthority(actors.platformAdmin)
+    const admin = await resolve(actors.platformAdmin)
     expect(admin.workspaceGrants).toEqual([
       expect.objectContaining({ grantId: 'admin:system', scopeKind: 'system', weddingId: null, platformRoles: ['wewed_support_admin'] }),
     ])
@@ -336,22 +390,22 @@ describeLocal('WewedProductionAuthorityV1 against a disposable migrated database
     expect(admin.platform.effectiveSource).toBe('platform_registry')
     expect(admin.platform.effectiveRole).toBe('wewed_support_admin')
 
-    const suspended = await resolveProductionAuthority(actors.suspendedRegistryAdmin)
+    const suspended = await resolve(actors.suspendedRegistryAdmin)
     expect(suspended.workspaceGrants).toEqual([])
     expect(suspended.platform.registry.state).toBe('inactive')
   })
 
   test('Inactive and unknown identities carry no grants', async () => {
-    expect((await resolveProductionAuthority(actors.inactive)).accountStatus).toBe('inactive_identity')
+    expect((await resolve(actors.inactive)).accountStatus).toBe('inactive_identity')
     expect(await grantIds('inactive')).toEqual([])
-    const unknown = await resolveProductionAuthority(id('nobody'))
+    const unknown = await resolve(id('nobody'))
     expect(unknown.accountStatus).toBe('unknown_identity')
     expect(unknown.workspaceGrants).toEqual([])
   })
 
   test('Guest and Usher/Gate never appear as account grants, and are declared unsupported', async () => {
     for (const actor of Object.keys(actors)) {
-      const authority = await resolveProductionAuthority(actors[actor])
+      const authority = await resolve(actors[actor])
       for (const grant of authority.workspaceGrants) {
         expect(['couple', 'planner', 'coordinator', 'vendor', 'admin']).toContain(grant.workspaceKind)
       }
@@ -360,8 +414,63 @@ describeLocal('WewedProductionAuthorityV1 against a disposable migrated database
   })
 
   test('The contract is JSON-serialisable without loss', async () => {
-    const authority = await resolveProductionAuthority(actors.multi)
+    const authority = await resolve(actors.multi)
     expect(JSON.parse(JSON.stringify(authority))).toEqual(authority)
+  })
+
+  // ---------------------------------------------------------------------------------------------
+  // Phase 2 review closure
+  // ---------------------------------------------------------------------------------------------
+
+  test('Vendor: the canonical migrated Vendor (represents) receives its business and wedding grants', async () => {
+    const authority = await resolve(actors.canonicalVendor)
+    expect(authority.workspaceGrants.map((g) => g.grantId)).toEqual([
+      `vendor:business:${ids.canonicalBusiness}`,
+      `vendor:wedding:${ids.canonicalBusiness}:${ids.canonicalVendorRow}`,
+    ])
+    const onWedding = authority.workspaceGrants[1]
+    expect(onWedding.weddingId).toBe(ids.C)
+    expect(onWedding.serviceEngagementIds).toEqual([ids.canonicalSe])
+    // The companion wedding `serves` link is evidence, not a substitute grant.
+    expect(authority.businessLinks.map((l) => `${l.entityType}:${l.relationship}`).sort()).toEqual(['vendor:represents', 'wedding:serves'])
+  })
+
+  test('Vendor: an unrecognised vendor-link relationship is denied', async () => {
+    const authority = await resolve(actors.unknownLinkVendor)
+    expect(authority.workspaceGrants.map((g) => g.grantId)).toEqual([`vendor:business:${ids.VU}`])
+    expect(authority.nonGrantingRelationships).toContainEqual({
+      source: { kind: 'business_link', id: id('VU-vendor') },
+      reason: 'vendor_link_relationship_not_recognised',
+    })
+  })
+
+  test('Vendor: a Vendor link held by Business A never grants Business B', async () => {
+    // actors.vendor operates V1 and V2; the canonical business belongs to someone else entirely.
+    const authority = await resolve(actors.vendor)
+    expect(authority.workspaceGrants.some((g) => g.businessAccountId === ids.canonicalBusiness)).toBe(false)
+    expect(authority.workspaceGrants.some((g) => g.vendorId === ids.canonicalVendorRow)).toBe(false)
+    const v2 = authority.workspaceGrants.filter((g) => g.businessAccountId === ids.V2 && g.scopeKind === 'wedding')
+    expect(v2.map((g) => g.vendorId)).toEqual([ids.vendorRowB]) // only V2's own link, never V1's
+  })
+
+  test('Identity: an active user without a verified auth identity gets no grants', async () => {
+    for (const authUserId of [null, '', '  ']) {
+      const authority = await resolve(actors.couple, authUserId)
+      expect(authority.accountStatus).toBe('unverified_auth_identity')
+      expect(authority.workspaceGrants).toEqual([])
+    }
+  })
+
+  test('Identity: a verified auth identity with no UserProfile row is authorized normally', async () => {
+    const authority = await resolve(actors.noProfileCouple)
+    expect(authority.accountStatus).toBe('authorized')
+    expect(authority.workspaceGrants.map((g) => g.grantId)).toEqual([`couple:wedding:${ids.D}`])
+  })
+
+  test('Identity: a verified auth identity whose UserProfile is banned gets no grants', async () => {
+    const authority = await resolve(actors.bannedCouple)
+    expect(authority.accountStatus).toBe('banned_identity')
+    expect(authority.workspaceGrants).toEqual([])
   })
 
   // ---------------------------------------------------------------------------------------------
@@ -370,7 +479,7 @@ describeLocal('WewedProductionAuthorityV1 against a disposable migrated database
 
   test('PWA agreement: accessible weddings, membership roles and permissions match listAccessibleWeddings', async () => {
     for (const actor of ['couple', 'planner1', 'plannerMany', 'plannerZero', 'coordinator', 'multi', 'viewer', 'pending']) {
-      const authority = await resolveProductionAuthority(actors[actor])
+      const authority = await resolve(actors[actor])
       const dashboardClass = authority.identity!.dashboardClass as 'couple' | 'planner' | 'vendor'
       const pwa = await listAccessibleWeddings(actors[actor], dashboardClass)
       const contract = authority.weddingMemberships
@@ -383,7 +492,7 @@ describeLocal('WewedProductionAuthorityV1 against a disposable migrated database
 
   test('PWA agreement: platform-admin eligibility matches isWewedPlatformAdministrator', async () => {
     for (const actor of ['adminClassOnly', 'platformAdmin', 'suspendedRegistryAdmin', 'couple', 'planner1']) {
-      const authority = await resolveProductionAuthority(actors[actor])
+      const authority = await resolve(actors[actor])
       const gate = await isWewedPlatformAdministrator(actors[actor])
       const hasSystemGrant = authority.workspaceGrants.some((g) => g.workspaceKind === 'admin')
       // A system grant requires the PWA entry gate; the gate can pass while the effective
@@ -417,7 +526,7 @@ describeLocal('WewedProductionAuthorityV1 against a disposable migrated database
     // Vendor: /auth/me picks one business (LIMIT 1); it must be one the contract also grants.
     const vendorMe = await authMe('vendor', 'vendor')
     expect(vendorMe.workspace).toBe('vendor_portfolio')
-    const vendorGrants = (await resolveProductionAuthority(actors.vendor)).workspaceGrants
+    const vendorGrants = (await resolve(actors.vendor)).workspaceGrants
       .filter((g) => g.scopeKind === 'business').map((g) => g.businessAccountId)
     expect(vendorGrants).toContain(vendorMe.businessAccountId as string)
     expect(vendorGrants).toHaveLength(2)

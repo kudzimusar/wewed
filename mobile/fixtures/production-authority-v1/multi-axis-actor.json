@@ -81,7 +81,14 @@
       "businessAccountId": "vendor-1",
       "entityType": "vendor",
       "entityId": "vendor-row-F",
-      "relationship": "owns"
+      "relationship": "represents"
+    },
+    {
+      "linkId": "bal-3",
+      "businessAccountId": "vendor-1",
+      "entityType": "wedding",
+      "entityId": "F",
+      "relationship": "serves"
     }
   ],
   "weddingMemberships": [
@@ -160,7 +167,7 @@
     {
       "businessAccountId": "vendor-1",
       "linkId": "bal-2",
-      "linkRelationship": "owns",
+      "linkRelationship": "represents",
       "vendorId": "vendor-row-F",
       "vendorName": "Vendor F",
       "weddingId": "F",

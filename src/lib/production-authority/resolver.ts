@@ -28,12 +28,13 @@ import { buildProductionAuthority } from './grants'
  * never sets a cookie and never selects a wedding. It reads relationships and reports them.
  *
  * It is not an authentication system. The caller must already have verified the account through
- * existing Wewed authority (Supabase identity bound to the AppSession, as /api/auth/me does) and
- * pass the resulting ids. Native transport is master plan Phase 5.
+ * existing Wewed authority (the Supabase user bound to the AppSession, as /api/auth/me does) and
+ * pass BOTH ids. `authUserId` is required: when it is missing or blank the result is
+ * `unverified_auth_identity` with no grants. Native transport is master plan Phase 5.
  */
 export async function resolveProductionAuthority(
   accessUserId: string,
-  options: { authUserId?: string | null } = {},
+  options: { authUserId: string | null },
 ): Promise<WewedProductionAuthorityV1> {
   return buildProductionAuthority(await loadProductionAuthorityEvidence(accessUserId, options))
 }
@@ -54,9 +55,9 @@ function stringArray(value: unknown): string[] {
 
 export async function loadProductionAuthorityEvidence(
   accessUserId: string,
-  options: { authUserId?: string | null } = {},
+  options: { authUserId: string | null },
 ): Promise<ProductionAuthorityEvidence> {
-  const authUserId = options.authUserId ?? null
+  const authUserId = options.authUserId?.trim() || null
 
   const [identityRows, profileRows, businessRows, weddingRows, registry] = await Promise.all([
     db.$queryRawUnsafe<Array<Omit<IdentityEvidence, 'accessUserId' | 'authUserId' | 'userRole'> & { id: string; role: string }>>(

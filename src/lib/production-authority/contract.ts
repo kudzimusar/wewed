@@ -197,10 +197,18 @@ export interface WewedProductionAuthorityV1 {
   contract: typeof PRODUCTION_AUTHORITY_CONTRACT
   version: typeof PRODUCTION_AUTHORITY_VERSION
   /**
-   * `authorized` when an active, unbanned identity exists. Anything else carries no grants at
-   * all, whatever relationships the database still holds.
+   * `authorized` only when an active access user exists, the caller supplied a VERIFIED auth
+   * identity (`authUserId`), and that identity's UserProfile — if a row exists — is not banned.
+   * Anything else carries no grants at all, whatever relationships the database still holds.
+   * `unverified_auth_identity` means no verified auth identity was supplied: the resolver never
+   * authenticates anyone itself (transport is Phase 5), so without one it fails closed.
    */
-  accountStatus: 'authorized' | 'unknown_identity' | 'inactive_identity' | 'banned_identity'
+  accountStatus:
+    | 'authorized'
+    | 'unknown_identity'
+    | 'inactive_identity'
+    | 'unverified_auth_identity'
+    | 'banned_identity'
   identity: {
     accessUserId: string
     authUserId: string | null
