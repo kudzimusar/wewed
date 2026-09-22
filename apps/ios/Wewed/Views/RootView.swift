@@ -9,6 +9,7 @@ public struct RootView: View {
     @EnvironmentObject private var session: SessionStore
     @EnvironmentObject private var appState: AppState
     @State private var showingPersonaPicker = false
+    @StateObject private var productionSectionMemory = WorkspaceSectionMemory()
     /// The context resolved from verified assignments (P0-3). Nil while resolving.
     @State private var resolvedContext: NavigationContext?
     @State private var deepLinkedInvitation: InvitationContext?
@@ -98,15 +99,19 @@ public struct RootView: View {
     /// picker.
     private var pendingGrantSelection: [ProductionWorkspaceGrant] {
         guard let authority = session.productionAuthority,
-              let role = session.currentRole,
               ProductionGrantMapper.isUsable(authority)
         else { return [] }
-        let roleGrants = authority.workspaceGrants.filter { $0.workspaceKindWire == role.roleId }
-        guard roleGrants.count > 1 else { return [] }
-        guard authority.contextSelection.first(where: { $0.workspaceKind == role.roleId })?.selectionRequired == true
-        else { return [] }
-        guard !roleGrants.contains(where: { session.selectedGrantIds.contains($0.grantId) }) else { return [] }
-        return roleGrants
+
+        // Selection must be possible before an ActorAssignment/currentRole exists. Two Planner
+        // wedding grants both require a choice; deriving the picker from currentRole deadlocks.
+        guard let selection = authority.contextSelection.first(where: { context in
+            context.selectionRequired
+                && context.grantIds.count > 1
+                && !context.grantIds.contains(where: session.selectedGrantIds.contains)
+        }) else { return [] }
+
+        let ids = Set(selection.grantIds)
+        return authority.workspaceGrants.filter { ids.contains($0.grantId) }
     }
 
     /// Guest Entry Contract (GuestCeremonialEntry, master plan §6.3).
@@ -195,6 +200,26 @@ public struct RootView: View {
                     onSelect: { grantId in session.selectGrant(grantId) },
                     onSignOut: { session.signOut() }
                 )
+            } else if session.isAuthenticated,
+                      session.currentRole == nil,
+                      session.activeGrantId != nil {
+                if let snapshot = session.productionWorkspace,
+                   snapshot.grantId == session.activeGrantId {
+                    ProductionReadOnlyWorkspaceContent(
+                        snapshot: snapshot,
+                        onSignOut: { session.signOut() }
+                    )
+                } else {
+                    VStack(spacing: 8) {
+                        Text("This authorized workspace could not be refreshed.")
+                        Text("No cached production data is shown.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(WeddingIdentityPalette.muted)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(WeddingIdentityPalette.ivory)
+                    .accessibilityIdentifier("production-workspace-unavailable")
+                }
             } else if session.isAuthenticated {
                 roleShell
                     .task(id: "\(session.currentRole?.roleId ?? "")|\(session.activePersona?.id ?? "")|\(session.selectedGrantIds.count)") {
@@ -302,6 +327,30 @@ public struct RootView: View {
         let link = appState.pendingRouteDeepLink
         let handled: () -> Void = { appState.pendingRouteDeepLink = nil }
 
+        if appState.dataEnvironment == .production {
+            if let snapshot = session.productionWorkspace,
+               snapshot.grantId == session.activeGrantId {
+                RoleShellScaffold(
+                    context: context,
+                    onSwitchPersona: nil,
+                    pendingDeepLink: link,
+                    sectionMemory: productionSectionMemory,
+                    onDeepLinkHandled: handled
+                ) { destination, _ in
+                    ProductionReadOnlyWorkspaceContent(snapshot: snapshot, destination: destination)
+                }
+            } else {
+                VStack(spacing: 8) {
+                    Text("The authorized workspace could not be refreshed.")
+                    Text("No cached production data is shown.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(WeddingIdentityPalette.muted)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(WeddingIdentityPalette.ivory)
+                .accessibilityIdentifier("production-workspace-unavailable")
+            }
+        } else {
         switch context.activeRole {
         case .couple:
             CoupleShellView(
@@ -352,6 +401,7 @@ public struct RootView: View {
                 pendingDeepLink: link,
                 onDeepLinkHandled: handled
             )
+        }
         }
     }
 
