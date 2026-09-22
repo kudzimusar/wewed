@@ -273,18 +273,21 @@ describeLocal('Phase 8 — native domain adapters against a disposable migrated 
     const foreignGid = grantId('couple', 'wedding', ids.B)
     const foreignRes = await GET_TASKS(await bearerRequest(`http://localhost/api/native/wedding/tasks?grantId=${foreignGid}`, actors.owner, `auth-${actors.owner}`))
     expect(foreignRes.status).toBe(403)
+    expect((await foreignRes.json()).code).toBe('GRANT_REVOKED')
   })
 
   test('Tasks: a revoked membership grant id is denied entirely', async () => {
     const gid = grantId('planner', 'wedding', ids.A)
     const res = await GET_TASKS(await bearerRequest(`http://localhost/api/native/wedding/tasks?grantId=${gid}`, actors.revoked, `auth-${actors.revoked}`))
     expect(res.status).toBe(403)
+    expect((await res.json()).code).toBe('GRANT_REVOKED')
   })
 
   test('Tasks: a viewer-only membership never grants a workspace at all', async () => {
     const gid = grantId('couple', 'wedding', ids.A)
     const res = await GET_TASKS(await bearerRequest(`http://localhost/api/native/wedding/tasks?grantId=${gid}`, actors.viewerOnly, `auth-${actors.viewerOnly}`))
     expect(res.status).toBe(403)
+    expect((await res.json()).code).toBe('GRANT_REVOKED')
   })
 
   test('Budget/Guests/Seating/Timeline/Vendors: planner reads exactly wedding A, never wedding B', async () => {
@@ -335,6 +338,7 @@ describeLocal('Phase 8 — native domain adapters against a disposable migrated 
     const adminGid = grantId('admin', 'system', '')
     const res = await GET_TASKS(await bearerRequest(`http://localhost/api/native/wedding/tasks?grantId=admin:system`, actors.admin, `auth-${actors.admin}`))
     expect(res.status).toBe(403)
+    expect((await res.json()).code).toBe('GRANT_SCOPE_INVALID')
     void adminGid
   })
 
@@ -352,6 +356,7 @@ describeLocal('Phase 8 — native domain adapters against a disposable migrated 
     // A couple/planner grant id can never be used against the Vendor routes.
     const wrongKindRes = await GET_VENDOR_BUSINESS(await bearerRequest(`http://localhost/api/native/vendor/business?grantId=${grantId('couple', 'wedding', ids.A)}`, actors.owner, `auth-${actors.owner}`))
     expect(wrongKindRes.status).toBe(403)
+    expect((await wrongKindRes.json()).code).toBe('GRANT_SCOPE_INVALID')
   })
 
   test('Admin: a real admin gets a real pending-onboarding count; a non-admin grant is refused', async () => {
@@ -363,6 +368,7 @@ describeLocal('Phase 8 — native domain adapters against a disposable migrated 
 
     const nonAdminRes = await GET_ADMIN_OVERVIEW(await bearerRequest(`http://localhost/api/native/admin/overview?grantId=${grantId('couple', 'wedding', ids.A)}`, actors.owner, `auth-${actors.owner}`))
     expect(nonAdminRes.status).toBe(403)
+    expect((await nonAdminRes.json()).code).toBe('GRANT_SCOPE_INVALID')
   })
 
   test('Cross-context isolation: a coordinator on wedding A can never read wedding B by any grant id, real or guessed', async () => {
@@ -375,5 +381,6 @@ describeLocal('Phase 8 — native domain adapters against a disposable migrated 
     const guessedGid = grantId('coordinator', 'wedding', ids.B)
     const guessedRes = await GET_TASKS(await bearerRequest(`http://localhost/api/native/wedding/tasks?grantId=${guessedGid}`, actors.coordinator, `auth-${actors.coordinator}`))
     expect(guessedRes.status).toBe(403)
+    expect((await guessedRes.json()).code).toBe('GRANT_REVOKED')
   })
 })
