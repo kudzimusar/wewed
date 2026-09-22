@@ -1217,22 +1217,22 @@ Accepted. Status set to LOCKED. Factual corrections C-1 … C-8 and hazards §8.
 Accepted. Phase 1 branches from `native-mobile/guest-profile-invitation-20260921` @ d7c4dddeabb594810a5833b4ac24d356883a8a3b, not from `native-mobile/role-architecture-p0-20260919` (C-8).
 
 ### D-013 — Phase 3 status (2026-09-22)
-**BLOCKED AT DATABASE-IDENTITY GATE — no production query run.** Phase 3 has not begun its catalog/data audit because the real Wewed production database cannot yet be positively tied to the live deployment from the currently available credentials/connectors.
+**IN PROGRESS — database identity gate instrumented, awaiting protected Preview execution.** No production mutation has occurred and Phase 4 has not started.
 
-Independently verified repository/deployment metadata:
-- repository guard `scripts/check-supabase-project.sh` expects Supabase project ref `kjigkhjdeymukwradoqu`;
-- connected Vercel team is `11-11` / Eleven-11-Tech (`team_InL2Jmsg4dbG0rFY8nxriTha`);
-- Vercel project `wewed` is visible as `prj_JSSaBHv2CIhJIeHxep6YigJoObFX`;
-- the currently available Supabase connector/project visible to the implementation agent is unrelated and must not be queried as Wewed.
+The original blocker remains: Vercel stores the live `DATABASE_URL` as a Sensitive value and will not return it through CLI/API reads. The currently connected Supabase account does not have access to the expected Wewed project `kjigkhjdeymukwradoqu`.
 
-Phase-3 Rule-7 gate therefore remains closed until the database used by the live Wewed Vercel deployment is positively identified and the application database role is known.
+Reviewer-owned unblock work now exists on:
+- branch `backend/production-database-audit-phase3-20260922`;
+- safe in-memory `DATABASE_URL` fingerprinting with password/query-string redaction;
+- a Preview-only audit route that returns 404 in Production;
+- SQL execution refused unless the parsed Supabase ref matches `kjigkhjdeymukwradoqu`;
+- once matched, only hardcoded identity/catalog SELECTs run after `SET TRANSACTION READ ONLY` and the transaction is deliberately rolled back;
+- reusable SELECT-only catalog preflight SQL;
+- a sanitized Phase-3 audit record.
 
-Approved unblocking paths remain:
-1. authorize a Wewed Supabase connector/account that can see `kjigkhjdeymukwradoqu`, then independently prove that project is the database used by the live deployment;
-2. explicitly approve a **read-only inspection of the Vercel production `DATABASE_URL` value for identity metadata only** (host/project ref/database/role; never print or persist the password/URL), which directly proves the deployment-to-database binding and application role;
-3. provide a dedicated read-only production connection plus the real application-role identity.
+The Preview route compiled successfully at commit `9e499e54302d79d789b1775b702a5e756027d593`. The remaining access boundary is Vercel Deployment Protection: the current reviewer tooling can create a temporary share link but cannot complete the browser SSO cookie redirect itself. This is an external-access exception under the governance rule, not a code defect.
 
-No Phase-3 branch, audit SQL, production query, production mutation, or Phase-4 work should begin before this gate is satisfied.
+No production INSERT/UPDATE/DELETE/DDL, migration, deployment-to-production, secret disclosure, or data repair has been performed.
 
 ### D-012 — Phase 2 status (2026-09-22)
 **ACCEPTED — independent Rule-10 review passed after reviewer-owned closure patch.** Phase 3 may begin; it has not started.
