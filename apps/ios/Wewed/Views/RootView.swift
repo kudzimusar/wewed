@@ -65,7 +65,8 @@ public struct RootView: View {
             repository: appState.repository,
             plannerRepository: appState.plannerRepository,
             productionAuthority: session.productionAuthority,
-            selectedGrantIds: session.selectedGrantIds
+            selectedGrantIds: session.selectedGrantIds,
+            selectedEngagementId: session.selectedEngagementId
         )
         // No default actor: the actor is whoever the session holds, or nobody.
         let actorId = session.activePersona?.id ?? ""
@@ -232,7 +233,9 @@ public struct RootView: View {
                 }
             } else if session.isAuthenticated {
                 roleShell
-                    .task(id: "\(session.currentRole?.roleId ?? "")|\(session.activePersona?.id ?? "")|\(session.selectedGrantIds.count)") {
+                    .task(
+                        id: "\(session.currentRole?.roleId ?? "")|\(session.activePersona?.id ?? "")|\(session.activeGrantId ?? "")|\(session.selectedGrantIds.sorted().joined(separator: ","))|\(session.selectedEngagementId ?? "")"
+                    ) {
                         contextResolutionFinished = false
                         await resolveContext()
                     }
