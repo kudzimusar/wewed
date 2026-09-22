@@ -1244,7 +1244,8 @@ Reviewer finding and closure:
 - synthetic `WEWED_SESSION_SECRET` values in the new tests are now contained by test lifecycle setup/teardown rather than left as top-level process state.
 
 Reviewer-patched qualification head:
-- `d002a8b28555830dfc59617553f8f4deb59f2f31`.
+- initial closure head: `d002a8b28555830dfc59617553f8f4deb59f2f31`;
+- follow-up synchronized-test closure head: `62a4cfa154359532ab9a08c1f4849b54015a6a41`.
 
 Remote reinspection confirmed:
 - the branch is exactly at that SHA;
@@ -1254,8 +1255,10 @@ Remote reinspection confirmed:
 
 Execution status:
 - implementation-agent evidence before reviewer closure: focused Guest suites 91/91, production-equivalent build PASS with a synthetic non-committed secret, Android 314/314, iOS 316/316;
-- the reviewer-patched head has been statically re-inspected but has not yet been executable-tested from the review environment;
-- therefore final Phase-4 acceptance remains pending one clean execution-verification pass on `d002a8b...`.
+- the reviewer-patched head was executable-checked by the implementation agent and exposed one synchronized source-assertion defect in `src/lib/unified-navigation-privacy.test.ts`: it still required the old literal `db.weddingMembership.findFirst` after the reviewer introduced the production-neutral `database` dependency parameter;
+- the moderator closed that ordinary defect directly by making the assertion identifier-agnostic (`weddingMembership.findFirst`) rather than coupling it to the local parameter name;
+- follow-up reviewer patch head: `62a4cfa154359532ab9a08c1f4849b54015a6a41`;
+- final Phase-4 acceptance remains pending one clean execution-verification pass on `62a4cfa...`, including the previously deferred targeted Planner Stage-2, full-suite parity, production-equivalent build, Android and iOS checks.
 
 External configuration status:
 - `WEWED_SESSION_SECRET` remains absent from Vercel Preview and Production per the implementation-agent names-only environment check;
