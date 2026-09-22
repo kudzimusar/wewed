@@ -354,8 +354,8 @@ fun RootScreen(
     // is picked on the person's behalf. A single grant, or a grant kind the contract does not mark
     // selectionRequired, needs no picker and falls straight through to the ordinary context
     // resolution below.
-    val pendingGrantChoice = remember(productionAuthority, selectedGrantIds) {
-        pendingGrantSelection(productionAuthority, selectedGrantIds)
+    val pendingGrantChoice = remember(productionAuthority, currentRole, selectedGrantIds) {
+        pendingGrantSelection(productionAuthority, currentRole, selectedGrantIds)
     }
     if (pendingGrantChoice.isNotEmpty()) {
         GrantSelectionScreen(
@@ -581,17 +581,19 @@ fun RootScreen(
  */
 private fun pendingGrantSelection(
     authority: ProductionAuthority?,
+    currentRole: AppRole?,
     selectedGrantIds: Set<String>
 ): List<ProductionWorkspaceGrant> {
     if (authority == null || !ProductionGrantMapper.isUsable(authority)) return emptyList()
 
-    // Selection must be possible BEFORE an ActorAssignment/currentRole exists. For example, two
-    // Planner wedding grants both require a choice, so deriving the picker from currentRole creates
-    // a deadlock: no choice -> no role -> no picker.
+    // With an active role, do not interrupt it to force selection for some other axis; cross-role
+    // switching/isolation is Phase 6. With NO role, however, selection must still be reachable:
+    // two same-kind wedding grants cannot create an ActorAssignment until one is chosen.
     val selection = authority.contextSelection.firstOrNull { context ->
         context.selectionRequired &&
             context.grantIds.size > 1 &&
-            context.grantIds.none { it in selectedGrantIds }
+            context.grantIds.none { it in selectedGrantIds } &&
+            (currentRole == null || context.workspaceKindWire == currentRole.roleId)
     } ?: return emptyList()
 
     val ids = selection.grantIds.toSet()
