@@ -1277,6 +1277,51 @@ Phase gate:
 - Phase 4: **ACCEPTED**;
 - Phase 5: **READY TO BEGIN**.
 
+### D-019 — Phase 8 review checkpoint (2026-09-23)
+**NOT ACCEPTED — substantial mature-domain parity exists, but the locked Phase-8 exit gate is not yet satisfied. Continue Phase 8; Phase 9 remains closed.**
+
+Implementation-agent heads reviewed:
+- server `backend/native-workspace-parity-phase8-20260922` @ `108a8c9416a6bebced85cb27256219b9fdb250f8`;
+- native `native-mobile/workspace-parity-phase8-20260922` @ `5e278e0ff44253fe8be620945886dae641afd7fc`.
+
+Reviewer-clean continuation heads:
+- server: `f602586b9d176bfa4b7d964b2faee9f2f60b8bad`;
+- native: `3cfc0d8734d346709da67bdac1aa6dd5bd7c63b3`.
+
+Accepted progress within Phase 8:
+- Couple/Planner/Coordinator wedding-scoped production shells now consume real native-safe adapters for overview, tasks, budget, guests, seating, timeline and planning-side vendors;
+- task create/update/toggle is production-backed, though the shared PWA/native mutation domain still needs further extraction;
+- Vendor business/catalog/bookings and Admin pending-onboarding server adapters exist and are authority-tested;
+- production hardcoded/fabricated legacy screens were reduced;
+- field classification exists at `docs/native-mobile/WEWED_NATIVE_PHASE8_FIELD_CLASSIFICATION.md`;
+- server disposable-database qualification passed on the reviewer server head;
+- reviewer native gate on product head `b34ee8524ca1aa122228a769825e22372faba5a7` passed iOS Swift tests/build, simulator build, unsigned Release build, and Android unit/debug/release assembly. Temporary qualification workflows were then removed.
+
+Moderator-owned closure patches before this checkpoint:
+1. Added explicit native-domain error codes so 401, real grant revocation, permission denial, scope denial and engagement denial are distinguishable.
+2. Android/iOS clients now clear the account session only for session invalidation, and clear a grant/context only for explicit grant revocation/authority loss; generic 403/404 no longer revoke a valid context.
+3. LIVE production-domain failures no longer silently become empty lists/empty programme data.
+4. Production Planner UI no longer displays Shadow-only authorization/enquiry claims.
+5. Unsupported Planner client-portfolio, attention/activity, contribution/document and Wedding-Day operational streams now render as UNSUPPORTED rather than falsely claiming no records.
+6. Coordinator production UI no longer derives gate/vendor-arrival counts from deliberately empty Phase-8 Wedding-Day placeholders.
+7. SwiftUI reviewer patch was corrected after an intermediate qualification head failed to compile; the final exact product head passed the full native reviewer gate.
+
+Remaining Phase-8 blockers:
+- Vendor server adapters are not wired into a real production Vendor portfolio/engagement role shell; Production still falls back to the Phase-5/6 minimal snapshot.
+- Admin production UI still falls back to the minimal snapshot and only one Admin metric is connected; mature system domains remain unwired.
+- Contributions, contracts/deal-room and documents/vault remain unsupported for Couple/Planner despite mature PWA/server domains existing.
+- `NativeRepositoryFactory.PRODUCTION` still constructs boundary repositories and relies on reactive root rebinding for only some roles; this transitional architecture must be closed for mature production workspaces.
+- Task validation/format helpers are shared, but create/update mutation logic remains duplicated between PWA and native routes instead of one shared server-domain operation.
+- Production-reachable Shadow-era/dead Planner destination surfaces require a final reachability/static-data cleanup.
+- Every production-visible mutation or empty-state must be audited so transport/permission failures never appear as real empty data.
+- F-3 still blocks real production Vendor wedding grants; implementation must support legitimate grants without fabricating production evidence.
+- F-4 remains unapplied to production; F-6 and `WEWED_SESSION_SECRET` remain later/operational gates.
+
+Phase gate:
+- Phase 8: **NOT ACCEPTED**;
+- continue Phase 8 from the reviewer-clean heads above;
+- Phase 9: **NOT STARTED / NOT AUTHORIZED**.
+
 ### D-018 — Phase 7 status (2026-09-22)
 **ACCEPTED — onboarding is reconciled to the canonical Supabase/account relationship graph, F-4 is closed at migration-code level, zero-wedding Planner completion is repaired, native onboarding remains unavailable, and independent server/native qualification passed. Phase 8 may begin.**
 
