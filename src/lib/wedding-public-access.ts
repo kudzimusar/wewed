@@ -2,7 +2,6 @@ import 'server-only'
 import { shouldBlockPreviewWrite, PREVIEW_WRITE_BLOCK_MESSAGE } from '@/lib/preview-write-safety'
 
 import type { NextRequest } from 'next/server'
-import { db } from '@/lib/db'
 import {
   APP_SESSION_COOKIE,
   verifyAppSessionToken,
@@ -21,6 +20,8 @@ import {
 } from '@/lib/wedding-shared-invitation-session'
 
 export type WeddingPrivacy = 'public' | 'link_only' | 'private'
+type WeddingDatabase = typeof import('@/lib/db').db
+
 export type WeddingAccessKind =
   | 'public'
   | 'couple_owner'
@@ -106,9 +107,10 @@ export function weddingSlugFromRequest(
 
 export async function loadWeddingAccessRecord(
   slug: string,
-  database: typeof db = db,
+  database?: WeddingDatabase,
 ): Promise<WeddingAccessRecord | null> {
-  const wedding = await database.wedding.findUnique({
+  const activeDb = database ?? (await import('@/lib/db')).db
+  const wedding = await activeDb.wedding.findUnique({
     where: { slug },
     select: {
       id: true,
@@ -162,11 +164,12 @@ export async function loadWeddingAccessRecord(
 async function authenticatedWeddingAccessKind(
   wedding: WeddingAccessRecord,
   session: AppSession | null,
-  database: typeof db = db,
+  database?: WeddingDatabase,
 ): Promise<'couple_owner' | 'wedding_member' | null> {
   if (!session || session.activeWeddingId !== wedding.id) return null
 
-  const membership = await database.weddingMembership.findFirst({
+  const activeDb = database ?? (await import('@/lib/db')).db
+  const membership = await activeDb.weddingMembership.findFirst({
     where: {
       weddingId: wedding.id,
       userId: session.userId,
@@ -190,11 +193,12 @@ async function authenticatedWeddingAccessKind(
 export async function resolveGuestSessionForWedding(
   wedding: WeddingAccessRecord,
   session: WeddingGuestSession | null,
-  database: typeof db = db,
+  database?: WeddingDatabase,
 ): Promise<WeddingGuestIdentity | null> {
   if (!session || session.weddingId !== wedding.id) return null
 
-  const rsvp = await database.rSVP.findUnique({
+  const activeDb = database ?? (await import('@/lib/db')).db
+  const rsvp = await activeDb.rSVP.findUnique({
     where: session.version === 1 ? { token: session.rsvpToken } : { guestId: session.guestId },
     include: {
       guest: {
@@ -243,11 +247,12 @@ export async function resolveGuestSessionForWedding(
 async function resolveSharedInvitationForWedding(
   wedding: WeddingAccessRecord,
   session: WeddingSharedInvitationSession | null,
-  database: typeof db = db,
+  database?: WeddingDatabase,
 ): Promise<boolean> {
   if (!session || session.weddingId !== wedding.id) return false
 
-  const destination = await database.qRDestination.findFirst({
+  const activeDb = database ?? (await import('@/lib/db')).db
+  const destination = await activeDb.qRDestination.findFirst({
     where: {
       id: session.destinationId,
       weddingId: wedding.id,
@@ -290,7 +295,7 @@ export async function resolveWeddingAccessFromTokens(input: {
   appSessionToken?: string | null
   guestSessionToken?: string | null
   sharedInvitationSessionToken?: string | null
-}, database: typeof db = db): Promise<WeddingAccessResolution> {
+}, database?: WeddingDatabase): Promise<WeddingAccessResolution> {
   const wedding = await loadWeddingAccessRecord(input.slug, database)
   if (!wedding) {
     return {
