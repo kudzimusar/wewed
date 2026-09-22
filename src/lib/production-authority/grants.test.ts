@@ -10,7 +10,7 @@ import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import type { BusinessMembershipEvidence, ProductionAuthorityEvidence, WeddingMembershipEvidence } from './contract'
-import { INTERNAL_ADMIN_ROLES, buildProductionAuthority } from './grants'
+import { INTERNAL_ADMIN_ROLES, RECOGNISED_VENDOR_LINK_RELATIONSHIPS, buildProductionAuthority } from './grants'
 
 const FIXTURE = 'mobile/fixtures/production-authority-v1/multi-axis-actor.json'
 
@@ -64,11 +64,12 @@ const multiAxis = evidence({
   ],
   businessLinks: [
     { linkId: 'bal-1', businessAccountId: 'planning-1', entityType: 'wedding', entityId: 'B', relationship: 'manages' },
-    { linkId: 'bal-2', businessAccountId: 'vendor-1', entityType: 'vendor', entityId: 'vendor-row-F', relationship: 'owns' },
+    { linkId: 'bal-2', businessAccountId: 'vendor-1', entityType: 'vendor', entityId: 'vendor-row-F', relationship: 'represents' },
+    { linkId: 'bal-3', businessAccountId: 'vendor-1', entityType: 'wedding', entityId: 'F', relationship: 'serves' },
   ],
   providerProfiles: [{ businessAccountId: 'vendor-1', listingStatus: 'verified', visibility: 'published', isClaimable: false }],
   vendorEngagements: [{
-    businessAccountId: 'vendor-1', linkId: 'bal-2', linkRelationship: 'owns', vendorId: 'vendor-row-F',
+    businessAccountId: 'vendor-1', linkId: 'bal-2', linkRelationship: 'represents', vendorId: 'vendor-row-F',
     vendorName: 'Vendor F', weddingId: 'F',
     serviceEngagements: [{ serviceEngagementId: 'se-1', lifecycleStatus: 'active', origin: 'booking', recordMode: 'live' }],
   }],
@@ -155,7 +156,7 @@ describe('WewedProductionAuthorityV1 — pure rules', () => {
         { businessAccountId: 'v-ok', listingStatus: 'claimed', visibility: 'published', isClaimable: false },
       ],
       vendorEngagements: [{
-        businessAccountId: 'v-ok', linkId: 'bal-x', linkRelationship: 'represents', vendorId: 'vr', vendorName: 'V',
+        businessAccountId: 'v-ok', linkId: 'bal-x', linkRelationship: 'partner_of', vendorId: 'vr', vendorName: 'V',
         weddingId: 'W', serviceEngagements: [],
       }],
     }))
@@ -209,6 +210,92 @@ describe('WewedProductionAuthorityV1 — pure rules', () => {
       .replace(/^\s*\/\/.*$/gm, '')
     expect(resolver).not.toMatch(/\b(INSERT|UPDATE|DELETE|UPSERT|ALTER|TRUNCATE)\b/)
     expect(resolver).not.toMatch(/\$executeRaw|setAppSessionCookie|acceptPendingMemberships|currentWeddingId/)
+  })
+
+  // ------------------------------------------------------------------------------------------
+  // Phase 2 review closure
+  // ------------------------------------------------------------------------------------------
+
+  const vendorBusinessA = business('vendor-A', 'vendor', 'business_owner')
+  const vendorBusinessB = business('vendor-B', 'vendor', 'business_owner')
+  const published = (id: string) => ({ businessAccountId: id, listingStatus: 'verified', visibility: 'published', isClaimable: false })
+  const vendorLink = (businessAccountId: string, linkRelationship: string, vendorId = 'vendor-row') => ({
+    businessAccountId, linkId: `bal-${businessAccountId}-${linkRelationship}`, linkRelationship, vendorId,
+    vendorName: 'Vendor', weddingId: 'W', serviceEngagements: [],
+  })
+
+  test('vendor: the canonical `represents` entity link grants the wedding', () => {
+    const authority = buildProductionAuthority(evidence({
+      businessMemberships: [vendorBusinessA], providerProfiles: [published('vendor-A')],
+      vendorEngagements: [vendorLink('vendor-A', 'represents')],
+    }))
+    expect(authority.workspaceGrants.map((g) => g.grantId)).toEqual(['vendor:business:vendor-A', 'vendor:wedding:vendor-A:vendor-row'])
+  })
+
+  test('vendor: every repository-sanctioned vendor entity relationship is accepted', () => {
+    expect([...RECOGNISED_VENDOR_LINK_RELATIONSHIPS]).toEqual(['represents'])
+    for (const relationship of RECOGNISED_VENDOR_LINK_RELATIONSHIPS) {
+      const authority = buildProductionAuthority(evidence({
+        businessMemberships: [vendorBusinessA], providerProfiles: [published('vendor-A')],
+        vendorEngagements: [vendorLink('vendor-A', relationship)],
+      }))
+      expect(authority.workspaceGrants.some((g) => g.scopeKind === 'wedding')).toBe(true)
+    }
+  })
+
+  test('vendor: the schema default `owns`, the wedding `serves` value and unknown values are denied', () => {
+    for (const relationship of ['owns', 'serves', 'hosts', 'manages', 'partner_of', '']) {
+      const authority = buildProductionAuthority(evidence({
+        businessMemberships: [vendorBusinessA], providerProfiles: [published('vendor-A')],
+        vendorEngagements: [vendorLink('vendor-A', relationship)],
+      }))
+      expect(authority.workspaceGrants.map((g) => g.grantId)).toEqual(['vendor:business:vendor-A'])
+      expect(authority.nonGrantingRelationships.map((r) => r.reason)).toContain('vendor_link_relationship_not_recognised')
+    }
+  })
+
+  test('vendor: a link held by Business A never grants Business B', () => {
+    const authority = buildProductionAuthority(evidence({
+      // The actor operates B only; A's canonical link must not surface as B's work.
+      businessMemberships: [vendorBusinessB], providerProfiles: [published('vendor-A'), published('vendor-B')],
+      vendorEngagements: [vendorLink('vendor-A', 'represents', 'row-of-A')],
+    }))
+    expect(authority.workspaceGrants.map((g) => g.grantId)).toEqual(['vendor:business:vendor-B'])
+    expect(authority.workspaceGrants.some((g) => g.vendorId === 'row-of-A')).toBe(false)
+  })
+
+  test('identity: an active user without a verified auth identity gets no grants', () => {
+    for (const authUserId of [null, '', '   ']) {
+      const authority = buildProductionAuthority({ ...multiAxis, identity: { ...multiAxis.identity!, authUserId } })
+      expect(authority.accountStatus).toBe('unverified_auth_identity')
+      expect(authority.workspaceGrants).toEqual([])
+    }
+  })
+
+  test('identity: a verified auth identity with no UserProfile row is authorized', () => {
+    const authority = buildProductionAuthority({ ...multiAxis, profile: null })
+    expect(authority.accountStatus).toBe('authorized')
+    expect(authority.workspaceGrants.length).toBeGreaterThan(0)
+  })
+
+  test('identity: a banned profile, an inactive user and an unknown user get no grants', () => {
+    const banned = buildProductionAuthority({ ...multiAxis, profile: { ...multiAxis.profile!, isBanned: true } })
+    expect([banned.accountStatus, banned.workspaceGrants]).toEqual(['banned_identity', []])
+    const inactive = buildProductionAuthority({ ...multiAxis, identity: { ...multiAxis.identity!, isActive: false } })
+    expect([inactive.accountStatus, inactive.workspaceGrants]).toEqual(['inactive_identity', []])
+    const unknown = buildProductionAuthority({ ...multiAxis, identity: null })
+    expect([unknown.accountStatus, unknown.workspaceGrants]).toEqual(['unknown_identity', []])
+  })
+
+  test('admin: an unknown effective platform role never produces an Admin grant', () => {
+    for (const role of ['wewed_root', 'admin', 'super_admin', '']) {
+      const authority = buildProductionAuthority(evidence({
+        businessMemberships: [business('wewed', 'wewed_internal', 'wewed_support_admin')],
+        platformRegistry: { state: 'active', role, status: 'active', scopes: [] },
+      }))
+      expect(authority.workspaceGrants).toEqual([])
+      expect(authority.platform.effectiveRole).toBe(role)
+    }
   })
 
   test('shared fixture: the Android/iOS contract fixture is exactly what the builder produces', () => {

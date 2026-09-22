@@ -45,11 +45,17 @@ const VENDOR_BUSINESS_ROLES = new Set(['business_owner', 'vendor_manager'])
 const VENDOR_LISTING_STATUSES = new Set(['claimed', 'verified'])
 
 /**
- * `BusinessAccountLink.relationship` values accepted as a vendor business operating a wedding's
- * Vendor record. Only the schema default is recognised until the production catalog is audited
- * (Phase 3); anything else fails closed and is reported.
+ * `BusinessAccountLink.relationship` values that mean "this business IS the Vendor on that
+ * wedding", for `entityType = 'vendor'`. Derived from every repository path that writes a vendor
+ * entity link — there is exactly one, the canonical backfill in
+ * prisma/migrations/20260730173000_wewed_business_admin_console (`'vendor', v.id, 'represents'`).
+ *
+ * The schema default `owns` is NOT here: no repository path writes it for a vendor link. The
+ * companion `entityType = 'wedding'` / `serves` link is not a substitute for the Vendor entity
+ * link and grants nothing on its own. Anything unrecognised fails closed and is reported
+ * (production values are a Phase 3 question).
  */
-export const RECOGNISED_VENDOR_LINK_RELATIONSHIPS = new Set(['owns'])
+export const RECOGNISED_VENDOR_LINK_RELATIONSHIPS: ReadonlySet<string> = new Set(['represents'])
 
 const UNSUPPORTED: UnsupportedAuthority[] = [
   {
@@ -112,13 +118,18 @@ export function buildProductionAuthority(
 ): WewedProductionAuthorityV1 {
   const identity = evidence.identity
   const banned = evidence.profile?.isBanned ?? false
+  // Mirrors /api/auth/me: a verified Supabase identity is required, and a banned UserProfile is
+  // refused. A missing UserProfile row does not block an otherwise valid account.
+  const verifiedAuthIdentity = Boolean(identity?.authUserId?.trim())
   const accountStatus: WewedProductionAuthorityV1['accountStatus'] = !identity
     ? 'unknown_identity'
     : !identity.isActive
       ? 'inactive_identity'
-      : banned
-        ? 'banned_identity'
-        : 'authorized'
+      : !verifiedAuthIdentity
+        ? 'unverified_auth_identity'
+        : banned
+          ? 'banned_identity'
+          : 'authorized'
 
   const admin = effectiveAdmin(evidence)
   const internalMemberships = evidence.businessMemberships
@@ -140,9 +151,13 @@ export function buildProductionAuthority(
     deriveVendorWeddingGrants(evidence, grants, nonGranting)
 
     // System Admin. `User.role = admin` is required (requireWewedAdmin) but never sufficient: the
-    // platform entry gate and an effective internal membership must both hold.
+    // platform entry gate and an effective internal membership must both hold, and the effective
+    // role must be one of the sanctioned Wewed-internal roles. The database constrains
+    // PlatformAdministrator.role to that set today; checking it here as well keeps the contract
+    // fail-closed if Phase 3 finds schema drift.
     const entryGate = passesPlatformEntryGate(evidence)
-    if (identity.userRole === 'admin' && entryGate && admin.role) {
+    const sanctionedRole = admin.role !== null && (INTERNAL_ADMIN_ROLES as readonly string[]).includes(admin.role)
+    if (identity.userRole === 'admin' && entryGate && sanctionedRole) {
       grants.push({
         grantId: 'admin:system',
         workspaceKind: 'admin',
@@ -154,7 +169,7 @@ export function buildProductionAuthority(
         vendorId: null,
         serviceEngagementIds: [],
         permissions: [],
-        platformRoles: [admin.role],
+        platformRoles: [admin.role!],
         sources: [
           admin.source === 'platform_registry'
             ? { kind: 'platform_registry', id: identity.accessUserId }
