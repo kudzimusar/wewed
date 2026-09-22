@@ -167,6 +167,10 @@ class ProductionAuthorityContractTest {
     fun anUnauthorizedAccountOrAnotherContractVersionIsRefusedEntirely() {
         for (edit in listOf<(JSONObject) -> Unit>(
             { it.put("accountStatus", "inactive_identity") },
+            // No verified auth identity was supplied: never usable (Phase 2 review closure).
+            { it.put("accountStatus", "unverified_auth_identity") },
+            { it.put("accountStatus", "unknown_identity") },
+            { it.put("accountStatus", "some_future_status") },
             { it.put("accountStatus", "banned_identity") },
             { it.put("version", 2) },
             { it.put("contract", "SomethingElse") }

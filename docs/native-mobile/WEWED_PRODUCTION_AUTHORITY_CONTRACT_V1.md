@@ -2,7 +2,7 @@
 
 **Contract:** `WewedProductionAuthorityV1` (version `1`)
 **Master plan:** `WW-NATIVE-PWA-CONVERGENCE-2026-09-22-01`, **Phase 2 — Define the shared production authority contract**
-**Status:** Implemented on branches, awaiting independent Rule-10 review. Not deployed. Not wired into any client.
+**Status:** Implemented on branches, with the Phase 2 review closure applied (§9); awaiting independent Rule-10 review. Not deployed. Not wired into any client.
 
 This document specifies one contract under the master plan. It is not a competing architecture: where they differ, the master plan wins (§3 Rules 1–6, §7, D-002, D-003, D-005).
 
@@ -42,7 +42,7 @@ The contract carries **both** layers: every axis as evidence, and normalised gra
 
 | Axis | Contract field | Source | Notes |
 | --- | --- | --- | --- |
-| Identity | `identity` | `public."User"`, `public."UserProfile"` | `accountStatus` is `authorized` only for an active, unbanned identity. Anything else carries **no grants**. |
+| Identity | `identity` | `public."User"`, `public."UserProfile"` | `accountStatus` is `authorized` only for an active access user **with a verified `authUserId` supplied by the caller**, whose UserProfile (if a row exists) is not banned. Anything else carries **no grants** (§9.2). |
 | Dashboard/account class | `identity.dashboardClass`, `isDashboardClass` | `User.role` | Exactly as stored, including `viewer`. **Never a grant by itself.** |
 | Business membership | `businessMemberships[]` | `BusinessAccountMember` ⋈ `BusinessAccount` (via the `public` security-invoker views) | Every membership in any status, with business type, status, `onboardingStatus`, `subscriptionStatus`, owner, role and permissions. No `LIMIT 1`. |
 | Business links | `businessLinks[]` | `BusinessAccountLink` for businesses with an active membership | Raw `entityType` / `entityId` / `relationship`. |
@@ -74,8 +74,8 @@ WorkspaceGrant {
 | `planner` / `portfolio` | active membership, role `business_owner` or `planner`, in an **active, onboarding-complete `planning_company`** | Business-level planner authority. One grant per business, **never a placeholder wedding**. |
 | `coordinator` / `wedding` | active `WeddingMembership.role = coordinator` that passes governed access | `listAccessibleWeddings`. Independent of `User.role`: a coordinator is typically `User.role = planner`. |
 | `vendor` / `business` | active membership, role `business_owner` or `vendor_manager`, in an active, complete `vendor` business with a `claimed`/`verified`, `published`, non-claimable ProviderProfile | `activeVendorIdentity` in `/api/auth/me` — but **every** qualifying business, not `LIMIT 1`. |
-| `vendor` / `wedding` | a `vendor` business grant **plus** `BusinessAccountLink(entityType='vendor', relationship='owns')` → `Vendor(weddingId)` | Engagement ids are the real `ServiceEngagement`s for that Vendor on that wedding. An empty list means none exist. Nothing is invented or auto-selected. |
-| `admin` / `system` | `User.role = admin` **and** the platform entry gate (active wewed_internal membership with a `wewed_*` role) **and** an effective membership (active registry row, or with no registry row the highest active legacy role; an inactive registry row denies) | `isWewedPlatformAdministrator` + `requireWewedAdmin`. `platformRoles` carries the exact effective role. |
+| `vendor` / `wedding` | a `vendor` business grant **plus** `BusinessAccountLink(entityType='vendor', relationship='represents')` → `Vendor(weddingId)`, for that same business (§9.1) | Engagement ids are the real `ServiceEngagement`s for that Vendor on that wedding. An empty list means none exist. Nothing is invented or auto-selected. |
+| `admin` / `system` | `User.role = admin` **and** the platform entry gate (active wewed_internal membership with a `wewed_*` role) **and** an effective membership (active registry row, or with no registry row the highest active legacy role; an inactive registry row denies) **and** an effective role in `WEWED_INTERNAL_ADMIN_ROLES` (§9.3) | `isWewedPlatformAdministrator` + `requireWewedAdmin`. `platformRoles` carries the exact effective role. |
 
 ### 3.2 Relationships that grant nothing (reported in `nonGrantingRelationships`)
 
@@ -116,7 +116,7 @@ WorkspaceGrant {
 | vendor / business | **none yet.** Stays a business grant until a real wedding is selected. |
 | viewer, guest, usher, unknown | **denied** |
 
-4. The account is refused entirely unless `contract == WewedProductionAuthorityV1`, `version == 1` and `accountStatus == authorized`.
+4. The account is refused entirely unless `contract == WewedProductionAuthorityV1`, `version == 1` and `accountStatus == authorized`. Every other status fails closed automatically, including `unverified_auth_identity` and any future status.
 5. Nothing in `SessionViewModel` / `SessionStore` / `ActorAssignmentSources` / `NativeRepositoryFactory` / `RootScreen` / `RootView` uses these types yet. Activation is Phase 5.
 
 ## 6. PWA compatibility
@@ -141,7 +141,7 @@ WorkspaceGrant {
 
 ## 7. Transport handoff to Phase 5
 
-Phase 2 ships **no endpoint**, and invents no bearer token, native password scheme, API key or Supabase bypass. `resolveProductionAuthority` takes an access-user id that the caller has already verified through existing Wewed authority (the Supabase user bound to the AppSession, exactly as `/api/auth/me` verifies it). Phase 5 must decide how a native client obtains that verified identity, and must reuse this resolver rather than widen `/api/auth/me`.
+Phase 2 ships **no endpoint**, and invents no bearer token, native password scheme, API key or Supabase bypass. `resolveProductionAuthority(accessUserId, { authUserId })` takes BOTH ids, which the caller has already verified through existing Wewed authority (the Supabase user bound to the AppSession, exactly as `/api/auth/me` verifies it). Without a verified `authUserId` it returns `unverified_auth_identity` with no grants. Phase 5 must decide how a native client obtains that verified identity, and must reuse this resolver rather than widen `/api/auth/me`.
 
 ## 8. Unresolved production-catalog assumptions (inputs to Phase 3)
 
@@ -151,7 +151,7 @@ These were verified only against the repository's migrations on a disposable dat
 2. The real `BusinessAccountMember.role` values (free text, no CHECK), and whether any production role outside the recognised sets exists.
 3. The real `BusinessAccountMember.permissions` JSON shapes (arrays of strings are assumed).
 4. The real `WeddingMembership.permissions` text shapes (a JSON string array or null is assumed).
-5. `BusinessAccountLink.relationship` values in production, especially for `entityType='vendor'` (only `owns` is recognised; everything else fails closed), and `'manages'` for planning companies.
+5. `BusinessAccountLink.relationship` values in production, especially for `entityType='vendor'`: only the repository-sanctioned `represents` is recognised, and everything else, including the column default `owns`, fails closed. Also confirm `'manages'` for planning companies.
 6. Vendor-link completeness: whether vendor businesses actually hold `BusinessAccountLink(vendor)` rows for their wedding Vendor records, or whether that work lives only in `wewed_booking."Booking".serviceEngagementId`.
 7. ServiceEngagement completeness and `lifecycleStatus` values for vendor-selectable work.
 8. How many users hold multiple business memberships, and of which types.
@@ -159,3 +159,44 @@ These were verified only against the repository's migrations on a disposable dat
 10. `BusinessAccount.subscriptionStatus`. The column default `'inactive'` violates the later CHECK constraint, so explicit values are required on insert. The production state must be checked.
 11. `UserProfile.id` equal to the Supabase auth user id, as `/api/auth/me` assumes.
 12. Venue businesses. `/api/auth/me` excludes `venue` from the vendor workspace, while `providerBusinessForUser` (booking-commerce) includes it. The contract follows `/api/auth/me` and grants nothing for venue; the product decision is open.
+
+## 9. Phase 2 review closure (Rule-10)
+
+### 9.1 Canonical Vendor link semantics
+
+Every repository path that writes `BusinessAccountLink` was enumerated:
+- `prisma/migrations/20260730173000_wewed_business_admin_console`;
+- admin onboarding;
+- marketplace engagement authorisation;
+- the two planner membership business-link writers;
+- UAT scripts.
+
+Exactly one path writes `entityType = 'vendor'`: the canonical backfill, which turns each wedding-scoped `Vendor` into a `vendor` business `vendor-<Vendor.id>` (active, complete) with:
+
+| entityType | relationship | Meaning in the contract |
+| --- | --- | --- |
+| `vendor` | `represents` | **The** Vendor entity link. It produces the `vendor/wedding` grant when the business also holds a `vendor/business` grant. |
+| `wedding` | `serves` | Companion evidence only. It is not a substitute for the Vendor entity link and grants nothing on its own. |
+
+`RECOGNISED_VENDOR_LINK_RELATIONSHIPS = {represents}`. The column default `owns` is written by no repository path for vendor links, and it fails closed with every other value (`vendor_link_relationship_not_recognised`). A link is only ever evaluated for the business that holds it: Business A's link never grants Business B.
+
+The backfill creates no member users and no ProviderProfile. A canonical Vendor therefore receives grants once its business also has an operating member (`business_owner` / `vendor_manager`) and a claimed/verified, published listing, the same eligibility as `/api/auth/me`.
+
+### 9.2 Verified auth identity and banned profiles
+
+Mirrors `/api/auth/me`, which verifies the Supabase identity, binds it to the AppSession's access user, and enforces `UserProfile.isBanned`:
+
+| Situation | `accountStatus` | Grants |
+| --- | --- | --- |
+| unknown `accessUserId` | `unknown_identity` | none |
+| inactive `User` | `inactive_identity` | none |
+| active `User`, `authUserId` missing or blank | `unverified_auth_identity` | none |
+| verified `authUserId`, `UserProfile.isBanned = true` | `banned_identity` | none |
+| verified `authUserId`, no `UserProfile` row | `authorized` | normal |
+| verified `authUserId`, profile not banned | `authorized` | normal |
+
+A missing UserProfile row never blocks an otherwise valid account. The native mappers accept only `authorized`.
+
+### 9.3 Admin defense-in-depth
+
+The `admin/system` grant additionally requires the effective role (registry or legacy) to be one of `WEWED_INTERNAL_ADMIN_ROLES`. The database CHECK constrains `PlatformAdministrator.role` to that set today; the contract re-checks it so that schema drift discovered in Phase 3 cannot widen admin authority. PWA admin behaviour is unchanged.

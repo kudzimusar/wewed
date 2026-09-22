@@ -146,6 +146,10 @@ final class ProductionAuthorityContractTests: XCTestCase {
     func testAnUnauthorizedAccountOrAnotherContractVersionIsRefusedEntirely() throws {
         let edits: [(inout [String: Any]) -> Void] = [
             { $0["accountStatus"] = "inactive_identity" },
+            // No verified auth identity was supplied: never usable (Phase 2 review closure).
+            { $0["accountStatus"] = "unverified_auth_identity" },
+            { $0["accountStatus"] = "unknown_identity" },
+            { $0["accountStatus"] = "some_future_status" },
             { $0["accountStatus"] = "banned_identity" },
             { $0["version"] = 2 },
             { $0["contract"] = "SomethingElse" },
