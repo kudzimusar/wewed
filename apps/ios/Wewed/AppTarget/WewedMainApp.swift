@@ -27,7 +27,16 @@ struct WewedMainApp: App {
         // Built once the environment is known, because the environment decides whether a Shadow
         // persona may be applied at all. It starts empty: no identity, role or wedding until
         // something with authority supplies one (master plan §8.2).
-        let store = SessionStore(environment: launch.environment)
+        let store: SessionStore
+        if launch.environment == .production {
+            store = SessionStore(
+                storage: KeychainSecureStorage(service: "pro.wewed.app.account-session"),
+                environment: .production,
+                authorityClient: ProductionAuthorityClient(baseURL: GuestInvitationBootstrap.productionBaseURL)
+            )
+        } else {
+            store = SessionStore(environment: launch.environment)
+        }
 
         // Development/Shadow qualification only (P0-16): ignored in production builds, and refused
         // by the session itself outside development environments.
@@ -39,7 +48,14 @@ struct WewedMainApp: App {
         _session = StateObject(wrappedValue: store)
 
         do {
-            self.mode = try AppLaunchModeResolver.resolve(configuration: launch)
+            // Remembered Guest identity stays a separate front door. An ordinary production icon
+            // launch with a Guest session goes to Guest Home; otherwise Phase-5 account bootstrap
+            // owns the production workspace.
+            if launch.environment == .production && GuestInvitationBootstrap.hasGuestSession() {
+                self.mode = .guestOnly
+            } else {
+                self.mode = try AppLaunchModeResolver.resolve(configuration: launch)
+            }
         } catch {
             preconditionFailure("Wewed repository initialization failed for \(launch.environment): \(error)")
         }
