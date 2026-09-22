@@ -197,6 +197,8 @@ Mirrors `/api/auth/me`, which verifies the Supabase identity, binds it to the Ap
 
 A missing UserProfile row never blocks an otherwise valid account. The native mappers accept only `authorized`.
 
+**Fail-closed disclosure rule:** any non-`authorized` result is status-only for authority purposes. It carries no identity PII, business memberships/links, wedding memberships, vendor engagements, internal platform memberships, or onboarding relationship lists. This prevents a future transport bug or an unverified resolver call from turning “no grants” into an account-relationship data leak.
+
 ### 9.3 Admin defense-in-depth
 
 The `admin/system` grant additionally requires the effective role (registry or legacy) to be one of `WEWED_INTERNAL_ADMIN_ROLES`. The database CHECK constrains `PlatformAdministrator.role` to that set today; the contract re-checks it so that schema drift discovered in Phase 3 cannot widen admin authority. PWA admin behaviour is unchanged.
