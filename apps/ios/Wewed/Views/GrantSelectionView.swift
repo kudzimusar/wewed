@@ -18,9 +18,9 @@ public struct GrantSelectionView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Choose a wedding")
+            Text("Choose a workspace")
                 .font(.system(size: 22, weight: .medium))
-            Text("Your account has access to more than one wedding in this role. Choose which one to open.")
+            Text("Your account has more than one authorized context. Choose which workspace to open.")
                 .font(.system(size: 13))
                 .foregroundStyle(WeddingIdentityPalette.muted)
 
@@ -28,7 +28,7 @@ public struct GrantSelectionView: View {
                 Button {
                     onSelect(grant.grantId)
                 } label: {
-                    Text(grant.weddingTitle ?? grant.weddingId ?? grant.grantId)
+                    Text(grant.weddingTitle ?? grant.businessAccountId ?? grant.grantId)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(14)
                         .overlay(
