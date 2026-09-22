@@ -48,10 +48,10 @@ public struct ProductionWeddingRepository: WeddingRepositoryProtocol {
         guard let weddingJSON = overview.wwObject("wedding") else {
             throw ProductionReadOnlyDomainError.unavailable
         }
-        var programme: [ProgrammeItem] = []
-        if case let .success(timelineArray) = await client.timeline(sessionToken: sessionToken, grantId: grantId) {
-            programme = timelineArray.map { $0.wwProgrammeItem() }
+        guard case let .success(timelineArray) = await client.timeline(sessionToken: sessionToken, grantId: grantId) else {
+            throw ProductionReadOnlyDomainError.unavailable
         }
+        let programme = timelineArray.map { $0.wwProgrammeItem() }
         return Wedding(
             id: weddingJSON.wwRequiredString("id"),
             coupleNames: weddingJSON.wwString("coupleNames") ?? "",
