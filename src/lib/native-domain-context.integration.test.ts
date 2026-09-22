@@ -60,11 +60,11 @@ async function wedding(name: string, coupleId: string) {
   return id(name)
 }
 
-async function membership(name: string, userId: string, weddingId: string, role: string, status = 'active') {
+async function membership(name: string, userId: string, weddingId: string, role: string, status = 'active', permissions?: string[]) {
   await exec(
-    `INSERT INTO public."WeddingMembership" (id, "userId", "weddingId", role, status, "updatedAt")
-     VALUES ($1, $2, $3, $4, $5, now())`,
-    id(name), userId, weddingId, role, status,
+    `INSERT INTO public."WeddingMembership" (id, "userId", "weddingId", role, status, permissions, "updatedAt")
+     VALUES ($1, $2, $3, $4, $5, $6, now())`,
+    id(name), userId, weddingId, role, status, permissions ? JSON.stringify(permissions) : null,
   )
   return id(name)
 }
@@ -162,6 +162,33 @@ async function contribution(name: string, weddingId: string, contributorId: stri
   return id(name)
 }
 
+async function businessAccountLink(businessAccountId: string, entityType: string, entityId: string, relationship: string) {
+  await exec(
+    `INSERT INTO public."BusinessAccountLink" (id, "businessAccountId", "entityType", "entityId", relationship, "createdAt")
+     VALUES ($1, $2, $3, $4, $5, now())`,
+    `${id('link')}-${entityId}`, businessAccountId, entityType, entityId, relationship,
+  )
+}
+
+async function serviceEngagement(name: string, weddingId: string, vendorId: string, recordMode = 'managed_contract') {
+  await exec(
+    `INSERT INTO public."ServiceEngagement" (id, origin, "recordMode", "lifecycleStatus", "serviceCategory", "weddingId", "vendorId", "updatedAt")
+     VALUES ($1, 'current', $2, 'draft', 'photography', $3, $4, now())`,
+    id(name), recordMode, weddingId, vendorId,
+  )
+  return id(name)
+}
+
+async function vaultObject(name: string, weddingId: string) {
+  await exec(
+    `INSERT INTO public."VaultObject"
+       (id, "storageProvider", "objectKey", "originalFilename", "displayName", "mimeType", "byteSize", "checksumSha256", "uploadSource", "weddingId", "updatedAt")
+     VALUES ($1, 'local', $1, $2, $2, 'application/pdf', 1024, 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef', 'admin_upload', $3, now())`,
+    id(name), `Document ${name}`, weddingId,
+  )
+  return id(name)
+}
+
 async function bearerRequest(url: string, accessUserId: string, authUserId: string, init: RequestInit = {}) {
   const token = createNativeAccountSessionToken({ accessUserId, authUserId, email: `${accessUserId}@example.test` })
   return new NextRequest(url, {
@@ -202,9 +229,15 @@ describeLocal('Phase 8 — native domain adapters against a disposable migrated 
   let GET_VENDOR_CATALOG: typeof import('@/app/api/native/vendor/catalog/route')['GET']
   let GET_ADMIN_OVERVIEW: typeof import('@/app/api/native/admin/overview/route')['GET']
   let GET_CONTRIBUTIONS: typeof import('@/app/api/native/wedding/contributions/route')['GET']
+  let GET_ENGAGEMENTS: typeof import('@/app/api/native/wedding/engagements/route')['GET']
+  let GET_DEAL_ROOM: typeof import('@/app/api/native/wedding/engagements/[id]/deal-room/route')['GET']
+  let GET_VAULT: typeof import('@/app/api/native/wedding/vault/route')['GET']
   let PWA_GET_TASKS: typeof import('@/app/api/planner/tasks/route')['GET']
   let PWA_POST_TASKS: typeof import('@/app/api/planner/tasks/route')['POST']
   let PWA_PATCH_TASK: typeof import('@/app/api/planner/tasks/[id]/route')['PATCH']
+  let PWA_GET_ENGAGEMENTS: typeof import('@/app/api/planner/engagements/current/route')['GET']
+  let PWA_GET_DEAL_ROOM: typeof import('@/app/api/planner/engagements/[id]/deal-room/route')['GET']
+  let PWA_GET_ADMIN_OVERVIEW: typeof import('@/app/api/admin/overview/route')['GET']
 
   const ids: Record<string, string> = {}
   const actors: Record<string, string> = {}
@@ -226,8 +259,14 @@ describeLocal('Phase 8 — native domain adapters against a disposable migrated 
     ;({ GET: GET_VENDOR_CATALOG } = await import('@/app/api/native/vendor/catalog/route'))
     ;({ GET: GET_ADMIN_OVERVIEW } = await import('@/app/api/native/admin/overview/route'))
     ;({ GET: GET_CONTRIBUTIONS } = await import('@/app/api/native/wedding/contributions/route'))
+    ;({ GET: GET_ENGAGEMENTS } = await import('@/app/api/native/wedding/engagements/route'))
+    ;({ GET: GET_DEAL_ROOM } = await import('@/app/api/native/wedding/engagements/[id]/deal-room/route'))
+    ;({ GET: GET_VAULT } = await import('@/app/api/native/wedding/vault/route'))
     ;({ GET: PWA_GET_TASKS, POST: PWA_POST_TASKS } = await import('@/app/api/planner/tasks/route'))
     ;({ PATCH: PWA_PATCH_TASK } = await import('@/app/api/planner/tasks/[id]/route'))
+    ;({ GET: PWA_GET_ENGAGEMENTS } = await import('@/app/api/planner/engagements/current/route'))
+    ;({ GET: PWA_GET_DEAL_ROOM } = await import('@/app/api/planner/engagements/[id]/deal-room/route'))
+    ;({ GET: PWA_GET_ADMIN_OVERVIEW } = await import('@/app/api/admin/overview/route'))
 
     // Wedding A: owner (Couple), planner, coordinator.
     const coupleA = await couple('couple-a')
@@ -277,6 +316,27 @@ describeLocal('Phase 8 — native domain adapters against a disposable migrated 
     actors.vendorOwner = await user('vendor-owner', 'vendor')
     ids.V1 = await business('vendor-1', 'vendor', { userId: actors.vendorOwner, role: 'business_owner' })
     await providerProfile('vendor-1-profile', ids.V1)
+
+    // The SAME vendor business, now also engaged on wedding A with a real managed-contract service
+    // engagement — this is what actually produces a `vendor:wedding:...` grant (Production Authority
+    // Contract V1 `deriveVendorWeddingGrants`), which carries `scopeKind: 'wedding'` and a real
+    // `weddingId` despite being a completely different authority axis from Couple/Planner/Coordinator.
+    ids.vendorEntityA = await vendorRow('vendor-entity-a', ids.A)
+    await businessAccountLink(ids.V1, 'vendor', ids.vendorEntityA, 'represents')
+    ids.engagementA = await serviceEngagement('engagement-a', ids.A, ids.vendorEntityA)
+
+    // Foreign-engagement fixture: a managed engagement that genuinely belongs to wedding B.
+    ids.engagementB = await serviceEngagement('engagement-b', ids.B, await vendorRow('vendor-entity-b', ids.B))
+
+    // Documents/Vault fixtures for A and B.
+    ids.vaultA = await vaultObject('vault-a', ids.A)
+    await vaultObject('vault-b', ids.B)
+
+    // A membership whose CUSTOM permissions column deliberately excludes vendors.view — proves
+    // PERMISSION_DENIED fires on the real enforcement path (not just "no default role lacks it"),
+    // since every default WeddingMembership role happens to include vendors.view.
+    actors.noVendorView = await user('no-vendor-view', 'couple')
+    await membership('no-vendor-view-A', actors.noVendorView, ids.A, 'coordinator', 'active', ['planner.view'])
 
     // Admin: a wewed_internal business + owner membership (legacy admin path).
     actors.admin = await user('admin', 'admin')
@@ -357,8 +417,10 @@ describeLocal('Phase 8 — native domain adapters against a disposable migrated 
     const timelineRes = await GET_TIMELINE(await req('/api/native/wedding/timeline'))
     expect((await timelineRes.json()).data.map((t: { id: string }) => t.id)).toEqual([ids.programmeA])
 
+    // Includes vendorEntityA (seeded later, for the Contracts/Vault F-3 fixtures) alongside the
+    // original vendorA — both are real Vendor rows scoped to wedding A.
     const vendorsRes = await GET_VENDORS(await req('/api/native/wedding/vendors'))
-    expect((await vendorsRes.json()).data.map((v: { id: string }) => v.id)).toEqual([ids.vendorA])
+    expect((await vendorsRes.json()).data.map((v: { id: string }) => v.id).sort()).toEqual([ids.vendorA, ids.vendorEntityA].sort())
   })
 
   test('Overview: wedding-scoped grant returns real counts; portfolio-scoped grant never fabricates a wedding', async () => {
@@ -503,5 +565,118 @@ describeLocal('Phase 8 — native domain adapters against a disposable migrated 
     const pwaGetAfterToggle = await PWA_GET_TASKS(await cookieRequest('http://localhost/api/planner/tasks', actors.owner, ids.A, 'couple'))
     const pwaTaskAfterToggle = (await pwaGetAfterToggle.json()).data.find((t: { id: string }) => t.id === created.id)
     expect(pwaTaskAfterToggle.status).toBe('done')
+  })
+
+  test('Contracts: engagement list and Deal Room reuse the mature engine, scoped to wedding A', async () => {
+    const gid = grantId('planner', 'wedding', ids.A)
+    const listRes = await GET_ENGAGEMENTS(await bearerRequest(`http://localhost/api/native/wedding/engagements?grantId=${gid}`, actors.planner, `auth-${actors.planner}`))
+    expect(listRes.status).toBe(200)
+    const listBody = await listRes.json()
+    expect(listBody.data.map((e: { id: string }) => e.id)).toEqual([ids.engagementA])
+
+    const dealRoomRes = await GET_DEAL_ROOM(
+      await bearerRequest(`http://localhost/api/native/wedding/engagements/${ids.engagementA}/deal-room?grantId=${gid}`, actors.planner, `auth-${actors.planner}`),
+      { params: Promise.resolve({ id: ids.engagementA }) },
+    )
+    expect(dealRoomRes.status).toBe(200)
+    const dealRoomBody = await dealRoomRes.json()
+    expect(dealRoomBody.data.id).toBe(ids.engagementA)
+    expect(dealRoomBody.data.weddingId).toBe(ids.A)
+
+    // Foreign engagement: a real, valid engagement id — just not one that belongs to THIS wedding.
+    // getServiceEngagementDealRoom's own {id, weddingId} WHERE clause 404s it; never a cross-wedding
+    // leak, never conflated with a revoked grant.
+    const foreignEngagementRes = await GET_DEAL_ROOM(
+      await bearerRequest(`http://localhost/api/native/wedding/engagements/${ids.engagementB}/deal-room?grantId=${gid}`, actors.planner, `auth-${actors.planner}`),
+      { params: Promise.resolve({ id: ids.engagementB }) },
+    )
+    expect(foreignEngagementRes.status).toBe(404)
+
+    // Foreign wedding grant id outright.
+    const foreignGrantRes = await GET_ENGAGEMENTS(await bearerRequest(`http://localhost/api/native/wedding/engagements?grantId=${grantId('planner', 'wedding', ids.B)}`, actors.planner, `auth-${actors.planner}`))
+    expect(foreignGrantRes.status).toBe(403)
+    expect((await foreignGrantRes.json()).code).toBe('GRANT_REVOKED')
+
+    // Coordinator (vendors.view, not vendors.edit) reads the same authoritative business truth.
+    const coordinatorRes = await GET_ENGAGEMENTS(await bearerRequest(`http://localhost/api/native/wedding/engagements?grantId=${grantId('coordinator', 'wedding', ids.A)}`, actors.coordinator, `auth-${actors.coordinator}`))
+    expect(coordinatorRes.status).toBe(200)
+    expect((await coordinatorRes.json()).data.map((e: { id: string }) => e.id)).toEqual([ids.engagementA])
+
+    // A membership whose actual permissions lack vendors.view is denied — not silently emptied.
+    const deniedRes = await GET_ENGAGEMENTS(await bearerRequest(`http://localhost/api/native/wedding/engagements?grantId=${grantId('coordinator', 'wedding', ids.A)}`, actors.noVendorView, `auth-${actors.noVendorView}`))
+    expect(deniedRes.status).toBe(403)
+    expect((await deniedRes.json()).code).toBe('PERMISSION_DENIED')
+
+    // A revoked membership is denied at the grant, before any permission is even considered.
+    const revokedRes = await GET_ENGAGEMENTS(await bearerRequest(`http://localhost/api/native/wedding/engagements?grantId=${grantId('planner', 'wedding', ids.A)}`, actors.revoked, `auth-${actors.revoked}`))
+    expect(revokedRes.status).toBe(403)
+    expect((await revokedRes.json()).code).toBe('GRANT_REVOKED')
+
+    // F-3: the Vendor's OWN wedding-engagement grant on this exact engagement is still refused —
+    // holding a real vendor:wedding grant never doubles as wedding-scoped Planner/Couple/Coordinator
+    // authority. Its business-membership permissions (account.manage/profile.manage/...) never
+    // contain the wedding-permission-vocabulary string this route actually checks.
+    const vendorGid = `vendor:wedding:${ids.V1}:${ids.vendorEntityA}`
+    const vendorRes = await GET_ENGAGEMENTS(await bearerRequest(`http://localhost/api/native/wedding/engagements?grantId=${vendorGid}`, actors.vendorOwner, `auth-${actors.vendorOwner}`))
+    expect(vendorRes.status).toBe(403)
+    expect((await vendorRes.json()).code).toBe('PERMISSION_DENIED')
+
+    // PWA/native equivalent business truth: the exact same wedding, read through the cookie-session
+    // route, returns the identical engagement set and Deal Room shape.
+    const pwaListRes = await PWA_GET_ENGAGEMENTS(await cookieRequest('http://localhost/api/planner/engagements/current', actors.owner, ids.A, 'couple'))
+    const pwaListBody = await pwaListRes.json()
+    expect(pwaListBody.data.map((e: { id: string }) => e.id)).toEqual(listBody.data.map((e: { id: string }) => e.id))
+
+    const pwaDealRoomRes = await PWA_GET_DEAL_ROOM(
+      await cookieRequest(`http://localhost/api/planner/engagements/${ids.engagementA}/deal-room`, actors.owner, ids.A, 'couple'),
+      { params: Promise.resolve({ id: ids.engagementA }) },
+    )
+    const pwaDealRoomBody = await pwaDealRoomRes.json()
+    expect(pwaDealRoomBody.data.id).toBe(dealRoomBody.data.id)
+    expect(pwaDealRoomBody.data.contracts).toEqual(dealRoomBody.data.contracts)
+  })
+
+  test('Documents/Vault: reuses the mature vault catalog, scoped to wedding A, and refuses a Vendor wedding-engagement grant', async () => {
+    const gid = grantId('couple', 'wedding', ids.A)
+    const res = await GET_VAULT(await bearerRequest(`http://localhost/api/native/wedding/vault?grantId=${gid}`, actors.owner, `auth-${actors.owner}`))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.data.map((d: { id: string }) => d.id)).toEqual([ids.vaultA])
+
+    // Foreign wedding grant id.
+    const foreignRes = await GET_VAULT(await bearerRequest(`http://localhost/api/native/wedding/vault?grantId=${grantId('couple', 'wedding', ids.B)}`, actors.owner, `auth-${actors.owner}`))
+    expect(foreignRes.status).toBe(403)
+    expect((await foreignRes.json()).code).toBe('GRANT_REVOKED')
+
+    // A revoked membership is denied.
+    const revokedRes = await GET_VAULT(await bearerRequest(`http://localhost/api/native/wedding/vault?grantId=${grantId('planner', 'wedding', ids.A)}`, actors.revoked, `auth-${actors.revoked}`))
+    expect(revokedRes.status).toBe(403)
+    expect((await revokedRes.json()).code).toBe('GRANT_REVOKED')
+
+    // The exact regression this route exists to prevent: a Vendor's own wedding-engagement grant
+    // carries scopeKind "wedding" and a real weddingId too, but must never inherit blanket wedding
+    // Vault access the way a Couple/Planner/Coordinator grant does.
+    const vendorGid = `vendor:wedding:${ids.V1}:${ids.vendorEntityA}`
+    const vendorRes = await GET_VAULT(await bearerRequest(`http://localhost/api/native/wedding/vault?grantId=${vendorGid}`, actors.vendorOwner, `auth-${actors.vendorOwner}`))
+    expect(vendorRes.status).toBe(403)
+    expect((await vendorRes.json()).code).toBe('GRANT_SCOPE_INVALID')
+  })
+
+  test('Admin overview: real analytics/accounts/support/incidents, reusing the exact PWA business logic', async () => {
+    const res = await GET_ADMIN_OVERVIEW(await bearerRequest('http://localhost/api/native/admin/overview?grantId=admin:system', actors.admin, `auth-${actors.admin}`))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(typeof body.summary.businessAccounts).toBe('number')
+    expect(Array.isArray(body.accounts)).toBe(true)
+    expect(body.accounts.some((a: { id: string }) => a.id === ids.V1)).toBe(true)
+    expect(Array.isArray(body.supportCases)).toBe(true)
+    expect(Array.isArray(body.incidents)).toBe(true)
+    expect(Array.isArray(body.analytics.riskSignals)).toBe(true)
+
+    // PWA/native equivalence: same underlying platform state, same shared loadAdminOverview call.
+    const pwaRes = await PWA_GET_ADMIN_OVERVIEW(await cookieRequest('http://localhost/api/admin/overview', actors.admin, ids.A, 'admin'))
+    const pwaBody = await pwaRes.json()
+    expect(pwaBody.summary).toEqual(body.summary)
+    expect(pwaBody.accounts.map((a: { id: string }) => a.id).sort()).toEqual(body.accounts.map((a: { id: string }) => a.id).sort())
   })
 })

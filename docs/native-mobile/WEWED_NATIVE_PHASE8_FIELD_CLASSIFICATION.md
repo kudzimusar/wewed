@@ -39,8 +39,8 @@ Coordinator write those roles don't have — see `DEFAULT_ROLE_PERMISSIONS` in `
 | Vendors (planning-side): name/category/contractStatus/paymentStatus | LIVE | `Vendor` | — (direct Prisma read) | `/api/native/wedding/vendors` (new, read-only) | `PlannerVendorEngagement` (partial — `bookingStatus`/`nextAction` are not tracked by this model) | Vendors section | equivalent |
 | Contributions: type/amount/commitment/fulfillment/verification state, contributor, allocation | LIVE (read-only) | `wewed_contributions.*` (raw SQL) | `@/lib/contributions/store` (`loadContributionWorkspace` — the SAME engine `/api/planner/contributions` calls; no second funding truth computed anywhere) | `/api/native/wedding/contributions` (new, read-only) | `PlannerContributionRecord` | Contributions section (now reads real rows) | equivalent |
 | Contribution writes (allocate/mark-thanked/mark-verified/mark-received/create-task) | UNSUPPORTED | `wewed_contributions.*` | `@/lib/contributions/store` | `/api/planner/contributions/[id]/actions` (PWA only) | — | — | — |
-| Contracts / engagement deal-room | UNSUPPORTED | `Contract`, `ContractVersion`, `ServiceEngagement` | `@/lib/contracts/phase2.ts`/`phase3.ts` | `/api/planner/engagements/[id]/deal-room`, `.../contracts` (PWA only) | — | Contract governance/intelligence sections (native: unsupported — no adapter built; see §9 for why) | equivalent |
-| Documents / vault | UNSUPPORTED | `VaultObject`/`VaultLink` | `@/lib/vault/*` | various (PWA only) | `PlannerDocumentRecord` | `ShadowDocumentsDestination` now says UNSUPPORTED explicitly for production instead of calling the always-empty repository method (was a false-empty; fixed this pass) | equivalent |
+| Service engagement list + Deal Room (contract status/versions/parties/payments/linked vault docs) | LIVE (server, read-only) | `ServiceEngagement`, `Contract`, `ContractVersion` | `listManagedServiceEngagements`/`getServiceEngagementDealRoom` (`@/lib/contracts/phase2.ts` — the SAME functions `/api/planner/engagements/current` and `.../[id]/deal-room` call; zero reimplementation) | `/api/native/wedding/engagements`, `/api/native/wedding/engagements/[id]/deal-room` (new, closure round 2) | none yet | none yet — no existing native repository/UI surface represents the managed-contract lifecycle; the server adapter exists, is disposable-DB tested (valid/foreign-wedding/foreign-engagement-404/revoked-grant/permission-denied/coordinator-equivalence/Vendor-F-3-denied/PWA-native-equivalence), and is ready to be wired once a native screen is designed — see §11 | none yet |
+| Documents / vault | LIVE (read-only) | `VaultObject`/`VaultLink` | `listWeddingVaultObjects` (`@/lib/vault/catalog.ts` — the SAME function `/api/vault` GET calls) | `/api/native/wedding/vault` (new, closure round 2) | `PlannerDocumentRecord` | `ShadowDocumentsDestination` now calls the real repository unconditionally (production included), exactly like Budget/Contributions/Seating — a Vendor's own `vendor:wedding:...` grant is explicitly refused (`GRANT_SCOPE_INVALID`), matching the PWA's `requireVaultWeddingAccess` vendor exclusion | equivalent |
 | Seating auto-assign, guest bulk-move, timeline reorder, task delete | UNSUPPORTED (writes) | various | `@/lib/planner-*` | `/api/planner/seating/auto-assign` etc. (PWA only) | — | — | — |
 
 ## 4. Vendor
@@ -61,7 +61,10 @@ Coordinator write those roles don't have — see `DEFAULT_ROLE_PERMISSIONS` in `
 | Field/surface | Classification | Model/table | Shared server helper | PWA endpoint | Native DTO | Android screen | iOS screen |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | System overview: pending-onboarding queue count | LIVE | `wewed_admin.BusinessAccount` | `resolveWewedAdminPermissions`/`hasWewedAdminPermission` (`@/lib/wewed-admin-policy`, same as `requireWewedAdmin`) | `/api/native/admin/overview` (new) | `AdminSystemSnapshot.pendingOnboardingCount` | `AdminShell` now reads `appViewModel.adminRepository`, which is `ProductionAdminSystemRepository` once an `admin:system` grant resolves — it used to construct `ShadowAdminSystemRepository` unconditionally even in production (real defect, fixed this pass); an `admin:system` grant now also renders through the real `AdminShell` instead of the minimal snapshot | equivalent |
-| Full overview (billing/support/incidents), client operations, command center, bookings, service engagements, contract intelligence, contributions analytics, account identity, productivity, governance, vault | UNSUPPORTED | various | `requireWewedAdmin` (cookie-only; no native-safe adapter built this phase) | `/api/admin/*` (PWA only) | — | listed honestly in `ProductionAdminSystemRepository.unsupportedStreams`, never a fabricated count | equivalent |
+| Platform analytics summary (business/active/pending-review account counts, open support cases, open incidents, risk signals) | LIVE (closure round 2) | `BusinessAccount`, `SupportCase`, `PlatformIncident`, `PaymentRecord`, `Wedding` | `loadAdminOverview` (`@/lib/admin/overview.ts` — extracted verbatim from `/api/admin/overview` GET, which now calls the same function; per-section reads gated by the SAME `resolveWewedAdminPermissions`/`hasWewedAdminPermission` check) | `/api/native/admin/overview` (extended) | `AdminSystemSnapshot.businessAccountsTotal`/`activeAccountsTotal`/`pendingReviewAccountsTotal`/`openSupportCasesTotal`/`openIncidentsTotal` | `AdminDashboardContent` renders each as its own card, null (not shown) when not fetched | equivalent |
+| Client operations: business-account rows (name/type/status/onboarding/risk flags) | LIVE (closure round 2) | `BusinessAccount` | `loadAdminOverview` (same as above) | `/api/native/admin/overview` (extended, `accounts[]`) | `AdminSystemSnapshot.accounts: List<AdminAccountSummary>` | `AdminAccountsSection` now renders real rows (was a static, unconditional UNSUPPORTED message ignoring the repository entirely) | equivalent |
+| Governance/support: support cases + platform incidents | LIVE (closure round 2, read-only) | `SupportCase`, `PlatformIncident` | `loadAdminOverview` (same as above), each gated independently by `admin.support.read`/`admin.incidents.read` — currently only ever non-empty for `wewed_super_admin`, since native admin permissions resolve from `platformRoles[0]` alone with no per-membership override threaded through yet (a pre-existing, documented limitation, not new this pass) | `/api/native/admin/overview` (extended, `supportCases[]`/`incidents[]`) | `AdminSystemSnapshot.supportCases`/`incidents` | `AdminCasesSection` (new; was a static unconditional UNSUPPORTED message) | equivalent |
+| Command center, bookings, service engagements, contract intelligence, contributions analytics, account identity, productivity, cross-wedding vault browsing | UNSUPPORTED | various | `requireWewedAdmin` (cookie-only; no native-safe adapter built this phase) | `/api/admin/*` (PWA only) | — | listed honestly in `ProductionAdminSystemRepository.unsupportedStreams`, never a fabricated count | equivalent |
 | Legacy `User.role='admin'` global-wedding access (F-6) | EXCLUDED (never a grant) | — | `grants.ts` (`legacy_global_admin_wedding_access`) | — | — | — | — |
 
 ## 6. Removed/rebuilt P1-N4 fabricated screens
@@ -228,3 +231,118 @@ Remaining Phase-8 exit-gate work:
 4. Move Planner task create/update orchestration itself behind a shared server-domain operation. Phase 8 currently shares validation/formatting constants but still has parallel PWA/native route mutation code.
 5. Remove or prove unreachable the remaining P1-N4 dead Planner destination surfaces and re-audit all newly production-reachable role-shell copy for fixture/Shadow assumptions and false-empty states.
 6. Preserve F-3, F-4, F-6 and the production/Preview WEWED_SESSION_SECRET gate exactly as carry-forward constraints. Do not weaken authority to make Vendor/Admin UI wiring pass.
+
+## 11. Phase 8 closure round 2 (response to §10)
+
+A second moderator review of the round-1 closure (Vendor shell, Admin shell routing, shared task
+operation, Contributions, P1-N4 remainder) accepted that work but held Phase 8 open on: closing
+`NativeRepositoryFactory.PRODUCTION`'s remaining non-determinism, connecting Contracts/Deal-Room,
+connecting Documents/Vault, completing more of the mature Admin domain, controlled writes, and full
+qualification including an actual Xcode simulator + unsigned device Release build (not the SPM
+`swift build -c release` substitute used previously). This section records what closed and what is
+still honestly open.
+
+**1. `NativeRepositoryFactory.PRODUCTION` closure — a real, previously-latent race, not a
+theoretical one.** `bindProductionRepositories`/`bindProductionAdminRepository` ran from a
+`LaunchedEffect`/`.task(id:)`, which starts asynchronously relative to the composition that decided
+a role shell was eligible to render. Composition itself continues immediately past that effect call
+into the shell's own body in the same pass — so the OLD render gate (checking only that the
+workspace snapshot looked right) could let `PlannerShell`/etc. begin composing, and its own
+`rememberWeddingGraph`/`WeddingGraphState.load` effect fire, while `appViewModel.repository` was
+STILL the always-throwing `ProductionBoundaryWeddingRepository` placeholder from construction — an
+avoidable, timing-dependent failure flash on ordinary navigation, exactly "a generic boundary
+repository underneath a role that appears functional." Fixed by making the bind itself an
+observable fact (`AppViewModel.boundProductionGrantId`/`boundAdminGrantId`, `StateFlow`/`@Published`,
+flipped only after the repository fields are assigned) and gating the shell render on the CONFIRMED
+bind matching the active grant, not on the snapshot alone — showing a brief loading state instead of
+the shell for the one frame this can take, never the boundary-backed shell itself. Both platforms;
+both platforms carry new unit tests pinning the null-before-bind / set-after-bind / updated-on-rebind
+contract directly (`AppViewModelProductionBindingTest.kt` / `AppStateProductionBindingTests.swift`).
+The factory itself (`NativeRepositoryFactory.make`) is unchanged — it already returned an honestly
+unbound, never-fabricating placeholder; the defect was entirely in the render/bind ordering above it.
+
+**2. Contracts / Deal-Room — connected at the server, deliberately not yet at the client.**
+`/api/native/wedding/engagements` and `/api/native/wedding/engagements/[id]/deal-room` now exist,
+calling `listManagedServiceEngagements`/`getServiceEngagementDealRoom` directly — the SAME functions
+the PWA's `/api/planner/engagements/current` and `.../[id]/deal-room` call, zero reimplementation.
+Disposable-DB tests cover valid access, foreign wedding, foreign engagement (404, not a leak),
+revoked grant, a Coordinator's equivalent access, an actual denied membership (403
+`PERMISSION_DENIED`, not merely "no default role lacks the permission"), the Vendor's OWN
+`vendor:wedding:...` grant on that exact engagement being refused (F-3: holding a real Vendor
+wedding grant never doubles as Planner/Couple/Coordinator authority), and PWA/native equivalence
+(same engagement list, same Deal Room shape, through both transports). What is NOT done: no Android/
+iOS repository or UI surface exists for this data. `PlannerVendorEngagement` (the model that would
+seem to fit) is already legitimately in use for a DIFFERENT domain — the `Vendor.contractStatus`/
+`paymentStatus` planner-tracked fields, not the managed-contract lifecycle — so reusing it would
+conflate two real, distinct domains rather than reuse one. Building a new Deal Room screen is a
+product-design decision (what should it show, how does a mobile user act on a contract) outside
+this closure's "wire existing surfaces to real data" mandate, so it is reported here honestly as
+remaining work with a concrete, tested, reusable server foundation already in place — not silently
+dropped and not invented under time pressure.
+
+**3. Documents / Vault — connected end to end, both platforms.** `/api/native/wedding/vault` calls
+`listWeddingVaultObjects` directly (the same function `/api/vault` GET uses). Android's
+`ProductionPlannerDashboardRepository.getDocuments()` and iOS's equivalent now map real rows and
+throw (never fabricate empty) on a live failure, matching the estabished Contributions/Budget
+precedent exactly. `ShadowDocumentsDestination` no longer special-cases production to a static
+UNSUPPORTED message — it calls the repository unconditionally, exactly like every sibling section,
+so an empty result is now an honest "no documents recorded" rather than an assumed one. A genuine
+defect was caught and fixed before shipping: a Vendor's own `vendor:wedding:...` grant carries
+`scopeKind: "wedding"` and a real `weddingId` too (it is a completely different authority axis from
+Couple/Planner/Coordinator, per the Production Authority Contract's own grant-mapping table), so
+`requireWeddingScope` alone would have incorrectly admitted it to the full wedding Vault — the PWA's
+`requireVaultWeddingAccess` explicitly excludes vendor sessions, and this route now does too
+(`workspaceKind === 'vendor'` → 403 `GRANT_SCOPE_INVALID`), with a disposable-DB regression test
+pinning it directly.
+
+**4. Admin mature domains — overview analytics, client operations (accounts), and governance/
+support (cases + incidents) connected; the rest remain honestly UNSUPPORTED.** `/api/admin/overview`
+GET's 400-line inline query/analytics logic was extracted verbatim into `@/lib/admin/overview.ts`
+(`loadAdminOverview`), and BOTH the PWA route and the extended `/api/native/admin/overview` now call
+it — same per-section permission gating (`admin.billing.read`/`admin.support.read`/
+`admin.incidents.read`), same risk-flag/analytics derivation, zero duplication. `counts.
+pendingOnboarding` (the Phase 7 onboarding-reconciliation queue metric) is deliberately unchanged
+and un-conflated with the broader `summary.incompleteOnboarding` — they measure different things
+and always have. Android/iOS `AdminSystemSnapshot` gained `businessAccountsTotal`/`activeAccountsTotal`/
+`pendingReviewAccountsTotal`/`openSupportCasesTotal`/`openIncidentsTotal`/`accounts`/`supportCases`/
+`incidents`, rendered by `AdminDashboardContent` (new summary cards), `AdminAccountsSection` (was a
+static, unconditional UNSUPPORTED message that ignored the repository entirely — now real rows), and
+a new `AdminCasesSection` (same fix for the "Cases" destination). Command center, bookings, service
+engagements, contract intelligence, contributions analytics, account identity, productivity, and
+cross-wedding vault browsing remain UNSUPPORTED — each is its own separate PWA surface with its own
+business logic to extract safely, not attempted this pass. A pre-existing, honestly-documented
+limitation (not introduced or fixed this pass): native Admin permissions resolve from the grant's
+`platformRoles[0]` role-default set alone, with no per-membership custom-permission override
+threaded through yet — so today only `wewed_super_admin` (`['*']`) ever actually sees the
+support/incidents sections in practice; the per-section gating logic is correct and forward-
+compatible for when that gap closes, but cannot be exercised end-to-end by a narrower role today.
+
+**5. Controlled writes — unchanged this round.** Task create/update/toggle remains the one shared,
+tested mutation surface. No new writes were added: Contracts (draft/versioning/acceptance), Vault
+(upload), Budget line edits, Contribution actions, and Seating/Timeline/Vendor-planning writes each
+require porting or safely gating an existing, non-trivial write workflow, and none of that changed
+in this round — reported honestly as still open rather than partially attempted and left inconsistent.
+
+**6. Qualification — the actual Xcode gate, not the SPM substitute, now run and passing.**
+`xcodegen generate` (using the repository's own committed `project.yml`, gitignored generated
+`.xcodeproj`) followed by `xcodebuild -scheme Wewed -configuration Debug -destination
+'id=<simulator>'` (a real booted iOS Simulator) succeeded, and a `-configuration Release
+-destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO` build succeeded too — both new evidence
+this round, superseding the earlier `swift build -c release` stand-in. See the completion report for
+exact commands and pass/fail counts across server disposable-DB suites, `bun test src` regression,
+Android `testDebugUnitTest`/`assembleDebug`/`assembleRelease`, and `swift test`.
+
+**7. Context isolation — re-proved for the paths this round's changes touch.** The
+`AppViewModel.boundProductionGrantId`/`boundAdminGrantId` mechanism from item 1 is itself a direct,
+tested guarantee that a context switch (Wedding A → Wedding B, or a wedding-scoped role → Admin)
+cannot render a shell backed by the PREVIOUS context's repository — `AppViewModelProductionBindingTest`
+covers rebinding to a second grant (Wedding A → B) and switching from a wedding-scoped context to
+Admin specifically (proving `scopedRepository()` becomes unreachable via the pre-existing, unrelated
+`_activeWeddingId` gate even though the stale repository OBJECT reference is untouched by the Admin
+bind — the two mechanisms are independent and both hold). Vendor business/engagement isolation is
+unchanged by this round (nothing in scope here touches that code path) and was not re-tested beyond
+what round 1 already covered.
+
+**Phase-8 acceptance: still NOT YET, by the same standard as §10 — see the completion report's own
+explicit statement, not this document, for the current answer.** This document records
+classification and reasoning; it does not itself declare a phase accepted.
