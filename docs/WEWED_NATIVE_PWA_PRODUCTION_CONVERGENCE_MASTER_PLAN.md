@@ -500,6 +500,22 @@ Role-workspace screens contain literal Charity & Kudzie weddings, fabricated acc
 
 Awaiting independent review.
 
+### 8.15 Legacy global-admin wedding access (found in Phase 2)
+
+In the PWA, `listAccessibleWeddings` gives a `User.role = admin` who is NOT a Wewed platform administrator every wedding, as a synthesized `admin` membership. `/api/auth/me` then opens a wedding workspace for them. The dashboard class alone therefore reaches every wedding.
+
+**Phase 2:** the authority contract grants nothing from this and reports it as `legacy_global_admin_wedding_access`.
+
+**Required (Phase 12):** classify it as compatibility or defect, and remove or contain it. Native must never consume it.
+
+### 8.16 Divergent vendor-eligibility rules in the PWA (found in Phase 2)
+
+`/api/auth/me` (`activeVendorIdentity`) admits only `vendor`-type businesses, `business_owner` / `vendor_manager` members, and a claimed/verified, published, non-claimable ProviderProfile. `providerBusinessForUser` (booking-commerce) admits `vendor` or `venue` businesses with any active member role. Both use `LIMIT 1`.
+
+**Phase 2:** the contract follows `/api/auth/me` but enumerates every business.
+
+**Required:** reconcile before native vendor activation (Phase 5/8). Venue eligibility is an open product decision.
+
 ---
 
 ## 9. Database cleanliness policy
@@ -1198,6 +1214,26 @@ Accepted. Status set to LOCKED. Factual corrections C-1 … C-8 and hazards §8.
 
 ### D-010 — Native Phase 1 baseline
 Accepted. Phase 1 branches from `native-mobile/guest-profile-invitation-20260921` @ d7c4dddeabb594810a5833b4ac24d356883a8a3b, not from `native-mobile/role-architecture-p0-20260919` (C-8).
+
+### D-012 — Phase 2 status (2026-09-22)
+**IMPLEMENTED — awaiting independent review (Rule 10).** Phase 3 has not started.
+
+- **Server:** `backend/shared-production-authority-phase2-20260922` @ 7dcfab3eed799fad63af1287757f2681f2fdd4f7 (from main ba4b08f8).
+  - Contains `WewedProductionAuthorityV1`, pure grant rules, and the read-only `resolveProductionAuthority`.
+  - No endpoint, no new auth transport.
+  - Existing files changed by exports only.
+- **Native:** `native-mobile/shared-production-authority-phase2-20260922` @ 311b085ad3c224baace6fe3b6599fa3e696dbc6f (from accepted Phase 1, 83ef10ee).
+  - Contains the Android/iOS DTOs, strict decoder and conservative grant mapper; not activated.
+- **Specification:** `docs/native-mobile/WEWED_PRODUCTION_AUTHORITY_CONTRACT_V1.md`, on both branches.
+- **Shared fixture:** byte-identical on both branches.
+- **Evidence:**
+  - server pure tests 16/16;
+  - server integration 16/16 on a disposable local PostgreSQL migrated with the repository's own migrations, covering the matrix plus agreement with `listAccessibleWeddings`, `isWewedPlatformAdministrator` and `/api/auth/me`;
+  - full `bun test src`: failure set identical to main (the database-dependent suites);
+  - Android unit 314/314; iOS 316/316.
+- **Planner portfolio** is a distinct `portfolio` scope, never a placeholder wedding. It maps to `RequiresWeddingSelection`, not to an `ActorAssignment`.
+- **Phase 3 inputs:** the unresolved production-catalog questions in the specification §8 (items 1–12).
+- **New hazards:** §8.15, §8.16.
 
 ### D-011 — Phase 1 status (2026-09-22)
 **ACCEPTED — independent review passed.** Accepted SHA: 83ef10eed8ba896fb5f399101096ede36b8cad51 (branch `native-mobile/production-authority-foundation-phase1-20260922`). The Rule-10 review confirmed §8.14 and P1-N1 closed against the pushed code. Retained as test-harness debt, not authority defects: the Maestro cold-start rerun flake, and the dev-build `https://wewed.pro` chooser (deferred to Phase 13 signed-link qualification). Phase 2 may begin.
