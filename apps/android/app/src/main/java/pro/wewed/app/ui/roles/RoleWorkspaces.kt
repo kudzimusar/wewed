@@ -536,7 +536,9 @@ private fun CoordinatorMoreSection(
 ) {
     when (section) {
         "Maps" -> WeddingDaySection("Venue", graph, context.environment)
-        "Offline" -> WeddingDaySection("Offline Status", graph, context.environment)
+        "Offline" -> if (context.environment == NativeDataEnvironment.PRODUCTION) {
+            IAUnsupportedSection("Offline", "Wedding-Day offline/sync audit state is not connected to native production in Phase 8.", context.environment)
+        } else WeddingDaySection("Offline Status", graph, context.environment)
         "Account" -> AccountPrivacyScreen()
         "Support" -> IASectionList("Support", "Coordinator support") {
             IACard("Contact support", "support@wewed.pro")
