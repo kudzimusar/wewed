@@ -16,6 +16,8 @@ import pro.wewed.app.services.InMemorySecureStorage
 import pro.wewed.app.services.NativeAccountSignInOutcome
 import pro.wewed.app.services.ProductionAuthorityClient
 import pro.wewed.app.services.ProductionAuthorityFetch
+import pro.wewed.app.services.ProductionWorkspaceFetch
+import pro.wewed.app.services.ProductionWorkspaceSnapshot
 import pro.wewed.app.services.SecureStorage
 import java.util.UUID
 
@@ -106,6 +108,14 @@ class SessionViewModel(
     private val _selectedGrantIds = MutableStateFlow<Set<String>>(emptySet())
     val selectedGrantIds: StateFlow<Set<String>> = _selectedGrantIds.asStateFlow()
 
+    /** The exact current server-issued grant, if one has been resolved/selected. */
+    private val _activeGrantId = MutableStateFlow<String?>(null)
+    val activeGrantId: StateFlow<String?> = _activeGrantId.asStateFlow()
+
+    /** Minimal real, server-revalidated read-only data for the active production workspace. */
+    private val _productionWorkspace = MutableStateFlow<ProductionWorkspaceSnapshot?>(null)
+    val productionWorkspace: StateFlow<ProductionWorkspaceSnapshot?> = _productionWorkspace.asStateFlow()
+
     private val _isSigningIn = MutableStateFlow(false)
     val isSigningIn: StateFlow<Boolean> = _isSigningIn.asStateFlow()
 
@@ -149,7 +159,10 @@ class SessionViewModel(
 
     internal suspend fun restoreFromServer(client: ProductionAuthorityClient, storedToken: String) {
         when (val fetch = client.fetchAuthority(storedToken)) {
-            is ProductionAuthorityFetch.Success -> applyAuthority(fetch.authority, revalidateSelection = true)
+            is ProductionAuthorityFetch.Success -> {
+                applyAuthority(fetch.authority, revalidateSelection = true)
+                refreshActiveWorkspace(client, storedToken)
+            }
             is ProductionAuthorityFetch.SessionInvalid -> clearAccountSession()
             is ProductionAuthorityFetch.Transport -> {
                 // A transient failure proves nothing either way. Do not open a workspace from an
@@ -187,7 +200,10 @@ class SessionViewModel(
             is NativeAccountSignInOutcome.Success -> {
                 storage.save(accountSessionKey, outcome.sessionToken)
                 when (val fetch = client.fetchAuthority(outcome.sessionToken)) {
-                    is ProductionAuthorityFetch.Success -> applyAuthority(fetch.authority, revalidateSelection = false)
+                    is ProductionAuthorityFetch.Success -> {
+                        applyAuthority(fetch.authority, revalidateSelection = false)
+                        refreshActiveWorkspace(client, outcome.sessionToken)
+                    }
                     is ProductionAuthorityFetch.SessionInvalid -> clearAccountSession()
                     is ProductionAuthorityFetch.Transport ->
                         _authenticationError.value = "Signed in, but Wewed could not be reached. Please try again."
@@ -212,14 +228,17 @@ class SessionViewModel(
      */
     private fun applyAuthority(authority: ProductionAuthority, revalidateSelection: Boolean) {
         _productionAuthority.value = authority
+        _productionWorkspace.value = null
         _isAuthenticated.value = true
 
         if (!ProductionGrantMapper.isUsable(authority)) {
             _authorizedRoles.value = emptyList()
             _currentRole.value = null
+            _currentUserRole.value = null
             _activePersonaId.value = null
             _weddingId.value = null
             _weddingTitle.value = null
+            _activeGrantId.value = null
             _selectedGrantIds.value = emptySet()
             storage.delete(selectedGrantsKey)
             return
@@ -228,29 +247,83 @@ class SessionViewModel(
         _activePersonaId.value = authority.accessUserId
 
         val storedSelection = if (revalidateSelection) readSelectedGrantIds() else _selectedGrantIds.value
-        // Revalidated against the FRESH authority: a grant id that no longer exists there is
-        // silently dropped, never carried forward as if it still held (master plan §9).
-        val liveSelection = storedSelection.filterTo(mutableSetOf()) { id -> authority.grants.any { it.grantId == id } }
+        // Revalidate against the fresh contract and fail closed if stale storage somehow contains
+        // more than one selected grant for the same workspace kind. One kind may have ONE active
+        // selection; never let a historical union make two weddings active simultaneously.
+        val liveGrants = storedSelection.mapNotNull { id -> authority.grants.firstOrNull { it.grantId == id } }
+        val liveSelection = liveGrants
+            .groupBy { it.workspaceKindWire }
+            .values
+            .filter { it.size == 1 }
+            .mapTo(mutableSetOf()) { it.single().grantId }
         _selectedGrantIds.value = liveSelection
         persistSelectedGrantIds(liveSelection)
 
-        val assignments = authority.grants.mapNotNull { grant ->
+        val assignmentPairs = authority.grants.mapNotNull { grant ->
             val requiresSelection = authority.contextSelection
                 .firstOrNull { it.workspaceKindWire == grant.workspaceKindWire }
                 ?.selectionRequired == true
             if (requiresSelection && grant.grantId !in liveSelection) return@mapNotNull null
-            (ProductionGrantMapper.map(authority, grant.grantId) as? ProductionGrantMapper.Outcome.Assigned)?.assignment
+            val assignment = (ProductionGrantMapper.map(authority, grant.grantId)
+                as? ProductionGrantMapper.Outcome.Assigned)?.assignment ?: return@mapNotNull null
+            grant to assignment
         }
 
-        _authorizedRoles.value = assignments.map { it.role }.distinct()
+        _authorizedRoles.value = assignmentPairs.map { it.second.role }.distinct()
 
+        val previousGrantId = _activeGrantId.value
         val previousRole = _currentRole.value
-        val nextAssignment = assignments.firstOrNull { it.role == previousRole } ?: assignments.firstOrNull()
-        _currentRole.value = nextAssignment?.role
-        _currentUserRole.value = nextAssignment?.role?.roleId
-        _weddingId.value = nextAssignment?.weddingId
-        _weddingTitle.value = nextAssignment?.weddingId
-            ?.let { id -> authority.grants.firstOrNull { it.weddingId == id }?.weddingTitle }
+        val next = assignmentPairs.firstOrNull { it.first.grantId == previousGrantId }
+            ?: assignmentPairs.firstOrNull { it.second.role == previousRole }
+            ?: assignmentPairs.firstOrNull()
+
+        if (next != null) {
+            _activeGrantId.value = next.first.grantId
+            _currentRole.value = next.second.role
+            _currentUserRole.value = next.second.role.roleId
+            _weddingId.value = next.second.weddingId
+            _weddingTitle.value = next.second.weddingId
+                ?.let { id -> authority.grants.firstOrNull { it.weddingId == id }?.weddingTitle }
+            return
+        }
+
+        // Portfolio/business authority is valid even when it deliberately cannot become a wedding
+        // ActorAssignment. Keep that real grant active for a read-only landing rather than lying
+        // that the authenticated account has "no Wewed workspace".
+        val nonWeddingGrants = authority.grants.filter {
+            ProductionGrantMapper.map(authority, it.grantId) is ProductionGrantMapper.Outcome.RequiresWeddingSelection
+        }
+        val landing = nonWeddingGrants.firstOrNull { it.grantId in liveSelection }
+            ?: nonWeddingGrants.singleOrNull()
+
+        _activeGrantId.value = landing?.grantId
+        _currentRole.value = null
+        _currentUserRole.value = null
+        _weddingId.value = null
+        _weddingTitle.value = landing?.weddingTitle
+    }
+
+    private suspend fun refreshActiveWorkspace(client: ProductionAuthorityClient, sessionToken: String) {
+        val grantId = _activeGrantId.value ?: run {
+            _productionWorkspace.value = null
+            return
+        }
+        when (val fetch = client.fetchWorkspace(sessionToken, grantId)) {
+            is ProductionWorkspaceFetch.Success -> {
+                if (_activeGrantId.value == fetch.workspace.grantId) {
+                    _productionWorkspace.value = fetch.workspace
+                }
+            }
+            is ProductionWorkspaceFetch.SessionInvalid -> clearAccountSession()
+            is ProductionWorkspaceFetch.GrantRevoked -> {
+                _productionWorkspace.value = null
+                _activeGrantId.value = null
+                // Do not guess a replacement. The next authority refresh decides what remains.
+            }
+            is ProductionWorkspaceFetch.Transport -> {
+                _productionWorkspace.value = null
+            }
+        }
     }
 
     /**
@@ -259,11 +332,24 @@ class SessionViewModel(
      */
     fun selectGrant(grantId: String) {
         val authority = _productionAuthority.value ?: return
-        if (authority.grants.none { it.grantId == grantId }) return
-        val next = _selectedGrantIds.value + grantId
+        val selected = authority.grants.firstOrNull { it.grantId == grantId } ?: return
+
+        // Replace the prior choice for THIS workspace kind. Unioning selections let two Planner
+        // weddings stay selected at once and could leave the old wedding active after a new tap.
+        val sameKindIds = authority.grants
+            .filter { it.workspaceKindWire == selected.workspaceKindWire }
+            .mapTo(mutableSetOf()) { it.grantId }
+        val next = (_selectedGrantIds.value - sameKindIds) + grantId
         _selectedGrantIds.value = next
         persistSelectedGrantIds(next)
+        _activeGrantId.value = grantId
         applyAuthority(authority, revalidateSelection = false)
+
+        val client = authorityClient
+        val token = storage.get(accountSessionKey)
+        if (client != null && token != null) {
+            scope.launch { refreshActiveWorkspace(client, token) }
+        }
     }
 
     private fun readSelectedGrantIds(): Set<String> =
@@ -279,6 +365,8 @@ class SessionViewModel(
         storage.delete(selectedGrantsKey)
         _isAuthenticated.value = false
         _productionAuthority.value = null
+        _productionWorkspace.value = null
+        _activeGrantId.value = null
         _authorizedRoles.value = emptyList()
         _currentRole.value = null
         _currentUserRole.value = null
@@ -347,6 +435,8 @@ class SessionViewModel(
         _weddingTitle.value = null
         _authorizedRoles.value = emptyList()
         _productionAuthority.value = null
+        _productionWorkspace.value = null
+        _activeGrantId.value = null
         _selectedGrantIds.value = emptySet()
         _authenticationError.value = null
         _sessionRestored.value = true
