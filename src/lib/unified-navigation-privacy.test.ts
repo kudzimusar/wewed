@@ -83,7 +83,7 @@ describe('unified Wewed navigation and wedding privacy', () => {
     expect(resolver).toContain("wedding.privacy === 'link_only' && guest")
     expect(resolver).toContain("wedding.privacy === 'public'")
     expect(resolver).toContain('session.activeWeddingId !== wedding.id')
-    expect(resolver).toContain('db.weddingMembership.findFirst')
+    expect(resolver).toContain('weddingMembership.findFirst')
     expect(resolver).toContain("status: 'active'")
     expect(resolver).toContain("return 'couple_owner'")
     expect(resolver).toContain("return 'wedding_member'")
