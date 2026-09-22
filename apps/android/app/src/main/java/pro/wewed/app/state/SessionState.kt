@@ -278,7 +278,7 @@ class SessionViewModel(
         _activePersonaId.value = authority.accessUserId
 
         val storedSelection = if (revalidateSelection) {
-            readSelectedGrantIds(authority.accessUserId)
+            readSelectedGrantIds(authority.accessUserId!!)
         } else {
             _selectedGrantIds.value
         }
