@@ -116,4 +116,49 @@ Tracked here per master-plan §16 carry-forward P1-N4 ("fabricated screens compi
   scoping and testing those is a bigger lift than fits safely alongside the rest of this phase's
   required work, and is reported here as remaining work rather than approximated.
 
-**Native (Android/iOS):** in progress — see the completion report for current status.
+**Android (branch `native-mobile/workspace-parity-phase8-20260922`):**
+
+- New `NativeDomainApiClient` (reuses the existing `WeddingDayHttpTransport` seam; added `patch()`
+  to that interface with a default that throws unless overridden, so the two existing fake test
+  transports needed no change).
+- New `ProductionWeddingRepository`/`ProductionPlannerDashboardRepository`: real `getWedding`,
+  `getTasks`/`createTask`/`toggleTask`, `getGuests`/`searchGuests`, `getBudget`, `getBudgetLines`,
+  `getSeatingTables`, `getTimelineEntries`, `getVendorEngagements`. Confirmed by direct inspection
+  of `rememberWeddingGraph` that it wraps the whole wedding-graph load in one try/catch with no
+  per-field isolation — so `getVendors`/`getAnnouncements`/`getAuditRecords` (required, no-default
+  `WeddingRepository` methods, but Wedding-Day concepts unrelated to this phase) return honest
+  empty lists rather than throwing, matching the interface's own established "this source holds
+  none" idiom; the true Wedding-Day write/identity methods
+  (`resolveGuestIdentity`/`checkInGuest`/`updateVendorState`/`postAnnouncement`/`getWeddingPass`/
+  `resolveInvitation`/`confirmRsvp`) remain fail-closed since the graph loader never calls them.
+- `ProductionAdminSystemRepository`: real `pendingOnboardingCount` (nullable; null on failure, not
+  a fabricated zero) alongside the existing honest `unsupportedStreams` list.
+- `AppViewModel.repository`/`plannerRepository` are now rebindable
+  (`bindProductionRepositories`), mirroring the existing `bindActiveWedding` pattern.
+  `RootScreen.kt` reactively rebinds them from the freshly-revalidated `productionWorkspace`
+  snapshot's own `grantId`/`weddingId`, and Couple/Planner/Coordinator now render through the SAME
+  real `CoupleShell`/`PlannerShell`/`CoordinatorShell` every other environment already uses.
+  Vendor/Usher/Admin reaching a wedding-scoped grant still render the Phase 5/6 minimal
+  `ProductionReadOnlyWorkspaceContent` snapshot — a deliberate, honestly-reported scope boundary
+  for this pass (their server adapters exist and are tested; the native role-shell wiring for them
+  is remaining work, not a regression).
+- P1-N4: deleted `HomeScreen.kt`, `PlannerScreen.kt`, `GuestsScreen.kt`, `PassScreen.kt` (each
+  confirmed zero external callers) and the `MarketplaceDirectoryScreen`/`MasterCalendarScreen`/
+  `VendorCatalogScreen`/`AdminGovernanceScreen` functions inside `WholeProductScreens.kt` (same
+  file's other functions are still used and were left untouched). These four carried a hardcoded
+  "Charity & Kudzie" wedding and invented vendor/compliance data — exactly the §8.13 fabrication
+  hazard. The reachable `Shadow*`/`WeddingReference*` equivalents are unchanged and, since they
+  already read `appViewModel.plannerRepository`/`repository` directly, now render real production
+  data automatically once those are bound. The 20 dead `PlannerDestinationRoute` composables in
+  `PlannerDestinations.kt` were NOT removed in this pass (risk of cascading enum-exhaustiveness
+  breakage elsewhere was not fully verified under this phase's time budget) — tracked here
+  explicitly as remaining P1-N4 cleanup rather than silently left unaddressed.
+- New test `ProductionDomainRepositoriesTest` (fake-transport, deterministic): real endpoint calls
+  with grantId+bearer, PATCH toggle, Wedding-Day fail-closed vs. honest-empty split, 401 never
+  returns fixture data, Budget/Seating/Timeline/Vendor mapping, portfolio grant never fabricates a
+  wedding, Admin real count vs. null-on-failure. Full existing unit suite, `assembleDebug` and
+  `assembleRelease` all pass unchanged.
+
+**iOS (branch `native-mobile/workspace-parity-phase8-20260922`):** see the completion report for
+current status (delegated as a faithful port of the Android change above, given the codebases are
+a confirmed 1:1 mirror at every prior phase).
