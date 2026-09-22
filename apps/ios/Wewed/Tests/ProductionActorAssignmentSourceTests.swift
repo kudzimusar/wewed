@@ -39,17 +39,22 @@ final class ProductionActorAssignmentSourceTests: XCTestCase {
         vendorId: String? = nil,
         serviceEngagementIds: [String] = []
     ) -> String {
-        """
+        let weddingValue = weddingId.map { "\"\($0)\"" } ?? "null"
+        let weddingTitleValue = weddingTitle.map { "\"\($0)\"" } ?? "null"
+        let businessValue = businessAccountId.map { "\"\($0)\"" } ?? "null"
+        let vendorValue = vendorId.map { "\"\($0)\"" } ?? "null"
+        let engagementValues = serviceEngagementIds.map { "\"\($0)\"" }.joined(separator: ",")
+        return """
         {
           "grantId": "\(grantId)",
           "workspaceKind": "\(workspaceKind)",
           "scopeKind": "\(scopeKind)",
-          "weddingId": \(weddingId.map { "\"\($0)\"" } ?? "null"),
-          "weddingTitle": \(weddingTitle.map { "\"\($0)\"" } ?? "null"),
+          "weddingId": \(weddingValue),
+          "weddingTitle": \(weddingTitleValue),
           "coupleId": null,
-          "businessAccountId": \(businessAccountId.map { "\"\($0)\"" } ?? "null"),
-          "vendorId": (vendorId.map { ""($0)"" } ?? "null"),
-          "serviceEngagementIds": [(serviceEngagementIds.map { ""($0)"" }.joined(separator: ","))],
+          "businessAccountId": \(businessValue),
+          "vendorId": \(vendorValue),
+          "serviceEngagementIds": [\(engagementValues)],
           "permissions": [],
           "platformRoles": []
         }
