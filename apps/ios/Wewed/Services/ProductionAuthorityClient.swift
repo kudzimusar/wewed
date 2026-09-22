@@ -31,6 +31,7 @@ public struct ProductionWorkspaceSnapshot: Decodable, Equatable, Sendable {
     public let weddingId: String?
     public let weddingTitle: String?
     public let businessAccountId: String?
+    public let businessName: String?
     public let vendorId: String?
     public let serviceEngagementIds: [String]
     public let permissions: [String]
