@@ -1277,6 +1277,90 @@ Phase gate:
 - Phase 4: **ACCEPTED**;
 - Phase 5: **READY TO BEGIN**.
 
+### D-018 — Phase 7 status (2026-09-22)
+**ACCEPTED — onboarding is reconciled to the canonical Supabase/account relationship graph, F-4 is closed at migration-code level, zero-wedding Planner completion is repaired, native onboarding remains unavailable, and independent server/native qualification passed. Phase 8 may begin.**
+
+Accepted server branch:
+- `backend/onboarding-reconciliation-phase7-20260922`
+- final clean head: `4e17c12ceb116a39dd48beff5f6ca65ba9997dba`
+- implementation-agent head reviewed: `1b6c255a950b47cc38406730e2c52fd4b2659f34`
+- executable reviewer qualification head: `7d8ef1adce5805a599f3580428346ae706c24473`
+
+Accepted native branch:
+- `native-mobile/onboarding-reconciliation-phase7-20260922`
+- final clean head: `8024de5e7cb7e4ae3cdda3471aff522d3c9417fd`
+- implementation-agent head reviewed: `7128ad409aeab431907dfe82d8fb546246ed3635`
+- executable reviewer qualification head: `6f67ad7c3aa28dc5687ccdd44b3de628bd0c745a`
+
+Independent review confirmed:
+- legacy `/api/onboarding` is not part of the canonical authority graph and fails closed with HTTP 410 in real production while preserving its documented local/CI seeding use;
+- modern public registration remains `/api/auth/register` using Supabase identity plus `User`, `UserProfile`, `BusinessAccount`, `BusinessAccountMember` and provider records as applicable;
+- admin completion remains the controlled graph-provisioning path for Couple and planning-company accounts;
+- Couple completion creates the coherent Couple/Wedding/WeddingMembership/BusinessAccountLink graph and resolves to the real Couple wedding grant;
+- zero-wedding planning-company completion creates no placeholder wedding and resolves to the Planner portfolio grant;
+- an attached Planner wedding reuses the existing wedding and yields legitimate portfolio + wedding grants;
+- Coordinator authority remains strictly WeddingMembership-scoped;
+- Vendor/Venue applicants do not fabricate wedding/business authority and dedicated stakeholder activation remains gated;
+- Guest remains a separate identity domain and Phase-7 onboarding does not create account rows for Guest access;
+- admin completion uses a database row lock to make concurrent completion idempotent.
+
+Schema/migration closure:
+- F-4: `wewed_admin."BusinessAccount"."subscriptionStatus"` default changes from invalid `inactive` to allowed `free`; no existing row is rewritten;
+- F-7 discovered in Phase 7: the existing public-onboarding completion trigger incorrectly required a wedding for every planning company, making the accepted zero-wedding Planner portfolio impossible to complete;
+- additive migration `20260922130000_fix_planner_zero_wedding_onboarding_completion_trigger` preserves all previous identity/membership/profile/Couple integrity checks while making the wedding-membership requirement conditional for planning companies with no wedding link;
+- neither Phase-7 migration was applied to production.
+
+Moderator-owned closure:
+1. **Legacy production containment was code-inspected but not executed in the agent's integration suite.**
+   - Added a direct production-environment route test proving `POST /api/onboarding` returns 410 before the legacy graph can be written.
+2. **Admin completion could recreate/rebind the Supabase identity profile from metadata.**
+   - The agent correctly documented `UserProfile.id` as the Supabase auth uid, but completion still used `userProfile.upsert`.
+   - Moderator changed completion to require the existing `UserProfile` at `metadata.authUserId` with the same owner email before any onboarding mutation.
+   - Couple/Planner completion now updates that already-verified profile; missing/mismatched profile linkage fails closed with 409 rather than manufacturing a new auth relationship.
+   - Added disposable-DB regression corrupting `metadata.authUserId` and proving no Couple/Wedding/profile rebind occurs.
+   - Canonical onboarding-state documentation synchronized to registration-owned profile creation + completion-owned verification/update.
+
+Independent server qualification:
+- temporary reviewer workflow used disposable PostgreSQL 16 only;
+- full repository migration chain, including both Phase-7 migrations, applied successfully;
+- Phase-7 onboarding + authority qualification passed;
+- carried-forward native-account, authority and Guest Session/invitation regressions passed;
+- production application build passed;
+- Vercel status for the implementation branch was successful;
+- no production database, secret value, deployment or live account graph was touched.
+
+Independent native qualification:
+- iOS `swift test`: **358 tests, 14 expected skips, 0 failures**;
+- Swift package build: PASS;
+- XcodeGen project generation: PASS;
+- iOS simulator build: PASS;
+- unsigned iOS Release/device build: PASS;
+- Android `testDebugUnitTest assembleDebug assembleRelease`: **BUILD SUCCESSFUL**;
+- native onboarding remains unavailable; no native source calls `/api/auth/register`.
+
+Carry-forward:
+- **F-3 Vendor production-link gap remains open**; no Vendor wedding authority was fabricated.
+- **F-4 is closed in repository migration code but still requires the later governed production-migration process before production write expansion.**
+- **F-6 legacy PWA global-admin hazard remains open** for Phase 12.
+- **`WEWED_SESSION_SECRET` remains an operational Preview/Production activation gate**; not read, created or rotated.
+- native onboarding remains unexposed.
+- no merge to main, production deployment, production migration, Play/TestFlight publication or production data mutation was authorized/performed.
+
+Phase gate:
+- canonical onboarding graph: PASS;
+- legacy parallel production onboarding contained: PASS;
+- deterministic auth-profile linkage: PASS;
+- Couple/Planner/Coordinator authority post-conditions: PASS;
+- Vendor/Venue no-fabrication: PASS;
+- F-4 migration-code fix: PASS;
+- zero-wedding Planner completion: PASS;
+- concurrency/idempotency: PASS;
+- Guest separation: PASS;
+- native onboarding unavailable: PASS;
+- independent server/native qualification: PASS;
+- Phase 7: **ACCEPTED**;
+- Phase 8: **READY TO BEGIN**.
+
 ### D-017 — Phase 6 status (2026-09-22)
 **ACCEPTED — independent Rule-10 review passed after moderator-owned multi-account, engagement-context and test-qualification closure. Phase 7 may begin.**
 
