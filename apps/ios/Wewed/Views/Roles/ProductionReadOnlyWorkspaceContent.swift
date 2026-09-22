@@ -39,7 +39,7 @@ public struct ProductionReadOnlyWorkspaceContent: View {
                     )
                     ReadOnlyRow(label: "Lifecycle", value: wedding.lifecycle)
                 } else {
-                    if let business = snapshot.businessAccountId {
+                    if let business = snapshot.businessName ?? snapshot.businessAccountId {
                         ReadOnlyRow(label: "Business", value: business)
                     }
                     if snapshot.scopeKind == "system" {
