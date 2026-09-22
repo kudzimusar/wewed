@@ -487,6 +487,19 @@ Role-workspace screens contain literal Charity & Kudzie weddings, fabricated acc
 
 **Required:** production-reachable fabrication is removed or isolated in Phase 1. Field-level LIVE/EMPTY classification remains Phase 8.
 
+### 8.14 RoleShell initial/safe-return authorization bypass (found in Phase 1 independent review)
+
+- The workspace root could build a `NavigationContext` with `assignment = nil` and still compose a role workspace.
+- The role shell rendered its initial destination directly, without `Entitlements.resolve`.
+- A denial moved the selection to its safe return, so dismissing the notice exposed that destination's content without it ever being resolved.
+
+**Closed (Phase 1 closure, 83ef10eed8ba896fb5f399101096ede36b8cad51, Android + iOS).** `RoleShellAuthorization` is composed only from `Entitlements.resolve`, `Entitlements.relationshipHolds` and `NavigationContext`; it is not a second authorization model.
+- The root admits a workspace only with an assignment, every required scope, and a relationship that holds. A system Admin still needs a system-scope assignment.
+- The initial destination resolves through Entitlements.
+- A denial keeps the last authorized destination; dismissal returns only there, or stays at the boundary.
+
+Awaiting independent review.
+
 ---
 
 ## 9. Database cleanliness policy
@@ -1187,7 +1200,15 @@ Accepted. Status set to LOCKED. Factual corrections C-1 … C-8 and hazards §8.
 Accepted. Phase 1 branches from `native-mobile/guest-profile-invitation-20260921` @ d7c4dddeabb594810a5833b4ac24d356883a8a3b, not from `native-mobile/role-architecture-p0-20260919` (C-8).
 
 ### D-011 — Phase 1 status (2026-09-22)
-**IMPLEMENTED — awaiting independent review (Rule 10).** Not accepted until review confirms it against remote code.
+**CLOSURE IMPLEMENTED — awaiting independent review (Rule 10).** The Rule-10 review of c6b71eaf found §8.14 and required P1-N1 to be fixed. Both are closed at 83ef10eed8ba896fb5f399101096ede36b8cad51, the proposed accepted ending SHA. Phase 1 is not accepted until independent review confirms this against remote code. Phase 2 has not started.
+
+Closure evidence (at 83ef10ee):
+- Android unit 301/301; Android instrumentation 6/6;
+- iOS `swift test` 304/304; iOS GuestProfileUITests 5/5, with the fake Guest server running;
+- Android Maestro Shadow flows passed: guest-pass-identity, role-traversal, persona-switching, shadow-deep-link-invitation, invitation-returning-attending. guest-pass-identity and role-traversal failed on the first run right after install and passed on immediate rerun: a cold-start timing flake, not an authorization failure (the planner workspace was confirmed rendering on direct launch);
+- `native-invitation-invalid-fails-closed` was not run, because `https://wewed.pro` still resolves to the OS chooser on this emulator (P1-N3).
+
+Original Phase 1 implementation record (c6b71eaf):
 
 - **Branch:** `native-mobile/production-authority-foundation-phase1-20260922`
 - **Start:** d7c4dddeabb594810a5833b4ac24d356883a8a3b
@@ -1208,7 +1229,10 @@ Evidence:
 - Android Maestro Shadow flows requalified: guest-pass-identity, role-traversal, persona-switching, shadow-deep-link-invitation, invitation-returning-attending.
 
 Discovered during Phase 1 (recorded, not fixed — outside Phase 1 scope):
-- **P1-N1 (§6.5, before Phase 5 / Phase 9).** After a refused Guest B, both coordinators still hold Guest A's `presentedGuestId` / `activeWeddingSlug`. The UI never renders A, and the A→invalid-B refusal is now pinned by tests. But `refresh()` / `answer()` would still target A until forget/replace. Clearing the binding on refusal changes Guest runtime, so it needs its own reviewed task.
+- **P1-N1 (§6.5) — CLOSED at 83ef10ee, awaiting independent review.** Found: after a refused Guest B, both coordinators still held Guest A's `presentedGuestId` / `activeWeddingSlug`, so `refresh()` / `answer()` could target A. Fixed on Android and iOS:
+  - `enter()` clears the presentation binding before any validation, so a refused, unreachable or rejected B leaves nothing actionable as A (`answer()` returns ReopenRequired with no PUT; `refresh()` returns Idle with no read of A);
+  - A's stored secure session is untouched (the client writes only on success), and an explicit `restoreRememberedGuest()` can restore a still-valid A;
+  - pinned by coordinator tests on both platforms.
 - **P1-N2 (Shadow harness).**
   - The Shadow Guest workspace's Invitation destination is a section list, not the configured card. Under the single contract, Shadow therefore cannot qualify "My Digital Invitation → same card".
   - The production Guest shells remain qualified by the Android instrumentation and iOS UI suites.
@@ -1226,7 +1250,7 @@ Remaining Phase 2 blockers / inputs:
 1. independent review of Phase 1 (Rule 10);
 2. the server grant contract (Phase 2) must supply multi-axis grants, because `AppRole.fromId` is now strictly a native-id parser, and production resolves no assignments and no weddings until Phase 5;
 3. §8.12 (workspace-root live Guest path) must be resolved before Phase 5 enables the workspace;
-4. P1-N1 must be scheduled before broad native production integration.
+4. ~~P1-N1~~ closed at 83ef10ee, pending review.
 
 ---
 
