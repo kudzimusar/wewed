@@ -1,7 +1,6 @@
 import Foundation
 
 public enum NativeEnvironmentGuardError: Error, Equatable, Sendable {
-    case productionDisabled
     case shadowPointsToProductionHost(String)
 }
 
@@ -14,10 +13,6 @@ public enum NativeEnvironmentGuard {
     ]
 
     public static func validate(baseURL: URL?, environment: NativeDataEnvironment) throws {
-        if environment == .production {
-            throw NativeEnvironmentGuardError.productionDisabled
-        }
-
         let shadowFamily: Set<NativeDataEnvironment> = [
             .shadow,
             .sanitizedShadow,
