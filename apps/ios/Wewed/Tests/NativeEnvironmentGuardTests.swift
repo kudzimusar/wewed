@@ -41,8 +41,8 @@ final class NativeEnvironmentGuardTests: XCTestCase {
         }
     }
 
-    func testProductionRuntimeIsDisabledDuringShadowSprint() {
-        XCTAssertThrowsError(
+    func testProductionRuntimeIsAllowedForPhase5ReadOnlyBootstrap() {
+        XCTAssertNoThrow(
             try NativeEnvironmentGuard.validate(
                 baseURL: URL(string: "https://wewed.pro"),
                 environment: .production
