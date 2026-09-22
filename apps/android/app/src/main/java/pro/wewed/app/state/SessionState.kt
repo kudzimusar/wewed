@@ -271,6 +271,7 @@ class SessionViewModel(
             _selectedGrantIds.value = emptySet()
             _selectedEngagementId.value = null
             storage.delete(selectedGrantsKey)
+            storage.delete(selectedGrantsOwnerKey)
             return
         }
 
