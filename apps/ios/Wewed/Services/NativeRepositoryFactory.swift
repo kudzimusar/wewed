@@ -70,7 +70,12 @@ public enum NativeRepositoryFactory {
             throw NativeRepositoryFactoryError.productionReadVerifyNotConfigured
 
         case .production:
-            throw NativeRepositoryFactoryError.productionDisabled
+            return NativeRepositoryBundle(
+                wedding: ProductionBoundaryWeddingRepository(),
+                planner: ProductionBoundaryPlannerRepository(),
+                environment: .production,
+                baseURL: baseURL
+            )
         }
     }
 }
