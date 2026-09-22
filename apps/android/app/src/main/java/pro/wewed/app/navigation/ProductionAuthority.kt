@@ -86,7 +86,10 @@ data class ProductionAuthority(
     val contextSelection: List<ProductionContextSelection>,
     /** Authority the account contract refuses by design, e.g. "guest", "usher_gate". */
     val unsupportedAuthorities: List<String>,
-    val platformEffectiveRole: String?
+    val platformEffectiveRole: String?,
+    /** Presentation-only names already carried by the server authority evidence. Never authority. */
+    val businessNamesById: Map<String, String> = emptyMap(),
+    val vendorNamesById: Map<String, String> = emptyMap(),
 ) {
     companion object {
         const val CONTRACT = "WewedProductionAuthorityV1"
@@ -114,7 +117,15 @@ object ProductionAuthorityDecoder {
                 )
             },
             unsupportedAuthorities = root.getJSONArray("unsupported").objects().map { it.getString("authority") },
-            platformEffectiveRole = root.optJSONObject("platform")?.nullableString("effectiveRole")
+            platformEffectiveRole = root.optJSONObject("platform")?.nullableString("effectiveRole"),
+            businessNamesById = root.optJSONArray("businessMemberships")
+                ?.objects()
+                ?.associate { it.getString("businessAccountId") to it.getString("businessName") }
+                ?: emptyMap(),
+            vendorNamesById = root.optJSONArray("vendorEngagements")
+                ?.objects()
+                ?.associate { it.getString("vendorId") to it.getString("vendorName") }
+                ?: emptyMap(),
         )
     }.getOrNull()
 
