@@ -39,6 +39,7 @@ data class ProductionWorkspaceSnapshot(
     val weddingId: String?,
     val weddingTitle: String?,
     val businessAccountId: String?,
+    val businessName: String?,
     val vendorId: String?,
     val serviceEngagementIds: List<String>,
     val permissions: List<String>,
@@ -146,6 +147,7 @@ class ProductionAuthorityClient(
                     weddingId = root.optString("weddingId").takeIf { !root.isNull("weddingId") && it.isNotBlank() },
                     weddingTitle = root.optString("weddingTitle").takeIf { !root.isNull("weddingTitle") && it.isNotBlank() },
                     businessAccountId = root.optString("businessAccountId").takeIf { !root.isNull("businessAccountId") && it.isNotBlank() },
+                    businessName = root.optString("businessName").takeIf { !root.isNull("businessName") && it.isNotBlank() },
                     vendorId = root.optString("vendorId").takeIf { !root.isNull("vendorId") && it.isNotBlank() },
                     serviceEngagementIds = root.getJSONArray("serviceEngagementIds").let { array ->
                         (0 until array.length()).map { array.getString(it) }
