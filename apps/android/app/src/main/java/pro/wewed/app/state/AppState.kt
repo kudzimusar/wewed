@@ -9,10 +9,13 @@ import pro.wewed.app.models.InvitationDeepLink
 import pro.wewed.app.models.NativeDataEnvironment
 import pro.wewed.app.models.NativeDeepLink
 import pro.wewed.app.models.NativeDeepLinkParser
+import pro.wewed.app.services.AdminSystemRepository
 import pro.wewed.app.services.FixturePlannerDashboardRepository
 import pro.wewed.app.services.FixtureWeddingRepository
 import pro.wewed.app.services.PlannerDashboardRepository
 import pro.wewed.app.services.NativeEnvironmentGuard
+import pro.wewed.app.services.ProductionBoundaryAdminSystemRepository
+import pro.wewed.app.services.ShadowAdminSystemRepository
 import pro.wewed.app.services.WeddingDayGateAwareRepository
 import pro.wewed.app.services.WeddingDayGateOperations
 import pro.wewed.app.services.ScopedWeddingRepository
@@ -61,6 +64,19 @@ class AppViewModel(
         private set
 
     /**
+     * Master plan Phase 8 closure §B/§12 — never `ShadowAdminSystemRepository` in production. Non-
+     * production keeps the existing Shadow-over-wedding-graph behavior unchanged; production starts
+     * honestly unbound (`ProductionBoundaryAdminSystemRepository`) until a real `admin:system`
+     * grant resolves and `bindProductionAdminRepository` swaps in `ProductionAdminSystemRepository`.
+     */
+    var adminRepository: AdminSystemRepository = if (dataEnvironment == NativeDataEnvironment.PRODUCTION) {
+        ProductionBoundaryAdminSystemRepository()
+    } else {
+        ShadowAdminSystemRepository(repository, dataEnvironment)
+    }
+        private set
+
+    /**
      * Master plan Phase 8 — rebinds this view model's domain repositories to real, grant-scoped
      * production adapters once a wedding-scoped grant is active. Only ever called for
      * `dataEnvironment == PRODUCTION`; every other environment keeps its constructor-supplied
@@ -74,6 +90,14 @@ class AppViewModel(
         }
         repository = if (weddingDayGate != null) WeddingDayGateAwareRepository(wedding, weddingDayGate) else wedding
         plannerRepository = planner
+    }
+
+    /** Master plan Phase 8 closure §B — rebinds Admin to a real, grant-scoped production adapter. */
+    fun bindProductionAdminRepository(admin: AdminSystemRepository) {
+        check(dataEnvironment == NativeDataEnvironment.PRODUCTION) {
+            "bindProductionAdminRepository is only valid for the PRODUCTION environment."
+        }
+        adminRepository = admin
     }
 
     /**

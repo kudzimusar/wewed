@@ -220,10 +220,36 @@ class ProductionDomainRepositoriesTest {
     }
 
     @Test
-    fun `Contributions and Documents are honest empty, never fabricated`() = runBlocking {
+    fun `Documents is honest empty, never fabricated (no server adapter yet)`() = runBlocking {
         val repo = ProductionPlannerDashboardRepository(NativeDomainApiClient(FakeTransport(emptyMap())), token, grantId)
-        assertTrue(repo.getContributions().isEmpty())
         assertTrue(repo.getDocuments().isEmpty())
+    }
+
+    @Test
+    fun `Contributions maps real rows from the same engine the PWA uses, and throws on live failure`() = runBlocking {
+        val transport = FakeTransport(
+            mapOf(
+                "api/native/wedding/contributions" to WeddingDayHttpResponse(200, """
+                    {"success":true,"count":1,"data":[{"id":"contrib-1","weddingId":"wed-1","type":"CASH_TO_COUPLE","amount":500.0,"commitmentState":"CONFIRMED","fulfillmentState":"RECEIVED","verificationState":"RECONCILED","allocatedAmount":250.0,"contributor":{"displayName":"Aunt Grace"}}],"summaryByCurrency":{},"counts":{}}
+                """.trimIndent()),
+            ),
+        )
+        val repo = ProductionPlannerDashboardRepository(NativeDomainApiClient(transport), token, grantId)
+        val contributions = repo.getContributions()
+        assertEquals(1, contributions.size)
+        assertEquals("Aunt Grace", contributions[0].contributorLabel)
+        assertEquals("Cash to couple", contributions[0].typeLabel)
+        assertEquals(500.0, contributions[0].value, 0.001)
+        assertTrue(contributions[0].verified)
+        assertTrue(contributions[0].allocationLabel.contains("Allocated"))
+
+        val failingRepo = ProductionPlannerDashboardRepository(NativeDomainApiClient(FakeTransport(emptyMap())), token, grantId)
+        try {
+            failingRepo.getContributions()
+            fail("Expected a live Contributions failure to throw instead of returning an empty list")
+        } catch (e: ProductionReadOnlyDomainUnavailable) {
+            // Expected — matches the same "live failure never masquerades as empty" rule as Budget.
+        }
     }
 
     @Test

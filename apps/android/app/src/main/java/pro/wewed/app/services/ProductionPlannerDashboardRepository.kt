@@ -12,12 +12,13 @@ import pro.wewed.app.models.*
  * portfolio case rather than fabricating a wedding, matching master plan §9 ("A Planner portfolio
  * with zero weddings must still work... must not fabricate a wedding").
  *
- * [getContributions] and [getDocuments] are UNSUPPORTED in this phase (see
- * docs/native-mobile/WEWED_NATIVE_PHASE8_FIELD_CLASSIFICATION.md) — porting the real funding-
- * attribution/vault engines is tracked as separate remaining work, not approximated here. Each
- * Shadow*Destination composable calls its own single method independently with no shared
- * try/catch, so returning an honest empty list here only affects that one section, never Tasks/
- * Budget/Seating/Timeline/Vendors.
+ * [getContributions] reads the SAME `loadContributionWorkspace` engine the PWA's
+ * `/api/planner/contributions` uses (via `/api/native/wedding/contributions`) — never a
+ * client-recomputed funding truth. [getDocuments] remains UNSUPPORTED in this phase (see
+ * docs/native-mobile/WEWED_NATIVE_PHASE8_FIELD_CLASSIFICATION.md) — the vault/document engine is
+ * separate remaining work, not approximated here. Each Shadow*Destination composable calls its own
+ * single method independently with no shared try/catch, so returning an honest empty list for an
+ * unwired domain only affects that one section, never Tasks/Budget/Seating/Timeline/Vendors.
  */
 class ProductionPlannerDashboardRepository(
     private val client: NativeDomainApiClient,
@@ -77,7 +78,32 @@ class ProductionPlannerDashboardRepository(
         }
     }
 
-    override suspend fun getContributions(): List<PlannerContributionRecord> = emptyList()
+    override suspend fun getContributions(): List<PlannerContributionRecord> {
+        // Master plan Phase 8 closure §11 — matches the established Budget/Seating/Timeline/Vendor
+        // pattern: this repository is only ever consulted once a real wedding-scoped grant has
+        // rendered a role shell (a Planner-portfolio grant never reaches this call at all — it
+        // stays on the earlier no-role production branch), so a transport/permission failure here
+        // is a genuine live-domain failure, never an honest "zero contributions" to fabricate.
+        val root = when (val fetch = client.contributions(sessionToken, grantId)) {
+            is NativeDomainFetch.Success -> fetch.value
+            else -> throw ProductionReadOnlyDomainUnavailable()
+        }
+        return root.optJSONArray("data")?.toObjectList().orEmpty().map { item ->
+            val allocatedAmount = item.optDouble("allocatedAmount", 0.0)
+            val verificationState = item.optString("verificationState")
+            PlannerContributionRecord(
+                id = item.getString("id"),
+                contributorLabel = item.optJSONObject("contributor")?.optString("displayName") ?: "Unknown contributor",
+                typeLabel = item.optString("type").replace('_', ' ').lowercase()
+                    .replaceFirstChar { it.uppercase() },
+                value = item.optDouble("amount", 0.0),
+                statusLabel = listOf(item.optString("commitmentState"), item.optString("fulfillmentState"))
+                    .filter { it.isNotBlank() }.joinToString(" · "),
+                allocationLabel = if (allocatedAmount > 0) "Allocated ${allocatedAmount}" else "Unallocated",
+                verified = verificationState in setOf("CONFIRMED_BY_USER", "EVIDENCE_ATTACHED", "RECONCILED"),
+            )
+        }
+    }
 
     override suspend fun getVendorEngagements(): List<PlannerVendorEngagement> {
         val array = when (val fetch = client.vendors(sessionToken, grantId)) {

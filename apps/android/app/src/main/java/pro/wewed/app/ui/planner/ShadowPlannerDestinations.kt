@@ -297,6 +297,25 @@ fun ShadowTimelineDestination(appViewModel: AppViewModel, onBack: () -> Unit) {
 
 @Composable
 fun ShadowDocumentsDestination(appViewModel: AppViewModel, onBack: () -> Unit) {
+    // Master plan Phase 8 closure §8/§11 — production has no document/vault adapter yet, so
+    // ProductionPlannerDashboardRepository.getDocuments() always answers an honest empty list.
+    // Reaching the empty-state branch below for that reason would read as "we checked; there are
+    // none", which is exactly the false-empty the moderator's review is watching for. Say
+    // UNSUPPORTED outright instead of calling the repository at all, matching the same static
+    // pattern VendorMoreSection already uses for its own unimplemented Contracts/Payments/Files.
+    if (appViewModel.dataEnvironment == NativeDataEnvironment.PRODUCTION) {
+        PlannerSubScreenScaffold(title = "Documents", onBack = onBack) { padding ->
+            Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+                pro.wewed.app.ui.roles.IAUnsupportedSection(
+                    "Documents",
+                    "Documents and contracts are not yet available in the native app for this wedding.",
+                    appViewModel.dataEnvironment,
+                )
+            }
+        }
+        return
+    }
+
     var records by remember { mutableStateOf<List<PlannerDocumentRecord>>(emptyList()) }
     var loaded by remember { mutableStateOf(false) }
 

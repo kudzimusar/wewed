@@ -54,6 +54,32 @@ class ShadowAdminSystemRepository(
 }
 
 /**
+ * Master plan Phase 8 closure §B/§12 — the PRODUCTION default before a real `admin:system` grant
+ * has been resolved and bound. Never Shadow, never fabricated: every stream is honestly
+ * unsupported/unknown until `ProductionAdminSystemRepository` is bound in its place.
+ */
+class ProductionBoundaryAdminSystemRepository : AdminSystemRepository {
+    override suspend fun snapshot(): AdminSystemSnapshot = AdminSystemSnapshot(
+        environment = NativeDataEnvironment.PRODUCTION,
+        weddingsInScope = 0,
+        unsupportedStreams = listOf(
+            "Full overview (billing/support/incidents)",
+            "Client operations",
+            "Command center",
+            "Bookings",
+            "Service engagements",
+            "Contract intelligence",
+            "Contributions analytics",
+            "Account identity",
+            "Productivity",
+            "Governance",
+            "Vault",
+        ),
+        pendingOnboardingCount = null,
+    )
+}
+
+/**
  * Master plan Phase 8 — the first real Admin production adapter. Only `pendingOnboardingCount` is
  * live (`/api/native/admin/overview`); every other stream from the PWA's much larger
  * `/api/admin/overview`/`client-operations`/`command-center`/etc. remains UNSUPPORTED in this

@@ -29,6 +29,8 @@ import pro.wewed.app.navigation.ProductionWorkspaceGrant
 import pro.wewed.app.navigation.GrantScopeKind
 import pro.wewed.app.services.NativeDomainApiClient
 import pro.wewed.app.services.ProductionPlannerDashboardRepository
+import pro.wewed.app.services.ProductionAdminSystemRepository
+import pro.wewed.app.services.ProductionVendorBusinessRepository
 import pro.wewed.app.services.ProductionWeddingRepository
 import pro.wewed.app.services.UrlConnectionWeddingDayTransport
 import pro.wewed.app.state.AppViewModel
@@ -423,18 +425,55 @@ fun RootScreen(
         isAuthenticated && currentRole == null && activeGrantId != null
     ) {
         val snapshot = productionWorkspace
-        if (snapshot != null) {
-            ProductionReadOnlyWorkspaceContent(
-                snapshot = snapshot,
-                onSignOut = { sessionViewModel.signOut() },
-                onSwitchContext = onOpenContextSwitcher,
-            )
-        } else {
+        if (snapshot == null) {
             NativeEnvironmentUnavailableScreen(
                 environmentName = appViewModel.dataEnvironment.displayName,
                 reason = "This authorized workspace could not be refreshed. No cached production data is shown."
             )
+            return
         }
+
+        // Master plan Phase 8 closure §A — a Vendor business grant (scopeKind "business") gets its
+        // OWN real production shell (identity/catalog/offerings/bookings from
+        // /api/native/vendor/*), never the wedding graph, and never fabricated content. A Planner
+        // portfolio (scopeKind "portfolio") keeps the existing minimal snapshot — its own domains
+        // (Overview/Tasks/etc.) are already reachable once a real wedding is selected.
+        if (snapshot.workspaceKind == "vendor" && snapshot.scopeKind == "business") {
+            val vendorClient = remember(snapshot.grantId, appViewModel.dataBaseUrl) {
+                appViewModel.dataBaseUrl?.let { baseUrl ->
+                    NativeDomainApiClient(
+                        transport = UrlConnectionWeddingDayTransport(baseUrl),
+                        onSessionInvalid = { sessionViewModel.handleNativeDomainSessionInvalid() },
+                        onGrantRevoked = { revokedGrantId -> sessionViewModel.handleNativeDomainGrantRevoked(revokedGrantId) },
+                    )
+                }
+            }
+            val vendorRepository = remember(vendorClient, snapshot.grantId) {
+                val token = sessionViewModel.currentSessionToken()
+                if (vendorClient != null && token != null) {
+                    ProductionVendorBusinessRepository(vendorClient, token, snapshot.grantId)
+                } else null
+            }
+            if (vendorRepository != null) {
+                ProductionVendorBusinessContent(
+                    repository = vendorRepository,
+                    onSignOut = { sessionViewModel.signOut() },
+                    onSwitchContext = onOpenContextSwitcher,
+                )
+            } else {
+                NativeEnvironmentUnavailableScreen(
+                    environmentName = appViewModel.dataEnvironment.displayName,
+                    reason = "This authorized workspace could not be refreshed. No cached production data is shown."
+                )
+            }
+            return
+        }
+
+        ProductionReadOnlyWorkspaceContent(
+            snapshot = snapshot,
+            onSignOut = { sessionViewModel.signOut() },
+            onSwitchContext = onOpenContextSwitcher,
+        )
         return
     }
 
@@ -544,19 +583,38 @@ fun RootScreen(
         }
     }
 
-    // Master plan Phase 8 — Couple/Planner/Coordinator now render through the SAME real role
-    // shells every other environment uses, backed by the ProductionWeddingRepository/
-    // ProductionPlannerDashboardRepository bound above. Vendor/Usher/Admin/Guest reaching this
-    // point (e.g. a Vendor's wedding-engagement grant) still render the Phase 5/6 minimal
-    // read-only snapshot below — their mature-domain native UI is not wired yet (see
+    // Master plan Phase 8 closure — Couple/Planner/Coordinator/Admin now render through the SAME
+    // real role shells every other environment uses, backed by the production repositories bound
+    // above (Admin's own admin:system binding is below). Vendor/Usher/Guest reaching this point
+    // (e.g. a Vendor's wedding-engagement grant) still render the Phase 5/6 minimal read-only
+    // snapshot below — that mature-domain native UI is not wired yet (see
     // docs/native-mobile/WEWED_NATIVE_PHASE8_FIELD_CLASSIFICATION.md), and falling back to it here
     // is an honest "not yet" rather than a broken real shell.
     val productionRoleWired = appViewModel.dataEnvironment == NativeDataEnvironment.PRODUCTION &&
-        context.activeRole in setOf(AppRole.COUPLE, AppRole.PLANNER, AppRole.COORDINATOR)
+        context.activeRole in setOf(AppRole.COUPLE, AppRole.PLANNER, AppRole.COORDINATOR, AppRole.ADMIN)
+
+    // Master plan Phase 8 closure §B — reactively binds the real Admin adapter as soon as an
+    // admin:system snapshot is available. Admin has no wedding, so this is keyed on the snapshot's
+    // own workspaceKind rather than a weddingId (which is always null/absent for this scope).
+    if (appViewModel.dataEnvironment == NativeDataEnvironment.PRODUCTION && context.activeRole == AppRole.ADMIN) {
+        val adminSnapshotGrantId = productionWorkspace?.takeIf { it.workspaceKind == "admin" }?.grantId
+        LaunchedEffect(adminSnapshotGrantId, sessionViewModel) {
+            if (adminSnapshotGrantId == null) return@LaunchedEffect
+            val token = sessionViewModel.currentSessionToken() ?: return@LaunchedEffect
+            val baseUrl = appViewModel.dataBaseUrl ?: return@LaunchedEffect
+            val client = NativeDomainApiClient(
+                transport = UrlConnectionWeddingDayTransport(baseUrl),
+                onSessionInvalid = { sessionViewModel.handleNativeDomainSessionInvalid() },
+                onGrantRevoked = { revokedGrantId -> sessionViewModel.handleNativeDomainGrantRevoked(revokedGrantId) },
+            )
+            appViewModel.bindProductionAdminRepository(ProductionAdminSystemRepository(client, token, adminSnapshotGrantId))
+        }
+    }
 
     if (productionRoleWired) {
         val snapshot = productionWorkspace
-        if (snapshot == null || snapshot.grantId != activeGrantId || snapshot.weddingId != context.activeWeddingId) {
+        val weddingScopeMatches = context.activeRole == AppRole.ADMIN || snapshot?.weddingId == context.activeWeddingId
+        if (snapshot == null || snapshot.grantId != activeGrantId || !weddingScopeMatches) {
             NativeEnvironmentUnavailableScreen(
                 environmentName = appViewModel.dataEnvironment.displayName,
                 reason = "The authorized workspace could not be refreshed. No cached production data is shown."
@@ -588,6 +646,14 @@ fun RootScreen(
                     onOpenPersonaPicker = onOpenPersonaPicker
                 )
                 AppRole.COORDINATOR -> CoordinatorShell(
+                    sessionViewModel = sessionViewModel,
+                    appViewModel = appViewModel,
+                    context = context,
+                    pendingDeepLink = pendingRouteDeepLink,
+                    onDeepLinkHandled = onDeepLinkHandled,
+                    onOpenPersonaPicker = onOpenPersonaPicker
+                )
+                AppRole.ADMIN -> AdminShell(
                     sessionViewModel = sessionViewModel,
                     appViewModel = appViewModel,
                     context = context,

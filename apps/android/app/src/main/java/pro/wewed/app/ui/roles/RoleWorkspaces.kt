@@ -15,7 +15,6 @@ import kotlinx.coroutines.launch
 import pro.wewed.app.navigation.IANavigationContract
 import pro.wewed.app.navigation.NavigationContext
 import pro.wewed.app.services.AdminSystemRepository
-import pro.wewed.app.services.ShadowAdminSystemRepository
 import pro.wewed.app.services.forWedding
 import pro.wewed.app.navigation.PrimaryDestination
 import pro.wewed.app.state.AppViewModel
@@ -1017,9 +1016,13 @@ fun AdminShell(
 ) {
     // P0-13: Admin reads a system projection. The wedding graph is only consulted for surfaces
     // that genuinely drill into a wedding.
-    val adminRepository = remember(appViewModel) {
-        ShadowAdminSystemRepository(appViewModel.repository, appViewModel.dataEnvironment)
-    }
+    //
+    // Master plan Phase 8 closure §B — this NEVER constructs ShadowAdminSystemRepository directly
+    // for PRODUCTION anymore. appViewModel.adminRepository is ProductionBoundaryAdminSystemRepository
+    // (honestly unbound) until RootScreen's production-domain binder resolves a real admin:system
+    // grant and swaps in ProductionAdminSystemRepository; every other environment still gets the
+    // existing Shadow-over-wedding-graph behavior via that same property's constructor default.
+    val adminRepository = appViewModel.adminRepository
     val sectionMemory = rememberWorkspaceSectionMemory()
     // Admin is system-scoped, so its access context is read from the source directly rather than
     // through a wedding-bound graph that a global administrative session never loads. Without
