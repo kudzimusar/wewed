@@ -532,6 +532,17 @@ fun WeddingDaySection(
     if (graph.loading) return IALoading()
     val wedding = graph.wedding
 
+    if (environment == NativeDataEnvironment.PRODUCTION &&
+        section in setOf("Vendor Status", "Vendor Arrivals", "Announcements", "Offline Status", "Offline", "Sync Status")
+    ) {
+        IAUnsupportedSection(
+            section,
+            "This Wedding-Day operational stream is not connected to native production in Phase 8. No empty operational state is inferred.",
+            environment
+        )
+        return
+    }
+
     when (section) {
         "My Pass", "Wedding Pass" -> passContent?.invoke() ?: IAUnsupportedSection(
             section, "No Wedding Pass is issued for this actor in the active wedding.", environment
