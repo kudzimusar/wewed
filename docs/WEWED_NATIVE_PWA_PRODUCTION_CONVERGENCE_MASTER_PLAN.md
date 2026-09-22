@@ -1186,6 +1186,48 @@ Accepted. Status set to LOCKED. Factual corrections C-1 … C-8 and hazards §8.
 ### D-010 — Native Phase 1 baseline
 Accepted. Phase 1 branches from `native-mobile/guest-profile-invitation-20260921` @ d7c4dddeabb594810a5833b4ac24d356883a8a3b, not from `native-mobile/role-architecture-p0-20260919` (C-8).
 
+### D-011 — Phase 1 status (2026-09-22)
+**IMPLEMENTED — awaiting independent review (Rule 10).** Not accepted until review confirms it against remote code.
+
+- **Branch:** `native-mobile/production-authority-foundation-phase1-20260922`
+- **Start:** d7c4dddeabb594810a5833b4ac24d356883a8a3b
+- **Proposed accepted ending SHA:** c6b71eaf996631e2373ceb6a8dea41675098ea98
+
+Closed on Android and iOS:
+- §8.1 fail-open AppRole;
+- §8.2 production session and wedding defaults;
+- §8.8 restored-token authority;
+- §8.9 unconditional Shadow authority and default-wedding/actor fallback;
+- §8.10 release launch inputs;
+- §8.11 stale Guest entry contracts (one contract: `GuestCeremonialEntry.opensOnInvitation`);
+- production-reachable §8.13 fabrication (Settings identity, Event Switcher).
+
+Evidence:
+- Android unit 290/290; Android instrumentation 6/6;
+- iOS `swift test` 293/293; iOS GuestProfileUITests 5/5;
+- Android Maestro Shadow flows requalified: guest-pass-identity, role-traversal, persona-switching, shadow-deep-link-invitation, invitation-returning-attending.
+
+Discovered during Phase 1 (recorded, not fixed — outside Phase 1 scope):
+- **P1-N1 (§6.5, before Phase 5 / Phase 9).** After a refused Guest B, both coordinators still hold Guest A's `presentedGuestId` / `activeWeddingSlug`. The UI never renders A, and the A→invalid-B refusal is now pinned by tests. But `refresh()` / `answer()` would still target A until forget/replace. Clearing the binding on refusal changes Guest runtime, so it needs its own reviewed task.
+- **P1-N2 (Shadow harness).**
+  - The Shadow Guest workspace's Invitation destination is a section list, not the configured card. Under the single contract, Shadow therefore cannot qualify "My Digital Invitation → same card".
+  - The production Guest shells remain qualified by the Android instrumentation and iOS UI suites.
+- **P1-N3 (test environment).**
+  - Maestro flows that open `https://wewed.pro/...` links (e.g. `native-invitation-invalid-fails-closed`) cannot reach `pro.wewed.app.dev` on an emulator where it is not domain-verified; the OS chooser intercepts. This is environmental and does not depend on app code.
+  - iOS GuestProfileUITests require `scripts/native-mobile/guest-profile-ui-server.py` running on 127.0.0.1:8768.
+- **P1-N4 (Phase 8).** These fabricated screens are compiled into release but have no callers, so they are not production-reachable:
+  - Android: `HomeScreen`, `PlannerScreen`, `GuestsScreen`, `PassScreen`, `MasterCalendarScreen`, `VendorCatalogScreen`, `AdminGovernanceScreen`, `MarketplaceDirectoryScreen`, and 20 of 24 `PlannerDestinations`;
+  - iOS: the equivalent views.
+
+  Phase 8 must delete them or rebuild them on live data. They must not be wired in as-is.
+- **P1-N5 (parity).** iOS `RootView` does not call `LaunchRouter`, while Android `RootScreen` does. Behaviour matches, but the state machine is asserted rather than executed on iOS.
+
+Remaining Phase 2 blockers / inputs:
+1. independent review of Phase 1 (Rule 10);
+2. the server grant contract (Phase 2) must supply multi-axis grants, because `AppRole.fromId` is now strictly a native-id parser, and production resolves no assignments and no weddings until Phase 5;
+3. §8.12 (workspace-root live Guest path) must be resolved before Phase 5 enables the workspace;
+4. P1-N1 must be scheduled before broad native production integration.
+
 ---
 
 ## 17. Immediate next phase after this plan is locked
