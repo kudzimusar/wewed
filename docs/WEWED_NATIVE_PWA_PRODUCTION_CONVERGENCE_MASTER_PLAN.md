@@ -1277,6 +1277,112 @@ Phase gate:
 - Phase 4: **ACCEPTED**;
 - Phase 5: **READY TO BEGIN**.
 
+### D-016 — Phase 5 status (2026-09-22)
+**ACCEPTED — independent Rule-10 review passed after reviewer-owned activation, isolation, and read-only data closure. Phase 6 may begin.**
+
+Accepted server branch:
+- `backend/native-account-readonly-phase5-20260922`
+- final clean head after temporary reviewer-CI removal: `75ea4044b37822ba5dd8e3cdebd74296a9c344cd`
+- implementation-agent head reviewed: `b3eb76fc1d06f6e6140acbe644806b2fd96ef8e6`
+- server reviewer qualification code head: `c935993f005f7ef020d65abaf08f43c04fd656b2`
+- disposable-Postgres reviewer workflow head: `9def48aec8747e3a988e7b0f95356a89586d50f7`
+
+Accepted native branch:
+- `native-mobile/account-readonly-phase5-20260922`
+- final clean head after temporary reviewer-CI removal: `65931b817884b9ecee961f860161345c3a9cf5cf`
+- implementation-agent head reviewed: `2431bde1d8bd8387297e9bac94eba566e7c2cc0f`
+- final executable reviewer qualification head: `eeaec4e09d1e307c6dc8e2ad6885cdba4c6c9001`
+
+Independent review confirmed the implementer correctly introduced:
+- native account sign-in using direct Supabase credential verification rather than delegating to the mutable browser sign-in path;
+- an identity-only native account session containing `version + accessUserId + authUserId + email + expiresAt`, with no role/wedding/grant authority embedded;
+- dedicated `WEWED_SESSION_SECRET` signing for new native account sessions, with no service-role fallback;
+- a read-only `GET /api/native/account/authority` returning the existing unflattened `WewedProductionAuthorityV1`;
+- Android/iOS `ProductionActorAssignmentSource` using the accepted `ProductionGrantMapper`, not flat `AppRole.fromId(serverRole)`;
+- fresh authority revalidation on sign-in/session restoration;
+- explicit selection of multi-grant contexts;
+- Planner zero-wedding portfolio and Vendor business grants remaining real authority without fake wedding assignments;
+- Coordinator authority deriving from wedding membership; Admin remaining system-scoped;
+- Guest Session v2 remaining a separate identity domain.
+
+Reviewer-owned defects found and closed:
+1. **Production account code was unreachable in actual release bootstrap.**
+   - Android/iOS production launch still intentionally degraded/refused while the new authority client existed only as unused code.
+   - Production now boots a read-only account workspace when no Guest relationship owns the launch.
+2. **Production `NativeRepositoryFactory` still threw.**
+   - Replaced only for production with fail-closed boundary repositories; legacy mutable/fixture repository domains remain unavailable.
+   - Full mature domain parity remains Phase 8.
+3. **No real production workspace data rendered.**
+   - Added `GET /api/native/account/workspace?grantId=...`.
+   - The server re-resolves `WewedProductionAuthorityV1` on every request, validates the selected server-issued grant, accepts no raw wedding/business/vendor scope IDs from the client, performs no write, and returns a minimal real read-only wedding/business/system snapshot.
+   - Android/iOS render that snapshot inside the existing shell; no fixture/Shadow fallback is permitted.
+4. **Mobile sign-in risked browser cookie-session side effects.**
+   - Native sign-in now uses a non-persisting Supabase client (`persistSession=false`) and issues only the native identity credential.
+5. **Grant-selection union bug.**
+   - Selecting Wedding B after Wedding A could preserve both same-kind grant IDs.
+   - Selection is now one-per-workspace-kind; ambiguous persisted same-kind selections fail closed.
+6. **Grant-selection UI deadlock.**
+   - The picker originally depended on `currentRole`, although `currentRole` cannot exist until one of multiple same-kind wedding grants is selected.
+   - Selection is now reachable pre-assignment and is constrained to the active role when one already exists.
+7. **Planner portfolio/Vendor business were falsely presented as “no workspace.”**
+   - A sole unambiguous portfolio/business grant now has a real read-only landing while still producing no fake wedding `ActorAssignment`.
+8. **Revoked workspace snapshot could leave stale active context fields.**
+   - 403/404 clears active grant/role/wedding and removes the revoked persisted selection; no replacement context is guessed from stale authority.
+9. **Remembered Guest/account isolation asymmetry on iOS.**
+   - iOS could instantiate account restoration before deciding a remembered Guest owned launch.
+   - Guest ownership is now decided before constructing the production account session client, matching Android separation.
+10. **Stale Phase-1 “production disabled” tests/comments.**
+   - Synchronized with Phase-5 invariant: production read-only bootstrap is allowed, Shadow/fixture substitution remains forbidden.
+11. **Reviewer test defects.**
+   - Fixed async XCTest autoclosure misuse and fake workspace transports so unconfigured snapshot reads model transient unavailability rather than false revocation.
+
+Server execution evidence:
+- temporary reviewer workflow used disposable PostgreSQL 16, applied repository migrations, synthetic non-production Supabase/session values only;
+- `WewedProductionAuthorityV1` disposable-database integration suite executed rather than skipped;
+- Phase-5 account-session/contract + Phase-2 authority + carried-forward Phase-4 Guest suites: **108 pass / 0 fail** across 9 files;
+- authority integration proved Couple, Planner one/multiple/zero wedding, Coordinator, multi-axis actor, Viewer denial, Vendor link isolation, Admin, inactive/unknown, Guest/Usher exclusion, verified-auth requirements, banned-profile denial, PWA agreement, and no automatic single-workspace flattening;
+- Vercel build/status for the server code head succeeded;
+- no production database, live account graph, real secret value, deployment, or migration target was touched.
+
+Native execution evidence on reviewer qualification head `eeaec4e...`:
+- iOS `swift test`: **334 tests, 14 expected skips, 0 failures**;
+- iOS `swift build`: PASS;
+- generated Xcode project: PASS;
+- iOS simulator app build: PASS;
+- unsigned iOS Release/device build: PASS;
+- Android `testDebugUnitTest assembleDebug assembleRelease`: **BUILD SUCCESSFUL**;
+- native authority/session tests include production assignment mapping, same-kind ambiguous selection fail-closed, singular grant replacement, portfolio no-fake-wedding behavior, stale/revoked selection handling, and production boundary repository qualification.
+
+Read-only Phase-5 scope:
+- production account launch now reaches real authentication, fresh authority, explicit grant/context selection, `ActorAssignment`, `NavigationContext`, and a real server-revalidated minimal workspace snapshot;
+- old mutable native repositories remain unavailable in production;
+- task/budget/guest/seating/vendor/timeline/document/full Admin data parity is deliberately not enabled here and remains Phase 8 scope.
+
+Guest regression:
+- explicit/remembered Guest continues to use Guest Session v2, separate secure storage, and Guest-only bootstrap;
+- account identity is not required for Guest access;
+- remembered Guest launch does not restore account authority in the background;
+- Phase-4 Guest regression suites passed in server qualification.
+
+Carry-forward gates:
+- **F-3 Vendor production link gap remains open**: real production Vendor wedding grants remain constrained by missing production `BusinessAccountLink(entityType='vendor')` evidence; Phase 5 does not invent them.
+- **F-4 BusinessAccount subscription default remains open** for later write expansion.
+- **F-6 legacy PWA global-admin hazard remains open** for Phase 12.
+- **`WEWED_SESSION_SECRET` remains absent from Vercel Preview/Production** according to the prior names-only checks. No secret was read/created/rotated. Live Preview/Production HTTP qualification of Guest Session v2 and native account endpoints remains operationally blocked pending explicit owner authorization.
+- Phase-5 acceptance authorizes no merge, production deployment, schema migration, secret creation, Play/TestFlight publication, or production data mutation.
+
+Phase gate:
+- account identity/session: PASS;
+- shared production authority: PASS;
+- explicit context selection: PASS;
+- production read-only bootstrap: PASS;
+- server-revalidated minimal real workspace data: PASS;
+- Android/iOS symmetry: PASS;
+- Guest separation/regression: PASS;
+- reviewer execution qualification: PASS;
+- Phase 5: **ACCEPTED**;
+- Phase 6: **READY TO BEGIN**.
+
 ### D-014 — Phase 4 preflight (2026-09-22)
 **READY TO BEGIN — reviewer preflight patch applied before implementation handoff.**
 
