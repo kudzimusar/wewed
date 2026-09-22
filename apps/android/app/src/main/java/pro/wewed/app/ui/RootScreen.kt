@@ -370,7 +370,11 @@ fun RootScreen(
         LaunchedEffect(snapshotGrantId, snapshotWeddingId, sessionViewModel) {
             if (snapshotGrantId == null || snapshotWeddingId == null) return@LaunchedEffect
             val token = sessionViewModel.currentSessionToken() ?: return@LaunchedEffect
-            val client = NativeDomainApiClient(UrlConnectionWeddingDayTransport(appViewModel.dataBaseUrl ?: return@LaunchedEffect))
+            val client = NativeDomainApiClient(
+                transport = UrlConnectionWeddingDayTransport(appViewModel.dataBaseUrl ?: return@LaunchedEffect),
+                onSessionInvalid = { sessionViewModel.handleNativeDomainSessionInvalid() },
+                onGrantRevoked = { revokedGrantId -> sessionViewModel.handleNativeDomainGrantRevoked(revokedGrantId) },
+            )
             appViewModel.bindProductionRepositories(
                 wedding = ProductionWeddingRepository(client, token, snapshotGrantId, snapshotWeddingId),
                 planner = ProductionPlannerDashboardRepository(client, token, snapshotGrantId),
