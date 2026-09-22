@@ -320,9 +320,20 @@ class SessionViewModel(
             }
             is ProductionWorkspaceFetch.SessionInvalid -> clearAccountSession()
             is ProductionWorkspaceFetch.GrantRevoked -> {
+                val revoked = _activeGrantId.value
                 _productionWorkspace.value = null
                 _activeGrantId.value = null
-                // Do not guess a replacement. The next authority refresh decides what remains.
+                _currentRole.value = null
+                _currentUserRole.value = null
+                _weddingId.value = null
+                _weddingTitle.value = null
+                if (revoked != null) {
+                    val next = _selectedGrantIds.value - revoked
+                    _selectedGrantIds.value = next
+                    persistSelectedGrantIds(next)
+                }
+                // Do not guess a replacement from stale authority. A fresh authority fetch on the
+                // next restore/refresh decides what remains.
             }
             is ProductionWorkspaceFetch.Transport -> {
                 _productionWorkspace.value = null
