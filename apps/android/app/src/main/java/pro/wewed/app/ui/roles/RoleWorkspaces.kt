@@ -96,10 +96,14 @@ private fun PlannerWorkspaceSection(
         "Budget" -> ShadowBudgetDestination(appViewModel) {}
         "Guests" -> GuestsBridgeDestination(appViewModel) {}
         "Vendors" -> ShadowVendorsDestination(appViewModel) {}
-        "Contributions" -> ShadowContributionsDestination(appViewModel) {}
+        "Contributions" -> if (context.environment == NativeDataEnvironment.PRODUCTION) {
+            IAUnsupportedSection("Contributions", "The mature contributions/funding-attribution domain is not connected to native production yet. No empty contribution ledger is inferred.", context.environment)
+        } else ShadowContributionsDestination(appViewModel) {}
         "Seating" -> ShadowSeatingDestination(appViewModel) {}
         "Timeline" -> ShadowTimelineDestination(appViewModel) {}
-        "Documents" -> ShadowDocumentsDestination(appViewModel) {}
+        "Documents" -> if (context.environment == NativeDataEnvironment.PRODUCTION) {
+            IAUnsupportedSection("Documents", "The mature contracts/vault document domain is not connected to native production yet. No empty document vault is inferred.", context.environment)
+        } else ShadowDocumentsDestination(appViewModel) {}
         else -> IAUnsupportedSection(section, "This worksheet is not wired yet.", context.environment)
     }
 }
@@ -259,6 +263,16 @@ private fun PlannerWeddingDaySection(
     graph: WeddingGraphState,
     context: NavigationContext
 ) {
+    if (context.environment == NativeDataEnvironment.PRODUCTION &&
+        section in setOf("Gate / Admissions", "Vendor Arrivals", "Guest Issues", "Incidents", "Live Notes", "Emergency Contacts", "Offline Status")
+    ) {
+        IAUnsupportedSection(
+            section,
+            "Wedding-Day operational authority/data for this section is not connected in Phase 8. No empty gate, arrival, incident or sync state is inferred.",
+            context.environment
+        )
+        return
+    }
     when (section) {
         "Run Sheet" -> WeddingDaySection("Programme", graph, context.environment)
         "Gate / Admissions" -> GateAdmissionsSection("Checked In", graph, context.environment)
@@ -442,13 +456,21 @@ private fun CoordinatorTodayContent(graph: WeddingGraphState, context: Navigatio
         }
         val openTasks = graph.tasks.filter { it.status != pro.wewed.app.models.TaskStatus.DONE }
         IACard("Open tasks", "Outstanding wedding tasks", "${openTasks.size}")
-        val lateVendors = graph.vendors.filter {
-            it.state == pro.wewed.app.models.VendorPresenceState.NOT_RECORDED ||
-                it.state == pro.wewed.app.models.VendorPresenceState.SCHEDULED
+        if (context.environment == NativeDataEnvironment.PRODUCTION) {
+            IACard(
+                "Wedding-Day operations",
+                "Vendor-arrival and gate-admission state is not connected to native production in Phase 8.",
+                status = "Unsupported"
+            )
+        } else {
+            val lateVendors = graph.vendors.filter {
+                it.state == pro.wewed.app.models.VendorPresenceState.NOT_RECORDED ||
+                    it.state == pro.wewed.app.models.VendorPresenceState.SCHEDULED
+            }
+            IACard("Vendors not yet on site", "Awaiting arrival", "${lateVendors.size}")
+            val notArrived = graph.guests.count { it.checkedInCount == 0 }
+            IACard("Households not arrived", "Gate admission state", "$notArrived")
         }
-        IACard("Vendors not yet on site", "Awaiting arrival", "${lateVendors.size}")
-        val notArrived = graph.guests.count { it.checkedInCount == 0 }
-        IACard("Households not arrived", "Gate admission state", "$notArrived")
     }
 }
 
@@ -463,7 +485,9 @@ private fun CoordinatorTeamSection(
         "Tasks" -> IASectionList("Team Tasks", "${graph.tasks.size} tasks on this wedding") {
             graph.tasks.forEach { IACard(it.title, it.category, it.dueDate, it.status.title) }
         }
-        "Vendors" -> IASectionList("Vendors", "${graph.vendors.size} vendors") {
+        "Vendors" -> if (context.environment == NativeDataEnvironment.PRODUCTION) {
+            IAUnsupportedSection("Vendors", "Coordinator vendor-arrival/presence data is not connected to native production yet. No zero-vendor state is inferred.", context.environment)
+        } else IASectionList("Vendors", "${graph.vendors.size} vendors") {
             graph.vendors.forEach { IACard(it.vendorName, it.serviceCategory, it.expectedTime, it.state.title) }
         }
         "Ushers", "Staff", "Assignments", "Contacts" -> IAUnsupportedSection(
@@ -481,6 +505,16 @@ private fun CoordinatorWeddingDaySection(
     graph: WeddingGraphState,
     context: NavigationContext
 ) {
+    if (context.environment == NativeDataEnvironment.PRODUCTION &&
+        section in setOf("Gate", "Admissions", "Vendor Arrivals", "Incidents", "Announcements")
+    ) {
+        IAUnsupportedSection(
+            section,
+            "Wedding-Day operational authority/data for this section is not connected in Phase 8. No empty operational state is inferred.",
+            context.environment
+        )
+        return
+    }
     when (section) {
         "Gate", "Admissions" -> GateAdmissionsSection("Checked In", graph, context.environment)
         "Venue Zones" -> WeddingDaySection("Venue", graph, context.environment)
@@ -1139,11 +1173,15 @@ private fun CouplePlanSection(
         }
         "Tasks" -> TasksDestination(appViewModel) {}
         "Budget" -> ShadowBudgetDestination(appViewModel) {}
-        "Contributions" -> ShadowContributionsDestination(appViewModel) {}
+        "Contributions" -> if (context.environment == NativeDataEnvironment.PRODUCTION) {
+            IAUnsupportedSection("Contributions", "The mature contributions/funding-attribution domain is not connected to native production yet. No empty contribution ledger is inferred.", context.environment)
+        } else ShadowContributionsDestination(appViewModel) {}
         "Vendors" -> ShadowVendorsDestination(appViewModel) {}
         "Seating" -> ShadowSeatingDestination(appViewModel) {}
         "Timeline" -> ShadowTimelineDestination(appViewModel) {}
-        "Documents" -> ShadowDocumentsDestination(appViewModel) {}
+        "Documents" -> if (context.environment == NativeDataEnvironment.PRODUCTION) {
+            IAUnsupportedSection("Documents", "The mature contracts/vault document domain is not connected to native production yet. No empty document vault is inferred.", context.environment)
+        } else ShadowDocumentsDestination(appViewModel) {}
         else -> IAUnsupportedSection(section, "This worksheet is not wired yet.", context.environment)
     }
 }
