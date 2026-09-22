@@ -1221,7 +1221,7 @@ Accepted. Phase 1 branches from `native-mobile/guest-profile-invitation-20260921
 
 Accepted Phase-3 branch:
 - `backend/production-database-audit-phase3-20260922`
-- final review/cleanup head: `f2585bb6066d91777d63c810cffe5b3fe925d32a`
+- final review/cleanup head: `d8b0fdadac3418c9f3bd2cd081b8004404faf926`
 - audit evidence head supplied by the implementation agent: `d4241650bdb398cdefc5bd377ba6265c32e11854`
 
 Verified production facts:
@@ -1237,6 +1237,7 @@ Reviewer corrections/closure:
 - removed the temporary Preview audit route and its DATABASE_URL fingerprint helper/tests;
 - restored `src/lib/production-authority/resolver.ts` byte-for-byte to the accepted Phase-2 implementation, leaving no audit-only runtime code in the accepted branch;
 - retained only the sanitized audit document and the SELECT-only catalog preflight script;
+- reviewer additionally synchronized the retained preflight script with the final audit evidence by preserving the `security_invoker` reloption query and full migration-ledger status list before pinning the accepted head;
 - corrected unsupported causal language around the unresolved `20260730173000_wewed_business_admin_console` ledger row: the missing Vendor links are proven, but the historical root cause is not;
 - reclassified the `BusinessAccount.subscriptionStatus` default `inactive` vs CHECK-constraint contradiction as a real latent write-time schema defect, despite current rows being clean.
 
