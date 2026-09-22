@@ -8,7 +8,8 @@ describe('native account sign-in stays read-only (master plan Phase 5)', () => {
     const signin = source('src/app/api/native/account/signin/route.ts')
 
     // Must verify Supabase credentials directly, not by importing the browser flow.
-    expect(signin).toContain("createServerClient } from '@/lib/supabase/server'")
+    expect(signin).toContain("createClient } from '@supabase/supabase-js'")
+    expect(signin).toContain('persistSession: false')
     expect(signin).toContain('signInWithPassword')
     expect(signin).not.toContain('browserSignIn')
     expect(signin).not.toContain("from '@/app/api/auth/signin/route'")
@@ -43,6 +44,28 @@ describe('native account sign-in stays read-only (master plan Phase 5)', () => {
 
     // The full contract is returned, not a flattened role.
     expect(authority).toContain('{ success: true, authority }')
+  })
+
+  test('the workspace snapshot revalidates grant authority and accepts no raw scope id', () => {
+    const workspace = source('src/app/api/native/account/workspace/route.ts')
+
+    expect(workspace).toContain('readBearerNativeAccountSession')
+    expect(workspace).toContain('resolveProductionAuthority')
+    expect(workspace).toContain("authority.accountStatus !== 'authorized'")
+    expect(workspace).toContain("item.grantId === grantId")
+    expect(workspace).toContain("grant.scopeKind === 'wedding'")
+    expect(workspace).toContain('where: { id: grant.weddingId }')
+
+    // The caller selects only one server-issued grant id. Wedding/business/vendor ids are derived
+    // from that freshly-resolved grant, never trusted from query/body input.
+    expect(workspace).not.toContain("searchParams.get('weddingId')")
+    expect(workspace).not.toContain("searchParams.get('businessAccountId')")
+    expect(workspace).not.toContain("searchParams.get('vendorId')")
+
+    expect(workspace).not.toContain('.update(')
+    expect(workspace).not.toContain('.upsert(')
+    expect(workspace).not.toContain('.create(')
+    expect(workspace).not.toContain('acceptPendingMemberships')
   })
 
   test('the native identity session never appears alongside the Guest Session identity path', () => {
