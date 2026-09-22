@@ -1,10 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
 import { db } from '@/lib/db'
 import { createNativeAccountSessionToken } from '@/lib/native-account-session'
 
 function noStore(payload: unknown, status = 200) {
   return NextResponse.json(payload, { status, headers: { 'cache-control': 'no-store' } })
+}
+
+function nativeAuthClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()
+  if (!url || !anonKey) throw new Error('[wewed] Native account auth is not configured.')
+  return createClient(url, anonKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+  })
 }
 
 /**
@@ -30,7 +43,7 @@ export async function POST(request: NextRequest) {
     return noStore({ success: false, error: 'Email and password are required.' }, 400)
   }
 
-  const supabase = await createServerClient()
+  const supabase = nativeAuthClient()
   const { data, error } = await supabase.auth.signInWithPassword({ email, password })
 
   if (error || !data.user || !data.user.email) {
