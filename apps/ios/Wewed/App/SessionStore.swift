@@ -296,18 +296,7 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
         case .sessionInvalid:
             clearAccountSession()
         case .grantRevoked:
-            let revoked = activeGrantId
-            productionWorkspace = nil
-            activeGrantId = nil
-            currentRole = nil
-            currentUserRole = nil
-            weddingId = nil
-            weddingTitle = nil
-            selectedEngagementId = nil
-            if let revoked {
-                selectedGrantIds.remove(revoked)
-                persistSelectedGrantIds(selectedGrantIds)
-            }
+            handleNativeDomainGrantRevoked(activeGrantId)
         case .engagementInvalid:
             // The wedding/business grant underneath is still valid; only the engagement choice was
             // stale/foreign/revoked. Clear the engagement only and re-fetch so the server can either
@@ -392,6 +381,31 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
         }
         storage.save(key: selectedGrantsOwnerKey, value: owner)
         storage.save(key: selectedGrantsKey, value: ids.joined(separator: ","))
+    }
+
+    /// Phase 8 domain calls share the same identity lifecycle as the account workspace probe.
+    @MainActor
+    public func handleNativeDomainSessionInvalid() {
+        clearAccountSession()
+    }
+
+    /// Clears only an explicitly revoked/invalidated grant. Permission denials and domain-level
+    /// 404s never invoke this path.
+    @MainActor
+    public func handleNativeDomainGrantRevoked(_ grantId: String?) {
+        guard let grantId else { return }
+        selectedGrantIds.remove(grantId)
+        persistSelectedGrantIds(selectedGrantIds)
+
+        guard activeGrantId == grantId else { return }
+
+        productionWorkspace = nil
+        activeGrantId = nil
+        currentRole = nil
+        currentUserRole = nil
+        weddingId = nil
+        weddingTitle = nil
+        selectedEngagementId = nil
     }
 
     /// The identity session itself is no longer valid server-side: a full, unambiguous sign-out.
