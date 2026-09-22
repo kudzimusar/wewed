@@ -8,6 +8,7 @@
 **Verified repository SHAs:** identical to the §2 baseline table (re-fetched and re-verified at review time; plan commit 121b4071bdcfe21a3541d50deee72689970c03d2)  
 **Accepted corrections:** C-1 … C-8 and hazard additions §8.8 … §8.13, recorded in §2.1. None changes the architecture, phase order or any invariant.  
 **Scope:** Wewed PWA, Android, iOS, backend APIs, production database, invitation/Guest identity, stakeholder authority, Wedding Day/WW2, release infrastructure, and production qualification.
+**Implementation governance:** `docs/WEWED_IMPLEMENTATION_GOVERNANCE.md` (repository execution rules; future agents must read it with this plan).
 
 ---
 
@@ -1216,10 +1217,15 @@ Accepted. Status set to LOCKED. Factual corrections C-1 … C-8 and hazards §8.
 Accepted. Phase 1 branches from `native-mobile/guest-profile-invitation-20260921` @ d7c4dddeabb594810a5833b4ac24d356883a8a3b, not from `native-mobile/role-architecture-p0-20260919` (C-8).
 
 ### D-012 — Phase 2 status (2026-09-22)
-**REVIEW CLOSURE IMPLEMENTED — awaiting independent Rule-10 review.** Phase 3 has not started.
+**ACCEPTED — independent Rule-10 review passed after reviewer-owned closure patch.** Phase 3 may begin; it has not started.
 
-- **Server:** 7dcfab3e → 15603eba758ca8491f3c0ae3f79f66f865e4e0fc.
-- **Native:** 311b085a → d98394179ca6cc6bff5118a3fd9b2ff149f4d21d.
+- **Accepted server branch:** `backend/shared-production-authority-phase2-20260922` @ `18f3561655607ef0679404b2f8ef5eadbe6dfbdd`.
+- **Accepted native branch:** `native-mobile/shared-production-authority-phase2-20260922` @ `996550b4d679eff554d2fc0d7a836fa9efa6d563`.
+- **Agent closure before review:** server 7dcfab3e → 15603eba; native 311b085a → d9839417.
+- **Reviewer-owned patch:** the independent review found that non-`authorized` contract results still returned identity and relationship evidence even though they issued no grants. The server contract now redacts identity PII, memberships, business links, weddings, vendor engagements, platform evidence and onboarding relationship lists for unverified/inactive/banned results. A pure regression test and matching specification update were added. The native fixture did not change; the native branch received the synchronized specification only.
+- **Verification:** reviewer re-inspected the final remote code and shared-document blobs. The agent's pre-review execution evidence remains 24/24 pure, 22/22 integration, Android 314/314 and iOS 316/316; the reviewer patch adds one pure regression test but was not independently executed in this environment.
+
+Prior status (superseded): **REVIEW CLOSURE IMPLEMENTED — awaiting independent Rule-10 review.**
 
 The closure addressed:
 - **A. Canonical Vendor links.** The only repository writer of `entityType='vendor'` links is the canonical backfill, which uses `represents`. The recognised set is now exactly `{represents}`; the unwritten default `owns`, the wedding `serves` companion and unknown values fail closed. A canonical migrated Vendor now receives its wedding grant.
