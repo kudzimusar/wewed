@@ -5,6 +5,9 @@ import org.junit.Test
 import pro.wewed.app.models.NativeDataEnvironment
 import pro.wewed.app.services.NativeEnvironmentGuard
 import pro.wewed.app.services.NativeEnvironmentGuardError
+import pro.wewed.app.services.NativeRepositoryFactory
+import pro.wewed.app.services.ProductionBoundaryWeddingRepository
+import pro.wewed.app.services.ProductionBoundaryPlannerRepository
 
 class NativeEnvironmentGuardTest {
 
@@ -44,5 +47,15 @@ class NativeEnvironmentGuardTest {
     @Test
     fun productionRuntimeIsAllowedForPhase5ReadOnlyBootstrap() {
         NativeEnvironmentGuard.validate("https://wewed.pro", NativeDataEnvironment.PRODUCTION)
+    }
+
+    @Test
+    fun productionFactoryUsesOnlyFailClosedBoundaryRepositories() {
+        val bundle = NativeRepositoryFactory.make(
+            environment = NativeDataEnvironment.PRODUCTION,
+            baseUrl = "https://wewed.pro"
+        )
+        org.junit.Assert.assertTrue(bundle.wedding is ProductionBoundaryWeddingRepository)
+        org.junit.Assert.assertTrue(bundle.planner is ProductionBoundaryPlannerRepository)
     }
 }
