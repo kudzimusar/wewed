@@ -56,12 +56,34 @@ public final class AppState: ObservableObject, @unchecked Sendable {
     /// unbound state cannot read a wedding graph at all, so no view can rely on an ambient fallback.
     @Published public private(set) var activeWeddingId: String?
 
-    public let repository: WeddingRepositoryProtocol
-    public let plannerRepository: PlannerDashboardRepositoryProtocol
+    public private(set) var repository: WeddingRepositoryProtocol
+    public private(set) var plannerRepository: PlannerDashboardRepositoryProtocol
     public let dataEnvironment: NativeDataEnvironment
     public let dataBaseURL: URL?
     /// Nil by default. Isolated integration builds/tests may inject a manifest-backed runtime.
     public let weddingDayGate: WeddingDayGateOperations?
+
+    /// Master plan Phase 8 — rebinds this app state's domain repositories to real, grant-scoped
+    /// production adapters once a wedding-scoped grant is active. Only ever called for
+    /// `dataEnvironment == .production`; every other environment keeps its constructor-supplied
+    /// repositories for the whole app lifetime, exactly as before. The Wedding Day gate wrapper, if
+    /// any, is preserved around the new base repository so operational fail-closed behavior is
+    /// unchanged.
+    public func bindProductionRepositories(
+        wedding: WeddingRepositoryProtocol,
+        planner: PlannerDashboardRepositoryProtocol
+    ) {
+        precondition(
+            dataEnvironment == .production,
+            "bindProductionRepositories is only valid for the PRODUCTION environment."
+        )
+        if let weddingDayGate {
+            self.repository = WeddingDayGateAwareRepository(base: wedding, gate: weddingDayGate)
+        } else {
+            self.repository = wedding
+        }
+        self.plannerRepository = planner
+    }
 
     public func bindActiveWedding(_ weddingId: String) {
         activeWeddingId = weddingId.isEmpty ? nil : weddingId

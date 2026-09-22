@@ -72,6 +72,13 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
     /// Whether this session may apply Shadow qualification personas.
     public var allowsDevelopmentPersonas: Bool { environment.allowsDevelopmentPersonaSwitching }
 
+    /// Master plan Phase 8 — the same bearer token `ProductionAuthorityClient` already uses
+    /// internally (`storage.get(key: accountSessionKey)`), exposed read-only so a production domain
+    /// repository can be constructed with it. Returns nil exactly when no account is signed in.
+    public func currentSessionToken() -> String? {
+        storage.get(key: accountSessionKey)
+    }
+
     /// - Parameter authorityClient: the Phase-5 native identity + authority client. Nil means
     ///   production sign-in/restore is not connected in this build (e.g. Fixture/Shadow), matching
     ///   the previous always-throws behaviour exactly.

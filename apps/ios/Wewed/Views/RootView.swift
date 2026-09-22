@@ -142,6 +142,27 @@ public struct RootView: View {
         liveInvitation = await liveCoordinator.restoreRememberedGuest()
     }
 
+    /// Master plan Phase 8 — rebinds `appState`'s domain repositories to real, grant-scoped
+    /// production adapters as soon as a wedding-scoped workspace snapshot is available. Keyed on
+    /// the snapshot's own grantId/weddingId (already freshly revalidated by Phase 5/6's
+    /// `refreshActiveWorkspace`), not on context resolution, so the swap is ready before
+    /// `WeddingGraphState.load`/`RoleWorkspaces` ever read `appState.repository` for this wedding. A
+    /// portfolio/business/system snapshot (weddingId nil) does nothing here — those still render
+    /// through `ProductionReadOnlyWorkspaceContent` exactly as before.
+    private func bindProductionRepositoriesIfNeeded() async {
+        guard appState.dataEnvironment == .production else { return }
+        guard let grantId = session.productionWorkspace?.grantId,
+              let weddingId = session.productionWorkspace?.weddingId,
+              let token = session.currentSessionToken(),
+              let baseURL = appState.dataBaseURL
+        else { return }
+        let client = NativeDomainApiClient(baseURL: baseURL)
+        appState.bindProductionRepositories(
+            wedding: ProductionWeddingRepository(client: client, sessionToken: token, grantId: grantId, weddingId: weddingId),
+            planner: ProductionPlannerDashboardRepository(client: client, sessionToken: token, grantId: grantId)
+        )
+    }
+
     public var body: some View {
         Group {
             // The Wewed animated splash is global: it plays on an icon launch, an invitation link,
@@ -303,6 +324,9 @@ public struct RootView: View {
         .task(id: "\(session.currentRole?.roleId ?? "")|\(session.activePersona?.id ?? "")") {
             await restoreLiveGuestIfNeeded()
         }
+        .task(id: "\(session.productionWorkspace?.grantId ?? "")|\(session.productionWorkspace?.weddingId ?? "")") {
+            await bindProductionRepositoriesIfNeeded()
+        }
         // Attached at the outer level so it works from both authenticated production surfaces: the
         // role-shell workspace and the Planner-portfolio/Vendor-business read-only landing.
         .sheet(isPresented: $showingContextSwitcher) {
@@ -340,6 +364,21 @@ public struct RootView: View {
         }
     }
 
+    /// Shared "refresh failed, no stale data shown" state for the production-scoped branches of
+    /// `authorizedShell`, matching the messaging/identifier already used by the pre-Phase-8
+    /// read-only path.
+    private var productionWorkspaceUnavailable: some View {
+        VStack(spacing: 8) {
+            Text("The authorized workspace could not be refreshed.")
+            Text("No cached production data is shown.")
+                .font(.system(size: 12))
+                .foregroundStyle(WeddingIdentityPalette.muted)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(WeddingIdentityPalette.ivory)
+        .accessibilityIdentifier("production-workspace-unavailable")
+    }
+
     @ViewBuilder
     private func authorizedShell(_ context: NavigationContext) -> some View {
         // P0-16: production/verify builds must not expose an arbitrary role switcher.
@@ -352,7 +391,47 @@ public struct RootView: View {
         let handled: () -> Void = { appState.pendingRouteDeepLink = nil }
 
         if appState.dataEnvironment == .production {
-            if let snapshot = session.productionWorkspace,
+            // Master plan Phase 8 — Couple/Planner/Coordinator now render through the SAME real
+            // role shells every other environment uses, backed by the ProductionWeddingRepository/
+            // ProductionPlannerDashboardRepository bound by `bindProductionRepositoriesIfNeeded()`.
+            // Vendor/Usher/Admin/Guest reaching this point (e.g. a Vendor's wedding-engagement
+            // grant) still render the Phase 5/6 minimal read-only snapshot below — their
+            // mature-domain native UI is not wired yet, and falling back to it here is an honest
+            // "not yet" rather than a broken real shell.
+            let productionRoleWired: [AppRole] = [.couple, .planner, .coordinator]
+            if productionRoleWired.contains(context.activeRole) {
+                if let snapshot = session.productionWorkspace,
+                   snapshot.grantId == session.activeGrantId,
+                   snapshot.weddingId == context.activeWeddingId {
+                    switch context.activeRole {
+                    case .couple:
+                        CoupleShellView(
+                            context: context,
+                            onSwitchPersona: switchPersona,
+                            pendingDeepLink: link,
+                            onDeepLinkHandled: handled
+                        )
+                    case .planner:
+                        PlannerShellView(
+                            context: context,
+                            onSwitchPersona: switchPersona,
+                            pendingDeepLink: link,
+                            onDeepLinkHandled: handled
+                        )
+                    case .coordinator:
+                        CoordinatorShellView(
+                            context: context,
+                            onSwitchPersona: switchPersona,
+                            pendingDeepLink: link,
+                            onDeepLinkHandled: handled
+                        )
+                    default:
+                        EmptyView()
+                    }
+                } else {
+                    productionWorkspaceUnavailable
+                }
+            } else if let snapshot = session.productionWorkspace,
                snapshot.grantId == session.activeGrantId {
                 RoleShellScaffold(
                     context: context,
@@ -368,15 +447,7 @@ public struct RootView: View {
                     )
                 }
             } else {
-                VStack(spacing: 8) {
-                    Text("The authorized workspace could not be refreshed.")
-                    Text("No cached production data is shown.")
-                        .font(.system(size: 12))
-                        .foregroundStyle(WeddingIdentityPalette.muted)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(WeddingIdentityPalette.ivory)
-                .accessibilityIdentifier("production-workspace-unavailable")
+                productionWorkspaceUnavailable
             }
         } else {
         switch context.activeRole {

@@ -1,0 +1,155 @@
+import Foundation
+
+/// Master plan WW-NATIVE-PWA-CONVERGENCE-2026-09-22-01, Phase 8.
+///
+/// Real production adapter for the Planner-dashboard-shaped domains. Backs BOTH a wedding-scoped
+/// grant (Planner/Couple/Coordinator — `weddingId` set) and a zero-wedding Planner-portfolio grant
+/// (`weddingId` nil): every method here degrades to an honest empty/placeholder answer for the
+/// portfolio case rather than fabricating a wedding, matching master plan §9 ("A Planner portfolio
+/// with zero weddings must still work... must not fabricate a wedding").
+///
+/// `getContributions`/`getDocuments` are UNSUPPORTED in this phase — porting the real funding-
+/// attribution/vault engines is tracked as separate remaining work, not approximated here. Each
+/// Planner destination view (`Views/Planner/ShadowPlannerDestinations.swift`) calls its own single
+/// repository method independently in its own `.task`, with no shared `try`/`catch` across sections,
+/// so returning an honest empty list here only affects that one section, never Tasks/Budget/Seating/
+/// Timeline/Vendors.
+public struct ProductionPlannerDashboardRepository: PlannerDashboardRepositoryProtocol {
+    private let client: NativeDomainApiClient
+    private let sessionToken: String
+    private let grantId: String
+
+    public init(client: NativeDomainApiClient, sessionToken: String, grantId: String) {
+        self.client = client
+        self.sessionToken = sessionToken
+        self.grantId = grantId
+    }
+
+    public func getDashboard() async throws -> PlannerDashboardSnapshot {
+        guard case let .success(overview) = await client.overview(sessionToken: sessionToken, grantId: grantId) else {
+            throw ProductionReadOnlyDomainError.unavailable
+        }
+        let wedding = overview.wwObject("wedding")
+        let counts = overview.wwObject("counts")
+        let modules: [PlannerModuleSummary]
+        if let counts {
+            modules = [
+                PlannerModuleSummary(
+                    id: "tasks", title: "Tasks",
+                    value: "\(counts.wwInt("tasksDone") ?? 0) / \(counts.wwInt("tasksTotal") ?? 0)",
+                    attention: nil, systemImage: "checklist"
+                ),
+                PlannerModuleSummary(
+                    id: "budget", title: "Budget",
+                    value: "\(wwFormatCurrency(counts.wwDouble("budgetPaidTotal") ?? 0)) / \(wwFormatCurrency(counts.wwDouble("budgetEstimatedTotal") ?? 0))",
+                    attention: nil, systemImage: "creditcard.fill"
+                ),
+                PlannerModuleSummary(
+                    id: "guests", title: "Guests",
+                    value: "\(counts.wwInt("guestsAttending") ?? 0) / \(counts.wwInt("guestsTotal") ?? 0)",
+                    attention: nil, systemImage: "person.3.fill"
+                ),
+                PlannerModuleSummary(
+                    id: "vendors", title: "Vendors",
+                    value: "\(counts.wwInt("vendorsTotal") ?? 0) booked",
+                    attention: nil, systemImage: "storefront.fill"
+                ),
+                PlannerModuleSummary(
+                    id: "timeline", title: "Timeline",
+                    value: "\(counts.wwInt("timelineEntries") ?? 0) events",
+                    attention: nil, systemImage: "calendar.badge.clock"
+                ),
+            ]
+        } else {
+            modules = []
+        }
+
+        return PlannerDashboardSnapshot(
+            weddingId: wedding?.wwString("id") ?? overview.wwString("businessAccountId") ?? "",
+            coupleNames: wedding?.wwString("coupleNames") ?? overview.wwString("businessName") ?? "",
+            weddingDateLabel: wedding?.wwString("date") ?? "No wedding selected",
+            lifecycle: wedding?.wwString("lifecycle") ?? "portfolio",
+            plannerContext: overview.wwString("businessName") ?? "",
+            readinessScore: nil,
+            taskCompletionLabel: counts.map { "\($0.wwInt("tasksDone") ?? 0) / \($0.wwInt("tasksTotal") ?? 0)" } ?? "",
+            attentionItems: [],
+            modules: modules,
+            recentActivity: [],
+            sourceLabel: "Live Wewed production data"
+        )
+    }
+
+    public func getBudgetLines() async throws -> [PlannerBudgetLine] {
+        guard case let .success(root) = await client.budget(sessionToken: sessionToken, grantId: grantId) else { return [] }
+        return (root.wwArray("data") ?? []).map { item in
+            let estimated = item.wwDouble("estimatedCost") ?? 0
+            let actual = item.wwDouble("actualCost") ?? estimated
+            let paid = item.wwDouble("paidAmount") ?? 0
+            return PlannerBudgetLine(
+                id: item.wwRequiredString("id"),
+                category: item.wwString("category") ?? "",
+                vendorName: item.wwString("vendorName")?.wwNilIfBlank,
+                estimated: estimated,
+                actual: actual,
+                paid: paid,
+                dueDateLabel: item.wwString("dueDate")?.wwNilIfBlank,
+                fundingLabel: "",
+                statusLabel: paid >= actual ? "Paid" : "Balance due"
+            )
+        }
+    }
+
+    public func getContributions() async throws -> [PlannerContributionRecord] { [] }
+
+    public func getVendorEngagements() async throws -> [PlannerVendorEngagement] {
+        guard case let .success(array) = await client.vendors(sessionToken: sessionToken, grantId: grantId) else { return [] }
+        return array.map { item in
+            PlannerVendorEngagement(
+                id: item.wwRequiredString("id"),
+                vendorId: item.wwRequiredString("id"),
+                vendorName: item.wwString("name") ?? "",
+                category: item.wwString("category") ?? "",
+                bookingStatus: "",
+                contractStatus: item.wwString("contractStatus") ?? "",
+                paymentStatus: item.wwString("paymentStatus") ?? "",
+                nextAction: ""
+            )
+        }
+    }
+
+    public func getSeatingTables() async throws -> [PlannerSeatingTable] {
+        guard case let .success(array) = await client.seating(sessionToken: sessionToken, grantId: grantId) else { return [] }
+        return array.map { item in
+            let capacity = item.wwInt("capacity") ?? 0
+            let assigned = item.wwInt("assigned") ?? 0
+            return PlannerSeatingTable(
+                id: item.wwRequiredString("id"),
+                name: item.wwString("name") ?? "",
+                zone: "",
+                capacity: capacity,
+                assigned: assigned,
+                attentionLabel: assigned < capacity ? "\(capacity - assigned) seats free" : nil
+            )
+        }
+    }
+
+    public func getTimelineEntries() async throws -> [PlannerTimelineEntry] {
+        guard case let .success(array) = await client.timeline(sessionToken: sessionToken, grantId: grantId) else { return [] }
+        return array.map { item in
+            PlannerTimelineEntry(
+                id: item.wwRequiredString("id"),
+                time: item.wwString("time") ?? "",
+                title: item.wwString("title") ?? "",
+                location: item.wwString("location") ?? "",
+                statusLabel: "",
+                linkedVendor: nil
+            )
+        }
+    }
+
+    public func getDocuments() async throws -> [PlannerDocumentRecord] { [] }
+}
+
+private func wwFormatCurrency(_ amount: Double) -> String {
+    "$\(Int(amount.rounded()))"
+}
