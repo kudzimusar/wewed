@@ -261,8 +261,17 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
         case .sessionInvalid:
             clearAccountSession()
         case .grantRevoked:
+            let revoked = activeGrantId
             productionWorkspace = nil
             activeGrantId = nil
+            currentRole = nil
+            currentUserRole = nil
+            weddingId = nil
+            weddingTitle = nil
+            if let revoked {
+                selectedGrantIds.remove(revoked)
+                persistSelectedGrantIds(selectedGrantIds)
+            }
         case .transport:
             productionWorkspace = nil
         }
