@@ -11,6 +11,40 @@ import Foundation
 ///
 /// Injectable `URLSession`, mirroring `WeddingDaySyncService`'s pattern, so it can be exercised
 /// against a fake session in tests without a network.
+
+public struct ProductionWeddingSummary: Decodable, Equatable, Sendable {
+    public let id: String
+    public let slug: String
+    public let title: String
+    public let date: String
+    public let venue: String
+    public let venueCity: String
+    public let venueCountry: String
+    public let lifecycle: String
+    public let coupleNames: String
+}
+
+public struct ProductionWorkspaceSnapshot: Decodable, Equatable, Sendable {
+    public let grantId: String
+    public let workspaceKind: String
+    public let scopeKind: String
+    public let weddingId: String?
+    public let weddingTitle: String?
+    public let businessAccountId: String?
+    public let vendorId: String?
+    public let serviceEngagementIds: [String]
+    public let permissions: [String]
+    public let platformRoles: [String]
+    public let wedding: ProductionWeddingSummary?
+}
+
+public enum ProductionWorkspaceFetch: Equatable {
+    case success(ProductionWorkspaceSnapshot)
+    case sessionInvalid
+    case grantRevoked
+    case transport(status: Int)
+}
+
 public enum NativeAccountSignInOutcome: Equatable {
     case success(sessionToken: String)
     case invalidCredentials
@@ -82,4 +116,35 @@ public struct ProductionAuthorityClient: Sendable {
 
         return .success(authority)
     }
+    public func fetchWorkspace(sessionToken: String, grantId: String) async -> ProductionWorkspaceFetch {
+        guard var components = URLComponents(
+            url: baseURL.appendingPathComponent("api/native/account/workspace"),
+            resolvingAgainstBaseURL: false
+        ) else {
+            return .transport(status: -1)
+        }
+        components.queryItems = [URLQueryItem(name: "grantId", value: grantId)]
+        guard let url = components.url else { return .transport(status: -1) }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(sessionToken)", forHTTPHeaderField: "Authorization")
+
+        guard let (data, response) = try? await session.data(for: request),
+              let http = response as? HTTPURLResponse
+        else {
+            return .transport(status: -1)
+        }
+
+        if http.statusCode == 401 { return .sessionInvalid }
+        if http.statusCode == 403 || http.statusCode == 404 { return .grantRevoked }
+        guard (200...299).contains(http.statusCode) else { return .transport(status: http.statusCode) }
+
+        struct Envelope: Decodable { let workspace: ProductionWorkspaceSnapshot }
+        guard let envelope = try? JSONDecoder().decode(Envelope.self, from: data) else {
+            return .transport(status: http.statusCode)
+        }
+        return .success(envelope.workspace)
+    }
+
 }
