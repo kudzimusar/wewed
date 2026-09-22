@@ -1216,7 +1216,25 @@ Accepted. Status set to LOCKED. Factual corrections C-1 … C-8 and hazards §8.
 Accepted. Phase 1 branches from `native-mobile/guest-profile-invitation-20260921` @ d7c4dddeabb594810a5833b4ac24d356883a8a3b, not from `native-mobile/role-architecture-p0-20260919` (C-8).
 
 ### D-012 — Phase 2 status (2026-09-22)
-**IMPLEMENTED — awaiting independent review (Rule 10).** Phase 3 has not started.
+**REVIEW CLOSURE IMPLEMENTED — awaiting independent Rule-10 review.** Phase 3 has not started.
+
+- **Server:** 7dcfab3e → 15603eba758ca8491f3c0ae3f79f66f865e4e0fc.
+- **Native:** 311b085a → d98394179ca6cc6bff5118a3fd9b2ff149f4d21d.
+
+The closure addressed:
+- **A. Canonical Vendor links.** The only repository writer of `entityType='vendor'` links is the canonical backfill, which uses `represents`. The recognised set is now exactly `{represents}`; the unwritten default `owns`, the wedding `serves` companion and unknown values fail closed. A canonical migrated Vendor now receives its wedding grant.
+- **B. Verified auth identity mandatory.** A missing or blank `authUserId` gives the new `accountStatus` `unverified_auth_identity` with no grants. A banned UserProfile gives no grants. A missing UserProfile row does not block a valid account (mirrors `/api/auth/me`).
+- **Admin defense-in-depth.** The effective role must be in `WEWED_INTERNAL_ADMIN_ROLES`.
+
+Evidence:
+- pure tests 24/24;
+- integration 22/22 on a disposable local PostgreSQL;
+- full `bun test src` failure set identical to main;
+- Android 314/314; iOS 316/316.
+
+The shared fixture is regenerated and byte-identical on both branches. `/api/auth/me`, PWA behaviour, schema and native activation are unchanged. Specification §9 added.
+
+Prior status (superseded): IMPLEMENTED — awaiting independent review (Rule 10).
 
 - **Server:** `backend/shared-production-authority-phase2-20260922` @ 7dcfab3eed799fad63af1287757f2681f2fdd4f7 (from main ba4b08f8).
   - Contains `WewedProductionAuthorityV1`, pure grant rules, and the read-only `resolveProductionAuthority`.
