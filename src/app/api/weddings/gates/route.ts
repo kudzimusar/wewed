@@ -17,7 +17,7 @@ function errorStatus(error: unknown): number {
   if (['GATE_NOT_FOUND', 'GATE_ASSIGNMENT_NOT_FOUND', 'OPERATOR_NOT_FOUND'].includes(message)) return 404
   if (['GATE_DISABLED', 'OPERATOR_NOT_ACTIVE'].includes(message)) return 409
   if (message.includes('unique constraint') || message.includes('WeddingGate_weddingId_name_key')) return 409
-  if (['INVALID_GATE_NAME', 'GATE_CAPABILITIES_REQUIRED', 'INVALID_ASSIGNMENT_WINDOW'].includes(message)) return 400
+  if (['INVALID_GATE_NAME', 'GATE_CAPABILITIES_REQUIRED', 'UNKNOWN_GATE_CAPABILITY', 'INVALID_ASSIGNMENT_WINDOW'].includes(message)) return 400
   return 500
 }
 
