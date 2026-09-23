@@ -40,6 +40,14 @@ final class ProductionAuthorityContractTests: XCTestCase {
         }
     }
 
+    private func editOperationalGrant(_ edit: @escaping (inout [String: Any]) -> Void) throws -> ProductionAuthority {
+        try altered { root in
+            var grants = root["operationalGrants"] as! [[String: Any]]
+            edit(&grants[0])
+            root["operationalGrants"] = grants
+        }
+    }
+
     private func assigned(_ outcome: ProductionGrantMapper.Outcome, file: StaticString = #filePath, line: UInt = #line) -> ActorAssignment? {
         guard case let .assigned(assignment) = outcome else {
             XCTFail("expected an assignment, got \(outcome)", file: file, line: line)
@@ -174,6 +182,42 @@ final class ProductionAuthorityContractTests: XCTestCase {
             let changed = try altered(edit)
             XCTAssertFalse(ProductionGrantMapper.isUsable(changed))
             XCTAssertTrue(isDenied(ProductionGrantMapper.map(changed, grantId: "couple:wedding:A")))
+        }
+    }
+
+    func testGateOperationalGrantMapsToConcreteContextOnlyFromServerAuthority() {
+        guard case let .selected(context) = ProductionGateGrantMapper.map(
+            authority,
+            selectedGrantId: "gate_operator:B:gate-1"
+        ) else {
+            return XCTFail("expected selected gate context")
+        }
+        XCTAssertEqual(context.assignmentId, "ga-1")
+        XCTAssertEqual(context.weddingId, "B")
+        XCTAssertEqual(context.gateId, "gate-1")
+        XCTAssertEqual(context.operatorUserId, "user-1")
+        XCTAssertTrue(context.capabilities.contains("gate.checkin.write"))
+    }
+
+    func testGateOperationalGrantFailsClosedForUnknownKindCapabilityOrWrongActor() throws {
+        let unknownKind = try editOperationalGrant { $0["kind"] = "future_gate_kind" }
+        if case .denied = ProductionGateGrantMapper.map(unknownKind, selectedGrantId: "gate_operator:B:gate-1") {
+        } else {
+            XCTFail("unknown operational kind must be denied")
+        }
+
+        let unknownCapability = try editOperationalGrant {
+            $0["capabilities"] = ["gate.checkin.write", "gate.superuser"]
+        }
+        if case .denied = ProductionGateGrantMapper.map(unknownCapability, selectedGrantId: "gate_operator:B:gate-1") {
+        } else {
+            XCTFail("unknown capability must be denied")
+        }
+
+        let wrongActor = try editOperationalGrant { $0["operatorUserId"] = "different-user" }
+        if case .denied = ProductionGateGrantMapper.map(wrongActor, selectedGrantId: "gate_operator:B:gate-1") {
+        } else {
+            XCTFail("operator identity mismatch must be denied")
         }
     }
 
