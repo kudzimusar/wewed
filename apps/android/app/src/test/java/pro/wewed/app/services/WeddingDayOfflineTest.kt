@@ -273,12 +273,12 @@ class WeddingDayOfflineTest {
 
         assertEquals(1, result.syncedIds.size)
         assertTrue(postedPath.contains("grantId=gate_operator:wedding-1:gate-1"))
-        assertTrue(postedBody.contains(""passSerial""))
-        assertTrue(postedBody.contains(""attendeeKeys""))
-        assertTrue(postedBody.contains(""clientEventId""))
-        assertTrue(postedBody.contains(""deviceId""))
+        assertTrue(postedBody.contains("\"passSerial\""))
+        assertTrue(postedBody.contains("\"attendeeKeys\""))
+        assertTrue(postedBody.contains("\"clientEventId\""))
+        assertTrue(postedBody.contains("\"deviceId\""))
         for (forbidden in listOf("guestId", "weddingId", "gateId", "usherId", "operatorUserId", "source", "eventKey")) {
-            assertFalse("offline sync must not submit $forbidden", postedBody.contains(""$forbidden""))
+            assertFalse("offline sync must not submit $forbidden", postedBody.contains("\"$forbidden\""))
         }
     }
 
