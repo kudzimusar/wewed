@@ -257,7 +257,10 @@ async function passKeyForCredential(
   return passKey
 }
 
-export async function ensurePassKey(weddingId: string): Promise<PassKeyRow> {
+export async function ensurePassKey(
+  weddingId: string,
+  queryable: Pick<typeof db, '$queryRawUnsafe'> = db,
+): Promise<PassKeyRow> {
   assertWeddingDayWW2RuntimeReady()
   const material = ww2KeyMaterial()
   const validateBoundKey = (key: PassKeyRow): PassKeyRow => {
@@ -273,7 +276,7 @@ export async function ensurePassKey(weddingId: string): Promise<PassKeyRow> {
     return key
   }
 
-  const existing = await db.$queryRawUnsafe<PassKeyRow[]>(
+  const existing = await queryable.$queryRawUnsafe<PassKeyRow[]>(
     `SELECT * FROM public."WeddingPassKey"
       WHERE "weddingId" = $1 AND "keyId" = $2
       LIMIT 1`,
@@ -283,7 +286,7 @@ export async function ensurePassKey(weddingId: string): Promise<PassKeyRow> {
   if (existing[0]) return validateBoundKey(existing[0])
 
   const id = randomUUID()
-  const inserted = await db.$queryRawUnsafe<PassKeyRow[]>(
+  const inserted = await queryable.$queryRawUnsafe<PassKeyRow[]>(
     `INSERT INTO public."WeddingPassKey"
        (id, "weddingId", "keyId", algorithm, "publicKeyPem", "publicKeyDerBase64", status, "activeFrom", "createdAt", "updatedAt")
      VALUES ($1, $2, $3, $4, $5, $6, 'active', now(), now(), now())
@@ -299,7 +302,7 @@ export async function ensurePassKey(weddingId: string): Promise<PassKeyRow> {
   if (inserted[0]) return validateBoundKey(inserted[0])
 
   // A concurrent creator won the key-id race. Read it back and require exact material identity.
-  const winner = await db.$queryRawUnsafe<PassKeyRow[]>(
+  const winner = await queryable.$queryRawUnsafe<PassKeyRow[]>(
     `SELECT * FROM public."WeddingPassKey"
       WHERE "weddingId" = $1 AND "keyId" = $2
       LIMIT 1`,
@@ -429,7 +432,9 @@ export async function ensureWeddingPassCredential(input: {
       )
       const issueSeq = Number(seqRows[0]?.next ?? 1)
 
-      const passKey = await ensurePassKey(input.weddingId)
+      // Reuse the interactive transaction connection. Opening a second Prisma connection while
+      // holding the Guest row lock can exhaust the pool under concurrent first issuance.
+      const passKey = await ensurePassKey(input.weddingId, tx)
       const material = ww2KeyMaterial()
       if (
         passKey.keyId !== material.keyId ||
