@@ -12,6 +12,8 @@ import pro.wewed.app.models.DevelopmentPersona
 import pro.wewed.app.models.NativeDataEnvironment
 import pro.wewed.app.navigation.ProductionAuthority
 import pro.wewed.app.navigation.ProductionGrantMapper
+import pro.wewed.app.navigation.ProductionGateGrantMapper
+import pro.wewed.app.navigation.GateOperationalContext
 import pro.wewed.app.services.InMemorySecureStorage
 import pro.wewed.app.services.NativeAccountSignInOutcome
 import pro.wewed.app.services.ProductionAuthorityClient
@@ -57,6 +59,8 @@ class SessionViewModel(
     private val accountSessionKey = "wewed.account.session"
     private val selectedGrantsKey = "wewed.account.selected-grants"
     private val selectedGrantsOwnerKey = "wewed.account.selected-grants.owner"
+    private val selectedGateGrantKey = "wewed.account.selected-gate-grant"
+    private val selectedGateGrantOwnerKey = "wewed.account.selected-gate-grant.owner"
 
     /**
      * Master plan Phase 8 — the same bearer token [ProductionAuthorityClient] already uses
@@ -107,6 +111,13 @@ class SessionViewModel(
      */
     private val _productionAuthority = MutableStateFlow<ProductionAuthority?>(null)
     val productionAuthority: StateFlow<ProductionAuthority?> = _productionAuthority.asStateFlow()
+
+    /** Selected operational Gate authority. Separate from workspace grants by design (Phase 10). */
+    private val _selectedGateGrantId = MutableStateFlow<String?>(null)
+    val selectedGateGrantId: StateFlow<String?> = _selectedGateGrantId.asStateFlow()
+
+    private val _activeGateContext = MutableStateFlow<GateOperationalContext?>(null)
+    val activeGateContext: StateFlow<GateOperationalContext?> = _activeGateContext.asStateFlow()
 
     /**
      * Grant ids the person has explicitly chosen, for workspace kinds where more than one grant
@@ -255,6 +266,10 @@ class SessionViewModel(
             _selectedGrantIds.value = emptySet()
             storage.delete(selectedGrantsKey)
             storage.delete(selectedGrantsOwnerKey)
+            _selectedGateGrantId.value = null
+            _activeGateContext.value = null
+            storage.delete(selectedGateGrantKey)
+            storage.delete(selectedGateGrantOwnerKey)
             _activeGrantId.value = null
             _currentRole.value = null
             _currentUserRole.value = null
@@ -277,8 +292,12 @@ class SessionViewModel(
             _activeGrantId.value = null
             _selectedGrantIds.value = emptySet()
             _selectedEngagementId.value = null
+            _selectedGateGrantId.value = null
+            _activeGateContext.value = null
             storage.delete(selectedGrantsKey)
             storage.delete(selectedGrantsOwnerKey)
+            storage.delete(selectedGateGrantKey)
+            storage.delete(selectedGateGrantOwnerKey)
             return
         }
 
@@ -311,10 +330,53 @@ class SessionViewModel(
             grant to assignment
         }
 
-        _authorizedRoles.value = assignmentPairs.map { it.second.role }.distinct()
+        // Operational Gate authority is a separate axis. A pure usher may have zero
+        // WeddingMembership/workspace grants; AppRole.USHER is presentation derived ONLY from a
+        // selected server operational grant, never from User.role/WeddingMembership.
+        val rememberedGateId = if (revalidateSelection) {
+            readSelectedGateGrantId(authority.accessUserId!!)
+        } else {
+            _selectedGateGrantId.value
+        }
+        val rememberedGateStillExists = rememberedGateId?.let { id ->
+            authority.operationalGrants.any { it.grantId == id }
+        } == true
+        val gateOutcome = when {
+            rememberedGateStillExists ->
+                ProductionGateGrantMapper.map(authority, rememberedGateId)
+            // A previously selected Gate vanished/revoked: fail closed and do NOT silently replace it.
+            rememberedGateId != null ->
+                ProductionGateGrantMapper.Outcome.Denied("The selected gate grant is no longer authorized.")
+            else ->
+                ProductionGateGrantMapper.map(authority)
+        }
+        val gateContext = (gateOutcome as? ProductionGateGrantMapper.Outcome.Selected)?.context
+        _activeGateContext.value = gateContext
+        _selectedGateGrantId.value = gateContext?.grantId
+        persistSelectedGateGrantId(gateContext?.grantId)
+
+        val workspaceRoles = assignmentPairs.map { it.second.role }.distinct()
+        _authorizedRoles.value = if (authority.operationalGrants.isNotEmpty()) {
+            (workspaceRoles + AppRole.USHER).distinct()
+        } else {
+            workspaceRoles
+        }
 
         val previousGrantId = _activeGrantId.value
         val previousRole = _currentRole.value
+
+        // Preserve an already-selected Gate context across a fresh authority read, but only while
+        // the exact same operational grant still exists.
+        if (previousRole == AppRole.USHER && gateContext != null) {
+            _activeGrantId.value = null
+            _productionWorkspace.value = null
+            _currentRole.value = AppRole.USHER
+            _currentUserRole.value = AppRole.USHER.roleId
+            _weddingId.value = gateContext.weddingId
+            _weddingTitle.value = gateContext.weddingTitle
+            return
+        }
+
         val next = assignmentPairs.firstOrNull { it.first.grantId == previousGrantId }
             ?: assignmentPairs.firstOrNull { it.second.role == previousRole }
             ?: assignmentPairs.firstOrNull()
@@ -342,11 +404,32 @@ class SessionViewModel(
                     ?.selectionRequired != true
             }
 
-        _activeGrantId.value = landing?.grantId
+        if (landing != null) {
+            _activeGrantId.value = landing.grantId
+            _currentRole.value = null
+            _currentUserRole.value = null
+            _weddingId.value = null
+            _weddingTitle.value = landing.weddingTitle
+            return
+        }
+
+        // Pure operational actor: one (or explicitly selected) valid gate opens the Gate shell
+        // without inventing a planning membership or workspace grant.
+        if (gateContext != null) {
+            _activeGrantId.value = null
+            _productionWorkspace.value = null
+            _currentRole.value = AppRole.USHER
+            _currentUserRole.value = AppRole.USHER.roleId
+            _weddingId.value = gateContext.weddingId
+            _weddingTitle.value = gateContext.weddingTitle
+            return
+        }
+
+        _activeGrantId.value = null
         _currentRole.value = null
         _currentUserRole.value = null
         _weddingId.value = null
-        _weddingTitle.value = landing?.weddingTitle
+        _weddingTitle.value = null
     }
 
     private suspend fun refreshActiveWorkspace(client: ProductionAuthorityClient, sessionToken: String) {
@@ -431,6 +514,47 @@ class SessionViewModel(
         }
     }
 
+    /**
+     * Selects a real operational Gate grant. This never creates a workspace grant and never
+     * converts a raw role string into authority.
+     */
+    fun selectGateGrant(grantId: String) {
+        val authority = _productionAuthority.value ?: return
+        val selected = (ProductionGateGrantMapper.map(authority, grantId)
+            as? ProductionGateGrantMapper.Outcome.Selected)?.context ?: return
+
+        _selectedGateGrantId.value = selected.grantId
+        persistSelectedGateGrantId(selected.grantId)
+        _activeGateContext.value = selected
+        _activeGrantId.value = null
+        _productionWorkspace.value = null
+        _selectedEngagementId.value = null
+        _currentRole.value = AppRole.USHER
+        _currentUserRole.value = AppRole.USHER.roleId
+        _weddingId.value = selected.weddingId
+        _weddingTitle.value = selected.weddingTitle
+    }
+
+    private fun readSelectedGateGrantId(accessUserId: String): String? {
+        if (storage.get(selectedGateGrantOwnerKey) != accessUserId) {
+            storage.delete(selectedGateGrantKey)
+            storage.delete(selectedGateGrantOwnerKey)
+            return null
+        }
+        return storage.get(selectedGateGrantKey)?.takeIf { it.isNotBlank() }
+    }
+
+    private fun persistSelectedGateGrantId(grantId: String?) {
+        val owner = _productionAuthority.value?.accessUserId
+        if (grantId.isNullOrBlank() || owner == null) {
+            storage.delete(selectedGateGrantKey)
+            storage.delete(selectedGateGrantOwnerKey)
+            return
+        }
+        storage.save(selectedGateGrantOwnerKey, owner)
+        storage.save(selectedGateGrantKey, grantId)
+    }
+
     private fun readSelectedGrantIds(accessUserId: String): Set<String> {
         val owner = storage.get(selectedGrantsOwnerKey)
         if (owner != accessUserId) {
@@ -491,6 +615,8 @@ class SessionViewModel(
         storage.delete(accountSessionKey)
         storage.delete(selectedGrantsKey)
         storage.delete(selectedGrantsOwnerKey)
+        storage.delete(selectedGateGrantKey)
+        storage.delete(selectedGateGrantOwnerKey)
         _isAuthenticated.value = false
         _productionAuthority.value = null
         _productionWorkspace.value = null
@@ -503,6 +629,8 @@ class SessionViewModel(
         _weddingTitle.value = null
         _selectedGrantIds.value = emptySet()
         _selectedEngagementId.value = null
+        _selectedGateGrantId.value = null
+        _activeGateContext.value = null
     }
 
     /**
@@ -556,6 +684,8 @@ class SessionViewModel(
         storage.delete(accountSessionKey)
         storage.delete(selectedGrantsKey)
         storage.delete(selectedGrantsOwnerKey)
+        storage.delete(selectedGateGrantKey)
+        storage.delete(selectedGateGrantOwnerKey)
         _isAuthenticated.value = false
         _currentUserRole.value = null
         _currentRole.value = null
@@ -569,6 +699,8 @@ class SessionViewModel(
         _activeGrantId.value = null
         _selectedGrantIds.value = emptySet()
         _selectedEngagementId.value = null
+        _selectedGateGrantId.value = null
+        _activeGateContext.value = null
         _authenticationError.value = null
         _sessionRestored.value = true
     }
