@@ -352,8 +352,15 @@ class SessionViewModel(
         }
         val gateContext = (gateOutcome as? ProductionGateGrantMapper.Outcome.Selected)?.context
         _activeGateContext.value = gateContext
-        _selectedGateGrantId.value = gateContext?.grantId
-        persistSelectedGateGrantId(gateContext?.grantId)
+        if (rememberedGateId != null && !rememberedGateStillExists) {
+            // Keep the stale id only as a re-selection marker. It is never mapped to authority,
+            // but prevents a later refresh from silently auto-selecting a different remaining gate.
+            _selectedGateGrantId.value = rememberedGateId
+            persistSelectedGateGrantId(rememberedGateId)
+        } else {
+            _selectedGateGrantId.value = gateContext?.grantId
+            persistSelectedGateGrantId(gateContext?.grantId)
+        }
 
         val workspaceRoles = assignmentPairs.map { it.second.role }.distinct()
         _authorizedRoles.value = if (authority.operationalGrants.isNotEmpty()) {
