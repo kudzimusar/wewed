@@ -27,6 +27,8 @@ import pro.wewed.app.navigation.RoleShellAuthorization
 import pro.wewed.app.navigation.ProductionAuthority
 import pro.wewed.app.navigation.ProductionGrantMapper
 import pro.wewed.app.navigation.ProductionWorkspaceGrant
+import pro.wewed.app.navigation.ProductionOperationalGrant
+import pro.wewed.app.navigation.GateOperationalContext
 import pro.wewed.app.navigation.GrantScopeKind
 import pro.wewed.app.services.NativeDomainApiClient
 import pro.wewed.app.services.ProductionContractsRepository
@@ -89,6 +91,8 @@ fun RootScreen(
     val weddingTitle by sessionViewModel.weddingTitle.collectAsState()
     val productionAuthority by sessionViewModel.productionAuthority.collectAsState()
     val selectedGrantIds by sessionViewModel.selectedGrantIds.collectAsState()
+    val selectedGateGrantId by sessionViewModel.selectedGateGrantId.collectAsState()
+    val activeGateContext by sessionViewModel.activeGateContext.collectAsState()
     val selectedEngagementId by sessionViewModel.selectedEngagementId.collectAsState()
     val activeGrantId by sessionViewModel.activeGrantId.collectAsState()
     val productionWorkspace by sessionViewModel.productionWorkspace.collectAsState()
@@ -372,8 +376,20 @@ fun RootScreen(
     // any chance to bind a real repository, and before the render gate further down gets a chance
     // to show its loading state. `resolveActorAssignmentSource` only reads a repository inside the
     // Shadow/dev-persona branch, so a PRODUCTION `appViewModel` (bound or not) never reaches it.
-    val assignmentSource = remember(appViewModel, productionAuthority, selectedGrantIds, selectedEngagementId) {
-        resolveActorAssignmentSource(appViewModel, productionAuthority, selectedGrantIds, selectedEngagementId)
+    val assignmentSource = remember(
+        appViewModel,
+        productionAuthority,
+        selectedGrantIds,
+        selectedEngagementId,
+        selectedGateGrantId
+    ) {
+        resolveActorAssignmentSource(
+            appViewModel,
+            productionAuthority,
+            selectedGrantIds,
+            selectedEngagementId,
+            selectedGateGrantId
+        )
     }
 
     // Master plan Phase 8 — rebinds appViewModel's domain repositories to real, grant-scoped
@@ -425,6 +441,21 @@ fun RootScreen(
         GrantSelectionScreen(
             grants = pendingGrantChoice,
             onSelect = { grantId -> sessionViewModel.selectGrant(grantId) },
+            onSignOut = { sessionViewModel.signOut() }
+        )
+        return
+    }
+
+
+    // Operational Gate grants use their own selector. A pure Usher with two gates must choose one;
+    // no planning workspace is invented to make that choice reachable.
+    val pendingGateChoice = remember(productionAuthority, currentRole, selectedGateGrantId) {
+        pendingGateSelection(productionAuthority, currentRole, selectedGateGrantId)
+    }
+    if (pendingGateChoice.isNotEmpty()) {
+        GateGrantSelectionScreen(
+            grants = pendingGateChoice,
+            onSelect = { grantId -> sessionViewModel.selectGateGrant(grantId) },
             onSignOut = { sessionViewModel.signOut() }
         )
         return
@@ -525,6 +556,8 @@ fun RootScreen(
         productionAuthority,
         selectedGrantIds,
         selectedEngagementId,
+        selectedGateGrantId,
+        activeGateContext,
         activeGrantId
     ) {
         resolvingContext = true
@@ -594,6 +627,7 @@ fun RootScreen(
     if (isScannerOpen) {
         UsherScannerScreen(
             appViewModel = appViewModel,
+            gateContext = activeGateContext,
             onClose = { isScannerOpen = false }
         )
         return
@@ -626,6 +660,30 @@ fun RootScreen(
     // minimal read-only snapshot below — that mature-domain native UI is not wired yet (see
     // docs/native-mobile/WEWED_NATIVE_PHASE8_FIELD_CLASSIFICATION.md), and falling back to it here
     // is an honest "not yet" rather than a broken real shell.
+    // Phase 10: Gate authority has no production Wedding Day write runtime yet. Render the
+    // server-derived assignment itself and keep admission activation explicitly deferred to Phase 11.
+    if (appViewModel.dataEnvironment == NativeDataEnvironment.PRODUCTION &&
+        context.activeRole == AppRole.USHER
+    ) {
+        val gate = activeGateContext
+        if (gate == null ||
+            gate.operatorUserId != context.actorId ||
+            gate.weddingId != context.activeWeddingId ||
+            gate.gateId != context.activeGateId
+        ) {
+            NativeEnvironmentUnavailableScreen(
+                environmentName = appViewModel.dataEnvironment.displayName,
+                reason = "This Gate assignment is no longer authorized."
+            )
+            return
+        }
+        ProductionGateAuthorityContent(
+            gateContext = gate,
+            onSignOut = { sessionViewModel.signOut() }
+        )
+        return
+    }
+
     val productionRoleWired = appViewModel.dataEnvironment == NativeDataEnvironment.PRODUCTION &&
         context.activeRole in setOf(AppRole.COUPLE, AppRole.PLANNER, AppRole.COORDINATOR, AppRole.ADMIN, AppRole.VENDOR)
 
@@ -901,6 +959,96 @@ fun RootScreen(
  * Grants of [role]'s kind that require an explicit choice and have none yet (master plan §9).
  * A single grant, or a kind the contract does not mark `selectionRequired`, needs no picker.
  */
+private fun pendingGateSelection(
+    authority: ProductionAuthority?,
+    currentRole: AppRole?,
+    selectedGateGrantId: String?
+): List<ProductionOperationalGrant> {
+    if (authority == null || !ProductionGrantMapper.isUsable(authority)) return emptyList()
+    val selection = authority.gateContextSelection ?: return emptyList()
+    if (!selection.selectionRequired || selection.grantIds.size <= 1) return emptyList()
+    if (selectedGateGrantId != null && selectedGateGrantId in selection.grantIds) return emptyList()
+    // Do not interrupt an already-open ordinary workspace just because the same person also has
+    // operational authority. Pure Usher / explicitly-entered Usher is where the Gate picker belongs.
+    if (currentRole != null && currentRole != AppRole.USHER) return emptyList()
+    val ids = selection.grantIds.toSet()
+    return authority.operationalGrants.filter { it.grantId in ids }
+}
+
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun GateGrantSelectionScreen(
+    grants: List<ProductionOperationalGrant>,
+    onSelect: (String) -> Unit,
+    onSignOut: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(WeddingIdentityPalette.Ivory)
+            .semantics { testTagsAsResourceId = true }
+            .testTag("gate-grant-selection")
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text("Choose your gate", fontSize = 22.sp, fontWeight = FontWeight.Medium)
+            Text(
+                "You have more than one active Gate assignment. Wewed will not choose one for you.",
+                fontSize = 13.sp,
+                color = WeddingIdentityPalette.Muted
+            )
+            grants.forEach { grant ->
+                OutlinedButton(
+                    onClick = { onSelect(grant.grantId) },
+                    modifier = Modifier.fillMaxWidth().testTag("gate-grant-option-${grant.grantId}")
+                ) {
+                    Text("${grant.gateName} · ${grant.weddingTitle}")
+                }
+            }
+            TextButton(onClick = onSignOut) { Text("Sign out") }
+        }
+    }
+}
+
+@Composable
+private fun ProductionGateAuthorityContent(
+    gateContext: GateOperationalContext,
+    onSignOut: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(WeddingIdentityPalette.Ivory)
+            .padding(24.dp)
+            .testTag("production-gate-authority"),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Text("Gate Operations", fontSize = 24.sp, fontWeight = FontWeight.Medium)
+        Text(gateContext.weddingTitle, color = WeddingIdentityPalette.Muted)
+        Text(gateContext.gateName, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+        Text(
+            "Assignment: ${gateContext.assignmentId}",
+            fontSize = 12.sp,
+            color = WeddingIdentityPalette.Muted
+        )
+        Text(
+            "Capabilities: ${gateContext.capabilities.sorted().joinToString(", ")}",
+            fontSize = 12.sp,
+            color = WeddingIdentityPalette.Muted
+        )
+        HorizontalDivider()
+        Text(
+            "Gate admission and offline Wedding Pass activation remain disabled until Phase 11. " +
+                "This screen proves the real server assignment without fabricating a scanner credential.",
+            fontSize = 13.sp,
+            color = WeddingIdentityPalette.Muted
+        )
+        TextButton(onClick = onSignOut) { Text("Sign out") }
+    }
+}
+
 private fun pendingGrantSelection(
     authority: ProductionAuthority?,
     currentRole: AppRole?,
