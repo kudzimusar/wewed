@@ -381,7 +381,7 @@ export async function ensureWeddingPassCredential(input: {
            JOIN public."Wedding" w ON w.id = g."weddingId"
           WHERE g.id = $1 AND g."weddingId" = $2
           LIMIT 1
-          FOR UPDATE OF g, w`,
+          FOR UPDATE OF g`,
         input.guestId,
         input.weddingId,
       )
