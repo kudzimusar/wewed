@@ -50,14 +50,26 @@ To intentionally clear a free-text field (`mealChoice`/`plusOneName`/`plusOneMea
 `kidsCount` have no "cleared" state on the wire — omitting them is the only way to leave them
 untouched.
 
-### RSVP reachability & lifecycle across response statuses
+### RSVP reachability & pre-open server refresh across response statuses
 
-In accordance with PWA parity and the independent moderator review finding, RSVP editing remains accessible across all response statuses on native Android and iOS:
-- **`PENDING` -> RSVP editable:** Action label is displayed as `"RSVP"`. Tapping opens the RSVP editor sheet.
-- **`ACCEPTED` -> RSVP editable:** Action label is dynamically displayed as `"Update RSVP"`. Card displays confirmation badge (`RSVP confirmed`), while the action remains fully interactive and reachable. Tapping reopens the RSVP editor pre-populated with server truth.
-- **`DECLINED` -> RSVP editable:** Action label is dynamically displayed as `"Update RSVP"`. Card displays status banner (`Response recorded — not attending`), while the action remains fully interactive and reachable. Tapping reopens the RSVP editor pre-populated with server truth.
+In accordance with PWA parity and independent moderator review findings, RSVP editing remains accessible across all response statuses on native Android and iOS, and strictly refreshes server truth before the editor can open:
+- **`PENDING` -> RSVP editable:** Action label is displayed as `"RSVP"`. Tapping triggers pre-open server refresh before opening the editor sheet.
+- **`ACCEPTED` -> RSVP editable:** Action label is dynamically displayed as `"Update RSVP"`. Card displays confirmation badge (`RSVP confirmed`), while the action remains fully interactive and reachable. Tapping triggers pre-open server refresh before reopening the editor sheet.
+- **`DECLINED` -> RSVP editable:** Action label is dynamically displayed as `"Update RSVP"`. Card displays status banner (`Response recorded — not attending`), while the action remains fully interactive and reachable. Tapping triggers pre-open server refresh before reopening the editor sheet.
 
-Each edit reloads / uses the same Guest Session-backed RSVP truth (`PUT /api/weddings/[slug]/guest-session`). The native views (`LiveGuestInvitationScreen` on Android keyed by presentation, and `LiveGuestInvitationView` on iOS with keyed form session) refresh from the server and bind directly to the latest snapshot upon reopening, ensuring no stale or dirty client state overwrites existing answers, and ensuring dormant fields are preserved across cycles.
+#### Pre-open server refresh architecture
+To prevent stale native client state from overwriting concurrent server/PWA edits (e.g., PWA changes meal from beef to vegan while native screen remains open), tapping RSVP / Update RSVP does not immediately open the editor sheet. Instead:
+1. Native UI initiates `coordinator.prepareRsvpEdit(currentGuestId)`.
+2. Fresh server snapshot is loaded directly via `client.loadInvitation(weddingSlug)`.
+3. Snapshot identity is validated: `refreshedSnapshot.guestId == currentGuestId`.
+4. On success:
+   - Produces `RsvpEditPreparation.Ready(refreshedPresentation, presentingState)`.
+   - Native screen updates its active presentation and binds `rsvpEditorPresentation = refreshedPresentation`.
+   - Editor sheet opens bound exclusively to `rsvpEditorPresentation`. Stale enclosing state cannot leak into the form.
+5. On failure, the editor does **NOT** open:
+   - **`Unavailable(status)`:** Transport/network error. Preserves current card state, prevents opening a stale editor, and presents a retryable notice (`Unable to refresh invitation. Please check your connection and try again.`).
+   - **`RevokedOrUnauthorized`:** Session expired or unauthorized (`401`). Editor does not open; routes to session-reopen required notice.
+   - **`StaleOrReplacedGuest`:** Refreshed session belongs to a different guest ID (`409`). Editor does not open; routes to session-reopen required notice. No cross-guest overwrites or retry against another guest.
 
 ---
 
@@ -107,8 +119,10 @@ exclusively — no `/api/native/rsvp` or any other native-only route exists or w
 | RSVP write payload | `GuestRsvpUpdate` (new this phase) — 9 nullable fields, `null` = omit |
 | RSVP read/write response | `GuestRsvpRecord` (new this phase, replaces a bare `Boolean?`) |
 | `originGuestId` binding | `LiveGuestInvitationCoordinator.presentedGuestId` — captured only when a card is presented, never at save time |
-| RSVP form UI | `LiveGuestInvitationScreen.kt`'s `LiveRsvpForm` (wrapped in `key(presentation)`; form state bound via `remember(initial)`). Action resolved via `resolveLiveInvitationActions` and `ivoryRsvpActionLabel` ("RSVP" while awaiting response, "Update RSVP" once answered), remaining reachable across PENDING, ACCEPTED, and DECLINED states. |
-| Invitation style | `LiveInvitationPresentation.invitationCardStyle`, sourced exclusively from the GET response's `wedding.invitationCardStyle` — never from a deep-link parameter |
+| Pre-open refresh | `LiveGuestInvitationCoordinator.prepareRsvpEdit(currentGuestId)` -> `RsvpEditPreparation` (`Ready`, `StaleOrReplacedGuest`, `RevokedOrUnauthorized`, `Unavailable`) |
+| RSVP form UI | `LiveGuestInvitationScreen.kt`'s `LiveRsvpForm` bound to refreshed `rsvpEditorPresentation`. Action resolved via `resolveLiveInvitationActions` and `ivoryRsvpActionLabel` ("RSVP" while awaiting response, "Update RSVP" once answered), remaining reachable across PENDING, ACCEPTED, and DECLINED states. Network refresh failures surface `RefreshUnavailableNotice`. |
+| Invitation styles & engine | All 12 styles rendered natively: `IvoryFloralGoldNative` (dedicated) and `GenericMotionInvitationNative` (for the 11 generic styles). Contract generated into `GeneratedInvitationStyles.kt` from `src/lib/digital-invitation-card.ts`. |
+| Invitation style source | `LiveInvitationPresentation.invitationCardStyle`, sourced exclusively from the GET response's `wedding.invitationCardStyle` — never from a deep-link parameter |
 
 ## 6. iOS mapping
 
@@ -118,8 +132,10 @@ exclusively — no `/api/native/rsvp` or any other native-only route exists or w
 | RSVP write payload | `GuestRsvpUpdate` (new this phase) |
 | RSVP read/write response | `GuestRsvpRecord` (new this phase) |
 | `originGuestId` binding | `LiveGuestInvitationCoordinator.presentedGuestId`/`activeWeddingSlug` — same capture-at-presentation-time contract |
-| RSVP form UI | `LiveGuestInvitationView.swift`'s `LiveRsvpFormView` (keyed with `.id(formSessionId)` to guarantee a clean slate initialized with the latest snapshot data). Action resolved via `resolveLiveInvitationActions` and `ivoryRsvpActionLabel`, remaining reachable across PENDING, ACCEPTED, and DECLINED states. |
-| Invitation style | Same GET-response-only source; no deep-link override |
+| Pre-open refresh | `LiveGuestInvitationCoordinator.prepareRsvpEdit(currentGuestId)` -> `RsvpEditPreparation` (`ready`, `staleOrReplacedGuest`, `revokedOrUnauthorized`, `unavailable`) |
+| RSVP form UI | `LiveGuestInvitationView.swift`'s `LiveRsvpFormView` bound to refreshed `rsvpEditorPresentation` (keyed with `.id(formSessionId)`). Action resolved via `resolveLiveInvitationActions` and `ivoryRsvpActionLabel`, remaining reachable across PENDING, ACCEPTED, and DECLINED states. Network refresh failures surface `refreshUnavailableAlert`. |
+| Invitation styles & engine | All 12 styles rendered natively: `IvoryFloralGoldNative` (dedicated) and `GenericMotionInvitationNative` (for the 11 generic styles). Contract generated into `GeneratedInvitationStyles.swift` from `src/lib/digital-invitation-card.ts`. |
+| Invitation style source | Same GET-response-only source; no deep-link override |
 
 ---
 
@@ -135,14 +151,41 @@ exclusively — no `/api/native/rsvp` or any other native-only route exists or w
 
 ---
 
-## 8. Invitation design authority (§10)
+## 8. Invitation design authority & 12-style native renderer matrix (§10)
 
 `Wedding.invitationCardStyle` (normalized via `normalizeInvitationCardStyle`, `src/lib/digital-invitation-card.ts`)
 is authoritative for all 12 supported styles. `resolvePersonalInvitation` (the `/invite/[slug]`
 redeem path) accepts a `requestedCard` parameter but never reads it — the returned `card` is always
 `normalizeInvitationCardStyle(wedding.invitationCardStyle)`. `GET /api/weddings/[slug]/guest-session`
-never accepts a style parameter at all. Proven end-to-end for every supported style (disposable-DB
-integration test, `src/lib/guest-rsvp-convergence.integration.test.ts`).
+never accepts a style parameter at all.
+
+### Authoritative 12-style contract & single source of truth
+The design contract is derived directly from `src/lib/digital-invitation-card.ts` using `mobile/contracts/generate_invitation_style_contract.py`, producing:
+- `mobile/contracts/invitation-styles.json`
+- `apps/android/app/src/main/java/pro/wewed/app/models/GeneratedInvitationStyles.kt`
+- `apps/ios/Wewed/Models/GeneratedInvitationStyles.swift`
+
+Extracting authoritative palettes (`stage`, `paper`, `ink`, `primary`, `accent`, `muted`), motion presets, and atmosphere presets from web source prevents divergent color or motion definitions.
+
+### 12-style native renderer matrix
+
+| Style ID | Name | Motion | Atmosphere | Native Android | Native iOS | RSVP Reachable | Initial State |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `ivory-floral-gold` | Ivory Floral Gold | `tri-fold` | `champagne-glow` | LIVE (`IvoryFloralGoldNative`) | LIVE (`IvoryFloralGoldNative`) | LIVE (PENDING, ACCEPTED, DECLINED) | Closed ceremony |
+| `midnight` | Midnight Gold | `gate-fold` | `stars` | LIVE (`GenericMotionInvitationNative`) | LIVE (`GenericMotionInvitationNative`) | LIVE (PENDING, ACCEPTED, DECLINED) | Closed ceremony |
+| `botanical` | Garden Romance | `floral-reveal` | `petals` | LIVE (`GenericMotionInvitationNative`) | LIVE (`GenericMotionInvitationNative`) | LIVE (PENDING, ACCEPTED, DECLINED) | Closed ceremony |
+| `royal-emerald` | Royal Emerald | `envelope-letter` | `soft-bokeh` | LIVE (`GenericMotionInvitationNative`) | LIVE (`GenericMotionInvitationNative`) | LIVE (PENDING, ACCEPTED, DECLINED) | Closed ceremony |
+| `classic-white` | Classic White | `book-open` | `minimal` | LIVE (`GenericMotionInvitationNative`) | LIVE (`GenericMotionInvitationNative`) | LIVE (PENDING, ACCEPTED, DECLINED) | Closed ceremony |
+| `blush-romance` | Blush Romance | `envelope-letter` | `soft-bokeh` | LIVE (`GenericMotionInvitationNative`) | LIVE (`GenericMotionInvitationNative`) | LIVE (PENDING, ACCEPTED, DECLINED) | Closed ceremony |
+| `african-luxe` | African Luxe | `gate-fold` | `candlelight` | LIVE (`GenericMotionInvitationNative`) | LIVE (`GenericMotionInvitationNative`) | LIVE (PENDING, ACCEPTED, DECLINED) | Closed ceremony |
+| `editorial` | Modern Editorial | `single-card-lift` | `minimal` | LIVE (`GenericMotionInvitationNative`) | LIVE (`GenericMotionInvitationNative`) | LIVE (PENDING, ACCEPTED, DECLINED) | Closed ceremony |
+| `black-tie` | Black Tie | `gate-fold` | `candlelight` | LIVE (`GenericMotionInvitationNative`) | LIVE (`GenericMotionInvitationNative`) | LIVE (PENDING, ACCEPTED, DECLINED) | Closed ceremony |
+| `watercolour-garden` | Watercolour Garden | `floral-reveal` | `watercolour-bloom` | LIVE (`GenericMotionInvitationNative`) | LIVE (`GenericMotionInvitationNative`) | LIVE (PENDING, ACCEPTED, DECLINED) | Closed ceremony |
+| `sunset-terracotta` | Sunset Terracotta | `sleeve-pull` | `soft-bokeh` | LIVE (`GenericMotionInvitationNative`) | LIVE (`GenericMotionInvitationNative`) | LIVE (PENDING, ACCEPTED, DECLINED) | Closed ceremony |
+| `celestial` | Celestial | `book-open` | `stars` | LIVE (`GenericMotionInvitationNative`) | LIVE (`GenericMotionInvitationNative`) | LIVE (PENDING, ACCEPTED, DECLINED) | Closed ceremony |
+| *(unknown future)* | Unknown Style | — | — | UNSUPPORTED (fail-closed notice) | UNSUPPORTED (fail-closed notice) | N/A | Fail-closed |
+
+*Note: `botanical` (Garden Romance) serves as the authoritative server fallback style whenever a missing or invalid style is configured.*
 
 ---
 
@@ -151,7 +194,6 @@ integration test, `src/lib/guest-rsvp-convergence.integration.test.ts`).
 - The explicit-card-first (`splash → card`) and returning-guest (`Home first`) navigation flows —
   no navigation/entry code was touched.
 - The "My Digital Invitation" tab reopening the same configured card.
-- Invitation motion/the 12 supported invitation designs' visual presentation.
 - Guest Session v2's credential model, fingerprint invalidation/rotation behavior.
 - `songRequests` (see §2) and every other Admin/Vendor/Contracts domain from Phase 8.
 
