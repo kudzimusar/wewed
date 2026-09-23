@@ -1,0 +1,97 @@
+name: TEMP Phase 9 Native Qualification
+
+# Master plan WW-NATIVE-PWA-CONVERGENCE-2026-09-22-01, Phase 9 — Digital Invitation + RSVP
+# convergence, CLOSURE ROUND 5. Temporary reviewer qualification evidence for this round
+# only — removed after a successful run, matching the pattern established across every prior
+# Phase 8/9 closure round.
+#
+# Round 5 runs the future-style regression tests and the contract --check before Android/iOS
+# native tests — the `contract` job below runs first and gates `android`/`ios`.
+
+on:
+  push:
+    branches:
+      - native-mobile/digital-invitation-rsvp-phase9-20260923
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tmp-phase9-native-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    name: Invitation style contract regression and drift check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Run invitation style contract regression tests
+        run: python3 mobile/contracts/test_invitation_style_contract.py
+
+      - name: Verify contract parity
+        run: python3 mobile/contracts/generate_invitation_style_contract.py --check
+
+  android:
+    name: Android unit tests, debug and release assembly
+    needs: contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/android
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up Java 17
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Run unit tests
+        run: ./gradlew :app:testDebugUnitTest --no-daemon --stacktrace
+
+      - name: Assemble debug
+        run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Assemble release
+        run: ./gradlew :app:assembleRelease --no-daemon --stacktrace
+
+  ios:
+    name: iOS swift test/build, XcodeGen, Simulator build, unsigned Release build
+    needs: contract
+    runs-on: macos-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/ios
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: swift test
+        run: swift test
+
+      - name: swift build
+        run: swift build
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Xcode Simulator build (Debug)
+        run: |
+          set -euo pipefail
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c "import json,sys; data=json.load(sys.stdin)['devices']; ids=[d['udid'] for k,v in data.items() for d in v if 'iPhone' in d['name']]; print(ids[0])")
+          xcodebuild -project Wewed.xcodeproj -scheme Wewed -configuration Debug -destination "id=$DEVICE_ID" build
+
+      - name: Xcode unsigned Release/device build
+        run: xcodebuild -project Wewed.xcodeproj -scheme Wewed -configuration Release -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
