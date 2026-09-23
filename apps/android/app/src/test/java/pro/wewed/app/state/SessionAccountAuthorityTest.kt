@@ -77,6 +77,56 @@ class SessionAccountAuthorityTest {
         }}
     """.trimIndent()
 
+    private val singleGateAuthority = """
+        {"success": true, "authority": {
+          "contract":"WewedProductionAuthorityV1","version":1,"accountStatus":"authorized",
+          "identity":{"accessUserId":"usher-1","dashboardClass":"viewer"},
+          "workspaceGrants":[],"contextSelection":[],
+          "operationalGrants":[{
+            "grantId":"gate_operator:W:gate-A","kind":"gate_operator","assignmentId":"ga-A",
+            "weddingId":"W","weddingTitle":"Wedding W","gateId":"gate-A","gateName":"Main Gate",
+            "operatorUserId":"usher-1",
+            "capabilities":["gate.manifest.read","gate.checkin.write","gate.guest_search.read","gate.audit.read"]
+          }],
+          "gateContextSelection":{"kind":"gate_operator","grantIds":["gate_operator:W:gate-A"],"selectionRequired":false},
+          "unsupported":["guest"],"platform":{"effectiveRole":null}
+        }}
+    """.trimIndent()
+
+    private val multipleGateAuthority = """
+        {"success": true, "authority": {
+          "contract":"WewedProductionAuthorityV1","version":1,"accountStatus":"authorized",
+          "identity":{"accessUserId":"usher-1","dashboardClass":"viewer"},
+          "workspaceGrants":[],"contextSelection":[],
+          "operationalGrants":[
+            {"grantId":"gate_operator:W:gate-A","kind":"gate_operator","assignmentId":"ga-A",
+             "weddingId":"W","weddingTitle":"Wedding W","gateId":"gate-A","gateName":"Main Gate",
+             "operatorUserId":"usher-1","capabilities":["gate.checkin.write"]},
+            {"grantId":"gate_operator:W:gate-B","kind":"gate_operator","assignmentId":"ga-B",
+             "weddingId":"W","weddingTitle":"Wedding W","gateId":"gate-B","gateName":"Side Gate",
+             "operatorUserId":"usher-1","capabilities":["gate.checkin.write"]}
+          ],
+          "gateContextSelection":{"kind":"gate_operator",
+            "grantIds":["gate_operator:W:gate-A","gate_operator:W:gate-B"],"selectionRequired":true},
+          "unsupported":["guest"],"platform":{"effectiveRole":null}
+        }}
+    """.trimIndent()
+
+    private val onlyGateBAuthority = """
+        {"success": true, "authority": {
+          "contract":"WewedProductionAuthorityV1","version":1,"accountStatus":"authorized",
+          "identity":{"accessUserId":"usher-1","dashboardClass":"viewer"},
+          "workspaceGrants":[],"contextSelection":[],
+          "operationalGrants":[{
+            "grantId":"gate_operator:W:gate-B","kind":"gate_operator","assignmentId":"ga-B",
+            "weddingId":"W","weddingTitle":"Wedding W","gateId":"gate-B","gateName":"Side Gate",
+            "operatorUserId":"usher-1","capabilities":["gate.checkin.write"]
+          }],
+          "gateContextSelection":{"kind":"gate_operator","grantIds":["gate_operator:W:gate-B"],"selectionRequired":false},
+          "unsupported":["guest"],"platform":{"effectiveRole":null}
+        }}
+    """.trimIndent()
+
     private val bannedAuthority = """
         {"success": true, "authority": {
           "contract": "WewedProductionAuthorityV1", "version": 1, "accountStatus": "banned_identity",
@@ -307,6 +357,64 @@ class SessionAccountAuthorityTest {
             assertTrue(expected.message!!.contains("not connected"))
         }
         assertFalse(session.isAuthenticated.value)
+    }
+
+    @Test
+    fun pureUsherNeedsNoPlanningWorkspaceAndOpensFromSoleOperationalGrant() {
+        val transport = FakeTransport(
+            signInResponse = WeddingDayHttpResponse(200, """{"success":true,"sessionToken":"session-usher"}"""),
+            authorityResponse = WeddingDayHttpResponse(200, singleGateAuthority),
+        )
+        val session = sessionWith(transport)
+        session.signIn("usher@example.com", "correct")
+
+        assertTrue(session.isAuthenticated.value)
+        assertEquals(AppRole.USHER, session.currentRole.value)
+        assertEquals(listOf(AppRole.USHER), session.authorizedRoles.value)
+        assertEquals("W", session.weddingId.value)
+        assertNull(session.activeGrantId.value)
+        assertEquals("gate-A", session.activeGateContext.value?.gateId)
+        assertEquals("usher-1", session.activeGateContext.value?.operatorUserId)
+    }
+
+    @Test
+    fun multipleGateAssignmentsRequireExplicitSelection() {
+        val transport = FakeTransport(
+            signInResponse = WeddingDayHttpResponse(200, """{"success":true,"sessionToken":"session-usher"}"""),
+            authorityResponse = WeddingDayHttpResponse(200, multipleGateAuthority),
+        )
+        val session = sessionWith(transport)
+        session.signIn("usher@example.com", "correct")
+
+        assertNull(session.currentRole.value)
+        assertNull(session.activeGateContext.value)
+        assertTrue(AppRole.USHER in session.authorizedRoles.value)
+
+        session.selectGateGrant("gate_operator:W:gate-B")
+        assertEquals(AppRole.USHER, session.currentRole.value)
+        assertEquals("gate-B", session.activeGateContext.value?.gateId)
+        assertEquals("gate_operator:W:gate-B", session.selectedGateGrantId.value)
+    }
+
+    @Test
+    fun revokedSelectedGateNeverSilentlyFallsOverToAnotherGate() {
+        val storage = InMemorySecureStorage()
+        storage.save("wewed.account.selected-gate-grant.owner", "usher-1")
+        storage.save("wewed.account.selected-gate-grant", "gate_operator:W:gate-A")
+        val transport = FakeTransport(
+            signInResponse = WeddingDayHttpResponse(200, """{"success":true,"sessionToken":"session-usher"}"""),
+            authorityResponse = WeddingDayHttpResponse(200, onlyGateBAuthority),
+        )
+        val session = sessionWith(transport, storage)
+        session.signIn("usher@example.com", "correct")
+
+        assertNull(session.currentRole.value)
+        assertNull(session.activeGateContext.value)
+        assertEquals("gate_operator:W:gate-A", session.selectedGateGrantId.value)
+
+        session.selectGateGrant("gate_operator:W:gate-B")
+        assertEquals(AppRole.USHER, session.currentRole.value)
+        assertEquals("gate-B", session.activeGateContext.value?.gateId)
     }
 
     @Test
