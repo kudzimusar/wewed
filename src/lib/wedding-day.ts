@@ -47,6 +47,7 @@ export interface PassKeyRow {
   id: string
   weddingId: string
   keyId: string
+  algorithm: string
   publicKeyPem: string
   publicKeyDerBase64: string
   status: string
@@ -173,49 +174,121 @@ function p1363HexVerify(payload: string, signatureHex: string, publicKeyPem: str
   }
 }
 
-function ww2KeyMaterial(): { privateKeyPem: string; keyId: string } {
+function ww2KeyMaterial(): {
+  privateKeyPem: string
+  keyId: string
+  publicKeyPem: string
+  publicKeyDerBase64: string
+} {
   const privateKeyPem = process.env.WEDDING_DAY_WW2_PRIVATE_KEY_PEM?.trim().replace(/\\n/g, '\n')
   const keyId = process.env.WEDDING_DAY_WW2_KEY_ID?.trim()
   if (!privateKeyPem || !keyId) {
     throw new Error('WEDDING_DAY_WW2_KEY_UNAVAILABLE')
   }
-  return { privateKeyPem, keyId }
+
+  let privateKey
+  try {
+    privateKey = createPrivateKey(privateKeyPem)
+  } catch {
+    throw new Error('WEDDING_DAY_WW2_KEY_INVALID')
+  }
+  const curve = (privateKey.asymmetricKeyDetails as { namedCurve?: string } | undefined)?.namedCurve
+  if (
+    privateKey.asymmetricKeyType !== 'ec' ||
+    (curve !== 'prime256v1' && curve !== 'P-256')
+  ) {
+    throw new Error('WEDDING_DAY_WW2_KEY_INVALID')
+  }
+
+  const publicKey = createPublicKey(privateKey)
+  return {
+    privateKeyPem,
+    keyId,
+    publicKeyPem: publicKey.export({ type: 'spki', format: 'pem' }).toString(),
+    publicKeyDerBase64: publicKey.export({ type: 'spki', format: 'der' }).toString('base64'),
+  }
+}
+
+function assertPassKeyUsable(passKey: PassKeyRow, now: Date = new Date()): void {
+  if (
+    passKey.algorithm !== WW2_ALGORITHM ||
+    passKey.status !== 'active' ||
+    passKey.revokedAt ||
+    passKey.activeFrom.getTime() > now.getTime() ||
+    (passKey.expiresAt && passKey.expiresAt.getTime() <= now.getTime())
+  ) {
+    throw new Error('PASS_SIGNING_KEY_INACTIVE')
+  }
+}
+
+async function passKeyForCredential(
+  queryable: Pick<typeof db, '$queryRawUnsafe'>,
+  credential: CredentialRow,
+  now: Date = new Date(),
+): Promise<PassKeyRow> {
+  const rows = await queryable.$queryRawUnsafe<PassKeyRow[]>(
+    `SELECT * FROM public."WeddingPassKey"
+      WHERE id = $1 AND "weddingId" = $2
+      LIMIT 1`,
+    credential.passKeyId,
+    credential.weddingId,
+  )
+  const passKey = rows[0]
+  if (!passKey) throw new Error('PASS_SIGNING_KEY_INACTIVE')
+  assertPassKeyUsable(passKey, now)
+  return passKey
 }
 
 export async function ensurePassKey(weddingId: string): Promise<PassKeyRow> {
-  const { privateKeyPem, keyId } = ww2KeyMaterial()
-  const privateKey = createPrivateKey(privateKeyPem)
-  const publicKey = createPublicKey(privateKey)
-  const publicKeyPem = publicKey.export({ type: 'spki', format: 'pem' }).toString()
-  const publicKeyDerBase64 = publicKey.export({ type: 'spki', format: 'der' }).toString('base64')
+  const material = ww2KeyMaterial()
+  const validateBoundKey = (key: PassKeyRow): PassKeyRow => {
+    if (
+      key.algorithm !== WW2_ALGORITHM ||
+      key.publicKeyDerBase64 !== material.publicKeyDerBase64
+    ) {
+      // keyId is an immutable identity. Reusing it for different key material would silently
+      // invalidate previously issued credentials and is therefore forbidden.
+      throw new Error('WEDDING_DAY_WW2_KEY_ID_MATERIAL_MISMATCH')
+    }
+    assertPassKeyUsable(key)
+    return key
+  }
 
   const existing = await db.$queryRawUnsafe<PassKeyRow[]>(
     `SELECT * FROM public."WeddingPassKey"
       WHERE "weddingId" = $1 AND "keyId" = $2
       LIMIT 1`,
     weddingId,
-    keyId,
+    material.keyId,
   )
-  if (existing[0]) return existing[0]
+  if (existing[0]) return validateBoundKey(existing[0])
 
   const id = randomUUID()
-  const rows = await db.$queryRawUnsafe<PassKeyRow[]>(
+  const inserted = await db.$queryRawUnsafe<PassKeyRow[]>(
     `INSERT INTO public."WeddingPassKey"
        (id, "weddingId", "keyId", algorithm, "publicKeyPem", "publicKeyDerBase64", status, "activeFrom", "createdAt", "updatedAt")
      VALUES ($1, $2, $3, $4, $5, $6, 'active', now(), now(), now())
-     ON CONFLICT ("weddingId", "keyId") DO UPDATE
-       SET "publicKeyPem" = EXCLUDED."publicKeyPem",
-           "publicKeyDerBase64" = EXCLUDED."publicKeyDerBase64",
-           "updatedAt" = now()
+     ON CONFLICT ("weddingId", "keyId") DO NOTHING
      RETURNING *`,
     id,
     weddingId,
-    keyId,
+    material.keyId,
     WW2_ALGORITHM,
-    publicKeyPem,
-    publicKeyDerBase64,
+    material.publicKeyPem,
+    material.publicKeyDerBase64,
   )
-  return rows[0]
+  if (inserted[0]) return validateBoundKey(inserted[0])
+
+  // A concurrent creator won the key-id race. Read it back and require exact material identity.
+  const winner = await db.$queryRawUnsafe<PassKeyRow[]>(
+    `SELECT * FROM public."WeddingPassKey"
+      WHERE "weddingId" = $1 AND "keyId" = $2
+      LIMIT 1`,
+    weddingId,
+    material.keyId,
+  )
+  if (!winner[0]) throw new Error('WEDDING_DAY_WW2_KEY_UNAVAILABLE')
+  return validateBoundKey(winner[0])
 }
 
 async function guestEligibility(
@@ -278,27 +351,52 @@ export async function ensureWeddingPassCredential(input: {
     throw new Error('WEDDING_DAY_DISABLED')
   }
 
-  const eligibility = await guestEligibility(input.weddingId, input.guestId)
-  if (!eligibility || eligibility.attending !== true) {
-    throw new Error('Wedding Pass is available only after an accepted RSVP.')
-  }
-
   const now = input.now ?? new Date()
-  const window = weddingPassIssuanceWindow(eligibility.weddingDate)
 
   const issue = async (): Promise<CredentialRow> =>
     db.$transaction(async (tx) => {
+      // The Guest row is the serialization point for credential issuance/reissue. Locking a
+      // possibly-absent credential row is insufficient because two first issuers can both see zero
+      // rows. We also lock the RSVP row so attendance cannot flip between eligibility and insert.
+      const guestRows = await tx.$queryRawUnsafe<Array<{ id: string; weddingDate: Date }>>(
+        `SELECT g.id, w.date AS "weddingDate"
+           FROM public."Guest" g
+           JOIN public."Wedding" w ON w.id = g."weddingId"
+          WHERE g.id = $1 AND g."weddingId" = $2
+          LIMIT 1
+          FOR UPDATE OF g, w`,
+        input.guestId,
+        input.weddingId,
+      )
+      const guest = guestRows[0]
+      if (!guest) {
+        throw new Error('GUEST_NOT_FOUND')
+      }
+
+      const rsvpRows = await tx.$queryRawUnsafe<Array<{ attending: boolean | null }>>(
+        `SELECT attending
+           FROM public."RSVP"
+          WHERE "guestId" = $1
+          LIMIT 1
+          FOR UPDATE`,
+        input.guestId,
+      )
+      if (rsvpRows[0]?.attending !== true) {
+        throw new Error('ATTENDANCE_REQUIRED')
+      }
+
       const existing = await liveCredential(tx, input.weddingId, input.guestId, true)
       if (existing && credentialIsUsable(existing, now.getTime())) return existing
 
-      if (!weddingPassIssuanceAllowedAt(eligibility.weddingDate, now)) {
+      if (!weddingPassIssuanceAllowedAt(guest.weddingDate, now)) {
         throw new Error('PASS_ISSUANCE_CLOSED')
       }
+      const window = weddingPassIssuanceWindow(guest.weddingDate)
 
       if (existing) {
         await tx.$queryRawUnsafe(
           `UPDATE public."WeddingPassCredential"
-              SET "supersededAt" = $1, "updatedAt" = $1
+              SET "supersededAt" = COALESCE("supersededAt", $1), "updatedAt" = $1
             WHERE id = $2`,
           now,
           existing.id,
@@ -316,8 +414,14 @@ export async function ensureWeddingPassCredential(input: {
 
       const passKey = await ensurePassKey(input.weddingId)
       const material = ww2KeyMaterial()
+      if (
+        passKey.keyId !== material.keyId ||
+        passKey.publicKeyDerBase64 !== material.publicKeyDerBase64
+      ) {
+        throw new Error('WEDDING_DAY_WW2_KEY_ID_MATERIAL_MISMATCH')
+      }
+
       const shortId = weddingShortId(input.weddingId)
-      // Pass serial is non-deterministic with random 4-byte uppercase hex + sequence
       const passSerial = `WW${randomBytes(4).toString('hex').toUpperCase()}-${String(issueSeq).padStart(3, '0')}`
       const nonce = randomBytes(8).toString('hex')
       const eventBitmask = DEFAULT_WW2_EVENT_MASK
@@ -360,9 +464,51 @@ export async function ensureWeddingPassCredential(input: {
   } catch (error) {
     if (!isUniqueViolation(error)) throw error
     const winner = await liveCredential(db, input.weddingId, input.guestId, false)
-    if (winner) return winner
+    if (winner && credentialIsUsable(winner, now.getTime())) return winner
     throw error
   }
+}
+
+export async function revokeWeddingPassCredential(input: {
+  weddingId: string
+  credentialId: string
+  reason: string
+  now?: Date
+}): Promise<CredentialRow> {
+  if (!isWeddingDayWW2Enabled()) throw new Error('WEDDING_DAY_DISABLED')
+  const reason = input.reason.trim()
+  if (!reason) throw new Error('REVOCATION_REASON_REQUIRED')
+  const now = input.now ?? new Date()
+
+  return db.$transaction(async (tx) => {
+    const rows = await tx.$queryRawUnsafe<CredentialRow[]>(
+      `SELECT *
+         FROM public."WeddingPassCredential"
+        WHERE id = $1 AND "weddingId" = $2
+        LIMIT 1
+        FOR UPDATE`,
+      input.credentialId,
+      input.weddingId,
+    )
+    const credential = rows[0]
+    if (!credential) throw new Error('PASS_NOT_FOUND')
+    if (credential.revokedAt) return credential
+
+    const updated = await tx.$queryRawUnsafe<CredentialRow[]>(
+      `UPDATE public."WeddingPassCredential"
+          SET "revokedAt" = $1,
+              "revocationReason" = $2,
+              "supersededAt" = COALESCE("supersededAt", $1),
+              "updatedAt" = $1
+        WHERE id = $3 AND "weddingId" = $4
+        RETURNING *`,
+      now,
+      reason,
+      credential.id,
+      input.weddingId,
+    )
+    return updated[0]
+  })
 }
 
 export async function verifyWeddingPassToken(input: {
@@ -375,14 +521,10 @@ export async function verifyWeddingPassToken(input: {
   }
 
   const parsed = parseWw2Token(input.token)
-  if (!parsed) {
-    throw new Error('INVALID_PASS_TOKEN')
-  }
+  if (!parsed) throw new Error('INVALID_PASS_TOKEN')
 
   const shortId = weddingShortId(input.weddingId)
-  if (parsed.weddingShortId !== shortId) {
-    throw new Error('PASS_WEDDING_MISMATCH')
-  }
+  if (parsed.weddingShortId !== shortId) throw new Error('PASS_WEDDING_MISMATCH')
 
   const requiredBit = input.requiredEventBit ?? WEDDING_DAY_EVENT_BIT
   if ((parsed.eventBitmask & requiredBit) === 0) {
@@ -397,9 +539,7 @@ export async function verifyWeddingPassToken(input: {
     parsed.passSerial,
   )
   const credential = credentials[0]
-  if (!credential) {
-    throw new Error('PASS_NOT_FOUND')
-  }
+  if (!credential) throw new Error('PASS_NOT_FOUND')
 
   if (
     credential.revokedAt ||
@@ -409,22 +549,20 @@ export async function verifyWeddingPassToken(input: {
     throw new Error('PASS_REVOKED_OR_EXPIRED')
   }
 
-  const passKeys = await db.$queryRawUnsafe<PassKeyRow[]>(
-    `SELECT * FROM public."WeddingPassKey"
-      WHERE id = $1 AND "weddingId" = $2
-      LIMIT 1`,
-    credential.passKeyId,
-    input.weddingId,
-  )
-  const passKey = passKeys[0]
-  if (!passKey || passKey.status !== 'active' || passKey.revokedAt) {
-    throw new Error('PASS_SIGNING_KEY_INACTIVE')
+  // A valid signing key cannot be used to fabricate a different payload for an existing serial.
+  // The immutable credential row is the canonical signed token issued to this Guest.
+  if (
+    credential.token !== input.token ||
+    credential.nonce !== parsed.nonce ||
+    credential.eventBitmask !== parsed.eventBitmask ||
+    credential.signatureHex !== parsed.signatureHex
+  ) {
+    throw new Error('PASS_CREDENTIAL_MISMATCH')
   }
 
+  const passKey = await passKeyForCredential(db, credential)
   const verified = p1363HexVerify(parsed.payload, parsed.signatureHex, passKey.publicKeyPem)
-  if (!verified) {
-    throw new Error('PASS_SIGNATURE_INVALID')
-  }
+  if (!verified) throw new Error('PASS_SIGNATURE_INVALID')
 
   return credential
 }
@@ -469,8 +607,9 @@ export async function guestPassForRequest(request: NextRequest) {
     return null
   }
   const context = await readWeddingDayGuestContext(request)
-  if (!context || context.attending !== true) {
-    return null
+  if (!context) return null
+  if (context.attending !== true) {
+    throw new Error('ATTENDANCE_REQUIRED')
   }
   const credential = await ensureWeddingPassCredential({
     weddingId: context.weddingId,
@@ -489,17 +628,14 @@ export async function checkInWeddingGuest(input: {
   token?: string
   passSerial?: string
   attendeeKeys: string[]
-  source?: string
+  source?: 'qr' | 'offline-sync'
   deviceId?: string
   clientEventId?: string
 }): Promise<WeddingCheckInResult> {
-  if (!isWeddingDayWW2Enabled()) {
-    throw new Error('WEDDING_DAY_DISABLED')
-  }
+  if (!isWeddingDayWW2Enabled()) throw new Error('WEDDING_DAY_DISABLED')
 
-  if (!input.attendeeKeys || input.attendeeKeys.length === 0) {
-    throw new Error('ATTENDEE_KEYS_REQUIRED')
-  }
+  const requestedKeys = Array.from(new Set(input.attendeeKeys ?? []))
+  if (requestedKeys.length === 0) throw new Error('ATTENDEE_KEYS_REQUIRED')
 
   let credential: CredentialRow
   if (input.token) {
@@ -516,9 +652,7 @@ export async function checkInWeddingGuest(input: {
       input.passSerial,
     )
     const found = rows[0]
-    if (!found) {
-      throw new Error('PASS_NOT_FOUND')
-    }
+    if (!found) throw new Error('PASS_NOT_FOUND')
     if (
       found.revokedAt ||
       found.supersededAt ||
@@ -526,116 +660,163 @@ export async function checkInWeddingGuest(input: {
     ) {
       throw new Error('PASS_REVOKED_OR_EXPIRED')
     }
+    await passKeyForCredential(db, found)
     credential = found
   } else {
     throw new Error('TOKEN_OR_SERIAL_REQUIRED')
   }
 
-  const gateRows = await db.$queryRawUnsafe<Array<{ id: string; status: string }>>(
-    `SELECT id, status FROM public."WeddingGate" WHERE id = $1 AND "weddingId" = $2 LIMIT 1`,
-    input.gateId,
-    input.weddingId,
-  )
-  if (!gateRows[0] || gateRows[0].status !== 'active') {
-    throw new Error('GATE_INACTIVE_OR_INVALID')
-  }
+  const source = input.source ?? (input.token ? 'qr' : 'offline-sync')
 
-  const guestRows = await db.$queryRawUnsafe<Array<{
-    guestId: string
-    name: string
-    attending: boolean | null
-    plusOne: boolean | null
-    plusOneName: string | null
-    kidsAttending: boolean | null
-    kidsCount: number | null
-  }>>(
-    `SELECT g.id AS "guestId", g.name, r.attending, r."plusOne", r."plusOneName",
-            r."kidsAttending", r."kidsCount"
-       FROM public."Guest" g
-       LEFT JOIN public."RSVP" r ON r."guestId" = g.id
-      WHERE g.id = $1 AND g."weddingId" = $2
-      LIMIT 1`,
-    credential.guestId,
-    input.weddingId,
-  )
-  const guest = guestRows[0]
-  if (!guest || guest.attending !== true) {
-    throw new Error('GUEST_INELIGIBLE')
-  }
-
-  const validAttendees = new Map<string, { kind: string; name: string }>()
-  validAttendees.set('primary', { kind: 'primary', name: guest.name })
-  if (guest.plusOne) {
-    validAttendees.set('plus-one', { kind: 'plus_one', name: guest.plusOneName?.trim() || 'Plus One' })
-  }
-  if (guest.kidsAttending && (guest.kidsCount ?? 0) > 0) {
-    for (let i = 1; i <= (guest.kidsCount ?? 0); i++) {
-      validAttendees.set(`child-${i}`, { kind: 'child', name: `Child ${i}` })
-    }
-  }
-
-  for (const key of input.attendeeKeys) {
-    if (!validAttendees.has(key)) {
-      throw new Error(`INVALID_ATTENDEE_KEY: ${key}`)
-    }
-  }
-
-  const source = input.source ?? 'qr'
-  const checkIns: Array<{
-    id: string
-    attendeeKey: string
-    attendeeKind: string
-    attendeeName: string
-    admittedAt: string
-  }> = []
-
-  for (const attendeeKey of input.attendeeKeys) {
-    const attendee = validAttendees.get(attendeeKey)!
-    const checkInId = randomUUID()
-    const rows = await db.$queryRawUnsafe<Array<{
-      id: string
-      attendeeKey: string
-      attendeeKind: string
-      attendeeName: string
-      admittedAt: Date
-    }>>(
-      `INSERT INTO public."WeddingCheckIn"
-        (id, "weddingId", "guestId", "credentialId", "gateId", "admittedByUserId",
-         "eventKey", "attendeeKey", "attendeeKind", "attendeeName", source,
-         "deviceId", "clientEventId", "admittedAt", "createdAt", "updatedAt")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now(), now(), now())
-       ON CONFLICT ("weddingId", "eventKey", "guestId", "attendeeKey")
-       DO UPDATE SET "updatedAt" = now()
-       RETURNING id, "attendeeKey", "attendeeKind", "attendeeName", "admittedAt"`,
-      checkInId,
-      input.weddingId,
-      credential.guestId,
+  return db.$transaction(async (tx) => {
+    // Re-lock and revalidate credential/key state so revocation cannot race the admission write.
+    const credentialRows = await tx.$queryRawUnsafe<CredentialRow[]>(
+      `SELECT *
+         FROM public."WeddingPassCredential"
+        WHERE id = $1 AND "weddingId" = $2
+        LIMIT 1
+        FOR UPDATE`,
       credential.id,
-      input.gateId,
-      input.operatorUserId,
-      WEDDING_DAY_EVENT_KEY,
-      attendeeKey,
-      attendee.kind,
-      attendee.name,
-      source,
-      input.deviceId ?? null,
-      input.clientEventId ?? null,
+      input.weddingId,
     )
-    const row = rows[0]
-    checkIns.push({
-      id: row.id,
-      attendeeKey: row.attendeeKey,
-      attendeeKind: row.attendeeKind,
-      attendeeName: row.attendeeName,
-      admittedAt: row.admittedAt.toISOString(),
-    })
-  }
+    const currentCredential = credentialRows[0]
+    if (
+      !currentCredential ||
+      currentCredential.revokedAt ||
+      currentCredential.supersededAt ||
+      (currentCredential.expiresAt && currentCredential.expiresAt.getTime() <= Date.now())
+    ) {
+      throw new Error('PASS_REVOKED_OR_EXPIRED')
+    }
+    await passKeyForCredential(tx, currentCredential)
 
-  return {
-    success: true,
-    admittedCount: checkIns.length,
-    guestId: credential.guestId,
-    attendeeKeys: input.attendeeKeys,
-    checkIns,
-  }
+    const gateRows = await tx.$queryRawUnsafe<Array<{ id: string; status: string }>>(
+      `SELECT id, status
+         FROM public."WeddingGate"
+        WHERE id = $1 AND "weddingId" = $2
+        LIMIT 1`,
+      input.gateId,
+      input.weddingId,
+    )
+    if (!gateRows[0] || gateRows[0].status !== 'active') {
+      throw new Error('GATE_INACTIVE_OR_INVALID')
+    }
+
+    const guestRows = await tx.$queryRawUnsafe<Array<{
+      guestId: string
+      name: string
+      attending: boolean | null
+      plusOne: boolean | null
+      plusOneName: string | null
+      kidsAttending: boolean | null
+      kidsCount: number | null
+    }>>(
+      `SELECT g.id AS "guestId", g.name, r.attending, r."plusOne", r."plusOneName",
+              r."kidsAttending", r."kidsCount"
+         FROM public."Guest" g
+         JOIN public."RSVP" r ON r."guestId" = g.id
+        WHERE g.id = $1 AND g."weddingId" = $2
+        LIMIT 1
+        FOR UPDATE OF g, r`,
+      currentCredential.guestId,
+      input.weddingId,
+    )
+    const guest = guestRows[0]
+    if (!guest || guest.attending !== true) throw new Error('GUEST_INELIGIBLE')
+
+    const validAttendees = new Map<string, { kind: string; name: string }>()
+    validAttendees.set('primary', { kind: 'primary', name: guest.name })
+    if (guest.plusOne) {
+      validAttendees.set('plus-one', {
+        kind: 'plus_one',
+        name: guest.plusOneName?.trim() || 'Plus One',
+      })
+    }
+    if (guest.kidsAttending && (guest.kidsCount ?? 0) > 0) {
+      for (let index = 1; index <= (guest.kidsCount ?? 0); index += 1) {
+        validAttendees.set(`child-${index}`, { kind: 'child', name: `Child ${index}` })
+      }
+    }
+
+    for (const key of requestedKeys) {
+      if (!validAttendees.has(key)) throw new Error(`INVALID_ATTENDEE_KEY: ${key}`)
+    }
+
+    const checkIns: WeddingCheckInResult['checkIns'] = []
+    for (const attendeeKey of requestedKeys) {
+      const attendee = validAttendees.get(attendeeKey)!
+      const rows = await tx.$queryRawUnsafe<Array<{
+        id: string
+        attendeeKey: string
+        attendeeKind: string
+        attendeeName: string
+        admittedAt: Date
+      }>>(
+        `INSERT INTO public."WeddingCheckIn"
+          (id, "weddingId", "guestId", "credentialId", "gateId", "admittedByUserId",
+           "eventKey", "attendeeKey", "attendeeKind", "attendeeName", source,
+           "deviceId", "clientEventId", "admittedAt", "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now(), now(), now())
+         ON CONFLICT ("weddingId", "eventKey", "guestId", "attendeeKey")
+         DO UPDATE SET "updatedAt" = now()
+         RETURNING id, "attendeeKey", "attendeeKind", "attendeeName", "admittedAt"`,
+        randomUUID(),
+        input.weddingId,
+        currentCredential.guestId,
+        currentCredential.id,
+        input.gateId,
+        input.operatorUserId,
+        WEDDING_DAY_EVENT_KEY,
+        attendeeKey,
+        attendee.kind,
+        attendee.name,
+        source,
+        input.deviceId ?? null,
+        input.clientEventId ?? null,
+      )
+      const row = rows[0]
+      checkIns.push({
+        id: row.id,
+        attendeeKey: row.attendeeKey,
+        attendeeKind: row.attendeeKind,
+        attendeeName: row.attendeeName,
+        admittedAt: row.admittedAt.toISOString(),
+      })
+    }
+
+    const admittedRows = await tx.$queryRawUnsafe<Array<{ attendeeKey: string }>>(
+      `SELECT "attendeeKey"
+         FROM public."WeddingCheckIn"
+        WHERE "weddingId" = $1
+          AND "eventKey" = $2
+          AND "guestId" = $3`,
+      input.weddingId,
+      WEDDING_DAY_EVENT_KEY,
+      currentCredential.guestId,
+    )
+    const admitted = new Set(admittedRows.map((row) => row.attendeeKey))
+    const householdComplete = Array.from(validAttendees.keys()).every((key) => admitted.has(key))
+
+    await tx.$queryRawUnsafe(
+      `UPDATE public."RSVP"
+          SET "checkedIn" = $1,
+              "checkedInAt" = CASE
+                WHEN $1 THEN COALESCE("checkedInAt", now())
+                ELSE NULL
+              END,
+              "updatedAt" = now()
+        WHERE "guestId" = $2`,
+      householdComplete,
+      currentCredential.guestId,
+    )
+
+    return {
+      success: true,
+      admittedCount: checkIns.length,
+      guestId: currentCredential.guestId,
+      attendeeKeys: requestedKeys,
+      checkIns,
+    }
+  })
 }
+
