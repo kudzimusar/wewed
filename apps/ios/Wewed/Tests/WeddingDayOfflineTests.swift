@@ -319,7 +319,8 @@ final class WeddingDayOfflineTests: XCTestCase {
             usherId: ""
         )
         XCTAssertEqual(result.status, .invalidPass)
-        XCTAssertTrue(await store.getPendingCheckIns(weddingId: "wedding-local-revoke").isEmpty)
+        let pending = await store.getPendingCheckIns(weddingId: "wedding-local-revoke")
+        XCTAssertTrue(pending.isEmpty)
     }
 }
 
