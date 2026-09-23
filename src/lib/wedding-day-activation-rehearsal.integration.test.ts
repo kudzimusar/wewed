@@ -133,7 +133,7 @@ describeDb('Phase 11B Wedding Day / WW2 activation & readiness rehearsal', () =>
         (id, "weddingId", "gateId", "userId", "operatorRole", capabilities, "activeFrom", "createdAt", "updatedAt")
        VALUES ($1, $2, $3, $4, 'usher', $5, now() - interval '1 hour', now(), now())`,
       id('assign'), WEDDING_ID, GATE_ID, OPERATOR_USER_ID,
-      JSON.stringify(['gate.manifest.read', 'gate.checkin.write', 'gate.guest_search.read', 'gate.audit.read']),
+      JSON.stringify(['gate.manifest.read', 'gate.checkin.write', 'gate.pass.revoke', 'gate.guest_search.read', 'gate.audit.read']),
     )
 
     // Seed guest with accepted RSVP: primary + 1 plus-one = party size 2
@@ -516,6 +516,16 @@ describeDb('Phase 11B Wedding Day / WW2 activation & readiness rehearsal', () =>
     const revokeJson = await revokeRes.json()
     expect(revokeJson.success).toBe(true)
     expect(revokeJson.data.revokedAt).not.toBeNull()
+
+    const revocationAudit = await db.$queryRawUnsafe<Array<{ actorId: string; afterValue: unknown }>>(
+      `SELECT "actorId", "afterValue"
+         FROM public."AuditEvent"
+        WHERE action = 'wedding_pass.revoked' AND "resourceId" = $1`,
+      issuedPass.id,
+    )
+    expect(revocationAudit).toHaveLength(1)
+    expect(revocationAudit[0].actorId).toBe(OPERATOR_USER_ID)
+    expect(JSON.stringify(revocationAudit[0].afterValue)).toContain(GATE_ID)
 
     // B. Check-in attempt with revoked pass must be rejected
     const checkInRevokedReq = new NextRequest(`http://localhost/api/native/gate/wedding-day/check-in?grantId=${GRANT_ID}`, {
