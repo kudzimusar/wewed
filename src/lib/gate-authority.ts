@@ -192,7 +192,7 @@ export async function resolveGateManagementContext(
   }
 }
 
-async function audit(input: {
+async function audit(database: Pick<typeof db, '$executeRawUnsafe'>, input: {
   weddingId: string
   actorId: string
   action: string
@@ -201,7 +201,7 @@ async function audit(input: {
   beforeValue?: unknown
   afterValue?: unknown
 }) {
-  await db.$executeRawUnsafe(
+  await database.$executeRawUnsafe(
     `INSERT INTO public."AuditEvent"
       (id, action, "resourceType", "resourceId", "beforeValue", "afterValue",
        "weddingId", "actorId", "createdAt")
@@ -259,29 +259,31 @@ export async function createWeddingGate(input: {
     throw new Error('INVALID_GATE_NAME')
   }
 
-  const id = `gate_${randomUUID().replace(/-/g, '')}`
-  const rows = await db.$queryRawUnsafe<GateRow[]>(
-    `INSERT INTO public."WeddingGate"
-      (id, "weddingId", name, status, "createdAt", "updatedAt")
-     VALUES ($1, $2, $3, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-     RETURNING id, "weddingId", name, status, "createdAt", "updatedAt"`,
-    id,
-    input.weddingId,
-    name,
-  )
-  const gate = rows[0]
-  if (!gate) throw new Error('GATE_CREATE_FAILED')
+  return db.$transaction(async (tx) => {
+    const id = `gate_${randomUUID().replace(/-/g, '')}`
+    const rows = await tx.$queryRawUnsafe<GateRow[]>(
+      `INSERT INTO public."WeddingGate"
+        (id, "weddingId", name, status, "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       RETURNING id, "weddingId", name, status, "createdAt", "updatedAt"`,
+      id,
+      input.weddingId,
+      name,
+    )
+    const gate = rows[0]
+    if (!gate) throw new Error('GATE_CREATE_FAILED')
 
-  const serialized = serializeGate(gate)
-  await audit({
-    weddingId: input.weddingId,
-    actorId: input.actorUserId,
-    action: 'gate.created',
-    resourceType: 'WeddingGate',
-    resourceId: gate.id,
-    afterValue: serialized,
+    const serialized = serializeGate(gate)
+    await audit(tx, {
+      weddingId: input.weddingId,
+      actorId: input.actorUserId,
+      action: 'gate.created',
+      resourceType: 'WeddingGate',
+      resourceId: gate.id,
+      afterValue: serialized,
+    })
+    return serialized
   })
-  return serialized
 }
 
 export async function disableWeddingGate(input: {
@@ -289,39 +291,42 @@ export async function disableWeddingGate(input: {
   gateId: string
   actorUserId: string
 }): Promise<WeddingGateRecord> {
-  const existing = await db.$queryRawUnsafe<GateRow[]>(
-    `SELECT id, "weddingId", name, status, "createdAt", "updatedAt"
-       FROM public."WeddingGate"
-      WHERE id = $1 AND "weddingId" = $2
-      LIMIT 1`,
-    input.gateId,
-    input.weddingId,
-  )
-  const before = existing[0]
-  if (!before) throw new Error('GATE_NOT_FOUND')
+  return db.$transaction(async (tx) => {
+    const existing = await tx.$queryRawUnsafe<GateRow[]>(
+      `SELECT id, "weddingId", name, status, "createdAt", "updatedAt"
+         FROM public."WeddingGate"
+        WHERE id = $1 AND "weddingId" = $2
+        LIMIT 1
+        FOR UPDATE`,
+      input.gateId,
+      input.weddingId,
+    )
+    const before = existing[0]
+    if (!before) throw new Error('GATE_NOT_FOUND')
 
-  const rows = await db.$queryRawUnsafe<GateRow[]>(
-    `UPDATE public."WeddingGate"
-        SET status = 'disabled', "updatedAt" = CURRENT_TIMESTAMP
-      WHERE id = $1 AND "weddingId" = $2
-      RETURNING id, "weddingId", name, status, "createdAt", "updatedAt"`,
-    input.gateId,
-    input.weddingId,
-  )
-  const gate = rows[0]
-  if (!gate) throw new Error('GATE_NOT_FOUND')
+    const rows = await tx.$queryRawUnsafe<GateRow[]>(
+      `UPDATE public."WeddingGate"
+          SET status = 'disabled', "updatedAt" = CURRENT_TIMESTAMP
+        WHERE id = $1 AND "weddingId" = $2
+        RETURNING id, "weddingId", name, status, "createdAt", "updatedAt"`,
+      input.gateId,
+      input.weddingId,
+    )
+    const gate = rows[0]
+    if (!gate) throw new Error('GATE_NOT_FOUND')
 
-  const serialized = serializeGate(gate)
-  await audit({
-    weddingId: input.weddingId,
-    actorId: input.actorUserId,
-    action: 'gate.disabled',
-    resourceType: 'WeddingGate',
-    resourceId: gate.id,
-    beforeValue: serializeGate(before),
-    afterValue: serialized,
+    const serialized = serializeGate(gate)
+    await audit(tx, {
+      weddingId: input.weddingId,
+      actorId: input.actorUserId,
+      action: 'gate.disabled',
+      resourceType: 'WeddingGate',
+      resourceId: gate.id,
+      beforeValue: serializeGate(before),
+      afterValue: serialized,
+    })
+    return serialized
   })
-  return serialized
 }
 
 export async function assignGateOperator(input: {
@@ -376,79 +381,83 @@ export async function assignGateOperator(input: {
   if (!user) throw new Error('OPERATOR_NOT_FOUND')
   if (!user.isActive || user.isBanned) throw new Error('OPERATOR_NOT_ACTIVE')
 
-  const existing = await db.$queryRawUnsafe<Array<{ id: string; revokedAt: Date | null }>>(
-    `SELECT id, "revokedAt"
-       FROM public."WeddingGateAssignment"
-      WHERE "gateId" = $1 AND "userId" = $2
-      LIMIT 1`,
-    input.gateId,
-    input.userId,
-  )
+  return db.$transaction(async (tx) => {
+    const existing = await tx.$queryRawUnsafe<Array<{ id: string; revokedAt: Date | null }>>(
+      `SELECT id, "revokedAt"
+         FROM public."WeddingGateAssignment"
+        WHERE "gateId" = $1 AND "userId" = $2
+        LIMIT 1
+        FOR UPDATE`,
+      input.gateId,
+      input.userId,
+    )
 
-  const assignmentId = existing[0]?.id ?? `gate_assignment_${randomUUID().replace(/-/g, '')}`
-  const rows = existing[0]
-    ? await db.$queryRawUnsafe<AssignmentRow[]>(
-        `UPDATE public."WeddingGateAssignment"
-            SET "weddingId" = $2,
-                "operatorRole" = 'usher',
-                capabilities = $3,
-                "activeFrom" = $4,
-                "expiresAt" = $5,
-                "revokedAt" = NULL,
-                "revokedByUserId" = NULL,
-                "createdByUserId" = $6,
-                "updatedAt" = CURRENT_TIMESTAMP
-          WHERE id = $1
-          RETURNING id, "weddingId", "gateId", "userId",
-                    $7::text AS "userEmail", $8::text AS "userName",
-                    "operatorRole", capabilities, "activeFrom", "expiresAt",
-                    "revokedAt", "revokedByUserId", "createdByUserId",
-                    "createdAt", "updatedAt"`,
-        assignmentId,
-        input.weddingId,
-        JSON.stringify(capabilities),
-        activeFrom,
-        expiresAt,
-        input.actorUserId,
-        user.email,
-        user.name,
-      )
-    : await db.$queryRawUnsafe<AssignmentRow[]>(
-        `INSERT INTO public."WeddingGateAssignment"
-          (id, "weddingId", "gateId", "userId", "operatorRole", capabilities,
-           "activeFrom", "expiresAt", "revokedAt", "createdByUserId", "createdAt", "updatedAt")
-         VALUES ($1, $2, $3, $4, 'usher', $5, $6, $7, NULL, $8,
-                 CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-         RETURNING id, "weddingId", "gateId", "userId",
-                   $9::text AS "userEmail", $10::text AS "userName",
-                   "operatorRole", capabilities, "activeFrom", "expiresAt",
-                   "revokedAt", "revokedByUserId", "createdByUserId",
-                   "createdAt", "updatedAt"`,
-        assignmentId,
-        input.weddingId,
-        input.gateId,
-        input.userId,
-        JSON.stringify(capabilities),
-        activeFrom,
-        expiresAt,
-        input.actorUserId,
-        user.email,
-        user.name,
-      )
+    const assignmentId = existing[0]?.id ?? `gate_assignment_${randomUUID().replace(/-/g, '')}`
+    const rows = existing[0]
+      ? await tx.$queryRawUnsafe<AssignmentRow[]>(
+          `UPDATE public."WeddingGateAssignment"
+              SET "weddingId" = $2,
+                  "operatorRole" = 'usher',
+                  capabilities = $3,
+                  "activeFrom" = $4,
+                  "expiresAt" = $5,
+                  "revokedAt" = NULL,
+                  "revokedByUserId" = NULL,
+                  "createdByUserId" = $6,
+                  "updatedAt" = CURRENT_TIMESTAMP
+            WHERE id = $1
+            RETURNING id, "weddingId", "gateId", "userId",
+                      $7::text AS "userEmail", $8::text AS "userName",
+                      "operatorRole", capabilities, "activeFrom", "expiresAt",
+                      "revokedAt", "revokedByUserId", "createdByUserId",
+                      "createdAt", "updatedAt"`,
+          assignmentId,
+          input.weddingId,
+          JSON.stringify(capabilities),
+          activeFrom,
+          expiresAt,
+          input.actorUserId,
+          user.email,
+          user.name,
+        )
+      : await tx.$queryRawUnsafe<AssignmentRow[]>(
+          `INSERT INTO public."WeddingGateAssignment"
+            (id, "weddingId", "gateId", "userId", "operatorRole", capabilities,
+             "activeFrom", "expiresAt", "revokedAt", "createdByUserId", "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, $4, 'usher', $5, $6, $7, NULL, $8,
+                   CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+           RETURNING id, "weddingId", "gateId", "userId",
+                     $9::text AS "userEmail", $10::text AS "userName",
+                     "operatorRole", capabilities, "activeFrom", "expiresAt",
+                     "revokedAt", "revokedByUserId", "createdByUserId",
+                     "createdAt", "updatedAt"`,
+          assignmentId,
+          input.weddingId,
+          input.gateId,
+          input.userId,
+          JSON.stringify(capabilities),
+          activeFrom,
+          expiresAt,
+          input.actorUserId,
+          user.email,
+          user.name,
+        )
 
-  const assignment = rows[0]
-  if (!assignment) throw new Error('GATE_ASSIGNMENT_FAILED')
-  const serialized = serializeAssignment(assignment)
+    const assignment = rows[0]
+    if (!assignment) throw new Error('GATE_ASSIGNMENT_FAILED')
+    const serialized = serializeAssignment(assignment)
 
-  await audit({
-    weddingId: input.weddingId,
-    actorId: input.actorUserId,
-    action: existing[0] ? 'gate.assignment.reactivated' : 'gate.assignment.assigned',
-    resourceType: 'WeddingGateAssignment',
-    resourceId: assignment.id,
-    afterValue: serialized,
+    await audit(tx, {
+      weddingId: input.weddingId,
+      actorId: input.actorUserId,
+      action: existing[0] ? 'gate.assignment.reactivated' : 'gate.assignment.assigned',
+      resourceType: 'WeddingGateAssignment',
+      resourceId: assignment.id,
+      afterValue: serialized,
+    })
+    return serialized
   })
-  return serialized
+
 }
 
 export async function revokeGateOperator(input: {
@@ -456,37 +465,39 @@ export async function revokeGateOperator(input: {
   assignmentId: string
   actorUserId: string
 }): Promise<WeddingGateAssignmentRecord> {
-  const rows = await db.$queryRawUnsafe<AssignmentRow[]>(
-    `UPDATE public."WeddingGateAssignment" a
-        SET "revokedAt" = COALESCE(a."revokedAt", CURRENT_TIMESTAMP),
-            "revokedByUserId" = CASE WHEN a."revokedAt" IS NULL THEN $3 ELSE a."revokedByUserId" END,
-            "updatedAt" = CURRENT_TIMESTAMP
-       FROM public."User" u
-      WHERE a.id = $1
-        AND a."weddingId" = $2
-        AND u.id = a."userId"
-      RETURNING a.id, a."weddingId", a."gateId", a."userId",
-                u.email AS "userEmail", u.name AS "userName",
-                a."operatorRole", a.capabilities, a."activeFrom", a."expiresAt",
-                a."revokedAt", a."revokedByUserId", a."createdByUserId",
-                a."createdAt", a."updatedAt"`,
-    input.assignmentId,
-    input.weddingId,
-    input.actorUserId,
-  )
-  const assignment = rows[0]
-  if (!assignment) throw new Error('GATE_ASSIGNMENT_NOT_FOUND')
-  const serialized = serializeAssignment(assignment)
+  return db.$transaction(async (tx) => {
+    const rows = await tx.$queryRawUnsafe<AssignmentRow[]>(
+      `UPDATE public."WeddingGateAssignment" a
+          SET "revokedAt" = COALESCE(a."revokedAt", CURRENT_TIMESTAMP),
+              "revokedByUserId" = CASE WHEN a."revokedAt" IS NULL THEN $3 ELSE a."revokedByUserId" END,
+              "updatedAt" = CURRENT_TIMESTAMP
+         FROM public."User" u
+        WHERE a.id = $1
+          AND a."weddingId" = $2
+          AND u.id = a."userId"
+        RETURNING a.id, a."weddingId", a."gateId", a."userId",
+                  u.email AS "userEmail", u.name AS "userName",
+                  a."operatorRole", a.capabilities, a."activeFrom", a."expiresAt",
+                  a."revokedAt", a."revokedByUserId", a."createdByUserId",
+                  a."createdAt", a."updatedAt"`,
+      input.assignmentId,
+      input.weddingId,
+      input.actorUserId,
+    )
+    const assignment = rows[0]
+    if (!assignment) throw new Error('GATE_ASSIGNMENT_NOT_FOUND')
+    const serialized = serializeAssignment(assignment)
 
-  await audit({
-    weddingId: input.weddingId,
-    actorId: input.actorUserId,
-    action: 'gate.assignment.revoked',
-    resourceType: 'WeddingGateAssignment',
-    resourceId: assignment.id,
-    afterValue: serialized,
+    await audit(tx, {
+      weddingId: input.weddingId,
+      actorId: input.actorUserId,
+      action: 'gate.assignment.revoked',
+      resourceType: 'WeddingGateAssignment',
+      resourceId: assignment.id,
+      afterValue: serialized,
+    })
+    return serialized
   })
-  return serialized
 }
 
 export function requireGateOperationalGrant(input: {
