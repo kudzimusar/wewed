@@ -142,6 +142,11 @@ public struct IvoryRsvpState: Equatable {
     }
 }
 
+/// Label for the details surface RSVP action: "RSVP" while awaiting response, "Update RSVP" once answered.
+public func ivoryRsvpActionLabel(rsvp: IvoryRsvpState) -> String {
+    rsvp.awaitsResponse ? "RSVP" : "Update RSVP"
+}
+
 /// Ink and gold sampled from the approved stationery.
 /// The stationery's own colours, taken from `ivory-floral-gold.css` rather than chosen.
 ///
@@ -406,10 +411,10 @@ public struct IvoryFloralGoldNative: View {
                     .multilineTextAlignment(.center)
             }
 
-            // A guest who has already answered is never offered RSVP again; gifts appear only
-            // when the wedding has a configured destination.
-            hit(IvoryGeometry.hitRsvp, w, h, "RSVP", "invitation-cta-rsvp",
-                rsvp.awaitsResponse ? actions.onRsvp : nil)
+            // The details hits, at the approved coordinates. RSVP remains reachable
+            // across pending, accepted, and declined states so guests can update choices.
+            hit(IvoryGeometry.hitRsvp, w, h, ivoryRsvpActionLabel(rsvp: rsvp), "invitation-cta-rsvp",
+                actions.onRsvp)
             hit(IvoryGeometry.hitCalendar, w, h, "Add to Calendar", "invitation-cta-calendar",
                 actions.onAddToCalendar)
             hit(IvoryGeometry.hitVenue, w, h, "Venue Location", "invitation-cta-venue",

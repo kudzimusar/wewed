@@ -21,6 +21,7 @@ public struct LiveGuestInvitationView: View {
     private let onViewPass: (() -> Void)?
 
     @State private var rsvpPrompt = false
+    @State private var formSessionId = UUID()
     @State private var submitting = false
     @State private var reopenRequired = false
     @State private var childrenNotAllowed = false
@@ -76,23 +77,18 @@ public struct LiveGuestInvitationView: View {
                 style: presentation.invitationCardStyle,
                 data: presentation.ivoryData,
                 rsvp: ivoryRsvpState(from: presentation.rsvpStatus),
-                actions: IvoryActions(
-                    onRsvp: presentation.rsvpStatus == .pending ? { rsvpPrompt = true } : nil,
-                    // The snapshot already carries the date and venue, so there was never a reason
-                    // to withhold this. An .ics the guest saves themselves, so the app needs no
-                    // calendar permission.
+                actions: resolveLiveInvitationActions(
+                    presentation: presentation,
+                    onRsvpPrompt: {
+                        formSessionId = UUID()
+                        rsvpPrompt = true
+                    },
                     onAddToCalendar: { addWeddingToCalendar() },
                     onOpenVenue: { open(venueDestination) },
                     onGifts: { open(coupleSite(fragment: "#registry")) },
-                    // The couple's own words, offered only when they wrote some. An invitation that
-                    // always has "a note from us" is inventing words on their behalf.
                     onNote: (presentation.invitationCardMessage?.isEmpty == false)
                         ? { showNote = true } : nil,
-                    // Deliberately absent, and it is a release blocker rather than an oversight: no
-                    // production authority issues a guest admission credential, and this app will
-                    // not manufacture one out of a token, an id, an email or a name.
-                    onViewPass: presentation.attending == true ? onViewPass : nil,
-                    // The public page, never the private invitation link.
+                    onViewPass: onViewPass,
                     onVisitCoupleSite: { open(coupleSite(fragment: nil)) },
                     onContinue: onContinue
                 )
@@ -119,6 +115,7 @@ public struct LiveGuestInvitationView: View {
                     onSubmit: { answer($0) },
                     onDismiss: { if !submitting { rsvpPrompt = false } }
                 )
+                .id(formSessionId)
             }
             if reopenRequired { reopenRequiredView }
             if showNote, let note = presentation.invitationCardMessage, !note.isEmpty {
@@ -239,6 +236,33 @@ public struct LiveGuestInvitationView: View {
         }
         .accessibilityIdentifier("invitation-reopen-required")
     }
+}
+
+/// Resolves the actions available from the live invitation details surface.
+///
+/// RSVP editing remains accessible across all states (pending, accepted, declined) so guests
+/// can update meal choice, plus-one, children, notes, or change attendance at any time.
+public func resolveLiveInvitationActions(
+    presentation: LiveInvitationPresentation,
+    onRsvpPrompt: @escaping () -> Void,
+    onAddToCalendar: @escaping () -> Void = {},
+    onOpenVenue: @escaping () -> Void = {},
+    onGifts: @escaping () -> Void = {},
+    onNote: (() -> Void)? = nil,
+    onViewPass: (() -> Void)? = nil,
+    onVisitCoupleSite: @escaping () -> Void = {},
+    onContinue: @escaping () -> Void = {}
+) -> IvoryActions {
+    IvoryActions(
+        onRsvp: onRsvpPrompt,
+        onAddToCalendar: onAddToCalendar,
+        onOpenVenue: onOpenVenue,
+        onGifts: onGifts,
+        onNote: onNote,
+        onViewPass: presentation.attending == true ? onViewPass : nil,
+        onVisitCoupleSite: onVisitCoupleSite,
+        onContinue: onContinue
+    )
 }
 
 /// The 5 meal options the PWA's own premium RSVP dialog offers (`mealChoice` is otherwise free

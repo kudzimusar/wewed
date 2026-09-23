@@ -167,6 +167,13 @@ final class IvoryInvitationGeometryTests: XCTestCase {
         XCTAssertFalse(ivoryRsvpState(from: .declined).awaitsResponse)
     }
 
+    /// RSVP action label switches from RSVP to Update RSVP once answered.
+    func testIvoryRsvpActionLabelTracksAwaitingState() {
+        XCTAssertEqual("RSVP", ivoryRsvpActionLabel(rsvp: ivoryRsvpState(from: .pending)))
+        XCTAssertEqual("Update RSVP", ivoryRsvpActionLabel(rsvp: ivoryRsvpState(from: .attending)))
+        XCTAssertEqual("Update RSVP", ivoryRsvpActionLabel(rsvp: ivoryRsvpState(from: .declined)))
+    }
+
     /// A declined guest keeps the invitation and never gets a pass.
     func testADeclinedGuestNeverGetsAPass() {
         XCTAssertFalse(ivoryRsvpState(from: .declined).offersPass)

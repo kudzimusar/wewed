@@ -159,8 +159,8 @@ fun GuestInvitationJourneyScreen(
             ),
             rsvp = ivoryRsvpStateFrom(status),
             actions = IvoryActions(
-                // Only a guest who has not answered is offered the question.
-                onRsvp = if (status == RSVPStatus.PENDING) ({ rsvpPrompt = true }) else null,
+                // RSVP editing remains reachable so guests can update choices or change attendance.
+                onRsvp = { rsvpPrompt = true },
                 // The date and venue are on the card already; these hand them to the phone's own
                 // calendar and maps rather than asking the guest to copy them across.
                 onAddToCalendar = { addWeddingToCalendar(context, invitation) },

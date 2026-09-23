@@ -7,6 +7,7 @@ import pro.wewed.app.models.InvitationPresentationState
 import pro.wewed.app.models.RSVPStatus
 import pro.wewed.app.ui.invitation.ivory.IvoryGeometry
 import pro.wewed.app.ui.invitation.ivory.IvoryRsvpAnswer
+import pro.wewed.app.ui.invitation.ivory.ivoryRsvpActionLabel
 import pro.wewed.app.ui.invitation.ivoryRsvpStateFrom
 import java.io.File
 
@@ -136,6 +137,14 @@ class IvoryInvitationGeometryTest {
         assertTrue(ivoryRsvpStateFrom(RSVPStatus.PENDING).awaitsResponse)
         assertFalse(ivoryRsvpStateFrom(RSVPStatus.ATTENDING).awaitsResponse)
         assertFalse(ivoryRsvpStateFrom(RSVPStatus.DECLINED).awaitsResponse)
+    }
+
+    /** RSVP action label switches from RSVP to Update RSVP once answered. */
+    @Test
+    fun ivoryRsvpActionLabelTracksAwaitingState() {
+        assertEquals("RSVP", ivoryRsvpActionLabel(ivoryRsvpStateFrom(RSVPStatus.PENDING)))
+        assertEquals("Update RSVP", ivoryRsvpActionLabel(ivoryRsvpStateFrom(RSVPStatus.ATTENDING)))
+        assertEquals("Update RSVP", ivoryRsvpActionLabel(ivoryRsvpStateFrom(RSVPStatus.DECLINED)))
     }
 
     /** A declined guest keeps the invitation and never gets a pass. */

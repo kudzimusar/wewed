@@ -93,11 +93,9 @@ fun LiveGuestInvitationScreen(
             style = presentation.invitationCardStyle,
             data = presentation.toIvoryData(),
             rsvp = ivoryRsvpStateFrom(status),
-            actions = IvoryActions(
-                onRsvp = if (status == RSVPStatus.PENDING) ({ rsvpPrompt = true }) else null,
-                // The snapshot already carries the date and venue, so there was never a reason to
-                // withhold this. An insert intent, not a silent write: the guest sees the event and
-                // saves it, and the app needs no calendar permission.
+            actions = resolveLiveInvitationActions(
+                presentation = presentation,
+                onRsvpPrompt = { rsvpPrompt = true },
                 onAddToCalendar = { addWeddingToCalendar(context, presentation) },
                 onOpenVenue = {
                     val target = presentation.venueMapUrl?.takeIf { it.isNotBlank() }
@@ -108,16 +106,10 @@ fun LiveGuestInvitationScreen(
                     runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target))) }
                 },
                 onGifts = { openCoupleSite(context, presentation.weddingSlug, "#registry") },
-                // The couple's own words, offered only when they wrote some. An invitation that
-                // always has "a note from us" is inventing words on their behalf.
                 onNote = presentation.invitationCardMessage
                     ?.takeIf { it.isNotBlank() }
                     ?.let { { showNote = true } },
-                // Deliberately absent, and it is a release blocker rather than an oversight: no
-                // production authority issues a guest admission credential, and this app will not
-                // manufacture one out of a token, an id, an email or a name.
-                onViewPass = if (presentation.attending == true) onViewPass else null,
-                // The public page, never the private invitation link.
+                onViewPass = onViewPass,
                 onVisitCoupleSite = { openCoupleSite(context, presentation.weddingSlug, null) },
                 onContinue = onContinue
             )
@@ -131,16 +123,18 @@ fun LiveGuestInvitationScreen(
         }
 
         if (rsvpPrompt) {
-            LiveRsvpForm(
-                guestName = presentation.guestName,
-                childrenPolicy = presentation.childrenPolicy,
-                initial = presentation,
-                isSubmitting = submitting,
-                childrenNotAllowed = childrenNotAllowed,
-                onDismissChildrenNotice = { childrenNotAllowed = false },
-                onSubmit = { answer(it) },
-                onDismiss = { if (!submitting) rsvpPrompt = false }
-            )
+            key(presentation) {
+                LiveRsvpForm(
+                    guestName = presentation.guestName,
+                    childrenPolicy = presentation.childrenPolicy,
+                    initial = presentation,
+                    isSubmitting = submitting,
+                    childrenNotAllowed = childrenNotAllowed,
+                    onDismissChildrenNotice = { childrenNotAllowed = false },
+                    onSubmit = { answer(it) },
+                    onDismiss = { if (!submitting) rsvpPrompt = false }
+                )
+            }
         }
 
         if (reopenRequired) {
@@ -267,6 +261,33 @@ private fun LiveInvitationPresentation.toIvoryData(): IvoryInvitationData {
     )
 }
 
+/**
+ * Resolves the actions available from the live invitation details surface.
+ *
+ * RSVP editing remains accessible across all states (PENDING, ACCEPTED, DECLINED) so guests
+ * can update meal choice, plus-one, children, notes, or change attendance at any time.
+ */
+fun resolveLiveInvitationActions(
+    presentation: LiveInvitationPresentation,
+    onRsvpPrompt: () -> Unit,
+    onAddToCalendar: () -> Unit = {},
+    onOpenVenue: () -> Unit = {},
+    onGifts: () -> Unit = {},
+    onNote: (() -> Unit)? = null,
+    onViewPass: (() -> Unit)? = null,
+    onVisitCoupleSite: () -> Unit = {},
+    onContinue: () -> Unit = {}
+): IvoryActions = IvoryActions(
+    onRsvp = onRsvpPrompt,
+    onAddToCalendar = onAddToCalendar,
+    onOpenVenue = onOpenVenue,
+    onGifts = onGifts,
+    onNote = onNote,
+    onViewPass = if (presentation.attending == true) onViewPass else null,
+    onVisitCoupleSite = onVisitCoupleSite,
+    onContinue = onContinue
+)
+
 /** The 5 meal options the PWA's own premium RSVP dialog offers (`mealChoice` is otherwise free text). */
 private val MEAL_OPTIONS = listOf(
     "beef" to "Beef", "chicken" to "Chicken", "vegetarian" to "Vegetarian",
@@ -291,17 +312,17 @@ private fun LiveRsvpForm(
     onDismiss: () -> Unit
 ) {
     val adultsOnly = childrenPolicy == "adults_only"
-    var accepting by remember { mutableStateOf(initial.attending != false) }
-    var mealChoice by remember { mutableStateOf(initial.mealChoice.orEmpty()) }
-    var plusOne by remember { mutableStateOf(initial.plusOne) }
-    var plusOneName by remember { mutableStateOf(initial.plusOneName.orEmpty()) }
-    var plusOneMeal by remember { mutableStateOf(initial.plusOneMeal.orEmpty()) }
+    var accepting by remember(initial) { mutableStateOf(initial.attending != false) }
+    var mealChoice by remember(initial) { mutableStateOf(initial.mealChoice.orEmpty()) }
+    var plusOne by remember(initial) { mutableStateOf(initial.plusOne) }
+    var plusOneName by remember(initial) { mutableStateOf(initial.plusOneName.orEmpty()) }
+    var plusOneMeal by remember(initial) { mutableStateOf(initial.plusOneMeal.orEmpty()) }
     // Never let a stale client pre-select children attendance on an adults-only wedding — the
     // server remains final enforcement authority regardless, but the form must not encourage it.
-    var kidsAttending by remember { mutableStateOf(if (adultsOnly) false else initial.kidsAttending) }
-    var kidsCount by remember { mutableStateOf(initial.kidsCount ?: 0) }
-    var dietaryNotes by remember { mutableStateOf(initial.dietaryNotes.orEmpty()) }
-    var message by remember { mutableStateOf(initial.message.orEmpty()) }
+    var kidsAttending by remember(initial) { mutableStateOf(if (adultsOnly) false else initial.kidsAttending) }
+    var kidsCount by remember(initial) { mutableStateOf(initial.kidsCount ?: 0) }
+    var dietaryNotes by remember(initial) { mutableStateOf(initial.dietaryNotes.orEmpty()) }
+    var message by remember(initial) { mutableStateOf(initial.message.orEmpty()) }
 
     fun buildUpdate(): GuestRsvpUpdate = GuestRsvpUpdate(
         attending = accepting,

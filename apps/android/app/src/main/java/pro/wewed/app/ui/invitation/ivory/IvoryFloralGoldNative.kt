@@ -143,6 +143,10 @@ data class IvoryRsvpState(
     val awaitsResponse: Boolean get() = answer == IvoryRsvpAnswer.AWAITING
 }
 
+/** Label for the details surface RSVP action: "RSVP" while awaiting response, "Update RSVP" once answered. */
+fun ivoryRsvpActionLabel(rsvp: IvoryRsvpState): String =
+    if (rsvp.awaitsResponse) "RSVP" else "Update RSVP"
+
 /**
  * Positions a child over the artwork using the approved percentage box.
  *
@@ -531,12 +535,12 @@ fun IvoryFloralGoldNative(
                         )
                     }
 
-                    // The details hits, at the approved coordinates. A guest who has already
-                    // answered is never offered RSVP again; gifts appear only when configured.
+                    // The details hits, at the approved coordinates. RSVP remains reachable
+                    // across pending, accepted, and declined states so guests can update choices.
                     IvoryHit(
                         IvoryGeometry.HIT_RSVP[0], IvoryGeometry.HIT_RSVP[1], stageWidth, stageHeight,
-                        if (rsvp.awaitsResponse) "RSVP" else "RSVP recorded",
-                        "invitation-cta-rsvp", if (rsvp.awaitsResponse) actions.onRsvp else null
+                        ivoryRsvpActionLabel(rsvp),
+                        "invitation-cta-rsvp", actions.onRsvp
                     )
                     IvoryHit(
                         IvoryGeometry.HIT_CALENDAR[0], IvoryGeometry.HIT_CALENDAR[1], stageWidth, stageHeight,

@@ -103,6 +103,98 @@ final class LiveGuestInvitationCoordinatorTests: XCTestCase {
         )
     }
 
+    private func invitationReadsFull(
+        slug: String,
+        guestId: String,
+        name: String,
+        attending: String,
+        mealChoice: String? = nil,
+        plusOne: Bool = false,
+        plusOneName: String? = nil,
+        plusOneMeal: String? = nil,
+        kidsAttending: Bool = false,
+        kidsCount: Int? = nil,
+        dietaryNotes: String? = nil,
+        message: String? = nil,
+        childrenPolicy: String = "welcome"
+    ) {
+        var rsvp: [String: Any] = [
+            "plusOne": plusOne,
+            "kidsAttending": kidsAttending,
+            "checkedIn": false
+        ]
+        if attending == "null" {
+            rsvp["attending"] = NSNull()
+        } else {
+            rsvp["attending"] = (attending == "true")
+        }
+        if let mealChoice { rsvp["mealChoice"] = mealChoice } else { rsvp["mealChoice"] = NSNull() }
+        if let plusOneName { rsvp["plusOneName"] = plusOneName } else { rsvp["plusOneName"] = NSNull() }
+        if let plusOneMeal { rsvp["plusOneMeal"] = plusOneMeal } else { rsvp["plusOneMeal"] = NSNull() }
+        if let kidsCount { rsvp["kidsCount"] = kidsCount } else { rsvp["kidsCount"] = NSNull() }
+        if let dietaryNotes { rsvp["dietaryNotes"] = dietaryNotes } else { rsvp["dietaryNotes"] = NSNull() }
+        if let message { rsvp["message"] = message } else { rsvp["message"] = NSNull() }
+
+        let payload: [String: Any] = [
+            "success": true,
+            "authorized": true,
+            "wedding": [
+                "slug": slug,
+                "title": "Charity & Kudzie",
+                "monogram": "C&K",
+                "date": "2026-12-23T14:00:00",
+                "venue": "Imba Manor",
+                "venueCity": "Harare",
+                "venueCountry": "Zimbabwe",
+                "invitationCardStyle": "ivory-floral-gold",
+                "childrenPolicy": childrenPolicy
+            ],
+            "guest": ["id": guestId, "name": name],
+            "rsvp": rsvp
+        ]
+        let data = try! JSONSerialization.data(withJSONObject: payload)
+        Stub.routes["GET /api/weddings/\(slug)/guest-session"] = Reply(
+            status: 200,
+            body: String(data: data, encoding: .utf8)!
+        )
+    }
+
+    private func answerSucceeds(
+        slug: String,
+        attending: Bool?,
+        mealChoice: String? = nil,
+        plusOne: Bool = false,
+        plusOneName: String? = nil,
+        plusOneMeal: String? = nil,
+        kidsAttending: Bool = false,
+        kidsCount: Int? = nil,
+        dietaryNotes: String? = nil,
+        message: String? = nil
+    ) {
+        var rsvp: [String: Any] = [
+            "plusOne": plusOne,
+            "kidsAttending": kidsAttending,
+            "checkedIn": false
+        ]
+        if let attending { rsvp["attending"] = attending } else { rsvp["attending"] = NSNull() }
+        if let mealChoice { rsvp["mealChoice"] = mealChoice } else { rsvp["mealChoice"] = NSNull() }
+        if let plusOneName { rsvp["plusOneName"] = plusOneName } else { rsvp["plusOneName"] = NSNull() }
+        if let plusOneMeal { rsvp["plusOneMeal"] = plusOneMeal } else { rsvp["plusOneMeal"] = NSNull() }
+        if let kidsCount { rsvp["kidsCount"] = kidsCount } else { rsvp["kidsCount"] = NSNull() }
+        if let dietaryNotes { rsvp["dietaryNotes"] = dietaryNotes } else { rsvp["dietaryNotes"] = NSNull() }
+        if let message { rsvp["message"] = message } else { rsvp["message"] = NSNull() }
+
+        let payload: [String: Any] = [
+            "success": true,
+            "rsvp": rsvp
+        ]
+        let data = try! JSONSerialization.data(withJSONObject: payload)
+        Stub.routes["PUT /api/weddings/\(slug)/guest-session"] = Reply(
+            status: 200,
+            body: String(data: data, encoding: .utf8)!
+        )
+    }
+
     /// A private link completes: exchange, then read the card from the wedding's own authority.
     func testAPrivateInvitationReachesThePresentedCard() async {
         exchangeSucceeds(slug: "charity-and-kudzie", guestId: "guest_live", session: "SESSION-1")
@@ -310,4 +402,190 @@ final class LiveGuestInvitationCoordinatorTests: XCTestCase {
         }
         XCTAssertEqual(snapshot.attending, true)
     }
+
+    private func makeSnapshot(
+        attending: Bool?,
+        mealChoice: String? = nil,
+        plusOne: Bool = false,
+        plusOneName: String? = nil,
+        plusOneMeal: String? = nil,
+        kidsAttending: Bool = false,
+        kidsCount: Int? = nil,
+        dietaryNotes: String? = nil,
+        message: String? = nil,
+        childrenPolicy: String? = "welcome"
+    ) -> GuestInvitationSnapshot {
+        GuestInvitationSnapshot(
+            weddingSlug: "charity-and-kudzie",
+            title: "Charity & Kudzie",
+            monogram: "C&K",
+            tagline: nil,
+            date: "2026-12-23T14:00:00",
+            venue: "Imba Manor",
+            venueMapUrl: nil,
+            venueCity: "Harare",
+            venueCountry: "Zimbabwe",
+            invitationCardStyle: "ivory-floral-gold",
+            invitationCardMessage: nil,
+            rsvpDeadline: nil,
+            childrenPolicy: childrenPolicy,
+            guestId: "guest_live",
+            guestName: "Live Guest",
+            email: nil,
+            tableNumber: nil,
+            tableName: nil,
+            attending: attending,
+            mealChoice: mealChoice,
+            plusOne: plusOne,
+            plusOneName: plusOneName,
+            plusOneMeal: plusOneMeal,
+            kidsAttending: kidsAttending,
+            kidsCount: kidsCount,
+            dietaryNotes: dietaryNotes,
+            message: message,
+            checkedIn: false,
+            checkedInAt: nil
+        )
+    }
+
+    /// Regression test for independent moderator inspection finding:
+    /// The RSVP interaction must remain accessible across PENDING, ACCEPTED, and DECLINED states.
+    /// The card may show Accepted / Declined / Pending, but its RSVP action must remain usable.
+    func testRsvpActionRemainsReachableAcrossAllStatuses() {
+        // 1. Pending presentation: RSVP action exists, label is "RSVP"
+        let pendingPres = LiveInvitationPresentation.from(makeSnapshot(attending: nil))
+        XCTAssertEqual(pendingPres.rsvpStatus, .pending)
+        var pendingPrompted = false
+        let pendingActions = resolveLiveInvitationActions(presentation: pendingPres, onRsvpPrompt: { pendingPrompted = true })
+        XCTAssertNotNil(pendingActions.onRsvp, "RSVP action must exist for pending presentation")
+        pendingActions.onRsvp?()
+        XCTAssertTrue(pendingPrompted)
+        XCTAssertEqual("RSVP", ivoryRsvpActionLabel(rsvp: ivoryRsvpState(from: pendingPres.rsvpStatus)))
+
+        // 2. Accepted presentation: RSVP action still exists, label is "Update RSVP"
+        let acceptedPres = LiveInvitationPresentation.from(makeSnapshot(attending: true, mealChoice: "beef"))
+        XCTAssertEqual(acceptedPres.rsvpStatus, .attending)
+        var acceptedPrompted = false
+        let acceptedActions = resolveLiveInvitationActions(presentation: acceptedPres, onRsvpPrompt: { acceptedPrompted = true })
+        XCTAssertNotNil(acceptedActions.onRsvp, "RSVP action must still exist for accepted presentation")
+        acceptedActions.onRsvp?()
+        XCTAssertTrue(acceptedPrompted)
+        XCTAssertEqual("Update RSVP", ivoryRsvpActionLabel(rsvp: ivoryRsvpState(from: acceptedPres.rsvpStatus)))
+
+        // 3. Declined presentation: RSVP action still exists, label is "Update RSVP"
+        let declinedPres = LiveInvitationPresentation.from(makeSnapshot(attending: false))
+        XCTAssertEqual(declinedPres.rsvpStatus, .declined)
+        var declinedPrompted = false
+        let declinedActions = resolveLiveInvitationActions(presentation: declinedPres, onRsvpPrompt: { declinedPrompted = true })
+        XCTAssertNotNil(declinedActions.onRsvp, "RSVP action must still exist for declined presentation")
+        declinedActions.onRsvp?()
+        XCTAssertTrue(declinedPrompted)
+        XCTAssertEqual("Update RSVP", ivoryRsvpActionLabel(rsvp: ivoryRsvpState(from: declinedPres.rsvpStatus)))
+    }
+
+    /// Exercises the full mutation cycles through the existing Guest Session path:
+    /// 1. pending -> accept -> refresh -> accepted presentation -> reopen -> change meal/message -> save -> same RSVP record updated
+    /// 2. accepted -> reopen -> decline -> save -> refresh shows declined with dormant field preservation
+    /// 3. declined -> reopen -> accept -> restore saved dormant details -> save -> refresh shows accepted
+    func testExerciseMutationCyclesThroughExistingGuestSessionPath() async {
+        // --- START: Pending presentation ---
+        exchangeSucceeds(slug: "charity-and-kudzie", guestId: "guest_live", session: "SESSION-1")
+        invitationReadsFull(slug: "charity-and-kudzie", guestId: "guest_live", name: "Live Guest", attending: "null")
+        let state0 = await coordinator.enter(.privateInvitation(weddingSlug: "charity-and-kudzie", rsvpToken: "TOKEN"))
+        guard case let .presenting(snap0) = state0 else {
+            return XCTFail("expected presenting state")
+        }
+        let pres0 = LiveInvitationPresentation.from(snap0)
+        XCTAssertEqual(pres0.rsvpStatus, .pending)
+        XCTAssertNotNil(resolveLiveInvitationActions(presentation: pres0, onRsvpPrompt: {}).onRsvp)
+
+        // --- CYCLE 1: pending -> accept -> refresh -> accepted presentation -> reopen -> change meal/message -> save ---
+        answerSucceeds(slug: "charity-and-kudzie", attending: true, mealChoice: "beef", message: "Joyfully accept!")
+        let saveOutcome1 = await coordinator.answer(GuestRsvpUpdate(attending: true, mealChoice: "beef", message: "Joyfully accept!"))
+        guard case let .saved(rsvp1) = saveOutcome1 else {
+            return XCTFail("expected saved outcome, got \(saveOutcome1)")
+        }
+        XCTAssertEqual(rsvp1.attending, true)
+        XCTAssertEqual(rsvp1.mealChoice, "beef")
+        XCTAssertEqual(rsvp1.message, "Joyfully accept!")
+
+        invitationReadsFull(slug: "charity-and-kudzie", guestId: "guest_live", name: "Live Guest", attending: "true", mealChoice: "beef", message: "Joyfully accept!")
+        guard case let .presenting(snap1) = await coordinator.refresh() else {
+            return XCTFail("expected presenting state after refresh")
+        }
+        let pres1 = LiveInvitationPresentation.from(snap1)
+        XCTAssertEqual(pres1.rsvpStatus, .attending)
+        XCTAssertEqual(pres1.mealChoice, "beef")
+        XCTAssertEqual(pres1.message, "Joyfully accept!")
+        XCTAssertNotNil(resolveLiveInvitationActions(presentation: pres1, onRsvpPrompt: {}).onRsvp)
+
+        // Reopen and edit details (change meal to chicken, update message)
+        answerSucceeds(slug: "charity-and-kudzie", attending: true, mealChoice: "chicken", message: "Updated message: see you there!")
+        let saveOutcome2 = await coordinator.answer(GuestRsvpUpdate(attending: true, mealChoice: "chicken", message: "Updated message: see you there!"))
+        guard case let .saved(rsvp2) = saveOutcome2 else {
+            return XCTFail("expected saved outcome, got \(saveOutcome2)")
+        }
+        XCTAssertEqual(rsvp2.attending, true)
+        XCTAssertEqual(rsvp2.mealChoice, "chicken")
+        XCTAssertEqual(rsvp2.message, "Updated message: see you there!")
+
+        invitationReadsFull(slug: "charity-and-kudzie", guestId: "guest_live", name: "Live Guest", attending: "true", mealChoice: "chicken", message: "Updated message: see you there!")
+        guard case let .presenting(snap2) = await coordinator.refresh() else {
+            return XCTFail("expected presenting state after refresh")
+        }
+        let pres2 = LiveInvitationPresentation.from(snap2)
+        XCTAssertEqual(pres2.mealChoice, "chicken")
+        XCTAssertEqual(pres2.message, "Updated message: see you there!")
+        // Verify same RSVP record updated: both saves carried originGuestId
+        XCTAssertTrue(Stub.seenBodies.contains { $0.contains("\"originGuestId\":\"guest_live\"") && $0.contains("\"mealChoice\":\"beef\"") })
+        XCTAssertTrue(Stub.seenBodies.contains { $0.contains("\"originGuestId\":\"guest_live\"") && $0.contains("\"mealChoice\":\"chicken\"") })
+
+        // --- CYCLE 2: accepted -> reopen -> decline -> save -> refresh shows declined with dormant field preservation ---
+        // When declining, form omits mealChoice (nil) and sets plusOne/kidsAttending false
+        answerSucceeds(slug: "charity-and-kudzie", attending: false, mealChoice: "chicken", plusOne: false, kidsAttending: false, message: "Regretfully cannot attend")
+        let saveOutcome3 = await coordinator.answer(GuestRsvpUpdate(attending: false, plusOne: false, kidsAttending: false, message: "Regretfully cannot attend"))
+        guard case let .saved(rsvp3) = saveOutcome3 else {
+            return XCTFail("expected saved outcome, got \(saveOutcome3)")
+        }
+        XCTAssertEqual(rsvp3.attending, false)
+        // Dormant meal is preserved on server
+        XCTAssertEqual(rsvp3.mealChoice, "chicken")
+
+        invitationReadsFull(slug: "charity-and-kudzie", guestId: "guest_live", name: "Live Guest", attending: "false", mealChoice: "chicken", plusOne: false, message: "Regretfully cannot attend")
+        guard case let .presenting(snap3) = await coordinator.refresh() else {
+            return XCTFail("expected presenting state after refresh")
+        }
+        let pres3 = LiveInvitationPresentation.from(snap3)
+        XCTAssertEqual(pres3.rsvpStatus, .declined)
+        XCTAssertEqual(pres3.attending, false)
+        XCTAssertEqual(pres3.mealChoice, "chicken") // Dormant value retained on server
+        XCTAssertNotNil(resolveLiveInvitationActions(presentation: pres3, onRsvpPrompt: {}).onRsvp)
+
+        // --- CYCLE 3: declined -> reopen -> accept -> restore saved dormant details where appropriate -> save -> refresh shows accepted ---
+        // Reopen recovers dormant meal ("chicken"), guest adds plus-one
+        answerSucceeds(slug: "charity-and-kudzie", attending: true, mealChoice: "chicken", plusOne: true, plusOneName: "Sarah", plusOneMeal: "vegan", message: "Excited to join after all!")
+        let saveOutcome4 = await coordinator.answer(GuestRsvpUpdate(attending: true, mealChoice: "chicken", plusOne: true, plusOneName: "Sarah", plusOneMeal: "vegan", message: "Excited to join after all!"))
+        guard case let .saved(rsvp4) = saveOutcome4 else {
+            return XCTFail("expected saved outcome, got \(saveOutcome4)")
+        }
+        XCTAssertEqual(rsvp4.attending, true)
+        XCTAssertEqual(rsvp4.mealChoice, "chicken")
+        XCTAssertEqual(rsvp4.plusOne, true)
+        XCTAssertEqual(rsvp4.plusOneName, "Sarah")
+        XCTAssertEqual(rsvp4.plusOneMeal, "vegan")
+
+        invitationReadsFull(slug: "charity-and-kudzie", guestId: "guest_live", name: "Live Guest", attending: "true", mealChoice: "chicken", plusOne: true, plusOneName: "Sarah", plusOneMeal: "vegan", message: "Excited to join after all!")
+        guard case let .presenting(snap4) = await coordinator.refresh() else {
+            return XCTFail("expected presenting state after refresh")
+        }
+        let pres4 = LiveInvitationPresentation.from(snap4)
+        XCTAssertEqual(pres4.rsvpStatus, .attending)
+        XCTAssertEqual(pres4.attending, true)
+        XCTAssertEqual(pres4.mealChoice, "chicken")
+        XCTAssertEqual(pres4.plusOne, true)
+        XCTAssertEqual(pres4.plusOneName, "Sarah")
+        XCTAssertEqual(pres4.plusOneMeal, "vegan")
+        XCTAssertNotNil(resolveLiveInvitationActions(presentation: pres4, onRsvpPrompt: {}).onRsvp)
+    }
 }
+

@@ -1,12 +1,17 @@
 package pro.wewed.app.navigation
 
 import kotlinx.coroutines.runBlocking
+import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import pro.wewed.app.invitation.*
+import pro.wewed.app.models.RSVPStatus
 import pro.wewed.app.services.InMemorySecureStorage
+import pro.wewed.app.ui.invitation.resolveLiveInvitationActions
+import pro.wewed.app.ui.invitation.ivory.ivoryRsvpActionLabel
+import pro.wewed.app.ui.invitation.ivoryRsvpStateFrom
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.ServerSocket
@@ -112,6 +117,89 @@ class LiveGuestInvitationCoordinatorTest {
                 """"guest":{"id":"$guestId","name":"$name"},""" +
                 """"rsvp":{"attending":$attending,"checkedIn":false}}"""
         )
+    }
+
+    private fun invitationReadsFull(
+        slug: String,
+        guestId: String,
+        name: String,
+        attending: String,
+        mealChoice: String? = null,
+        plusOne: Boolean = false,
+        plusOneName: String? = null,
+        plusOneMeal: String? = null,
+        kidsAttending: Boolean = false,
+        kidsCount: Int? = null,
+        dietaryNotes: String? = null,
+        message: String? = null,
+        childrenPolicy: String = "welcome"
+    ) {
+        val rsvpJson = JSONObject().apply {
+            if (attending == "null") put("attending", JSONObject.NULL)
+            else put("attending", attending.toBoolean())
+            mealChoice?.let { put("mealChoice", it) } ?: put("mealChoice", JSONObject.NULL)
+            put("plusOne", plusOne)
+            plusOneName?.let { put("plusOneName", it) } ?: put("plusOneName", JSONObject.NULL)
+            plusOneMeal?.let { put("plusOneMeal", it) } ?: put("plusOneMeal", JSONObject.NULL)
+            put("kidsAttending", kidsAttending)
+            kidsCount?.let { put("kidsCount", it) } ?: put("kidsCount", JSONObject.NULL)
+            dietaryNotes?.let { put("dietaryNotes", it) } ?: put("dietaryNotes", JSONObject.NULL)
+            message?.let { put("message", it) } ?: put("message", JSONObject.NULL)
+            put("checkedIn", false)
+        }
+        val weddingJson = JSONObject().apply {
+            put("slug", slug)
+            put("title", "Charity & Kudzie")
+            put("monogram", "C&K")
+            put("date", "2026-12-23T14:00:00")
+            put("venue", "Imba Manor")
+            put("venueCity", "Harare")
+            put("venueCountry", "Zimbabwe")
+            put("invitationCardStyle", "ivory-floral-gold")
+            put("childrenPolicy", childrenPolicy)
+        }
+        val guestJson = JSONObject().apply {
+            put("id", guestId)
+            put("name", name)
+        }
+        val responseJson = JSONObject().apply {
+            put("success", true)
+            put("authorized", true)
+            put("wedding", weddingJson)
+            put("guest", guestJson)
+            put("rsvp", rsvpJson)
+        }
+        routes["GET /api/weddings/$slug/guest-session"] = Reply(200, responseJson.toString())
+    }
+
+    private fun answerSucceeds(
+        slug: String,
+        attending: Boolean?,
+        mealChoice: String? = null,
+        plusOne: Boolean = false,
+        plusOneName: String? = null,
+        plusOneMeal: String? = null,
+        kidsAttending: Boolean = false,
+        kidsCount: Int? = null,
+        dietaryNotes: String? = null,
+        message: String? = null
+    ) {
+        val rsvpJson = JSONObject().apply {
+            if (attending == null) put("attending", JSONObject.NULL) else put("attending", attending)
+            mealChoice?.let { put("mealChoice", it) } ?: put("mealChoice", JSONObject.NULL)
+            put("plusOne", plusOne)
+            plusOneName?.let { put("plusOneName", it) } ?: put("plusOneName", JSONObject.NULL)
+            plusOneMeal?.let { put("plusOneMeal", it) } ?: put("plusOneMeal", JSONObject.NULL)
+            put("kidsAttending", kidsAttending)
+            kidsCount?.let { put("kidsCount", it) } ?: put("kidsCount", JSONObject.NULL)
+            dietaryNotes?.let { put("dietaryNotes", it) } ?: put("dietaryNotes", JSONObject.NULL)
+            message?.let { put("message", it) } ?: put("message", JSONObject.NULL)
+        }
+        val responseJson = JSONObject().apply {
+            put("success", true)
+            put("rsvp", rsvpJson)
+        }
+        routes["PUT /api/weddings/$slug/guest-session"] = Reply(200, responseJson.toString())
     }
 
     /** A private link completes: exchange, then read the card from the wedding's own authority. */
@@ -334,4 +422,168 @@ class LiveGuestInvitationCoordinatorTest {
         assertNotNull(refreshed)
         assertEquals(true, refreshed!!.snapshot.attending)
     }
+
+    /**
+     * Regression test for independent moderator inspection finding:
+     * The RSVP interaction must remain accessible across PENDING, ACCEPTED, and DECLINED states.
+     * The card may show Accepted / Declined / Pending, but its RSVP action must remain usable.
+     */
+    @Test
+    fun rsvpActionRemainsReachableAcrossAllStatuses() {
+        val dummySnapshot = GuestInvitationSnapshot(
+            weddingSlug = "charity-and-kudzie",
+            title = "Charity & Kudzie",
+            monogram = "C&K",
+            tagline = null,
+            date = "2026-12-23T14:00:00",
+            venue = "Imba Manor",
+            venueMapUrl = null,
+            venueCity = "Harare",
+            venueCountry = "Zimbabwe",
+            invitationCardStyle = "ivory-floral-gold",
+            invitationCardMessage = null,
+            rsvpDeadline = null,
+            childrenPolicy = "welcome",
+            guestId = "guest_live",
+            guestName = "Live Guest",
+            email = null,
+            tableNumber = null,
+            tableName = null,
+            attending = null,
+            mealChoice = null,
+            plusOne = false,
+            plusOneName = null,
+            plusOneMeal = null,
+            kidsAttending = false,
+            kidsCount = null,
+            dietaryNotes = null,
+            message = null,
+            checkedIn = false,
+            checkedInAt = null
+        )
+
+        // 1. Pending presentation: RSVP action exists, label is "RSVP"
+        val pendingPres = LiveInvitationPresentation.from(dummySnapshot.copy(attending = null))
+        assertEquals(RSVPStatus.PENDING, pendingPres.rsvpStatus)
+        var pendingPrompted = false
+        val pendingActions = resolveLiveInvitationActions(pendingPres, onRsvpPrompt = { pendingPrompted = true })
+        assertNotNull("RSVP action must exist for pending presentation", pendingActions.onRsvp)
+        pendingActions.onRsvp!!.invoke()
+        assertTrue(pendingPrompted)
+        assertEquals("RSVP", ivoryRsvpActionLabel(ivoryRsvpStateFrom(pendingPres.rsvpStatus)))
+
+        // 2. Accepted presentation: RSVP action still exists, label is "Update RSVP"
+        val acceptedPres = LiveInvitationPresentation.from(dummySnapshot.copy(attending = true, mealChoice = "beef"))
+        assertEquals(RSVPStatus.ATTENDING, acceptedPres.rsvpStatus)
+        var acceptedPrompted = false
+        val acceptedActions = resolveLiveInvitationActions(acceptedPres, onRsvpPrompt = { acceptedPrompted = true })
+        assertNotNull("RSVP action must still exist for accepted presentation", acceptedActions.onRsvp)
+        acceptedActions.onRsvp!!.invoke()
+        assertTrue(acceptedPrompted)
+        assertEquals("Update RSVP", ivoryRsvpActionLabel(ivoryRsvpStateFrom(acceptedPres.rsvpStatus)))
+
+        // 3. Declined presentation: RSVP action still exists, label is "Update RSVP"
+        val declinedPres = LiveInvitationPresentation.from(dummySnapshot.copy(attending = false))
+        assertEquals(RSVPStatus.DECLINED, declinedPres.rsvpStatus)
+        var declinedPrompted = false
+        val declinedActions = resolveLiveInvitationActions(declinedPres, onRsvpPrompt = { declinedPrompted = true })
+        assertNotNull("RSVP action must still exist for declined presentation", declinedActions.onRsvp)
+        declinedActions.onRsvp!!.invoke()
+        assertTrue(declinedPrompted)
+        assertEquals("Update RSVP", ivoryRsvpActionLabel(ivoryRsvpStateFrom(declinedPres.rsvpStatus)))
+    }
+
+    /**
+     * Exercises the full mutation cycles through the existing Guest Session path:
+     * 1. pending -> accept -> refresh -> accepted presentation -> reopen -> change meal/message -> save -> same RSVP record updated
+     * 2. accepted -> reopen -> decline -> save -> refresh shows declined with dormant field preservation
+     * 3. declined -> reopen -> accept -> restore saved dormant details -> save -> refresh shows accepted
+     */
+    @Test
+    fun exerciseMutationCyclesThroughExistingGuestSessionPath() = runBlocking {
+        // --- START: Pending presentation ---
+        exchangeSucceeds("charity-and-kudzie", "guest_live", "SESSION-1")
+        invitationReadsFull("charity-and-kudzie", "guest_live", "Live Guest", "null")
+        val state0 = coordinator.enter(InvitationEntry.PrivateInvitation("charity-and-kudzie", "TOKEN"))
+        val pres0 = LiveInvitationPresentation.from((state0 as LiveInvitationState.Presenting).snapshot)
+        assertEquals(RSVPStatus.PENDING, pres0.rsvpStatus)
+        assertNotNull(resolveLiveInvitationActions(pres0, onRsvpPrompt = {}).onRsvp)
+
+        // --- CYCLE 1: pending -> accept -> refresh -> accepted presentation -> reopen -> change meal/message -> save ---
+        answerSucceeds("charity-and-kudzie", attending = true, mealChoice = "beef", message = "Joyfully accept!")
+        val saveOutcome1 = coordinator.answer(GuestRsvpUpdate(attending = true, mealChoice = "beef", message = "Joyfully accept!"))
+        assertTrue(saveOutcome1 is RsvpOutcome.Saved)
+        val rsvp1 = (saveOutcome1 as RsvpOutcome.Saved).rsvp
+        assertEquals(true, rsvp1.attending)
+        assertEquals("beef", rsvp1.mealChoice)
+        assertEquals("Joyfully accept!", rsvp1.message)
+
+        invitationReadsFull("charity-and-kudzie", "guest_live", "Live Guest", "true", mealChoice = "beef", message = "Joyfully accept!")
+        val refreshed1 = coordinator.refresh() as LiveInvitationState.Presenting
+        val pres1 = LiveInvitationPresentation.from(refreshed1.snapshot)
+        assertEquals(RSVPStatus.ATTENDING, pres1.rsvpStatus)
+        assertEquals("beef", pres1.mealChoice)
+        assertEquals("Joyfully accept!", pres1.message)
+        assertNotNull(resolveLiveInvitationActions(pres1, onRsvpPrompt = {}).onRsvp)
+
+        // Reopen and edit details (change meal to chicken, update message)
+        answerSucceeds("charity-and-kudzie", attending = true, mealChoice = "chicken", message = "Updated message: see you there!")
+        val saveOutcome2 = coordinator.answer(GuestRsvpUpdate(attending = true, mealChoice = "chicken", message = "Updated message: see you there!"))
+        assertTrue(saveOutcome2 is RsvpOutcome.Saved)
+        val rsvp2 = (saveOutcome2 as RsvpOutcome.Saved).rsvp
+        assertEquals(true, rsvp2.attending)
+        assertEquals("chicken", rsvp2.mealChoice)
+        assertEquals("Updated message: see you there!", rsvp2.message)
+
+        invitationReadsFull("charity-and-kudzie", "guest_live", "Live Guest", "true", mealChoice = "chicken", message = "Updated message: see you there!")
+        val refreshed2 = coordinator.refresh() as LiveInvitationState.Presenting
+        val pres2 = LiveInvitationPresentation.from(refreshed2.snapshot)
+        assertEquals("chicken", pres2.mealChoice)
+        assertEquals("Updated message: see you there!", pres2.message)
+        // Verify same RSVP record updated: both saves carried the same originGuestId
+        assertTrue(seenBodies.any { it.contains("\"originGuestId\":\"guest_live\"") && it.contains("\"mealChoice\":\"beef\"") })
+        assertTrue(seenBodies.any { it.contains("\"originGuestId\":\"guest_live\"") && it.contains("\"mealChoice\":\"chicken\"") })
+
+        // --- CYCLE 2: accepted -> reopen -> decline -> save -> refresh shows declined with dormant field preservation ---
+        // When declining, form omits mealChoice (null) and sets plusOne/kidsAttending false
+        answerSucceeds("charity-and-kudzie", attending = false, mealChoice = "chicken", plusOne = false, kidsAttending = false, message = "Regretfully cannot attend")
+        val saveOutcome3 = coordinator.answer(GuestRsvpUpdate(attending = false, plusOne = false, kidsAttending = false, message = "Regretfully cannot attend"))
+        assertTrue(saveOutcome3 is RsvpOutcome.Saved)
+        val rsvp3 = (saveOutcome3 as RsvpOutcome.Saved).rsvp
+        assertEquals(false, rsvp3.attending)
+        // Dormant meal is preserved on server
+        assertEquals("chicken", rsvp3.mealChoice)
+
+        invitationReadsFull("charity-and-kudzie", "guest_live", "Live Guest", "false", mealChoice = "chicken", plusOne = false, message = "Regretfully cannot attend")
+        val refreshed3 = coordinator.refresh() as LiveInvitationState.Presenting
+        val pres3 = LiveInvitationPresentation.from(refreshed3.snapshot)
+        assertEquals(RSVPStatus.DECLINED, pres3.rsvpStatus)
+        assertEquals(false, pres3.attending)
+        assertEquals("chicken", pres3.mealChoice) // Dormant value retained on server
+        assertNotNull(resolveLiveInvitationActions(pres3, onRsvpPrompt = {}).onRsvp)
+
+        // --- CYCLE 3: declined -> reopen -> accept -> restore saved dormant details where appropriate -> save -> refresh shows accepted ---
+        // Reopen recovers dormant meal ("chicken"), guest adds plus-one
+        answerSucceeds("charity-and-kudzie", attending = true, mealChoice = "chicken", plusOne = true, plusOneName = "Sarah", plusOneMeal = "vegan", message = "Excited to join after all!")
+        val saveOutcome4 = coordinator.answer(GuestRsvpUpdate(attending = true, mealChoice = "chicken", plusOne = true, plusOneName = "Sarah", plusOneMeal = "vegan", message = "Excited to join after all!"))
+        assertTrue(saveOutcome4 is RsvpOutcome.Saved)
+        val rsvp4 = (saveOutcome4 as RsvpOutcome.Saved).rsvp
+        assertEquals(true, rsvp4.attending)
+        assertEquals("chicken", rsvp4.mealChoice)
+        assertEquals(true, rsvp4.plusOne)
+        assertEquals("Sarah", rsvp4.plusOneName)
+        assertEquals("vegan", rsvp4.plusOneMeal)
+
+        invitationReadsFull("charity-and-kudzie", "guest_live", "Live Guest", "true", mealChoice = "chicken", plusOne = true, plusOneName = "Sarah", plusOneMeal = "vegan", message = "Excited to join after all!")
+        val refreshed4 = coordinator.refresh() as LiveInvitationState.Presenting
+        val pres4 = LiveInvitationPresentation.from(refreshed4.snapshot)
+        assertEquals(RSVPStatus.ATTENDING, pres4.rsvpStatus)
+        assertEquals(true, pres4.attending)
+        assertEquals("chicken", pres4.mealChoice)
+        assertEquals(true, pres4.plusOne)
+        assertEquals("Sarah", pres4.plusOneName)
+        assertEquals("vegan", pres4.plusOneMeal)
+        assertNotNull(resolveLiveInvitationActions(pres4, onRsvpPrompt = {}).onRsvp)
+    }
 }
+
