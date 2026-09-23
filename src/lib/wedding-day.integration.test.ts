@@ -235,6 +235,8 @@ describeDb('Phase 11A Wedding Day / WW2 converged authority & schema', () => {
     // 1. Initial issuance
     const first = await wd.ensureWeddingPassCredential({ weddingId: WEDDING_A, guestId: GUEST_A })
     expect(first.passSerial).toMatch(/^WW[0-9A-F]{8}-001$/)
+    expect(first.token.split('.')).toHaveLength(6)
+    expect(first.token.split('.').slice(0, 5).join('.')).toBe(first.token.substring(0, first.token.lastIndexOf('.')))
     expect(first.issueSeq).toBe(1)
     expect(first.revokedAt).toBeNull()
     expect(first.supersededAt).toBeNull()
