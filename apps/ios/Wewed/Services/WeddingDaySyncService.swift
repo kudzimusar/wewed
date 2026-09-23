@@ -77,15 +77,12 @@ private struct NativeManifestHouseholdMember: Decodable {
 }
 
 private struct OfflineSyncBody: Encodable {
-    let guestId: String
-    let passSerial: String?
+    let passSerial: String
     let attendeeKeys: [String]
-    let source: String
-    let gateId: String?
     let deviceId: String?
     let clientEventId: String
-    let eventKey: String
 }
+
 
 public actor WeddingDaySyncService {
     private let session: URLSession
@@ -152,7 +149,10 @@ public actor WeddingDaySyncService {
         guard payload.weddingId == expectedWeddingId else {
             throw WeddingDaySyncError.manifestWeddingMismatch
         }
-        guard !isExpired(payload.expiresAt) else {
+        guard let manifestExpiresAt = parseIsoDate(payload.expiresAt) else {
+            throw WeddingDaySyncError.invalidResponse
+        }
+        guard manifestExpiresAt > Date() else {
             throw WeddingDaySyncError.manifestExpired
         }
 
@@ -215,7 +215,16 @@ public actor WeddingDaySyncService {
         guard let item = await offlineStore.lookupBySerial(weddingId: weddingId, serial: parsed.passSerial) else {
             throw WeddingDaySyncError.passNotInManifest
         }
-        guard item.eligible != false, item.revokedAt == nil, !isExpired(item.expiresAt) else {
+        let credentialExpiryInvalidOrExpired: Bool
+        if let expiresAt = item.expiresAt {
+            guard let parsedExpiry = parseIsoDate(expiresAt) else {
+                throw WeddingDaySyncError.passIneligible
+            }
+            credentialExpiryInvalidOrExpired = parsedExpiry <= Date()
+        } else {
+            credentialExpiryInvalidOrExpired = false
+        }
+        guard item.eligible != false, item.revokedAt == nil, !credentialExpiryInvalidOrExpired else {
             throw WeddingDaySyncError.passIneligible
         }
         guard item.nonce == nil || item.nonce == parsed.nonce,
@@ -226,10 +235,17 @@ public actor WeddingDaySyncService {
         guard let key = await trustStore.signingKey(weddingId: weddingId, keyId: keyId) else {
             throw WeddingDaySyncError.signingKeyUnavailable
         }
-        guard key.status.lowercased() == "active",
+        guard key.algorithm == "ECDSA_P256_SHA256",
+              key.status.lowercased() == "active",
               key.revokedAt == nil,
-              !isExpired(key.expiresAt) else {
+              let activeFrom = parseIsoDate(key.activeFrom),
+              activeFrom <= Date() else {
             throw WeddingDaySyncError.signingKeyInactive
+        }
+        if let expiresAt = key.expiresAt {
+            guard let parsedExpiry = parseIsoDate(expiresAt), parsedExpiry > Date() else {
+                throw WeddingDaySyncError.signingKeyInactive
+            }
         }
 
         switch TokenVerifier.verifyAsymmetric(
@@ -248,7 +264,6 @@ public actor WeddingDaySyncService {
         baseURL: URL,
         bearerToken: String,
         weddingId: String,
-        gateId: String? = nil,
         grantId: String? = nil,
         offlineStore: OfflineManifestStoreProtocol,
         trustStore: WeddingDayManifestTrustStore
@@ -283,14 +298,10 @@ public actor WeddingDaySyncService {
             }
             request.httpBody = try? encoder.encode(
                 OfflineSyncBody(
-                    guestId: record.guestId,
                     passSerial: record.passSerial,
                     attendeeKeys: attendeeKeys,
-                    source: "offline-sync",
-                    gateId: gateId,
                     deviceId: record.deviceId,
-                    clientEventId: record.id,
-                    eventKey: trust.eventKey
+                    clientEventId: record.id
                 )
             )
 
@@ -315,10 +326,13 @@ public actor WeddingDaySyncService {
         )
     }
 
-    private func isExpired(_ iso8601: String?) -> Bool {
-        guard let iso8601, let date = ISO8601DateFormatter().date(from: iso8601) else {
-            return false
-        }
-        return date <= Date()
+    private func parseIsoDate(_ iso8601: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: iso8601) { return date }
+
+        let fallback = ISO8601DateFormatter()
+        fallback.formatOptions = [.withInternetDateTime]
+        return fallback.date(from: iso8601)
     }
 }
