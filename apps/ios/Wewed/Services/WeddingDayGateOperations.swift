@@ -73,7 +73,9 @@ public actor ManifestBackedWeddingDayGate: WeddingDayGateOperations {
             weddingId: gateContext.weddingId,
             serial: passSerial(from: qrPayload),
             count: count,
-            usherId: gateContext.operatorUserId
+            // Legacy queue snapshots can still decode usherId, but new records deliberately carry
+            // no operator authority. Server sync derives the operator from the live Gate grant.
+            usherId: ""
         )
 
         if result.status == .validPass && result.remainingCount > 0 {
