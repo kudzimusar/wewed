@@ -62,7 +62,6 @@ class ManifestBackedWeddingDayGate(
     override suspend fun reconcilePending(): WeddingDaySyncResult = syncService.syncPendingCheckIns(
         bearerToken = bearerToken,
         weddingId = gateContext.weddingId,
-        gateId = gateContext.gateId,
         grantId = gateContext.grantId,
         offlineStore = offlineStore,
         trustStore = trustStore
