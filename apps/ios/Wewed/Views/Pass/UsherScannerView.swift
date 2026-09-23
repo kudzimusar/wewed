@@ -10,9 +10,11 @@ public struct UsherScannerView: View {
     @State private var auditRecords: [CheckInAuditRecord] = []
     @State private var showingAuditSheet: Bool = false
 
+    private let gateContext: GateOperationalContext?
     private let onDone: (() -> Void)?
 
-    public init(onDone: (() -> Void)? = nil) {
+    public init(gateContext: GateOperationalContext? = nil, onDone: (() -> Void)? = nil) {
+        self.gateContext = gateContext
         self.onDone = onDone
     }
 
@@ -261,18 +263,14 @@ public struct UsherScannerView: View {
                                     .foregroundColor(.secondary)
                             }
                             Spacer()
-                            Button {
-                                checkInManual(guest: guest)
-                            } label: {
-                                Text("Admit (\(checkInCount))")
-                                    .font(.caption)
-                                    .fontWeight(.bold)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
-                                    .background(WewedColors.gold)
-                                    .foregroundColor(.black)
-                                    .cornerRadius(WewedRadius.pill)
-                            }
+                            Text("QR required")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Color.gray.opacity(0.15))
+                                .foregroundColor(.secondary)
+                                .cornerRadius(WewedRadius.pill)
                         }
                         .padding(.vertical, 6)
                         .padding(.horizontal)
@@ -288,8 +286,27 @@ public struct UsherScannerView: View {
 
     private func performScan(token: String) {
         Task {
+            guard let gateContext,
+                  gateContext.capabilities.contains("gate.checkin.write") else {
+                scanResult = CheckInVerificationResult(
+                    status: .invalidPass,
+                    guestName: "Gate authority unavailable",
+                    householdName: nil,
+                    partySize: 0,
+                    alreadyCheckedInCount: 0,
+                    remainingCount: 0,
+                    tableNumber: nil,
+                    tableName: nil,
+                    gateMessage: "Select an active Gate assignment before scanning."
+                )
+                return
+            }
             do {
-                let res = try await appState.scopedRepository().checkInGuest(qrPayload: token, count: checkInCount, usherId: "gate_usher_1")
+                let res = try await appState.scopedRepository().checkInGuest(
+                    qrPayload: token,
+                    count: checkInCount,
+                    usherId: gateContext.operatorUserId
+                )
                 scanResult = res
                 loadAuditRecords()
             } catch {
@@ -314,13 +331,6 @@ public struct UsherScannerView: View {
                 searchResults = results
             }
         }
-    }
-
-    private func checkInManual(guest: Guest) {
-        let dummyPayload = "WW1.wedts26.\(guest.passSerial ?? "WW0000").0e.66f001ab.signature"
-        performScan(token: dummyPayload)
-        manualSearchQuery = ""
-        searchResults = []
     }
 
     private func loadAuditRecords() {
