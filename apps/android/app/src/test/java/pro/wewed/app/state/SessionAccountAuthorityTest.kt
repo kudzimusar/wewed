@@ -89,7 +89,7 @@ class SessionAccountAuthorityTest {
             "capabilities":["gate.manifest.read","gate.checkin.write","gate.guest_search.read","gate.audit.read"]
           }],
           "gateContextSelection":{"kind":"gate_operator","grantIds":["gate_operator:W:gate-A"],"selectionRequired":false},
-          "unsupported":["guest"],"platform":{"effectiveRole":null}
+          "unsupported":[{"authority":"guest","reason":"Guest Session"}],"platform":{"effectiveRole":null}
         }}
     """.trimIndent()
 
@@ -108,7 +108,7 @@ class SessionAccountAuthorityTest {
           ],
           "gateContextSelection":{"kind":"gate_operator",
             "grantIds":["gate_operator:W:gate-A","gate_operator:W:gate-B"],"selectionRequired":true},
-          "unsupported":["guest"],"platform":{"effectiveRole":null}
+          "unsupported":[{"authority":"guest","reason":"Guest Session"}],"platform":{"effectiveRole":null}
         }}
     """.trimIndent()
 
@@ -123,7 +123,7 @@ class SessionAccountAuthorityTest {
             "operatorUserId":"usher-1","capabilities":["gate.checkin.write"]
           }],
           "gateContextSelection":{"kind":"gate_operator","grantIds":["gate_operator:W:gate-B"],"selectionRequired":false},
-          "unsupported":["guest"],"platform":{"effectiveRole":null}
+          "unsupported":[{"authority":"guest","reason":"Guest Session"}],"platform":{"effectiveRole":null}
         }}
     """.trimIndent()
 
