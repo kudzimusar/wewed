@@ -50,6 +50,15 @@ To intentionally clear a free-text field (`mealChoice`/`plusOneName`/`plusOneMea
 `kidsCount` have no "cleared" state on the wire — omitting them is the only way to leave them
 untouched.
 
+### RSVP reachability & lifecycle across response statuses
+
+In accordance with PWA parity and the independent moderator review finding, RSVP editing remains accessible across all response statuses on native Android and iOS:
+- **`PENDING` -> RSVP editable:** Action label is displayed as `"RSVP"`. Tapping opens the RSVP editor sheet.
+- **`ACCEPTED` -> RSVP editable:** Action label is dynamically displayed as `"Update RSVP"`. Card displays confirmation badge (`RSVP confirmed`), while the action remains fully interactive and reachable. Tapping reopens the RSVP editor pre-populated with server truth.
+- **`DECLINED` -> RSVP editable:** Action label is dynamically displayed as `"Update RSVP"`. Card displays status banner (`Response recorded — not attending`), while the action remains fully interactive and reachable. Tapping reopens the RSVP editor pre-populated with server truth.
+
+Each edit reloads / uses the same Guest Session-backed RSVP truth (`PUT /api/weddings/[slug]/guest-session`). The native views (`LiveGuestInvitationScreen` on Android keyed by presentation, and `LiveGuestInvitationView` on iOS with keyed form session) refresh from the server and bind directly to the latest snapshot upon reopening, ensuring no stale or dirty client state overwrites existing answers, and ensuring dormant fields are preserved across cycles.
+
 ---
 
 ## 3. Server mutation operation
@@ -98,7 +107,7 @@ exclusively — no `/api/native/rsvp` or any other native-only route exists or w
 | RSVP write payload | `GuestRsvpUpdate` (new this phase) — 9 nullable fields, `null` = omit |
 | RSVP read/write response | `GuestRsvpRecord` (new this phase, replaces a bare `Boolean?`) |
 | `originGuestId` binding | `LiveGuestInvitationCoordinator.presentedGuestId` — captured only when a card is presented, never at save time |
-| RSVP form UI | `LiveGuestInvitationScreen.kt`'s `LiveRsvpForm` (new this phase, replaces a 2-button accept/decline dialog) — full field parity with the PWA's premium invitation RSVP dialog |
+| RSVP form UI | `LiveGuestInvitationScreen.kt`'s `LiveRsvpForm` (wrapped in `key(presentation)`; form state bound via `remember(initial)`). Action resolved via `resolveLiveInvitationActions` and `ivoryRsvpActionLabel` ("RSVP" while awaiting response, "Update RSVP" once answered), remaining reachable across PENDING, ACCEPTED, and DECLINED states. |
 | Invitation style | `LiveInvitationPresentation.invitationCardStyle`, sourced exclusively from the GET response's `wedding.invitationCardStyle` — never from a deep-link parameter |
 
 ## 6. iOS mapping
@@ -109,7 +118,7 @@ exclusively — no `/api/native/rsvp` or any other native-only route exists or w
 | RSVP write payload | `GuestRsvpUpdate` (new this phase) |
 | RSVP read/write response | `GuestRsvpRecord` (new this phase) |
 | `originGuestId` binding | `LiveGuestInvitationCoordinator.presentedGuestId`/`activeWeddingSlug` — same capture-at-presentation-time contract |
-| RSVP form UI | `LiveGuestInvitationView.swift`'s `LiveRsvpFormView` (new this phase) — field-for-field parity with Android's `LiveRsvpForm` and the PWA's dialog |
+| RSVP form UI | `LiveGuestInvitationView.swift`'s `LiveRsvpFormView` (keyed with `.id(formSessionId)` to guarantee a clean slate initialized with the latest snapshot data). Action resolved via `resolveLiveInvitationActions` and `ivoryRsvpActionLabel`, remaining reachable across PENDING, ACCEPTED, and DECLINED states. |
 | Invitation style | Same GET-response-only source; no deep-link override |
 
 ---
