@@ -75,10 +75,11 @@ public struct RootView: View {
             appState: appState,
             productionAuthority: session.productionAuthority,
             selectedGrantIds: session.selectedGrantIds,
-            selectedEngagementId: session.selectedEngagementId
+            selectedEngagementId: session.selectedEngagementId,
+            selectedGateGrantId: session.selectedGateGrantId
         )
-        // No default actor: the actor is whoever the session holds, or nobody.
-        let actorId = session.activePersona?.id ?? ""
+        // Production identity comes from the verified authority document; Shadow uses its persona.
+        let actorId = session.productionAuthority?.accessUserId ?? session.activePersona?.id ?? ""
         let assignment = await source.assignments(actorId: actorId)
             .first { $0.role == role }
 
@@ -125,6 +126,24 @@ public struct RootView: View {
 
         let ids = Set(selection.grantIds)
         return authority.workspaceGrants.filter { ids.contains($0.grantId) }
+    }
+
+    private var pendingGateSelection: [ProductionOperationalGrant] {
+        guard let authority = session.productionAuthority,
+              ProductionGrantMapper.isUsable(authority),
+              let selection = authority.gateContextSelection,
+              selection.selectionRequired,
+              selection.grantIds.count > 1
+        else { return [] }
+
+        if let selected = session.selectedGateGrantId, selection.grantIds.contains(selected) {
+            return []
+        }
+        if let role = session.currentRole, role != .usher {
+            return []
+        }
+        let ids = Set(selection.grantIds)
+        return authority.operationalGrants.filter { ids.contains($0.grantId) }
     }
 
     /// Only offered once more than one grant genuinely exists — a single-context account has
@@ -359,6 +378,12 @@ public struct RootView: View {
                     onSelect: { grantId in session.selectGrant(grantId) },
                     onSignOut: { session.signOut() }
                 )
+            } else if session.isAuthenticated && !pendingGateSelection.isEmpty {
+                GateGrantSelectionView(
+                    grants: pendingGateSelection,
+                    onSelect: { grantId in session.selectGateGrant(grantId) },
+                    onSignOut: { session.signOut() }
+                )
             } else if session.isAuthenticated,
                       session.currentRole == nil,
                       session.activeGrantId != nil {
@@ -410,7 +435,7 @@ public struct RootView: View {
             } else if session.isAuthenticated {
                 roleShell
                     .task(
-                        id: "\(session.currentRole?.roleId ?? "")|\(session.activePersona?.id ?? "")|\(session.activeGrantId ?? "")|\(session.selectedGrantIds.sorted().joined(separator: ","))|\(session.selectedEngagementId ?? "")"
+                        id: "\(session.currentRole?.roleId ?? "")|\(session.productionAuthority?.accessUserId ?? session.activePersona?.id ?? "")|\(session.activeGrantId ?? "")|\(session.selectedGrantIds.sorted().joined(separator: ","))|\(session.selectedEngagementId ?? "")|\(session.selectedGateGrantId ?? "")"
                     ) {
                         contextResolutionFinished = false
                         await resolveContext()
@@ -613,6 +638,17 @@ public struct RootView: View {
         let handled: () -> Void = { appState.pendingRouteDeepLink = nil }
 
         if appState.dataEnvironment == .production {
+            if context.activeRole == .usher {
+                if let gate = session.activeGateContext,
+                   gate.operatorUserId == context.actorId,
+                   gate.weddingId == context.activeWeddingId,
+                   gate.gateId == context.activeGateId {
+                    ProductionGateAuthorityView(gateContext: gate, onSignOut: { session.signOut() })
+                } else {
+                    productionWorkspaceUnavailable
+                }
+                return
+            }
             // Master plan Phase 8 closure round 3 §6 — Couple/Planner/Coordinator/Admin/Vendor now
             // render through the SAME real role shells every other environment uses, backed by the
             // production repositories bound above/below. Usher/Guest reaching this point still render
@@ -782,6 +818,62 @@ public struct RootView: View {
                 onDeepLinkHandled: handled
             )
         }
+        }
+    }
+
+    private struct GateGrantSelectionView: View {
+        let grants: [ProductionOperationalGrant]
+        let onSelect: (String) -> Void
+        let onSignOut: () -> Void
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Choose your gate").font(.title2)
+                Text("You have more than one active Gate assignment. Wewed will not choose one for you.")
+                    .font(.caption)
+                    .foregroundStyle(WeddingIdentityPalette.muted)
+                ForEach(grants, id: \.grantId) { grant in
+                    Button("\(grant.gateName) · \(grant.weddingTitle)") {
+                        onSelect(grant.grantId)
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityIdentifier("gate-grant-option-\(grant.grantId)")
+                }
+                Button("Sign out", action: onSignOut)
+                    .buttonStyle(.plain)
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(WeddingIdentityPalette.ivory)
+            .accessibilityIdentifier("gate-grant-selection")
+        }
+    }
+
+    private struct ProductionGateAuthorityView: View {
+        let gateContext: GateOperationalContext
+        let onSignOut: () -> Void
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Gate Operations").font(.title2)
+                Text(gateContext.weddingTitle).foregroundStyle(WeddingIdentityPalette.muted)
+                Text(gateContext.gateName).font(.headline)
+                Text("Assignment: \(gateContext.assignmentId)")
+                    .font(.caption)
+                    .foregroundStyle(WeddingIdentityPalette.muted)
+                Text("Capabilities: \(gateContext.capabilities.sorted().joined(separator: ", "))")
+                    .font(.caption)
+                    .foregroundStyle(WeddingIdentityPalette.muted)
+                Divider()
+                Text("Gate admission and offline Wedding Pass activation remain disabled until Phase 11. This screen proves the real server assignment without fabricating a scanner credential.")
+                    .font(.caption)
+                    .foregroundStyle(WeddingIdentityPalette.muted)
+                Button("Sign out", action: onSignOut)
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(WeddingIdentityPalette.ivory)
+            .accessibilityIdentifier("production-gate-authority")
         }
     }
 
