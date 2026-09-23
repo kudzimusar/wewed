@@ -281,8 +281,14 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
             gateContext = nil
         }
         activeGateContext = gateContext
-        selectedGateGrantId = gateContext?.grantId
-        persistSelectedGateGrantId(gateContext?.grantId)
+        if let rememberedGateId, !rememberedGateStillExists {
+            // Persist the stale id only as a re-selection marker. It cannot produce an assignment.
+            selectedGateGrantId = rememberedGateId
+            persistSelectedGateGrantId(rememberedGateId)
+        } else {
+            selectedGateGrantId = gateContext?.grantId
+            persistSelectedGateGrantId(gateContext?.grantId)
+        }
 
         var seenRoles: [AppRole] = []
         for pair in assignmentPairs where !seenRoles.contains(pair.1.role) { seenRoles.append(pair.1.role) }
