@@ -102,8 +102,8 @@ CREATE INDEX IF NOT EXISTS "WeddingPassCredential_passKeyId_weddingId_idx"
 -- Indexes for WeddingCheckIn
 CREATE UNIQUE INDEX IF NOT EXISTS "WeddingCheckIn_weddingId_eventKey_guestId_attendeeKey_key"
     ON "WeddingCheckIn"("weddingId", "eventKey", "guestId", "attendeeKey");
-CREATE UNIQUE INDEX IF NOT EXISTS "WeddingCheckIn_weddingId_clientEventId_key"
-    ON "WeddingCheckIn"("weddingId", "clientEventId");
+CREATE UNIQUE INDEX IF NOT EXISTS "WeddingCheckIn_weddingId_clientEventId_attendeeKey_key"
+    ON "WeddingCheckIn"("weddingId", "clientEventId", "attendeeKey");
 CREATE INDEX IF NOT EXISTS "WeddingCheckIn_weddingId_eventKey_admittedAt_idx"
     ON "WeddingCheckIn"("weddingId", "eventKey", "admittedAt");
 CREATE INDEX IF NOT EXISTS "WeddingCheckIn_guestId_weddingId_idx"
@@ -118,7 +118,7 @@ DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'WeddingPassKey_weddingId_fkey') THEN
     ALTER TABLE "WeddingPassKey" ADD CONSTRAINT "WeddingPassKey_weddingId_fkey"
-      FOREIGN KEY ("weddingId") REFERENCES "Wedding"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+      FOREIGN KEY ("weddingId") REFERENCES "Wedding"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
   END IF;
 END $$;
 
@@ -127,7 +127,7 @@ DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'WeddingPassCredential_weddingId_fkey') THEN
     ALTER TABLE "WeddingPassCredential" ADD CONSTRAINT "WeddingPassCredential_weddingId_fkey"
-      FOREIGN KEY ("weddingId") REFERENCES "Wedding"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+      FOREIGN KEY ("weddingId") REFERENCES "Wedding"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'WeddingPassCredential_guestId_weddingId_fkey') THEN
     ALTER TABLE "WeddingPassCredential" ADD CONSTRAINT "WeddingPassCredential_guestId_weddingId_fkey"
@@ -144,7 +144,7 @@ DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'WeddingCheckIn_weddingId_fkey') THEN
     ALTER TABLE "WeddingCheckIn" ADD CONSTRAINT "WeddingCheckIn_weddingId_fkey"
-      FOREIGN KEY ("weddingId") REFERENCES "Wedding"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+      FOREIGN KEY ("weddingId") REFERENCES "Wedding"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'WeddingCheckIn_guestId_weddingId_fkey') THEN
     ALTER TABLE "WeddingCheckIn" ADD CONSTRAINT "WeddingCheckIn_guestId_weddingId_fkey"
