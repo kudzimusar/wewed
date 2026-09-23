@@ -291,3 +291,77 @@ object ProductionGrantMapper {
         )
     }
 }
+
+
+data class GateOperationalContext(
+    val grantId: String,
+    val assignmentId: String,
+    val weddingId: String,
+    val weddingTitle: String,
+    val gateId: String,
+    val gateName: String,
+    val operatorUserId: String,
+    val capabilities: Set<String>
+)
+
+object ProductionGateGrantMapper {
+    private val knownCapabilities = setOf(
+        "gate.manifest.read",
+        "gate.checkin.write",
+        "gate.guest_search.read",
+        "gate.audit.read"
+    )
+
+    sealed interface Outcome {
+        data class Selected(val context: GateOperationalContext) : Outcome
+        data class RequiresSelection(val grants: List<ProductionOperationalGrant>) : Outcome
+        data class Denied(val reason: String) : Outcome
+    }
+
+    fun map(authority: ProductionAuthority, selectedGrantId: String? = null): Outcome {
+        if (!ProductionGrantMapper.isUsable(authority)) {
+            return Outcome.Denied("The account authority is not usable.")
+        }
+        val actorId = authority.accessUserId
+            ?: return Outcome.Denied("The account authority has no actor identity.")
+
+        val selection = authority.gateContextSelection
+        if (selection != null && selection.kind != "gate_operator") {
+            return Outcome.Denied("Unknown operational selection kind.")
+        }
+
+        val candidate = if (selectedGrantId != null) {
+            authority.operationalGrants.firstOrNull { it.grantId == selectedGrantId }
+                ?: return Outcome.Denied("No such gate grant for this account.")
+        } else {
+            if (selection?.selectionRequired == true) {
+                val ids = selection.grantIds.toSet()
+                return Outcome.RequiresSelection(authority.operationalGrants.filter { it.grantId in ids })
+            }
+            authority.operationalGrants.singleOrNull()
+                ?: return Outcome.Denied("No single active gate grant is available.")
+        }
+
+        if (candidate.kind != "gate_operator") return Outcome.Denied("Unknown operational grant kind.")
+        if (candidate.operatorUserId != actorId) return Outcome.Denied("Gate operator identity does not match the account.")
+        if (listOf(candidate.grantId, candidate.assignmentId, candidate.weddingId, candidate.gateId).any { it.isBlank() }) {
+            return Outcome.Denied("Gate authority is missing required scope.")
+        }
+        if (candidate.capabilities.isEmpty() || candidate.capabilities.any { it !in knownCapabilities }) {
+            return Outcome.Denied("Gate authority contains unsupported capabilities.")
+        }
+
+        return Outcome.Selected(
+            GateOperationalContext(
+                grantId = candidate.grantId,
+                assignmentId = candidate.assignmentId,
+                weddingId = candidate.weddingId,
+                weddingTitle = candidate.weddingTitle,
+                gateId = candidate.gateId,
+                gateName = candidate.gateName,
+                operatorUserId = candidate.operatorUserId,
+                capabilities = candidate.capabilities.toSet()
+            )
+        )
+    }
+}
