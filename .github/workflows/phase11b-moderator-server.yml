@@ -2,21 +2,20 @@ name: Phase 11B Moderator Server Qualification
 
 on:
   pull_request:
-  push:
     branches:
-      - backend/wedding-day-ww2-phase11b-20260924
+      - backend/wedding-day-ww2-phase11a-20260924
 
 permissions:
   contents: read
 
 concurrency:
-  group: phase11b-moderator-server-${{ github.ref }}
+  group: phase11b-moderator-server-${{ github.event.pull_request.head.sha || github.sha }}
   cancel-in-progress: true
 
 jobs:
   qualify:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     services:
       postgres:
         image: postgres:16-alpine
@@ -42,14 +41,68 @@ jobs:
       WEWED_SESSION_SECRET: ci-session-secret-not-for-production
       NEXT_PUBLIC_SITE_URL: http://localhost:3000
       NEXT_TELEMETRY_DISABLED: '1'
+      WEWED_WEDDING_DAY_WW2_ENABLED: 'false'
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+      - name: Checkout exact PR head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
         with:
           bun-version: 1.3.14
-      - run: bun install --frozen-lockfile
-      - run: bunx prisma generate --schema prisma/schema.prisma
-      - run: bunx prisma migrate deploy --schema prisma/schema.prisma
-      - run: bun test src/lib/wedding-day-key-preflight.test.ts
-      - run: bun test src/lib/wedding-day.integration.test.ts src/lib/wedding-day-routes.integration.test.ts src/lib/wedding-day-activation-rehearsal.integration.test.ts
-      - run: bun run build
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Validate Prisma schema
+        run: bunx prisma validate --schema prisma/schema.prisma
+
+      - name: Generate Prisma client
+        run: bunx prisma generate --schema prisma/schema.prisma
+
+      - name: Build exact pre-11A migration state
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/wewed-pre11a
+          mkdir -p /tmp/wewed-pre11a
+          cp prisma/schema.prisma /tmp/wewed-pre11a/schema.prisma
+          cp -R prisma/migrations /tmp/wewed-pre11a/migrations
+          rm -rf /tmp/wewed-pre11a/migrations/20260924000000_wedding_day_ww2_authority
+          bunx prisma migrate deploy --schema /tmp/wewed-pre11a/schema.prisma
+
+      - name: Run read-only Phase 11A preflight against pre-11A state
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f docs/native-mobile/migration-review/20260924000000_wedding_day_ww2_preflight.sql
+
+      - name: Apply exact Phase 11A migration
+        run: bunx prisma migrate deploy --schema prisma/schema.prisma
+
+      - name: Verify Phase 11A postflight
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f docs/native-mobile/migration-review/20260924000000_wedding_day_ww2_postflight.sql
+
+      - name: Run key preflight regressions
+        run: bun test src/lib/wedding-day-key-preflight.test.ts
+
+      - name: Run Phase 11A + 11B Wedding Day regressions
+        run: bun test src/lib/wedding-day.integration.test.ts src/lib/wedding-day-routes.integration.test.ts src/lib/wedding-day-activation-rehearsal.integration.test.ts
+
+      - name: Rehearse guarded destructive rollback on disposable DB
+        env:
+          PGOPTIONS: -c wewed.phase11a_disposable_rehearsal=YES
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f docs/native-mobile/migration-review/20260924000000_wedding_day_ww2_rollback_rehearsal.sql
+
+      - name: Reapply Phase 11A migration after rollback
+        run: bunx prisma migrate deploy --schema prisma/schema.prisma
+
+      - name: Verify postflight after migration reapply
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f docs/native-mobile/migration-review/20260924000000_wedding_day_ww2_postflight.sql
+
+      - name: Re-run Wedding Day domain regressions after reapply
+        run: bun test src/lib/wedding-day.integration.test.ts src/lib/wedding-day-routes.integration.test.ts
+
+      - name: Build production bundle with Wedding Day disabled
+        env:
+          WEWED_WEDDING_DAY_WW2_ENABLED: 'false'
+        run: bun run build
