@@ -11,7 +11,10 @@
  *    same mutation semantics — including the adults-only enforcement it previously lacked
  *    entirely, and no longer erases unrelated fields on a partial edit;
  *  - that both transports read and write the SAME `RSVP` row for the same guest (the PWA ↔ native
- *    "same record" proof — native calls this exact same `guest-session` route, never a second one).
+ *    "same record" proof — native calls this exact same `guest-session` route, never a second one);
+ *  - the invitation-style authority invariant (§10): the wedding's own saved `invitationCardStyle`
+ *    is always what a guest receives, regardless of any URL-supplied `card` value, for every
+ *    supported style.
  *
  * Never production: refuses to run unless AUTHORITY_TEST_DATABASE_URL points at localhost/127.0.0.1.
  *
@@ -38,6 +41,8 @@ let WEDDING_GUEST_SESSION_COOKIE: typeof import('@/lib/wedding-guest-session')['
 let GET_GUEST_SESSION: typeof import('@/app/api/weddings/[slug]/guest-session/route')['GET']
 let PUT_GUEST_SESSION: typeof import('@/app/api/weddings/[slug]/guest-session/route')['PUT']
 let POST_RSVP: typeof import('@/app/api/rsvp/route')['POST']
+let resolvePersonalInvitation: typeof import('@/lib/personal-invitation-access')['resolvePersonalInvitation']
+let INVITATION_CARD_STYLES: typeof import('@/lib/digital-invitation-card')['INVITATION_CARD_STYLES']
 let NextRequest: typeof import('next/server')['NextRequest']
 
 const run = randomUUID().slice(0, 8)
@@ -45,7 +50,11 @@ const weddingIds: string[] = []
 
 async function wedding(
   name: string,
-  opts: { childrenPolicy?: 'welcome' | 'adults_only'; privacy?: 'public' | 'link_only' | 'private' } = {},
+  opts: {
+    childrenPolicy?: 'welcome' | 'adults_only'
+    privacy?: 'public' | 'link_only' | 'private'
+    invitationCardStyle?: string
+  } = {},
 ) {
   const couple = await db.couple.create({
     data: { slug: `p9-couple-${run}-${name}`, partner1: 'P9', partner2: 'Guest' },
@@ -64,6 +73,7 @@ async function wedding(
       // public/link_only weddings (a real, pre-existing, out-of-Phase-9-scope distinction) — tests
       // exercising /api/rsvp specifically pass `privacy: 'public'`.
       privacy: opts.privacy ?? 'private',
+      ...(opts.invitationCardStyle ? { invitationCardStyle: opts.invitationCardStyle } : {}),
     },
   })
   weddingIds.push(w.id)
@@ -87,10 +97,10 @@ function sessionCookie(input: { weddingId: string; guestId: string; rsvpToken: s
   return `${WEDDING_GUEST_SESSION_COOKIE}=${token}`
 }
 
-function guestSessionRequest(slug: string, cookie: string | null, init: RequestInit = {}) {
+function guestSessionRequest(slug: string, cookie: string | null, init: RequestInit = {}, query = '') {
   const headers = { ...(init.headers as Record<string, string> ?? {}) }
   if (cookie) headers.cookie = cookie
-  return new NextRequest(`http://localhost/api/weddings/${slug}/guest-session`, { ...init, headers })
+  return new NextRequest(`http://localhost/api/weddings/${slug}/guest-session${query}`, { ...init, headers })
 }
 
 function rsvpRequest(cookie: string | null, body: unknown) {
@@ -106,6 +116,8 @@ describe.skipIf(!isLocal)('Phase 9 — guest RSVP mutation convergence against a
     ;({ createWeddingGuestSessionToken, WEDDING_GUEST_SESSION_COOKIE } = await import('@/lib/wedding-guest-session'))
     ;({ GET: GET_GUEST_SESSION, PUT: PUT_GUEST_SESSION } = await import('@/app/api/weddings/[slug]/guest-session/route'))
     ;({ POST: POST_RSVP } = await import('@/app/api/rsvp/route'))
+    ;({ resolvePersonalInvitation } = await import('@/lib/personal-invitation-access'))
+    ;({ INVITATION_CARD_STYLES } = await import('@/lib/digital-invitation-card'))
     ;({ NextRequest } = await import('next/server'))
   })
 
@@ -448,5 +460,44 @@ describe.skipIf(!isLocal)('Phase 9 — guest RSVP mutation convergence against a
     expect(row?.attending).toBe(true)
     expect(row?.mealChoice).toBe('Vegetarian')
     expect(row?.dietaryNotes).toBe('No shellfish')
+  })
+
+  // -----------------------------------------------------------------------------------
+  // §10 invitation-style authority — the saved wedding design always wins, never the URL
+  // -----------------------------------------------------------------------------------
+
+  test('the wedding\'s own saved style is authoritative: a URL requesting a different style never overrides it', async () => {
+    const w = await wedding('style-authority', { invitationCardStyle: 'ivory-floral-gold', privacy: 'public' })
+    const { guestId, rsvpToken } = await guestWithRsvp(w.id, 'Guest Style Authority')
+
+    // The personal-invitation resolver (the /invite/[slug] redeem path) accepts a URL `card` value
+    // only as an access-credential companion, never as a style selector.
+    const resolved = await resolvePersonalInvitation({ weddingSlug: w.slug, token: rsvpToken, requestedCard: 'midnight' })
+    expect(resolved?.card).toBe('ivory-floral-gold')
+
+    // guest-session GET (the route native/PWA both read style from) never accepts a style
+    // parameter at all — it is always the wedding's own saved column.
+    const cookie = sessionCookie({ weddingId: w.id, guestId, rsvpToken, weddingDate: w.date })
+    const getRes = await GET_GUEST_SESSION(
+      guestSessionRequest(w.slug, cookie, {}, '?card=midnight'),
+      { params: Promise.resolve({ slug: w.slug }) },
+    )
+    const body = await getRes.json()
+    expect(body.wedding.invitationCardStyle).toBe('ivory-floral-gold')
+  })
+
+  test('every supported invitation style round-trips through guest-session as the wedding\'s saved authority, not a default', async () => {
+    for (const style of INVITATION_CARD_STYLES) {
+      const w = await wedding(`style-${style.id}`, { invitationCardStyle: style.id, privacy: 'public' })
+      const { guestId, rsvpToken } = await guestWithRsvp(w.id, `Guest ${style.id}`)
+      const cookie = sessionCookie({ weddingId: w.id, guestId, rsvpToken, weddingDate: w.date })
+
+      const getRes = await GET_GUEST_SESSION(guestSessionRequest(w.slug, cookie), { params: Promise.resolve({ slug: w.slug }) })
+      const body = await getRes.json()
+      expect(body.wedding.invitationCardStyle).toBe(style.id)
+
+      const resolved = await resolvePersonalInvitation({ weddingSlug: w.slug, token: rsvpToken })
+      expect(resolved?.card).toBe(style.id)
+    }
   })
 })
