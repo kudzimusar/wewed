@@ -108,6 +108,16 @@ public protocol OfflineManifestStoreProtocol: Sendable {
     func clearManifest(weddingId: String) async
 }
 
+public enum OfflineManifestStoreMutationError: Error, Sendable {
+    case revocationUnsupported
+}
+
+public extension OfflineManifestStoreProtocol {
+    func markPassRevoked(weddingId: String, serial: String) async throws {
+        throw OfflineManifestStoreMutationError.revocationUnsupported
+    }
+}
+
 /// Thread-safe in-memory and persistent offline manifest store for Zimbabwe-first field operations.
 public actor OfflineManifestStore: OfflineManifestStoreProtocol {
     public static let shared = OfflineManifestStore()
