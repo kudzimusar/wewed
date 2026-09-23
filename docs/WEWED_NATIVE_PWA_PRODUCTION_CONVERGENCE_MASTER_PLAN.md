@@ -1277,6 +1277,76 @@ Phase gate:
 - Phase 4: **ACCEPTED**;
 - Phase 5: **READY TO BEGIN**.
 
+### D-025 — Phase 9 closure round 3: RSVP pre-open refresh & 12-style native matrix (2026-09-23)
+**IMPLEMENTATION-AGENT SUBMISSION, NOT A MODERATOR VERDICT.** Phase 9 acceptance is the moderator's
+decision alone.
+
+**Independent Moderator Review Findings Addressed:**
+1. **Round-2 Multi-Status RSVP Reachability Accepted:** Independent inspection accepted the Round-2
+   reachability fix across `PENDING`, `ACCEPTED`, and `DECLINED` states with dynamic `"RSVP"` / `"Update RSVP"`
+   action labeling as valid implementation closure.
+2. **Round-2 Fresh-State Claim Rejected (Blocker 1):** Reopening the RSVP editor previously relied on
+   local UI state re-creation (`key(presentation)`/`.id(formSessionId)`) without re-fetching server truth.
+   If an RSVP was edited concurrently on the PWA or another device, reopening the native editor displayed
+   stale snapshot values, risking silent overwrites of newer server fields.
+3. **Pre-existing 1/12 Native Invitation Design Parity Blocker (Blocker 2):** Only `ivory-floral-gold` had
+   a native renderer; the other 11 configured styles routed to a fail-closed unsupported screen. To satisfy
+   the Phase-9 exit gate (*the same Guest record, the same configured Digital Invitation design, and the same
+   RSVP truth across PWA, Android, and iOS*), all 12 styles must render natively.
+
+**Implementation & Parity Semantics:**
+1. **Pre-Open Server Refresh (Blocker 1 Resolved):**
+   - Android & iOS Coordinators (`LiveGuestInvitationCoordinator`): Added `prepareRsvpEdit(currentGuestId)`.
+     When the guest taps RSVP or Update RSVP, the coordinator loads a fresh snapshot directly via
+     `client.loadInvitation(activeWeddingSlug)`.
+   - Identity Verification: Asserts `refreshedSnapshot.guestId == currentGuestId`. If the session was rotated,
+     revoked, or swapped, returns `StaleOrReplacedGuest` or `RevokedOrUnauthorized`, keeping the editor closed.
+   - Dedicated Editor Presentation: On successful refresh, produces `RsvpEditPreparation.Ready` containing
+     `LiveInvitationPresentation.from(refreshedSnapshot)`. Native views bind `rsvpEditorPresentation` to this
+     fresh snapshot; the editor form binds exclusively to `rsvpEditorPresentation`.
+   - Failure Semantics: Transport/network errors produce `Unavailable(status)`. The editor does NOT open; a
+     retryable `RefreshUnavailableNotice` is displayed while preserving the card presentation.
+   - Executable Regression Proof: On both platforms, regression tests simulate an initial load (`meal = beef`,
+     `message = old`), an out-of-band PWA update (`meal = vegan`, `message = newer`), tapping Update RSVP,
+     verifying the form opens with fresh server truth, modifying only dietary notes, and saving—proving newer
+     server fields are preserved without stale client overwrites.
+2. **Authoritative 12-Style Native Design Matrix (Blocker 2 Resolved):**
+   - Single Source of Authority: Extended `mobile/contracts/generate_invitation_style_contract.py` to extract
+     authoritative palettes (`stage`, `paper`, `ink`, `primary`, `accent`, `muted`), motion presets, and
+     atmosphere presets from `src/lib/digital-invitation-card.ts` into `mobile/contracts/invitation-styles.json`,
+     `GeneratedInvitationStyles.kt`, and `GeneratedInvitationStyles.swift`.
+   - Flagship & Generic Engines: `ivory-floral-gold` retains its dedicated `IvoryFloralGoldNative` renderer.
+     The other 11 styles share a native generic premium motion engine (`GenericMotionInvitationNative` on
+     both Android and iOS) implementing the 6 motion presets (`gate-fold`, `envelope-letter`, `book-open`,
+     `single-card-lift`, `floral-reveal`, `sleeve-pull`) and 7 atmosphere presets (`champagne-glow`,
+     `soft-bokeh`, `petals`, `candlelight`, `stars`, `watercolour-bloom`, `minimal`).
+   - Opening Ceremony & Actions: All 12 styles begin closed with an explicit reveal ceremony (respecting
+     reduced-motion), full personalization, and interactive actions (RSVP / Update RSVP across all statuses,
+     Calendar, Venue, Gift, Note, Guest Pass, Couple Website, Continue).
+   - Fallback & Fail-Closed: Missing/invalid styles normalize server-side to `botanical` (Garden Romance), which
+     renders natively (not Ivory). Truly unknown styles fail closed to an unsupported notice.
+   - Matrix Verification: Android `InvitationStyleMatrixTest` and iOS `InvitationStyleMatrixTests` verify every
+     one of the 12 styles individually.
+
+**Server Qualification Retention Evidence:**
+- Server product code was completely untouched; zero server product changes or regressions.
+- Retained server qualification run: `35826332669` (`_tmp-phase9-server-qualification.yml`) —
+  PASS at product SHA `72f34663535d5fbbfbbb6bb79319ae69327a2994`.
+- Server branch head: `e70ead6febf9cb29303738b949607f4438cd8c4a`.
+
+**Native Reviewer Qualification Evidence:**
+- Temporary native reviewer workflow: run `35834561726` (`_tmp-phase9-native-qualification.yml`) — PASS.
+  - Android: `testDebugUnitTest` (418 passed, 0 failed), `assembleDebug`, `assembleRelease` — PASS.
+  - iOS: `swift test` (415 passed, 0 failed), `swift build`, `xcodegen generate`, Simulator Debug build, unsigned generic-device Release build — PASS.
+- Exact native product SHA: `2a71fc5d6bdaa151376eaa0100f7dec9672b73f4`.
+- Temporary reviewer workflow removed after successful run in commit `48dab24aad4f6b6a3aea55cc5a159efcb3035d1d`.
+- Cleaned native branch tip SHA: `48dab24aad4f6b6a3aea55cc5a159efcb3035d1d`.
+
+**Phase Gate:**
+- Phase 9: **Implementation agent reports both moderator blockers fully resolved and requalified; acceptance
+  is NOT self-declared and awaits moderator review of the remote code**.
+- Phase 10: **NOT STARTED / NOT AUTHORIZED**.
+
 ### D-024 — Phase 9 independent moderator review finding resolution & native requalification (2026-09-23)
 **IMPLEMENTATION-AGENT SUBMISSION, NOT A MODERATOR VERDICT.** Phase 9 acceptance is the moderator's
 decision alone.
