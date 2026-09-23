@@ -411,10 +411,11 @@ final class ProductionDomainRepositoriesTests: XCTestCase {
         XCTAssertFalse(snapshot.unsupportedStreams.isEmpty)
     }
 
-    /// Master plan Phase 8 closure round 3 §2/§7 — the moderator explicitly distinguished "a bound
-    /// repository's live call just failed" from "not yet bound" (`ProductionBoundaryAdminSystemRepository`
-    /// below). This replaces the old `testProductionAdminSystemRepositoryReportsNilNotZeroWhenTheCallFails`,
-    /// whose premise (a nulled-out/empty snapshot on failure) is no longer true for the PRODUCTION adapter.
+    /// Master plan Phase 8 closure round 3 §2/§7, hardened round 4 §1 — the moderator explicitly
+    /// distinguished "a bound repository's live call just failed" from "not yet bound"
+    /// (`ProductionRepositoryUnbound`, `AppStateProductionAdminTests`). This replaces the old
+    /// `testProductionAdminSystemRepositoryReportsNilNotZeroWhenTheCallFails`, whose premise (a
+    /// nulled-out/empty snapshot on failure) is no longer true for the PRODUCTION adapter.
     func testProductionAdminSystemRepositoryThrowsOnALiveFailureNeverASilentlyNulledOutSnapshot() async {
         let repo = ProductionAdminSystemRepository(client: client(), sessionToken: token, grantId: "admin:system")
         do {
@@ -425,16 +426,6 @@ final class ProductionDomainRepositoriesTests: XCTestCase {
         } catch {
             XCTFail("Unexpected error type: \(error)")
         }
-    }
-
-    /// `ProductionBoundaryAdminSystemRepository` is an intentional not-yet-bound placeholder, not a
-    /// failure — it must never throw, unlike `ProductionAdminSystemRepository` above.
-    func testProductionBoundaryAdminSystemRepositoryNeverThrows() async throws {
-        let snapshot = try await ProductionBoundaryAdminSystemRepository().snapshot()
-        XCTAssertNil(snapshot.pendingOnboardingCount)
-        XCTAssertTrue(snapshot.accounts.isEmpty)
-        XCTAssertTrue(snapshot.supportCases.isEmpty)
-        XCTAssertTrue(snapshot.incidents.isEmpty)
     }
 
     /// Master plan Phase 8 closure round 3 §2 — the same 5-outcome matrix as Documents/Contributions,
@@ -564,6 +555,69 @@ final class ProductionDomainRepositoriesTests: XCTestCase {
             // Expected.
         } catch {
             XCTFail("Unexpected error type: \(error)")
+        }
+    }
+
+    /// Master plan Phase 8 closure round 4 §3 — the mature Deal Room, reachable from the native
+    /// client for the first time this round. Reuses `getServiceEngagementDealRoom` verbatim
+    /// server-side (`/api/native/wedding/engagements/{id}/deal-room`); this test proves the CLIENT
+    /// side: opening engagement A loads exactly A's Deal Room (never fabricated, never another
+    /// engagement's), and every non-success outcome (foreign engagement 404, permission denial,
+    /// session-invalid, grant revocation) throws instead of returning an empty or
+    /// partially-fabricated room.
+    func testProductionContractsRepositoryGetDealRoomLoadsTheExactRequestedEngagementsDealRoomAndThrowsOnAnyLiveFailure() async throws {
+        Stub.routes["api/native/wedding/engagements/eng-1/deal-room"] = Reply(status: 200, body: """
+            {"success":true,"data":{
+                "id":"eng-1","serviceCategory":"photography","serviceDescription":"Full day coverage",
+                "agreedAmount":"2500.00","currency":"USD","serviceDate":"2026-11-14","serviceLocation":"Imba Manor",
+                "lifecycleStatus":"effective",
+                "vendor":{"id":"vendor-1","name":"Shandy Events","category":"photography","email":"hi@shandy.test","phone":null},
+                "parties":[{"id":"party-1","partyRole":"vendor","displayName":"Shandy Events","email":"hi@shandy.test","phone":null,"requiredForReview":true}],
+                "budgetItems":[{"id":"bi-1","description":"Deposit","estimatedCost":"1250.00","actualCost":"1250.00","paidAmount":"1250.00","currency":"USD"}],
+                "payments":[{"id":"pay-1","amount":"1250.00","currency":"USD","paidAt":"2026-08-01T00:00:00.000Z","reference":"REF-1"}],
+                "contracts":[{"id":"con-1","contractNumber":"WW-0001","status":"ISSUED","title":"Photography Agreement","currentVersionNumber":2,"issuedAt":"2026-08-01T00:00:00.000Z","versions":[{"id":"ver-1","versionNumber":2,"status":"ISSUED","issuedAt":"2026-08-01T00:00:00.000Z","createdAt":"2026-07-30T00:00:00.000Z"}]}],
+                "documents":[{"id":"doc-1","displayName":"Signed contract","originalFilename":"contract.pdf","mimeType":"application/pdf","byteSize":1024,"storageState":"stored","scanState":"clean","createdAt":"2026-07-30T00:00:00.000Z"}]
+            }}
+            """)
+        let repo = ProductionContractsRepository(client: client(), sessionToken: token, grantId: grantId)
+        let dealRoom = try await repo.getDealRoom(engagementId: "eng-1")
+        XCTAssertEqual(dealRoom.id, "eng-1")
+        XCTAssertEqual(dealRoom.vendor.name, "Shandy Events")
+        XCTAssertEqual(dealRoom.agreedAmount, "2500.00")
+        XCTAssertEqual(dealRoom.parties.count, 1)
+        XCTAssertTrue(dealRoom.parties[0].requiredForReview)
+        XCTAssertEqual(dealRoom.contracts.count, 1)
+        XCTAssertEqual(dealRoom.contracts[0].contractNumber, "WW-0001")
+        XCTAssertEqual(dealRoom.contracts[0].versions.count, 1)
+        XCTAssertEqual(dealRoom.budgetItems.count, 1)
+        XCTAssertEqual(dealRoom.payments.count, 1)
+        XCTAssertEqual(dealRoom.documents.count, 1)
+
+        var expectedGrantIdQuery = URLComponents()
+        expectedGrantIdQuery.queryItems = [URLQueryItem(name: "grantId", value: grantId)]
+        let expectedQuery = expectedGrantIdQuery.percentEncodedQuery ?? "grantId=\(grantId)"
+        let lastPath = try XCTUnwrap(Stub.requestedPaths.last)
+        XCTAssertTrue(lastPath.contains("/api/native/wedding/engagements/eng-1/deal-room"))
+        XCTAssertTrue(lastPath.contains(expectedQuery))
+
+        let failureCases: [(String, Reply)] = [
+            ("foreign engagement (404)", Reply(status: 404, body: #"{"success":false,"error":"Service engagement was not found."}"#)),
+            ("permission denial", Reply(status: 403, body: #"{"success":false,"code":"PERMISSION_DENIED"}"#)),
+            ("session invalid", Reply(status: 401, body: #"{"success":false}"#)),
+            ("grant revocation", Reply(status: 403, body: #"{"success":false,"code":"GRANT_REVOKED"}"#)),
+        ]
+        for (label, reply) in failureCases {
+            Stub.reset()
+            Stub.routes["api/native/wedding/engagements/eng-1/deal-room"] = reply
+            let failingRepo = ProductionContractsRepository(client: client(), sessionToken: token, grantId: grantId)
+            do {
+                _ = try await failingRepo.getDealRoom(engagementId: "eng-1")
+                XCTFail("Expected \(label) to throw instead of returning data or a fabricated empty Deal Room")
+            } catch is ProductionReadOnlyDomainError {
+                // Expected.
+            } catch {
+                XCTFail("Unexpected error type for \(label): \(error)")
+            }
         }
     }
 }

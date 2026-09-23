@@ -8,8 +8,15 @@ final class AppLaunchModeResolverTests: XCTestCase {
         switch mode {
         case .workspace(let appState):
             XCTAssertEqual(appState.dataEnvironment, .production)
-            XCTAssertTrue(appState.repository is ProductionBoundaryWeddingRepository)
-            XCTAssertTrue(appState.plannerRepository is ProductionBoundaryPlannerRepository)
+            // Master plan Phase 8 closure round 4 §1 — PRODUCTION resolves to an AppState with no
+            // wedding/planner repository bound at all yet; reading either now throws
+            // `ProductionRepositoryUnbound` rather than returning a boundary placeholder.
+            XCTAssertThrowsError(try appState.repository) { error in
+                XCTAssertTrue(error is ProductionRepositoryUnbound)
+            }
+            XCTAssertThrowsError(try appState.plannerRepository) { error in
+                XCTAssertTrue(error is ProductionRepositoryUnbound)
+            }
         case .guestOnly:
             XCTFail("Production account bootstrap must reach the read-only workspace host")
         }

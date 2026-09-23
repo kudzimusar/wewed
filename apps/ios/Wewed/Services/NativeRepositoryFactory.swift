@@ -7,22 +7,33 @@ public enum NativeRepositoryFactoryError: Error, Equatable, Sendable {
     case privateRealShadowFixtureMissing(String)
 }
 
-public struct NativeRepositoryBundle: Sendable {
-    public let wedding: WeddingRepositoryProtocol
-    public let planner: PlannerDashboardRepositoryProtocol
-    public let environment: NativeDataEnvironment
-    public let baseURL: URL?
-
-    public init(
+/// Master plan WW-NATIVE-PWA-CONVERGENCE-2026-09-22-01, Phase 8 closure round 4 §1
+/// (NativeRepositoryFactory.PRODUCTION closure — for real this time).
+///
+/// Every non-production environment carries a real, fixed, single-account repository pair for its
+/// whole lifetime — `.nonProduction` models that directly. PRODUCTION carries none at construction
+/// time: there is no verified account or grant yet, so there is nothing honest to hand a caller as a
+/// `WeddingRepositoryProtocol`/`PlannerDashboardRepositoryProtocol` at all. `.productionBootstrap`
+/// models that explicitly — it is not a repository-shaped value, has no `wedding`/`planner`
+/// associated value, and cannot be mistaken for one. A mature production repository only ever comes
+/// from `AppState.bindProductionRepositories` once a real `(accessUserId, grantId)` binding exists —
+/// see `ProductionBinding` in `AppState.swift`. The Android sibling is `NativeRepositoryOutcome`.
+public enum NativeRepositoryOutcome: Sendable {
+    case nonProduction(
         wedding: WeddingRepositoryProtocol,
         planner: PlannerDashboardRepositoryProtocol,
         environment: NativeDataEnvironment,
-        baseURL: URL? = nil
-    ) {
-        self.wedding = wedding
-        self.planner = planner
-        self.environment = environment
-        self.baseURL = baseURL
+        baseURL: URL?
+    )
+    case productionBootstrap(baseURL: URL?)
+
+    public var environment: NativeDataEnvironment {
+        switch self {
+        case let .nonProduction(_, _, environment, _):
+            return environment
+        case .productionBootstrap:
+            return .production
+        }
     }
 }
 
@@ -30,7 +41,7 @@ public enum NativeRepositoryFactory {
     public static func make(
         environment: NativeDataEnvironment,
         baseURL: URL? = nil
-    ) throws -> NativeRepositoryBundle {
+    ) throws -> NativeRepositoryOutcome {
         if Bundle.main.bundleIdentifier == "pro.wewed.app",
            environment.allowsMutableNativeDevelopment {
             throw NativeRepositoryFactoryError.shadowOnProductionIdentityForbidden
@@ -39,14 +50,15 @@ public enum NativeRepositoryFactory {
 
         switch environment {
         case .fixture:
-            return NativeRepositoryBundle(
+            return .nonProduction(
                 wedding: FixtureWeddingRepository(),
                 planner: FixturePlannerDashboardRepository(),
-                environment: .fixture
+                environment: .fixture,
+                baseURL: nil
             )
 
         case .shadow, .sanitizedShadow:
-            return NativeRepositoryBundle(
+            return .nonProduction(
                 wedding: ShadowReferenceWeddingRepository(),
                 planner: ShadowReferencePlannerRepository(),
                 environment: environment,
@@ -57,7 +69,7 @@ public enum NativeRepositoryFactory {
             // Load once so all native projections are initialized from the exact same account snapshot.
             // Explicit private-real selection fails here when the protected file is unavailable.
             let snapshot = try PrivateRealShadowWeddingRepository.loadSnapshotData()
-            return NativeRepositoryBundle(
+            return .nonProduction(
                 wedding: try PrivateRealShadowWeddingRepository(jsonData: snapshot),
                 planner: try PrivateRealShadowPlannerRepository(jsonData: snapshot),
                 environment: .privateRealShadow,
@@ -70,12 +82,10 @@ public enum NativeRepositoryFactory {
             throw NativeRepositoryFactoryError.productionReadVerifyNotConfigured
 
         case .production:
-            return NativeRepositoryBundle(
-                wedding: ProductionBoundaryWeddingRepository(),
-                planner: ProductionBoundaryPlannerRepository(),
-                environment: .production,
-                baseURL: baseURL
-            )
+            // Master plan Phase 8 closure round 4 §1 — no wedding/planner repository of any kind is
+            // constructed here, boundary or otherwise. Production starts with nothing repository-
+            // shaped at all; AppState's ProductionBinding is the ONLY path to a real one.
+            return .productionBootstrap(baseURL: baseURL)
         }
     }
 }

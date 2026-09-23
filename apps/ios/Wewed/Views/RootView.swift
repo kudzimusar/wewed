@@ -60,10 +60,18 @@ public struct RootView: View {
         // Shadow authority only where Shadow personas exist; production/verify resolve a real
         // ProductionActorAssignmentSource once an authority has actually been fetched (master plan
         // §8.9, Phase 5) — until then they still get no assignments at all.
+        // Master plan Phase 8 closure round 4 §1 — `appState.repository`/`plannerRepository` now
+        // throw `ProductionRepositoryUnbound` instead of a boundary placeholder while PRODUCTION is
+        // unbound, and `currentRole` can resolve (synchronously, inside `applyAuthority`) before the
+        // async production-repository bind effects below have run. `ActorAssignmentSources` never
+        // actually reads `repository`/`plannerRepository` for the PRODUCTION branch (only Shadow
+        // uses them) — they are the same kind of harmless, provably-unread placeholder the deleted
+        // `ProductionBoundary*Repository` used to be for this one purpose, never repository-shaped
+        // production state a caller could act on.
         let source = ActorAssignmentSources.forEnvironment(
             appState.dataEnvironment,
-            repository: appState.repository,
-            plannerRepository: appState.plannerRepository,
+            repository: (try? appState.repository) ?? FixtureWeddingRepository(),
+            plannerRepository: try? appState.plannerRepository,
             productionAuthority: session.productionAuthority,
             selectedGrantIds: session.selectedGrantIds,
             selectedEngagementId: session.selectedEngagementId
@@ -235,17 +243,26 @@ public struct RootView: View {
         )
     }
 
-    /// Master plan Phase 8 closure round 3 §6 — reactively binds the real Vendor-wedding-engagement
-    /// adapter as soon as a `vendor:wedding` snapshot is available. Deliberately keyed on
-    /// `workspaceKind == "vendor" && scopeKind == "wedding"`, which is a DIFFERENT authority axis from
-    /// the Vendor business-portfolio grant (`scopeKind == "business"`, handled entirely by the earlier
-    /// no-ActorAssignment branch in `body` and never reaching this point at all).
+    /// Master plan Phase 8 closure round 3 §6, hardened round 4 §2 — reactively binds the real
+    /// Vendor-wedding-engagement adapter as soon as a `vendor:wedding` snapshot is available.
+    /// Deliberately keyed on `workspaceKind == "vendor" && scopeKind == "wedding"`, which is a
+    /// DIFFERENT authority axis from the Vendor business-portfolio grant (`scopeKind == "business"`,
+    /// handled entirely by the earlier no-ActorAssignment branch in `body` and never reaching this
+    /// point at all). `session.selectedEngagementId` is part of this effect's OWN `.task(id:)` key
+    /// (not just an argument passed into the constructed repository): a Vendor's grant may carry
+    /// several `serviceEngagementIds`, so switching the selected engagement — same grantId, same
+    /// account — must re-run this effect and produce a NEW binding, not silently keep serving the
+    /// previous engagement's repository.
     private func bindProductionVendorEngagementRepositoryIfNeeded() async {
         guard appState.dataEnvironment == .production else { return }
         guard let workspace = session.productionWorkspace,
               workspace.workspaceKind == "vendor", workspace.scopeKind == "wedding"
         else { return }
         guard let accessUserId = session.productionAuthority?.accessUserId else { return }
+        // A grant with more than one engagement must not bind until the person has actually chosen
+        // one (the picker in `authorizedShell`, reusing the existing Phase 5/6 selection mechanism) —
+        // an unselected multi-engagement grant binds nothing rather than guessing engagementId[0].
+        if workspace.engagementSelectionRequired && session.selectedEngagementId == nil { return }
         guard let token = session.currentSessionToken(), let baseURL = appState.dataBaseURL else { return }
         let client = NativeDomainApiClient(
             baseURL: baseURL,
@@ -263,7 +280,13 @@ public struct RootView: View {
         appState.bindProductionVendorEngagementRepository(
             accessUserId: accessUserId,
             grantId: workspace.grantId,
-            ProductionVendorEngagementRepository(client: client, sessionToken: token, grantId: workspace.grantId)
+            engagementId: session.selectedEngagementId,
+            ProductionVendorEngagementRepository(
+                client: client,
+                sessionToken: token,
+                grantId: workspace.grantId,
+                engagementId: session.selectedEngagementId
+            )
         )
     }
 
@@ -466,9 +489,11 @@ public struct RootView: View {
         .task(id: "\(session.productionWorkspace?.workspaceKind ?? "")|\(session.productionWorkspace?.grantId ?? "")|\(session.productionAuthority?.accessUserId ?? "")") {
             await bindProductionAdminRepositoryIfNeeded()
         }
-        // Master plan Phase 8 closure round 3 §6 — same treatment for the Vendor's own wedding
-        // engagement, a distinct axis from the Vendor business-portfolio grant above.
-        .task(id: "\(session.productionWorkspace?.workspaceKind ?? "")|\(session.productionWorkspace?.scopeKind ?? "")|\(session.productionWorkspace?.grantId ?? "")|\(session.productionAuthority?.accessUserId ?? "")") {
+        // Master plan Phase 8 closure round 3 §6, hardened round 4 §2 — same treatment for the
+        // Vendor's own wedding engagement, a distinct axis from the Vendor business-portfolio grant
+        // above. `session.selectedEngagementId` is part of the key so a same-grant engagement switch
+        // re-runs this effect and produces a new binding rather than being a no-op.
+        .task(id: "\(session.productionWorkspace?.workspaceKind ?? "")|\(session.productionWorkspace?.scopeKind ?? "")|\(session.productionWorkspace?.grantId ?? "")|\(session.productionAuthority?.accessUserId ?? "")|\(session.selectedEngagementId ?? "")") {
             await bindProductionVendorEngagementRepositoryIfNeeded()
         }
         // Master plan Phase 8 closure round 3 §4 — sign-out and session-invalidation both drive
@@ -535,21 +560,28 @@ public struct RootView: View {
         .accessibilityIdentifier("production-workspace-unavailable")
     }
 
-    /// Master plan Phase 8 closure §1/round 3 §4/§5 (NativeRepositoryFactory.PRODUCTION closure) —
-    /// the snapshot looking right is necessary but not sufficient: it says the *context* is
-    /// authorized, not that `appState.repository`/`plannerRepository`/`adminRepository`/
-    /// `vendorEngagementRepository` have actually been swapped from the unbound
-    /// `ProductionBoundary*Repository` placeholder to the real grant-scoped adapter yet (that swap
-    /// runs from the `.task(id:)` effects above, which start asynchronously relative to this body
-    /// evaluation). Waiting for the confirmed binding — keyed on BOTH accessUserId and grantId, not
-    /// grantId alone — is what makes this deterministic even across an account replacement that
-    /// happens to resolve the same grantId string a previous account already bound: no role shell
-    /// that "appears functional" is ever rendered over the always-throwing boundary repository, and
+    /// Master plan Phase 8 closure §1/round 3 §4/§5, hardened round 4 §1 (NativeRepositoryFactory
+    /// .PRODUCTION closure) — the snapshot looking right is necessary but not sufficient: it says the
+    /// *context* is authorized, not that `appState.repository`/`plannerRepository`/`adminRepository`/
+    /// `vendorEngagementRepository` have actually been bound to the real, grant-scoped adapter yet
+    /// (unbound, they throw `ProductionRepositoryUnbound` rather than returning anything repository-
+    /// shaped — that bind runs from the `.task(id:)` effects above, which start asynchronously
+    /// relative to this body evaluation). Waiting for the confirmed binding — keyed on BOTH
+    /// accessUserId and grantId, not grantId alone — is what makes this deterministic even across an
+    /// account replacement that happens to resolve the same grantId string a previous account already
+    /// bound: no role shell that "appears functional" is ever composed while unbound, and
     /// no role shell is ever rendered over a DIFFERENT account's bound repository either.
     ///
     /// A plain (non-`@ViewBuilder`) helper on purpose: a bare `switch` embedded directly inside
     /// `authorizedShell`'s `@ViewBuilder` body would be transformed as if it were meant to produce a
     /// `View` per case, which fails to compile for a `switch` whose cases only assign a `Bool`.
+    ///
+    /// Master plan Phase 8 closure round 4 §2 — for `.vendor` specifically, this ALSO compares the
+    /// binding's own `engagementId` against `session.selectedEngagementId`: the other roles have no
+    /// engagement selection, so `ProductionBinding.isCurrent` (accessUserId + grantId only) is
+    /// sufficient for them, but a Vendor's `(accessUserId, grantId)` pair can legitimately serve more
+    /// than one engagement — a stale binding for engagement A must never validate a fresh requirement
+    /// for engagement B under the SAME grant.
     private func isProductionBindingCurrent(for role: AppRole) -> Bool {
         let currentAccessUserId = session.productionAuthority?.accessUserId
         let activeGrantId = session.activeGrantId
@@ -557,7 +589,12 @@ public struct RootView: View {
         case .admin:
             return appState.productionAdminBinding.isCurrent(accessUserId: currentAccessUserId, grantId: activeGrantId)
         case .vendor:
-            return appState.productionVendorEngagementBinding.isCurrent(accessUserId: currentAccessUserId, grantId: activeGrantId)
+            guard case let .bound(boundAccessUserId, boundGrantId, _, boundEngagementId) = appState.productionVendorEngagementBinding else {
+                return false
+            }
+            return boundAccessUserId == currentAccessUserId
+                && boundGrantId == activeGrantId
+                && boundEngagementId == session.selectedEngagementId
         default:
             return appState.productionWeddingBinding.isCurrent(accessUserId: currentAccessUserId, grantId: activeGrantId)
         }
@@ -591,20 +628,37 @@ public struct RootView: View {
                 if let snapshot = session.productionWorkspace,
                    snapshot.grantId == session.activeGrantId,
                    weddingScopeMatches {
-                    // Master plan Phase 8 closure §1/round 3 §4/§5 (NativeRepositoryFactory.PRODUCTION
-                    // closure) — the snapshot looking right is necessary but not sufficient: it says
-                    // the *context* is authorized, not that appState.repository/plannerRepository/
-                    // adminRepository/vendorEngagementRepository have actually been swapped from the
-                    // unbound ProductionBoundary*Repository placeholder to the real grant-scoped
-                    // adapter yet (that swap runs from the `.task(id:)` effects above, which start
+                    // Master plan Phase 8 closure §1/round 3 §4/§5, hardened round 4 §1
+                    // (NativeRepositoryFactory.PRODUCTION closure) — the snapshot looking right is
+                    // necessary but not sufficient: it says the *context* is authorized, not that
+                    // appState.repository/plannerRepository/adminRepository/vendorEngagementRepository
+                    // have actually been bound to the real, grant-scoped adapter yet (unbound, they
+                    // throw ProductionRepositoryUnbound rather than returning anything repository-
+                    // shaped — that bind runs from the `.task(id:)` effects above, which start
                     // asynchronously relative to this body evaluation). Waiting for the confirmed
                     // binding — keyed on BOTH accessUserId and grantId, not grantId alone — is what
                     // makes this deterministic even across an account replacement that happens to
                     // resolve the same grantId string a previous account already bound: no role shell
-                    // that "appears functional" is ever rendered over the always-throwing boundary
-                    // repository, and no role shell is ever rendered over a DIFFERENT account's bound
+                    // that "appears functional" is ever composed while unbound, and no role shell is
+                    // ever rendered over a DIFFERENT account's bound
                     // repository either.
-                    if isProductionBindingCurrent(for: context.activeRole) {
+                    //
+                    // Master plan Phase 8 closure round 4 §2 — a Vendor grant with more than one
+                    // serviceEngagementId must not fall through to VendorShellView until the person
+                    // has explicitly picked one; this reuses the EXACT same picker/mechanism Phase
+                    // 5/6's minimal snapshot path already established
+                    // (`session.selectEngagement(_:)`), now reachable from the real wired shell
+                    // instead of only from the pre-Phase-8 fallback further below. This picker had
+                    // become unreachable for Vendor once Vendor joined `productionRoleWired` above —
+                    // it used to only render via the generic fallback path Vendor no longer reaches —
+                    // so this is a real regression fix, re-inserting the check specifically for the
+                    // Vendor role.
+                    if context.activeRole == .vendor && snapshot.engagementSelectionRequired {
+                        ProductionReadOnlyWorkspaceContent(
+                            snapshot: snapshot,
+                            onSelectEngagement: { engagementId in session.selectEngagement(engagementId) }
+                        )
+                    } else if isProductionBindingCurrent(for: context.activeRole) {
                         switch context.activeRole {
                         case .couple:
                             CoupleShellView(

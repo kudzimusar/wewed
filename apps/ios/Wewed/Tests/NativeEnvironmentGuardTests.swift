@@ -49,4 +49,16 @@ final class NativeEnvironmentGuardTests: XCTestCase {
             )
         )
     }
+
+    /// Master plan Phase 8 closure round 4 §1 — the Android sibling is
+    /// `productionFactoryYieldsBootstrapWithNoRepositoryValuedBoundaryObject`.
+    func testProductionFactoryYieldsBootstrapWithNoRepositoryValuedBoundaryObject() throws {
+        let outcome = try NativeRepositoryFactory.make(
+            environment: .production,
+            baseURL: URL(string: "https://wewed.pro")
+        )
+        guard case .productionBootstrap = outcome else {
+            return XCTFail("PRODUCTION must never construct a wedding/planner-carrying outcome, boundary or otherwise.")
+        }
+    }
 }

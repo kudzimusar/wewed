@@ -21,8 +21,10 @@ final class PrivateRealUatFidelityTests: XCTestCase {
     }
 
     private func scoped() async throws -> ScopedWeddingRepository {
-        let bundle = try NativeRepositoryFactory.make(environment: .privateRealShadow)
-        return try await bundle.wedding.forOnlyWedding()
+        guard case let .nonProduction(wedding, _, _, _) = try NativeRepositoryFactory.make(environment: .privateRealShadow) else {
+            throw NativeRepositoryFactoryError.privateRealShadowFixtureMissing("Expected .nonProduction for .privateRealShadow")
+        }
+        return try await wedding.forOnlyWedding()
     }
 
     // MARK: - The snapshot the runtime actually loaded

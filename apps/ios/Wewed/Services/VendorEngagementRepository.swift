@@ -51,31 +51,31 @@ public struct EmptyVendorEngagementRepository: VendorEngagementRepositoryProtoco
     }
 }
 
-/// Master plan Phase 8 closure round 3 §5 — the PRODUCTION default before a real binding exists.
-public struct ProductionBoundaryVendorEngagementRepository: VendorEngagementRepositoryProtocol {
-    public init() {}
-    public func getMyEngagement() async throws -> VendorEngagementDetail {
-        throw ProductionReadOnlyDomainError.unavailable
-    }
-}
-
 /// Reads the SAME `getServiceEngagementDealRoom` engine `ProductionContractsRepository` uses, via
 /// `/api/native/vendor/engagement` — a completely separate, Vendor-only, wedding-scoped route that a
 /// Planner/Couple/Coordinator grant can never satisfy (`GRANT_SCOPE_INVALID`), and that a Vendor
 /// business-portfolio grant (no wedding) can never satisfy either.
+///
+/// Master plan Phase 8 closure round 4 §2 — `engagementId` is threaded straight through to
+/// `NativeDomainApiClient.vendorEngagement` verbatim: this repository never guesses or auto-selects
+/// an engagement itself. `nil` is only ever passed by a caller that already knows the grant has
+/// exactly one engagement (see `RootView`'s bind effect); the server independently enforces the same
+/// "no silent auto-select for a multi-engagement grant" rule regardless.
 public struct ProductionVendorEngagementRepository: VendorEngagementRepositoryProtocol {
     private let client: NativeDomainApiClient
     private let sessionToken: String
     private let grantId: String
+    private let engagementId: String?
 
-    public init(client: NativeDomainApiClient, sessionToken: String, grantId: String) {
+    public init(client: NativeDomainApiClient, sessionToken: String, grantId: String, engagementId: String? = nil) {
         self.client = client
         self.sessionToken = sessionToken
         self.grantId = grantId
+        self.engagementId = engagementId
     }
 
     public func getMyEngagement() async throws -> VendorEngagementDetail {
-        guard case let .success(root) = await client.vendorEngagement(sessionToken: sessionToken, grantId: grantId) else {
+        guard case let .success(root) = await client.vendorEngagement(sessionToken: sessionToken, grantId: grantId, engagementId: engagementId) else {
             throw ProductionReadOnlyDomainError.unavailable
         }
         guard let item = root.wwObject("data") else {

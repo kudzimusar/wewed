@@ -18,7 +18,14 @@ struct RoleWorkspaceHost<Content: View>: View {
         content(graph)
             .task(id: context.activeWeddingId) {
                 appState.bindActiveWedding(context.activeWeddingId)
-                await graph.load(source: appState.repository, weddingId: context.activeWeddingId)
+                // Master plan Phase 8 closure round 4 §1 — `appState.repository` now throws
+                // `ProductionRepositoryUnbound` instead of returning a boundary placeholder while
+                // PRODUCTION is unbound. `RootView`'s render gate only composes a role shell (and so
+                // only ever mounts this host) once the binding is confirmed current, so this is
+                // guaranteed bound whenever this task actually runs; skipping the load defensively
+                // if that invariant is ever violated is safer than crashing the whole workspace.
+                guard let repository = try? appState.repository else { return }
+                await graph.load(source: repository, weddingId: context.activeWeddingId)
             }
     }
 }
@@ -1098,14 +1105,16 @@ public struct AdminShellView: View {
     /// P0-13: Admin reads a system projection. The wedding graph is only consulted for surfaces
     /// that genuinely drill into a wedding.
     ///
-    /// Master plan Phase 8 closure §B — this NEVER constructs `ShadowAdminSystemRepository`
-    /// directly for PRODUCTION anymore. `appState.adminRepository` is
-    /// `ProductionBoundaryAdminSystemRepository` (honestly unbound) until `RootView`'s
-    /// production-domain binder resolves a real `admin:system` grant and swaps in
-    /// `ProductionAdminSystemRepository`; every other environment still gets the existing
-    /// Shadow-over-wedding-graph behavior via that same property's constructor default.
+    /// Master plan Phase 8 closure §B, hardened round 4 §1 — this NEVER constructs
+    /// `ShadowAdminSystemRepository` directly for PRODUCTION anymore. `appState.adminRepository`
+    /// throws `ProductionRepositoryUnbound` until `RootView`'s production-domain binder resolves a
+    /// real `admin:system` grant and swaps in `ProductionAdminSystemRepository`; every other
+    /// environment still gets the existing Shadow-over-wedding-graph behavior via that same
+    /// property's constructor default. `RootView`'s render gate only composes `AdminShellView` once
+    /// that binding is confirmed current, so `try!` here can only ever fire if that gate has a bug —
+    /// exactly the same "should be unreachable" invariant `ProductionRepositoryUnbound` documents.
     private var adminRepository: AdminSystemRepositoryProtocol {
-        appState.adminRepository
+        try! appState.adminRepository
     }
     public var body: some View {
         RoleShellScaffold(

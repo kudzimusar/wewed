@@ -40,26 +40,55 @@ public enum AppTab: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-/// Master plan Phase 8 closure round 3 §4/§5 — one repository domain, three states: never bound at
-/// all in this process (`.unbound`), or bound to a specific, verified `(accessUserId, grantId)` pair
-/// (`.bound`). A `grantId` string alone is not account-scoped — two different accounts can
-/// independently resolve an identical grant id (`admin:system`, or `coordinator:wedding:<id>` for a
-/// wedding both genuinely have separate memberships on) — so comparing `grantId` alone cannot tell
-/// "this is still Account A's binding" apart from "Account B's grantId happens to coincide". Carrying
-/// `accessUserId` in the same key makes that structurally impossible: two different accounts never
-/// share one, so a stale binding can never satisfy a fresh account's requirement by coincidence.
+/// Master plan Phase 8 closure round 3 §4/§5, hardened round 4 §1/§2 — one repository domain, three
+/// states: never bound at all in this process (`.unbound`), or bound to a specific, verified
+/// `(accessUserId, grantId[, engagementId])` key (`.bound`). A `grantId` string alone is not account-
+/// scoped — two different accounts can independently resolve an identical grant id (`admin:system`,
+/// or `coordinator:wedding:<id>` for a wedding both genuinely have separate memberships on) — so
+/// comparing `grantId` alone cannot tell "this is still Account A's binding" apart from "Account B's
+/// grantId happens to coincide". Carrying `accessUserId` in the same key makes that structurally
+/// impossible: two different accounts never share one, so a stale binding can never satisfy a fresh
+/// account's requirement by coincidence. `engagementId` extends the same discipline one level further
+/// for the ONE domain where a single `(accessUserId, grantId)` pair can legitimately serve more than
+/// one live value: a Vendor's `vendor:wedding:...` grant may carry several `serviceEngagementIds`, so
+/// the engagement actually selected is part of the binding identity too, not just an argument baked
+/// into the bound value.
 public enum ProductionBinding<T> {
     case unbound
-    case bound(accessUserId: String, grantId: String, value: T)
+    case bound(accessUserId: String, grantId: String, value: T, engagementId: String?)
 
     /// True only when this binding is confirmed bound to EXACTLY this account+grant pair. This is
     /// the render gate's check (`RootView.authorizedShell`): the snapshot looking right is necessary
-    /// but not sufficient — this proves the swap from the always-throwing boundary repository to the
-    /// real one has actually completed, for THIS account, not merely for a grant id that coincides
-    /// with a previous account's stale binding.
+    /// but not sufficient — this proves the swap from `.unbound` to a real bound value has actually
+    /// completed, for THIS account, not merely for a grant id that coincides with a previous
+    /// account's stale binding. It deliberately does not compare `engagementId` — the Vendor render
+    /// gate compares that separately (see `RootView.isProductionBindingCurrent`), since every other
+    /// domain leaves it `nil` and has nothing to compare.
     public func isCurrent(accessUserId: String?, grantId: String?) -> Bool {
-        guard case let .bound(boundAccessUserId, boundGrantId, _) = self else { return false }
+        guard case let .bound(boundAccessUserId, boundGrantId, _, _) = self else { return false }
         return boundAccessUserId == accessUserId && boundGrantId == grantId
+    }
+}
+
+/// Master plan Phase 8 closure round 4 §1 — thrown when a production role shell (or anything else)
+/// reads a mature-domain repository property before `ProductionBinding.bound` exists for that domain.
+/// This is deliberately NOT the same type `ProductionReadOnlyDomainError` uses for "a bound
+/// repository's live call just failed" — those are different facts (never bound vs. bound-but-
+/// failing), and the render gate in `RootView.swift` is what is supposed to make this error
+/// unreachable in practice by waiting for `ProductionBinding.bound` before ever composing a role
+/// shell; reaching this error at all means that gate has a bug, not that a network call failed.
+public struct ProductionRepositoryUnbound: Error, Equatable, Sendable {
+    public let domain: String
+
+    public init(domain: String) {
+        self.domain = domain
+    }
+}
+
+extension ProductionRepositoryUnbound: LocalizedError {
+    public var errorDescription: String? {
+        "This production \(domain) repository is not yet bound to a verified account and grant. " +
+            "A role shell must wait for ProductionBinding.bound before reading it."
     }
 }
 
@@ -112,52 +141,71 @@ public final class AppState: ObservableObject, @unchecked Sendable {
     /// Master plan Phase 8 closure round 3 §6 — same binding discipline, for the Vendor's own wedding engagement.
     @Published public private(set) var productionVendorEngagementBinding: ProductionBinding<VendorEngagementRepositoryProtocol> = .unbound
 
-    /// The repository a role shell actually reads. For PRODUCTION while `productionWeddingBinding`
-    /// is `.unbound`, this is a FRESH `ProductionBoundaryWeddingRepository` every read (never
-    /// cached) — always-throwing, never fabricating. Every other environment always returns the same
-    /// constructor-supplied repository, unchanged.
+    /// The repository a role shell actually reads. Master plan Phase 8 closure round 4 §1 — while
+    /// `productionWeddingBinding` is `.unbound`, this THROWS `ProductionRepositoryUnbound` rather
+    /// than handing back a same-typed boundary placeholder: a caller cannot obtain a
+    /// `WeddingRepositoryProtocol` value at all until a real binding exists, so "unbound" can never
+    /// be mistaken for "bound to something that happens to always fail". `RootView`'s render gate
+    /// waits for the confirmed binding before any role shell is composed, so this is not expected to
+    /// ever actually throw in normal operation — reaching it means that gate has a bug. Every other
+    /// environment always returns the same constructor-supplied repository, unchanged.
     public var repository: WeddingRepositoryProtocol {
-        if dataEnvironment == .production {
-            if case let .bound(_, _, value) = productionWeddingBinding { return value.wedding }
-            return ProductionBoundaryWeddingRepository()
+        get throws {
+            if dataEnvironment == .production {
+                if case let .bound(_, _, value, _) = productionWeddingBinding { return value.wedding }
+                throw ProductionRepositoryUnbound(domain: "wedding")
+            }
+            return nonProductionRepository
         }
-        return nonProductionRepository
     }
 
     public var plannerRepository: PlannerDashboardRepositoryProtocol {
-        if dataEnvironment == .production {
-            if case let .bound(_, _, value) = productionWeddingBinding { return value.planner }
-            return ProductionBoundaryPlannerRepository()
+        get throws {
+            if dataEnvironment == .production {
+                if case let .bound(_, _, value, _) = productionWeddingBinding { return value.planner }
+                throw ProductionRepositoryUnbound(domain: "planner")
+            }
+            return nonProductionPlannerRepository
         }
-        return nonProductionPlannerRepository
     }
 
-    /// Master plan Phase 8 closure §B/§12 — never `ShadowAdminSystemRepository` in production. Non-
-    /// production keeps the existing Shadow-over-wedding-graph behavior unchanged.
+    /// Master plan Phase 8 closure §B/§12, hardened round 4 §1 — never `ShadowAdminSystemRepository`
+    /// in production, and never a same-typed boundary placeholder either; throws
+    /// `ProductionRepositoryUnbound` while unbound. Non-production keeps the existing Shadow-over-
+    /// wedding-graph behavior unchanged.
     public var adminRepository: AdminSystemRepositoryProtocol {
-        if dataEnvironment == .production {
-            if case let .bound(_, _, value) = productionAdminBinding { return value }
-            return ProductionBoundaryAdminSystemRepository()
+        get throws {
+            if dataEnvironment == .production {
+                if case let .bound(_, _, value, _) = productionAdminBinding { return value }
+                throw ProductionRepositoryUnbound(domain: "admin")
+            }
+            return nonProductionAdminRepository
         }
-        return nonProductionAdminRepository
     }
 
-    /// Master plan Phase 8 closure round 3 §3 — Contracts/Deal-Room, same pattern as Admin.
+    /// Master plan Phase 8 closure round 3 §3, hardened round 4 §1 — Contracts/Deal-Room, same pattern as Admin.
     public var contractsRepository: ContractsRepositoryProtocol {
-        if dataEnvironment == .production {
-            if case let .bound(_, _, value) = productionContractsBinding { return value }
-            return ProductionBoundaryContractsRepository()
+        get throws {
+            if dataEnvironment == .production {
+                if case let .bound(_, _, value, _) = productionContractsBinding { return value }
+                throw ProductionRepositoryUnbound(domain: "contracts")
+            }
+            return nonProductionContractsRepository
         }
-        return nonProductionContractsRepository
     }
 
-    /// Master plan Phase 8 closure round 3 §6 — the Vendor's own wedding engagement, same pattern.
+    /// Master plan Phase 8 closure round 3 §6, hardened round 4 §1/§2 — the Vendor's own wedding
+    /// engagement, same pattern. `productionVendorEngagementBinding`'s own `engagementId` associated
+    /// value additionally exposes WHICH engagement is currently bound, so `RootView`'s render gate
+    /// can confirm it matches the one actually selected before treating this repository as current.
     public var vendorEngagementRepository: VendorEngagementRepositoryProtocol {
-        if dataEnvironment == .production {
-            if case let .bound(_, _, value) = productionVendorEngagementBinding { return value }
-            return ProductionBoundaryVendorEngagementRepository()
+        get throws {
+            if dataEnvironment == .production {
+                if case let .bound(_, _, value, _) = productionVendorEngagementBinding { return value }
+                throw ProductionRepositoryUnbound(domain: "vendor engagement")
+            }
+            return nonProductionVendorEngagementRepository
         }
-        return nonProductionVendorEngagementRepository
     }
 
     /// Master plan Phase 8 — rebinds this app state's domain repositories to real, grant-scoped
@@ -182,7 +230,7 @@ public final class AppState: ObservableObject, @unchecked Sendable {
         } else {
             gated = wedding
         }
-        productionWeddingBinding = .bound(accessUserId: accessUserId, grantId: grantId, value: (wedding: gated, planner: planner))
+        productionWeddingBinding = .bound(accessUserId: accessUserId, grantId: grantId, value: (wedding: gated, planner: planner), engagementId: nil)
     }
 
     /// Master plan Phase 8 closure §B/§1 — rebinds Admin to a real, grant-scoped production adapter.
@@ -191,7 +239,7 @@ public final class AppState: ObservableObject, @unchecked Sendable {
             dataEnvironment == .production,
             "bindProductionAdminRepository is only valid for the PRODUCTION environment."
         )
-        productionAdminBinding = .bound(accessUserId: accessUserId, grantId: grantId, value: admin)
+        productionAdminBinding = .bound(accessUserId: accessUserId, grantId: grantId, value: admin, engagementId: nil)
     }
 
     /// Master plan Phase 8 closure round 3 §3 — rebinds Contracts to a real, grant-scoped adapter.
@@ -200,16 +248,26 @@ public final class AppState: ObservableObject, @unchecked Sendable {
             dataEnvironment == .production,
             "bindProductionContractsRepository is only valid for the PRODUCTION environment."
         )
-        productionContractsBinding = .bound(accessUserId: accessUserId, grantId: grantId, value: contracts)
+        productionContractsBinding = .bound(accessUserId: accessUserId, grantId: grantId, value: contracts, engagementId: nil)
     }
 
-    /// Master plan Phase 8 closure round 3 §6 — rebinds the Vendor's own wedding engagement.
-    public func bindProductionVendorEngagementRepository(accessUserId: String, grantId: String, _ engagement: VendorEngagementRepositoryProtocol) {
+    /// Master plan Phase 8 closure round 3 §6, hardened round 4 §2 — rebinds the Vendor's own
+    /// wedding engagement. `engagementId` is part of the binding key (not just baked into
+    /// `engagement`'s own closure) because one `(accessUserId, grantId)` pair can legitimately serve
+    /// more than one engagement — a Vendor's grant may carry several `serviceEngagementIds` — so
+    /// switching the SELECTED engagement while the grant id stays the same must still be a
+    /// distinguishable rebind, not something the render gate could mistake for "nothing changed".
+    public func bindProductionVendorEngagementRepository(
+        accessUserId: String,
+        grantId: String,
+        engagementId: String?,
+        _ engagement: VendorEngagementRepositoryProtocol
+    ) {
         precondition(
             dataEnvironment == .production,
             "bindProductionVendorEngagementRepository is only valid for the PRODUCTION environment."
         )
-        productionVendorEngagementBinding = .bound(accessUserId: accessUserId, grantId: grantId, value: engagement)
+        productionVendorEngagementBinding = .bound(accessUserId: accessUserId, grantId: grantId, value: engagement, engagementId: engagementId)
     }
 
     /// Master plan Phase 8 closure round 3 §4 — explicit, synchronous clear for sign-out/session-
@@ -314,17 +372,30 @@ public final class AppState: ObservableObject, @unchecked Sendable {
     }
 
 
+    /// Master plan Phase 8 closure round 4 §1 — a `.productionBootstrap` outcome carries no
+    /// wedding/planner repository at all; `AppState` is constructed with the ordinary Fixture
+    /// defaults (never read for PRODUCTION — see `repository`/`plannerRepository` above, which
+    /// switch on `dataEnvironment` before ever consulting the constructor-supplied values), and
+    /// every mature repository property throws `ProductionRepositoryUnbound` until a real
+    /// `ProductionBinding.bound` exists.
     public static func make(
         environment: NativeDataEnvironment,
         baseURL: URL? = nil
     ) throws -> AppState {
-        let bundle = try NativeRepositoryFactory.make(environment: environment, baseURL: baseURL)
-        return AppState(
-            repository: bundle.wedding,
-            plannerRepository: bundle.planner,
-            dataEnvironment: bundle.environment,
-            dataBaseURL: bundle.baseURL
-        )
+        switch try NativeRepositoryFactory.make(environment: environment, baseURL: baseURL) {
+        case let .nonProduction(wedding, planner, outcomeEnvironment, outcomeBaseURL):
+            return AppState(
+                repository: wedding,
+                plannerRepository: planner,
+                dataEnvironment: outcomeEnvironment,
+                dataBaseURL: outcomeBaseURL
+            )
+        case let .productionBootstrap(outcomeBaseURL):
+            return AppState(
+                dataEnvironment: .production,
+                dataBaseURL: outcomeBaseURL
+            )
+        }
     }
 
     public init(

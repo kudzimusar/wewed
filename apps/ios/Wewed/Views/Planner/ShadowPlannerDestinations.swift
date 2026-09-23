@@ -498,9 +498,15 @@ private struct DocumentsListContent: View {
     }
 }
 
-/// Master plan Phase 8 closure round 3 §3 — mirrors Android's `ServiceEngagementCard`.
+/// Master plan Phase 8 closure round 3 §3, hardened round 4 §3 — mirrors Android's
+/// `ServiceEngagementCard`. Tapping toggles a tap-to-expand Deal Room detail, scoped independently
+/// per row via `ProductionLoadView`'s `id: engagement.id` — switching rows never shows a stale Deal
+/// Room from a prior tap. This is a detail presentation within this EXISTING "Contracts & Engagements"
+/// surface, never a new Level-2 nav item (`mobile/contracts/ia-v2-navigation.json` is locked).
 private struct ServiceEngagementCard: View {
     let engagement: ServiceEngagementSummary
+    @EnvironmentObject private var appState: AppState
+    @State private var expanded = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -535,9 +541,122 @@ private struct ServiceEngagementCard: View {
                         .foregroundColor(.secondary)
                 }
             }
+
+            if expanded {
+                Divider()
+                ProductionLoadView(
+                    id: engagement.id,
+                    section: "Deal Room",
+                    environment: appState.dataEnvironment,
+                    load: { try await appState.contractsRepository.getDealRoom(engagementId: engagement.id) }
+                ) { dealRoom in
+                    DealRoomDetailSection(dealRoom: dealRoom)
+                }
+            }
         }
         .padding()
         .background(Color.white)
         .cornerRadius(WewedRadius.lg)
+        .contentShape(Rectangle())
+        .onTapGesture { expanded.toggle() }
+        .accessibilityIdentifier("planner-contract-card-\(engagement.id)")
+    }
+}
+
+/// Master plan Phase 8 closure round 4 §3 — mirrors Android's `DealRoomDetailSection`: vendor name +
+/// service location/date, parties (name/role/"review required" flag), contract versions
+/// (number/status), budget items + payments (commercial info), and Vault documents (name/storage
+/// state) — all simple `Text` rows grouped under small section headers, matching this file's existing
+/// plain/compact visual style.
+private struct DealRoomDetailSection: View {
+    let dealRoom: DealRoomDetail
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Deal Room")
+                .font(.caption)
+                .fontWeight(.bold)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Vendor")
+                    .font(.caption2)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.secondary)
+                Text(dealRoom.vendor.name)
+                    .font(.caption)
+                if let location = dealRoom.serviceLocation {
+                    Text(location)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                if let date = dealRoom.serviceDate {
+                    Text(date)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            if !dealRoom.parties.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Parties")
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.secondary)
+                    ForEach(dealRoom.parties) { party in
+                        Text("\(party.displayName) · \(party.partyRole)" + (party.requiredForReview ? " · review required" : ""))
+                            .font(.caption2)
+                    }
+                }
+            }
+
+            if !dealRoom.contracts.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Contract versions")
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.secondary)
+                    ForEach(dealRoom.contracts) { contract in
+                        Text("\(contract.contractNumber) · \(contract.status)")
+                            .font(.caption2)
+                        ForEach(contract.versions) { version in
+                            Text("  v\(version.versionNumber) · \(version.status)")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            }
+
+            if !dealRoom.budgetItems.isEmpty || !dealRoom.payments.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Commercial")
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.secondary)
+                    ForEach(dealRoom.budgetItems) { item in
+                        Text("\(item.description): est \(item.estimatedCost) · paid \(item.paidAmount) \(item.currency)")
+                            .font(.caption2)
+                    }
+                    ForEach(dealRoom.payments) { payment in
+                        Text("Payment \(payment.amount) \(payment.currency)" + (payment.paidAt.map { " · \($0)" } ?? " · pending"))
+                            .font(.caption2)
+                    }
+                }
+            }
+
+            if !dealRoom.documents.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Vault documents")
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.secondary)
+                    ForEach(dealRoom.documents) { document in
+                        Text("\(document.displayName) · \(document.storageState)")
+                            .font(.caption2)
+                    }
+                }
+            }
+        }
+        .accessibilityIdentifier("planner-deal-room-\(dealRoom.id)")
     }
 }

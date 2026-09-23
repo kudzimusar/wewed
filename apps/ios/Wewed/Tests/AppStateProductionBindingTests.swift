@@ -21,15 +21,17 @@ import XCTest
 /// convention already established in this same type (see `AppStateProductionAdminTests`) — it has no
 /// XCTest coverage of the trap itself, since a Swift `precondition` aborts the process rather than
 /// throwing a catchable error.
+///
+/// Master plan Phase 8 closure round 4 §1 — `productionAppState()` no longer constructs a same-typed
+/// `ProductionBoundary*Repository` placeholder for an unbound PRODUCTION `AppState`; that type is
+/// deleted. The default `repository`/`plannerRepository` constructor arguments (ordinary Fixture
+/// values) are never read for PRODUCTION — `AppState.repository`/`plannerRepository` switch on
+/// `dataEnvironment` before ever consulting them — matching exactly how
+/// `NativeRepositoryFactory.make(.production, ...)`/`AppState.make` construct it in the real app.
 final class AppStateProductionBindingTests: XCTestCase {
 
-    private func productionBoundaryAppState() -> AppState {
-        AppState(
-            repository: ProductionBoundaryWeddingRepository(),
-            plannerRepository: ProductionBoundaryPlannerRepository(),
-            dataEnvironment: .production,
-            dataBaseURL: URL(string: "https://example.test")
-        )
+    private func productionAppState() -> AppState {
+        AppState(dataEnvironment: .production, dataBaseURL: URL(string: "https://example.test"))
     }
 
     private func client() -> NativeDomainApiClient {
@@ -46,22 +48,31 @@ final class AppStateProductionBindingTests: XCTestCase {
         )
     }
 
-    func testProductionStartsWithTheBoundaryRepositoriesAndNoBoundGrant() {
-        let appState = productionBoundaryAppState()
-        XCTAssertTrue(appState.repository is ProductionBoundaryWeddingRepository)
-        XCTAssertTrue(appState.plannerRepository is ProductionBoundaryPlannerRepository)
+    /// Master plan Phase 8 closure round 4 §1 — the central regression: an unbound PRODUCTION
+    /// `AppState` must expose NO mature-domain repository at all, not even a same-typed always-
+    /// throwing placeholder. Reading `repository`/`plannerRepository` before any bind now throws
+    /// `ProductionRepositoryUnbound` — there is no `is ProductionBoundaryWeddingRepository` assertion
+    /// possible any more because that type no longer exists.
+    func testProductionExposesNoMatureRepositoryAtAllBeforeAnyBindAndStartsUnbound() {
+        let appState = productionAppState()
+        XCTAssertThrowsError(try appState.repository) { error in
+            XCTAssertTrue(error is ProductionRepositoryUnbound)
+        }
+        XCTAssertThrowsError(try appState.plannerRepository) { error in
+            XCTAssertTrue(error is ProductionRepositoryUnbound)
+        }
         guard case .unbound = appState.productionWeddingBinding else {
             return XCTFail("Expected .unbound before any bind")
         }
     }
 
-    func testBindingRealRepositoriesReplacesTheBoundaryDefaultAndRecordsTheExactAccessUserIdAndGrantIdThatProducedIt() {
-        let appState = productionBoundaryAppState()
+    func testBindingRealRepositoriesReplacesTheBoundaryDefaultAndRecordsTheExactAccessUserIdAndGrantIdThatProducedIt() throws {
+        let appState = productionAppState()
         bindWedding(appState, accessUserId: "user-a", grantId: "planner:wedding:w-1", weddingId: "w-1")
 
-        XCTAssertTrue(appState.repository is ProductionWeddingRepository)
-        XCTAssertTrue(appState.plannerRepository is ProductionPlannerDashboardRepository)
-        guard case let .bound(accessUserId, grantId, _) = appState.productionWeddingBinding else {
+        XCTAssertTrue(try appState.repository is ProductionWeddingRepository)
+        XCTAssertTrue(try appState.plannerRepository is ProductionPlannerDashboardRepository)
+        guard case let .bound(accessUserId, grantId, _, _) = appState.productionWeddingBinding else {
             return XCTFail("Expected .bound after bindProductionRepositories")
         }
         XCTAssertEqual(accessUserId, "user-a")
@@ -69,11 +80,11 @@ final class AppStateProductionBindingTests: XCTestCase {
     }
 
     func testRebindingToADifferentGrantAfterAContextSwitchUpdatesTheBindingAgain() {
-        let appState = productionBoundaryAppState()
+        let appState = productionAppState()
         bindWedding(appState, accessUserId: "user-a", grantId: "planner:wedding:w-1", weddingId: "w-1")
         bindWedding(appState, accessUserId: "user-a", grantId: "planner:wedding:w-2", weddingId: "w-2")
 
-        guard case let .bound(_, grantId, _) = appState.productionWeddingBinding else {
+        guard case let .bound(_, grantId, _, _) = appState.productionWeddingBinding else {
             return XCTFail("Expected .bound")
         }
         // The render gate compares this against the newly active grantId; a stale value here would
@@ -88,13 +99,13 @@ final class AppStateProductionBindingTests: XCTestCase {
     /// completes. A grantId-only check would treat A's stale binding as already correct for B. The
     /// composite key must not.
     func testAccountAToAccountBWithTheIdenticalAdminGrantId_AsBindingNeverSatisfiesBsRequirement() {
-        let appState = productionBoundaryAppState()
+        let appState = productionAppState()
         let c = client()
         appState.bindProductionAdminRepository(
             accessUserId: "user-a", grantId: "admin:system",
             ProductionAdminSystemRepository(client: c, sessionToken: "token-a", grantId: "admin:system")
         )
-        guard case let .bound(boundForAAccessUserId, _, _) = appState.productionAdminBinding else {
+        guard case let .bound(boundForAAccessUserId, _, _, _) = appState.productionAdminBinding else {
             return XCTFail("Expected .bound for user-a")
         }
         XCTAssertEqual(boundForAAccessUserId, "user-a")
@@ -108,7 +119,7 @@ final class AppStateProductionBindingTests: XCTestCase {
             accessUserId: "user-b", grantId: "admin:system",
             ProductionAdminSystemRepository(client: c, sessionToken: "token-b", grantId: "admin:system")
         )
-        guard case let .bound(boundForBAccessUserId, _, _) = appState.productionAdminBinding else {
+        guard case let .bound(boundForBAccessUserId, _, _, _) = appState.productionAdminBinding else {
             return XCTFail("Expected .bound for user-b")
         }
         XCTAssertEqual(boundForBAccessUserId, "user-b")
@@ -116,7 +127,7 @@ final class AppStateProductionBindingTests: XCTestCase {
 
     /// Same proof as above, for a wedding-scoped grant id two different accounts can both hold.
     func testAccountAToAccountBWithTheIdenticalWeddingScopedGrantId_AsBindingNeverSatisfiesBsRequirement() {
-        let appState = productionBoundaryAppState()
+        let appState = productionAppState()
         let sharedGrantId = "coordinator:wedding:wed-shared"
         bindWedding(appState, accessUserId: "user-a", grantId: sharedGrantId, weddingId: "wed-shared")
 
@@ -124,7 +135,7 @@ final class AppStateProductionBindingTests: XCTestCase {
         XCTAssertFalse(validForB, "Account A's binding on a shared wedding grant id must never validate Account B")
 
         bindWedding(appState, accessUserId: "user-b", grantId: sharedGrantId, weddingId: "wed-shared")
-        guard case let .bound(boundForBAccessUserId, _, _) = appState.productionWeddingBinding else {
+        guard case let .bound(boundForBAccessUserId, _, _, _) = appState.productionWeddingBinding else {
             return XCTFail("Expected .bound for user-b")
         }
         XCTAssertEqual(boundForBAccessUserId, "user-b")
@@ -132,11 +143,11 @@ final class AppStateProductionBindingTests: XCTestCase {
 
     /// Wedding A → Wedding B, same account: the binding is fully replaced.
     func testWeddingAToWeddingBForTheSameAccountUpdatesTheBindingToWeddingBOnly() {
-        let appState = productionBoundaryAppState()
+        let appState = productionAppState()
         bindWedding(appState, accessUserId: "user-a", grantId: "planner:wedding:wed-a", weddingId: "wed-a")
         bindWedding(appState, accessUserId: "user-a", grantId: "planner:wedding:wed-b", weddingId: "wed-b")
 
-        guard case let .bound(_, grantId, _) = appState.productionWeddingBinding else {
+        guard case let .bound(_, grantId, _, _) = appState.productionWeddingBinding else {
             return XCTFail("Expected .bound")
         }
         XCTAssertEqual(grantId, "planner:wedding:wed-b")
@@ -146,7 +157,7 @@ final class AppStateProductionBindingTests: XCTestCase {
     /// Planner → Admin → Planner. Each axis's binding is independent, and switching one never
     /// corrupts or gets corrupted by the other.
     func testPlannerToAdminToPlannerLeavesEachBindingCorrectlyScopedToItsOwnAxisThroughout() {
-        let appState = productionBoundaryAppState()
+        let appState = productionAppState()
         let c = client()
         bindWedding(appState, accessUserId: "user-a", grantId: "planner:wedding:wed-a", weddingId: "wed-a")
         appState.bindProductionAdminRepository(
@@ -154,16 +165,16 @@ final class AppStateProductionBindingTests: XCTestCase {
             ProductionAdminSystemRepository(client: c, sessionToken: "token", grantId: "admin:system")
         )
 
-        guard case let .bound(_, weddingGrantId, _) = appState.productionWeddingBinding,
-              case let .bound(_, adminGrantId, _) = appState.productionAdminBinding
+        guard case let .bound(_, weddingGrantId, _, _) = appState.productionWeddingBinding,
+              case let .bound(_, adminGrantId, _, _) = appState.productionAdminBinding
         else { return XCTFail("Expected both axes bound") }
         XCTAssertEqual(weddingGrantId, "planner:wedding:wed-a")
         XCTAssertEqual(adminGrantId, "admin:system")
 
         // Back to Planner on the same wedding — the admin binding is untouched (it is simply not
         // consulted by a Planner-role render gate check, not cleared by switching away from it).
-        guard case let .bound(_, adminGrantIdAfter, _) = appState.productionAdminBinding,
-              case let .bound(_, weddingGrantIdAfter, _) = appState.productionWeddingBinding
+        guard case let .bound(_, adminGrantIdAfter, _, _) = appState.productionAdminBinding,
+              case let .bound(_, weddingGrantIdAfter, _, _) = appState.productionWeddingBinding
         else { return XCTFail("Expected both axes still bound") }
         XCTAssertEqual(adminGrantIdAfter, "admin:system")
         XCTAssertEqual(weddingGrantIdAfter, "planner:wedding:wed-a")
@@ -178,7 +189,7 @@ final class AppStateProductionBindingTests: XCTestCase {
     /// id), which clears `activeWeddingId` to nil — so `scopedRepository()` throws instead of silently
     /// reading wedding A's graph through the still-referenced old repository object.
     func testSwitchingFromAWeddingScopedContextToAdminClearsWeddingGraphReachabilityEvenThoughTheOldRepositoryObjectIsStillReferenced() async {
-        let appState = productionBoundaryAppState()
+        let appState = productionAppState()
         bindWedding(appState, accessUserId: "user-a", grantId: "planner:wedding:wed-a", weddingId: "wed-a")
         appState.bindActiveWedding("wed-a")
         // Reachable: scopedRepository() resolves without throwing.
@@ -196,7 +207,7 @@ final class AppStateProductionBindingTests: XCTestCase {
         // The wedding-scoped binding is untouched by the Admin switch itself — proving the two axes
         // are tracked independently; the safety above comes entirely from the separate
         // activeWeddingId gate.
-        guard case let .bound(_, grantId, _) = appState.productionWeddingBinding else {
+        guard case let .bound(_, grantId, _, _) = appState.productionWeddingBinding else {
             return XCTFail("Expected the wedding binding to remain bound")
         }
         XCTAssertEqual(grantId, "planner:wedding:wed-a")
@@ -205,35 +216,86 @@ final class AppStateProductionBindingTests: XCTestCase {
         }
     }
 
-    /// Master plan Phase 8 closure round 3 §6 — Vendor engagement A → B replaces A first. A Vendor
-    /// holding several engagements (or switching between them) must never keep reading engagement A's
-    /// data through a stale binding once engagement B's grant is active — same composite-key
-    /// discipline as every other production repository.
+    /// Master plan Phase 8 closure round 3 §6 — Vendor engagement A → B replaces A first. This is
+    /// GRANT-to-grant replacement (a different vendor business/wedding pair), not same-grant
+    /// engagement selection — see the dedicated "same-grant" test below for the latter (master plan
+    /// Phase 8 closure round 4 §2).
     func testVendorEngagementAToEngagementBReplacesTheBindingCleanlyNeverLeavingAReachable() {
-        let appState = productionBoundaryAppState()
+        let appState = productionAppState()
         let c = client()
         let grantIdA = "vendor:wedding:biz-1:vendor-1"
         appState.bindProductionVendorEngagementRepository(
-            accessUserId: "vendor-user", grantId: grantIdA,
+            accessUserId: "vendor-user", grantId: grantIdA, engagementId: nil,
             ProductionVendorEngagementRepository(client: c, sessionToken: "token", grantId: grantIdA)
         )
-        guard case let .bound(_, boundGrantIdA, _) = appState.productionVendorEngagementBinding else {
+        guard case let .bound(_, boundGrantIdA, _, _) = appState.productionVendorEngagementBinding else {
             return XCTFail("Expected .bound for engagement A")
         }
         XCTAssertEqual(boundGrantIdA, grantIdA)
 
-        // The same grant id can carry a different SELECTED engagement server-side (Vendor holds
-        // several); either way, a rebind fully replaces the prior one.
+        // A DIFFERENT grant (a different vendor business/wedding pair) fully replaces the prior one.
         let grantIdB = "vendor:wedding:biz-1:vendor-2"
         appState.bindProductionVendorEngagementRepository(
-            accessUserId: "vendor-user", grantId: grantIdB,
+            accessUserId: "vendor-user", grantId: grantIdB, engagementId: nil,
             ProductionVendorEngagementRepository(client: c, sessionToken: "token", grantId: grantIdB)
         )
-        guard case let .bound(_, boundGrantIdB, _) = appState.productionVendorEngagementBinding else {
+        guard case let .bound(_, boundGrantIdB, _, _) = appState.productionVendorEngagementBinding else {
             return XCTFail("Expected .bound for engagement B")
         }
         XCTAssertEqual(boundGrantIdB, grantIdB)
         XCTAssertNotEqual(boundGrantIdB, grantIdA)
+    }
+
+    /// Master plan Phase 8 closure round 4 §2 — the moderator's exact correction: one legitimate
+    /// `vendor:wedding:<business>:<vendor>` grant can carry MULTIPLE `serviceEngagementIds`. The
+    /// binding identity must include `engagementId`, not just `(accessUserId, grantId)`, or switching
+    /// the selected engagement within the SAME grant would look like a no-op to the render gate and
+    /// leave engagement A's repository reachable while the UI believes B is selected.
+    func testVendorSameGrantEngagementAToEngagementBReplacesTheBindingByEngagementIdNeverLeavingAReachable() {
+        let appState = productionAppState()
+        let c = client()
+        let sharedGrantId = "vendor:wedding:biz-1:vendor-1"
+
+        appState.bindProductionVendorEngagementRepository(
+            accessUserId: "vendor-user", grantId: sharedGrantId, engagementId: "engagement-a",
+            ProductionVendorEngagementRepository(client: c, sessionToken: "token", grantId: sharedGrantId, engagementId: "engagement-a")
+        )
+        guard case let .bound(_, boundGrantIdA, _, boundEngagementIdA) = appState.productionVendorEngagementBinding else {
+            return XCTFail("Expected .bound for engagement A")
+        }
+        XCTAssertEqual(boundGrantIdA, sharedGrantId)
+        XCTAssertEqual(boundEngagementIdA, "engagement-a")
+
+        // The render gate's check, inlined: a stale A-selected binding must never satisfy a
+        // B-selected requirement, even though accessUserId and grantId are IDENTICAL.
+        let validForB: Bool
+        if case let .bound(accessUserId, grantId, _, engagementId) = appState.productionVendorEngagementBinding {
+            validForB = accessUserId == "vendor-user" && grantId == sharedGrantId && engagementId == "engagement-b"
+        } else {
+            validForB = false
+        }
+        XCTAssertFalse(validForB, "Engagement A's binding must never validate a same-grant request for engagement B")
+
+        appState.bindProductionVendorEngagementRepository(
+            accessUserId: "vendor-user", grantId: sharedGrantId, engagementId: "engagement-b",
+            ProductionVendorEngagementRepository(client: c, sessionToken: "token", grantId: sharedGrantId, engagementId: "engagement-b")
+        )
+        guard case let .bound(_, boundGrantIdB, _, boundEngagementIdB) = appState.productionVendorEngagementBinding else {
+            return XCTFail("Expected .bound for engagement B")
+        }
+        XCTAssertEqual(boundGrantIdB, sharedGrantId)
+        XCTAssertEqual(boundEngagementIdB, "engagement-b")
+        XCTAssertNotEqual(boundEngagementIdB, "engagement-a")
+
+        // And switching back to A must be equally clean.
+        appState.bindProductionVendorEngagementRepository(
+            accessUserId: "vendor-user", grantId: sharedGrantId, engagementId: "engagement-a",
+            ProductionVendorEngagementRepository(client: c, sessionToken: "token", grantId: sharedGrantId, engagementId: "engagement-a")
+        )
+        guard case let .bound(_, _, _, boundEngagementIdBackToA) = appState.productionVendorEngagementBinding else {
+            return XCTFail("Expected .bound back to engagement A")
+        }
+        XCTAssertEqual(boundEngagementIdBackToA, "engagement-a")
     }
 
     /// Master plan Phase 8 closure round 3 §6 — Vendor business ↔ Vendor wedding engagement. These
@@ -244,7 +306,7 @@ final class AppStateProductionBindingTests: XCTestCase {
     /// that the wedding-engagement axis specifically starts `.unbound` and stays that way absent an
     /// explicit bind.
     func testVendorBusinessAndVendorWeddingEngagementAreIndependentAxesWithNoSharedMutableState() {
-        let appState = productionBoundaryAppState()
+        let appState = productionAppState()
         guard case .unbound = appState.productionVendorEngagementBinding else {
             return XCTFail("Expected .unbound")
         }
@@ -258,7 +320,7 @@ final class AppStateProductionBindingTests: XCTestCase {
 
     /// Master plan Phase 8 closure round 3 §4 — sign-out/session-invalidation must drop every binding.
     func testClearProductionBindingResetsEveryAxisBackToUnbound() {
-        let appState = productionBoundaryAppState()
+        let appState = productionAppState()
         let c = client()
         bindWedding(appState, accessUserId: "user-a", grantId: "planner:wedding:wed-a", weddingId: "wed-a")
         appState.bindProductionAdminRepository(
@@ -275,7 +337,13 @@ final class AppStateProductionBindingTests: XCTestCase {
         guard case .unbound = appState.productionWeddingBinding else { return XCTFail("Expected .unbound") }
         guard case .unbound = appState.productionAdminBinding else { return XCTFail("Expected .unbound") }
         guard case .unbound = appState.productionContractsBinding else { return XCTFail("Expected .unbound") }
-        XCTAssertTrue(appState.repository is ProductionBoundaryWeddingRepository)
-        XCTAssertTrue(appState.plannerRepository is ProductionBoundaryPlannerRepository)
+        // Master plan Phase 8 closure round 4 §1 — a cleared binding must be exactly as unreachable
+        // as a never-bound one: no mature repository is returned, real or placeholder.
+        XCTAssertThrowsError(try appState.repository) { error in
+            XCTAssertTrue(error is ProductionRepositoryUnbound)
+        }
+        XCTAssertThrowsError(try appState.plannerRepository) { error in
+            XCTAssertTrue(error is ProductionRepositoryUnbound)
+        }
     }
 }

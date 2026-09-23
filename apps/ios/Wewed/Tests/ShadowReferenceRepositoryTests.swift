@@ -1,9 +1,28 @@
 import XCTest
 @testable import WewedKit
 
+/// Master plan Phase 8 closure round 4 §1 — a small test-local stand-in for the deleted
+/// `NativeRepositoryBundle`, used only to keep this file's many `bundle.wedding`/`bundle.planner`
+/// call sites unchanged below. `NativeRepositoryFactory.make` itself now returns
+/// `NativeRepositoryOutcome`, whose `.nonProduction` case is what every non-production environment
+/// in this file actually exercises; `.productionBootstrap` (PRODUCTION) has no wedding/planner at
+/// all and is asserted separately.
+private struct TestRepositoryBundle {
+    let wedding: WeddingRepositoryProtocol
+    let planner: PlannerDashboardRepositoryProtocol
+    let environment: NativeDataEnvironment
+}
+
+private func nonProductionBundle(environment: NativeDataEnvironment) throws -> TestRepositoryBundle {
+    guard case let .nonProduction(wedding, planner, resolvedEnvironment, _) = try NativeRepositoryFactory.make(environment: environment) else {
+        throw NativeRepositoryFactoryError.productionDisabled
+    }
+    return TestRepositoryBundle(wedding: wedding, planner: planner, environment: resolvedEnvironment)
+}
+
 final class ShadowReferenceRepositoryTests: XCTestCase {
     func testShadowFactoryBuildsCoherentCharityAndKudzieGraph() async throws {
-        let bundle = try NativeRepositoryFactory.make(environment: .shadow)
+        let bundle = try nonProductionBundle(environment: .shadow)
         XCTAssertEqual(bundle.environment, .shadow)
 
         let wedding = try await bundle.wedding.forOnlyWedding().getWedding()
@@ -121,9 +140,16 @@ final class ShadowReferenceRepositoryTests: XCTestCase {
     func testProductionReadVerifyStaysLockedWhilePhase5ProductionUsesBoundaryRepositories() throws {
         XCTAssertThrowsError(try NativeRepositoryFactory.make(environment: .productionReadVerify))
 
+        // Master plan Phase 8 closure round 4 §1 — PRODUCTION must resolve to `.productionBootstrap`,
+        // never a repository-carrying outcome. `.productionBootstrap` structurally has no
+        // wedding/planner associated value — there is nothing to read even by mistake. This is the
+        // compile-time proof the moderator's Item 1 requires: it is not possible to write
+        // `production.wedding` here at all, boundary or otherwise.
         let production = try NativeRepositoryFactory.make(environment: .production)
-        XCTAssertTrue(production.wedding is ProductionBoundaryWeddingRepository)
-        XCTAssertTrue(production.planner is ProductionBoundaryPlannerRepository)
+        guard case .productionBootstrap = production else {
+            return XCTFail("PRODUCTION must resolve to .productionBootstrap, never a repository-carrying outcome.")
+        }
+        XCTAssertEqual(production.environment, .production)
     }
 
     func testShadowHTTPContractRejectsProductionHostAndDefaultsToNoTransport() async throws {
@@ -149,7 +175,7 @@ final class ShadowReferenceRepositoryTests: XCTestCase {
     }
 
     func testSanitizedShadowEnvironmentFactoryBuildsValidBundle() throws {
-        let bundle = try NativeRepositoryFactory.make(environment: .sanitizedShadow)
+        let bundle = try nonProductionBundle(environment: .sanitizedShadow)
         XCTAssertEqual(bundle.environment, .sanitizedShadow)
     }
 
@@ -161,7 +187,7 @@ final class ShadowReferenceRepositoryTests: XCTestCase {
             return
         }
 
-        let bundle = try NativeRepositoryFactory.make(environment: .privateRealShadow)
+        let bundle = try nonProductionBundle(environment: .privateRealShadow)
         XCTAssertEqual(bundle.environment, .privateRealShadow)
 
         let wedding = try await bundle.wedding.forOnlyWedding().getWedding()
@@ -276,7 +302,7 @@ final class ShadowReferenceRepositoryTests: XCTestCase {
         let snapshotPath = PrivateRealShadowWeddingRepository.defaultSnapshotPath()
         guard FileManager.default.fileExists(atPath: snapshotPath) else { return }
 
-        let bundle = try NativeRepositoryFactory.make(environment: .privateRealShadow)
+        let bundle = try nonProductionBundle(environment: .privateRealShadow)
         let wedding = try await bundle.wedding.forOnlyWedding().getWedding()
 
         // 1. Resolve pending invitation

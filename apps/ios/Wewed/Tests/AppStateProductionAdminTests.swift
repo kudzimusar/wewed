@@ -39,15 +39,21 @@ final class AppStateProductionAdminTests: XCTestCase {
         AppState(dataEnvironment: .production, dataBaseURL: URL(string: "https://example.test"))
     }
 
-    func testProductionDefaultsToTheBoundaryAdminRepositoryNeverShadow() {
+    /// Master plan Phase 8 closure round 4 §1 — the central regression: an unbound PRODUCTION
+    /// `AppState` must expose NO mature Admin repository at all, not even a same-typed always-
+    /// throwing placeholder. Reading `adminRepository` before any bind now throws
+    /// `ProductionRepositoryUnbound` — there is no `is ProductionBoundaryAdminSystemRepository`
+    /// assertion possible any more because that type no longer exists.
+    func testProductionFailsClosedWithProductionRepositoryUnboundBeforeAnyBindNeverShadowNeverAFabricatedRepository() {
         let appState = productionAppState()
-        XCTAssertTrue(appState.adminRepository is ProductionBoundaryAdminSystemRepository)
-        XCTAssertFalse(appState.adminRepository is ShadowAdminSystemRepository)
+        XCTAssertThrowsError(try appState.adminRepository) { error in
+            XCTAssertTrue(error is ProductionRepositoryUnbound)
+        }
     }
 
-    func testNonProductionKeepsTheExistingShadowAdminRepository() {
+    func testNonProductionKeepsTheExistingShadowAdminRepository() throws {
         let appState = AppState(dataEnvironment: .shadow)
-        XCTAssertTrue(appState.adminRepository is ShadowAdminSystemRepository)
+        XCTAssertTrue(try appState.adminRepository is ShadowAdminSystemRepository)
     }
 
     func testBindingARealAdminRepositoryInProductionReplacesTheBoundaryDefault() async throws {
@@ -60,8 +66,8 @@ final class AppStateProductionAdminTests: XCTestCase {
 
         appState.bindProductionAdminRepository(accessUserId: "user-a", grantId: "admin:system", ProductionAdminSystemRepository(client: client, sessionToken: "token", grantId: "admin:system"))
 
-        XCTAssertTrue(appState.adminRepository is ProductionAdminSystemRepository)
-        guard case let .bound(accessUserId, grantId, _) = appState.productionAdminBinding else {
+        XCTAssertTrue(try appState.adminRepository is ProductionAdminSystemRepository)
+        guard case let .bound(accessUserId, grantId, _, _) = appState.productionAdminBinding else {
             return XCTFail("Expected .bound after bindProductionAdminRepository")
         }
         XCTAssertEqual(accessUserId, "user-a")
@@ -70,14 +76,20 @@ final class AppStateProductionAdminTests: XCTestCase {
         XCTAssertEqual(snapshot.pendingOnboardingCount, 2)
     }
 
-    /// `ProductionBoundaryAdminSystemRepository` (the unbound default) never throws — "not yet
-    /// bound" is a different, intentional fact from "a bound repository's live call just failed",
-    /// which is what `ProductionAdminSystemRepository` now throws on instead
-    /// (`ProductionDomainRepositoriesTests`).
-    func testAnUnboundProductionBoundaryAdminRepositoryIsHonestlyNilNeverAFabricatedZero() async throws {
+    /// Master plan Phase 8 closure round 4 §1 — `ProductionRepositoryUnbound` means "never bound at
+    /// all yet", a different, intentional fact from "a bound repository's live call just failed",
+    /// which is what `ProductionAdminSystemRepository` throws `ProductionReadOnlyDomainError` on
+    /// instead (`ProductionDomainRepositoriesTests`).
+    func testAnUnboundProductionAdminDomainExposesNoMatureRepositoryToReadFromAtAll() async {
         let appState = productionAppState()
-        let snapshot = try await appState.adminRepository.snapshot()
-        XCTAssertNil(snapshot.pendingOnboardingCount)
+        do {
+            _ = try await appState.adminRepository.snapshot()
+            XCTFail("Expected ProductionRepositoryUnbound: there is no repository, real or placeholder, to call snapshot() on")
+        } catch is ProductionRepositoryUnbound {
+            // Expected.
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
     }
 
     /// Master plan Phase 8 closure §1/round 3 §4 (NativeRepositoryFactory.PRODUCTION closure).
@@ -103,7 +115,7 @@ final class AppStateProductionAdminTests: XCTestCase {
             ProductionAdminSystemRepository(client: client, sessionToken: "token", grantId: "admin:system:acct-9")
         )
 
-        guard case let .bound(accessUserId, grantId, _) = appState.productionAdminBinding else {
+        guard case let .bound(accessUserId, grantId, _, _) = appState.productionAdminBinding else {
             return XCTFail("Expected .bound after bindProductionAdminRepository")
         }
         XCTAssertEqual(accessUserId, "user-9")

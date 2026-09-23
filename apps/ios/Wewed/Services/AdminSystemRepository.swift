@@ -143,34 +143,6 @@ public struct ShadowAdminSystemRepository: AdminSystemRepositoryProtocol {
     }
 }
 
-/// Master plan Phase 8 closure §B/§12 — the PRODUCTION default before a real `admin:system` grant
-/// has been resolved and bound. Never Shadow, never fabricated: every stream is honestly
-/// unsupported/unknown until `ProductionAdminSystemRepository` is bound in its place.
-public struct ProductionBoundaryAdminSystemRepository: AdminSystemRepositoryProtocol {
-    public init() {}
-
-    public func snapshot() async -> AdminSystemSnapshot {
-        AdminSystemSnapshot(
-            environment: .production,
-            weddingsInScope: 0,
-            unsupportedStreams: [
-                "Full overview (billing/support/incidents)",
-                "Client operations",
-                "Command center",
-                "Bookings",
-                "Service engagements",
-                "Contract intelligence",
-                "Contributions analytics",
-                "Account identity",
-                "Productivity",
-                "Governance",
-                "Vault",
-            ],
-            pendingOnboardingCount: nil
-        )
-    }
-}
-
 /// Master plan Phase 8, extended by closure §4 — the real Admin production adapter.
 /// `pendingOnboardingCount` plus platform-wide `summary` counts and the real business `accounts`
 /// list are now live, all from the SAME shared `loadAdminOverview` the PWA's `/api/admin/overview`
@@ -191,12 +163,14 @@ public struct ProductionAdminSystemRepository: AdminSystemRepositoryProtocol {
     }
 
     public func snapshot() async throws -> AdminSystemSnapshot {
-        // Master plan Phase 8 closure round 3 §2/§7 — a live Admin overview failure now throws,
-        // exactly like every other production repository in this codebase, instead of silently
-        // degrading to a nulled-out/empty snapshot that a caller could mistake for an honest
-        // "nothing to report" result. `ProductionBoundaryAdminSystemRepository` is the one
-        // intentional non-throwing exception (see its own doc comment): "not yet bound" and "a
-        // bound repository's live call just failed" are two different facts.
+        // Master plan Phase 8 closure round 3 §2/§7, hardened round 4 §1 — a live Admin overview
+        // failure now throws, exactly like every other production repository in this codebase,
+        // instead of silently degrading to a nulled-out/empty snapshot that a caller could mistake
+        // for an honest "nothing to report" result. "Never bound at all" is now its own distinct
+        // state — `AppState.adminRepository` throws `ProductionRepositoryUnbound` before this class
+        // is ever constructed — so a bound repository whose live call just failed is not confusable
+        // with one that was never bound, and a failed fetch never renders as a genuinely empty admin
+        // console.
         guard case let .success(overview) = await client.adminOverview(sessionToken: sessionToken, grantId: grantId) else {
             throw ProductionReadOnlyDomainError.unavailable
         }

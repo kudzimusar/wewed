@@ -312,7 +312,24 @@ public struct NativeDomainApiClient: Sendable {
     /// Master plan Phase 8 closure round 3 §6 — the Vendor's OWN `getServiceEngagementDealRoom`
     /// projection, scoped to a `vendor:wedding:...` grant. Response shape is `{success, engagementIds,
     /// data: {...}}`; `data` is a single object, not an array.
-    public func vendorEngagement(sessionToken: String, grantId: String) async -> NativeDomainFetch<NativeJSONObject> {
-        await runGetObject("api/native/vendor/engagement", sessionToken: sessionToken, grantId: grantId)
+    ///
+    /// Master plan Phase 8 closure round 4 §2 — `engagementId` is REQUIRED whenever the caller
+    /// already knows which engagement is selected (i.e. whenever `SessionStore.selectedEngagementId`
+    /// is non-nil); passing `nil` only when a grant is genuinely single-engagement lets the server
+    /// auto-resolve it, exactly as `requireGrantEngagement`/the route itself already does. This
+    /// client never guesses a "first" engagement on the caller's behalf.
+    public func vendorEngagement(sessionToken: String, grantId: String, engagementId: String?) async -> NativeDomainFetch<NativeJSONObject> {
+        let extra: [URLQueryItem] = engagementId.map { [URLQueryItem(name: "engagementId", value: $0)] } ?? []
+        return await runGetObject("api/native/vendor/engagement", sessionToken: sessionToken, grantId: grantId, extraQueryItems: extra)
+    }
+
+    /// Master plan Phase 8 closure round 4 §3 — the mature Deal Room, never duplicated in Swift.
+    public func dealRoom(sessionToken: String, grantId: String, engagementId: String) async -> NativeDomainFetch<NativeJSONObject> {
+        let encodedEngagementId = engagementId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? engagementId
+        return await runGetObject(
+            "api/native/wedding/engagements/\(encodedEngagementId)/deal-room",
+            sessionToken: sessionToken,
+            grantId: grantId
+        )
     }
 }
