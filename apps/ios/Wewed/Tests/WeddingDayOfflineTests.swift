@@ -221,4 +221,28 @@ final class WeddingDayOfflineTests: XCTestCase {
         }
     }
 
+
+    func testOfflineSyncBodyCarriesOperationDataButNoAuthorityClaims() throws {
+        let body = OfflineSyncBody(
+            passSerial: "WWABC1234",
+            attendeeKeys: ["primary", "plus-one"],
+            deviceId: "ios-device-1",
+            clientEventId: "queue-event-1"
+        )
+        let data = try JSONEncoder().encode(body)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(Set(json.keys), Set([
+            "passSerial",
+            "attendeeKeys",
+            "deviceId",
+            "clientEventId",
+        ]))
+        for forbidden in [
+            "guestId", "weddingId", "gateId", "usherId",
+            "operatorUserId", "source", "eventKey"
+        ] {
+            XCTAssertNil(json[forbidden])
+        }
+    }
+
 }
