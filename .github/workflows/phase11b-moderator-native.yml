@@ -2,51 +2,73 @@ name: Phase 11B Moderator Native Qualification
 
 on:
   pull_request:
-  push:
     branches:
-      - native-mobile/wedding-day-ww2-phase11b-20260924
+      - native-mobile/wedding-day-ww2-phase11a-20260924
 
 permissions:
   contents: read
 
 concurrency:
-  group: phase11b-moderator-native-${{ github.ref }}
+  group: phase11b-moderator-native-${{ github.event.pull_request.head.sha || github.sha }}
   cancel-in-progress: true
 
 jobs:
   android:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - uses: actions/setup-java@v4
+      - name: Checkout exact PR head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - uses: actions/setup-java@ae2b61dbc685e60e4427b2e8ed4f6d95c0b1c31d
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
+
+      - uses: android-actions/setup-android@07976c6290703d34c16d382cb36445f98bb43b1f
+
       - name: Android unit tests
         working-directory: apps/android
         run: ./gradlew testDebugUnitTest --no-daemon --stacktrace
+
       - name: Android debug build
         working-directory: apps/android
         run: ./gradlew assembleDebug --no-daemon --stacktrace
 
+      - name: Android release build
+        working-directory: apps/android
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
   ios:
     runs-on: macos-15
-    timeout-minutes: 35
+    timeout-minutes: 40
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Checkout exact PR head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
       - name: Swift tests
         working-directory: apps/ios
         run: swift test
+
       - name: Swift build
         working-directory: apps/ios
         run: swift build
+
       - name: Install XcodeGen
         run: brew install xcodegen
+
       - name: Generate Xcode project
         working-directory: apps/ios
         run: xcodegen generate
+
       - name: Simulator Debug build
         working-directory: apps/ios
         run: xcodebuild -project Wewed.xcodeproj -scheme Wewed -configuration Debug -sdk iphonesimulator CODE_SIGNING_ALLOWED=NO build
+
+      - name: Unsigned generic-device Release build
+        working-directory: apps/ios
+        run: xcodebuild -project Wewed.xcodeproj -scheme Wewed -configuration Release -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
