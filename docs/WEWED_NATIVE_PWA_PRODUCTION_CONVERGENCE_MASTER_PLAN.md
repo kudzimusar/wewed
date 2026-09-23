@@ -2417,3 +2417,48 @@ Wedding Day + WW2 when eligible
 ~~~
 
 The program is complete only when both paths coexist without cross-role leakage, test-data dependency, PWA regression, or native security regression.
+
+
+### D-028 — Phase 9 reviewer-owned permanent CI closure and evidence correction (2026-09-23)
+**REVIEWER-OWNED CLOSURE PATCH.** Independent moderator inspection accepted the Round-5 contract-governance product logic but found two ordinary closure defects and patched them directly rather than returning them to the implementation agent.
+
+1. **Permanent Digital Invitation CI checkout restored.** Round 5 had accidentally replaced the permanent workflow's `actions/checkout` step with the new contract-regression step. Reviewer commit `b6feb7dfcdae0831a0b700398e88e60c78363d0e` restored checkout ahead of:
+   - `python3 mobile/contracts/test_invitation_style_contract.py`;
+   - `python3 mobile/contracts/generate_invitation_style_contract.py --check`;
+   - existing Bun install, invitation registry/experience tests and premium-invitation TypeScript gate.
+2. **Temporary reviewer trigger cleaned.** The reviewer temporarily added the Phase-9 native branch to the workflow push filter solely to attempt execution of the real permanent job. Connector-authored repository commits did not emit a GitHub Actions push run, and the available GitHub connector exposes no workflow-dispatch write action. The temporary branch trigger was therefore removed in `dc33d7b483286d325dfb2b1c4e249710639e3a5f`. The final permanent workflow remains main/PR-scoped and its step ordering was re-read from that exact final remote commit.
+3. **No product code changed after qualification.** The reviewer patches modify CI configuration only. The qualified Round-5 product remains `96792039b4548a7cce653c3cda4be85b93635e1e`; the successful temporary reviewer workflow commit is `a94a8a30dc2f9d9213412e9d61ad0e8cd084fbc3`; qualification run `35853500269` passed contract regression, contract drift check, Android unit/debug/release and iOS test/build/XcodeGen/Simulator/unsigned Release.
+4. **D-027 SHA transcription corrected.** D-027's two long-form product/workflow SHAs were not repository objects. Correct lineage is:
+   - Round-5 product: `96792039b4548a7cce653c3cda4be85b93635e1e`;
+   - temporary workflow: `a94a8a30dc2f9d9213412e9d61ad0e8cd084fbc3`;
+   - qualification run: `35853500269`;
+   - implementation cleanup: `9ffb260fb59c371718c055ed2f43e18c27f06c84`;
+   - reviewer final native head after permanent-CI repair: `dc33d7b483286d325dfb2b1c4e249710639e3a5f`.
+5. The absence of a second Actions run for the CI-only reviewer repair is a tooling limitation, not hidden evidence: no claim is made that a new permanent-workflow run occurred. The executable Round-5 product qualification remains the run above; the reviewer independently verified the final permanent workflow source contains checkout first and the intended contract/web steps after it.
+
+### D-029 — Phase 9 accepted; Phase 10 authorized (2026-09-23)
+**ACCEPTED — independent Rule-10 review passed after reviewer-owned closure patches. Phase 10 may begin. Production deployment remains NOT authorized.**
+
+Accepted Phase-9 state:
+- server branch `backend/digital-invitation-rsvp-phase9-20260923` @ `465feb3bbd3d4e2a6c57f95e689a94761513773f`;
+- native branch `native-mobile/digital-invitation-rsvp-phase9-20260923` @ reviewer final head `dc33d7b483286d325dfb2b1c4e249710639e3a5f`;
+- qualified native product `96792039b4548a7cce653c3cda4be85b93635e1e`;
+- native qualification run `35853500269` at workflow commit `a94a8a30dc2f9d9213412e9d61ad0e8cd084fbc3`;
+- retained server qualification run `35826332669` at product `72f34663535d5fbbfbbb6bb79319ae69327a2994`.
+
+Independent review confirms the Phase-9 exit gate:
+- the same invitation-bound Guest identity is preserved across PWA/Android/iOS;
+- Guest Session v2 remains fail-closed with no raw RSVP token persistence;
+- RSVP edits use the same authoritative Guest/RSVP record and full supported field set;
+- `originGuestId` protects stale/replaced Guest context;
+- RSVP editor reopens from fresh server truth and compares identity before any rebind;
+- PENDING, ACCEPTED and DECLINED remain editable;
+- all 12 current saved Digital Invitation styles render natively with PWA-derived palette/motion/atmosphere authority;
+- Ivory Floral Gold remains the dedicated flagship renderer; the other 11 use the generic premium native engine;
+- unknown future styles fail closed;
+- future PWA style additions cannot silently bypass explicit native support-set approval;
+- permanent CI source now checks out the repository before contract regression/`--check`.
+
+Carry-forward items are unchanged and are not Phase-9 blockers: F-3 Vendor production link gap, F-4 production migration application, F-6 legacy PWA global-admin hazard, `WEWED_SESSION_SECRET` production configuration, unsupported mature writes/admin extensions, signed distribution and production deployment.
+
+**Phase 10 is now authorized. Phase 11 and production deployment are not authorized.**
