@@ -595,7 +595,7 @@ class LiveGuestInvitationCoordinatorTest {
      * server snapshot.
      */
     @Test
-    fun rsvpReopenRefreshesServerTruthBeforeOpeningEditor() = runBlocking {
+    fun rsvpEditorReflectsExternalOutOfBandUpdate() = runBlocking {
         // Initial state: accepted with meal choice "beef"
         exchangeSucceeds("charity-and-kudzie", "guest_live", "SESSION-1")
         invitationReadsFull("charity-and-kudzie", "guest_live", "Live Guest", "true", mealChoice = "beef", message = "See you there")
@@ -606,12 +606,14 @@ class LiveGuestInvitationCoordinatorTest {
         // PWA updates meal choice out-of-band to "vegan"
         invitationReadsFull("charity-and-kudzie", "guest_live", "Live Guest", "true", mealChoice = "vegan", message = "Switched to vegan")
 
-        // Guest taps Update RSVP on native -> prepareRsvpEdit is called
-        val prep = coordinator.prepareRsvpEdit("guest_live")
-        assertTrue("prepareRsvpEdit must be Ready", prep is RsvpEditPreparation.Ready)
-        val refreshedPres = (prep as RsvpEditPreparation.Ready).presentation
-        assertEquals("Editor must open with fresh meal choice from server", "vegan", refreshedPres.mealChoice)
-        assertEquals("Switched to vegan", refreshedPres.message)
+        // Guest taps Update RSVP on native -> prepareRsvpEditor is called (0 args)
+        val prep = coordinator.prepareRsvpEditor()
+        assertTrue("prepareRsvpEditor must be Ready", prep is RsvpEditorPreparation.Ready)
+        val snapshot = (prep as RsvpEditorPreparation.Ready).snapshot
+        assertEquals("Editor must open with fresh meal choice from server", "vegan", snapshot.mealChoice)
+        assertEquals("Switched to vegan", snapshot.message)
+        assertEquals("charity-and-kudzie", coordinator.testActiveWeddingSlug)
+        assertEquals("guest_live", coordinator.testPresentedGuestId)
 
         // Guest edits message and saves -> save keeps vegan mealChoice
         answerSucceeds("charity-and-kudzie", attending = true, mealChoice = "vegan", message = "Updated from native")
@@ -621,32 +623,78 @@ class LiveGuestInvitationCoordinatorTest {
         assertEquals("Updated from native", (saveOutcome as RsvpOutcome.Saved).rsvp.message)
     }
 
-    /**
-     * Blocker 1 Failure Modes:
-     * 1. Network unavailable: returns Unavailable; does NOT open stale editor.
-     * 2. Revoked/Unauthorized: returns RevokedOrUnauthorized; does NOT open editor.
-     * 3. Switched/Stale Guest context: returns StaleOrReplacedGuest; does NOT open editor.
-     */
     @Test
-    fun rsvpReopenDistinguishesFailureModesWithoutOpeningStaleEditor() = runBlocking {
+    fun rsvpEditorFailsClosedOnSameWeddingGuestReplacement() = runBlocking {
         exchangeSucceeds("charity-and-kudzie", "guest_live", "SESSION-1")
         invitationReadsFull("charity-and-kudzie", "guest_live", "Live Guest", "true", mealChoice = "beef")
         coordinator.enter(InvitationEntry.PrivateInvitation("charity-and-kudzie", "TOKEN"))
+        assertEquals("guest_live", coordinator.testPresentedGuestId)
 
-        // 1. Network failure during refresh
-        routes["GET /api/weddings/charity-and-kudzie/guest-session"] = Reply(503)
-        val prepUnavailable = coordinator.prepareRsvpEdit("guest_live")
-        assertTrue("Network error must result in Unavailable", prepUnavailable is RsvpEditPreparation.Unavailable)
-
-        // 2. Revoked/Unauthorized session
-        routes["GET /api/weddings/charity-and-kudzie/guest-session"] = Reply(401, """{"success":false}""")
-        val prepRevoked = coordinator.prepareRsvpEdit("guest_live")
-        assertTrue("Revocation must result in RevokedOrUnauthorized", prepRevoked is RsvpEditPreparation.RevokedOrUnauthorized)
-
-        // 3. Stale guest context (e.g. server now returns a different guest session)
+        // Server session moves to a different guest within the same wedding
         invitationReadsFull("charity-and-kudzie", "guest_other", "Other Guest", "true")
-        val prepStale = coordinator.prepareRsvpEdit("guest_live")
-        assertTrue("Mismatched guest context must result in StaleOrReplacedGuest", prepStale is RsvpEditPreparation.StaleOrReplacedGuest)
+        val prep = coordinator.prepareRsvpEditor()
+        assertTrue("Mismatched guest context must fail closed with ReopenRequired", prep is RsvpEditorPreparation.ReopenRequired)
+        assertNull("Active wedding slug must be cleared on mismatch", coordinator.testActiveWeddingSlug)
+        assertNull("Presented guest must not rebind to the replaced guest", coordinator.testPresentedGuestId)
+    }
+
+    @Test
+    fun rsvpEditorFailsClosedOnDifferentWeddingReplacement() = runBlocking {
+        exchangeSucceeds("charity-and-kudzie", "guest_live", "SESSION-1")
+        invitationReadsFull("charity-and-kudzie", "guest_live", "Live Guest", "true")
+        coordinator.enter(InvitationEntry.PrivateInvitation("charity-and-kudzie", "TOKEN"))
+
+        // Server session responds with snapshot for a different wedding
+        routes["GET /api/weddings/charity-and-kudzie/guest-session"] = Reply(
+            200,
+            """{"success":true,"authorized":true,""" +
+                """"wedding":{"slug":"different-wedding","title":"Other Wedding","monogram":"O&W",""" +
+                """"date":"2026-12-23T14:00:00","venue":"Other Venue","venueCity":"Harare",""" +
+                """"venueCountry":"Zimbabwe","invitationCardStyle":"ivory-floral-gold",""" +
+                """"childrenPolicy":"welcome"},""" +
+                """"guest":{"id":"guest_live","name":"Live Guest"},""" +
+                """"rsvp":{"attending":true,"checkedIn":false}}"""
+        )
+        val prep = coordinator.prepareRsvpEditor()
+        assertTrue("Mismatched wedding slug must fail closed with ReopenRequired", prep is RsvpEditorPreparation.ReopenRequired)
+        assertNull(coordinator.testActiveWeddingSlug)
+        assertNull(coordinator.testPresentedGuestId)
+    }
+
+    @Test
+    fun rsvpEditorReturnsUnavailableOnTransportFailure() = runBlocking {
+        exchangeSucceeds("charity-and-kudzie", "guest_live", "SESSION-1")
+        invitationReadsFull("charity-and-kudzie", "guest_live", "Live Guest", "true")
+        coordinator.enter(InvitationEntry.PrivateInvitation("charity-and-kudzie", "TOKEN"))
+
+        routes["GET /api/weddings/charity-and-kudzie/guest-session"] = Reply(503)
+        val prep = coordinator.prepareRsvpEditor()
+        assertTrue("Transport error must result in Unavailable", prep is RsvpEditorPreparation.Unavailable)
+        assertEquals(503, (prep as RsvpEditorPreparation.Unavailable).status)
+        // Presentation bindings remain intact on transient transport error
+        assertEquals("charity-and-kudzie", coordinator.testActiveWeddingSlug)
+        assertEquals("guest_live", coordinator.testPresentedGuestId)
+    }
+
+    @Test
+    fun rsvpEditorHandlesAllStatuses() = runBlocking {
+        val testCases = listOf(
+            Triple("null", null, "PENDING"),
+            Triple("true", true, "ACCEPTED"),
+            Triple("false", false, "DECLINED")
+        )
+
+        for ((wireAttending, expectedBool, label) in testCases) {
+            exchangeSucceeds("charity-and-kudzie", "guest_$label", "SESSION-$label")
+            invitationReadsFull("charity-and-kudzie", "guest_$label", "Guest $label", wireAttending)
+            coordinator.enter(InvitationEntry.PrivateInvitation("charity-and-kudzie", "TOKEN-$label"))
+
+            val prep = coordinator.prepareRsvpEditor()
+            assertTrue("Status $label must be Ready", prep is RsvpEditorPreparation.Ready)
+            val snapshot = (prep as RsvpEditorPreparation.Ready).snapshot
+            assertEquals("Attending mismatch for $label", expectedBool, snapshot.attending)
+            assertEquals("guest_$label", snapshot.guestId)
+        }
     }
 }
 

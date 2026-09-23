@@ -74,6 +74,10 @@ public enum InvitationStyle: String, CaseIterable, Sendable {
         themeDefinition?.palette ?? GeneratedInvitationStyles.styles["botanical"]!.palette
     }
 
+    public var rendererKind: InvitationRendererKind? {
+        themeDefinition?.rendererKind
+    }
+
     /// Mirrors the server's `normalizeInvitationCardStyle`: an absent or unrecognised value
     /// resolves to `botanical`, NOT to whichever style native happens to render.
     public static let `default`: InvitationStyle = .botanical
@@ -84,6 +88,23 @@ public enum InvitationStyle: String, CaseIterable, Sendable {
         if normalised.isEmpty { return .default }
         return InvitationStyle(rawValue: normalised).flatMap { $0 == .unknownStyle ? nil : $0 }
             ?? .unknownStyle
+    }
+}
+
+public enum ResolvedInvitationRenderer: Equatable, Sendable {
+    case ivoryCustom
+    case genericMotion
+    case unsupported
+}
+
+public func rendererFor(_ style: InvitationStyle) -> ResolvedInvitationRenderer {
+    switch style.rendererKind {
+    case .ivoryCustom:
+        return .ivoryCustom
+    case .genericMotion:
+        return .genericMotion
+    case nil:
+        return .unsupported
     }
 }
 

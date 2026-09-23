@@ -42,14 +42,15 @@ public struct NativeInvitationExperience: View {
     }
 
     public var body: some View {
-        if style == .ivoryFloralGold {
+        switch rendererFor(style) {
+        case .ivoryCustom:
             // Ivory Floral Gold retains its dedicated flagship renderer.
             IvoryFloralGoldNative(
                 data: data, rsvp: rsvp, actions: actions,
                 reducedMotion: reducedMotion, initialState: initialState,
                 onStateChanged: onStateChanged
             )
-        } else if style.hasNativeRenderer {
+        case .genericMotion:
             // All other 11 known styles render via the native generic premium motion engine.
             GenericMotionInvitationNative(
                 style: style,
@@ -60,7 +61,7 @@ public struct NativeInvitationExperience: View {
                 initialState: initialState,
                 onStateChanged: onStateChanged
             )
-        } else {
+        case .unsupported:
             // A style native cannot yet reproduce is named and declined. Substituting Ivory would
             // show one couple another couple's stationery and report it as parity.
             ZStack {

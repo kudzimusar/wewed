@@ -592,7 +592,7 @@ final class LiveGuestInvitationCoordinatorTests: XCTestCase {
     /// Tapping RSVP/Update RSVP must refresh server truth BEFORE opening the editor.
     /// When guest details are updated on the PWA out-of-band, the native editor receives the fresh
     /// server snapshot.
-    func testRsvpReopenRefreshesServerTruthBeforeOpeningEditor() async {
+    func testRsvpEditorReflectsExternalOutOfBandUpdate() async {
         // Initial state: accepted with meal choice "beef"
         exchangeSucceeds(slug: "charity-and-kudzie", guestId: "guest_live", session: "SESSION-1")
         invitationReadsFull(slug: "charity-and-kudzie", guestId: "guest_live", name: "Live Guest", attending: "true", mealChoice: "beef", message: "See you there")
@@ -606,13 +606,17 @@ final class LiveGuestInvitationCoordinatorTests: XCTestCase {
         // PWA updates meal choice out-of-band to "vegan"
         invitationReadsFull(slug: "charity-and-kudzie", guestId: "guest_live", name: "Live Guest", attending: "true", mealChoice: "vegan", message: "Switched to vegan")
 
-        // Guest taps Update RSVP on native -> prepareRsvpEdit is called
-        let prep = await coordinator.prepareRsvpEdit(currentGuestId: "guest_live")
-        guard case let .ready(refreshedPres, _) = prep else {
-            return XCTFail("prepareRsvpEdit must be ready, got \(prep)")
+        // Guest taps Update RSVP on native -> prepareRsvpEditor is called (0 args)
+        let prep = await coordinator.prepareRsvpEditor()
+        guard case let .ready(snapshot) = prep else {
+            return XCTFail("prepareRsvpEditor must be ready, got \(prep)")
         }
-        XCTAssertEqual(refreshedPres.mealChoice, "vegan")
-        XCTAssertEqual(refreshedPres.message, "Switched to vegan")
+        XCTAssertEqual(snapshot.mealChoice, "vegan")
+        XCTAssertEqual(snapshot.message, "Switched to vegan")
+        let slug = await coordinator.testActiveWeddingSlug
+        let guestId = await coordinator.testPresentedGuestId
+        XCTAssertEqual(slug, "charity-and-kudzie")
+        XCTAssertEqual(guestId, "guest_live")
 
         // Guest edits message and saves -> save keeps vegan mealChoice
         answerSucceeds(slug: "charity-and-kudzie", attending: true, mealChoice: "vegan", message: "Updated from native")
@@ -624,31 +628,82 @@ final class LiveGuestInvitationCoordinatorTests: XCTestCase {
         XCTAssertEqual(savedRsvp.message, "Updated from native")
     }
 
-    /// Blocker 1 Failure Modes:
-    /// 1. Network unavailable: returns .unavailable; does NOT open stale editor.
-    /// 2. Revoked/Unauthorized: returns .revokedOrUnauthorized; does NOT open editor.
-    /// 3. Switched/Stale Guest context: returns .staleOrReplacedGuest; does NOT open editor.
-    func testRsvpReopenDistinguishesFailureModesWithoutOpeningStaleEditor() async {
+    func testRsvpEditorFailsClosedOnSameWeddingGuestReplacement() async {
         exchangeSucceeds(slug: "charity-and-kudzie", guestId: "guest_live", session: "SESSION-1")
         invitationReadsFull(slug: "charity-and-kudzie", guestId: "guest_live", name: "Live Guest", attending: "true", mealChoice: "beef")
         _ = await coordinator.enter(.privateInvitation(weddingSlug: "charity-and-kudzie", rsvpToken: "TOKEN"))
+        let initialGuestId = await coordinator.testPresentedGuestId
+        XCTAssertEqual(initialGuestId, "guest_live")
 
-        // 1. Network failure during refresh
-        Stub.routes["GET /api/weddings/charity-and-kudzie/guest-session"] = Reply(status: 503)
-        let prepUnavailable = await coordinator.prepareRsvpEdit(currentGuestId: "guest_live")
-        guard case .unavailable = prepUnavailable else {
-            return XCTFail("network error must result in .unavailable, got \(prepUnavailable)")
-        }
-
-        // 2. Revoked/Unauthorized session
-        Stub.routes["GET /api/weddings/charity-and-kudzie/guest-session"] = Reply(status: 401, body: "{\"success\":false}")
-        let prepRevoked = await coordinator.prepareRsvpEdit(currentGuestId: "guest_live")
-        XCTAssertEqual(prepRevoked, .revokedOrUnauthorized)
-
-        // 3. Stale guest context (e.g. server now returns a different guest session)
+        // Server session moves to a different guest within the same wedding
         invitationReadsFull(slug: "charity-and-kudzie", guestId: "guest_other", name: "Other Guest", attending: "true")
-        let prepStale = await coordinator.prepareRsvpEdit(currentGuestId: "guest_live")
-        XCTAssertEqual(prepStale, .staleOrReplacedGuest)
+        let prep = await coordinator.prepareRsvpEditor()
+        XCTAssertEqual(prep, .reopenRequired)
+        let finalSlug = await coordinator.testActiveWeddingSlug
+        let finalGuest = await coordinator.testPresentedGuestId
+        XCTAssertNil(finalSlug)
+        XCTAssertNil(finalGuest)
+    }
+
+    func testRsvpEditorFailsClosedOnDifferentWeddingReplacement() async {
+        exchangeSucceeds(slug: "charity-and-kudzie", guestId: "guest_live", session: "SESSION-1")
+        invitationReadsFull(slug: "charity-and-kudzie", guestId: "guest_live", name: "Live Guest", attending: "true")
+        _ = await coordinator.enter(.privateInvitation(weddingSlug: "charity-and-kudzie", rsvpToken: "TOKEN"))
+
+        // Server session responds with snapshot for a different wedding when queried
+        Stub.routes["GET /api/weddings/charity-and-kudzie/guest-session"] = Reply(
+            status: 200,
+            body: """
+            {"success":true,"authorized":true,\
+            "wedding":{"slug":"different-wedding","title":"Other Wedding","monogram":"O&W",\
+            "date":"2026-12-23T14:00:00","venue":"Other Venue","venueCity":"Harare",\
+            "venueCountry":"Zimbabwe","invitationCardStyle":"ivory-floral-gold",\
+            "childrenPolicy":"welcome"},\
+            "guest":{"id":"guest_live","name":"Live Guest"},\
+            "rsvp":{"attending":true,"checkedIn":false}}
+            """
+        )
+        let prep = await coordinator.prepareRsvpEditor()
+        XCTAssertEqual(prep, .reopenRequired)
+        let finalSlug = await coordinator.testActiveWeddingSlug
+        let finalGuest = await coordinator.testPresentedGuestId
+        XCTAssertNil(finalSlug)
+        XCTAssertNil(finalGuest)
+    }
+
+    func testRsvpEditorReturnsUnavailableOnTransportFailure() async {
+        exchangeSucceeds(slug: "charity-and-kudzie", guestId: "guest_live", session: "SESSION-1")
+        invitationReadsFull(slug: "charity-and-kudzie", guestId: "guest_live", name: "Live Guest", attending: "true")
+        _ = await coordinator.enter(.privateInvitation(weddingSlug: "charity-and-kudzie", rsvpToken: "TOKEN"))
+
+        Stub.routes["GET /api/weddings/charity-and-kudzie/guest-session"] = Reply(status: 503)
+        let prep = await coordinator.prepareRsvpEditor()
+        XCTAssertEqual(prep, .unavailable(status: 503))
+        let finalSlug = await coordinator.testActiveWeddingSlug
+        let finalGuest = await coordinator.testPresentedGuestId
+        XCTAssertEqual(finalSlug, "charity-and-kudzie")
+        XCTAssertEqual(finalGuest, "guest_live")
+    }
+
+    func testRsvpEditorHandlesAllStatuses() async {
+        let testCases: [(wireAttending: String, expectedBool: Bool?, label: String)] = [
+            ("null", nil, "PENDING"),
+            ("true", true, "ACCEPTED"),
+            ("false", false, "DECLINED")
+        ]
+
+        for testCase in testCases {
+            exchangeSucceeds(slug: "charity-and-kudzie", guestId: "guest_\(testCase.label)", session: "SESSION-\(testCase.label)")
+            invitationReadsFull(slug: "charity-and-kudzie", guestId: "guest_\(testCase.label)", name: "Guest \(testCase.label)", attending: testCase.wireAttending)
+            _ = await coordinator.enter(.privateInvitation(weddingSlug: "charity-and-kudzie", rsvpToken: "TOKEN-\(testCase.label)"))
+
+            let prep = await coordinator.prepareRsvpEditor()
+            guard case let .ready(snapshot) = prep else {
+                return XCTFail("Status \(testCase.label) must be ready, got \(prep)")
+            }
+            XCTAssertEqual(snapshot.attending, testCase.expectedBool, "Attending mismatch for \(testCase.label)")
+            XCTAssertEqual(snapshot.guestId, "guest_\(testCase.label)")
+        }
     }
 }
 

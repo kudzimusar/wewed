@@ -131,13 +131,19 @@ def generate_kotlin(styles: list[dict], fallback_id: str) -> str:
         "    }",
         "}",
         "",
+        "enum class InvitationRendererKind {",
+        "    IVORY_CUSTOM,",
+        "    GENERIC_MOTION",
+        "}",
+        "",
         "data class InvitationThemeDefinition(",
         "    val id: String,",
         "    val name: String,",
         "    val category: String,",
         "    val motion: InvitationMotion,",
         "    val atmosphere: InvitationAtmosphere,",
-        "    val palette: InvitationPalette",
+        "    val palette: InvitationPalette,",
+        "    val rendererKind: InvitationRendererKind",
         ")",
         "",
         "object GeneratedInvitationStyles {",
@@ -184,8 +190,10 @@ def generate_kotlin(styles: list[dict], fallback_id: str) -> str:
         lines.append(f"            motion = InvitationMotion.{smotion},")
         lines.append(f"            atmosphere = InvitationAtmosphere.{satm},")
         lines.append(
-            f'            palette = palette("{pal["stage"]}", "{pal["paper"]}", "{pal["ink"]}", "{pal["primary"]}", "{pal["accent"]}", "{pal["muted"]}")'
+            f'            palette = palette("{pal["stage"]}", "{pal["paper"]}", "{pal["ink"]}", "{pal["primary"]}", "{pal["accent"]}", "{pal["muted"]}"),'
         )
+        ren = "InvitationRendererKind.IVORY_CUSTOM" if sid == "ivory-floral-gold" else "InvitationRendererKind.GENERIC_MOTION"
+        lines.append(f"            rendererKind = {ren}")
         lines.append("        ),")
 
     lines.extend([
@@ -276,6 +284,11 @@ def generate_swift(styles: list[dict], fallback_id: str) -> str:
         '    case minimal = "minimal"',
         "}",
         "",
+        "public enum InvitationRendererKind: String, Sendable, CaseIterable {",
+        '    case ivoryCustom = "IVORY_CUSTOM"',
+        '    case genericMotion = "GENERIC_MOTION"',
+        "}",
+        "",
         "public struct InvitationThemeDefinition: Sendable {",
         "    public let id: String",
         "    public let name: String",
@@ -283,6 +296,7 @@ def generate_swift(styles: list[dict], fallback_id: str) -> str:
         "    public let motion: InvitationMotion",
         "    public let atmosphere: InvitationAtmosphere",
         "    public let palette: InvitationPalette",
+        "    public let rendererKind: InvitationRendererKind",
         "}",
         "",
         "public enum GeneratedInvitationStyles {",
@@ -303,8 +317,10 @@ def generate_swift(styles: list[dict], fallback_id: str) -> str:
         lines.append(f"            motion: .{smotion},")
         lines.append(f"            atmosphere: .{satm},")
         lines.append(
-            f'            palette: InvitationPalette(stageHex: "{pal["stage"]}", paperHex: "{pal["paper"]}", inkHex: "{pal["ink"]}", primaryHex: "{pal["primary"]}", accentHex: "{pal["accent"]}", mutedHex: "{pal["muted"]}")'
+            f'            palette: InvitationPalette(stageHex: "{pal["stage"]}", paperHex: "{pal["paper"]}", inkHex: "{pal["ink"]}", primaryHex: "{pal["primary"]}", accentHex: "{pal["accent"]}", mutedHex: "{pal["muted"]}"),'
         )
+        ren = ".ivoryCustom" if sid == "ivory-floral-gold" else ".genericMotion"
+        lines.append(f"            rendererKind: {ren}")
         lines.append("        ),")
 
     lines.extend([
@@ -345,6 +361,7 @@ def main() -> int:
                 "muted": m.group("muted"),
             },
             "nativeRenderer": m.group("id") in NATIVE_RENDERERS,
+            "rendererKind": "IVORY_CUSTOM" if m.group("id") == "ivory-floral-gold" else "GENERIC_MOTION",
         }
         for m in ENTRY.finditer(block)
     ]
@@ -369,14 +386,32 @@ def main() -> int:
         "fallbackStyleId": fallback.group("id"),
         "styles": styles,
     }
-    TARGET_JSON.parent.mkdir(parents=True, exist_ok=True)
-    TARGET_JSON.write_text(json.dumps(contract, indent=2) + "\n")
-
+    json_code = json.dumps(contract, indent=2) + "\n"
     kotlin_code = generate_kotlin(styles, fallback.group("id"))
+    swift_code = generate_swift(styles, fallback.group("id"))
+
+    if "--check" in sys.argv:
+        mismatches = []
+        if not TARGET_JSON.exists() or TARGET_JSON.read_text() != json_code:
+            mismatches.append(str(TARGET_JSON))
+        if not TARGET_KOTLIN.exists() or TARGET_KOTLIN.read_text() != kotlin_code:
+            mismatches.append(str(TARGET_KOTLIN))
+        if not TARGET_SWIFT.exists() or TARGET_SWIFT.read_text() != swift_code:
+            mismatches.append(str(TARGET_SWIFT))
+
+        if mismatches:
+            print(f"Contract drift detected in: {', '.join(mismatches)}", file=sys.stderr)
+            print("Run 'python3 mobile/contracts/generate_invitation_style_contract.py' to update.", file=sys.stderr)
+            return 1
+        print("Contract check passed: JSON, Kotlin, and Swift contracts match source.")
+        return 0
+
+    TARGET_JSON.parent.mkdir(parents=True, exist_ok=True)
+    TARGET_JSON.write_text(json_code)
+
     TARGET_KOTLIN.parent.mkdir(parents=True, exist_ok=True)
     TARGET_KOTLIN.write_text(kotlin_code)
 
-    swift_code = generate_swift(styles, fallback.group("id"))
     TARGET_SWIFT.parent.mkdir(parents=True, exist_ok=True)
     TARGET_SWIFT.write_text(swift_code)
 

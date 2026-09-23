@@ -102,4 +102,16 @@ final class InvitationStyleMatrixTests: XCTestCase {
             XCTAssertEqual(ivoryRsvpActionLabel(rsvp: ivoryRsvpState(from: .declined)), "Update RSVP")
         }
     }
+
+    func testRendererForDispatchesCorrectlyAcrossAllStyles() {
+        XCTAssertEqual(rendererFor(.ivoryFloralGold), .ivoryCustom)
+
+        for entry in allExpectedStyles {
+            let style = InvitationStyle.fromWire(entry.wire)
+            let expected: ResolvedInvitationRenderer = (entry.wire == "ivory-floral-gold") ? .ivoryCustom : .genericMotion
+            XCTAssertEqual(rendererFor(style), expected, "Style \(entry.wire) must resolve to \(expected)")
+        }
+
+        XCTAssertEqual(rendererFor(.unknownStyle), .unsupported)
+    }
 }

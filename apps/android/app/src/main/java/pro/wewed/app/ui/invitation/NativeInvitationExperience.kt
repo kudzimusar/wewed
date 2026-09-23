@@ -43,40 +43,40 @@ fun NativeInvitationExperience(
     initialState: InvitationPresentationState = InvitationPresentationState.CLOSED,
     onStateChanged: (InvitationPresentationState) -> Unit = {}
 ) {
-    if (style == InvitationStyle.IVORY_FLORAL_GOLD) {
-        // Ivory Floral Gold retains its dedicated flagship renderer.
-        IvoryFloralGoldNative(
-            data = data,
-            rsvp = rsvp,
-            actions = actions,
-            reducedMotion = reducedMotion,
-            initialState = initialState,
-            onStateChanged = onStateChanged
-        )
-        return
-    } else if (style.hasNativeRenderer) {
-        // All other 11 known styles render via the native generic premium motion engine.
-        GenericMotionInvitationNative(
-            style = style,
-            data = data,
-            rsvp = rsvp,
-            actions = actions,
-            reducedMotion = reducedMotion,
-            initialState = initialState,
-            onStateChanged = onStateChanged
-        )
-        return
-    }
-
-    // A style native cannot yet reproduce is named and declined. Substituting Ivory would show one
-    // couple another couple's stationery and report it as parity.
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(WeddingIdentityPalette.Ivory)
-            .testTag("invitation-style-unsupported"),
-        contentAlignment = Alignment.Center
-    ) {
+    when (rendererFor(style)) {
+        ResolvedInvitationRenderer.IVORY_CUSTOM -> {
+            // Ivory Floral Gold retains its dedicated flagship renderer.
+            IvoryFloralGoldNative(
+                data = data,
+                rsvp = rsvp,
+                actions = actions,
+                reducedMotion = reducedMotion,
+                initialState = initialState,
+                onStateChanged = onStateChanged
+            )
+        }
+        ResolvedInvitationRenderer.GENERIC_MOTION -> {
+            // All other 11 known styles render via the native generic premium motion engine.
+            GenericMotionInvitationNative(
+                style = style,
+                data = data,
+                rsvp = rsvp,
+                actions = actions,
+                reducedMotion = reducedMotion,
+                initialState = initialState,
+                onStateChanged = onStateChanged
+            )
+        }
+        ResolvedInvitationRenderer.UNSUPPORTED -> {
+            // A style native cannot yet reproduce is named and declined. Substituting Ivory would show one
+            // couple another couple's stationery and report it as parity.
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(WeddingIdentityPalette.Ivory)
+                    .testTag("invitation-style-unsupported"),
+                contentAlignment = Alignment.Center
+            ) {
         Column(
             modifier = Modifier.padding(30.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -97,6 +97,8 @@ fun NativeInvitationExperience(
                 color = WeddingIdentityPalette.Muted,
                 textAlign = TextAlign.Center
             )
+                }
+            }
         }
     }
 }

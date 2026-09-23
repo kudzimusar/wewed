@@ -37,10 +37,9 @@ public enum RsvpOutcome: Equatable, Sendable {
 /// What came back from preparing to edit the RSVP.
 ///
 /// Ensures the RSVP form is populated with fresh server truth and bound to the active guest.
-public enum RsvpEditPreparation: Equatable, Sendable {
-    case ready(presentation: LiveInvitationPresentation, state: LiveInvitationState)
-    case staleOrReplacedGuest
-    case revokedOrUnauthorized
+public enum RsvpEditorPreparation: Equatable, Sendable {
+    case ready(snapshot: GuestInvitationSnapshot)
+    case reopenRequired
     case unavailable(status: Int?)
 }
 
@@ -71,6 +70,11 @@ public actor LiveGuestInvitationCoordinator {
 
     /// The guest the presented card belongs to. It is what binds an answer to the right record.
     private var presentedGuestId: String?
+
+    #if DEBUG
+    public var testActiveWeddingSlug: String? { activeWeddingSlug }
+    public var testPresentedGuestId: String? { presentedGuestId }
+    #endif
 
     public init(client: GuestSessionClient) {
         self.client = client
@@ -203,28 +207,39 @@ public actor LiveGuestInvitationCoordinator {
     /// Pre-open refresh before opening the RSVP editor.
     ///
     /// In accordance with Master Plan Phase 9:
-    /// Tapping RSVP / Update RSVP must first refresh the Guest Session snapshot to ensure
-    /// that any changes made on the PWA or another device are reflected in the editor.
-    /// Validates that the refreshed snapshot belongs to `currentGuestId`.
-    /// If the session moved on, was revoked, or network failed, the editor does NOT open.
-    public func prepareRsvpEdit(currentGuestId: String) async -> RsvpEditPreparation {
-        let state = await refresh()
-        switch state {
-        case let .presenting(snapshot):
-            if snapshot.guestId != currentGuestId {
-                return .staleOrReplacedGuest
-            } else {
-                return .ready(
-                    presentation: LiveInvitationPresentation.from(snapshot),
-                    state: state
-                )
-            }
-        case .refused:
-            return .revokedOrUnauthorized
-        case let .unavailable(status):
-            return .unavailable(status: status)
-        case .idle, .exchanging:
-            return .revokedOrUnauthorized
+    /// Tapping RSVP / Update RSVP captures expectedWeddingSlug and expectedGuestId
+    /// prior to network I/O, executes client.loadInvitation(expectedWeddingSlug),
+    /// and strictly verifies snapshot equality (weddingSlug and guestId) before rebinding state.
+    /// If session moved on, was revoked, or mismatched, fails closed returning reopenRequired.
+    public func prepareRsvpEditor() async -> RsvpEditorPreparation {
+        guard let expectedWeddingSlug = activeWeddingSlug,
+              let expectedGuestId = presentedGuestId,
+              !expectedGuestId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return .reopenRequired
         }
+
+        let refreshedSnapshot: GuestInvitationSnapshot
+        do {
+            refreshedSnapshot = try await client.loadInvitation(weddingSlug: expectedWeddingSlug)
+        } catch let error as GuestSessionError {
+            switch error {
+            case .unauthorized:
+                endPresentation()
+                return .reopenRequired
+            case let .transport(status):
+                return .unavailable(status: status)
+            }
+        } catch {
+            return .unavailable(status: nil)
+        }
+
+        if refreshedSnapshot.weddingSlug != expectedWeddingSlug || refreshedSnapshot.guestId != expectedGuestId {
+            endPresentation()
+            return .reopenRequired
+        }
+
+        activeWeddingSlug = refreshedSnapshot.weddingSlug
+        presentedGuestId = refreshedSnapshot.guestId
+        return .ready(snapshot: refreshedSnapshot)
     }
 }

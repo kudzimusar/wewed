@@ -131,4 +131,27 @@ class InvitationStyleMatrixTest {
             assertEquals("Update RSVP", declinedLabel)
         }
     }
+
+    @Test
+    fun rendererForDispatchesCorrectlyAcrossAllStyles() {
+        assertEquals(
+            pro.wewed.app.models.ResolvedInvitationRenderer.IVORY_CUSTOM,
+            pro.wewed.app.models.rendererFor(InvitationStyle.IVORY_FLORAL_GOLD)
+        )
+
+        for ((wire, _) in allExpectedStyles) {
+            val style = InvitationStyle.fromWire(wire)
+            val expectedRenderer = if (wire == "ivory-floral-gold") {
+                pro.wewed.app.models.ResolvedInvitationRenderer.IVORY_CUSTOM
+            } else {
+                pro.wewed.app.models.ResolvedInvitationRenderer.GENERIC_MOTION
+            }
+            assertEquals("Style $wire must resolve to $expectedRenderer", expectedRenderer, pro.wewed.app.models.rendererFor(style))
+        }
+
+        assertEquals(
+            pro.wewed.app.models.ResolvedInvitationRenderer.UNSUPPORTED,
+            pro.wewed.app.models.rendererFor(InvitationStyle.UNKNOWN_STYLE)
+        )
+    }
 }

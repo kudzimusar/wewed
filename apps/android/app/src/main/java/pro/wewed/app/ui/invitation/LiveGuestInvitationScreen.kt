@@ -56,7 +56,7 @@ fun LiveGuestInvitationScreen(
     val context = LocalContext.current
     var rsvpPrompt by remember { mutableStateOf(false) }
     var rsvpEditorPresentation by remember { mutableStateOf<LiveInvitationPresentation?>(null) }
-    var refreshingRsvp by remember { mutableStateOf(false) }
+    var editorLoading by remember { mutableStateOf(false) }
     var refreshUnavailable by remember { mutableStateOf(false) }
     var submitting by remember { mutableStateOf(false) }
     var reopenRequired by remember { mutableStateOf(false) }
@@ -66,33 +66,28 @@ fun LiveGuestInvitationScreen(
     val status = presentation.rsvpStatus
 
     fun requestRsvpEdit() {
-        if (refreshingRsvp || submitting) return
-        refreshingRsvp = true
+        if (editorLoading || submitting) return
+        editorLoading = true
         refreshUnavailable = false
         scope.launch {
-            when (val prep = coordinator.prepareRsvpEdit(presentation.guestId)) {
-                is RsvpEditPreparation.Ready -> {
-                    rsvpEditorPresentation = prep.presentation
-                    onRefreshed(prep.state)
+            when (val prep = coordinator.prepareRsvpEditor()) {
+                is RsvpEditorPreparation.Ready -> {
+                    rsvpEditorPresentation = LiveInvitationPresentation.from(prep.snapshot)
+                    onRefreshed(LiveInvitationState.Presenting(prep.snapshot))
                     rsvpPrompt = true
                 }
-                is RsvpEditPreparation.StaleOrReplacedGuest -> {
+                is RsvpEditorPreparation.ReopenRequired -> {
                     rsvpEditorPresentation = null
                     rsvpPrompt = false
                     reopenRequired = true
                 }
-                is RsvpEditPreparation.RevokedOrUnauthorized -> {
-                    rsvpEditorPresentation = null
-                    rsvpPrompt = false
-                    onRefreshed(LiveInvitationState.Unavailable(null))
-                }
-                is RsvpEditPreparation.Unavailable -> {
+                is RsvpEditorPreparation.Unavailable -> {
                     rsvpEditorPresentation = null
                     rsvpPrompt = false
                     refreshUnavailable = true
                 }
             }
-            refreshingRsvp = false
+            editorLoading = false
         }
     }
 

@@ -55,6 +55,11 @@ public enum InvitationAtmosphere: String, Sendable, CaseIterable {
     case minimal = "minimal"
 }
 
+public enum InvitationRendererKind: String, Sendable, CaseIterable {
+    case ivoryCustom = "IVORY_CUSTOM"
+    case genericMotion = "GENERIC_MOTION"
+}
+
 public struct InvitationThemeDefinition: Sendable {
     public let id: String
     public let name: String
@@ -62,6 +67,7 @@ public struct InvitationThemeDefinition: Sendable {
     public let motion: InvitationMotion
     public let atmosphere: InvitationAtmosphere
     public let palette: InvitationPalette
+    public let rendererKind: InvitationRendererKind
 }
 
 public enum GeneratedInvitationStyles {
@@ -72,7 +78,8 @@ public enum GeneratedInvitationStyles {
             category: "classic",
             motion: .triFold,
             atmosphere: .champagneGlow,
-            palette: InvitationPalette(stageHex: "#17130f", paperHex: "#fbf5e9", inkHex: "#42372f", primaryHex: "#b3833f", accentHex: "#d6b77c", mutedHex: "#7a6d62")
+            palette: InvitationPalette(stageHex: "#17130f", paperHex: "#fbf5e9", inkHex: "#42372f", primaryHex: "#b3833f", accentHex: "#d6b77c", mutedHex: "#7a6d62"),
+            rendererKind: .ivoryCustom
         ),
         "midnight": InvitationThemeDefinition(
             id: "midnight",
@@ -80,7 +87,8 @@ public enum GeneratedInvitationStyles {
             category: "evening",
             motion: .gateFold,
             atmosphere: .stars,
-            palette: InvitationPalette(stageHex: "#070b13", paperHex: "#101827", inkHex: "#fff8e8", primaryHex: "#d4af67", accentHex: "#f0d99b", mutedHex: "#b8bdc8")
+            palette: InvitationPalette(stageHex: "#070b13", paperHex: "#101827", inkHex: "#fff8e8", primaryHex: "#d4af67", accentHex: "#f0d99b", mutedHex: "#b8bdc8"),
+            rendererKind: .genericMotion
         ),
         "botanical": InvitationThemeDefinition(
             id: "botanical",
@@ -88,7 +96,8 @@ public enum GeneratedInvitationStyles {
             category: "romantic",
             motion: .floralReveal,
             atmosphere: .petals,
-            palette: InvitationPalette(stageHex: "#e9eadf", paperHex: "#fbf7ef", inkHex: "#2f392e", primaryHex: "#718167", accentHex: "#b99a62", mutedHex: "#6d7668")
+            palette: InvitationPalette(stageHex: "#e9eadf", paperHex: "#fbf7ef", inkHex: "#2f392e", primaryHex: "#718167", accentHex: "#b99a62", mutedHex: "#6d7668"),
+            rendererKind: .genericMotion
         ),
         "royal-emerald": InvitationThemeDefinition(
             id: "royal-emerald",
@@ -96,7 +105,8 @@ public enum GeneratedInvitationStyles {
             category: "classic",
             motion: .envelopeLetter,
             atmosphere: .softBokeh,
-            palette: InvitationPalette(stageHex: "#071b16", paperHex: "#f8f1e3", inkHex: "#15382e", primaryHex: "#a98545", accentHex: "#d4bd88", mutedHex: "#668078")
+            palette: InvitationPalette(stageHex: "#071b16", paperHex: "#f8f1e3", inkHex: "#15382e", primaryHex: "#a98545", accentHex: "#d4bd88", mutedHex: "#668078"),
+            rendererKind: .genericMotion
         ),
         "classic-white": InvitationThemeDefinition(
             id: "classic-white",
@@ -104,7 +114,8 @@ public enum GeneratedInvitationStyles {
             category: "classic",
             motion: .bookOpen,
             atmosphere: .minimal,
-            palette: InvitationPalette(stageHex: "#e8e5df", paperHex: "#fffdf9", inkHex: "#282521", primaryHex: "#8b806f", accentHex: "#c8bda9", mutedHex: "#77716a")
+            palette: InvitationPalette(stageHex: "#e8e5df", paperHex: "#fffdf9", inkHex: "#282521", primaryHex: "#8b806f", accentHex: "#c8bda9", mutedHex: "#77716a"),
+            rendererKind: .genericMotion
         ),
         "blush-romance": InvitationThemeDefinition(
             id: "blush-romance",
@@ -112,7 +123,8 @@ public enum GeneratedInvitationStyles {
             category: "romantic",
             motion: .envelopeLetter,
             atmosphere: .softBokeh,
-            palette: InvitationPalette(stageHex: "#ead8d2", paperHex: "#fff7f1", inkHex: "#543b38", primaryHex: "#b68b79", accentHex: "#d8b992", mutedHex: "#8d716b")
+            palette: InvitationPalette(stageHex: "#ead8d2", paperHex: "#fff7f1", inkHex: "#543b38", primaryHex: "#b68b79", accentHex: "#d8b992", mutedHex: "#8d716b"),
+            rendererKind: .genericMotion
         ),
         "african-luxe": InvitationThemeDefinition(
             id: "african-luxe",
@@ -120,7 +132,8 @@ public enum GeneratedInvitationStyles {
             category: "cultural",
             motion: .gateFold,
             atmosphere: .candlelight,
-            palette: InvitationPalette(stageHex: "#1b130e", paperHex: "#f5e9d3", inkHex: "#36251b", primaryHex: "#a76d2b", accentHex: "#d4a55b", mutedHex: "#786253")
+            palette: InvitationPalette(stageHex: "#1b130e", paperHex: "#f5e9d3", inkHex: "#36251b", primaryHex: "#a76d2b", accentHex: "#d4a55b", mutedHex: "#786253"),
+            rendererKind: .genericMotion
         ),
         "editorial": InvitationThemeDefinition(
             id: "editorial",
@@ -128,7 +141,8 @@ public enum GeneratedInvitationStyles {
             category: "modern",
             motion: .singleCardLift,
             atmosphere: .minimal,
-            palette: InvitationPalette(stageHex: "#dedbd5", paperHex: "#f3efe7", inkHex: "#191714", primaryHex: "#191714", accentHex: "#9b8b72", mutedHex: "#706b65")
+            palette: InvitationPalette(stageHex: "#dedbd5", paperHex: "#f3efe7", inkHex: "#191714", primaryHex: "#191714", accentHex: "#9b8b72", mutedHex: "#706b65"),
+            rendererKind: .genericMotion
         ),
         "black-tie": InvitationThemeDefinition(
             id: "black-tie",
@@ -136,7 +150,8 @@ public enum GeneratedInvitationStyles {
             category: "evening",
             motion: .gateFold,
             atmosphere: .candlelight,
-            palette: InvitationPalette(stageHex: "#070707", paperHex: "#f8f3e8", inkHex: "#15120f", primaryHex: "#b89b68", accentHex: "#e2d1aa", mutedHex: "#736b61")
+            palette: InvitationPalette(stageHex: "#070707", paperHex: "#f8f3e8", inkHex: "#15120f", primaryHex: "#b89b68", accentHex: "#e2d1aa", mutedHex: "#736b61"),
+            rendererKind: .genericMotion
         ),
         "watercolour-garden": InvitationThemeDefinition(
             id: "watercolour-garden",
@@ -144,7 +159,8 @@ public enum GeneratedInvitationStyles {
             category: "romantic",
             motion: .floralReveal,
             atmosphere: .watercolourBloom,
-            palette: InvitationPalette(stageHex: "#e7ebe4", paperHex: "#fffaf2", inkHex: "#344339", primaryHex: "#789178", accentHex: "#c58f83", mutedHex: "#708076")
+            palette: InvitationPalette(stageHex: "#e7ebe4", paperHex: "#fffaf2", inkHex: "#344339", primaryHex: "#789178", accentHex: "#c58f83", mutedHex: "#708076"),
+            rendererKind: .genericMotion
         ),
         "sunset-terracotta": InvitationThemeDefinition(
             id: "sunset-terracotta",
@@ -152,7 +168,8 @@ public enum GeneratedInvitationStyles {
             category: "modern",
             motion: .sleevePull,
             atmosphere: .softBokeh,
-            palette: InvitationPalette(stageHex: "#3c2119", paperHex: "#fbebdc", inkHex: "#4a2b23", primaryHex: "#b76549", accentHex: "#d6a665", mutedHex: "#886d61")
+            palette: InvitationPalette(stageHex: "#3c2119", paperHex: "#fbebdc", inkHex: "#4a2b23", primaryHex: "#b76549", accentHex: "#d6a665", mutedHex: "#886d61"),
+            rendererKind: .genericMotion
         ),
         "celestial": InvitationThemeDefinition(
             id: "celestial",
@@ -160,7 +177,8 @@ public enum GeneratedInvitationStyles {
             category: "evening",
             motion: .bookOpen,
             atmosphere: .stars,
-            palette: InvitationPalette(stageHex: "#050912", paperHex: "#101728", inkHex: "#f8f1df", primaryHex: "#c5a45f", accentHex: "#e0cf9c", mutedHex: "#abb3c5")
+            palette: InvitationPalette(stageHex: "#050912", paperHex: "#101728", inkHex: "#f8f1df", primaryHex: "#c5a45f", accentHex: "#e0cf9c", mutedHex: "#abb3c5"),
+            rendererKind: .genericMotion
         ),
     ]
 

@@ -17,6 +17,9 @@ on:
       - 'src/lib/digital-invitation-experience.test.ts'
       - 'prisma/migrations/20260910030000_premium_invitation_styles/migration.sql'
       - 'tests/e2e/premium-digital-invitation.spec.ts'
+      - 'mobile/contracts/**'
+      - 'apps/android/app/src/main/java/pro/wewed/app/models/GeneratedInvitationStyles.kt'
+      - 'apps/ios/Wewed/Models/GeneratedInvitationStyles.swift'
       - '.github/workflows/digital-invitation-experience-ci.yml'
   push:
     branches:
@@ -33,6 +36,9 @@ on:
       - 'src/lib/digital-invitation-experience.test.ts'
       - 'prisma/migrations/20260910030000_premium_invitation_styles/migration.sql'
       - 'tests/e2e/premium-digital-invitation.spec.ts'
+      - 'mobile/contracts/**'
+      - 'apps/android/app/src/main/java/pro/wewed/app/models/GeneratedInvitationStyles.kt'
+      - 'apps/ios/Wewed/Models/GeneratedInvitationStyles.swift'
   workflow_dispatch:
 
 permissions:
@@ -54,6 +60,9 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Verify invitation style contract parity and code generation
+        run: python3 mobile/contracts/generate_invitation_style_contract.py --check
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6

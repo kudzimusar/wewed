@@ -18,7 +18,8 @@
         "accent": "#d6b77c",
         "muted": "#7a6d62"
       },
-      "nativeRenderer": true
+      "nativeRenderer": true,
+      "rendererKind": "IVORY_CUSTOM"
     },
     {
       "id": "midnight",
@@ -34,7 +35,8 @@
         "accent": "#f0d99b",
         "muted": "#b8bdc8"
       },
-      "nativeRenderer": true
+      "nativeRenderer": true,
+      "rendererKind": "GENERIC_MOTION"
     },
     {
       "id": "botanical",
@@ -50,7 +52,8 @@
         "accent": "#b99a62",
         "muted": "#6d7668"
       },
-      "nativeRenderer": true
+      "nativeRenderer": true,
+      "rendererKind": "GENERIC_MOTION"
     },
     {
       "id": "royal-emerald",
@@ -66,7 +69,8 @@
         "accent": "#d4bd88",
         "muted": "#668078"
       },
-      "nativeRenderer": true
+      "nativeRenderer": true,
+      "rendererKind": "GENERIC_MOTION"
     },
     {
       "id": "classic-white",
@@ -82,7 +86,8 @@
         "accent": "#c8bda9",
         "muted": "#77716a"
       },
-      "nativeRenderer": true
+      "nativeRenderer": true,
+      "rendererKind": "GENERIC_MOTION"
     },
     {
       "id": "blush-romance",
@@ -98,7 +103,8 @@
         "accent": "#d8b992",
         "muted": "#8d716b"
       },
-      "nativeRenderer": true
+      "nativeRenderer": true,
+      "rendererKind": "GENERIC_MOTION"
     },
     {
       "id": "african-luxe",
@@ -114,7 +120,8 @@
         "accent": "#d4a55b",
         "muted": "#786253"
       },
-      "nativeRenderer": true
+      "nativeRenderer": true,
+      "rendererKind": "GENERIC_MOTION"
     },
     {
       "id": "editorial",
@@ -130,7 +137,8 @@
         "accent": "#9b8b72",
         "muted": "#706b65"
       },
-      "nativeRenderer": true
+      "nativeRenderer": true,
+      "rendererKind": "GENERIC_MOTION"
     },
     {
       "id": "black-tie",
@@ -146,7 +154,8 @@
         "accent": "#e2d1aa",
         "muted": "#736b61"
       },
-      "nativeRenderer": true
+      "nativeRenderer": true,
+      "rendererKind": "GENERIC_MOTION"
     },
     {
       "id": "watercolour-garden",
@@ -162,7 +171,8 @@
         "accent": "#c58f83",
         "muted": "#708076"
       },
-      "nativeRenderer": true
+      "nativeRenderer": true,
+      "rendererKind": "GENERIC_MOTION"
     },
     {
       "id": "sunset-terracotta",
@@ -178,7 +188,8 @@
         "accent": "#d6a665",
         "muted": "#886d61"
       },
-      "nativeRenderer": true
+      "nativeRenderer": true,
+      "rendererKind": "GENERIC_MOTION"
     },
     {
       "id": "celestial",
@@ -194,7 +205,8 @@
         "accent": "#e0cf9c",
         "muted": "#abb3c5"
       },
-      "nativeRenderer": true
+      "nativeRenderer": true,
+      "rendererKind": "GENERIC_MOTION"
     }
   ]
 }

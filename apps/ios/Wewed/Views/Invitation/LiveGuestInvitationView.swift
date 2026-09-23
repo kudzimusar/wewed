@@ -22,7 +22,7 @@ public struct LiveGuestInvitationView: View {
 
     @State private var rsvpPrompt = false
     @State private var rsvpEditorPresentation: LiveInvitationPresentation? = nil
-    @State private var refreshingRsvp = false
+    @State private var editorLoading = false
     @State private var refreshUnavailable = false
     @State private var formSessionId = UUID()
     @State private var submitting = false
@@ -47,31 +47,27 @@ public struct LiveGuestInvitationView: View {
     }
 
     private func requestRsvpEdit() {
-        guard !refreshingRsvp, !submitting else { return }
-        refreshingRsvp = true
+        guard !editorLoading, !submitting else { return }
+        editorLoading = true
         refreshUnavailable = false
         Task {
-            let prep = await coordinator.prepareRsvpEdit(currentGuestId: presentation.guestId)
+            let prep = await coordinator.prepareRsvpEditor()
             switch prep {
-            case let .ready(refreshedPresentation, state):
-                rsvpEditorPresentation = refreshedPresentation
+            case let .ready(snapshot):
+                rsvpEditorPresentation = LiveInvitationPresentation.from(snapshot)
                 formSessionId = UUID()
-                onRefreshed(state)
+                onRefreshed(.presenting(snapshot))
                 rsvpPrompt = true
-            case .staleOrReplacedGuest:
+            case .reopenRequired:
                 rsvpEditorPresentation = nil
                 rsvpPrompt = false
                 reopenRequired = true
-            case .revokedOrUnauthorized:
-                rsvpEditorPresentation = nil
-                rsvpPrompt = false
-                onRefreshed(.unavailable(status: nil))
             case .unavailable:
                 rsvpEditorPresentation = nil
                 rsvpPrompt = false
                 refreshUnavailable = true
             }
-            refreshingRsvp = false
+            editorLoading = false
         }
     }
 

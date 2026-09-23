@@ -1,5 +1,7 @@
 package pro.wewed.app.invitation
 
+import androidx.annotation.VisibleForTesting
+
 /**
  * Where a guest is in their live invitation entry.
  *
@@ -55,11 +57,10 @@ sealed interface RsvpOutcome {
  * Ensures that tapping RSVP / Update RSVP loads fresh server truth before the editor opens,
  * eliminating stale client overwrites.
  */
-sealed interface RsvpEditPreparation {
-    data class Ready(val presentation: LiveInvitationPresentation, val state: LiveInvitationState.Presenting) : RsvpEditPreparation
-    data object StaleOrReplacedGuest : RsvpEditPreparation
-    data object RevokedOrUnauthorized : RsvpEditPreparation
-    data class Unavailable(val status: Int?) : RsvpEditPreparation
+sealed interface RsvpEditorPreparation {
+    data class Ready(val snapshot: GuestInvitationSnapshot) : RsvpEditorPreparation
+    data object ReopenRequired : RsvpEditorPreparation
+    data class Unavailable(val status: Int?) : RsvpEditorPreparation
 }
 
 /**
@@ -93,6 +94,12 @@ class LiveGuestInvitationCoordinator(
 
     /** The guest the presented card belongs to. It is what binds an answer to the right record. */
     private var presentedGuestId: String? = null
+
+    @VisibleForTesting
+    internal val testActiveWeddingSlug: String? get() = activeWeddingSlug
+
+    @VisibleForTesting
+    internal val testPresentedGuestId: String? get() = presentedGuestId
 
     /**
      * Enters the invitation.
@@ -203,27 +210,34 @@ class LiveGuestInvitationCoordinator(
      * Pre-open refresh before opening the RSVP editor.
      *
      * In accordance with Master Plan Phase 9:
-     * Tapping RSVP / Update RSVP must first refresh the Guest Session snapshot to ensure
-     * that any changes made on the PWA or another device are reflected in the editor.
-     * Validates that the refreshed snapshot belongs to [currentGuestId].
-     * If the session moved on, was revoked, or network failed, the editor does NOT open.
+     * Tapping RSVP / Update RSVP captures expectedWeddingSlug and expectedGuestId
+     * prior to network I/O, executes client.loadInvitation(expectedWeddingSlug),
+     * and strictly verifies snapshot equality (weddingSlug and guestId) before rebinding state.
+     * If session moved on, was revoked, or mismatched, fails closed returning ReopenRequired.
      */
-    suspend fun prepareRsvpEdit(currentGuestId: String): RsvpEditPreparation {
-        return when (val state = refresh()) {
-            is LiveInvitationState.Presenting -> {
-                if (state.snapshot.guestId != currentGuestId) {
-                    RsvpEditPreparation.StaleOrReplacedGuest
-                } else {
-                    RsvpEditPreparation.Ready(
-                        LiveInvitationPresentation.from(state.snapshot),
-                        state
-                    )
+    suspend fun prepareRsvpEditor(): RsvpEditorPreparation {
+        val expectedWeddingSlug = activeWeddingSlug ?: return RsvpEditorPreparation.ReopenRequired
+        val expectedGuestId = presentedGuestId?.takeIf { it.isNotBlank() } ?: return RsvpEditorPreparation.ReopenRequired
+
+        val refreshedSnapshot = try {
+            client.loadInvitation(expectedWeddingSlug)
+        } catch (error: GuestSessionException) {
+            return when (val reason = error.error) {
+                is GuestSessionError.Unauthorized -> {
+                    endPresentation()
+                    RsvpEditorPreparation.ReopenRequired
                 }
+                is GuestSessionError.Transport -> RsvpEditorPreparation.Unavailable(reason.status)
             }
-            is LiveInvitationState.Refused -> RsvpEditPreparation.RevokedOrUnauthorized
-            is LiveInvitationState.Unavailable -> RsvpEditPreparation.Unavailable(state.status)
-            is LiveInvitationState.Idle -> RsvpEditPreparation.RevokedOrUnauthorized
-            is LiveInvitationState.Exchanging -> RsvpEditPreparation.RevokedOrUnauthorized
         }
+
+        if (refreshedSnapshot.weddingSlug != expectedWeddingSlug || refreshedSnapshot.guestId != expectedGuestId) {
+            endPresentation()
+            return RsvpEditorPreparation.ReopenRequired
+        }
+
+        activeWeddingSlug = refreshedSnapshot.weddingSlug
+        presentedGuestId = refreshedSnapshot.guestId
+        return RsvpEditorPreparation.Ready(refreshedSnapshot)
     }
 }

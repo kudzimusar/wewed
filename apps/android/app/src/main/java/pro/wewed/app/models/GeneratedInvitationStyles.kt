@@ -52,13 +52,19 @@ enum class InvitationAtmosphere(val wire: String) {
     }
 }
 
+enum class InvitationRendererKind {
+    IVORY_CUSTOM,
+    GENERIC_MOTION
+}
+
 data class InvitationThemeDefinition(
     val id: String,
     val name: String,
     val category: String,
     val motion: InvitationMotion,
     val atmosphere: InvitationAtmosphere,
-    val palette: InvitationPalette
+    val palette: InvitationPalette,
+    val rendererKind: InvitationRendererKind
 )
 
 object GeneratedInvitationStyles {
@@ -95,7 +101,8 @@ object GeneratedInvitationStyles {
             category = "classic",
             motion = InvitationMotion.TRI_FOLD,
             atmosphere = InvitationAtmosphere.CHAMPAGNE_GLOW,
-            palette = palette("#17130f", "#fbf5e9", "#42372f", "#b3833f", "#d6b77c", "#7a6d62")
+            palette = palette("#17130f", "#fbf5e9", "#42372f", "#b3833f", "#d6b77c", "#7a6d62"),
+            rendererKind = InvitationRendererKind.IVORY_CUSTOM
         ),
         "midnight" to InvitationThemeDefinition(
             id = "midnight",
@@ -103,7 +110,8 @@ object GeneratedInvitationStyles {
             category = "evening",
             motion = InvitationMotion.GATE_FOLD,
             atmosphere = InvitationAtmosphere.STARS,
-            palette = palette("#070b13", "#101827", "#fff8e8", "#d4af67", "#f0d99b", "#b8bdc8")
+            palette = palette("#070b13", "#101827", "#fff8e8", "#d4af67", "#f0d99b", "#b8bdc8"),
+            rendererKind = InvitationRendererKind.GENERIC_MOTION
         ),
         "botanical" to InvitationThemeDefinition(
             id = "botanical",
@@ -111,7 +119,8 @@ object GeneratedInvitationStyles {
             category = "romantic",
             motion = InvitationMotion.FLORAL_REVEAL,
             atmosphere = InvitationAtmosphere.PETALS,
-            palette = palette("#e9eadf", "#fbf7ef", "#2f392e", "#718167", "#b99a62", "#6d7668")
+            palette = palette("#e9eadf", "#fbf7ef", "#2f392e", "#718167", "#b99a62", "#6d7668"),
+            rendererKind = InvitationRendererKind.GENERIC_MOTION
         ),
         "royal-emerald" to InvitationThemeDefinition(
             id = "royal-emerald",
@@ -119,7 +128,8 @@ object GeneratedInvitationStyles {
             category = "classic",
             motion = InvitationMotion.ENVELOPE_LETTER,
             atmosphere = InvitationAtmosphere.SOFT_BOKEH,
-            palette = palette("#071b16", "#f8f1e3", "#15382e", "#a98545", "#d4bd88", "#668078")
+            palette = palette("#071b16", "#f8f1e3", "#15382e", "#a98545", "#d4bd88", "#668078"),
+            rendererKind = InvitationRendererKind.GENERIC_MOTION
         ),
         "classic-white" to InvitationThemeDefinition(
             id = "classic-white",
@@ -127,7 +137,8 @@ object GeneratedInvitationStyles {
             category = "classic",
             motion = InvitationMotion.BOOK_OPEN,
             atmosphere = InvitationAtmosphere.MINIMAL,
-            palette = palette("#e8e5df", "#fffdf9", "#282521", "#8b806f", "#c8bda9", "#77716a")
+            palette = palette("#e8e5df", "#fffdf9", "#282521", "#8b806f", "#c8bda9", "#77716a"),
+            rendererKind = InvitationRendererKind.GENERIC_MOTION
         ),
         "blush-romance" to InvitationThemeDefinition(
             id = "blush-romance",
@@ -135,7 +146,8 @@ object GeneratedInvitationStyles {
             category = "romantic",
             motion = InvitationMotion.ENVELOPE_LETTER,
             atmosphere = InvitationAtmosphere.SOFT_BOKEH,
-            palette = palette("#ead8d2", "#fff7f1", "#543b38", "#b68b79", "#d8b992", "#8d716b")
+            palette = palette("#ead8d2", "#fff7f1", "#543b38", "#b68b79", "#d8b992", "#8d716b"),
+            rendererKind = InvitationRendererKind.GENERIC_MOTION
         ),
         "african-luxe" to InvitationThemeDefinition(
             id = "african-luxe",
@@ -143,7 +155,8 @@ object GeneratedInvitationStyles {
             category = "cultural",
             motion = InvitationMotion.GATE_FOLD,
             atmosphere = InvitationAtmosphere.CANDLELIGHT,
-            palette = palette("#1b130e", "#f5e9d3", "#36251b", "#a76d2b", "#d4a55b", "#786253")
+            palette = palette("#1b130e", "#f5e9d3", "#36251b", "#a76d2b", "#d4a55b", "#786253"),
+            rendererKind = InvitationRendererKind.GENERIC_MOTION
         ),
         "editorial" to InvitationThemeDefinition(
             id = "editorial",
@@ -151,7 +164,8 @@ object GeneratedInvitationStyles {
             category = "modern",
             motion = InvitationMotion.SINGLE_CARD_LIFT,
             atmosphere = InvitationAtmosphere.MINIMAL,
-            palette = palette("#dedbd5", "#f3efe7", "#191714", "#191714", "#9b8b72", "#706b65")
+            palette = palette("#dedbd5", "#f3efe7", "#191714", "#191714", "#9b8b72", "#706b65"),
+            rendererKind = InvitationRendererKind.GENERIC_MOTION
         ),
         "black-tie" to InvitationThemeDefinition(
             id = "black-tie",
@@ -159,7 +173,8 @@ object GeneratedInvitationStyles {
             category = "evening",
             motion = InvitationMotion.GATE_FOLD,
             atmosphere = InvitationAtmosphere.CANDLELIGHT,
-            palette = palette("#070707", "#f8f3e8", "#15120f", "#b89b68", "#e2d1aa", "#736b61")
+            palette = palette("#070707", "#f8f3e8", "#15120f", "#b89b68", "#e2d1aa", "#736b61"),
+            rendererKind = InvitationRendererKind.GENERIC_MOTION
         ),
         "watercolour-garden" to InvitationThemeDefinition(
             id = "watercolour-garden",
@@ -167,7 +182,8 @@ object GeneratedInvitationStyles {
             category = "romantic",
             motion = InvitationMotion.FLORAL_REVEAL,
             atmosphere = InvitationAtmosphere.WATERCOLOUR_BLOOM,
-            palette = palette("#e7ebe4", "#fffaf2", "#344339", "#789178", "#c58f83", "#708076")
+            palette = palette("#e7ebe4", "#fffaf2", "#344339", "#789178", "#c58f83", "#708076"),
+            rendererKind = InvitationRendererKind.GENERIC_MOTION
         ),
         "sunset-terracotta" to InvitationThemeDefinition(
             id = "sunset-terracotta",
@@ -175,7 +191,8 @@ object GeneratedInvitationStyles {
             category = "modern",
             motion = InvitationMotion.SLEEVE_PULL,
             atmosphere = InvitationAtmosphere.SOFT_BOKEH,
-            palette = palette("#3c2119", "#fbebdc", "#4a2b23", "#b76549", "#d6a665", "#886d61")
+            palette = palette("#3c2119", "#fbebdc", "#4a2b23", "#b76549", "#d6a665", "#886d61"),
+            rendererKind = InvitationRendererKind.GENERIC_MOTION
         ),
         "celestial" to InvitationThemeDefinition(
             id = "celestial",
@@ -183,7 +200,8 @@ object GeneratedInvitationStyles {
             category = "evening",
             motion = InvitationMotion.BOOK_OPEN,
             atmosphere = InvitationAtmosphere.STARS,
-            palette = palette("#050912", "#101728", "#f8f1df", "#c5a45f", "#e0cf9c", "#abb3c5")
+            palette = palette("#050912", "#101728", "#f8f1df", "#c5a45f", "#e0cf9c", "#abb3c5"),
+            rendererKind = InvitationRendererKind.GENERIC_MOTION
         ),
     )
 

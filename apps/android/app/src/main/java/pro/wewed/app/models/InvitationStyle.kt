@@ -50,6 +50,9 @@ enum class InvitationStyle(
     val palette: InvitationPalette
         get() = themeDefinition?.palette ?: GeneratedInvitationStyles.STYLES.getValue("botanical").palette
 
+    val rendererKind: InvitationRendererKind?
+        get() = themeDefinition?.rendererKind
+
     companion object {
         /**
          * Mirrors the server's `normalizeInvitationCardStyle`: an absent or unrecognised
@@ -63,6 +66,18 @@ enum class InvitationStyle(
             return entries.firstOrNull { it.wire == normalised } ?: UNKNOWN_STYLE
         }
     }
+}
+
+enum class ResolvedInvitationRenderer {
+    IVORY_CUSTOM,
+    GENERIC_MOTION,
+    UNSUPPORTED
+}
+
+fun rendererFor(style: InvitationStyle): ResolvedInvitationRenderer = when (style.rendererKind) {
+    InvitationRendererKind.IVORY_CUSTOM -> ResolvedInvitationRenderer.IVORY_CUSTOM
+    InvitationRendererKind.GENERIC_MOTION -> ResolvedInvitationRenderer.GENERIC_MOTION
+    null -> ResolvedInvitationRenderer.UNSUPPORTED
 }
 
 /**
