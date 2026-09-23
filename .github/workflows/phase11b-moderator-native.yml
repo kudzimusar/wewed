@@ -1,6 +1,7 @@
 name: Phase 11B Moderator Native Qualification
 
 on:
+  pull_request:
   push:
     branches:
       - native-mobile/wedding-day-ww2-phase11b-20260924
