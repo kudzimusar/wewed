@@ -40,6 +40,12 @@ class ProductionAuthorityContractTest {
         return ProductionAuthorityDecoder.decode(root.toString())!!
     }
 
+    private fun withOperationalGrant(edit: (JSONObject) -> Unit): ProductionAuthority {
+        val root = JSONObject(fixtureJson)
+        edit(root.getJSONArray("operationalGrants").getJSONObject(0))
+        return ProductionAuthorityDecoder.decode(root.toString())!!
+    }
+
     private fun assigned(outcome: ProductionGrantMapper.Outcome): ActorAssignment =
         (outcome as ProductionGrantMapper.Outcome.Assigned).assignment
 
@@ -209,6 +215,41 @@ class ProductionAuthorityContractTest {
         assertNull(ProductionAuthorityDecoder.decode("not json"))
         assertNull(ProductionAuthorityDecoder.decode("{}"))
         assertNotNull(ProductionAuthorityDecoder.decode(fixtureJson))
+    }
+
+    @Test
+    fun gateOperationalGrantMapsToConcreteContextOnlyFromServerAuthority() {
+        val outcome = ProductionGateGrantMapper.map(authority, "gate_operator:B:gate-1")
+        assertTrue(outcome is ProductionGateGrantMapper.Outcome.Selected)
+        val context = (outcome as ProductionGateGrantMapper.Outcome.Selected).context
+        assertEquals("ga-1", context.assignmentId)
+        assertEquals("B", context.weddingId)
+        assertEquals("gate-1", context.gateId)
+        assertEquals("user-1", context.operatorUserId)
+        assertTrue("gate.checkin.write" in context.capabilities)
+    }
+
+    @Test
+    fun gateOperationalGrantFailsClosedForUnknownKindCapabilityOrWrongActor() {
+        val unknownKind = withOperationalGrant { it.put("kind", "future_gate_kind") }
+        assertTrue(
+            ProductionGateGrantMapper.map(unknownKind, "gate_operator:B:gate-1") is
+                ProductionGateGrantMapper.Outcome.Denied
+        )
+
+        val unknownCapability = withOperationalGrant {
+            it.put("capabilities", org.json.JSONArray(listOf("gate.checkin.write", "gate.superuser")))
+        }
+        assertTrue(
+            ProductionGateGrantMapper.map(unknownCapability, "gate_operator:B:gate-1") is
+                ProductionGateGrantMapper.Outcome.Denied
+        )
+
+        val wrongActor = withOperationalGrant { it.put("operatorUserId", "different-user") }
+        assertTrue(
+            ProductionGateGrantMapper.map(wrongActor, "gate_operator:B:gate-1") is
+                ProductionGateGrantMapper.Outcome.Denied
+        )
     }
 
     /** The server's raw role strings never pass through the flat AppRole parser. */
