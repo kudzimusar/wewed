@@ -213,7 +213,7 @@ When a guest reports a lost or compromised device at the gate, or when an operat
 2. **API Endpoint:** `POST /api/native/gate/wedding-day/pass/revoke`
    - Headers: `Authorization: Bearer <token>`, `x-wewed-grant-id: <grantId>`
    - Body: `{"passSerial": "WWABC1234-001", "reason": "Lost device reported at North Gate"}`
-3. **Authority Enforcement:** Endpoint re-resolves the live operational grant and requires the dedicated `gate.pass.revoke` capability. `gate.checkin.write` alone cannot revoke a credential.
+3. **Authority Enforcement:** Endpoint re-resolves the live operational grant and requires the dedicated `gate.pass.revoke` capability. `gate.checkin.write` alone cannot revoke a credential. Grant this capability only to assignments intended to perform credential-management operations; existing check-in-only assignments remain unable to revoke.
 4. **Database Mutation:**
    - `WeddingPassCredential.revokedAt = now()`
    - `WeddingPassCredential.revocationReason = <reason>`
@@ -300,6 +300,7 @@ To be completed by the Release Commander and Database Administrator prior to pro
 - [ ] Confirmed zero private key bytes present in logs or CI output.
 
 ### Controlled Activation & Verification
+- [ ] Canary Gate assignment intended to exercise revocation explicitly includes `gate.pass.revoke`; ordinary check-in-only assignments do not gain it implicitly.
 - [ ] Set `WEWED_WEDDING_DAY_WW2_ENABLED="true"` on canary host.
 - [ ] Synthetic canary pass issued and validated (dot format confirmed).
 - [ ] Signed manifest fetched and cryptographically verified.
