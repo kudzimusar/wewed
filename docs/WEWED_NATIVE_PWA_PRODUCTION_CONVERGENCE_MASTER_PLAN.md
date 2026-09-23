@@ -2689,3 +2689,101 @@ Carry-forward items remain:
 - production rollout.
 
 **Phase 11 is now authorized. Production database migration application, WW2 production activation, production Gate check-in, signing/publishing, main merge, and production deployment remain separately gated.**
+
+
+### D-035 — Phase 11 preflight: isolated Wedding Day/WW2 may be reused only through production-safe migration and authority convergence (2026-09-24)
+**PREFLIGHT COMPLETE — Phase 11A authorized. Full production migration/activation is NOT yet authorized.**
+
+Independent repository reconnaissance after Phase-10 acceptance establishes:
+
+1. **The existing Wedding Day/WW2 implementation is an isolated subsystem, not production authority.**
+   The accepted native lineage contains `src/lib/wedding-day.ts`, `src/lib/wedding-day-manifest.ts`,
+   `src/app/api/wedding-day/*`, native offline/token verification code, and
+   `prisma/migrations/20260917114500_wedding_day_domain`. The accepted Phase-10 server lineage does
+   not contain this domain or migration. The isolated models also are not present in the primary
+   `prisma/schema.prisma`. Phase 11 must therefore port/reconcile the approved pieces deliberately
+   onto the accepted Phase-10 server authority rather than merge the native branch wholesale.
+
+2. **The isolated server RBAC is not production-safe.**
+   `readWeddingDayOperator` currently trusts the legacy AppSession axis, ambient `activeWeddingId`,
+   direct `WeddingMembership` lookup, dashboard-role coercion and an implicit
+   `session.role === 'admin'` Wedding Day path. That conflicts with the accepted multi-axis authority
+   contract and the F-6 global-admin containment rule. Production Gate manifest/check-in must instead
+   use the Phase-10 native bearer identity and freshly resolve the exact `gate_operator` grant plus
+   required capability. Wedding/gate/operator identifiers must come from that grant, never request
+   body/query authority fields.
+
+3. **The isolated native transport and isolated server auth currently disagree.**
+   Android/iOS `WeddingDaySyncService` call `/api/wedding-day/manifest` and
+   `/api/wedding-day/check-in` with the native bearer account session, while those isolated routes
+   currently authenticate through legacy AppSession cookie logic. Phase 11A must converge this
+   transport on the already-accepted `resolveNativeGateOperationalContext` boundary before activation.
+
+4. **The isolated schema requires migration hardening before it can enter the primary schema.**
+   The current isolated migration has:
+   - no `Guest(id,weddingId)` composite uniqueness in the primary schema, a gap already proven in
+     the Phase-3 production audit;
+   - `WeddingPassCredential.guestId -> Guest(id)` rather than a same-wedding composite FK;
+   - `WeddingCheckIn.guestId -> Guest(id)` rather than a same-wedding composite FK;
+   - `WeddingPassCredential.passKeyId -> WeddingPassKey(id)` without same-wedding physical binding;
+   - nullable free-text `WeddingCheckIn.gateId` with no FK to Phase-10 `WeddingGate`;
+   - `WeddingCheckIn.credentialId ... ON DELETE SET NULL`, which is not audit-safe credential history;
+   - no demonstrated FK for `admittedByUserId`;
+   - broad CASCADE behavior that must be reconciled with the locked plan's RESTRICT/history requirements.
+   The production audit previously verified zero Wedding Day/WW2 production objects, so this is a clean
+   additive migration design problem, not a compatibility excuse to preserve weak isolated constraints.
+
+5. **Credential reissue has a concrete isolated-code defect.**
+   `ensureWeddingPassCredential` derives a deterministic pass serial from wedding+guest and has
+   `UNIQUE(weddingId,passSerial)`. After revocation, issuance attempts collide with the same serial
+   and the current `ON CONFLICT ... DO UPDATE SET updatedAt` path can return the old revoked record
+   instead of producing a distinct reissued credential. Phase 11A must preserve revoked history and
+   issue a new serial/token/credential identity, with explicit revocation/reissue regression tests.
+
+6. **The check-in engine has useful concurrency primitives but must be Gate-bound.**
+   The isolated transaction and unique
+   `(weddingId,eventKey,guestId,attendeeKey)` constraint already give duplicate-safe attendee
+   admission and can be reused. However, `gateId`, `actorUserId`, source and event scope must not
+   be client authority. For production Usher sync/check-in they must be derived/validated from the
+   fresh Gate grant and the canonical Wedding Day event. Concurrency and offline idempotency must be
+   explicitly qualified.
+
+7. **Crypto/offline work is reusable with production hardening.**
+   Existing useful pieces include:
+   - WW2 P-256 / SHA-256 P1363 token signing and verification;
+   - root-signed manifest v2 carrying public keys/credential metadata only;
+   - manifest wedding/expiry checks;
+   - credential/key revocation and expiry checks;
+   - Android/iOS root-signature, WW2 signature and offline queue handling;
+   - explicit refusal to reinterpret legacy count-only offline events.
+   They are implementation inputs, not accepted production activation.
+
+8. **Secret/key defaults must not become production authority.**
+   The isolated code reads `WEDDING_DAY_WW2_PRIVATE_KEY_PEM`,
+   `WEDDING_DAY_ROOT_PRIVATE_KEY_PEM`, `WEDDING_DAY_WW2_KEY_ID` and
+   `WEDDING_DAY_ROOT_KEY_ID`, but falls back to isolated key IDs such as
+   `ww2-isolated-v1` / `wewed-root-isolated-v1`. Phase 11A must define fail-closed production
+   configuration and safe preflight without reading/logging private key material. No production key
+   creation/configuration is authorized in Phase 11A.
+
+9. **Existing tests are valuable but not sufficient authority proof.**
+   The real isolated E2E currently manufactures legacy AppSession bearer tokens and exercises
+   Planner-driven check-in with caller-supplied gate IDs. The browser-only 12-scenario acceptance
+   test also uses a mock HTTP server and named fixture wedding data. These tests may remain isolated
+   regression inputs, but Phase 11 must add production-shaped tests against Phase-10 Gate authority,
+   revocation/reissue, same-wedding FKs, concurrency, offline sync and feature-flag-off behavior.
+
+10. **Production database facts carried from Phase 3 remain material.**
+    The application database role is `postgres`, not SUPERUSER, with `BYPASSRLS = true`; zero RLS
+    policies were recorded; no Wedding Day/WW2 production objects existed; and
+    `Guest(id,weddingId)` composite uniqueness was absent. Phase 11 migration rehearsal must therefore
+    include explicit role/RLS postflight evidence rather than assuming table-level RLS provides isolation.
+
+**Authorized next unit: Phase 11A — production-safe Wedding Day/WW2 schema + authority convergence, feature flag OFF.**
+It may design/implement/rehearse the primary-schema migration on disposable PostgreSQL and port the
+server/native contracts needed for production-shaped qualification. It may not apply a production
+migration, configure production signing keys, enable production WW2 issuance/check-in, merge main,
+deploy production, sign/publish mobile builds, or begin Phase 12.
+
+**Phase 11 full activation remains gated on successful Phase-11A independent review followed by a
+separate migration/key/postflight/activation authorization.**
