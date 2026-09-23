@@ -60,6 +60,7 @@ interface OfflineManifestStoreProtocol {
     suspend fun recordOfflineCheckIn(weddingId: String, serial: String, count: Int, usherId: String): CheckInVerificationResult
     suspend fun getPendingCheckIns(weddingId: String): List<QueuedCheckIn>
     suspend fun markCheckInSynced(id: String)
+    suspend fun markPassRevoked(weddingId: String, serial: String)
     suspend fun clearManifest(weddingId: String)
 }
 
@@ -332,6 +333,15 @@ class OfflineManifestStore(
             }
         }
         persistState()
+    }
+
+    override suspend fun markPassRevoked(weddingId: String, serial: String) = mutex.withLock {
+        val weddingMap = manifests[weddingId] ?: return@withLock
+        val item = weddingMap[serial] ?: return@withLock
+        if (item.revokedAt == null) {
+            weddingMap[serial] = item.copy(revokedAt = "local-revoked")
+            persistState()
+        }
     }
 
     override suspend fun clearManifest(weddingId: String) = mutex.withLock {
