@@ -283,7 +283,7 @@ class WeddingDayOfflineTest {
     }
 
     @Test
-    fun testRevokePassCallsRevokeEndpoint() = runBlocking {
+    fun testRevokePassCallsRevokeEndpointAndPreservesStructuredResult() = runBlocking {
         var postedPath = ""
         var postedBody = ""
         var postedHeaders = emptyMap<String, String>()
@@ -298,19 +298,72 @@ class WeddingDayOfflineTest {
             }
         }
         val service = WeddingDaySyncService(transport, trustedRootPublicKeyDerBase64 = "unused")
-        val success = service.revokePass(
+        val result = service.revokePass(
             bearerToken = "native-session",
             passSerial = "WWTEST999",
             reason = "Lost pass",
             grantId = "gate_operator:wedding-1:gate-1"
         )
-        assertTrue(success)
+        assertTrue(result.success)
         assertTrue(postedPath.contains("/api/native/gate/wedding-day/pass/revoke"))
         assertTrue(postedPath.contains("grantId=gate_operator:wedding-1:gate-1"))
         assertEquals("Bearer native-session", postedHeaders["Authorization"])
         assertEquals("gate_operator:wedding-1:gate-1", postedHeaders["x-wewed-grant-id"])
         assertTrue(postedBody.contains("\"passSerial\":\"WWTEST999\""))
         assertTrue(postedBody.contains("\"reason\":\"Lost pass\""))
+        for (forbidden in listOf("weddingId", "gateId", "usherId", "operatorUserId")) {
+            assertFalse(postedBody.contains("\"$forbidden\""))
+        }
+    }
+
+    @Test
+    fun revokePassReturnsServerReasonInsteadOfBoolean() = runBlocking {
+        val transport = object : WeddingDayHttpTransport {
+            override suspend fun get(path: String, headers: Map<String, String>) =
+                error("GET not used")
+            override suspend fun post(path: String, headers: Map<String, String>, body: String) =
+                WeddingDayHttpResponse(
+                    403,
+                    """{"success":false,"code":"GATE_GRANT_REVOKED","error":"This gate assignment is no longer authorized."}"""
+                )
+        }
+        val service = WeddingDaySyncService(transport, trustedRootPublicKeyDerBase64 = "unused")
+        val result = service.revokePass(
+            bearerToken = "native-session",
+            passSerial = "WWTEST999",
+            reason = "Lost pass",
+            grantId = "gate_operator:wedding-1:gate-1"
+        )
+        assertFalse(result.success)
+        assertEquals("GATE_GRANT_REVOKED", result.code)
+        assertEquals("This gate assignment is no longer authorized.", result.error)
+    }
+
+    @Test
+    fun locallyMarkedRevocationFailsClosedBeforeAnotherOfflineAdmission() = runBlocking {
+        val store = OfflineManifestStore()
+        store.saveManifest(
+            "wedding-1",
+            listOf(
+                GuestManifestItem(
+                    id = "guest-1",
+                    serial = "WWLOCALREVOKE",
+                    guestName = "Guest",
+                    partySize = 1,
+                    attendeeKeys = listOf("primary"),
+                    eligible = true
+                )
+            )
+        )
+        store.markPassRevoked("wedding-1", "WWLOCALREVOKE")
+        val result = store.recordOfflineCheckIn(
+            "wedding-1",
+            "WWLOCALREVOKE",
+            1,
+            ""
+        )
+        assertEquals(pro.wewed.app.models.CheckInStatus.INVALID_PASS, result.status)
+        assertTrue(store.getPendingCheckIns("wedding-1").isEmpty())
     }
 
 }
