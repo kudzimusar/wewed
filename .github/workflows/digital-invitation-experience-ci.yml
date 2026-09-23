@@ -30,7 +30,6 @@ on:
   push:
     branches:
       - main
-      - native-mobile/digital-invitation-rsvp-phase9-20260923
     paths:
       - 'src/app/w/**'
       - 'src/components/wedding/digital-invitation-card.tsx'
