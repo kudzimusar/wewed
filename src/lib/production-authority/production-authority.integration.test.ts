@@ -749,5 +749,31 @@ describeLocal('WewedProductionAuthorityV1 against a disposable migrated database
     expect(caughtError).not.toBeNull()
     expect(String(caughtError)).toMatch(/WeddingGateAssignment_gate_wedding_fkey|foreign key constraint/i)
   })
+
+  test('Relational integrity: one assignment identity exists per user and gate', async () => {
+    let caughtError: unknown = null
+    try {
+      await gateAssignment('duplicate-usher-gate', ids.A, ids.gateA1, actors.usher)
+    } catch (err) {
+      caughtError = err
+    }
+    expect(caughtError).not.toBeNull()
+    expect(String(caughtError)).toMatch(/WeddingGateAssignment_gateId_userId_key|unique constraint/i)
+  })
+
+  test('Relational integrity: assignment expiry must be later than activeFrom', async () => {
+    let caughtError: unknown = null
+    try {
+      await gateAssignment('invalid-time-window', ids.A, ids.gateA2, actors.revokedUsher, {
+        activeFrom: '2030-01-02T00:00:00.000Z',
+        expiresAt: '2030-01-01T00:00:00.000Z',
+      })
+    } catch (err) {
+      caughtError = err
+    }
+    expect(caughtError).not.toBeNull()
+    expect(String(caughtError)).toMatch(/WeddingGateAssignment_time_window_check|check constraint/i)
+  })
+
 })
 
