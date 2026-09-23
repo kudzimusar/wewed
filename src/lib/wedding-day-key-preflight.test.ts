@@ -35,6 +35,12 @@ describe('wedding day key preflight', () => {
     expect(find(report, 'IEEE-P1363')?.detail).toContain('64 bytes / 128 hex')
   })
 
+  test('public fingerprints contain the complete 32-byte SHA-256 digest', () => {
+    const report = weddingDayKeyPreflight(complete())
+    const fingerprint = find(report, 'public key derives')?.detail ?? ''
+    expect(fingerprint).toMatch(/^SHA256:(?:[0-9a-f]{2}:){31}[0-9a-f]{2}$/)
+  })
+
   test('an empty environment reports absent rather than throwing', () => {
     const report = weddingDayKeyPreflight({})
     expect(report.ok).toBe(false)
