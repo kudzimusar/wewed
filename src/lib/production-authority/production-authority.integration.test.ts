@@ -837,6 +837,70 @@ describeLocal('WewedProductionAuthorityV1 against a disposable migrated database
       created.id,
     )
     expect(gateRows[0]?.status).toBe('disabled')
+
+    const auditRows = await db.$queryRawUnsafe<Array<{
+      action: string
+      weddingId: string | null
+      actorId: string | null
+      resourceId: string | null
+    }>>(
+      `SELECT action, "weddingId", "actorId", "resourceId"
+         FROM public."AuditEvent"
+        WHERE "weddingId" = $1
+          AND "actorId" = $2
+          AND "resourceId" IN ($3, $4)
+        ORDER BY "createdAt", action`,
+      ids.A,
+      actors.couple,
+      created.id,
+      assignment.id,
+    )
+    expect(auditRows.map((row) => row.action)).toEqual(
+      expect.arrayContaining([
+        'gate.created',
+        'gate.assignment.assigned',
+        'gate.assignment.revoked',
+        'gate.disabled',
+      ]),
+    )
+    expect(auditRows.every((row) => row.weddingId === ids.A && row.actorId === actors.couple)).toBe(true)
+  })
+
+  test('Native gate context re-resolves authority and refuses revoked assignments', async () => {
+    const { createNativeAccountSessionToken } = await import('@/lib/native-account-session')
+    const { resolveNativeGateOperationalContext } = await import('@/lib/native-gate-context')
+    const { NextRequest } = await import('next/server')
+
+    const requestFor = (actorId: string, grantId: string) => {
+      const token = createNativeAccountSessionToken({
+        accessUserId: actorId,
+        authUserId: `auth-${actorId}`,
+        email: `${actorId}@example.test`,
+      })
+      return new NextRequest(
+        `http://localhost/api/native/gate/context?grantId=${encodeURIComponent(grantId)}`,
+        { headers: { authorization: `Bearer ${token}` } },
+      )
+    }
+
+    const liveGrantId = `gate_operator:${ids.A}:${ids.gateA1}`
+    const live = await resolveNativeGateOperationalContext(
+      requestFor(actors.usher, liveGrantId),
+      { requiredCapability: 'gate.checkin.write' },
+    )
+    expect(live.ok).toBe(true)
+    if (live.ok) {
+      expect(live.context.grant.operatorUserId).toBe(actors.usher)
+      expect(live.context.grant.gateId).toBe(ids.gateA1)
+    }
+
+    const revokedGrantId = `gate_operator:${ids.A}:${ids.gateA1}`
+    const revoked = await resolveNativeGateOperationalContext(
+      requestFor(actors.revokedUsher, revokedGrantId),
+      { requiredCapability: 'gate.checkin.write' },
+    )
+    expect(revoked.ok).toBe(false)
+    if (!revoked.ok) expect(revoked.response.status).toBe(403)
   })
 
   test('Gate management requires a real wedding grant and never inherits platform Admin scope', async () => {
