@@ -369,11 +369,13 @@ class ProductionDomainRepositoriesTest {
 
     @Test
     fun `ProductionAdminSystemRepository throws on a live failure, never a silently nulled-out snapshot`() = runBlocking {
-        // Master plan Phase 8 closure round 3 §7 — a bound repository whose live call fails is a
-        // different fact from ProductionBoundaryAdminSystemRepository's intentional "not yet bound"
-        // shape; collapsing them made a failed fetch indistinguishable from a genuinely empty
-        // console. This must throw, exactly like getContributions()/getDocuments() do, so the UI's
-        // rememberProductionLoad can render it as Unavailable rather than an authoritative empty.
+        // Master plan Phase 8 closure round 3 §7, revised round 4 §1 — a bound repository whose live
+        // call fails is a different fact from "never bound at all" (AppViewModel.adminRepository now
+        // throws ProductionRepositoryUnbound for that case instead of returning a same-typed
+        // placeholder object). Collapsing the two made a failed fetch indistinguishable from a
+        // genuinely empty console. This must throw, exactly like getContributions()/getDocuments()
+        // do, so the UI's rememberProductionLoad can render it as Unavailable rather than an
+        // authoritative empty.
         val repo = ProductionAdminSystemRepository(NativeDomainApiClient(FakeTransport(emptyMap())), token, "admin:system")
         try {
             repo.snapshot()
@@ -381,15 +383,6 @@ class ProductionDomainRepositoriesTest {
         } catch (e: ProductionReadOnlyDomainUnavailable) {
             // Expected.
         }
-    }
-
-    @Test
-    fun `ProductionBoundaryAdminSystemRepository never throws — it is an intentional not-yet-bound placeholder, not a failure`() = runBlocking {
-        val snapshot = ProductionBoundaryAdminSystemRepository().snapshot()
-        assertEquals(null, snapshot.pendingOnboardingCount)
-        assertTrue(snapshot.accounts.isEmpty())
-        assertTrue(snapshot.supportCases.isEmpty())
-        assertTrue(snapshot.incidents.isEmpty())
     }
 
     /** Master plan Phase 8 closure round 3 §7 — same 5-outcome matrix as Documents/Contributions. */
@@ -490,6 +483,72 @@ class ProductionDomainRepositoriesTest {
             try {
                 failingRepo.getServiceEngagements()
                 fail("Expected $label to throw instead of returning data or an empty list")
+            } catch (e: ProductionReadOnlyDomainUnavailable) {
+                // Expected.
+            }
+        }
+    }
+
+    /**
+     * Master plan Phase 8 closure round 4 §3 — the mature Deal Room, reachable from the native
+     * client for the first time this round. Reuses `getServiceEngagementDealRoom` verbatim server-side
+     * (`/api/native/wedding/engagements/{id}/deal-room`); this test proves the CLIENT side: opening
+     * engagement A loads exactly A's Deal Room (never fabricated, never another engagement's), and
+     * every non-success outcome (foreign engagement 404, permission denial, session-invalid, grant
+     * revocation) throws instead of returning an empty or partially-fabricated room.
+     */
+    @Test
+    fun `ProductionContractsRepository getDealRoom loads the exact requested engagement's Deal Room, and throws on any live failure`() = runBlocking {
+        val transport = FakeTransport(
+            mapOf(
+                "api/native/wedding/engagements/eng-1/deal-room" to WeddingDayHttpResponse(200, """
+                    {"success":true,"data":{
+                        "id":"eng-1","serviceCategory":"photography","serviceDescription":"Full day coverage",
+                        "agreedAmount":"2500.00","currency":"USD","serviceDate":"2026-11-14","serviceLocation":"Imba Manor",
+                        "lifecycleStatus":"effective",
+                        "vendor":{"id":"vendor-1","name":"Shandy Events","category":"photography","email":"hi@shandy.test","phone":null},
+                        "parties":[{"id":"party-1","partyRole":"vendor","displayName":"Shandy Events","email":"hi@shandy.test","phone":null,"requiredForReview":true}],
+                        "budgetItems":[{"id":"bi-1","description":"Deposit","estimatedCost":"1250.00","actualCost":"1250.00","paidAmount":"1250.00","currency":"USD"}],
+                        "payments":[{"id":"pay-1","amount":"1250.00","currency":"USD","paidAt":"2026-08-01T00:00:00.000Z","reference":"REF-1"}],
+                        "contracts":[{"id":"con-1","contractNumber":"WW-0001","status":"ISSUED","title":"Photography Agreement","currentVersionNumber":2,"issuedAt":"2026-08-01T00:00:00.000Z","versions":[{"id":"ver-1","versionNumber":2,"status":"ISSUED","issuedAt":"2026-08-01T00:00:00.000Z","createdAt":"2026-07-30T00:00:00.000Z"}]}],
+                        "documents":[{"id":"doc-1","displayName":"Signed contract","originalFilename":"contract.pdf","mimeType":"application/pdf","byteSize":1024,"storageState":"stored","scanState":"clean","createdAt":"2026-07-30T00:00:00.000Z"}]
+                    }}
+                """.trimIndent()),
+            ),
+        )
+        val repo = ProductionContractsRepository(NativeDomainApiClient(transport), token, grantId)
+        val dealRoom = repo.getDealRoom("eng-1")
+        assertEquals("eng-1", dealRoom.id)
+        assertEquals("Shandy Events", dealRoom.vendor.name)
+        assertEquals("2500.00", dealRoom.agreedAmount)
+        assertEquals(1, dealRoom.parties.size)
+        assertTrue(dealRoom.parties[0].requiredForReview)
+        assertEquals(1, dealRoom.contracts.size)
+        assertEquals("WW-0001", dealRoom.contracts[0].contractNumber)
+        assertEquals(1, dealRoom.contracts[0].versions.size)
+        assertEquals(1, dealRoom.budgetItems.size)
+        assertEquals(1, dealRoom.payments.size)
+        assertEquals(1, dealRoom.documents.size)
+        assertEquals(
+            "api/native/wedding/engagements/eng-1/deal-room?grantId=${java.net.URLEncoder.encode(grantId, "UTF-8")}",
+            transport.requestedPaths.last(),
+        )
+
+        val failureCases = mapOf(
+            "foreign engagement (404)" to WeddingDayHttpResponse(404, """{"success":false,"error":"Service engagement was not found."}"""),
+            "permission denial" to WeddingDayHttpResponse(403, """{"success":false,"code":"PERMISSION_DENIED"}"""),
+            "session invalid" to WeddingDayHttpResponse(401, """{"success":false}"""),
+            "grant revocation" to WeddingDayHttpResponse(403, """{"success":false,"code":"GRANT_REVOKED"}"""),
+        )
+        for ((label, response) in failureCases) {
+            val failingRepo = ProductionContractsRepository(
+                NativeDomainApiClient(FakeTransport(mapOf("api/native/wedding/engagements/eng-1/deal-room" to response))),
+                token,
+                grantId,
+            )
+            try {
+                failingRepo.getDealRoom("eng-1")
+                fail("Expected $label to throw instead of returning data or a fabricated empty Deal Room")
             } catch (e: ProductionReadOnlyDomainUnavailable) {
                 // Expected.
             }

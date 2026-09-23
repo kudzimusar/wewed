@@ -94,32 +94,6 @@ class ShadowAdminSystemRepository(
 }
 
 /**
- * Master plan Phase 8 closure §B/§12 — the PRODUCTION default before a real `admin:system` grant
- * has been resolved and bound. Never Shadow, never fabricated: every stream is honestly
- * unsupported/unknown until `ProductionAdminSystemRepository` is bound in its place.
- */
-class ProductionBoundaryAdminSystemRepository : AdminSystemRepository {
-    override suspend fun snapshot(): AdminSystemSnapshot = AdminSystemSnapshot(
-        environment = NativeDataEnvironment.PRODUCTION,
-        weddingsInScope = 0,
-        unsupportedStreams = listOf(
-            "Full overview (billing/support/incidents)",
-            "Client operations",
-            "Command center",
-            "Bookings",
-            "Service engagements",
-            "Contract intelligence",
-            "Contributions analytics",
-            "Account identity",
-            "Productivity",
-            "Governance",
-            "Vault",
-        ),
-        pendingOnboardingCount = null,
-    )
-}
-
-/**
  * Master plan Phase 8, extended by closure §4 — the real Admin production adapter.
  * `pendingOnboardingCount` plus platform-wide `summary` counts and the real business `accounts`
  * list are now live, all from the SAME shared `loadAdminOverview` the PWA's `/api/admin/overview`
@@ -136,11 +110,11 @@ class ProductionAdminSystemRepository(
 ) : AdminSystemRepository {
     /**
      * Master plan Phase 8 closure round 3 §7 — throws on ANY non-success fetch (transport,
-     * permission denial, session-invalid, grant revocation) instead of silently degrading to the
-     * same nulled-out shape [ProductionBoundaryAdminSystemRepository] uses for "intentionally not
-     * yet bound". Those are two different facts — a bound repository whose live call just failed is
-     * not the same as one that was never bound — and collapsing them made a failed fetch
-     * indistinguishable from a genuinely empty admin console. `AdminDashboardContent`/
+     * permission denial, session-invalid, grant revocation) instead of silently degrading to a
+     * nulled-out shape. "Never bound at all" is now its own distinct state — `AppViewModel.adminRepository`
+     * throws `ProductionRepositoryUnbound` before this class is ever constructed — so a bound
+     * repository whose live call just failed is not confusable with one that was never bound, and a
+     * failed fetch never renders as a genuinely empty admin console. `AdminDashboardContent`/
      * `AdminAccountsSection`/`AdminCasesSection` catch this via the same `rememberProductionLoad`
      * used for Documents/Contributions.
      */

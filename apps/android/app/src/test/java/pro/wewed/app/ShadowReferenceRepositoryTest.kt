@@ -10,17 +10,16 @@ import pro.wewed.app.models.RSVPStatus
 import pro.wewed.app.services.scopedWedding
 import pro.wewed.app.services.forOnlyWedding
 import pro.wewed.app.services.NativeEnvironmentGuardError
-import pro.wewed.app.services.ProductionBoundaryWeddingRepository
-import pro.wewed.app.services.ProductionBoundaryPlannerRepository
 import pro.wewed.app.services.NativeRepositoryFactory
 import pro.wewed.app.services.NativeRepositoryFactoryError
+import pro.wewed.app.services.NativeRepositoryOutcome
 import pro.wewed.app.services.ShadowReferenceWeddingRepository
 
 class ShadowReferenceRepositoryTest {
 
     @Test
     fun shadowFactoryBuildsCoherentCharityAndKudzieGraph() = runBlocking {
-        val bundle = NativeRepositoryFactory.make(NativeDataEnvironment.SHADOW)
+        val bundle = NativeRepositoryFactory.make(NativeDataEnvironment.SHADOW) as NativeRepositoryOutcome.NonProduction
         assertEquals(NativeDataEnvironment.SHADOW, bundle.environment)
 
         val wedding = bundle.scopedWedding().getWedding()
@@ -58,7 +57,7 @@ class ShadowReferenceRepositoryTest {
 
     @Test
     fun plannerReferenceRelationshipsStayConnected() = runBlocking {
-        val planner = NativeRepositoryFactory.make(NativeDataEnvironment.SHADOW).planner
+        val planner = (NativeRepositoryFactory.make(NativeDataEnvironment.SHADOW) as NativeRepositoryOutcome.NonProduction).planner
         val budget = planner.getBudgetLines()
         val contributions = planner.getContributions()
         val vendors = planner.getVendorEngagements()
@@ -139,15 +138,21 @@ class ShadowReferenceRepositoryTest {
     }
 
     @Test
-    fun phase5ProductionUsesOnlyFailClosedBoundaryRepositories() {
-        val production = NativeRepositoryFactory.make(NativeDataEnvironment.PRODUCTION)
-        assertTrue(production.wedding is ProductionBoundaryWeddingRepository)
-        assertTrue(production.planner is ProductionBoundaryPlannerRepository)
+    fun phase8ProductionFactoryYieldsNoRepositoryShapedBoundaryObjectAtAll() {
+        val production = NativeRepositoryFactory.make(NativeDataEnvironment.PRODUCTION, baseUrl = "https://wewed.pro")
+        assertTrue(
+            "PRODUCTION must resolve to ProductionBootstrap, never a repository-carrying outcome.",
+            production is NativeRepositoryOutcome.ProductionBootstrap
+        )
+        assertEquals(NativeDataEnvironment.PRODUCTION, production.environment)
+        // ProductionBootstrap structurally has no wedding/planner field — there is nothing to read
+        // even by mistake. This is the compile-time proof the moderator's Item 1 requires: it is not
+        // possible to write `production.wedding` here at all, boundary or otherwise.
     }
 
     @Test
     fun sanitizedShadowFactoryBuildsValidBundle() = runBlocking {
-        val bundle = NativeRepositoryFactory.make(NativeDataEnvironment.SANITIZED_SHADOW)
+        val bundle = NativeRepositoryFactory.make(NativeDataEnvironment.SANITIZED_SHADOW) as NativeRepositoryOutcome.NonProduction
         assertEquals(NativeDataEnvironment.SANITIZED_SHADOW, bundle.environment)
     }
 
@@ -164,7 +169,7 @@ class ShadowReferenceRepositoryTest {
             return@runBlocking
         }
 
-        val bundle = NativeRepositoryFactory.make(NativeDataEnvironment.PRIVATE_REAL_SHADOW)
+        val bundle = NativeRepositoryFactory.make(NativeDataEnvironment.PRIVATE_REAL_SHADOW) as NativeRepositoryOutcome.NonProduction
         assertEquals(NativeDataEnvironment.PRIVATE_REAL_SHADOW, bundle.environment)
 
         val wedding = bundle.scopedWedding().getWedding()
@@ -279,7 +284,7 @@ class ShadowReferenceRepositoryTest {
         val path = pro.wewed.app.services.PrivateRealShadowWeddingRepository.defaultSnapshotPath()
         if (!java.io.File(path).exists()) return@runBlocking
 
-        val bundle = NativeRepositoryFactory.make(NativeDataEnvironment.PRIVATE_REAL_SHADOW)
+        val bundle = NativeRepositoryFactory.make(NativeDataEnvironment.PRIVATE_REAL_SHADOW) as NativeRepositoryOutcome.NonProduction
         val wedding = bundle.scopedWedding().getWedding()
 
         // 1. Resolve pending invitation

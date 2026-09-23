@@ -129,8 +129,24 @@ class NativeDomainApiClient(
     suspend fun engagements(sessionToken: String, grantId: String): NativeDomainFetch<JSONArray> =
         runGetArray("api/native/wedding/engagements", sessionToken, grantId, "data")
 
-    suspend fun vendorEngagement(sessionToken: String, grantId: String): NativeDomainFetch<JSONObject> =
-        runGet("api/native/vendor/engagement", sessionToken, grantId)
+    /** Master plan Phase 8 closure round 4 §3 — the mature Deal Room, never duplicated in Kotlin. */
+    suspend fun dealRoom(sessionToken: String, grantId: String, engagementId: String): NativeDomainFetch<JSONObject> =
+        runGet("api/native/wedding/engagements/${URLEncoder.encode(engagementId, Charsets.UTF_8.name())}/deal-room", sessionToken, grantId)
+
+    /**
+     * Master plan Phase 8 closure round 4 §2 — [engagementId] is REQUIRED whenever the caller
+     * already knows which engagement is selected (i.e. whenever [AppState]'s `selectedEngagementId`
+     * is non-null); passing `null` only when a grant is genuinely single-engagement lets the server
+     * auto-resolve it, exactly as `requireGrantEngagement`/the route itself already does. This
+     * client never guesses a "first" engagement on the caller's behalf.
+     */
+    suspend fun vendorEngagement(sessionToken: String, grantId: String, engagementId: String?): NativeDomainFetch<JSONObject> =
+        runGet(
+            "api/native/vendor/engagement",
+            sessionToken,
+            grantId,
+            extraQuery = engagementId?.let { "&engagementId=${URLEncoder.encode(it, Charsets.UTF_8.name())}" } ?: "",
+        )
 
     private suspend fun runGet(path: String, sessionToken: String, grantId: String, extraQuery: String = ""): NativeDomainFetch<JSONObject> {
         val (status, body) = runCatching { get(path, sessionToken, grantId, extraQuery) }

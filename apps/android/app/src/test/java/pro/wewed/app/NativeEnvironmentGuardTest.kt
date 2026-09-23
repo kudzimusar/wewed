@@ -6,8 +6,7 @@ import pro.wewed.app.models.NativeDataEnvironment
 import pro.wewed.app.services.NativeEnvironmentGuard
 import pro.wewed.app.services.NativeEnvironmentGuardError
 import pro.wewed.app.services.NativeRepositoryFactory
-import pro.wewed.app.services.ProductionBoundaryWeddingRepository
-import pro.wewed.app.services.ProductionBoundaryPlannerRepository
+import pro.wewed.app.services.NativeRepositoryOutcome
 
 class NativeEnvironmentGuardTest {
 
@@ -50,12 +49,14 @@ class NativeEnvironmentGuardTest {
     }
 
     @Test
-    fun productionFactoryUsesOnlyFailClosedBoundaryRepositories() {
-        val bundle = NativeRepositoryFactory.make(
+    fun productionFactoryYieldsBootstrapWithNoRepositoryValuedBoundaryObject() {
+        val outcome = NativeRepositoryFactory.make(
             environment = NativeDataEnvironment.PRODUCTION,
             baseUrl = "https://wewed.pro"
         )
-        org.junit.Assert.assertTrue(bundle.wedding is ProductionBoundaryWeddingRepository)
-        org.junit.Assert.assertTrue(bundle.planner is ProductionBoundaryPlannerRepository)
+        org.junit.Assert.assertTrue(
+            "PRODUCTION must never construct a wedding/planner-carrying outcome, boundary or otherwise.",
+            outcome is NativeRepositoryOutcome.ProductionBootstrap
+        )
     }
 }

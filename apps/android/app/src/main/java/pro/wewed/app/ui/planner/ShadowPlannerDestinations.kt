@@ -1,6 +1,7 @@
 package pro.wewed.app.ui.planner
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -15,6 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import pro.wewed.app.models.*
+import pro.wewed.app.services.DealRoomDetail
 import pro.wewed.app.services.ServiceEngagementSummary
 import pro.wewed.app.state.AppViewModel
 import pro.wewed.app.theme.WewedColors
@@ -261,7 +263,7 @@ fun ShadowVendorsDestination(appViewModel: AppViewModel, onBack: () -> Unit) {
                         if (engagements.isEmpty()) {
                             item { Text("No managed service engagements recorded for this wedding.", color = Color.Gray, fontSize = 12.sp) }
                         } else {
-                            items(engagements) { engagement -> ServiceEngagementCard(engagement) }
+                            items(engagements) { engagement -> ServiceEngagementCard(engagement, appViewModel) }
                         }
                     }
                 }
@@ -436,10 +438,20 @@ fun ShadowDocumentsDestination(appViewModel: AppViewModel, onBack: () -> Unit) {
     }
 }
 
+/**
+ * Master plan Phase 8 closure round 4 §3 — a tap/expand detail presentation within this EXISTING
+ * "Contracts & Engagements" surface, never a new Level-2 nav item. Expanding fetches the mature Deal
+ * Room for THIS engagement id specifically, scoped independently per row via `rememberProductionLoad`'s
+ * key — collapsing and re-expanding a different row never shows a stale Deal Room from a prior tap.
+ */
 @Composable
-private fun ServiceEngagementCard(engagement: ServiceEngagementSummary) {
+private fun ServiceEngagementCard(engagement: ServiceEngagementSummary, appViewModel: AppViewModel) {
+    var expanded by remember(engagement.id) { mutableStateOf(false) }
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("planner-contract-card-${engagement.id}")
+            .clickable { expanded = !expanded },
         shape = RoundedCornerShape(WewedRadius.lg),
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
@@ -463,6 +475,78 @@ private fun ServiceEngagementCard(engagement: ServiceEngagementSummary) {
                         fontSize = 10.sp,
                         color = Color.Gray
                     )
+                }
+            }
+            if (expanded) {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                val dealRoomState = pro.wewed.app.ui.roles.rememberProductionLoad(engagement.id) {
+                    appViewModel.contractsRepository.getDealRoom(engagement.id)
+                }
+                when (dealRoomState) {
+                    is pro.wewed.app.ui.roles.ProductionLoadState.Loading -> pro.wewed.app.ui.roles.IALoading()
+                    is pro.wewed.app.ui.roles.ProductionLoadState.Unavailable ->
+                        pro.wewed.app.ui.roles.IASectionUnavailable("Deal Room", appViewModel.dataEnvironment)
+                    is pro.wewed.app.ui.roles.ProductionLoadState.Loaded ->
+                        DealRoomDetailSection(dealRoomState.value)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DealRoomDetailSection(dealRoom: DealRoomDetail) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.testTag("planner-deal-room-${dealRoom.id}")) {
+        Text("Deal Room", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text("Vendor", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Color.Gray)
+            Text(dealRoom.vendor.name, fontSize = 11.sp)
+            dealRoom.serviceLocation?.let { Text(it, fontSize = 10.sp, color = Color.Gray) }
+            dealRoom.serviceDate?.let { Text(it, fontSize = 10.sp, color = Color.Gray) }
+        }
+
+        if (dealRoom.parties.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("Parties", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Color.Gray)
+                dealRoom.parties.forEach { party ->
+                    Text(
+                        "${party.displayName} · ${party.partyRole}" + if (party.requiredForReview) " · review required" else "",
+                        fontSize = 10.sp
+                    )
+                }
+            }
+        }
+
+        if (dealRoom.contracts.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("Contract versions", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Color.Gray)
+                dealRoom.contracts.forEach { contract ->
+                    Text("${contract.contractNumber} · ${contract.status}", fontSize = 10.sp)
+                    contract.versions.forEach { version ->
+                        Text("  v${version.versionNumber} · ${version.status}", fontSize = 10.sp, color = Color.Gray)
+                    }
+                }
+            }
+        }
+
+        if (dealRoom.budgetItems.isNotEmpty() || dealRoom.payments.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("Commercial", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Color.Gray)
+                dealRoom.budgetItems.forEach { item ->
+                    Text("${item.description}: est ${item.estimatedCost} · paid ${item.paidAmount} ${item.currency}", fontSize = 10.sp)
+                }
+                dealRoom.payments.forEach { payment ->
+                    Text("Payment ${payment.amount} ${payment.currency}${payment.paidAt?.let { " · $it" } ?: " · pending"}", fontSize = 10.sp)
+                }
+            }
+        }
+
+        if (dealRoom.documents.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("Vault documents", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Color.Gray)
+                dealRoom.documents.forEach { document ->
+                    Text("${document.displayName} · ${document.storageState}", fontSize = 10.sp)
                 }
             }
         }

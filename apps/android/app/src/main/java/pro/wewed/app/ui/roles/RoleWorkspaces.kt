@@ -1020,11 +1020,12 @@ fun AdminShell(
     // P0-13: Admin reads a system projection. The wedding graph is only consulted for surfaces
     // that genuinely drill into a wedding.
     //
-    // Master plan Phase 8 closure §B — this NEVER constructs ShadowAdminSystemRepository directly
-    // for PRODUCTION anymore. appViewModel.adminRepository is ProductionBoundaryAdminSystemRepository
-    // (honestly unbound) until RootScreen's production-domain binder resolves a real admin:system
-    // grant and swaps in ProductionAdminSystemRepository; every other environment still gets the
-    // existing Shadow-over-wedding-graph behavior via that same property's constructor default.
+    // Master plan Phase 8 closure §B, revised round 4 §1 — this NEVER constructs
+    // ShadowAdminSystemRepository directly for PRODUCTION. In PRODUCTION, appViewModel.adminRepository
+    // throws ProductionRepositoryUnbound until RootScreen's production-domain binder resolves a real
+    // admin:system grant and binds ProductionAdminSystemRepository in its place — RootScreen's render
+    // gate never composes AdminShell before that bind completes, so this line is unreachable while
+    // unbound. Every other environment still gets the existing Shadow-over-wedding-graph behavior.
     val adminRepository = appViewModel.adminRepository
     val sectionMemory = rememberWorkspaceSectionMemory()
     // Admin is system-scoped, so its access context is read from the source directly rather than

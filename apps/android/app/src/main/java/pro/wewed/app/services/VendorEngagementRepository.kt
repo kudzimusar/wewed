@@ -29,24 +29,26 @@ object EmptyVendorEngagementRepository : VendorEngagementRepository {
     override suspend fun getMyEngagement(): VendorEngagementDetail = throw ProductionReadOnlyDomainUnavailable()
 }
 
-/** Master plan Phase 8 closure round 3 §5 — the PRODUCTION default before a real binding exists. */
-class ProductionBoundaryVendorEngagementRepository : VendorEngagementRepository {
-    override suspend fun getMyEngagement(): VendorEngagementDetail = throw ProductionReadOnlyDomainUnavailable()
-}
-
 /**
  * Reads the SAME `getServiceEngagementDealRoom` engine [ProductionContractsRepository] uses, via
  * `/api/native/vendor/engagement` — a completely separate, Vendor-only, wedding-scoped route that a
  * Planner/Couple/Coordinator grant can never satisfy (`GRANT_SCOPE_INVALID`), and that a Vendor
  * business-portfolio grant (no wedding) can never satisfy either.
+ *
+ * Master plan Phase 8 closure round 4 §2 — [engagementId] is threaded straight through to
+ * [NativeDomainApiClient.vendorEngagement] verbatim: this repository never guesses or auto-selects
+ * an engagement itself. `null` is only ever passed by a caller that already knows the grant has
+ * exactly one engagement (see `RootScreen.kt`'s bind effect); the server independently enforces the
+ * same "no silent auto-select for a multi-engagement grant" rule regardless.
  */
 class ProductionVendorEngagementRepository(
     private val client: NativeDomainApiClient,
     private val sessionToken: String,
     private val grantId: String,
+    private val engagementId: String? = null,
 ) : VendorEngagementRepository {
     override suspend fun getMyEngagement(): VendorEngagementDetail {
-        val root = when (val fetch = client.vendorEngagement(sessionToken, grantId)) {
+        val root = when (val fetch = client.vendorEngagement(sessionToken, grantId, engagementId)) {
             is NativeDomainFetch.Success -> fetch.value
             else -> throw ProductionReadOnlyDomainUnavailable()
         }

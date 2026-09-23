@@ -625,17 +625,25 @@ fun RootScreen(
     val productionRoleWired = appViewModel.dataEnvironment == NativeDataEnvironment.PRODUCTION &&
         context.activeRole in setOf(AppRole.COUPLE, AppRole.PLANNER, AppRole.COORDINATOR, AppRole.ADMIN, AppRole.VENDOR)
 
-    // Master plan Phase 8 closure round 3 §6 — reactively binds the real Vendor-wedding-engagement
-    // adapter as soon as a vendor:wedding snapshot is available. Deliberately keyed on
-    // `snapshot.workspaceKind == "vendor" && scopeKind == "wedding"`, which is a DIFFERENT authority
-    // axis from the Vendor business-portfolio grant (scopeKind "business", handled entirely by the
-    // earlier no-ActorAssignment branch above and never reaching this point at all).
+    // Master plan Phase 8 closure round 3 §6, hardened round 4 §2 — reactively binds the real
+    // Vendor-wedding-engagement adapter as soon as a vendor:wedding snapshot is available.
+    // Deliberately keyed on `snapshot.workspaceKind == "vendor" && scopeKind == "wedding"`, which is
+    // a DIFFERENT authority axis from the Vendor business-portfolio grant (scopeKind "business",
+    // handled entirely by the earlier no-ActorAssignment branch above and never reaching this point
+    // at all). `selectedEngagementId` is part of the effect's OWN key (not just an argument passed
+    // into the constructed repository): a Vendor's grant may carry several `serviceEngagementIds`,
+    // so switching the selected engagement — same grantId, same account — must re-run this effect
+    // and produce a NEW binding, not silently keep serving the previous engagement's repository.
     if (appViewModel.dataEnvironment == NativeDataEnvironment.PRODUCTION && context.activeRole == AppRole.VENDOR) {
         val vendorSnapshot = productionWorkspace?.takeIf { it.workspaceKind == "vendor" && it.scopeKind == "wedding" }
         val vendorSnapshotGrantId = vendorSnapshot?.grantId
         val vendorAccessUserId = productionAuthority?.accessUserId
-        LaunchedEffect(vendorSnapshotGrantId, vendorAccessUserId, sessionViewModel) {
+        LaunchedEffect(vendorSnapshotGrantId, vendorAccessUserId, selectedEngagementId, sessionViewModel) {
             if (vendorSnapshotGrantId == null || vendorAccessUserId == null) return@LaunchedEffect
+            // A grant with more than one engagement must not bind until the person has actually
+            // chosen one (the picker below, reusing the existing Phase 6 selection mechanism) — an
+            // unselected multi-engagement grant binds nothing rather than guessing engagementId[0].
+            if (vendorSnapshot?.engagementSelectionRequired == true && selectedEngagementId == null) return@LaunchedEffect
             val token = sessionViewModel.currentSessionToken() ?: return@LaunchedEffect
             val baseUrl = appViewModel.dataBaseUrl ?: return@LaunchedEffect
             val client = NativeDomainApiClient(
@@ -646,7 +654,8 @@ fun RootScreen(
             appViewModel.bindProductionVendorEngagementRepository(
                 accessUserId = vendorAccessUserId,
                 grantId = vendorSnapshotGrantId,
-                engagement = ProductionVendorEngagementRepository(client, token, vendorSnapshotGrantId),
+                engagementId = selectedEngagementId,
+                engagement = ProductionVendorEngagementRepository(client, token, vendorSnapshotGrantId, selectedEngagementId),
             )
         }
     }
@@ -685,17 +694,31 @@ fun RootScreen(
             return
         }
 
-        // Master plan Phase 8 closure §1/round 3 §4/§5 (NativeRepositoryFactory.PRODUCTION
-        // closure) — the snapshot looking right is necessary but not sufficient: it says the
-        // *context* is authorized, not that appViewModel.repository/plannerRepository/
-        // adminRepository have actually been swapped from the unbound ProductionBoundary*Repository
-        // placeholder to the real grant-scoped adapter yet (that swap runs from a LaunchedEffect
-        // above, which starts asynchronously relative to this composition). Waiting for the
-        // confirmed [ProductionBinding.Bound] — keyed on BOTH accessUserId and grantId, not grantId
-        // alone — is what makes this deterministic even across an account replacement that happens
-        // to resolve the same grantId string a previous account already bound: no role shell that
-        // "appears functional" is ever composed over the always-throwing boundary repository, and no
-        // role shell is ever composed over a DIFFERENT account's bound repository either.
+        // Master plan Phase 8 closure round 4 §2 — a Vendor grant with more than one
+        // serviceEngagementId must not fall through to VendorShell until the person has explicitly
+        // picked one; this reuses the EXACT same picker/mechanism Phase 6's minimal snapshot path
+        // already established (`sessionViewModel.selectEngagement`), now reachable from the real
+        // wired shell instead of only from the pre-Phase-8 fallback.
+        if (context.activeRole == AppRole.VENDOR && snapshot.engagementSelectionRequired) {
+            ProductionReadOnlyWorkspaceContent(
+                snapshot = snapshot,
+                onSelectEngagement = { engagementId -> sessionViewModel.selectEngagement(engagementId) },
+            )
+            return
+        }
+
+        // Master plan Phase 8 closure §1/round 3 §4/§5, hardened round 4 §1/§2 (NativeRepositoryFactory
+        // .PRODUCTION closure) — the snapshot looking right is necessary but not sufficient: it says
+        // the *context* is authorized, not that appViewModel.repository/plannerRepository/
+        // adminRepository/vendorEngagementRepository have actually been bound to the real, grant-
+        // scoped (and for Vendor, engagement-scoped) adapter yet (that bind runs from a
+        // LaunchedEffect above, which starts asynchronously relative to this composition). Waiting
+        // for the confirmed [ProductionBinding.Bound] — keyed on accessUserId + grantId (+
+        // engagementId for Vendor) — is what makes this deterministic even across an account
+        // replacement that happens to resolve the same grantId string a previous account already
+        // bound, or a same-grant engagement switch: no role shell that "appears functional" is ever
+        // composed while [ProductionBinding.Unbound], over a different account's binding, or over a
+        // different engagement's binding.
         val currentAccessUserId = productionAuthority?.accessUserId
         val boundKey by when (context.activeRole) {
             AppRole.ADMIN -> appViewModel.productionAdminBinding
@@ -703,7 +726,9 @@ fun RootScreen(
             else -> appViewModel.productionWeddingBinding
         }.collectAsState()
         val isBoundToCurrentAccountAndGrant = (boundKey as? ProductionBinding.Bound<*>)?.let {
-            it.accessUserId == currentAccessUserId && it.grantId == activeGrantId
+            it.accessUserId == currentAccessUserId &&
+                it.grantId == activeGrantId &&
+                (context.activeRole != AppRole.VENDOR || it.engagementId == selectedEngagementId)
         } ?: false
         if (!isBoundToCurrentAccountAndGrant) {
             Box(

@@ -2,14 +2,15 @@ package pro.wewed.app.state
 
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 import pro.wewed.app.models.NativeDataEnvironment
 import pro.wewed.app.services.NativeDomainApiClient
 import pro.wewed.app.services.ProductionAdminSystemRepository
-import pro.wewed.app.services.ProductionBoundaryAdminSystemRepository
 import pro.wewed.app.services.ShadowAdminSystemRepository
+import pro.wewed.app.services.ShadowReferencePlannerRepository
+import pro.wewed.app.services.ShadowReferenceWeddingRepository
 import pro.wewed.app.services.WeddingDayHttpResponse
 import pro.wewed.app.services.WeddingDayHttpTransport
 
@@ -29,15 +30,22 @@ class AppViewModelProductionAdminTest {
     }
 
     @Test
-    fun `production defaults to the boundary admin repository, never Shadow`() {
+    fun `production fails closed with ProductionRepositoryUnbound before any bind, never Shadow, never a fabricated repository`() {
         val appViewModel = AppViewModel(dataEnvironment = NativeDataEnvironment.PRODUCTION, dataBaseUrl = "https://example.test")
-        assertTrue(appViewModel.adminRepository is ProductionBoundaryAdminSystemRepository)
-        assertTrue(appViewModel.adminRepository !is ShadowAdminSystemRepository)
+        try {
+            appViewModel.adminRepository
+            fail("Expected ProductionRepositoryUnbound before any admin bind exists")
+        } catch (_: ProductionRepositoryUnbound) {
+        }
     }
 
     @Test
     fun `non-production keeps the existing Shadow admin repository`() {
-        val appViewModel = AppViewModel(dataEnvironment = NativeDataEnvironment.SHADOW)
+        val appViewModel = AppViewModel(
+            baseRepository = ShadowReferenceWeddingRepository(),
+            plannerRepository = ShadowReferencePlannerRepository(),
+            dataEnvironment = NativeDataEnvironment.SHADOW,
+        )
         assertTrue(appViewModel.adminRepository is ShadowAdminSystemRepository)
     }
 
@@ -56,15 +64,24 @@ class AppViewModelProductionAdminTest {
     }
 
     @Test
-    fun `an unbound production boundary admin repository is honestly null, never a fabricated zero`() = runBlocking {
+    fun `an unbound production admin domain exposes no mature repository to read from at all`() = runBlocking {
         val appViewModel = AppViewModel(dataEnvironment = NativeDataEnvironment.PRODUCTION, dataBaseUrl = "https://example.test")
-        assertNull(appViewModel.adminRepository.snapshot().pendingOnboardingCount)
+        try {
+            appViewModel.adminRepository.snapshot()
+            fail("Expected ProductionRepositoryUnbound: there is no repository, real or placeholder, to call snapshot() on")
+        } catch (_: ProductionRepositoryUnbound) {
+        }
     }
 
     @Test(expected = IllegalStateException::class)
     fun `bindProductionAdminRepository is refused outside production`() {
-        val appViewModel = AppViewModel(dataEnvironment = NativeDataEnvironment.SHADOW)
-        appViewModel.bindProductionAdminRepository("user-a", "admin:system", ProductionBoundaryAdminSystemRepository())
+        val appViewModel = AppViewModel(
+            baseRepository = ShadowReferenceWeddingRepository(),
+            plannerRepository = ShadowReferencePlannerRepository(),
+            dataEnvironment = NativeDataEnvironment.SHADOW,
+        )
+        val client = NativeDomainApiClient(FakeTransport(WeddingDayHttpResponse(200, """{"success":true}""")))
+        appViewModel.bindProductionAdminRepository("user-a", "admin:system", ProductionAdminSystemRepository(client, "token", "admin:system"))
     }
 
     /**

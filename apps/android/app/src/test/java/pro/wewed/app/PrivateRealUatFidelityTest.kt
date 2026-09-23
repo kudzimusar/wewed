@@ -26,7 +26,7 @@ class PrivateRealUatFidelityTest {
         File(PrivateRealShadowWeddingRepository.defaultSnapshotPath()).exists()
 
     private suspend fun scoped(): ScopedWeddingRepository =
-        NativeRepositoryFactory.make(NativeDataEnvironment.PRIVATE_REAL_SHADOW)
+        (NativeRepositoryFactory.make(NativeDataEnvironment.PRIVATE_REAL_SHADOW) as NativeRepositoryOutcome.NonProduction)
             .wedding.forOnlyWedding()
 
     // -----------------------------------------------------------------------------------

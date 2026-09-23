@@ -6,8 +6,15 @@ import org.junit.Test
 import pro.wewed.app.models.InvitationDeepLink
 import pro.wewed.app.models.NativeDeepLink
 import pro.wewed.app.models.NativeDeepLinkParser
+import pro.wewed.app.services.FixturePlannerDashboardRepository
+import pro.wewed.app.services.FixtureWeddingRepository
 import pro.wewed.app.state.AppTab
 import pro.wewed.app.state.AppViewModel
+
+private fun fixtureAppViewModel() = AppViewModel(
+    baseRepository = FixtureWeddingRepository(),
+    plannerRepository = FixturePlannerDashboardRepository(),
+)
 
 class NativeDeepLinkTest {
     @Test
@@ -63,7 +70,7 @@ class NativeDeepLinkTest {
 
     @Test
     fun appViewModelRoutesInvitationBeforeAuthenticationShell() {
-        val state = AppViewModel()
+        val state = fixtureAppViewModel()
 
         state.handleIncomingUrl(
             "wewed://invite/charity-and-kudzie?rsvp=guest-token-123"
@@ -81,7 +88,7 @@ class NativeDeepLinkTest {
 
     @Test
     fun appViewModelRoutesPassWithoutGuestCredentialLeakage() {
-        val state = AppViewModel()
+        val state = fixtureAppViewModel()
         state.handleIncomingUrl(
             "wewed://invite/charity-and-kudzie?rsvp=old-token"
         )

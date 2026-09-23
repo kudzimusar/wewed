@@ -8,8 +8,6 @@ import org.junit.Assert.fail
 import org.junit.Test
 import pro.wewed.app.models.NativeDataEnvironment
 import pro.wewed.app.services.NativeDomainApiClient
-import pro.wewed.app.services.ProductionBoundaryPlannerRepository
-import pro.wewed.app.services.ProductionBoundaryWeddingRepository
 import pro.wewed.app.services.ProductionPlannerDashboardRepository
 import pro.wewed.app.services.ProductionWeddingRepository
 import pro.wewed.app.services.WeddingDayHttpResponse
@@ -23,7 +21,8 @@ import pro.wewed.app.services.WeddingDayHttpTransport
  * right, then bind the real production repository from a `LaunchedEffect` that starts
  * asynchronously relative to that same composition — leaving a real, reachable window where a
  * shell that "appears functional" could still read `appViewModel.repository` while it was still
- * the always-throwing `ProductionBoundary*Repository` placeholder from construction.
+ * the always-throwing `ProductionBoundary*Repository` placeholder from construction (now deleted —
+ * see round 4 §1 below).
  *
  * A grantId-only bound flag (the previous round's fix) closes that SAME-account race but not
  * account replacement: two different accounts can independently resolve an identical grant id
@@ -31,6 +30,12 @@ import pro.wewed.app.services.WeddingDayHttpTransport
  * [ProductionBinding] now keys every bind on `(accessUserId, grantId)` together, so a stale binding
  * can never satisfy a different account's requirement by coincidence — these tests pin that
  * contract directly, without needing Compose.
+ *
+ * Master plan Phase 8 closure round 4 §1 — `productionRepositoryViewModel()` no longer constructs a
+ * same-typed `ProductionBoundary*Repository` placeholder for an unbound PRODUCTION `AppViewModel`;
+ * that type is deleted. [AppViewModel]'s nullable constructor params default to `null` for
+ * PRODUCTION, matching exactly how `NativeRepositoryFactory.make(PRODUCTION, ...)` /
+ * `AppViewModel.fromEnvironment` construct it in the real app.
  */
 class AppViewModelProductionBindingTest {
 
@@ -39,9 +44,7 @@ class AppViewModelProductionBindingTest {
         override suspend fun post(path: String, headers: Map<String, String>, body: String) = response
     }
 
-    private fun productionBoundaryViewModel() = AppViewModel(
-        baseRepository = ProductionBoundaryWeddingRepository(),
-        plannerRepository = ProductionBoundaryPlannerRepository(),
+    private fun productionRepositoryViewModel() = AppViewModel(
         dataEnvironment = NativeDataEnvironment.PRODUCTION,
         dataBaseUrl = "https://example.test",
     )
@@ -58,17 +61,32 @@ class AppViewModelProductionBindingTest {
         )
     }
 
+    /**
+     * Master plan Phase 8 closure round 4 §1 — the central regression: an unbound PRODUCTION
+     * `AppViewModel` must expose NO mature-domain repository at all, not even a same-typed
+     * always-throwing placeholder. Reading `repository`/`plannerRepository` before any bind now
+     * throws [ProductionRepositoryUnbound] — there is no `is ProductionBoundaryWeddingRepository`
+     * assertion possible any more because that type no longer exists.
+     */
     @Test
-    fun `production starts with the boundary repositories and no bound grant`() {
-        val appViewModel = productionBoundaryViewModel()
-        assertTrue(appViewModel.repository is ProductionBoundaryWeddingRepository)
-        assertTrue(appViewModel.plannerRepository is ProductionBoundaryPlannerRepository)
+    fun `production exposes no mature repository at all before any bind, and starts Unbound`() {
+        val appViewModel = productionRepositoryViewModel()
+        try {
+            appViewModel.repository
+            fail("Expected ProductionRepositoryUnbound: no wedding repository exists before a bind")
+        } catch (_: ProductionRepositoryUnbound) {
+        }
+        try {
+            appViewModel.plannerRepository
+            fail("Expected ProductionRepositoryUnbound: no planner repository exists before a bind")
+        } catch (_: ProductionRepositoryUnbound) {
+        }
         assertTrue(appViewModel.productionWeddingBinding.value is ProductionBinding.Unbound)
     }
 
     @Test
     fun `binding real repositories replaces the boundary default and records the exact (accessUserId, grantId) that produced it`() {
-        val appViewModel = productionBoundaryViewModel()
+        val appViewModel = productionRepositoryViewModel()
         appViewModel.bindWedding("user-a", "planner:wedding:w-1", "w-1")
 
         assertTrue(appViewModel.repository is ProductionWeddingRepository)
@@ -80,7 +98,7 @@ class AppViewModelProductionBindingTest {
 
     @Test
     fun `rebinding to a different grant after a context switch updates the binding again`() {
-        val appViewModel = productionBoundaryViewModel()
+        val appViewModel = productionRepositoryViewModel()
         appViewModel.bindWedding("user-a", "planner:wedding:w-1", "w-1")
         appViewModel.bindWedding("user-a", "planner:wedding:w-2", "w-2")
 
@@ -97,7 +115,7 @@ class AppViewModelProductionBindingTest {
      */
     @Test
     fun `Account A to Account B with the identical admin grant id - A's binding never satisfies B's requirement`() {
-        val appViewModel = productionBoundaryViewModel()
+        val appViewModel = productionRepositoryViewModel()
         val c = client()
         appViewModel.bindProductionAdminRepository(
             accessUserId = "user-a",
@@ -125,7 +143,7 @@ class AppViewModelProductionBindingTest {
     /** Master plan Phase 8 closure round 3 §4 — same proof, for a wedding-scoped grant id two accounts can both hold. */
     @Test
     fun `Account A to Account B with the identical wedding-scoped grant id - A's binding never satisfies B's requirement`() {
-        val appViewModel = productionBoundaryViewModel()
+        val appViewModel = productionRepositoryViewModel()
         val sharedGrantId = "coordinator:wedding:wed-shared"
         appViewModel.bindWedding("user-a", sharedGrantId, "wed-shared")
 
@@ -141,7 +159,7 @@ class AppViewModelProductionBindingTest {
     /** Master plan Phase 8 closure round 3 §4 — Wedding A → Wedding B, same account. */
     @Test
     fun `Wedding A to Wedding B for the same account updates the binding to wedding B only`() {
-        val appViewModel = productionBoundaryViewModel()
+        val appViewModel = productionRepositoryViewModel()
         appViewModel.bindWedding("user-a", "planner:wedding:wed-a", "wed-a")
         appViewModel.bindWedding("user-a", "planner:wedding:wed-b", "wed-b")
 
@@ -157,7 +175,7 @@ class AppViewModelProductionBindingTest {
      */
     @Test
     fun `Planner to Admin to Planner leaves each binding correctly scoped to its own axis throughout`() {
-        val appViewModel = productionBoundaryViewModel()
+        val appViewModel = productionRepositoryViewModel()
         val c = client()
         appViewModel.bindWedding("user-a", "planner:wedding:wed-a", "wed-a")
         appViewModel.bindProductionAdminRepository("user-a", "admin:system", pro.wewed.app.services.ProductionAdminSystemRepository(c, "token", "admin:system"))
@@ -184,7 +202,7 @@ class AppViewModelProductionBindingTest {
      */
     @Test
     fun `switching from a wedding-scoped context to Admin clears wedding-graph reachability even though the old repository object is still referenced`() = runBlocking {
-        val appViewModel = productionBoundaryViewModel()
+        val appViewModel = productionRepositoryViewModel()
         appViewModel.bindWedding("user-a", "planner:wedding:wed-a", "wed-a")
         appViewModel.bindActiveWedding("wed-a")
         // Reachable: scopedRepository() resolves without throwing.
@@ -216,24 +234,83 @@ class AppViewModelProductionBindingTest {
      */
     @Test
     fun `Vendor engagement A to engagement B replaces the binding cleanly, never leaving A reachable`() {
-        val appViewModel = productionBoundaryViewModel()
+        val appViewModel = productionRepositoryViewModel()
         val c = client()
         val grantIdA = "vendor:wedding:biz-1:vendor-1"
 
         appViewModel.bindProductionVendorEngagementRepository(
-            "vendor-user", grantIdA, pro.wewed.app.services.ProductionVendorEngagementRepository(c, "token", grantIdA),
+            accessUserId = "vendor-user",
+            grantId = grantIdA,
+            engagementId = null,
+            engagement = pro.wewed.app.services.ProductionVendorEngagementRepository(c, "token", grantIdA),
         )
         assertEquals(grantIdA, (appViewModel.productionVendorEngagementBinding.value as ProductionBinding.Bound).grantId)
 
-        // The same grant id can carry a different SELECTED engagement server-side (Vendor holds
-        // several); either way, a rebind fully replaces the prior one.
+        // A DIFFERENT grant (a different vendor business/wedding pair) fully replaces the prior one.
+        // This is grant-to-grant replacement, not same-grant engagement selection — see the dedicated
+        // `Vendor same-grant engagement A to engagement B` tests below for the latter (master plan
+        // Phase 8 closure round 4 §2).
         val grantIdB = "vendor:wedding:biz-1:vendor-2"
         appViewModel.bindProductionVendorEngagementRepository(
-            "vendor-user", grantIdB, pro.wewed.app.services.ProductionVendorEngagementRepository(c, "token", grantIdB),
+            accessUserId = "vendor-user",
+            grantId = grantIdB,
+            engagementId = null,
+            engagement = pro.wewed.app.services.ProductionVendorEngagementRepository(c, "token", grantIdB),
         )
         val bound = appViewModel.productionVendorEngagementBinding.value as ProductionBinding.Bound
         assertEquals(grantIdB, bound.grantId)
         assertTrue(bound.grantId != grantIdA)
+    }
+
+    /**
+     * Master plan Phase 8 closure round 4 §2 — the moderator's exact correction: one legitimate
+     * `vendor:wedding:<business>:<vendor>` grant can carry MULTIPLE `serviceEngagementIds`. The
+     * binding identity must include `engagementId`, not just `(accessUserId, grantId)`, or switching
+     * the selected engagement within the SAME grant would look like a no-op to the render gate and
+     * leave engagement A's repository reachable while the UI believes B is selected.
+     */
+    @Test
+    fun `Vendor same-grant engagement A to engagement B replaces the binding by engagementId, never leaving A reachable`() {
+        val appViewModel = productionRepositoryViewModel()
+        val c = client()
+        val sharedGrantId = "vendor:wedding:biz-1:vendor-1"
+
+        appViewModel.bindProductionVendorEngagementRepository(
+            accessUserId = "vendor-user",
+            grantId = sharedGrantId,
+            engagementId = "engagement-a",
+            engagement = pro.wewed.app.services.ProductionVendorEngagementRepository(c, "token", sharedGrantId, "engagement-a"),
+        )
+        val boundA = appViewModel.productionVendorEngagementBinding.value as ProductionBinding.Bound
+        assertEquals(sharedGrantId, boundA.grantId)
+        assertEquals("engagement-a", boundA.engagementId)
+
+        // The render gate's check, inlined: a stale A-selected binding must never satisfy a
+        // B-selected requirement, even though accessUserId and grantId are IDENTICAL.
+        val validForB = (appViewModel.productionVendorEngagementBinding.value as? ProductionBinding.Bound)
+            ?.let { it.accessUserId == "vendor-user" && it.grantId == sharedGrantId && it.engagementId == "engagement-b" } ?: false
+        assertTrue("Engagement A's binding must never validate a same-grant request for engagement B", !validForB)
+
+        appViewModel.bindProductionVendorEngagementRepository(
+            accessUserId = "vendor-user",
+            grantId = sharedGrantId,
+            engagementId = "engagement-b",
+            engagement = pro.wewed.app.services.ProductionVendorEngagementRepository(c, "token", sharedGrantId, "engagement-b"),
+        )
+        val boundB = appViewModel.productionVendorEngagementBinding.value as ProductionBinding.Bound
+        assertEquals(sharedGrantId, boundB.grantId)
+        assertEquals("engagement-b", boundB.engagementId)
+        assertTrue(boundB.engagementId != "engagement-a")
+
+        // And switching back to A must be equally clean.
+        appViewModel.bindProductionVendorEngagementRepository(
+            accessUserId = "vendor-user",
+            grantId = sharedGrantId,
+            engagementId = "engagement-a",
+            engagement = pro.wewed.app.services.ProductionVendorEngagementRepository(c, "token", sharedGrantId, "engagement-a"),
+        )
+        val boundBackToA = appViewModel.productionVendorEngagementBinding.value as ProductionBinding.Bound
+        assertEquals("engagement-a", boundBackToA.engagementId)
     }
 
     /**
@@ -247,7 +324,7 @@ class AppViewModelProductionBindingTest {
      */
     @Test
     fun `Vendor business and Vendor wedding engagement are independent axes with no shared mutable state`() {
-        val appViewModel = productionBoundaryViewModel()
+        val appViewModel = productionRepositoryViewModel()
         assertTrue(appViewModel.productionVendorEngagementBinding.value is ProductionBinding.Unbound)
         // No AppViewModel method exists to bind a Vendor business repository — by construction, it
         // cannot corrupt productionVendorEngagementBinding no matter what a Vendor business screen
@@ -258,7 +335,7 @@ class AppViewModelProductionBindingTest {
     /** Master plan Phase 8 closure round 3 §4 — sign-out/session-invalidation must drop every binding. */
     @Test
     fun `clearProductionBinding resets every axis back to Unbound`() {
-        val appViewModel = productionBoundaryViewModel()
+        val appViewModel = productionRepositoryViewModel()
         val c = client()
         appViewModel.bindWedding("user-a", "planner:wedding:wed-a", "wed-a")
         appViewModel.bindProductionAdminRepository("user-a", "admin:system", pro.wewed.app.services.ProductionAdminSystemRepository(c, "token", "admin:system"))
@@ -269,18 +346,33 @@ class AppViewModelProductionBindingTest {
         assertTrue(appViewModel.productionWeddingBinding.value is ProductionBinding.Unbound)
         assertTrue(appViewModel.productionAdminBinding.value is ProductionBinding.Unbound)
         assertTrue(appViewModel.productionContractsBinding.value is ProductionBinding.Unbound)
-        assertTrue(appViewModel.repository is ProductionBoundaryWeddingRepository)
-        assertTrue(appViewModel.plannerRepository is ProductionBoundaryPlannerRepository)
+        // Master plan Phase 8 closure round 4 §1 — a cleared binding must be exactly as unreachable
+        // as a never-bound one: no mature repository is returned, real or placeholder.
+        try {
+            appViewModel.repository
+            fail("Expected ProductionRepositoryUnbound: clearProductionBinding must not leave a mature wedding repository reachable")
+        } catch (_: ProductionRepositoryUnbound) {
+        }
+        try {
+            appViewModel.plannerRepository
+            fail("Expected ProductionRepositoryUnbound: clearProductionBinding must not leave a mature planner repository reachable")
+        } catch (_: ProductionRepositoryUnbound) {
+        }
     }
 
     @Test(expected = IllegalStateException::class)
     fun `bindProductionRepositories is refused outside production`() {
-        val appViewModel = AppViewModel(dataEnvironment = NativeDataEnvironment.SHADOW)
+        val appViewModel = AppViewModel(
+            baseRepository = pro.wewed.app.services.ShadowReferenceWeddingRepository(),
+            plannerRepository = pro.wewed.app.services.ShadowReferencePlannerRepository(),
+            dataEnvironment = NativeDataEnvironment.SHADOW,
+        )
+        val c = client()
         appViewModel.bindProductionRepositories(
             accessUserId = "user-a",
             grantId = "planner:wedding:w-1",
-            wedding = ProductionBoundaryWeddingRepository(),
-            planner = ProductionBoundaryPlannerRepository(),
+            wedding = ProductionWeddingRepository(c, "token", "planner:wedding:w-1", "w-1"),
+            planner = ProductionPlannerDashboardRepository(c, "token", "planner:wedding:w-1"),
         )
     }
 }
