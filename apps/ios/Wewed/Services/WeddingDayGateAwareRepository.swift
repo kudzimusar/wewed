@@ -54,6 +54,13 @@ public actor WeddingDayGateAwareRepository: WeddingRepositoryProtocol {
         guard available.contains(weddingId) else {
             throw WeddingScopeMismatch(requestedWeddingId: weddingId, availableWeddingIds: available)
         }
-        return try await gate.checkIn(qrPayload: qrPayload, count: count, usherId: usherId)
+        guard weddingId == gate.gateContext.weddingId else {
+            throw WeddingScopeMismatch(
+                requestedWeddingId: weddingId,
+                availableWeddingIds: [gate.gateContext.weddingId]
+            )
+        }
+        // usherId exists only on the legacy repository protocol; it is intentionally ignored.
+        return try await gate.checkIn(qrPayload: qrPayload, count: count)
     }
 }
