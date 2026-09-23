@@ -50,7 +50,7 @@ function normalizePem(value: string | undefined): string | null {
 export function publicKeyFingerprint(publicKey: KeyObject): string {
   const der = publicKey.export({ type: 'spki', format: 'der' })
   const digest = createHash('sha256').update(der).digest('hex')
-  return `SHA256:${digest.match(/.{2}/g)!.slice(0, 16).join(':')}`
+  return `SHA256:${digest.match(/.{2}/g)!.join(':')}`
 }
 
 function curveOf(key: KeyObject): string | undefined {
