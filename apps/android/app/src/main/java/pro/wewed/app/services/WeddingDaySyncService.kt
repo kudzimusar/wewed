@@ -171,6 +171,9 @@ class WeddingDaySyncService(
         if (trustedRootKeyId != null && envelope.data.rootKeyId != trustedRootKeyId) {
             throw WeddingDaySyncException.RootKeyMismatch
         }
+        if (envelope.data.algorithm != "ECDSA_P256_SHA256") {
+            throw WeddingDaySyncException.InvalidResponse
+        }
         if (!TokenVerifier.verifyP1363(
                 envelope.data.canonicalPayload,
                 envelope.data.signatureHex,
@@ -239,7 +242,11 @@ class WeddingDaySyncService(
     ): GuestManifestItem {
         val trust = trustStore.manifest(weddingId)
             ?: throw WeddingDaySyncException.SigningKeyUnavailable
-        if (isExpired(trust.expiresAt)) throw WeddingDaySyncException.ManifestExpired
+        val trustExpiry = parseIsoDate(trust.expiresAt)
+            ?: throw WeddingDaySyncException.ManifestExpired
+        if (trustExpiry.time <= System.currentTimeMillis()) {
+            throw WeddingDaySyncException.ManifestExpired
+        }
 
         val parsed = when (val result = TokenVerifier.parse(token)) {
             is TokenVerificationResult.Success -> result.token
