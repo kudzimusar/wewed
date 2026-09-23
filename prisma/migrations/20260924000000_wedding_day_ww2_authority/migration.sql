@@ -2,11 +2,11 @@
 -- Master plan WW-NATIVE-PWA-CONVERGENCE-2026-09-22-01, Phase 11A
 
 -- Step 0: Prerequisite composite unique index on Guest for cross-wedding integrity
-CREATE UNIQUE INDEX IF NOT EXISTS "Guest_id_weddingId_key"
+CREATE UNIQUE INDEX "Guest_id_weddingId_key"
     ON "Guest"("id", "weddingId");
 
 -- CreateTable WeddingPassKey
-CREATE TABLE IF NOT EXISTS "WeddingPassKey" (
+CREATE TABLE "WeddingPassKey" (
     "id" TEXT NOT NULL,
     "weddingId" TEXT NOT NULL,
     "keyId" TEXT NOT NULL,
@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS "WeddingPassKey" (
 );
 
 -- CreateTable WeddingPassCredential
-CREATE TABLE IF NOT EXISTS "WeddingPassCredential" (
+CREATE TABLE "WeddingPassCredential" (
     "id" TEXT NOT NULL,
     "weddingId" TEXT NOT NULL,
     "guestId" TEXT NOT NULL,
@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS "WeddingPassCredential" (
 );
 
 -- CreateTable WeddingCheckIn
-CREATE TABLE IF NOT EXISTS "WeddingCheckIn" (
+CREATE TABLE "WeddingCheckIn" (
     "id" TEXT NOT NULL,
     "weddingId" TEXT NOT NULL,
     "guestId" TEXT NOT NULL,
@@ -73,96 +73,67 @@ CREATE TABLE IF NOT EXISTS "WeddingCheckIn" (
 );
 
 -- Indexes for WeddingPassKey
-CREATE UNIQUE INDEX IF NOT EXISTS "WeddingPassKey_weddingId_keyId_key"
+CREATE UNIQUE INDEX "WeddingPassKey_weddingId_keyId_key"
     ON "WeddingPassKey"("weddingId", "keyId");
-CREATE UNIQUE INDEX IF NOT EXISTS "WeddingPassKey_id_weddingId_key"
+CREATE UNIQUE INDEX "WeddingPassKey_id_weddingId_key"
     ON "WeddingPassKey"("id", "weddingId");
-CREATE INDEX IF NOT EXISTS "WeddingPassKey_weddingId_status_idx"
+CREATE INDEX "WeddingPassKey_weddingId_status_idx"
     ON "WeddingPassKey"("weddingId", "status");
 
 -- Indexes for WeddingPassCredential
-CREATE UNIQUE INDEX IF NOT EXISTS "WeddingPassCredential_token_key"
+CREATE UNIQUE INDEX "WeddingPassCredential_token_key"
     ON "WeddingPassCredential"("token");
-CREATE UNIQUE INDEX IF NOT EXISTS "WeddingPassCredential_weddingId_passSerial_key"
+CREATE UNIQUE INDEX "WeddingPassCredential_weddingId_passSerial_key"
     ON "WeddingPassCredential"("weddingId", "passSerial");
-CREATE UNIQUE INDEX IF NOT EXISTS "WeddingPassCredential_id_weddingId_key"
+CREATE UNIQUE INDEX "WeddingPassCredential_id_weddingId_key"
     ON "WeddingPassCredential"("id", "weddingId");
-CREATE UNIQUE INDEX IF NOT EXISTS "WeddingPassCredential_id_weddingId_guestId_key"
+CREATE UNIQUE INDEX "WeddingPassCredential_id_weddingId_guestId_key"
     ON "WeddingPassCredential"("id", "weddingId", "guestId");
-CREATE UNIQUE INDEX IF NOT EXISTS "WeddingPassCredential_weddingId_guestId_issueSeq_key"
+CREATE UNIQUE INDEX "WeddingPassCredential_weddingId_guestId_issueSeq_key"
     ON "WeddingPassCredential"("weddingId", "guestId", "issueSeq");
-CREATE UNIQUE INDEX IF NOT EXISTS "WeddingPassCredential_weddingId_guestId_live_key"
+CREATE UNIQUE INDEX "WeddingPassCredential_weddingId_guestId_live_key"
     ON "WeddingPassCredential"("weddingId", "guestId")
     WHERE "revokedAt" IS NULL AND "supersededAt" IS NULL;
-CREATE INDEX IF NOT EXISTS "WeddingPassCredential_weddingId_guestId_revokedAt_idx"
+CREATE INDEX "WeddingPassCredential_weddingId_guestId_revokedAt_idx"
     ON "WeddingPassCredential"("weddingId", "guestId", "revokedAt");
-CREATE INDEX IF NOT EXISTS "WeddingPassCredential_passKeyId_weddingId_idx"
+CREATE INDEX "WeddingPassCredential_passKeyId_weddingId_idx"
     ON "WeddingPassCredential"("passKeyId", "weddingId");
 
 -- Indexes for WeddingCheckIn
-CREATE UNIQUE INDEX IF NOT EXISTS "WeddingCheckIn_weddingId_eventKey_guestId_attendeeKey_key"
+CREATE UNIQUE INDEX "WeddingCheckIn_weddingId_eventKey_guestId_attendeeKey_key"
     ON "WeddingCheckIn"("weddingId", "eventKey", "guestId", "attendeeKey");
-CREATE UNIQUE INDEX IF NOT EXISTS "WeddingCheckIn_weddingId_clientEventId_attendeeKey_key"
+CREATE UNIQUE INDEX "WeddingCheckIn_weddingId_clientEventId_attendeeKey_key"
     ON "WeddingCheckIn"("weddingId", "clientEventId", "attendeeKey");
-CREATE INDEX IF NOT EXISTS "WeddingCheckIn_weddingId_eventKey_admittedAt_idx"
+CREATE INDEX "WeddingCheckIn_weddingId_eventKey_admittedAt_idx"
     ON "WeddingCheckIn"("weddingId", "eventKey", "admittedAt");
-CREATE INDEX IF NOT EXISTS "WeddingCheckIn_guestId_weddingId_idx"
+CREATE INDEX "WeddingCheckIn_guestId_weddingId_idx"
     ON "WeddingCheckIn"("guestId", "weddingId");
-CREATE INDEX IF NOT EXISTS "WeddingCheckIn_gateId_weddingId_idx"
+CREATE INDEX "WeddingCheckIn_gateId_weddingId_idx"
     ON "WeddingCheckIn"("gateId", "weddingId");
-CREATE INDEX IF NOT EXISTS "WeddingCheckIn_admittedByUserId_idx"
+CREATE INDEX "WeddingCheckIn_admittedByUserId_idx"
     ON "WeddingCheckIn"("admittedByUserId");
 
--- Foreign Keys: WeddingPassKey
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'WeddingPassKey_weddingId_fkey') THEN
-    ALTER TABLE "WeddingPassKey" ADD CONSTRAINT "WeddingPassKey_weddingId_fkey"
-      FOREIGN KEY ("weddingId") REFERENCES "Wedding"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-  END IF;
-END $$;
+-- Foreign Keys: fail closed if any unexpected pre-existing object/constraint exists.
+ALTER TABLE "WeddingPassKey" ADD CONSTRAINT "WeddingPassKey_weddingId_fkey"
+  FOREIGN KEY ("weddingId") REFERENCES "Wedding"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- Foreign Keys: WeddingPassCredential
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'WeddingPassCredential_weddingId_fkey') THEN
-    ALTER TABLE "WeddingPassCredential" ADD CONSTRAINT "WeddingPassCredential_weddingId_fkey"
-      FOREIGN KEY ("weddingId") REFERENCES "Wedding"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'WeddingPassCredential_guestId_weddingId_fkey') THEN
-    ALTER TABLE "WeddingPassCredential" ADD CONSTRAINT "WeddingPassCredential_guestId_weddingId_fkey"
-      FOREIGN KEY ("guestId", "weddingId") REFERENCES "Guest"("id", "weddingId") ON DELETE RESTRICT ON UPDATE CASCADE;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'WeddingPassCredential_passKeyId_weddingId_fkey') THEN
-    ALTER TABLE "WeddingPassCredential" ADD CONSTRAINT "WeddingPassCredential_passKeyId_weddingId_fkey"
-      FOREIGN KEY ("passKeyId", "weddingId") REFERENCES "WeddingPassKey"("id", "weddingId") ON DELETE RESTRICT ON UPDATE CASCADE;
-  END IF;
-END $$;
+ALTER TABLE "WeddingPassCredential" ADD CONSTRAINT "WeddingPassCredential_weddingId_fkey"
+  FOREIGN KEY ("weddingId") REFERENCES "Wedding"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "WeddingPassCredential" ADD CONSTRAINT "WeddingPassCredential_guestId_weddingId_fkey"
+  FOREIGN KEY ("guestId", "weddingId") REFERENCES "Guest"("id", "weddingId") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "WeddingPassCredential" ADD CONSTRAINT "WeddingPassCredential_passKeyId_weddingId_fkey"
+  FOREIGN KEY ("passKeyId", "weddingId") REFERENCES "WeddingPassKey"("id", "weddingId") ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- Foreign Keys: WeddingCheckIn
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'WeddingCheckIn_weddingId_fkey') THEN
-    ALTER TABLE "WeddingCheckIn" ADD CONSTRAINT "WeddingCheckIn_weddingId_fkey"
-      FOREIGN KEY ("weddingId") REFERENCES "Wedding"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'WeddingCheckIn_guestId_weddingId_fkey') THEN
-    ALTER TABLE "WeddingCheckIn" ADD CONSTRAINT "WeddingCheckIn_guestId_weddingId_fkey"
-      FOREIGN KEY ("guestId", "weddingId") REFERENCES "Guest"("id", "weddingId") ON DELETE RESTRICT ON UPDATE CASCADE;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'WeddingCheckIn_credentialId_weddingId_guestId_fkey') THEN
-    ALTER TABLE "WeddingCheckIn" ADD CONSTRAINT "WeddingCheckIn_credentialId_weddingId_guestId_fkey"
-      FOREIGN KEY ("credentialId", "weddingId", "guestId") REFERENCES "WeddingPassCredential"("id", "weddingId", "guestId") ON DELETE RESTRICT ON UPDATE CASCADE;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'WeddingCheckIn_gateId_weddingId_fkey') THEN
-    ALTER TABLE "WeddingCheckIn" ADD CONSTRAINT "WeddingCheckIn_gateId_weddingId_fkey"
-      FOREIGN KEY ("gateId", "weddingId") REFERENCES "WeddingGate"("id", "weddingId") ON DELETE RESTRICT ON UPDATE CASCADE;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'WeddingCheckIn_admittedByUserId_fkey') THEN
-    ALTER TABLE "WeddingCheckIn" ADD CONSTRAINT "WeddingCheckIn_admittedByUserId_fkey"
-      FOREIGN KEY ("admittedByUserId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-  END IF;
-END $$;
+ALTER TABLE "WeddingCheckIn" ADD CONSTRAINT "WeddingCheckIn_weddingId_fkey"
+  FOREIGN KEY ("weddingId") REFERENCES "Wedding"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "WeddingCheckIn" ADD CONSTRAINT "WeddingCheckIn_guestId_weddingId_fkey"
+  FOREIGN KEY ("guestId", "weddingId") REFERENCES "Guest"("id", "weddingId") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "WeddingCheckIn" ADD CONSTRAINT "WeddingCheckIn_credentialId_weddingId_guestId_fkey"
+  FOREIGN KEY ("credentialId", "weddingId", "guestId") REFERENCES "WeddingPassCredential"("id", "weddingId", "guestId") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "WeddingCheckIn" ADD CONSTRAINT "WeddingCheckIn_gateId_weddingId_fkey"
+  FOREIGN KEY ("gateId", "weddingId") REFERENCES "WeddingGate"("id", "weddingId") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "WeddingCheckIn" ADD CONSTRAINT "WeddingCheckIn_admittedByUserId_fkey"
+  FOREIGN KEY ("admittedByUserId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- Row Level Security & Privilege hardening
 ALTER TABLE "WeddingPassKey" ENABLE ROW LEVEL SECURITY;
