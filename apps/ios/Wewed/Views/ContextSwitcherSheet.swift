@@ -12,13 +12,23 @@ import SwiftUI
 public struct ContextSwitcherSheet: View {
     let authority: ProductionAuthority
     let activeGrantId: String?
+    let activeGateGrantId: String?
     let onSelect: (String) -> Void
+    let onSelectGate: (String) -> Void
     @Environment(\.dismiss) private var dismiss
 
-    public init(authority: ProductionAuthority, activeGrantId: String?, onSelect: @escaping (String) -> Void) {
+    public init(
+        authority: ProductionAuthority,
+        activeGrantId: String?,
+        activeGateGrantId: String? = nil,
+        onSelect: @escaping (String) -> Void,
+        onSelectGate: @escaping (String) -> Void = { _ in }
+    ) {
         self.authority = authority
         self.activeGrantId = activeGrantId
+        self.activeGateGrantId = activeGateGrantId
         self.onSelect = onSelect
+        self.onSelectGate = onSelectGate
     }
 
     private func label(for grant: ProductionWorkspaceGrant) -> String {
@@ -53,6 +63,23 @@ public struct ContextSwitcherSheet: View {
                         }
                     }
                     .disabled(grant.grantId == activeGrantId)
+                    .accessibilityIdentifier("context-switch-option-\(grant.grantId)")
+                }
+                ForEach(authority.operationalGrants, id: \.grantId) { grant in
+                    Button {
+                        onSelectGate(grant.grantId)
+                        dismiss()
+                    } label: {
+                        HStack {
+                            Text("Usher · \(grant.gateName) · \(grant.weddingTitle)")
+                                .foregroundColor(.primary)
+                            Spacer()
+                            if grant.grantId == activeGateGrantId {
+                                Text("Current").font(.caption2).foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    .disabled(grant.grantId == activeGateGrantId)
                     .accessibilityIdentifier("context-switch-option-\(grant.grantId)")
                 }
             }
