@@ -18,7 +18,7 @@ public struct GuestManifestItem: Codable, Identifiable, Equatable, Sendable {
     public var checkedInAttendeeKeys: [String]?
     public let eligible: Bool?
     public let expiresAt: String?
-    public let revokedAt: String?
+    public var revokedAt: String?
 
     public init(
         id: String,
@@ -104,6 +104,7 @@ public protocol OfflineManifestStoreProtocol: Sendable {
     func recordOfflineCheckIn(weddingId: String, serial: String, count: Int, usherId: String) async throws -> CheckInVerificationResult
     func getPendingCheckIns(weddingId: String) async -> [QueuedCheckIn]
     func markCheckInSynced(id: String) async throws
+    func markPassRevoked(weddingId: String, serial: String) async throws
     func clearManifest(weddingId: String) async
 }
 
@@ -277,6 +278,19 @@ public actor OfflineManifestStore: OfflineManifestStoreProtocol {
             syncQueues[weddingId] = updatedQueue
         }
         try persistState()
+    }
+
+    public func markPassRevoked(weddingId: String, serial: String) async throws {
+        guard var weddingMap = manifests[weddingId],
+              var item = weddingMap[serial] else {
+            return
+        }
+        if item.revokedAt == nil {
+            item.revokedAt = "local-revoked"
+            weddingMap[serial] = item
+            manifests[weddingId] = weddingMap
+            try persistState()
+        }
     }
 
     public func clearManifest(weddingId: String) async {
