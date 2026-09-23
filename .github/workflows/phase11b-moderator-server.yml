@@ -1,6 +1,7 @@
 name: Phase 11B Moderator Server Qualification
 
 on:
+  pull_request:
   push:
     branches:
       - backend/wedding-day-ww2-phase11b-20260924
