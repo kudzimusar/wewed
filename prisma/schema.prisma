@@ -1095,6 +1095,7 @@ model WeddingGateAssignment {
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
+  @@unique([gateId, userId])
   @@index([userId, weddingId])
   @@index([gateId, weddingId])
   @@index([weddingId, revokedAt])
