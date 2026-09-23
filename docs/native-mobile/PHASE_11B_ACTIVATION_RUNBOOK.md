@@ -1,5 +1,7 @@
 # WeWed — Phase 11B Wedding Day / WW2 Non-Production Activation Runbook & Checklist
 
+> **Authorization boundary:** Every production-shaped command below is a future execution template only. Phase 11B rehearsal or acceptance does **not** authorize Production database access, migration, key creation/configuration, feature enablement, live Gate admission, deployment, signing, or release. A separate owner-approved production change is required before substituting Production URLs, secrets, hosts, or workloads into these commands.
+
 **Document Version:** 1.0.0  
 **Phase:** 11B (Non-Production Activation & Readiness Rehearsal)  
 **Date:** September 24, 2026  
@@ -110,7 +112,7 @@ Wedding Day requires two distinct ECDSA P-256 (`prime256v1`) keypairs:
 2. **Root Manifest Signing Key:** Signs the gate manifest envelope.
 
 ### Key Generation Protocol (Offline Secure Vault)
-Keys must be generated inside a secure hardware security module (HSM) or offline vault. Private keys are **never** logged, checked into version control, or transmitted over unencrypted channels.
+Keys must be generated in an approved secure key-generation environment and stored through the deployment secret manager. The current application consumes PKCS#8 PEM environment secrets; a non-exportable HSM key is **not** compatible without a separate signing-adapter design. Private keys are never logged, committed, pasted into shell history, or transmitted over unencrypted channels.
 
 ### Required Environment Variables
 ```env
@@ -176,8 +178,8 @@ flowchart TD
 1. **Stage 1 — Preflight Audit:** Run `20260924000000_wedding_day_ww2_preflight.sql`. Verify 0 table collisions and 0 duplicate guests.
 2. **Stage 2 — Schema Migration:** Execute `npx prisma migrate deploy` while `WEWED_WEDDING_DAY_WW2_ENABLED=false`.
 3. **Stage 3 — Postflight Audit:** Run `20260924000000_wedding_day_ww2_postflight.sql`. Confirm 9 foreign keys, 4 indexes, and RLS enabled.
-4. **Stage 4 — Key Material Injection:** Securely populate `WEDDING_DAY_*` environment variables in the production secret store.
-5. **Stage 5 — Key Preflight Execution:** Run `bun scripts/wedding-day-key-preflight.ts`. Confirm `Ready: YES` and log only public key fingerprints.
+4. **Stage 4 — Key Material Injection (future approved change only):** Populate `WEDDING_DAY_*` through the deployment platform's secret-management interface. Do not paste PEM values into shell commands, CI logs, tickets, or chat.
+5. **Stage 5 — Key Preflight Execution:** Run `bun scripts/wedding-day-key-preflight.ts` inside the already-secret-injected workload. Confirm `RESULT: all checks passed.` and record only complete public SHA-256 fingerprints and non-secret key IDs.
 6. **Stage 6 — Canary Activation:** Set `WEWED_WEDDING_DAY_WW2_ENABLED=true` on the canary application container.
 7. **Stage 7 — Operational Qualification:** Conduct one synthetic canary test (Issue pass -> Fetch manifest -> Admittance check-in -> Verify RSVP completion).
 
@@ -190,7 +192,7 @@ flowchart TD
 - **Rehearsal Tip (Phase 11B):** `backend/wedding-day-ww2-phase11b-20260924`
 - **Key Deliverables Added:**
   - `scripts/wedding-day-key-preflight.ts`: Safe zero-secret CLI inspection tool.
-  - `src/app/api/native/gate/wedding-day/pass/revoke/route.ts`: Operational pass revocation endpoint requiring `gate.checkin.write` capability.
+  - `src/app/api/native/gate/wedding-day/pass/revoke/route.ts`: Operational pass revocation endpoint requiring the dedicated `gate.pass.revoke` capability.
   - `src/lib/wedding-day-activation-rehearsal.integration.test.ts`: Complete 11-stage synthetic lifecycle rehearsal suite (100% pass).
 
 ### Native Mobile RC Commit Lineage
@@ -210,12 +212,12 @@ When a guest reports a lost or compromised device at the gate, or when an operat
 2. **API Endpoint:** `POST /api/native/gate/wedding-day/pass/revoke`
    - Headers: `Authorization: Bearer <token>`, `x-wewed-grant-id: <grantId>`
    - Body: `{"passSerial": "WWABC1234-001", "reason": "Lost device reported at North Gate"}`
-3. **Authority Enforcement:** Endpoint verifies operational context and requires `gate.checkin.write` capability.
+3. **Authority Enforcement:** Endpoint re-resolves the live operational grant and requires the dedicated `gate.pass.revoke` capability. `gate.checkin.write` alone cannot revoke a credential.
 4. **Database Mutation:**
    - `WeddingPassCredential.revokedAt = now()`
    - `WeddingPassCredential.revocationReason = <reason>`
    - `WeddingPassCredential.supersededAt = now()`
-5. **Immediate Rejection:** Any subsequent presentation of the old token or serial at any gate fails closed with `PASS_REVOKED_OR_EXPIRED`.
+5. **Revocation Propagation:** Any subsequent **online** presentation of the old token or serial fails closed with `PASS_REVOKED_OR_EXPIRED`. A disconnected Gate device cannot learn a newly-created revocation until its signed manifest is refreshed, so operations must refresh manifests after revocation before relying on offline rejection.
 6. **Isolated Re-issuance:** Re-issuing for the guest (`ensureWeddingPassCredential`) creates a new record with `issueSeq = 2` and a new random nonce and serial (`WW...-002`). The revoked record remains permanently in the database for audit integrity.
 
 ---
@@ -289,10 +291,10 @@ To be completed by the Release Commander and Database Administrator prior to pro
 - [ ] Row Level Security confirmed active on all 3 Wedding Day tables.
 
 ### Key Configuration & Preflight
-- [ ] ECDSA P-256 keys generated in secure HSM / offline vault.
+- [ ] ECDSA P-256 keys generated in an approved secure environment and stored as PKCS#8 PEM through the deployment secret manager. A non-exportable HSM key requires a separate signing adapter.
 - [ ] Keys injected into environment secrets with strict access controls.
 - [ ] `bun scripts/wedding-day-key-preflight.ts` executed on server host.
-- [ ] Key preflight report outputs `Ready: YES` with 10/10 checks passing.
+- [ ] Key preflight report outputs `RESULT: all checks passed.` with every check passing.
 - [ ] Public key fingerprints cross-checked against native build configuration.
 - [ ] Confirmed zero private key bytes present in logs or CI output.
 
