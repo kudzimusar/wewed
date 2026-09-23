@@ -11,7 +11,10 @@ import {
 } from 'node:crypto'
 import type { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
-import { isWeddingDayWW2Enabled } from '@/lib/wedding-day-feature'
+import {
+  assertWeddingDayWW2RuntimeReady,
+  isWeddingDayWW2Enabled,
+} from '@/lib/wedding-day-feature'
 import { readWeddingGuestSession } from '@/lib/wedding-guest-session'
 
 export const WW2_VERSION = 'WW2'
@@ -240,6 +243,7 @@ async function passKeyForCredential(
 }
 
 export async function ensurePassKey(weddingId: string): Promise<PassKeyRow> {
+  assertWeddingDayWW2RuntimeReady()
   const material = ww2KeyMaterial()
   const validateBoundKey = (key: PassKeyRow): PassKeyRow => {
     if (
@@ -347,9 +351,7 @@ export async function ensureWeddingPassCredential(input: {
   guestId: string
   now?: Date
 }): Promise<CredentialRow> {
-  if (!isWeddingDayWW2Enabled()) {
-    throw new Error('WEDDING_DAY_DISABLED')
-  }
+  assertWeddingDayWW2RuntimeReady()
 
   const now = input.now ?? new Date()
 
@@ -475,7 +477,7 @@ export async function revokeWeddingPassCredential(input: {
   reason: string
   now?: Date
 }): Promise<CredentialRow> {
-  if (!isWeddingDayWW2Enabled()) throw new Error('WEDDING_DAY_DISABLED')
+  assertWeddingDayWW2RuntimeReady()
   const reason = input.reason.trim()
   if (!reason) throw new Error('REVOCATION_REASON_REQUIRED')
   const now = input.now ?? new Date()
@@ -516,9 +518,7 @@ export async function verifyWeddingPassToken(input: {
   token: string
   requiredEventBit?: number
 }): Promise<CredentialRow> {
-  if (!isWeddingDayWW2Enabled()) {
-    throw new Error('WEDDING_DAY_DISABLED')
-  }
+  assertWeddingDayWW2RuntimeReady()
 
   const parsed = parseWw2Token(input.token)
   if (!parsed) throw new Error('INVALID_PASS_TOKEN')
@@ -632,7 +632,7 @@ export async function checkInWeddingGuest(input: {
   deviceId?: string
   clientEventId?: string
 }): Promise<WeddingCheckInResult> {
-  if (!isWeddingDayWW2Enabled()) throw new Error('WEDDING_DAY_DISABLED')
+  assertWeddingDayWW2RuntimeReady()
 
   const requestedKeys = Array.from(new Set(input.attendeeKeys ?? []))
   if (requestedKeys.length === 0) throw new Error('ATTENDEE_KEYS_REQUIRED')
