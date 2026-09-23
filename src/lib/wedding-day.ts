@@ -491,15 +491,20 @@ export async function ensureWeddingPassCredential(input: {
   }
 }
 
+export const MAX_REVOCATION_REASON_LENGTH = 500
+
 export async function revokeWeddingPassCredential(input: {
   weddingId: string
   credentialId: string
   reason: string
+  actorUserId?: string
+  gateId?: string
   now?: Date
 }): Promise<CredentialRow> {
   assertWeddingDayWW2RuntimeReady()
   const reason = input.reason.trim()
   if (!reason) throw new Error('REVOCATION_REASON_REQUIRED')
+  if (reason.length > MAX_REVOCATION_REASON_LENGTH) throw new Error('REVOCATION_REASON_TOO_LONG')
   const now = input.now ?? new Date()
 
   return db.$transaction(async (tx) => {
@@ -529,7 +534,38 @@ export async function revokeWeddingPassCredential(input: {
       credential.id,
       input.weddingId,
     )
-    return updated[0]
+    const revoked = updated[0]
+    if (!revoked) throw new Error('PASS_NOT_FOUND')
+
+    if (input.actorUserId) {
+      await tx.$executeRawUnsafe(
+        `INSERT INTO public."AuditEvent"
+          (id, action, "resourceType", "resourceId", "beforeValue", "afterValue",
+           "weddingId", "actorId", "createdAt")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)`,
+        `audit_${randomUUID().replace(/-/g, '')}`,
+        'wedding_pass.revoked',
+        'WeddingPassCredential',
+        credential.id,
+        JSON.stringify({
+          passSerial: credential.passSerial,
+          revokedAt: credential.revokedAt?.toISOString() ?? null,
+          revocationReason: credential.revocationReason,
+          supersededAt: credential.supersededAt?.toISOString() ?? null,
+        }),
+        JSON.stringify({
+          passSerial: revoked.passSerial,
+          revokedAt: revoked.revokedAt?.toISOString() ?? null,
+          revocationReason: revoked.revocationReason,
+          supersededAt: revoked.supersededAt?.toISOString() ?? null,
+          gateId: input.gateId ?? null,
+        }),
+        input.weddingId,
+        input.actorUserId,
+      )
+    }
+
+    return revoked
   })
 }
 
