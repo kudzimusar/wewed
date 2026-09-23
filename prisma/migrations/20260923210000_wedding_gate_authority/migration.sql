@@ -31,7 +31,9 @@ CREATE TABLE IF NOT EXISTS "WeddingGateAssignment" (
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "WeddingGateAssignment_pkey" PRIMARY KEY ("id"),
-    CONSTRAINT "WeddingGateAssignment_operatorRole_check" CHECK ("operatorRole" IN ('usher'))
+    CONSTRAINT "WeddingGateAssignment_operatorRole_check" CHECK ("operatorRole" IN ('usher')),
+    CONSTRAINT "WeddingGateAssignment_time_window_check"
+      CHECK ("expiresAt" IS NULL OR "expiresAt" > "activeFrom")
 );
 
 -- CreateIndex
@@ -42,6 +44,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS "WeddingGate_id_weddingId_key" ON "WeddingGate
 
 -- CreateIndex
 CREATE UNIQUE INDEX IF NOT EXISTS "WeddingGate_weddingId_name_key" ON "WeddingGate"("weddingId", "name");
+
+-- CreateIndex
+CREATE UNIQUE INDEX IF NOT EXISTS "WeddingGateAssignment_gateId_userId_key"
+    ON "WeddingGateAssignment"("gateId", "userId");
 
 -- CreateIndex
 CREATE INDEX IF NOT EXISTS "WeddingGateAssignment_userId_weddingId_idx" ON "WeddingGateAssignment"("userId", "weddingId");
