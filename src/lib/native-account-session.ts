@@ -94,7 +94,16 @@ export function verifyNativeAccountSessionToken(token: string): NativeAccountSes
       'weddingId' in payload ||
       'grantId' in payload ||
       'workspaceKind' in payload ||
-      'workspaceGrants' in payload
+      'workspaceGrants' in payload ||
+      // Phase 10 adds a separate Gate operational-authority axis. The identity token must remain
+      // identity-only across that axis as well: even a validly-signed future payload carrying
+      // Gate scope/capabilities is rejected rather than silently ignored.
+      'operationalGrants' in payload ||
+      'gateContextSelection' in payload ||
+      'gateId' in payload ||
+      'assignmentId' in payload ||
+      'operatorUserId' in payload ||
+      'capabilities' in payload
     ) {
       return null
     }
