@@ -131,6 +131,9 @@ public actor WeddingDaySyncService {
         if let trustedRootKeyId, envelope.data.rootKeyId != trustedRootKeyId {
             throw WeddingDaySyncError.rootKeyMismatch
         }
+        guard envelope.data.algorithm == "ECDSA_P256_SHA256" else {
+            throw WeddingDaySyncError.invalidResponse
+        }
         guard TokenVerifier.verifyP1363(
             payload: envelope.data.canonicalPayload,
             signatureHex: envelope.data.signatureHex,
@@ -200,7 +203,7 @@ public actor WeddingDaySyncService {
         guard let trust = await trustStore.manifest(weddingId: weddingId) else {
             throw WeddingDaySyncError.signingKeyUnavailable
         }
-        guard !isExpired(trust.expiresAt) else {
+        guard let trustExpiry = parseIsoDate(trust.expiresAt), trustExpiry > Date() else {
             throw WeddingDaySyncError.manifestExpired
         }
 
