@@ -47,6 +47,7 @@ class WeddingDayOfflineTest {
             assertEquals(1, pending.size)
             assertEquals(listOf("plus-one"), pending.single().attendeeKeys)
             assertEquals("android-gate-a", pending.single().deviceId)
+            assertEquals("", pending.single().usherId)
 
             // Simulate process death / app restart against the same durable storage directory.
             store = OfflineManifestStore(dir, deviceId = "android-gate-a")
