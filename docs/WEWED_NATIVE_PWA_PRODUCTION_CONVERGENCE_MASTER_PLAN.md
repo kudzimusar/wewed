@@ -1277,6 +1277,113 @@ Phase gate:
 - Phase 4: **ACCEPTED**;
 - Phase 5: **READY TO BEGIN**.
 
+### D-026 — Phase 9 closure round 4: RSVP identity-safety and generated-contract authority corrections (2026-09-23)
+**MODERATOR CORRECTION ROUND, NOT AN ACCEPTANCE.** This entry records moderator findings against
+the actual Round-3 remote implementation and the implementation-agent's corrections in response.
+Phase 9 acceptance remains the moderator's decision alone and is NOT claimed here.
+
+**Moderator findings against Round 3 (direct remote-code inspection):**
+1. `prepareRsvpEdit` called mutating `refresh()` before identity comparison.
+2. This meant `presentedGuestId` could be rebound to a different Guest before returning
+   `StaleOrReplacedGuest`.
+3. Round-3 tests checked only the returned result, not preservation of the original binding.
+4. Generator `--check` was not implemented.
+5. Permanent digital-invitation CI did not contain the required contract drift check.
+6. Temporary qualification did not run contract generation/check.
+7. Generated style definitions lacked explicit `rendererKind`.
+8. Matrix tests did not prove exact motion/atmosphere or actual renderer dispatch.
+9. D-025 mislabeled workflow commit `2a71fc5d6bdaa151376eaa0100f7dec9672b73f4` as the product SHA.
+10. Round 4 corrected all of the above.
+
+**Round-3 lineage, preserved as historical record (not rewritten):**
+- Product commit: `c23bd4c68d3e75a03bfda78adce810614abf5626`.
+- Temporary workflow commit: `2a71fc5d6bdaa151376eaa0100f7dec9672b73f4`.
+- Qualification run: `35834561726`.
+- Cleaned branch tip: `48dab24aad4f6b6a3aea55cc5a159efcb3035d1d`.
+
+**Round-4 corrections (verified against actual code, not self-reported):**
+1. **Identity safety —** `LiveGuestInvitationCoordinator.prepareRsvpEditor()` (Android and iOS) now
+   captures `expectedWeddingSlug`/`expectedGuestId` from the presentation binding before any
+   network I/O, calls only `client.loadInvitation(expectedWeddingSlug)` — never `refresh()`,
+   `load()`, or `restoreRememberedGuest()`, all of which mutate the binding as a side effect — and
+   compares the refreshed snapshot's identity against what was captured before touching any
+   coordinator state.
+2. **New distinct result case —** `RsvpEditorPreparation.StaleOrReplacedGuest` (Android) /
+   `.staleOrReplacedGuest` (iOS) replaces the prior generic `ReopenRequired` overload for an
+   identity mismatch. On this path the coordinator's `activeWeddingSlug`/`presentedGuestId` are
+   left completely untouched — no rebind, no retry, no opening the replacement guest's editor.
+3. **Strengthened regression —** both platforms' `rsvpEditorFailsClosedOn{SameWeddingGuest,
+   DifferentWedding}Replacement` tests were rewritten to assert binding PRESERVATION (not the
+   previous, incorrect null-out assertion), and each gained a follow-up step: after the failed
+   preparation, `coordinator.answer(...)` is called and the outgoing PUT body's `originGuestId` is
+   asserted to still equal the ORIGINAL guest — proving the coordinator behaves as Guest A, not
+   merely that the returned enum is correct.
+4. **Fresh-truth regression retained —** `rsvpEditor{ReflectsExternalOutOfBandUpdate,
+   HandlesAllStatuses}` (Android) / equivalent iOS tests are unaffected by the fix (identity-match
+   path only) and continue to pass.
+5. **Generator `--check` —** verified by direct inspection and by running
+   `python3 mobile/contracts/generate_invitation_style_contract.py --check` against the current
+   committed generated files: it computes JSON/Kotlin/Swift content in memory first, writes nothing
+   in check mode, and exits 0 only on an exact match — this was already correctly implemented and
+   required no code change; the run confirmed the generated files carry zero drift.
+6. **Explicit `rendererKind`** — confirmed already present in the generated contract:
+   `ivory-floral-gold` → `IVORY_CUSTOM`; the other 11 known styles → `GENERIC_MOTION`; unknown
+   styles are absent from the generated map entirely (never inferred from `style != UNKNOWN_STYLE`).
+7. **Renderer dispatch authority —** `InvitationStyle.hasNativeRenderer` (Android and iOS), which
+   Round 3 hardcoded per enum case (`true`/`false` literals), now derives from
+   `rendererKind != null` — the generated contract, not enum membership. `NativeInvitationExperience`
+   already dispatched via `rendererFor(style)` reading the generated `rendererKind`; this was
+   verified, not rewritten.
+8. **Strengthened style tests —** `InvitationStyleMatrixTest`/`-s` on both platforms now assert
+   EXACT per-style motion, atmosphere, and `rendererKind` against the full 12-style registry table
+   (not "a valid enum value"), and the actual-dispatch test derives its expected
+   `ResolvedInvitationRenderer` from that same table rather than a separate hardcoded conditional.
+9. **Test-identifier stacking fixed —** the generic renderer's stacked
+   `testTag("generic-invitation-<style>")` + `testTag("premium-invitation-experience")` (Android)
+   and the equivalent stacked `accessibilityIdentifier` pair (iOS) — both on a single semantic
+   node, where the last call silently wins — were split into distinct nodes. Required stable hooks
+   (`invitation-style-<id>`, `invitation-motion-<id>`, `invitation-open-button`,
+   `invitation-details`, `invitation-cta-rsvp`) are now present as their own semantic
+   nodes/accessibility elements, applied once at the `NativeInvitationExperience` dispatcher (via a
+   small identity-hooks helper) so `ivory-floral-gold` gets them too without touching the approved
+   reference renderer's own pixel-perfect layout.
+10. **Permanent CI drift guard extended —** `.github/workflows/digital-invitation-experience-ci.yml`
+    path triggers now additionally include `InvitationStyle.kt`/`.swift`,
+    `NativeInvitationExperience.kt`/`.swift`, and the `generic/`/`Generic/` renderer directories on
+    both platforms — previously these files could change without triggering this permanent CI at
+    all. The mandatory `generate_invitation_style_contract.py --check` step was already present in
+    this workflow (added in an earlier round-4-shaped attempt within this same implementation
+    session) and required no further change.
+11. **12-style visuals unchanged —** no renderer bug was found; the Round-3 generic motion
+    implementation (6 motions, 7 atmospheres) and `IvoryFloralGoldNative` were retained as-is, per
+    the explicit instruction that this round is not permission to redesign the cards.
+
+**Round-4 SHA/run evidence (four distinct values, never conflated):**
+- Product SHA: `c339c956dcf8f0b848468b728130c4661b354f74`.
+- Temporary workflow commit SHA: `75b3fa34e2da1e32637e65e1a0fdbbf3dca63282`.
+- Qualification run: `35844543122` — PASS.
+  - Contract drift check (`generate_invitation_style_contract.py --check`, run BEFORE native
+    tests): PASS.
+  - Android: `testDebugUnitTest`, `assembleDebug`, `assembleRelease` — PASS (BUILD SUCCESSFUL for
+    all three tasks; local run this round: 0 failures).
+  - iOS: `swift test` — 419 tests, 0 failures; `swift build`; `xcodegen generate`; Simulator Debug
+    build; unsigned generic-device Release build — all PASS.
+- Cleaned branch tip (temporary workflow removed): `83e70334c11636ee2015d0924a689c276899166b`.
+- Deployments API: product SHA and workflow-commit SHA both confirmed `environment: Preview`
+  (never Production); the CI-only cleanup commit has no deployment record (no deploy-relevant path
+  changed).
+
+**Server:** unchanged this round — no server product diff exists on
+`backend/digital-invitation-rsvp-phase9-20260923` relative to its previously accepted state.
+Retained server qualification: run `35826332669`, qualified product SHA
+`72f34663535d5fbbfbbb6bb79319ae69327a2994`. Not rerun, per the explicit round-4 instruction that a
+native-only safety/contract correction does not require re-running the server product suite.
+
+**Phase Gate:**
+- Phase 9: **Round-4 corrections applied and qualified; acceptance is NOT self-declared and awaits
+  independent moderator inspection of the remote code.**
+- Phase 10: **NOT STARTED / NOT AUTHORIZED**.
+
 ### D-025 — Phase 9 closure round 3: RSVP pre-open refresh & 12-style native matrix (2026-09-23)
 **IMPLEMENTATION-AGENT SUBMISSION, NOT A MODERATOR VERDICT.** Phase 9 acceptance is the moderator's
 decision alone.

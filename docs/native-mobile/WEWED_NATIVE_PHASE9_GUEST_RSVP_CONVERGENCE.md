@@ -119,9 +119,9 @@ exclusively — no `/api/native/rsvp` or any other native-only route exists or w
 | RSVP write payload | `GuestRsvpUpdate` (new this phase) — 9 nullable fields, `null` = omit |
 | RSVP read/write response | `GuestRsvpRecord` (new this phase, replaces a bare `Boolean?`) |
 | `originGuestId` binding | `LiveGuestInvitationCoordinator.presentedGuestId` — captured only when a card is presented, never at save time |
-| Pre-open refresh | `LiveGuestInvitationCoordinator.prepareRsvpEdit(currentGuestId)` -> `RsvpEditPreparation` (`Ready`, `StaleOrReplacedGuest`, `RevokedOrUnauthorized`, `Unavailable`) |
-| RSVP form UI | `LiveGuestInvitationScreen.kt`'s `LiveRsvpForm` bound to refreshed `rsvpEditorPresentation`. Action resolved via `resolveLiveInvitationActions` and `ivoryRsvpActionLabel` ("RSVP" while awaiting response, "Update RSVP" once answered), remaining reachable across PENDING, ACCEPTED, and DECLINED states. Network refresh failures surface `RefreshUnavailableNotice`. |
-| Invitation styles & engine | All 12 styles rendered natively: `IvoryFloralGoldNative` (dedicated) and `GenericMotionInvitationNative` (for the 11 generic styles). Contract generated into `GeneratedInvitationStyles.kt` from `src/lib/digital-invitation-card.ts`. |
+| Pre-open refresh | `LiveGuestInvitationCoordinator.prepareRsvpEditor()` -> `RsvpEditorPreparation` (`Ready(snapshot)`, `ReopenRequired`, `StaleOrReplacedGuest`, `Unavailable(status)`) — capture-before-I/O, compare-before-mutate; on `StaleOrReplacedGuest` the binding is left untouched |
+| RSVP form UI | `LiveGuestInvitationScreen.kt`'s `LiveRsvpForm` bound to refreshed `rsvpEditorPresentation`. Action resolved via `resolveLiveInvitationActions` and `ivoryRsvpActionLabel` ("RSVP" while awaiting response, "Update RSVP" once answered), remaining reachable across PENDING, ACCEPTED, and DECLINED states. Network refresh failures surface `RefreshUnavailableNotice`; a stale-or-replaced guest surfaces a distinct `StaleOrReplacedGuestNotice`. |
+| Invitation styles & engine | All 12 styles rendered natively: `IvoryFloralGoldNative` (dedicated) and `GenericMotionInvitationNative` (for the 11 generic styles). Contract generated into `GeneratedInvitationStyles.kt` from `src/lib/digital-invitation-card.ts`, including an explicit `InvitationRendererKind` (`IVORY_CUSTOM` / `GENERIC_MOTION`) per style. `NativeInvitationExperience` dispatches on `rendererFor(style)`, which reads that generated field — never a separate hardcoded `if style == ivory...`. |
 | Invitation style source | `LiveInvitationPresentation.invitationCardStyle`, sourced exclusively from the GET response's `wedding.invitationCardStyle` — never from a deep-link parameter |
 
 ## 6. iOS mapping
@@ -132,9 +132,9 @@ exclusively — no `/api/native/rsvp` or any other native-only route exists or w
 | RSVP write payload | `GuestRsvpUpdate` (new this phase) |
 | RSVP read/write response | `GuestRsvpRecord` (new this phase) |
 | `originGuestId` binding | `LiveGuestInvitationCoordinator.presentedGuestId`/`activeWeddingSlug` — same capture-at-presentation-time contract |
-| Pre-open refresh | `LiveGuestInvitationCoordinator.prepareRsvpEdit(currentGuestId)` -> `RsvpEditPreparation` (`ready`, `staleOrReplacedGuest`, `revokedOrUnauthorized`, `unavailable`) |
-| RSVP form UI | `LiveGuestInvitationView.swift`'s `LiveRsvpFormView` bound to refreshed `rsvpEditorPresentation` (keyed with `.id(formSessionId)`). Action resolved via `resolveLiveInvitationActions` and `ivoryRsvpActionLabel`, remaining reachable across PENDING, ACCEPTED, and DECLINED states. Network refresh failures surface `refreshUnavailableAlert`. |
-| Invitation styles & engine | All 12 styles rendered natively: `IvoryFloralGoldNative` (dedicated) and `GenericMotionInvitationNative` (for the 11 generic styles). Contract generated into `GeneratedInvitationStyles.swift` from `src/lib/digital-invitation-card.ts`. |
+| Pre-open refresh | `LiveGuestInvitationCoordinator.prepareRsvpEditor()` -> `RsvpEditorPreparation` (`ready(snapshot:)`, `reopenRequired`, `staleOrReplacedGuest`, `unavailable(status:)`) — capture-before-I/O, compare-before-mutate; on `staleOrReplacedGuest` the binding is left untouched |
+| RSVP form UI | `LiveGuestInvitationView.swift`'s `LiveRsvpFormView` bound to refreshed `rsvpEditorPresentation` (keyed with `.id(formSessionId)`). Action resolved via `resolveLiveInvitationActions` and `ivoryRsvpActionLabel`, remaining reachable across PENDING, ACCEPTED, and DECLINED states. Network refresh failures surface `refreshUnavailableAlert`; a stale-or-replaced guest surfaces a distinct `staleOrReplacedGuestView`. |
+| Invitation styles & engine | All 12 styles rendered natively: `IvoryFloralGoldNative` (dedicated) and `GenericMotionInvitationNative` (for the 11 generic styles). Contract generated into `GeneratedInvitationStyles.swift` from `src/lib/digital-invitation-card.ts`, including an explicit `InvitationRendererKind` (`.ivoryCustom` / `.genericMotion`) per style. `NativeInvitationExperience` dispatches on `rendererFor(style)`, which reads that generated field — never a separate hardcoded `if style == ivory...`. |
 | Invitation style source | Same GET-response-only source; no deep-link override |
 
 ---
@@ -183,9 +183,20 @@ Extracting authoritative palettes (`stage`, `paper`, `ink`, `primary`, `accent`,
 | `watercolour-garden` | Watercolour Garden | `floral-reveal` | `watercolour-bloom` | LIVE (`GenericMotionInvitationNative`) | LIVE (`GenericMotionInvitationNative`) | LIVE (PENDING, ACCEPTED, DECLINED) | Closed ceremony |
 | `sunset-terracotta` | Sunset Terracotta | `sleeve-pull` | `soft-bokeh` | LIVE (`GenericMotionInvitationNative`) | LIVE (`GenericMotionInvitationNative`) | LIVE (PENDING, ACCEPTED, DECLINED) | Closed ceremony |
 | `celestial` | Celestial | `book-open` | `stars` | LIVE (`GenericMotionInvitationNative`) | LIVE (`GenericMotionInvitationNative`) | LIVE (PENDING, ACCEPTED, DECLINED) | Closed ceremony |
-| *(unknown future)* | Unknown Style | — | — | UNSUPPORTED (fail-closed notice) | UNSUPPORTED (fail-closed notice) | N/A | Fail-closed |
+| *(unknown future)* | Unknown Style | — | — | UNSUPPORTED / UPDATE REQUIRED | UNSUPPORTED / UPDATE REQUIRED | N/A | Fail-closed |
 
 *Note: `botanical` (Garden Romance) serves as the authoritative server fallback style whenever a missing or invalid style is configured.*
+
+### Real RSVP editor open flow
+```text
+tap
+→ capture expectedSlug/expectedGuestId from the presentation binding (before any I/O)
+→ client.loadInvitation(expectedSlug)   [never refresh()/load()/restoreRememberedGuest()]
+→ compare refreshed snapshot identity against what was captured, BEFORE mutating any state
+   ├─ identity match      → rebind to fresh snapshot → Ready → editor opens with server truth
+   └─ identity mismatch   → StaleOrReplacedGuest → binding left untouched → editor does not open
+                             (no rebind, no retry, no opening the replacement guest's editor)
+```
 
 ---
 
@@ -196,6 +207,21 @@ Extracting authoritative palettes (`stage`, `paper`, `ink`, `primary`, `accent`,
 - The "My Digital Invitation" tab reopening the same configured card.
 - Guest Session v2's credential model, fingerprint invalidation/rotation behavior.
 - `songRequests` (see §2) and every other Admin/Vendor/Contracts domain from Phase 8.
+
+---
+
+## 10. Checkpoint D-025 — Safe compare-before-rebind RSVP editor refresh and 12-style native parity (2026-09-23)
+
+1. Round-2 RSVP multi-status reachability was valid.
+2. Independent moderator review found the Round-2 "fresh server truth on reopen" claim was false:
+   `key(presentation)`/`.id(UUID())` only reset UI state; no server GET occurred before editor opening.
+3. Existing `coordinator.refresh()` could not safely be reused blindly because it rebinds
+   `presentedGuestId` to whichever guest the current session resolves.
+4. A compare-before-rebind editor preparation operation (`prepareRsvpEditor()`, 0 parameters) was implemented.
+5. Independent moderator review also found native invitation parity was only 1/12 styles.
+6. The shared generated PWA design contract and generic native motion engine were added.
+7. All current 12 registry styles now render natively (12 × LIVE).
+8. Unknown future styles remain fail-closed (`UNSUPPORTED / UPDATE REQUIRED`).
 
 See the completion report for this phase for exact qualified/final SHAs, temporary reviewer-CI run
 ids, and the explicit Preview-vs-Production deployment confirmation. This document records
