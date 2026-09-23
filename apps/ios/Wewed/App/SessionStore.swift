@@ -405,6 +405,13 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
         selectedGrantIds = next
         persistSelectedGrantIds(next)
         activeGrantId = grantId
+        // A workspace selection is an explicit authority-axis switch. Preserve the remembered
+        // Gate grant for a later switch back, but clear the active Usher presentation first.
+        if currentRole == .usher {
+            activeGateContext = nil
+            currentRole = nil
+            currentUserRole = nil
+        }
         // An engagement choice belongs to the grant it was made for; a fresh grant starts with none
         // (master plan Phase 6 §5). applyAuthority() below already clears the workspace snapshot
         // synchronously, so no stale data can render while the new one is being fetched (§9, §14).
