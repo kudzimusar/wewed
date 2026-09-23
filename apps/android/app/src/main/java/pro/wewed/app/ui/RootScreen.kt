@@ -467,13 +467,15 @@ fun RootScreen(
     // one calls the same selectGrant() Phase 5 already uses for the forced pre-workspace choice.
     var showContextSwitcher by remember { mutableStateOf(false) }
     val canSwitchProductionContext = appViewModel.dataEnvironment == NativeDataEnvironment.PRODUCTION &&
-        (productionAuthority?.grants?.size ?: 0) > 1
+        ((productionAuthority?.grants?.size ?: 0) + (productionAuthority?.operationalGrants?.size ?: 0)) > 1
     productionAuthority?.let { authority ->
         if (showContextSwitcher) {
             ContextSwitcherDialog(
                 authority = authority,
                 activeGrantId = activeGrantId,
+                activeGateGrantId = selectedGateGrantId.takeIf { currentRole == AppRole.USHER },
                 onSelect = { grantId -> sessionViewModel.selectGrant(grantId) },
+                onSelectGate = { grantId -> sessionViewModel.selectGateGrant(grantId) },
                 onDismiss = { showContextSwitcher = false },
             )
         }
@@ -682,6 +684,7 @@ fun RootScreen(
         }
         ProductionGateAuthorityContent(
             gateContext = gate,
+            onSwitchContext = onOpenContextSwitcher,
             onSignOut = { sessionViewModel.signOut() }
         )
         return
@@ -1020,6 +1023,7 @@ private fun GateGrantSelectionScreen(
 @Composable
 private fun ProductionGateAuthorityContent(
     gateContext: GateOperationalContext,
+    onSwitchContext: (() -> Unit)?,
     onSignOut: () -> Unit
 ) {
     Column(
@@ -1050,6 +1054,14 @@ private fun ProductionGateAuthorityContent(
             fontSize = 13.sp,
             color = WeddingIdentityPalette.Muted
         )
+        if (onSwitchContext != null) {
+            OutlinedButton(
+                onClick = onSwitchContext,
+                modifier = Modifier.testTag("gate-switch-context")
+            ) {
+                Text("Switch context")
+            }
+        }
         TextButton(onClick = onSignOut) { Text("Sign out") }
     }
 }
@@ -1138,7 +1150,9 @@ private fun GrantSelectionScreen(
 fun ContextSwitcherDialog(
     authority: ProductionAuthority,
     activeGrantId: String?,
+    activeGateGrantId: String?,
     onSelect: (String) -> Unit,
+    onSelectGate: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
     AlertDialog(
@@ -1166,6 +1180,18 @@ fun ContextSwitcherDialog(
                         enabled = grant.grantId != activeGrantId,
                     ) {
                         Text(if (grant.grantId == activeGrantId) "$label (current)" else label)
+                    }
+                }
+                authority.operationalGrants.forEach { grant ->
+                    val label = "Usher · ${grant.gateName} · ${grant.weddingTitle}"
+                    OutlinedButton(
+                        onClick = { onSelectGate(grant.grantId); onDismiss() },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("context-switch-option-${grant.grantId}"),
+                        enabled = grant.grantId != activeGateGrantId,
+                    ) {
+                        Text(if (grant.grantId == activeGateGrantId) "$label (current)" else label)
                     }
                 }
             }
