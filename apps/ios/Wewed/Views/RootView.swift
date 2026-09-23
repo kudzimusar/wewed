@@ -148,7 +148,8 @@ public struct RootView: View {
     /// Only offered once more than one grant genuinely exists — a single-context account has
     /// nothing to switch to (master plan Phase 6 §11: minimal UI, no unnecessary chrome).
     private var canSwitchProductionContext: Bool {
-        appState.dataEnvironment == .production && (session.productionAuthority?.workspaceGrants.count ?? 0) > 1
+        guard appState.dataEnvironment == .production, let authority = session.productionAuthority else { return false }
+        return authority.workspaceGrants.count + authority.operationalGrants.count > 1
     }
 
     /// Guest Entry Contract (GuestCeremonialEntry, master plan §6.3).
@@ -540,7 +541,9 @@ public struct RootView: View {
                 ContextSwitcherSheet(
                     authority: authority,
                     activeGrantId: session.activeGrantId,
-                    onSelect: { grantId in session.selectGrant(grantId) }
+                    activeGateGrantId: session.currentRole == .usher ? session.selectedGateGrantId : nil,
+                    onSelect: { grantId in session.selectGrant(grantId) },
+                    onSelectGate: { grantId in session.selectGateGrant(grantId) }
                 )
             }
         }
@@ -642,7 +645,11 @@ public struct RootView: View {
                    gate.operatorUserId == context.actorId,
                    gate.weddingId == context.activeWeddingId,
                    gate.gateId == context.activeGateId {
-                    ProductionGateAuthorityView(gateContext: gate, onSignOut: { session.signOut() })
+                    ProductionGateAuthorityView(
+                        gateContext: gate,
+                        onSwitchContext: canSwitchProductionContext ? { showingContextSwitcher = true } : nil,
+                        onSignOut: { session.signOut() }
+                    )
                 } else {
                     productionWorkspaceUnavailable
                 }
@@ -850,6 +857,7 @@ public struct RootView: View {
 
     private struct ProductionGateAuthorityView: View {
         let gateContext: GateOperationalContext
+        let onSwitchContext: (() -> Void)?
         let onSignOut: () -> Void
 
         var body: some View {
@@ -867,6 +875,11 @@ public struct RootView: View {
                 Text("Gate admission and offline Wedding Pass activation remain disabled until Phase 11. This screen proves the real server assignment without fabricating a scanner credential.")
                     .font(.caption)
                     .foregroundStyle(WeddingIdentityPalette.muted)
+                if let onSwitchContext {
+                    Button("Switch context", action: onSwitchContext)
+                        .buttonStyle(.bordered)
+                        .accessibilityIdentifier("gate-switch-context")
+                }
                 Button("Sign out", action: onSignOut)
             }
             .padding(24)
