@@ -2969,3 +2969,138 @@ D-036 remains preserved as the implementation agent's historical evidence checkp
 
 **Next authorization:**
 Phase 11B may prepare and execute a **non-production activation-readiness rehearsal** using disposable PostgreSQL and synthetic keys only. It must produce the exact production operator change package, key/public-fingerprint checks, migration/postflight sequence, feature-flag sequencing, signed end-to-end rehearsal and rollback/containment criteria. It may not access/mutate Production, create or read real production private keys, enable production Wedding Day/WW2, merge/deploy main, sign/publish, or begin Phase 12. A separate explicit owner authorization remains required before any production migration/key configuration/activation step.
+
+
+### D-037 — Phase 11A reviewer closure: WW2 authority, migration, wire-format and offline-sync corrections (2026-09-24)
+**REVIEWER-OWNED CLOSURE COMPLETE.** The implementation-agent submission at server
+`119850ac4e758bb45446148eddc2c68bfcff93fa` / native
+`e6392539bc4f95ee0f5e37f6ef0adf788a3b9632` was not accepted at face value.
+Independent remote-code review found and directly patched the following ordinary defects before
+progressing:
+
+1. **Credential issuance serialization was weaker than the plan promised.**
+   First issuance had uniqueness protection but did not serialize on the authoritative Guest row.
+   The final server implementation locks Guest, then RSVP, then credential in a consistent order,
+   and reuses the same Prisma interactive-transaction connection for pass-key binding. Concurrent
+   first issuance and concurrent post-revocation reissue now converge to exactly one live credential.
+
+2. **Credential/key lifecycle enforcement was incomplete.**
+   Server verification previously checked credential revocation/expiry but did not fully enforce
+   signing-key algorithm, `activeFrom`, expiry and immutable key-ID→key-material binding.
+   Final code rejects inactive/future/expired/revoked/wrong-algorithm keys and refuses reusing a
+   key ID with different public key material.
+
+3. **Revocation/reissue history is now explicit and immutable.**
+   Added an authoritative revocation domain operation. Revocation records `revokedAt`,
+   `revocationReason` and `supersededAt`; reissue creates a distinct credential id, random
+   serial, nonce, signature and token while retaining the revoked row.
+
+4. **Cross-platform WW2 wire-format regression corrected.**
+   The submitted server implementation emitted a colon-delimited signed payload while both Android
+   and iOS native verifiers expect the established six-part dot format:
+   `WW2.<weddingShortId>.<passSerial>.<maskHex>.<nonce>.<signatureHex>`.
+   Server issuance/parsing was restored to that established native contract and regression coverage
+   now locks it.
+
+5. **Offline trust is fail-closed.**
+   Android/iOS now reject malformed/future signing-key activation dates, wrong algorithms and invalid
+   expiry dates rather than treating parse failures as unexpired/usable. iOS asymmetric verification
+   additionally requires version `WW2`.
+
+6. **Offline sync no longer sends authority claims.**
+   New Android/iOS queued check-in records do not persist Usher/operator authority. Legacy
+   `usherId` remains decode-compatible metadata only. Sync sends only pass serial, attendee keys,
+   device id and client event id; wedding, Gate, operator, source and canonical event are derived
+   server-side from the fresh Gate operational grant.
+
+7. **Server check-in revalidates mutable truth inside the write transaction.**
+   The transaction follows Guest → RSVP → credential lock order, then revalidates current
+   credential/key/Gate/Guest eligibility before inserting admissions. This closes revocation or RSVP
+   races between initial token/serial lookup and the write.
+
+8. **Household offline event idempotency corrected.**
+   One queued client event may admit multiple household attendees, so
+   `UNIQUE(weddingId, clientEventId)` was incorrect. The schema/migration now use
+   `UNIQUE(weddingId, clientEventId, attendeeKey)` while preserving the stronger canonical
+   attendee idempotency boundary `UNIQUE(weddingId,eventKey,guestId,attendeeKey)`.
+   RSVP `checkedIn` compatibility is updated only when the complete current household is admitted.
+
+9. **Migration history protection strengthened.**
+   Wedding Day root FKs now use RESTRICT/audit-safe history semantics rather than preserving broad
+   Wedding cascades from the isolated migration. The migration no longer uses permissive
+   `IF NOT EXISTS` / conditional-FK adoption: an unexpected partial schema fails closed and must be
+   investigated instead of silently accepted.
+
+10. **Reviewable migration artifacts added.**
+    Added SELECT-only preflight and postflight SQL plus a destructive rollback-rehearsal script guarded
+    by `wewed.phase11a_disposable_rehearsal=YES`. The scripts verify application role/RLS/catalog,
+    migration ledger, FK/index state and zero cross-wedding inconsistencies. The rollback correctly
+    removes `Guest_id_weddingId_key` as an index, not a table constraint.
+
+11. **Feature enabled now requires both signing roles.**
+    `WEWED_WEDDING_DAY_WW2_ENABLED` remains default-OFF. If enabled, all WW2 routes/domain operations
+    require successful safe preflight of BOTH WW2 and root P-256 signing configurations. Partial or
+    invalid configuration returns 503/fails closed without logging private key material.
+
+12. **Caller authority-poison fields are ignored and regression-tested.**
+    Gate check-in tests deliberately send forged weddingId/gateId/operator/source/event values and
+    prove persisted audit truth still comes from the server-resolved Gate grant and canonical
+    `wedding-day` event.
+
+13. **Native/offline regression coverage strengthened.**
+    Both platforms now prove that newly queued records store no operator authority; offline sync DTOs
+    contain only operation data; future/malformed signing-key activation fails closed; the legacy
+    count-only queue refusal remains intact.
+
+14. **Reviewer execution qualification is real GitHub Actions evidence.**
+    Server qualified at product/workflow head
+    `ff421753daf655425f382df4b978582c4aba0e4c` in run **35921715737** — PASS.
+    The workflow executed Prisma validate/generate, exact pre-11A disposable PostgreSQL preflight,
+    Phase-11A migration/postflight, Phase-11A + authority regressions, guarded rollback rehearsal,
+    migration reapply/domain regression and production bundle build with the feature disabled.
+    Native qualified at product/workflow head
+    `3f5ceb974e703fdbe182dd8a489dfb33af245f3b` in run **35922005854** — PASS.
+    Android unit/debug/release and iOS `swift test`, `swift build`, XcodeGen, Simulator Debug and
+    unsigned generic Release all passed.
+
+15. **Temporary workflow cleanup changed no product code.**
+    Server clean tip after removing only the temporary workflow:
+    `22896072f897d52608605127a3f3b3c41e345ef1`.
+    Native clean tip after removing only the temporary workflow:
+    `8105bc91145f1c634258480ea7fb397db22b0089`.
+
+D-036 remains historical implementation-agent evidence and is not rewritten. Where D-036 differs
+from this reviewer closure (for example root Wedding FK deletion policy, initial SHAs, or the absence
+of independent CI), this D-037 entry is authoritative for final Phase-11A state.
+
+### D-038 — Phase 11A accepted; Phase 11B activation preflight authorized (2026-09-24)
+**PHASE 11A ACCEPTED.** The production-safe Wedding Day/WW2 schema, authority contracts, cryptographic
+wire format, migration rehearsal, online Gate authority and native offline verification/sync design
+satisfy the Phase-11A gate after reviewer-owned closure and successful independent qualification.
+
+Accepted clean heads:
+- server: `backend/wedding-day-ww2-phase11a-20260924` @
+  `22896072f897d52608605127a3f3b3c41e345ef1`;
+- native: `native-mobile/wedding-day-ww2-phase11a-20260924` @
+  `8105bc91145f1c634258480ea7fb397db22b0089`.
+
+Qualified product/workflow heads and runs:
+- server `ff421753daf655425f382df4b978582c4aba0e4c`, run `35921715737` — PASS;
+- native `3f5ceb974e703fdbe182dd8a489dfb33af245f3b`, run `35922005854` — PASS.
+
+Phase-11A acceptance does **not** authorize any production mutation. The feature remains OFF; production
+WW2/root private keys are not read, generated or changed; no production Wedding Day migration is
+applied; production Gate admission remains disabled in native UI; main is not merged; no signed mobile
+distribution is performed.
+
+**Authorized next unit: Phase 11B — activation/release-candidate preflight only.**
+Phase 11B may prepare the exact production migration/key/feature-flag runbook, production-safe read-only
+preflight commands, release-candidate port/diff, operational credential-revocation management surface
+if still absent, and end-to-end synthetic activation rehearsal. It may not execute production DB
+migration, create/read/change production private keys, enable the production feature flag, perform a
+production check-in, merge main, deploy production, sign/publish mobile builds, or begin Phase 12
+without a separate owner/moderator authorization.
+
+Carry-forward gates remain F-3 Vendor authority linkage, F-4 BusinessAccount production migration
+application, F-6 legacy PWA global-admin containment, production `WEWED_SESSION_SECRET`, signed
+App/Universal Links, ecosystem UAT and staged rollout.
