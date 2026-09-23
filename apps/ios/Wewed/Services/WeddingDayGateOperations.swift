@@ -5,7 +5,7 @@ public protocol WeddingDayGateOperations: Sendable {
     func refreshManifest() async throws
     func checkIn(qrPayload: String, count: Int) async throws -> CheckInVerificationResult
     func reconcilePending() async -> WeddingDaySyncResult
-    func revokePass(passSerial: String, reason: String) async -> Bool
+    func revokePass(passSerial: String, reason: String) async -> WeddingDayRevokeResult
 }
 
 /// Opt-in Wedding Day gate runtime used by isolated integration builds/tests.
@@ -106,14 +106,34 @@ public actor ManifestBackedWeddingDayGate: WeddingDayGateOperations {
         )
     }
 
-    public func revokePass(passSerial: String, reason: String = "Revoked by gate operator") async -> Bool {
-        await syncService.revokePass(
+    public func revokePass(passSerial: String, reason: String = "Revoked by gate operator") async -> WeddingDayRevokeResult {
+        guard gateContext.capabilities.contains("gate.pass.revoke") else {
+            return WeddingDayRevokeResult(
+                success: false,
+                code: "GATE_PASS_REVOKE_FORBIDDEN",
+                error: "This gate assignment does not authorize pass revocation."
+            )
+        }
+
+        let result = await syncService.revokePass(
             baseURL: baseURL,
             bearerToken: bearerToken,
             passSerial: passSerial,
             reason: reason,
             grantId: gateContext.grantId
         )
+        guard result.success else { return result }
+
+        do {
+            try await offlineStore.markPassRevoked(weddingId: gateContext.weddingId, serial: passSerial)
+            return result
+        } catch {
+            return WeddingDayRevokeResult(
+                success: false,
+                code: "REVOCATION_APPLIED_CACHE_UPDATE_FAILED",
+                error: "The pass was revoked on the server, but this device could not update its offline cache. Refresh the manifest before scanning again."
+            )
+        }
     }
 
     private func passSerial(from token: String) -> String {
