@@ -19,6 +19,13 @@ import { getServiceEngagementDealRoom, Phase2ContractError } from '@/lib/contrac
  * requested id that is not genuinely this Vendor's own engagement is refused before
  * `getServiceEngagementDealRoom` is ever called — and that function's own `{id, weddingId}` query
  * (`weddingId` from the fresh grant, never client-supplied) refuses a foreign wedding regardless.
+ *
+ * Master plan Phase 8 closure round 4 §2 — one legitimate `vendor:wedding:<business>:<vendor>` grant
+ * can carry MULTIPLE `serviceEngagementIds`. Auto-selecting `serviceEngagementIds[0]` when the
+ * caller omitted `engagementId` silently returned an arbitrary engagement instead of the one the
+ * native client actually has selected. Auto-select now only fires when the grant is genuinely
+ * single-engagement (mirrors `/api/native/account/workspace`'s identical rule); a multi-engagement
+ * grant with no `engagementId` fails closed with `ENGAGEMENT_SELECTION_REQUIRED` instead of guessing.
  */
 export async function GET(request: NextRequest) {
   const result = await resolveNativeGrantContext(request, { workspaceKind: 'vendor' })
@@ -33,7 +40,22 @@ export async function GET(request: NextRequest) {
   const engagementCheck = requireGrantEngagement(grant, requestedEngagementId)
   if (!engagementCheck.ok) return engagementCheck.response
 
-  const engagementId = engagementCheck.engagementId ?? grant.serviceEngagementIds[0] ?? null
+  let engagementId = engagementCheck.engagementId
+  if (!engagementId) {
+    if (grant.serviceEngagementIds.length === 1) {
+      engagementId = grant.serviceEngagementIds[0]
+    } else if (grant.serviceEngagementIds.length > 1) {
+      return noStoreJson(
+        {
+          success: false,
+          code: 'ENGAGEMENT_SELECTION_REQUIRED',
+          error: 'This Vendor workspace grant has more than one service engagement; an engagementId must be supplied.',
+          engagementIds: grant.serviceEngagementIds,
+        },
+        422,
+      )
+    }
+  }
   if (!engagementId) {
     return noStoreJson({ success: false, code: 'ENGAGEMENT_INVALID', error: 'No service engagement exists for this Vendor workspace grant.' }, 422)
   }

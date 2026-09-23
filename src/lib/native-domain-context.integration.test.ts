@@ -330,6 +330,16 @@ describeLocal('Phase 8 — native domain adapters against a disposable migrated 
     // Foreign-engagement fixture: a managed engagement that genuinely belongs to wedding B.
     ids.engagementB = await serviceEngagement('engagement-b', ids.B, await vendorRow('vendor-entity-b', ids.B))
 
+    // Master plan Phase 8 closure round 4 §2 — the SAME vendor business (V1/vendorOwner), a SEPARATE
+    // vendor entity on wedding A with TWO real service engagements. This is the moderator's exact
+    // correction: one legitimate `vendor:wedding:<business>:<vendor>` grant can carry multiple
+    // `serviceEngagementIds`. Deliberately a distinct vendor entity from vendorEntityA (which stays
+    // single-engagement) so existing single-engagement-grant tests below are untouched.
+    ids.vendorEntityMulti = await vendorRow('vendor-entity-multi', ids.A)
+    await businessAccountLink(ids.V1, 'vendor', ids.vendorEntityMulti, 'represents')
+    ids.engagementMultiA = await serviceEngagement('engagement-multi-a', ids.A, ids.vendorEntityMulti)
+    ids.engagementMultiB = await serviceEngagement('engagement-multi-b', ids.A, ids.vendorEntityMulti)
+
     // Documents/Vault fixtures for A and B.
     ids.vaultA = await vaultObject('vault-a', ids.A)
     await vaultObject('vault-b', ids.B)
@@ -444,12 +454,12 @@ describeLocal('Phase 8 — native domain adapters against a disposable migrated 
     const timelineRes = await GET_TIMELINE(await req('/api/native/wedding/timeline'))
     expect((await timelineRes.json()).data.map((t: { id: string }) => t.id)).toEqual([ids.programmeA])
 
-    // Includes vendorEntityA/vendorEntityNoEngagement/vendorEntityRevoked (seeded later, for the
-    // Contracts/Vault/Vendor-engagement F-3 fixtures) alongside the original vendorA — all real
-    // Vendor rows scoped to wedding A.
+    // Includes vendorEntityA/vendorEntityMulti/vendorEntityNoEngagement/vendorEntityRevoked (seeded
+    // later, for the Contracts/Vault/Vendor-engagement F-3 fixtures) alongside the original vendorA —
+    // all real Vendor rows scoped to wedding A.
     const vendorsRes = await GET_VENDORS(await req('/api/native/wedding/vendors'))
     expect((await vendorsRes.json()).data.map((v: { id: string }) => v.id).sort()).toEqual(
-      [ids.vendorA, ids.vendorEntityA, ids.vendorEntityNoEngagement, ids.vendorEntityRevoked].sort()
+      [ids.vendorA, ids.vendorEntityA, ids.vendorEntityMulti, ids.vendorEntityNoEngagement, ids.vendorEntityRevoked].sort()
     )
   })
 
@@ -602,9 +612,10 @@ describeLocal('Phase 8 — native domain adapters against a disposable migrated 
     const listRes = await GET_ENGAGEMENTS(await bearerRequest(`http://localhost/api/native/wedding/engagements?grantId=${gid}`, actors.planner, `auth-${actors.planner}`))
     expect(listRes.status).toBe(200)
     const listBody = await listRes.json()
-    // engagementRevoked (seeded later, for the Vendor-engagement revoked-grant fixture) is also a
-    // real managed engagement on wedding A.
-    expect(listBody.data.map((e: { id: string }) => e.id).sort()).toEqual([ids.engagementA, ids.engagementRevoked].sort())
+    // engagementMultiA/engagementMultiB (the same-grant multi-engagement Vendor fixture) and
+    // engagementRevoked (the revoked-grant Vendor fixture) are also real managed engagements on
+    // wedding A.
+    expect(listBody.data.map((e: { id: string }) => e.id).sort()).toEqual([ids.engagementA, ids.engagementMultiA, ids.engagementMultiB, ids.engagementRevoked].sort())
 
     const dealRoomRes = await GET_DEAL_ROOM(
       await bearerRequest(`http://localhost/api/native/wedding/engagements/${ids.engagementA}/deal-room?grantId=${gid}`, actors.planner, `auth-${actors.planner}`),
@@ -632,7 +643,7 @@ describeLocal('Phase 8 — native domain adapters against a disposable migrated 
     // Coordinator (vendors.view, not vendors.edit) reads the same authoritative business truth.
     const coordinatorRes = await GET_ENGAGEMENTS(await bearerRequest(`http://localhost/api/native/wedding/engagements?grantId=${grantId('coordinator', 'wedding', ids.A)}`, actors.coordinator, `auth-${actors.coordinator}`))
     expect(coordinatorRes.status).toBe(200)
-    expect((await coordinatorRes.json()).data.map((e: { id: string }) => e.id).sort()).toEqual([ids.engagementA, ids.engagementRevoked].sort())
+    expect((await coordinatorRes.json()).data.map((e: { id: string }) => e.id).sort()).toEqual([ids.engagementA, ids.engagementMultiA, ids.engagementMultiB, ids.engagementRevoked].sort())
 
     // A membership whose actual permissions lack vendors.view is denied — not silently emptied.
     const deniedRes = await GET_ENGAGEMENTS(await bearerRequest(`http://localhost/api/native/wedding/engagements?grantId=${grantId('coordinator', 'wedding', ids.A)}`, actors.noVendorView, `auth-${actors.noVendorView}`))
@@ -768,5 +779,61 @@ describeLocal('Phase 8 — native domain adapters against a disposable migrated 
     const res = await GET_VENDOR_ENGAGEMENT(await bearerRequest(`http://localhost/api/native/vendor/engagement?grantId=${businessGid}&engagementId=${ids.engagementA}`, actors.vendorOwner, `auth-${actors.vendorOwner}`))
     expect(res.status).toBe(403)
     expect((await res.json()).code).toBe('GRANT_SCOPE_INVALID')
+  })
+
+  /**
+   * Master plan Phase 8 closure round 4 §2 — the moderator's exact correction: the SAME
+   * `vendor:wedding:<business>:<vendor>` grant genuinely carries two service engagements
+   * (`ids.engagementMultiA`/`ids.engagementMultiB`, same vendor entity, same wedding). This is
+   * distinct evidence from the single-engagement `vendorEntityA` tests above, which only ever prove
+   * grant-to-grant switching (vendor-1 → vendor-2), never engagement selection within one grant.
+   */
+  test('Vendor same-grant multi-engagement: requesting A returns A, requesting B returns B, switching either way returns exactly that one', async () => {
+    const multiGid = `vendor:wedding:${ids.V1}:${ids.vendorEntityMulti}`
+
+    const resA = await GET_VENDOR_ENGAGEMENT(await bearerRequest(`http://localhost/api/native/vendor/engagement?grantId=${multiGid}&engagementId=${ids.engagementMultiA}`, actors.vendorOwner, `auth-${actors.vendorOwner}`))
+    expect(resA.status).toBe(200)
+    const bodyA = await resA.json()
+    expect(bodyA.data.id).toBe(ids.engagementMultiA)
+    expect(bodyA.engagementIds.sort()).toEqual([ids.engagementMultiA, ids.engagementMultiB].sort())
+
+    const resB = await GET_VENDOR_ENGAGEMENT(await bearerRequest(`http://localhost/api/native/vendor/engagement?grantId=${multiGid}&engagementId=${ids.engagementMultiB}`, actors.vendorOwner, `auth-${actors.vendorOwner}`))
+    expect(resB.status).toBe(200)
+    expect((await resB.json()).data.id).toBe(ids.engagementMultiB)
+
+    // Switching back to A must return exactly A again — no residual state from the B request leaks
+    // into a fresh request for A (each GET independently re-resolves the grant and re-validates the
+    // requested engagementId against it; nothing is cached server-side across requests).
+    const resBackToA = await GET_VENDOR_ENGAGEMENT(await bearerRequest(`http://localhost/api/native/vendor/engagement?grantId=${multiGid}&engagementId=${ids.engagementMultiA}`, actors.vendorOwner, `auth-${actors.vendorOwner}`))
+    expect(resBackToA.status).toBe(200)
+    expect((await resBackToA.json()).data.id).toBe(ids.engagementMultiA)
+  })
+
+  test('Vendor same-grant multi-engagement: omitting engagementId fails closed with ENGAGEMENT_SELECTION_REQUIRED, never an arbitrary auto-select', async () => {
+    const multiGid = `vendor:wedding:${ids.V1}:${ids.vendorEntityMulti}`
+    const res = await GET_VENDOR_ENGAGEMENT(await bearerRequest(`http://localhost/api/native/vendor/engagement?grantId=${multiGid}`, actors.vendorOwner, `auth-${actors.vendorOwner}`))
+    expect(res.status).toBe(422)
+    const body = await res.json()
+    expect(body.code).toBe('ENGAGEMENT_SELECTION_REQUIRED')
+    expect(body.engagementIds.sort()).toEqual([ids.engagementMultiA, ids.engagementMultiB].sort())
+  })
+
+  test('Vendor same-grant multi-engagement: an engagement id foreign to this specific grant is refused, never a leak', async () => {
+    const multiGid = `vendor:wedding:${ids.V1}:${ids.vendorEntityMulti}`
+    // ids.engagementA is real, but belongs to vendorEntityA — a different vendor entity, even though
+    // it is the same business (V1) and the same wedding (A).
+    const res = await GET_VENDOR_ENGAGEMENT(await bearerRequest(`http://localhost/api/native/vendor/engagement?grantId=${multiGid}&engagementId=${ids.engagementA}`, actors.vendorOwner, `auth-${actors.vendorOwner}`))
+    expect(res.status).toBe(422)
+    expect((await res.json()).code).toBe('ENGAGEMENT_INVALID')
+  })
+
+  test('Vendor same-grant multi-engagement: a revoked business membership is denied entirely, even with a valid engagementId supplied', async () => {
+    // Reuses the existing revoked-membership fixture (V3/vendorEntityRevoked/vendorOwnerRevoked):
+    // revocation is enforced by resolveNativeGrantContext before engagement selection is evaluated
+    // at all, so the single- vs multi-engagement distinction is immaterial to this check.
+    const gid = `vendor:wedding:${ids.V3}:${ids.vendorEntityRevoked}`
+    const res = await GET_VENDOR_ENGAGEMENT(await bearerRequest(`http://localhost/api/native/vendor/engagement?grantId=${gid}&engagementId=${ids.engagementRevoked}`, actors.vendorOwnerRevoked, `auth-${actors.vendorOwnerRevoked}`))
+    expect(res.status).toBe(403)
+    expect((await res.json()).code).toBe('GRANT_REVOKED')
   })
 })
