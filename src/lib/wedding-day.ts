@@ -684,15 +684,40 @@ export async function checkInWeddingGuest(input: {
   const source = input.source ?? (input.token ? 'qr' : 'offline-sync')
 
   return db.$transaction(async (tx) => {
-    // Re-lock and revalidate credential/key state so revocation cannot race the admission write.
+    // Keep the same lock order as issuance: Guest -> RSVP -> credential. This avoids a
+    // check-in/reissue deadlock while still revalidating every mutable authority input inside the
+    // write transaction.
+    const guestRows = await tx.$queryRawUnsafe<Array<{
+      guestId: string
+      name: string
+      attending: boolean | null
+      plusOne: boolean | null
+      plusOneName: string | null
+      kidsAttending: boolean | null
+      kidsCount: number | null
+    }>>(
+      `SELECT g.id AS "guestId", g.name, r.attending, r."plusOne", r."plusOneName",
+              r."kidsAttending", r."kidsCount"
+         FROM public."Guest" g
+         JOIN public."RSVP" r ON r."guestId" = g.id
+        WHERE g.id = $1 AND g."weddingId" = $2
+        LIMIT 1
+        FOR UPDATE OF g, r`,
+      credential.guestId,
+      input.weddingId,
+    )
+    const guest = guestRows[0]
+    if (!guest || guest.attending !== true) throw new Error('GUEST_INELIGIBLE')
+
     const credentialRows = await tx.$queryRawUnsafe<CredentialRow[]>(
       `SELECT *
          FROM public."WeddingPassCredential"
-        WHERE id = $1 AND "weddingId" = $2
+        WHERE id = $1 AND "weddingId" = $2 AND "guestId" = $3
         LIMIT 1
         FOR UPDATE`,
       credential.id,
       input.weddingId,
+      guest.guestId,
     )
     const currentCredential = credentialRows[0]
     if (
@@ -716,28 +741,6 @@ export async function checkInWeddingGuest(input: {
     if (!gateRows[0] || gateRows[0].status !== 'active') {
       throw new Error('GATE_INACTIVE_OR_INVALID')
     }
-
-    const guestRows = await tx.$queryRawUnsafe<Array<{
-      guestId: string
-      name: string
-      attending: boolean | null
-      plusOne: boolean | null
-      plusOneName: string | null
-      kidsAttending: boolean | null
-      kidsCount: number | null
-    }>>(
-      `SELECT g.id AS "guestId", g.name, r.attending, r."plusOne", r."plusOneName",
-              r."kidsAttending", r."kidsCount"
-         FROM public."Guest" g
-         JOIN public."RSVP" r ON r."guestId" = g.id
-        WHERE g.id = $1 AND g."weddingId" = $2
-        LIMIT 1
-        FOR UPDATE OF g, r`,
-      currentCredential.guestId,
-      input.weddingId,
-    )
-    const guest = guestRows[0]
-    if (!guest || guest.attending !== true) throw new Error('GUEST_INELIGIBLE')
 
     const validAttendees = new Map<string, { kind: string; name: string }>()
     validAttendees.set('primary', { kind: 'primary', name: guest.name })
