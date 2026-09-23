@@ -181,7 +181,13 @@ describeDb('Phase 11A Wedding Day HTTP route handlers', () => {
       body: JSON.stringify({
         token: credential.token,
         attendeeKeys: ['primary'],
-        source: 'qr',
+        // These are deliberate authority-poison fields. The server request contract ignores them
+        // and derives wedding/gate/operator/source/event from the live grant and operation shape.
+        weddingId: 'forged-wedding',
+        gateId: 'forged-gate',
+        operatorUserId: 'forged-operator',
+        source: 'forged-source',
+        eventKey: 'forged-event',
       }),
     })
     checkInReq.headers.set('Authorization', `Bearer ${bearerToken}`)
@@ -191,5 +197,27 @@ describeDb('Phase 11A Wedding Day HTTP route handlers', () => {
     expect(checkInRes.status).toBe(200)
     expect(checkInJson.success).toBe(true)
     expect(checkInJson.admittedCount).toBe(1)
+
+    const auditRows = await db.$queryRawUnsafe<Array<{
+      weddingId: string
+      gateId: string
+      admittedByUserId: string
+      eventKey: string
+      source: string
+    }>>(
+      `SELECT "weddingId", "gateId", "admittedByUserId", "eventKey", source
+         FROM public."WeddingCheckIn"
+        WHERE "weddingId" = $1 AND "guestId" = $2 AND "attendeeKey" = 'primary'
+        ORDER BY "admittedAt" DESC
+        LIMIT 1`,
+      WEDDING_ID, GUEST_ID,
+    )
+    expect(auditRows[0]).toEqual({
+      weddingId: WEDDING_ID,
+      gateId: GATE_ID,
+      admittedByUserId: OPERATOR_USER_ID,
+      eventKey: 'wedding-day',
+      source: 'qr',
+    })
   })
 })
