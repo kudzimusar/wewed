@@ -360,6 +360,34 @@ class WeddingDaySyncService(
         return WeddingDaySyncResult(synced, failed, legacy)
     }
 
+    suspend fun revokePass(
+        bearerToken: String,
+        passSerial: String,
+        reason: String,
+        grantId: String? = null
+    ): Boolean {
+        val path = if (grantId != null) {
+            "/api/native/gate/wedding-day/pass/revoke?grantId=${grantId}"
+        } else {
+            "/api/native/gate/wedding-day/pass/revoke"
+        }
+        val headers = mutableMapOf(
+            "Authorization" to "Bearer $bearerToken",
+            "Content-Type" to "application/json",
+            "Accept" to "application/json"
+        )
+        if (grantId != null) {
+            headers["x-wewed-grant-id"] = grantId
+        }
+        val body = gson.toJson(mapOf("passSerial" to passSerial, "reason" to reason))
+        return try {
+            val response = transport.post(path, headers, body)
+            response.status in 200..299
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     private fun parseIsoDate(value: String): Date? {
         val patterns = listOf(
             "yyyy-MM-dd'T'HH:mm:ss.SSSX",

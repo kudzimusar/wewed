@@ -282,4 +282,35 @@ class WeddingDayOfflineTest {
         }
     }
 
+    @Test
+    fun testRevokePassCallsRevokeEndpoint() = runBlocking {
+        var postedPath = ""
+        var postedBody = ""
+        var postedHeaders = emptyMap<String, String>()
+        val transport = object : WeddingDayHttpTransport {
+            override suspend fun get(path: String, headers: Map<String, String>) =
+                error("GET not used")
+            override suspend fun post(path: String, headers: Map<String, String>, body: String): WeddingDayHttpResponse {
+                postedPath = path
+                postedBody = body
+                postedHeaders = headers
+                return WeddingDayHttpResponse(200, """{"success":true}""")
+            }
+        }
+        val service = WeddingDaySyncService(transport, trustedRootPublicKeyDerBase64 = "unused")
+        val success = service.revokePass(
+            bearerToken = "native-session",
+            passSerial = "WWTEST999",
+            reason = "Lost pass",
+            grantId = "gate_operator:wedding-1:gate-1"
+        )
+        assertTrue(success)
+        assertTrue(postedPath.contains("/api/native/gate/wedding-day/pass/revoke"))
+        assertTrue(postedPath.contains("grantId=gate_operator:wedding-1:gate-1"))
+        assertEquals("Bearer native-session", postedHeaders["Authorization"])
+        assertEquals("gate_operator:wedding-1:gate-1", postedHeaders["x-wewed-grant-id"])
+        assertTrue(postedBody.contains("\"passSerial\":\"WWTEST999\""))
+        assertTrue(postedBody.contains("\"reason\":\"Lost pass\""))
+    }
+
 }

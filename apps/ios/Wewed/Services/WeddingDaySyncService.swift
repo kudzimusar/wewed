@@ -329,6 +329,40 @@ public actor WeddingDaySyncService {
         )
     }
 
+    public func revokePass(
+        baseURL: URL,
+        bearerToken: String,
+        passSerial: String,
+        reason: String,
+        grantId: String? = nil
+    ) async -> Bool {
+        let revokeBaseURL = baseURL.appendingPathComponent("api/native/gate/wedding-day/pass/revoke")
+        var components = URLComponents(url: revokeBaseURL, resolvingAgainstBaseURL: false)
+        if let grantId {
+            components?.queryItems = [URLQueryItem(name: "grantId", value: grantId)]
+        }
+        let url = components?.url ?? revokeBaseURL
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let grantId {
+            request.setValue(grantId, forHTTPHeaderField: "x-wewed-grant-id")
+        }
+        struct RevokeBody: Encodable {
+            let passSerial: String
+            let reason: String
+        }
+        request.httpBody = try? encoder.encode(RevokeBody(passSerial: passSerial, reason: reason))
+        do {
+            let (_, response) = try await session.data(for: request)
+            guard let http = response as? HTTPURLResponse else { return false }
+            return (200..<300).contains(http.statusCode)
+        } catch {
+            return false
+        }
+    }
+
     private func parseIsoDate(_ iso8601: String) -> Date? {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]

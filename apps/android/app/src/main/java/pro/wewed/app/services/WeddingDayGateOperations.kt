@@ -8,6 +8,7 @@ interface WeddingDayGateOperations {
     suspend fun refreshManifest()
     suspend fun checkIn(qrPayload: String, count: Int): CheckInVerificationResult
     suspend fun reconcilePending(): WeddingDaySyncResult
+    suspend fun revokePass(passSerial: String, reason: String): Boolean
 }
 
 /**
@@ -67,5 +68,12 @@ class ManifestBackedWeddingDayGate(
         grantId = gateContext.grantId,
         offlineStore = offlineStore,
         trustStore = trustStore
+    )
+
+    override suspend fun revokePass(passSerial: String, reason: String): Boolean = syncService.revokePass(
+        bearerToken = bearerToken,
+        passSerial = passSerial,
+        reason = reason,
+        grantId = gateContext.grantId
     )
 }

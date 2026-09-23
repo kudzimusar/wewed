@@ -5,6 +5,7 @@ public protocol WeddingDayGateOperations: Sendable {
     func refreshManifest() async throws
     func checkIn(qrPayload: String, count: Int) async throws -> CheckInVerificationResult
     func reconcilePending() async -> WeddingDaySyncResult
+    func revokePass(passSerial: String, reason: String) async -> Bool
 }
 
 /// Opt-in Wedding Day gate runtime used by isolated integration builds/tests.
@@ -102,6 +103,16 @@ public actor ManifestBackedWeddingDayGate: WeddingDayGateOperations {
             grantId: gateContext.grantId,
             offlineStore: offlineStore,
             trustStore: trustStore
+        )
+    }
+
+    public func revokePass(passSerial: String, reason: String = "Revoked by gate operator") async -> Bool {
+        await syncService.revokePass(
+            baseURL: baseURL,
+            bearerToken: bearerToken,
+            passSerial: passSerial,
+            reason: reason,
+            grantId: gateContext.grantId
         )
     }
 
