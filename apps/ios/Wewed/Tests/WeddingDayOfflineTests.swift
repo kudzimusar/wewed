@@ -147,4 +147,78 @@ final class WeddingDayOfflineTests: XCTestCase {
             publicKeyDerBase64: publicKeyDerBase64
         ))
     }
+
+    func testFutureOrMalformedSigningKeyActivationFailsClosedOffline() async throws {
+        let token = "WW2.wedts26.WWJD0824.0e.66f001ab.8d4ba7eca9ef156da73f31e98456a9eaae676f66e4e33d4afaeb5f36cc5f4e06d612a90d0519d343346872759e675437934043ba97fec6a763b7ae3430d6ab30"
+        let publicKeyDerBase64 = "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEPSF40dU2YlZRMbV5EweSiFFtJbrJmwtufFc4Bx2eJrC2erZirTgNiKFYBjAIgZsNpWDsGhWRsxToZUz+mdHSNQ=="
+        let store = OfflineManifestStore(storageDirectory: nil)
+        try await store.saveManifest(
+            weddingId: "wedding-1",
+            items: [
+                GuestManifestItem(
+                    id: "guest-1",
+                    serial: "WWJD0824",
+                    guestName: "Guest",
+                    partySize: 1,
+                    eventBitmask: 0x0e,
+                    signingKeyId: "key-v1",
+                    nonce: "66f001ab",
+                    attendeeKeys: ["primary"],
+                    eligible: true,
+                    expiresAt: "2099-09-18T00:00:00.000Z"
+                )
+            ]
+        )
+        let trustStore = WeddingDayManifestTrustStore(storageDirectory: nil)
+        let service = WeddingDaySyncService()
+
+        func saveKey(_ activeFrom: String) async throws {
+            try await trustStore.save(
+                VerifiedWeddingDayManifestTrust(
+                    weddingId: "wedding-1",
+                    weddingShortId: "wedts26",
+                    eventKey: "wedding-day",
+                    generatedAt: "2026-09-17T00:00:00.000Z",
+                    expiresAt: "2099-09-18T00:00:00.000Z",
+                    rootKeyId: "root-v1",
+                    keys: [
+                        WeddingDayManifestKey(
+                            keyId: "key-v1",
+                            algorithm: "ECDSA_P256_SHA256",
+                            publicKeyDerBase64: publicKeyDerBase64,
+                            status: "active",
+                            activeFrom: activeFrom
+                        )
+                    ]
+                )
+            )
+        }
+
+        try await saveKey("2099-09-17T00:00:00.000Z")
+        do {
+            _ = try await service.verifyOfflinePass(
+                token: token,
+                weddingId: "wedding-1",
+                offlineStore: store,
+                trustStore: trustStore
+            )
+            XCTFail("future signing key must not verify")
+        } catch let error as WeddingDaySyncError {
+            XCTAssertEqual(error, .signingKeyInactive)
+        }
+
+        try await saveKey("not-an-iso-date")
+        do {
+            _ = try await service.verifyOfflinePass(
+                token: token,
+                weddingId: "wedding-1",
+                offlineStore: store,
+                trustStore: trustStore
+            )
+            XCTFail("malformed signing-key activation must not verify")
+        } catch let error as WeddingDaySyncError {
+            XCTAssertEqual(error, .signingKeyInactive)
+        }
+    }
+
 }
