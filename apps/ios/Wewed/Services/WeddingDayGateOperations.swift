@@ -53,6 +53,7 @@ public actor ManifestBackedWeddingDayGate: WeddingDayGateOperations {
             expectedWeddingId: gateContext.weddingId,
             trustedRootPublicKeyDerBase64: trustedRootPublicKeyDerBase64,
             trustedRootKeyId: trustedRootKeyId,
+            grantId: gateContext.grantId,
             offlineStore: offlineStore,
             trustStore: trustStore
         )
@@ -97,6 +98,7 @@ public actor ManifestBackedWeddingDayGate: WeddingDayGateOperations {
             bearerToken: bearerToken,
             weddingId: gateContext.weddingId,
             gateId: gateContext.gateId,
+            grantId: gateContext.grantId,
             offlineStore: offlineStore,
             trustStore: trustStore
         )

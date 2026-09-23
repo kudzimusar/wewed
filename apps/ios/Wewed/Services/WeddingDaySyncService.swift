@@ -78,6 +78,7 @@ private struct NativeManifestHouseholdMember: Decodable {
 
 private struct OfflineSyncBody: Encodable {
     let guestId: String
+    let passSerial: String?
     let attendeeKeys: [String]
     let source: String
     let gateId: String?
@@ -102,14 +103,23 @@ public actor WeddingDaySyncService {
         expectedWeddingId: String,
         trustedRootPublicKeyDerBase64: String,
         trustedRootKeyId: String? = nil,
+        grantId: String? = nil,
         offlineStore: OfflineManifestStoreProtocol,
         trustStore: WeddingDayManifestTrustStore
     ) async throws -> VerifiedWeddingDayManifestTrust {
-        let url = baseURL.appendingPathComponent("api/wedding-day/manifest")
+        let manifestBaseURL = baseURL.appendingPathComponent("api/native/gate/wedding-day/manifest")
+        var components = URLComponents(url: manifestBaseURL, resolvingAgainstBaseURL: false)
+        if let grantId {
+            components?.queryItems = [URLQueryItem(name: "grantId", value: grantId)]
+        }
+        let url = components?.url ?? manifestBaseURL
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let grantId {
+            request.setValue(grantId, forHTTPHeaderField: "x-wewed-grant-id")
+        }
 
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else {
@@ -239,6 +249,7 @@ public actor WeddingDaySyncService {
         bearerToken: String,
         weddingId: String,
         gateId: String? = nil,
+        grantId: String? = nil,
         offlineStore: OfflineManifestStoreProtocol,
         trustStore: WeddingDayManifestTrustStore
     ) async -> WeddingDaySyncResult {
@@ -249,7 +260,12 @@ public actor WeddingDaySyncService {
         var synced: [String] = []
         var failed: [String] = []
         var legacy: [String] = []
-        let url = baseURL.appendingPathComponent("api/wedding-day/check-in")
+        let checkInBaseURL = baseURL.appendingPathComponent("api/native/gate/wedding-day/check-in")
+        var components = URLComponents(url: checkInBaseURL, resolvingAgainstBaseURL: false)
+        if let grantId {
+            components?.queryItems = [URLQueryItem(name: "grantId", value: grantId)]
+        }
+        let url = components?.url ?? checkInBaseURL
 
         for record in pending {
             guard let attendeeKeys = record.attendeeKeys, !attendeeKeys.isEmpty else {
@@ -262,9 +278,13 @@ public actor WeddingDaySyncService {
             request.httpMethod = "POST"
             request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            if let grantId {
+                request.setValue(grantId, forHTTPHeaderField: "x-wewed-grant-id")
+            }
             request.httpBody = try? encoder.encode(
                 OfflineSyncBody(
                     guestId: record.guestId,
+                    passSerial: record.passSerial,
                     attendeeKeys: attendeeKeys,
                     source: "offline-sync",
                     gateId: gateId,

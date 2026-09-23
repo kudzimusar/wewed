@@ -141,14 +141,24 @@ class WeddingDaySyncService(
         bearerToken: String,
         expectedWeddingId: String,
         offlineStore: OfflineManifestStoreProtocol,
-        trustStore: WeddingDayManifestTrustStore
+        trustStore: WeddingDayManifestTrustStore,
+        grantId: String? = null
     ): VerifiedWeddingDayManifestTrust {
+        val path = if (grantId != null) {
+            "/api/native/gate/wedding-day/manifest?grantId=${grantId}"
+        } else {
+            "/api/native/gate/wedding-day/manifest"
+        }
+        val headers = mutableMapOf(
+            "Authorization" to "Bearer $bearerToken",
+            "Accept" to "application/json"
+        )
+        if (grantId != null) {
+            headers["x-wewed-grant-id"] = grantId
+        }
         val response = transport.get(
-            "/api/wedding-day/manifest",
-            mapOf(
-                "Authorization" to "Bearer $bearerToken",
-                "Accept" to "application/json"
-            )
+            path,
+            headers
         )
         if (response.status !in 200..299) throw WeddingDaySyncException.ServerRejected(response.status)
 
@@ -265,6 +275,7 @@ class WeddingDaySyncService(
         bearerToken: String,
         weddingId: String,
         gateId: String? = null,
+        grantId: String? = null,
         offlineStore: OfflineManifestStoreProtocol,
         trustStore: WeddingDayManifestTrustStore
     ): WeddingDaySyncResult {
@@ -275,6 +286,20 @@ class WeddingDaySyncService(
         val failed = mutableListOf<String>()
         val legacy = mutableListOf<String>()
 
+        val path = if (grantId != null) {
+            "/api/native/gate/wedding-day/check-in?grantId=${grantId}"
+        } else {
+            "/api/native/gate/wedding-day/check-in"
+        }
+        val headers = mutableMapOf(
+            "Authorization" to "Bearer $bearerToken",
+            "Content-Type" to "application/json",
+            "Accept" to "application/json"
+        )
+        if (grantId != null) {
+            headers["x-wewed-grant-id"] = grantId
+        }
+
         for (record in pending) {
             if (record.attendeeKeys.isEmpty()) {
                 // Never reinterpret a legacy count-only event as "admit whole household".
@@ -283,6 +308,7 @@ class WeddingDaySyncService(
             }
             val body = linkedMapOf<String, Any>(
                 "guestId" to record.guestId,
+                "passSerial" to record.passSerial,
                 "attendeeKeys" to record.attendeeKeys,
                 "source" to "offline-sync",
                 "clientEventId" to record.id,
@@ -293,12 +319,8 @@ class WeddingDaySyncService(
 
             try {
                 val response = transport.post(
-                    "/api/wedding-day/check-in",
-                    mapOf(
-                        "Authorization" to "Bearer $bearerToken",
-                        "Content-Type" to "application/json",
-                        "Accept" to "application/json"
-                    ),
+                    path,
+                    headers,
                     gson.toJson(body)
                 )
                 if (response.status in 200..299) {

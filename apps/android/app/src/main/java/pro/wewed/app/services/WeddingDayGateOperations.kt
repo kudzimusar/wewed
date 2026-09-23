@@ -36,7 +36,8 @@ class ManifestBackedWeddingDayGate(
             bearerToken = bearerToken,
             expectedWeddingId = gateContext.weddingId,
             offlineStore = offlineStore,
-            trustStore = trustStore
+            trustStore = trustStore,
+            grantId = gateContext.grantId
         )
     }
 
@@ -62,6 +63,7 @@ class ManifestBackedWeddingDayGate(
         bearerToken = bearerToken,
         weddingId = gateContext.weddingId,
         gateId = gateContext.gateId,
+        grantId = gateContext.grantId,
         offlineStore = offlineStore,
         trustStore = trustStore
     )
