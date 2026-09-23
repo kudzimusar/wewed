@@ -39,7 +39,7 @@ Coordinator write those roles don't have — see `DEFAULT_ROLE_PERMISSIONS` in `
 | Vendors (planning-side): name/category/contractStatus/paymentStatus | LIVE | `Vendor` | — (direct Prisma read) | `/api/native/wedding/vendors` (new, read-only) | `PlannerVendorEngagement` (partial — `bookingStatus`/`nextAction` are not tracked by this model) | Vendors section | equivalent |
 | Contributions: type/amount/commitment/fulfillment/verification state, contributor, allocation | LIVE (read-only) | `wewed_contributions.*` (raw SQL) | `@/lib/contributions/store` (`loadContributionWorkspace` — the SAME engine `/api/planner/contributions` calls; no second funding truth computed anywhere) | `/api/native/wedding/contributions` (new, read-only) | `PlannerContributionRecord` | `ShadowContributionsDestination` — production-reachable as of closure round 3 (see §12; a dispatch-level guard in `RoleWorkspaces.kt`/`.swift` was silently routing production to a static UNSUPPORTED message before this destination's already-real repository call could ever run, so the round-2 "LIVE" classification below was premature — the full chain is genuinely complete now) | equivalent |
 | Contribution writes (allocate/mark-thanked/mark-verified/mark-received/create-task) | UNSUPPORTED | `wewed_contributions.*` | `@/lib/contributions/store` | `/api/planner/contributions/[id]/actions` (PWA only) | — | — | — |
-| Service engagement list + Deal Room (contract status/versions/parties/payments/linked vault docs) | LIVE (server + native client, read-only) | `ServiceEngagement`, `Contract`, `ContractVersion` | `listManagedServiceEngagements`/`getServiceEngagementDealRoom` (`@/lib/contracts/phase2.ts` — the SAME functions `/api/planner/engagements/current` and `.../[id]/deal-room` call; zero reimplementation) | `/api/native/wedding/engagements`, `/api/native/wedding/engagements/[id]/deal-room` | `ServiceEngagementSummary`/`ContractSummary` (new, closure round 3 — deliberately NOT `PlannerVendorEngagement`, a different legitimate domain) | `ContractsRepository`/`ProductionContractsRepository`, folded into the EXISTING "Vendors" destination as a second, clearly-labelled list (not a new IA navigation section — see §12) | equivalent |
+| Service engagement list + Deal Room (contract status/versions/parties/payments/linked vault docs) | LIVE (server + native client, read-only — engagement list since closure round 3, Deal Room detail since closure round 4; see §13.3 for the round-3 overstatement this corrects) | `ServiceEngagement`, `Contract`, `ContractVersion` | `listManagedServiceEngagements`/`getServiceEngagementDealRoom` (`@/lib/contracts/phase2.ts` — the SAME functions `/api/planner/engagements/current` and `.../[id]/deal-room` call; zero reimplementation) | `/api/native/wedding/engagements`, `/api/native/wedding/engagements/[id]/deal-room` | `ServiceEngagementSummary`/`ContractSummary` (list, closure round 3); `DealRoomDetail`/`DealRoomVendor`/`DealRoomParty`/`DealRoomContractDetail`/`DealRoomContractVersion`/`DealRoomBudgetItem`/`DealRoomPayment`/`DealRoomDocument` (detail, new closure round 4 — deliberately NOT `PlannerVendorEngagement`, a different legitimate domain; field set mirrors the PWA's own `DealRoomRecord`, nothing invented) | `ContractsRepository`/`ProductionContractsRepository`, folded into the EXISTING "Vendors" destination as a second, clearly-labelled list; each row is now tap-to-expand into its real Deal Room (still not a new IA navigation section — see §12/§13.3) | equivalent |
 | Documents / vault | LIVE (read-only) | `VaultObject`/`VaultLink` | `listWeddingVaultObjects` (`@/lib/vault/catalog.ts` — the SAME function `/api/vault` GET calls) | `/api/native/wedding/vault` | `PlannerDocumentRecord` | `ShadowDocumentsDestination` — production-reachable as of closure round 3 (see §12; same dispatch-level guard bug as Contributions above) — a Vendor's own `vendor:wedding:...` grant is explicitly refused (`GRANT_SCOPE_INVALID`), matching the PWA's `requireVaultWeddingAccess` vendor exclusion. A live failure now renders as a distinct "unavailable" state (`ProductionLoadState`/`IASectionUnavailable`), never a fabricated empty list | equivalent |
 | Seating auto-assign, guest bulk-move, timeline reorder, task delete | UNSUPPORTED (writes) | various | `@/lib/planner-*` | `/api/planner/seating/auto-assign` etc. (PWA only) | — | — | — |
 
@@ -53,7 +53,7 @@ Coordinator write those roles don't have — see `DEFAULT_ROLE_PERMISSIONS` in `
 | Bookings list | LIVE (read-only) | `wewed_booking.Booking`+lines | `@/lib/booking-commerce` (`bookingsForBusiness`, extracted from `/api/vendor/bookings`) | `/api/native/vendor/bookings` (new) | `VendorBooking` | `ProductionVendorBusinessContent` | equivalent |
 | Booking actions (approve/decline/quote/amendments) | UNSUPPORTED | `wewed_booking.Booking`/`BookingAmendment` | `@/lib/booking-governance`, `@/lib/booking-amendments` | `/api/vendor/bookings/[id]/*` (PWA only) | — | — | — |
 | Vendor wedding engagement identity (Phase 6 grant + selected engagement) | LIVE (identity only; already shipped Phase 5/6) | `ServiceEngagement` | `resolveNativeGrantContext`+`requireGrantEngagement` | `/api/native/account/workspace` (Phase 6) | existing | existing engagement picker | equivalent |
-| Vendor's own engagement contract (category/lifecycle status/agreed amount/contract status+version) | LIVE (closure round 3, read-only) | `ServiceEngagement`, `Contract` | `getServiceEngagementDealRoom` (SAME function Contracts above and the Planner Deal Room route call) | `/api/native/vendor/engagement` (new — a distinct Vendor-only, wedding-scoped route; `workspaceKind=vendor && scopeKind=wedding` required, engagementId validated via `requireGrantEngagement` against the grant's own `serviceEngagementIds`) | `VendorEngagementDetail` (new, reuses `ContractSummary`) | `VendorEngagementRepository`/`ProductionVendorEngagementRepository`, wired into the EXISTING "Contract" section under Vendor → Jobs (already a defined IA section, previously unconditionally UNSUPPORTED) — `VendorShell` itself is now production-reachable (`AppRole.VENDOR` added to `productionRoleWired`) | equivalent |
+| Vendor's own engagement contract (category/lifecycle status/agreed amount/contract status+version) | LIVE (closure round 3, hardened round 4 §13.2 for same-grant multi-engagement selection, read-only) | `ServiceEngagement`, `Contract` | `getServiceEngagementDealRoom` (SAME function Contracts above and the Planner Deal Room route call) | `/api/native/vendor/engagement` (new — a distinct Vendor-only, wedding-scoped route; `workspaceKind=vendor && scopeKind=wedding` required, engagementId validated via `requireGrantEngagement` against the grant's own `serviceEngagementIds`; closure round 4 — a grant with MORE THAN ONE `serviceEngagementIds` entry and no `engagementId` supplied now fails closed with `422 ENGAGEMENT_SELECTION_REQUIRED` instead of silently auto-selecting `[0]`; auto-select remains only for a genuinely single-engagement grant) | `VendorEngagementDetail` (new, reuses `ContractSummary`) | `VendorEngagementRepository`/`ProductionVendorEngagementRepository`, wired into the EXISTING "Contract" section under Vendor → Jobs (already a defined IA section, previously unconditionally UNSUPPORTED) — `VendorShell` itself is now production-reachable (`AppRole.VENDOR` added to `productionRoleWired`); the production binding is now keyed on `(accessUserId, grantId, engagementId)`, not `(accessUserId, grantId)` alone, and the pre-existing Phase 5/6 engagement picker is reachable again ahead of the shell when a grant requires a selection | equivalent |
 | Vendor documents (commercial) | UNSUPPORTED | `VaultLink`/`VaultObject` via `EngagementParty` | `@/lib/vault/vendor-commercial-access` | `/api/vendor/documents*` (PWA only) | — | — | — |
 | Vendor wedding-scoped work items beyond engagement identity and contract status (Wedding-Day presence/arrival, deliverables, payment records, files, notes, client/planner contacts) | UNSUPPORTED (F-3-adjacent) | — | — | — | — | — | — |
 
@@ -447,3 +447,129 @@ line edits, Seating/Timeline/Vendor-planning writes, and the Admin domains beyon
 support/incidents (command center, bookings, service engagements, contract intelligence,
 contributions analytics, account identity, productivity, cross-wedding vault browsing) are all still
 UNSUPPORTED, by deliberate, documented scope decision, not oversight.
+
+## 13. Phase 8 closure round 4
+
+A fourth moderator review inspected the actual round-3 shipped code (not the completion report) and
+found three real defects that round 3's own "closed" claims did not survive:
+`NativeRepositoryFactory.PRODUCTION` still constructed a same-typed
+`ProductionBoundaryWeddingRepository`/`ProductionBoundaryPlannerRepository` placeholder for the
+unbound state instead of representing "unbound" as something structurally distinct from a
+repository; the Vendor production binding was keyed only on `(accessUserId, grantId)` even though one
+`vendor:wedding:<business>:<vendor>` grant can legitimately carry multiple `serviceEngagementIds`,
+so a same-grant engagement switch was never actually proven safe (round 3's own "Vendor engagement A
+to B" test changed grants, not the selected engagement within one grant); and Contracts' round-3
+"LIVE (server + native client)" classification for the Deal Room specifically was premature — the
+native client only ever called the engagement-LIST endpoint, never the per-engagement Deal Room one,
+so the mature contract/parties/payments/documents detail was never actually reachable from a device.
+This section is the honest account of round 4's closure of exactly those three items, nothing more.
+
+**1. `NativeRepositoryFactory.PRODUCTION` closure — this time removing the transitional type
+entirely, not just its use as a default.** `NativeRepositoryBundle` (Android: a single data class;
+iOS: a single struct) — used uniformly for every environment, including PRODUCTION, where it held a
+`ProductionBoundaryWeddingRepository`/`ProductionBoundaryPlannerRepository` pair — is deleted.
+`NativeRepositoryFactory.make` now returns a sealed/enum `NativeRepositoryOutcome` with exactly two
+shapes: `NonProduction`/`.nonProduction(wedding:planner:environment:baseUrl:)` (FIXTURE/SHADOW/
+SANITIZED_SHADOW/PRIVATE_REAL_SHADOW — unchanged behavior, only the wrapping type changed) and
+`ProductionBootstrap`/`.productionBootstrap(baseUrl:)` for PRODUCTION, which carries no wedding/
+planner field of any kind — it is not repository-shaped, so there is nothing to read off it even by
+mistake. `AppViewModel`/`AppState`'s `repository`/`plannerRepository`/`adminRepository`/
+`contractsRepository`/`vendorEngagementRepository` no longer fall back to a same-typed placeholder
+when the corresponding `ProductionBinding` is `Unbound`/`.unbound` — each now throws a new,
+purpose-built exception (`ProductionRepositoryUnbound`, Android an `IllegalStateException` subtype,
+iOS a `get throws` computed property surfacing an `Error` struct) that is deliberately distinct from
+the pre-existing `ProductionReadOnlyDomainUnavailable`/`ProductionReadOnlyDomainError` (which means "a
+bound repository's live call just failed" — a different fact from "never bound at all"). The now-dead
+`ProductionBoundaryWeddingRepository`/`ProductionBoundaryPlannerRepository`/
+`ProductionBoundaryAdminSystemRepository`/`ProductionBoundaryContractsRepository`/
+`ProductionBoundaryVendorEngagementRepository` classes are deleted outright on both platforms (grep-
+confirmed zero remaining references before deletion). `RootScreen.kt`/`RootView.swift`'s render gate
+is unchanged in intent — it still waits for a confirmed `ProductionBinding.Bound`/`.bound` before
+composing any role shell — but is now the ONLY path by which a role shell can ever observe a mature
+repository at all; reaching the new exception in practice would mean that gate itself has a bug, not
+that a network call failed. New regression tests on both platforms directly pin: `factory(PRODUCTION)`
+yields a value that is not repository-shaped at all (a structural/type-level assertion, not just a
+runtime one); the unbound state throws before any mature-domain repository is reachable, for all 5
+domains; `clearProductionBinding()`/sign-out cannot leave a mature repository reachable either; and
+Fixture/Shadow/Sanitized-Shadow/Private-Real-Shadow behavior is provably unchanged (same fixtures,
+same assertions, only the wrapping-type access syntax differs).
+
+**2. Vendor same-grant multi-engagement selection — the binding key gained the missing dimension,
+and the server now fails closed instead of guessing.** `ProductionBinding.Bound`/`.bound` (the shared
+generic binding type used by all four production domains) gained a 4th field, `engagementId: String?`
+(`nil` for the other three domains, which have no engagement axis). `NativeDomainApiClient.
+vendorEngagement` on both platforms now requires an explicit `engagementId: String?` third parameter,
+threaded from `AppViewModel.bindProductionVendorEngagementRepository`/
+`AppState.bindProductionVendorEngagementRepository` through to `ProductionVendorEngagementRepository`
+and the `GET /api/native/vendor/engagement?grantId=...&engagementId=...` request. The client-side bind
+effect (`LaunchedEffect`/`.task(id:)`) now re-runs when the selected engagement changes, and does
+nothing while a multi-engagement grant has no selection yet — instead, the pre-existing Phase 5/6
+engagement picker (already present in `ProductionReadOnlyWorkspaceContent`, with
+`onSelectEngagement`/`engagementSelectionRequired`/`engagementOptions`) is re-inserted ahead of
+`VendorShell`/`VendorShellView` specifically for the Vendor role. This picker had become unreachable
+for Vendor the moment round 3 added Vendor to the production-wired role set — a real regression,
+fixed here by restoring the exact same, reused (never duplicated) composable/view. The render gate's
+"is this binding current" check now additionally compares `engagementId` for the Vendor role only
+(the other roles have nothing to compare). Server-side, `/api/native/vendor/engagement` no longer
+does `engagementCheck.engagementId ?? grant.serviceEngagementIds[0] ?? null` — auto-select now fires
+only when `serviceEngagementIds.length === 1`; a grant with more than one engagement and no
+`engagementId` supplied returns `422 { code: 'ENGAGEMENT_SELECTION_REQUIRED', engagementIds: [...] }`
+instead of silently picking one. A disposable-DB fixture proves the full matrix on a genuinely
+same-grant, two-engagement Vendor entity (same vendor, same wedding, same grant id): request A
+returns A, request B returns B, switching either way returns exactly that one, omitting the id with
+two-plus engagements fails closed with the new code, a foreign engagement id (real, but belonging to
+a different vendor entity even under the same business) is refused, and a revoked grant is denied
+regardless of engagement count. Both platforms carry a matching client-side regression proving the
+binding is genuinely keyed by `(accessUserId, grantId, engagementId)`, not merely `(accessUserId,
+grantId)` — a stale engagement-A binding is proven, inline, to never validate a same-grant
+engagement-B requirement.
+
+**3. Native Deal Room read path — closed, without duplicating any business logic.** The server side
+of Contracts/Deal-Room was already complete since round 2 and unchanged this round
+(`/api/native/wedding/engagements/[id]/deal-room` calling `getServiceEngagementDealRoom` directly).
+What was missing, per the moderator's finding, was the native CLIENT: `ProductionContractsRepository`
+never called it, so the round-3 "LIVE (server + native client)" classification for the Deal Room
+specifically was not actually true end to end. Both platforms now have `NativeDomainApiClient.
+dealRoom(sessionToken:, grantId:, engagementId:)` (engagement id URL-encoded into the path, matching
+the route's own `[id]` segment), a full DTO set on `ContractsRepository`
+(`DealRoomVendor`/`DealRoomParty`/`DealRoomContractVersion`/`DealRoomContractDetail`/
+`DealRoomBudgetItem`/`DealRoomPayment`/`DealRoomDocument`/`DealRoomDetail`) whose field set mirrors
+exactly what the PWA's own `DealRoomRecord` (`planner-vendor-deal-room.tsx`) consumes from the SAME
+engine — nothing invented, nothing computed client-side — and `ProductionContractsRepository.
+getDealRoom(engagementId:)`, which throws (never fabricates a partial/empty room) on ANY non-success
+fetch, exactly like every other production repository in this codebase. The existing "Vendors" →
+"Contracts & Engagements" list (unchanged, still not a new IA navigation section) gained a
+tap-to-expand interaction: opening a row fetches that engagement's Deal Room, keyed independently per
+row so switching rows never shows a stale one, and renders vendor identity, parties (with
+"review required" flags — the acceptance/review-state signal the moderator asked for), contract
+versions, commercial/payment information, and linked Vault documents. Tests on both platforms prove:
+every field maps correctly from a realistic response; the exact requested path/engagement id; and all
+four non-success outcomes (foreign engagement 404, permission denial, session-invalid, grant
+revocation) throw rather than returning anything, so a denial or a genuine failure can never render as
+an empty or fabricated Deal Room.
+
+**4. This document.** Corrected per the moderator's explicit instruction: §1 row 42 (Contracts/Deal
+Room) no longer implies the Deal Room detail itself was native-client-reachable before this round;
+§4 row 56 (Vendor's own engagement) now records the same-grant multi-engagement correction and the
+binding-key change; this section records the TRUE `NativeRepositoryFactory.PRODUCTION` architecture
+now that the boundary-repository transition is actually removed, not merely bypassed by a render-race
+fix (which is what round 3 had actually shipped despite its own "closed" claim).
+
+**5. Scope discipline — nothing beyond these three items changed.** No new native domain, no new
+writes, no new IA navigation entry, no change to Guest/RSVP behavior, no F-3 relationship fabricated,
+no change to F-4, no production data read or written, no production migration applied, no
+`WEWED_SESSION_SECRET` read or changed, and Phase 9 was not started. Task create/update/toggle remains
+the one shared, tested mutation surface introduced in the original Phase 8 pass — unchanged this
+round.
+
+**6. Qualification evidence — see the completion report for this round** for exact, full (non-
+abbreviated) qualified and final SHAs, temporary reviewer-CI run ids
+(`.github/workflows/_tmp-phase8-round4-*-qualification.yml` on both branches — removed after a
+successful run, matching the pattern established in rounds 2/3), and the explicit Preview-vs-
+Production deployment confirmation for every SHA produced this round.
+
+**Phase-8 acceptance: see the completion report's own explicit statement, not this document, for the
+current answer — this document records classification and reasoning, it does not itself declare a
+phase accepted.** Remaining, honestly, exactly as before this round (none of it was in scope for round
+4 and none of it changed): Contracts/Vault write actions, Budget line edits, Seating/Timeline/
+Vendor-planning writes, and the Admin domains beyond overview/accounts/support/incidents.
