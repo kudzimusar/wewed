@@ -1277,6 +1277,42 @@ Phase gate:
 - Phase 4: **ACCEPTED**;
 - Phase 5: **READY TO BEGIN**.
 
+### D-022 — Phase 8 accepted; Phase 9 authorized (2026-09-23)
+**PHASE 8 — ACCEPTED.** Moderator acceptance date: 2026-09-23. This is a moderator decision, not an
+implementation-agent submission — unlike D-019/D-020/D-021, which are left unmodified below as the
+historical record leading to this acceptance.
+
+Accepted heads:
+- server `backend/native-workspace-parity-phase8-20260922` @ `ba38cf3c66105f5a7326bef27aecf428e47f3f5e`;
+- native `native-mobile/workspace-parity-phase8-20260922` @ `1e7ec407f04de2366fa64b3bbc735b22bc58f63e`.
+
+Qualification evidence relied upon:
+- server: run `35813862536`, product SHA `36e02adc9420b96f9dd18f8063fc7b55ed74f110` (fresh Postgres,
+  full migration chain, Phase 2/7/8 disposable-DB suites, Guest Session v2/projection regressions,
+  production build);
+- native: run `35819038509`, product SHA `df1d4829e45eb406d8cc85b685d1e1e9dd4192a5` (Android unit/
+  debug/release; iOS swift test/build, XcodeGen, real Simulator build, unsigned Release device
+  build).
+
+The accepted heads above advance past those qualified product SHAs only by documentation and
+temporary-reviewer-workflow-removal commits — no additional product code was introduced after
+qualification on either branch.
+
+Carried forward — explicitly NOT Phase-8 blockers, tracked as ongoing gates/scope for later phases:
+- F-3 production Vendor link evidence;
+- F-4 production migration application;
+- F-6 legacy PWA global-admin path;
+- `WEWED_SESSION_SECRET` Preview/Production configuration;
+- unsupported mature writes not enabled during Phase 8 (Contracts/Vault write actions, Budget line
+  edits, Seating/Timeline/Vendor-planning writes);
+- remaining non-required Admin extensions (command center, bookings, service engagements, contract
+  intelligence, contributions analytics, account identity, productivity, cross-wedding vault
+  browsing).
+
+Phase gate:
+- Phase 8: **ACCEPTED**;
+- Phase 9: **AUTHORIZED**.
+
 ### D-021 — Phase 8 closure round 5 execution evidence, submitted for moderator review (2026-09-23)
 **IMPLEMENTATION-AGENT SUBMISSION, NOT A MODERATOR VERDICT.** Phase 8 acceptance remains the
 moderator's decision alone. This entry does not rewrite D-020: round 4's repository-free-factory
