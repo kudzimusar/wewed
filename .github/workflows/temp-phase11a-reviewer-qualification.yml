@@ -36,6 +36,7 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/wewed_phase11a?schema=public
       DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/wewed_phase11a?schema=public
       AUTHORITY_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/wewed_phase11a?schema=public
+      PSQL_URL: postgresql://postgres:postgres@127.0.0.1:5432/wewed_phase11a
       WEWED_SESSION_SECRET: phase11a-reviewer-ci-session-secret
       NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
       NEXT_PUBLIC_SUPABASE_ANON_KEY: reviewer-ci-anon-key
@@ -65,14 +66,14 @@ jobs:
         run: |
           mv prisma/migrations/20260924000000_wedding_day_ww2_authority /tmp/20260924000000_wedding_day_ww2_authority
           bunx prisma migrate deploy --schema prisma/schema.prisma
-          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f docs/native-mobile/migration-review/20260924000000_wedding_day_ww2_preflight.sql
+          psql "$PSQL_URL" -v ON_ERROR_STOP=1 -f docs/native-mobile/migration-review/20260924000000_wedding_day_ww2_preflight.sql
           mv /tmp/20260924000000_wedding_day_ww2_authority prisma/migrations/
 
       - name: Apply Phase 11A migration and postflight
         run: |
           bunx prisma migrate deploy --schema prisma/schema.prisma
           bunx prisma migrate status --schema prisma/schema.prisma
-          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f docs/native-mobile/migration-review/20260924000000_wedding_day_ww2_postflight.sql
+          psql "$PSQL_URL" -v ON_ERROR_STOP=1 -f docs/native-mobile/migration-review/20260924000000_wedding_day_ww2_postflight.sql
 
       - name: Run Phase 11A and authority regressions
         run: |
@@ -80,9 +81,9 @@ jobs:
 
       - name: Rehearse destructive rollback on disposable CI database only
         run: |
-          psql "$DATABASE_URL" -v ON_ERROR_STOP=1             -c "SET wewed.phase11a_disposable_rehearsal = 'YES';"             -f docs/native-mobile/migration-review/20260924000000_wedding_day_ww2_rollback_rehearsal.sql
+          psql "$PSQL_URL" -v ON_ERROR_STOP=1             -c "SET wewed.phase11a_disposable_rehearsal = 'YES';"             -f docs/native-mobile/migration-review/20260924000000_wedding_day_ww2_rollback_rehearsal.sql
           bunx prisma migrate deploy --schema prisma/schema.prisma
-          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f docs/native-mobile/migration-review/20260924000000_wedding_day_ww2_postflight.sql
+          psql "$PSQL_URL" -v ON_ERROR_STOP=1 -f docs/native-mobile/migration-review/20260924000000_wedding_day_ww2_postflight.sql
 
       - name: Re-run Wedding Day domain tests after rollback/reapply
         run: |
