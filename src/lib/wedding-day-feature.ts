@@ -1,3 +1,5 @@
+import { weddingDayKeyPreflight } from '@/lib/wedding-day-key-preflight'
+
 /**
  * Phase 11A: Wedding Day / WW2 Feature Flag
  *
@@ -9,4 +11,18 @@
 export function isWeddingDayWW2Enabled(): boolean {
   const raw = process.env.WEWED_WEDDING_DAY_WW2_ENABLED?.trim().toLowerCase()
   return raw === 'true' || raw === '1'
+}
+
+
+/**
+ * The feature flag authorizes code execution, but never substitutes for key readiness.
+ * All production-shaped WW2 surfaces require BOTH independent P-256 signing roles.
+ */
+export function assertWeddingDayWW2RuntimeReady(): void {
+  if (!isWeddingDayWW2Enabled()) {
+    throw new Error('WEDDING_DAY_DISABLED')
+  }
+  if (!weddingDayKeyPreflight().ok) {
+    throw new Error('WEDDING_DAY_KEY_CONFIGURATION_INVALID')
+  }
 }
