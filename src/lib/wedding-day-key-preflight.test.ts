@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { generateKeyPairSync } from 'node:crypto'
 import { formatKeyPreflightReport, weddingDayKeyPreflight } from './wedding-day-key-preflight'
+import { assertWeddingDayWW2RuntimeReady } from './wedding-day-feature'
 
 const p256 = () => generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
   .privateKey.export({ type: 'pkcs8', format: 'pem' }).toString()
@@ -78,6 +79,28 @@ describe('wedding day key preflight', () => {
     const env = complete()
     const escaped = (env.WEDDING_DAY_WW2_PRIVATE_KEY_PEM as string).replace(/\n/g, '\\n')
     expect(weddingDayKeyPreflight({ ...env, WEDDING_DAY_WW2_PRIVATE_KEY_PEM: escaped }).ok).toBe(true)
+  })
+
+  test('runtime readiness requires the complete two-key configuration when feature is enabled', () => {
+    const env = complete()
+    process.env.WEWED_WEDDING_DAY_WW2_ENABLED = 'true'
+    process.env.WEDDING_DAY_WW2_PRIVATE_KEY_PEM = env.WEDDING_DAY_WW2_PRIVATE_KEY_PEM
+    process.env.WEDDING_DAY_WW2_KEY_ID = env.WEDDING_DAY_WW2_KEY_ID
+    delete process.env.WEDDING_DAY_ROOT_PRIVATE_KEY_PEM
+    delete process.env.WEDDING_DAY_ROOT_KEY_ID
+
+    expect(() => assertWeddingDayWW2RuntimeReady())
+      .toThrow('WEDDING_DAY_KEY_CONFIGURATION_INVALID')
+
+    process.env.WEDDING_DAY_ROOT_PRIVATE_KEY_PEM = env.WEDDING_DAY_ROOT_PRIVATE_KEY_PEM
+    process.env.WEDDING_DAY_ROOT_KEY_ID = env.WEDDING_DAY_ROOT_KEY_ID
+    expect(() => assertWeddingDayWW2RuntimeReady()).not.toThrow()
+
+    delete process.env.WEWED_WEDDING_DAY_WW2_ENABLED
+    delete process.env.WEDDING_DAY_WW2_PRIVATE_KEY_PEM
+    delete process.env.WEDDING_DAY_WW2_KEY_ID
+    delete process.env.WEDDING_DAY_ROOT_PRIVATE_KEY_PEM
+    delete process.env.WEDDING_DAY_ROOT_KEY_ID
   })
 
   test('neither the report nor its rendering ever contains private key material', () => {
