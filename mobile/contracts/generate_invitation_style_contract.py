@@ -56,6 +56,96 @@ ENTRY = re.compile(
 FALLBACK = re.compile(r"STYLE_IDS\.has\(value\)[\s\S]{0,120}?:\s*'(?P<id>[a-z0-9-]+)'")
 
 
+class ContractValidationError(Exception):
+    """Raised when web and native invitation style registries drift or violate invariants."""
+
+
+def classify_renderer(sid: str, is_native: bool) -> str | None:
+    """Derive the renderer kind.
+
+    Invariant: nativeRenderer == true <-> rendererKind in {IVORY_CUSTOM, GENERIC_MOTION}.
+    An unsupported style must never be assigned GENERIC_MOTION.
+    """
+    if not is_native:
+        return None
+    if sid == "ivory-floral-gold":
+        return "IVORY_CUSTOM"
+    return "GENERIC_MOTION"
+
+
+def validate_style_support(web_style_ids: set[str], native_renderer_ids: set[str]) -> None:
+    """Validate bidirectional set equality between web and native style registries.
+
+    Fails closed if the web defines a style native has not explicitly approved,
+    or if native claims a style absent from the web registry.
+    """
+    missing_native = sorted(web_style_ids - native_renderer_ids)
+    if missing_native:
+        missing_list = "\n".join(f"  {s}" for s in missing_native)
+        raise ContractValidationError(
+            f"Web invitation styles missing native renderer approval:\n{missing_list}"
+        )
+    extra_native = sorted(native_renderer_ids - web_style_ids)
+    if extra_native:
+        raise ContractValidationError(
+            f"NATIVE_RENDERERS names styles the web does not define: {extra_native}"
+        )
+
+
+def parse_web_styles(text: str) -> list[dict]:
+    block = text.split("export const INVITATION_CARD_STYLES", 1)
+    if len(block) != 2:
+        raise ContractValidationError("could not locate INVITATION_CARD_STYLES")
+    block = block[1].split("] as const", 1)[0]
+
+    styles = [
+        {
+            "id": m.group("id"),
+            "name": m.group("name"),
+            "category": m.group("category"),
+            "motion": m.group("motion"),
+            "atmosphere": m.group("atmosphere"),
+            "palette": {
+                "stage": m.group("stage"),
+                "paper": m.group("paper"),
+                "ink": m.group("ink"),
+                "primary": m.group("primary"),
+                "accent": m.group("accent"),
+                "muted": m.group("muted"),
+            },
+        }
+        for m in ENTRY.finditer(block)
+    ]
+    if not styles:
+        raise ContractValidationError("parsed zero styles")
+    return styles
+
+
+def parse_fallback_style_id(text: str) -> str:
+    fallback = FALLBACK.search(text)
+    if not fallback:
+        raise ContractValidationError("could not locate normalizeInvitationCardStyle fallback")
+    return fallback.group("id")
+
+
+def build_contract_styles(raw_styles: list[dict], native_renderer_ids: set[str] = NATIVE_RENDERERS) -> list[dict]:
+    contract_styles = []
+    for s in raw_styles:
+        sid = s["id"]
+        is_native = sid in native_renderer_ids
+        contract_styles.append({
+            "id": sid,
+            "name": s["name"],
+            "category": s["category"],
+            "motion": s["motion"],
+            "atmosphere": s["atmosphere"],
+            "palette": s["palette"],
+            "nativeRenderer": is_native,
+            "rendererKind": classify_renderer(sid, is_native),
+        })
+    return contract_styles
+
+
 def generate_kotlin(styles: list[dict], fallback_id: str) -> str:
     motion_enum_members = {
         "tri-fold": "TRI_FOLD",
@@ -183,6 +273,15 @@ def generate_kotlin(styles: list[dict], fallback_id: str) -> str:
         smotion = motion_enum_members[s["motion"]]
         satm = atmosphere_enum_members[s["atmosphere"]]
         pal = s["palette"]
+        rkind = s.get("rendererKind")
+        if rkind == "IVORY_CUSTOM":
+            ren = "InvitationRendererKind.IVORY_CUSTOM"
+        elif rkind == "GENERIC_MOTION":
+            ren = "InvitationRendererKind.GENERIC_MOTION"
+        else:
+            raise ContractValidationError(
+                f"Cannot generate Kotlin for style '{sid}' without valid native rendererKind (got {rkind})"
+            )
         lines.append(f'        "{sid}" to InvitationThemeDefinition(')
         lines.append(f'            id = "{sid}",')
         lines.append(f'            name = "{sname}",')
@@ -192,7 +291,6 @@ def generate_kotlin(styles: list[dict], fallback_id: str) -> str:
         lines.append(
             f'            palette = palette("{pal["stage"]}", "{pal["paper"]}", "{pal["ink"]}", "{pal["primary"]}", "{pal["accent"]}", "{pal["muted"]}"),'
         )
-        ren = "InvitationRendererKind.IVORY_CUSTOM" if sid == "ivory-floral-gold" else "InvitationRendererKind.GENERIC_MOTION"
         lines.append(f"            rendererKind = {ren}")
         lines.append("        ),")
 
@@ -310,6 +408,15 @@ def generate_swift(styles: list[dict], fallback_id: str) -> str:
         smotion = motion_enum_members[s["motion"]]
         satm = atmosphere_enum_members[s["atmosphere"]]
         pal = s["palette"]
+        rkind = s.get("rendererKind")
+        if rkind == "IVORY_CUSTOM":
+            ren = ".ivoryCustom"
+        elif rkind == "GENERIC_MOTION":
+            ren = ".genericMotion"
+        else:
+            raise ContractValidationError(
+                f"Cannot generate Swift for style '{sid}' without valid native rendererKind (got {rkind})"
+            )
         lines.append(f'        "{sid}": InvitationThemeDefinition(')
         lines.append(f'            id: "{sid}",')
         lines.append(f'            name: "{sname}",')
@@ -319,7 +426,6 @@ def generate_swift(styles: list[dict], fallback_id: str) -> str:
         lines.append(
             f'            palette: InvitationPalette(stageHex: "{pal["stage"]}", paperHex: "{pal["paper"]}", inkHex: "{pal["ink"]}", primaryHex: "{pal["primary"]}", accentHex: "{pal["accent"]}", mutedHex: "{pal["muted"]}"),'
         )
-        ren = ".ivoryCustom" if sid == "ivory-floral-gold" else ".genericMotion"
         lines.append(f"            rendererKind: {ren}")
         lines.append("        ),")
 
@@ -333,64 +439,38 @@ def generate_swift(styles: list[dict], fallback_id: str) -> str:
     return "\n".join(lines)
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
+
     if not SOURCE.exists():
         print(f"missing {SOURCE}", file=sys.stderr)
         return 1
-    text = SOURCE.read_text()
 
-    block = text.split("export const INVITATION_CARD_STYLES", 1)
-    if len(block) != 2:
-        print("could not locate INVITATION_CARD_STYLES", file=sys.stderr)
-        return 1
-    block = block[1].split("] as const", 1)[0]
+    try:
+        text = SOURCE.read_text()
+        raw_styles = parse_web_styles(text)
+        fallback_id = parse_fallback_style_id(text)
 
-    styles = [
-        {
-            "id": m.group("id"),
-            "name": m.group("name"),
-            "category": m.group("category"),
-            "motion": m.group("motion"),
-            "atmosphere": m.group("atmosphere"),
-            "palette": {
-                "stage": m.group("stage"),
-                "paper": m.group("paper"),
-                "ink": m.group("ink"),
-                "primary": m.group("primary"),
-                "accent": m.group("accent"),
-                "muted": m.group("muted"),
-            },
-            "nativeRenderer": m.group("id") in NATIVE_RENDERERS,
-            "rendererKind": "IVORY_CUSTOM" if m.group("id") == "ivory-floral-gold" else "GENERIC_MOTION",
+        web_style_ids = {s["id"] for s in raw_styles}
+        validate_style_support(web_style_ids, NATIVE_RENDERERS)
+        styles = build_contract_styles(raw_styles, NATIVE_RENDERERS)
+
+        contract = {
+            "contract": "wewed-invitation-styles/1",
+            "source": str(SOURCE),
+            "generatedBy": str(Path(__file__).relative_to(Path.cwd())),
+            "fallbackStyleId": fallback_id,
+            "styles": styles,
         }
-        for m in ENTRY.finditer(block)
-    ]
-    if not styles:
-        print("parsed zero styles", file=sys.stderr)
+        json_code = json.dumps(contract, indent=2) + "\n"
+        kotlin_code = generate_kotlin(styles, fallback_id)
+        swift_code = generate_swift(styles, fallback_id)
+    except ContractValidationError as err:
+        print(str(err), file=sys.stderr)
         return 1
 
-    fallback = FALLBACK.search(text)
-    if not fallback:
-        print("could not locate normalizeInvitationCardStyle fallback", file=sys.stderr)
-        return 1
-
-    unknown = sorted(NATIVE_RENDERERS - {s["id"] for s in styles})
-    if unknown:
-        print(f"NATIVE_RENDERERS names styles the web does not define: {unknown}", file=sys.stderr)
-        return 1
-
-    contract = {
-        "contract": "wewed-invitation-styles/1",
-        "source": str(SOURCE),
-        "generatedBy": str(Path(__file__).relative_to(Path.cwd())),
-        "fallbackStyleId": fallback.group("id"),
-        "styles": styles,
-    }
-    json_code = json.dumps(contract, indent=2) + "\n"
-    kotlin_code = generate_kotlin(styles, fallback.group("id"))
-    swift_code = generate_swift(styles, fallback.group("id"))
-
-    if "--check" in sys.argv:
+    if "--check" in argv:
         mismatches = []
         if not TARGET_JSON.exists() or TARGET_JSON.read_text() != json_code:
             mismatches.append(str(TARGET_JSON))
@@ -424,3 +504,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
