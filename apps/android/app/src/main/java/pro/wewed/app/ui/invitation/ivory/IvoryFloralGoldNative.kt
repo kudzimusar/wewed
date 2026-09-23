@@ -472,7 +472,7 @@ fun IvoryFloralGoldNative(
                 Box(
                     modifier = Modifier
                         .matchParentSize()
-                        .testTag("invitation-interactive-details")
+                        .testTag("invitation-details")
                 ) {
                     Image(
                         painter = painterResource(R.drawable.ivory_details_surface),

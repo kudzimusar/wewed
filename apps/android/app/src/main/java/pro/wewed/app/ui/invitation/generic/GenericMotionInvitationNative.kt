@@ -99,6 +99,10 @@ fun GenericMotionInvitationNative(
         }
     }
 
+    // The style/motion identity hooks are applied by the dispatcher (NativeInvitationExperience),
+    // which wraps whichever renderer it chooses in its own semantic nodes — so the identity tags
+    // live in exactly one place for every style, ivory-floral-gold included, rather than being
+    // duplicated per renderer.
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -108,7 +112,6 @@ fun GenericMotionInvitationNative(
                     center = Offset.Unspecified
                 )
             )
-            .testTag("generic-invitation-${style.wire}")
             .testTag("premium-invitation-experience")
     ) {
         // Atmosphere overlay
@@ -216,11 +219,13 @@ fun GenericMotionInvitationNative(
             // Interactive Actions and Status Details when opened
             if (isOpen) {
                 Spacer(modifier = Modifier.height(24.dp))
-                GenericInvitationActionSection(
-                    rsvp = rsvp,
-                    actions = actions,
-                    palette = palette
-                )
+                Box(modifier = Modifier.testTag("invitation-details")) {
+                    GenericInvitationActionSection(
+                        rsvp = rsvp,
+                        actions = actions,
+                        palette = palette
+                    )
+                }
             }
         }
     }

@@ -60,6 +60,7 @@ fun LiveGuestInvitationScreen(
     var refreshUnavailable by remember { mutableStateOf(false) }
     var submitting by remember { mutableStateOf(false) }
     var reopenRequired by remember { mutableStateOf(false) }
+    var staleOrReplacedGuest by remember { mutableStateOf(false) }
     var childrenNotAllowed by remember { mutableStateOf(false) }
     var showNote by remember { mutableStateOf(false) }
 
@@ -80,6 +81,12 @@ fun LiveGuestInvitationScreen(
                     rsvpEditorPresentation = null
                     rsvpPrompt = false
                     reopenRequired = true
+                }
+                is RsvpEditorPreparation.StaleOrReplacedGuest -> {
+                    // The coordinator's binding was left untouched — do not clear the presentation
+                    // or open the editor on top of a snapshot that is no longer current.
+                    rsvpPrompt = false
+                    staleOrReplacedGuest = true
                 }
                 is RsvpEditorPreparation.Unavailable -> {
                     rsvpEditorPresentation = null
@@ -183,6 +190,10 @@ fun LiveGuestInvitationScreen(
 
         if (reopenRequired) {
             ReopenRequiredNotice(onDismiss = { reopenRequired = false })
+        }
+
+        if (staleOrReplacedGuest) {
+            StaleOrReplacedGuestNotice(onDismiss = { staleOrReplacedGuest = false })
         }
 
         if (refreshUnavailable) {
@@ -592,12 +603,40 @@ private fun RsvpToggleRow(label: String, checked: Boolean, onCheckedChange: (Boo
  */
 @Composable
 private fun ReopenRequiredNotice(onDismiss: () -> Unit) {
+    InvitationEditorBlockedNotice(
+        testTag = "invitation-reopen-required",
+        title = "Your answer wasn't saved",
+        body = "Open your invitation link again, then reply.",
+        onDismiss = onDismiss
+    )
+}
+
+/**
+ * Shown when the pre-open refresh finds the session now names a different wedding or guest.
+ *
+ * Distinct from [ReopenRequiredNotice]: nothing was submitted and nothing failed to save — the
+ * presented card simply is not the one the server would hand back right now. The coordinator's
+ * binding is left untouched, so the guest can still answer as themselves; this only stops the
+ * editor from opening on top of a snapshot that is no longer current.
+ */
+@Composable
+private fun StaleOrReplacedGuestNotice(onDismiss: () -> Unit) {
+    InvitationEditorBlockedNotice(
+        testTag = "invitation-stale-or-replaced-guest",
+        title = "This invitation has moved on",
+        body = "Open your invitation link again to see the latest.",
+        onDismiss = onDismiss
+    )
+}
+
+@Composable
+private fun InvitationEditorBlockedNotice(testTag: String, title: String, body: String, onDismiss: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black.copy(alpha = 0.55f))
             .clickable(onClick = onDismiss)
-            .testTag("invitation-reopen-required"),
+            .testTag(testTag),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -609,14 +648,14 @@ private fun ReopenRequiredNotice(onDismiss: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                "Your answer wasn't saved",
+                title,
                 fontSize = 18.sp,
                 fontFamily = FontFamily.Serif,
                 color = WeddingIdentityPalette.Ink,
                 textAlign = TextAlign.Center
             )
             Text(
-                "Open your invitation link again, then reply.",
+                body,
                 fontSize = 13.sp,
                 color = WeddingIdentityPalette.Muted,
                 textAlign = TextAlign.Center

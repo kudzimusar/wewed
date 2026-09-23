@@ -628,6 +628,14 @@ final class LiveGuestInvitationCoordinatorTests: XCTestCase {
         XCTAssertEqual(savedRsvp.message, "Updated from native")
     }
 
+    /// Phase 9 Round 4 — identity safety.
+    ///
+    /// The server session moving to a different guest within the same wedding is not a revoked
+    /// or unreachable session: it is a stale one. `prepareRsvpEditor()` must fail closed as
+    /// `.staleOrReplacedGuest` WITHOUT touching the coordinator's binding — no rebind to the
+    /// replacement guest, but also no clearing of the original guest's binding. The proof that
+    /// matters is not the enum alone: an `answer()` submitted right after the failed preparation
+    /// must still be attributed to the ORIGINAL guest.
     func testRsvpEditorFailsClosedOnSameWeddingGuestReplacement() async {
         exchangeSucceeds(slug: "charity-and-kudzie", guestId: "guest_live", session: "SESSION-1")
         invitationReadsFull(slug: "charity-and-kudzie", guestId: "guest_live", name: "Live Guest", attending: "true", mealChoice: "beef")
@@ -638,13 +646,32 @@ final class LiveGuestInvitationCoordinatorTests: XCTestCase {
         // Server session moves to a different guest within the same wedding
         invitationReadsFull(slug: "charity-and-kudzie", guestId: "guest_other", name: "Other Guest", attending: "true")
         let prep = await coordinator.prepareRsvpEditor()
-        XCTAssertEqual(prep, .reopenRequired)
+        XCTAssertEqual(prep, .staleOrReplacedGuest, "mismatched guest context must fail closed with staleOrReplacedGuest, not the generic reopenRequired")
         let finalSlug = await coordinator.testActiveWeddingSlug
         let finalGuest = await coordinator.testPresentedGuestId
-        XCTAssertNil(finalSlug)
-        XCTAssertNil(finalGuest)
+        XCTAssertEqual(finalSlug, "charity-and-kudzie", "active wedding slug must be PRESERVED, not cleared, on a stale-guest mismatch")
+        XCTAssertEqual(finalGuest, "guest_live", "presented guest must remain the original guest — no rebind to the replacement and no clearing")
+
+        // The real proof: an answer submitted after the failed preparation must still be the
+        // ORIGINAL guest's answer. The server may itself refuse it (STALE_GUEST_CONTEXT), but the
+        // coordinator must never have silently started acting as Guest B.
+        Stub.seenBodies = []
+        answerSucceeds(slug: "charity-and-kudzie", attending: true)
+        let outcome = await coordinator.answer(GuestRsvpUpdate(attending: true))
+        guard case .saved = outcome else {
+            return XCTFail("answer() must still attempt to save under the ORIGINAL guest, got \(outcome)")
+        }
+        XCTAssertTrue(
+            Stub.seenBodies.last?.contains("\"originGuestId\":\"guest_live\"") == true,
+            "the outgoing PUT must carry the original guest's originGuestId, never the replacement's"
+        )
+        XCTAssertFalse(Stub.seenBodies.last?.contains("\"originGuestId\":\"guest_other\"") == true)
     }
 
+    /// Same invariant as `testRsvpEditorFailsClosedOnSameWeddingGuestReplacement`, but the
+    /// replacement session names a different WEDDING entirely rather than a different guest at
+    /// the same wedding. Both are "stale or replaced", and both must leave the original binding
+    /// untouched.
     func testRsvpEditorFailsClosedOnDifferentWeddingReplacement() async {
         exchangeSucceeds(slug: "charity-and-kudzie", guestId: "guest_live", session: "SESSION-1")
         invitationReadsFull(slug: "charity-and-kudzie", guestId: "guest_live", name: "Live Guest", attending: "true")
@@ -664,11 +691,23 @@ final class LiveGuestInvitationCoordinatorTests: XCTestCase {
             """
         )
         let prep = await coordinator.prepareRsvpEditor()
-        XCTAssertEqual(prep, .reopenRequired)
+        XCTAssertEqual(prep, .staleOrReplacedGuest, "mismatched wedding slug must fail closed with staleOrReplacedGuest, not the generic reopenRequired")
         let finalSlug = await coordinator.testActiveWeddingSlug
         let finalGuest = await coordinator.testPresentedGuestId
-        XCTAssertNil(finalSlug)
-        XCTAssertNil(finalGuest)
+        XCTAssertEqual(finalSlug, "charity-and-kudzie", "active wedding slug must remain the original wedding — no rebind to the different wedding")
+        XCTAssertEqual(finalGuest, "guest_live", "presented guest must remain the original guest")
+
+        Stub.seenBodies = []
+        answerSucceeds(slug: "charity-and-kudzie", attending: true)
+        let outcome = await coordinator.answer(GuestRsvpUpdate(attending: true))
+        guard case .saved = outcome else {
+            return XCTFail("answer() must still target the original wedding/guest, got \(outcome)")
+        }
+        XCTAssertTrue(
+            Stub.seenBodies.last?.contains("\"originGuestId\":\"guest_live\"") == true,
+            "the outgoing PUT must still be addressed to charity-and-kudzie's guest_live"
+        )
+        XCTAssertFalse(Stub.seenPaths.contains { $0.hasPrefix("PUT /api/weddings/different-wedding/") })
     }
 
     func testRsvpEditorReturnsUnavailableOnTransportFailure() async {

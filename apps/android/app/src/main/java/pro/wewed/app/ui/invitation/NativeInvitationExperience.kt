@@ -22,10 +22,16 @@ import pro.wewed.app.ui.invitation.ivory.*
  * design, and RSVP state must not decide it either — that is precisely how an invented summary
  * card came to replace the approved stationery for confirmed guests.
  *
+ * Dispatch is authoritative, not guessed: it switches on [style]'s generated `rendererKind`
+ * ([rendererFor]), never on a separate hand-maintained `if (style == ...)`. A style the generator
+ * has not classified renders as [ResolvedInvitationRenderer.UNSUPPORTED], never as a silent
+ * fallback to Ivory.
+ *
  * ```
  * NativeInvitationExperience
- *   ├── IVORY_FLORAL_GOLD ──▶ IvoryFloralGoldNative   (the approved reference implementation)
- *   └── (future styles plug in here)
+ *   ├── IVORY_CUSTOM     ──▶ IvoryFloralGoldNative        (ivory-floral-gold only)
+ *   ├── GENERIC_MOTION   ──▶ GenericMotionInvitationNative (the other 11 known styles)
+ *   └── UNSUPPORTED      ──▶ "isn't available on mobile yet"
  * ```
  *
  * A style this build cannot render is stated plainly. Falling back to Ivory would show one couple
@@ -45,7 +51,10 @@ fun NativeInvitationExperience(
 ) {
     when (rendererFor(style)) {
         ResolvedInvitationRenderer.IVORY_CUSTOM -> {
-            // Ivory Floral Gold retains its dedicated flagship renderer.
+            // Identity hooks live at the dispatcher, in their own semantic nodes, so every style
+            // — ivory-floral-gold included — exposes the same stable invitation-style-<id> /
+            // invitation-motion-<id> pair without touching the approved reference renderer.
+            InvitationIdentityHooks(style)
             IvoryFloralGoldNative(
                 data = data,
                 rsvp = rsvp,
@@ -57,6 +66,7 @@ fun NativeInvitationExperience(
         }
         ResolvedInvitationRenderer.GENERIC_MOTION -> {
             // All other 11 known styles render via the native generic premium motion engine.
+            InvitationIdentityHooks(style)
             GenericMotionInvitationNative(
                 style = style,
                 data = data,
@@ -101,6 +111,21 @@ fun NativeInvitationExperience(
             }
         }
     }
+}
+
+/**
+ * Stable, style-agnostic identity hooks for the invitation actually on screen.
+ *
+ * Two distinct semantic nodes — never two `testTag`s stacked on one node, which silently drops
+ * all but the last. `invitation-style-<style-id>` and `invitation-motion-<motion-id>` are both
+ * derived from the same generated contract the renderer dispatch itself uses
+ * ([InvitationStyle.rendererKind]), so a test asserting on these hooks is asserting on the same
+ * truth the real UI renders from — not a parallel, test-only mapping.
+ */
+@Composable
+private fun InvitationIdentityHooks(style: InvitationStyle) {
+    Box(Modifier.testTag("invitation-style-${style.wire}"))
+    Box(Modifier.testTag("invitation-motion-${style.motion.wire}"))
 }
 
 /**

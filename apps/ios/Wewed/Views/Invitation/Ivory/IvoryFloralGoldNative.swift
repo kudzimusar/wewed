@@ -376,6 +376,8 @@ public struct IvoryFloralGoldNative: View {
                 .frame(width: w, height: h)
                 .clipped()
 
+            AccessibilityMarker("invitation-details", label: "Invitation details")
+
             region(IvoryGeometry.detailCouple, w, h) {
                 Text(data.coupleNames)
                     .font(IvoryTypography.body(size: w * 0.030))

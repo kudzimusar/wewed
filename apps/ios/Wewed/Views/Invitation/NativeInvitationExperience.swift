@@ -6,10 +6,15 @@ import SwiftUI
 /// design, and RSVP state must not decide it either — that is precisely how an invented summary
 /// card came to replace the approved stationery for confirmed guests.
 ///
+/// Dispatch is authoritative, not guessed: it switches on `style`'s generated `rendererKind`
+/// (`rendererFor`), never on a separate hand-maintained `if style == ...`. A style the generator
+/// has not classified renders as `.unsupported`, never as a silent fallback to Ivory.
+///
 /// ```
 /// NativeInvitationExperience
-///   ├── ivoryFloralGold ──▶ IvoryFloralGoldNative   (the approved reference implementation)
-///   └── (future styles plug in here)
+///   ├── .ivoryCustom    ──▶ IvoryFloralGoldNative        (ivory-floral-gold only)
+///   ├── .genericMotion  ──▶ GenericMotionInvitationNative (the other 11 known styles)
+///   └── .unsupported    ──▶ "isn't available on mobile yet"
 /// ```
 ///
 /// A style this build cannot render is stated plainly. Falling back to Ivory would show one couple
@@ -44,23 +49,33 @@ public struct NativeInvitationExperience: View {
     public var body: some View {
         switch rendererFor(style) {
         case .ivoryCustom:
-            // Ivory Floral Gold retains its dedicated flagship renderer.
-            IvoryFloralGoldNative(
-                data: data, rsvp: rsvp, actions: actions,
-                reducedMotion: reducedMotion, initialState: initialState,
-                onStateChanged: onStateChanged
-            )
+            // Identity hooks live at the dispatcher, as their own leaf markers, so every style —
+            // ivory-floral-gold included — exposes the same stable invitation-style-<id> /
+            // invitation-motion-<id> pair without touching the approved reference renderer. A
+            // marker, not a modifier on the renderer itself: `.accessibilityIdentifier` on a
+            // container is inherited by every descendant that does not set its own.
+            ZStack {
+                IvoryFloralGoldNative(
+                    data: data, rsvp: rsvp, actions: actions,
+                    reducedMotion: reducedMotion, initialState: initialState,
+                    onStateChanged: onStateChanged
+                )
+                InvitationIdentityMarkers(style: style)
+            }
         case .genericMotion:
             // All other 11 known styles render via the native generic premium motion engine.
-            GenericMotionInvitationNative(
-                style: style,
-                data: data,
-                rsvp: rsvp,
-                actions: actions,
-                reducedMotion: reducedMotion,
-                initialState: initialState,
-                onStateChanged: onStateChanged
-            )
+            ZStack {
+                GenericMotionInvitationNative(
+                    style: style,
+                    data: data,
+                    rsvp: rsvp,
+                    actions: actions,
+                    reducedMotion: reducedMotion,
+                    initialState: initialState,
+                    onStateChanged: onStateChanged
+                )
+                InvitationIdentityMarkers(style: style)
+            }
         case .unsupported:
             // A style native cannot yet reproduce is named and declined. Substituting Ivory would
             // show one couple another couple's stationery and report it as parity.
@@ -81,6 +96,25 @@ public struct NativeInvitationExperience: View {
                 .padding(30)
             }
             .accessibilityIdentifier("invitation-style-unsupported")
+        }
+    }
+}
+
+/// Stable, style-agnostic identity markers for the invitation actually on screen.
+///
+/// Two distinct leaf elements — never one `.accessibilityIdentifier` on the renderer's own
+/// container, which would be inherited by every descendant that does not set its own.
+/// `invitation-style-<style-id>` and `invitation-motion-<motion-id>` are both derived from the
+/// same generated contract the renderer dispatch itself uses (`InvitationStyle.rendererKind`), so
+/// a test asserting on these hooks is asserting on the same truth the real UI renders from — not
+/// a parallel, test-only mapping.
+private struct InvitationIdentityMarkers: View {
+    let style: InvitationStyle
+
+    var body: some View {
+        ZStack {
+            AccessibilityMarker("invitation-style-\(style.wire)", label: style.displayName)
+            AccessibilityMarker("invitation-motion-\(style.motion.rawValue)", label: "Motion")
         }
     }
 }

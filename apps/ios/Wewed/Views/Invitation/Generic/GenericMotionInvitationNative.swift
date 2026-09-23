@@ -131,13 +131,19 @@ public struct GenericMotionInvitationNative: View {
                         )
                         .padding(.top, 12)
                         .padding(.bottom, 32)
+                        // A leaf marker, not a modifier on the actions view itself:
+                        // `.accessibilityIdentifier` on a container is inherited by every
+                        // descendant that does not set its own, which would rename the CTA
+                        // buttons inside (see AccessibilityMarker's own documentation).
+                        .overlay(AccessibilityMarker("invitation-details", label: "Invitation details"))
                     }
                 }
                 .padding(.horizontal, 16)
             }
+
+            // A leaf marker rather than a modifier on the ZStack: see the comment above.
+            AccessibilityMarker("premium-invitation-experience", label: "Invitation experience")
         }
-        .accessibilityIdentifier("generic-invitation-\(style.wire)")
-        .accessibilityIdentifier("premium-invitation-experience")
     }
 
     private func openInvitation() {

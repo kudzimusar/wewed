@@ -18,28 +18,37 @@ package pro.wewed.app.models
  */
 enum class InvitationStyle(
     val wire: String,
-    val displayName: String,
-    /** True only where native reproduces this exact approved design. All 12 known styles are supported. */
-    val hasNativeRenderer: Boolean = true
+    val displayName: String
 ) {
-    IVORY_FLORAL_GOLD("ivory-floral-gold", "Ivory Floral Gold", true),
-    MIDNIGHT("midnight", "Midnight Gold", true),
-    BOTANICAL("botanical", "Garden Romance", true),
-    ROYAL_EMERALD("royal-emerald", "Royal Emerald", true),
-    CLASSIC_WHITE("classic-white", "Classic White", true),
-    BLUSH_ROMANCE("blush-romance", "Blush Romance", true),
-    AFRICAN_LUXE("african-luxe", "African Luxe", true),
-    EDITORIAL("editorial", "Modern Editorial", true),
-    BLACK_TIE("black-tie", "Black Tie", true),
-    WATERCOLOUR_GARDEN("watercolour-garden", "Watercolour Garden", true),
-    SUNSET_TERRACOTTA("sunset-terracotta", "Sunset Terracotta", true),
-    CELESTIAL("celestial", "Celestial", true),
+    IVORY_FLORAL_GOLD("ivory-floral-gold", "Ivory Floral Gold"),
+    MIDNIGHT("midnight", "Midnight Gold"),
+    BOTANICAL("botanical", "Garden Romance"),
+    ROYAL_EMERALD("royal-emerald", "Royal Emerald"),
+    CLASSIC_WHITE("classic-white", "Classic White"),
+    BLUSH_ROMANCE("blush-romance", "Blush Romance"),
+    AFRICAN_LUXE("african-luxe", "African Luxe"),
+    EDITORIAL("editorial", "Modern Editorial"),
+    BLACK_TIE("black-tie", "Black Tie"),
+    WATERCOLOUR_GARDEN("watercolour-garden", "Watercolour Garden"),
+    SUNSET_TERRACOTTA("sunset-terracotta", "Sunset Terracotta"),
+    CELESTIAL("celestial", "Celestial"),
 
     /** A style id the server sent that is not in the registry this build was compiled against. */
-    UNKNOWN_STYLE("unknown", "This invitation design", false);
+    UNKNOWN_STYLE("unknown", "This invitation design");
 
     val themeDefinition: InvitationThemeDefinition?
         get() = GeneratedInvitationStyles.STYLES[wire]
+
+    val rendererKind: InvitationRendererKind?
+        get() = themeDefinition?.rendererKind
+
+    /**
+     * Derived from the generated contract, never from enum membership alone: a style is only
+     * native-renderable if the generator actually classified it with a [rendererKind]. Adding a
+     * case here without regenerating the contract must NOT silently claim renderer support.
+     */
+    val hasNativeRenderer: Boolean
+        get() = rendererKind != null
 
     val motion: InvitationMotion
         get() = themeDefinition?.motion ?: InvitationMotion.TRI_FOLD
@@ -49,9 +58,6 @@ enum class InvitationStyle(
 
     val palette: InvitationPalette
         get() = themeDefinition?.palette ?: GeneratedInvitationStyles.STYLES.getValue("botanical").palette
-
-    val rendererKind: InvitationRendererKind?
-        get() = themeDefinition?.rendererKind
 
     companion object {
         /**

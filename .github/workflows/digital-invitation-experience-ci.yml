@@ -19,7 +19,13 @@ on:
       - 'tests/e2e/premium-digital-invitation.spec.ts'
       - 'mobile/contracts/**'
       - 'apps/android/app/src/main/java/pro/wewed/app/models/GeneratedInvitationStyles.kt'
+      - 'apps/android/app/src/main/java/pro/wewed/app/models/InvitationStyle.kt'
+      - 'apps/android/app/src/main/java/pro/wewed/app/ui/invitation/NativeInvitationExperience.kt'
+      - 'apps/android/app/src/main/java/pro/wewed/app/ui/invitation/generic/**'
       - 'apps/ios/Wewed/Models/GeneratedInvitationStyles.swift'
+      - 'apps/ios/Wewed/Models/InvitationStyle.swift'
+      - 'apps/ios/Wewed/Views/Invitation/NativeInvitationExperience.swift'
+      - 'apps/ios/Wewed/Views/Invitation/Generic/**'
       - '.github/workflows/digital-invitation-experience-ci.yml'
   push:
     branches:
@@ -38,7 +44,13 @@ on:
       - 'tests/e2e/premium-digital-invitation.spec.ts'
       - 'mobile/contracts/**'
       - 'apps/android/app/src/main/java/pro/wewed/app/models/GeneratedInvitationStyles.kt'
+      - 'apps/android/app/src/main/java/pro/wewed/app/models/InvitationStyle.kt'
+      - 'apps/android/app/src/main/java/pro/wewed/app/ui/invitation/NativeInvitationExperience.kt'
+      - 'apps/android/app/src/main/java/pro/wewed/app/ui/invitation/generic/**'
       - 'apps/ios/Wewed/Models/GeneratedInvitationStyles.swift'
+      - 'apps/ios/Wewed/Models/InvitationStyle.swift'
+      - 'apps/ios/Wewed/Views/Invitation/NativeInvitationExperience.swift'
+      - 'apps/ios/Wewed/Views/Invitation/Generic/**'
   workflow_dispatch:
 
 permissions:

@@ -623,6 +623,16 @@ class LiveGuestInvitationCoordinatorTest {
         assertEquals("Updated from native", (saveOutcome as RsvpOutcome.Saved).rsvp.message)
     }
 
+    /**
+     * Phase 9 Round 4 — identity safety.
+     *
+     * The server session moving to a different guest within the same wedding is not a revoked
+     * or unreachable session: it is a stale one. `prepareRsvpEditor()` must fail closed as
+     * [RsvpEditorPreparation.StaleOrReplacedGuest] WITHOUT touching the coordinator's binding —
+     * no rebind to the replacement guest, but also no clearing of the original guest's binding.
+     * The proof that matters is not the enum alone: an `answer()` submitted right after the
+     * failed preparation must still be attributed to the ORIGINAL guest.
+     */
     @Test
     fun rsvpEditorFailsClosedOnSameWeddingGuestReplacement() = runBlocking {
         exchangeSucceeds("charity-and-kudzie", "guest_live", "SESSION-1")
@@ -633,11 +643,41 @@ class LiveGuestInvitationCoordinatorTest {
         // Server session moves to a different guest within the same wedding
         invitationReadsFull("charity-and-kudzie", "guest_other", "Other Guest", "true")
         val prep = coordinator.prepareRsvpEditor()
-        assertTrue("Mismatched guest context must fail closed with ReopenRequired", prep is RsvpEditorPreparation.ReopenRequired)
-        assertNull("Active wedding slug must be cleared on mismatch", coordinator.testActiveWeddingSlug)
-        assertNull("Presented guest must not rebind to the replaced guest", coordinator.testPresentedGuestId)
+        assertTrue(
+            "Mismatched guest context must fail closed with StaleOrReplacedGuest, not the generic ReopenRequired",
+            prep is RsvpEditorPreparation.StaleOrReplacedGuest
+        )
+        assertEquals(
+            "Active wedding slug must be PRESERVED, not cleared, on a stale-guest mismatch",
+            "charity-and-kudzie", coordinator.testActiveWeddingSlug
+        )
+        assertEquals(
+            "Presented guest must remain the original guest — no rebind to the replacement and no clearing",
+            "guest_live", coordinator.testPresentedGuestId
+        )
+
+        // The real proof: an answer submitted after the failed preparation must still be the
+        // ORIGINAL guest's answer. The server may itself refuse it (STALE_GUEST_CONTEXT), but the
+        // coordinator must never have silently started acting as Guest B.
+        seenBodies.clear()
+        answerSucceeds("charity-and-kudzie", attending = true)
+        val outcome = coordinator.answer(GuestRsvpUpdate(attending = true))
+        assertTrue(
+            "answer() must still attempt to save under the ORIGINAL guest, not short-circuit or rebind",
+            outcome is RsvpOutcome.Saved
+        )
+        assertTrue(
+            "The outgoing PUT must carry the original guest's originGuestId, never the replacement's",
+            seenBodies.last().contains("\"originGuestId\":\"guest_live\"")
+        )
+        assertFalse(seenBodies.last().contains("\"originGuestId\":\"guest_other\""))
     }
 
+    /**
+     * Same invariant as [rsvpEditorFailsClosedOnSameWeddingGuestReplacement], but the replacement
+     * session names a different WEDDING entirely rather than a different guest at the same
+     * wedding. Both are "stale or replaced", and both must leave the original binding untouched.
+     */
     @Test
     fun rsvpEditorFailsClosedOnDifferentWeddingReplacement() = runBlocking {
         exchangeSucceeds("charity-and-kudzie", "guest_live", "SESSION-1")
@@ -656,9 +696,33 @@ class LiveGuestInvitationCoordinatorTest {
                 """"rsvp":{"attending":true,"checkedIn":false}}"""
         )
         val prep = coordinator.prepareRsvpEditor()
-        assertTrue("Mismatched wedding slug must fail closed with ReopenRequired", prep is RsvpEditorPreparation.ReopenRequired)
-        assertNull(coordinator.testActiveWeddingSlug)
-        assertNull(coordinator.testPresentedGuestId)
+        assertTrue(
+            "Mismatched wedding slug must fail closed with StaleOrReplacedGuest, not the generic ReopenRequired",
+            prep is RsvpEditorPreparation.StaleOrReplacedGuest
+        )
+        assertEquals(
+            "Active wedding slug must remain the original wedding — no rebind to the different wedding",
+            "charity-and-kudzie", coordinator.testActiveWeddingSlug
+        )
+        assertEquals(
+            "Presented guest must remain the original guest",
+            "guest_live", coordinator.testPresentedGuestId
+        )
+
+        seenBodies.clear()
+        answerSucceeds("charity-and-kudzie", attending = true)
+        val outcome = coordinator.answer(GuestRsvpUpdate(attending = true))
+        assertTrue(
+            "answer() must still target the original wedding/guest, not the replacement",
+            outcome is RsvpOutcome.Saved
+        )
+        assertTrue(
+            "The outgoing PUT must still be addressed to charity-and-kudzie's guest_live",
+            seenBodies.last().contains("\"originGuestId\":\"guest_live\"")
+        )
+        assertFalse(
+            seenPaths.any { it.startsWith("PUT /api/weddings/different-wedding/") }
+        )
     }
 
     @Test

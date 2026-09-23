@@ -60,6 +60,21 @@ sealed interface RsvpOutcome {
 sealed interface RsvpEditorPreparation {
     data class Ready(val snapshot: GuestInvitationSnapshot) : RsvpEditorPreparation
     data object ReopenRequired : RsvpEditorPreparation
+
+    /**
+     * The refreshed snapshot named a different wedding or a different guest than the one
+     * currently presented.
+     *
+     * This is not [ReopenRequired]: the session was not revoked, and the presented card is not
+     * wrong. It means the server has moved on to someone else while this card was open. The
+     * binding captured at presentation time — [LiveGuestInvitationCoordinator]'s
+     * `activeWeddingSlug` / `presentedGuestId` — is left completely untouched. There is no rebind,
+     * no retry, and no opening the replacement guest's editor: the presented card still belongs
+     * to the original guest, and an answer submitted after this result must still be attributed
+     * to them.
+     */
+    data object StaleOrReplacedGuest : RsvpEditorPreparation
+
     data class Unavailable(val status: Int?) : RsvpEditorPreparation
 }
 
@@ -209,11 +224,18 @@ class LiveGuestInvitationCoordinator(
     /**
      * Pre-open refresh before opening the RSVP editor.
      *
-     * In accordance with Master Plan Phase 9:
-     * Tapping RSVP / Update RSVP captures expectedWeddingSlug and expectedGuestId
-     * prior to network I/O, executes client.loadInvitation(expectedWeddingSlug),
-     * and strictly verifies snapshot equality (weddingSlug and guestId) before rebinding state.
-     * If session moved on, was revoked, or mismatched, fails closed returning ReopenRequired.
+     * In accordance with Master Plan Phase 9: tapping RSVP / Update RSVP captures
+     * [expectedWeddingSlug] and [expectedGuestId] from the presentation binding before any
+     * network I/O, calls only `client.loadInvitation(expectedWeddingSlug)` — never [refresh],
+     * [load], or [restoreRememberedGuest], which mutate the binding as a side effect — and
+     * compares the refreshed snapshot's identity against what was captured *before* touching
+     * coordinator state.
+     *
+     * A session that was revoked or is unreachable fails closed as [RsvpEditorPreparation.ReopenRequired]
+     * / [RsvpEditorPreparation.Unavailable]. A session that is still valid but now names a
+     * different wedding or guest is a distinct case — [RsvpEditorPreparation.StaleOrReplacedGuest] —
+     * and never mutates [activeWeddingSlug] / [presentedGuestId]: the presented card still belongs
+     * to the guest it was captured for, and must go on behaving that way.
      */
     suspend fun prepareRsvpEditor(): RsvpEditorPreparation {
         val expectedWeddingSlug = activeWeddingSlug ?: return RsvpEditorPreparation.ReopenRequired
@@ -232,8 +254,11 @@ class LiveGuestInvitationCoordinator(
         }
 
         if (refreshedSnapshot.weddingSlug != expectedWeddingSlug || refreshedSnapshot.guestId != expectedGuestId) {
-            endPresentation()
-            return RsvpEditorPreparation.ReopenRequired
+            // Do not touch activeWeddingSlug / presentedGuestId here. They already name the
+            // correct (original) guest, and the presented card is still theirs — the server has
+            // simply moved on to someone else. No rebind, no retry, no clearing: an answer()
+            // submitted right after this must still be attributed to the original guest.
+            return RsvpEditorPreparation.StaleOrReplacedGuest
         }
 
         activeWeddingSlug = refreshedSnapshot.weddingSlug

@@ -27,6 +27,7 @@ public struct LiveGuestInvitationView: View {
     @State private var formSessionId = UUID()
     @State private var submitting = false
     @State private var reopenRequired = false
+    @State private var staleOrReplacedGuest = false
     @State private var childrenNotAllowed = false
     @State private var showNote = false
 
@@ -62,6 +63,11 @@ public struct LiveGuestInvitationView: View {
                 rsvpEditorPresentation = nil
                 rsvpPrompt = false
                 reopenRequired = true
+            case .staleOrReplacedGuest:
+                // The coordinator's binding was left untouched — do not clear the presentation
+                // or open the editor on top of a snapshot that is no longer current.
+                rsvpPrompt = false
+                staleOrReplacedGuest = true
             case .unavailable:
                 rsvpEditorPresentation = nil
                 rsvpPrompt = false
@@ -152,6 +158,7 @@ public struct LiveGuestInvitationView: View {
                 .id(formSessionId)
             }
             if reopenRequired { reopenRequiredView }
+            if staleOrReplacedGuest { staleOrReplacedGuestView }
             if refreshUnavailable { refreshUnavailableView }
             if showNote, let note = presentation.invitationCardMessage, !note.isEmpty {
                 noteFromTheCouple(note)
@@ -270,6 +277,33 @@ public struct LiveGuestInvitationView: View {
             .padding(28)
         }
         .accessibilityIdentifier("invitation-reopen-required")
+    }
+
+    /// Shown when the pre-open refresh finds the session now names a different wedding or guest.
+    ///
+    /// Distinct from `reopenRequiredView`: nothing was submitted and nothing failed to save — the
+    /// presented card simply is not the one the server would hand back right now. The
+    /// coordinator's binding is left untouched, so the guest can still answer as themselves; this
+    /// only stops the editor from opening on top of a snapshot that is no longer current.
+    private var staleOrReplacedGuestView: some View {
+        ZStack {
+            Color.black.opacity(0.55)
+                .ignoresSafeArea()
+                .onTapGesture { staleOrReplacedGuest = false }
+            VStack(spacing: 10) {
+                Text("This invitation has moved on")
+                    .font(.system(size: 18, design: .serif))
+                    .foregroundStyle(WeddingIdentityPalette.ink)
+                Text("Open your invitation link again to see the latest.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(WeddingIdentityPalette.muted)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(24)
+            .background(WeddingIdentityPalette.ivory)
+            .padding(28)
+        }
+        .accessibilityIdentifier("invitation-stale-or-replaced-guest")
     }
 
     private var refreshUnavailableView: some View {

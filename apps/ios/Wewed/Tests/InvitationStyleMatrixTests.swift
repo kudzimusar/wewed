@@ -3,19 +3,32 @@ import XCTest
 
 final class InvitationStyleMatrixTests: XCTestCase {
 
-    private let allExpectedStyles: [(wire: String, displayName: String)] = [
-        ("ivory-floral-gold", "Ivory Floral Gold"),
-        ("midnight", "Midnight Gold"),
-        ("botanical", "Garden Romance"),
-        ("royal-emerald", "Royal Emerald"),
-        ("classic-white", "Classic White"),
-        ("blush-romance", "Blush Romance"),
-        ("african-luxe", "African Luxe"),
-        ("editorial", "Modern Editorial"),
-        ("black-tie", "Black Tie"),
-        ("watercolour-garden", "Watercolour Garden"),
-        ("sunset-terracotta", "Sunset Terracotta"),
-        ("celestial", "Celestial")
+    /// Registry ground truth. Each style's motion/atmosphere/renderer-kind is the EXACT value the
+    /// generator emitted (mobile/contracts/generate_invitation_style_contract.py --check enforces
+    /// palette exactness against the same source; this table enforces the rest of the row). A test
+    /// that only checked "is this a valid enum case" would pass even if two styles' motions were
+    /// swapped — that is precisely the gap this table closes.
+    private struct ExpectedStyle {
+        let wire: String
+        let displayName: String
+        let motion: InvitationMotion
+        let atmosphere: InvitationAtmosphere
+        let rendererKind: InvitationRendererKind
+    }
+
+    private let allExpectedStyles: [ExpectedStyle] = [
+        ExpectedStyle(wire: "ivory-floral-gold", displayName: "Ivory Floral Gold", motion: .triFold, atmosphere: .champagneGlow, rendererKind: .ivoryCustom),
+        ExpectedStyle(wire: "midnight", displayName: "Midnight Gold", motion: .gateFold, atmosphere: .stars, rendererKind: .genericMotion),
+        ExpectedStyle(wire: "botanical", displayName: "Garden Romance", motion: .floralReveal, atmosphere: .petals, rendererKind: .genericMotion),
+        ExpectedStyle(wire: "royal-emerald", displayName: "Royal Emerald", motion: .envelopeLetter, atmosphere: .softBokeh, rendererKind: .genericMotion),
+        ExpectedStyle(wire: "classic-white", displayName: "Classic White", motion: .bookOpen, atmosphere: .minimal, rendererKind: .genericMotion),
+        ExpectedStyle(wire: "blush-romance", displayName: "Blush Romance", motion: .envelopeLetter, atmosphere: .softBokeh, rendererKind: .genericMotion),
+        ExpectedStyle(wire: "african-luxe", displayName: "African Luxe", motion: .gateFold, atmosphere: .candlelight, rendererKind: .genericMotion),
+        ExpectedStyle(wire: "editorial", displayName: "Modern Editorial", motion: .singleCardLift, atmosphere: .minimal, rendererKind: .genericMotion),
+        ExpectedStyle(wire: "black-tie", displayName: "Black Tie", motion: .gateFold, atmosphere: .candlelight, rendererKind: .genericMotion),
+        ExpectedStyle(wire: "watercolour-garden", displayName: "Watercolour Garden", motion: .floralReveal, atmosphere: .watercolourBloom, rendererKind: .genericMotion),
+        ExpectedStyle(wire: "sunset-terracotta", displayName: "Sunset Terracotta", motion: .sleevePull, atmosphere: .softBokeh, rendererKind: .genericMotion),
+        ExpectedStyle(wire: "celestial", displayName: "Celestial", motion: .bookOpen, atmosphere: .stars, rendererKind: .genericMotion)
     ]
 
     func testAllTwelveStylesHaveNativeRenderersAndDistinctDefinitions() {
@@ -36,7 +49,8 @@ final class InvitationStyleMatrixTests: XCTestCase {
             }
             XCTAssertEqual(theme.id, entry.wire)
 
-            // Palette validation: all 6 colors present and valid hex
+            // Palette validation: all 6 colors present and valid hex. Exact palette equality
+            // against the PWA source is enforced separately by the generator's --check mode.
             let hexRegex = try! NSRegularExpression(pattern: "^#[0-9a-fA-F]{6}$")
             let colors = [
                 ("stage", theme.palette.stageHex),
@@ -52,19 +66,17 @@ final class InvitationStyleMatrixTests: XCTestCase {
                                 "Color \(name) for \(entry.wire) must be valid hex: \(hex)")
             }
 
-            // Motion preset validation
-            let validMotions: Set<InvitationMotion> = [
-                .triFold, .gateFold, .envelopeLetter, .bookOpen, .singleCardLift, .floralReveal, .sleevePull
-            ]
-            XCTAssertTrue(validMotions.contains(style.motion),
-                          "Motion preset \(style.motion) for \(entry.wire) must be one of defined presets")
+            // Exact motion, not "a valid motion": a swap between two styles must fail this test.
+            XCTAssertEqual(style.motion, entry.motion, "Motion mismatch for \(entry.wire)")
+            XCTAssertEqual(theme.motion, entry.motion, "Motion mismatch for \(entry.wire)")
 
-            // Atmosphere preset validation
-            let validAtmospheres: Set<InvitationAtmosphere> = [
-                .champagneGlow, .softBokeh, .petals, .candlelight, .stars, .watercolourBloom, .minimal
-            ]
-            XCTAssertTrue(validAtmospheres.contains(style.atmosphere),
-                          "Atmosphere preset \(style.atmosphere) for \(entry.wire) must be one of defined atmospheres")
+            // Exact atmosphere, not "a valid atmosphere".
+            XCTAssertEqual(style.atmosphere, entry.atmosphere, "Atmosphere mismatch for \(entry.wire)")
+            XCTAssertEqual(theme.atmosphere, entry.atmosphere, "Atmosphere mismatch for \(entry.wire)")
+
+            // Exact renderer classification straight from the generated contract.
+            XCTAssertEqual(style.rendererKind, entry.rendererKind, "rendererKind mismatch for \(entry.wire)")
+            XCTAssertEqual(theme.rendererKind, entry.rendererKind, "rendererKind mismatch for \(entry.wire)")
 
             // No substitution to Ivory Floral Gold
             if entry.wire != "ivory-floral-gold" {
@@ -108,7 +120,15 @@ final class InvitationStyleMatrixTests: XCTestCase {
 
         for entry in allExpectedStyles {
             let style = InvitationStyle.fromWire(entry.wire)
-            let expected: ResolvedInvitationRenderer = (entry.wire == "ivory-floral-gold") ? .ivoryCustom : .genericMotion
+            // Derived from the same registry row as the exact-value assertions above, not a
+            // separately hand-written "wire == ivory-floral-gold ? ... " — a swap in the table
+            // would be caught by the motion/atmosphere assertions before it could hide here.
+            let expected: ResolvedInvitationRenderer = {
+                switch entry.rendererKind {
+                case .ivoryCustom: return .ivoryCustom
+                case .genericMotion: return .genericMotion
+                }
+            }()
             XCTAssertEqual(rendererFor(style), expected, "Style \(entry.wire) must resolve to \(expected)")
         }
 

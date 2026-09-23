@@ -53,13 +53,15 @@ public enum InvitationStyle: String, CaseIterable, Sendable {
         }
     }
 
-    /// True for all 12 known styles that native reproduces. False only for truly unknown styles.
-    public var hasNativeRenderer: Bool {
-        self != .unknownStyle
-    }
-
     public var themeDefinition: InvitationThemeDefinition? {
         GeneratedInvitationStyles.styles[wire]
+    }
+
+    /// Derived from the generated contract, never from enum membership alone: a style is only
+    /// native-renderable if the generator actually classified it with a `rendererKind`. Adding a
+    /// case here without regenerating the contract must NOT silently claim renderer support.
+    public var hasNativeRenderer: Bool {
+        rendererKind != nil
     }
 
     public var motion: InvitationMotion {
