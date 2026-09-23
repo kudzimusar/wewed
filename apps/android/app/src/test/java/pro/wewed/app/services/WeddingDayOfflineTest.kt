@@ -144,4 +144,79 @@ class WeddingDayOfflineTest {
         assertTrue(TokenVerifier.verifyP1363(payload, signature, publicKeyDerBase64))
         assertFalse(TokenVerifier.verifyP1363(payload + "tampered", signature, publicKeyDerBase64))
     }
+
+    @Test
+    fun futureOrMalformedSigningKeyActivationFailsClosedOffline() = runBlocking {
+        val token = "WW2.wedts26.WWJD0824.0e.66f001ab.8d4ba7eca9ef156da73f31e98456a9eaae676f66e4e33d4afaeb5f36cc5f4e06d612a90d0519d343346872759e675437934043ba97fec6a763b7ae3430d6ab30"
+        val publicKeyDerBase64 = "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEPSF40dU2YlZRMbV5EweSiFFtJbrJmwtufFc4Bx2eJrC2erZirTgNiKFYBjAIgZsNpWDsGhWRsxToZUz+mdHSNQ=="
+        val store = OfflineManifestStore()
+        store.saveManifest(
+            "wedding-1",
+            listOf(
+                GuestManifestItem(
+                    id = "guest-1",
+                    serial = "WWJD0824",
+                    guestName = "Guest",
+                    partySize = 1,
+                    eventBitmask = 0x0e,
+                    signingKeyId = "key-v1",
+                    nonce = "66f001ab",
+                    attendeeKeys = listOf("primary"),
+                    eligible = true,
+                    expiresAt = "2099-09-18T00:00:00.000Z"
+                )
+            )
+        )
+        val trustStore = WeddingDayManifestTrustStore()
+        val service = WeddingDaySyncService(
+            transport = object : WeddingDayHttpTransport {
+                override suspend fun get(path: String, headers: Map<String, String>) =
+                    error("network not used")
+                override suspend fun post(path: String, headers: Map<String, String>, body: String) =
+                    error("network not used")
+            },
+            trustedRootPublicKeyDerBase64 = publicKeyDerBase64
+        )
+
+        suspend fun saveKey(activeFrom: String) {
+            trustStore.save(
+                VerifiedWeddingDayManifestTrust(
+                    weddingId = "wedding-1",
+                    weddingShortId = "wedts26",
+                    eventKey = "wedding-day",
+                    generatedAt = "2026-09-17T00:00:00.000Z",
+                    expiresAt = "2099-09-18T00:00:00.000Z",
+                    rootKeyId = "root-v1",
+                    keys = listOf(
+                        WeddingDayManifestKey(
+                            keyId = "key-v1",
+                            algorithm = "ECDSA_P256_SHA256",
+                            publicKeyDerBase64 = publicKeyDerBase64,
+                            status = "active",
+                            activeFrom = activeFrom
+                        )
+                    )
+                )
+            )
+        }
+
+        saveKey("2099-09-17T00:00:00.000Z")
+        var failure: Throwable? = null
+        try {
+            service.verifyOfflinePass(token, "wedding-1", offlineStore = store, trustStore = trustStore)
+        } catch (error: Throwable) {
+            failure = error
+        }
+        assertTrue(failure is WeddingDaySyncException.SigningKeyInactive)
+
+        saveKey("not-an-iso-date")
+        failure = null
+        try {
+            service.verifyOfflinePass(token, "wedding-1", offlineStore = store, trustStore = trustStore)
+        } catch (error: Throwable) {
+            failure = error
+        }
+        assertTrue(failure is WeddingDaySyncException.SigningKeyInactive)
+    }
+
 }
