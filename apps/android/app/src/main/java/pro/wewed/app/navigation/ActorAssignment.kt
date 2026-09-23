@@ -92,7 +92,13 @@ object ActorAssignmentSources {
         productionAuthority: ProductionAuthority,
         selectedGrantIds: Set<String> = emptySet(),
         selectedEngagementId: String? = null,
-    ): ActorAssignmentSource = ProductionActorAssignmentSource(productionAuthority, selectedGrantIds, selectedEngagementId)
+        selectedGateGrantId: String? = null,
+    ): ActorAssignmentSource = ProductionActorAssignmentSource(
+        productionAuthority,
+        selectedGrantIds,
+        selectedEngagementId,
+        selectedGateGrantId
+    )
 
     /** No identity session yet, or no successful authority fetch yet. No repository is read or required. */
     fun empty(): ActorAssignmentSource = EmptyActorAssignmentSource
@@ -120,11 +126,17 @@ fun resolveActorAssignmentSource(
     productionAuthority: ProductionAuthority?,
     selectedGrantIds: Set<String>,
     selectedEngagementId: String?,
+    selectedGateGrantId: String? = null,
 ): ActorAssignmentSource =
     if (appViewModel.dataEnvironment.allowsDevelopmentPersonaSwitching) {
         ActorAssignmentSources.forShadow(appViewModel.repository, appViewModel.plannerRepository, appViewModel.dataEnvironment)
     } else if (productionAuthority != null) {
-        ActorAssignmentSources.forProduction(productionAuthority, selectedGrantIds, selectedEngagementId)
+        ActorAssignmentSources.forProduction(
+            productionAuthority,
+            selectedGrantIds,
+            selectedEngagementId,
+            selectedGateGrantId
+        )
     } else {
         ActorAssignmentSources.empty()
     }
