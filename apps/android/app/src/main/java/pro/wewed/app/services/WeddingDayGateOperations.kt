@@ -55,7 +55,9 @@ class ManifestBackedWeddingDayGate(
             weddingId = gateContext.weddingId,
             serial = item.serial,
             count = count,
-            usherId = gateContext.operatorUserId
+            // Legacy queue schema still has usherId for backward decoding, but new Phase-11A
+            // records carry no operator authority. The server derives operator from the live grant.
+            usherId = ""
         )
     }
 
