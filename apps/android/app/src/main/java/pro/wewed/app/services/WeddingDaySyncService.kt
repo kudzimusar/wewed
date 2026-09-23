@@ -295,8 +295,9 @@ class WeddingDaySyncService(
         offlineStore: OfflineManifestStoreProtocol,
         trustStore: WeddingDayManifestTrustStore
     ): WeddingDaySyncResult {
-        val trust = trustStore.manifest(weddingId)
-            ?: return WeddingDaySyncResult(emptyList(), emptyList(), emptyList())
+        if (trustStore.manifest(weddingId) == null) {
+            return WeddingDaySyncResult(emptyList(), emptyList(), emptyList())
+        }
         val pending = offlineStore.getPendingCheckIns(weddingId)
         val synced = mutableListOf<String>()
         val failed = mutableListOf<String>()
