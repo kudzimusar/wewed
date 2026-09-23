@@ -293,7 +293,9 @@ class OfflineManifestStore(
             passSerial = serial,
             guestId = item.id,
             count = admittedKeys.size,
-            usherId = usherId,
+            // usherId remains in the persisted V2 shape only so old snapshots continue to
+            // decode. New queue entries never persist operator authority.
+            usherId = "",
             attendeeKeys = admittedKeys,
             deviceId = deviceId
         )
