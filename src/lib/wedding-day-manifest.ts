@@ -2,7 +2,7 @@ import 'server-only'
 
 import { createPrivateKey, createPublicKey, sign as cryptoSign, verify as cryptoVerify } from 'node:crypto'
 import { db } from '@/lib/db'
-import { isWeddingDayWW2Enabled } from '@/lib/wedding-day-feature'
+import { assertWeddingDayWW2RuntimeReady } from '@/lib/wedding-day-feature'
 import {
   WW2_ALGORITHM,
   WW2_VERSION,
@@ -115,9 +115,7 @@ function householdMembers(row: ManifestCredentialRow): HouseholdMember[] {
  * It never contains a signing private key or a reusable application session token.
  */
 export async function signedNativeWeddingDayManifest(weddingId: string) {
-  if (!isWeddingDayWW2Enabled()) {
-    throw new Error('WEDDING_DAY_DISABLED')
-  }
+  assertWeddingDayWW2RuntimeReady()
 
   const rootKeyId = process.env.WEDDING_DAY_ROOT_KEY_ID?.trim()
   if (!rootKeyId) {
