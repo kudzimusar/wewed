@@ -28,12 +28,15 @@ import pro.wewed.app.navigation.ProductionGrantMapper
 import pro.wewed.app.navigation.ProductionWorkspaceGrant
 import pro.wewed.app.navigation.GrantScopeKind
 import pro.wewed.app.services.NativeDomainApiClient
+import pro.wewed.app.services.ProductionContractsRepository
 import pro.wewed.app.services.ProductionPlannerDashboardRepository
 import pro.wewed.app.services.ProductionAdminSystemRepository
 import pro.wewed.app.services.ProductionVendorBusinessRepository
+import pro.wewed.app.services.ProductionVendorEngagementRepository
 import pro.wewed.app.services.ProductionWeddingRepository
 import pro.wewed.app.services.UrlConnectionWeddingDayTransport
 import pro.wewed.app.state.AppViewModel
+import pro.wewed.app.state.ProductionBinding
 import pro.wewed.app.state.SessionViewModel
 import pro.wewed.app.theme.WeddingIdentityPalette
 import pro.wewed.app.navigation.AuthenticationMode
@@ -97,6 +100,16 @@ fun RootScreen(
     var showPersonaPicker by remember { mutableStateOf(false) }
     var deepLinkedInvitation by remember { mutableStateOf<InvitationContext?>(null) }
     var resolvingDeepLinkedInvitation by remember { mutableStateOf(false) }
+
+    // Master plan Phase 8 closure round 3 §4 — sign-out and session-invalidation both drive
+    // isAuthenticated to false; clearing the production binding here means no role shell can ever
+    // render against a previous account's repository afterward, for either reason. Direct account
+    // replacement (never signed out) does not toggle isAuthenticated, but is already made safe by
+    // bindProductionRepositories/bindProductionAdminRepository/bindProductionContractsRepository
+    // keying each binding to the (accessUserId, grantId) that produced it, not grantId alone.
+    LaunchedEffect(isAuthenticated) {
+        if (!isAuthenticated) appViewModel.clearProductionBinding()
+    }
 
     // -----------------------------------------------------------------------------------------
     // Entry lifecycle.
@@ -369,8 +382,14 @@ fun RootScreen(
     if (appViewModel.dataEnvironment == NativeDataEnvironment.PRODUCTION) {
         val snapshotWeddingId = productionWorkspace?.weddingId
         val snapshotGrantId = productionWorkspace?.grantId
-        LaunchedEffect(snapshotGrantId, snapshotWeddingId, sessionViewModel) {
-            if (snapshotGrantId == null || snapshotWeddingId == null) return@LaunchedEffect
+        val snapshotAccessUserId = productionAuthority?.accessUserId
+        // Master plan Phase 8 closure round 3 §4 — accessUserId is part of the LaunchedEffect key
+        // too, not just an argument passed into the bind call: a same-account refresh that only
+        // changes grantId/weddingId already re-triggers this effect, but an account replacement
+        // that happens to resolve the SAME grantId/weddingId strings (two accounts sharing a
+        // wedding, both as coordinator) would not otherwise re-run it at all.
+        LaunchedEffect(snapshotGrantId, snapshotWeddingId, snapshotAccessUserId, sessionViewModel) {
+            if (snapshotGrantId == null || snapshotWeddingId == null || snapshotAccessUserId == null) return@LaunchedEffect
             val token = sessionViewModel.currentSessionToken() ?: return@LaunchedEffect
             val client = NativeDomainApiClient(
                 transport = UrlConnectionWeddingDayTransport(appViewModel.dataBaseUrl ?: return@LaunchedEffect),
@@ -378,9 +397,15 @@ fun RootScreen(
                 onGrantRevoked = { revokedGrantId -> sessionViewModel.handleNativeDomainGrantRevoked(revokedGrantId) },
             )
             appViewModel.bindProductionRepositories(
+                accessUserId = snapshotAccessUserId,
                 grantId = snapshotGrantId,
                 wedding = ProductionWeddingRepository(client, token, snapshotGrantId, snapshotWeddingId),
                 planner = ProductionPlannerDashboardRepository(client, token, snapshotGrantId),
+            )
+            appViewModel.bindProductionContractsRepository(
+                accessUserId = snapshotAccessUserId,
+                grantId = snapshotGrantId,
+                contracts = ProductionContractsRepository(client, token, snapshotGrantId),
             )
         }
     }
@@ -440,7 +465,14 @@ fun RootScreen(
         // portfolio (scopeKind "portfolio") keeps the existing minimal snapshot — its own domains
         // (Overview/Tasks/etc.) are already reachable once a real wedding is selected.
         if (snapshot.workspaceKind == "vendor" && snapshot.scopeKind == "business") {
-            val vendorClient = remember(snapshot.grantId, appViewModel.dataBaseUrl) {
+            // Master plan Phase 8 closure round 3 §4 — accessUserId is part of these `remember` keys
+            // too: two different accounts (e.g. two members of the same vendor business) can
+            // independently resolve the identical `vendor:business:<id>` grant id. Without
+            // accessUserId in the key, `remember` would keep Account A's repository (with Account
+            // A's token closed over inside it) across a switch to Account B whose grantId happens to
+            // coincide, since `snapshot.grantId` alone would not have changed.
+            val vendorAccessUserId = productionAuthority?.accessUserId
+            val vendorClient = remember(snapshot.grantId, vendorAccessUserId, appViewModel.dataBaseUrl) {
                 appViewModel.dataBaseUrl?.let { baseUrl ->
                     NativeDomainApiClient(
                         transport = UrlConnectionWeddingDayTransport(baseUrl),
@@ -449,9 +481,9 @@ fun RootScreen(
                     )
                 }
             }
-            val vendorRepository = remember(vendorClient, snapshot.grantId) {
+            val vendorRepository = remember(vendorClient, snapshot.grantId, vendorAccessUserId) {
                 val token = sessionViewModel.currentSessionToken()
-                if (vendorClient != null && token != null) {
+                if (vendorClient != null && token != null && vendorAccessUserId != null) {
                     ProductionVendorBusinessRepository(vendorClient, token, snapshot.grantId)
                 } else null
             }
@@ -584,23 +616,49 @@ fun RootScreen(
         }
     }
 
-    // Master plan Phase 8 closure — Couple/Planner/Coordinator/Admin now render through the SAME
-    // real role shells every other environment uses, backed by the production repositories bound
-    // above (Admin's own admin:system binding is below). Vendor/Usher/Guest reaching this point
-    // (e.g. a Vendor's wedding-engagement grant) still render the Phase 5/6 minimal read-only
-    // snapshot below — that mature-domain native UI is not wired yet (see
+    // Master plan Phase 8 closure round 3 §6 — Couple/Planner/Coordinator/Admin/Vendor now render
+    // through the SAME real role shells every other environment uses, backed by the production
+    // repositories bound above/below. Usher/Guest reaching this point still render the Phase 5/6
+    // minimal read-only snapshot below — that mature-domain native UI is not wired yet (see
     // docs/native-mobile/WEWED_NATIVE_PHASE8_FIELD_CLASSIFICATION.md), and falling back to it here
     // is an honest "not yet" rather than a broken real shell.
     val productionRoleWired = appViewModel.dataEnvironment == NativeDataEnvironment.PRODUCTION &&
-        context.activeRole in setOf(AppRole.COUPLE, AppRole.PLANNER, AppRole.COORDINATOR, AppRole.ADMIN)
+        context.activeRole in setOf(AppRole.COUPLE, AppRole.PLANNER, AppRole.COORDINATOR, AppRole.ADMIN, AppRole.VENDOR)
+
+    // Master plan Phase 8 closure round 3 §6 — reactively binds the real Vendor-wedding-engagement
+    // adapter as soon as a vendor:wedding snapshot is available. Deliberately keyed on
+    // `snapshot.workspaceKind == "vendor" && scopeKind == "wedding"`, which is a DIFFERENT authority
+    // axis from the Vendor business-portfolio grant (scopeKind "business", handled entirely by the
+    // earlier no-ActorAssignment branch above and never reaching this point at all).
+    if (appViewModel.dataEnvironment == NativeDataEnvironment.PRODUCTION && context.activeRole == AppRole.VENDOR) {
+        val vendorSnapshot = productionWorkspace?.takeIf { it.workspaceKind == "vendor" && it.scopeKind == "wedding" }
+        val vendorSnapshotGrantId = vendorSnapshot?.grantId
+        val vendorAccessUserId = productionAuthority?.accessUserId
+        LaunchedEffect(vendorSnapshotGrantId, vendorAccessUserId, sessionViewModel) {
+            if (vendorSnapshotGrantId == null || vendorAccessUserId == null) return@LaunchedEffect
+            val token = sessionViewModel.currentSessionToken() ?: return@LaunchedEffect
+            val baseUrl = appViewModel.dataBaseUrl ?: return@LaunchedEffect
+            val client = NativeDomainApiClient(
+                transport = UrlConnectionWeddingDayTransport(baseUrl),
+                onSessionInvalid = { sessionViewModel.handleNativeDomainSessionInvalid() },
+                onGrantRevoked = { revokedGrantId -> sessionViewModel.handleNativeDomainGrantRevoked(revokedGrantId) },
+            )
+            appViewModel.bindProductionVendorEngagementRepository(
+                accessUserId = vendorAccessUserId,
+                grantId = vendorSnapshotGrantId,
+                engagement = ProductionVendorEngagementRepository(client, token, vendorSnapshotGrantId),
+            )
+        }
+    }
 
     // Master plan Phase 8 closure §B — reactively binds the real Admin adapter as soon as an
     // admin:system snapshot is available. Admin has no wedding, so this is keyed on the snapshot's
     // own workspaceKind rather than a weddingId (which is always null/absent for this scope).
     if (appViewModel.dataEnvironment == NativeDataEnvironment.PRODUCTION && context.activeRole == AppRole.ADMIN) {
         val adminSnapshotGrantId = productionWorkspace?.takeIf { it.workspaceKind == "admin" }?.grantId
-        LaunchedEffect(adminSnapshotGrantId, sessionViewModel) {
-            if (adminSnapshotGrantId == null) return@LaunchedEffect
+        val adminAccessUserId = productionAuthority?.accessUserId
+        LaunchedEffect(adminSnapshotGrantId, adminAccessUserId, sessionViewModel) {
+            if (adminSnapshotGrantId == null || adminAccessUserId == null) return@LaunchedEffect
             val token = sessionViewModel.currentSessionToken() ?: return@LaunchedEffect
             val baseUrl = appViewModel.dataBaseUrl ?: return@LaunchedEffect
             val client = NativeDomainApiClient(
@@ -609,6 +667,7 @@ fun RootScreen(
                 onGrantRevoked = { revokedGrantId -> sessionViewModel.handleNativeDomainGrantRevoked(revokedGrantId) },
             )
             appViewModel.bindProductionAdminRepository(
+                accessUserId = adminAccessUserId,
                 grantId = adminSnapshotGrantId,
                 admin = ProductionAdminSystemRepository(client, token, adminSnapshotGrantId),
             )
@@ -626,20 +685,27 @@ fun RootScreen(
             return
         }
 
-        // Master plan Phase 8 closure §1 (NativeRepositoryFactory.PRODUCTION closure) — the
-        // snapshot looking right is necessary but not sufficient: it says the *context* is
-        // authorized, not that appViewModel.repository/plannerRepository/adminRepository have
-        // actually been swapped from the unbound ProductionBoundary*Repository placeholder to the
-        // real grant-scoped adapter yet (that swap runs from a LaunchedEffect above, which starts
-        // asynchronously relative to this composition). Waiting for the confirmed bind — rather
-        // than the swap's own effect ordering — is what makes this deterministic: no role shell
-        // that "appears functional" is ever composed over the always-throwing boundary repository.
-        val boundGrantId by if (context.activeRole == AppRole.ADMIN) {
-            appViewModel.boundAdminGrantId
-        } else {
-            appViewModel.boundProductionGrantId
+        // Master plan Phase 8 closure §1/round 3 §4/§5 (NativeRepositoryFactory.PRODUCTION
+        // closure) — the snapshot looking right is necessary but not sufficient: it says the
+        // *context* is authorized, not that appViewModel.repository/plannerRepository/
+        // adminRepository have actually been swapped from the unbound ProductionBoundary*Repository
+        // placeholder to the real grant-scoped adapter yet (that swap runs from a LaunchedEffect
+        // above, which starts asynchronously relative to this composition). Waiting for the
+        // confirmed [ProductionBinding.Bound] — keyed on BOTH accessUserId and grantId, not grantId
+        // alone — is what makes this deterministic even across an account replacement that happens
+        // to resolve the same grantId string a previous account already bound: no role shell that
+        // "appears functional" is ever composed over the always-throwing boundary repository, and no
+        // role shell is ever composed over a DIFFERENT account's bound repository either.
+        val currentAccessUserId = productionAuthority?.accessUserId
+        val boundKey by when (context.activeRole) {
+            AppRole.ADMIN -> appViewModel.productionAdminBinding
+            AppRole.VENDOR -> appViewModel.productionVendorEngagementBinding
+            else -> appViewModel.productionWeddingBinding
         }.collectAsState()
-        if (boundGrantId != activeGrantId) {
+        val isBoundToCurrentAccountAndGrant = (boundKey as? ProductionBinding.Bound<*>)?.let {
+            it.accessUserId == currentAccessUserId && it.grantId == activeGrantId
+        } ?: false
+        if (!isBoundToCurrentAccountAndGrant) {
             Box(
                 modifier = Modifier.fillMaxSize().background(WeddingIdentityPalette.Ivory),
                 contentAlignment = Alignment.Center
@@ -681,6 +747,18 @@ fun RootScreen(
                     onOpenPersonaPicker = onOpenPersonaPicker
                 )
                 AppRole.ADMIN -> AdminShell(
+                    sessionViewModel = sessionViewModel,
+                    appViewModel = appViewModel,
+                    context = context,
+                    pendingDeepLink = pendingRouteDeepLink,
+                    onDeepLinkHandled = onDeepLinkHandled,
+                    onOpenPersonaPicker = onOpenPersonaPicker
+                )
+                // Master plan Phase 8 closure round 3 §6 — a real vendor:wedding grant now renders
+                // the SAME VendorShell every other environment uses. A Vendor business-portfolio
+                // grant never reaches this branch at all (it stays on the earlier
+                // no-ActorAssignment path above), so this is exclusively the wedding-engagement axis.
+                AppRole.VENDOR -> VendorShell(
                     sessionViewModel = sessionViewModel,
                     appViewModel = appViewModel,
                     context = context,

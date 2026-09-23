@@ -96,14 +96,16 @@ private fun PlannerWorkspaceSection(
         "Budget" -> ShadowBudgetDestination(appViewModel) {}
         "Guests" -> GuestsBridgeDestination(appViewModel) {}
         "Vendors" -> ShadowVendorsDestination(appViewModel) {}
-        "Contributions" -> if (context.environment == NativeDataEnvironment.PRODUCTION) {
-            IAUnsupportedSection("Contributions", "The mature contributions/funding-attribution domain is not connected to native production yet. No empty contribution ledger is inferred.", context.environment)
-        } else ShadowContributionsDestination(appViewModel) {}
+        // Master plan Phase 8 closure round 3 §1 — this dispatch-level PRODUCTION guard used to run
+        // BEFORE ShadowContributionsDestination/ShadowDocumentsDestination ever got a chance to call
+        // their now-real production repositories, silently overriding the fix already made inside
+        // those composables. Removed: both destinations now decide their own state (loading/loaded/
+        // unavailable) directly, in every environment including production, matching how Budget/
+        // Seating/Timeline/Vendors already dispatch unconditionally on this same line above.
+        "Contributions" -> ShadowContributionsDestination(appViewModel) {}
         "Seating" -> ShadowSeatingDestination(appViewModel) {}
         "Timeline" -> ShadowTimelineDestination(appViewModel) {}
-        "Documents" -> if (context.environment == NativeDataEnvironment.PRODUCTION) {
-            IAUnsupportedSection("Documents", "The mature contracts/vault document domain is not connected to native production yet. No empty document vault is inferred.", context.environment)
-        } else ShadowDocumentsDestination(appViewModel) {}
+        "Documents" -> ShadowDocumentsDestination(appViewModel) {}
         else -> IAUnsupportedSection(section, "This worksheet is not wired yet.", context.environment)
     }
 }
@@ -574,7 +576,7 @@ fun VendorShell(
         when (destination.id) {
             "home" -> VendorHomeContent(graph, ctx)
             "jobs" -> WorkspaceSurface(destination, "vendor", ctx, sectionMemory) { section ->
-                VendorJobsSection(section, graph, ctx)
+                VendorJobsSection(section, appViewModel, graph, ctx)
             }
             "schedule" -> WorkspaceSurface(destination, "vendor", ctx, sectionMemory) { section ->
                 VendorScheduleSection(section, graph, ctx)
@@ -1070,11 +1072,14 @@ fun AdminShell(
  */
 @Composable
 private fun AdminAccountsSection(section: String, adminRepository: AdminSystemRepository, context: NavigationContext) {
-    var snapshot by remember(context.actorId) { mutableStateOf<AdminSystemSnapshot?>(null) }
-    LaunchedEffect(context.actorId) {
-        snapshot = runCatching { adminRepository.snapshot() }.getOrNull()
+    // Master plan Phase 8 closure round 3 §7 — a live fetch failure is not the same fact as a
+    // genuinely empty accounts list; each now renders its own distinct state.
+    val state = rememberProductionLoad(context.actorId) { adminRepository.snapshot() }
+    val accounts = when (state) {
+        is ProductionLoadState.Loading -> return IALoading()
+        is ProductionLoadState.Unavailable -> return IASectionUnavailable(section, context.environment)
+        is ProductionLoadState.Loaded -> state.value.accounts
     }
-    val accounts = snapshot?.accounts.orEmpty()
     if (accounts.isEmpty()) {
         return IAUnsupportedSection(
             section,
@@ -1101,12 +1106,15 @@ private fun AdminAccountsSection(section: String, adminRepository: AdminSystemRe
  */
 @Composable
 private fun AdminCasesSection(adminRepository: AdminSystemRepository, context: NavigationContext) {
-    var snapshot by remember(context.actorId) { mutableStateOf<AdminSystemSnapshot?>(null) }
-    LaunchedEffect(context.actorId) {
-        snapshot = runCatching { adminRepository.snapshot() }.getOrNull()
+    // Master plan Phase 8 closure round 3 §7 — same distinction as AdminAccountsSection.
+    val state = rememberProductionLoad(context.actorId) { adminRepository.snapshot() }
+    val snap = when (state) {
+        is ProductionLoadState.Loading -> return IALoading()
+        is ProductionLoadState.Unavailable -> return IASectionUnavailable("Cases", context.environment)
+        is ProductionLoadState.Loaded -> state.value
     }
-    val supportCases = snapshot?.supportCases.orEmpty()
-    val incidents = snapshot?.incidents.orEmpty()
+    val supportCases = snap.supportCases
+    val incidents = snap.incidents
     if (supportCases.isEmpty() && incidents.isEmpty()) {
         return IAUnsupportedSection(
             "Cases",
@@ -1239,15 +1247,14 @@ private fun CouplePlanSection(
         }
         "Tasks" -> TasksDestination(appViewModel) {}
         "Budget" -> ShadowBudgetDestination(appViewModel) {}
-        "Contributions" -> if (context.environment == NativeDataEnvironment.PRODUCTION) {
-            IAUnsupportedSection("Contributions", "The mature contributions/funding-attribution domain is not connected to native production yet. No empty contribution ledger is inferred.", context.environment)
-        } else ShadowContributionsDestination(appViewModel) {}
+        // Master plan Phase 8 closure round 3 §1 — same fix as PlannerWorkspaceSection above: this
+        // dispatch-level PRODUCTION guard was silently overriding the real repository wiring already
+        // done inside the destinations. Removed.
+        "Contributions" -> ShadowContributionsDestination(appViewModel) {}
         "Vendors" -> ShadowVendorsDestination(appViewModel) {}
         "Seating" -> ShadowSeatingDestination(appViewModel) {}
         "Timeline" -> ShadowTimelineDestination(appViewModel) {}
-        "Documents" -> if (context.environment == NativeDataEnvironment.PRODUCTION) {
-            IAUnsupportedSection("Documents", "The mature contracts/vault document domain is not connected to native production yet. No empty document vault is inferred.", context.environment)
-        } else ShadowDocumentsDestination(appViewModel) {}
+        "Documents" -> ShadowDocumentsDestination(appViewModel) {}
         else -> IAUnsupportedSection(section, "This worksheet is not wired yet.", context.environment)
     }
 }

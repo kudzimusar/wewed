@@ -46,11 +46,13 @@ class AppViewModelProductionAdminTest {
         val appViewModel = AppViewModel(dataEnvironment = NativeDataEnvironment.PRODUCTION, dataBaseUrl = "https://example.test")
         val response = WeddingDayHttpResponse(200, """{"success":true,"scopeKind":"system","platformRoles":["wewed_super_admin"],"counts":{"pendingOnboarding":2}}""")
         val client = NativeDomainApiClient(FakeTransport(response))
-        appViewModel.bindProductionAdminRepository("admin:system", ProductionAdminSystemRepository(client, "token", "admin:system"))
+        appViewModel.bindProductionAdminRepository("user-a", "admin:system", ProductionAdminSystemRepository(client, "token", "admin:system"))
 
         assertTrue(appViewModel.adminRepository is ProductionAdminSystemRepository)
         assertEquals(2, appViewModel.adminRepository.snapshot().pendingOnboardingCount)
-        assertEquals("admin:system", appViewModel.boundAdminGrantId.value)
+        val bound = appViewModel.productionAdminBinding.value as ProductionBinding.Bound
+        assertEquals("user-a", bound.accessUserId)
+        assertEquals("admin:system", bound.grantId)
     }
 
     @Test
@@ -62,27 +64,29 @@ class AppViewModelProductionAdminTest {
     @Test(expected = IllegalStateException::class)
     fun `bindProductionAdminRepository is refused outside production`() {
         val appViewModel = AppViewModel(dataEnvironment = NativeDataEnvironment.SHADOW)
-        appViewModel.bindProductionAdminRepository("admin:system", ProductionBoundaryAdminSystemRepository())
+        appViewModel.bindProductionAdminRepository("user-a", "admin:system", ProductionBoundaryAdminSystemRepository())
     }
 
     /**
-     * Master plan Phase 8 closure §1 (NativeRepositoryFactory.PRODUCTION closure). RootScreen's
-     * render gate for AppRole.ADMIN now waits for `boundAdminGrantId == activeGrantId` before
-     * composing AdminShell, specifically so a shell that "appears functional" can never be backed
-     * by the always-throwing boundary repository during the async window between a workspace
-     * snapshot resolving and this bind actually executing. This test proves the flag itself is an
-     * honest, order-correct signal: null before any bind, and only ever the grantId of a
-     * completed bind afterward.
+     * Master plan Phase 8 closure §1/round 3 §4 (NativeRepositoryFactory.PRODUCTION closure).
+     * RootScreen's render gate for AppRole.ADMIN now waits for the confirmed
+     * `(accessUserId, grantId)` binding before composing AdminShell, specifically so a shell that
+     * "appears functional" can never be backed by the always-throwing boundary repository during
+     * the async window between a workspace snapshot resolving and this bind actually executing.
+     * This test proves the binding itself is an honest, order-correct signal: Unbound before any
+     * bind, and only ever the exact account+grant of a completed bind afterward.
      */
     @Test
-    fun `boundAdminGrantId is null until bound and then reflects the bound grant exactly`() {
+    fun `productionAdminBinding is Unbound until bound and then reflects the bound account and grant exactly`() {
         val appViewModel = AppViewModel(dataEnvironment = NativeDataEnvironment.PRODUCTION, dataBaseUrl = "https://example.test")
-        assertNull(appViewModel.boundAdminGrantId.value)
+        assertTrue(appViewModel.productionAdminBinding.value is ProductionBinding.Unbound)
 
         val response = WeddingDayHttpResponse(200, """{"success":true,"scopeKind":"system","platformRoles":["wewed_super_admin"],"counts":{"pendingOnboarding":0}}""")
         val client = NativeDomainApiClient(FakeTransport(response))
-        appViewModel.bindProductionAdminRepository("admin:system:acct-9", ProductionAdminSystemRepository(client, "token", "admin:system:acct-9"))
+        appViewModel.bindProductionAdminRepository("user-9", "admin:system:acct-9", ProductionAdminSystemRepository(client, "token", "admin:system:acct-9"))
 
-        assertEquals("admin:system:acct-9", appViewModel.boundAdminGrantId.value)
+        val bound = appViewModel.productionAdminBinding.value as ProductionBinding.Bound
+        assertEquals("user-9", bound.accessUserId)
+        assertEquals("admin:system:acct-9", bound.grantId)
     }
 }

@@ -10,17 +10,40 @@ import pro.wewed.app.models.NativeDataEnvironment
 import pro.wewed.app.models.NativeDeepLink
 import pro.wewed.app.models.NativeDeepLinkParser
 import pro.wewed.app.services.AdminSystemRepository
+import pro.wewed.app.services.ContractsRepository
+import pro.wewed.app.services.EmptyContractsRepository
 import pro.wewed.app.services.FixturePlannerDashboardRepository
 import pro.wewed.app.services.FixtureWeddingRepository
 import pro.wewed.app.services.PlannerDashboardRepository
 import pro.wewed.app.services.NativeEnvironmentGuard
 import pro.wewed.app.services.ProductionBoundaryAdminSystemRepository
+import pro.wewed.app.services.ProductionBoundaryContractsRepository
+import pro.wewed.app.services.ProductionBoundaryPlannerRepository
+import pro.wewed.app.services.ProductionBoundaryWeddingRepository
+import pro.wewed.app.services.EmptyVendorEngagementRepository
+import pro.wewed.app.services.ProductionBoundaryVendorEngagementRepository
 import pro.wewed.app.services.ShadowAdminSystemRepository
+import pro.wewed.app.services.VendorEngagementRepository
 import pro.wewed.app.services.WeddingDayGateAwareRepository
 import pro.wewed.app.services.WeddingDayGateOperations
 import pro.wewed.app.services.ScopedWeddingRepository
 import pro.wewed.app.services.WeddingRepository
 import pro.wewed.app.services.forWedding
+
+/**
+ * Master plan Phase 8 closure round 3 §4/§5 — one repository domain, three states: never bound at
+ * all in this process ([Unbound]), or bound to a specific, verified `(accessUserId, grantId)` pair
+ * ([Bound]). A `grantId` string alone is not account-scoped — two different accounts can
+ * independently resolve an identical grant id (`admin:system`, or `coordinator:wedding:<id>` for a
+ * wedding both genuinely have separate memberships on) — so comparing `grantId` alone cannot tell
+ * "this is still Account A's binding" apart from "Account B's grantId happens to coincide". Carrying
+ * `accessUserId` in the same key makes that structurally impossible: two different accounts never
+ * share one, so a stale binding can never satisfy a fresh account's requirement by coincidence.
+ */
+sealed interface ProductionBinding<out T> {
+    data object Unbound : ProductionBinding<Nothing>
+    data class Bound<T>(val accessUserId: String, val grantId: String, val value: T) : ProductionBinding<T>
+}
 
 /**
  * Couple Level-1 destinations, mirroring the IA V2 couple taxonomy
@@ -53,74 +76,145 @@ class AppViewModel(
         NativeEnvironmentGuard.validate(dataBaseUrl, dataEnvironment)
     }
 
-    var repository: WeddingRepository = if (weddingDayGate != null) {
-        WeddingDayGateAwareRepository(baseRepository, weddingDayGate)
-    } else {
-        baseRepository
-    }
-        private set
+    // Fixed for the app's lifetime outside PRODUCTION — nothing below changes Shadow/Fixture/
+    // PRIVATE_REAL_SHADOW behavior at all.
+    private val nonProductionRepository: WeddingRepository =
+        if (weddingDayGate != null) WeddingDayGateAwareRepository(baseRepository, weddingDayGate) else baseRepository
+    private val nonProductionPlannerRepository: PlannerDashboardRepository = plannerRepository
+    private val nonProductionAdminRepository: AdminSystemRepository =
+        ShadowAdminSystemRepository(nonProductionRepository, dataEnvironment)
+    private val nonProductionContractsRepository: ContractsRepository = EmptyContractsRepository
+    private val nonProductionVendorEngagementRepository: VendorEngagementRepository = EmptyVendorEngagementRepository
 
-    var plannerRepository: PlannerDashboardRepository = plannerRepository
-        private set
+    /**
+     * Master plan Phase 8 closure round 3 §4/§5 (NativeRepositoryFactory.PRODUCTION closure).
+     *
+     * PRODUCTION no longer represents "unbound" merely by defaulting to a `ProductionBoundary*
+     * Repository` instance that is, by its type, indistinguishable from a real one sitting behind
+     * `var repository`/`plannerRepository`/`adminRepository`. [ProductionBinding.Unbound] is now the
+     * explicit, type-checked default, and the properties below derive their value from it on every
+     * read rather than being separately-mutated `var`s that could in principle drift out of sync
+     * with each other or with a same-shaped `boundXGrantId` flag. See [ProductionBinding]'s own doc
+     * for why the key is `(accessUserId, grantId)`, not `grantId` alone.
+     */
+    private val _productionWeddingBinding =
+        MutableStateFlow<ProductionBinding<Pair<WeddingRepository, PlannerDashboardRepository>>>(ProductionBinding.Unbound)
+    val productionWeddingBinding: StateFlow<ProductionBinding<Pair<WeddingRepository, PlannerDashboardRepository>>> =
+        _productionWeddingBinding.asStateFlow()
+
+    private val _productionAdminBinding =
+        MutableStateFlow<ProductionBinding<AdminSystemRepository>>(ProductionBinding.Unbound)
+    val productionAdminBinding: StateFlow<ProductionBinding<AdminSystemRepository>> =
+        _productionAdminBinding.asStateFlow()
+
+    /** Master plan Phase 8 closure round 3 §3 — same binding discipline, for Contracts/Deal-Room. */
+    private val _productionContractsBinding =
+        MutableStateFlow<ProductionBinding<ContractsRepository>>(ProductionBinding.Unbound)
+    val productionContractsBinding: StateFlow<ProductionBinding<ContractsRepository>> =
+        _productionContractsBinding.asStateFlow()
+
+    /** Master plan Phase 8 closure round 3 §6 — same binding discipline, for the Vendor's own wedding engagement. */
+    private val _productionVendorEngagementBinding =
+        MutableStateFlow<ProductionBinding<VendorEngagementRepository>>(ProductionBinding.Unbound)
+    val productionVendorEngagementBinding: StateFlow<ProductionBinding<VendorEngagementRepository>> =
+        _productionVendorEngagementBinding.asStateFlow()
+
+    /**
+     * The repository a role shell actually reads. For PRODUCTION while [productionWeddingBinding]
+     * is [ProductionBinding.Unbound], this is a FRESH [ProductionBoundaryWeddingRepository] every
+     * read (never cached) — always-throwing, never fabricating. Every other environment always
+     * returns the same constructor-supplied repository, unchanged.
+     */
+    val repository: WeddingRepository
+        get() = if (dataEnvironment == NativeDataEnvironment.PRODUCTION) {
+            (_productionWeddingBinding.value as? ProductionBinding.Bound)?.value?.first
+                ?: ProductionBoundaryWeddingRepository()
+        } else nonProductionRepository
+
+    val plannerRepository: PlannerDashboardRepository
+        get() = if (dataEnvironment == NativeDataEnvironment.PRODUCTION) {
+            (_productionWeddingBinding.value as? ProductionBinding.Bound)?.value?.second
+                ?: ProductionBoundaryPlannerRepository()
+        } else nonProductionPlannerRepository
 
     /**
      * Master plan Phase 8 closure §B/§12 — never `ShadowAdminSystemRepository` in production. Non-
-     * production keeps the existing Shadow-over-wedding-graph behavior unchanged; production starts
-     * honestly unbound (`ProductionBoundaryAdminSystemRepository`) until a real `admin:system`
-     * grant resolves and `bindProductionAdminRepository` swaps in `ProductionAdminSystemRepository`.
+     * production keeps the existing Shadow-over-wedding-graph behavior unchanged.
      */
-    var adminRepository: AdminSystemRepository = if (dataEnvironment == NativeDataEnvironment.PRODUCTION) {
-        ProductionBoundaryAdminSystemRepository()
-    } else {
-        ShadowAdminSystemRepository(repository, dataEnvironment)
-    }
-        private set
+    val adminRepository: AdminSystemRepository
+        get() = if (dataEnvironment == NativeDataEnvironment.PRODUCTION) {
+            (_productionAdminBinding.value as? ProductionBinding.Bound)?.value
+                ?: ProductionBoundaryAdminSystemRepository()
+        } else nonProductionAdminRepository
 
-    /**
-     * The grantId actually backing [repository]/[plannerRepository] right now, or null while
-     * PRODUCTION still holds its unbound `ProductionBoundary*Repository` placeholder.
-     *
-     * Master plan Phase 8 closure §1 (NativeRepositoryFactory.PRODUCTION closure) — the rebind in
-     * [bindProductionRepositories] runs from a `LaunchedEffect`, which starts asynchronously
-     * relative to the composition that decided a role shell is eligible to render. Composition
-     * itself continues immediately past that `LaunchedEffect` call to the shell's own body in the
-     * same pass, so a naive "does the workspace snapshot look right" render gate could let a shell
-     * begin reading `repository` before this rebind actually executes — silently backed by the
-     * always-throwing Boundary placeholder for one race window. Exposing the bind as its own
-     * observable `StateFlow`, flipped only *after* the field assignment below, lets the render gate
-     * wait for the confirmed bind instead of assuming effect-ordering it cannot guarantee.
-     */
-    private val _boundProductionGrantId = MutableStateFlow<String?>(null)
-    val boundProductionGrantId: StateFlow<String?> = _boundProductionGrantId.asStateFlow()
+    /** Master plan Phase 8 closure round 3 §3 — Contracts/Deal-Room, same pattern as Admin. */
+    val contractsRepository: ContractsRepository
+        get() = if (dataEnvironment == NativeDataEnvironment.PRODUCTION) {
+            (_productionContractsBinding.value as? ProductionBinding.Bound)?.value
+                ?: ProductionBoundaryContractsRepository()
+        } else nonProductionContractsRepository
 
-    /** Same determinism guarantee as [boundProductionGrantId], for the separate Admin binding. */
-    private val _boundAdminGrantId = MutableStateFlow<String?>(null)
-    val boundAdminGrantId: StateFlow<String?> = _boundAdminGrantId.asStateFlow()
+    /** Master plan Phase 8 closure round 3 §6 — the Vendor's own wedding engagement, same pattern. */
+    val vendorEngagementRepository: VendorEngagementRepository
+        get() = if (dataEnvironment == NativeDataEnvironment.PRODUCTION) {
+            (_productionVendorEngagementBinding.value as? ProductionBinding.Bound)?.value
+                ?: ProductionBoundaryVendorEngagementRepository()
+        } else nonProductionVendorEngagementRepository
 
     /**
      * Master plan Phase 8 — rebinds this view model's domain repositories to real, grant-scoped
-     * production adapters once a wedding-scoped grant is active. Only ever called for
-     * `dataEnvironment == PRODUCTION`; every other environment keeps its constructor-supplied
-     * repositories for the whole app lifetime, exactly as before. The Wedding Day gate wrapper, if
-     * any, is preserved around the new base repository so operational fail-closed behavior is
-     * unchanged.
+     * production adapters once a wedding-scoped grant is active, and [accessUserId] to the account
+     * that resolved them. Only ever called for `dataEnvironment == PRODUCTION`; every other
+     * environment keeps its constructor-supplied repositories for the whole app lifetime, exactly as
+     * before. The Wedding Day gate wrapper, if any, is preserved around the new base repository so
+     * operational fail-closed behavior is unchanged.
      */
-    fun bindProductionRepositories(grantId: String, wedding: WeddingRepository, planner: PlannerDashboardRepository) {
+    fun bindProductionRepositories(accessUserId: String, grantId: String, wedding: WeddingRepository, planner: PlannerDashboardRepository) {
         check(dataEnvironment == NativeDataEnvironment.PRODUCTION) {
             "bindProductionRepositories is only valid for the PRODUCTION environment."
         }
-        repository = if (weddingDayGate != null) WeddingDayGateAwareRepository(wedding, weddingDayGate) else wedding
-        plannerRepository = planner
-        _boundProductionGrantId.value = grantId
+        val gated = if (weddingDayGate != null) WeddingDayGateAwareRepository(wedding, weddingDayGate) else wedding
+        _productionWeddingBinding.value = ProductionBinding.Bound(accessUserId, grantId, gated to planner)
     }
 
     /** Master plan Phase 8 closure §B/§1 — rebinds Admin to a real, grant-scoped production adapter. */
-    fun bindProductionAdminRepository(grantId: String, admin: AdminSystemRepository) {
+    fun bindProductionAdminRepository(accessUserId: String, grantId: String, admin: AdminSystemRepository) {
         check(dataEnvironment == NativeDataEnvironment.PRODUCTION) {
             "bindProductionAdminRepository is only valid for the PRODUCTION environment."
         }
-        adminRepository = admin
-        _boundAdminGrantId.value = grantId
+        _productionAdminBinding.value = ProductionBinding.Bound(accessUserId, grantId, admin)
+    }
+
+    /** Master plan Phase 8 closure round 3 §3 — rebinds Contracts to a real, grant-scoped adapter. */
+    fun bindProductionContractsRepository(accessUserId: String, grantId: String, contracts: ContractsRepository) {
+        check(dataEnvironment == NativeDataEnvironment.PRODUCTION) {
+            "bindProductionContractsRepository is only valid for the PRODUCTION environment."
+        }
+        _productionContractsBinding.value = ProductionBinding.Bound(accessUserId, grantId, contracts)
+    }
+
+    /** Master plan Phase 8 closure round 3 §6 — rebinds the Vendor's own wedding engagement. */
+    fun bindProductionVendorEngagementRepository(accessUserId: String, grantId: String, engagement: VendorEngagementRepository) {
+        check(dataEnvironment == NativeDataEnvironment.PRODUCTION) {
+            "bindProductionVendorEngagementRepository is only valid for the PRODUCTION environment."
+        }
+        _productionVendorEngagementBinding.value = ProductionBinding.Bound(accessUserId, grantId, engagement)
+    }
+
+    /**
+     * Master plan Phase 8 closure round 3 §4 — explicit, synchronous clear for sign-out/session-
+     * invalidation/account replacement, so no bound repository (and the bearer token closed over
+     * inside it) is reachable any longer than necessary. The `(accessUserId, grantId)` key on
+     * [ProductionBinding.Bound] already makes a stale binding harmless for a *different* account by
+     * construction even without this — but this drops the actual objects rather than leaving them
+     * reachable in memory, and covers the same-account "authority became unusable" case too.
+     */
+    fun clearProductionBinding() {
+        if (dataEnvironment != NativeDataEnvironment.PRODUCTION) return
+        _productionWeddingBinding.value = ProductionBinding.Unbound
+        _productionAdminBinding.value = ProductionBinding.Unbound
+        _productionContractsBinding.value = ProductionBinding.Unbound
+        _productionVendorEngagementBinding.value = ProductionBinding.Unbound
     }
 
     /**

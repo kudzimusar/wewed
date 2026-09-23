@@ -134,13 +134,23 @@ class ProductionAdminSystemRepository(
     private val sessionToken: String,
     private val grantId: String,
 ) : AdminSystemRepository {
+    /**
+     * Master plan Phase 8 closure round 3 §7 — throws on ANY non-success fetch (transport,
+     * permission denial, session-invalid, grant revocation) instead of silently degrading to the
+     * same nulled-out shape [ProductionBoundaryAdminSystemRepository] uses for "intentionally not
+     * yet bound". Those are two different facts — a bound repository whose live call just failed is
+     * not the same as one that was never bound — and collapsing them made a failed fetch
+     * indistinguishable from a genuinely empty admin console. `AdminDashboardContent`/
+     * `AdminAccountsSection`/`AdminCasesSection` catch this via the same `rememberProductionLoad`
+     * used for Documents/Contributions.
+     */
     override suspend fun snapshot(): AdminSystemSnapshot {
         val overview = when (val fetch = client.adminOverview(sessionToken, grantId)) {
             is NativeDomainFetch.Success -> fetch.value
-            else -> null
+            else -> throw ProductionReadOnlyDomainUnavailable()
         }
-        val summary = overview?.optJSONObject("summary")
-        val accounts = overview?.optJSONArray("accounts")?.toObjectList().orEmpty().map { item ->
+        val summary = overview.optJSONObject("summary")
+        val accounts = overview.optJSONArray("accounts")?.toObjectList().orEmpty().map { item ->
             AdminAccountSummary(
                 id = item.getString("id"),
                 name = item.optString("name"),
@@ -150,7 +160,7 @@ class ProductionAdminSystemRepository(
                 riskFlags = item.optJSONArray("riskFlags")?.let { flags -> (0 until flags.length()).map { flags.getString(it) } }.orEmpty(),
             )
         }
-        val supportCases = overview?.optJSONArray("supportCases")?.toObjectList().orEmpty().map { item ->
+        val supportCases = overview.optJSONArray("supportCases")?.toObjectList().orEmpty().map { item ->
             AdminSupportCaseSummary(
                 id = item.getString("id"),
                 title = item.optString("title"),
@@ -159,7 +169,7 @@ class ProductionAdminSystemRepository(
                 businessAccountName = item.optString("businessAccountName").takeIf { it.isNotBlank() },
             )
         }
-        val incidents = overview?.optJSONArray("incidents")?.toObjectList().orEmpty().map { item ->
+        val incidents = overview.optJSONArray("incidents")?.toObjectList().orEmpty().map { item ->
             AdminIncidentSummary(
                 id = item.getString("id"),
                 title = item.optString("title"),
@@ -180,7 +190,7 @@ class ProductionAdminSystemRepository(
                 "Productivity",
                 "Vault (cross-wedding admin browsing)",
             ),
-            pendingOnboardingCount = overview?.optJSONObject("counts")?.optInt("pendingOnboarding"),
+            pendingOnboardingCount = overview.optJSONObject("counts")?.optInt("pendingOnboarding"),
             businessAccountsTotal = summary?.let { if (it.has("businessAccounts")) it.optInt("businessAccounts") else null },
             activeAccountsTotal = summary?.let { if (it.has("activeAccounts")) it.optInt("activeAccounts") else null },
             pendingReviewAccountsTotal = summary?.let { if (it.has("pendingReviewAccounts")) it.optInt("pendingReviewAccounts") else null },

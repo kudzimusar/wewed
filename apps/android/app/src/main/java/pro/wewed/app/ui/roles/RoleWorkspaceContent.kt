@@ -372,6 +372,86 @@ fun IALoading() {
     }
 }
 
+/**
+ * Master plan Phase 8 closure round 3 §2/§7 — a live domain that failed to load, distinct from
+ * [IAUnsupportedSection] (no adapter exists at all) and from a genuinely fetched empty result
+ * (which renders that section's own real empty state, never this one). Collapsing these three into
+ * one message is exactly the false-empty/false-unsupported class of defect this exists to prevent.
+ */
+@Composable
+fun IASectionUnavailable(section: String, environment: NativeDataEnvironment) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+            .testTag("section-unavailable"),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            Icons.Default.Warning,
+            contentDescription = null,
+            tint = WeddingIdentityPalette.Muted,
+            modifier = Modifier.size(28.dp)
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            section,
+            color = WeddingIdentityPalette.Ink,
+            fontFamily = FontFamily.Serif,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 17.sp
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "This could not be refreshed right now. No cached or fabricated data is shown.",
+            color = WeddingIdentityPalette.Muted,
+            fontSize = 12.sp,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            "Environment: ${environment.title}",
+            color = WeddingIdentityPalette.Muted,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+/**
+ * Master plan Phase 8 closure round 3 §2/§7 — one repository call, three honest outcomes. [Loading]
+ * while the call is in flight, [Loaded] with the real value on success (an empty list/zero count IS
+ * a valid [Loaded] value — that is the authoritative EMPTY case, not a failure), and [Unavailable]
+ * only when the call itself threw. A section using this must never fall back to an empty collection
+ * on the [Unavailable] branch — that is precisely the false-empty defect this type exists to close.
+ */
+sealed interface ProductionLoadState<out T> {
+    data object Loading : ProductionLoadState<Nothing>
+    data class Loaded<T>(val value: T) : ProductionLoadState<T>
+    data object Unavailable : ProductionLoadState<Nothing>
+}
+
+/**
+ * Runs [load] once per [key], catching only [ProductionReadOnlyDomainUnavailable] — the one
+ * exception type the production repositories in this codebase throw for a live transport/
+ * authority/permission/revocation failure (see `ProductionPlannerDashboardRepository`,
+ * `ProductionAdminSystemRepository`). Anything else (e.g. `CancellationException`) propagates
+ * normally rather than being swallowed into a false [ProductionLoadState.Unavailable].
+ */
+@Composable
+fun <T> rememberProductionLoad(key: Any?, load: suspend () -> T): ProductionLoadState<T> {
+    var state by remember(key) { mutableStateOf<ProductionLoadState<T>>(ProductionLoadState.Loading) }
+    LaunchedEffect(key) {
+        state = try {
+            ProductionLoadState.Loaded(load())
+        } catch (e: pro.wewed.app.services.ProductionReadOnlyDomainUnavailable) {
+            ProductionLoadState.Unavailable
+        }
+    }
+    return state
+}
+
 // ---------------------------------------------------------------------------
 // Guests workspace (Couple) — IA V2 §4
 // ---------------------------------------------------------------------------
@@ -845,19 +925,15 @@ fun AdminDashboardContent(
     adminRepository: AdminSystemRepository,
     context: NavigationContext
 ) {
-    var snapshot by remember(context.actorId) { mutableStateOf<AdminSystemSnapshot?>(null) }
-    var loading by remember(context.actorId) { mutableStateOf(true) }
-    LaunchedEffect(context.actorId) {
-        snapshot = runCatching { adminRepository.snapshot() }.getOrNull()
-        loading = false
+    // Master plan Phase 8 closure round 3 §7 — a live fetch failure must render distinctly from
+    // both "genuinely nothing here" (an empty snapshot Shadow/Fixture/Boundary never produce
+    // because they never throw) and from the always-unsupported domains listed below.
+    val state = rememberProductionLoad(context.actorId) { adminRepository.snapshot() }
+    val snap = when (state) {
+        is ProductionLoadState.Loading -> return IALoading()
+        is ProductionLoadState.Unavailable -> return IASectionUnavailable("Dashboard", context.environment)
+        is ProductionLoadState.Loaded -> state.value
     }
-
-    if (loading) return IALoading()
-    val snap = snapshot ?: return IAUnsupportedSection(
-        "Dashboard",
-        "The administrative projection is unavailable in this environment.",
-        context.environment
-    )
 
     IASectionList("Dashboard", "Platform overview — not scoped to a single wedding") {
         IACard(
@@ -920,9 +996,19 @@ fun AdminDashboardContent(
 @Composable
 fun VendorJobsSection(
     section: String,
+    appViewModel: AppViewModel,
     graph: WeddingGraphState,
     context: NavigationContext
 ) {
+    // Master plan Phase 8 closure round 3 §6 — "Contract" reads the Vendor's own managed-contract
+    // lifecycle (ServiceEngagement/Contract), a COMPLETELY separate authority/data source from the
+    // Wedding-Day presence graph (`graph.vendors`) every other section here reads. It is handled
+    // BEFORE the `authorizedEngagement(graph)` gate below on purpose: that gate is about Wedding-Day
+    // presence identity, which the contract lookup does not need and must not be blocked by.
+    if (section == "Contract") {
+        return VendorContractSection(appViewModel, context)
+    }
+
     if (graph.loading) return IALoading()
     // P0-6: only the engagement this vendor is authorized for. There is no "first vendor"
     // fallback — that would show another company's engagement.
@@ -950,12 +1036,53 @@ fun VendorJobsSection(
             "Vendor-scoped tasks are not exposed by the native contract. Wedding planning tasks belong to the couple and planner and are deliberately not shown here.",
             context.environment
         )
-        "Deliverables", "Contract", "Payment", "Files", "Notes", "Client / Planner Contacts" -> IAUnsupportedSection(
+        "Deliverables", "Payment", "Files", "Notes", "Client / Planner Contacts" -> IAUnsupportedSection(
             section,
             "No native contract exists for vendor $section yet. Recorded state is shown only where the repository provides it.",
             context.environment
         )
         else -> IAUnsupportedSection(section, "This vendor section is not wired yet.", context.environment)
+    }
+}
+
+/**
+ * Master plan Phase 8 closure round 3 §6 — real managed-contract data for the Vendor's own
+ * engagement, via `AppViewModel.vendorEngagementRepository` (`/api/native/vendor/engagement` →
+ * `getServiceEngagementDealRoom`, the same engine Contracts uses for Planner/Couple/Coordinator).
+ * No Shadow/Fixture data exists for this brand-new-this-phase capability (see
+ * [pro.wewed.app.services.EmptyVendorEngagementRepository]), so non-production says so honestly.
+ */
+@Composable
+private fun VendorContractSection(appViewModel: AppViewModel, context: NavigationContext) {
+    if (appViewModel.dataEnvironment != NativeDataEnvironment.PRODUCTION) {
+        return IAUnsupportedSection(
+            "Contract",
+            "No Shadow or fixture contract data exists for this environment.",
+            context.environment,
+        )
+    }
+    val state = rememberProductionLoad(Unit) { appViewModel.vendorEngagementRepository.getMyEngagement() }
+    val engagement = when (state) {
+        is ProductionLoadState.Loading -> return IALoading()
+        is ProductionLoadState.Unavailable -> return IASectionUnavailable("Contract", context.environment)
+        is ProductionLoadState.Loaded -> state.value
+    }
+    IASectionList(engagement.serviceCategory, engagement.lifecycleStatus) {
+        engagement.agreedAmount?.let {
+            IACard(title = "Agreed amount", subtitle = "Commercial total on file", trailing = "$it ${engagement.currency}")
+        }
+        if (engagement.contracts.isEmpty()) {
+            IACard(title = "No contract drafted yet", subtitle = "This engagement has no managed contract on file")
+        } else {
+            engagement.contracts.forEach { contract ->
+                IACard(
+                    title = contract.contractNumber,
+                    subtitle = "Version ${contract.currentVersionNumber}",
+                    trailing = contract.status,
+                    testTag = "vendor-contract-${contract.id}"
+                )
+            }
+        }
     }
 }
 

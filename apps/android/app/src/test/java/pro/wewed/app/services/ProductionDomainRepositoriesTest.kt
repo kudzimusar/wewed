@@ -244,6 +244,42 @@ class ProductionDomainRepositoriesTest {
         }
     }
 
+    /**
+     * Master plan Phase 8 closure round 3 §2 — the exact 5-outcome matrix the moderator asked for,
+     * for BOTH Documents and Contributions: successful data (covered by the mapping test above),
+     * successful empty (an authoritative EMPTY, not a failure), transport failure, permission
+     * denial, and grant revocation (both of the latter two are still live-domain failures at this
+     * repository layer — the UI-level `rememberProductionLoad`/`ProductionLoadState` in
+     * `RoleWorkspaceContent.kt` is what turns "the repository threw" into a distinct Unavailable
+     * render, so proving every one of these five HTTP outcomes maps to the correct
+     * success-vs-throw contract here is what makes that UI-level distinction trustworthy).
+     */
+    @Test
+    fun `Documents - successful empty, transport failure, permission denial and grant revocation are each handled correctly`() = runBlocking {
+        suspend fun documentsFor(response: WeddingDayHttpResponse) =
+            ProductionPlannerDashboardRepository(NativeDomainApiClient(FakeTransport(mapOf("api/native/wedding/vault" to response))), token, grantId)
+                .getDocuments()
+
+        // Successful empty: a real 200 with a genuinely empty array is NOT a failure.
+        assertTrue(documentsFor(WeddingDayHttpResponse(200, """{"success":true,"count":0,"data":[]}""")).isEmpty())
+
+        val failureCases = mapOf(
+            "transport failure (5xx)" to WeddingDayHttpResponse(503, """{"success":false,"error":"Service unavailable"}"""),
+            "permission denial (403 PERMISSION_DENIED)" to WeddingDayHttpResponse(403, """{"success":false,"code":"PERMISSION_DENIED","error":"Forbidden"}"""),
+            "grant revocation (403 GRANT_REVOKED)" to WeddingDayHttpResponse(403, """{"success":false,"code":"GRANT_REVOKED","error":"revoked"}"""),
+        )
+        for ((label, response) in failureCases) {
+            try {
+                documentsFor(response)
+                fail("Expected $label to throw instead of returning data or an empty list")
+            } catch (e: ProductionReadOnlyDomainUnavailable) {
+                // Expected for all three — the UI layer, not this repository, is what shows a
+                // uniform "unavailable" state for any of them; this repository must never let one
+                // masquerade as the successful-empty case proven above.
+            }
+        }
+    }
+
     @Test
     fun `Contributions maps real rows from the same engine the PWA uses, and throws on live failure`() = runBlocking {
         val transport = FakeTransport(
@@ -268,6 +304,30 @@ class ProductionDomainRepositoriesTest {
             fail("Expected a live Contributions failure to throw instead of returning an empty list")
         } catch (e: ProductionReadOnlyDomainUnavailable) {
             // Expected — matches the same "live failure never masquerades as empty" rule as Budget.
+        }
+    }
+
+    /** Master plan Phase 8 closure round 3 §2 — same 5-outcome matrix as Documents, for Contributions. */
+    @Test
+    fun `Contributions - successful empty, transport failure, permission denial and grant revocation are each handled correctly`() = runBlocking {
+        suspend fun contributionsFor(response: WeddingDayHttpResponse) =
+            ProductionPlannerDashboardRepository(NativeDomainApiClient(FakeTransport(mapOf("api/native/wedding/contributions" to response))), token, grantId)
+                .getContributions()
+
+        assertTrue(contributionsFor(WeddingDayHttpResponse(200, """{"success":true,"count":0,"data":[],"summaryByCurrency":{},"counts":{}}""")).isEmpty())
+
+        val failureCases = mapOf(
+            "transport failure (5xx)" to WeddingDayHttpResponse(503, """{"success":false,"error":"Service unavailable"}"""),
+            "permission denial (403 PERMISSION_DENIED)" to WeddingDayHttpResponse(403, """{"success":false,"code":"PERMISSION_DENIED","error":"Forbidden"}"""),
+            "grant revocation (403 GRANT_REVOKED)" to WeddingDayHttpResponse(403, """{"success":false,"code":"GRANT_REVOKED","error":"revoked"}"""),
+        )
+        for ((label, response) in failureCases) {
+            try {
+                contributionsFor(response)
+                fail("Expected $label to throw instead of returning data or an empty list")
+            } catch (e: ProductionReadOnlyDomainUnavailable) {
+                // Expected.
+            }
         }
     }
 
@@ -308,13 +368,55 @@ class ProductionDomainRepositoriesTest {
     }
 
     @Test
-    fun `ProductionAdminSystemRepository reports null (not zero) when the call fails`() = runBlocking {
+    fun `ProductionAdminSystemRepository throws on a live failure, never a silently nulled-out snapshot`() = runBlocking {
+        // Master plan Phase 8 closure round 3 §7 — a bound repository whose live call fails is a
+        // different fact from ProductionBoundaryAdminSystemRepository's intentional "not yet bound"
+        // shape; collapsing them made a failed fetch indistinguishable from a genuinely empty
+        // console. This must throw, exactly like getContributions()/getDocuments() do, so the UI's
+        // rememberProductionLoad can render it as Unavailable rather than an authoritative empty.
         val repo = ProductionAdminSystemRepository(NativeDomainApiClient(FakeTransport(emptyMap())), token, "admin:system")
-        val snapshot = repo.snapshot()
+        try {
+            repo.snapshot()
+            fail("Expected a live Admin overview failure to throw instead of returning a nulled-out snapshot")
+        } catch (e: ProductionReadOnlyDomainUnavailable) {
+            // Expected.
+        }
+    }
+
+    @Test
+    fun `ProductionBoundaryAdminSystemRepository never throws — it is an intentional not-yet-bound placeholder, not a failure`() = runBlocking {
+        val snapshot = ProductionBoundaryAdminSystemRepository().snapshot()
         assertEquals(null, snapshot.pendingOnboardingCount)
         assertTrue(snapshot.accounts.isEmpty())
         assertTrue(snapshot.supportCases.isEmpty())
         assertTrue(snapshot.incidents.isEmpty())
+    }
+
+    /** Master plan Phase 8 closure round 3 §7 — same 5-outcome matrix as Documents/Contributions. */
+    @Test
+    fun `Admin overview - successful empty, transport failure, permission denial and grant revocation are each handled correctly`() = runBlocking {
+        suspend fun snapshotFor(response: WeddingDayHttpResponse) =
+            ProductionAdminSystemRepository(NativeDomainApiClient(FakeTransport(mapOf("api/native/admin/overview" to response))), token, "admin:system")
+                .snapshot()
+
+        val emptySnapshot = snapshotFor(WeddingDayHttpResponse(200, """{"success":true,"scopeKind":"system","platformRoles":["wewed_support_admin"],"counts":{"pendingOnboarding":0},"summary":{"businessAccounts":0},"accounts":[],"supportCases":[],"incidents":[]}"""))
+        assertEquals(0, emptySnapshot.pendingOnboardingCount)
+        assertEquals(0, emptySnapshot.businessAccountsTotal)
+        assertTrue(emptySnapshot.accounts.isEmpty())
+
+        val failureCases = mapOf(
+            "transport failure (5xx)" to WeddingDayHttpResponse(503, """{"success":false,"error":"Service unavailable"}"""),
+            "permission denial (403 PERMISSION_DENIED)" to WeddingDayHttpResponse(403, """{"success":false,"code":"PERMISSION_DENIED","error":"Forbidden"}"""),
+            "grant revocation (403 GRANT_REVOKED)" to WeddingDayHttpResponse(403, """{"success":false,"code":"GRANT_REVOKED","error":"revoked"}"""),
+        )
+        for ((label, response) in failureCases) {
+            try {
+                snapshotFor(response)
+                fail("Expected $label to throw instead of returning a nulled-out snapshot")
+            } catch (e: ProductionReadOnlyDomainUnavailable) {
+                // Expected.
+            }
+        }
     }
 
     @Test
@@ -357,5 +459,67 @@ class ProductionDomainRepositoriesTest {
         assertFalse(snapshot.unsupportedStreams.any { it.contains("Full overview", ignoreCase = true) })
         assertFalse(snapshot.unsupportedStreams.any { it.contains("Client operations", ignoreCase = true) })
         assertTrue(snapshot.unsupportedStreams.any { it.contains("Bookings", ignoreCase = true) })
+    }
+
+    /** Master plan Phase 8 closure round 3 §3 — Contracts, reusing the mature engagement-list engine. */
+    @Test
+    fun `ProductionContractsRepository maps real engagement and contract rows, and throws on live failure`() = runBlocking {
+        val transport = FakeTransport(
+            mapOf(
+                "api/native/wedding/engagements" to WeddingDayHttpResponse(200, """
+                    {"success":true,"count":1,"data":[{"id":"eng-1","serviceCategory":"photography","lifecycleStatus":"effective","agreedAmount":"2500.00","currency":"USD","vendor":{"name":"Shandy Events"},"contracts":[{"id":"con-1","contractNumber":"WW-0001","status":"ISSUED","currentVersionNumber":2}]}]}
+                """.trimIndent()),
+            ),
+        )
+        val repo = ProductionContractsRepository(NativeDomainApiClient(transport), token, grantId)
+        val engagements = repo.getServiceEngagements()
+        assertEquals(1, engagements.size)
+        assertEquals("Shandy Events", engagements[0].vendorName)
+        assertEquals("2500.00", engagements[0].agreedAmount)
+        assertEquals(1, engagements[0].contracts.size)
+        assertEquals("WW-0001", engagements[0].contracts[0].contractNumber)
+        assertEquals(2, engagements[0].contracts[0].currentVersionNumber)
+
+        val failureCases = mapOf(
+            "transport failure" to WeddingDayHttpResponse(503, """{"success":false}"""),
+            "permission denial" to WeddingDayHttpResponse(403, """{"success":false,"code":"PERMISSION_DENIED"}"""),
+            "grant revocation" to WeddingDayHttpResponse(403, """{"success":false,"code":"GRANT_REVOKED"}"""),
+        )
+        for ((label, response) in failureCases) {
+            val failingRepo = ProductionContractsRepository(NativeDomainApiClient(FakeTransport(mapOf("api/native/wedding/engagements" to response))), token, grantId)
+            try {
+                failingRepo.getServiceEngagements()
+                fail("Expected $label to throw instead of returning data or an empty list")
+            } catch (e: ProductionReadOnlyDomainUnavailable) {
+                // Expected.
+            }
+        }
+    }
+
+    /** Master plan Phase 8 closure round 3 §6 — the Vendor's own engagement, reusing the same Deal Room engine. */
+    @Test
+    fun `ProductionVendorEngagementRepository maps the Vendor's own engagement, and throws on live failure`() = runBlocking {
+        val transport = FakeTransport(
+            mapOf(
+                "api/native/vendor/engagement" to WeddingDayHttpResponse(200, """
+                    {"success":true,"engagementIds":["eng-1"],"data":{"id":"eng-1","weddingId":"wed-1","serviceCategory":"catering","lifecycleStatus":"effective","agreedAmount":"4200.00","currency":"USD","contracts":[{"id":"con-2","contractNumber":"WW-0002","status":"AWAITING_ACCEPTANCE","currentVersionNumber":1}]}}
+                """.trimIndent()),
+            ),
+        )
+        val repo = ProductionVendorEngagementRepository(NativeDomainApiClient(transport), token, "vendor:wedding:biz-1:vendor-1")
+        val engagement = repo.getMyEngagement()
+        assertEquals("eng-1", engagement.id)
+        assertEquals("wed-1", engagement.weddingId)
+        assertEquals("catering", engagement.serviceCategory)
+        assertEquals(1, engagement.contracts.size)
+        assertEquals("AWAITING_ACCEPTANCE", engagement.contracts[0].status)
+
+        val failingRepo = ProductionVendorEngagementRepository(NativeDomainApiClient(FakeTransport(emptyMap())), token, "vendor:wedding:biz-1:vendor-1")
+        try {
+            failingRepo.getMyEngagement()
+            fail("Expected a live Vendor-engagement failure to throw instead of returning fabricated data")
+        } catch (e: ProductionReadOnlyDomainUnavailable) {
+            // Expected.
+        }
     }
 }
