@@ -2787,3 +2787,77 @@ deploy production, sign/publish mobile builds, or begin Phase 12.
 
 **Phase 11 full activation remains gated on successful Phase-11A independent review followed by a
 separate migration/key/postflight/activation authorization.**
+
+### D-036 — Phase 11A implementation & qualification evidence: Production-Safe Wedding Day / WW2 Schema + Authority Convergence (2026-09-24)
+**IMPLEMENTED & LOCALLY QUALIFIED — Phase 11A complete. Production database migration, production signing keys, and production WW2 gate admission remain strictly NOT authorized.**
+
+1. **Executive Summary & Architecture Convergence:**
+   - **Primary Database Schema (`prisma/schema.prisma`):**
+     - Converged `WeddingPassKey`, `WeddingPassCredential`, and `WeddingCheckIn` into the primary schema without porting legacy `WeddingAnnouncement` or `WeddingServicePresence`.
+     - Added `@@unique([id, weddingId])` on `Guest` to enable strict composite foreign keys.
+     - Added composite foreign keys:
+       - `WeddingPassCredential`: `[guestId, weddingId] -> Guest(id, weddingId) ON DELETE RESTRICT`, `[passKeyId, weddingId] -> WeddingPassKey(id, weddingId) ON DELETE RESTRICT`.
+       - `WeddingCheckIn`: `[guestId, weddingId] -> Guest(id, weddingId) ON DELETE RESTRICT`, `[credentialId, weddingId, guestId] -> WeddingPassCredential(id, weddingId, guestId) ON DELETE RESTRICT`, `[gateId, weddingId] -> WeddingGate(id, weddingId) ON DELETE RESTRICT`, `admittedByUserId -> User(id) ON DELETE RESTRICT`.
+     - Preserved deletion cascades only on root `weddingId -> Wedding(id) ON DELETE CASCADE`.
+     - Partial unique live credential index: `CREATE UNIQUE INDEX wedding_pass_credentials_one_live_idx ON "WeddingPassCredential"("weddingId", "guestId") WHERE "revokedAt" IS NULL AND "supersededAt" IS NULL;`.
+     - Row Level Security (RLS) enabled on `WeddingPassKey`, `WeddingPassCredential`, and `WeddingCheckIn`.
+   - **Migration Rehearsal on Disposable PostgreSQL 16 (`127.0.0.1:55432`):**
+     - Verified idempotency and clean rollback across 102 migrations (including `20260924000000_wedding_day_ww2_authority`).
+     - Verified rollback DDL down and reapplied cleanly. Verified RLS status (`relrowsecurity = true`) and role privileges (`postgres` non-superuser).
+   - **Feature Flag Containment:**
+     - Enforced `isWeddingDayWW2Enabled()` via `process.env.WEWED_WEDDING_DAY_WW2_ENABLED === 'true' | '1'`, default OFF.
+     - All runtime routes (`/api/wedding-day/pass`, `/api/native/gate/wedding-day/manifest`, `/api/native/gate/wedding-day/check-in`) return HTTP 503 `service_unavailable` when disabled.
+   - **Gate Authority Integration:**
+     - Manifest route (`/api/native/gate/wedding-day/manifest`) and check-in route (`/api/native/gate/wedding-day/check-in`) resolve authoritative operator context via `resolveNativeGateOperationalContext(req, { requiredCapability: 'gate.manifest.read' | 'gate.checkin.write', grantId })`.
+     - Client-provided `weddingId`, `gateId`, or `usherId` are never trusted as authority. Operator user ID is strictly resolved from `grant.operatorUserId`.
+   - **Guest Eligibility & Concurrency:**
+     - Pass issuance requires verified guest session v2, `attending === true`, and valid 14d/-24h issuance window.
+     - Pass serials are non-deterministic (`WW` + 8 random hex chars + `-${issueSeq}`), eliminating reissue collision defects.
+     - Pass issuance executes under transaction row locking (`FOR UPDATE`) preventing race conditions (qualified with 8 concurrent issuance requests returning identical single live credential).
+   - **Idempotent Attendee Check-In:**
+     - Enforces `UNIQUE(weddingId, eventKey, guestId, attendeeKey)` for exact per-attendee admissions.
+     - Duplicate submissions return existing check-in records idempotently with `alreadyCheckedIn: true`.
+     - Offline sync gracefully reconciles queues while rejecting revoked/ineligible passes.
+   - **Native Mobile Sync Service Alignment:**
+     - Android `WeddingDaySyncService.kt` and iOS `WeddingDaySyncService.swift` updated to call `/api/native/gate/wedding-day/manifest` and `/api/native/gate/wedding-day/check-in`.
+     - Pass `grantId` from `GateOperationalContext` via query parameter and `x-wewed-grant-id` header.
+     - Send `passSerial` in offline check-in sync payload.
+     - Retain explicit UI disabled notice stating gate admission and offline Wedding Pass activation remain deferred until Phase 11.
+
+2. **Authoritative Git Lineage & Remote References:**
+   - **Server:**
+     - Base SHA: `9e6b7b813d26a79f46ac30a0c487fd9182e34e62` (`origin/backend/usher-gate-authority-phase10-20260923`)
+     - Working Branch: `backend/wedding-day-ww2-phase11a-20260924`
+     - Final Commit SHA: `119850ac4e758bb45446148eddc2c68bfcff93fa`
+   - **Native Mobile:**
+     - Base SHA: `caf6e5ba51cc279a3d64f454ce5293d199c63565` (`origin/native-mobile/usher-gate-authority-phase10-20260923`)
+     - Working Branch: `native-mobile/wedding-day-ww2-phase11a-20260924`
+     - Final Commit SHA: `e6392539bc4f95ee0f5e37f6ef0adf788a3b9632`
+   - **Plan:**
+     - Branch: `docs/native-pwa-production-convergence-plan-20260922`
+
+3. **Execution Qualification Evidence:**
+   - **Server Unit & Integration Tests:**
+     - `src/lib/wedding-day.integration.test.ts` (5 test suites pass): feature flag disabled check, RSVP eligibility gate, credential lifecycle (non-deterministic serial, reuse, revocation, expiry, concurrency), physical DB constraints (cross-wedding rejection, delete restrictions), gate admission and offline sync.
+     - `src/lib/wedding-day-routes.integration.test.ts` (3 test suites pass): 503 disabled check, grant enforcement, operator manifest & check-in flow.
+     - `src/lib/wedding-day-key-preflight.test.ts` (9 tests pass): P-256 IEEE-P1363 verification, distinct keys, error handling without key leakage.
+     - `src/lib/wedding-pass-issuance-window.test.ts` (14 tests pass): -14d open, +24h cutoff, +36h expiry.
+     - `src/lib/gate-authority-boundary.test.ts` (3 tests pass).
+     - Total Phase 11A suite: **34 pass, 0 fail (134 expect assertions)**.
+     - Regression: `src/lib/production-authority/production-authority.integration.test.ts` (**33 pass, 0 fail, 171 expect assertions**).
+     - Full production build: `bun run build` succeeds (198 routes compiled, standalone Next.js bundle generated).
+   - **Native Android Tests & Build:**
+     - `./gradlew testDebugUnitTest`: **BUILD SUCCESSFUL (25 actionable tasks executed/up-to-date)**.
+     - `./gradlew assembleDebug`: **BUILD SUCCESSFUL (37 actionable tasks)**.
+   - **Native iOS Tests & Build:**
+     - `swift test`: **Executed 425 tests, with 0 failures (0 unexpected) in 0.816s**.
+     - `swift build`: **Build complete! (1.58s)**.
+     - `xcodegen generate`: **Project generated cleanly at `apps/ios/Wewed.xcodeproj`**.
+
+4. **Safety & Boundary Verification:**
+   - Production database migration was NOT run (disposable PostgreSQL cluster `127.0.0.1:55432` used exclusively).
+   - Production signing keys were NOT generated or logged.
+   - Feature flag `WEWED_WEDDING_DAY_WW2_ENABLED` remains OFF by default.
+   - Production gate admission remains explicitly disabled in native UI with banner notice.
+   - Phase 11 full activation and Phase 12 remain NOT authorized.
+
