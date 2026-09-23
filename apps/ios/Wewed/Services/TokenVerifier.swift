@@ -58,6 +58,9 @@ public enum TokenVerifier {
         case .failure(let error):
             return .failure(error)
         case .success(let parsed):
+            guard parsed.version == "WW2" else {
+                return .failure(.unsupportedVersion)
+            }
             if (parsed.eventBitmask & requiredEventBit) == 0 {
                 return .failure(.unauthorizedEvent)
             }
@@ -80,6 +83,9 @@ public enum TokenVerifier {
         case .failure(let error):
             return .failure(error)
         case .success(let parsed):
+            guard parsed.version == "WW2" else {
+                return .failure(.unsupportedVersion)
+            }
             if (parsed.eventBitmask & requiredEventBit) == 0 {
                 return .failure(.unauthorizedEvent)
             }
