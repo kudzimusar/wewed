@@ -569,7 +569,10 @@ fun RootScreen(
             resolvingContext = false
             return@LaunchedEffect
         }
-        val actorId = activePersonaId.orEmpty()
+        // Production actor identity comes from the verified authority document. A Shadow
+        // persona id is never substituted for a live account and a live account never depends on
+        // a development persona existing.
+        val actorId = productionAuthority?.accessUserId ?: activePersonaId.orEmpty()
         val assignment = runCatching { assignmentSource.assignments(actorId) }
             .getOrDefault(emptyList())
             .firstOrNull { it.role == role }
