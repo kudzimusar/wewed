@@ -793,8 +793,32 @@ public struct UsherShellView: View {
             }
         }
         .sheet(isPresented: $showingScanner) {
-            UsherScannerView()
+            UsherScannerView(gateContext: scannerGateContext)
         }
+    }
+
+    private var scannerGateContext: GateOperationalContext? {
+        if let production = session.activeGateContext { return production }
+        guard context.environment.allowsMutableNativeDevelopment,
+              let gateId = context.activeGateId,
+              !gateId.isEmpty,
+              !context.activeWeddingId.isEmpty
+        else { return nil }
+        return GateOperationalContext(
+            grantId: "shadow-gate-\(gateId)",
+            assignmentId: "shadow-assignment-\(context.actorId)-\(gateId)",
+            weddingId: context.activeWeddingId,
+            weddingTitle: context.activeWeddingTitle,
+            gateId: gateId,
+            gateName: gateId,
+            operatorUserId: context.actorId,
+            capabilities: [
+                "gate.manifest.read",
+                "gate.checkin.write",
+                "gate.guest_search.read",
+                "gate.audit.read",
+            ]
+        )
     }
 }
 
