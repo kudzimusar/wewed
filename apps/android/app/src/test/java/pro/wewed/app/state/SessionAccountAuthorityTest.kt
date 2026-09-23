@@ -127,6 +127,26 @@ class SessionAccountAuthorityTest {
         }}
     """.trimIndent()
 
+    private val workspaceAndGateAuthority = """
+        {"success": true, "authority": {
+          "contract":"WewedProductionAuthorityV1","version":1,"accountStatus":"authorized",
+          "identity":{"accessUserId":"user-1","dashboardClass":"couple"},
+          "workspaceGrants":[{
+            "grantId":"couple:wedding:A","workspaceKind":"couple","scopeKind":"wedding",
+            "weddingId":"A","weddingTitle":"Wedding A","coupleId":null,"businessAccountId":null,
+            "vendorId":null,"serviceEngagementIds":[],"permissions":["*"],"platformRoles":[]
+          }],
+          "contextSelection":[{"workspaceKind":"couple","grantIds":["couple:wedding:A"],"selectionRequired":false}],
+          "operationalGrants":[{
+            "grantId":"gate_operator:A:gate-A","kind":"gate_operator","assignmentId":"ga-A",
+            "weddingId":"A","weddingTitle":"Wedding A","gateId":"gate-A","gateName":"Main Gate",
+            "operatorUserId":"user-1","capabilities":["gate.checkin.write"]
+          }],
+          "gateContextSelection":{"kind":"gate_operator","grantIds":["gate_operator:A:gate-A"],"selectionRequired":false},
+          "unsupported":[{"authority":"guest","reason":"Guest Session"}],"platform":{"effectiveRole":null}
+        }}
+    """.trimIndent()
+
     private val bannedAuthority = """
         {"success": true, "authority": {
           "contract": "WewedProductionAuthorityV1", "version": 1, "accountStatus": "banned_identity",
@@ -415,6 +435,31 @@ class SessionAccountAuthorityTest {
         session.selectGateGrant("gate_operator:W:gate-B")
         assertEquals(AppRole.USHER, session.currentRole.value)
         assertEquals("gate-B", session.activeGateContext.value?.gateId)
+    }
+
+    @Test
+    fun workspaceAndGateAxesCanBeSwitchedExplicitlyInBothDirections() {
+        val transport = FakeTransport(
+            signInResponse = WeddingDayHttpResponse(200, """{"success":true,"sessionToken":"session-multi"}"""),
+            authorityResponse = WeddingDayHttpResponse(200, workspaceAndGateAuthority),
+        )
+        val session = sessionWith(transport)
+        session.signIn("multi@example.com", "correct")
+
+        assertEquals(AppRole.COUPLE, session.currentRole.value)
+        assertEquals("couple:wedding:A", session.activeGrantId.value)
+        assertTrue(AppRole.USHER in session.authorizedRoles.value)
+
+        session.selectGateGrant("gate_operator:A:gate-A")
+        assertEquals(AppRole.USHER, session.currentRole.value)
+        assertNull(session.activeGrantId.value)
+        assertEquals("gate-A", session.activeGateContext.value?.gateId)
+
+        session.selectGrant("couple:wedding:A")
+        assertEquals(AppRole.COUPLE, session.currentRole.value)
+        assertEquals("couple:wedding:A", session.activeGrantId.value)
+        assertNull(session.activeGateContext.value)
+        assertEquals("gate_operator:A:gate-A", session.selectedGateGrantId.value)
     }
 
     @Test
