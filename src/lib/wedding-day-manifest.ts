@@ -12,6 +12,7 @@ import {
 
 interface ManifestKeyRow {
   keyId: string
+  algorithm: string
   publicKeyDerBase64: string
   status: string
   activeFrom: Date
@@ -62,6 +63,13 @@ function signRootPayload(payload: string): string {
     'WEDDING_DAY_ROOT_PRIVATE_KEY_PEM',
   )
   const privateKey = createPrivateKey(privateKeyPem)
+  const curve = (privateKey.asymmetricKeyDetails as { namedCurve?: string } | undefined)?.namedCurve
+  if (
+    privateKey.asymmetricKeyType !== 'ec' ||
+    (curve !== 'prime256v1' && curve !== 'P-256')
+  ) {
+    throw new Error('[wewed:wedding-day] Root signing key must be P-256.')
+  }
   return cryptoSign('sha256', Buffer.from(payload, 'utf8'), {
     key: privateKey,
     dsaEncoding: 'ieee-p1363',
@@ -125,7 +133,7 @@ export async function signedNativeWeddingDayManifest(weddingId: string) {
 
   const [keys, credentials, checkIns] = await Promise.all([
     db.$queryRawUnsafe<ManifestKeyRow[]>(
-      `SELECT "keyId", "publicKeyDerBase64", status, "activeFrom", "expiresAt", "revokedAt"
+      `SELECT "keyId", algorithm, "publicKeyDerBase64", status, "activeFrom", "expiresAt", "revokedAt"
          FROM public."WeddingPassKey"
         WHERE "weddingId" = $1
         ORDER BY "activeFrom" DESC, "keyId" ASC`,
@@ -187,7 +195,7 @@ export async function signedNativeWeddingDayManifest(weddingId: string) {
     expiresAt: expiresAt.toISOString(),
     keys: keys.map((key) => ({
       keyId: key.keyId,
-      algorithm: WW2_ALGORITHM,
+      algorithm: key.algorithm,
       publicKeyDerBase64: key.publicKeyDerBase64,
       status: key.status,
       activeFrom: key.activeFrom.toISOString(),
