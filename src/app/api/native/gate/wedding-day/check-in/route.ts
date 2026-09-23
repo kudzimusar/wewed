@@ -10,7 +10,6 @@ interface CheckInRequestBody {
   token?: string
   passSerial?: string
   attendeeKeys?: string[]
-  source?: string
   deviceId?: string
   clientEventId?: string
   items?: CheckInRequestBody[]
@@ -29,7 +28,7 @@ export async function POST(request: NextRequest) {
   })
   if (!resolved.ok) return resolved.response
 
-  const { grant, authority } = resolved.context
+  const { grant } = resolved.context
 
   let body: CheckInRequestBody
   try {
@@ -41,7 +40,13 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const operatorUserId = grant.operatorUserId || authority.identity?.accessUserId || ''
+  const operatorUserId = grant.operatorUserId
+  if (!operatorUserId) {
+    return noStoreJson(
+      { success: false, code: 'GATE_OPERATOR_INVALID', error: 'Gate operator identity is unavailable.' },
+      403,
+    )
+  }
 
   // Handle batch array/items payload if present
   if (Array.isArray(body) || Array.isArray(body.items)) {
@@ -63,7 +68,7 @@ export async function POST(request: NextRequest) {
           token: item.token,
           passSerial: item.passSerial,
           attendeeKeys: item.attendeeKeys,
-          source: item.source ?? 'offline-sync',
+          source: item.token ? 'qr' : 'offline-sync',
           deviceId: item.deviceId,
           clientEventId: item.clientEventId,
         })
@@ -104,7 +109,7 @@ export async function POST(request: NextRequest) {
       token: body.token,
       passSerial: body.passSerial,
       attendeeKeys: body.attendeeKeys,
-      source: body.source ?? (body.token ? 'qr' : 'offline-sync'),
+      source: body.token ? 'qr' : 'offline-sync',
       deviceId: body.deviceId,
       clientEventId: body.clientEventId,
     })
@@ -122,6 +127,9 @@ export async function POST(request: NextRequest) {
       message === 'PASS_WEDDING_MISMATCH' ||
       message === 'PASS_EVENT_NOT_PERMITTED' ||
       message === 'PASS_SIGNATURE_INVALID' ||
+      message === 'PASS_CREDENTIAL_MISMATCH' ||
+      message === 'PASS_SIGNING_KEY_INACTIVE' ||
+      message === 'GATE_INACTIVE_OR_INVALID' ||
       message === 'GUEST_INELIGIBLE' ||
       message.startsWith('INVALID_ATTENDEE_KEY')
     const status = isClientError ? 400 : 500
