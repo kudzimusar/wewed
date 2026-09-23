@@ -469,21 +469,23 @@ describe('WewedProductionAuthorityV1 — pure rules', () => {
     })
   })
 
-  test('gate operator: unrecognized capabilities are stripped; empty valid capabilities fails closed', () => {
+  test('gate operator: any unrecognized capability fails the whole assignment closed', () => {
     const e = evidence({
       gateAssignments: [
         gateAssignment('1', 'wed-1', 'gate-1', 'usher', {
-          capabilities: ['gate.manifest.read', 'gate.invented_cap', 'admin.all'],
+          capabilities: ['gate.manifest.read', 'gate.invented_cap'],
         }),
         gateAssignment('2', 'wed-1', 'gate-2', 'usher', {
-          capabilities: ['gate.fake_cap'],
+          capabilities: [],
         }),
       ],
     })
     const auth = buildProductionAuthority(e)
-    expect(auth.operationalGrants).toHaveLength(1)
-    expect(auth.operationalGrants[0].gateId).toBe('gate-1')
-    expect(auth.operationalGrants[0].capabilities).toEqual(['gate.manifest.read'])
+    expect(auth.operationalGrants).toEqual([])
+    expect(auth.nonGrantingRelationships).toContainEqual({
+      source: { kind: 'gate_assignment', id: 'ga-1' },
+      reason: 'unsupported_gate_capability',
+    })
     expect(auth.nonGrantingRelationships).toContainEqual({
       source: { kind: 'gate_assignment', id: 'ga-2' },
       reason: 'no_recognized_capabilities',
