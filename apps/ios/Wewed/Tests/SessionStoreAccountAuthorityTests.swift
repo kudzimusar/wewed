@@ -98,6 +98,56 @@ final class SessionStoreAccountAuthorityTests: XCTestCase {
     }}
     """
 
+    private let singleGateAuthority = """
+    {"success": true, "authority": {
+      "contract":"WewedProductionAuthorityV1","version":1,"accountStatus":"authorized",
+      "identity":{"accessUserId":"usher-1","dashboardClass":"viewer"},
+      "workspaceGrants":[],"contextSelection":[],
+      "operationalGrants":[{
+        "grantId":"gate_operator:W:gate-A","kind":"gate_operator","assignmentId":"ga-A",
+        "weddingId":"W","weddingTitle":"Wedding W","gateId":"gate-A","gateName":"Main Gate",
+        "operatorUserId":"usher-1",
+        "capabilities":["gate.manifest.read","gate.checkin.write","gate.guest_search.read","gate.audit.read"]
+      }],
+      "gateContextSelection":{"kind":"gate_operator","grantIds":["gate_operator:W:gate-A"],"selectionRequired":false},
+      "unsupported":[{"authority":"guest","reason":"Guest Session"}],"platform":{"effectiveRole":null}
+    }}
+    """
+
+    private let multipleGateAuthority = """
+    {"success": true, "authority": {
+      "contract":"WewedProductionAuthorityV1","version":1,"accountStatus":"authorized",
+      "identity":{"accessUserId":"usher-1","dashboardClass":"viewer"},
+      "workspaceGrants":[],"contextSelection":[],
+      "operationalGrants":[
+        {"grantId":"gate_operator:W:gate-A","kind":"gate_operator","assignmentId":"ga-A",
+         "weddingId":"W","weddingTitle":"Wedding W","gateId":"gate-A","gateName":"Main Gate",
+         "operatorUserId":"usher-1","capabilities":["gate.checkin.write"]},
+        {"grantId":"gate_operator:W:gate-B","kind":"gate_operator","assignmentId":"ga-B",
+         "weddingId":"W","weddingTitle":"Wedding W","gateId":"gate-B","gateName":"Side Gate",
+         "operatorUserId":"usher-1","capabilities":["gate.checkin.write"]}
+      ],
+      "gateContextSelection":{"kind":"gate_operator",
+        "grantIds":["gate_operator:W:gate-A","gate_operator:W:gate-B"],"selectionRequired":true},
+      "unsupported":[{"authority":"guest","reason":"Guest Session"}],"platform":{"effectiveRole":null}
+    }}
+    """
+
+    private let onlyGateBAuthority = """
+    {"success": true, "authority": {
+      "contract":"WewedProductionAuthorityV1","version":1,"accountStatus":"authorized",
+      "identity":{"accessUserId":"usher-1","dashboardClass":"viewer"},
+      "workspaceGrants":[],"contextSelection":[],
+      "operationalGrants":[{
+        "grantId":"gate_operator:W:gate-B","kind":"gate_operator","assignmentId":"ga-B",
+        "weddingId":"W","weddingTitle":"Wedding W","gateId":"gate-B","gateName":"Side Gate",
+        "operatorUserId":"usher-1","capabilities":["gate.checkin.write"]
+      }],
+      "gateContextSelection":{"kind":"gate_operator","grantIds":["gate_operator:W:gate-B"],"selectionRequired":false},
+      "unsupported":[{"authority":"guest","reason":"Guest Session"}],"platform":{"effectiveRole":null}
+    }}
+    """
+
     private let bannedAuthority = """
     {"success": true, "authority": {
       "contract": "WewedProductionAuthorityV1", "version": 1, "accountStatus": "banned_identity",
@@ -281,6 +331,64 @@ final class SessionStoreAccountAuthorityTests: XCTestCase {
             XCTAssertTrue(text.contains("not connected"))
         }
         XCTAssertFalse(session.isAuthenticated)
+    }
+
+    @MainActor
+    func testPureUsherNeedsNoPlanningWorkspaceAndOpensFromSoleOperationalGrant() async {
+        Stub.routes["POST /api/native/account/signin"] = Reply(status: 200, body: #"{"success":true,"sessionToken":"session-usher"}"#)
+        Stub.routes["GET /api/native/account/authority"] = Reply(status: 200, body: singleGateAuthority)
+        let api = client()
+        let session = SessionStore(storage: InMemorySecureStorage(), environment: .production, authorityClient: api)
+
+        await session.signInWithServer(client: api, email: "usher@example.com", password: "correct")
+
+        XCTAssertTrue(session.isAuthenticated)
+        XCTAssertEqual(session.currentRole, .usher)
+        XCTAssertEqual(session.authorizedRoles, [.usher])
+        XCTAssertEqual(session.weddingId, "W")
+        XCTAssertNil(session.activeGrantId)
+        XCTAssertEqual(session.activeGateContext?.gateId, "gate-A")
+        XCTAssertEqual(session.activeGateContext?.operatorUserId, "usher-1")
+    }
+
+    @MainActor
+    func testMultipleGateAssignmentsRequireExplicitSelection() async {
+        Stub.routes["POST /api/native/account/signin"] = Reply(status: 200, body: #"{"success":true,"sessionToken":"session-usher"}"#)
+        Stub.routes["GET /api/native/account/authority"] = Reply(status: 200, body: multipleGateAuthority)
+        let api = client()
+        let session = SessionStore(storage: InMemorySecureStorage(), environment: .production, authorityClient: api)
+
+        await session.signInWithServer(client: api, email: "usher@example.com", password: "correct")
+
+        XCTAssertNil(session.currentRole)
+        XCTAssertNil(session.activeGateContext)
+        XCTAssertTrue(session.authorizedRoles.contains(.usher))
+
+        session.selectGateGrant("gate_operator:W:gate-B")
+        XCTAssertEqual(session.currentRole, .usher)
+        XCTAssertEqual(session.activeGateContext?.gateId, "gate-B")
+        XCTAssertEqual(session.selectedGateGrantId, "gate_operator:W:gate-B")
+    }
+
+    @MainActor
+    func testRevokedSelectedGateNeverSilentlyFallsOverToAnotherGate() async {
+        let storage = InMemorySecureStorage()
+        storage.save(key: "wewed.account.selected-gate-grant.owner", value: "usher-1")
+        storage.save(key: "wewed.account.selected-gate-grant", value: "gate_operator:W:gate-A")
+        Stub.routes["POST /api/native/account/signin"] = Reply(status: 200, body: #"{"success":true,"sessionToken":"session-usher"}"#)
+        Stub.routes["GET /api/native/account/authority"] = Reply(status: 200, body: onlyGateBAuthority)
+        let api = client()
+        let session = SessionStore(storage: storage, environment: .production, authorityClient: api)
+
+        await session.signInWithServer(client: api, email: "usher@example.com", password: "correct")
+
+        XCTAssertNil(session.currentRole)
+        XCTAssertNil(session.activeGateContext)
+        XCTAssertEqual(session.selectedGateGrantId, "gate_operator:W:gate-A")
+
+        session.selectGateGrant("gate_operator:W:gate-B")
+        XCTAssertEqual(session.currentRole, .usher)
+        XCTAssertEqual(session.activeGateContext?.gateId, "gate-B")
     }
 
     @MainActor
